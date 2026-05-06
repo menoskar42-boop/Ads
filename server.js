@@ -6,7 +6,7 @@ const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
@@ -34,6 +34,6 @@ app.use((req, res) => {
   res.status(404).render('404', { subdomain: null });
 });
 
-app.listen(PORT, () => {
-  console.log(`Oscardevs Ads running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
 });
