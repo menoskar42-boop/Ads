@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Pool } = require('pg');
+const bcrypt = require('bcrypt');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -13,6 +14,17 @@ async function seed() {
         ('delta', 'Delta Company', 'Delta Company delivers cutting-edge technology products and services to businesses across the region.', '#2563eb')
       ON CONFLICT (slug) DO NOTHING;
     `);
+    // Seed test user for Petra company
+    const petraRow = await client.query("SELECT id FROM companies WHERE slug = 'petra'");
+    if (petraRow.rows.length > 0) {
+      const hash = await bcrypt.hash('petra123', 10);
+      await client.query(`
+        INSERT INTO company_users (company_id, email, password_hash)
+        VALUES ($1, 'petra@test.com', $2)
+        ON CONFLICT (email) DO NOTHING;
+      `, [petraRow.rows[0].id, hash]);
+    }
+
     console.log('Seed data inserted successfully.');
   } finally {
     client.release();

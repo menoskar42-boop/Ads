@@ -25,11 +25,16 @@ router.get('/view/:slug', async (req, res) => {
       [company.id]
     );
     const ads = adsResult.rows;
+    const portfolioResult = await pool.query(
+      'SELECT * FROM portfolio_items WHERE company_id = $1 ORDER BY order_index, created_at DESC',
+      [company.id]
+    );
     res.render('tenant', {
       company,
       topAd:     ads.find(a => a.position === 'top')     || null,
       sidebarAd: ads.find(a => a.position === 'sidebar') || null,
       footerAd:  ads.find(a => a.position === 'footer')  || null,
+      portfolio: portfolioResult.rows,
     });
   } catch (err) {
     console.error('View route error:', err);

@@ -1,0 +1,83 @@
+<%
+  pageTitle = 'Dashboard';
+  activePage = 'dashboard';
+%>
+<%- include('_layout_top') %>
+
+  <div class="space-y-6">
+
+    <!-- Welcome card -->
+    <div class="bg-white rounded-2xl shadow-sm p-6 brand-border">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">Welcome back, <%= company.company_name %> 👋</h2>
+      <p class="text-gray-500 text-sm">Manage your advertising page and portfolio from here.</p>
+    </div>
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="bg-white rounded-2xl shadow-sm p-5 text-center">
+        <div class="text-3xl font-black brand-text mb-1"><%= portfolioCount %></div>
+        <div class="text-xs text-gray-500 font-semibold">Portfolio Items</div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5 text-center">
+        <div class="text-3xl font-black brand-text mb-1">
+          <%= company.is_active ? '✓' : '✗' %>
+        </div>
+        <div class="text-xs text-gray-500 font-semibold">Page Active</div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5 text-center col-span-2 md:col-span-1">
+        <div class="w-8 h-8 rounded-full mx-auto mb-1" style="background:<%= company.theme_color %>"></div>
+        <div class="text-xs text-gray-500 font-semibold">Theme Color</div>
+      </div>
+    </div>
+
+    <!-- Company info summary -->
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-gray-700">Company Info</h3>
+        <a href="/company/profile" class="text-xs brand-text font-semibold hover:underline">Edit →</a>
+      </div>
+      <dl class="space-y-3 text-sm">
+        <div class="flex gap-3">
+          <dt class="text-gray-400 w-28 flex-shrink-0">Name</dt>
+          <dd class="font-semibold text-gray-700"><%= company.company_name %></dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="text-gray-400 w-28 flex-shrink-0">Slug</dt>
+          <dd class="font-mono text-gray-700 bg-gray-50 px-2 rounded"><%= company.slug %></dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="text-gray-400 w-28 flex-shrink-0">Description</dt>
+          <dd class="text-gray-600"><%= company.description || '—' %></dd>
+        </div>
+        <div class="flex gap-3">
+          <dt class="text-gray-400 w-28 flex-shrink-0">Public URL</dt>
+          <dd><a href="/view/<%= company.slug %>" target="_blank" class="brand-text hover:underline text-xs">/view/<%= company.slug %></a></dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="grid sm:grid-cols-2 gap-4">
+      <a href="/company/profile" class="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition group">
+        <div class="w-11 h-11 brand-bg rounded-xl flex items-center justify-center text-white flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </div>
+        <div>
+          <div class="font-bold text-gray-800 text-sm">Edit Profile</div>
+          <div class="text-xs text-gray-400">Update name, description, colors</div>
+        </div>
+      </a>
+      <a href="/company/portfolio" class="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition group">
+        <div class="w-11 h-11 brand-bg rounded-xl flex items-center justify-center text-white flex-shrink-0">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        </div>
+        <div>
+          <div class="font-bold text-gray-800 text-sm">Manage Portfolio</div>
+          <div class="text-xs text-gray-400">Add or remove portfolio items</div>
+        </div>
+      </a>
+    </div>
+
+  </div>
+
+<%- include('_layout_bottom') %>
