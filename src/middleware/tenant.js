@@ -2,14 +2,29 @@ const { Pool } = require('pg');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+const BASE_DOMAINS = [
+  'oscardevsads.replit.app',
+  'oscardevs.com',
+];
+
 function extractSubdomain(hostname) {
-  // Strip port if present
-  const host = hostname.split(':')[0];
+  const host = hostname.split(':')[0].toLowerCase();
+
+  for (const base of BASE_DOMAINS) {
+    // Exact root domain or www → homepage
+    if (host === base || host === `www.${base}`) return null;
+
+    // Subdomain of a known base: slug.base → return slug
+    if (host.endsWith(`.${base}`)) {
+      const sub = host.slice(0, host.length - base.length - 1);
+      if (!sub || sub === 'www') return null;
+      return sub;
+    }
+  }
+
+  // Local dev fallback: sub.domain.tld (3 parts)
   const parts = host.split('.');
-
-  // Need at least 3 parts: sub.domain.tld
   if (parts.length < 3) return null;
-
   const sub = parts[0];
   if (sub === 'www') return null;
   return sub;
