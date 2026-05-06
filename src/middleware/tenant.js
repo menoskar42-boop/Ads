@@ -1,0 +1,51 @@
+const { Pool } = require('pg');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+function extractSubdomain(hostname) {
+  // Strip port if present
+  const host = hostname.split(':')[0];
+  const parts = host.split('.');
+
+  // Need at least 3 parts: sub.domain.tld
+  if (parts.length < 3) return null;
+
+  const sub = parts[0];
+  if (sub === 'www') return null;
+  return sub;
+}
+
+async function tenantMiddleware(req, res, next) {
+  const subdomain = extractSubdomain(req.hostname || req.headers.host || '');
+
+  if (!subdomain) {
+    return next();
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM companies WHERE slug = $1 AND is_active = true',
+      [subdomain]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).render('404', { subdomain });
+    }
+
+    const company = result.rows[0];
+
+    const adsResult = await pool.query(
+      'SELECT * FROM banner_ads WHERE company_id = $1 AND is_active = true',
+      [company.id]
+    );
+
+    req.tenant = company;
+    req.tenantAds = adsResult.rows;
+    next();
+  } catch (err) {
+    console.error('Tenant lookup error:', err);
+    res.status(500).send('Internal Server Error');
+  }
+}
+
+module.exports = tenantMiddleware;

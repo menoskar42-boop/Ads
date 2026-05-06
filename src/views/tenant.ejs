@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= company.company_name %></title>
+  <meta name="description" content="<%= company.description || company.company_name %>" />
+  <meta property="og:title" content="<%= company.company_name %>" />
+  <meta property="og:description" content="<%= company.description || company.company_name %>" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --brand: <%= company.theme_color %>; }
+    .brand-bg { background-color: var(--brand); }
+    .brand-text { color: var(--brand); }
+    .brand-border { border-color: var(--brand); }
+    .brand-btn { background-color: var(--brand); }
+    .brand-btn:hover { opacity: 0.9; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <!-- Top Banner Ad -->
+  <% if (topAd && topAd.image_url) { %>
+  <div class="w-full bg-gray-200">
+    <a href="<%= topAd.target_url || '#' %>" target="_blank" rel="noopener noreferrer">
+      <img src="<%= topAd.image_url %>" alt="Advertisement" class="w-full max-h-28 object-cover" />
+    </a>
+  </div>
+  <% } else { %>
+  <div class="w-full bg-gray-200 flex items-center justify-center h-20 text-gray-400 text-sm border-b border-gray-300">
+    <span class="flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      Top Banner Ad Slot (728×90)
+    </span>
+  </div>
+  <% } %>
+
+  <!-- Header -->
+  <header class="bg-white shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <% if (company.logo_url) { %>
+          <img src="<%= company.logo_url %>" alt="<%= company.company_name %> logo" class="h-12 w-auto rounded-lg object-contain" />
+        <% } else { %>
+          <div class="w-12 h-12 brand-bg rounded-xl flex items-center justify-center text-white font-bold text-2xl">
+            <%= company.company_name.charAt(0).toUpperCase() %>
+          </div>
+        <% } %>
+        <div>
+          <h1 class="text-xl font-bold brand-text"><%= company.company_name %></h1>
+          <p class="text-xs text-gray-400">Powered by Oscardevs Ads</p>
+        </div>
+      </div>
+      <nav class="hidden md:flex gap-6 text-sm font-medium text-gray-600">
+        <a href="#about" class="hover:brand-text transition">About</a>
+        <a href="#services" class="hover:brand-text transition">Services</a>
+        <a href="#contact" class="hover:brand-text transition">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="brand-bg text-white py-20 px-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <% if (company.logo_url) { %>
+        <img src="<%= company.logo_url %>" alt="<%= company.company_name %>" class="h-24 mx-auto mb-6 rounded-2xl object-contain bg-white/10 p-2" />
+      <% } %>
+      <h2 class="text-4xl md:text-5xl font-extrabold mb-5 leading-tight">
+        Welcome to <%= company.company_name %>
+      </h2>
+      <% if (company.description) { %>
+        <p class="text-lg md:text-xl opacity-90 max-w-2xl mx-auto mb-8">
+          <%= company.description %>
+        </p>
+      <% } %>
+      <a href="#contact" class="inline-block bg-white font-semibold px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition brand-text">
+        Get In Touch
+      </a>
+    </div>
+  </section>
+
+  <!-- Main Content + Sidebar -->
+  <div class="max-w-6xl mx-auto px-4 py-14">
+    <div class="flex flex-col lg:flex-row gap-8">
+
+      <!-- Main Column -->
+      <main class="flex-1 space-y-10">
+
+        <!-- About Section -->
+        <section id="about" class="bg-white rounded-2xl shadow p-8">
+          <h2 class="text-2xl font-bold brand-text mb-4">About Us</h2>
+          <p class="text-gray-600 leading-relaxed">
+            <%= company.description || 'We are dedicated to delivering world-class services and innovative solutions to our clients.' %>
+          </p>
+        </section>
+
+        <!-- Services Section -->
+        <section id="services" class="bg-white rounded-2xl shadow p-8">
+          <h2 class="text-2xl font-bold brand-text mb-6">Our Services</h2>
+          <div class="grid sm:grid-cols-2 gap-6">
+            <% const services = [
+              { icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', title: 'Consulting', desc: 'Strategic consulting tailored to your business goals.' },
+              { icon: 'M13 10V3L4 14h7v7l9-11h-7z', title: 'Innovation', desc: 'Cutting-edge solutions that drive real results.' },
+              { icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z', title: 'Support', desc: 'Dedicated teams ready to support you 24/7.' },
+              { icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', title: 'Analytics', desc: 'Data-driven insights to measure and grow.' }
+            ]; %>
+            <% services.forEach(s => { %>
+            <div class="flex gap-4 items-start p-4 rounded-xl bg-gray-50 border border-gray-100">
+              <div class="w-10 h-10 brand-bg rounded-lg flex items-center justify-center text-white flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<%= s.icon %>"/>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-semibold text-gray-800"><%= s.title %></h3>
+                <p class="text-sm text-gray-500 mt-0.5"><%= s.desc %></p>
+              </div>
+            </div>
+            <% }); %>
+          </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="bg-white rounded-2xl shadow p-8">
+          <h2 class="text-2xl font-bold brand-text mb-4">Contact Us</h2>
+          <p class="text-gray-500 mb-6">Have a question or want to work with us? Reach out anytime.</p>
+          <form class="space-y-4" onsubmit="return false;">
+            <div class="grid sm:grid-cols-2 gap-4">
+              <input type="text" placeholder="Your Name" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              <input type="email" placeholder="Your Email" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            </div>
+            <textarea rows="4" placeholder="Your message..." class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
+            <button type="submit" class="brand-btn text-white px-8 py-3 rounded-full font-semibold transition w-full sm:w-auto">
+              Send Message
+            </button>
+          </form>
+        </section>
+
+      </main>
+
+      <!-- Sidebar -->
+      <aside class="lg:w-64 flex-shrink-0 space-y-6">
+
+        <!-- Company Info Card -->
+        <div class="bg-white rounded-2xl shadow p-6 border-t-4 brand-border">
+          <h3 class="font-semibold text-gray-700 mb-3">Company Info</h3>
+          <ul class="text-sm text-gray-500 space-y-2">
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 brand-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+              </svg>
+              <%= company.company_name %>
+            </li>
+            <li class="flex items-center gap-2">
+              <svg class="w-4 h-4 brand-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
+              </svg>
+              <%= company.slug %>.oscardevs.com
+            </li>
+          </ul>
+        </div>
+
+        <!-- Sidebar Ad Slot -->
+        <div class="bg-white rounded-2xl shadow overflow-hidden">
+          <% if (sidebarAd && sidebarAd.image_url) { %>
+            <a href="<%= sidebarAd.target_url || '#' %>" target="_blank" rel="noopener noreferrer">
+              <img src="<%= sidebarAd.image_url %>" alt="Advertisement" class="w-full object-cover" />
+            </a>
+          <% } else { %>
+            <div class="bg-gray-100 flex flex-col items-center justify-center h-56 text-gray-400 text-xs p-4 text-center">
+              <svg class="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Sidebar Ad Slot<br/>(160×600)
+            </div>
+          <% } %>
+        </div>
+
+      </aside>
+    </div>
+  </div>
+
+  <!-- Footer Banner Ad -->
+  <% if (footerAd && footerAd.image_url) { %>
+  <div class="w-full bg-gray-200">
+    <a href="<%= footerAd.target_url || '#' %>" target="_blank" rel="noopener noreferrer">
+      <img src="<%= footerAd.image_url %>" alt="Advertisement" class="w-full max-h-28 object-cover" />
+    </a>
+  </div>
+  <% } else { %>
+  <div class="w-full bg-gray-200 flex items-center justify-center h-20 text-gray-400 text-sm border-t border-gray-300">
+    <span class="flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      Footer Banner Ad Slot (728×90)
+    </span>
+  </div>
+  <% } %>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-gray-400 py-8 px-4 text-center text-sm">
+    <p class="mb-1"><%= company.company_name %> &mdash; Powered by <a href="/" class="text-blue-400 hover:underline">Oscardevs Ads</a></p>
+    <p>&copy; <%= new Date().getFullYear() %> All rights reserved.</p>
+  </footer>
+
+</body>
+</html>
