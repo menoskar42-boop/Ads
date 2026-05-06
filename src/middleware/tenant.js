@@ -7,8 +7,17 @@ const BASE_DOMAINS = [
   'oscardevs.com',
 ];
 
+// Any host ending with these suffixes is treated as root (no tenant)
+// Replit dev-preview URLs are UUID-based and never carry tenant slugs
+const ROOT_SUFFIXES = ['.replit.dev', 'replit.dev'];
+
 function extractSubdomain(hostname) {
   const host = hostname.split(':')[0].toLowerCase();
+
+  // Replit preview / dev URLs → always homepage
+  if (ROOT_SUFFIXES.some(s => host === s || host.endsWith('.' + s.replace(/^\./, '')))) {
+    return null;
+  }
 
   for (const base of BASE_DOMAINS) {
     // Exact root domain or www → homepage
