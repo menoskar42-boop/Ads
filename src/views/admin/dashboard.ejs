@@ -1,0 +1,99 @@
+<%
+  pageTitle = 'Companies';
+  activePage = activePage || 'dashboard';
+%>
+<%- include('_layout_top') %>
+
+  <div class="space-y-6">
+
+    <% if (flash) { %>
+    <div class="<%= flash.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700' %> border rounded-xl px-4 py-3 text-sm">
+      <%= flash.message %>
+    </div>
+    <% } %>
+
+    <!-- Header card -->
+    <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800 mb-1">All Companies</h2>
+        <p class="text-gray-500 text-sm"><%= companies.length %> companies on the platform</p>
+      </div>
+      <a href="/admin/companies/add" class="brand-bg text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition shadow-md">
+        + Add Company
+      </a>
+    </div>
+
+    <!-- Companies table -->
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <% if (!companies.length) { %>
+        <div class="p-12 text-center text-gray-400 text-sm">No companies yet. Click "Add Company" to create one.</div>
+      <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+            <tr>
+              <th class="px-4 py-3 text-left">Company</th>
+              <th class="px-4 py-3 text-left">Slug</th>
+              <th class="px-4 py-3 text-center">Active</th>
+              <th class="px-4 py-3 text-center">Users</th>
+              <th class="px-4 py-3 text-center">Portfolio</th>
+              <th class="px-4 py-3 text-center">Ads</th>
+              <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <% companies.forEach(c => { %>
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs" style="background:<%= c.theme_color %>">
+                    <%= c.company_name.charAt(0) %>
+                  </div>
+                  <span class="font-semibold text-gray-700"><%= c.company_name %></span>
+                </div>
+              </td>
+              <td class="px-4 py-3 font-mono text-xs text-gray-500"><%= c.slug %></td>
+              <td class="px-4 py-3 text-center">
+                <% if (c.is_active) { %>
+                  <span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Active</span>
+                <% } else { %>
+                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-semibold">Inactive</span>
+                <% } %>
+              </td>
+              <td class="px-4 py-3 text-center text-gray-600"><%= c.users_count %></td>
+              <td class="px-4 py-3 text-center text-gray-600"><%= c.portfolio_count %></td>
+              <td class="px-4 py-3 text-center text-gray-600"><%= c.ads_count %></td>
+              <td class="px-4 py-3 text-right">
+                <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                  <a href="/view/<%= c.slug %>" target="_blank" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">View</a>
+                  <a href="/admin/companies/<%= c.id %>/edit" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">Edit</a>
+                  <form method="POST" action="/admin/companies/<%= c.id %>/reset-password" class="inline" onsubmit="return promptResetPassword(this)">
+                    <input type="hidden" name="new_password" />
+                    <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition">Reset PW</button>
+                  </form>
+                  <form method="POST" action="/admin/companies/<%= c.id %>/delete" class="inline" onsubmit="return confirm('Delete <%= c.company_name %> and all its data? This cannot be undone.');">
+                    <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <% } %>
+    </div>
+
+  </div>
+
+  <script>
+    function promptResetPassword(form) {
+      const pw = window.prompt('Enter the new password (min 6 characters):');
+      if (!pw) return false;
+      if (pw.length < 6) { alert('Password must be at least 6 characters.'); return false; }
+      form.querySelector('input[name="new_password"]').value = pw;
+      return true;
+    }
+  </script>
+
+<%- include('_layout_bottom') %>

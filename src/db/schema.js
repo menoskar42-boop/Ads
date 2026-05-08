@@ -44,6 +44,13 @@ async function createSchema() {
         order_index INTEGER DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT now()
       );
+
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
     `);
     console.log('Schema created successfully.');
   } finally {

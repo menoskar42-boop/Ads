@@ -17,11 +17,17 @@ Multi-tenant SaaS advertising platform — each company gets a subdomain-based b
 
 ## Where things live
 - `server.js` — app entry, middleware wiring, server start
-- `src/routes/` — `index.js` (homepage), `tenant.js` (per-tenant page)
+- `src/routes/` — `index.js` (homepage), `tenant.js` (per-tenant page), `company.js` (company dashboard), `admin.js` (super admin panel)
 - `src/middleware/tenant.js` — subdomain extraction + DB tenant lookup
-- `src/views/` — EJS templates (index, tenant, 404)
-- `src/db/schema.js` — table definitions (companies, banner_ads)
+- `src/middleware/auth.js` — company login guard
+- `src/middleware/adminAuth.js` — super admin login guard
+- `src/views/` — EJS templates (index, tenant, 404, company/, admin/)
+- `src/db/schema.js` — table definitions (companies, banner_ads, company_users, portfolio_items, admins)
 - `src/db/seed.js` — sample data seeder
+
+## Login credentials (after `npm run db:seed`)
+- **Super Admin** — `/admin/login` → `admin@oscardevs.com` / `admin123` (manage all companies)
+- **Company Admin (Petra)** — `/company/login` → `petra@test.com` / `petra123`
 
 ## Architecture decisions
 - Multi-tenancy via subdomain: middleware reads hostname, extracts subdomain, looks up company by `slug`
