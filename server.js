@@ -47,7 +47,10 @@ app.use((req, res) => {
 
 async function initDb() {
   const { Pool } = require('pg');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 5000,
+  });
   const client = await pool.connect();
   try {
     await client.query(`
@@ -91,13 +94,10 @@ async function initDb() {
   }
 }
 
-initDb().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
-  });
-}).catch(err => {
-  console.error('Failed to init DB:', err.message);
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Oscardevs Ads running (DB init skipped) on http://0.0.0.0:${PORT}`);
-  });
+// Start immediately so Replit can detect the open port
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
 });
+
+// Run schema migration in background — does not block startup
+initDb().catch(err => console.error('DB init warning:', err.message));
