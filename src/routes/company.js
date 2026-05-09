@@ -33,6 +33,7 @@ function makeUploader(prefix) {
 }
 
 const uploadLogo = makeUploader('logo').single('logo_file');
+const uploadItemImage = makeUploader('item').single('image_file');
 
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
@@ -155,23 +156,47 @@ router.get('/portfolio', requireLogin, async (req, res) => {
   res.render('company/portfolio', { items: result.rows, session: req.session, error: null });
 });
 
-router.post('/portfolio/add', requireLogin, async (req, res) => {
-  const { title, description, image_url, order_index } = req.body;
-  try {
-    await pool.query(
-      `INSERT INTO portfolio_items (company_id, title, description, image_url, order_index)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [req.session.companyId, title, description, image_url, parseInt(order_index) || 0]
-    );
-    res.redirect('/company/portfolio');
-  } catch (err) {
-    console.error(err);
-    const result = await pool.query(
-      'SELECT * FROM portfolio_items WHERE company_id = $1 ORDER BY order_index, created_at DESC',
-      [req.session.companyId]
-    );
-    res.render('company/portfolio', { items: result.rows, session: req.session, error: 'Failed to add item.' });
-  }
+router.post('/portfolio/add', requireLogin, (req, res) => {
+  uploadItemImage(req, res, async (uploadErr) => {
+    const renderError = async (message) => {
+      try {
+        const result = await pool.query(
+          'SELECT * FROM portfolio_items WHERE company_id = $1 ORDER BY order_index, created_at DESC',
+          [req.session.companyId]
+        );
+        return res.render('company/portfolio', {
+          items: result.rows,
+          session: req.session,
+          error: message,
+        });
+      } catch (renderErr) {
+        console.error('[POST /portfolio/add] render fallback failed:', renderErr);
+        return res.status(500).send(message);
+      }
+    };
+
+    if (uploadErr) {
+      console.error('[POST /portfolio/add] multer error:', uploadErr);
+      return renderError(`Upload failed: ${uploadErr.message}`);
+    }
+
+    console.log('[POST /portfolio/add] file:', req.file?.filename, 'body:', Object.keys(req.body));
+    const { title, description, image_url, order_index } = req.body;
+    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+
+    try {
+      await pool.query(
+        `INSERT INTO portfolio_items (company_id, title, description, image_url, order_index)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.session.companyId, title, description, finalImageUrl, parseInt(order_index) || 0]
+      );
+      console.log('[POST /portfolio/add] success');
+      return res.redirect('/company/portfolio');
+    } catch (dbErr) {
+      console.error('[POST /portfolio/add] db error:', dbErr);
+      return renderError(`Failed to add item: ${dbErr.message}`);
+    }
+  });
 });
 
 router.post('/portfolio/delete/:id', requireLogin, async (req, res) => {
