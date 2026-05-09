@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+  <% var displayCompanyName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
+  <% var pName = pickContent(product, 'name', company.content_i18n) || product.name; %>
+  <% var pDesc = pickContent(product, 'description', company.content_i18n) || product.description || ''; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= product.name %> — <%= company.company_name %></title>
-  <meta name="description" content="<%= (product.description || '').slice(0,150) %>" />
+  <title><%= pName %> — <%= displayCompanyName %></title>
+  <meta name="description" content="<%= pDesc.slice(0,150) %>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -20,13 +23,16 @@
 
 <header class="bg-white shadow-sm sticky top-0 z-20">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= company.company_name %></a>
-    <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
-      Cart
-      <% if (cartCount > 0) { %>
-        <span class="bg-white text-xs brand-text font-bold rounded-full px-2 py-0.5"><%= cartCount %></span>
-      <% } %>
-    </a>
+    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= displayCompanyName %></a>
+    <div class="flex items-center gap-2">
+      <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1"><%= t('common.toggle_lang') %></a>
+      <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
+        <%= t('public.cart') %>
+        <% if (cartCount > 0) { %>
+          <span class="bg-white text-xs brand-text font-bold rounded-full px-2 py-0.5"><%= cartCount %></span>
+        <% } %>
+      </a>
+    </div>
   </div>
 </header>
 
@@ -41,9 +47,9 @@
     <div>
       <% const allImages = []; if (product.image_url) allImages.push({ url: product.image_url }); gallery.forEach(g => allImages.push({ url: g.image_url })); %>
       <% if (allImages.length === 0) { %>
-        <div class="w-full aspect-square bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300">No image</div>
+        <div class="w-full aspect-square bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300"><%= t('common.image') %></div>
       <% } else { %>
-        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= product.name %>" class="w-full aspect-square object-cover rounded-2xl mb-3" />
+        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" class="w-full aspect-square object-cover rounded-2xl mb-3" />
         <% if (allImages.length > 1) { %>
           <div class="grid grid-cols-5 gap-2">
             <% allImages.forEach(img => { %>
@@ -59,17 +65,17 @@
       <% if (product.category_name) { %>
         <p class="text-xs text-gray-400 uppercase font-semibold mb-1"><%= product.category_name %></p>
       <% } %>
-      <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-3"><%= product.name %></h1>
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-3"><%= pName %></h1>
       <div class="text-3xl font-black brand-text mb-4"><%= Number(product.price).toFixed(2) %> <%= company.currency || 'EGP' %></div>
 
       <% if (product.stock > 0) { %>
-        <p class="text-sm text-green-600 font-semibold mb-4">✓ In stock (<%= product.stock %> available)</p>
+        <p class="text-sm text-green-600 font-semibold mb-4">✓ <%= t('public.in_stock') %> (<%= product.stock %>)</p>
       <% } else { %>
-        <p class="text-sm text-red-600 font-semibold mb-4">✗ Out of stock</p>
+        <p class="text-sm text-red-600 font-semibold mb-4">✗ <%= t('public.out_of_stock') %></p>
       <% } %>
 
-      <% if (product.description) { %>
-        <p class="text-sm text-gray-600 mb-6 whitespace-pre-wrap leading-relaxed"><%= product.description %></p>
+      <% if (pDesc) { %>
+        <p class="text-sm text-gray-600 mb-6 whitespace-pre-wrap leading-relaxed"><%= pDesc %></p>
       <% } %>
 
       <% if (product.stock > 0) { %>
@@ -78,7 +84,7 @@
           <input type="number" name="quantity" value="1" min="1" max="<%= product.stock %>"
             class="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
           <button type="submit" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
-            Add to Cart
+            <%= t('public.add_to_cart') %>
           </button>
         </form>
       <% } %>
@@ -91,7 +97,7 @@
 <% } %>
 
 <footer class="bg-gray-900 text-gray-400 py-6 text-center text-sm">
-  <p>&copy; <%= new Date().getFullYear() %> <%= company.company_name %></p>
+  <p>&copy; <%= new Date().getFullYear() %> <%= displayCompanyName %></p>
 </footer>
 
 </body>

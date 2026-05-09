@@ -24,6 +24,7 @@ router.post('/login', async (req, res) => {
     if (!ok) return res.render('customer/login', { error: 'Invalid email or password.' });
     req.session.customerId = r.rows[0].id;
     req.session.customerEmail = r.rows[0].email;
+    req.session.customerLang = r.rows[0].lang || 'ar';
     res.redirect('/customer/orders');
   } catch (err) {
     console.error('[POST /customer/login] error:', err);
@@ -77,6 +78,17 @@ router.get('/orders', requireCustomer, async (req, res) => {
     console.error('[GET /customer/orders] error:', err);
     res.status(500).send('Error.');
   }
+});
+
+/* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
+router.post('/lang/:lang', async (req, res) => {
+  const lang = req.params.lang === 'en' ? 'en' : 'ar';
+  if (req.session && req.session.customerId) {
+    req.session.customerLang = lang;
+    try { await pool.query('UPDATE customers SET lang = $1 WHERE id = $2', [lang, req.session.customerId]); } catch (e) { console.error(e); }
+  }
+  res.cookie('lang', lang, { maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+  res.redirect(req.get('Referrer') || '/customer/orders');
 });
 
 module.exports = router;

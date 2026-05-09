@@ -1,97 +1,123 @@
 <%
-  pageTitle = product ? 'Edit Product' : 'Add Product';
+  pageTitle = product ? t('company.edit_product') : t('company.add_product');
   activePage = 'products';
 %>
 <%- include('_layout_top') %>
 
   <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
-    <h2 class="text-xl font-bold text-gray-800 mb-1"><%= product && product.id ? 'Edit Product' : 'Add New Product' %></h2>
-    <p class="text-gray-500 text-sm mb-6">Fill in the product details below.</p>
+    <h2 class="text-xl font-bold text-gray-800 mb-1"><%= product && product.id ? t('company.edit_product') : t('company.add_product') %></h2>
 
     <% if (error) { %>
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div>
     <% } %>
 
     <form method="POST" action="<%= product && product.id ? `/company/products/${product.id}/edit` : '/company/products/add' %>" enctype="multipart/form-data" class="space-y-5">
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Name *</label>
-        <input type="text" name="name" required value="<%= product && product.name || '' %>"
-          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-      </div>
+      <% if (company.content_i18n) { %>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.name') %> (AR) *</label>
+            <input type="text" name="name_ar" dir="rtl" required value="<%= product && product.name_ar || '' %>"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.name') %> (EN) *</label>
+            <input type="text" name="name_en" required value="<%= product && product.name_en || '' %>"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          </div>
+        </div>
+        <input type="hidden" name="name" value="<%= product && (product.name_ar || product.name_en) || '' %>" />
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.description') %> (AR)</label>
+            <textarea name="description_ar" dir="rtl" rows="3"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"><%= product && product.description_ar || '' %></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.description') %> (EN)</label>
+            <textarea name="description_en" rows="3"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"><%= product && product.description_en || '' %></textarea>
+          </div>
+        </div>
+      <% } else { %>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.name') %> *</label>
+          <input type="text" name="name" required value="<%= product && product.name || '' %>"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
 
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Description</label>
-        <textarea name="description" rows="3"
-          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"><%= product && product.description || '' %></textarea>
-      </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.description') %></label>
+          <textarea name="description" rows="3"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"><%= product && product.description || '' %></textarea>
+        </div>
+      <% } %>
 
       <% if (typeof categories !== 'undefined' && categories.length) { %>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Category</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.category') %></label>
           <select name="category_id"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200">
-            <option value="">— No category —</option>
+            <option value="">—</option>
             <% categories.forEach(c => { %>
               <option value="<%= c.id %>" <%= product && String(product.category_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
             <% }) %>
           </select>
         </div>
       <% } else { %>
-        <p class="text-xs text-gray-400">No categories yet. <a href="/company/categories" class="brand-text hover:underline">Create one</a> to organise products.</p>
+        <p class="text-xs text-gray-400"><%= t('company.no_categories') %> <a href="/company/categories" class="brand-text hover:underline"><%= t('company.create_category_first') %></a></p>
       <% } %>
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Price (<%= company.currency || 'EGP' %>) *</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.price') %> (<%= company.currency || 'EGP' %>) *</label>
           <input type="number" step="0.01" min="0" name="price" required value="<%= product && product.price || '' %>"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Stock *</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.stock') %> *</label>
           <input type="number" min="0" name="stock" required value="<%= product && (product.stock !== undefined ? product.stock : '') || 0 %>"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Image</label>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.image') %></label>
         <% if (product && product.image_url) { %>
           <img src="<%= product.image_url %>" alt="" class="w-24 h-24 rounded-xl object-cover mb-3" />
         <% } %>
         <input type="file" name="image_file" accept="image/*"
           class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer mb-2" />
-        <p class="text-xs text-gray-400 mb-2">Upload (max 5MB) or paste a URL below.</p>
-        <input type="text" name="image_url" value="<%= product && product.image_url || '' %>" placeholder="https://... or leave empty"
+        <input type="text" name="image_url" value="<%= product && product.image_url || '' %>" placeholder="https://..."
           class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
       </div>
 
       <div class="flex items-center gap-3 pt-4">
-        <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md">Save</button>
-        <a href="/company/products" class="text-gray-500 hover:text-gray-700 text-sm">Cancel</a>
+        <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md"><%= t('common.save') %></button>
+        <a href="/company/products" class="text-gray-500 hover:text-gray-700 text-sm"><%= t('common.cancel') %></a>
       </div>
     </form>
 
     <% if (product && product.id) { %>
       <hr class="my-6 border-gray-100" />
-      <h3 class="font-bold text-gray-700 mb-3">Additional Images (gallery)</h3>
+      <h3 class="font-bold text-gray-700 mb-3"><%= t('company.additional_images') %></h3>
       <% if (images && images.length) { %>
         <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
           <% images.forEach(img => { %>
             <div class="relative group">
               <img src="<%= img.image_url %>" alt="" class="w-full aspect-square object-cover rounded-xl" />
-              <form method="POST" action="/company/products/<%= product.id %>/images/<%= img.id %>/delete" class="absolute top-1 right-1" onsubmit="return confirm('Delete this image?');">
+              <form method="POST" action="/company/products/<%= product.id %>/images/<%= img.id %>/delete" class="absolute top-1 right-1" onsubmit="return confirm('<%= t('common.confirm_delete') %>');">
                 <button type="submit" class="bg-red-500 text-white text-xs rounded-full w-6 h-6 hover:bg-red-700">×</button>
               </form>
             </div>
           <% }) %>
         </div>
       <% } else { %>
-        <p class="text-xs text-gray-400 mb-3">No extra images yet.</p>
+        <p class="text-xs text-gray-400 mb-3"><%= t('company.no_extra_images') %></p>
       <% } %>
       <form method="POST" action="/company/products/<%= product.id %>/images/add" enctype="multipart/form-data" class="flex items-center gap-2">
         <input type="file" name="image_file" accept="image/*" required
           class="flex-1 text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700" />
-        <button type="submit" class="brand-bg text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">+ Add Image</button>
+        <button type="submit" class="brand-bg text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">+ <%= t('company.add_image') %></button>
       </form>
     <% } %>
   </div>

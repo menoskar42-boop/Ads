@@ -1,12 +1,11 @@
 <%
-  pageTitle = 'Add Company';
+  pageTitle = t('admin.add_company');
   activePage = 'add';
 %>
 <%- include('../_layout_top') %>
 
   <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
-    <h2 class="text-xl font-bold text-gray-800 mb-1">Add New Company</h2>
-    <p class="text-gray-500 text-sm mb-6">Create a new tenant and its first admin user.</p>
+    <h2 class="text-xl font-bold text-gray-800 mb-1"><%= t('admin.add_company') %></h2>
 
     <% if (error) { %>
     <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
@@ -17,61 +16,58 @@
     <form method="POST" action="/admin/companies/add" class="space-y-5">
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Company Name *</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('admin.company_name') %> *</label>
           <input type="text" name="company_name" required value="<%= form.company_name || '' %>"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Slug (subdomain) *</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('admin.slug') %> *</label>
           <input type="text" name="slug" required pattern="[a-z0-9-]+" value="<%= form.slug || '' %>"
             placeholder="e.g. acme"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-          <p class="text-xs text-gray-400 mt-1">Lowercase letters, numbers, and hyphens only.</p>
         </div>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Description</label>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.description') %></label>
         <textarea name="description" rows="3"
           class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"><%= form.description || '' %></textarea>
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Theme Color</label>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('admin.theme_color') %></label>
         <input type="color" name="theme_color" value="<%= form.theme_color || '#2563eb' %>"
           class="h-12 w-24 border border-gray-200 rounded-xl cursor-pointer" />
       </div>
 
       <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Page Type *</label>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('admin.page_type') %> *</label>
         <select name="page_type" required
           class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-          <option value="portfolio" <%= (form.page_type || 'portfolio') === 'portfolio' ? 'selected' : '' %>>Portfolio — showcase your work</option>
-          <option value="shop" <%= form.page_type === 'shop' ? 'selected' : '' %>>Shop — products + cart + cash on delivery</option>
+          <option value="portfolio" <%= (form.page_type || 'portfolio') === 'portfolio' ? 'selected' : '' %>><%= t('admin.page_type_portfolio') %></option>
+          <option value="shop" <%= form.page_type === 'shop' ? 'selected' : '' %>><%= t('admin.page_type_shop') %></option>
         </select>
-        <p class="text-xs text-gray-400 mt-1">Choose how the public page presents this company. Can be changed later.</p>
       </div>
 
       <hr class="border-gray-100" />
-      <h3 class="font-bold text-gray-700">First Admin User</h3>
+      <h3 class="font-bold text-gray-700"><%= t('admin.add_admin') %></h3>
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Admin Email *</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.email') %> *</label>
           <input type="email" name="admin_email" required value="<%= form.admin_email || '' %>"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Admin Password *</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.password') %> *</label>
           <input type="text" name="admin_password" required minlength="6"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-          <p class="text-xs text-gray-400 mt-1">Minimum 6 characters. Share with the company admin.</p>
         </div>
       </div>
 
       <div class="flex items-center gap-3 pt-4">
-        <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md">Create Company</button>
-        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 text-sm">Cancel</a>
+        <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md"><%= t('common.save') %></button>
+        <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-700 text-sm"><%= t('common.cancel') %></a>
       </div>
     </form>
   </div>

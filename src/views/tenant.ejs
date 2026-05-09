@@ -1,12 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+  <% var displayName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
+  <% var displayDesc = pickContent(company, 'description', company.content_i18n) || company.description || ''; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= company.company_name %></title>
-  <meta name="description" content="<%= company.description || company.company_name %>" />
-  <meta property="og:title" content="<%= company.company_name %>" />
-  <meta property="og:description" content="<%= company.description || company.company_name %>" />
+  <title><%= displayName %></title>
+  <meta name="description" content="<%= displayDesc || displayName %>" />
+  <meta property="og:title" content="<%= displayName %>" />
+  <meta property="og:description" content="<%= displayDesc || displayName %>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -67,22 +69,22 @@
     <div class="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
       <div class="flex items-center gap-4">
         <% if (company.logo_url) { %>
-          <img src="<%= company.logo_url %>" alt="<%= company.company_name %> logo" class="h-12 w-auto rounded-lg object-contain" />
+          <img src="<%= company.logo_url %>" alt="<%= displayName %>" class="h-12 w-auto rounded-lg object-contain" />
         <% } else { %>
           <div class="w-12 h-12 brand-bg rounded-xl flex items-center justify-center text-white font-bold text-2xl">
-            <%= company.company_name.charAt(0).toUpperCase() %>
+            <%= (displayName || ' ').charAt(0).toUpperCase() %>
           </div>
         <% } %>
         <div>
-          <h1 class="text-xl font-bold brand-text"><%= company.company_name %></h1>
-          <p class="text-xs text-gray-400">Powered by Oscardevs Ads</p>
+          <h1 class="text-xl font-bold brand-text"><%= displayName %></h1>
+          <p class="text-xs text-gray-400">Oscardevs Ads</p>
         </div>
       </div>
-      <nav class="hidden md:flex gap-6 text-sm font-medium text-gray-600">
-        <a href="#about" class="hover:brand-text transition">About</a>
-        <a href="#services" class="hover:brand-text transition">Services</a>
-        <% if (portfolio && portfolio.length > 0) { %><a href="#portfolio" class="hover:brand-text transition">Portfolio</a><% } %>
-        <a href="#contact" class="hover:brand-text transition">Contact</a>
+      <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
+        <a href="#about" class="hover:brand-text transition"><%= t('public.about') %></a>
+        <% if (portfolio && portfolio.length > 0) { %><a href="#portfolio" class="hover:brand-text transition"><%= t('public.portfolio') %></a><% } %>
+        <a href="#contact" class="hover:brand-text transition"><%= t('public.contact_us') %></a>
+        <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold border border-gray-200 rounded-lg px-2 py-1 hover:brand-text"><%= t('common.toggle_lang') %></a>
       </nav>
     </div>
   </header>
@@ -91,18 +93,18 @@
   <section class="brand-bg text-white py-20 px-4">
     <div class="max-w-4xl mx-auto text-center">
       <% if (company.logo_url) { %>
-        <img src="<%= company.logo_url %>" alt="<%= company.company_name %>" class="h-24 mx-auto mb-6 rounded-2xl object-contain bg-white/10 p-2" />
+        <img src="<%= company.logo_url %>" alt="<%= displayName %>" class="h-24 mx-auto mb-6 rounded-2xl object-contain bg-white/10 p-2" />
       <% } %>
       <h2 class="text-4xl md:text-5xl font-extrabold mb-5 leading-tight">
-        Welcome to <%= company.company_name %>
+        <%= displayName %>
       </h2>
-      <% if (company.description) { %>
+      <% if (displayDesc) { %>
         <p class="text-lg md:text-xl opacity-90 max-w-2xl mx-auto mb-8">
-          <%= company.description %>
+          <%= displayDesc %>
         </p>
       <% } %>
       <a href="#contact" class="inline-block bg-white font-semibold px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition brand-text">
-        Get In Touch
+        <%= t('public.contact_us') %>
       </a>
     </div>
   </section>
@@ -116,9 +118,9 @@
 
         <!-- About Section -->
         <section id="about" class="bg-white rounded-2xl shadow p-8">
-          <h2 class="text-2xl font-bold brand-text mb-4">About Us</h2>
+          <h2 class="text-2xl font-bold brand-text mb-4"><%= t('public.about') %></h2>
           <p class="text-gray-600 leading-relaxed">
-            <%= company.description || 'We are dedicated to delivering world-class services and innovative solutions to our clients.' %>
+            <%= displayDesc %>
           </p>
         </section>
 
@@ -166,8 +168,7 @@
         <% if (portfolio && portfolio.length > 0) { %>
         <section id="portfolio" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div class="mb-6">
-            <h2 class="text-2xl font-bold brand-text" dir="rtl">أعمالنا</h2>
-            <p class="text-gray-400 text-sm mt-1">Our Portfolio</p>
+            <h2 class="text-2xl font-bold brand-text"><%= t('public.portfolio') %></h2>
           </div>
           <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <% portfolio.forEach(item => { %>
@@ -195,11 +196,10 @@
 
         <!-- Contact Section -->
         <section id="contact" class="bg-white rounded-2xl shadow p-8">
-          <h2 class="text-2xl font-bold brand-text mb-4">Contact Us</h2>
-          <p class="text-gray-500 mb-6">Have a question or want to work with us? Reach out anytime.</p>
+          <h2 class="text-2xl font-bold brand-text mb-4"><%= t('public.contact_us') %></h2>
           <% if (typeof sent !== 'undefined' && sent) { %>
             <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 text-sm">
-              ✓ Your message was sent. We'll get back to you soon.
+              <%= t('public.message_sent') %>
             </div>
           <% } %>
           <% if (typeof contactError !== 'undefined' && contactError) { %>
@@ -209,13 +209,13 @@
           <% } %>
           <form method="POST" action="/contact/<%= company.slug %>" class="space-y-4">
             <div class="grid sm:grid-cols-2 gap-4">
-              <input type="text" name="sender_name" placeholder="Your Name" required class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
-              <input type="email" name="sender_email" placeholder="Your Email" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              <input type="text" name="sender_name" placeholder="<%= t('public.your_name') %>" required class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              <input type="email" name="sender_email" placeholder="<%= t('public.your_email') %>" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
             </div>
-            <input type="tel" name="sender_phone" placeholder="Your Phone (optional)" maxlength="30" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
-            <textarea name="message" rows="4" placeholder="Your message..." required maxlength="5000" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
+            <input type="tel" name="sender_phone" placeholder="<%= t('common.phone') %>" maxlength="30" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <textarea name="message" rows="4" placeholder="<%= t('public.your_message') %>" required maxlength="5000" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
             <button type="submit" class="brand-btn text-white px-8 py-3 rounded-full font-semibold transition w-full sm:w-auto">
-              Send Message
+              <%= t('public.send_message') %>
             </button>
           </form>
         </section>
@@ -227,13 +227,13 @@
 
         <!-- Company Info Card -->
         <div class="bg-white rounded-2xl shadow p-6 border-t-4 brand-border">
-          <h3 class="font-semibold text-gray-700 mb-3">Company Info</h3>
+          <h3 class="font-semibold text-gray-700 mb-3"><%= t('public.about') %></h3>
           <ul class="text-sm text-gray-500 space-y-2">
             <li class="flex items-center gap-2">
               <svg class="w-4 h-4 brand-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
               </svg>
-              <%= company.company_name %>
+              <%= displayName %>
             </li>
             <li class="flex items-center gap-2">
               <svg class="w-4 h-4 brand-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -286,7 +286,7 @@
 
   <!-- Footer -->
   <footer class="bg-gray-900 text-gray-400 py-8 px-4 text-center text-sm">
-    <p class="mb-1"><%= company.company_name %> &mdash; Powered by <a href="/" class="text-blue-400 hover:underline">Oscardevs Ads</a></p>
+    <p class="mb-1"><%= displayName %> &mdash; <a href="/" class="text-blue-400 hover:underline">Oscardevs Ads</a></p>
     <p>&copy; <%= new Date().getFullYear() %> All rights reserved.</p>
   </footer>
 
