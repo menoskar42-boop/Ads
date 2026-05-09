@@ -34,20 +34,44 @@ function makeUploader(prefix) {
 
 const uploadLogo = makeUploader('logo').single('logo_file');
 const uploadItemImage = makeUploader('item').single('image_file');
+const uploadProductImage = makeUploader('product').single('image_file');
+
+const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 
 router.use(async (req, res, next) => {
   res.locals.unreadCount = 0;
+  res.locals.pendingOrdersCount = 0;
+  res.locals.companyPageType = 'portfolio';
   if (req.session.companyId) {
     try {
       const r = await pool.query(
-        'SELECT COUNT(*) FROM contact_messages WHERE company_id = $1 AND is_read = false',
+        `SELECT
+           (SELECT COUNT(*) FROM contact_messages WHERE company_id = $1 AND is_read = false) AS unread,
+           (SELECT COUNT(*) FROM orders WHERE company_id = $1 AND status = 'pending') AS pending_orders,
+           (SELECT page_type FROM companies WHERE id = $1) AS page_type`,
         [req.session.companyId]
       );
-      res.locals.unreadCount = parseInt(r.rows[0].count, 10);
-    } catch (e) { /* badge is non-critical */ }
+      res.locals.unreadCount = parseInt(r.rows[0].unread, 10);
+      res.locals.pendingOrdersCount = parseInt(r.rows[0].pending_orders, 10);
+      res.locals.companyPageType = r.rows[0].page_type || 'portfolio';
+    } catch (e) { /* non-critical */ }
   }
   next();
 });
+
+async function requireShop(req, res, next) {
+  if (!req.session.companyId) return res.redirect('/company/login');
+  try {
+    const r = await pool.query('SELECT page_type FROM companies WHERE id = $1', [req.session.companyId]);
+    if (!r.rows.length || r.rows[0].page_type !== 'shop') {
+      return res.status(404).render('404', { subdomain: null });
+    }
+    next();
+  } catch (err) {
+    console.error('requireShop error:', err);
+    res.status(500).send('Error.');
+  }
+}
 
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
@@ -249,6 +273,182 @@ router.post('/messages/:id/delete', requireLogin, async (req, res) => {
     [req.params.id, req.session.companyId]
   );
   res.redirect('/company/messages');
+});
+
+/* ─── PRODUCTS (shop only) ───────────────────────────────── */
+router.get('/products', requireLogin, requireShop, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM products WHERE company_id = $1 ORDER BY created_at DESC',
+      [req.session.companyId]
+    );
+    const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+    res.render('company/products', {
+      products: result.rows,
+      company: company.rows[0],
+      session: req.session,
+    });
+  } catch (err) {
+    console.error('[GET /products] error:', err);
+    res.status(500).send('Error loading products.');
+  }
+});
+
+router.get('/products/add', requireLogin, requireShop, async (req, res) => {
+  const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+  res.render('company/product_form', {
+    product: null,
+    company: company.rows[0],
+    session: req.session,
+    error: null,
+  });
+});
+
+router.post('/products/add', requireLogin, requireShop, (req, res) => {
+  uploadProductImage(req, res, async (uploadErr) => {
+    const renderError = async (message) => {
+      const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+      return res.render('company/product_form', {
+        product: req.body,
+        company: company.rows[0],
+        session: req.session,
+        error: message,
+      });
+    };
+    if (uploadErr) return renderError(`Upload failed: ${uploadErr.message}`);
+    const { name, description, price, stock, image_url } = req.body;
+    if (!name || price === undefined) return renderError('Name and price are required.');
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum < 0) return renderError('Invalid price.');
+    const stockNum = parseInt(stock, 10);
+    if (isNaN(stockNum) || stockNum < 0) return renderError('Invalid stock.');
+    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    try {
+      await pool.query(
+        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, true)`,
+        [req.session.companyId, name, description || null, priceNum, finalImageUrl, stockNum]
+      );
+      res.redirect('/company/products');
+    } catch (err) {
+      console.error('[POST /products/add] db error:', err);
+      return renderError(`Failed to add product: ${err.message}`);
+    }
+  });
+});
+
+router.get('/products/:id/edit', requireLogin, requireShop, async (req, res) => {
+  const result = await pool.query(
+    'SELECT * FROM products WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  if (!result.rows.length) return res.redirect('/company/products');
+  const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+  res.render('company/product_form', {
+    product: result.rows[0],
+    company: company.rows[0],
+    session: req.session,
+    error: null,
+  });
+});
+
+router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
+  uploadProductImage(req, res, async (uploadErr) => {
+    const renderError = async (message) => {
+      const result = await pool.query(
+        'SELECT * FROM products WHERE id = $1 AND company_id = $2',
+        [req.params.id, req.session.companyId]
+      );
+      const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+      return res.render('company/product_form', {
+        product: result.rows[0] || req.body,
+        company: company.rows[0],
+        session: req.session,
+        error: message,
+      });
+    };
+    if (uploadErr) return renderError(`Upload failed: ${uploadErr.message}`);
+    const { name, description, price, stock, image_url } = req.body;
+    if (!name || price === undefined) return renderError('Name and price are required.');
+    const priceNum = parseFloat(price);
+    const stockNum = parseInt(stock, 10);
+    if (isNaN(priceNum) || priceNum < 0) return renderError('Invalid price.');
+    if (isNaN(stockNum) || stockNum < 0) return renderError('Invalid stock.');
+    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    try {
+      await pool.query(
+        `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5
+         WHERE id=$6 AND company_id=$7`,
+        [name, description || null, priceNum, finalImageUrl, stockNum, req.params.id, req.session.companyId]
+      );
+      res.redirect('/company/products');
+    } catch (err) {
+      console.error('[POST /products/:id/edit] db error:', err);
+      return renderError(`Failed to update product: ${err.message}`);
+    }
+  });
+});
+
+router.post('/products/:id/toggle-active', requireLogin, requireShop, async (req, res) => {
+  await pool.query(
+    'UPDATE products SET is_active = NOT is_active WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/products');
+});
+
+router.post('/products/:id/delete', requireLogin, requireShop, async (req, res) => {
+  await pool.query(
+    'DELETE FROM products WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/products');
+});
+
+/* ─── ORDERS (shop only) ─────────────────────────────────── */
+router.get('/orders', requireLogin, requireShop, async (req, res) => {
+  const status = req.query.status && ORDER_STATUSES.includes(req.query.status) ? req.query.status : null;
+  const params = [req.session.companyId];
+  let where = 'WHERE company_id = $1';
+  if (status) { where += ' AND status = $2'; params.push(status); }
+  const result = await pool.query(
+    `SELECT * FROM orders ${where} ORDER BY created_at DESC`,
+    params
+  );
+  res.render('company/orders', {
+    orders: result.rows,
+    currentStatus: status || '',
+    statuses: ORDER_STATUSES,
+    session: req.session,
+  });
+});
+
+router.get('/orders/:id', requireLogin, requireShop, async (req, res) => {
+  const orderResult = await pool.query(
+    'SELECT * FROM orders WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  if (!orderResult.rows.length) return res.redirect('/company/orders');
+  const itemsResult = await pool.query(
+    'SELECT * FROM order_items WHERE order_id = $1',
+    [req.params.id]
+  );
+  res.render('company/order_detail', {
+    order: orderResult.rows[0],
+    items: itemsResult.rows,
+    statuses: ORDER_STATUSES,
+    session: req.session,
+  });
+});
+
+router.post('/orders/:id/status', requireLogin, requireShop, async (req, res) => {
+  const { status } = req.body;
+  if (!ORDER_STATUSES.includes(status)) return res.redirect(`/company/orders/${req.params.id}`);
+  await pool.query(
+    'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3',
+    [status, req.params.id, req.session.companyId]
+  );
+  res.redirect(`/company/orders/${req.params.id}`);
 });
 
 module.exports = router;
