@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= product.name %> — <%= company.company_name %></title>
+  <meta name="description" content="<%= (product.description || '').slice(0,150) %>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { font-family: 'Cairo', sans-serif; }
+    :root { --brand: <%= company.theme_color %>; }
+    .brand-bg { background-color: var(--brand); }
+    .brand-text { color: var(--brand); }
+    .brand-btn { background-color: var(--brand); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<header class="bg-white shadow-sm sticky top-0 z-20">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= company.company_name %></a>
+    <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
+      Cart
+      <% if (cartCount > 0) { %>
+        <span class="bg-white text-xs brand-text font-bold rounded-full px-2 py-0.5"><%= cartCount %></span>
+      <% } %>
+    </a>
+  </div>
+</header>
+
+<% if (company.adsense_top) { %>
+  <div class="max-w-5xl mx-auto px-4 mt-4"><%- company.adsense_top %></div>
+<% } %>
+
+<main class="max-w-5xl mx-auto px-4 py-8">
+  <div class="grid md:grid-cols-2 gap-8 bg-white rounded-2xl shadow p-6">
+
+    <!-- Gallery -->
+    <div>
+      <% const allImages = []; if (product.image_url) allImages.push({ url: product.image_url }); gallery.forEach(g => allImages.push({ url: g.image_url })); %>
+      <% if (allImages.length === 0) { %>
+        <div class="w-full aspect-square bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300">No image</div>
+      <% } else { %>
+        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= product.name %>" class="w-full aspect-square object-cover rounded-2xl mb-3" />
+        <% if (allImages.length > 1) { %>
+          <div class="grid grid-cols-5 gap-2">
+            <% allImages.forEach(img => { %>
+              <img src="<%= img.url %>" alt="" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 border-transparent hover:border-gray-300" onclick="document.getElementById('mainImage').src=this.src" />
+            <% }) %>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+
+    <!-- Details -->
+    <div class="flex flex-col">
+      <% if (product.category_name) { %>
+        <p class="text-xs text-gray-400 uppercase font-semibold mb-1"><%= product.category_name %></p>
+      <% } %>
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-3"><%= product.name %></h1>
+      <div class="text-3xl font-black brand-text mb-4"><%= Number(product.price).toFixed(2) %> <%= company.currency || 'EGP' %></div>
+
+      <% if (product.stock > 0) { %>
+        <p class="text-sm text-green-600 font-semibold mb-4">✓ In stock (<%= product.stock %> available)</p>
+      <% } else { %>
+        <p class="text-sm text-red-600 font-semibold mb-4">✗ Out of stock</p>
+      <% } %>
+
+      <% if (product.description) { %>
+        <p class="text-sm text-gray-600 mb-6 whitespace-pre-wrap leading-relaxed"><%= product.description %></p>
+      <% } %>
+
+      <% if (product.stock > 0) { %>
+        <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="mt-auto flex items-center gap-3">
+          <input type="hidden" name="product_id" value="<%= product.id %>" />
+          <input type="number" name="quantity" value="1" min="1" max="<%= product.stock %>"
+            class="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+          <button type="submit" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
+            Add to Cart
+          </button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<% if (company.adsense_bottom) { %>
+  <div class="max-w-5xl mx-auto px-4 mb-6"><%- company.adsense_bottom %></div>
+<% } %>
+
+<footer class="bg-gray-900 text-gray-400 py-6 text-center text-sm">
+  <p>&copy; <%= new Date().getFullYear() %> <%= company.company_name %></p>
+</footer>
+
+</body>
+</html>

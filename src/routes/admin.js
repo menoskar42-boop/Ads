@@ -184,11 +184,16 @@ router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
         activePage: 'dashboard',
       });
     }
+    const adsense_top = (req.body.adsense_top || '').trim() || null;
+    const adsense_sidebar = (req.body.adsense_sidebar || '').trim() || null;
+    const adsense_bottom = (req.body.adsense_bottom || '').trim() || null;
     await pool.query(
       `UPDATE companies
-       SET company_name = $1, slug = $2, description = $3, theme_color = $4, is_active = $5, page_type = $6
-       WHERE id = $7`,
-      [company_name, slug, description || null, theme_color || '#2563eb', is_active === 'on', page_type, req.params.id]
+       SET company_name = $1, slug = $2, description = $3, theme_color = $4, is_active = $5,
+           page_type = $6, adsense_top = $7, adsense_sidebar = $8, adsense_bottom = $9
+       WHERE id = $10`,
+      [company_name, slug, description || null, theme_color || '#2563eb', is_active === 'on',
+       page_type, adsense_top, adsense_sidebar, adsense_bottom, req.params.id]
     );
     req.session.adminFlash = { type: 'success', message: `Company "${company_name}" updated.` };
     res.redirect('/admin/dashboard');

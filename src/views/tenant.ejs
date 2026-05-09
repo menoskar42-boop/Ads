@@ -23,8 +23,32 @@
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans">
 
+  <% if (company.adsense_top) { %>
+    <div class="w-full bg-white border-b border-gray-100 px-4 py-2"><div class="max-w-6xl mx-auto"><%- company.adsense_top %></div></div>
+  <% } %>
+
   <!-- Top Banner Ad -->
-  <% if (topAd && topAd.image_url) { %>
+  <% if (typeof banners !== 'undefined' && banners.length) { %>
+    <div class="relative max-h-72 overflow-hidden" id="bannerSlider">
+      <% banners.forEach((b, i) => { %>
+        <a href="<%= b.target_url || '#' %>" target="_blank" rel="noopener noreferrer" class="banner-slide block <%= i === 0 ? '' : 'hidden' %>" data-idx="<%= i %>">
+          <img src="<%= b.image_url %>" alt="<%= b.caption || 'Banner' %>" class="w-full max-h-72 object-cover" />
+        </a>
+      <% }) %>
+    </div>
+    <% if (banners.length > 1) { %>
+      <script>
+        (function(){
+          var slides = document.querySelectorAll('#bannerSlider .banner-slide');
+          var i = 0; setInterval(function(){
+            slides[i].classList.add('hidden');
+            i = (i + 1) % slides.length;
+            slides[i].classList.remove('hidden');
+          }, 5000);
+        })();
+      </script>
+    <% } %>
+  <% } else if (topAd && topAd.image_url) { %>
   <div class="w-full bg-gray-200">
     <a href="<%= topAd.target_url || '#' %>" target="_blank" rel="noopener noreferrer">
       <img src="<%= topAd.image_url %>" alt="Advertisement" class="w-full max-h-28 object-cover" />
@@ -220,6 +244,10 @@
           </ul>
         </div>
 
+        <% if (company.adsense_sidebar) { %>
+          <div class="bg-white rounded-2xl shadow p-3"><%- company.adsense_sidebar %></div>
+        <% } %>
+
         <!-- Sidebar Ad Slot -->
         <div class="bg-white rounded-2xl shadow overflow-hidden">
           <% if (sidebarAd && sidebarAd.image_url) { %>
@@ -236,6 +264,10 @@
       </aside>
     </div>
   </div>
+
+  <% if (company.adsense_bottom) { %>
+    <div class="w-full bg-white border-t border-gray-100 px-4 py-2"><div class="max-w-6xl mx-auto"><%- company.adsense_bottom %></div></div>
+  <% } %>
 
   <!-- Footer Banner Ad -->
   <% if (footerAd && footerAd.image_url) { %>
