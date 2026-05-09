@@ -154,6 +154,7 @@ async function createSchema() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_bottom TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT;
     `);
     console.log('Schema created successfully.');
   } finally {
