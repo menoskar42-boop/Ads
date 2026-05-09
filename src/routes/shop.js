@@ -123,7 +123,7 @@ router.get('/:slug/checkout', async (req, res) => {
 
     let prefill = {};
     if (req.session.customerId) {
-      const c = await pool.query('SELECT email, full_name, phone FROM customers WHERE id = $1', [req.session.customerId]);
+      const c = await pool.query('SELECT email, full_name, phone, address FROM customers WHERE id = $1', [req.session.customerId]);
       if (c.rows.length) prefill = { ...c.rows[0] };
     }
 

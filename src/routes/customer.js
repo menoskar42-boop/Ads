@@ -36,7 +36,7 @@ router.get('/register', (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { email, password, full_name, phone } = req.body;
+  const { email, password, full_name, phone, address } = req.body;
   if (!email || !password || password.length < 6) {
     return res.render('customer/register', { error: 'Email and password (min 6 chars) are required.', form: req.body });
   }
@@ -45,8 +45,8 @@ router.post('/register', async (req, res) => {
     if (dup.rows.length) return res.render('customer/register', { error: 'Email already in use.', form: req.body });
     const hash = await bcrypt.hash(password, 10);
     const ins = await pool.query(
-      `INSERT INTO customers (email, password_hash, full_name, phone) VALUES ($1,$2,$3,$4) RETURNING id`,
-      [email, hash, full_name || null, phone || null]
+      `INSERT INTO customers (email, password_hash, full_name, phone, address) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [email, hash, full_name || null, phone || null, address || null]
     );
     req.session.customerId = ins.rows[0].id;
     req.session.customerEmail = email;
