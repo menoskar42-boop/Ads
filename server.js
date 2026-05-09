@@ -94,6 +94,15 @@ async function initDb() {
         password_hash TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS contact_messages (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        sender_name TEXT NOT NULL,
+        sender_email TEXT,
+        message TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
     `);
     console.log('Database tables ready.');
   } catch (err) {
