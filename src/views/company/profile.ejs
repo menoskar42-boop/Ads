@@ -46,7 +46,7 @@
         <input type="file" name="logo_file" accept="image/*"
           class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer mb-3" />
         <p class="text-xs text-gray-400 mb-2">Upload a new image (PNG, JPEG, GIF, WEBP, SVG — max 5MB) or paste a URL below.</p>
-        <input type="url" name="logo_url" value="<%= company.logo_url || '' %>" placeholder="https://..."
+        <input type="text" name="logo_url" value="<%= company.logo_url || '' %>" placeholder="https://... or leave empty"
           class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
       </div>
       <div>
