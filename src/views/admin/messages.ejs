@@ -44,9 +44,14 @@
                     <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">→ Platform</span>
                   <% } %>
                 </div>
-                <% if (m.sender_email) { %>
-                  <a href="mailto:<%= m.sender_email %>" class="text-xs text-indigo-600 hover:underline"><%= m.sender_email %></a>
-                <% } %>
+                <div class="flex flex-col gap-0.5">
+                  <% if (m.sender_email) { %>
+                    <a href="mailto:<%= m.sender_email %>" class="text-xs text-indigo-600 hover:underline"><%= m.sender_email %></a>
+                  <% } %>
+                  <% if (m.sender_phone) { %>
+                    <a href="tel:<%= m.sender_phone %>" class="text-xs text-indigo-600 hover:underline">📞 <%= m.sender_phone %></a>
+                  <% } %>
+                </div>
               </div>
               <div class="flex items-center gap-3">
                 <% if (m.slug) { %>
