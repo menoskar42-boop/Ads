@@ -99,10 +99,12 @@ async function initDb() {
         company_id INTEGER REFERENCES companies(id),
         sender_name TEXT NOT NULL,
         sender_email TEXT,
+        sender_phone TEXT,
         message TEXT NOT NULL,
         is_read BOOLEAN DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT now()
       );
+      ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS sender_phone TEXT;
     `);
     console.log('Database tables ready.');
   } catch (err) {
