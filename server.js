@@ -6,6 +6,7 @@ const tenantMiddleware = require('./src/middleware/tenant');
 const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
+const adminRouter = require('./src/routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,6 +26,9 @@ app.use(session({
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
+
+// Super admin panel must be before tenant middleware too
+app.use('/admin', adminRouter);
 
 // Tenant detection: runs on every non-company request
 app.use(tenantMiddleware);
@@ -82,6 +86,12 @@ async function initDb() {
         company_id INTEGER REFERENCES companies(id),
         title TEXT, description TEXT, image_url TEXT,
         order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT now()
       );
     `);

@@ -25,6 +25,14 @@ async function seed() {
       `, [petraRow.rows[0].id, hash]);
     }
 
+    // Seed default super admin
+    const adminHash = await bcrypt.hash('admin123', 10);
+    await client.query(`
+      INSERT INTO admins (email, password_hash)
+      VALUES ('admin@oscardevs.com', $1)
+      ON CONFLICT (email) DO NOTHING;
+    `, [adminHash]);
+
     console.log('Seed data inserted successfully.');
   } finally {
     client.release();
