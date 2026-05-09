@@ -35,6 +35,20 @@ function makeUploader(prefix) {
 const uploadLogo = makeUploader('logo').single('logo_file');
 const uploadItemImage = makeUploader('item').single('image_file');
 
+router.use(async (req, res, next) => {
+  res.locals.unreadCount = 0;
+  if (req.session.companyId) {
+    try {
+      const r = await pool.query(
+        'SELECT COUNT(*) FROM contact_messages WHERE company_id = $1 AND is_read = false',
+        [req.session.companyId]
+      );
+      res.locals.unreadCount = parseInt(r.rows[0].count, 10);
+    } catch (e) { /* badge is non-critical */ }
+  }
+  next();
+});
+
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
   if (req.session.companyId) return res.redirect('/company/dashboard');
@@ -205,6 +219,36 @@ router.post('/portfolio/delete/:id', requireLogin, async (req, res) => {
     [req.params.id, req.session.companyId]
   );
   res.redirect('/company/portfolio');
+});
+
+/* ─── MESSAGES ───────────────────────────────────────────── */
+router.get('/messages', requireLogin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM contact_messages WHERE company_id = $1 ORDER BY created_at DESC',
+      [req.session.companyId]
+    );
+    res.render('company/messages', { messages: result.rows, session: req.session });
+  } catch (err) {
+    console.error('[GET /messages] error:', err);
+    res.status(500).send('Error loading messages.');
+  }
+});
+
+router.post('/messages/:id/read', requireLogin, async (req, res) => {
+  await pool.query(
+    'UPDATE contact_messages SET is_read = true WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/messages');
+});
+
+router.post('/messages/:id/delete', requireLogin, async (req, res) => {
+  await pool.query(
+    'DELETE FROM contact_messages WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/messages');
 });
 
 module.exports = router;
