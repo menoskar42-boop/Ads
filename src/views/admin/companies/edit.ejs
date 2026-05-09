@@ -40,6 +40,16 @@
           class="h-12 w-24 border border-gray-200 rounded-xl cursor-pointer" />
       </div>
 
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Page Type *</label>
+        <select name="page_type" required
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          <option value="portfolio" <%= (company.page_type || 'portfolio') === 'portfolio' ? 'selected' : '' %>>Portfolio — showcase your work</option>
+          <option value="shop" <%= company.page_type === 'shop' ? 'selected' : '' %>>Shop — products + cart + cash on delivery</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-1">Switching type keeps existing data but only shows the layout matching the chosen type.</p>
+      </div>
+
       <label class="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="is_active" <%= company.is_active ? 'checked' : '' %>
           class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-300" />

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Orders</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<header class="bg-white shadow-sm">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="/" class="font-bold text-gray-800">Oscardevs Ads</a>
+    <div class="flex items-center gap-3 text-sm">
+      <span class="text-gray-500"><%= session.customerEmail %></span>
+      <form method="POST" action="/customer/logout" class="inline">
+        <button type="submit" class="text-red-500 hover:text-red-700">Logout</button>
+      </form>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold text-gray-800 mb-6">My Orders</h1>
+  <% if (!orders.length) { %>
+    <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
+      <p class="font-semibold">You haven't placed any orders yet.</p>
+    </div>
+  <% } else { %>
+    <div class="space-y-3">
+      <% orders.forEach(o => { %>
+        <div class="bg-white rounded-2xl shadow p-5">
+          <div class="flex items-center justify-between flex-wrap gap-3 mb-2">
+            <div>
+              <span class="font-mono text-gray-400 text-xs">#<%= o.id %></span>
+              <span class="ml-2 font-bold text-gray-700"><%= o.company_name %></span>
+            </div>
+            <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold uppercase <%= o.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : o.status === 'cancelled' ? 'bg-red-100 text-red-700' : o.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700' %>">
+              <%= o.status %>
+            </span>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-400"><%= new Date(o.created_at).toLocaleString() %></span>
+            <span class="font-bold text-gray-800"><%= Number(o.total_amount).toFixed(2) %></span>
+          </div>
+          <a href="/shop/<%= o.slug %>/order/<%= o.id %>" class="text-xs text-blue-600 hover:underline mt-2 inline-block">View details →</a>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>

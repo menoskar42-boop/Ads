@@ -16,6 +16,7 @@ const MAX_MESSAGE_LEN = 5000;
 function validateContact(body) {
   const sender_name = (body.sender_name || '').trim();
   const sender_email = (body.sender_email || '').trim();
+  const sender_phone = (body.sender_phone || '').trim();
   const message = (body.message || '').trim();
   if (!sender_name) return { error: 'Name is required.' };
   if (!message) return { error: 'Message is required.' };
@@ -23,7 +24,15 @@ function validateContact(body) {
   if (sender_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender_email)) {
     return { error: 'Invalid email address.' };
   }
-  return { sender_name, sender_email: sender_email || null, message };
+  if (sender_phone && sender_phone.length > 30) {
+    return { error: 'Phone number is too long.' };
+  }
+  return {
+    sender_name,
+    sender_email: sender_email || null,
+    sender_phone: sender_phone || null,
+    message,
+  };
 }
 
 router.post('/contact', async (req, res) => {
@@ -31,9 +40,9 @@ router.post('/contact', async (req, res) => {
   if (v.error) return res.redirect(`/?error=${encodeURIComponent(v.error)}`);
   try {
     await pool.query(
-      `INSERT INTO contact_messages (company_id, sender_name, sender_email, message)
-       VALUES (NULL, $1, $2, $3)`,
-      [v.sender_name, v.sender_email, v.message]
+      `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
+       VALUES (NULL, $1, $2, $3, $4)`,
+      [v.sender_name, v.sender_email, v.sender_phone, v.message]
     );
     res.redirect('/?sent=1');
   } catch (err) {
@@ -55,9 +64,9 @@ router.post('/contact/:slug', async (req, res) => {
       return res.status(404).render('404', { subdomain: slug });
     }
     await pool.query(
-      `INSERT INTO contact_messages (company_id, sender_name, sender_email, message)
-       VALUES ($1, $2, $3, $4)`,
-      [companyResult.rows[0].id, v.sender_name, v.sender_email, v.message]
+      `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [companyResult.rows[0].id, v.sender_name, v.sender_email, v.sender_phone, v.message]
     );
     res.redirect(`/view/${encodeURIComponent(slug)}?sent=1`);
   } catch (err) {
@@ -95,12 +104,29 @@ router.get('/view/:slug', async (req, res) => {
       console.error('Portfolio query skipped:', pErr.message);
     }
 
-    res.render('tenant', {
+    let products = [];
+    if (company.page_type === 'shop') {
+      try {
+        const productsResult = await pool.query(
+          'SELECT * FROM products WHERE company_id = $1 AND is_active = true ORDER BY created_at DESC',
+          [company.id]
+        );
+        products = productsResult.rows;
+      } catch (pErr) { console.error('Products query skipped:', pErr.message); }
+    }
+
+    const cart = (req.session.carts && req.session.carts[slug]) || {};
+    const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
+
+    const view = company.page_type === 'shop' ? 'tenant_shop' : 'tenant';
+    res.render(view, {
       company,
       topAd:     ads.find(a => a.position === 'top')     || null,
       sidebarAd: ads.find(a => a.position === 'sidebar') || null,
       footerAd:  ads.find(a => a.position === 'footer')  || null,
       portfolio,
+      products,
+      cartCount,
       sent: req.query.sent === '1',
       contactError: req.query.error || null,
     });

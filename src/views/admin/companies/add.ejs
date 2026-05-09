@@ -42,6 +42,16 @@
           class="h-12 w-24 border border-gray-200 rounded-xl cursor-pointer" />
       </div>
 
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Page Type *</label>
+        <select name="page_type" required
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+          <option value="portfolio" <%= (form.page_type || 'portfolio') === 'portfolio' ? 'selected' : '' %>>Portfolio — showcase your work</option>
+          <option value="shop" <%= form.page_type === 'shop' ? 'selected' : '' %>>Shop — products + cart + cash on delivery</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-1">Choose how the public page presents this company. Can be changed later.</p>
+      </div>
+
       <hr class="border-gray-100" />
       <h3 class="font-bold text-gray-700">First Admin User</h3>
 

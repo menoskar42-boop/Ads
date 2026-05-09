@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= company.company_name %> — Shop</title>
+  <meta name="description" content="<%= company.description || company.company_name %>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { font-family: 'Cairo', sans-serif; }
+    :root { --brand: <%= company.theme_color %>; }
+    .brand-bg { background-color: var(--brand); }
+    .brand-text { color: var(--brand); }
+    .brand-border { border-color: var(--brand); }
+    .brand-btn { background-color: var(--brand); }
+    .brand-btn:hover { opacity: 0.9; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<!-- Header -->
+<header class="bg-white shadow-sm sticky top-0 z-20">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <% if (company.logo_url) { %>
+        <img src="<%= company.logo_url %>" alt="<%= company.company_name %>" class="w-10 h-10 rounded-xl object-cover" />
+      <% } else { %>
+        <div class="w-10 h-10 brand-bg rounded-xl flex items-center justify-center text-white font-black"><%= company.company_name.charAt(0) %></div>
+      <% } %>
+      <span class="font-bold text-gray-800"><%= company.company_name %></span>
+    </div>
+    <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+      Cart
+      <% if (cartCount > 0) { %>
+        <span class="bg-white text-xs brand-text font-bold rounded-full px-2 py-0.5"><%= cartCount %></span>
+      <% } %>
+    </a>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="bg-white border-b">
+  <div class="max-w-6xl mx-auto px-4 py-10 text-center">
+    <h1 class="text-3xl sm:text-4xl font-black brand-text mb-2"><%= company.company_name %></h1>
+    <% if (company.description) { %>
+      <p class="text-gray-500 max-w-2xl mx-auto"><%= company.description %></p>
+    <% } %>
+  </div>
+</section>
+
+<!-- Top banner ad -->
+<% if (topAd) { %>
+  <div class="max-w-6xl mx-auto px-4 mt-4">
+    <a href="<%= topAd.target_url || '#' %>" target="_blank"><img src="<%= topAd.image_url %>" alt="Ad" class="w-full rounded-xl shadow" /></a>
+  </div>
+<% } %>
+
+<!-- Products grid -->
+<section class="max-w-6xl mx-auto px-4 py-10">
+  <h2 class="text-2xl font-bold text-gray-800 mb-6">Our Products</h2>
+  <% if (!products.length) { %>
+    <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
+      <p class="font-semibold">No products yet.</p>
+      <p class="text-sm mt-1">Check back soon — new items coming.</p>
+    </div>
+  <% } else { %>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <% products.forEach(p => { %>
+        <div class="bg-white rounded-2xl shadow overflow-hidden flex flex-col">
+          <% if (p.image_url) { %>
+            <img src="<%= p.image_url %>" alt="<%= p.name %>" class="w-full h-48 object-cover" onerror="this.style.display='none'" />
+          <% } %>
+          <div class="p-4 flex-1 flex flex-col">
+            <h3 class="font-bold text-gray-800 mb-1"><%= p.name %></h3>
+            <% if (p.description) { %>
+              <p class="text-xs text-gray-500 mb-3 line-clamp-2"><%= p.description %></p>
+            <% } %>
+            <div class="mt-auto flex items-center justify-between gap-2">
+              <span class="font-black brand-text text-lg"><%= Number(p.price).toFixed(2) %> <%= company.currency || 'EGP' %></span>
+              <% if (p.stock > 0) { %>
+                <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="inline">
+                  <input type="hidden" name="product_id" value="<%= p.id %>" />
+                  <input type="hidden" name="quantity" value="1" />
+                  <button type="submit" class="brand-btn text-white text-xs font-semibold px-3 py-2 rounded-lg">Add to cart</button>
+                </form>
+              <% } else { %>
+                <span class="text-xs text-gray-400 font-semibold">Out of stock</span>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<!-- Contact -->
+<section class="max-w-6xl mx-auto px-4 pb-12">
+  <div class="bg-white rounded-2xl shadow p-8">
+    <h2 class="text-2xl font-bold brand-text mb-4">Contact Us</h2>
+    <p class="text-gray-500 mb-6">Have a question? Send us a message.</p>
+    <% if (typeof sent !== 'undefined' && sent) { %>
+      <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 text-sm">✓ Your message was sent.</div>
+    <% } %>
+    <% if (typeof contactError !== 'undefined' && contactError) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= contactError %></div>
+    <% } %>
+    <form method="POST" action="/contact/<%= company.slug %>" class="space-y-4">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <input type="text" name="sender_name" placeholder="Your Name" required class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        <input type="email" name="sender_email" placeholder="Your Email" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+      </div>
+      <input type="tel" name="sender_phone" placeholder="Your Phone (optional)" maxlength="30" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+      <textarea name="message" rows="4" placeholder="Your message..." required maxlength="5000" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
+      <button type="submit" class="brand-btn text-white px-8 py-3 rounded-full font-semibold transition">Send Message</button>
+    </form>
+  </div>
+</section>
+
+<!-- Footer ad -->
+<% if (footerAd) { %>
+  <div class="max-w-6xl mx-auto px-4 mb-6">
+    <a href="<%= footerAd.target_url || '#' %>" target="_blank"><img src="<%= footerAd.image_url %>" alt="Ad" class="w-full rounded-xl shadow" /></a>
+  </div>
+<% } %>
+
+<footer class="bg-gray-900 text-gray-400 py-6 text-center text-sm">
+  <p>&copy; <%= new Date().getFullYear() %> <%= company.company_name %></p>
+</footer>
+
+</body>
+</html>
