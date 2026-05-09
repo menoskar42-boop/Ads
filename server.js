@@ -7,6 +7,8 @@ const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
 const adminRouter = require('./src/routes/admin');
+const shopRouter = require('./src/routes/shop');
+const customerRouter = require('./src/routes/customer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +31,10 @@ app.use('/company', companyRouter);
 
 // Super admin panel must be before tenant middleware too
 app.use('/admin', adminRouter);
+
+// Shop and customer routers — also before tenant middleware
+app.use('/shop', shopRouter);
+app.use('/customer', customerRouter);
 
 // Tenant detection: runs on every non-company request
 app.use(tenantMiddleware);

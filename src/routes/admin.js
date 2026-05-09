@@ -6,7 +6,7 @@ const requireAdmin = require('../middleware/adminAuth');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const RESERVED_SLUGS = ['admin', 'company', 'view', 'api', 'public', 'static'];
+const RESERVED_SLUGS = ['admin', 'company', 'view', 'api', 'public', 'static', 'shop', 'customer', 'contact', 'uploads'];
 const SLUG_REGEX = /^[a-z0-9-]+$/;
 
 function adminSession(req) {

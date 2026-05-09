@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Login — Oscardevs</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-md">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">Customer Login</h1>
+      <p class="text-gray-500 text-sm mt-1">Sign in to view your orders</p>
+    </div>
+    <div class="bg-white rounded-3xl shadow-xl p-8">
+      <% if (error) { %>
+        <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div>
+      <% } %>
+      <form method="POST" action="/customer/login" class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Email</label>
+          <input type="email" name="email" required class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Password</label>
+          <input type="password" name="password" required class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        </div>
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow">Sign In</button>
+      </form>
+      <p class="text-center text-sm text-gray-500 mt-4">No account? <a href="/customer/register" class="text-blue-600 hover:underline">Register</a></p>
+    </div>
+    <p class="text-center text-sm text-gray-400 mt-6"><a href="/" class="hover:text-blue-500">← Back to Platform</a></p>
+  </div>
+</body>
+</html>
