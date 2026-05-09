@@ -94,7 +94,8 @@ router.get('/companies/add', requireAdmin, (req, res) => {
 
 router.post('/companies/add', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, admin_email, admin_password } = req.body;
-  const form = { company_name, slug, description, theme_color, admin_email };
+  const page_type = req.body.page_type === 'shop' ? 'shop' : 'portfolio';
+  const form = { company_name, slug, description, theme_color, admin_email, page_type };
 
   const renderError = (error) =>
     res.render('admin/companies/add', { session: adminSession(req), error, form, activePage: 'add' });
@@ -125,9 +126,9 @@ router.post('/companies/add', requireAdmin, async (req, res) => {
     }
 
     const inserted = await client.query(
-      `INSERT INTO companies (slug, company_name, description, theme_color)
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [slug, company_name, description || null, theme_color || '#2563eb']
+      `INSERT INTO companies (slug, company_name, description, theme_color, page_type)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [slug, company_name, description || null, theme_color || '#2563eb', page_type]
     );
     const newCompanyId = inserted.rows[0].id;
 
@@ -172,6 +173,7 @@ router.get('/companies/:id/edit', requireAdmin, async (req, res) => {
 
 router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, is_active } = req.body;
+  const page_type = req.body.page_type === 'shop' ? 'shop' : 'portfolio';
   try {
     if (!SLUG_REGEX.test(slug) || RESERVED_SLUGS.includes(slug)) {
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
@@ -184,9 +186,9 @@ router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
     }
     await pool.query(
       `UPDATE companies
-       SET company_name = $1, slug = $2, description = $3, theme_color = $4, is_active = $5
-       WHERE id = $6`,
-      [company_name, slug, description || null, theme_color || '#2563eb', is_active === 'on', req.params.id]
+       SET company_name = $1, slug = $2, description = $3, theme_color = $4, is_active = $5, page_type = $6
+       WHERE id = $7`,
+      [company_name, slug, description || null, theme_color || '#2563eb', is_active === 'on', page_type, req.params.id]
     );
     req.session.adminFlash = { type: 'success', message: `Company "${company_name}" updated.` };
     res.redirect('/admin/dashboard');

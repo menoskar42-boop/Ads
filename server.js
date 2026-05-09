@@ -105,6 +105,48 @@ async function initDb() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS sender_phone TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS page_type TEXT DEFAULT 'portfolio';
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
+      CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        name TEXT NOT NULL,
+        description TEXT,
+        price NUMERIC(10,2) NOT NULL,
+        image_url TEXT,
+        stock INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS customers (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT,
+        phone TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        customer_id INTEGER REFERENCES customers(id),
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT NOT NULL,
+        customer_email TEXT,
+        shipping_address TEXT NOT NULL,
+        total_amount NUMERIC(10,2) NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS order_items (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES products(id),
+        product_name TEXT NOT NULL,
+        unit_price NUMERIC(10,2) NOT NULL,
+        quantity INTEGER NOT NULL
+      );
     `);
     console.log('Database tables ready.');
   } catch (err) {
