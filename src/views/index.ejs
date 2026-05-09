@@ -131,12 +131,34 @@
 
   <!-- Contact -->
   <section id="contact" class="bg-gradient-to-br from-blue-600 to-indigo-700 text-white py-20 px-4">
-    <div class="max-w-2xl mx-auto text-center">
-      <h2 class="text-3xl font-bold mb-4">Ready to Get Started?</h2>
-      <p class="text-blue-100 mb-8">Contact us to register your company and launch your branded ad page today.</p>
-      <a href="mailto:hello@oscardevs.com" class="inline-block bg-white text-blue-700 font-semibold px-8 py-4 rounded-full shadow hover:shadow-lg transition">
-        hello@oscardevs.com
-      </a>
+    <div class="max-w-2xl mx-auto">
+      <div class="text-center mb-8">
+        <h2 class="text-3xl font-bold mb-4">Ready to Get Started?</h2>
+        <p class="text-blue-100">Send us a message — we'll get back to you to set up your branded ad page.</p>
+      </div>
+      <% if (typeof sent !== 'undefined' && sent) { %>
+        <div class="bg-white/15 border border-white/30 text-white rounded-2xl px-5 py-4 mb-5 text-sm text-center">
+          ✓ Your message was sent. We'll be in touch soon.
+        </div>
+      <% } %>
+      <% if (typeof contactError !== 'undefined' && contactError) { %>
+        <div class="bg-red-500/30 border border-red-300 text-white rounded-2xl px-5 py-4 mb-5 text-sm text-center">
+          <%= contactError %>
+        </div>
+      <% } %>
+      <form method="POST" action="/contact" class="bg-white rounded-3xl shadow-xl p-6 sm:p-8 space-y-4">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <input type="text" name="sender_name" placeholder="Your Name" required class="text-gray-800 border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-300" />
+          <input type="email" name="sender_email" placeholder="Your Email" class="text-gray-800 border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-300" />
+        </div>
+        <textarea name="message" rows="4" placeholder="Your message..." required maxlength="5000" class="text-gray-800 border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-300"></textarea>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl transition shadow w-full sm:w-auto">
+          Send Message
+        </button>
+      </form>
+      <p class="text-center text-sm text-blue-100 mt-6">
+        Or email us directly at <a href="mailto:hello@oscardevs.com" class="underline hover:text-white">hello@oscardevs.com</a>
+      </p>
     </div>
   </section>
 
