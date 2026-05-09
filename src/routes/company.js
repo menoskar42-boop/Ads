@@ -1,10 +1,38 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/;
+
+function makeUploader(prefix) {
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${prefix}-${req.session.companyId}-${Date.now()}${ext}`);
+    },
+  });
+  return multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (imageMimeRegex.test(file.mimetype)) cb(null, true);
+      else cb(new Error('Only image files (PNG, JPEG, GIF, WEBP, SVG) are allowed.'));
+    },
+  });
+}
+
+const uploadLogo = makeUploader('logo').single('logo_file');
 
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
@@ -70,12 +98,26 @@ router.get('/profile', requireLogin, async (req, res) => {
   res.render('company/profile', { company: result.rows[0], session: req.session, success: null, error: null });
 });
 
-router.post('/profile', requireLogin, async (req, res) => {
+router.post('/profile', requireLogin, (req, res, next) => {
+  uploadLogo(req, res, (err) => {
+    if (err) {
+      return pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId])
+        .then(result => res.render('company/profile', {
+          company: result.rows[0], session: req.session, success: null, error: err.message,
+        }))
+        .catch(next);
+    }
+    next();
+  });
+}, async (req, res) => {
   const { company_name, description, theme_color, logo_url } = req.body;
+  const finalLogoUrl = req.file
+    ? `/uploads/${req.file.filename}`
+    : (logo_url || null);
   try {
     await pool.query(
       `UPDATE companies SET company_name=$1, description=$2, theme_color=$3, logo_url=$4 WHERE id=$5`,
-      [company_name, description, theme_color, logo_url || null, req.session.companyId]
+      [company_name, description, theme_color, finalLogoUrl, req.session.companyId]
     );
     req.session.companyName = company_name;
     req.session.themeColor = theme_color;
