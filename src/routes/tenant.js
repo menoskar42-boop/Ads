@@ -25,6 +25,8 @@ router.get('/', async (req, res) => {
     sidebarAd: ads.find(a => a.position === 'sidebar') || null,
     footerAd:  ads.find(a => a.position === 'footer')  || null,
     portfolio,
+    sent: req.query.sent === '1',
+    contactError: req.query.error || null,
   });
 });
 

@@ -13,6 +13,17 @@ function adminSession(req) {
   return { adminEmail: req.session.adminEmail, adminId: req.session.adminId };
 }
 
+router.use(async (req, res, next) => {
+  res.locals.unreadCount = 0;
+  if (req.session.adminId) {
+    try {
+      const r = await pool.query('SELECT COUNT(*) FROM contact_messages WHERE is_read = false');
+      res.locals.unreadCount = parseInt(r.rows[0].count, 10);
+    } catch (e) { /* badge is non-critical */ }
+  }
+  next();
+});
+
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
   if (req.session.adminId) return res.redirect('/admin/dashboard');
@@ -240,6 +251,50 @@ router.post('/companies/:id/reset-password', requireAdmin, async (req, res) => {
     req.session.adminFlash = { type: 'error', message: 'Failed to reset password.' };
   }
   res.redirect('/admin/dashboard');
+});
+
+/* ─── MESSAGES ───────────────────────────────────────────── */
+router.get('/messages', requireAdmin, async (req, res) => {
+  try {
+    const filter = req.query.company ? parseInt(req.query.company, 10) : null;
+    const params = [];
+    let where = '';
+    if (filter && Number.isFinite(filter)) {
+      where = 'WHERE m.company_id = $1';
+      params.push(filter);
+    } else if (req.query.company === 'platform') {
+      where = 'WHERE m.company_id IS NULL';
+    }
+    const result = await pool.query(
+      `SELECT m.*, c.company_name, c.slug
+       FROM contact_messages m
+       LEFT JOIN companies c ON c.id = m.company_id
+       ${where}
+       ORDER BY m.created_at DESC`,
+      params
+    );
+    const companies = await pool.query('SELECT id, company_name FROM companies ORDER BY company_name');
+    res.render('admin/messages', {
+      messages: result.rows,
+      companies: companies.rows,
+      currentFilter: req.query.company || '',
+      session: adminSession(req),
+      activePage: 'messages',
+    });
+  } catch (err) {
+    console.error('[GET /admin/messages] error:', err);
+    res.status(500).send('Error loading messages.');
+  }
+});
+
+router.post('/messages/:id/read', requireAdmin, async (req, res) => {
+  await pool.query('UPDATE contact_messages SET is_read = true WHERE id = $1', [req.params.id]);
+  res.redirect('/admin/messages');
+});
+
+router.post('/messages/:id/delete', requireAdmin, async (req, res) => {
+  await pool.query('DELETE FROM contact_messages WHERE id = $1', [req.params.id]);
+  res.redirect('/admin/messages');
 });
 
 module.exports = router;

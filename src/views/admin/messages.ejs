@@ -1,0 +1,76 @@
+<%
+  pageTitle = 'Messages';
+  activePage = 'messages';
+%>
+<%- include('_layout_top') %>
+
+  <div class="space-y-6">
+
+    <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800 mb-1">Platform Inbox</h2>
+        <p class="text-gray-400 text-sm">All contact-form messages across the platform.</p>
+      </div>
+      <form method="GET" action="/admin/messages" class="flex items-center gap-2">
+        <select name="company" class="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200">
+          <option value="" <%= currentFilter === '' ? 'selected' : '' %>>All</option>
+          <option value="platform" <%= currentFilter === 'platform' ? 'selected' : '' %>>Platform only</option>
+          <% companies.forEach(c => { %>
+            <option value="<%= c.id %>" <%= String(currentFilter) === String(c.id) ? 'selected' : '' %>><%= c.company_name %></option>
+          <% }) %>
+        </select>
+        <button type="submit" class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition">Filter</button>
+      </form>
+    </div>
+
+    <% if (!messages.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
+        <p class="font-semibold">No messages.</p>
+      </div>
+    <% } else { %>
+      <div class="space-y-3">
+        <% messages.forEach(m => { %>
+          <div class="bg-white rounded-2xl shadow-sm p-5 <%= m.is_read ? '' : 'border-l-4 border-indigo-500' %>">
+            <div class="flex items-start justify-between gap-4 mb-2 flex-wrap">
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-bold text-gray-800"><%= m.sender_name %></span>
+                  <% if (!m.is_read) { %>
+                    <span class="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">NEW</span>
+                  <% } %>
+                  <% if (m.company_id) { %>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">→ <%= m.company_name %></span>
+                  <% } else { %>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">→ Platform</span>
+                  <% } %>
+                </div>
+                <% if (m.sender_email) { %>
+                  <a href="mailto:<%= m.sender_email %>" class="text-xs text-indigo-600 hover:underline"><%= m.sender_email %></a>
+                <% } %>
+              </div>
+              <div class="flex items-center gap-3">
+                <% if (m.slug) { %>
+                  <a href="/view/<%= m.slug %>" target="_blank" class="text-xs text-gray-500 hover:text-gray-700">View page</a>
+                <% } %>
+                <span class="text-xs text-gray-400"><%= new Date(m.created_at).toLocaleString() %></span>
+              </div>
+            </div>
+            <p class="text-sm text-gray-700 whitespace-pre-wrap mb-3"><%= m.message %></p>
+            <div class="flex items-center gap-2">
+              <% if (!m.is_read) { %>
+                <form method="POST" action="/admin/messages/<%= m.id %>/read" class="inline">
+                  <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">Mark as read</button>
+                </form>
+              <% } %>
+              <form method="POST" action="/admin/messages/<%= m.id %>/delete" class="inline" onsubmit="return confirm('Delete this message?');">
+                <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">Delete</button>
+              </form>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+
+  </div>
+
+<%- include('_layout_bottom') %>
