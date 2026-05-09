@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+  <% var displayCompanyName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cart — <%= company.company_name %></title>
+  <title><%= t('public.cart') %> — <%= displayCompanyName %></title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,17 +20,20 @@
 
 <header class="bg-white shadow-sm">
   <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= company.company_name %></a>
-    <% if (customerId) { %>
-      <a href="/customer/orders" class="text-sm text-gray-500 hover:text-gray-700">My Orders</a>
-    <% } else { %>
-      <a href="/customer/login" class="text-sm text-gray-500 hover:text-gray-700">Customer Login</a>
-    <% } %>
+    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= displayCompanyName %></a>
+    <div class="flex items-center gap-2">
+      <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1"><%= t('common.toggle_lang') %></a>
+      <% if (customerId) { %>
+        <a href="/customer/orders" class="text-sm text-gray-500 hover:text-gray-700"><%= t('customer.my_orders') %></a>
+      <% } else { %>
+        <a href="/customer/login" class="text-sm text-gray-500 hover:text-gray-700"><%= t('common.login') %></a>
+      <% } %>
+    </div>
   </div>
 </header>
 
 <main class="max-w-4xl mx-auto px-4 py-8">
-  <h1 class="text-2xl font-bold text-gray-800 mb-6">Your Cart</h1>
+  <h1 class="text-2xl font-bold text-gray-800 mb-6"><%= t('public.cart') %></h1>
 
   <% if (error) { %>
     <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div>
@@ -37,18 +41,18 @@
 
   <% if (!lines.length) { %>
     <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-      <p class="font-semibold mb-2">Your cart is empty.</p>
-      <a href="/view/<%= company.slug %>" class="inline-block brand-btn text-white px-6 py-2 rounded-xl text-sm font-semibold">Continue shopping</a>
+      <p class="font-semibold mb-2"><%= t('public.cart_empty') %></p>
+      <a href="/view/<%= company.slug %>" class="inline-block brand-btn text-white px-6 py-2 rounded-xl text-sm font-semibold"><%= t('public.continue_shopping') %></a>
     </div>
   <% } else { %>
     <form method="POST" action="/shop/<%= company.slug %>/cart/update" class="bg-white rounded-2xl shadow overflow-hidden">
       <table class="w-full text-sm">
         <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
           <tr>
-            <th class="px-4 py-3 text-left">Product</th>
-            <th class="px-4 py-3 text-right">Price</th>
-            <th class="px-4 py-3 text-center">Qty</th>
-            <th class="px-4 py-3 text-right">Subtotal</th>
+            <th class="px-4 py-3 text-left"><%= t('common.name') %></th>
+            <th class="px-4 py-3 text-right"><%= t('common.price') %></th>
+            <th class="px-4 py-3 text-center"><%= t('public.qty') %></th>
+            <th class="px-4 py-3 text-right"><%= t('public.subtotal') %></th>
             <th class="px-4 py-3"></th>
           </tr>
         </thead>
@@ -71,7 +75,7 @@
               <td class="px-4 py-3 text-right font-mono"><%= l.lineTotal.toFixed(2) %></td>
               <td class="px-4 py-3 text-right">
                 <form method="POST" action="/shop/<%= company.slug %>/cart/remove/<%= l.id %>" class="inline">
-                  <button type="submit" class="text-xs text-red-600 hover:text-red-800">Remove</button>
+                  <button type="submit" class="text-xs text-red-600 hover:text-red-800"><%= t('public.remove') %></button>
                 </form>
               </td>
             </tr>
@@ -79,16 +83,16 @@
         </tbody>
         <tfoot>
           <tr class="font-bold bg-gray-50">
-            <td colspan="3" class="px-4 py-3 text-right text-gray-700">Total</td>
+            <td colspan="3" class="px-4 py-3 text-right text-gray-700"><%= t('public.total') %></td>
             <td class="px-4 py-3 text-right font-mono brand-text"><%= total.toFixed(2) %> <%= company.currency || 'EGP' %></td>
             <td></td>
           </tr>
         </tfoot>
       </table>
       <div class="p-4 flex items-center justify-between gap-3 flex-wrap border-t">
-        <button type="submit" class="text-sm px-4 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition">Update quantities</button>
+        <button type="submit" class="text-sm px-4 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= t('common.save') %></button>
         <a href="/shop/<%= company.slug %>/checkout" class="brand-btn text-white text-sm font-bold px-6 py-2 rounded-xl hover:opacity-90 transition shadow">
-          Proceed to checkout →
+          <%= t('public.proceed_to_checkout') %> →
         </a>
       </div>
     </form>

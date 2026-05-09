@@ -1,31 +1,31 @@
 <%
-  pageTitle = 'Banners';
+  pageTitle = t('company.banners');
   activePage = 'banners';
 %>
 <%- include('_layout_top') %>
 
   <div class="space-y-6">
     <div class="bg-white rounded-2xl shadow-sm p-6">
-      <h2 class="text-xl font-bold text-gray-800 mb-1">Banner Slider</h2>
-      <p class="text-gray-400 text-sm mb-6">Upload images that auto-rotate at the top of your public page. Drag-style reorder via Up/Down buttons.</p>
+      <h2 class="text-xl font-bold text-gray-800 mb-1"><%= t('company.banner_slider') %></h2>
+      <p class="text-gray-400 text-sm mb-6"><%= t('company.banner_help') %></p>
 
       <form method="POST" action="/company/banners/add" enctype="multipart/form-data" class="space-y-3 mb-6 border-b pb-6">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">Image *</label>
+          <label class="block text-xs text-gray-500 mb-1"><%= t('common.image') %> *</label>
           <input type="file" name="image_file" accept="image/*" required
             class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700" />
         </div>
         <div class="grid sm:grid-cols-2 gap-3">
-          <input type="text" name="caption" placeholder="Caption (optional)"
+          <input type="text" name="caption" placeholder="<%= t('company.caption') %>"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-          <input type="url" name="target_url" placeholder="Click target URL (optional)"
+          <input type="url" name="target_url" placeholder="<%= t('company.click_url') %>"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
-        <button type="submit" class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition">+ Add Slide</button>
+        <button type="submit" class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition">+ <%= t('company.add_slide') %></button>
       </form>
 
       <% if (!banners.length) { %>
-        <p class="text-center text-gray-400 text-sm py-4">No slides yet. Add one above.</p>
+        <p class="text-center text-gray-400 text-sm py-4"><%= t('company.no_slides') %></p>
       <% } else { %>
         <div class="space-y-3">
           <% banners.forEach((b, i) => { %>
@@ -34,13 +34,13 @@
               <div class="flex-1 min-w-0">
                 <% if (b.caption) { %><p class="font-semibold text-sm truncate"><%= b.caption %></p><% } %>
                 <% if (b.target_url) { %><p class="text-xs text-gray-400 truncate"><%= b.target_url %></p><% } %>
-                <p class="text-xs text-gray-400 mt-0.5">Position: <%= i + 1 %><%= b.is_active ? '' : ' • inactive' %></p>
+                <p class="text-xs text-gray-400 mt-0.5"><%= t('company.position') %>: <%= i + 1 %></p>
               </div>
               <div class="flex items-center gap-1">
                 <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="up" /><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === 0 ? 'disabled' : '' %>>↑</button></form>
                 <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="down" /><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === banners.length - 1 ? 'disabled' : '' %>>↓</button></form>
-                <form method="POST" action="/company/banners/<%= b.id %>/toggle" class="inline"><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"><%= b.is_active ? 'Hide' : 'Show' %></button></form>
-                <form method="POST" action="/company/banners/<%= b.id %>/delete" class="inline" onsubmit="return confirm('Delete this slide?');"><button type="submit" class="text-xs px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100">Delete</button></form>
+                <form method="POST" action="/company/banners/<%= b.id %>/toggle" class="inline"><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"><%= b.is_active ? t('company.hide') : t('company.show') %></button></form>
+                <form method="POST" action="/company/banners/<%= b.id %>/delete" class="inline" onsubmit="return confirm('<%= t('common.confirm_delete') %>');"><button type="submit" class="text-xs px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100"><%= t('common.delete') %></button></form>
               </div>
             </div>
           <% }) %>

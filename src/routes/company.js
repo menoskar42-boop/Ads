@@ -98,9 +98,11 @@ router.post('/login', async (req, res) => {
       return res.render('company/login', { error: 'Invalid email or password.' });
     }
     req.session.companyId = user.company_id;
+    req.session.companyUserId = user.id;
     req.session.companyName = user.company_name;
     req.session.themeColor = user.theme_color;
     req.session.companySlug = user.slug;
+    req.session.adminLang = user.lang || 'ar';
     res.redirect('/company/dashboard');
   } catch (err) {
     console.error('Login error:', err);
@@ -402,10 +404,15 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      const name_ar = (req.body.name_ar || '').trim() || null;
+      const name_en = (req.body.name_en || '').trim() || null;
+      const description_ar = (req.body.description_ar || '').trim() || null;
+      const description_en = (req.body.description_en || '').trim() || null;
+      const finalName = name || name_ar || name_en || '';
       const ins = await client.query(
-        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7) RETURNING id`,
-        [req.session.companyId, name, description || null, priceNum, finalImageUrl, stockNum, categoryId]
+        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id, name_ar, name_en, description_ar, description_en)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11) RETURNING id`,
+        [req.session.companyId, finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId, name_ar, name_en, description_ar, description_en]
       );
       if (stockNum > 0) {
         await client.query(
@@ -490,10 +497,17 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
       await client.query('BEGIN');
       const before = await client.query('SELECT stock FROM products WHERE id = $1 AND company_id = $2', [req.params.id, req.session.companyId]);
       const beforeStock = before.rows.length ? before.rows[0].stock : 0;
+      const name_ar = (req.body.name_ar || '').trim() || null;
+      const name_en = (req.body.name_en || '').trim() || null;
+      const description_ar = (req.body.description_ar || '').trim() || null;
+      const description_en = (req.body.description_en || '').trim() || null;
+      const finalName = name || name_ar || name_en || '';
       await client.query(
-        `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6
-         WHERE id=$7 AND company_id=$8`,
-        [name, description || null, priceNum, finalImageUrl, stockNum, categoryId, req.params.id, req.session.companyId]
+        `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6,
+         name_ar=$7, name_en=$8, description_ar=$9, description_en=$10
+         WHERE id=$11 AND company_id=$12`,
+        [finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId,
+         name_ar, name_en, description_ar, description_en, req.params.id, req.session.companyId]
       );
       const diff = stockNum - beforeStock;
       if (diff !== 0) {
@@ -726,6 +740,19 @@ router.post('/banners/:id/move', requireLogin, async (req, res) => {
     console.error('[banner move] error:', err);
   } finally { client.release(); }
   res.redirect('/company/banners');
+});
+
+/* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
+router.post('/lang/:lang', async (req, res) => {
+  const lang = req.params.lang === 'en' ? 'en' : 'ar';
+  if (req.session && req.session.companyUserId) {
+    req.session.adminLang = lang;
+    try {
+      await pool.query('UPDATE company_users SET lang = $1 WHERE id = $2', [lang, req.session.companyUserId]);
+    } catch (e) { console.error(e); }
+  }
+  res.cookie('lang', lang, { maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+  res.redirect(req.get('Referrer') || '/company/dashboard');
 });
 
 module.exports = router;

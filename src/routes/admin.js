@@ -44,6 +44,7 @@ router.post('/login', async (req, res) => {
     }
     req.session.adminId = admin.id;
     req.session.adminEmail = admin.email;
+    req.session.adminLang = admin.lang || 'ar';
     res.redirect('/admin/dashboard');
   } catch (err) {
     console.error('Admin login error:', err);
@@ -187,13 +188,15 @@ router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
     const adsense_top = (req.body.adsense_top || '').trim() || null;
     const adsense_sidebar = (req.body.adsense_sidebar || '').trim() || null;
     const adsense_bottom = (req.body.adsense_bottom || '').trim() || null;
+    const content_i18n = req.body.content_i18n === 'on';
     await pool.query(
       `UPDATE companies
        SET company_name = $1, slug = $2, description = $3, theme_color = $4, is_active = $5,
-           page_type = $6, adsense_top = $7, adsense_sidebar = $8, adsense_bottom = $9
-       WHERE id = $10`,
+           page_type = $6, adsense_top = $7, adsense_sidebar = $8, adsense_bottom = $9,
+           content_i18n = $10
+       WHERE id = $11`,
       [company_name, slug, description || null, theme_color || '#2563eb', is_active === 'on',
-       page_type, adsense_top, adsense_sidebar, adsense_bottom, req.params.id]
+       page_type, adsense_top, adsense_sidebar, adsense_bottom, content_i18n, req.params.id]
     );
     req.session.adminFlash = { type: 'success', message: `Company "${company_name}" updated.` };
     res.redirect('/admin/dashboard');
@@ -302,6 +305,17 @@ router.post('/messages/:id/read', requireAdmin, async (req, res) => {
 router.post('/messages/:id/delete', requireAdmin, async (req, res) => {
   await pool.query('DELETE FROM contact_messages WHERE id = $1', [req.params.id]);
   res.redirect('/admin/messages');
+});
+
+/* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
+router.post('/lang/:lang', async (req, res) => {
+  const lang = req.params.lang === 'en' ? 'en' : 'ar';
+  if (req.session && req.session.adminId) {
+    req.session.adminLang = lang;
+    try { await pool.query('UPDATE admins SET lang = $1 WHERE id = $2', [lang, req.session.adminId]); } catch (e) { console.error(e); }
+  }
+  res.cookie('lang', lang, { maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+  res.redirect(req.get('Referrer') || '/admin/dashboard');
 });
 
 module.exports = router;
