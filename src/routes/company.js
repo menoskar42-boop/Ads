@@ -275,11 +275,72 @@ router.post('/messages/:id/delete', requireLogin, async (req, res) => {
   res.redirect('/company/messages');
 });
 
+async function fetchCategories(companyId) {
+  const r = await pool.query(
+    'SELECT * FROM product_categories WHERE company_id = $1 ORDER BY order_index, name',
+    [companyId]
+  );
+  return r.rows;
+}
+
+/* ─── CATEGORIES (shop only) ─────────────────────────────── */
+router.get('/categories', requireLogin, requireShop, async (req, res) => {
+  const categories = await fetchCategories(req.session.companyId);
+  res.render('company/categories', { categories, session: req.session, error: null });
+});
+
+router.post('/categories/add', requireLogin, requireShop, async (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (!name) return res.redirect('/company/categories');
+  try {
+    await pool.query(
+      'INSERT INTO product_categories (company_id, name) VALUES ($1, $2)',
+      [req.session.companyId, name]
+    );
+  } catch (err) { console.error('[POST /categories/add] error:', err); }
+  res.redirect('/company/categories');
+});
+
+router.post('/categories/:id/rename', requireLogin, requireShop, async (req, res) => {
+  const name = (req.body.name || '').trim();
+  if (name) {
+    await pool.query(
+      'UPDATE product_categories SET name = $1 WHERE id = $2 AND company_id = $3',
+      [name, req.params.id, req.session.companyId]
+    );
+  }
+  res.redirect('/company/categories');
+});
+
+router.post('/categories/:id/delete', requireLogin, requireShop, async (req, res) => {
+  // Orphan products in this category — set their category_id to NULL
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'UPDATE products SET category_id = NULL WHERE category_id = $1 AND company_id = $2',
+      [req.params.id, req.session.companyId]
+    );
+    await client.query(
+      'DELETE FROM product_categories WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.session.companyId]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[POST /categories/:id/delete] error:', err);
+  } finally { client.release(); }
+  res.redirect('/company/categories');
+});
+
 /* ─── PRODUCTS (shop only) ───────────────────────────────── */
 router.get('/products', requireLogin, requireShop, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM products WHERE company_id = $1 ORDER BY created_at DESC',
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN product_categories c ON c.id = p.category_id
+       WHERE p.company_id = $1 ORDER BY p.created_at DESC`,
       [req.session.companyId]
     );
     const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
@@ -296,9 +357,12 @@ router.get('/products', requireLogin, requireShop, async (req, res) => {
 
 router.get('/products/add', requireLogin, requireShop, async (req, res) => {
   const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+  const categories = await fetchCategories(req.session.companyId);
   res.render('company/product_form', {
     product: null,
     company: company.rows[0],
+    categories,
+    images: [],
     session: req.session,
     error: null,
   });
@@ -308,9 +372,12 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
   uploadProductImage(req, res, async (uploadErr) => {
     const renderError = async (message) => {
       const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+      const categories = await fetchCategories(req.session.companyId);
       return res.render('company/product_form', {
         product: req.body,
         company: company.rows[0],
+        categories,
+        images: [],
         session: req.session,
         error: message,
       });
@@ -322,18 +389,38 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
     if (isNaN(priceNum) || priceNum < 0) return renderError('Invalid price.');
     const stockNum = parseInt(stock, 10);
     if (isNaN(stockNum) || stockNum < 0) return renderError('Invalid stock.');
-    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
-    try {
-      await pool.query(
-        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, true)`,
-        [req.session.companyId, name, description || null, priceNum, finalImageUrl, stockNum]
+    let categoryId = parseInt(req.body.category_id, 10);
+    if (!Number.isFinite(categoryId)) categoryId = null;
+    if (categoryId !== null) {
+      const c = await pool.query(
+        'SELECT id FROM product_categories WHERE id = $1 AND company_id = $2',
+        [categoryId, req.session.companyId]
       );
+      if (!c.rows.length) categoryId = null;
+    }
+    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ins = await client.query(
+        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7) RETURNING id`,
+        [req.session.companyId, name, description || null, priceNum, finalImageUrl, stockNum, categoryId]
+      );
+      if (stockNum > 0) {
+        await client.query(
+          `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, notes)
+           VALUES ($1, $2, $3, 'restock', 'Initial stock on creation')`,
+          [ins.rows[0].id, req.session.companyId, stockNum]
+        );
+      }
+      await client.query('COMMIT');
       res.redirect('/company/products');
     } catch (err) {
+      await client.query('ROLLBACK');
       console.error('[POST /products/add] db error:', err);
       return renderError(`Failed to add product: ${err.message}`);
-    }
+    } finally { client.release(); }
   });
 });
 
@@ -344,9 +431,16 @@ router.get('/products/:id/edit', requireLogin, requireShop, async (req, res) => 
   );
   if (!result.rows.length) return res.redirect('/company/products');
   const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+  const categories = await fetchCategories(req.session.companyId);
+  const images = await pool.query(
+    'SELECT * FROM product_images WHERE product_id = $1 ORDER BY order_index, created_at',
+    [req.params.id]
+  );
   res.render('company/product_form', {
     product: result.rows[0],
     company: company.rows[0],
+    categories,
+    images: images.rows,
     session: req.session,
     error: null,
   });
@@ -360,9 +454,16 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
         [req.params.id, req.session.companyId]
       );
       const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+      const categories = await fetchCategories(req.session.companyId);
+      const images = await pool.query(
+        'SELECT * FROM product_images WHERE product_id = $1 ORDER BY order_index, created_at',
+        [req.params.id]
+      );
       return res.render('company/product_form', {
         product: result.rows[0] || req.body,
         company: company.rows[0],
+        categories,
+        images: images.rows,
         session: req.session,
         error: message,
       });
@@ -374,18 +475,41 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
     const stockNum = parseInt(stock, 10);
     if (isNaN(priceNum) || priceNum < 0) return renderError('Invalid price.');
     if (isNaN(stockNum) || stockNum < 0) return renderError('Invalid stock.');
-    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
-    try {
-      await pool.query(
-        `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5
-         WHERE id=$6 AND company_id=$7`,
-        [name, description || null, priceNum, finalImageUrl, stockNum, req.params.id, req.session.companyId]
+    let categoryId = parseInt(req.body.category_id, 10);
+    if (!Number.isFinite(categoryId)) categoryId = null;
+    if (categoryId !== null) {
+      const c = await pool.query(
+        'SELECT id FROM product_categories WHERE id = $1 AND company_id = $2',
+        [categoryId, req.session.companyId]
       );
+      if (!c.rows.length) categoryId = null;
+    }
+    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const before = await client.query('SELECT stock FROM products WHERE id = $1 AND company_id = $2', [req.params.id, req.session.companyId]);
+      const beforeStock = before.rows.length ? before.rows[0].stock : 0;
+      await client.query(
+        `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6
+         WHERE id=$7 AND company_id=$8`,
+        [name, description || null, priceNum, finalImageUrl, stockNum, categoryId, req.params.id, req.session.companyId]
+      );
+      const diff = stockNum - beforeStock;
+      if (diff !== 0) {
+        await client.query(
+          `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, notes)
+           VALUES ($1, $2, $3, 'adjustment', 'Adjusted via product edit')`,
+          [req.params.id, req.session.companyId, diff]
+        );
+      }
+      await client.query('COMMIT');
       res.redirect('/company/products');
     } catch (err) {
+      await client.query('ROLLBACK');
       console.error('[POST /products/:id/edit] db error:', err);
       return renderError(`Failed to update product: ${err.message}`);
-    }
+    } finally { client.release(); }
   });
 });
 
@@ -449,6 +573,159 @@ router.post('/orders/:id/status', requireLogin, requireShop, async (req, res) =>
     [status, req.params.id, req.session.companyId]
   );
   res.redirect(`/company/orders/${req.params.id}`);
+});
+
+/* ─── STOCK MOVEMENTS ────────────────────────────────────── */
+router.get('/products/:id/stock', requireLogin, requireShop, async (req, res) => {
+  const product = await pool.query(
+    'SELECT * FROM products WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  if (!product.rows.length) return res.redirect('/company/products');
+  const movements = await pool.query(
+    'SELECT * FROM stock_movements WHERE product_id = $1 ORDER BY created_at DESC LIMIT 200',
+    [req.params.id]
+  );
+  res.render('company/product_stock', {
+    product: product.rows[0],
+    movements: movements.rows,
+    session: req.session,
+    error: req.query.error || null,
+  });
+});
+
+router.post('/products/:id/stock', requireLogin, requireShop, async (req, res) => {
+  const change = parseInt(req.body.change_amount, 10);
+  const reason = ['restock', 'adjustment', 'return'].includes(req.body.reason) ? req.body.reason : 'adjustment';
+  if (!Number.isFinite(change) || change === 0) {
+    return res.redirect(`/company/products/${req.params.id}/stock?error=${encodeURIComponent('Enter a non-zero change amount.')}`);
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const upd = await client.query(
+      `UPDATE products SET stock = stock + $1
+       WHERE id = $2 AND company_id = $3 AND (stock + $1) >= 0
+       RETURNING stock`,
+      [change, req.params.id, req.session.companyId]
+    );
+    if (!upd.rows.length) {
+      await client.query('ROLLBACK');
+      return res.redirect(`/company/products/${req.params.id}/stock?error=${encodeURIComponent('Cannot apply change (stock would go negative or product not found).')}`);
+    }
+    await client.query(
+      `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, notes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [req.params.id, req.session.companyId, change, reason, req.body.notes || null]
+    );
+    await client.query('COMMIT');
+    res.redirect(`/company/products/${req.params.id}/stock`);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[POST /products/:id/stock] error:', err);
+    res.redirect(`/company/products/${req.params.id}/stock?error=${encodeURIComponent(err.message)}`);
+  } finally { client.release(); }
+});
+
+/* ─── PRODUCT IMAGES (gallery) ───────────────────────────── */
+router.post('/products/:id/images/add', requireLogin, requireShop, (req, res) => {
+  uploadProductImage(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      return res.redirect(`/company/products/${req.params.id}/edit`);
+    }
+    const product = await pool.query(
+      'SELECT id FROM products WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.session.companyId]
+    );
+    if (!product.rows.length || !req.file) {
+      return res.redirect(`/company/products/${req.params.id}/edit`);
+    }
+    await pool.query(
+      `INSERT INTO product_images (product_id, image_url) VALUES ($1, $2)`,
+      [req.params.id, `/uploads/${req.file.filename}`]
+    );
+    res.redirect(`/company/products/${req.params.id}/edit`);
+  });
+});
+
+router.post('/products/:id/images/:imgId/delete', requireLogin, requireShop, async (req, res) => {
+  await pool.query(
+    `DELETE FROM product_images
+     WHERE id = $1 AND product_id IN (SELECT id FROM products WHERE id = $2 AND company_id = $3)`,
+    [req.params.imgId, req.params.id, req.session.companyId]
+  );
+  res.redirect(`/company/products/${req.params.id}/edit`);
+});
+
+/* ─── BANNERS (slider) — shop or portfolio ───────────────── */
+router.get('/banners', requireLogin, async (req, res) => {
+  const banners = await pool.query(
+    'SELECT * FROM banner_slides WHERE company_id = $1 ORDER BY order_index, created_at',
+    [req.session.companyId]
+  );
+  res.render('company/banners', { banners: banners.rows, session: req.session, error: null });
+});
+
+router.post('/banners/add', requireLogin, (req, res) => {
+  uploadProductImage(req, res, async (uploadErr) => {
+    if (uploadErr || !req.file) return res.redirect('/company/banners');
+    const target_url = (req.body.target_url || '').trim() || null;
+    const caption = (req.body.caption || '').trim() || null;
+    await pool.query(
+      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, order_index)
+       VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
+      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption]
+    );
+    res.redirect('/company/banners');
+  });
+});
+
+router.post('/banners/:id/delete', requireLogin, async (req, res) => {
+  await pool.query(
+    'DELETE FROM banner_slides WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/banners');
+});
+
+router.post('/banners/:id/toggle', requireLogin, async (req, res) => {
+  await pool.query(
+    'UPDATE banner_slides SET is_active = NOT is_active WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/banners');
+});
+
+router.post('/banners/:id/move', requireLogin, async (req, res) => {
+  const direction = req.body.direction === 'up' ? 'up' : 'down';
+  const op = direction === 'up' ? '<' : '>';
+  const ord = direction === 'up' ? 'DESC' : 'ASC';
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const me = await client.query(
+      'SELECT id, order_index FROM banner_slides WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.session.companyId]
+    );
+    if (!me.rows.length) { await client.query('ROLLBACK'); return res.redirect('/company/banners'); }
+    const neighbour = await client.query(
+      `SELECT id, order_index FROM banner_slides
+       WHERE company_id = $1 AND order_index ${op} $2
+       ORDER BY order_index ${ord} LIMIT 1`,
+      [req.session.companyId, me.rows[0].order_index]
+    );
+    if (neighbour.rows.length) {
+      await client.query('UPDATE banner_slides SET order_index = $1 WHERE id = $2',
+        [neighbour.rows[0].order_index, me.rows[0].id]);
+      await client.query('UPDATE banner_slides SET order_index = $1 WHERE id = $2',
+        [me.rows[0].order_index, neighbour.rows[0].id]);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[banner move] error:', err);
+  } finally { client.release(); }
+  res.redirect('/company/banners');
 });
 
 module.exports = router;

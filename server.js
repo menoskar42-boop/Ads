@@ -153,6 +153,44 @@ async function initDb() {
         unit_price NUMERIC(10,2) NOT NULL,
         quantity INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS product_categories (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        name TEXT NOT NULL,
+        order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS product_images (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        image_url TEXT NOT NULL,
+        order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        company_id INTEGER REFERENCES companies(id),
+        change_amount INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        notes TEXT,
+        order_id INTEGER REFERENCES orders(id),
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS banner_slides (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        image_url TEXT NOT NULL,
+        target_url TEXT,
+        caption TEXT,
+        order_index INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id);
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_bottom TEXT;
     `);
     console.log('Database tables ready.');
   } catch (err) {

@@ -1,0 +1,39 @@
+<%
+  pageTitle = 'Categories';
+  activePage = 'categories';
+%>
+<%- include('_layout_top') %>
+
+  <div class="space-y-6 max-w-2xl">
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">Product Categories</h2>
+      <p class="text-gray-400 text-sm mb-6">Group your products (e.g. Mobiles, Computers, Groceries). Products without a category are listed under "Products" by default.</p>
+
+      <form method="POST" action="/company/categories/add" class="flex items-center gap-2 mb-6">
+        <input type="text" name="name" required placeholder="Category name (e.g. Mobiles)"
+          class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        <button type="submit" class="brand-bg text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition">+ Add</button>
+      </form>
+
+      <% if (!categories.length) { %>
+        <p class="text-center text-gray-400 text-sm py-4">No categories yet.</p>
+      <% } else { %>
+        <ul class="divide-y divide-gray-100">
+          <% categories.forEach(c => { %>
+            <li class="py-3 flex items-center justify-between gap-3">
+              <form method="POST" action="/company/categories/<%= c.id %>/rename" class="flex items-center gap-2 flex-1">
+                <input type="text" name="name" value="<%= c.name %>" required
+                  class="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">Rename</button>
+              </form>
+              <form method="POST" action="/company/categories/<%= c.id %>/delete" onsubmit="return confirm('Delete this category? Products in it will be uncategorised.');">
+                <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">Delete</button>
+              </form>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+
+<%- include('_layout_bottom') %>

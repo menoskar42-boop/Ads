@@ -207,6 +207,11 @@ router.post('/:slug/checkout', async (req, res) => {
          VALUES ($1, $2, $3, $4, $5)`,
         [orderId, it.product_id, it.product_name, it.unit_price, it.quantity]
       );
+      await client.query(
+        `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, order_id)
+         VALUES ($1, $2, $3, 'sale', $4)`,
+        [it.product_id, company.id, -it.quantity, orderId]
+      );
     }
 
     await client.query('COMMIT');
