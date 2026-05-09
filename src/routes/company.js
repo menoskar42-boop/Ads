@@ -16,7 +16,7 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query(
-      `SELECT cu.*, c.company_name, c.theme_color
+      `SELECT cu.*, c.company_name, c.theme_color, c.slug
        FROM company_users cu
        JOIN companies c ON c.id = cu.company_id
        WHERE cu.email = $1`,
@@ -33,6 +33,7 @@ router.post('/login', async (req, res) => {
     req.session.companyId = user.company_id;
     req.session.companyName = user.company_name;
     req.session.themeColor = user.theme_color;
+    req.session.companySlug = user.slug;
     res.redirect('/company/dashboard');
   } catch (err) {
     console.error('Login error:', err);
