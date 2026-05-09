@@ -124,9 +124,9 @@ router.post('/profile', requireLogin, (req, res, next) => {
     const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
     res.render('company/profile', { company: result.rows[0], session: req.session, success: 'Profile updated successfully.', error: null });
   } catch (err) {
-    console.error(err);
+    console.error('Profile update error:', err);
     const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
-    res.render('company/profile', { company: result.rows[0], session: req.session, success: null, error: 'Failed to update profile.' });
+    res.render('company/profile', { company: result.rows[0], session: req.session, success: null, error: `Failed to update profile: ${err.message}` });
   }
 });
 
