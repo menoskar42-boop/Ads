@@ -26,6 +26,31 @@ async function createSchema() {
         target_url TEXT,
         is_active BOOLEAN DEFAULT true
       );
+
+      CREATE TABLE IF NOT EXISTS company_users (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS portfolio_items (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER REFERENCES companies(id),
+        title TEXT,
+        description TEXT,
+        image_url TEXT,
+        order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
     `);
     console.log('Schema created successfully.');
   } finally {

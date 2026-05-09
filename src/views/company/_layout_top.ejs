@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= pageTitle %> – Oscardevs Ads</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { font-family: 'Cairo', sans-serif; }
+    :root { --brand: <%= session.themeColor || '#2563eb' %>; }
+    .brand-bg { background-color: var(--brand); }
+    .brand-text { color: var(--brand); }
+    .brand-border { border-left: 4px solid var(--brand); }
+    .nav-active { background-color: var(--brand); color: white; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+<!-- Top bar -->
+<header class="bg-white shadow-sm sticky top-0 z-20">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 brand-bg rounded-xl flex items-center justify-center text-white font-black text-lg">O</div>
+      <div>
+        <span class="font-bold text-gray-800 text-sm"><%= session.companyName %></span>
+        <span class="text-gray-400 text-xs block leading-none">Dashboard</span>
+      </div>
+    </div>
+    <form method="POST" action="/company/logout">
+      <button class="text-sm text-gray-500 hover:text-red-500 transition flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Logout
+      </button>
+    </form>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
+
+  <!-- Sidebar nav -->
+  <aside class="lg:w-56 flex-shrink-0">
+    <nav class="bg-white rounded-2xl shadow-sm p-3 space-y-1">
+      <a href="/company/dashboard"
+        class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition <%= activePage==='dashboard' ? 'nav-active' : 'text-gray-600 hover:bg-gray-50' %>">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
+        Dashboard
+      </a>
+      <a href="/company/profile"
+        class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition <%= activePage==='profile' ? 'nav-active' : 'text-gray-600 hover:bg-gray-50' %>">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+        Profile
+      </a>
+      <a href="/company/portfolio"
+        class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition <%= activePage==='portfolio' ? 'nav-active' : 'text-gray-600 hover:bg-gray-50' %>">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Portfolio
+      </a>
+      <hr class="my-2 border-gray-100" />
+      <a href="/view/<%= session.companyId %>" target="_blank"
+        class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        View My Page
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1">
