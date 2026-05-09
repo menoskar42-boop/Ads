@@ -232,6 +232,37 @@ router.post('/:slug/checkout', async (req, res) => {
   }
 });
 
+router.get('/:slug/product/:id', async (req, res) => {
+  const { slug, id } = req.params;
+  try {
+    const company = await loadShopCompany(slug);
+    if (!company) return res.status(404).render('404', { subdomain: slug });
+    const productResult = await pool.query(
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN product_categories c ON c.id = p.category_id
+       WHERE p.id = $1 AND p.company_id = $2 AND p.is_active = true`,
+      [parseInt(id, 10), company.id]
+    );
+    if (!productResult.rows.length) return res.status(404).render('404', { subdomain: slug });
+    const images = await pool.query(
+      'SELECT * FROM product_images WHERE product_id = $1 ORDER BY order_index, created_at',
+      [productResult.rows[0].id]
+    );
+    const cart = (req.session.carts && req.session.carts[slug]) || {};
+    const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
+    res.render('shop/product', {
+      company,
+      product: productResult.rows[0],
+      gallery: images.rows,
+      cartCount,
+    });
+  } catch (err) {
+    console.error('[GET /shop/:slug/product/:id] error:', err);
+    res.status(500).send('Error.');
+  }
+});
+
 router.get('/:slug/order/:id', async (req, res) => {
   const { slug, id } = req.params;
   const orderId = parseInt(id, 10);

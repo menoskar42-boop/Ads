@@ -20,15 +20,34 @@ router.get('/', async (req, res) => {
   }
 
   let products = [];
+  let categories = [];
   if (company.page_type === 'shop') {
     try {
-      const productsResult = await pool.query(
-        'SELECT * FROM products WHERE company_id = $1 AND is_active = true ORDER BY created_at DESC',
+      categories = (await pool.query(
+        'SELECT * FROM product_categories WHERE company_id = $1 ORDER BY order_index, name',
         [company.id]
+      )).rows;
+      const filterCat = parseInt(req.query.category, 10);
+      const q = (req.query.q || '').trim();
+      const params = [company.id];
+      let where = 'company_id = $1 AND is_active = true';
+      if (Number.isFinite(filterCat)) { where += ' AND category_id = $' + (params.push(filterCat)); }
+      if (q) { where += ' AND (name ILIKE $' + (params.push('%' + q + '%')) + ' OR description ILIKE $' + params.length + ')'; }
+      const productsResult = await pool.query(
+        `SELECT * FROM products WHERE ${where} ORDER BY created_at DESC`,
+        params
       );
       products = productsResult.rows;
     } catch (err) { console.error('Products query error:', err.message); }
   }
+
+  let banners = [];
+  try {
+    banners = (await pool.query(
+      'SELECT * FROM banner_slides WHERE company_id = $1 AND is_active = true ORDER BY order_index, created_at',
+      [company.id]
+    )).rows;
+  } catch (bErr) { console.error('Banners query error:', bErr.message); }
 
   const cart = (req.session.carts && req.session.carts[company.slug]) || {};
   const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
@@ -41,6 +60,10 @@ router.get('/', async (req, res) => {
     footerAd:  ads.find(a => a.position === 'footer')  || null,
     portfolio,
     products,
+    categories,
+    banners,
+    currentCategory: req.query.category || '',
+    currentSearch: req.query.q || '',
     cartCount,
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
