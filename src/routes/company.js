@@ -98,36 +98,52 @@ router.get('/profile', requireLogin, async (req, res) => {
   res.render('company/profile', { company: result.rows[0], session: req.session, success: null, error: null });
 });
 
-router.post('/profile', requireLogin, (req, res, next) => {
-  uploadLogo(req, res, (err) => {
-    if (err) {
-      return pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId])
-        .then(result => res.render('company/profile', {
-          company: result.rows[0], session: req.session, success: null, error: err.message,
-        }))
-        .catch(next);
+router.post('/profile', requireLogin, (req, res) => {
+  uploadLogo(req, res, async (uploadErr) => {
+    const renderError = async (message) => {
+      try {
+        const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+        return res.render('company/profile', {
+          company: result.rows[0] || {},
+          session: req.session,
+          success: null,
+          error: message,
+        });
+      } catch (renderErr) {
+        console.error('[POST /profile] render fallback failed:', renderErr);
+        return res.status(500).send(message);
+      }
+    };
+
+    if (uploadErr) {
+      console.error('[POST /profile] multer error:', uploadErr);
+      return renderError(`Upload failed: ${uploadErr.message}`);
     }
-    next();
+
+    console.log('[POST /profile] file:', req.file?.filename, 'body:', Object.keys(req.body));
+    const { company_name, description, theme_color, logo_url } = req.body;
+    const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
+
+    try {
+      await pool.query(
+        `UPDATE companies SET company_name=$1, description=$2, theme_color=$3, logo_url=$4 WHERE id=$5`,
+        [company_name, description, theme_color, finalLogoUrl, req.session.companyId]
+      );
+      req.session.companyName = company_name;
+      req.session.themeColor = theme_color;
+      const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+      console.log('[POST /profile] success');
+      return res.render('company/profile', {
+        company: result.rows[0],
+        session: req.session,
+        success: 'Profile updated successfully.',
+        error: null,
+      });
+    } catch (dbErr) {
+      console.error('[POST /profile] db error:', dbErr);
+      return renderError(`Failed to update profile: ${dbErr.message}`);
+    }
   });
-}, async (req, res) => {
-  const { company_name, description, theme_color, logo_url } = req.body;
-  const finalLogoUrl = req.file
-    ? `/uploads/${req.file.filename}`
-    : (logo_url || null);
-  try {
-    await pool.query(
-      `UPDATE companies SET company_name=$1, description=$2, theme_color=$3, logo_url=$4 WHERE id=$5`,
-      [company_name, description, theme_color, finalLogoUrl, req.session.companyId]
-    );
-    req.session.companyName = company_name;
-    req.session.themeColor = theme_color;
-    const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
-    res.render('company/profile', { company: result.rows[0], session: req.session, success: 'Profile updated successfully.', error: null });
-  } catch (err) {
-    console.error('Profile update error:', err);
-    const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
-    res.render('company/profile', { company: result.rows[0], session: req.session, success: null, error: `Failed to update profile: ${err.message}` });
-  }
 });
 
 /* ─── PORTFOLIO ──────────────────────────────────────────── */
