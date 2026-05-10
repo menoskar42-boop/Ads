@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+  <% var displayCompanyName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Order #<%= order.id %> — <%= company.company_name %></title>
+  <title><%= t('public.order_received') %> — <%= displayCompanyName %></title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,31 +20,31 @@
     <div class="w-16 h-16 brand-bg rounded-full mx-auto flex items-center justify-center text-white mb-4">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
     </div>
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">Thank you for your order!</h1>
-    <p class="text-gray-500 mb-6">Order <span class="font-mono brand-text">#<%= order.id %></span> has been received. <%= company.company_name %> will contact you to confirm the order. Payment is on delivery.</p>
+    <h1 class="text-2xl font-bold text-gray-800 mb-2"><%= t('public.order_received') %></h1>
+    <p class="text-gray-500 mb-6"><%= t('public.order_number') %> <span class="font-mono brand-text">#<%= order.id %></span> &mdash; <%= displayCompanyName %>. <%= t('public.we_will_contact_you') %></p>
 
-    <div class="text-left bg-gray-50 rounded-2xl p-5 space-y-3 mb-6">
-      <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24">Name</span><span class="font-semibold"><%= order.customer_name %></span></div>
-      <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24">Phone</span><span class="font-mono"><%= order.customer_phone %></span></div>
-      <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24">Address</span><span class="whitespace-pre-wrap"><%= order.shipping_address %></span></div>
+    <div class="text-start bg-gray-50 rounded-2xl p-5 space-y-3 mb-6">
+      <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24"><%= t('common.full_name') %></span><span class="font-semibold"><%= order.customer_name %></span></div>
+      <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24"><%= t('common.phone') %></span><span class="font-mono"><%= order.customer_phone %></span></div>
+      <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24"><%= t('common.shipping_address') %></span><span class="whitespace-pre-wrap"><%= order.shipping_address %></span></div>
     </div>
 
     <table class="w-full text-sm mb-6">
       <thead class="text-gray-400 text-xs uppercase border-b">
-        <tr><th class="px-3 py-2 text-left">Item</th><th class="px-3 py-2 text-center">Qty</th><th class="px-3 py-2 text-right">Subtotal</th></tr>
+        <tr><th class="px-3 py-2 text-start"><%= t('common.name') %></th><th class="px-3 py-2 text-center"><%= t('public.qty') %></th><th class="px-3 py-2 text-end"><%= t('public.subtotal') %></th></tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         <% items.forEach(it => { %>
-          <tr><td class="px-3 py-2 text-left"><%= it.product_name %></td><td class="px-3 py-2 text-center"><%= it.quantity %></td><td class="px-3 py-2 text-right font-mono"><%= (Number(it.unit_price) * it.quantity).toFixed(2) %></td></tr>
+          <tr><td class="px-3 py-2 text-start"><%= it.product_name %></td><td class="px-3 py-2 text-center"><%= it.quantity %></td><td class="px-3 py-2 text-end font-mono"><%= (Number(it.unit_price) * it.quantity).toFixed(2) %></td></tr>
         <% }) %>
       </tbody>
       <tfoot>
-        <tr class="font-bold border-t"><td class="px-3 py-2 text-left">Total</td><td></td><td class="px-3 py-2 text-right brand-text font-mono text-lg"><%= Number(order.total_amount).toFixed(2) %> <%= company.currency || 'EGP' %></td></tr>
+        <tr class="font-bold border-t"><td class="px-3 py-2 text-start"><%= t('public.total') %></td><td></td><td class="px-3 py-2 text-end brand-text font-mono text-lg"><%= Number(order.total_amount).toFixed(2) %> <%= company.currency || 'EGP' %></td></tr>
       </tfoot>
     </table>
 
-    <a href="/view/<%= company.slug %>" class="inline-block brand-bg text-white font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition">
-      Continue shopping
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="inline-block brand-bg text-white font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition">
+      <%= t('public.continue_shopping') %>
     </a>
   </div>
 </body>

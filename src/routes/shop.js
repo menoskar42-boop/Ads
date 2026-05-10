@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const { canonicalCompanyUrl } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -24,7 +25,7 @@ router.post('/:slug/cart/add', async (req, res) => {
   const { slug } = req.params;
   const productId = parseInt(req.body.product_id, 10);
   const quantity = Math.max(1, parseInt(req.body.quantity, 10) || 1);
-  if (!Number.isFinite(productId)) return res.redirect(`/view/${slug}`);
+  if (!Number.isFinite(productId)) return res.redirect(canonicalCompanyUrl(slug, req));
   try {
     const company = await loadShopCompany(slug);
     if (!company) return res.status(404).render('404', { subdomain: slug });
@@ -32,7 +33,7 @@ router.post('/:slug/cart/add', async (req, res) => {
       'SELECT id, stock FROM products WHERE id = $1 AND company_id = $2 AND is_active = true',
       [productId, company.id]
     );
-    if (!productResult.rows.length) return res.redirect(`/view/${slug}`);
+    if (!productResult.rows.length) return res.redirect(canonicalCompanyUrl(slug, req));
     const cart = getCart(req, slug);
     const existing = cart[productId] || 0;
     const requested = existing + quantity;
@@ -43,7 +44,7 @@ router.post('/:slug/cart/add', async (req, res) => {
     res.redirect(`/shop/${slug}/cart`);
   } catch (err) {
     console.error('[POST /shop/:slug/cart/add] error:', err);
-    res.redirect(`/view/${slug}?error=${encodeURIComponent('Could not add to cart.')}`);
+    res.redirect(`${canonicalCompanyUrl(slug, req)}?error=${encodeURIComponent('Could not add to cart.')}`);
   }
 });
 
@@ -123,7 +124,7 @@ router.get('/:slug/checkout', async (req, res) => {
 
     let prefill = {};
     if (req.session.customerId) {
-      const c = await pool.query('SELECT email, full_name, phone FROM customers WHERE id = $1', [req.session.customerId]);
+      const c = await pool.query('SELECT email, full_name, phone, address FROM customers WHERE id = $1', [req.session.customerId]);
       if (c.rows.length) prefill = { ...c.rows[0] };
     }
 

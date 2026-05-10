@@ -24,6 +24,7 @@ router.post('/login', async (req, res) => {
     if (!ok) return res.render('customer/login', { error: 'Invalid email or password.' });
     req.session.customerId = r.rows[0].id;
     req.session.customerEmail = r.rows[0].email;
+    req.session.customerLang = r.rows[0].lang || 'ar';
     res.redirect('/customer/orders');
   } catch (err) {
     console.error('[POST /customer/login] error:', err);
@@ -36,7 +37,7 @@ router.get('/register', (req, res) => {
 });
 
 router.post('/register', async (req, res) => {
-  const { email, password, full_name, phone } = req.body;
+  const { email, password, full_name, phone, address } = req.body;
   if (!email || !password || password.length < 6) {
     return res.render('customer/register', { error: 'Email and password (min 6 chars) are required.', form: req.body });
   }
@@ -45,8 +46,8 @@ router.post('/register', async (req, res) => {
     if (dup.rows.length) return res.render('customer/register', { error: 'Email already in use.', form: req.body });
     const hash = await bcrypt.hash(password, 10);
     const ins = await pool.query(
-      `INSERT INTO customers (email, password_hash, full_name, phone) VALUES ($1,$2,$3,$4) RETURNING id`,
-      [email, hash, full_name || null, phone || null]
+      `INSERT INTO customers (email, password_hash, full_name, phone, address) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [email, hash, full_name || null, phone || null, address || null]
     );
     req.session.customerId = ins.rows[0].id;
     req.session.customerEmail = email;
@@ -77,6 +78,17 @@ router.get('/orders', requireCustomer, async (req, res) => {
     console.error('[GET /customer/orders] error:', err);
     res.status(500).send('Error.');
   }
+});
+
+/* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
+router.post('/lang/:lang', async (req, res) => {
+  const lang = req.params.lang === 'en' ? 'en' : 'ar';
+  if (req.session && req.session.customerId) {
+    req.session.customerLang = lang;
+    try { await pool.query('UPDATE customers SET lang = $1 WHERE id = $2', [lang, req.session.customerId]); } catch (e) { console.error(e); }
+  }
+  res.cookie('lang', lang, { maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+  res.redirect(req.get('Referrer') || '/customer/orders');
 });
 
 module.exports = router;

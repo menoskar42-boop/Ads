@@ -154,6 +154,21 @@ async function createSchema() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_bottom TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'ar';
+      ALTER TABLE admins ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'ar';
+      ALTER TABLE company_users ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'ar';
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS content_i18n BOOLEAN DEFAULT false;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS company_name_ar TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS company_name_en TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS description_ar TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS description_en TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS name_ar TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS name_en TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
+      ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;
+      ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_en TEXT;
     `);
     console.log('Schema created successfully.');
   } finally {

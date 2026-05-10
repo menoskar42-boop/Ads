@@ -51,7 +51,7 @@
         </div>
         <div class="flex gap-3">
           <dt class="text-gray-400 w-28 flex-shrink-0">Public URL</dt>
-          <dd><a href="/view/<%= company.slug %>" target="_blank" class="brand-text hover:underline text-xs">/view/<%= company.slug %></a></dd>
+          <dd><a href="<%= canonicalCompanyUrl(company.slug) %>" target="_blank" class="brand-text hover:underline text-xs"><%= canonicalCompanyUrl(company.slug) %></a></dd>
         </div>
       </dl>
     </div>

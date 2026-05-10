@@ -1,10 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+  <% var displayName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
+  <% var displayDesc = pickContent(company, 'description', company.content_i18n) || company.description || ''; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= company.company_name %> — Shop</title>
-  <meta name="description" content="<%= company.description || company.company_name %>" />
+  <title><%= displayName %></title>
+  <meta name="description" content="<%= displayDesc || displayName %>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -25,19 +27,22 @@
   <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <% if (company.logo_url) { %>
-        <img src="<%= company.logo_url %>" alt="<%= company.company_name %>" class="w-10 h-10 rounded-xl object-cover" />
+        <img src="<%= company.logo_url %>" alt="<%= displayName %>" class="w-10 h-10 rounded-xl object-cover" />
       <% } else { %>
-        <div class="w-10 h-10 brand-bg rounded-xl flex items-center justify-center text-white font-black"><%= company.company_name.charAt(0) %></div>
+        <div class="w-10 h-10 brand-bg rounded-xl flex items-center justify-center text-white font-black"><%= (displayName || ' ').charAt(0) %></div>
       <% } %>
-      <span class="font-bold text-gray-800"><%= company.company_name %></span>
+      <span class="font-bold text-gray-800"><%= displayName %></span>
     </div>
+    <div class="flex items-center gap-2">
+    <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:text-gray-700"><%= t('common.toggle_lang') %></a>
     <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-      Cart
+      <%= t('public.cart') %>
       <% if (cartCount > 0) { %>
         <span class="bg-white text-xs brand-text font-bold rounded-full px-2 py-0.5"><%= cartCount %></span>
       <% } %>
     </a>
+    </div>
   </div>
 </header>
 
@@ -81,9 +86,9 @@
 <!-- Hero -->
 <section class="bg-white border-b">
   <div class="max-w-6xl mx-auto px-4 py-8 text-center">
-    <h1 class="text-3xl sm:text-4xl font-black brand-text mb-2"><%= company.company_name %></h1>
-    <% if (company.description) { %>
-      <p class="text-gray-500 max-w-2xl mx-auto"><%= company.description %></p>
+    <h1 class="text-3xl sm:text-4xl font-black brand-text mb-2"><%= displayName %></h1>
+    <% if (displayDesc) { %>
+      <p class="text-gray-500 max-w-2xl mx-auto"><%= displayDesc %></p>
     <% } %>
   </div>
 </section>
@@ -91,19 +96,19 @@
 <!-- Search + category tabs -->
 <section class="bg-white border-b sticky top-[60px] z-10">
   <div class="max-w-6xl mx-auto px-4 py-3">
-    <form method="GET" action="/view/<%= company.slug %>" class="flex items-center gap-2 mb-3">
-      <input type="text" name="q" value="<%= currentSearch || '' %>" placeholder="Search products..."
+    <form method="GET" action="<%= canonicalCompanyUrl(company.slug) %>" class="flex items-center gap-2 mb-3">
+      <input type="text" name="q" value="<%= currentSearch || '' %>" placeholder="<%= t('public.search_products') %>"
         class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
       <% if (currentCategory) { %><input type="hidden" name="category" value="<%= currentCategory %>" /><% } %>
-      <button type="submit" class="brand-btn text-white text-sm font-semibold px-4 py-2.5 rounded-xl">Search</button>
+      <button type="submit" class="brand-btn text-white text-sm font-semibold px-4 py-2.5 rounded-xl"><%= t('common.search') %></button>
     </form>
     <% if (categories && categories.length) { %>
       <div class="flex items-center gap-2 overflow-x-auto pb-1">
-        <a href="/view/<%= company.slug %><%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
-          class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= !currentCategory ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>">All</a>
+        <a href="<%= canonicalCompanyUrl(company.slug) %><%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
+          class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= !currentCategory ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= t('public.all_categories') %></a>
         <% categories.forEach(c => { %>
-          <a href="/view/<%= company.slug %>?category=<%= c.id %><%= currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '' %>"
-            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= String(currentCategory) === String(c.id) ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= c.name %></a>
+          <a href="<%= canonicalCompanyUrl(company.slug) %>?category=<%= c.id %><%= currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '' %>"
+            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= String(currentCategory) === String(c.id) ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= pickContent(c, 'name', company.content_i18n) || c.name %></a>
         <% }) %>
       </div>
     <% } %>
@@ -118,11 +123,9 @@
 <section class="max-w-6xl mx-auto px-4 py-8">
   <% if (!products.length) { %>
     <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-      <p class="font-semibold">No products found.</p>
+      <p class="font-semibold"><%= t('public.no_products') %></p>
       <% if (currentSearch || currentCategory) { %>
-        <p class="text-sm mt-1"><a href="/view/<%= company.slug %>" class="brand-text hover:underline">Clear filters</a></p>
-      <% } else { %>
-        <p class="text-sm mt-1">Check back soon — new items coming.</p>
+        <p class="text-sm mt-1"><a href="<%= canonicalCompanyUrl(company.slug) %>" class="brand-text hover:underline"><%= t('public.clear_filters') %></a></p>
       <% } %>
     </div>
   <% } else { %>
@@ -130,22 +133,23 @@
       <% products.forEach(p => { %>
         <div class="bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col group">
           <a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="block relative aspect-square bg-gray-100 overflow-hidden">
+            <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
             <% if (p.image_url) { %>
-              <img src="<%= p.image_url %>" alt="<%= p.name %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform" onerror="this.style.display='none'" />
+              <img src="<%= p.image_url %>" alt="<%= pName %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform" onerror="this.style.display='none'" />
             <% } %>
             <% if (p.stock <= 0) { %>
-              <span class="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded">Out of stock</span>
+              <span class="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded"><%= t('public.out_of_stock') %></span>
             <% } %>
           </a>
           <div class="p-3 flex-1 flex flex-col">
-            <a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="font-bold text-gray-800 text-sm mb-1 hover:brand-text transition line-clamp-2"><%= p.name %></a>
+            <a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="font-bold text-gray-800 text-sm mb-1 hover:brand-text transition line-clamp-2"><%= pName %></a>
             <div class="mt-auto flex items-center justify-between gap-1">
               <span class="font-black brand-text text-base"><%= Number(p.price).toFixed(2) %> <%= company.currency || 'EGP' %></span>
               <% if (p.stock > 0) { %>
                 <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="inline">
                   <input type="hidden" name="product_id" value="<%= p.id %>" />
                   <input type="hidden" name="quantity" value="1" />
-                  <button type="submit" class="brand-btn text-white text-xs font-bold px-3 py-1.5 rounded-lg" title="Add to cart">+ Cart</button>
+                  <button type="submit" class="brand-btn text-white text-xs font-bold px-3 py-1.5 rounded-lg" title="<%= t('public.add_to_cart') %>">+ <%= t('public.cart') %></button>
                 </form>
               <% } %>
             </div>

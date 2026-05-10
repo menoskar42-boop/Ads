@@ -1,11 +1,7 @@
 const { Pool } = require('pg');
+const { getBaseDomains } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-const BASE_DOMAINS = [
-  'oscardevsads.replit.app',
-  'oscardevs.com',
-];
 
 // Any host ending with these suffixes is treated as root (no tenant)
 // Replit dev-preview URLs are UUID-based and never carry tenant slugs
@@ -19,7 +15,7 @@ function extractSubdomain(hostname) {
     return null;
   }
 
-  for (const base of BASE_DOMAINS) {
+  for (const base of getBaseDomains()) {
     // Exact root domain or www → homepage
     if (host === base || host === `www.${base}`) return null;
 

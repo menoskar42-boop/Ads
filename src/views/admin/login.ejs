@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= lang %>" dir="<%= dir %>">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -21,7 +21,7 @@
 
     <!-- Card -->
     <div class="bg-white rounded-3xl shadow-2xl p-8">
-      <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">Sign In as Super Admin</h2>
+      <h2 class="text-xl font-bold text-gray-800 mb-6 text-center"><%= t('common.login') %></h2>
 
       <% if (error) { %>
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm flex items-center gap-2">
@@ -32,18 +32,18 @@
 
       <form method="POST" action="/admin/login" class="space-y-5">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Email Address</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.email') %></label>
           <input type="email" name="email" required placeholder="admin@oscardevs.com"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1.5">Password</label>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.password') %></label>
           <input type="password" name="password" required placeholder="••••••••"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent transition" />
         </div>
         <button type="submit"
           class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition shadow-md hover:shadow-lg">
-          Sign In
+          <%= t('common.login') %>
         </button>
       </form>
     </div>

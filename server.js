@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const i18nMiddleware = require('./src/middleware/i18n');
 const tenantMiddleware = require('./src/middleware/tenant');
 const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
@@ -13,11 +15,16 @@ const customerRouter = require('./src/routes/customer');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust Cloudflare Worker proxy headers (X-Forwarded-Host, X-Forwarded-Proto)
+// so req.hostname reflects the original tenant subdomain (e.g. delta.oscardevs.com).
+app.set('trust proxy', true);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'oscardevs-secret-key',
@@ -25,6 +32,8 @@ app.use(session({
   saveUninitialized: false,
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
+app.use(i18nMiddleware);
+app.use(require('./src/middleware/urls'));
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
@@ -191,6 +200,21 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_bottom TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'ar';
+      ALTER TABLE admins ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'ar';
+      ALTER TABLE company_users ADD COLUMN IF NOT EXISTS lang TEXT DEFAULT 'ar';
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS content_i18n BOOLEAN DEFAULT false;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS company_name_ar TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS company_name_en TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS description_ar TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS description_en TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS name_ar TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS name_en TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
+      ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;
+      ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_en TEXT;
     `);
     console.log('Database tables ready.');
   } catch (err) {

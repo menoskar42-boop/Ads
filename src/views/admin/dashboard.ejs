@@ -1,5 +1,5 @@
 <%
-  pageTitle = 'Companies';
+  pageTitle = t('admin.companies');
   activePage = activePage || 'dashboard';
 %>
 <%- include('_layout_top') %>
@@ -15,30 +15,30 @@
     <!-- Header card -->
     <div class="bg-white rounded-2xl shadow-sm p-6 flex items-center justify-between">
       <div>
-        <h2 class="text-xl font-bold text-gray-800 mb-1">All Companies</h2>
-        <p class="text-gray-500 text-sm"><%= companies.length %> companies on the platform</p>
+        <h2 class="text-xl font-bold text-gray-800 mb-1"><%= t('admin.companies') %></h2>
+        <p class="text-gray-500 text-sm"><%= companies.length %></p>
       </div>
       <a href="/admin/companies/add" class="brand-bg text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition shadow-md">
-        + Add Company
+        + <%= t('admin.add_company') %>
       </a>
     </div>
 
     <!-- Companies table -->
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
       <% if (!companies.length) { %>
-        <div class="p-12 text-center text-gray-400 text-sm">No companies yet. Click "Add Company" to create one.</div>
+        <div class="p-12 text-center text-gray-400 text-sm"><%= t('common.empty') %></div>
       <% } else { %>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
-              <th class="px-4 py-3 text-left">Company</th>
-              <th class="px-4 py-3 text-left">Slug</th>
-              <th class="px-4 py-3 text-center">Active</th>
-              <th class="px-4 py-3 text-center">Users</th>
-              <th class="px-4 py-3 text-center">Portfolio</th>
+              <th class="px-4 py-3 text-left"><%= t('admin.company_name') %></th>
+              <th class="px-4 py-3 text-left"><%= t('admin.slug') %></th>
+              <th class="px-4 py-3 text-center"><%= t('common.status') %></th>
+              <th class="px-4 py-3 text-center"><%= t('admin.admins') %></th>
+              <th class="px-4 py-3 text-center"><%= t('company.portfolio') %></th>
               <th class="px-4 py-3 text-center">Ads</th>
-              <th class="px-4 py-3 text-right">Actions</th>
+              <th class="px-4 py-3 text-right"><%= t('common.actions') %></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
@@ -55,9 +55,9 @@
               <td class="px-4 py-3 font-mono text-xs text-gray-500"><%= c.slug %></td>
               <td class="px-4 py-3 text-center">
                 <% if (c.is_active) { %>
-                  <span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">Active</span>
+                  <span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold"><%= t('common.active') %></span>
                 <% } else { %>
-                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-semibold">Inactive</span>
+                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-semibold"><%= t('common.inactive') %></span>
                 <% } %>
               </td>
               <td class="px-4 py-3 text-center text-gray-600"><%= c.users_count %></td>
@@ -65,14 +65,14 @@
               <td class="px-4 py-3 text-center text-gray-600"><%= c.ads_count %></td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-1.5 flex-wrap">
-                  <a href="/view/<%= c.slug %>" target="_blank" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">View</a>
-                  <a href="/admin/companies/<%= c.id %>/edit" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">Edit</a>
+                  <a href="<%= canonicalCompanyUrl(c.slug) %>" target="_blank" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= t('common.actions') %></a>
+                  <a href="/admin/companies/<%= c.id %>/edit" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition"><%= t('common.edit') %></a>
                   <form method="POST" action="/admin/companies/<%= c.id %>/reset-password" class="inline" onsubmit="return promptResetPassword(this)">
                     <input type="hidden" name="new_password" />
                     <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition">Reset PW</button>
                   </form>
-                  <form method="POST" action="/admin/companies/<%= c.id %>/delete" class="inline" onsubmit="return confirm('Delete <%= c.company_name %> and all its data? This cannot be undone.');">
-                    <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">Delete</button>
+                  <form method="POST" action="/admin/companies/<%= c.id %>/delete" class="inline" onsubmit="return confirm('<%= t('common.confirm_delete') %>');">
+                    <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition"><%= t('common.delete') %></button>
                   </form>
                 </div>
               </td>
