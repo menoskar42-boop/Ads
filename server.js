@@ -15,6 +15,10 @@ const customerRouter = require('./src/routes/customer');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust Cloudflare Worker proxy headers (X-Forwarded-Host, X-Forwarded-Proto)
+// so req.hostname reflects the original tenant subdomain (e.g. delta.oscardevs.com).
+app.set('trust proxy', true);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 

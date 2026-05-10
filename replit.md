@@ -61,15 +61,35 @@ Public company pages are linked through the `canonicalCompanyUrl(slug)` helper
   is used and no redirect is performed.
 
 ### Configuring custom domain on Replit + Cloudflare
-1. In **Replit Deployment → Custom Domains**, add both `oscardevs.com` and
-   `*.oscardevs.com` (wildcard). Replit will display TXT verification records.
+Replit's custom-domain UI does not accept `*.oscardevs.com` (wildcard certs are
+not issued automatically). Workaround: only the apex `oscardevs.com` is bound
+to Replit, and a tiny Cloudflare Worker (`cloudflare-worker/`) rewrites all
+subdomain traffic onto the apex while preserving the original host in
+`X-Forwarded-Host`.
+
+1. In **Replit Deployment → Custom Domains**, add `oscardevs.com` only
+   (no wildcard). Replit shows TXT verification + `A`/`AAAA` records.
 2. In **Cloudflare DNS** for `oscardevs.com`:
    - Add the TXT verification record from step 1.
-   - Add `CNAME` record `*` → `<your-replit-deployment-host>`. Set Proxy
-     Status to **DNS only** until SSL is verified, then re-enable proxy.
-3. In **Replit Deployment Secrets** (NOT in the dev workspace), set:
+   - Add the `A`/`AAAA` records Replit provides for the apex (`@`).
+     Proxy status: **proxied** (orange cloud).
+   - Add `CNAME` record `*` → `oscardevs.com`. Proxy status: **proxied**.
+3. Deploy the Cloudflare Worker that rewrites subdomain → apex:
+   ```bash
+   cd cloudflare-worker
+   npm install
+   npx wrangler login    # one-time browser login (free Cloudflare account)
+   npm run deploy
+   ```
+   The Worker is bound to route `*.oscardevs.com/*` (apex is intentionally
+   unbound, so apex traffic flows directly to Replit).
+4. In **Replit Deployment Secrets** (NOT in the dev workspace), set:
    `PUBLIC_BASE_DOMAIN=oscardevs.com` (comma-separated list also accepted via
    `PUBLIC_BASE_DOMAINS`).
+
+The Express app sets `app.set('trust proxy', true)` so `req.hostname` reflects
+the Worker's `X-Forwarded-Host` (e.g. `delta.oscardevs.com`) — the existing
+tenant middleware and `canonicalCompanyUrl` helper need no further changes.
 
 ### Verifying
 - Local Replit dev: `/view/delta` returns 200 directly; admin "View" buttons
