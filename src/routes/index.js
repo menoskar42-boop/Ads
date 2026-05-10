@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const { canonicalCompanyUrl, isProductionHost } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -54,7 +55,7 @@ router.post('/contact', async (req, res) => {
 router.post('/contact/:slug', async (req, res) => {
   const { slug } = req.params;
   const v = validateContact(req.body);
-  if (v.error) return res.redirect(`/view/${encodeURIComponent(slug)}?error=${encodeURIComponent(v.error)}`);
+  if (v.error) return res.redirect(`${canonicalCompanyUrl(slug, req)}?error=${encodeURIComponent(v.error)}`);
   try {
     const companyResult = await pool.query(
       'SELECT id FROM companies WHERE slug = $1 AND is_active = true',
@@ -68,16 +69,23 @@ router.post('/contact/:slug', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)`,
       [companyResult.rows[0].id, v.sender_name, v.sender_email, v.sender_phone, v.message]
     );
-    res.redirect(`/view/${encodeURIComponent(slug)}?sent=1`);
+    res.redirect(`${canonicalCompanyUrl(slug, req)}?sent=1`);
   } catch (err) {
     console.error('[POST /contact/:slug] db error:', err);
-    res.redirect(`/view/${encodeURIComponent(slug)}?error=${encodeURIComponent('Could not send message. Please try again.')}`);
+    res.redirect(`${canonicalCompanyUrl(slug, req)}?error=${encodeURIComponent('Could not send message. Please try again.')}`);
   }
 });
 
 // Direct tenant preview: /view/:slug works on any host (Replit, localhost, etc.)
+// On a production host (e.g. oscardevs.com) we 301 to the canonical subdomain URL.
 router.get('/view/:slug', async (req, res) => {
   const { slug } = req.params;
+  if (isProductionHost(req) && !('noredirect' in req.query)) {
+    const qs = Object.keys(req.query).length
+      ? '?' + new URLSearchParams(req.query).toString()
+      : '';
+    return res.redirect(301, `${canonicalCompanyUrl(slug, req)}${qs}`);
+  }
   try {
     const companyResult = await pool.query(
       'SELECT * FROM companies WHERE slug = $1 AND is_active = true',

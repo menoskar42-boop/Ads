@@ -20,7 +20,7 @@
 
 <header class="bg-white shadow-sm">
   <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= displayCompanyName %></a>
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= displayCompanyName %></a>
     <div class="flex items-center gap-2">
       <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1"><%= t('common.toggle_lang') %></a>
       <% if (customerId) { %>
@@ -42,7 +42,7 @@
   <% if (!lines.length) { %>
     <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
       <p class="font-semibold mb-2"><%= t('public.cart_empty') %></p>
-      <a href="/view/<%= company.slug %>" class="inline-block brand-btn text-white px-6 py-2 rounded-xl text-sm font-semibold"><%= t('public.continue_shopping') %></a>
+      <a href="<%= canonicalCompanyUrl(company.slug) %>" class="inline-block brand-btn text-white px-6 py-2 rounded-xl text-sm font-semibold"><%= t('public.continue_shopping') %></a>
     </div>
   <% } else { %>
     <form method="POST" action="/shop/<%= company.slug %>/cart/update" class="bg-white rounded-2xl shadow overflow-hidden">

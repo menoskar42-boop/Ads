@@ -29,6 +29,7 @@ app.use(session({
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 app.use(i18nMiddleware);
+app.use(require('./src/middleware/urls'));
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);

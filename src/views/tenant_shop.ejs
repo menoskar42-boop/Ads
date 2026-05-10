@@ -96,7 +96,7 @@
 <!-- Search + category tabs -->
 <section class="bg-white border-b sticky top-[60px] z-10">
   <div class="max-w-6xl mx-auto px-4 py-3">
-    <form method="GET" action="/view/<%= company.slug %>" class="flex items-center gap-2 mb-3">
+    <form method="GET" action="<%= canonicalCompanyUrl(company.slug) %>" class="flex items-center gap-2 mb-3">
       <input type="text" name="q" value="<%= currentSearch || '' %>" placeholder="<%= t('public.search_products') %>"
         class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
       <% if (currentCategory) { %><input type="hidden" name="category" value="<%= currentCategory %>" /><% } %>
@@ -104,10 +104,10 @@
     </form>
     <% if (categories && categories.length) { %>
       <div class="flex items-center gap-2 overflow-x-auto pb-1">
-        <a href="/view/<%= company.slug %><%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
+        <a href="<%= canonicalCompanyUrl(company.slug) %><%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
           class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= !currentCategory ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= t('public.all_categories') %></a>
         <% categories.forEach(c => { %>
-          <a href="/view/<%= company.slug %>?category=<%= c.id %><%= currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '' %>"
+          <a href="<%= canonicalCompanyUrl(company.slug) %>?category=<%= c.id %><%= currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '' %>"
             class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= String(currentCategory) === String(c.id) ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= pickContent(c, 'name', company.content_i18n) || c.name %></a>
         <% }) %>
       </div>
@@ -125,7 +125,7 @@
     <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
       <p class="font-semibold"><%= t('public.no_products') %></p>
       <% if (currentSearch || currentCategory) { %>
-        <p class="text-sm mt-1"><a href="/view/<%= company.slug %>" class="brand-text hover:underline"><%= t('public.clear_filters') %></a></p>
+        <p class="text-sm mt-1"><a href="<%= canonicalCompanyUrl(company.slug) %>" class="brand-text hover:underline"><%= t('public.clear_filters') %></a></p>
       <% } %>
     </div>
   <% } else { %>

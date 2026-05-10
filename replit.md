@@ -45,3 +45,36 @@ Multi-tenant SaaS advertising platform — each company gets a subdomain-based b
 - Server must bind to `0.0.0.0` for Replit proxy to work (port 5000)
 - Subdomain detection requires at least 3 hostname parts (sub.domain.tld)
 - `www` subdomain is ignored by tenant middleware
+
+## Public company URL — canonical scheme
+
+Public company pages are linked through the `canonicalCompanyUrl(slug)` helper
+(`src/lib/urls.js`, exposed to every EJS template via
+`src/middleware/urls.js`). The helper picks the right form per environment:
+
+- **Production host** (any host matching a base in `PUBLIC_BASE_DOMAINS`,
+  defaulting to `oscardevs.com` / `oscardevsads.replit.app`):
+  emits `https://<slug>.<base>`. The legacy `/view/<slug>` route 301-redirects
+  to this canonical URL so old bookmarks keep working.
+- **Replit dev** (`*.replit.dev`) and **localhost**: emits `/view/<slug>` —
+  wildcard subdomains are not possible on dev URLs, so the path-based fallback
+  is used and no redirect is performed.
+
+### Configuring custom domain on Replit + Cloudflare
+1. In **Replit Deployment → Custom Domains**, add both `oscardevs.com` and
+   `*.oscardevs.com` (wildcard). Replit will display TXT verification records.
+2. In **Cloudflare DNS** for `oscardevs.com`:
+   - Add the TXT verification record from step 1.
+   - Add `CNAME` record `*` → `<your-replit-deployment-host>`. Set Proxy
+     Status to **DNS only** until SSL is verified, then re-enable proxy.
+3. In **Replit Deployment Secrets** (NOT in the dev workspace), set:
+   `PUBLIC_BASE_DOMAIN=oscardevs.com` (comma-separated list also accepted via
+   `PUBLIC_BASE_DOMAINS`).
+
+### Verifying
+- Local Replit dev: `/view/delta` returns 200 directly; admin "View" buttons
+  link to `/view/<slug>`. No env var needed.
+- Production: `curl -I https://oscardevs.com/view/delta` → 301 to
+  `https://delta.oscardevs.com`. Admin "View" buttons link to subdomain URLs.
+- Escape hatch for debugging: `?noredirect=1` on `/view/<slug>` skips the
+  301 even on production hosts.

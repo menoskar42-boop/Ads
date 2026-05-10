@@ -23,7 +23,7 @@
 
 <header class="bg-white shadow-sm sticky top-0 z-20">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-    <a href="/view/<%= company.slug %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= displayCompanyName %></a>
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="flex items-center gap-2 font-bold text-gray-800">← <%= displayCompanyName %></a>
     <div class="flex items-center gap-2">
       <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1"><%= t('common.toggle_lang') %></a>
       <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
