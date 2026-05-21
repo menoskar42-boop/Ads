@@ -36,7 +36,10 @@ function extractSubdomain(hostname) {
 }
 
 async function tenantMiddleware(req, res, next) {
-  const subdomain = extractSubdomain(req.hostname || req.headers.host || '');
+  // Cloudflare Worker sets X-Tenant-Host with the original subdomain
+  // (X-Forwarded-Host gets clobbered by Replit's edge proxy)
+  const tenantHost = req.headers['x-tenant-host'];
+  const subdomain = extractSubdomain(tenantHost || req.hostname || req.headers.host || '');
 
   if (!subdomain) {
     return next();

@@ -13,6 +13,7 @@ export default {
     const headers = new Headers(request.headers);
     headers.set('X-Forwarded-Host', originalHost);
     headers.set('X-Forwarded-Proto', 'https');
+    headers.set('X-Tenant-Host', originalHost);
     headers.delete('host');
 
     const upstreamReq = new Request(upstreamUrl, {
