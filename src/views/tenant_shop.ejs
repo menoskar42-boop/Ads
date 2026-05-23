@@ -5,6 +5,12 @@
   <% var displayDesc = pickContent(company, 'description', company.content_i18n) || company.description || ''; %>
   <% var cur = company.currency || 'EGP'; %>
   <% var catIcons = ['📱','👕','🏠','💄','⚽','🎮','📚','🍔','🚗','👶','🎧','⌚']; %>
+  <% var isDelta = company.slug === 'delta'; %>
+  <% var defaultPromos = ['🚀 شحن سريع لكل المحافظات','💳 الدفع عند الاستلام متاح','🎁 عروض وخصومات مستمرة','⚡ تسوّق آمن 100%']; %>
+  <% var promoItems = (company.promo_text && company.promo_text.trim()) ? company.promo_text.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean) : defaultPromos; %>
+  <% var heroHeadline = company.hero_headline || 'كل اللي محتاجه في مكان واحد'; %>
+  <% var heroSub = company.hero_subtext || displayDesc || 'منتجات مختارة بعناية، أسعار مناسبة، وتوصيل سريع وآمن.'; %>
+  <% var heroCta = company.hero_cta_text || 'تسوّق الآن'; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= displayName %></title>
@@ -21,14 +27,11 @@
 <!-- Promo marquee -->
 <div class="top-bar">
   <div class="top-bar-track">
-    <span>🚀 شحن سريع لكل المحافظات</span><span class="dot">●</span>
-    <span>💳 الدفع عند الاستلام متاح</span><span class="dot">●</span>
-    <span>🎁 عروض وخصومات مستمرة</span><span class="dot">●</span>
-    <span>⚡ تسوّق آمن 100%</span><span class="dot">●</span>
-    <span>🚀 شحن سريع لكل المحافظات</span><span class="dot">●</span>
-    <span>💳 الدفع عند الاستلام متاح</span><span class="dot">●</span>
-    <span>🎁 عروض وخصومات مستمرة</span><span class="dot">●</span>
-    <span>⚡ تسوّق آمن 100%</span>
+    <% for (var rep = 0; rep < 2; rep++) { %>
+      <% promoItems.forEach(function(msg, i){ %>
+        <span><%= msg %></span><% if (!(rep === 1 && i === promoItems.length - 1)) { %><span class="dot">●</span><% } %>
+      <% }) %>
+    <% } %>
   </div>
 </div>
 
@@ -79,10 +82,10 @@
   <div class="hero-main reveal">
     <div class="hero-content">
       <div class="hero-tag"><span class="pulse"></span> أهلاً بك في متجر <%= displayName %></div>
-      <h1>كل اللي محتاجه<br>في <span class="underline">مكان واحد</span></h1>
-      <% if (displayDesc) { %><p><%= displayDesc %></p><% } else { %><p>منتجات مختارة بعناية، أسعار مناسبة، وتوصيل سريع وآمن.</p><% } %>
+      <h1><%= heroHeadline %></h1>
+      <p><%= heroSub %></p>
       <div class="hero-cta-row">
-        <a href="#products"><button class="btn-light">تسوّق الآن <span>←</span></button></a>
+        <a href="#products"><button class="btn-light"><%= heroCta %> <span>←</span></button></a>
         <a href="/shop/<%= company.slug %>/cart"><button class="btn-outline"><%= t('public.cart') %></button></a>
       </div>
     </div>
@@ -148,10 +151,21 @@
         <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
         <% var pCat = (categories.find(c => String(c.id) === String(p.category_id)) || {}); %>
         <% var pCatName = pCat.id ? (pickContent(pCat, 'name', company.content_i18n) || pCat.name) : ''; %>
+        <%
+          var disc = 0, oldPrice = 0, stars = '', reviews = 0;
+          if (isDelta) {
+            var discs = [10, 15, 20, 25, 30, 40];
+            disc = discs[p.id % discs.length];
+            oldPrice = Number(p.price) / (1 - disc / 100);
+            stars = (p.id % 4 === 0) ? '★★★★☆' : '★★★★★';
+            reviews = ((p.id * 137) % 4800) + 200;
+          }
+        %>
         <div class="product-card reveal">
           <a class="pc-img-wrap" href="/shop/<%= company.slug %>/product/<%= p.id %>">
             <div class="pc-img" style="background-image:url('<%= p.image_url || '' %>'); background-color: var(--line-soft);"></div>
-            <% if (p.stock <= 0) { %><div class="pc-badge out"><%= t('public.out_of_stock') %></div><% } %>
+            <% if (p.stock <= 0) { %><div class="pc-badge out"><%= t('public.out_of_stock') %></div>
+            <% } else if (isDelta) { %><div class="pc-badge">-<%= disc %>%</div><% } %>
           </a>
           <button class="pc-fav" type="button" aria-label="favorite">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
@@ -159,8 +173,9 @@
           <div class="pc-info">
             <% if (pCatName) { %><div class="pc-cat"><%= pCatName %></div><% } %>
             <a href="/shop/<%= company.slug %>/product/<%= p.id %>"><div class="pc-name"><%= pName %></div></a>
+            <% if (isDelta) { %><div class="pc-rating"><span class="pc-stars"><%= stars %></span><span>(<%= reviews.toLocaleString('en-US') %>)</span></div><% } %>
             <div class="pc-price-row">
-              <span class="pc-price"><%= Number(p.price).toFixed(2) %> <%= cur %></span>
+              <span class="pc-price"><% if (isDelta) { %><span class="pc-old"><%= oldPrice.toFixed(2) %></span><% } %><%= Number(p.price).toFixed(2) %> <%= cur %></span>
               <% if (p.stock > 0) { %>
                 <button class="pc-add" type="button" data-product="<%= p.id %>" data-name="<%= pName %>" aria-label="<%= t('public.add_to_cart') %>">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
@@ -200,6 +215,7 @@
 <% } %>
 
 <!-- Trust bar -->
+<% if (company.show_trust_bar !== false) { %>
 <section class="trust-bar">
   <div class="trust-item">
     <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 18a3 3 0 1 0 6 0M13 18a3 3 0 1 0 6 0M16 18V6h-3l-3 4H7v8M16 18H7"/></svg></div>
@@ -218,12 +234,47 @@
     <div class="trust-text"><h4>دعم متواصل</h4><p>في خدمتك دائماً</p></div>
   </div>
 </section>
+<% } %>
+
+<% if (isDelta) { %>
+<!-- Demo: app download (Delta showcase only) -->
+<section class="app-cta">
+  <div class="app-cta-content">
+    <h2>حمّل تطبيق <%= displayName %><br>واحصل على <span class="accent">15%</span> خصم</h2>
+    <p>تسوّق أسرع، تتبع طلباتك، واستلم إشعارات عروض حصرية مباشرة على جوالك.</p>
+    <div class="app-stores">
+      <a href="#" class="app-store"><span class="icon">🍎</span><div><div class="small">حمّل من</div><div class="big">App Store</div></div></a>
+      <a href="#" class="app-store"><span class="icon">▶</span><div><div class="small">حمّل من</div><div class="big">Google Play</div></div></a>
+    </div>
+  </div>
+  <div class="phone-mockup">
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="phone-top">صباح الخير ☀</div>
+        <div class="phone-mid">15%<br>خصم<br>اليوم!</div>
+        <div class="phone-bottom">
+          <div class="phone-icon">🛍</div>
+          <div><div style="font-size:0.75rem;opacity:0.8">سلتك جاهزة</div><div style="font-weight:700;font-size:0.95rem">184.50 <%= cur %></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<% } %>
 
 <% if (company.adsense_bottom) { %><div style="padding:24px 32px"><%- company.adsense_bottom %></div><% } %>
 
 <!-- Contact -->
 <section class="shop-contact" id="contact">
   <h2 class="section-title">تواصل معنا</h2>
+  <% if (company.contact_phone || company.contact_whatsapp || company.contact_email || company.contact_address) { %>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px;">
+      <% if (company.contact_whatsapp) { %><a href="https://wa.me/<%= company.contact_whatsapp.replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#DCFFE4;color:#00794F;font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">💬 واتساب</a><% } %>
+      <% if (company.contact_phone) { %><a href="tel:<%= company.contact_phone.replace(/[^0-9+]/g,'') %>" style="display:inline-flex;align-items:center;gap:8px;background:var(--primary-l);color:var(--primary);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">📞 <%= company.contact_phone %></a><% } %>
+      <% if (company.contact_email) { %><a href="mailto:<%= company.contact_email %>" style="display:inline-flex;align-items:center;gap:8px;background:var(--line-soft);color:var(--ink-2);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">✉️ <%= company.contact_email %></a><% } %>
+      <% if (company.contact_address) { %><span style="display:inline-flex;align-items:center;gap:8px;background:var(--line-soft);color:var(--ink-2);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">📍 <%= company.contact_address %></span><% } %>
+    </div>
+  <% } %>
   <div class="shop-contact-card">
     <% if (typeof sent !== 'undefined' && sent) { %><div class="form-note ok">✓ تم إرسال رسالتك بنجاح</div><% } %>
     <% if (typeof contactError !== 'undefined' && contactError) { %><div class="form-note err"><%= contactError %></div><% } %>

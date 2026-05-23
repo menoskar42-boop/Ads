@@ -1,14 +1,15 @@
 <%
   pageTitle = 'Edit Profile';
   activePage = 'profile';
+  var curOptions = ['EGP','USD','SAR','AED','KWD','QAR','EUR','GBP','MAD','JOD'];
 %>
 <%- include('_layout_top') %>
 
   <div class="max-w-2xl space-y-6">
 
     <div class="bg-white rounded-2xl shadow-sm p-6 brand-border">
-      <h2 class="text-xl font-bold text-gray-800 mb-1">Edit Company Profile</h2>
-      <p class="text-gray-400 text-sm">Changes appear immediately on your public landing page.</p>
+      <h2 class="text-xl font-bold text-gray-800 mb-1"><%= t('company.edit_profile') || 'إعدادات المتجر' %></h2>
+      <p class="text-gray-400 text-sm">التغييرات تظهر فوراً على صفحة متجرك العامة.</p>
     </div>
 
     <% if (success) { %>
@@ -24,42 +25,115 @@
     </div>
     <% } %>
 
-    <form method="POST" action="/company/profile" enctype="multipart/form-data" class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Company Name</label>
-        <input type="text" name="company_name" value="<%= company.company_name %>" required
-          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
-      </div>
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Description</label>
-        <textarea name="description" rows="4"
-          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company.description || '' %></textarea>
-      </div>
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Logo</label>
-        <% if (company.logo_url) { %>
-          <div class="mb-3 flex items-center gap-3">
-            <img src="<%= company.logo_url %>" alt="Current logo" class="w-16 h-16 rounded-xl object-cover border border-gray-200" />
-            <span class="text-xs text-gray-400">Current logo</span>
+    <form method="POST" action="/company/profile" enctype="multipart/form-data" class="space-y-6">
+
+      <!-- Brand -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🎨</span> الهوية والعلامة</h3>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">اسم المتجر</label>
+          <input type="text" name="company_name" value="<%= company.company_name %>" required
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">الوصف</label>
+          <textarea name="description" rows="3"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company.description || '' %></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">الشعار (اللوجو)</label>
+          <% if (company.logo_url) { %>
+            <div class="mb-3 flex items-center gap-3">
+              <img src="<%= company.logo_url %>" alt="Current logo" class="w-16 h-16 rounded-xl object-cover border border-gray-200" />
+              <span class="text-xs text-gray-400">الشعار الحالي</span>
+            </div>
+          <% } %>
+          <input type="file" name="logo_file" accept="image/*"
+            class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer mb-3" />
+          <p class="text-xs text-gray-400 mb-2">ارفع صورة (PNG, JPEG, GIF, WEBP, SVG — أقصى 5MB) أو ألصق رابطاً بالأسفل.</p>
+          <input type="text" name="logo_url" value="<%= company.logo_url || '' %>" placeholder="https://... أو اتركه فارغاً"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون الثيم</label>
+            <div class="flex items-center gap-3">
+              <input type="color" name="theme_color" value="<%= company.theme_color %>"
+                class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+              <span class="text-sm text-gray-400">يُستخدم في الأزرار والعناصر المميزة</span>
+            </div>
           </div>
-        <% } %>
-        <input type="file" name="logo_file" accept="image/*"
-          class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer mb-3" />
-        <p class="text-xs text-gray-400 mb-2">Upload a new image (PNG, JPEG, GIF, WEBP, SVG — max 5MB) or paste a URL below.</p>
-        <input type="text" name="logo_url" value="<%= company.logo_url || '' %>" placeholder="https://... or leave empty"
-          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
-      </div>
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Theme Color</label>
-        <div class="flex items-center gap-3">
-          <input type="color" name="theme_color" value="<%= company.theme_color %>"
-            class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
-          <span class="text-sm text-gray-400">Pick your brand color — used for buttons and accents</span>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">العملة</label>
+            <select name="currency" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition bg-white">
+              <% curOptions.forEach(function(c){ %>
+                <option value="<%= c %>" <%= (company.currency || 'EGP') === c ? 'selected' : '' %>><%= c %></option>
+              <% }) %>
+            </select>
+          </div>
         </div>
       </div>
-      <div class="pt-2">
+
+      <!-- Storefront -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🛍️</span> واجهة المتجر</h3>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">عنوان الهيرو الرئيسي</label>
+          <input type="text" name="hero_headline" value="<%= company.hero_headline || '' %>" placeholder="مثال: كل اللي محتاجه في مكان واحد"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">نص الهيرو الفرعي</label>
+          <textarea name="hero_subtext" rows="2" placeholder="جملة قصيرة تحفّز الزائر على التسوّق"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company.hero_subtext || '' %></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">نص زر الهيرو (CTA)</label>
+          <input type="text" name="hero_cta_text" value="<%= company.hero_cta_text || '' %>" placeholder="تسوّق الآن"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-600 mb-1.5">شريط العروض المتحرك</label>
+          <textarea name="promo_text" rows="3" placeholder="افصل كل رسالة بسطر جديد، مثال:&#10;شحن سريع لكل المحافظات&#10;الدفع عند الاستلام متاح&#10;خصومات مستمرة"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company.promo_text || '' %></textarea>
+          <p class="text-xs text-gray-400 mt-1">كل سطر = رسالة في الشريط المتحرك أعلى المتجر. اتركه فارغاً لاستخدام الرسائل الافتراضية.</p>
+        </div>
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" name="show_trust_bar" <%= (company.show_trust_bar === false) ? '' : 'checked' %> class="w-5 h-5 rounded" />
+          <span class="text-sm font-semibold text-gray-600">إظهار شريط الثقة (شحن سريع، دفع آمن، دعم...)</span>
+        </label>
+      </div>
+
+      <!-- Contact -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">📞</span> بيانات التواصل</h3>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">رقم الهاتف</label>
+            <input type="tel" name="contact_phone" value="<%= company.contact_phone || '' %>" maxlength="30"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">واتساب</label>
+            <input type="tel" name="contact_whatsapp" value="<%= company.contact_whatsapp || '' %>" maxlength="30" placeholder="مثال: 201xxxxxxxxx"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">البريد الإلكتروني</label>
+            <input type="email" name="contact_email" value="<%= company.contact_email || '' %>"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">العنوان</label>
+            <input type="text" name="contact_address" value="<%= company.contact_address || '' %>"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-1">
         <button type="submit" class="brand-bg text-white font-bold px-8 py-3 rounded-xl hover:opacity-90 transition shadow">
-          Save Changes
+          حفظ التغييرات
         </button>
       </div>
     </form>

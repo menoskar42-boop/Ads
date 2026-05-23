@@ -176,6 +176,38 @@ footer { background: var(--ink); color: white; padding: 64px 32px 24px; }
 .empty-state { background: white; border: 1px solid var(--line-soft); border-radius: 20px; padding: 56px 24px; text-align: center; color: var(--muted); }
 .empty-state a { color: var(--primary); font-weight: 700; }
 
+/* Demo-only product decorations (ratings / discount) */
+.pc-rating { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
+.pc-stars { color: var(--amber); letter-spacing: 1px; font-size: 0.85rem; }
+.pc-old { font-size: 0.78rem; color: var(--muted); text-decoration: line-through; margin-right: 6px; font-weight: 500; }
+.pc-badge.hot { background: linear-gradient(90deg, var(--accent), var(--pink)); }
+
+/* Demo-only app download section */
+.app-cta { margin: 48px 32px; background: linear-gradient(135deg, #0F0F1E 0%, #1A1A2E 100%); border-radius: 28px; padding: 60px; color: white; position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+.app-cta::before { content:''; position:absolute; width: 500px; height: 500px; background: radial-gradient(circle, rgba(91,63,237,0.3), transparent 70%); top: -200px; right: -100px; }
+.app-cta::after { content:''; position:absolute; width: 400px; height: 400px; background: radial-gradient(circle, rgba(255,91,74,0.2), transparent 70%); bottom: -150px; left: -100px; }
+.app-cta-content { position: relative; z-index: 2; }
+.app-cta h2 { font-family: 'Outfit', sans-serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.05; margin-bottom: 16px; letter-spacing: -1.5px; }
+.app-cta h2 .accent { color: var(--mint); }
+.app-cta p { opacity: 0.8; margin-bottom: 32px; font-size: 1rem; line-height: 1.7; max-width: 460px; }
+.app-stores { display: flex; gap: 12px; flex-wrap: wrap; }
+.app-store { background: white; color: var(--ink); padding: 14px 24px; border-radius: 14px; display: inline-flex; align-items: center; gap: 12px; font-weight: 700; transition: all 0.3s; }
+.app-store:hover { transform: translateY(-3px); }
+.app-store .icon { font-size: 1.5rem; }
+.app-store .small { font-size: 0.7rem; opacity: 0.7; font-weight: 500; }
+.app-store .big { font-size: 1rem; }
+.phone-mockup { position: relative; z-index: 2; display: flex; justify-content: center; }
+.phone { width: 240px; height: 350px; background: linear-gradient(160deg, #fff 0%, #f0f0f5 100%); border-radius: 30px; padding: 16px; position: relative; box-shadow: 0 30px 60px rgba(0,0,0,0.4); transform: rotate(-3deg); }
+.phone-screen { background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 18px; height: 100%; padding: 24px; color: white; display: flex; flex-direction: column; justify-content: space-between; }
+.phone-top { font-size: 0.7rem; opacity: 0.7; font-weight: 600; }
+.phone-mid { font-family: 'Outfit', sans-serif; font-size: 2rem; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+.phone-bottom { background: rgba(0,0,0,0.25); padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 10px; }
+.phone-icon { width: 32px; height: 32px; background: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+@media (max-width: 900px) {
+  .app-cta { grid-template-columns: 1fr; padding: 36px; margin: 32px 16px; }
+  .phone-mockup { display: none; }
+}
+
 @media (max-width: 1200px) {
   .grid { grid-template-columns: repeat(4, 1fr); }
   .cats-grid { grid-template-columns: repeat(4, 1fr); }
