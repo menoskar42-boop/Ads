@@ -162,13 +162,29 @@ router.post('/profile', requireLogin, (req, res) => {
     }
 
     console.log('[POST /profile] file:', req.file?.filename, 'body:', Object.keys(req.body));
-    const { company_name, description, theme_color, logo_url } = req.body;
+    const {
+      company_name, description, theme_color, logo_url, currency,
+      promo_text, hero_headline, hero_subtext, hero_cta_text,
+      contact_phone, contact_whatsapp, contact_email, contact_address,
+    } = req.body;
     const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
+    const clean = (v) => { const s = (v || '').trim(); return s || null; };
+    const showTrustBar = req.body.show_trust_bar === 'on' || req.body.show_trust_bar === 'true';
 
     try {
       await pool.query(
-        `UPDATE companies SET company_name=$1, description=$2, theme_color=$3, logo_url=$4 WHERE id=$5`,
-        [company_name, description, theme_color, finalLogoUrl, req.session.companyId]
+        `UPDATE companies SET
+           company_name=$1, description=$2, theme_color=$3, logo_url=$4, currency=$5,
+           promo_text=$6, hero_headline=$7, hero_subtext=$8, hero_cta_text=$9,
+           contact_phone=$10, contact_whatsapp=$11, contact_email=$12, contact_address=$13,
+           show_trust_bar=$14
+         WHERE id=$15`,
+        [
+          company_name, description, theme_color, finalLogoUrl, clean(currency) || 'EGP',
+          clean(promo_text), clean(hero_headline), clean(hero_subtext), clean(hero_cta_text),
+          clean(contact_phone), clean(contact_whatsapp), clean(contact_email), clean(contact_address),
+          showTrustBar, req.session.companyId,
+        ]
       );
       req.session.companyName = company_name;
       req.session.themeColor = theme_color;

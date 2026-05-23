@@ -215,6 +215,15 @@ async function initDb() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_en TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS promo_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_headline TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_subtext TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_cta_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_whatsapp TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_address TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_trust_bar BOOLEAN DEFAULT true;
     `);
     console.log('Database tables ready.');
   } catch (err) {
