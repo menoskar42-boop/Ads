@@ -1,0 +1,313 @@
+<%- include('partials/header') %>
+<%- include('partials/nav') %>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="badge-dot"></span>
+      متاح الآن للمشاريع الجديدة
+    </div>
+
+    <h1>
+      <span class="line-1">مواقع تفتح لك</span>
+      <span class="line-2">أبواب النجاح</span>
+    </h1>
+
+    <p class="hero-sub">
+      موقع احترافي يجعل عملاءك يثقون فيك من اللحظة الأولى.
+      سواء كنت محتاج بورتفوليو يُبرز موهبتك، أو متجر إلكتروني يبيع على مدار الساعة.
+    </p>
+
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="document.getElementById('services').scrollIntoView({behavior:'smooth'})">
+        ⚡ اطلب موقعك الآن
+      </button>
+      <button class="btn-ghost" onclick="document.getElementById('process').scrollIntoView({behavior:'smooth'})">
+        كيف نشتغل؟
+      </button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-num">+<span>50</span></div>
+        <div class="stat-label">موقع تم تسليمه</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num"><span>100</span>%</div>
+        <div class="stat-label">رضا العملاء</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num"><span>7</span> أيام</div>
+        <div class="stat-label">وقت التسليم</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES -->
+<section class="services" id="services">
+  <div class="services-header reveal">
+    <div class="section-tag">⚡ خدماتنا</div>
+    <h2 class="section-title">اختر ما يناسب <em>هدفك</em></h2>
+    <p class="section-sub">كل موقع مصمم بعناية ليحقق نتيجة واحدة: أن يجيب عليك الزبون بنعم.</p>
+  </div>
+
+  <div class="services-grid">
+    <!-- Portfolio Card -->
+    <div class="service-card portfolio reveal">
+      <div class="service-icon">🎨</div>
+      <h3 class="service-name">موقع البورتفوليو</h3>
+      <p class="service-desc">
+        هويتك الرقمية التي تتكلم عنك وأنت نايم. صمّم لك موقع يحوّل كل زائر لعميل محتمل.
+      </p>
+      <ul class="service-features">
+        <li><span class="feature-check">✦</span> تصميم مخصص 100% لشخصيتك</li>
+        <li><span class="feature-check">✦</span> عرض أعمالك بشكل سينمائي</li>
+        <li><span class="feature-check">✦</span> صفحة تواصل ونموذج مباشر</li>
+        <li><span class="feature-check">✦</span> سريع ومتوافق مع الجوال</li>
+        <li><span class="feature-check">✦</span> متوافق مع محركات البحث</li>
+        <li><span class="feature-check">✦</span> دومين وهوستنج السنة الأولى</li>
+      </ul>
+      <div class="service-price">
+        <span class="price-from">يبدأ من</span>
+        <div class="price-amount">150</div>
+        <div class="price-currency">$</div>
+      </div>
+      <button class="service-cta">احجز موقع البورتفوليو →</button>
+      <a href="<%= canonicalCompanyUrl('delta') %>" target="_blank" class="service-demo">شاهد نموذج حي ←</a>
+    </div>
+
+    <!-- E-commerce Card -->
+    <div class="service-card ecommerce reveal">
+      <div class="service-icon">🛒</div>
+      <h3 class="service-name">المتجر الإلكتروني</h3>
+      <p class="service-desc">
+        متجرك الخاص كأمازون. بيع منتجاتك 24/7 بدون ما تكون موجود. كل شيء أوتوماتيك.
+      </p>
+      <ul class="service-features">
+        <li><span class="feature-check">✦</span> تصميم متجر احترافي وجذاب</li>
+        <li><span class="feature-check">✦</span> إدارة منتجات وكاتالوج كامل</li>
+        <li><span class="feature-check">✦</span> دفع إلكتروني متعدد الطرق</li>
+        <li><span class="feature-check">✦</span> نظام طلبات وشحن</li>
+        <li><span class="feature-check">✦</span> لوحة تحكم سهلة وبسيطة</li>
+        <li><span class="feature-check">✦</span> خريطة الموقع والـ SEO</li>
+      </ul>
+      <div class="service-price">
+        <span class="price-from">يبدأ من</span>
+        <div class="price-amount">350</div>
+        <div class="price-currency">$</div>
+      </div>
+      <button class="service-cta">احجز متجرك الإلكتروني →</button>
+      <a href="<%= canonicalCompanyUrl('petra') %>" target="_blank" class="service-demo">شاهد نموذج حي ←</a>
+    </div>
+  </div>
+</section>
+
+<!-- WHY US -->
+<section class="why" id="why">
+  <div class="why-inner">
+    <div>
+      <div class="section-tag reveal">💎 لماذا نحن</div>
+      <h2 class="section-title reveal">مش بس <em>تصميم</em><br>ده استثمار</h2>
+      <p class="section-sub reveal">
+        كل قرش بتدفعه بيرجعلك ضعفه. موقع احترافي هو أرخص موظف بتاخده في حياتك، شغال 24 ساعة بدون إجازة.
+      </p>
+    </div>
+    <div class="why-grid">
+      <div class="why-card reveal">
+        <div class="why-card-icon">⚡</div>
+        <div class="why-card-title">تسليم سريع</div>
+        <div class="why-card-desc">موقعك جاهز في 7 أيام، مش شهور</div>
+      </div>
+      <div class="why-card reveal">
+        <div class="why-card-icon">🎯</div>
+        <div class="why-card-title">تصميم مخصص</div>
+        <div class="why-card-desc">مش قوالب جاهزة، كل موقع من الصفر</div>
+      </div>
+      <div class="why-card reveal">
+        <div class="why-card-icon">📱</div>
+        <div class="why-card-title">جاهز للجوال</div>
+        <div class="why-card-desc">يشتغل مثالي على كل الشاشات</div>
+      </div>
+      <div class="why-card reveal">
+        <div class="why-card-icon">🛡️</div>
+        <div class="why-card-title">دعم مستمر</div>
+        <div class="why-card-desc">معك بعد التسليم، مش هتلاقي نفسك لوحدك</div>
+      </div>
+      <div class="why-card reveal">
+        <div class="why-card-icon">🔍</div>
+        <div class="why-card-title">SEO احترافي</div>
+        <div class="why-card-desc">موقعك يظهر في جوجل من أول أسبوع</div>
+      </div>
+      <div class="why-card reveal">
+        <div class="why-card-icon">💳</div>
+        <div class="why-card-title">دفع بعد التسليم</div>
+        <div class="why-card-desc">50% مقدم و50% بعد ما تشوف وتعتمد</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROCESS -->
+<section class="process" id="process">
+  <div class="process-inner">
+    <div class="process-header">
+      <div class="section-tag">🗺 طريقة العمل</div>
+      <h2 class="section-title reveal">من <em>فكرتك</em> لموقع شغال</h2>
+      <p class="section-sub reveal">4 خطوات بسيطة وموقعك جاهز</p>
+    </div>
+    <div class="process-steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div>
+          <div class="step-title">تكلمنا عن فكرتك</div>
+          <p class="step-desc">بتقولنا إيه اللي عاوزه، الهدف من الموقع، ومين الجمهور المستهدف. محتاج 15 دقيقة بس.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div>
+          <div class="step-title">عرض الأسعار والتصميم</div>
+          <p class="step-desc">بنبعتلك عرض سعر مفصّل وأمثلة تصاميم مشابهة. بتوافق وتاخد بال، ونبدأ.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div>
+          <div class="step-title">التنفيذ والمراجعة</div>
+          <p class="step-desc">بنبدأ الشغل ونبعتلك نسخة للمراجعة. بتقولنا التعديلات وبنعملها على طول.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div>
+          <div class="step-title">التسليم والرفع</div>
+          <p class="step-desc">موقعك على النت، معاك تدريب على الاستخدام، ودعم لمدة شهر مجاناً.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials">
+  <div class="testimonials-header">
+    <div class="section-tag">💬 آراء عملاؤنا</div>
+    <h2 class="section-title reveal">بيقولوا <em>إيه</em> عننا</h2>
+    <p class="section-sub reveal" style="margin-inline:auto">كلام العملاء أبلغ من أي إعلان</p>
+  </div>
+
+  <div class="testi-wrapper">
+    <div class="testi-track" id="testiTrack">
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"من أفضل القرارات اللي اتخذتها لمشروعي. الموقع حوّل زوار لعملاء من أول أسبوع!"</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(79,70,229,0.2)">👨‍💼</div>
+          <div><div class="testi-name">أحمد سالم</div><div class="testi-role">صاحب متجر ملابس، القاهرة</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"الموقع فاق توقعاتي. تصميم رهيب وتسليم في الوقت المحدد. بنسبة 100 شغل مضمون."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(0,245,212,0.15)">👩‍🎨</div>
+          <div><div class="testi-name">سارة محمود</div><div class="testi-role">مصممة جرافيك، الإسكندرية</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"بورتفوليو احترافي خلى الكلاينت الأجنبي يثق فيا من أول نظرة. استثمار ممتاز."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(245,158,11,0.15)">👨‍💻</div>
+          <div><div class="testi-name">محمد عمر</div><div class="testi-role">مطور برمجيات، المنصورة</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"المتجر الإلكتروني بدّل كل حاجة. مبيعاتي اتضاعفت في أول شهرين. جزاه الله خيرًا."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(79,70,229,0.2)">👩‍💼</div>
+          <div><div class="testi-name">نورهان إبراهيم</div><div class="testi-role">صاحبة بيزنس عطور، أسيوط</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"تعامل محترم وشغل من الآخر. الدعم بعد التسليم مش كلام، ده واقع فعلي."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(0,245,212,0.15)">🧑‍🍳</div>
+          <div><div class="testi-name">يوسف علي</div><div class="testi-role">صاحب مطعم، الجيزة</div></div>
+        </div>
+      </div>
+      <!-- Duplicate for infinite scroll -->
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"من أفضل القرارات اللي اتخذتها لمشروعي. الموقع حوّل زوار لعملاء من أول أسبوع!"</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(79,70,229,0.2)">👨‍💼</div>
+          <div><div class="testi-name">أحمد سالم</div><div class="testi-role">صاحب متجر ملابس، القاهرة</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"الموقع فاق توقعاتي. تصميم رهيب وتسليم في الوقت المحدد. بنسبة 100 شغل مضمون."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(0,245,212,0.15)">👩‍🎨</div>
+          <div><div class="testi-name">سارة محمود</div><div class="testi-role">مصممة جرافيك، الإسكندرية</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"بورتفوليو احترافي خلى الكلاينت الأجنبي يثق فيا من أول نظرة. استثمار ممتاز."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(245,158,11,0.15)">👨‍💻</div>
+          <div><div class="testi-name">محمد عمر</div><div class="testi-role">مطور برمجيات، المنصورة</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"المتجر الإلكتروني بدّل كل حاجة. مبيعاتي اتضاعفت في أول شهرين. جزاه الله خيرًا."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(79,70,229,0.2)">👩‍💼</div>
+          <div><div class="testi-name">نورهان إبراهيم</div><div class="testi-role">صاحبة بيزنس عطور، أسيوط</div></div>
+        </div>
+      </div>
+      <div class="testi-card">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"تعامل محترم وشغل من الآخر. الدعم بعد التسليم مش كلام، ده واقع فعلي."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:rgba(0,245,212,0.15)">🧑‍🍳</div>
+          <div><div class="testi-name">يوسف علي</div><div class="testi-role">صاحب مطعم، الجيزة</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="contact">
+  <div class="cta-inner">
+    <div class="section-tag reveal">🚀 ابدأ الآن</div>
+    <h2 class="cta-title reveal">جاهز تبدأ<br><span>مشروعك؟</span></h2>
+    <p class="cta-sub reveal">
+      لا تسيب المنافسة تسبقك. كل يوم بدون موقع احترافي ده فرصة بتتضيع.
+      تواصل معنا دلوقتي والاستشارة الأولى مجانًا.
+    </p>
+    <div class="cta-actions reveal">
+      <a href="https://wa.me/201552406406?text=عايز أعمل موقع" target="_blank" style="text-decoration:none">
+        <button class="btn-primary">💬 تواصل على واتساب</button>
+      </a>
+      <a href="mailto:contact&#64;oscardevs.com" style="text-decoration:none">
+        <button class="btn-ghost">📧 ارسل إيميل</button>
+      </a>
+    </div>
+  </div>
+</section>
+
+<%- include('partials/footer') %>
