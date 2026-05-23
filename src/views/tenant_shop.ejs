@@ -3,154 +3,187 @@
 <head>
   <% var displayName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <% var displayDesc = pickContent(company, 'description', company.content_i18n) || company.description || ''; %>
+  <% var cur = company.currency || 'EGP'; %>
+  <% var catIcons = ['📱','👕','🏠','💄','⚽','🎮','📚','🍔','🚗','👶','🎧','⌚']; %>
+  <% var isDelta = company.slug === 'delta'; %>
+  <% var defaultPromos = ['🚀 شحن سريع لكل المحافظات','💳 الدفع عند الاستلام متاح','🎁 عروض وخصومات مستمرة','⚡ تسوّق آمن 100%']; %>
+  <% var promoItems = (company.promo_text && company.promo_text.trim()) ? company.promo_text.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean) : defaultPromos; %>
+  <% var heroHeadline = company.hero_headline || 'كل اللي محتاجه في مكان واحد'; %>
+  <% var heroSub = company.hero_subtext || displayDesc || 'منتجات مختارة بعناية، أسعار مناسبة، وتوصيل سريع وآمن.'; %>
+  <% var heroCta = company.hero_cta_text || 'تسوّق الآن'; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= displayName %></title>
   <meta name="description" content="<%= displayDesc || displayName %>" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/shop.css" />
   <style>
-    * { font-family: 'Cairo', sans-serif; }
-    :root { --brand: <%= company.theme_color %>; }
-    .brand-bg { background-color: var(--brand); }
-    .brand-text { color: var(--brand); }
-    .brand-border { border-color: var(--brand); }
-    .brand-btn { background-color: var(--brand); }
-    .brand-btn:hover { opacity: 0.9; }
+    :root { --primary: <%= company.theme_color %>; }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body>
+<script>window.SHOP_SLUG = <%- JSON.stringify(company.slug) %>;</script>
 
-<!-- Header -->
-<header class="bg-white shadow-sm sticky top-0 z-20">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <% if (company.logo_url) { %>
-        <img src="<%= company.logo_url %>" alt="<%= displayName %>" class="w-10 h-10 rounded-xl object-cover" />
-      <% } else { %>
-        <div class="w-10 h-10 brand-bg rounded-xl flex items-center justify-center text-white font-black"><%= (displayName || ' ').charAt(0) %></div>
-      <% } %>
-      <span class="font-bold text-gray-800"><%= displayName %></span>
-    </div>
-    <div class="flex items-center gap-2">
-    <a href="?lang=<%= lang === 'ar' ? 'en' : 'ar' %>" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:text-gray-700"><%= t('common.toggle_lang') %></a>
-    <a href="/shop/<%= company.slug %>/cart" class="relative flex items-center gap-2 brand-btn text-white text-sm font-semibold px-4 py-2 rounded-xl">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-      <%= t('public.cart') %>
-      <% if (cartCount > 0) { %>
-        <span class="bg-white text-xs brand-text font-bold rounded-full px-2 py-0.5"><%= cartCount %></span>
-      <% } %>
-    </a>
-    </div>
-  </div>
-</header>
-
-<% if (company.adsense_top) { %>
-  <div class="bg-white border-b px-4 py-2"><div class="max-w-6xl mx-auto"><%- company.adsense_top %></div></div>
-<% } %>
-
-<!-- Banner slider -->
-<% if (banners && banners.length) { %>
-  <section class="relative max-h-80 overflow-hidden bg-gray-200" id="bannerSlider">
-    <% banners.forEach((b, i) => { %>
-      <a href="<%= b.target_url || '#' %>" target="_blank" rel="noopener noreferrer" class="banner-slide block <%= i === 0 ? '' : 'hidden' %>">
-        <img src="<%= b.image_url %>" alt="<%= b.caption || '' %>" class="w-full max-h-80 object-cover" />
-      </a>
-    <% }) %>
-    <% if (banners.length > 1) { %>
-      <div class="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
-        <% banners.forEach((_, i) => { %>
-          <span class="banner-dot w-2 h-2 rounded-full <%= i === 0 ? 'bg-white' : 'bg-white/50' %>" data-idx="<%= i %>"></span>
-        <% }) %>
-      </div>
+<!-- Promo marquee -->
+<div class="top-bar">
+  <div class="top-bar-track">
+    <% for (var rep = 0; rep < 2; rep++) { %>
+      <% promoItems.forEach(function(msg, i){ %>
+        <span><%= msg %></span><% if (!(rep === 1 && i === promoItems.length - 1)) { %><span class="dot">●</span><% } %>
+      <% }) %>
     <% } %>
-  </section>
-  <% if (banners.length > 1) { %>
-    <script>
-      (function(){
-        var slides = document.querySelectorAll('#bannerSlider .banner-slide');
-        var dots = document.querySelectorAll('#bannerSlider .banner-dot');
-        var i = 0;
-        function show(n){ slides[i].classList.add('hidden'); dots[i].classList.replace('bg-white','bg-white/50'); i = n; slides[i].classList.remove('hidden'); dots[i].classList.replace('bg-white/50','bg-white'); }
-        setInterval(function(){ show((i+1) % slides.length); }, 5000);
-      })();
-    </script>
-  <% } %>
-<% } else if (topAd) { %>
-  <div class="max-w-6xl mx-auto px-4 mt-4">
-    <a href="<%= topAd.target_url || '#' %>" target="_blank"><img src="<%= topAd.image_url %>" alt="Ad" class="w-full rounded-xl shadow" /></a>
   </div>
+</div>
+
+<!-- Nav -->
+<nav>
+  <a href="<%= canonicalCompanyUrl(company.slug) %>" class="logo">
+    <div class="logo-mark">
+      <% if (company.logo_url) { %>
+        <img src="<%= company.logo_url %>" alt="<%= displayName %>" />
+      <% } else { %><%= (displayName || ' ').charAt(0) %><% } %>
+    </div>
+    <span><%= displayName %></span>
+  </a>
+  <form class="search-wrap" method="GET" action="<%= canonicalCompanyUrl(company.slug) %>">
+    <input type="text" name="q" value="<%= currentSearch || '' %>" placeholder="<%= t('public.search_products') %>" />
+    <% if (currentCategory) { %><input type="hidden" name="category" value="<%= currentCategory %>" /><% } %>
+    <button class="search-btn" type="submit" aria-label="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    </button>
+  </form>
+  <div class="nav-actions">
+    <a href="/customer/login" class="nav-icon" aria-label="account">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </a>
+    <a href="/shop/<%= company.slug %>/cart" class="nav-icon" id="cartBtn" aria-label="cart">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      <span class="badge" id="cartBadge" style="<%= cartCount > 0 ? '' : 'display:none' %>"><%= cartCount %></span>
+    </a>
+  </div>
+</nav>
+
+<!-- Category strip -->
+<% if (categories && categories.length) { %>
+<div class="cat-strip">
+  <div class="cat-strip-inner">
+    <a class="cat-pill <%= !currentCategory ? 'active' : '' %>" href="<%= canonicalCompanyUrl(company.slug) %><%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"><%= t('public.all_categories') %></a>
+    <% categories.forEach(c => { %>
+      <a class="cat-pill <%= String(currentCategory) === String(c.id) ? 'active' : '' %>" href="<%= canonicalCompanyUrl(company.slug) %>?category=<%= c.id %><%= currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '' %>"><%= pickContent(c, 'name', company.content_i18n) || c.name %></a>
+    <% }) %>
+  </div>
+</div>
 <% } %>
+
+<% if (company.adsense_top) { %><div style="padding:12px 32px;background:#fff;border-bottom:1px solid var(--line)"><%- company.adsense_top %></div><% } %>
 
 <!-- Hero -->
-<section class="bg-white border-b">
-  <div class="max-w-6xl mx-auto px-4 py-8 text-center">
-    <h1 class="text-3xl sm:text-4xl font-black brand-text mb-2"><%= displayName %></h1>
-    <% if (displayDesc) { %>
-      <p class="text-gray-500 max-w-2xl mx-auto"><%= displayDesc %></p>
-    <% } %>
-  </div>
-</section>
-
-<!-- Search + category tabs -->
-<section class="bg-white border-b sticky top-[60px] z-10">
-  <div class="max-w-6xl mx-auto px-4 py-3">
-    <form method="GET" action="<%= canonicalCompanyUrl(company.slug) %>" class="flex items-center gap-2 mb-3">
-      <input type="text" name="q" value="<%= currentSearch || '' %>" placeholder="<%= t('public.search_products') %>"
-        class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-      <% if (currentCategory) { %><input type="hidden" name="category" value="<%= currentCategory %>" /><% } %>
-      <button type="submit" class="brand-btn text-white text-sm font-semibold px-4 py-2.5 rounded-xl"><%= t('common.search') %></button>
-    </form>
-    <% if (categories && categories.length) { %>
-      <div class="flex items-center gap-2 overflow-x-auto pb-1">
-        <a href="<%= canonicalCompanyUrl(company.slug) %><%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
-          class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= !currentCategory ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= t('public.all_categories') %></a>
-        <% categories.forEach(c => { %>
-          <a href="<%= canonicalCompanyUrl(company.slug) %>?category=<%= c.id %><%= currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '' %>"
-            class="text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap <%= String(currentCategory) === String(c.id) ? 'brand-bg text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>"><%= pickContent(c, 'name', company.content_i18n) || c.name %></a>
-        <% }) %>
+<section class="hero">
+  <div class="hero-main reveal">
+    <div class="hero-content">
+      <div class="hero-tag"><span class="pulse"></span> أهلاً بك في متجر <%= displayName %></div>
+      <h1><%= heroHeadline %></h1>
+      <p><%= heroSub %></p>
+      <div class="hero-cta-row">
+        <a href="#products"><button class="btn-light"><%= heroCta %> <span>←</span></button></a>
+        <a href="/shop/<%= company.slug %>/cart"><button class="btn-outline"><%= t('public.cart') %></button></a>
       </div>
-    <% } %>
+    </div>
+  </div>
+  <div class="hero-side">
+    <div class="hero-card hero-card-1 reveal">
+      <div class="label">تشكيلة مميزة</div>
+      <h3>منتجات<br>وصلت حديثاً</h3>
+      <span class="price-strip">تصفّح الجديد</span>
+      <div class="arrow">←</div>
+    </div>
+    <div class="hero-card hero-card-2 reveal">
+      <div class="label">دفع آمن</div>
+      <h3>الدفع عند<br>الاستلام</h3>
+      <span class="price-strip">+ شحن سريع</span>
+      <div class="arrow">←</div>
+    </div>
   </div>
 </section>
 
-<% if (company.adsense_sidebar) { %>
-  <div class="max-w-6xl mx-auto px-4 mt-4"><%- company.adsense_sidebar %></div>
+<!-- Real banner slides (if any) -->
+<% if (banners && banners.length) { %>
+<section class="banners">
+  <% banners.slice(0, 4).forEach(b => { %>
+    <a class="banner <%= b.target_url ? '' : '' %>" href="<%= b.target_url || '#' %>" target="_blank" rel="noopener" style="padding:0;min-height:200px;">
+      <div class="banner-img" style="background-image:url('<%= b.image_url %>')"></div>
+      <% if (b.caption) { %><div class="banner-overlay" style="position:relative;z-index:2;margin-top:auto;padding:24px;background:linear-gradient(transparent,rgba(0,0,0,0.55));color:#fff;border-radius:0 0 24px 24px;"><h3 style="color:#fff"><%= b.caption %></h3></div><% } %>
+    </a>
+  <% }) %>
+</section>
 <% } %>
 
-<!-- Products grid -->
-<section class="max-w-6xl mx-auto px-4 py-8">
+<!-- Products -->
+<section class="flash" id="products">
+  <div class="flash-head">
+    <div class="flash-title-wrap">
+      <div class="flash-bolt">⚡</div>
+      <div>
+        <div class="flash-title">
+          <% if (currentSearch) { %>نتائج: "<%= currentSearch %>"<% } else { %>كل المنتجات<% } %>
+        </div>
+        <div class="flash-sub">اكتشف تشكيلتنا واطلب بسهولة</div>
+      </div>
+    </div>
+    <div class="countdown">
+      <span>عروض تنتهي خلال</span>
+      <div class="countdown-box" id="cd-h">12</div><span>:</span>
+      <div class="countdown-box" id="cd-m">34</div><span>:</span>
+      <div class="countdown-box" id="cd-s">56</div>
+    </div>
+  </div>
+
   <% if (!products.length) { %>
-    <div class="bg-white rounded-2xl shadow p-10 text-center text-gray-400">
-      <p class="font-semibold"><%= t('public.no_products') %></p>
+    <div class="empty-state">
+      <p style="font-weight:700;font-size:1.05rem;color:var(--ink-2)"><%= t('public.no_products') %></p>
       <% if (currentSearch || currentCategory) { %>
-        <p class="text-sm mt-1"><a href="<%= canonicalCompanyUrl(company.slug) %>" class="brand-text hover:underline"><%= t('public.clear_filters') %></a></p>
+        <p style="margin-top:8px"><a href="<%= canonicalCompanyUrl(company.slug) %>"><%= t('public.clear_filters') %></a></p>
       <% } %>
     </div>
   <% } else { %>
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div class="grid">
       <% products.forEach(p => { %>
-        <div class="bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col group">
-          <a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="block relative aspect-square bg-gray-100 overflow-hidden">
-            <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
-            <% if (p.image_url) { %>
-              <img src="<%= p.image_url %>" alt="<%= pName %>" class="w-full h-full object-cover group-hover:scale-105 transition-transform" onerror="this.style.display='none'" />
-            <% } %>
-            <% if (p.stock <= 0) { %>
-              <span class="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded"><%= t('public.out_of_stock') %></span>
-            <% } %>
+        <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
+        <% var pCat = (categories.find(c => String(c.id) === String(p.category_id)) || {}); %>
+        <% var pCatName = pCat.id ? (pickContent(pCat, 'name', company.content_i18n) || pCat.name) : ''; %>
+        <%
+          var disc = 0, oldPrice = 0, stars = '', reviews = 0;
+          if (isDelta) {
+            var discs = [10, 15, 20, 25, 30, 40];
+            disc = discs[p.id % discs.length];
+            oldPrice = Number(p.price) / (1 - disc / 100);
+            stars = (p.id % 4 === 0) ? '★★★★☆' : '★★★★★';
+            reviews = ((p.id * 137) % 4800) + 200;
+          }
+        %>
+        <div class="product-card reveal">
+          <a class="pc-img-wrap" href="/shop/<%= company.slug %>/product/<%= p.id %>">
+            <div class="pc-img" style="background-image:url('<%= p.image_url || '' %>'); background-color: var(--line-soft);"></div>
+            <% if (p.stock <= 0) { %><div class="pc-badge out"><%= t('public.out_of_stock') %></div>
+            <% } else if (isDelta) { %><div class="pc-badge">-<%= disc %>%</div><% } %>
           </a>
-          <div class="p-3 flex-1 flex flex-col">
-            <a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="font-bold text-gray-800 text-sm mb-1 hover:brand-text transition line-clamp-2"><%= pName %></a>
-            <div class="mt-auto flex items-center justify-between gap-1">
-              <span class="font-black brand-text text-base"><%= Number(p.price).toFixed(2) %> <%= company.currency || 'EGP' %></span>
+          <button class="pc-fav" type="button" aria-label="favorite">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
+          </button>
+          <div class="pc-info">
+            <% if (pCatName) { %><div class="pc-cat"><%= pCatName %></div><% } %>
+            <a href="/shop/<%= company.slug %>/product/<%= p.id %>"><div class="pc-name"><%= pName %></div></a>
+            <% if (isDelta) { %><div class="pc-rating"><span class="pc-stars"><%= stars %></span><span>(<%= reviews.toLocaleString('en-US') %>)</span></div><% } %>
+            <div class="pc-price-row">
+              <span class="pc-price"><% if (isDelta) { %><span class="pc-old"><%= oldPrice.toFixed(2) %></span><% } %><%= Number(p.price).toFixed(2) %> <%= cur %></span>
               <% if (p.stock > 0) { %>
-                <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="inline">
-                  <input type="hidden" name="product_id" value="<%= p.id %>" />
-                  <input type="hidden" name="quantity" value="1" />
-                  <button type="submit" class="brand-btn text-white text-xs font-bold px-3 py-1.5 rounded-lg" title="<%= t('public.add_to_cart') %>">+ <%= t('public.cart') %></button>
-                </form>
+                <button class="pc-add" type="button" data-product="<%= p.id %>" data-name="<%= pName %>" aria-label="<%= t('public.add_to_cart') %>">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                </button>
+              <% } else { %>
+                <button class="pc-add" type="button" disabled aria-label="out of stock">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg>
+                </button>
               <% } %>
             </div>
           </div>
@@ -160,43 +193,147 @@
   <% } %>
 </section>
 
-<% if (company.adsense_bottom) { %>
-  <div class="max-w-6xl mx-auto px-4 my-6"><%- company.adsense_bottom %></div>
+<!-- Shop by category -->
+<% if (categories && categories.length) { %>
+<section class="cats">
+  <div class="section-head">
+    <div>
+      <h2 class="section-title">تسوّق حسب التصنيف</h2>
+      <div class="section-sub">اكتشف منتجاتنا في كل قسم</div>
+    </div>
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="view-all"><%= t('public.all_categories') %> ←</a>
+  </div>
+  <div class="cats-grid">
+    <% categories.forEach((c, i) => { %>
+      <a class="cat-tile reveal" href="<%= canonicalCompanyUrl(company.slug) %>?category=<%= c.id %>">
+        <div class="cat-tile-icon"><%= catIcons[i % catIcons.length] %></div>
+        <div class="cat-tile-name"><%= pickContent(c, 'name', company.content_i18n) || c.name %></div>
+      </a>
+    <% }) %>
+  </div>
+</section>
 <% } %>
 
-<!-- Contact -->
-<section class="max-w-6xl mx-auto px-4 pb-12">
-  <div class="bg-white rounded-2xl shadow p-8">
-    <h2 class="text-2xl font-bold brand-text mb-4">Contact Us</h2>
-    <p class="text-gray-500 mb-6">Have a question? Send us a message.</p>
-    <% if (typeof sent !== 'undefined' && sent) { %>
-      <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 text-sm">✓ Your message was sent.</div>
-    <% } %>
-    <% if (typeof contactError !== 'undefined' && contactError) { %>
-      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= contactError %></div>
-    <% } %>
-    <form method="POST" action="/contact/<%= company.slug %>" class="space-y-4">
-      <div class="grid sm:grid-cols-2 gap-4">
-        <input type="text" name="sender_name" placeholder="Your Name" required class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
-        <input type="email" name="sender_email" placeholder="Your Email" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
+<!-- Trust bar -->
+<% if (company.show_trust_bar !== false) { %>
+<section class="trust-bar">
+  <div class="trust-item">
+    <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 18a3 3 0 1 0 6 0M13 18a3 3 0 1 0 6 0M16 18V6h-3l-3 4H7v8M16 18H7"/></svg></div>
+    <div class="trust-text"><h4>شحن سريع</h4><p>توصيل لكل المحافظات</p></div>
+  </div>
+  <div class="trust-item">
+    <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg></div>
+    <div class="trust-text"><h4>إرجاع سهل</h4><p>استبدال خلال أيام</p></div>
+  </div>
+  <div class="trust-item">
+    <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <div class="trust-text"><h4>دفع آمن</h4><p>الدفع عند الاستلام</p></div>
+  </div>
+  <div class="trust-item">
+    <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+    <div class="trust-text"><h4>دعم متواصل</h4><p>في خدمتك دائماً</p></div>
+  </div>
+</section>
+<% } %>
+
+<% if (isDelta) { %>
+<!-- Demo: app download (Delta showcase only) -->
+<section class="app-cta">
+  <div class="app-cta-content">
+    <h2>حمّل تطبيق <%= displayName %><br>واحصل على <span class="accent">15%</span> خصم</h2>
+    <p>تسوّق أسرع، تتبع طلباتك، واستلم إشعارات عروض حصرية مباشرة على جوالك.</p>
+    <div class="app-stores">
+      <a href="#" class="app-store"><span class="icon">🍎</span><div><div class="small">حمّل من</div><div class="big">App Store</div></div></a>
+      <a href="#" class="app-store"><span class="icon">▶</span><div><div class="small">حمّل من</div><div class="big">Google Play</div></div></a>
+    </div>
+  </div>
+  <div class="phone-mockup">
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="phone-top">صباح الخير ☀</div>
+        <div class="phone-mid">15%<br>خصم<br>اليوم!</div>
+        <div class="phone-bottom">
+          <div class="phone-icon">🛍</div>
+          <div><div style="font-size:0.75rem;opacity:0.8">سلتك جاهزة</div><div style="font-weight:700;font-size:0.95rem">184.50 <%= cur %></div></div>
+        </div>
       </div>
-      <input type="tel" name="sender_phone" placeholder="Your Phone (optional)" maxlength="30" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200" />
-      <textarea name="message" rows="4" placeholder="Your message..." required maxlength="5000" class="border border-gray-200 rounded-xl px-4 py-3 text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
-      <button type="submit" class="brand-btn text-white px-8 py-3 rounded-full font-semibold transition">Send Message</button>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<% if (company.adsense_bottom) { %><div style="padding:24px 32px"><%- company.adsense_bottom %></div><% } %>
+
+<!-- Contact -->
+<section class="shop-contact" id="contact">
+  <h2 class="section-title">تواصل معنا</h2>
+  <% if (company.contact_phone || company.contact_whatsapp || company.contact_email || company.contact_address) { %>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px;">
+      <% if (company.contact_whatsapp) { %><a href="https://wa.me/<%= company.contact_whatsapp.replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#DCFFE4;color:#00794F;font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">💬 واتساب</a><% } %>
+      <% if (company.contact_phone) { %><a href="tel:<%= company.contact_phone.replace(/[^0-9+]/g,'') %>" style="display:inline-flex;align-items:center;gap:8px;background:var(--primary-l);color:var(--primary);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">📞 <%= company.contact_phone %></a><% } %>
+      <% if (company.contact_email) { %><a href="mailto:<%= company.contact_email %>" style="display:inline-flex;align-items:center;gap:8px;background:var(--line-soft);color:var(--ink-2);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">✉️ <%= company.contact_email %></a><% } %>
+      <% if (company.contact_address) { %><span style="display:inline-flex;align-items:center;gap:8px;background:var(--line-soft);color:var(--ink-2);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">📍 <%= company.contact_address %></span><% } %>
+    </div>
+  <% } %>
+  <div class="shop-contact-card">
+    <% if (typeof sent !== 'undefined' && sent) { %><div class="form-note ok">✓ تم إرسال رسالتك بنجاح</div><% } %>
+    <% if (typeof contactError !== 'undefined' && contactError) { %><div class="form-note err"><%= contactError %></div><% } %>
+    <form method="POST" action="/contact/<%= company.slug %>">
+      <div class="row2">
+        <input type="text" name="sender_name" placeholder="<%= t('common.name') %>" required />
+        <input type="email" name="sender_email" placeholder="<%= t('common.email') || 'البريد الإلكتروني' %>" />
+      </div>
+      <input type="tel" name="sender_phone" placeholder="رقم الهاتف (اختياري)" maxlength="30" />
+      <textarea name="message" rows="4" placeholder="رسالتك..." required maxlength="5000"></textarea>
+      <button type="submit">إرسال الرسالة</button>
     </form>
   </div>
 </section>
 
-<!-- Footer ad -->
-<% if (footerAd) { %>
-  <div class="max-w-6xl mx-auto px-4 mb-6">
-    <a href="<%= footerAd.target_url || '#' %>" target="_blank"><img src="<%= footerAd.image_url %>" alt="Ad" class="w-full rounded-xl shadow" /></a>
+<!-- Footer -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">
+        <div class="logo-mark"><% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="" /><% } else { %><%= (displayName||' ').charAt(0) %><% } %></div>
+        <span><%= displayName %></span>
+      </div>
+      <% if (displayDesc) { %><p class="footer-tag"><%= displayDesc %></p><% } else { %><p class="footer-tag">متجرك الموثوق لكل ما تحتاجه — منتجات مختارة وتوصيل سريع.</p><% } %>
+    </div>
+    <div class="footer-col">
+      <h4>التسوّق</h4>
+      <ul>
+        <li><a href="<%= canonicalCompanyUrl(company.slug) %>">كل المنتجات</a></li>
+        <li><a href="#products">المنتجات</a></li>
+        <li><a href="/shop/<%= company.slug %>/cart"><%= t('public.cart') %></a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>حسابي</h4>
+      <ul>
+        <li><a href="/customer/login"><%= t('common.login') || 'تسجيل الدخول' %></a></li>
+        <li><a href="/customer/orders"><%= t('customer.my_orders') || 'طلباتي' %></a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>المساعدة</h4>
+      <ul>
+        <li><a href="#contact">تواصل معنا</a></li>
+      </ul>
+    </div>
   </div>
-<% } %>
-
-<footer class="bg-gray-900 text-gray-400 py-6 text-center text-sm">
-  <p>&copy; <%= new Date().getFullYear() %> <%= company.company_name %></p>
+  <div class="footer-bottom">
+    <div>© <%= new Date().getFullYear() %> <%= company.company_name %>. جميع الحقوق محفوظة.</div>
+    <div>صُنع بواسطة OscarDevs</div>
+  </div>
 </footer>
 
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon">✓</div>
+  <div id="toastMsg">تمت الإضافة للسلة</div>
+</div>
+
+<script src="/js/shop.js" defer></script>
 </body>
 </html>
