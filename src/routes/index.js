@@ -6,7 +6,7 @@ const { canonicalCompanyUrl, isProductionHost } = require('../lib/urls');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 router.get('/', (req, res) => {
-  res.render('index', {
+  res.render('home', {
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
   });
