@@ -146,8 +146,9 @@
       <% } %>
     </div>
   <% } else { %>
+    <% var adMid = company.adsense_sidebar ? Math.floor(products.length / 2) : -1; %>
     <div class="grid">
-      <% products.forEach(p => { %>
+      <% products.forEach((p, idx) => { %>
         <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
         <% var pCat = (categories.find(c => String(c.id) === String(p.category_id)) || {}); %>
         <% var pCatName = pCat.id ? (pickContent(pCat, 'name', company.content_i18n) || pCat.name) : ''; %>
@@ -188,6 +189,9 @@
             </div>
           </div>
         </div>
+        <% if (idx === adMid) { %>
+          <div class="shop-ad-banner"><%- company.adsense_sidebar %></div>
+        <% } %>
       <% }) %>
     </div>
   <% } %>

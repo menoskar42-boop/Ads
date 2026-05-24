@@ -176,6 +176,10 @@ footer { background: var(--ink); color: white; padding: 64px 32px 24px; }
 .empty-state { background: white; border: 1px solid var(--line-soft); border-radius: 20px; padding: 56px 24px; text-align: center; color: var(--muted); }
 .empty-state a { color: var(--primary); font-weight: 700; }
 
+/* In-grid AdSense banner (spans the full products grid width) */
+.shop-ad-banner { grid-column: 1 / -1; background: #fff; border: 1px solid var(--line-soft); border-radius: 16px; padding: 16px; text-align: center; overflow: hidden; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+.shop-ad-banner :is(ins, iframe, img) { max-width: 100%; }
+
 /* Demo-only product decorations (ratings / discount) */
 .pc-rating { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
 .pc-stars { color: var(--amber); letter-spacing: 1px; font-size: 0.85rem; }
