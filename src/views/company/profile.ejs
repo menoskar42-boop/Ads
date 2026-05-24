@@ -98,10 +98,26 @@
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company.promo_text || '' %></textarea>
           <p class="text-xs text-gray-400 mt-1">كل سطر = رسالة في الشريط المتحرك أعلى المتجر. اتركه فارغاً لاستخدام الرسائل الافتراضية.</p>
         </div>
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" name="show_trust_bar" <%= (company.show_trust_bar === false) ? '' : 'checked' %> class="w-5 h-5 rounded" />
-          <span class="text-sm font-semibold text-gray-600">إظهار شريط الثقة (شحن سريع، دفع آمن، دعم...)</span>
-        </label>
+      </div>
+
+      <!-- Section visibility -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-3">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">👁️</span> إظهار / إخفاء الأقسام</h3>
+        <p class="text-gray-400 text-sm">تحكّم في الأقسام اللي تظهر على صفحة متجرك.</p>
+        <% var toggles = [
+             ['show_promo_bar', 'شريط العروض المتحرك (أعلى الصفحة)'],
+             ['show_hero_cards', 'كروت الهيرو الجانبية (برتقالي/أخضر)'],
+             ['show_banners', 'قسم البانرات العريض'],
+             ['show_categories', 'قسم التصنيفات'],
+             ['show_trust_bar', 'شريط الثقة (شحن سريع، دفع آمن، دعم...)'],
+             ['show_contact', 'قسم تواصل معنا']
+           ]; %>
+        <% toggles.forEach(function(tg){ %>
+          <label class="flex items-center gap-3 cursor-pointer py-1">
+            <input type="checkbox" name="<%= tg[0] %>" <%= (company[tg[0]] === false) ? '' : 'checked' %> class="w-5 h-5 rounded" />
+            <span class="text-sm font-semibold text-gray-600"><%= tg[1] %></span>
+          </label>
+        <% }) %>
       </div>
 
       <!-- Contact -->

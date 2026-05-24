@@ -224,6 +224,11 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_address TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_trust_bar BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_promo_bar BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_hero_cards BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_banners BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_categories BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_contact BOOLEAN DEFAULT true;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 

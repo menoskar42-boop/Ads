@@ -169,7 +169,13 @@ router.post('/profile', requireLogin, (req, res) => {
     } = req.body;
     const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
     const clean = (v) => { const s = (v || '').trim(); return s || null; };
-    const showTrustBar = req.body.show_trust_bar === 'on' || req.body.show_trust_bar === 'true';
+    const on = (v) => v === 'on' || v === 'true';
+    const showTrustBar = on(req.body.show_trust_bar);
+    const showPromoBar = on(req.body.show_promo_bar);
+    const showHeroCards = on(req.body.show_hero_cards);
+    const showBanners = on(req.body.show_banners);
+    const showCategories = on(req.body.show_categories);
+    const showContact = on(req.body.show_contact);
 
     try {
       await pool.query(
@@ -177,13 +183,15 @@ router.post('/profile', requireLogin, (req, res) => {
            company_name=$1, description=$2, theme_color=$3, logo_url=$4, currency=$5,
            promo_text=$6, hero_headline=$7, hero_subtext=$8, hero_cta_text=$9,
            contact_phone=$10, contact_whatsapp=$11, contact_email=$12, contact_address=$13,
-           show_trust_bar=$14
+           show_trust_bar=$14, show_promo_bar=$16, show_hero_cards=$17, show_banners=$18,
+           show_categories=$19, show_contact=$20
          WHERE id=$15`,
         [
           company_name, description, theme_color, finalLogoUrl, clean(currency) || 'EGP',
           clean(promo_text), clean(hero_headline), clean(hero_subtext), clean(hero_cta_text),
           clean(contact_phone), clean(contact_whatsapp), clean(contact_email), clean(contact_address),
           showTrustBar, req.session.companyId,
+          showPromoBar, showHeroCards, showBanners, showCategories, showContact,
         ]
       );
       req.session.companyName = company_name;

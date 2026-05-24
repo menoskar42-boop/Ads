@@ -28,6 +28,7 @@
 <script>window.SHOP_SLUG = <%- JSON.stringify(company.slug) %>;</script>
 
 <!-- Promo marquee -->
+<% if (company.show_promo_bar !== false) { %>
 <div class="top-bar">
   <div class="top-bar-track">
     <% for (var rep = 0; rep < 2; rep++) { %>
@@ -37,6 +38,7 @@
     <% } %>
   </div>
 </div>
+<% } %>
 
 <!-- Nav -->
 <nav>
@@ -93,6 +95,7 @@
       </div>
     </div>
   </div>
+  <% if (company.show_hero_cards !== false) { %>
   <div class="hero-side">
     <div class="hero-card hero-card-1 reveal">
       <% if (heroBanners1.length) { %>
@@ -127,10 +130,11 @@
       <% } %>
     </div>
   </div>
+  <% } %>
 </section>
 
 <!-- Real banner slides (if any) -->
-<% if (sectionBanners && sectionBanners.length) { %>
+<% if (company.show_banners !== false && sectionBanners && sectionBanners.length) { %>
 <section class="banners">
   <% sectionBanners.slice(0, 4).forEach(b => { %>
     <a class="banner <%= b.target_url ? '' : '' %>" href="<%= b.target_url || '#' %>" target="_blank" rel="noopener" style="padding:0;min-height:200px;">
@@ -221,7 +225,7 @@
 </section>
 
 <!-- Shop by category -->
-<% if (categories && categories.length) { %>
+<% if (company.show_categories !== false && categories && categories.length) { %>
 <section class="cats">
   <div class="section-head">
     <div>
@@ -292,6 +296,7 @@
 <% if (company.adsense_bottom) { %><div style="padding:24px 32px"><%- company.adsense_bottom %></div><% } %>
 
 <!-- Contact -->
+<% if (company.show_contact !== false) { %>
 <section class="shop-contact" id="contact">
   <h2 class="section-title">تواصل معنا</h2>
   <% if (company.contact_phone || company.contact_whatsapp || company.contact_email || company.contact_address) { %>
@@ -316,6 +321,7 @@
     </form>
   </div>
 </section>
+<% } %>
 
 <!-- Footer -->
 <footer>
