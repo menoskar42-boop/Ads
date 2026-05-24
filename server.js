@@ -278,7 +278,8 @@ async function initDb() {
         const hash = await bcrypt.hash(pwd, 10);
         await client.query(
           `INSERT INTO company_users (company_id, email, password_hash)
-           VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING`,
+           VALUES ($1, $2, $3)
+           ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
           [c.rows[0].id, email, hash]
         );
       }
