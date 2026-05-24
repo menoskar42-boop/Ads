@@ -287,12 +287,13 @@ async function initDb() {
     // Ensure demo store-owner logins exist so each store can be managed from its dashboard.
     const bcrypt = require('bcryptjs');
     const demoOwners = [
-      ['delta', 'delta@test.com', 'delta123'],
-      ['petra', 'petra@test.com', 'petra123'],
+      ['delta', 'delta@test.com', 'delta123', 'shop'],
+      ['petra', 'petra@test.com', 'petra123', 'portfolio'],
     ];
-    for (const [slug, email, pwd] of demoOwners) {
+    for (const [slug, email, pwd, pageType] of demoOwners) {
       const c = await client.query('SELECT id FROM companies WHERE slug = $1', [slug]);
       if (c.rows.length) {
+        await client.query('UPDATE companies SET page_type = $1 WHERE id = $2', [pageType, c.rows[0].id]);
         const hash = await bcrypt.hash(pwd, 10);
         await client.query(
           `INSERT INTO company_users (company_id, email, password_hash)
