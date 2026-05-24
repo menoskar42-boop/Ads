@@ -119,7 +119,12 @@
       <div class="bg-white rounded-2xl shadow-sm p-6 space-y-3">
         <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">👁️</span> إظهار / إخفاء الأقسام</h3>
         <p class="text-gray-400 text-sm">تحكّم في الأقسام اللي تظهر على صفحة متجرك.</p>
-        <% var toggles = [
+        <% var toggles = (company.page_type === 'portfolio') ? [
+             ['show_about', 'قسم نبذة عنا'],
+             ['show_services', 'قسم الخدمات'],
+             ['show_portfolio', 'قسم معرض الأعمال'],
+             ['show_contact', 'قسم تواصل معنا']
+           ] : [
              ['show_promo_bar', 'شريط العروض المتحرك (أعلى الصفحة)'],
              ['show_hero_cards', 'كروت الهيرو الجانبية (برتقالي/أخضر)'],
              ['show_banners', 'قسم البانرات العريض'],
