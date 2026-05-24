@@ -169,7 +169,21 @@ router.post('/profile', requireLogin, (req, res) => {
     } = req.body;
     const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
     const clean = (v) => { const s = (v || '').trim(); return s || null; };
-    const showTrustBar = req.body.show_trust_bar === 'on' || req.body.show_trust_bar === 'true';
+    const hex = (v) => (/^#[0-9a-fA-F]{6}$/.test((v || '').trim()) ? v.trim() : null);
+    const on = (v) => v === 'on' || v === 'true';
+    const safeTheme = hex(theme_color) || '#5B3FED';
+    const colorAccent = hex(req.body.color_accent);
+    const heroCard1Color = hex(req.body.hero_card1_color);
+    const heroCard2Color = hex(req.body.hero_card2_color);
+    const showTrustBar = on(req.body.show_trust_bar);
+    const showPromoBar = on(req.body.show_promo_bar);
+    const showHeroCards = on(req.body.show_hero_cards);
+    const showBanners = on(req.body.show_banners);
+    const showCategories = on(req.body.show_categories);
+    const showContact = on(req.body.show_contact);
+    const showAbout = on(req.body.show_about);
+    const showServices = on(req.body.show_services);
+    const showPortfolio = on(req.body.show_portfolio);
 
     try {
       await pool.query(
@@ -177,17 +191,23 @@ router.post('/profile', requireLogin, (req, res) => {
            company_name=$1, description=$2, theme_color=$3, logo_url=$4, currency=$5,
            promo_text=$6, hero_headline=$7, hero_subtext=$8, hero_cta_text=$9,
            contact_phone=$10, contact_whatsapp=$11, contact_email=$12, contact_address=$13,
-           show_trust_bar=$14
+           show_trust_bar=$14, show_promo_bar=$16, show_hero_cards=$17, show_banners=$18,
+           show_categories=$19, show_contact=$20,
+           color_accent=$21, hero_card1_color=$22, hero_card2_color=$23,
+           show_about=$24, show_services=$25, show_portfolio=$26
          WHERE id=$15`,
         [
-          company_name, description, theme_color, finalLogoUrl, clean(currency) || 'EGP',
+          company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
           clean(promo_text), clean(hero_headline), clean(hero_subtext), clean(hero_cta_text),
           clean(contact_phone), clean(contact_whatsapp), clean(contact_email), clean(contact_address),
           showTrustBar, req.session.companyId,
+          showPromoBar, showHeroCards, showBanners, showCategories, showContact,
+          colorAccent, heroCard1Color, heroCard2Color,
+          showAbout, showServices, showPortfolio,
         ]
       );
       req.session.companyName = company_name;
-      req.session.themeColor = theme_color;
+      req.session.themeColor = safeTheme;
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
       console.log('[POST /profile] success');
       return res.render('company/profile', {
@@ -701,10 +721,12 @@ router.post('/banners/add', requireLogin, (req, res) => {
     if (uploadErr || !req.file) return res.redirect('/company/banners');
     const target_url = (req.body.target_url || '').trim() || null;
     const caption = (req.body.caption || '').trim() || null;
+    const validSlots = ['section', 'hero1', 'hero2'];
+    const slot = validSlots.includes(req.body.slot) ? req.body.slot : 'section';
     await pool.query(
-      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, order_index)
-       VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
-      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption]
+      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index)
+       VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
+      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption, slot]
     );
     res.redirect('/company/banners');
   });

@@ -14,12 +14,19 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { font-family: 'Cairo', sans-serif; }
-    :root { --brand: <%= company.theme_color %>; }
+    :root {
+      --brand: <%= company.theme_color %>;
+      --brand-d: color-mix(in srgb, <%= company.theme_color %> 72%, #000);
+      --accent: <%= company.color_accent || '#FF5B4A' %>;
+    }
     .brand-bg { background-color: var(--brand); }
+    .brand-grad { background-image: linear-gradient(135deg, var(--brand), var(--brand-d)); }
     .brand-text { color: var(--brand); }
     .brand-border { border-color: var(--brand); }
     .brand-btn { background-color: var(--brand); }
     .brand-btn:hover { opacity: 0.9; }
+    .accent-bg { background-color: var(--accent); }
+    .accent-text { color: var(--accent); }
     .ad-slot { border: 2px dashed #d1d5db; background: #f9fafb; border-radius: 0.75rem; }
   </style>
 </head>
@@ -90,7 +97,7 @@
   </header>
 
   <!-- Hero -->
-  <section class="brand-bg text-white py-20 px-4">
+  <section class="brand-grad text-white py-20 px-4">
     <div class="max-w-4xl mx-auto text-center">
       <% if (company.logo_url) { %>
         <img src="<%= company.logo_url %>" alt="<%= displayName %>" class="h-24 mx-auto mb-6 rounded-2xl object-contain bg-white/10 p-2" />
@@ -117,14 +124,17 @@
       <main class="flex-1 space-y-10">
 
         <!-- About Section -->
+        <% if (company.show_about !== false) { %>
         <section id="about" class="bg-white rounded-2xl shadow p-8">
           <h2 class="text-2xl font-bold brand-text mb-4"><%= t('public.about') %></h2>
           <p class="text-gray-600 leading-relaxed">
             <%= displayDesc %>
           </p>
         </section>
+        <% } %>
 
         <!-- Services Section -->
+        <% if (company.show_services !== false) { %>
         <section id="services" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div class="mb-6">
             <h2 class="text-2xl font-bold brand-text" dir="rtl">خدماتنا</h2>
@@ -143,7 +153,7 @@
             </div>
             <!-- Service Card 2 -->
             <div class="rounded-xl border border-gray-100 bg-gray-50 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow">
-              <div class="w-14 h-14 brand-bg rounded-2xl flex items-center justify-center text-white mb-4 shadow">
+              <div class="w-14 h-14 accent-bg rounded-2xl flex items-center justify-center text-white mb-4 shadow">
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
@@ -163,9 +173,10 @@
             </div>
           </div>
         </section>
+        <% } %>
 
         <!-- Portfolio Section (shown only when items exist) -->
-        <% if (portfolio && portfolio.length > 0) { %>
+        <% if (company.show_portfolio !== false && portfolio && portfolio.length > 0) { %>
         <section id="portfolio" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div class="mb-6">
             <h2 class="text-2xl font-bold brand-text"><%= t('public.portfolio') %></h2>
@@ -195,6 +206,7 @@
         <% } %>
 
         <!-- Contact Section -->
+        <% if (company.show_contact !== false) { %>
         <section id="contact" class="bg-white rounded-2xl shadow p-8">
           <h2 class="text-2xl font-bold brand-text mb-4"><%= t('public.contact_us') %></h2>
           <% if (typeof sent !== 'undefined' && sent) { %>
@@ -219,6 +231,7 @@
             </button>
           </form>
         </section>
+        <% } %>
 
       </main>
 

@@ -73,6 +73,11 @@ nav { background: var(--surface); border-bottom: 1px solid var(--line); padding:
 .hero-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; line-height: 1.1; margin-bottom: 12px; }
 .hero-card .price-strip { display: inline-block; background: rgba(0,0,0,0.2); padding: 5px 12px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; }
 .hero-card .arrow { position: absolute; top: 24px; left: 24px; width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+/* Hero card image slideshow */
+.hero-card .hero-slides { position: absolute; inset: 0; }
+.hero-card .hero-slide { position: absolute; inset: 0; background-size: cover; background-position: center; display: flex; align-items: flex-end; padding: 18px; opacity: 0; transition: opacity 0.8s ease; }
+.hero-card .hero-slide.active { opacity: 1; }
+.hero-card .hero-slide-cap { background: linear-gradient(transparent, rgba(0,0,0,0.6)); position: absolute; inset: auto 0 0 0; padding: 16px 18px; color: #fff; font-weight: 800; font-size: 1.05rem; }
 
 .flash { padding: 48px 32px 24px; }
 .flash-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
@@ -175,6 +180,10 @@ footer { background: var(--ink); color: white; padding: 64px 32px 24px; }
 
 .empty-state { background: white; border: 1px solid var(--line-soft); border-radius: 20px; padding: 56px 24px; text-align: center; color: var(--muted); }
 .empty-state a { color: var(--primary); font-weight: 700; }
+
+/* In-grid AdSense banner (spans the full products grid width) */
+.shop-ad-banner { grid-column: 1 / -1; background: #fff; border: 1px solid var(--line-soft); border-radius: 16px; padding: 16px; text-align: center; overflow: hidden; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+.shop-ad-banner :is(ins, iframe, img) { max-width: 100%; }
 
 /* Demo-only product decorations (ratings / discount) */
 .pc-rating { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
