@@ -190,12 +190,10 @@ footer { background: var(--ink); color: white; padding: 64px 32px 24px; }
 .app-cta h2 { font-family: 'Outfit', sans-serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.05; margin-bottom: 16px; letter-spacing: -1.5px; }
 .app-cta h2 .accent { color: var(--mint); }
 .app-cta p { opacity: 0.8; margin-bottom: 32px; font-size: 1rem; line-height: 1.7; max-width: 460px; }
-.app-stores { display: flex; gap: 12px; flex-wrap: wrap; }
-.app-store { background: white; color: var(--ink); padding: 14px 24px; border-radius: 14px; display: inline-flex; align-items: center; gap: 12px; font-weight: 700; transition: all 0.3s; }
-.app-store:hover { transform: translateY(-3px); }
-.app-store .icon { font-size: 1.5rem; }
-.app-store .small { font-size: 0.7rem; opacity: 0.7; font-weight: 500; }
-.app-store .big { font-size: 1rem; }
+.app-stores { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.app-badge { display: inline-block; transition: transform 0.3s; }
+.app-badge:hover { transform: translateY(-3px); }
+.app-badge img { height: 52px; width: auto; display: block; }
 .phone-mockup { position: relative; z-index: 2; display: flex; justify-content: center; }
 .phone { width: 240px; height: 350px; background: linear-gradient(160deg, #fff 0%, #f0f0f5 100%); border-radius: 30px; padding: 16px; position: relative; box-shadow: 0 30px 60px rgba(0,0,0,0.4); transform: rotate(-3deg); }
 .phone-screen { background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 18px; height: 100%; padding: 24px; color: white; display: flex; flex-direction: column; justify-content: space-between; }

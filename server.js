@@ -266,6 +266,24 @@ async function initDb() {
       }
     }
 
+    // Ensure demo store-owner logins exist so each store can be managed from its dashboard.
+    const bcrypt = require('bcryptjs');
+    const demoOwners = [
+      ['delta', 'delta@test.com', 'delta123'],
+      ['petra', 'petra@test.com', 'petra123'],
+    ];
+    for (const [slug, email, pwd] of demoOwners) {
+      const c = await client.query('SELECT id FROM companies WHERE slug = $1', [slug]);
+      if (c.rows.length) {
+        const hash = await bcrypt.hash(pwd, 10);
+        await client.query(
+          `INSERT INTO company_users (company_id, email, password_hash)
+           VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING`,
+          [c.rows[0].id, email, hash]
+        );
+      }
+    }
+
     console.log('Database tables ready.');
   } catch (err) {
     console.error('DB init warning:', err.message);
