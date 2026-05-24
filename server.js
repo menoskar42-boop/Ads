@@ -229,6 +229,9 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_banners BOOLEAN DEFAULT true;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_categories BOOLEAN DEFAULT true;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_contact BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS color_accent TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_card1_color TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_card2_color TEXT;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 

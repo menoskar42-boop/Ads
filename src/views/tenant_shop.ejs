@@ -21,7 +21,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/shop.css" />
   <style>
-    :root { --primary: <%= company.theme_color %>; }
+    :root {
+      --primary: <%= company.theme_color %>;
+      --primary-d: color-mix(in srgb, <%= company.theme_color %> 78%, #000);
+      --primary-l: color-mix(in srgb, <%= company.theme_color %> 12%, #fff);
+      <% if (company.color_accent) { %>--accent: <%= company.color_accent %>; --accent-d: color-mix(in srgb, <%= company.color_accent %> 80%, #000);<% } %>
+    }
+    <% if (company.hero_card1_color) { %>.hero-card-1 { background: linear-gradient(135deg, <%= company.hero_card1_color %>, color-mix(in srgb, <%= company.hero_card1_color %> 68%, #000)); }<% } %>
+    <% if (company.hero_card2_color) { %>.hero-card-2 { background: linear-gradient(135deg, <%= company.hero_card2_color %>, color-mix(in srgb, <%= company.hero_card2_color %> 68%, #000)); }<% } %>
   </style>
 </head>
 <body>

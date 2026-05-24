@@ -72,6 +72,21 @@
             </select>
           </div>
         </div>
+        <div class="grid sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">اللون الثانوي (Accent)</label>
+            <input type="color" name="color_accent" value="<%= company.color_accent || '#FF5B4A' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون كرت الهيرو 1</label>
+            <input type="color" name="hero_card1_color" value="<%= company.hero_card1_color || '#FF8500' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون كرت الهيرو 2</label>
+            <input type="color" name="hero_card2_color" value="<%= company.hero_card2_color || '#00A572' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+        </div>
+        <p class="text-xs text-gray-400">اللون الأساسي بيتولّد منه باقي درجات الموقع تلقائياً. كروت الهيرو يظهر لونها لما ماتكونش محمّل عليها صور.</p>
       </div>
 
       <!-- Storefront -->

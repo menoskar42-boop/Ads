@@ -169,7 +169,12 @@ router.post('/profile', requireLogin, (req, res) => {
     } = req.body;
     const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
     const clean = (v) => { const s = (v || '').trim(); return s || null; };
+    const hex = (v) => (/^#[0-9a-fA-F]{6}$/.test((v || '').trim()) ? v.trim() : null);
     const on = (v) => v === 'on' || v === 'true';
+    const safeTheme = hex(theme_color) || '#5B3FED';
+    const colorAccent = hex(req.body.color_accent);
+    const heroCard1Color = hex(req.body.hero_card1_color);
+    const heroCard2Color = hex(req.body.hero_card2_color);
     const showTrustBar = on(req.body.show_trust_bar);
     const showPromoBar = on(req.body.show_promo_bar);
     const showHeroCards = on(req.body.show_hero_cards);
@@ -184,18 +189,20 @@ router.post('/profile', requireLogin, (req, res) => {
            promo_text=$6, hero_headline=$7, hero_subtext=$8, hero_cta_text=$9,
            contact_phone=$10, contact_whatsapp=$11, contact_email=$12, contact_address=$13,
            show_trust_bar=$14, show_promo_bar=$16, show_hero_cards=$17, show_banners=$18,
-           show_categories=$19, show_contact=$20
+           show_categories=$19, show_contact=$20,
+           color_accent=$21, hero_card1_color=$22, hero_card2_color=$23
          WHERE id=$15`,
         [
-          company_name, description, theme_color, finalLogoUrl, clean(currency) || 'EGP',
+          company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
           clean(promo_text), clean(hero_headline), clean(hero_subtext), clean(hero_cta_text),
           clean(contact_phone), clean(contact_whatsapp), clean(contact_email), clean(contact_address),
           showTrustBar, req.session.companyId,
           showPromoBar, showHeroCards, showBanners, showCategories, showContact,
+          colorAccent, heroCard1Color, heroCard2Color,
         ]
       );
       req.session.companyName = company_name;
-      req.session.themeColor = theme_color;
+      req.session.themeColor = safeTheme;
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
       console.log('[POST /profile] success');
       return res.render('company/profile', {
