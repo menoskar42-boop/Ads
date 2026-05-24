@@ -184,6 +184,7 @@ router.post('/profile', requireLogin, (req, res) => {
     const showAbout = on(req.body.show_about);
     const showServices = on(req.body.show_services);
     const showPortfolio = on(req.body.show_portfolio);
+    const svc = (k) => clean(req.body[k]);
 
     try {
       await pool.query(
@@ -194,7 +195,9 @@ router.post('/profile', requireLogin, (req, res) => {
            show_trust_bar=$14, show_promo_bar=$16, show_hero_cards=$17, show_banners=$18,
            show_categories=$19, show_contact=$20,
            color_accent=$21, hero_card1_color=$22, hero_card2_color=$23,
-           show_about=$24, show_services=$25, show_portfolio=$26
+           show_about=$24, show_services=$25, show_portfolio=$26,
+           service1_title=$27, service1_desc=$28, service2_title=$29, service2_desc=$30,
+           service3_title=$31, service3_desc=$32
          WHERE id=$15`,
         [
           company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
@@ -204,6 +207,8 @@ router.post('/profile', requireLogin, (req, res) => {
           showPromoBar, showHeroCards, showBanners, showCategories, showContact,
           colorAccent, heroCard1Color, heroCard2Color,
           showAbout, showServices, showPortfolio,
+          svc('service1_title'), svc('service1_desc'), svc('service2_title'), svc('service2_desc'),
+          svc('service3_title'), svc('service3_desc'),
         ]
       );
       req.session.companyName = company_name;
