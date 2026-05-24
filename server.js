@@ -224,6 +224,7 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_address TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_trust_bar BOOLEAN DEFAULT true;
+      ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 
     // Demo catalog for the Delta showcase store (only seeded when it has no products,

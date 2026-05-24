@@ -701,10 +701,12 @@ router.post('/banners/add', requireLogin, (req, res) => {
     if (uploadErr || !req.file) return res.redirect('/company/banners');
     const target_url = (req.body.target_url || '').trim() || null;
     const caption = (req.body.caption || '').trim() || null;
+    const validSlots = ['section', 'hero1', 'hero2'];
+    const slot = validSlots.includes(req.body.slot) ? req.body.slot : 'section';
     await pool.query(
-      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, order_index)
-       VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
-      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption]
+      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index)
+       VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
+      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption, slot]
     );
     res.redirect('/company/banners');
   });

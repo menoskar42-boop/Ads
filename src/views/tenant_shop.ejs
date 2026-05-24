@@ -11,6 +11,9 @@
   <% var heroHeadline = company.hero_headline || 'كل اللي محتاجه في مكان واحد'; %>
   <% var heroSub = company.hero_subtext || displayDesc || 'منتجات مختارة بعناية، أسعار مناسبة، وتوصيل سريع وآمن.'; %>
   <% var heroCta = company.hero_cta_text || 'تسوّق الآن'; %>
+  <% var heroBanners1 = (banners || []).filter(function(b){ return b.slot === 'hero1'; }); %>
+  <% var heroBanners2 = (banners || []).filter(function(b){ return b.slot === 'hero2'; }); %>
+  <% var sectionBanners = (banners || []).filter(function(b){ return !b.slot || b.slot === 'section'; }); %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= displayName %></title>
@@ -92,24 +95,44 @@
   </div>
   <div class="hero-side">
     <div class="hero-card hero-card-1 reveal">
-      <div class="label">تشكيلة مميزة</div>
-      <h3>منتجات<br>وصلت حديثاً</h3>
-      <span class="price-strip">تصفّح الجديد</span>
-      <div class="arrow">←</div>
+      <% if (heroBanners1.length) { %>
+        <div class="hero-slides"<%= heroBanners1.length > 1 ? ' data-slides' : '' %>>
+          <% heroBanners1.forEach(function(b, i){ %>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%= b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+              <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
+            </a>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <div class="label">تشكيلة مميزة</div>
+        <h3>منتجات<br>وصلت حديثاً</h3>
+        <span class="price-strip">تصفّح الجديد</span>
+        <div class="arrow">←</div>
+      <% } %>
     </div>
     <div class="hero-card hero-card-2 reveal">
-      <div class="label">دفع آمن</div>
-      <h3>الدفع عند<br>الاستلام</h3>
-      <span class="price-strip">+ شحن سريع</span>
-      <div class="arrow">←</div>
+      <% if (heroBanners2.length) { %>
+        <div class="hero-slides"<%= heroBanners2.length > 1 ? ' data-slides' : '' %>>
+          <% heroBanners2.forEach(function(b, i){ %>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%= b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+              <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
+            </a>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <div class="label">دفع آمن</div>
+        <h3>الدفع عند<br>الاستلام</h3>
+        <span class="price-strip">+ شحن سريع</span>
+        <div class="arrow">←</div>
+      <% } %>
     </div>
   </div>
 </section>
 
 <!-- Real banner slides (if any) -->
-<% if (banners && banners.length) { %>
+<% if (sectionBanners && sectionBanners.length) { %>
 <section class="banners">
-  <% banners.slice(0, 4).forEach(b => { %>
+  <% sectionBanners.slice(0, 4).forEach(b => { %>
     <a class="banner <%= b.target_url ? '' : '' %>" href="<%= b.target_url || '#' %>" target="_blank" rel="noopener" style="padding:0;min-height:200px;">
       <div class="banner-img" style="background-image:url('<%= b.image_url %>')"></div>
       <% if (b.caption) { %><div class="banner-overlay" style="position:relative;z-index:2;margin-top:auto;padding:24px;background:linear-gradient(transparent,rgba(0,0,0,0.55));color:#fff;border-radius:0 0 24px 24px;"><h3 style="color:#fff"><%= b.caption %></h3></div><% } %>

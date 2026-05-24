@@ -7,6 +7,18 @@
   }, { threshold: 0.1 });
   document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 
+  // Hero card slideshows (auto-rotate when more than one image)
+  document.querySelectorAll('[data-slides]').forEach(box => {
+    const slides = box.querySelectorAll('.hero-slide');
+    if (slides.length < 2) return;
+    let i = 0;
+    setInterval(() => {
+      slides[i].classList.remove('active');
+      i = (i + 1) % slides.length;
+      slides[i].classList.add('active');
+    }, 4000);
+  });
+
   // Toast
   const toast = document.getElementById('toast');
   const toastMsg = document.getElementById('toastMsg');
