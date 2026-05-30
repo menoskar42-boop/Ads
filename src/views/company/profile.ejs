@@ -87,6 +87,20 @@
           </div>
         </div>
         <p class="text-xs text-gray-400">اللون الأساسي بيتولّد منه باقي درجات الموقع تلقائياً. كروت الهيرو يظهر لونها لما ماتكونش محمّل عليها صور.</p>
+        <div class="grid sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون نص الهيرو</label>
+            <input type="color" name="hero_text_color" value="<%= company.hero_text_color || '#FFFFFF' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">خلفية زر "تسوّق الآن"</label>
+            <input type="color" name="hero_btn_bg" value="<%= company.hero_btn_bg || '#FFFFFF' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون نص زر "تسوّق الآن"</label>
+            <input type="color" name="hero_btn_text" value="<%= company.hero_btn_text || '#0F0F1E' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+        </div>
       </div>
 
       <!-- Storefront -->

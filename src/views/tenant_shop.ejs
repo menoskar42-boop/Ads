@@ -29,6 +29,9 @@
     }
     <% if (company.hero_card1_color) { %>.hero-card-1 { background: linear-gradient(135deg, <%= company.hero_card1_color %>, color-mix(in srgb, <%= company.hero_card1_color %> 68%, #000)); }<% } %>
     <% if (company.hero_card2_color) { %>.hero-card-2 { background: linear-gradient(135deg, <%= company.hero_card2_color %>, color-mix(in srgb, <%= company.hero_card2_color %> 68%, #000)); }<% } %>
+    <% if (company.hero_text_color) { %>.hero-main, .hero-main h1, .hero-main p, .hero-main .hero-tag { color: <%= company.hero_text_color %>; }<% } %>
+    <% if (company.hero_btn_bg) { %>.hero-main .btn-light { background: <%= company.hero_btn_bg %>; }<% } %>
+    <% if (company.hero_btn_text) { %>.hero-main .btn-light, .hero-main .btn-light span { color: <%= company.hero_btn_text %>; }<% } %>
   </style>
 </head>
 <body>

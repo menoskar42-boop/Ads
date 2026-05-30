@@ -175,6 +175,9 @@ router.post('/profile', requireLogin, (req, res) => {
     const colorAccent = hex(req.body.color_accent);
     const heroCard1Color = hex(req.body.hero_card1_color);
     const heroCard2Color = hex(req.body.hero_card2_color);
+    const heroTextColor = hex(req.body.hero_text_color);
+    const heroBtnBg = hex(req.body.hero_btn_bg);
+    const heroBtnText = hex(req.body.hero_btn_text);
     const showTrustBar = on(req.body.show_trust_bar);
     const showPromoBar = on(req.body.show_promo_bar);
     const showHeroCards = on(req.body.show_hero_cards);
@@ -197,7 +200,8 @@ router.post('/profile', requireLogin, (req, res) => {
            color_accent=$21, hero_card1_color=$22, hero_card2_color=$23,
            show_about=$24, show_services=$25, show_portfolio=$26,
            service1_title=$27, service1_desc=$28, service2_title=$29, service2_desc=$30,
-           service3_title=$31, service3_desc=$32
+           service3_title=$31, service3_desc=$32,
+           hero_text_color=$33, hero_btn_bg=$34, hero_btn_text=$35
          WHERE id=$15`,
         [
           company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
@@ -209,6 +213,7 @@ router.post('/profile', requireLogin, (req, res) => {
           showAbout, showServices, showPortfolio,
           svc('service1_title'), svc('service1_desc'), svc('service2_title'), svc('service2_desc'),
           svc('service3_title'), svc('service3_desc'),
+          heroTextColor, heroBtnBg, heroBtnText,
         ]
       );
       req.session.companyName = company_name;
