@@ -43,7 +43,7 @@
       </tfoot>
     </table>
 
-    <a href="/view/<%= company.slug %>" class="inline-block brand-bg text-white font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition">
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="inline-block brand-bg text-white font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition">
       <%= t('public.continue_shopping') %>
     </a>
   </div>

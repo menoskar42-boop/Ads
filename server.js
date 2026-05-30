@@ -15,6 +15,10 @@ const customerRouter = require('./src/routes/customer');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust Cloudflare Worker proxy headers (X-Forwarded-Host, X-Forwarded-Proto)
+// so req.hostname reflects the original tenant subdomain (e.g. delta.oscardevs.com).
+app.set('trust proxy', true);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 
@@ -29,6 +33,7 @@ app.use(session({
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 app.use(i18nMiddleware);
+app.use(require('./src/middleware/urls'));
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
@@ -210,7 +215,57 @@ async function initDb() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_en TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS promo_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_headline TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_subtext TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_cta_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_phone TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_whatsapp TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_address TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_trust_bar BOOLEAN DEFAULT true;
     `);
+
+    // Demo catalog for the Delta showcase store (only seeded when it has no products,
+    // so a real owner's products are never duplicated or overwritten).
+    const deltaRes = await client.query("SELECT id, currency FROM companies WHERE slug = 'delta'");
+    if (deltaRes.rows.length) {
+      const deltaId = deltaRes.rows[0].id;
+      if (!deltaRes.rows[0].currency) {
+        await client.query('UPDATE companies SET currency = $1 WHERE id = $2', ['EGP', deltaId]);
+      }
+      const cnt = await client.query('SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1', [deltaId]);
+      if (cnt.rows[0].n === 0) {
+        const addCat = async (ar, en, idx) => (await client.query(
+          'INSERT INTO product_categories (company_id, name, name_ar, name_en, order_index) VALUES ($1,$2,$2,$3,$4) RETURNING id',
+          [deltaId, ar, en, idx]
+        )).rows[0].id;
+        const catPhones = await addCat('موبايلات', 'Mobiles', 0);
+        const catComp = await addCat('لابتوبات وكمبيوترات', 'Laptops & PCs', 1);
+        const img = (tags, lock) => `https://loremflickr.com/600/600/${tags}?lock=${lock}`;
+        const demo = [
+          [catPhones, 'آيفون 15 برو ماكس 256GB', 'iPhone 15 Pro Max', 'هيكل تيتانيوم، شاشة 6.7 بوصة Super Retina XDR، شريحة A17 Pro، وكاميرا 48 ميجابكسل.', 84999, img('iphone', 11), 12],
+          [catPhones, 'سامسونج جالاكسي S24 ألترا', 'Samsung Galaxy S24 Ultra', 'شاشة 6.8 بوصة Dynamic AMOLED، قلم S Pen، كاميرا 200 ميجابكسل ومعالج Snapdragon 8 Gen 3.', 72999, img('samsung,smartphone', 12), 9],
+          [catPhones, 'جوجل بيكسل 8 برو', 'Google Pixel 8 Pro', 'أفضل كاميرا حوسبية، شريحة Tensor G3، وتحديثات أندرويد لمدة 7 سنوات.', 41999, img('smartphone,android', 13), 15],
+          [catPhones, 'آيفون 14 128GB', 'iPhone 14', 'شاشة 6.1 بوصة، شريحة A15 Bionic، نظام كاميرا مزدوج وبطارية تدوم طوال اليوم.', 44999, img('iphone,phone', 14), 20],
+          [catPhones, 'شاومي ريدمي نوت 13 برو', 'Xiaomi Redmi Note 13 Pro', 'شاشة AMOLED 120Hz، كاميرا 200 ميجابكسل، وشحن سريع 67 واط بسعر اقتصادي.', 18999, img('smartphone', 15), 30],
+          [catComp, 'ماك بوك برو 16 M3 Pro', 'MacBook Pro 16 M3 Pro', 'شريحة M3 Pro، شاشة Liquid Retina XDR، 18GB رام و512GB SSD لأصحاب الأعمال الاحترافية.', 149999, img('macbook', 16), 6],
+          [catComp, 'ماك بوك إير M2 13 بوصة', 'MacBook Air M2', 'تصميم نحيف بوزن 1.2 كجم، شريحة M2، وبطارية تدوم حتى 18 ساعة.', 64999, img('laptop,apple', 17), 11],
+          [catComp, 'لابتوب Dell XPS 15', 'Dell XPS 15', 'معالج Intel Core i7، شاشة 15.6 بوصة OLED، 16GB رام وكرت RTX 4050.', 89999, img('laptop', 18), 8],
+          [catComp, 'لابتوب ASUS ROG Gaming', 'ASUS ROG Gaming Laptop', 'للألعاب الثقيلة: RTX 4070، شاشة 165Hz، ومعالج Ryzen 9 وتبريد متقدم.', 99999, img('gaming,laptop', 19), 7],
+          [catComp, 'كمبيوتر مكتبي للألعاب RGB', 'RGB Gaming Desktop PC', 'تجميعة قوية: RTX 4070 Ti، 32GB رام، SSD 1TB، وإضاءة RGB كاملة.', 79999, img('computer,gaming', 20), 5],
+        ];
+        for (const [cat, nameAr, nameEn, descAr, price, image, stock] of demo) {
+          await client.query(
+            `INSERT INTO products (company_id, category_id, name, description, price, image_url, stock, is_active, name_ar, name_en, description_ar)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,$3,$8,$4)`,
+            [deltaId, cat, nameAr, descAr, price, image, stock, nameEn]
+          );
+        }
+        console.log(`Delta demo catalog seeded (${demo.length} products).`);
+      }
+    }
+
     console.log('Database tables ready.');
   } catch (err) {
     console.error('DB init warning:', err.message);

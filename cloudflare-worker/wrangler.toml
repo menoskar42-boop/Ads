@@ -1,0 +1,9 @@
+name = "oscardevs-tenant-proxy"
+main = "worker.js"
+compatibility_date = "2025-05-01"
+
+# Apex (oscardevs.com) is intentionally NOT bound — apex traffic goes
+# directly to Replit. Only subdomains are proxied through this Worker.
+routes = [
+  { pattern = "*.oscardevs.com/*", zone_name = "oscardevs.com" }
+]

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const { canonicalCompanyUrl } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -22,28 +23,44 @@ function getCart(req, slug) {
 /* ─── CART ───────────────────────────────────────────────── */
 router.post('/:slug/cart/add', async (req, res) => {
   const { slug } = req.params;
+  const wantsJson = req.xhr || (req.headers.accept || '').includes('application/json');
   const productId = parseInt(req.body.product_id, 10);
   const quantity = Math.max(1, parseInt(req.body.quantity, 10) || 1);
-  if (!Number.isFinite(productId)) return res.redirect(`/view/${slug}`);
+  if (!Number.isFinite(productId)) {
+    if (wantsJson) return res.status(400).json({ ok: false, error: 'Invalid product.' });
+    return res.redirect(canonicalCompanyUrl(slug, req));
+  }
   try {
     const company = await loadShopCompany(slug);
-    if (!company) return res.status(404).render('404', { subdomain: slug });
+    if (!company) {
+      if (wantsJson) return res.status(404).json({ ok: false, error: 'Shop not found.' });
+      return res.status(404).render('404', { subdomain: slug });
+    }
     const productResult = await pool.query(
       'SELECT id, stock FROM products WHERE id = $1 AND company_id = $2 AND is_active = true',
       [productId, company.id]
     );
-    if (!productResult.rows.length) return res.redirect(`/view/${slug}`);
+    if (!productResult.rows.length) {
+      if (wantsJson) return res.status(404).json({ ok: false, error: 'Product not found.' });
+      return res.redirect(canonicalCompanyUrl(slug, req));
+    }
     const cart = getCart(req, slug);
     const existing = cart[productId] || 0;
     const requested = existing + quantity;
     if (requested > productResult.rows[0].stock) {
+      if (wantsJson) return res.status(400).json({ ok: false, error: 'Not enough stock for the requested quantity.' });
       return res.redirect(`/shop/${slug}/cart?error=${encodeURIComponent('Not enough stock for the requested quantity.')}`);
     }
     cart[productId] = requested;
+    if (wantsJson) {
+      const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
+      return res.json({ ok: true, cartCount });
+    }
     res.redirect(`/shop/${slug}/cart`);
   } catch (err) {
     console.error('[POST /shop/:slug/cart/add] error:', err);
-    res.redirect(`/view/${slug}?error=${encodeURIComponent('Could not add to cart.')}`);
+    if (wantsJson) return res.status(500).json({ ok: false, error: 'Could not add to cart.' });
+    res.redirect(`${canonicalCompanyUrl(slug, req)}?error=${encodeURIComponent('Could not add to cart.')}`);
   }
 });
 

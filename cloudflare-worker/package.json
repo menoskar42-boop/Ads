@@ -1,0 +1,12 @@
+{
+  "name": "oscardevs-tenant-proxy",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "dev": "wrangler dev --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}
