@@ -126,6 +126,11 @@ nav { background: var(--surface); border-bottom: 1px solid var(--line); padding:
 .cat-tile-count { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
 
 .banners { padding: 24px 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.banner-slide { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity 0.8s ease; display: flex; align-items: flex-end; text-decoration: none; }
+.banner-slide.active { opacity: 1; }
+.banner-slide-cap { background: linear-gradient(transparent, rgba(0,0,0,0.65)); width: 100%; padding: 22px 28px; color: #fff; font-weight: 800; font-size: 1.2rem; }
+.hero-main-slider { position: relative; border-radius: 24px; overflow: hidden; min-height: 380px; background: var(--line-soft); }
+@media (max-width: 768px) { .hero-main-slider { min-height: 240px; } }
 .banner { border-radius: 24px; padding: 40px; position: relative; overflow: hidden; min-height: 220px; cursor: pointer; transition: transform 0.4s; display: flex; flex-direction: column; justify-content: center; }
 .banner:hover { transform: scale(1.01); }
 .banner-1 { background: linear-gradient(135deg, #FFE5DD 0%, #FFC4B3 100%); }

@@ -91,6 +91,15 @@
 
 <!-- Hero -->
 <section class="hero">
+  <% if (company.show_banners !== false && sectionBanners && sectionBanners.length) { %>
+  <div class="hero-main-slider reveal"<%- sectionBanners.length > 1 ? ' data-slides' : '' %>>
+    <% sectionBanners.forEach(function(b, i){ %>
+      <a class="banner-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+        <% if (b.caption) { %><span class="banner-slide-cap"><%= b.caption %></span><% } %>
+      </a>
+    <% }) %>
+  </div>
+  <% } else { %>
   <div class="hero-main reveal">
     <div class="hero-content">
       <div class="hero-tag"><span class="pulse"></span> أهلاً بك في متجر <%= displayName %></div>
@@ -102,13 +111,14 @@
       </div>
     </div>
   </div>
+  <% } %>
   <% if (company.show_hero_cards !== false) { %>
   <div class="hero-side">
     <div class="hero-card hero-card-1 reveal">
       <% if (heroBanners1.length) { %>
         <div class="hero-slides"<%= heroBanners1.length > 1 ? ' data-slides' : '' %>>
           <% heroBanners1.forEach(function(b, i){ %>
-            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%= b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
               <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
             </a>
           <% }) %>
@@ -124,7 +134,7 @@
       <% if (heroBanners2.length) { %>
         <div class="hero-slides"<%= heroBanners2.length > 1 ? ' data-slides' : '' %>>
           <% heroBanners2.forEach(function(b, i){ %>
-            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%= b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
               <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
             </a>
           <% }) %>
@@ -140,17 +150,7 @@
   <% } %>
 </section>
 
-<!-- Real banner slides (if any) -->
-<% if (company.show_banners !== false && sectionBanners && sectionBanners.length) { %>
-<section class="banners">
-  <% sectionBanners.slice(0, 4).forEach(b => { %>
-    <a class="banner <%= b.target_url ? '' : '' %>" href="<%= b.target_url || '#' %>" target="_blank" rel="noopener" style="padding:0;min-height:200px;">
-      <div class="banner-img" style="background-image:url('<%= b.image_url %>')"></div>
-      <% if (b.caption) { %><div class="banner-overlay" style="position:relative;z-index:2;margin-top:auto;padding:24px;background:linear-gradient(transparent,rgba(0,0,0,0.55));color:#fff;border-radius:0 0 24px 24px;"><h3 style="color:#fff"><%= b.caption %></h3></div><% } %>
-    </a>
-  <% }) %>
-</section>
-<% } %>
+<!-- (Section banners now render in the hero main area above) -->
 
 <!-- Products -->
 <section class="flash" id="products">

@@ -24,7 +24,7 @@
         <div>
           <label class="block text-xs text-gray-500 mb-1">مكان البانر</label>
           <select name="slot" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
-            <option value="section">قسم البانرات (عريض تحت الهيرو)</option>
+            <option value="section">الهيرو الرئيسي (المربع الأزرق الكبير)</option>
             <option value="hero1">كرت الهيرو الأول (علوي)</option>
             <option value="hero2">كرت الهيرو الثاني (سفلي)</option>
           </select>
@@ -43,7 +43,7 @@
               <div class="flex-1 min-w-0">
                 <% if (b.caption) { %><p class="font-semibold text-sm truncate"><%= b.caption %></p><% } %>
                 <% if (b.target_url) { %><p class="text-xs text-gray-400 truncate"><%= b.target_url %></p><% } %>
-                <% var slotLabel = b.slot === 'hero1' ? 'كرت الهيرو الأول' : (b.slot === 'hero2' ? 'كرت الهيرو الثاني' : 'قسم البانرات'); %>
+                <% var slotLabel = b.slot === 'hero1' ? 'كرت الهيرو الأول' : (b.slot === 'hero2' ? 'كرت الهيرو الثاني' : 'الهيرو الرئيسي'); %>
                 <p class="text-xs text-gray-400 mt-0.5"><span class="inline-block bg-gray-100 text-gray-600 rounded px-1.5 py-0.5"><%= slotLabel %></span> · <%= t('company.position') %>: <%= i + 1 %></p>
               </div>
               <div class="flex items-center gap-1">
