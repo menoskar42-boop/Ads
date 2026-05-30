@@ -9,7 +9,7 @@
 
   // Hero card slideshows (auto-rotate when more than one image)
   document.querySelectorAll('[data-slides]').forEach(box => {
-    const slides = box.querySelectorAll('.hero-slide');
+    const slides = box.querySelectorAll('.hero-slide, .banner-slide');
     if (slides.length < 2) return;
     let i = 0;
     setInterval(() => {
