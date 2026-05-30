@@ -91,16 +91,14 @@
 
 <!-- Hero -->
 <section class="hero">
-  <% if (company.show_banners !== false && sectionBanners && sectionBanners.length) { %>
-  <div class="hero-main-slider reveal"<%- sectionBanners.length > 1 ? ' data-slides' : '' %>>
-    <% sectionBanners.forEach(function(b, i){ %>
-      <a class="banner-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
-        <% if (b.caption) { %><span class="banner-slide-cap"><%= b.caption %></span><% } %>
-      </a>
-    <% }) %>
-  </div>
-  <% } else { %>
   <div class="hero-main reveal">
+    <% if (company.show_banners !== false && sectionBanners && sectionBanners.length) { %>
+    <div class="hero-bg-slides"<%- sectionBanners.length > 1 ? ' data-slides' : '' %>>
+      <% sectionBanners.forEach(function(b, i){ %>
+        <div class="hero-bg-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')"></div>
+      <% }) %>
+    </div>
+    <% } %>
     <div class="hero-content">
       <div class="hero-tag"><span class="pulse"></span> أهلاً بك في متجر <%= displayName %></div>
       <h1><%= heroHeadline %></h1>
@@ -111,7 +109,6 @@
       </div>
     </div>
   </div>
-  <% } %>
   <% if (company.show_hero_cards !== false) { %>
   <div class="hero-side">
     <div class="hero-card hero-card-1 reveal">
