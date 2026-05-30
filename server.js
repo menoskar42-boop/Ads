@@ -241,6 +241,9 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service2_desc TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service3_title TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service3_desc TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_text_color TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_bg TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_text TEXT;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 
