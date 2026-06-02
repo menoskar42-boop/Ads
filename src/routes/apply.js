@@ -15,9 +15,10 @@ const RESERVED_SLUGS = new Set([
 ]);
 
 router.get('/apply', (req, res) => {
+  const preType = ['shop', 'portfolio'].includes(req.query.type) ? req.query.type : '';
   res.render('apply/form', {
     error: null,
-    values: {},
+    values: preType ? { business_type: preType } : {},
     termsVersion: TERMS_VERSION,
   });
 });
