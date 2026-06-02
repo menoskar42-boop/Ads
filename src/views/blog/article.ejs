@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= article.title %> | مدوّنة OscarDevs</title>
+<meta name="description" content="<%= article.excerpt %>" />
+<meta property="og:title" content="<%= article.title %>" />
+<meta property="og:description" content="<%= article.excerpt %>" />
+<meta property="og:type" content="article" />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .article-body h2 { font-size: 1.5rem; font-weight: 800; margin-top: 2rem; margin-bottom: 0.75rem; color: #111827; }
+  .article-body h3 { font-size: 1.15rem; font-weight: 700; margin-top: 1.4rem; margin-bottom: 0.5rem; color: #1f2937; }
+  .article-body p { line-height: 1.95; color: #374151; margin-bottom: 1.05rem; font-size: 1.02rem; }
+  .article-body ul, .article-body ol { padding-right: 1.6rem; margin: 0.5rem 0 1.15rem; }
+  .article-body ul { list-style: disc; }
+  .article-body ol { list-style: decimal; }
+  .article-body li { line-height: 1.85; color: #374151; margin-bottom: 0.45rem; }
+  .article-body strong { color: #111827; }
+  .article-body blockquote { border-right: 4px solid #4f46e5; background: #f5f3ff; padding: 1rem 1.25rem; border-radius: 0.5rem; margin: 1rem 0; color: #312e81; }
+</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-4">
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-10">
+  <article class="bg-white rounded-2xl shadow p-6 sm:p-10">
+    <div class="text-xs text-gray-400 mb-3 flex items-center gap-3">
+      <a href="/blog" class="hover:text-indigo-700">← كل المقالات</a>
+      <span>·</span>
+      <time><%= article.date %></time>
+      <span>·</span>
+      <span><%= article.readMins %> دقائق قراءة</span>
+    </div>
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 leading-tight mb-3"><%= article.title %></h1>
+    <p class="text-gray-500 leading-relaxed mb-8 text-lg"><%= article.excerpt %></p>
+
+    <div class="article-body">
+      <%- include(bodyView) %>
+    </div>
+
+    <hr class="my-10 border-gray-200" />
+    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center">
+      <h3 class="font-extrabold text-gray-900 text-lg mb-2">جاهز تطبّق اللي قريته؟</h3>
+      <p class="text-gray-600 text-sm mb-4">قدّم طلبك على منصّتنا وابدأ خطوتك الأولى نحو موقع احترافي.</p>
+      <a href="/apply" class="inline-block bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-800 transition shadow">قدّم الآن</a>
+    </div>
+  </article>
+
+  <section class="mt-12">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">مقالات أخرى قد تهمّك</h3>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <% articles.filter(function(a){return a.slug !== article.slug;}).slice(0,2).forEach(function(a){ %>
+        <a href="/blog/<%= a.slug %>" class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition border border-gray-100 block">
+          <div class="text-xs text-gray-400 mb-1.5"><%= a.date %></div>
+          <h4 class="font-bold text-gray-900 leading-snug mb-1.5"><%= a.title %></h4>
+          <p class="text-xs text-gray-500 leading-relaxed"><%= a.excerpt %></p>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

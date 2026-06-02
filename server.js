@@ -11,6 +11,9 @@ const companyRouter = require('./src/routes/company');
 const adminRouter = require('./src/routes/admin');
 const shopRouter = require('./src/routes/shop');
 const customerRouter = require('./src/routes/customer');
+const applyRouter = require('./src/routes/apply');
+const legalRouter = require('./src/routes/legal');
+const blogRouter = require('./src/routes/blog');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -44,6 +47,11 @@ app.use('/admin', adminRouter);
 // Shop and customer routers — also before tenant middleware
 app.use('/shop', shopRouter);
 app.use('/customer', customerRouter);
+
+// Public content routes (apply form, legal pages, blog, sitemap) — before tenant middleware
+app.use('/', applyRouter);
+app.use('/', legalRouter);
+app.use('/', blogRouter);
 
 // Tenant detection: runs on every non-company request
 app.use(tenantMiddleware);
@@ -194,6 +202,28 @@ async function initDb() {
         caption TEXT,
         order_index INTEGER DEFAULT 0,
         is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS signup_applications (
+        id SERIAL PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        phone TEXT NOT NULL,
+        country TEXT,
+        business_name TEXT NOT NULL,
+        business_type TEXT NOT NULL,
+        preferred_slug TEXT NOT NULL,
+        description TEXT,
+        password_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        admin_notes TEXT,
+        reviewer_id INTEGER REFERENCES admins(id),
+        reviewed_at TIMESTAMPTZ,
+        accepted_terms_version TEXT NOT NULL,
+        accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        accepted_ip TEXT,
+        user_agent TEXT,
+        approved_company_id INTEGER REFERENCES companies(id),
         created_at TIMESTAMPTZ DEFAULT now()
       );
       ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id);
