@@ -54,6 +54,7 @@
 </header>
 
 <main class="max-w-3xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'المدوّنة', href: '/blog' }, { label: article.title } ] }) %>
   <article class="bg-white rounded-2xl shadow p-6 sm:p-10">
     <div class="text-xs text-gray-400 mb-3 flex items-center gap-3">
       <a href="/blog" class="hover:text-indigo-700">← كل المقالات</a>
