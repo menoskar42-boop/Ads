@@ -1,0 +1,93 @@
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const { Pool } = require('pg');
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const TERMS_VERSION = '1.0';
+
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
+const RESERVED_SLUGS = new Set([
+  'admin', 'api', 'apply', 'company', 'customer', 'shop', 'view',
+  'public', 'css', 'js', 'uploads', 'legal', 'login', 'logout',
+  'dashboard', 'settings', 'www', 'mail', 'root', 'static', 'assets',
+]);
+
+router.get('/apply', (req, res) => {
+  res.render('apply/form', {
+    error: null,
+    values: {},
+    termsVersion: TERMS_VERSION,
+  });
+});
+
+router.post('/apply', async (req, res) => {
+  const v = (k, max = 200) => String(req.body[k] || '').trim().slice(0, max);
+  const values = {
+    full_name: v('full_name', 100),
+    email: v('email', 150).toLowerCase(),
+    phone: v('phone', 30),
+    country: v('country', 60),
+    business_name: v('business_name', 100),
+    business_type: v('business_type', 20),
+    preferred_slug: v('preferred_slug', 40).toLowerCase(),
+    description: v('description', 1000),
+  };
+  const password = String(req.body.password || '');
+  const acceptedTerms = req.body.accept_terms === 'on';
+  const acceptedPrivacy = req.body.accept_privacy === 'on';
+  const acceptedTruth = req.body.accept_truth === 'on';
+
+  const render = (error) => res.render('apply/form', { error, values, termsVersion: TERMS_VERSION });
+
+  if (!values.full_name || values.full_name.length < 3) return render('الاسم الكامل مطلوب (3 أحرف على الأقل).');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return render('بريد إلكتروني غير صالح.');
+  if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
+  if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
+  if (!['shop', 'portfolio'].includes(values.business_type)) return render('اختر نوع الموقع.');
+  if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
+    return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
+  }
+  if (password.length < 8) return render('كلمة المرور يجب ألا تقل عن 8 أحرف.');
+  if (!acceptedTerms || !acceptedPrivacy || !acceptedTruth) {
+    return render('يجب الموافقة على الشروط والأحكام، سياسة الخصوصية، وإقرار صحة البيانات للمتابعة.');
+  }
+
+  try {
+    const [dupEmail, dupSlug, dupCompany] = await Promise.all([
+      pool.query('SELECT 1 FROM signup_applications WHERE email = $1 AND status <> $2', [values.email, 'rejected']),
+      pool.query('SELECT 1 FROM signup_applications WHERE preferred_slug = $1 AND status <> $2', [values.preferred_slug, 'rejected']),
+      pool.query('SELECT 1 FROM companies WHERE slug = $1', [values.preferred_slug]),
+    ]);
+    if (dupEmail.rows.length) return render('فيه طلب سابق بنفس البريد الإلكتروني — تواصل معنا لو طلبك متأخر.');
+    if (dupSlug.rows.length || dupCompany.rows.length) return render('الاسم المختصر للرابط محجوز أو قيد المراجعة — اختر اسماً آخر.');
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim().slice(0, 80);
+    const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+
+    await pool.query(
+      `INSERT INTO signup_applications
+         (full_name, email, phone, country, business_name, business_type, preferred_slug,
+          description, password_hash, accepted_terms_version, accepted_ip, user_agent)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        values.full_name, values.email, values.phone, values.country || null,
+        values.business_name, values.business_type, values.preferred_slug,
+        values.description || null, passwordHash, TERMS_VERSION, ip, ua,
+      ]
+    );
+    res.redirect('/apply/success');
+  } catch (err) {
+    console.error('[POST /apply] error:', err);
+    render('حدث خطأ غير متوقع. حاول مرة أخرى لاحقاً.');
+  }
+});
+
+router.get('/apply/success', (req, res) => {
+  res.render('apply/success');
+});
+
+module.exports = router;
+module.exports.TERMS_VERSION = TERMS_VERSION;

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>المدوّنة | OscarDevs</title>
+<meta name="description" content="مقالات أصلية عربية في تصميم المواقع، التجارة الإلكترونية، تحسين محركات البحث، وريادة الأعمال الرقمية." />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-4">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-12">
+  <header class="mb-10 text-center">
+    <h1 class="text-4xl font-extrabold text-gray-900 mb-3">المدوّنة</h1>
+    <p class="text-gray-500 max-w-2xl mx-auto leading-relaxed">مقالات عملية وأصلية بالعربية موجّهة لأصحاب المشاريع: تصميم المواقع، التجارة الإلكترونية، تحسين محرّكات البحث، وكل ما تحتاجه لإطلاق حضورك الرقمي بنجاح.</p>
+  </header>
+
+  <div class="grid sm:grid-cols-2 gap-6">
+    <% articles.forEach(function(a){ %>
+      <a href="/blog/<%= a.slug %>" class="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition p-6 border border-gray-100">
+        <div class="text-xs text-gray-400 mb-2 flex items-center gap-3">
+          <time><%= a.date %></time>
+          <span>·</span>
+          <span><%= a.readMins %> دقائق قراءة</span>
+        </div>
+        <h2 class="text-xl font-bold text-gray-900 mb-3 group-hover:text-indigo-700 transition leading-snug"><%= a.title %></h2>
+        <p class="text-sm text-gray-600 leading-relaxed"><%= a.excerpt %></p>
+        <div class="mt-4 text-sm font-semibold text-indigo-700">اقرأ المقال ←</div>
+      </a>
+    <% }) %>
+  </div>
+</main>
+
+</body>
+</html>
