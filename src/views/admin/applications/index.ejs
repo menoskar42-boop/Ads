@@ -1,0 +1,49 @@
+<% pageTitle = 'طلبات التسجيل'; activePage = 'applications'; %>
+<%- include('../_layout_top') %>
+
+<div class="space-y-5">
+  <% if (flash) { %>
+    <div class="<%= flash.type==='success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700' %> border rounded-xl px-4 py-3 text-sm"><%= flash.message %></div>
+  <% } %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6">
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-5">
+      <div>
+        <h2 class="text-xl font-bold text-gray-800">طلبات تسجيل جديدة</h2>
+        <p class="text-gray-400 text-sm">راجع كل طلب وادرس بياناته قبل الموافقة. الموافقة بتنشئ الشركة والمستخدم تلقائياً.</p>
+      </div>
+      <div class="flex gap-2 text-sm">
+        <% [['pending','معلّقة','orange'],['approved','مقبولة','green'],['rejected','مرفوضة','red']].forEach(function(t){ %>
+          <a href="/admin/applications?status=<%= t[0] %>"
+             class="px-3 py-1.5 rounded-xl font-semibold <%= filter===t[0] ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>">
+            <%= t[1] %> <span class="opacity-70">(<%= countMap[t[0]] || 0 %>)</span>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+
+    <% if (!apps.length) { %>
+      <p class="text-center text-gray-400 text-sm py-10">لا توجد طلبات في هذه الحالة.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% apps.forEach(function(a){ %>
+          <a href="/admin/applications/<%= a.id %>" class="flex items-center justify-between gap-3 border border-gray-100 hover:border-gray-300 hover:bg-gray-50 rounded-xl px-4 py-3 transition">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="font-semibold text-gray-800 truncate"><%= a.business_name %></span>
+                <span class="text-xs text-gray-400">·</span>
+                <span class="text-xs text-gray-500"><%= a.business_type === 'shop' ? 'متجر' : 'بورتفوليو' %></span>
+                <span class="text-xs text-gray-400">·</span>
+                <span class="text-xs text-gray-500"><%= a.preferred_slug %></span>
+              </div>
+              <div class="text-xs text-gray-500 truncate"><%= a.full_name %> · <%= a.email %></div>
+            </div>
+            <div class="text-xs text-gray-400 whitespace-nowrap"><%= new Date(a.created_at).toLocaleString('ar-EG') %></div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../_layout_bottom') %>
