@@ -1,5 +1,13 @@
 require('dotenv').config();
-const compression = require('compression');
+// compression is optional — if it isn't installed yet (e.g. node_modules
+// not refreshed after a pull) the app must still boot, just without gzip.
+let compression;
+try {
+  compression = require('compression');
+} catch (e) {
+  console.warn('compression module not available — continuing without gzip:', e.message);
+  compression = () => (req, res, next) => next();
+}
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
