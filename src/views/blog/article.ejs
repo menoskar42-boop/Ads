@@ -4,12 +4,12 @@
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title><%= article.title %> | مدوّنة OscarDevs</title>
-<meta name="description" content="<%= article.excerpt %>" />
+<title><%= article.title %> | OscarDevs</title>
+<meta name="description" content="<%= (article.metaDescription || article.excerpt).slice(0, 160) %>" />
 <meta property="og:title" content="<%= article.title %>" />
-<meta property="og:description" content="<%= article.excerpt %>" />
+<meta property="og:description" content="<%= (article.metaDescription || article.excerpt).slice(0, 160) %>" />
 <meta property="og:type" content="article" />
-<%- include('../partials/seo_meta', { title: article.title + ' — مدوّنة OscarDevs', description: article.excerpt, ogType: 'article', articleDate: article.date }) %>
+<%- include('../partials/seo_meta', { title: article.title + ' | OscarDevs', description: (article.metaDescription || article.excerpt).slice(0, 160), ogType: 'article', articleDate: article.date }) %>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
