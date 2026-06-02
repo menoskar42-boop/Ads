@@ -293,6 +293,14 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_text_color TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_bg TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_facebook TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_instagram TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_linkedin TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_twitter TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_tiktok TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_youtube TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_threads TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_website TEXT;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 

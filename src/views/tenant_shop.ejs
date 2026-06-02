@@ -20,6 +20,7 @@
   <title><%= displayName %></title>
   <meta name="description" content="<%= displayDesc || displayName %>" />
   <%- include('partials/seo_meta', { title: displayName + ' — OscarDevs', description: displayDesc || displayName, canonical: siteOrigin + '/view/' + company.slug, ogImage: company.logo_url || (siteOrigin + '/og-default.svg') }) %>
+  <%- include('partials/company_jsonld', { company: company }) %>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/shop.css" />
   <style>
@@ -341,6 +342,7 @@
         <span><%= displayName %></span>
       </div>
       <% if (displayDesc) { %><p class="footer-tag"><%= displayDesc %></p><% } else { %><p class="footer-tag">متجرك الموثوق لكل ما تحتاجه — منتجات مختارة وتوصيل سريع.</p><% } %>
+      <div style="margin-top:14px"><%- include('partials/social_icons', { company: company }) %></div>
     </div>
     <div class="footer-col">
       <h4>التسوّق</h4>

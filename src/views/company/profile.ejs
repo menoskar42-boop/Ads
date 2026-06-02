@@ -176,6 +176,31 @@
       </div>
       <% } %>
 
+      <!-- Social links -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🔗</span> روابط السوشيال والمواقع الخارجية</h3>
+        <p class="text-gray-400 text-sm">أضف روابط حساباتك الكاملة (تبدأ بـ https://). بتظهر كأيقونات على صفحتك العامة وبتربط ظهورك في جوجل والذكاء الاصطناعي بحساباتك الفعلية (sameAs schema).</p>
+        <% var socials = [
+             ['social_facebook', 'فيسبوك', 'https://facebook.com/yourpage'],
+             ['social_instagram', 'إنستجرام', 'https://instagram.com/yourhandle'],
+             ['social_linkedin', 'لينكدإن', 'https://linkedin.com/in/yourprofile'],
+             ['social_twitter', 'إكس / تويتر', 'https://x.com/yourhandle'],
+             ['social_tiktok', 'تيك توك', 'https://tiktok.com/@yourhandle'],
+             ['social_youtube', 'يوتيوب', 'https://youtube.com/@yourchannel'],
+             ['social_threads', 'ثريدز', 'https://threads.net/@yourhandle'],
+             ['social_website', 'موقع خارجي', 'https://yoursite.com']
+           ]; %>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <% socials.forEach(function(s){ %>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1.5"><%= s[1] %></label>
+              <input type="url" name="<%= s[0] %>" value="<%= company[s[0]] || '' %>" maxlength="300" placeholder="<%= s[2] %>" pattern="https?://.*"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ltr" dir="ltr" />
+            </div>
+          <% }) %>
+        </div>
+      </div>
+
       <!-- Contact -->
       <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
         <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">📞</span> بيانات التواصل</h3>
