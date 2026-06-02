@@ -27,7 +27,7 @@
       "@type": "ListItem",
       "position": <%= i + 1 %>,
       "name": <%- JSON.stringify(c.label) %>
-      <%= c.href ? ', "item": ' + JSON.stringify(siteOrigin + c.href) : '' %>
+      <%- c.href ? ', "item": ' + JSON.stringify(siteOrigin + c.href) : '' %>
     }<%= i < __crumbs.length - 1 ? ',' : '' %>
     <% }) %>
   ]
