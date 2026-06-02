@@ -46,7 +46,40 @@ router.post('/contact', async (req, res) => {
   }
 });
 
+const https = require('https');
 const { ARTICLES } = require('./blog_articles');
+
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '';
+const INDEXNOW_HOST = (process.env.SITE_ORIGIN || 'https://oscardevs.com').replace(/^https?:\/\//, '');
+
+if (INDEXNOW_KEY) {
+  router.get('/' + INDEXNOW_KEY + '.txt', (req, res) => {
+    res.type('text/plain').send(INDEXNOW_KEY);
+  });
+}
+
+router.get('/admin/seo/ping-indexnow', (req, res) => {
+  if (!req.session || !req.session.adminId) return res.status(401).send('Unauthorized');
+  if (!INDEXNOW_KEY) return res.status(400).send('INDEXNOW_KEY env var not set');
+  const urls = [
+    SITE_ORIGIN + '/',
+    SITE_ORIGIN + '/about',
+    SITE_ORIGIN + '/contact',
+    SITE_ORIGIN + '/faq',
+    SITE_ORIGIN + '/blog',
+    ...ARTICLES.map(a => SITE_ORIGIN + '/blog/' + a.slug),
+  ];
+  const body = JSON.stringify({ host: INDEXNOW_HOST, key: INDEXNOW_KEY, urlList: urls });
+  const req2 = https.request({
+    method: 'POST', hostname: 'api.indexnow.org', path: '/IndexNow',
+    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) },
+  }, (resp) => {
+    let data = ''; resp.on('data', c => data += c);
+    resp.on('end', () => res.type('text/plain').send(`IndexNow status ${resp.statusCode}\n${data}\n\nPinged ${urls.length} URLs.`));
+  });
+  req2.on('error', (e) => res.status(500).send('IndexNow error: ' + e.message));
+  req2.write(body); req2.end();
+});
 
 router.get('/sitemap.xml', async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);

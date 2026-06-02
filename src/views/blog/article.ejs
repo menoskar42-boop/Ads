@@ -56,10 +56,12 @@
 <main class="max-w-3xl mx-auto px-4 py-10">
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'المدوّنة', href: '/blog' }, { label: article.title } ] }) %>
   <article class="bg-white rounded-2xl shadow p-6 sm:p-10">
-    <div class="text-xs text-gray-400 mb-3 flex items-center gap-3">
+    <div class="text-xs text-gray-400 mb-3 flex items-center gap-3 flex-wrap">
       <a href="/blog" class="hover:text-indigo-700">← كل المقالات</a>
       <span>·</span>
-      <time><%= article.date %></time>
+      <span>نُشر في <time datetime="<%= article.date %>"><%= article.date %></time></span>
+      <span>·</span>
+      <span>آخر تحديث <time datetime="<%= article.date %>"><%= article.date %></time></span>
       <span>·</span>
       <span><%= article.readMins %> دقائق قراءة</span>
     </div>
@@ -78,6 +80,15 @@
     </div>
 
     <hr class="my-10 border-gray-200" />
+
+    <section aria-label="عن الكاتب" class="bg-gray-50 rounded-2xl p-5 mb-8 flex items-start gap-4">
+      <div class="w-14 h-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-extrabold text-lg flex-shrink-0">OD</div>
+      <div class="text-sm">
+        <div class="font-bold text-gray-900 mb-1">فريق OscarDevs</div>
+        <p class="text-gray-600 leading-relaxed m-0">فريق متخصّص في تصميم وتطوير المواقع للسوق العربي، بخبرة عملية في بناء أكثر من عشرات المواقع للمشاريع الصغيرة والمتوسطة. كل مقالاتنا مكتوبة بناءً على مواقف حقيقية واجهناها مع عملائنا. <a href="/about" class="text-indigo-700 underline">اعرف المزيد عنّا</a>.</p>
+      </div>
+    </section>
+
     <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center">
       <h3 class="font-extrabold text-gray-900 text-lg mb-2">جاهز تطبّق اللي قريته؟</h3>
       <p class="text-gray-600 text-sm mb-4">قدّم طلبك على منصّتنا وابدأ خطوتك الأولى نحو موقع احترافي.</p>
