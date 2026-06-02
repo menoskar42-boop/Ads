@@ -44,25 +44,32 @@ router.post('/contact', async (req, res) => {
 
 const { ARTICLES } = require('./blog_articles');
 
-router.get('/sitemap.xml', (req, res) => {
+router.get('/sitemap.xml', async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const urls = [
-    { loc: '/', priority: '1.0' },
-    { loc: '/about', priority: '0.8' },
-    { loc: '/contact', priority: '0.8' },
-    { loc: '/privacy', priority: '0.5' },
-    { loc: '/terms', priority: '0.5' },
-    { loc: '/apply', priority: '0.7' },
-    { loc: '/blog', priority: '0.9' },
+    { loc: '/',         priority: '1.0', changefreq: 'weekly',  lastmod: today },
+    { loc: '/about',    priority: '0.8', changefreq: 'monthly', lastmod: today },
+    { loc: '/contact',  priority: '0.8', changefreq: 'monthly', lastmod: today },
+    { loc: '/blog',     priority: '0.9', changefreq: 'weekly',  lastmod: today },
+    { loc: '/apply',    priority: '0.7', changefreq: 'monthly', lastmod: today },
+    { loc: '/privacy',  priority: '0.4', changefreq: 'yearly',  lastmod: today },
+    { loc: '/terms',    priority: '0.4', changefreq: 'yearly',  lastmod: today },
   ];
-  for (const a of ARTICLES) urls.push({ loc: '/blog/' + a.slug, priority: '0.7' });
+  for (const a of ARTICLES) {
+    urls.push({ loc: '/blog/' + a.slug, priority: '0.7', changefreq: 'monthly', lastmod: a.date });
+  }
+  try {
+    const r = await pool.query("SELECT slug FROM companies WHERE is_active = true ORDER BY slug");
+    for (const row of r.rows) urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: today });
+  } catch (_) { /* DB optional for sitemap */ }
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
   res.send(
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
     urls.map(u =>
-      `  <url><loc>${SITE_ORIGIN}${u.loc}</loc><lastmod>${today}</lastmod><priority>${u.priority}</priority></url>`
+      `  <url>\n    <loc>${SITE_ORIGIN}${u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     ).join('\n') +
     '\n</urlset>\n'
   );

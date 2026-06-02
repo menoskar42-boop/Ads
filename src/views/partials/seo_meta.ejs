@@ -5,6 +5,15 @@
   var __desc    = (typeof description !== 'undefined' && description) ? description : '';
   var __canon   = (typeof canonical   !== 'undefined' && canonical)   ? canonical   : canonicalUrl;
 %>
+<% if (typeof process !== 'undefined' && process.env && process.env.GOOGLE_SITE_VERIFICATION) { %>
+<meta name="google-site-verification" content="<%= process.env.GOOGLE_SITE_VERIFICATION %>" />
+<% } %>
+<% if (typeof process !== 'undefined' && process.env && process.env.BING_SITE_VERIFICATION) { %>
+<meta name="msvalidate.01" content="<%= process.env.BING_SITE_VERIFICATION %>" />
+<% } %>
+<% if (typeof process !== 'undefined' && process.env && process.env.YANDEX_VERIFICATION) { %>
+<meta name="yandex-verification" content="<%= process.env.YANDEX_VERIFICATION %>" />
+<% } %>
 <link rel="canonical" href="<%= __canon %>" />
 <meta property="og:url" content="<%= __canon %>" />
 <meta property="og:type" content="<%= __ogType %>" />
