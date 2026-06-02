@@ -19,6 +19,10 @@ router.get('/about', (req, res) => {
   res.render('legal/about');
 });
 
+router.get('/faq', (req, res) => {
+  res.render('legal/faq');
+});
+
 router.get('/contact', (req, res) => {
   res.render('legal/contact', { sent: req.query.sent === '1', error: req.query.error || null });
 });
@@ -52,6 +56,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/contact',  priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/blog',     priority: '0.9', changefreq: 'weekly',  lastmod: today },
     { loc: '/apply',    priority: '0.7', changefreq: 'monthly', lastmod: today },
+    { loc: '/faq',      priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/privacy',  priority: '0.4', changefreq: 'yearly',  lastmod: today },
     { loc: '/terms',    priority: '0.4', changefreq: 'yearly',  lastmod: today },
   ];
