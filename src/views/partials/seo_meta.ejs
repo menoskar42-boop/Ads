@@ -33,6 +33,21 @@
 <% if (__ogType === 'article' && typeof articleDate !== 'undefined' && articleDate) { %>
 <meta property="article:published_time" content="<%= articleDate %>" />
 <% } %>
+<%
+  var __ga = (typeof process !== 'undefined' && process.env && process.env.GA_MEASUREMENT_ID)
+    ? process.env.GA_MEASUREMENT_ID
+    : 'G-TTW08KQ8WE';
+%>
+<% if (__ga) { %>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=<%= __ga %>"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '<%= __ga %>');
+</script>
+<% } %>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
