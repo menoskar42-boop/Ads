@@ -1,0 +1,22 @@
+<%
+  var __ogType  = (typeof ogType  !== 'undefined' && ogType)  ? ogType  : 'website';
+  var __image   = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : (siteOrigin + '/og-default.svg');
+  var __title   = (typeof title       !== 'undefined' && title)       ? title       : 'OscarDevs';
+  var __desc    = (typeof description !== 'undefined' && description) ? description : '';
+  var __canon   = (typeof canonical   !== 'undefined' && canonical)   ? canonical   : canonicalUrl;
+%>
+<link rel="canonical" href="<%= __canon %>" />
+<meta property="og:url" content="<%= __canon %>" />
+<meta property="og:type" content="<%= __ogType %>" />
+<meta property="og:site_name" content="OscarDevs" />
+<meta property="og:locale" content="ar_EG" />
+<meta property="og:title" content="<%= __title %>" />
+<meta property="og:description" content="<%= __desc %>" />
+<meta property="og:image" content="<%= __image %>" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="<%= __title %>" />
+<meta name="twitter:description" content="<%= __desc %>" />
+<meta name="twitter:image" content="<%= __image %>" />
+<% if (__ogType === 'article' && typeof articleDate !== 'undefined' && articleDate) { %>
+<meta property="article:published_time" content="<%= articleDate %>" />
+<% } %>

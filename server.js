@@ -38,6 +38,14 @@ app.use(session({
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
 
+// SEO/canonical helpers exposed to every view
+app.use((req, res, next) => {
+  const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
+  res.locals.siteOrigin = origin;
+  res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
+  next();
+});
+
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
 
