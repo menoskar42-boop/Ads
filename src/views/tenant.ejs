@@ -188,7 +188,8 @@
             <div class="rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow group">
               <% if (item.image_url) { %>
               <div class="h-44 overflow-hidden bg-gray-100">
-                <img src="<%= item.image_url %>" alt="<%= item.title || '' %>"
+                <img src="<%= item.image_url %>" alt="<%= item.title || 'عمل من معرض ' + displayName %>"
+                  loading="lazy" decoding="async"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onerror="this.parentElement.style.display='none'" />
               </div>
