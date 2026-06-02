@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>الأسئلة الشائعة | OscarDevs</title>
+<meta name="description" content="إجابات سريعة على أكثر الأسئلة شيوعاً عن OscarDevs: المدّة، التكلفة، إدارة الموقع، الفرق بين المتجر والبورتفوليو، الدفع، والدعم." />
+<%- include('../partials/seo_meta', { title: 'الأسئلة الشائعة — OscarDevs', description: 'إجابات سريعة على أكثر الأسئلة شيوعاً عن OscarDevs: المدّة، التكلفة، إدارة الموقع، الفرق بين المتجر والبورتفوليو، الدفع، والدعم.' }) %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-4">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'الأسئلة الشائعة' } ] }) %>
+  <header class="text-center mb-10">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">الأسئلة الشائعة</h1>
+    <p class="text-gray-500 max-w-2xl mx-auto leading-relaxed">جمعنا الأسئلة اللي بتوصلنا أكتر من غيرها، وإجاباتها المباشرة. لو سؤالك مش هنا، <a href="/contact" class="text-indigo-700 font-semibold underline">تواصل معنا</a>.</p>
+  </header>
+
+  <%
+    var faqs = [
+      { q: 'إيه هي OscarDevs؟', a: 'منصّة عربية متخصّصة في بناء مواقع البورتفوليو والمتاجر الإلكترونية للمشاريع الصغيرة والمتوسطة، بتصميم مخصّص، تنفيذ سريع (٧ أيام)، وأسعار مناسبة للسوق العربي.' },
+      { q: 'إيه الفرق بين موقع البورتفوليو والمتجر الإلكتروني؟', a: 'البورتفوليو موقع يعرض أعمالك وخدماتك للحصول على عملاء جدد عن طريق نموذج تواصل. المتجر الإلكتروني نقطة بيع كاملة بسلّة، دفع، ونظام طلبات وشحن. لو بتبيع خدمات بسعر متفاوض، اختر بورتفوليو. لو بتبيع منتجات بسعر ثابت، اختر متجر إلكتروني.' },
+      { q: 'كم تكلفة الموقع؟', a: 'موقع البورتفوليو يبدأ من ١٥٠ دولار، والمتجر الإلكتروني يبدأ من ٣٥٠ دولار. السعر بيشمل التصميم المخصّص، الاستضافة للسنة الأولى، ولوحة تحكم لإدارة الموقع. حسب احتياجاتك ممكن نضيف ميزات إضافية بتكلفة منفصلة.' },
+      { q: 'في كم يوم يكون الموقع جاهز؟', a: 'أغلب المواقع بنسلّمها خلال ٧ أيام عمل من اعتماد التصميم الأولي. المتاجر الكبيرة بكتالوج ضخم قد تحتاج ١٠-١٤ يوم.' },
+      { q: 'هل أحتاج خبرة تقنية لإدارة موقعي؟', a: 'لا. كل المواقع بتيجي بلوحة تحكم سهلة، تقدر من خلالها تعدّل النصوص، الألوان، الشعار، البانرات، المنتجات، والإعدادات بدون أي كود. وبنوفّر تدريب مختصر بعد التسليم.' },
+      { q: 'هل بتدعموا اللغة العربية بالكامل؟', a: 'نعم، كل المواقع متاحة بالعربية (RTL) وبواجهة إدارة عربية كاملة، مع إمكانية تفعيل الإنجليزية كلغة ثانية على نفس الموقع.' },
+      { q: 'هل اسم النطاق (Domain) داخل السعر؟', a: 'الاستضافة داخل السعر السنوي. اسم النطاق (.com مثلاً) بنساعدك في حجزه ويُكلّف حوالي ١٠-١٥ دولار سنوياً تدفعهم لمزوّد النطاق مباشرة.' },
+      { q: 'كيف يتم الدفع؟', a: 'نعمل بنظام ٥٠٪ مقدّم لبدء العمل، و٥٠٪ بعد ما تشوف الموقع وتعتمده قبل التسليم النهائي. الدفع عن طريق التحويل البنكي، InstaPay، Vodafone Cash، أو طرق أخرى حسب موقعك.' },
+      { q: 'هل بتقدّموا دعم بعد التسليم؟', a: 'نعم. أول ٣٠ يوم بعد التسليم بنوفّر دعم مجاني لأي مشكلة فنية أو استفسار. بعدها فيه باقات صيانة شهرية اختيارية تشمل التحديثات، النسخ الاحتياطي، والدعم الفني.' },
+      { q: 'هل أملك موقعي بالكامل بعد التسليم؟', a: 'نعم، الموقع والمحتوى ملكك ١٠٠٪. تقدر تنقل البيانات لأي مكان، تطلب نسخة احتياطية كاملة، أو تنقل النطاق لأي مزوّد آخر. مفيش قفل تقني علينا.' },
+      { q: 'هل المواقع متوافقة مع الموبايل؟', a: 'كل المواقع متجاوبة بالكامل (Mobile-first) وبتشتغل بسلاسة على كل أحجام الشاشات: موبايل، تابلت، حاسوب. وبنختبر يدوياً قبل التسليم.' },
+      { q: 'هل بتقدّموا خدمات SEO؟', a: 'نعم، كل مواقعنا بتيجي بـ SEO جاهز من أول يوم: hierarchy عناوين صحيحة، meta tags، sitemap.xml، canonical URLs، structured data، وسرعة عالية. وبنقدّم استشارة SEO مدفوعة لو محتاج خطة محتوى متقدّمة.' },
+      { q: 'هل ممكن تربط متجري ببوابات الدفع؟', a: 'نعم، بندعم تكامل مع بوابات الدفع الشائعة في المنطقة العربية (Paymob, Fawry, Stripe, PayPal). الإعداد بيحتاج تنشيط من جهتك مع البوابة وبنوصّل لك التكامل.' },
+      { q: 'لو محتاج تعديل بعد التسليم، يتكلّف كام؟', a: 'التعديلات الصغيرة (نصوص، صور، أسعار) تقدر تعملها بنفسك من لوحة التحكم مجاناً. التعديلات الكبيرة (إعادة تصميم، ميزات جديدة) لها سعر منفصل حسب الطلب.' },
+      { q: 'كيف أبدأ؟', a: 'قدّم طلب من صفحة <a href="/apply" class="text-indigo-700 underline">قدّم طلب</a> مع بياناتك ووصف نشاطك. هنراجع الطلب ونتواصل معك خلال ٢٤-٤٨ ساعة لمناقشة التفاصيل والبدء.' }
+    ];
+  %>
+
+  <div class="space-y-3">
+    <% faqs.forEach(function(f){ %>
+      <details class="bg-white rounded-2xl shadow-sm border border-gray-100 group">
+        <summary class="cursor-pointer p-5 flex items-center justify-between gap-3 font-bold text-gray-800 hover:text-indigo-700 transition list-none">
+          <span><%= f.q %></span>
+          <svg class="w-5 h-5 flex-shrink-0 transition-transform group-open:rotate-180 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="px-5 pb-5 text-gray-600 leading-loose text-[15px]"><%- f.a %></div>
+      </details>
+    <% }) %>
+  </div>
+
+  <div class="mt-10 bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center">
+    <p class="text-gray-700 mb-3">عندك سؤال مش موجود هنا؟</p>
+    <a href="/contact" class="inline-block bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-800 transition shadow">اسألنا مباشرة</a>
+  </div>
+</main>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    <% faqs.forEach(function(f, i){ %>
+    {
+      "@type": "Question",
+      "name": <%- JSON.stringify(f.q) %>,
+      "acceptedAnswer": { "@type": "Answer", "text": <%- JSON.stringify(f.a.replace(/<[^>]*>/g, '')) %> }
+    }<%= i < faqs.length - 1 ? ',' : '' %>
+    <% }) %>
+  ]
+}
+</script>
+
+</body>
+</html>

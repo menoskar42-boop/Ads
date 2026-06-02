@@ -54,7 +54,7 @@
         <% if (allImages.length > 1) { %>
           <div class="grid grid-cols-5 gap-2">
             <% allImages.forEach(img => { %>
-              <img src="<%= img.url %>" alt="" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 border-transparent hover:border-gray-300" onclick="document.getElementById('mainImage').src=this.src" />
+              <img src="<%= img.url %>" alt="<%= pName %> — صورة إضافية" loading="lazy" decoding="async" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 border-transparent hover:border-gray-300" onclick="document.getElementById('mainImage').src=this.src" />
             <% }) %>
           </div>
         <% } %>

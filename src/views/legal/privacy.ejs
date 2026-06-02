@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>سياسة الخصوصية | OscarDevs</title>
 <meta name="description" content="سياسة الخصوصية الخاصة بمنصة OscarDevs — كيف نجمع ونستخدم ونحمي بياناتك." />
+<%- include('../partials/seo_meta', { title: 'سياسة الخصوصية — OscarDevs', description: 'سياسة الخصوصية الخاصة بمنصة OscarDevs — كيف نجمع ونستخدم ونحمي بياناتك.' }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
@@ -26,6 +27,7 @@
 </header>
 
 <main class="max-w-4xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'سياسة الخصوصية' } ] }) %>
   <article class="legal bg-white rounded-2xl shadow p-6 sm:p-10">
     <h1 class="text-3xl font-extrabold text-gray-900 mb-1">سياسة الخصوصية</h1>
     <p class="text-gray-400 text-sm mb-6">تشرح هذه السياسة كيف نجمع بياناتك ونستخدمها ونحميها على منصّة OscarDevs.</p>

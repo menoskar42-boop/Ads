@@ -10,6 +10,8 @@
   <meta name="description" content="<%= displayDesc || displayName %>" />
   <meta property="og:title" content="<%= displayName %>" />
   <meta property="og:description" content="<%= displayDesc || displayName %>" />
+  <%- include('partials/seo_meta', { title: displayName + ' — OscarDevs', description: displayDesc || displayName, canonical: siteOrigin + '/view/' + company.slug, ogImage: company.logo_url || (siteOrigin + '/og-default.svg') }) %>
+  <%- include('partials/company_jsonld', { company: company }) %>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -187,7 +189,8 @@
             <div class="rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow group">
               <% if (item.image_url) { %>
               <div class="h-44 overflow-hidden bg-gray-100">
-                <img src="<%= item.image_url %>" alt="<%= item.title || '' %>"
+                <img src="<%= item.image_url %>" alt="<%= item.title || 'عمل من معرض ' + displayName %>"
+                  loading="lazy" decoding="async"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onerror="this.parentElement.style.display='none'" />
               </div>
@@ -238,6 +241,14 @@
 
       <!-- Sidebar -->
       <aside class="lg:w-64 flex-shrink-0 space-y-6">
+
+        <!-- Social links card (only shown if at least one link is set) -->
+        <% if (company.social_facebook || company.social_instagram || company.social_linkedin || company.social_twitter || company.social_tiktok || company.social_youtube || company.social_threads || company.social_website) { %>
+          <div class="bg-white rounded-2xl shadow p-5">
+            <h3 class="font-semibold text-gray-700 mb-3 text-sm">تابعنا على</h3>
+            <%- include('partials/social_icons', { company: company }) %>
+          </div>
+        <% } %>
 
         <!-- Company Info Card -->
         <div class="bg-white rounded-2xl shadow p-6 border-t-4 brand-border">

@@ -178,6 +178,21 @@ router.post('/profile', requireLogin, (req, res) => {
     const heroTextColor = hex(req.body.hero_text_color);
     const heroBtnBg = hex(req.body.hero_btn_bg);
     const heroBtnText = hex(req.body.hero_btn_text);
+    const url = (v) => {
+      const s = (v || '').trim();
+      if (!s) return null;
+      if (s.length > 300) return null;
+      if (!/^https?:\/\/[^\s<>"']+$/i.test(s)) return null;
+      return s;
+    };
+    const socialFacebook = url(req.body.social_facebook);
+    const socialInstagram = url(req.body.social_instagram);
+    const socialLinkedin = url(req.body.social_linkedin);
+    const socialTwitter = url(req.body.social_twitter);
+    const socialTiktok = url(req.body.social_tiktok);
+    const socialYoutube = url(req.body.social_youtube);
+    const socialThreads = url(req.body.social_threads);
+    const socialWebsite = url(req.body.social_website);
     const showTrustBar = on(req.body.show_trust_bar);
     const showPromoBar = on(req.body.show_promo_bar);
     const showHeroCards = on(req.body.show_hero_cards);
@@ -201,7 +216,9 @@ router.post('/profile', requireLogin, (req, res) => {
            show_about=$24, show_services=$25, show_portfolio=$26,
            service1_title=$27, service1_desc=$28, service2_title=$29, service2_desc=$30,
            service3_title=$31, service3_desc=$32,
-           hero_text_color=$33, hero_btn_bg=$34, hero_btn_text=$35
+           hero_text_color=$33, hero_btn_bg=$34, hero_btn_text=$35,
+           social_facebook=$36, social_instagram=$37, social_linkedin=$38, social_twitter=$39,
+           social_tiktok=$40, social_youtube=$41, social_threads=$42, social_website=$43
          WHERE id=$15`,
         [
           company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
@@ -214,6 +231,8 @@ router.post('/profile', requireLogin, (req, res) => {
           svc('service1_title'), svc('service1_desc'), svc('service2_title'), svc('service2_desc'),
           svc('service3_title'), svc('service3_desc'),
           heroTextColor, heroBtnBg, heroBtnText,
+          socialFacebook, socialInstagram, socialLinkedin, socialTwitter,
+          socialTiktok, socialYoutube, socialThreads, socialWebsite,
         ]
       );
       req.session.companyName = company_name;

@@ -15,10 +15,15 @@ function adminSession(req) {
 
 router.use(async (req, res, next) => {
   res.locals.unreadCount = 0;
+  res.locals.pendingAppsCount = 0;
   if (req.session.adminId) {
     try {
       const r = await pool.query('SELECT COUNT(*) FROM contact_messages WHERE is_read = false');
       res.locals.unreadCount = parseInt(r.rows[0].count, 10);
+    } catch (e) { /* badge is non-critical */ }
+    try {
+      const r = await pool.query("SELECT COUNT(*) FROM signup_applications WHERE status = 'pending'");
+      res.locals.pendingAppsCount = parseInt(r.rows[0].count, 10);
     } catch (e) { /* badge is non-critical */ }
   }
   next();
@@ -305,6 +310,107 @@ router.post('/messages/:id/read', requireAdmin, async (req, res) => {
 router.post('/messages/:id/delete', requireAdmin, async (req, res) => {
   await pool.query('DELETE FROM contact_messages WHERE id = $1', [req.params.id]);
   res.redirect('/admin/messages');
+});
+
+/* ─── SIGNUP APPLICATIONS REVIEW ─────────────────────────── */
+router.get('/applications', requireAdmin, async (req, res) => {
+  const filter = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
+  const counts = await pool.query(
+    `SELECT status, COUNT(*)::int AS n FROM signup_applications GROUP BY status`
+  );
+  const countMap = Object.fromEntries(counts.rows.map(r => [r.status, r.n]));
+  const list = await pool.query(
+    `SELECT id, full_name, email, business_name, business_type, preferred_slug, status, created_at
+     FROM signup_applications WHERE status = $1 ORDER BY created_at DESC`,
+    [filter]
+  );
+  res.render('admin/applications/index', {
+    session: adminSession(req),
+    activePage: 'applications',
+    flash: req.session.adminFlash || null,
+    apps: list.rows,
+    filter,
+    countMap,
+  });
+  delete req.session.adminFlash;
+});
+
+router.get('/applications/:id', requireAdmin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM signup_applications WHERE id = $1', [req.params.id]);
+  if (!r.rows.length) return res.redirect('/admin/applications');
+  const flash = req.session.adminFlash || null;
+  req.session.adminFlash = null;
+  res.render('admin/applications/show', {
+    session: adminSession(req),
+    activePage: 'applications',
+    app: r.rows[0],
+    flash,
+  });
+});
+
+router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query('SELECT * FROM signup_applications WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (!r.rows.length || r.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.redirect('/admin/applications/' + req.params.id);
+    }
+    const app = r.rows[0];
+
+    const dup = await client.query('SELECT id FROM companies WHERE slug = $1', [app.preferred_slug]);
+    if (dup.rows.length) {
+      await client.query('ROLLBACK');
+      req.session.adminFlash = { type: 'error', message: 'الـslug محجوز بالفعل لشركة أخرى — ارفض الطلب أو اطلب slug آخر.' };
+      return res.redirect('/admin/applications/' + req.params.id);
+    }
+    const dupEmail = await client.query('SELECT id FROM company_users WHERE email = $1', [app.email]);
+    if (dupEmail.rows.length) {
+      await client.query('ROLLBACK');
+      req.session.adminFlash = { type: 'error', message: 'البريد الإلكتروني مستخدم بالفعل لحساب آخر.' };
+      return res.redirect('/admin/applications/' + req.params.id);
+    }
+
+    const ins = await client.query(
+      `INSERT INTO companies (slug, company_name, description, theme_color, page_type)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [app.preferred_slug, app.business_name, app.description || null, '#2563eb', app.business_type]
+    );
+    const newCompanyId = ins.rows[0].id;
+    await client.query(
+      `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1, $2, $3)`,
+      [newCompanyId, app.email, app.password_hash]
+    );
+    await client.query(
+      `UPDATE signup_applications
+       SET status='approved', reviewer_id=$1, reviewed_at=now(), approved_company_id=$2, admin_notes=$3
+       WHERE id=$4`,
+      [req.session.adminId, newCompanyId, (req.body.notes || '').slice(0, 1000) || null, app.id]
+    );
+    await client.query('COMMIT');
+    req.session.adminFlash = { type: 'success', message: `تمت الموافقة. الشركة "${app.business_name}" أُنشئت ويستطيع صاحبها الدخول بـ ${app.email}.` };
+    res.redirect('/admin/applications/' + req.params.id);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[approve application] error:', err);
+    req.session.adminFlash = { type: 'error', message: 'فشلت الموافقة: ' + err.message };
+    res.redirect('/admin/applications/' + req.params.id);
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/applications/:id/reject', requireAdmin, async (req, res) => {
+  const notes = String(req.body.notes || '').slice(0, 1000) || null;
+  await pool.query(
+    `UPDATE signup_applications
+     SET status='rejected', reviewer_id=$1, reviewed_at=now(), admin_notes=$2
+     WHERE id=$3 AND status='pending'`,
+    [req.session.adminId, notes, req.params.id]
+  );
+  req.session.adminFlash = { type: 'success', message: 'تم رفض الطلب.' };
+  res.redirect('/admin/applications/' + req.params.id);
 });
 
 /* ─── LANGUAGE TOGGLE ────────────────────────────────────── */

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const compression = require('compression');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -25,10 +26,20 @@ app.set('trust proxy', true);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 
+app.use(compression());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '7d',
+  setHeaders(res, filePath) {
+    if (/\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    } else if (/\.(?:css|js)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  },
+}));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'oscardevs-secret-key',
   resave: false,
@@ -37,6 +48,14 @@ app.use(session({
 }));
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
+
+// SEO/canonical helpers exposed to every view
+app.use((req, res, next) => {
+  const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
+  res.locals.siteOrigin = origin;
+  res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
+  next();
+});
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
@@ -274,6 +293,14 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_text_color TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_bg TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_facebook TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_instagram TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_linkedin TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_twitter TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_tiktok TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_youtube TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_threads TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_website TEXT;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 

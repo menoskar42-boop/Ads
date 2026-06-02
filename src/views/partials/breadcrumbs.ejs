@@ -1,0 +1,36 @@
+<%
+  // expects: crumbs = [{ label, href }] where last item is the current page (no link)
+  var __crumbs = typeof crumbs !== 'undefined' && Array.isArray(crumbs) ? crumbs : [];
+%>
+<% if (__crumbs.length) { %>
+<nav aria-label="مسار التصفّح" class="text-xs text-gray-500 mb-4" dir="rtl">
+  <ol class="flex flex-wrap items-center gap-1.5">
+    <% __crumbs.forEach(function(c, i){ %>
+      <li class="flex items-center gap-1.5">
+        <% if (c.href && i < __crumbs.length - 1) { %>
+          <a href="<%= c.href %>" class="hover:text-indigo-700"><%= c.label %></a>
+        <% } else { %>
+          <span class="text-gray-700 font-semibold"><%= c.label %></span>
+        <% } %>
+        <% if (i < __crumbs.length - 1) { %><span class="text-gray-300">/</span><% } %>
+      </li>
+    <% }) %>
+  </ol>
+</nav>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    <% __crumbs.forEach(function(c, i){ %>
+    {
+      "@type": "ListItem",
+      "position": <%= i + 1 %>,
+      "name": <%- JSON.stringify(c.label) %>
+      <%= c.href ? ', "item": ' + JSON.stringify(siteOrigin + c.href) : '' %>
+    }<%= i < __crumbs.length - 1 ? ',' : '' %>
+    <% }) %>
+  ]
+}
+</script>
+<% } %>

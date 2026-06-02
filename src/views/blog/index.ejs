@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>المدوّنة | OscarDevs</title>
 <meta name="description" content="مقالات أصلية عربية في تصميم المواقع، التجارة الإلكترونية، تحسين محركات البحث، وريادة الأعمال الرقمية." />
+<%- include('../partials/seo_meta', { title: 'المدوّنة — OscarDevs', description: 'مقالات أصلية عربية في تصميم المواقع، التجارة الإلكترونية، تحسين محركات البحث، وريادة الأعمال الرقمية.' }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>* { font-family: 'Cairo', sans-serif; }</style>
@@ -24,6 +25,7 @@
 </header>
 
 <main class="max-w-5xl mx-auto px-4 py-12">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'المدوّنة' } ] }) %>
   <header class="mb-10 text-center">
     <h1 class="text-4xl font-extrabold text-gray-900 mb-3">المدوّنة</h1>
     <p class="text-gray-500 max-w-2xl mx-auto leading-relaxed">مقالات عملية وأصلية بالعربية موجّهة لأصحاب المشاريع: تصميم المواقع، التجارة الإلكترونية، تحسين محرّكات البحث، وكل ما تحتاجه لإطلاق حضورك الرقمي بنجاح.</p>

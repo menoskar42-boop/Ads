@@ -1,0 +1,60 @@
+<%
+  var __ogType  = (typeof ogType  !== 'undefined' && ogType)  ? ogType  : 'website';
+  var __image   = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : (siteOrigin + '/og-default.svg');
+  var __title   = (typeof title       !== 'undefined' && title)       ? title       : 'OscarDevs';
+  var __desc    = (typeof description !== 'undefined' && description) ? description : '';
+  var __canon   = (typeof canonical   !== 'undefined' && canonical)   ? canonical   : canonicalUrl;
+%>
+<% if (typeof process !== 'undefined' && process.env && process.env.GOOGLE_SITE_VERIFICATION) { %>
+<meta name="google-site-verification" content="<%= process.env.GOOGLE_SITE_VERIFICATION %>" />
+<% } %>
+<% if (typeof process !== 'undefined' && process.env && process.env.BING_SITE_VERIFICATION) { %>
+<meta name="msvalidate.01" content="<%= process.env.BING_SITE_VERIFICATION %>" />
+<% } %>
+<% if (typeof process !== 'undefined' && process.env && process.env.YANDEX_VERIFICATION) { %>
+<meta name="yandex-verification" content="<%= process.env.YANDEX_VERIFICATION %>" />
+<% } %>
+<link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+<link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="canonical" href="<%= __canon %>" />
+<meta property="og:url" content="<%= __canon %>" />
+<meta property="og:type" content="<%= __ogType %>" />
+<meta property="og:site_name" content="OscarDevs" />
+<meta property="og:locale" content="ar_EG" />
+<meta property="og:title" content="<%= __title %>" />
+<meta property="og:description" content="<%= __desc %>" />
+<meta property="og:image" content="<%= __image %>" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="<%= __title %>" />
+<meta name="twitter:description" content="<%= __desc %>" />
+<meta name="twitter:image" content="<%= __image %>" />
+<% if (__ogType === 'article' && typeof articleDate !== 'undefined' && articleDate) { %>
+<meta property="article:published_time" content="<%= articleDate %>" />
+<% } %>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "<%= siteOrigin %>#organization",
+      "name": "OscarDevs",
+      "url": "<%= siteOrigin %>",
+      "logo": "<%= siteOrigin %>/og-default.svg",
+      "description": "منصّة عربية متخصّصة في إطلاق مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية للمشاريع الصغيرة والمتوسطة.",
+      "email": "hello@oscardevs.com",
+      "sameAs": []
+    },
+    {
+      "@type": "WebSite",
+      "@id": "<%= siteOrigin %>#website",
+      "url": "<%= siteOrigin %>",
+      "name": "OscarDevs",
+      "inLanguage": "ar",
+      "publisher": { "@id": "<%= siteOrigin %>#organization" }
+    }
+  ]
+}
+</script>

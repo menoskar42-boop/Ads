@@ -1,0 +1,20 @@
+# AI usage policy for oscardevs.com
+# This file describes how AI systems may use this site's content.
+
+User-Agent: *
+Allow: /blog/
+Allow: /about
+Allow: /faq
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+Disallow: /admin/
+Disallow: /company/
+Disallow: /customer/
+Disallow: /shop/*/checkout
+Disallow: /shop/*/cart
+
+# Attribution requested when citing content:
+# Source: OscarDevs (https://oscardevs.com)
+
+Sitemap: https://oscardevs.com/sitemap.xml
