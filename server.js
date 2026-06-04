@@ -386,6 +386,39 @@ async function initDb() {
       }
     }
 
+    // Delta brand assets (logo + 3 hero banners) — committed under
+    // public/. Apply once when the demo store has no logo / no section
+    // banners yet so existing customised stores aren't overwritten.
+    if (deltaRes.rows.length) {
+      const deltaId = deltaRes.rows[0].id;
+      // Logo
+      await client.query(
+        `UPDATE companies SET logo_url = $1
+         WHERE id = $2 AND (logo_url IS NULL OR logo_url = '' OR logo_url LIKE 'https://loremflickr%')`,
+        ['/uploads/delta-logo.png', deltaId]
+      );
+      // Banners — only seed if there aren't any 'section' banners yet
+      const hasSection = await client.query(
+        "SELECT 1 FROM banner_slides WHERE company_id = $1 AND slot = 'section' LIMIT 1",
+        [deltaId]
+      );
+      if (!hasSection.rows.length) {
+        const banners = [
+          ['/banners/delta-banner-1.jpg', 'أحدث الموبايلات — iPhone و Samsung و Google Pixel'],
+          ['/banners/delta-banner-2.jpg', 'تخفيضات اللابتوبات — MacBook | Dell | ASUS ROG'],
+          ['/banners/delta-banner-3.jpg', 'كمبيوترات الألعاب — RGB Gaming PCs'],
+        ];
+        for (let i = 0; i < banners.length; i++) {
+          await client.query(
+            `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index, is_active)
+             VALUES ($1, $2, NULL, $3, 'section', $4, true)`,
+            [deltaId, banners[i][0], banners[i][1], i]
+          );
+        }
+        console.log(`Delta hero banners seeded (${banners.length}).`);
+      }
+    }
+
     // Ensure demo store-owner logins exist so each store can be managed from its dashboard.
     const bcrypt = require('bcryptjs');
     const demoOwners = [
