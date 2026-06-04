@@ -261,6 +261,9 @@ router.get('/portfolio', requireLogin, async (req, res) => {
   res.render('company/portfolio', { items: result.rows, session: req.session, error: null });
 });
 
+router.get('/portfolio/add', requireLogin, (req, res) => res.redirect('/company/portfolio'));
+router.get('/categories/add', requireLogin, (req, res) => res.redirect('/company/categories'));
+
 router.post('/portfolio/add', requireLogin, (req, res) => {
   uploadItemImage(req, res, async (uploadErr) => {
     const renderError = async (message) => {
@@ -742,22 +745,43 @@ router.get('/banners', requireLogin, async (req, res) => {
     'SELECT * FROM banner_slides WHERE company_id = $1 ORDER BY order_index, created_at',
     [req.session.companyId]
   );
-  res.render('company/banners', { banners: banners.rows, session: req.session, error: null });
+  let error = null;
+  const code = req.query.err;
+  if (code === 'too_large') error = 'الصورة أكبر من 5 ميجابايت — جرّب صورة أصغر.';
+  else if (code === 'no_file') error = 'لم يتم اختيار صورة. اختر ملفاً واضغط رفع.';
+  else if (code === 'upload') error = 'فشل رفع الصورة. تأكد إن الصيغة مدعومة (PNG/JPEG/WebP/GIF).';
+  else if (code === 'save') error = 'تم رفع الصورة لكن لم تُحفظ في قاعدة البيانات. حاول مرة أخرى.';
+  res.render('company/banners', { banners: banners.rows, session: req.session, error });
 });
+
+// Direct-navigating to /banners/add (e.g. from a stale link or after a
+// rejected upload) is harmless — bounce back to the manager instead of
+// letting the edge proxy serve a bare 403/404.
+router.get('/banners/add', requireLogin, (req, res) => res.redirect('/company/banners'));
 
 router.post('/banners/add', requireLogin, (req, res) => {
   uploadProductImage(req, res, async (uploadErr) => {
-    if (uploadErr || !req.file) return res.redirect('/company/banners');
-    const target_url = (req.body.target_url || '').trim() || null;
-    const caption = (req.body.caption || '').trim() || null;
-    const validSlots = ['section', 'hero1', 'hero2'];
-    const slot = validSlots.includes(req.body.slot) ? req.body.slot : 'section';
-    await pool.query(
-      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index)
-       VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
-      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption, slot]
-    );
-    res.redirect('/company/banners');
+    if (uploadErr) {
+      const code = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'too_large' : 'upload';
+      console.error('[banners/add] upload error:', uploadErr.message);
+      return res.redirect('/company/banners?err=' + code);
+    }
+    if (!req.file) return res.redirect('/company/banners?err=no_file');
+    try {
+      const target_url = (req.body.target_url || '').trim() || null;
+      const caption = (req.body.caption || '').trim() || null;
+      const validSlots = ['section', 'hero1', 'hero2'];
+      const slot = validSlots.includes(req.body.slot) ? req.body.slot : 'section';
+      await pool.query(
+        `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index)
+         VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
+        [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption, slot]
+      );
+      res.redirect('/company/banners');
+    } catch (err) {
+      console.error('[banners/add] db error:', err);
+      res.redirect('/company/banners?err=save');
+    }
   });
 });
 
