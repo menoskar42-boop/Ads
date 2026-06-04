@@ -76,6 +76,45 @@ router.post('/contact/:slug', async (req, res) => {
   }
 });
 
+// Per-tenant PWA manifest. Lets each subdomain ship its own install icon
+// + name when a visitor adds the site to their phone's home screen.
+router.get('/view/:slug/manifest.webmanifest', async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT slug, company_name, description, logo_url, theme_color FROM companies WHERE slug = $1 AND is_active = true',
+      [req.params.slug]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'not found' });
+    const c = r.rows[0];
+    const startUrl = '/view/' + c.slug;
+    const icon = c.logo_url || '/logo.png';
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.json({
+      name: c.company_name,
+      short_name: c.company_name.slice(0, 12),
+      description: c.description || c.company_name,
+      start_url: startUrl,
+      scope: startUrl,
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#ffffff',
+      theme_color: c.theme_color || '#1e3a8a',
+      lang: 'ar',
+      dir: 'rtl',
+      icons: [
+        { src: icon, sizes: 'any',     type: 'image/png', purpose: 'any' },
+        { src: icon, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: icon, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: icon, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    });
+  } catch (err) {
+    console.error('[manifest]', err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
 // Direct tenant preview: /view/:slug works on any host (Replit, localhost, etc.)
 // On a production host (e.g. oscardevs.com) we 301 to the canonical subdomain URL.
 router.get('/view/:slug', async (req, res) => {

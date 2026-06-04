@@ -10,7 +10,15 @@
   <meta name="description" content="<%= displayDesc || displayName %>" />
   <meta property="og:title" content="<%= displayName %>" />
   <meta property="og:description" content="<%= displayDesc || displayName %>" />
-  <%- include('partials/seo_meta', { title: displayName + ' — OscarDevs', description: displayDesc || displayName, canonical: siteOrigin + '/view/' + company.slug, ogImage: company.logo_url || (siteOrigin + '/og-default.svg') }) %>
+  <%- include('partials/seo_meta', {
+    title: displayName,
+    description: displayDesc || displayName,
+    canonical: siteOrigin + '/view/' + company.slug,
+    ogImage: company.logo_url || (siteOrigin + '/og-default.svg'),
+    siteLogo: company.logo_url || '',
+    siteManifest: '/view/' + company.slug + '/manifest.webmanifest',
+    siteAppName: displayName
+  }) %>
   <%- include('partials/company_jsonld', { company: company }) %>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
