@@ -25,6 +25,9 @@ module.exports = {
     pageTop:     process.env.ADS_PAGE_TOP     || '',
     pageBottom:  process.env.ADS_PAGE_BOTTOM  || '',
 
+    // Login + signup pages
+    login:       process.env.ADS_LOGIN        || '',
+
     // Tenant shops (/view/:slug for shops)
     shopTop:     process.env.ADS_SHOP_TOP     || '',
     shopInGrid:  process.env.ADS_SHOP_INGRID  || '',
