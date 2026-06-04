@@ -14,14 +14,31 @@
 <% if (typeof process !== 'undefined' && process.env && process.env.YANDEX_VERIFICATION) { %>
 <meta name="yandex-verification" content="<%= process.env.YANDEX_VERIFICATION %>" />
 <% } %>
-<link rel="icon" type="image/png" href="/logo.png" />
-<link rel="shortcut icon" href="/logo.png" />
-<link rel="apple-touch-icon" href="/logo.png" />
-<link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
+<%
+  // Tenant pages pass siteLogo (and optionally siteManifest, siteAppName)
+  // so each subdomain ships its own branded icons. Falling back to the
+  // OscarDevs set when nothing is passed keeps the main site unchanged.
+  var __tenantLogo = (typeof siteLogo !== 'undefined' && siteLogo) ? siteLogo : null;
+  var __tenantManifest = (typeof siteManifest !== 'undefined' && siteManifest) ? siteManifest : null;
+  var __appName = (typeof siteAppName !== 'undefined' && siteAppName) ? siteAppName : 'OscarDevs';
+%>
+<% if (__tenantLogo) { %>
+<link rel="icon" href="<%= __tenantLogo %>" />
+<link rel="shortcut icon" href="<%= __tenantLogo %>" />
+<link rel="apple-touch-icon" href="<%= __tenantLogo %>" />
+<link rel="apple-touch-icon" sizes="180x180" href="<%= __tenantLogo %>" />
+<% if (__tenantManifest) { %><link rel="manifest" href="<%= __tenantManifest %>" /><% } %>
+<% } else { %>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png" />
+<link rel="shortcut icon" href="/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 <link rel="manifest" href="/site.webmanifest" />
+<% } %>
 <meta name="theme-color" content="#1e3a8a" />
-<meta name="apple-mobile-web-app-title" content="OscarDevs" />
-<meta name="application-name" content="OscarDevs" />
+<meta name="apple-mobile-web-app-title" content="<%= __appName %>" />
+<meta name="application-name" content="<%= __appName %>" />
 <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
 <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,7 +46,7 @@
 <link rel="canonical" href="<%= __canon %>" />
 <meta property="og:url" content="<%= __canon %>" />
 <meta property="og:type" content="<%= __ogType %>" />
-<meta property="og:site_name" content="OscarDevs" />
+<meta property="og:site_name" content="<%= __appName %>" />
 <meta property="og:locale" content="ar_EG" />
 <meta property="og:title" content="<%= __title %>" />
 <meta property="og:description" content="<%= __desc %>" />
@@ -56,6 +73,7 @@
   gtag('config', '<%= __ga %>');
 </script>
 <% } %>
+<% if (!__tenantLogo) { %>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -82,3 +100,4 @@
   ]
 }
 </script>
+<% } %>
