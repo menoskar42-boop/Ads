@@ -1,6 +1,6 @@
 <%
   var __ogType  = (typeof ogType  !== 'undefined' && ogType)  ? ogType  : 'website';
-  var __image   = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : (siteOrigin + '/og-default.svg');
+  var __image   = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : (siteOrigin + '/logo.png');
   var __title   = (typeof title       !== 'undefined' && title)       ? title       : 'OscarDevs';
   var __desc    = (typeof description !== 'undefined' && description) ? description : '';
   var __canon   = (typeof canonical   !== 'undefined' && canonical)   ? canonical   : canonicalUrl;
@@ -14,6 +14,14 @@
 <% if (typeof process !== 'undefined' && process.env && process.env.YANDEX_VERIFICATION) { %>
 <meta name="yandex-verification" content="<%= process.env.YANDEX_VERIFICATION %>" />
 <% } %>
+<link rel="icon" type="image/png" href="/logo.png" />
+<link rel="shortcut icon" href="/logo.png" />
+<link rel="apple-touch-icon" href="/logo.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/logo.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#1e3a8a" />
+<meta name="apple-mobile-web-app-title" content="OscarDevs" />
+<meta name="application-name" content="OscarDevs" />
 <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
 <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -57,7 +65,8 @@
       "@id": "<%= siteOrigin %>#organization",
       "name": "OscarDevs",
       "url": "<%= siteOrigin %>",
-      "logo": "<%= siteOrigin %>/og-default.svg",
+      "logo": "<%= siteOrigin %>/logo.png",
+      "image": "<%= siteOrigin %>/logo.png",
       "description": "منصّة عربية متخصّصة في إطلاق مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية للمشاريع الصغيرة والمتوسطة.",
       "email": "hello@oscardevs.com",
       "sameAs": []
