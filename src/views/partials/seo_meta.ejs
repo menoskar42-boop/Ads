@@ -29,10 +29,14 @@
 <link rel="apple-touch-icon" sizes="180x180" href="<%= __tenantLogo %>" />
 <% if (__tenantManifest) { %><link rel="manifest" href="<%= __tenantManifest %>" /><% } %>
 <% } else { %>
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-<link rel="icon" type="image/png" sizes="192x192" href="/logo-192.png" />
-<link rel="icon" type="image/png" sizes="512x512" href="/logo-512.png" />
-<link rel="shortcut icon" href="/favicon-32.png" />
+<%# Google's documented favicon requirement: at least one square icon
+    that is a multiple of 48px (48/96/144/192). They also still ask for
+    /favicon.ico at the site root for legacy crawlers, so we ship both. %>
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 <link rel="manifest" href="/site.webmanifest" />
 <% } %>
