@@ -31,6 +31,8 @@
     <p class="text-gray-500 max-w-2xl mx-auto leading-relaxed">مقالات عملية وأصلية بالعربية موجّهة لأصحاب المشاريع: تصميم المواقع، التجارة الإلكترونية، تحسين محرّكات البحث، وكل ما تحتاجه لإطلاق حضورك الرقمي بنجاح.</p>
   </header>
 
+  <%- include('../partials/ad_unit', { slot: ads.slots.blogTop }) %>
+
   <div class="grid sm:grid-cols-2 gap-6">
     <% articles.forEach(function(a){ %>
       <a href="/blog/<%= a.slug %>" class="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition p-6 border border-gray-100">

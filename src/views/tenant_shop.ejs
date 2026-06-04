@@ -101,7 +101,7 @@
 </div>
 <% } %>
 
-<% if (company.adsense_top) { %><div style="padding:12px 32px;background:#fff;border-bottom:1px solid var(--line)"><%- company.adsense_top %></div><% } %>
+<div style="padding:12px 32px;background:#fff;border-bottom:1px solid var(--line)"><%- include('partials/ad_unit', { slot: ads.slots.shopTop }) %></div>
 
 <!-- Hero -->
 <section class="hero">
@@ -191,7 +191,7 @@
       <% } %>
     </div>
   <% } else { %>
-    <% var adMid = company.adsense_sidebar ? Math.floor(products.length / 2) : -1; %>
+    <% var adMid = (ads.slots.shopInGrid && products.length >= 4) ? Math.floor(products.length / 2) : -1; %>
     <div class="grid">
       <% products.forEach((p, idx) => { %>
         <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
@@ -235,7 +235,7 @@
           </div>
         </div>
         <% if (idx === adMid) { %>
-          <div class="shop-ad-banner"><%- company.adsense_sidebar %></div>
+          <div class="shop-ad-banner"><%- include('partials/ad_unit', { slot: ads.slots.shopInGrid }) %></div>
         <% } %>
       <% }) %>
     </div>
@@ -311,7 +311,7 @@
 </section>
 <% } %>
 
-<% if (company.adsense_bottom) { %><div style="padding:24px 32px"><%- company.adsense_bottom %></div><% } %>
+<div style="padding:24px 32px"><%- include('partials/ad_unit', { slot: ads.slots.shopBottom }) %></div>
 
 <!-- Contact -->
 <% if (company.show_contact !== false) { %>
