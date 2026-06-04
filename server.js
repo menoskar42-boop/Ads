@@ -57,11 +57,15 @@ app.use(session({
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
 
-// SEO/canonical helpers exposed to every view
+// SEO/canonical + central AdSense config exposed to every view. All ad
+// units across the platform (main site + every tenant) read slot ids
+// from this single object so OscarDevs' AdSense account serves the lot.
+const adsConfig = require('./src/config/ads');
 app.use((req, res, next) => {
   const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
   res.locals.siteOrigin = origin;
   res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
+  res.locals.ads = adsConfig;
   next();
 });
 

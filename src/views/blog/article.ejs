@@ -75,9 +75,13 @@
       </aside>
     <% } %>
 
+    <%- include('../partials/ad_unit', { slot: ads.slots.blogTop }) %>
+
     <div class="article-body">
       <%- include(bodyView) %>
     </div>
+
+    <%- include('../partials/ad_unit', { slot: ads.slots.blogBottom }) %>
 
     <hr class="my-10 border-gray-200" />
 

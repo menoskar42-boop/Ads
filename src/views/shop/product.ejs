@@ -37,9 +37,7 @@
   </div>
 </header>
 
-<% if (company.adsense_top) { %>
-  <div class="max-w-5xl mx-auto px-4 mt-4"><%- company.adsense_top %></div>
-<% } %>
+<div class="max-w-5xl mx-auto px-4 mt-4"><%- include('../partials/ad_unit', { slot: ads.slots.productTop }) %></div>
 
 <main class="max-w-5xl mx-auto px-4 py-8">
   <div class="grid md:grid-cols-2 gap-8 bg-white rounded-2xl shadow p-6">
@@ -93,13 +91,9 @@
   </div>
 </main>
 
-<% if (company.adsense_sidebar) { %>
-  <div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- company.adsense_sidebar %></div></div>
-<% } %>
+<div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- include('../partials/ad_unit', { slot: ads.slots.productMid }) %></div></div>
 
-<% if (company.adsense_bottom) { %>
-  <div class="max-w-5xl mx-auto px-4 mb-6"><%- company.adsense_bottom %></div>
-<% } %>
+<div class="max-w-5xl mx-auto px-4 mb-6"><%- include('../partials/ad_unit', { slot: ads.slots.productBottom }) %></div>
 
 <footer class="bg-gray-900 text-gray-400 py-6 text-center text-sm">
   <p>&copy; <%= new Date().getFullYear() %> <%= displayCompanyName %></p>
