@@ -1,0 +1,43 @@
+<%
+  // Collapsible "how to use this page" panel rendered at the top of each
+  // admin section.
+  // Usage:
+  //   <%- include('../partials/page_guide', {
+  //     title: 'إدارة البانرات',
+  //     intro: 'وصف موجز…',
+  //     steps: ['اضغط على رفع…', 'اختار…'],
+  //     tips:  ['نصيحة 1…', 'نصيحة 2…']
+  //   }) %>
+  var __title = (typeof title !== 'undefined' && title) ? title : 'كيف أستخدم هذه الصفحة؟';
+  var __intro = (typeof intro !== 'undefined' && intro) ? intro : '';
+  var __steps = (typeof steps !== 'undefined' && Array.isArray(steps)) ? steps : [];
+  var __tips  = (typeof tips  !== 'undefined' && Array.isArray(tips))  ? tips  : [];
+%>
+<details class="page-guide bg-indigo-50 border border-indigo-100 rounded-2xl mb-5 group">
+  <summary class="cursor-pointer p-4 sm:p-5 flex items-center justify-between gap-3 list-none">
+    <span class="flex items-center gap-3 font-bold text-indigo-900 text-sm sm:text-base">
+      <span class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm flex-shrink-0">؟</span>
+      <span><%= __title %></span>
+    </span>
+    <svg class="w-5 h-5 text-indigo-600 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+  </summary>
+  <div class="px-4 sm:px-5 pb-4 sm:pb-5 text-sm text-gray-700 leading-relaxed space-y-3">
+    <% if (__intro) { %><p><%= __intro %></p><% } %>
+    <% if (__steps.length) { %>
+      <div>
+        <div class="font-bold text-indigo-900 mb-1.5">الخطوات:</div>
+        <ol class="list-decimal pr-5 space-y-1">
+          <% __steps.forEach(function(s){ %><li><%- s %></li><% }) %>
+        </ol>
+      </div>
+    <% } %>
+    <% if (__tips.length) { %>
+      <div class="bg-white border border-indigo-100 rounded-xl p-3">
+        <div class="font-bold text-amber-700 mb-1.5 flex items-center gap-2"><span>💡</span> نصايح</div>
+        <ul class="list-disc pr-5 space-y-1 text-gray-600">
+          <% __tips.forEach(function(t){ %><li><%- t %></li><% }) %>
+        </ul>
+      </div>
+    <% } %>
+  </div>
+</details>
