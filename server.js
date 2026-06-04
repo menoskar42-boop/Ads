@@ -332,18 +332,21 @@ async function initDb() {
         )).rows[0].id;
         const catPhones = await addCat('موبايلات', 'Mobiles', 0);
         const catComp = await addCat('لابتوبات وكمبيوترات', 'Laptops & PCs', 1);
-        const img = (tags, lock) => `https://loremflickr.com/600/600/${tags}?lock=${lock}`;
+        // Product images live under /public/products/<slug>.png — committed
+        // to the repo so they're always available without depending on an
+        // external CDN. Each one is rendered to match its product type.
+        const img = (file) => '/products/' + file + '.png';
         const demo = [
-          [catPhones, 'آيفون 15 برو ماكس 256GB', 'iPhone 15 Pro Max', 'هيكل تيتانيوم، شاشة 6.7 بوصة Super Retina XDR، شريحة A17 Pro، وكاميرا 48 ميجابكسل.', 84999, img('iphone', 11), 12],
-          [catPhones, 'سامسونج جالاكسي S24 ألترا', 'Samsung Galaxy S24 Ultra', 'شاشة 6.8 بوصة Dynamic AMOLED، قلم S Pen، كاميرا 200 ميجابكسل ومعالج Snapdragon 8 Gen 3.', 72999, img('samsung,smartphone', 12), 9],
-          [catPhones, 'جوجل بيكسل 8 برو', 'Google Pixel 8 Pro', 'أفضل كاميرا حوسبية، شريحة Tensor G3، وتحديثات أندرويد لمدة 7 سنوات.', 41999, img('smartphone,android', 13), 15],
-          [catPhones, 'آيفون 14 128GB', 'iPhone 14', 'شاشة 6.1 بوصة، شريحة A15 Bionic، نظام كاميرا مزدوج وبطارية تدوم طوال اليوم.', 44999, img('iphone,phone', 14), 20],
-          [catPhones, 'شاومي ريدمي نوت 13 برو', 'Xiaomi Redmi Note 13 Pro', 'شاشة AMOLED 120Hz، كاميرا 200 ميجابكسل، وشحن سريع 67 واط بسعر اقتصادي.', 18999, img('smartphone', 15), 30],
-          [catComp, 'ماك بوك برو 16 M3 Pro', 'MacBook Pro 16 M3 Pro', 'شريحة M3 Pro، شاشة Liquid Retina XDR، 18GB رام و512GB SSD لأصحاب الأعمال الاحترافية.', 149999, img('macbook', 16), 6],
-          [catComp, 'ماك بوك إير M2 13 بوصة', 'MacBook Air M2', 'تصميم نحيف بوزن 1.2 كجم، شريحة M2، وبطارية تدوم حتى 18 ساعة.', 64999, img('laptop,apple', 17), 11],
-          [catComp, 'لابتوب Dell XPS 15', 'Dell XPS 15', 'معالج Intel Core i7، شاشة 15.6 بوصة OLED، 16GB رام وكرت RTX 4050.', 89999, img('laptop', 18), 8],
-          [catComp, 'لابتوب ASUS ROG Gaming', 'ASUS ROG Gaming Laptop', 'للألعاب الثقيلة: RTX 4070، شاشة 165Hz، ومعالج Ryzen 9 وتبريد متقدم.', 99999, img('gaming,laptop', 19), 7],
-          [catComp, 'كمبيوتر مكتبي للألعاب RGB', 'RGB Gaming Desktop PC', 'تجميعة قوية: RTX 4070 Ti، 32GB رام، SSD 1TB، وإضاءة RGB كاملة.', 79999, img('computer,gaming', 20), 5],
+          [catPhones, 'آيفون 15 برو ماكس 256GB', 'iPhone 15 Pro Max', 'هيكل تيتانيوم، شاشة 6.7 بوصة Super Retina XDR، شريحة A17 Pro، وكاميرا 48 ميجابكسل.', 84999, img('iphone-15-pro-max'), 12],
+          [catPhones, 'سامسونج جالاكسي S24 ألترا', 'Samsung Galaxy S24 Ultra', 'شاشة 6.8 بوصة Dynamic AMOLED، قلم S Pen، كاميرا 200 ميجابكسل ومعالج Snapdragon 8 Gen 3.', 72999, img('galaxy-s24-ultra'), 9],
+          [catPhones, 'جوجل بيكسل 8 برو', 'Google Pixel 8 Pro', 'أفضل كاميرا حوسبية، شريحة Tensor G3، وتحديثات أندرويد لمدة 7 سنوات.', 41999, img('pixel-8-pro'), 15],
+          [catPhones, 'آيفون 14 128GB', 'iPhone 14', 'شاشة 6.1 بوصة، شريحة A15 Bionic، نظام كاميرا مزدوج وبطارية تدوم طوال اليوم.', 44999, img('iphone-14'), 20],
+          [catPhones, 'شاومي ريدمي نوت 13 برو', 'Xiaomi Redmi Note 13 Pro', 'شاشة AMOLED 120Hz، كاميرا 200 ميجابكسل، وشحن سريع 67 واط بسعر اقتصادي.', 18999, img('xiaomi-note13'), 30],
+          [catComp,   'ماك بوك برو 16 M3 Pro',     'MacBook Pro 16 M3 Pro', 'شريحة M3 Pro، شاشة Liquid Retina XDR، 18GB رام و512GB SSD لأصحاب الأعمال الاحترافية.', 149999, img('macbook-pro-16'), 6],
+          [catComp,   'ماك بوك إير M2 13 بوصة',     'MacBook Air M2', 'تصميم نحيف بوزن 1.2 كجم، شريحة M2، وبطارية تدوم حتى 18 ساعة.', 64999, img('macbook-air'), 11],
+          [catComp,   'لابتوب Dell XPS 15',         'Dell XPS 15', 'معالج Intel Core i7، شاشة 15.6 بوصة OLED، 16GB رام وكرت RTX 4050.', 89999, img('dell-xps-15'), 8],
+          [catComp,   'لابتوب ASUS ROG Gaming',     'ASUS ROG Gaming Laptop', 'للألعاب الثقيلة: RTX 4070، شاشة 165Hz، ومعالج Ryzen 9 وتبريد متقدم.', 99999, img('asus-rog-gaming'), 7],
+          [catComp,   'كمبيوتر مكتبي للألعاب RGB',   'RGB Gaming Desktop PC', 'تجميعة قوية: RTX 4070 Ti، 32GB رام، SSD 1TB، وإضاءة RGB كاملة.', 79999, img('rgb-gaming-pc'), 5],
         ];
         for (const [cat, nameAr, nameEn, descAr, price, image, stock] of demo) {
           await client.query(
@@ -353,6 +356,33 @@ async function initDb() {
           );
         }
         console.log(`Delta demo catalog seeded (${demo.length} products).`);
+      } else {
+        // Existing installations may still hold the old loremflickr URLs.
+        // Migrate them to the new local /products/<slug>.png files keyed
+        // off the product's name_en so each picture matches its title.
+        const updates = [
+          ['iPhone 15 Pro Max', '/products/iphone-15-pro-max.png'],
+          ['Samsung Galaxy S24 Ultra', '/products/galaxy-s24-ultra.png'],
+          ['Google Pixel 8 Pro', '/products/pixel-8-pro.png'],
+          ['iPhone 14', '/products/iphone-14.png'],
+          ['Xiaomi Redmi Note 13 Pro', '/products/xiaomi-note13.png'],
+          ['MacBook Pro 16 M3 Pro', '/products/macbook-pro-16.png'],
+          ['MacBook Air M2', '/products/macbook-air.png'],
+          ['Dell XPS 15', '/products/dell-xps-15.png'],
+          ['ASUS ROG Gaming Laptop', '/products/asus-rog-gaming.png'],
+          ['RGB Gaming Desktop PC', '/products/rgb-gaming-pc.png'],
+        ];
+        let touched = 0;
+        for (const [nameEn, imgPath] of updates) {
+          const r = await client.query(
+            `UPDATE products SET image_url = $1
+             WHERE company_id = $2 AND name_en = $3
+               AND (image_url IS NULL OR image_url LIKE '%loremflickr%' OR image_url <> $1)`,
+            [imgPath, deltaId, nameEn]
+          );
+          touched += r.rowCount || 0;
+        }
+        if (touched) console.log(`Delta product images updated to local set (${touched} rows).`);
       }
     }
 
