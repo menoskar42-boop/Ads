@@ -42,3 +42,7 @@ exposeLocalhost = true
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npm", "start"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 60000
