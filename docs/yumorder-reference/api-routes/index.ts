@@ -1,0 +1,42 @@
+import { Router, type IRouter } from "express";
+import healthRouter from "./health";
+import citiesRouter from "./cities";
+import authRouter from "./auth_full";
+import restaurantsRouter from "./restaurants";
+import menuRouter from "./menu";
+import ordersRouter from "./orders";
+import favoritesRouter from "./favorites";
+import reviewsRouter from "./reviews";
+import notificationsRouter from "./notifications";
+import driversRouter from "./drivers";
+import couponsRouter from "./coupons";
+import loyaltyRouter from "./loyalty";
+import groupOrdersRouter from "./group_orders";
+import addressesRouter from "./addresses";
+import functionsRouter from "./functions";
+import storageRouter from "./storage";
+import orderEventsRouter from "./order_events";
+import adminStatsRouter from "./admin_stats";
+
+const router: IRouter = Router();
+
+router.use(healthRouter);
+router.use(citiesRouter);
+router.use(authRouter);
+router.use(restaurantsRouter);
+router.use(menuRouter);
+router.use(ordersRouter);
+router.use(favoritesRouter);
+router.use(reviewsRouter);
+router.use(notificationsRouter);
+router.use(driversRouter);
+router.use(couponsRouter);
+router.use(loyaltyRouter);
+router.use(groupOrdersRouter);
+router.use(addressesRouter);
+router.use(functionsRouter);
+router.use(storageRouter);
+router.use(orderEventsRouter);
+router.use(adminStatsRouter);
+
+export default router;
