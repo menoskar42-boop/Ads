@@ -1,0 +1,23 @@
+<%
+  // Renders a Google AdSense ad unit. Skips rendering completely if the
+  // slot id is empty (so pages don't show empty ad blocks before the
+  // platform owner creates the unit in AdSense).
+  var __slot   = (typeof slot   !== 'undefined' && slot)   ? String(slot).trim() : '';
+  var __format = (typeof format !== 'undefined' && format) ? format : 'auto';
+  var __layout = (typeof layout !== 'undefined' && layout) ? layout : '';
+  var __style  = (typeof style  !== 'undefined' && style)  ? style  : 'display:block;text-align:center;';
+  var __label  = (typeof label  !== 'undefined' && label)  ? label  : 'إعلان';
+%>
+<% if (ads && ads.enabled && __slot) { %>
+<aside class="ad-unit" data-ad-slot="<%= __slot %>" style="margin:20px auto;max-width:100%;">
+  <div style="font-size:0.7rem;color:#9ca3af;text-align:center;letter-spacing:1px;margin-bottom:4px;"><%= __label %></div>
+  <ins class="adsbygoogle"
+       style="<%= __style %>"
+       data-ad-client="<%= ads.publisherId %>"
+       data-ad-slot="<%= __slot %>"
+       data-ad-format="<%= __format %>"
+       <% if (__layout) { %>data-ad-layout="<%= __layout %>"<% } %>
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</aside>
+<% } %>

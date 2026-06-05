@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
   <% var displayCompanyName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <% var pName = pickContent(product, 'name', company.content_i18n) || product.name; %>
   <% var pDesc = pickContent(product, 'description', company.content_i18n) || product.description || ''; %>
@@ -36,9 +37,7 @@
   </div>
 </header>
 
-<% if (company.adsense_top) { %>
-  <div class="max-w-5xl mx-auto px-4 mt-4"><%- company.adsense_top %></div>
-<% } %>
+<div class="max-w-5xl mx-auto px-4 mt-4"><%- include('../partials/ad_unit', { slot: ads.slots.productTop }) %></div>
 
 <main class="max-w-5xl mx-auto px-4 py-8">
   <div class="grid md:grid-cols-2 gap-8 bg-white rounded-2xl shadow p-6">
@@ -53,7 +52,7 @@
         <% if (allImages.length > 1) { %>
           <div class="grid grid-cols-5 gap-2">
             <% allImages.forEach(img => { %>
-              <img src="<%= img.url %>" alt="" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 border-transparent hover:border-gray-300" onclick="document.getElementById('mainImage').src=this.src" />
+              <img src="<%= img.url %>" alt="<%= pName %> — صورة إضافية" loading="lazy" decoding="async" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 border-transparent hover:border-gray-300" onclick="document.getElementById('mainImage').src=this.src" />
             <% }) %>
           </div>
         <% } %>
@@ -92,9 +91,9 @@
   </div>
 </main>
 
-<% if (company.adsense_bottom) { %>
-  <div class="max-w-5xl mx-auto px-4 mb-6"><%- company.adsense_bottom %></div>
-<% } %>
+<div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- include('../partials/ad_unit', { slot: ads.slots.productMid }) %></div></div>
+
+<div class="max-w-5xl mx-auto px-4 mb-6"><%- include('../partials/ad_unit', { slot: ads.slots.productBottom }) %></div>
 
 <footer class="bg-gray-900 text-gray-400 py-6 text-center text-sm">
   <p>&copy; <%= new Date().getFullYear() %> <%= displayCompanyName %></p>

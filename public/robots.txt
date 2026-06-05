@@ -1,0 +1,32 @@
+# OscarDevs robots.txt
+# Allow all crawlers to public content, block private/internal routes
+# to save crawl budget and prevent thin-content indexing.
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /customer/
+Disallow: /apply/success
+Disallow: /shop/*/cart
+Disallow: /shop/*/checkout
+Disallow: /shop/*/success
+Disallow: /uploads/
+
+# AdSense crawler must access everything to render ad context
+User-agent: Mediapartners-Google
+Allow: /
+
+# AI/Generative crawlers — same as default
+User-agent: GPTBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://oscardevs.com/sitemap.xml

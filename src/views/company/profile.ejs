@@ -6,6 +6,22 @@
 <%- include('_layout_top') %>
 
   <div class="max-w-2xl space-y-6">
+    <%- include('../partials/page_guide', {
+      title: 'كيف أعدّل إعدادات متجري؟',
+      intro: 'الصفحة دي هي قلب التحكم في متجرك — كل ما تعدّل وتحفظ، الزائر يشوف التغيير على صفحتك العامة فوراً.',
+      steps: [
+        '<b>الهوية:</b> غيّر اسم المتجر، الوصف، اللوجو، والألوان',
+        '<b>السوشيال:</b> ضيف روابط فيسبوك/إنستجرام/واتساب وتظهر كأيقونات في الفوتر',
+        '<b>التواصل:</b> رقم هاتف وإيميل العملاء يقدروا يتواصلوا بيه',
+        '<b>إظهار/إخفاء:</b> اختار أي أقسام تظهر على صفحتك',
+        'اضغط <b>حفظ التغييرات</b> في الآخر'
+      ],
+      tips: [
+        'اللون الأساسي بيتطبّق على كل عناصر الموقع',
+        'لو ساب أي حقل فاضي، هياخد القيمة الافتراضية',
+        'لرفع اللوجو: ارفع صورة مربّعة (512×512) للجودة الأحسن'
+      ]
+    }) %>
 
     <div class="bg-white rounded-2xl shadow-sm p-6 brand-border">
       <h2 class="text-xl font-bold text-gray-800 mb-1"><%= t('company.edit_profile') || 'إعدادات المتجر' %></h2>
@@ -72,6 +88,35 @@
             </select>
           </div>
         </div>
+        <div class="grid sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">اللون الثانوي (Accent)</label>
+            <input type="color" name="color_accent" value="<%= company.color_accent || '#FF5B4A' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون كرت الهيرو 1</label>
+            <input type="color" name="hero_card1_color" value="<%= company.hero_card1_color || '#FF8500' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون كرت الهيرو 2</label>
+            <input type="color" name="hero_card2_color" value="<%= company.hero_card2_color || '#00A572' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+        </div>
+        <p class="text-xs text-gray-400">اللون الأساسي بيتولّد منه باقي درجات الموقع تلقائياً. كروت الهيرو يظهر لونها لما ماتكونش محمّل عليها صور.</p>
+        <div class="grid sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون نص الهيرو</label>
+            <input type="color" name="hero_text_color" value="<%= company.hero_text_color || '#FFFFFF' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">خلفية زر "تسوّق الآن"</label>
+            <input type="color" name="hero_btn_bg" value="<%= company.hero_btn_bg || '#FFFFFF' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-600 mb-1.5">لون نص زر "تسوّق الآن"</label>
+            <input type="color" name="hero_btn_text" value="<%= company.hero_btn_text || '#0F0F1E' %>" class="w-12 h-12 rounded-xl border border-gray-200 cursor-pointer p-1" />
+          </div>
+        </div>
       </div>
 
       <!-- Storefront -->
@@ -98,10 +143,78 @@
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company.promo_text || '' %></textarea>
           <p class="text-xs text-gray-400 mt-1">كل سطر = رسالة في الشريط المتحرك أعلى المتجر. اتركه فارغاً لاستخدام الرسائل الافتراضية.</p>
         </div>
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" name="show_trust_bar" <%= (company.show_trust_bar === false) ? '' : 'checked' %> class="w-5 h-5 rounded" />
-          <span class="text-sm font-semibold text-gray-600">إظهار شريط الثقة (شحن سريع، دفع آمن، دعم...)</span>
-        </label>
+      </div>
+
+      <!-- Section visibility -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-3">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">👁️</span> إظهار / إخفاء الأقسام</h3>
+        <p class="text-gray-400 text-sm">تحكّم في الأقسام اللي تظهر على صفحة متجرك.</p>
+        <% var toggles = (company.page_type === 'portfolio') ? [
+             ['show_about', 'قسم نبذة عنا'],
+             ['show_services', 'قسم الخدمات'],
+             ['show_portfolio', 'قسم معرض الأعمال'],
+             ['show_contact', 'قسم تواصل معنا']
+           ] : [
+             ['show_promo_bar', 'شريط العروض المتحرك (أعلى الصفحة)'],
+             ['show_hero_cards', 'كروت الهيرو الجانبية (برتقالي/أخضر)'],
+             ['show_banners', 'قسم البانرات العريض'],
+             ['show_categories', 'قسم التصنيفات'],
+             ['show_trust_bar', 'شريط الثقة (شحن سريع، دفع آمن، دعم...)'],
+             ['show_contact', 'قسم تواصل معنا']
+           ]; %>
+        <% toggles.forEach(function(tg){ %>
+          <label class="flex items-center gap-3 cursor-pointer py-1">
+            <input type="checkbox" name="<%= tg[0] %>" <%= (company[tg[0]] === false) ? '' : 'checked' %> class="w-5 h-5 rounded" />
+            <span class="text-sm font-semibold text-gray-600"><%= tg[1] %></span>
+          </label>
+        <% }) %>
+      </div>
+
+      <% if (company.page_type === 'portfolio') { %>
+      <!-- Portfolio services -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🧩</span> نصوص الخدمات الثلاث</h3>
+        <p class="text-gray-400 text-sm">عدّل عنوان ووصف كل خدمة. اتركها فارغة لاستخدام النص الافتراضي.</p>
+        <% var svcDefaults = [
+             ['service1_title','service1_desc','الاستشارات','استشارات استراتيجية مخصصة لأهداف عملك ونموه'],
+             ['service2_title','service2_desc','الابتكار','حلول تقنية متطورة تحقق نتائج حقيقية وملموسة'],
+             ['service3_title','service3_desc','الدعم','فرق متخصصة جاهزة لدعمك على مدار الساعة طوال الأسبوع']
+           ]; %>
+        <% svcDefaults.forEach(function(s, i){ %>
+          <div class="border border-gray-100 rounded-xl p-4 space-y-2">
+            <div class="text-xs font-bold text-gray-400">خدمة <%= i + 1 %></div>
+            <input type="text" name="<%= s[0] %>" value="<%= company[s[0]] || '' %>" placeholder="<%= s[2] %>" maxlength="60"
+              class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
+            <textarea name="<%= s[1] %>" rows="2" placeholder="<%= s[3] %>" maxlength="200"
+              class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition resize-none"><%= company[s[1]] || '' %></textarea>
+          </div>
+        <% }) %>
+      </div>
+      <% } %>
+
+      <!-- Social links -->
+      <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🔗</span> روابط السوشيال والمواقع الخارجية</h3>
+        <p class="text-gray-400 text-sm">أضف روابط حساباتك الكاملة (تبدأ بـ https://). بتظهر كأيقونات على صفحتك العامة وبتربط ظهورك في جوجل والذكاء الاصطناعي بحساباتك الفعلية (sameAs schema).</p>
+        <% var socials = [
+             ['social_facebook', 'فيسبوك', 'https://facebook.com/yourpage'],
+             ['social_instagram', 'إنستجرام', 'https://instagram.com/yourhandle'],
+             ['social_linkedin', 'لينكدإن', 'https://linkedin.com/in/yourprofile'],
+             ['social_twitter', 'إكس / تويتر', 'https://x.com/yourhandle'],
+             ['social_tiktok', 'تيك توك', 'https://tiktok.com/@yourhandle'],
+             ['social_youtube', 'يوتيوب', 'https://youtube.com/@yourchannel'],
+             ['social_threads', 'ثريدز', 'https://threads.net/@yourhandle'],
+             ['social_website', 'موقع خارجي', 'https://yoursite.com']
+           ]; %>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <% socials.forEach(function(s){ %>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1.5"><%= s[1] %></label>
+              <input type="url" name="<%= s[0] %>" value="<%= company[s[0]] || '' %>" maxlength="300" placeholder="<%= s[2] %>" pattern="https?://.*"
+                class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 ltr" dir="ltr" />
+            </div>
+          <% }) %>
+        </div>
       </div>
 
       <!-- Contact -->

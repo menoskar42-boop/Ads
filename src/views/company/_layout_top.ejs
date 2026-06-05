@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= pageTitle %> – Oscardevs Ads</title>
@@ -14,6 +15,16 @@
     .brand-text { color: var(--brand); }
     .brand-border { border-left: 4px solid var(--brand); }
     .nav-active { background-color: var(--brand); color: white; }
+    /* Inline help-tip icon + tooltip bubble */
+    .help-tip { position:relative; display:inline-flex; vertical-align:middle; margin:0 4px; outline:none; }
+    .help-tip__icon { width:18px; height:18px; border-radius:50%; background:#e0e7ff; color:#4338ca; font-size:11px; font-weight:800; display:inline-flex; align-items:center; justify-content:center; cursor:help; transition:all .15s; }
+    .help-tip:hover .help-tip__icon, .help-tip:focus .help-tip__icon { background:#4338ca; color:#fff; }
+    .help-tip__bubble { position:absolute; bottom:calc(100% + 8px); right:50%; transform:translateX(50%); background:#1f2937; color:#fff; font-size:0.78rem; font-weight:600; line-height:1.5; padding:8px 12px; border-radius:8px; min-width:180px; max-width:260px; text-align:center; white-space:normal; opacity:0; visibility:hidden; transition:opacity .15s, visibility .15s; pointer-events:none; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,0.18); }
+    .help-tip__bubble::after { content:''; position:absolute; top:100%; right:50%; transform:translateX(50%); border:6px solid transparent; border-top-color:#1f2937; }
+    .help-tip:hover .help-tip__bubble, .help-tip:focus .help-tip__bubble { opacity:1; visibility:visible; }
+    .help-tip[data-place="bottom"] .help-tip__bubble { bottom:auto; top:calc(100% + 8px); }
+    .help-tip[data-place="bottom"] .help-tip__bubble::after { top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:#1f2937; }
+    details.page-guide summary::-webkit-details-marker { display:none; }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
   <% var displayName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <% var displayDesc = pickContent(company, 'description', company.content_i18n) || company.description || ''; %>
   <meta charset="UTF-8" />
@@ -9,25 +10,40 @@
   <meta name="description" content="<%= displayDesc || displayName %>" />
   <meta property="og:title" content="<%= displayName %>" />
   <meta property="og:description" content="<%= displayDesc || displayName %>" />
+  <%- include('partials/seo_meta', {
+    title: displayName,
+    description: displayDesc || displayName,
+    canonical: siteOrigin + '/view/' + company.slug,
+    ogImage: company.logo_url || (siteOrigin + '/og-default.svg'),
+    siteLogo: company.logo_url || '',
+    siteManifest: '/view/' + company.slug + '/manifest.webmanifest',
+    siteAppName: displayName
+  }) %>
+  <%- include('partials/company_jsonld', { company: company }) %>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { font-family: 'Cairo', sans-serif; }
-    :root { --brand: <%= company.theme_color %>; }
+    :root {
+      --brand: <%= company.theme_color %>;
+      --brand-d: color-mix(in srgb, <%= company.theme_color %> 72%, #000);
+      --accent: <%= company.color_accent || '#FF5B4A' %>;
+    }
     .brand-bg { background-color: var(--brand); }
+    .brand-grad { background-image: linear-gradient(135deg, var(--brand), var(--brand-d)); }
     .brand-text { color: var(--brand); }
     .brand-border { border-color: var(--brand); }
     .brand-btn { background-color: var(--brand); }
     .brand-btn:hover { opacity: 0.9; }
+    .accent-bg { background-color: var(--accent); }
+    .accent-text { color: var(--accent); }
     .ad-slot { border: 2px dashed #d1d5db; background: #f9fafb; border-radius: 0.75rem; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans">
 
-  <% if (company.adsense_top) { %>
-    <div class="w-full bg-white border-b border-gray-100 px-4 py-2"><div class="max-w-6xl mx-auto"><%- company.adsense_top %></div></div>
-  <% } %>
+  <div class="w-full bg-white border-b border-gray-100 px-4 py-2"><div class="max-w-6xl mx-auto"><%- include('partials/ad_unit', { slot: ads.slots.portfolioTop }) %></div></div>
 
   <!-- Top Banner Ad -->
   <% if (typeof banners !== 'undefined' && banners.length) { %>
@@ -90,7 +106,7 @@
   </header>
 
   <!-- Hero -->
-  <section class="brand-bg text-white py-20 px-4">
+  <section class="brand-grad text-white py-20 px-4">
     <div class="max-w-4xl mx-auto text-center">
       <% if (company.logo_url) { %>
         <img src="<%= company.logo_url %>" alt="<%= displayName %>" class="h-24 mx-auto mb-6 rounded-2xl object-contain bg-white/10 p-2" />
@@ -117,14 +133,17 @@
       <main class="flex-1 space-y-10">
 
         <!-- About Section -->
+        <% if (company.show_about !== false) { %>
         <section id="about" class="bg-white rounded-2xl shadow p-8">
           <h2 class="text-2xl font-bold brand-text mb-4"><%= t('public.about') %></h2>
           <p class="text-gray-600 leading-relaxed">
             <%= displayDesc %>
           </p>
         </section>
+        <% } %>
 
         <!-- Services Section -->
+        <% if (company.show_services !== false) { %>
         <section id="services" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div class="mb-6">
             <h2 class="text-2xl font-bold brand-text" dir="rtl">خدماتنا</h2>
@@ -138,18 +157,18 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                 </svg>
               </div>
-              <h3 class="font-bold text-gray-800 text-base mb-2" dir="rtl">الاستشارات</h3>
-              <p class="text-xs text-gray-500 leading-relaxed" dir="rtl">استشارات استراتيجية مخصصة لأهداف عملك ونموه</p>
+              <h3 class="font-bold text-gray-800 text-base mb-2" dir="rtl"><%= company.service1_title || 'الاستشارات' %></h3>
+              <p class="text-xs text-gray-500 leading-relaxed" dir="rtl"><%= company.service1_desc || 'استشارات استراتيجية مخصصة لأهداف عملك ونموه' %></p>
             </div>
             <!-- Service Card 2 -->
             <div class="rounded-xl border border-gray-100 bg-gray-50 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow">
-              <div class="w-14 h-14 brand-bg rounded-2xl flex items-center justify-center text-white mb-4 shadow">
+              <div class="w-14 h-14 accent-bg rounded-2xl flex items-center justify-center text-white mb-4 shadow">
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
               </div>
-              <h3 class="font-bold text-gray-800 text-base mb-2" dir="rtl">الابتكار</h3>
-              <p class="text-xs text-gray-500 leading-relaxed" dir="rtl">حلول تقنية متطورة تحقق نتائج حقيقية وملموسة</p>
+              <h3 class="font-bold text-gray-800 text-base mb-2" dir="rtl"><%= company.service2_title || 'الابتكار' %></h3>
+              <p class="text-xs text-gray-500 leading-relaxed" dir="rtl"><%= company.service2_desc || 'حلول تقنية متطورة تحقق نتائج حقيقية وملموسة' %></p>
             </div>
             <!-- Service Card 3 -->
             <div class="rounded-xl border border-gray-100 bg-gray-50 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow">
@@ -158,14 +177,15 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
               </div>
-              <h3 class="font-bold text-gray-800 text-base mb-2" dir="rtl">الدعم</h3>
-              <p class="text-xs text-gray-500 leading-relaxed" dir="rtl">فرق متخصصة جاهزة لدعمك على مدار الساعة طوال الأسبوع</p>
+              <h3 class="font-bold text-gray-800 text-base mb-2" dir="rtl"><%= company.service3_title || 'الدعم' %></h3>
+              <p class="text-xs text-gray-500 leading-relaxed" dir="rtl"><%= company.service3_desc || 'فرق متخصصة جاهزة لدعمك على مدار الساعة طوال الأسبوع' %></p>
             </div>
           </div>
         </section>
+        <% } %>
 
         <!-- Portfolio Section (shown only when items exist) -->
-        <% if (portfolio && portfolio.length > 0) { %>
+        <% if (company.show_portfolio !== false && portfolio && portfolio.length > 0) { %>
         <section id="portfolio" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <div class="mb-6">
             <h2 class="text-2xl font-bold brand-text"><%= t('public.portfolio') %></h2>
@@ -175,7 +195,8 @@
             <div class="rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow group">
               <% if (item.image_url) { %>
               <div class="h-44 overflow-hidden bg-gray-100">
-                <img src="<%= item.image_url %>" alt="<%= item.title || '' %>"
+                <img src="<%= item.image_url %>" alt="<%= item.title || 'عمل من معرض ' + displayName %>"
+                  loading="lazy" decoding="async"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onerror="this.parentElement.style.display='none'" />
               </div>
@@ -195,6 +216,7 @@
         <% } %>
 
         <!-- Contact Section -->
+        <% if (company.show_contact !== false) { %>
         <section id="contact" class="bg-white rounded-2xl shadow p-8">
           <h2 class="text-2xl font-bold brand-text mb-4"><%= t('public.contact_us') %></h2>
           <% if (typeof sent !== 'undefined' && sent) { %>
@@ -219,11 +241,20 @@
             </button>
           </form>
         </section>
+        <% } %>
 
       </main>
 
       <!-- Sidebar -->
       <aside class="lg:w-64 flex-shrink-0 space-y-6">
+
+        <!-- Social links card (only shown if at least one link is set) -->
+        <% if (company.social_facebook || company.social_instagram || company.social_linkedin || company.social_twitter || company.social_tiktok || company.social_youtube || company.social_threads || company.social_website) { %>
+          <div class="bg-white rounded-2xl shadow p-5">
+            <h3 class="font-semibold text-gray-700 mb-3 text-sm">تابعنا على</h3>
+            <%- include('partials/social_icons', { company: company }) %>
+          </div>
+        <% } %>
 
         <!-- Company Info Card -->
         <div class="bg-white rounded-2xl shadow p-6 border-t-4 brand-border">
@@ -244,9 +275,7 @@
           </ul>
         </div>
 
-        <% if (company.adsense_sidebar) { %>
-          <div class="bg-white rounded-2xl shadow p-3"><%- company.adsense_sidebar %></div>
-        <% } %>
+        <div class="bg-white rounded-2xl shadow p-3"><%- include('partials/ad_unit', { slot: ads.slots.portfolioSidebar }) %></div>
 
         <!-- Sidebar Ad Slot -->
         <div class="bg-white rounded-2xl shadow overflow-hidden">
@@ -265,9 +294,7 @@
     </div>
   </div>
 
-  <% if (company.adsense_bottom) { %>
-    <div class="w-full bg-white border-t border-gray-100 px-4 py-2"><div class="max-w-6xl mx-auto"><%- company.adsense_bottom %></div></div>
-  <% } %>
+  <div class="w-full bg-white border-t border-gray-100 px-4 py-2"><div class="max-w-6xl mx-auto"><%- include('partials/ad_unit', { slot: ads.slots.portfolioBottom }) %></div></div>
 
   <!-- Footer Banner Ad -->
   <% if (footerAd && footerAd.image_url) { %>

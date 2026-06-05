@@ -1,0 +1,11 @@
+<%
+  // Small inline help icon that shows a tooltip on hover/tap.
+  // Usage: <%- include('../partials/help_tip', { text: 'شرح الحقل' }) %>
+  // Optional: place ('right' | 'left' | 'top' | 'bottom')
+  var __text  = (typeof text  !== 'undefined' && text)  ? text  : '';
+  var __place = (typeof place !== 'undefined' && place) ? place : 'top';
+%>
+<% if (__text) { %><span class="help-tip" data-place="<%= __place %>" tabindex="0" aria-label="<%= __text %>">
+  <span class="help-tip__icon" aria-hidden="true">؟</span>
+  <span class="help-tip__bubble"><%= __text %></span>
+</span><% } %>

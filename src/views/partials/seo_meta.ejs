@@ -1,0 +1,107 @@
+<%
+  var __ogType  = (typeof ogType  !== 'undefined' && ogType)  ? ogType  : 'website';
+  var __image   = (typeof ogImage !== 'undefined' && ogImage) ? ogImage : (siteOrigin + '/logo.png');
+  var __title   = (typeof title       !== 'undefined' && title)       ? title       : 'OscarDevs';
+  var __desc    = (typeof description !== 'undefined' && description) ? description : '';
+  var __canon   = (typeof canonical   !== 'undefined' && canonical)   ? canonical   : canonicalUrl;
+%>
+<% if (typeof process !== 'undefined' && process.env && process.env.GOOGLE_SITE_VERIFICATION) { %>
+<meta name="google-site-verification" content="<%= process.env.GOOGLE_SITE_VERIFICATION %>" />
+<% } %>
+<% if (typeof process !== 'undefined' && process.env && process.env.BING_SITE_VERIFICATION) { %>
+<meta name="msvalidate.01" content="<%= process.env.BING_SITE_VERIFICATION %>" />
+<% } %>
+<% if (typeof process !== 'undefined' && process.env && process.env.YANDEX_VERIFICATION) { %>
+<meta name="yandex-verification" content="<%= process.env.YANDEX_VERIFICATION %>" />
+<% } %>
+<%
+  // Tenant pages pass siteLogo (and optionally siteManifest, siteAppName)
+  // so each subdomain ships its own branded icons. Falling back to the
+  // OscarDevs set when nothing is passed keeps the main site unchanged.
+  var __tenantLogo = (typeof siteLogo !== 'undefined' && siteLogo) ? siteLogo : null;
+  var __tenantManifest = (typeof siteManifest !== 'undefined' && siteManifest) ? siteManifest : null;
+  var __appName = (typeof siteAppName !== 'undefined' && siteAppName) ? siteAppName : 'OscarDevs';
+%>
+<% if (__tenantLogo) { %>
+<link rel="icon" href="<%= __tenantLogo %>" />
+<link rel="shortcut icon" href="<%= __tenantLogo %>" />
+<link rel="apple-touch-icon" href="<%= __tenantLogo %>" />
+<link rel="apple-touch-icon" sizes="180x180" href="<%= __tenantLogo %>" />
+<% if (__tenantManifest) { %><link rel="manifest" href="<%= __tenantManifest %>" /><% } %>
+<% } else { %>
+<%# Google's documented favicon requirement: at least one square icon
+    that is a multiple of 48px (48/96/144/192). They also still ask for
+    /favicon.ico at the site root for legacy crawlers, so we ship both. %>
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+<link rel="shortcut icon" href="/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<% } %>
+<meta name="theme-color" content="#1e3a8a" />
+<meta name="apple-mobile-web-app-title" content="<%= __appName %>" />
+<meta name="application-name" content="<%= __appName %>" />
+<link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+<link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="canonical" href="<%= __canon %>" />
+<meta property="og:url" content="<%= __canon %>" />
+<meta property="og:type" content="<%= __ogType %>" />
+<meta property="og:site_name" content="<%= __appName %>" />
+<meta property="og:locale" content="ar_EG" />
+<meta property="og:title" content="<%= __title %>" />
+<meta property="og:description" content="<%= __desc %>" />
+<meta property="og:image" content="<%= __image %>" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="<%= __title %>" />
+<meta name="twitter:description" content="<%= __desc %>" />
+<meta name="twitter:image" content="<%= __image %>" />
+<% if (__ogType === 'article' && typeof articleDate !== 'undefined' && articleDate) { %>
+<meta property="article:published_time" content="<%= articleDate %>" />
+<% } %>
+<%
+  var __ga = (typeof process !== 'undefined' && process.env && process.env.GA_MEASUREMENT_ID)
+    ? process.env.GA_MEASUREMENT_ID
+    : 'G-TTW08KQ8WE';
+%>
+<% if (__ga) { %>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=<%= __ga %>"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '<%= __ga %>');
+</script>
+<% } %>
+<% if (!__tenantLogo) { %>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "<%= siteOrigin %>#organization",
+      "name": "OscarDevs",
+      "url": "<%= siteOrigin %>",
+      "logo": "<%= siteOrigin %>/logo.png",
+      "image": "<%= siteOrigin %>/logo.png",
+      "description": "منصّة عربية متخصّصة في إطلاق مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية للمشاريع الصغيرة والمتوسطة.",
+      "email": "hello@oscardevs.com",
+      "sameAs": []
+    },
+    {
+      "@type": "WebSite",
+      "@id": "<%= siteOrigin %>#website",
+      "url": "<%= siteOrigin %>",
+      "name": "OscarDevs",
+      "inLanguage": "ar",
+      "publisher": { "@id": "<%= siteOrigin %>#organization" }
+    }
+  ]
+}
+</script>
+<% } %>

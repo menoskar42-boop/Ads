@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>اتصل بنا | OscarDevs — رد خلال 24 ساعة</title>
+<meta name="description" content="تواصل مع فريق OscarDevs عبر البريد، واتساب، أو نموذج الاتصال المباشر. نرد على استفسارك خلال 24 ساعة عمل." />
+<%- include('../partials/seo_meta', { title: 'اتصل بنا — OscarDevs', description: 'تواصل مع فريق OscarDevs عبر البريد الإلكتروني، واتساب، أو نموذج الاتصال المباشر. ردنا خلال ٢٤ ساعة.' }) %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-3 flex-wrap">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/faq" class="hover:text-indigo-700">الأسئلة الشائعة</a>
+      <a href="/terms" class="hover:text-indigo-700">الشروط</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'اتصل بنا' } ] }) %>
+  <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
+    <h1 class="text-3xl font-extrabold text-gray-900 mb-2">اتصل بنا</h1>
+    <p class="text-gray-500 mb-8">عندك سؤال أو طلب خاص؟ اختر الطريقة الأنسب — هنرجعلك خلال ٢٤ ساعة عمل.</p>
+
+    <div class="grid sm:grid-cols-3 gap-4 mb-10">
+      <a href="mailto:hello@oscardevs.com" class="border border-gray-200 rounded-2xl p-5 hover:shadow-md transition block text-center">
+        <div class="text-3xl mb-2">✉️</div>
+        <div class="font-bold text-gray-800">البريد الإلكتروني</div>
+        <div class="text-xs text-gray-500 mt-1 break-all">hello@oscardevs.com</div>
+      </a>
+      <a href="https://wa.me/201000000000" target="_blank" rel="noopener" class="border border-gray-200 rounded-2xl p-5 hover:shadow-md transition block text-center">
+        <div class="text-3xl mb-2">💬</div>
+        <div class="font-bold text-gray-800">واتساب</div>
+        <div class="text-xs text-gray-500 mt-1">رد سريع خلال ساعات العمل</div>
+      </a>
+      <div class="border border-gray-200 rounded-2xl p-5 text-center">
+        <div class="text-3xl mb-2">🕒</div>
+        <div class="font-bold text-gray-800">ساعات العمل</div>
+        <div class="text-xs text-gray-500 mt-1">الأحد – الخميس<br>10 صباحاً – 6 مساءً</div>
+      </div>
+    </div>
+
+    <% if (sent) { %>
+      <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm mb-6">✓ تم إرسال رسالتك بنجاح. هنرجعلك في أقرب وقت.</div>
+    <% } %>
+    <% if (error) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6"><%= error %></div>
+    <% } %>
+
+    <h2 class="text-xl font-bold text-gray-800 mb-1">أرسل رسالة مباشرة</h2>
+    <p class="text-sm text-gray-400 mb-5">البيانات اللي بتدخلها بتُستخدم فقط للرد على رسالتك (راجع <a href="/privacy" class="text-indigo-700 underline">سياسة الخصوصية</a>).</p>
+
+    <form method="POST" action="/contact" class="space-y-4">
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم *</label>
+          <input type="text" name="name" required maxlength="100" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">البريد الإلكتروني</label>
+          <input type="email" name="email" maxlength="150" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">رقم الهاتف</label>
+          <input type="tel" name="phone" maxlength="30" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">الرسالة *</label>
+          <textarea name="message" rows="6" required maxlength="5000" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"></textarea>
+        </div>
+      </div>
+      <button type="submit" class="bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
+        إرسال
+      </button>
+    </form>
+  </div>
+  <%- include('../partials/ad_unit', { slot: ads.slots.pageBottom }) %>
+</main>
+
+</body>
+</html>

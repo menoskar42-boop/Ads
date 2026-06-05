@@ -5,11 +5,36 @@
 <%- include('_layout_top') %>
 
   <div class="space-y-6">
+    <%- include('../partials/page_guide', {
+      title: 'كيف أستخدم صفحة البانرات؟',
+      intro: 'دي الصفحة اللي بترفع منها صور البانرات اللي بتظهر على صفحتك العامة. كل بانر بيظهر في مكان من 3 أماكن: الهيرو الرئيسي (المربع الأزرق الكبير)، كرت الهيرو الأول (علوي)، أو كرت الهيرو الثاني (سفلي).',
+      steps: [
+        'اضغط على <b>Choose File</b> واختار صورة من جهازك (PNG/JPEG، أقل من 5 ميجابايت)',
+        'اكتب <b>تعليق</b> اختياري يظهر فوق الصورة',
+        'حط <b>رابط النقر</b> لو حابب الصورة تودّي للينك معيّن لما يضغط عليها',
+        'اختار <b>مكان البانر</b> من القائمة (3 خيارات)',
+        'اضغط <b>+ إضافة شريحة</b>'
+      ],
+      tips: [
+        'لو ضفت أكتر من صورة لنفس المكان، هيشتغلوا تلقائياً كسلايدر متتابع',
+        'الصور المربّعة أو 16:9 بتطلع أحلى',
+        'تقدر تخفي أو تعدّل ترتيب أي بانر بعدين'
+      ]
+    }) %>
+
     <div class="bg-white rounded-2xl shadow-sm p-6">
       <h2 class="text-xl font-bold text-gray-800 mb-1"><%= t('company.banner_slider') %></h2>
       <p class="text-gray-400 text-sm mb-6"><%= t('company.banner_help') %></p>
 
-      <form method="POST" action="/company/banners/add" enctype="multipart/form-data" class="space-y-3 mb-6 border-b pb-6">
+      <% if (error) { %>
+        <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+
+      <form method="POST" action="/company/banners/add" enctype="multipart/form-data" class="space-y-3 mb-6 border-b pb-6"
+        onsubmit="var f=this.image_file.files[0]; if(f && f.size > 5*1024*1024){ alert('الصورة أكبر من 5 ميجابايت. اختر صورة أصغر.'); return false; }">
         <div>
           <label class="block text-xs text-gray-500 mb-1"><%= t('common.image') %> *</label>
           <input type="file" name="image_file" accept="image/*" required
@@ -20,6 +45,15 @@
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
           <input type="url" name="target_url" placeholder="<%= t('company.click_url') %>"
             class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">مكان البانر</label>
+          <select name="slot" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+            <option value="section">الهيرو الرئيسي (المربع الأزرق الكبير)</option>
+            <option value="hero1">كرت الهيرو الأول (علوي)</option>
+            <option value="hero2">كرت الهيرو الثاني (سفلي)</option>
+          </select>
+          <p class="text-xs text-gray-400 mt-1">لو ضفت أكتر من صورة لنفس المكان، هتشتغل كسلايدر تلقائياً.</p>
         </div>
         <button type="submit" class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition">+ <%= t('company.add_slide') %></button>
       </form>
@@ -34,7 +68,8 @@
               <div class="flex-1 min-w-0">
                 <% if (b.caption) { %><p class="font-semibold text-sm truncate"><%= b.caption %></p><% } %>
                 <% if (b.target_url) { %><p class="text-xs text-gray-400 truncate"><%= b.target_url %></p><% } %>
-                <p class="text-xs text-gray-400 mt-0.5"><%= t('company.position') %>: <%= i + 1 %></p>
+                <% var slotLabel = b.slot === 'hero1' ? 'كرت الهيرو الأول' : (b.slot === 'hero2' ? 'كرت الهيرو الثاني' : 'الهيرو الرئيسي'); %>
+                <p class="text-xs text-gray-400 mt-0.5"><span class="inline-block bg-gray-100 text-gray-600 rounded px-1.5 py-0.5"><%= slotLabel %></span> · <%= t('company.position') %>: <%= i + 1 %></p>
               </div>
               <div class="flex items-center gap-1">
                 <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="up" /><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === 0 ? 'disabled' : '' %>>↑</button></form>

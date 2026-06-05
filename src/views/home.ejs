@@ -75,11 +75,21 @@
         <li><span class="feature-check">✦</span> دومين وهوستنج السنة الأولى</li>
       </ul>
       <div class="service-price">
-        <span class="price-from">يبدأ من</span>
-        <div class="price-amount">150</div>
-        <div class="price-currency">$</div>
+        <div class="free-badge">🎉 مجاناً حالياً — عرض محدود</div>
+        <div class="pricing-after">السعر بعد انتهاء العرض:</div>
+        <div class="price-options">
+          <div class="price-option">
+            <span class="price-tier">شراء كامل</span>
+            <span class="price-value"><span class="price-cur">$</span>150</span>
+          </div>
+          <span class="price-divider">أو</span>
+          <div class="price-option">
+            <span class="price-tier">اشتراك شهري</span>
+            <span class="price-value"><span class="price-cur">$</span>5<small>/شهر</small></span>
+          </div>
+        </div>
       </div>
-      <button class="service-cta">احجز موقع البورتفوليو →</button>
+      <a href="/apply?type=portfolio" class="service-cta" style="display:block;text-align:center;text-decoration:none;">احجز موقع البورتفوليو →</a>
       <a href="<%= canonicalCompanyUrl('petra') %>" target="_blank" class="service-demo">شاهد نموذج حي ←</a>
     </div>
 
@@ -99,15 +109,29 @@
         <li><span class="feature-check">✦</span> خريطة الموقع والـ SEO</li>
       </ul>
       <div class="service-price">
-        <span class="price-from">يبدأ من</span>
-        <div class="price-amount">350</div>
-        <div class="price-currency">$</div>
+        <div class="free-badge">🎉 مجاناً حالياً — عرض محدود</div>
+        <div class="pricing-after">السعر بعد انتهاء العرض:</div>
+        <div class="price-options">
+          <div class="price-option">
+            <span class="price-tier">شراء كامل</span>
+            <span class="price-value"><span class="price-cur">$</span>350</span>
+          </div>
+          <span class="price-divider">أو</span>
+          <div class="price-option">
+            <span class="price-tier">اشتراك شهري</span>
+            <span class="price-value"><span class="price-cur">$</span>10<small>/شهر</small></span>
+          </div>
+        </div>
       </div>
-      <button class="service-cta">احجز متجرك الإلكتروني →</button>
+      <a href="/apply?type=shop" class="service-cta" style="display:block;text-align:center;text-decoration:none;">احجز متجرك الإلكتروني →</a>
       <a href="<%= canonicalCompanyUrl('delta') %>" target="_blank" class="service-demo">شاهد نموذج حي ←</a>
     </div>
   </div>
 </section>
+
+<div style="max-width:1200px;margin:0 auto;padding:0 32px;">
+  <%- include('partials/ad_unit', { slot: ads.slots.homeTop }) %>
+</div>
 
 <!-- WHY US -->
 <section class="why" id="why">
@@ -194,6 +218,10 @@
     </div>
   </div>
 </section>
+
+<div style="max-width:1200px;margin:0 auto;padding:0 32px;">
+  <%- include('partials/ad_unit', { slot: ads.slots.homeMid }) %>
+</div>
 
 <!-- TESTIMONIALS -->
 <section class="testimonials">
@@ -289,6 +317,10 @@
     </div>
   </div>
 </section>
+
+<div style="max-width:1200px;margin:0 auto;padding:0 32px;">
+  <%- include('partials/ad_unit', { slot: ads.slots.homeBottom }) %>
+</div>
 
 <!-- CTA -->
 <section class="cta-section" id="contact">

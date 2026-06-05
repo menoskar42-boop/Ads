@@ -73,6 +73,11 @@ nav { background: var(--surface); border-bottom: 1px solid var(--line); padding:
 .hero-card h3 { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; line-height: 1.1; margin-bottom: 12px; }
 .hero-card .price-strip { display: inline-block; background: rgba(0,0,0,0.2); padding: 5px 12px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; }
 .hero-card .arrow { position: absolute; top: 24px; left: 24px; width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+/* Hero card image slideshow */
+.hero-card .hero-slides { position: absolute; inset: 0; }
+.hero-card .hero-slide { position: absolute; inset: 0; background-size: cover; background-position: center; display: flex; align-items: flex-end; padding: 18px; opacity: 0; transition: opacity 0.8s ease; }
+.hero-card .hero-slide.active { opacity: 1; }
+.hero-card .hero-slide-cap { background: linear-gradient(transparent, rgba(0,0,0,0.6)); position: absolute; inset: auto 0 0 0; padding: 16px 18px; color: #fff; font-weight: 800; font-size: 1.05rem; }
 
 .flash { padding: 48px 32px 24px; }
 .flash-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
@@ -121,6 +126,15 @@ nav { background: var(--surface); border-bottom: 1px solid var(--line); padding:
 .cat-tile-count { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
 
 .banners { padding: 24px 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.banner-slide { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity 0.8s ease; display: flex; align-items: flex-end; text-decoration: none; }
+.banner-slide.active { opacity: 1; }
+.banner-slide-cap { background: linear-gradient(transparent, rgba(0,0,0,0.65)); width: 100%; padding: 22px 28px; color: #fff; font-weight: 800; font-size: 1.2rem; }
+/* Background slideshow inside the main hero (keeps text + CTA on top) */
+.hero-bg-slides { position: absolute; inset: 0; z-index: 0; border-radius: inherit; overflow: hidden; }
+.hero-bg-slide { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0; transition: opacity 0.8s ease; }
+.hero-bg-slide.active { opacity: 1; }
+.hero-bg-slides::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(15,15,30,0.55), rgba(15,15,30,0.35)); }
+.hero-main .hero-content { position: relative; z-index: 2; }
 .banner { border-radius: 24px; padding: 40px; position: relative; overflow: hidden; min-height: 220px; cursor: pointer; transition: transform 0.4s; display: flex; flex-direction: column; justify-content: center; }
 .banner:hover { transform: scale(1.01); }
 .banner-1 { background: linear-gradient(135deg, #FFE5DD 0%, #FFC4B3 100%); }
@@ -176,6 +190,10 @@ footer { background: var(--ink); color: white; padding: 64px 32px 24px; }
 .empty-state { background: white; border: 1px solid var(--line-soft); border-radius: 20px; padding: 56px 24px; text-align: center; color: var(--muted); }
 .empty-state a { color: var(--primary); font-weight: 700; }
 
+/* In-grid AdSense banner (spans the full products grid width) */
+.shop-ad-banner { grid-column: 1 / -1; background: #fff; border: 1px solid var(--line-soft); border-radius: 16px; padding: 16px; text-align: center; overflow: hidden; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+.shop-ad-banner :is(ins, iframe, img) { max-width: 100%; }
+
 /* Demo-only product decorations (ratings / discount) */
 .pc-rating { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
 .pc-stars { color: var(--amber); letter-spacing: 1px; font-size: 0.85rem; }
@@ -190,12 +208,10 @@ footer { background: var(--ink); color: white; padding: 64px 32px 24px; }
 .app-cta h2 { font-family: 'Outfit', sans-serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; line-height: 1.05; margin-bottom: 16px; letter-spacing: -1.5px; }
 .app-cta h2 .accent { color: var(--mint); }
 .app-cta p { opacity: 0.8; margin-bottom: 32px; font-size: 1rem; line-height: 1.7; max-width: 460px; }
-.app-stores { display: flex; gap: 12px; flex-wrap: wrap; }
-.app-store { background: white; color: var(--ink); padding: 14px 24px; border-radius: 14px; display: inline-flex; align-items: center; gap: 12px; font-weight: 700; transition: all 0.3s; }
-.app-store:hover { transform: translateY(-3px); }
-.app-store .icon { font-size: 1.5rem; }
-.app-store .small { font-size: 0.7rem; opacity: 0.7; font-weight: 500; }
-.app-store .big { font-size: 1rem; }
+.app-stores { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.app-badge { display: inline-block; transition: transform 0.3s; }
+.app-badge:hover { transform: translateY(-3px); }
+.app-badge img { height: 52px; width: auto; display: block; }
 .phone-mockup { position: relative; z-index: 2; display: flex; justify-content: center; }
 .phone { width: 240px; height: 350px; background: linear-gradient(160deg, #fff 0%, #f0f0f5 100%); border-radius: 30px; padding: 16px; position: relative; box-shadow: 0 30px 60px rgba(0,0,0,0.4); transform: rotate(-3deg); }
 .phone-screen { background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 18px; height: 100%; padding: 24px; color: white; display: flex; flex-direction: column; justify-content: space-between; }

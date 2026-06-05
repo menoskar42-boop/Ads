@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>قدّم طلب موقع | OscarDevs</title>
+<meta name="description" content="قدّم طلباً لإنشاء موقع متجر إلكتروني أو بورتفوليو احترافي على منصة OscarDevs." />
+<%- include('../partials/seo_meta', { title: 'قدّم طلب موقع — OscarDevs', description: 'قدّم طلباً لإنشاء موقع متجر إلكتروني أو بورتفوليو احترافي على منصة OscarDevs.' }) %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <a href="/" class="text-sm text-gray-500 hover:text-indigo-700">← الرئيسية</a>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'قدّم طلب' } ] }) %>
+  <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">قدّم طلب إنشاء موقعك</h1>
+    <p class="text-gray-500 text-sm mb-8">املأ بياناتك بدقّة وبعد الموافقة من فريقنا هتقدر تدخل لوحة تحكم موقعك مباشرة.</p>
+
+    <% if (error) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/apply" class="space-y-5">
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم الكامل *</label>
+          <input type="text" name="full_name" value="<%= values.full_name || '' %>" required maxlength="100"
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">البريد الإلكتروني *</label>
+          <input type="email" name="email" value="<%= values.email || '' %>" required maxlength="150"
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">رقم الهاتف / واتساب *</label>
+          <input type="tel" name="phone" value="<%= values.phone || '' %>" required maxlength="30"
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">الدولة</label>
+          <input type="text" name="country" value="<%= values.country || '' %>" maxlength="60"
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+      </div>
+
+      <hr class="border-gray-100" />
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">اسم النشاط/الموقع *</label>
+          <input type="text" name="business_name" value="<%= values.business_name || '' %>" required maxlength="100"
+            class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">نوع الموقع *</label>
+          <select name="business_type" required class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            <option value="">-- اختر --</option>
+            <option value="shop" <%= values.business_type === 'shop' ? 'selected' : '' %>>متجر إلكتروني</option>
+            <option value="portfolio" <%= values.business_type === 'portfolio' ? 'selected' : '' %>>بورتفوليو</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم المختصر للرابط *</label>
+        <div class="flex">
+          <span class="inline-flex items-center px-3 rounded-r-xl bg-gray-100 text-gray-500 text-sm border border-l-0 border-gray-200">/view/</span>
+          <input type="text" name="preferred_slug" value="<%= values.preferred_slug || '' %>" required maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?"
+            class="flex-1 border border-gray-200 rounded-l-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        </div>
+        <p class="text-xs text-gray-400 mt-1">حروف إنجليزية صغيرة وأرقام و"-" فقط. مثال: <code>my-store</code></p>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">وصف نشاطك</label>
+        <textarea name="description" rows="4" maxlength="1000" placeholder="اشرح بإيجاز عن نشاطك ومنتجاتك/خدماتك"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"><%= values.description || '' %></textarea>
+      </div>
+
+      <hr class="border-gray-100" />
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">كلمة المرور (هتدخل بها بعد الموافقة) *</label>
+        <input type="password" name="password" required minlength="8" maxlength="100"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <p class="text-xs text-gray-400 mt-1">8 أحرف على الأقل. تُخزّن مشفّرة (bcrypt) ولا يمكن لأحد رؤيتها.</p>
+      </div>
+
+      <div class="space-y-2 pt-2 border-t border-gray-100">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" name="accept_terms" required class="mt-1 w-5 h-5" />
+          <span class="text-sm text-gray-700">قرأت ووافقت على <a href="/legal/terms" target="_blank" class="text-indigo-700 font-semibold underline">الشروط والأحكام</a> (الإصدار <%= termsVersion %>).</span>
+        </label>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" name="accept_privacy" required class="mt-1 w-5 h-5" />
+          <span class="text-sm text-gray-700">قرأت ووافقت على <a href="/legal/privacy" target="_blank" class="text-indigo-700 font-semibold underline">سياسة الخصوصية</a>.</span>
+        </label>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" name="accept_truth" required class="mt-1 w-5 h-5" />
+          <span class="text-sm text-gray-700">أُقرّ بأن كل البيانات المقدّمة صحيحة، وأنني المسؤول قانونياً عن المحتوى الذي أرفعه، وأن المنصّة لها حق رفض/تعليق/إنهاء الخدمة في أي وقت دون التزام بسبب.</span>
+        </label>
+      </div>
+
+      <div class="pt-3">
+        <button type="submit" class="w-full sm:w-auto bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
+          إرسال الطلب
+        </button>
+      </div>
+    </form>
+  </div>
+  <%- include('../partials/ad_unit', { slot: ads.slots.pageBottom }) %>
+</main>
+
+</body>
+</html>

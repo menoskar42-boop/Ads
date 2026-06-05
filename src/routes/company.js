@@ -169,7 +169,40 @@ router.post('/profile', requireLogin, (req, res) => {
     } = req.body;
     const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
     const clean = (v) => { const s = (v || '').trim(); return s || null; };
-    const showTrustBar = req.body.show_trust_bar === 'on' || req.body.show_trust_bar === 'true';
+    const hex = (v) => (/^#[0-9a-fA-F]{6}$/.test((v || '').trim()) ? v.trim() : null);
+    const on = (v) => v === 'on' || v === 'true';
+    const safeTheme = hex(theme_color) || '#5B3FED';
+    const colorAccent = hex(req.body.color_accent);
+    const heroCard1Color = hex(req.body.hero_card1_color);
+    const heroCard2Color = hex(req.body.hero_card2_color);
+    const heroTextColor = hex(req.body.hero_text_color);
+    const heroBtnBg = hex(req.body.hero_btn_bg);
+    const heroBtnText = hex(req.body.hero_btn_text);
+    const url = (v) => {
+      const s = (v || '').trim();
+      if (!s) return null;
+      if (s.length > 300) return null;
+      if (!/^https?:\/\/[^\s<>"']+$/i.test(s)) return null;
+      return s;
+    };
+    const socialFacebook = url(req.body.social_facebook);
+    const socialInstagram = url(req.body.social_instagram);
+    const socialLinkedin = url(req.body.social_linkedin);
+    const socialTwitter = url(req.body.social_twitter);
+    const socialTiktok = url(req.body.social_tiktok);
+    const socialYoutube = url(req.body.social_youtube);
+    const socialThreads = url(req.body.social_threads);
+    const socialWebsite = url(req.body.social_website);
+    const showTrustBar = on(req.body.show_trust_bar);
+    const showPromoBar = on(req.body.show_promo_bar);
+    const showHeroCards = on(req.body.show_hero_cards);
+    const showBanners = on(req.body.show_banners);
+    const showCategories = on(req.body.show_categories);
+    const showContact = on(req.body.show_contact);
+    const showAbout = on(req.body.show_about);
+    const showServices = on(req.body.show_services);
+    const showPortfolio = on(req.body.show_portfolio);
+    const svc = (k) => clean(req.body[k]);
 
     try {
       await pool.query(
@@ -177,17 +210,33 @@ router.post('/profile', requireLogin, (req, res) => {
            company_name=$1, description=$2, theme_color=$3, logo_url=$4, currency=$5,
            promo_text=$6, hero_headline=$7, hero_subtext=$8, hero_cta_text=$9,
            contact_phone=$10, contact_whatsapp=$11, contact_email=$12, contact_address=$13,
-           show_trust_bar=$14
+           show_trust_bar=$14, show_promo_bar=$16, show_hero_cards=$17, show_banners=$18,
+           show_categories=$19, show_contact=$20,
+           color_accent=$21, hero_card1_color=$22, hero_card2_color=$23,
+           show_about=$24, show_services=$25, show_portfolio=$26,
+           service1_title=$27, service1_desc=$28, service2_title=$29, service2_desc=$30,
+           service3_title=$31, service3_desc=$32,
+           hero_text_color=$33, hero_btn_bg=$34, hero_btn_text=$35,
+           social_facebook=$36, social_instagram=$37, social_linkedin=$38, social_twitter=$39,
+           social_tiktok=$40, social_youtube=$41, social_threads=$42, social_website=$43
          WHERE id=$15`,
         [
-          company_name, description, theme_color, finalLogoUrl, clean(currency) || 'EGP',
+          company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
           clean(promo_text), clean(hero_headline), clean(hero_subtext), clean(hero_cta_text),
           clean(contact_phone), clean(contact_whatsapp), clean(contact_email), clean(contact_address),
           showTrustBar, req.session.companyId,
+          showPromoBar, showHeroCards, showBanners, showCategories, showContact,
+          colorAccent, heroCard1Color, heroCard2Color,
+          showAbout, showServices, showPortfolio,
+          svc('service1_title'), svc('service1_desc'), svc('service2_title'), svc('service2_desc'),
+          svc('service3_title'), svc('service3_desc'),
+          heroTextColor, heroBtnBg, heroBtnText,
+          socialFacebook, socialInstagram, socialLinkedin, socialTwitter,
+          socialTiktok, socialYoutube, socialThreads, socialWebsite,
         ]
       );
       req.session.companyName = company_name;
-      req.session.themeColor = theme_color;
+      req.session.themeColor = safeTheme;
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
       console.log('[POST /profile] success');
       return res.render('company/profile', {
@@ -211,6 +260,9 @@ router.get('/portfolio', requireLogin, async (req, res) => {
   );
   res.render('company/portfolio', { items: result.rows, session: req.session, error: null });
 });
+
+router.get('/portfolio/add', requireLogin, (req, res) => res.redirect('/company/portfolio'));
+router.get('/categories/add', requireLogin, (req, res) => res.redirect('/company/categories'));
 
 router.post('/portfolio/add', requireLogin, (req, res) => {
   uploadItemImage(req, res, async (uploadErr) => {
@@ -693,20 +745,43 @@ router.get('/banners', requireLogin, async (req, res) => {
     'SELECT * FROM banner_slides WHERE company_id = $1 ORDER BY order_index, created_at',
     [req.session.companyId]
   );
-  res.render('company/banners', { banners: banners.rows, session: req.session, error: null });
+  let error = null;
+  const code = req.query.err;
+  if (code === 'too_large') error = 'الصورة أكبر من 5 ميجابايت — جرّب صورة أصغر.';
+  else if (code === 'no_file') error = 'لم يتم اختيار صورة. اختر ملفاً واضغط رفع.';
+  else if (code === 'upload') error = 'فشل رفع الصورة. تأكد إن الصيغة مدعومة (PNG/JPEG/WebP/GIF).';
+  else if (code === 'save') error = 'تم رفع الصورة لكن لم تُحفظ في قاعدة البيانات. حاول مرة أخرى.';
+  res.render('company/banners', { banners: banners.rows, session: req.session, error });
 });
+
+// Direct-navigating to /banners/add (e.g. from a stale link or after a
+// rejected upload) is harmless — bounce back to the manager instead of
+// letting the edge proxy serve a bare 403/404.
+router.get('/banners/add', requireLogin, (req, res) => res.redirect('/company/banners'));
 
 router.post('/banners/add', requireLogin, (req, res) => {
   uploadProductImage(req, res, async (uploadErr) => {
-    if (uploadErr || !req.file) return res.redirect('/company/banners');
-    const target_url = (req.body.target_url || '').trim() || null;
-    const caption = (req.body.caption || '').trim() || null;
-    await pool.query(
-      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, order_index)
-       VALUES ($1, $2, $3, $4, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
-      [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption]
-    );
-    res.redirect('/company/banners');
+    if (uploadErr) {
+      const code = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'too_large' : 'upload';
+      console.error('[banners/add] upload error:', uploadErr.message);
+      return res.redirect('/company/banners?err=' + code);
+    }
+    if (!req.file) return res.redirect('/company/banners?err=no_file');
+    try {
+      const target_url = (req.body.target_url || '').trim() || null;
+      const caption = (req.body.caption || '').trim() || null;
+      const validSlots = ['section', 'hero1', 'hero2'];
+      const slot = validSlots.includes(req.body.slot) ? req.body.slot : 'section';
+      await pool.query(
+        `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index)
+         VALUES ($1, $2, $3, $4, $5, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id = $1), 0))`,
+        [req.session.companyId, `/uploads/${req.file.filename}`, target_url, caption, slot]
+      );
+      res.redirect('/company/banners');
+    } catch (err) {
+      console.error('[banners/add] db error:', err);
+      res.redirect('/company/banners?err=save');
+    }
   });
 });
 

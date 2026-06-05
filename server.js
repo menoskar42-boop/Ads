@@ -1,4 +1,13 @@
 require('dotenv').config();
+// compression is optional — if it isn't installed yet (e.g. node_modules
+// not refreshed after a pull) the app must still boot, just without gzip.
+let compression;
+try {
+  compression = require('compression');
+} catch (e) {
+  console.warn('compression module not available — continuing without gzip:', e.message);
+  compression = () => (req, res, next) => next();
+}
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -11,6 +20,9 @@ const companyRouter = require('./src/routes/company');
 const adminRouter = require('./src/routes/admin');
 const shopRouter = require('./src/routes/shop');
 const customerRouter = require('./src/routes/customer');
+const applyRouter = require('./src/routes/apply');
+const legalRouter = require('./src/routes/legal');
+const blogRouter = require('./src/routes/blog');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,10 +34,20 @@ app.set('trust proxy', true);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 
+app.use(compression());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '7d',
+  setHeaders(res, filePath) {
+    if (/\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    } else if (/\.(?:css|js)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  },
+}));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'oscardevs-secret-key',
   resave: false,
@@ -34,6 +56,18 @@ app.use(session({
 }));
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
+
+// SEO/canonical + central AdSense config exposed to every view. All ad
+// units across the platform (main site + every tenant) read slot ids
+// from this single object so OscarDevs' AdSense account serves the lot.
+const adsConfig = require('./src/config/ads');
+app.use((req, res, next) => {
+  const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
+  res.locals.siteOrigin = origin;
+  res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
+  res.locals.ads = adsConfig;
+  next();
+});
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
@@ -44,6 +78,11 @@ app.use('/admin', adminRouter);
 // Shop and customer routers — also before tenant middleware
 app.use('/shop', shopRouter);
 app.use('/customer', customerRouter);
+
+// Public content routes (apply form, legal pages, blog, sitemap) — before tenant middleware
+app.use('/', applyRouter);
+app.use('/', legalRouter);
+app.use('/', blogRouter);
 
 // Tenant detection: runs on every non-company request
 app.use(tenantMiddleware);
@@ -196,6 +235,28 @@ async function initDb() {
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS signup_applications (
+        id SERIAL PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        phone TEXT NOT NULL,
+        country TEXT,
+        business_name TEXT NOT NULL,
+        business_type TEXT NOT NULL,
+        preferred_slug TEXT NOT NULL,
+        description TEXT,
+        password_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        admin_notes TEXT,
+        reviewer_id INTEGER REFERENCES admins(id),
+        reviewed_at TIMESTAMPTZ,
+        accepted_terms_version TEXT NOT NULL,
+        accepted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        accepted_ip TEXT,
+        user_agent TEXT,
+        approved_company_id INTEGER REFERENCES companies(id),
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
       ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id);
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;
@@ -224,6 +285,35 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_email TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_address TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_trust_bar BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_promo_bar BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_hero_cards BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_banners BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_categories BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_contact BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS color_accent TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_card1_color TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_card2_color TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_about BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_services BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_portfolio BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service1_title TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service1_desc TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service2_title TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service2_desc TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service3_title TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service3_desc TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_text_color TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_bg TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_text TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_facebook TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_instagram TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_linkedin TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_twitter TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_tiktok TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_youtube TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_threads TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_website TEXT;
+      ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
     `);
 
     // Demo catalog for the Delta showcase store (only seeded when it has no products,
@@ -242,18 +332,21 @@ async function initDb() {
         )).rows[0].id;
         const catPhones = await addCat('موبايلات', 'Mobiles', 0);
         const catComp = await addCat('لابتوبات وكمبيوترات', 'Laptops & PCs', 1);
-        const img = (tags, lock) => `https://loremflickr.com/600/600/${tags}?lock=${lock}`;
+        // Product images live under /public/products/<slug>.png — committed
+        // to the repo so they're always available without depending on an
+        // external CDN. Each one is rendered to match its product type.
+        const img = (file) => '/products/' + file + '.png';
         const demo = [
-          [catPhones, 'آيفون 15 برو ماكس 256GB', 'iPhone 15 Pro Max', 'هيكل تيتانيوم، شاشة 6.7 بوصة Super Retina XDR، شريحة A17 Pro، وكاميرا 48 ميجابكسل.', 84999, img('iphone', 11), 12],
-          [catPhones, 'سامسونج جالاكسي S24 ألترا', 'Samsung Galaxy S24 Ultra', 'شاشة 6.8 بوصة Dynamic AMOLED، قلم S Pen، كاميرا 200 ميجابكسل ومعالج Snapdragon 8 Gen 3.', 72999, img('samsung,smartphone', 12), 9],
-          [catPhones, 'جوجل بيكسل 8 برو', 'Google Pixel 8 Pro', 'أفضل كاميرا حوسبية، شريحة Tensor G3، وتحديثات أندرويد لمدة 7 سنوات.', 41999, img('smartphone,android', 13), 15],
-          [catPhones, 'آيفون 14 128GB', 'iPhone 14', 'شاشة 6.1 بوصة، شريحة A15 Bionic، نظام كاميرا مزدوج وبطارية تدوم طوال اليوم.', 44999, img('iphone,phone', 14), 20],
-          [catPhones, 'شاومي ريدمي نوت 13 برو', 'Xiaomi Redmi Note 13 Pro', 'شاشة AMOLED 120Hz، كاميرا 200 ميجابكسل، وشحن سريع 67 واط بسعر اقتصادي.', 18999, img('smartphone', 15), 30],
-          [catComp, 'ماك بوك برو 16 M3 Pro', 'MacBook Pro 16 M3 Pro', 'شريحة M3 Pro، شاشة Liquid Retina XDR، 18GB رام و512GB SSD لأصحاب الأعمال الاحترافية.', 149999, img('macbook', 16), 6],
-          [catComp, 'ماك بوك إير M2 13 بوصة', 'MacBook Air M2', 'تصميم نحيف بوزن 1.2 كجم، شريحة M2، وبطارية تدوم حتى 18 ساعة.', 64999, img('laptop,apple', 17), 11],
-          [catComp, 'لابتوب Dell XPS 15', 'Dell XPS 15', 'معالج Intel Core i7، شاشة 15.6 بوصة OLED، 16GB رام وكرت RTX 4050.', 89999, img('laptop', 18), 8],
-          [catComp, 'لابتوب ASUS ROG Gaming', 'ASUS ROG Gaming Laptop', 'للألعاب الثقيلة: RTX 4070، شاشة 165Hz، ومعالج Ryzen 9 وتبريد متقدم.', 99999, img('gaming,laptop', 19), 7],
-          [catComp, 'كمبيوتر مكتبي للألعاب RGB', 'RGB Gaming Desktop PC', 'تجميعة قوية: RTX 4070 Ti، 32GB رام، SSD 1TB، وإضاءة RGB كاملة.', 79999, img('computer,gaming', 20), 5],
+          [catPhones, 'آيفون 15 برو ماكس 256GB', 'iPhone 15 Pro Max', 'هيكل تيتانيوم، شاشة 6.7 بوصة Super Retina XDR، شريحة A17 Pro، وكاميرا 48 ميجابكسل.', 84999, img('iphone-15-pro-max'), 12],
+          [catPhones, 'سامسونج جالاكسي S24 ألترا', 'Samsung Galaxy S24 Ultra', 'شاشة 6.8 بوصة Dynamic AMOLED، قلم S Pen، كاميرا 200 ميجابكسل ومعالج Snapdragon 8 Gen 3.', 72999, img('galaxy-s24-ultra'), 9],
+          [catPhones, 'جوجل بيكسل 8 برو', 'Google Pixel 8 Pro', 'أفضل كاميرا حوسبية، شريحة Tensor G3، وتحديثات أندرويد لمدة 7 سنوات.', 41999, img('pixel-8-pro'), 15],
+          [catPhones, 'آيفون 14 128GB', 'iPhone 14', 'شاشة 6.1 بوصة، شريحة A15 Bionic، نظام كاميرا مزدوج وبطارية تدوم طوال اليوم.', 44999, img('iphone-14'), 20],
+          [catPhones, 'شاومي ريدمي نوت 13 برو', 'Xiaomi Redmi Note 13 Pro', 'شاشة AMOLED 120Hz، كاميرا 200 ميجابكسل، وشحن سريع 67 واط بسعر اقتصادي.', 18999, img('xiaomi-note13'), 30],
+          [catComp,   'ماك بوك برو 16 M3 Pro',     'MacBook Pro 16 M3 Pro', 'شريحة M3 Pro، شاشة Liquid Retina XDR، 18GB رام و512GB SSD لأصحاب الأعمال الاحترافية.', 149999, img('macbook-pro-16'), 6],
+          [catComp,   'ماك بوك إير M2 13 بوصة',     'MacBook Air M2', 'تصميم نحيف بوزن 1.2 كجم، شريحة M2، وبطارية تدوم حتى 18 ساعة.', 64999, img('macbook-air'), 11],
+          [catComp,   'لابتوب Dell XPS 15',         'Dell XPS 15', 'معالج Intel Core i7، شاشة 15.6 بوصة OLED، 16GB رام وكرت RTX 4050.', 89999, img('dell-xps-15'), 8],
+          [catComp,   'لابتوب ASUS ROG Gaming',     'ASUS ROG Gaming Laptop', 'للألعاب الثقيلة: RTX 4070، شاشة 165Hz، ومعالج Ryzen 9 وتبريد متقدم.', 99999, img('asus-rog-gaming'), 7],
+          [catComp,   'كمبيوتر مكتبي للألعاب RGB',   'RGB Gaming Desktop PC', 'تجميعة قوية: RTX 4070 Ti، 32GB رام، SSD 1TB، وإضاءة RGB كاملة.', 79999, img('rgb-gaming-pc'), 5],
         ];
         for (const [cat, nameAr, nameEn, descAr, price, image, stock] of demo) {
           await client.query(
@@ -263,6 +356,86 @@ async function initDb() {
           );
         }
         console.log(`Delta demo catalog seeded (${demo.length} products).`);
+      } else {
+        // Existing installations may still hold the old loremflickr URLs.
+        // Migrate them to the new local /products/<slug>.png files keyed
+        // off the product's name_en so each picture matches its title.
+        const updates = [
+          ['iPhone 15 Pro Max', '/products/iphone-15-pro-max.png'],
+          ['Samsung Galaxy S24 Ultra', '/products/galaxy-s24-ultra.png'],
+          ['Google Pixel 8 Pro', '/products/pixel-8-pro.png'],
+          ['iPhone 14', '/products/iphone-14.png'],
+          ['Xiaomi Redmi Note 13 Pro', '/products/xiaomi-note13.png'],
+          ['MacBook Pro 16 M3 Pro', '/products/macbook-pro-16.png'],
+          ['MacBook Air M2', '/products/macbook-air.png'],
+          ['Dell XPS 15', '/products/dell-xps-15.png'],
+          ['ASUS ROG Gaming Laptop', '/products/asus-rog-gaming.png'],
+          ['RGB Gaming Desktop PC', '/products/rgb-gaming-pc.png'],
+        ];
+        let touched = 0;
+        for (const [nameEn, imgPath] of updates) {
+          const r = await client.query(
+            `UPDATE products SET image_url = $1
+             WHERE company_id = $2 AND name_en = $3
+               AND (image_url IS NULL OR image_url LIKE '%loremflickr%' OR image_url <> $1)`,
+            [imgPath, deltaId, nameEn]
+          );
+          touched += r.rowCount || 0;
+        }
+        if (touched) console.log(`Delta product images updated to local set (${touched} rows).`);
+      }
+    }
+
+    // Delta brand assets (logo + 3 hero banners) — committed under
+    // public/. Apply once when the demo store has no logo / no section
+    // banners yet so existing customised stores aren't overwritten.
+    if (deltaRes.rows.length) {
+      const deltaId = deltaRes.rows[0].id;
+      // Logo
+      await client.query(
+        `UPDATE companies SET logo_url = $1
+         WHERE id = $2 AND (logo_url IS NULL OR logo_url = '' OR logo_url LIKE 'https://loremflickr%')`,
+        ['/uploads/delta-logo.png', deltaId]
+      );
+      // Banners — only seed if there aren't any 'section' banners yet
+      const hasSection = await client.query(
+        "SELECT 1 FROM banner_slides WHERE company_id = $1 AND slot = 'section' LIMIT 1",
+        [deltaId]
+      );
+      if (!hasSection.rows.length) {
+        const banners = [
+          ['/banners/delta-banner-1.jpg', 'أحدث الموبايلات — iPhone و Samsung و Google Pixel'],
+          ['/banners/delta-banner-2.jpg', 'تخفيضات اللابتوبات — MacBook | Dell | ASUS ROG'],
+          ['/banners/delta-banner-3.jpg', 'كمبيوترات الألعاب — RGB Gaming PCs'],
+        ];
+        for (let i = 0; i < banners.length; i++) {
+          await client.query(
+            `INSERT INTO banner_slides (company_id, image_url, target_url, caption, slot, order_index, is_active)
+             VALUES ($1, $2, NULL, $3, 'section', $4, true)`,
+            [deltaId, banners[i][0], banners[i][1], i]
+          );
+        }
+        console.log(`Delta hero banners seeded (${banners.length}).`);
+      }
+    }
+
+    // Ensure demo store-owner logins exist so each store can be managed from its dashboard.
+    const bcrypt = require('bcryptjs');
+    const demoOwners = [
+      ['delta', 'delta@test.com', 'delta123', 'shop'],
+      ['petra', 'petra@test.com', 'petra123', 'portfolio'],
+    ];
+    for (const [slug, email, pwd, pageType] of demoOwners) {
+      const c = await client.query('SELECT id FROM companies WHERE slug = $1', [slug]);
+      if (c.rows.length) {
+        await client.query('UPDATE companies SET page_type = $1 WHERE id = $2', [pageType, c.rows[0].id]);
+        const hash = await bcrypt.hash(pwd, 10);
+        await client.query(
+          `INSERT INTO company_users (company_id, email, password_hash)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+          [c.rows[0].id, email, hash]
+        );
       }
     }
 

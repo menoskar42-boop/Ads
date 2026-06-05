@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="<%= lang %>" dir="<%= dir %>">
 <head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
   <% var displayName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <% var displayDesc = pickContent(company, 'description', company.content_i18n) || company.description || ''; %>
   <% var cur = company.currency || 'EGP'; %>
@@ -11,20 +12,44 @@
   <% var heroHeadline = company.hero_headline || 'كل اللي محتاجه في مكان واحد'; %>
   <% var heroSub = company.hero_subtext || displayDesc || 'منتجات مختارة بعناية، أسعار مناسبة، وتوصيل سريع وآمن.'; %>
   <% var heroCta = company.hero_cta_text || 'تسوّق الآن'; %>
+  <% var heroBanners1 = (banners || []).filter(function(b){ return b.slot === 'hero1'; }); %>
+  <% var heroBanners2 = (banners || []).filter(function(b){ return b.slot === 'hero2'; }); %>
+  <% var sectionBanners = (banners || []).filter(function(b){ return !b.slot || b.slot === 'section'; }); %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= displayName %></title>
   <meta name="description" content="<%= displayDesc || displayName %>" />
+  <%- include('partials/seo_meta', {
+    title: displayName,
+    description: displayDesc || displayName,
+    canonical: siteOrigin + '/view/' + company.slug,
+    ogImage: company.logo_url || (siteOrigin + '/og-default.svg'),
+    siteLogo: company.logo_url || '',
+    siteManifest: '/view/' + company.slug + '/manifest.webmanifest',
+    siteAppName: displayName
+  }) %>
+  <%- include('partials/company_jsonld', { company: company }) %>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/shop.css" />
   <style>
-    :root { --primary: <%= company.theme_color %>; }
+    :root {
+      --primary: <%= company.theme_color %>;
+      --primary-d: color-mix(in srgb, <%= company.theme_color %> 78%, #000);
+      --primary-l: color-mix(in srgb, <%= company.theme_color %> 12%, #fff);
+      <% if (company.color_accent) { %>--accent: <%= company.color_accent %>; --accent-d: color-mix(in srgb, <%= company.color_accent %> 80%, #000);<% } %>
+    }
+    <% if (company.hero_card1_color) { %>.hero-card-1 { background: linear-gradient(135deg, <%= company.hero_card1_color %>, color-mix(in srgb, <%= company.hero_card1_color %> 68%, #000)); }<% } %>
+    <% if (company.hero_card2_color) { %>.hero-card-2 { background: linear-gradient(135deg, <%= company.hero_card2_color %>, color-mix(in srgb, <%= company.hero_card2_color %> 68%, #000)); }<% } %>
+    <% if (company.hero_text_color) { %>.hero-main, .hero-main h1, .hero-main p, .hero-main .hero-tag { color: <%= company.hero_text_color %>; }<% } %>
+    <% if (company.hero_btn_bg) { %>.hero-main .btn-light { background: <%= company.hero_btn_bg %>; }<% } %>
+    <% if (company.hero_btn_text) { %>.hero-main .btn-light, .hero-main .btn-light span { color: <%= company.hero_btn_text %>; }<% } %>
   </style>
 </head>
 <body>
 <script>window.SHOP_SLUG = <%- JSON.stringify(company.slug) %>;</script>
 
 <!-- Promo marquee -->
+<% if (company.show_promo_bar !== false) { %>
 <div class="top-bar">
   <div class="top-bar-track">
     <% for (var rep = 0; rep < 2; rep++) { %>
@@ -34,6 +59,7 @@
     <% } %>
   </div>
 </div>
+<% } %>
 
 <!-- Nav -->
 <nav>
@@ -75,11 +101,18 @@
 </div>
 <% } %>
 
-<% if (company.adsense_top) { %><div style="padding:12px 32px;background:#fff;border-bottom:1px solid var(--line)"><%- company.adsense_top %></div><% } %>
+<div style="padding:12px 32px;background:#fff;border-bottom:1px solid var(--line)"><%- include('partials/ad_unit', { slot: ads.slots.shopTop }) %></div>
 
 <!-- Hero -->
 <section class="hero">
   <div class="hero-main reveal">
+    <% if (company.show_banners !== false && sectionBanners && sectionBanners.length) { %>
+    <div class="hero-bg-slides"<%- sectionBanners.length > 1 ? ' data-slides' : '' %>>
+      <% sectionBanners.forEach(function(b, i){ %>
+        <div class="hero-bg-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')"></div>
+      <% }) %>
+    </div>
+    <% } %>
     <div class="hero-content">
       <div class="hero-tag"><span class="pulse"></span> أهلاً بك في متجر <%= displayName %></div>
       <h1><%= heroHeadline %></h1>
@@ -90,33 +123,45 @@
       </div>
     </div>
   </div>
+  <% if (company.show_hero_cards !== false) { %>
   <div class="hero-side">
     <div class="hero-card hero-card-1 reveal">
-      <div class="label">تشكيلة مميزة</div>
-      <h3>منتجات<br>وصلت حديثاً</h3>
-      <span class="price-strip">تصفّح الجديد</span>
-      <div class="arrow">←</div>
+      <% if (heroBanners1.length) { %>
+        <div class="hero-slides"<%= heroBanners1.length > 1 ? ' data-slides' : '' %>>
+          <% heroBanners1.forEach(function(b, i){ %>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+              <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
+            </a>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <div class="label">تشكيلة مميزة</div>
+        <h3>منتجات<br>وصلت حديثاً</h3>
+        <span class="price-strip">تصفّح الجديد</span>
+        <div class="arrow">←</div>
+      <% } %>
     </div>
     <div class="hero-card hero-card-2 reveal">
-      <div class="label">دفع آمن</div>
-      <h3>الدفع عند<br>الاستلام</h3>
-      <span class="price-strip">+ شحن سريع</span>
-      <div class="arrow">←</div>
+      <% if (heroBanners2.length) { %>
+        <div class="hero-slides"<%= heroBanners2.length > 1 ? ' data-slides' : '' %>>
+          <% heroBanners2.forEach(function(b, i){ %>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+              <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
+            </a>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <div class="label">دفع آمن</div>
+        <h3>الدفع عند<br>الاستلام</h3>
+        <span class="price-strip">+ شحن سريع</span>
+        <div class="arrow">←</div>
+      <% } %>
     </div>
   </div>
+  <% } %>
 </section>
 
-<!-- Real banner slides (if any) -->
-<% if (banners && banners.length) { %>
-<section class="banners">
-  <% banners.slice(0, 4).forEach(b => { %>
-    <a class="banner <%= b.target_url ? '' : '' %>" href="<%= b.target_url || '#' %>" target="_blank" rel="noopener" style="padding:0;min-height:200px;">
-      <div class="banner-img" style="background-image:url('<%= b.image_url %>')"></div>
-      <% if (b.caption) { %><div class="banner-overlay" style="position:relative;z-index:2;margin-top:auto;padding:24px;background:linear-gradient(transparent,rgba(0,0,0,0.55));color:#fff;border-radius:0 0 24px 24px;"><h3 style="color:#fff"><%= b.caption %></h3></div><% } %>
-    </a>
-  <% }) %>
-</section>
-<% } %>
+<!-- (Section banners now render in the hero main area above) -->
 
 <!-- Products -->
 <section class="flash" id="products">
@@ -146,8 +191,9 @@
       <% } %>
     </div>
   <% } else { %>
+    <% var adMid = (ads.slots.shopInGrid && products.length >= 4) ? Math.floor(products.length / 2) : -1; %>
     <div class="grid">
-      <% products.forEach(p => { %>
+      <% products.forEach((p, idx) => { %>
         <% var pName = pickContent(p, 'name', company.content_i18n) || p.name; %>
         <% var pCat = (categories.find(c => String(c.id) === String(p.category_id)) || {}); %>
         <% var pCatName = pCat.id ? (pickContent(pCat, 'name', company.content_i18n) || pCat.name) : ''; %>
@@ -188,13 +234,16 @@
             </div>
           </div>
         </div>
+        <% if (idx === adMid) { %>
+          <div class="shop-ad-banner"><%- include('partials/ad_unit', { slot: ads.slots.shopInGrid }) %></div>
+        <% } %>
       <% }) %>
     </div>
   <% } %>
 </section>
 
 <!-- Shop by category -->
-<% if (categories && categories.length) { %>
+<% if (company.show_categories !== false && categories && categories.length) { %>
 <section class="cats">
   <div class="section-head">
     <div>
@@ -243,8 +292,8 @@
     <h2>حمّل تطبيق <%= displayName %><br>واحصل على <span class="accent">15%</span> خصم</h2>
     <p>تسوّق أسرع، تتبع طلباتك، واستلم إشعارات عروض حصرية مباشرة على جوالك.</p>
     <div class="app-stores">
-      <a href="#" class="app-store"><span class="icon">🍎</span><div><div class="small">حمّل من</div><div class="big">App Store</div></div></a>
-      <a href="#" class="app-store"><span class="icon">▶</span><div><div class="small">حمّل من</div><div class="big">Google Play</div></div></a>
+      <a href="#" class="app-badge"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" /></a>
+      <a href="#" class="app-badge"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" /></a>
     </div>
   </div>
   <div class="phone-mockup">
@@ -262,9 +311,10 @@
 </section>
 <% } %>
 
-<% if (company.adsense_bottom) { %><div style="padding:24px 32px"><%- company.adsense_bottom %></div><% } %>
+<div style="padding:24px 32px"><%- include('partials/ad_unit', { slot: ads.slots.shopBottom }) %></div>
 
 <!-- Contact -->
+<% if (company.show_contact !== false) { %>
 <section class="shop-contact" id="contact">
   <h2 class="section-title">تواصل معنا</h2>
   <% if (company.contact_phone || company.contact_whatsapp || company.contact_email || company.contact_address) { %>
@@ -289,6 +339,7 @@
     </form>
   </div>
 </section>
+<% } %>
 
 <!-- Footer -->
 <footer>
@@ -299,6 +350,7 @@
         <span><%= displayName %></span>
       </div>
       <% if (displayDesc) { %><p class="footer-tag"><%= displayDesc %></p><% } else { %><p class="footer-tag">متجرك الموثوق لكل ما تحتاجه — منتجات مختارة وتوصيل سريع.</p><% } %>
+      <div style="margin-top:14px"><%- include('partials/social_icons', { company: company }) %></div>
     </div>
     <div class="footer-col">
       <h4>التسوّق</h4>
