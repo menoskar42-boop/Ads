@@ -542,9 +542,14 @@ footer {
   .stats-bar { flex-direction:column; }
   .stat { border-left:none; border-top:1px solid var(--border); }
   footer { flex-direction:column; gap:12px; text-align:center; }
-  /* Testimonials: the auto-scrolling horizontal track left most cards
-     off-screen on mobile. Stack them vertically so every review shows. */
-  .testi-wrapper { overflow: visible; }
-  .testi-track { animation: none; flex-direction: column; width: 100%; }
-  .testi-card { width: 100%; }
+  .testi-card { width: 280px; }
+}
+
+/* Keep the horizontal testimonials strip usable when the auto-scroll
+   animation is paused (reduced-motion / iOS Low Power Mode): let the user
+   swipe through the reviews by hand instead of being stuck on the first. */
+@media (prefers-reduced-motion: reduce) {
+  .testi-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; }
+  .testi-track { animation: none; }
+  .testi-card { scroll-snap-align: center; }
 }
