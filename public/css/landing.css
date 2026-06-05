@@ -526,8 +526,11 @@ footer {
 .reveal.visible { opacity:1; transform:translateY(0); }
 
 @media (max-width: 900px) {
-  nav { padding: 16px 24px; }
+  nav { padding: 14px 18px; }
   .nav-links { display:none; }
+  .nav-logo { font-size: 1.15rem; gap: 6px !important; }
+  .nav-logo img { width: 36px !important; height: 36px !important; }
+  .nav-cta { padding: 8px 16px; font-size: 0.8rem; white-space: nowrap; }
   section { padding: 80px 24px; }
   .hero { padding: 120px 24px 60px; }
   .services-grid { grid-template-columns:1fr; }
