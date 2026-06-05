@@ -542,7 +542,11 @@ footer {
   .stats-bar { flex-direction:column; }
   .stat { border-left:none; border-top:1px solid var(--border); }
   footer { flex-direction:column; gap:12px; text-align:center; }
-  .testi-card { width: 280px; }
+  /* On mobile the auto-scroll freezes (iOS Low Power Mode pauses infinite
+     animations), so make the strip swipeable by hand instead. */
+  .testi-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scroll-padding-inline: 24px; }
+  .testi-track { animation: none; }
+  .testi-card { width: 280px; scroll-snap-align: center; }
 }
 
 /* Keep the horizontal testimonials strip usable when the auto-scroll
