@@ -34,6 +34,10 @@ app.set('trust proxy', true);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 
+// Cache-busting token for static assets — changes on every server start,
+// so a new deploy always serves fresh CSS/JS instead of a stale CDN copy.
+app.locals.assetVersion = Date.now();
+
 app.use(compression());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
