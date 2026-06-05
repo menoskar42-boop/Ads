@@ -82,6 +82,14 @@ nav {
 }
 .nav-cta:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(0,245,212,0.4); }
 
+/* The generic `nav` rule above also hits the footer's <nav class="footer-links">,
+   which made the footer links render as a fixed bar pinned to the top, covering
+   the real header nav and its logo. Keep the footer nav in normal flow. */
+.footer-links {
+  position: static; top: auto; width: auto; z-index: auto;
+  background: none; backdrop-filter: none; border: none; padding: 0;
+}
+
 /* HERO */
 .hero {
   min-height: 100vh;
