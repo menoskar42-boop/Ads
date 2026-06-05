@@ -86,3 +86,38 @@ const statsObs = new IntersectionObserver(entries => {
 
 const statsBar = document.querySelector('.stats-bar');
 if (statsBar) statsObs.observe(statsBar);
+
+// Testimonials marquee — drive it with JS (requestAnimationFrame) instead of
+// relying only on the CSS animation, which iOS Low Power Mode pauses. Auto is
+// the default; the strip pauses briefly when the user touches it so they can
+// read, then resumes. Respects the reduced-motion preference.
+(function () {
+  const track = document.getElementById('testiTrack');
+  if (!track) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  track.style.animation = 'none';      // take over from the CSS marquee
+  track.style.willChange = 'transform';
+  let x = 0, paused = false, resumeTimer, last = 0;
+  const SPEED = 0.045; // px per ms
+  const pause = () => {
+    paused = true;
+    clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => { paused = false; }, 2500);
+  };
+  const wrap = track.parentElement;
+  wrap.addEventListener('touchstart', pause, { passive: true });
+  wrap.addEventListener('mouseenter', () => { paused = true; });
+  wrap.addEventListener('mouseleave', () => { paused = false; });
+  function frame(ts) {
+    const dt = last ? Math.min(ts - last, 64) : 0;
+    last = ts;
+    if (!paused) {
+      const half = track.scrollWidth / 2;
+      x -= dt * SPEED;
+      if (half > 0 && -x >= half) x += half; // seamless loop (cards are duplicated)
+      track.style.transform = 'translateX(' + x + 'px)';
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
