@@ -65,12 +65,8 @@ nav {
   font-family: 'Syne', sans-serif;
   text-shadow: 0 0 25px rgba(0,245,212,0.3);
 }
-.nav-logo-text { color: var(--white); }
-.nav-logo-text span {
-  background: linear-gradient(135deg, var(--cyan), #4f46e5);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+.nav-logo-text { color: #ffffff; -webkit-text-fill-color: #ffffff; }
+.nav-logo-text span { color: var(--cyan); -webkit-text-fill-color: var(--cyan); }
 .nav-links { display: flex; gap: 36px; list-style: none; }
 .nav-links a {
   color: var(--muted); text-decoration: none;
