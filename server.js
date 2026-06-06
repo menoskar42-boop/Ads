@@ -343,7 +343,7 @@ async function initDb() {
         // Product images live under /public/products/<slug>.png — committed
         // to the repo so they're always available without depending on an
         // external CDN. Each one is rendered to match its product type.
-        const img = (file) => '/products/' + file + '.png';
+        const img = (file) => '/products/' + file + '.jpg';
         const demo = [
           [catPhones, 'آيفون 15 برو ماكس 256GB', 'iPhone 15 Pro Max', 'هيكل تيتانيوم، شاشة 6.7 بوصة Super Retina XDR، شريحة A17 Pro، وكاميرا 48 ميجابكسل.', 84999, img('iphone-15-pro-max'), 12],
           [catPhones, 'سامسونج جالاكسي S24 ألترا', 'Samsung Galaxy S24 Ultra', 'شاشة 6.8 بوصة Dynamic AMOLED، قلم S Pen، كاميرا 200 ميجابكسل ومعالج Snapdragon 8 Gen 3.', 72999, img('galaxy-s24-ultra'), 9],
@@ -369,16 +369,16 @@ async function initDb() {
         // Migrate them to the new local /products/<slug>.png files keyed
         // off the product's name_en so each picture matches its title.
         const updates = [
-          ['iPhone 15 Pro Max', '/products/iphone-15-pro-max.png'],
-          ['Samsung Galaxy S24 Ultra', '/products/galaxy-s24-ultra.png'],
-          ['Google Pixel 8 Pro', '/products/pixel-8-pro.png'],
-          ['iPhone 14', '/products/iphone-14.png'],
-          ['Xiaomi Redmi Note 13 Pro', '/products/xiaomi-note13.png'],
-          ['MacBook Pro 16 M3 Pro', '/products/macbook-pro-16.png'],
-          ['MacBook Air M2', '/products/macbook-air.png'],
-          ['Dell XPS 15', '/products/dell-xps-15.png'],
-          ['ASUS ROG Gaming Laptop', '/products/asus-rog-gaming.png'],
-          ['RGB Gaming Desktop PC', '/products/rgb-gaming-pc.png'],
+          ['iPhone 15 Pro Max', '/products/iphone-15-pro-max.jpg'],
+          ['Samsung Galaxy S24 Ultra', '/products/galaxy-s24-ultra.jpg'],
+          ['Google Pixel 8 Pro', '/products/pixel-8-pro.jpg'],
+          ['iPhone 14', '/products/iphone-14.jpg'],
+          ['Xiaomi Redmi Note 13 Pro', '/products/xiaomi-note13.jpg'],
+          ['MacBook Pro 16 M3 Pro', '/products/macbook-pro-16.jpg'],
+          ['MacBook Air M2', '/products/macbook-air.jpg'],
+          ['Dell XPS 15', '/products/dell-xps-15.jpg'],
+          ['ASUS ROG Gaming Laptop', '/products/asus-rog-gaming.jpg'],
+          ['RGB Gaming Desktop PC', '/products/rgb-gaming-pc.jpg'],
         ];
         let touched = 0;
         for (const [nameEn, imgPath] of updates) {
