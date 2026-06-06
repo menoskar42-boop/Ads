@@ -53,11 +53,8 @@ router.get('/', async (req, res) => {
   const cart = (req.session.carts && req.session.carts[company.slug]) || {};
   const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
 
-  // Portfolio tenants use the new premium template, EXCEPT 'petra' which
-  // keeps its original full design as a reference.
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
-  else if (company.slug === 'petra') view = 'tenant';
   else view = 'tenant_portfolio';
 
   const preset = getPreset(company.profession);
