@@ -65,7 +65,7 @@
         <p class="text-xs text-gray-400 uppercase font-semibold mb-1"><%= product.category_name %></p>
       <% } %>
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-3"><%= pName %></h1>
-      <div class="text-3xl font-black brand-text mb-4"><%= Number(product.price).toFixed(2) %> <%= company.currency || 'EGP' %></div>
+      <div class="text-3xl font-black brand-text mb-4"><%= Number(product.price).toFixed(2) %> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || 'كجم' %></span><% } %></div>
 
       <% if (product.stock > 0) { %>
         <p class="text-sm text-green-600 font-semibold mb-4">✓ <%= t('public.in_stock') %> (<%= product.stock %>)</p>
@@ -77,14 +77,31 @@
         <p class="text-sm text-gray-600 mb-6 whitespace-pre-wrap leading-relaxed"><%= pDesc %></p>
       <% } %>
 
+      <% var sizeList = (product.sale_type === 'size' && product.sizes) ? product.sizes.split(',').map(function(s){return s.trim();}).filter(Boolean) : []; %>
       <% if (product.stock > 0) { %>
-        <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="mt-auto flex items-center gap-3">
+        <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="mt-auto">
           <input type="hidden" name="product_id" value="<%= product.id %>" />
-          <input type="number" name="quantity" value="1" min="1" max="<%= product.stock %>"
-            class="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-          <button type="submit" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
-            <%= t('public.add_to_cart') %>
-          </button>
+          <% if (sizeList.length) { %>
+            <div class="mb-4">
+              <div class="text-sm font-semibold text-gray-600 mb-2">اختر المقاس</div>
+              <div class="flex flex-wrap gap-2">
+                <% sizeList.forEach(function(sz, i){ %>
+                  <label class="cursor-pointer">
+                    <input type="radio" name="size" value="<%= sz %>" <%= i===0 ? 'checked' : '' %> class="peer sr-only" required />
+                    <span class="inline-block border border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 peer-checked:bg-gray-900 peer-checked:text-white peer-checked:border-gray-900 transition"><%= sz %></span>
+                  </label>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
+          <div class="flex items-center gap-3">
+            <input type="number" name="quantity" value="1" min="1" max="<%= product.stock %>"
+              class="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+            <% if (product.sale_type === 'weight') { %><span class="text-sm text-gray-500"><%= product.weight_unit || 'كجم' %></span><% } %>
+            <button type="submit" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
+              <%= t('public.add_to_cart') %>
+            </button>
+          </div>
         </form>
       <% } %>
     </div>

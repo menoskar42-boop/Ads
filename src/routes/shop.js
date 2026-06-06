@@ -20,6 +20,13 @@ function getCart(req, slug) {
   return req.session.carts[slug];
 }
 
+// Cart keys are "<productId>" or "<productId>|<size>" (size variants).
+function parseCartKey(k) {
+  const s = String(k);
+  const i = s.indexOf('|');
+  return i < 0 ? { id: parseInt(s, 10), size: null } : { id: parseInt(s.slice(0, i), 10), size: s.slice(i + 1) };
+}
+
 /* ─── CART ───────────────────────────────────────────────── */
 router.post('/:slug/cart/add', async (req, res) => {
   const { slug } = req.params;
@@ -45,13 +52,15 @@ router.post('/:slug/cart/add', async (req, res) => {
       return res.redirect(canonicalCompanyUrl(slug, req));
     }
     const cart = getCart(req, slug);
-    const existing = cart[productId] || 0;
+    const sizeSel = (req.body.size || '').toString().trim();
+    const key = sizeSel ? `${productId}|${sizeSel}` : String(productId);
+    const existing = cart[key] || 0;
     const requested = existing + quantity;
     if (requested > productResult.rows[0].stock) {
       if (wantsJson) return res.status(400).json({ ok: false, error: 'Not enough stock for the requested quantity.' });
       return res.redirect(`/shop/${slug}/cart?error=${encodeURIComponent('Not enough stock for the requested quantity.')}`);
     }
-    cart[productId] = requested;
+    cart[key] = requested;
     if (wantsJson) {
       const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
       return res.json({ ok: true, cartCount });
@@ -70,7 +79,8 @@ router.get('/:slug/cart', async (req, res) => {
     const company = await loadShopCompany(slug);
     if (!company) return res.status(404).render('404', { subdomain: slug });
     const cart = getCart(req, slug);
-    const ids = Object.keys(cart).map(Number).filter(Number.isFinite);
+    const keys = Object.keys(cart);
+    const ids = [...new Set(keys.map(k => parseCartKey(k).id).filter(Number.isFinite))];
     let lines = [];
     let total = 0;
     if (ids.length) {
@@ -78,12 +88,16 @@ router.get('/:slug/cart', async (req, res) => {
         `SELECT id, name, price, image_url, stock FROM products WHERE id = ANY($1::int[]) AND company_id = $2`,
         [ids, company.id]
       );
-      lines = r.rows.map(p => {
-        const qty = cart[p.id] || 0;
+      const byId = Object.fromEntries(r.rows.map(p => [p.id, p]));
+      lines = keys.map(k => {
+        const { id, size } = parseCartKey(k);
+        const p = byId[id];
+        if (!p) return null;
+        const qty = cart[k] || 0;
         const lineTotal = Number(p.price) * qty;
         total += lineTotal;
-        return { ...p, quantity: qty, lineTotal };
-      });
+        return { ...p, key: k, size, quantity: qty, lineTotal };
+      }).filter(Boolean);
     }
     res.render('shop/cart', {
       company,
@@ -102,24 +116,22 @@ router.get('/:slug/cart', async (req, res) => {
 router.post('/:slug/cart/update', async (req, res) => {
   const { slug } = req.params;
   const cart = getCart(req, slug);
-  for (const key of Object.keys(req.body)) {
-    const m = key.match(/^qty_(\d+)$/);
+  for (const field of Object.keys(req.body)) {
+    const m = field.match(/^q_(\d+)$/);
     if (!m) continue;
-    const productId = parseInt(m[1], 10);
-    const qty = parseInt(req.body[key], 10);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      delete cart[productId];
-    } else {
-      cart[productId] = qty;
-    }
+    const key = req.body['k_' + m[1]];
+    if (!key) continue;
+    const qty = parseInt(req.body[field], 10);
+    if (!Number.isFinite(qty) || qty <= 0) delete cart[key];
+    else cart[key] = qty;
   }
   res.redirect(`/shop/${slug}/cart`);
 });
 
-router.post('/:slug/cart/remove/:productId', (req, res) => {
-  const { slug, productId } = req.params;
+router.post('/:slug/cart/remove', (req, res) => {
+  const { slug } = req.params;
   const cart = getCart(req, slug);
-  delete cart[parseInt(productId, 10)];
+  if (req.body.key != null) delete cart[req.body.key];
   res.redirect(`/shop/${slug}/cart`);
 });
 
@@ -170,8 +182,8 @@ router.post('/:slug/checkout', async (req, res) => {
   } catch (e) { return res.status(500).send('Error.'); }
 
   const cart = getCart(req, slug);
-  const ids = Object.keys(cart).map(Number).filter(Number.isFinite);
-  if (!ids.length) return res.redirect(`/shop/${slug}/cart`);
+  const keys = Object.keys(cart);
+  if (!keys.length) return res.redirect(`/shop/${slug}/cart`);
 
   const client = await pool.connect();
   try {
@@ -179,8 +191,10 @@ router.post('/:slug/checkout', async (req, res) => {
 
     const items = [];
     let total = 0;
-    for (const productId of ids) {
-      const qty = cart[productId];
+    for (const key of keys) {
+      const { id: productId, size } = parseCartKey(key);
+      if (!Number.isFinite(productId)) continue;
+      const qty = cart[key];
       const upd = await client.query(
         `UPDATE products SET stock = stock - $1
          WHERE id = $2 AND company_id = $3 AND stock >= $1 AND is_active = true
@@ -192,7 +206,8 @@ router.post('/:slug/checkout', async (req, res) => {
         return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`);
       }
       const p = upd.rows[0];
-      items.push({ product_id: p.id, product_name: p.name, unit_price: Number(p.price), quantity: qty });
+      const nameWithSize = size ? `${p.name} (مقاس: ${size})` : p.name;
+      items.push({ product_id: p.id, product_name: nameWithSize, unit_price: Number(p.price), quantity: qty });
       total += Number(p.price) * qty;
     }
 

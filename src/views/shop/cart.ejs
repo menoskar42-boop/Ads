@@ -59,26 +59,25 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <% lines.forEach(l => { %>
+          <% lines.forEach(function(l, idx){ %>
             <tr>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
                   <% if (l.image_url) { %>
                     <img src="<%= l.image_url %>" alt="<%= l.name %>" class="w-12 h-12 rounded-lg object-cover" />
                   <% } %>
-                  <span class="font-semibold text-gray-700"><%= l.name %></span>
+                  <span class="font-semibold text-gray-700"><%= l.name %><% if (l.size) { %> <span class="text-xs font-normal text-gray-400">(<%= l.size %>)</span><% } %></span>
                 </div>
               </td>
               <td class="px-4 py-3 text-right font-mono"><%= Number(l.price).toFixed(2) %></td>
               <td class="px-4 py-3 text-center">
-                <input type="number" name="qty_<%= l.id %>" value="<%= l.quantity %>" min="0" max="<%= l.stock %>"
+                <input type="hidden" name="k_<%= idx %>" value="<%= l.key %>" />
+                <input type="number" name="q_<%= idx %>" value="<%= l.quantity %>" min="0" max="<%= l.stock %>"
                   class="w-16 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm" />
               </td>
               <td class="px-4 py-3 text-right font-mono"><%= l.lineTotal.toFixed(2) %></td>
               <td class="px-4 py-3 text-right">
-                <form method="POST" action="/shop/<%= company.slug %>/cart/remove/<%= l.id %>" class="inline">
-                  <button type="submit" class="text-xs text-red-600 hover:text-red-800"><%= t('public.remove') %></button>
-                </form>
+                <button type="submit" formaction="/shop/<%= company.slug %>/cart/remove" formmethod="POST" name="key" value="<%= l.key %>" class="text-xs text-red-600 hover:text-red-800"><%= t('public.remove') %></button>
               </td>
             </tr>
           <% }) %>
