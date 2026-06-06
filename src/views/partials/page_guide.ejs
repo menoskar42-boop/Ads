@@ -1,13 +1,7 @@
 <%
   // Collapsible "how to use this page" panel rendered at the top of each
-  // admin section.
-  // Usage:
-  //   <%- include('../partials/page_guide', {
-  //     title: 'إدارة البانرات',
-  //     intro: 'وصف موجز…',
-  //     steps: ['اضغط على رفع…', 'اختار…'],
-  //     tips:  ['نصيحة 1…', 'نصيحة 2…']
-  //   }) %>
+  // admin section. Usage: include this partial with an object:
+  //   { title: 'العنوان', intro: 'وصف', steps: ['...'], tips: ['...'] }
   var __title = (typeof title !== 'undefined' && title) ? title : 'كيف أستخدم هذه الصفحة؟';
   var __intro = (typeof intro !== 'undefined' && intro) ? intro : '';
   var __steps = (typeof steps !== 'undefined' && Array.isArray(steps)) ? steps : [];
