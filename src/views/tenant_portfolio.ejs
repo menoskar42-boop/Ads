@@ -544,8 +544,8 @@ ul{ list-style:none; }
     <div class="container">
       <div class="hero-copy">
         <span class="eyebrow"><span class="dot"></span> <%= preset.hero.eyebrow %></span>
-        <h1><%- preset.hero.title %></h1>
-        <p class="sub"><%= displayDesc || preset.hero.sub %></p>
+        <h1><% if (company.hero_headline) { %><%= company.hero_headline %><% } else { %><%- preset.hero.title %><% } %></h1>
+        <p class="sub"><%= company.hero_subtext || displayDesc || preset.hero.sub %></p>
         <div class="hero-cta">
           <a href="#contact" class="btn btn-primary">
             ابدأ مشروعك
@@ -710,12 +710,26 @@ ul{ list-style:none; }
   <div class="container" style="margin-inline:auto"><%- include('partials/ad_unit', { slot: ads.slots.portfolioTop }) %></div>
 
   <!-- ============================== الأعمال ============================== -->
+  <% if (company.show_portfolio !== false) { %>
   <section class="section work" id="work">
     <div class="container">
       <span class="eyebrow" data-reveal><span class="num">03</span> · مختارات من أعمالنا</span>
       <h2 class="section-title" data-reveal style="margin-bottom:26px">مشاريع نفخر بها.</h2>
 
-      <!-- أزرار الفلترة -->
+      <% if (portfolio && portfolio.length) { %>
+      <!-- أعمال التاجر الفعلية -->
+      <div class="portfolio-grid" data-reveal-children>
+        <% portfolio.forEach(function(item){ %>
+        <a href="<%= item.image_url || '#' %>" <%= item.image_url ? 'target="_blank" rel="noopener"' : '' %> class="project" aria-label="<%= item.title || 'عمل' %>">
+          <% if (item.image_url) { %><img src="<%= item.image_url %>" alt="<%= item.title || '' %>" loading="lazy" /><% } %>
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><% if (item.description) { %><span class="cat"><%= item.description %></span><% } %><h3><%= item.title || '' %></h3></div>
+        </a>
+        <% }) %>
+      </div>
+      <% } else { %>
+
+      <!-- نماذج افتراضية (تظهر لحين إضافة أعمالك) -->
       <div class="filters" data-reveal>
         <button class="filter-btn active" data-filter="all">الكل</button>
         <button class="filter-btn" data-filter="هوية">هوية</button>
@@ -757,8 +771,10 @@ ul{ list-style:none; }
           <div class="overlay"><span class="cat">هوية بصرية</span><h3>صالون لمسة</h3></div>
         </a>
       </div>
+      <% } %>
     </div>
   </section>
+  <% } %>
 
   <!-- ============================== آراء العملاء ============================== -->
   <section class="section testi" id="testimonials">
