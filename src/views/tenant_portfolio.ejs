@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<!-- ===================== بيانات الصفحة (Meta) ===================== -->
+<!-- بدّل النصوص دي حسب علامتك التجارية -->
+<title>أوْج · استوديو علامات وتجارب رقمية</title>
+<%
+  var displayName = (typeof pickContent === 'function' ? pickContent(company, 'company_name', company.content_i18n) : null) || company.company_name;
+  var displayDesc = (typeof pickContent === 'function' ? pickContent(company, 'description', company.content_i18n) : null) || company.description || '';
+  var brandColor = company.theme_color || '#0d3b38';
+  var brandAccent = company.color_accent || '#c08a4e';
+%>
+<title><%= displayName %> · بورتفوليو احترافي</title>
+<meta name="description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
+<meta name="theme-color" content="<%= brandColor %>" />
+<meta name="color-scheme" content="light" />
+<%- include('partials/ads_loader') %>
+
+<!-- Open Graph للمشاركة على السوشيال -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="<%= displayName %>" />
+<meta property="og:description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
+<meta property="og:locale" content="ar_EG" />
+<% if (company.logo_url) { %><meta property="og:image" content="<%= company.logo_url %>" /><% } %>
+
+<!-- ===================== الخطوط (Google Fonts) ===================== -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Reem+Kufi:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<!-- ===================== بيانات Schema.org ===================== -->
+<!-- عدّل القيم (الاسم، الهاتف، العنوان، الروابط) ببيانات شركتك الحقيقية -->
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  "name": displayName,
+  "image": company.logo_url || undefined,
+  "description": (displayDesc || displayName),
+  "telephone": company.contact_phone || undefined,
+  "address": company.contact_address ? { "@type": "PostalAddress", "streetAddress": company.contact_address } : undefined,
+  "sameAs": [company.social_facebook, company.social_instagram, company.social_linkedin, company.social_twitter, company.social_youtube, company.social_tiktok, company.social_website].filter(Boolean)
+}) %>
+</script>
+
+<style>
+/* ============================================================
+   متغيّرات التصميم (غيّرها لتكييف المهنة والألوان بسرعة)
+   ============================================================ */
+:root{
+  /* ---- الألوان الأساسية ---- */
+  --primary:      <%= brandColor %>;   /* اللون الأساسي (من لون هوية التاجر) */
+  --primary-deep: #082826;   /* نسخة أعمق للأقسام الداكنة */
+  --accent:       <%= brandAccent %>;   /* لون الإبراز (من لون إبراز التاجر) */
+  --accent-soft:  #e2c298;   /* إبراز فاتح للتفاصيل */
+
+  --ink:    #16211e;         /* لون النص الأساسي */
+  --paper:  #f5f1e9;         /* خلفية عاجية دافئة (مش أبيض صارخ) */
+  --surface:#ffffff;         /* خلفية البطاقات */
+  --muted:  #6c716b;         /* نص ثانوي رمادي محايد */
+  --line:   #e7e1d5;         /* حدود رفيعة */
+
+  /* ---- المقاسات والأنصاف ---- */
+  --radius:    16px;
+  --radius-lg: 26px;
+  --radius-sm: 11px;
+  --maxw:      1240px;
+  --gutter:    clamp(20px, 5vw, 64px);
+  --header-h:  74px;
+
+  /* ---- الخطوط ---- */
+  --font-display: "Reem Kufi", "IBM Plex Sans Arabic", sans-serif;
+  --font-body:    "IBM Plex Sans Arabic", system-ui, sans-serif;
+
+  /* ---- الظلال ---- */
+  --shadow-sm: 0 2px 10px rgba(16,32,30,.05);
+  --shadow-md: 0 18px 40px -22px rgba(16,32,30,.30);
+  --shadow-lg: 0 40px 80px -40px rgba(8,40,38,.45);
+}
+
+/* ============================================================
+   إعادة الضبط والأساسيات
+   ============================================================ */
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+html{ scroll-behavior:smooth; scroll-padding-top:calc(var(--header-h) + 18px); -webkit-text-size-adjust:100%; }
+body{
+  font-family:var(--font-body);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.75;
+  font-weight:400;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  position:relative;
+}
+/* طبقة حبيبات خفيفة جداً تعطي عمقاً (Grain) */
+body::before{
+  content:"";
+  position:fixed; inset:0; z-index:9999; pointer-events:none;
+  opacity:.025; mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+img{ max-width:100%; display:block; }
+a{ color:inherit; text-decoration:none; }
+button{ font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; }
+ul{ list-style:none; }
+:focus-visible{ outline:2.5px solid var(--accent); outline-offset:3px; border-radius:4px; }
+::selection{ background:var(--accent); color:#fff; }
+
+/* رابط التخطّي للوصولية */
+.skip-link{
+  position:absolute; right:16px; top:-60px; z-index:10000;
+  background:var(--primary); color:#fff; padding:10px 18px; border-radius:10px;
+  transition:top .2s;
+}
+.skip-link:focus{ top:16px; }
+
+/* ============================================================
+   عناصر مساعدة
+   ============================================================ */
+.container{ width:100%; max-width:var(--maxw); margin-inline:auto; padding-inline:var(--gutter); }
+.section{ padding-block:clamp(64px, 9vw, 130px); position:relative; }
+
+.eyebrow{
+  display:inline-flex; align-items:center; gap:10px;
+  font-family:var(--font-display); font-size:.82rem; font-weight:600;
+  letter-spacing:.04em; color:var(--accent); text-transform:uppercase;
+}
+.eyebrow .num{ color:var(--ink); opacity:.35; font-variant-numeric:tabular-nums; }
+.eyebrow .dot{ width:5px; height:5px; border-radius:50%; background:var(--accent); }
+
+.section-title{
+  font-family:var(--font-display); font-weight:600;
+  font-size:clamp(1.9rem, 4vw, 3.1rem); line-height:1.18;
+  letter-spacing:-.01em; margin-top:14px;
+}
+.lead{ color:var(--muted); font-size:clamp(1rem,1.4vw,1.12rem); max-width:56ch; margin-top:16px; }
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:13px 26px; border-radius:999px; font-weight:600; font-size:.97rem;
+  transition:transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s, background .25s, color .25s;
+  will-change:transform;
+}
+.btn svg{ width:17px; height:17px; }
+.btn-primary{ background:var(--primary); color:#fff; box-shadow:var(--shadow-md); }
+.btn-primary:hover{ transform:translateY(-3px); box-shadow:var(--shadow-lg); background:var(--primary-deep); }
+.btn-accent{ background:var(--accent); color:#fff; }
+.btn-accent:hover{ transform:translateY(-3px); box-shadow:0 24px 48px -22px rgba(192,137,78,.7); }
+.btn-ghost{ background:transparent; color:var(--ink); border:1.5px solid var(--line); }
+.btn-ghost:hover{ border-color:var(--primary); transform:translateY(-3px); background:var(--surface); }
+.btn-light{ background:#fff; color:var(--primary); }
+.btn-light:hover{ transform:translateY(-3px); box-shadow:var(--shadow-lg); }
+
+/* ============================================================
+   الهيدر الثابت
+   ============================================================ */
+.header{
+  position:fixed; inset-block-start:0; inset-inline:0; z-index:1000;
+  height:var(--header-h);
+  display:flex; align-items:center;
+  transition:background .35s, box-shadow .35s, height .35s;
+}
+.header.scrolled{
+  background:rgba(245,241,233,.78);
+  backdrop-filter:blur(16px) saturate(140%);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);
+  box-shadow:0 1px 0 rgba(16,32,30,.07);
+}
+.header .container{ display:flex; align-items:center; justify-content:space-between; gap:24px; }
+
+.brand{ display:flex; align-items:center; gap:11px; font-family:var(--font-display); font-weight:700; font-size:1.28rem; letter-spacing:.02em; }
+.brand .mark{ width:34px; height:34px; flex:none; }
+.brand .mark rect, .brand .mark circle{ transition:.4s; }
+.brand:hover .mark{ transform:rotate(45deg); }
+
+.nav{ display:flex; align-items:center; gap:6px; }
+.nav a{
+  position:relative; padding:9px 14px; font-size:.95rem; color:var(--ink); font-weight:500;
+  border-radius:8px; transition:color .25s;
+}
+.nav a::after{
+  content:""; position:absolute; inset-block-end:4px; inset-inline:14px;
+  height:2px; background:var(--accent); transform:scaleX(0); transform-origin:right;
+  transition:transform .3s cubic-bezier(.2,.7,.2,1);
+}
+.nav a:hover::after, .nav a.active::after{ transform:scaleX(1); }
+.nav a.active{ color:var(--primary); }
+
+.header-actions{ display:flex; align-items:center; gap:12px; }
+
+.nav-toggle{ display:none; width:44px; height:44px; border-radius:11px; border:1.5px solid var(--line); }
+.nav-toggle span{ display:block; width:20px; height:2px; background:var(--ink); margin:4px auto; border-radius:2px; transition:.3s; }
+.nav-toggle[aria-expanded="true"] span:nth-child(1){ transform:translateY(6px) rotate(45deg); }
+.nav-toggle[aria-expanded="true"] span:nth-child(2){ opacity:0; }
+.nav-toggle[aria-expanded="true"] span:nth-child(3){ transform:translateY(-6px) rotate(-45deg); }
+
+/* ============================================================
+   Hero
+   ============================================================ */
+.hero{ padding-block:calc(var(--header-h) + 48px) clamp(48px,7vw,96px); position:relative; overflow:hidden; }
+.hero::before{ /* قوس إبراز خفيف في الخلفية */
+  content:""; position:absolute; inset-block-start:-12%; inset-inline-start:-8%;
+  width:46vw; height:46vw; max-width:560px; max-height:560px;
+  background:radial-gradient(circle at center, rgba(192,137,78,.16), transparent 62%);
+  border-radius:50%; z-index:0;
+}
+.hero .container{ position:relative; z-index:1;
+  display:grid; grid-template-columns:1.05fr .95fr; gap:clamp(32px,5vw,72px); align-items:center;
+}
+.hero-copy{ max-width:600px; }
+.hero h1{
+  font-family:var(--font-display); font-weight:700;
+  font-size:clamp(2.4rem, 5.6vw, 4.6rem); line-height:1.08; letter-spacing:-.015em;
+  margin-block:18px 22px;
+}
+.hero h1 .hl{ color:var(--accent); }
+.hero p.sub{ color:var(--muted); font-size:clamp(1.04rem,1.5vw,1.22rem); max-width:50ch; }
+.hero-cta{ display:flex; flex-wrap:wrap; gap:14px; margin-top:34px; }
+
+/* العنصر البصري */
+.hero-visual{ position:relative; }
+.hero-frame{
+  position:relative; border-radius:var(--radius-lg); overflow:hidden;
+  aspect-ratio:4/5; background:var(--primary);
+  box-shadow:var(--shadow-lg); border:8px solid #fff;
+}
+.hero-frame img{ width:100%; height:100%; object-fit:cover; }
+/* رقاقة زجاجية عائمة */
+.glass-chip{
+  position:absolute; z-index:2;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.6);
+  border-radius:16px; padding:13px 17px; box-shadow:var(--shadow-md);
+  display:flex; align-items:center; gap:11px;
+}
+.glass-chip .big{ font-family:var(--font-display); font-weight:700; font-size:1.25rem; color:var(--primary); line-height:1; }
+.glass-chip .lbl{ font-size:.76rem; color:var(--muted); }
+.chip-1{ inset-block-start:24px; inset-inline-start:-22px; }
+.chip-2{ inset-block-end:30px; inset-inline-end:-18px; }
+.chip-stars{ color:var(--accent); font-size:1.05rem; letter-spacing:1px; }
+
+/* شريط التخصصات المتحرك */
+.marquee{ margin-top:clamp(40px,5vw,64px); border-block:1px solid var(--line); padding-block:18px; overflow:hidden; -webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent); mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent); }
+.marquee-track{ display:inline-flex; gap:42px; white-space:nowrap; animation:scroll 32s linear infinite; }
+.marquee-track span{ font-family:var(--font-display); font-size:1.05rem; color:var(--muted); display:inline-flex; align-items:center; gap:42px; font-weight:500; }
+.marquee-track span::before{ content:"\25C6"; color:var(--accent); font-size:.6rem; }
+.marquee:hover .marquee-track{ animation-play-state:paused; }
+@keyframes scroll{ to{ transform:translateX(-50%); } }
+
+/* ============================================================
+   شريط الأرقام
+   ============================================================ */
+.stats{ background:var(--surface); border-block:1px solid var(--line); }
+.stats .container{ display:grid; grid-template-columns:repeat(4,1fr); gap:24px; padding-block:clamp(40px,5vw,60px); }
+.stat{ text-align:center; position:relative; }
+.stat:not(:last-child)::after{ content:""; position:absolute; inset-block:14%; inset-inline-start:0; width:1px; background:var(--line); }
+.stat .figure{ font-family:var(--font-display); font-weight:700; font-size:clamp(2.1rem,4vw,3.2rem); color:var(--primary); line-height:1; font-variant-numeric:tabular-nums; }
+.stat .figure .plus{ color:var(--accent); }
+.stat .label{ margin-top:9px; color:var(--muted); font-size:.95rem; }
+
+/* ============================================================
+   من نحن
+   ============================================================ */
+.about .container{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(36px,6vw,90px); align-items:center; }
+.about-points{ margin-top:30px; display:grid; gap:16px; }
+.point{ display:flex; gap:14px; align-items:flex-start; }
+.point .tick{ flex:none; width:30px; height:30px; border-radius:9px; background:rgba(13,59,56,.07); display:grid; place-items:center; color:var(--primary); margin-top:3px; }
+.point .tick svg{ width:16px; height:16px; }
+.point p{ font-size:1rem; }
+.point strong{ font-weight:600; }
+.about-figure{ position:relative; }
+.about-figure img{ width:100%; border-radius:var(--radius-lg); aspect-ratio:5/6; object-fit:cover; background:var(--line); box-shadow:var(--shadow-md); }
+.about-badge{
+  position:absolute; inset-block-end:-22px; inset-inline-start:-22px;
+  background:var(--primary); color:#fff; border-radius:var(--radius);
+  padding:20px 24px; box-shadow:var(--shadow-lg); max-width:200px;
+}
+.about-badge .n{ font-family:var(--font-display); font-weight:700; font-size:2rem; color:var(--accent-soft); line-height:1; }
+.about-badge .t{ font-size:.86rem; opacity:.85; margin-top:6px; }
+
+/* ============================================================
+   الخدمات
+   ============================================================ */
+.services-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap; margin-bottom:48px; }
+.services-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.service{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:30px 28px; transition:transform .4s cubic-bezier(.2,.7,.2,1), box-shadow .4s, border-color .4s;
+  position:relative; overflow:hidden;
+}
+.service::after{ content:""; position:absolute; inset-block-start:0; inset-inline:0; height:3px; background:var(--accent); transform:scaleX(0); transform-origin:right; transition:transform .4s; }
+.service:hover{ transform:translateY(-7px); box-shadow:var(--shadow-md); border-color:transparent; }
+.service:hover::after{ transform:scaleX(1); }
+.service .s-num{ font-family:var(--font-display); color:var(--line); font-weight:700; font-size:1.1rem; position:absolute; inset-block-start:22px; inset-inline-start:26px; transition:color .4s; }
+.service:hover .s-num{ color:var(--accent); }
+.service .s-icon{ width:54px; height:54px; border-radius:14px; background:rgba(13,59,56,.06); display:grid; place-items:center; color:var(--primary); margin-bottom:20px; transition:.4s; }
+.service:hover .s-icon{ background:var(--primary); color:#fff; }
+.service .s-icon svg{ width:26px; height:26px; }
+.service h3{ font-family:var(--font-display); font-weight:600; font-size:1.22rem; margin-bottom:9px; }
+.service p{ color:var(--muted); font-size:.96rem; }
+
+/* ============================================================
+   معرض الأعمال
+   ============================================================ */
+.filters{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:34px; }
+.filter-btn{ padding:9px 20px; border-radius:999px; border:1.5px solid var(--line); font-weight:500; font-size:.92rem; color:var(--muted); transition:.3s; }
+.filter-btn:hover{ border-color:var(--primary); color:var(--ink); }
+.filter-btn.active{ background:var(--primary); color:#fff; border-color:var(--primary); }
+.portfolio-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.project{ position:relative; border-radius:var(--radius); overflow:hidden; aspect-ratio:4/3; background:var(--line); box-shadow:var(--shadow-sm); transition:opacity .4s, transform .4s; }
+.project.hide{ display:none; }
+.project img{ width:100%; height:100%; object-fit:cover; transition:transform .7s cubic-bezier(.2,.7,.2,1); }
+.project:hover img{ transform:scale(1.07); }
+.project .overlay{
+  position:absolute; inset:0; display:flex; flex-direction:column; justify-content:flex-end;
+  padding:22px; color:#fff;
+  background:linear-gradient(to top, rgba(8,40,38,.88) 0%, rgba(8,40,38,.25) 55%, transparent 100%);
+  opacity:0; transform:translateY(12px); transition:opacity .4s, transform .4s;
+}
+.project:hover .overlay, .project:focus-within .overlay{ opacity:1; transform:translateY(0); }
+.project .cat{ font-size:.78rem; color:var(--accent-soft); font-weight:600; letter-spacing:.03em; }
+.project h3{ font-family:var(--font-display); font-weight:600; font-size:1.2rem; margin-top:4px; }
+.project .view{ position:absolute; inset-block-start:18px; inset-inline-end:18px; width:40px; height:40px; border-radius:50%; background:#fff; color:var(--primary); display:grid; place-items:center; opacity:0; transform:scale(.6) rotate(-30deg); transition:.4s; }
+.project:hover .view{ opacity:1; transform:scale(1) rotate(0); }
+
+/* ============================================================
+   آراء العملاء
+   ============================================================ */
+.testi{ background:var(--surface); border-block:1px solid var(--line); }
+.testi-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.quote{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:28px; display:flex; flex-direction:column; gap:16px; }
+.quote.feat{ grid-row:span 1; background:var(--primary); color:#fff; border-color:transparent; }
+.quote .stars{ color:var(--accent); letter-spacing:2px; font-size:1.05rem; }
+.quote.feat .stars{ color:var(--accent-soft); }
+.quote blockquote{ font-size:1.04rem; line-height:1.85; flex:1; }
+.quote.feat blockquote{ font-family:var(--font-display); font-size:1.18rem; font-weight:500; }
+.quote .who{ display:flex; align-items:center; gap:13px; }
+.avatar{ width:46px; height:46px; border-radius:50%; flex:none; background:var(--accent); color:#fff; display:grid; place-items:center; font-family:var(--font-display); font-weight:700; font-size:1.05rem; }
+.quote.feat .avatar{ background:rgba(255,255,255,.15); color:#fff; }
+.who .name{ font-weight:600; font-size:.97rem; }
+.who .role{ font-size:.84rem; color:var(--muted); }
+.quote.feat .who .role{ color:rgba(255,255,255,.7); }
+
+/* ============================================================
+   كيف نعمل
+   ============================================================ */
+.process-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; counter-reset:step; margin-top:48px; }
+.step{ position:relative; padding-top:14px; }
+.step .s-no{ font-family:var(--font-display); font-weight:700; font-size:1.05rem; width:48px; height:48px; border-radius:50%; border:1.5px solid var(--line); display:grid; place-items:center; color:var(--primary); background:var(--surface); position:relative; z-index:1; }
+.step h3{ font-family:var(--font-display); font-weight:600; font-size:1.18rem; margin-block:18px 8px; }
+.step p{ color:var(--muted); font-size:.96rem; }
+.step:not(:last-child)::after{ content:""; position:absolute; inset-block-start:38px; inset-inline-end:-9px; inset-inline-start:48px; height:1.5px; background:repeating-linear-gradient(to left, var(--line) 0 8px, transparent 8px 16px); }
+
+/* ============================================================
+   الأسئلة الشائعة
+   ============================================================ */
+.faq-wrap{ max-width:820px; margin-inline:auto; }
+.faq-item{ border-bottom:1px solid var(--line); }
+.faq-q{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:18px; text-align:start; padding:24px 4px; font-family:var(--font-display); font-weight:500; font-size:clamp(1.05rem,1.6vw,1.22rem); color:var(--ink); }
+.faq-q .ic{ flex:none; width:32px; height:32px; border-radius:50%; border:1.5px solid var(--line); display:grid; place-items:center; transition:.35s; position:relative; }
+.faq-q .ic::before, .faq-q .ic::after{ content:""; position:absolute; background:var(--primary); border-radius:2px; transition:.35s; }
+.faq-q .ic::before{ width:13px; height:2px; }
+.faq-q .ic::after{ width:2px; height:13px; }
+.faq-item.open .faq-q .ic{ background:var(--primary); border-color:var(--primary); transform:rotate(180deg); }
+.faq-item.open .faq-q .ic::before, .faq-item.open .faq-q .ic::after{ background:#fff; }
+.faq-item.open .faq-q .ic::after{ transform:scaleY(0); }
+.faq-a{ overflow:hidden; max-height:0; transition:max-height .4s ease; }
+.faq-a p{ padding:0 4px 26px; color:var(--muted); font-size:1rem; }
+
+/* ============================================================
+   دعوة للتواصل CTA
+   ============================================================ */
+.cta-band .container{ position:relative; }
+.cta-box{
+  background:var(--primary); color:#fff; border-radius:var(--radius-lg);
+  padding:clamp(40px,6vw,76px); text-align:center; position:relative; overflow:hidden;
+  box-shadow:var(--shadow-lg);
+}
+.cta-box::before{ content:""; position:absolute; inset-block-start:-40%; inset-inline-start:-10%; width:50%; height:180%; background:radial-gradient(circle, rgba(192,137,78,.28), transparent 60%); }
+.cta-box h2{ font-family:var(--font-display); font-weight:700; font-size:clamp(1.8rem,4vw,3rem); line-height:1.2; position:relative; }
+.cta-box p{ color:rgba(255,255,255,.78); margin-block:16px 30px; font-size:1.08rem; position:relative; max-width:48ch; margin-inline:auto; }
+.cta-box .btn{ position:relative; }
+
+/* ============================================================
+   التواصل
+   ============================================================ */
+.contact .container{ display:grid; grid-template-columns:1.15fr .85fr; gap:clamp(32px,5vw,64px); }
+.contact-form{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); padding:clamp(26px,3.5vw,40px); }
+.field{ margin-bottom:18px; }
+.field label{ display:block; font-size:.9rem; font-weight:500; margin-bottom:8px; }
+.field input, .field select, .field textarea{
+  width:100%; font-family:inherit; font-size:1rem; color:var(--ink);
+  background:var(--paper); border:1.5px solid var(--line); border-radius:var(--radius-sm);
+  padding:13px 16px; transition:border-color .25s, box-shadow .25s;
+}
+.field textarea{ resize:vertical; min-height:120px; }
+.field input:focus, .field select:focus, .field textarea:focus{ outline:none; border-color:var(--primary); box-shadow:0 0 0 4px rgba(13,59,56,.08); }
+.form-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.form-msg{ margin-top:14px; padding:13px 16px; border-radius:var(--radius-sm); background:rgba(13,59,56,.08); color:var(--primary); font-size:.94rem; font-weight:500; display:none; }
+.form-msg.show{ display:block; }
+
+.contact-info{ display:flex; flex-direction:column; gap:14px; }
+.info-card{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px 22px; display:flex; gap:15px; align-items:center; transition:transform .35s, box-shadow .35s; }
+.info-card:hover{ transform:translateY(-3px); box-shadow:var(--shadow-sm); }
+.info-card .ic{ flex:none; width:46px; height:46px; border-radius:12px; background:rgba(13,59,56,.07); display:grid; place-items:center; color:var(--primary); }
+.info-card .ic svg{ width:21px; height:21px; }
+.info-card .k{ font-size:.82rem; color:var(--muted); }
+.info-card .v{ font-weight:600; font-size:1rem; direction:ltr; text-align:start; }
+.socials{ display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+.socials a{ width:44px; height:44px; border-radius:12px; border:1px solid var(--line); display:grid; place-items:center; color:var(--ink); transition:.3s; }
+.socials a:hover{ background:var(--primary); color:#fff; border-color:var(--primary); transform:translateY(-3px); }
+.socials a svg{ width:19px; height:19px; }
+
+/* ============================================================
+   الفوتر
+   ============================================================ */
+.footer{ background:var(--primary-deep); color:rgba(255,255,255,.72); padding-block:clamp(48px,6vw,72px) 0; }
+.footer .grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:40px; padding-bottom:48px; }
+.footer .brand{ color:#fff; margin-bottom:16px; }
+.footer .mark rect, .footer .mark circle{ fill:#fff !important; }
+.footer p.about-f{ font-size:.95rem; max-width:38ch; }
+.footer h4{ font-family:var(--font-display); color:#fff; font-size:1rem; margin-bottom:16px; font-weight:600; }
+.footer ul li{ margin-bottom:11px; }
+.footer ul a{ font-size:.94rem; transition:color .25s, padding .25s; }
+.footer ul a:hover{ color:var(--accent-soft); padding-inline-start:5px; }
+.footer .bottom{ border-top:1px solid rgba(255,255,255,.12); padding-block:24px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; font-size:.86rem; }
+.footer .bottom a:hover{ color:#fff; }
+
+/* زر العودة للأعلى */
+.to-top{ position:fixed; inset-block-end:24px; inset-inline-start:24px; z-index:900; width:48px; height:48px; border-radius:50%; background:var(--primary); color:#fff; display:grid; place-items:center; box-shadow:var(--shadow-md); opacity:0; transform:translateY(20px); pointer-events:none; transition:.4s; }
+.to-top.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
+.to-top:hover{ background:var(--accent); }
+
+/* ============================================================
+   حركات الظهور
+   ============================================================ */
+[data-reveal]{ opacity:0; transform:translateY(22px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+[data-reveal].in{ opacity:1; transform:none; }
+
+@keyframes heroIn{ from{ opacity:0; transform:translateY(26px); } to{ opacity:1; transform:none; } }
+.hero-copy > *{ opacity:0; animation:heroIn .8s cubic-bezier(.2,.7,.2,1) forwards; }
+.hero-copy > *:nth-child(1){ animation-delay:.05s; }
+.hero-copy > *:nth-child(2){ animation-delay:.18s; }
+.hero-copy > *:nth-child(3){ animation-delay:.31s; }
+.hero-copy > *:nth-child(4){ animation-delay:.44s; }
+.hero-visual{ opacity:0; animation:heroIn .9s cubic-bezier(.2,.7,.2,1) .35s forwards; }
+.chip-1{ animation:floaty 6s ease-in-out infinite; }
+.chip-2{ animation:floaty 7s ease-in-out infinite .6s; }
+@keyframes floaty{ 50%{ transform:translateY(-9px); } }
+
+/* ============================================================
+   الاستجابة (Responsive)
+   ============================================================ */
+@media (max-width:980px){
+  .hero .container{ grid-template-columns:1fr; gap:40px; }
+  .hero-visual{ max-width:430px; margin-inline:auto; width:100%; }
+  .about .container{ grid-template-columns:1fr; }
+  .about-figure{ max-width:440px; }
+  .contact .container{ grid-template-columns:1fr; }
+  .services-grid, .portfolio-grid, .testi-grid{ grid-template-columns:repeat(2,1fr); }
+  .process-grid{ grid-template-columns:repeat(2,1fr); gap:28px; }
+  .step:not(:last-child)::after{ display:none; }
+  .footer .grid{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:680px){
+  .nav, .header-actions .btn{ display:none; }
+  .nav-toggle{ display:block; }
+  /* قائمة الموبايل */
+  .nav.open{
+    display:flex; flex-direction:column; align-items:stretch; gap:4px;
+    position:absolute; inset-block-start:var(--header-h); inset-inline:0;
+    background:rgba(245,241,233,.97); backdrop-filter:blur(16px);
+    padding:18px var(--gutter) 26px; box-shadow:var(--shadow-md);
+    border-top:1px solid var(--line);
+  }
+  .nav.open a{ padding:14px 12px; font-size:1.05rem; border-bottom:1px solid var(--line); }
+  .nav.open a::after{ display:none; }
+  .nav.open .btn{ display:inline-flex; margin-top:12px; }
+  .stats .container{ grid-template-columns:repeat(2,1fr); gap:34px 16px; }
+  .stat::after{ display:none; }
+  .services-grid, .portfolio-grid, .testi-grid, .process-grid, .form-row{ grid-template-columns:1fr; }
+  .footer .grid{ grid-template-columns:1fr; gap:32px; }
+  .about-badge{ inset-inline-start:auto; inset-inline-end:14px; padding:15px 18px; }
+  .chip-1{ inset-inline-start:-6px; }
+  .chip-2{ inset-inline-end:-4px; }
+}
+
+/* احترام تفضيل تقليل الحركة */
+@media (prefers-reduced-motion:reduce){
+  *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+  [data-reveal]{ opacity:1; transform:none; }
+  .hero-copy > *, .hero-visual{ opacity:1; }
+}
+</style>
+</head>
+
+<body>
+<a class="skip-link" href="#main">تخطّى إلى المحتوى</a>
+
+<!-- ============================== الهيدر ============================== -->
+<header class="header" id="header">
+  <div class="container">
+    <!-- شعار + اسم العلامة (بدّل النص والـ SVG) -->
+    <a href="#" class="brand" aria-label="<%= displayName %>">
+      <% if (company.logo_url) { %>
+        <img class="mark" src="<%= company.logo_url %>" alt="<%= displayName %>" style="object-fit:contain;border-radius:9px;background:#fff" />
+      <% } else { %>
+        <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+          <rect x="4" y="4" width="32" height="32" rx="9" fill="var(--primary)"/>
+          <circle cx="20" cy="20" r="8.5" fill="var(--accent)"/>
+          <circle cx="20" cy="20" r="3.4" fill="var(--primary)"/>
+        </svg>
+      <% } %>
+      <span><%= displayName %></span>
+    </a>
+
+    <nav class="nav" id="nav" aria-label="التنقل الرئيسي">
+      <a href="#about">عنّا</a>
+      <a href="#services">الخدمات</a>
+      <a href="#work">الأعمال</a>
+      <a href="#testimonials">آراء العملاء</a>
+      <a href="#faq">الأسئلة</a>
+      <a href="#contact">تواصل</a>
+      <a href="#contact" class="btn btn-primary">احجز استشارة</a>
+    </nav>
+
+    <div class="header-actions">
+      <a href="#contact" class="btn btn-primary">احجز استشارة</a>
+      <button class="nav-toggle" id="navToggle" aria-label="فتح القائمة" aria-expanded="false" aria-controls="nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============================== Hero ============================== -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span> استوديو علامات وتجارب رقمية · منذ 2012</span>
+        <!-- العنوان الرئيسي (بدّله حسب المهنة) -->
+        <h1>نصمّم علاماتٍ <span class="hl">تُقنع</span>، وتجاربَ تبقى في الذاكرة.</h1>
+        <p class="sub"><%= displayDesc || 'نقدّم خدمات احترافية تبني ثقة عملائك من اللحظة الأولى — بخبرة وجودة تنافس الأفضل في مجالنا.' %></p>
+        <div class="hero-cta">
+          <a href="#contact" class="btn btn-primary">
+            ابدأ مشروعك
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          </a>
+          <a href="#work" class="btn btn-ghost">شاهد أعمالنا</a>
+        </div>
+      </div>
+
+      <!-- العنصر البصري: صورة مؤطّرة + رقاقات زجاجية (بدّل الصورة) -->
+      <div class="hero-visual">
+        <div class="hero-frame">
+          <img src="https://picsum.photos/seed/awj-hero/900/1100" alt="فريق أوْج أثناء العمل على مشروع تصميم" loading="eager" width="900" height="1100" />
+        </div>
+        <div class="glass-chip chip-1">
+          <span class="big">480+</span>
+          <span class="lbl">مشروع منجز</span>
+        </div>
+        <div class="glass-chip chip-2">
+          <span class="chip-stars" aria-hidden="true">★★★★★</span>
+          <span class="lbl">تقييم 4.9 من العملاء</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- شريط التخصصات المتحرك -->
+    <div class="container">
+      <div class="marquee" aria-hidden="true">
+        <div class="marquee-track">
+          <span>الهوية البصرية</span><span>تصميم المواقع</span><span>تجربة المستخدم</span><span>الحملات الإعلانية</span><span>الموشن جرافيك</span><span>إدارة السوشيال ميديا</span>
+          <span>الهوية البصرية</span><span>تصميم المواقع</span><span>تجربة المستخدم</span><span>الحملات الإعلانية</span><span>الموشن جرافيك</span><span>إدارة السوشيال ميديا</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== الأرقام ============================== -->
+  <section class="stats" aria-label="إنجازاتنا بالأرقام">
+    <div class="container">
+      <div class="stat" data-reveal>
+        <div class="figure"><span data-count="13">0</span></div>
+        <div class="label">سنة من الخبرة</div>
+      </div>
+      <div class="stat" data-reveal>
+        <div class="figure"><span data-count="480">0</span><span class="plus">+</span></div>
+        <div class="label">مشروع منجز</div>
+      </div>
+      <div class="stat" data-reveal>
+        <div class="figure"><span data-count="260">0</span><span class="plus">+</span></div>
+        <div class="label">عميل سعيد</div>
+      </div>
+      <div class="stat" data-reveal>
+        <div class="figure"><span data-count="4.9" data-decimals="1">0</span></div>
+        <div class="label">متوسط تقييم العملاء</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== من نحن ============================== -->
+  <% if (company.show_about !== false) { %>
+  <section class="section about" id="about">
+    <div class="container">
+      <div>
+        <span class="eyebrow" data-reveal><span class="num">01</span> · من نحن</span>
+        <h2 class="section-title" data-reveal>نبذة عن <%= displayName %></h2>
+        <p class="lead" data-reveal><%= displayDesc || 'نقدّم خدمة احترافية مبنية على الخبرة والثقة، نهتم بأدقّ التفاصيل ونقيس نجاحنا برضا عملائنا ونتائجهم الحقيقية.' %></p>
+
+        <div class="about-points">
+          <div class="point" data-reveal>
+            <span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <p><strong>مدير حساب واحد</strong> يتابع مشروعك من أول اجتماع حتى الإطلاق.</p>
+          </div>
+          <div class="point" data-reveal>
+            <span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <p><strong>تسليم في مواعيد متّفق عليها</strong>، بجدول واضح وبلا مفاجآت.</p>
+          </div>
+          <div class="point" data-reveal>
+            <span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <p><strong>ملكية كاملة</strong> لكل الملفات والمصادر بعد التسليم، بدون قيود.</p>
+          </div>
+          <div class="point" data-reveal>
+            <span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <p><strong>دعم وتحديثات 90 يوماً</strong> بعد الإطلاق، لأنّ علاقتنا لا تنتهي عند التسليم.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-figure" data-reveal>
+        <!-- بدّل الصورة بصورة فريقك أو مكان عملك -->
+        <img src="https://picsum.photos/seed/awj-about/700/840" alt="مساحة عمل استوديو أوْج" loading="lazy" width="700" height="840" />
+        <div class="about-badge">
+          <div class="n">‎%98</div>
+          <div class="t">من عملائنا يعودون لمشروع جديد</div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <% } %>
+
+  <!-- ============================== الخدمات ============================== -->
+  <% if (company.show_services !== false) { %>
+  <section class="section services" id="services">
+    <div class="container">
+      <div class="services-head">
+        <div>
+          <span class="eyebrow" data-reveal><span class="num">02</span> · ماذا نقدّم</span>
+          <h2 class="section-title" data-reveal>خدمات تغطّي رحلة علامتك كاملة.</h2>
+        </div>
+        <p class="lead" data-reveal style="margin-top:0">من أول خط في الهوية حتى آخر إعلان في الحملة، نوفّر كل ما تحتاجه تحت سقف واحد.</p>
+      </div>
+
+      <!-- بطاقات الخدمات (بدّل العناوين والأوصاف والأيقونات حسب مهنتك) -->
+      <div class="services-grid" data-reveal-children>
+        <article class="service">
+          <span class="s-num">01</span>
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="3.5"/><circle cx="6.5" cy="17.5" r="3.5"/><path d="M17 14l4 4M21 14l-4 4"/></svg></div>
+          <h3><%= company.service1_title || 'الهوية البصرية' %></h3>
+          <p><%= company.service1_desc || 'شعار وأنظمة ألوان وخطوط ودليل استخدام متكامل يجعل علامتك مميّزة ومتّسقة في كل مكان.' %></p>
+        </article>
+
+        <article class="service">
+          <span class="s-num">02</span>
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="6.5" cy="6.5" r=".6" fill="currentColor"/></svg></div>
+          <h3><%= company.service2_title || 'تصميم وتطوير المواقع' %></h3>
+          <p><%= company.service2_desc || 'مواقع ومتاجر سريعة ومتجاوبة ومُحسّنة لمحركات البحث، تترك انطباعاً أولاً يدوم.' %></p>
+        </article>
+
+        <article class="service">
+          <span class="s-num">03</span>
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 8.5-6 1.5-1.5 6L5 3z"/></svg></div>
+          <h3><%= company.service3_title || 'تجربة وواجهة المستخدم' %></h3>
+          <p><%= company.service3_desc || 'نصمّم رحلات استخدام سلسة تقلّل الاحتكاك وترفع معدّلات التحويل بقرارات مبنية على البيانات.' %></p>
+        </article>
+
+        <article class="service">
+          <span class="s-num">04</span>
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1 1 21 11.5z"/></svg></div>
+          <h3>المحتوى والسوشيال ميديا</h3>
+          <p>خطة محتوى وتصاميم منشورات وإدارة حسابات تبني مجتمعاً متفاعلاً حول علامتك.</p>
+        </article>
+
+        <article class="service">
+          <span class="s-num">05</span>
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8" fill="currentColor"/></svg></div>
+          <h3>الحملات الإعلانية</h3>
+          <p>استهداف ذكي وإبداع لافت وتقارير شفّافة، نديرها لنصل بميزانيتك إلى أعلى عائد ممكن.</p>
+        </article>
+
+        <article class="service">
+          <span class="s-num">06</span>
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg></div>
+          <h3>التصوير والموشن</h3>
+          <p>تصوير فوتوغرافي ومقاطع موشن جرافيك احترافية تروي قصة منتجك بأسلوب يجذب الانتباه.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <% } %>
+
+  <!-- ============================== الأعمال ============================== -->
+  <section class="section work" id="work">
+    <div class="container">
+      <span class="eyebrow" data-reveal><span class="num">03</span> · مختارات من أعمالنا</span>
+      <h2 class="section-title" data-reveal style="margin-bottom:26px">مشاريع نفخر بها.</h2>
+
+      <!-- أزرار الفلترة -->
+      <div class="filters" data-reveal>
+        <button class="filter-btn active" data-filter="all">الكل</button>
+        <button class="filter-btn" data-filter="هوية">هوية</button>
+        <button class="filter-btn" data-filter="مواقع">مواقع</button>
+        <button class="filter-btn" data-filter="حملات">حملات</button>
+        <button class="filter-btn" data-filter="موشن">موشن</button>
+      </div>
+
+      <!-- شبكة المشاريع (بدّل الصور والعناوين) -->
+      <div class="portfolio-grid" data-reveal-children>
+        <a href="#" class="project" data-cat="هوية" aria-label="مشروع هوية مطعم أصيل">
+          <img src="https://picsum.photos/seed/awj-p1/700/525" alt="هوية بصرية لمطعم أصيل" loading="lazy" />
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><span class="cat">هوية بصرية</span><h3>مطعم أصيل</h3></div>
+        </a>
+        <a href="#" class="project" data-cat="مواقع" aria-label="مشروع متجر مايزون">
+          <img src="https://picsum.photos/seed/awj-p2/700/525" alt="متجر مايزون الإلكتروني" loading="lazy" />
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><span class="cat">متجر إلكتروني</span><h3>مايزون للأزياء</h3></div>
+        </a>
+        <a href="#" class="project" data-cat="حملات" aria-label="مشروع حملة دلتا">
+          <img src="https://picsum.photos/seed/awj-p3/700/525" alt="حملة دلتا للتسوق" loading="lazy" />
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><span class="cat">حملة إعلانية</span><h3>دلتا ماركت</h3></div>
+        </a>
+        <a href="#" class="project" data-cat="مواقع" aria-label="مشروع منصة كلينيكال">
+          <img src="https://picsum.photos/seed/awj-p4/700/525" alt="منصة كلينيكال الطبية" loading="lazy" />
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><span class="cat">منصة رقمية</span><h3>كلينيكال فلو</h3></div>
+        </a>
+        <a href="#" class="project" data-cat="موشن" aria-label="مشروع موشن إطلاق منتج">
+          <img src="https://picsum.photos/seed/awj-p5/700/525" alt="موشن جرافيك لإطلاق منتج" loading="lazy" />
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><span class="cat">موشن جرافيك</span><h3>إطلاق منتج نوفا</h3></div>
+        </a>
+        <a href="#" class="project" data-cat="هوية" aria-label="مشروع هوية صالون لمسة">
+          <img src="https://picsum.photos/seed/awj-p6/700/525" alt="هوية صالون لمسة" loading="lazy" />
+          <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
+          <div class="overlay"><span class="cat">هوية بصرية</span><h3>صالون لمسة</h3></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== آراء العملاء ============================== -->
+  <section class="section testi" id="testimonials">
+    <div class="container">
+      <span class="eyebrow" data-reveal><span class="num">04</span> · ماذا يقولون عنّا</span>
+      <h2 class="section-title" data-reveal style="margin-bottom:44px">ثقة العملاء هي أهم أعمالنا.</h2>
+
+      <div class="testi-grid" data-reveal-children>
+        <figure class="quote feat">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«تعاملت مع استوديوهات كثيرة، لكن أوْج هم الوحيدون الذين فهموا عملي قبل أن يفتحوا برنامج التصميم. النتيجة رفعت مبيعاتنا فعلاً.»</blockquote>
+          <figcaption class="who">
+            <span class="avatar">أف</span>
+            <span><span class="name">أحمد فؤاد</span><br><span class="role">مؤسّس متجر إلكتروني</span></span>
+          </figcaption>
+        </figure>
+
+        <figure class="quote">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«احترافية في المواعيد وذوق رفيع في التفاصيل. الهوية الجديدة غيّرت طريقة نظرة عملائنا لنا بالكامل.»</blockquote>
+          <figcaption class="who">
+            <span class="avatar">رع</span>
+            <span><span class="name">ريم العشري</span><br><span class="role">مديرة تسويق</span></span>
+          </figcaption>
+        </figure>
+
+        <figure class="quote">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«الموقع الجديد سريع وأنيق، وعدد الحجوزات عبره تضاعف خلال شهرين. أنصح بهم بثقة.»</blockquote>
+          <figcaption class="who">
+            <span class="avatar">كم</span>
+            <span><span class="name">د. كريم منصور</span><br><span class="role">صاحب عيادة</span></span>
+          </figcaption>
+        </figure>
+
+        <figure class="quote">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«فريق يسمع جيداً وينفّذ بدقّة. الحملة الإعلانية التي أداروها حقّقت أفضل عائد رأيناه حتى الآن.»</blockquote>
+          <figcaption class="who">
+            <span class="avatar">نخ</span>
+            <span><span class="name">نخبة العقارية</span><br><span class="role">شركة تطوير عقاري</span></span>
+          </figcaption>
+        </figure>
+
+        <figure class="quote">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«من أجمل ما يميّزهم أنهم يشرحون كل قرار تصميمي ولماذا اتّخذوه. تشعر أنك شريك لا مجرّد عميل.»</blockquote>
+          <figcaption class="who">
+            <span class="avatar">سح</span>
+            <span><span class="name">سارة حلمي</span><br><span class="role">صاحبة علامة منتجات طبيعية</span></span>
+          </figcaption>
+        </figure>
+
+        <figure class="quote">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«تجربة سلسة من البداية للنهاية، وتسليم قبل الموعد. سنعمل معهم في كل مشروع قادم.»</blockquote>
+          <figcaption class="who">
+            <span class="avatar">مط</span>
+            <span><span class="name">محمود طارق</span><br><span class="role">مدير عام مطعم</span></span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== كيف نعمل ============================== -->
+  <section class="section process" id="process">
+    <div class="container">
+      <span class="eyebrow" data-reveal><span class="num">05</span> · طريقة عملنا</span>
+      <h2 class="section-title" data-reveal>أربع خطوات واضحة، من الفكرة إلى الإطلاق.</h2>
+
+      <div class="process-grid" data-reveal-children>
+        <div class="step">
+          <span class="s-no">01</span>
+          <h3>الاكتشاف</h3>
+          <p>نجلس معك لنفهم عملك وجمهورك وأهدافك، ونحلّل المنافسين والسوق.</p>
+        </div>
+        <div class="step">
+          <span class="s-no">02</span>
+          <h3>الاستراتيجية</h3>
+          <p>نضع التوجّه الإبداعي والرسائل والملامح البصرية قبل أي تصميم.</p>
+        </div>
+        <div class="step">
+          <span class="s-no">03</span>
+          <h3>التصميم والتنفيذ</h3>
+          <p>ننتج العمل على مراحل مع جولات مراجعة واضحة وتعديلات مدروسة.</p>
+        </div>
+        <div class="step">
+          <span class="s-no">04</span>
+          <h3>الإطلاق والمتابعة</h3>
+          <p>نطلق المشروع، نقيس النتائج، وندعمك لتطويره باستمرار.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== الأسئلة الشائعة ============================== -->
+  <section class="section faq" id="faq">
+    <div class="container">
+      <div style="text-align:center; margin-bottom:44px">
+        <span class="eyebrow" data-reveal><span class="num">06</span> · الأسئلة الشائعة</span>
+        <h2 class="section-title" data-reveal>أسئلة قبل أن نبدأ معاً.</h2>
+      </div>
+
+      <div class="faq-wrap" data-reveal>
+        <!-- كل عنصر = سؤال وجواب، أضف أو احذف بسهولة -->
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">كم يستغرق المشروع عادةً؟<span class="ic" aria-hidden="true"></span></button>
+          <div class="faq-a"><p>يعتمد على نطاق العمل. مشروع هوية بصرية يستغرق غالباً من أسبوعين إلى أربعة أسابيع، أما موقع متكامل فمن أربعة إلى ثمانية أسابيع. نعطيك جدولاً زمنياً دقيقاً بعد أول جلسة اكتشاف.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">ما الذي يحدّد تكلفة المشروع؟<span class="ic" aria-hidden="true"></span></button>
+          <div class="faq-a"><p>عدد المخرجات ودرجة تعقيدها، والمدة الزمنية، ومستوى الدعم بعد التسليم. نقدّم لك عرض سعر مفصّلاً وثابتاً قبل البدء، بلا تكاليف خفية.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">هل أحصل على ملفات المصدر؟<span class="ic" aria-hidden="true"></span></button>
+          <div class="faq-a"><p>نعم، تمتلك كل ملفات المصدر والحقوق كاملةً بعد سداد المستحقات، مع دليل استخدام يساعد فريقك على التعامل معها.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">هل تقدّمون الدعم بعد التسليم؟<span class="ic" aria-hidden="true"></span></button>
+          <div class="faq-a"><p>بالتأكيد. كل مشروع يشمل 90 يوماً من الدعم والتعديلات البسيطة مجاناً، ويمكنك الاشتراك في باقة دعم شهرية بعدها.</p></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">هل تعملون مع عملاء خارج مصر؟<span class="ic" aria-hidden="true"></span></button>
+          <div class="faq-a"><p>نعم، نعمل عن بُعد مع عملاء في الخليج وأوروبا وأمريكا الشمالية، وننسّق الاجتماعات بما يناسب فارق التوقيت.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== دعوة للتواصل ============================== -->
+  <section class="section cta-band">
+    <div class="container">
+      <div class="cta-box" data-reveal>
+        <h2>جاهز ترفع مستوى علامتك؟</h2>
+        <p>احجز استشارة مجانية مدّتها 30 دقيقة، نناقش فيها فكرتك ونرسم لك أول خطوة، بدون أي التزام.</p>
+        <a href="#contact" class="btn btn-accent">احجز استشارتك المجانية</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== التواصل ============================== -->
+  <section class="section contact" id="contact">
+    <div class="container">
+      <div>
+        <span class="eyebrow" data-reveal><span class="num">07</span> · لنبدأ الحديث</span>
+        <h2 class="section-title" data-reveal style="margin-bottom:8px">احكِ لنا عن مشروعك.</h2>
+        <p class="lead" data-reveal style="margin-bottom:28px">املأ النموذج وسنعود إليك خلال يوم عمل واحد. كل التفاصيل تبقى سرّية.</p>
+
+        <!-- النموذج: غير مفعّل افتراضياً (يعرض رسالة نجاح فقط). اربطه بخدمتك أو بريدك -->
+        <form class="contact-form" id="contactForm" novalidate data-reveal>
+          <div class="form-row">
+            <div class="field">
+              <label for="name">الاسم</label>
+              <input type="text" id="name" name="name" placeholder="اسمك الكريم" required autocomplete="name" />
+            </div>
+            <div class="field">
+              <label for="phone">رقم الهاتف</label>
+              <input type="tel" id="phone" name="phone" placeholder="01000000000" autocomplete="tel" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="email">البريد الإلكتروني</label>
+            <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="service">الخدمة المطلوبة</label>
+            <select id="service" name="service">
+              <option value="">اختر خدمة...</option>
+              <option>هوية بصرية</option>
+              <option>تصميم وتطوير موقع</option>
+              <option>تجربة وواجهة المستخدم</option>
+              <option>محتوى وسوشيال ميديا</option>
+              <option>حملة إعلانية</option>
+              <option>أخرى</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="message">تفاصيل المشروع</label>
+            <textarea id="message" name="message" placeholder="احكِ لنا عن فكرتك وأهدافك..." required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%">أرسل الطلب</button>
+          <div class="form-msg" id="formMsg" role="status">تم استلام طلبك بنجاح، سنتواصل معك قريباً. شكراً لثقتك.</div>
+        </form>
+      </div>
+
+      <!-- معلومات التواصل (بدّلها ببياناتك) -->
+      <aside class="contact-info" data-reveal>
+        <a class="info-card" href="tel:+201000000000">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span>
+          <span><span class="k">اتصل بنا</span><br><span class="v">+20 100 000 0000</span></span>
+        </a>
+        <a class="info-card" href="mailto:hello@awj.studio">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 6 10 7L22 6"/></svg></span>
+          <span><span class="k">راسلنا</span><br><span class="v">hello@awj.studio</span></span>
+        </a>
+        <a class="info-card" href="https://wa.me/201000000000" target="_blank" rel="noopener">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.8 5-1.3A10 10 0 1 0 12 2zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20zm4.5-6c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-3.2-2.8c-.2-.4.2-.4.6-1.2a.4.4 0 0 0 0-.4l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.6 4 5.3 5.3 0 0 0 3.2.7 2.6 2.6 0 0 0 1.7-1.2 2.1 2.1 0 0 0 .2-1.2c-.1-.1-.3-.2-.6-.3z"/></svg></span>
+          <span><span class="k">واتساب</span><br><span class="v">+20 100 000 0000</span></span>
+        </a>
+        <a class="info-card" href="#">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <span><span class="k">العنوان</span><br><span class="v" style="direction:rtl">أسيوط · القاهرة، مصر</span></span>
+        </a>
+
+        <!-- روابط السوشيال (بدّل الروابط) -->
+        <div class="socials" aria-label="حساباتنا على التواصل الاجتماعي">
+          <a href="#" aria-label="فيسبوك"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3l.5-3.5H14V3.8c0-1 .3-1.7 1.8-1.7H18V-.7A26 26 0 0 0 15.4-1c-2.6 0-4.4 1.6-4.4 4.5V5.5H8V9h3v10h3z"/></svg></a>
+          <a href="#" aria-label="إنستجرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg></a>
+          <a href="#" aria-label="لينكدإن"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM10 9h3.8v1.7h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V21h-4v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21h-4z"/></svg></a>
+          <a href="#" aria-label="إكس تويتر"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h3l-7 8 8.2 12H16l-5-7-5.6 7H2.3l7.5-9L2 2h6.2l4.5 6.3zM16.8 20h1.7L7.3 4H5.5z"/></svg></a>
+          <a href="#" aria-label="يوتيوب"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.3-.4-4.9a2.5 2.5 0 0 0-1.8-1.8C19.1 5 12 5 12 5s-7 0-8.8.4A2.5 2.5 0 0 0 1.4 7.2C1 8.7 1 12 1 12s0 3.3.4 4.9a2.5 2.5 0 0 0 1.8 1.8C5 19 12 19 12 19s7 0 8.8-.4a2.5 2.5 0 0 0 1.8-1.8c.4-1.6.4-4.8.4-4.8zM10 15V9l5 3z"/></svg></a>
+          <a href="#" aria-label="تيك توك"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c.3 2.3 1.7 3.9 4 4.1v2.8c-1.4.1-2.7-.3-4-1v6.4a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.9a2.7 2.7 0 1 0 1.9 2.6V3z"/></svg></a>
+          <a href="#" aria-label="ثريدز"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.6 11.4c-.2 2.1-1.7 3.3-3.8 3.3-2 0-3.4-1.2-3.4-2.9 0-1.6 1.3-2.7 3.4-2.7.6 0 1.2.1 1.7.3 0-.9-.4-1.6-1.5-1.6-.8 0-1.3.3-1.6.8l-1.3-.8c.6-1 1.6-1.5 2.9-1.5 2 0 3 1.2 3 3.3v.4c.6.4 1 1 1.1 1.7zm-3.9.2c-1 0-1.7.4-1.7 1.1 0 .6.6 1 1.3 1 1 0 1.8-.6 1.9-1.8-.5-.2-1-.3-1.5-.3z"/></svg></a>
+          <a href="#" aria-label="الموقع الإلكتروني"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg></a>
+        </div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<!-- ============================== الفوتر ============================== -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid">
+      <div>
+        <span class="brand">
+          <svg class="mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <rect x="4" y="4" width="32" height="32" rx="9"/>
+            <circle cx="20" cy="20" r="8.5" fill="#c0894e"/>
+            <circle cx="20" cy="20" r="3.4"/>
+          </svg>
+          <span>أوْج</span>
+        </span>
+        <p class="about-f">استوديو إبداعي يبني علامات تجارية وتجارب رقمية تترك أثراً. من أول فكرة حتى الإطلاق، نحن شريكك في النمو.</p>
+      </div>
+      <div>
+        <h4>روابط سريعة</h4>
+        <ul>
+          <li><a href="#about">عنّا</a></li>
+          <li><a href="#services">الخدمات</a></li>
+          <li><a href="#work">الأعمال</a></li>
+          <li><a href="#testimonials">آراء العملاء</a></li>
+          <li><a href="#faq">الأسئلة الشائعة</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>تواصل</h4>
+        <ul>
+          <li><a href="tel:+201000000000" dir="ltr" style="display:inline-block">+20 100 000 0000</a></li>
+          <li><a href="mailto:hello@awj.studio">hello@awj.studio</a></li>
+          <li><a href="https://wa.me/201000000000">واتساب مباشر</a></li>
+          <li><a href="#contact">احجز استشارة</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="bottom">
+      <span>© 2025 أوْج. جميع الحقوق محفوظة.</span>
+      <span>صُمّم وطُوّر بعناية في مصر.</span>
+    </div>
+  </div>
+</footer>
+
+<!-- زر العودة للأعلى -->
+<button class="to-top" id="toTop" aria-label="العودة إلى الأعلى">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<script>
+/* ============================================================
+   1. الهيدر عند التمرير
+   ============================================================ */
+const header = document.getElementById('header');
+const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 24);
+onScroll();
+window.addEventListener('scroll', onScroll, { passive:true });
+
+/* ============================================================
+   2. قائمة الموبايل
+   ============================================================ */
+const navToggle = document.getElementById('navToggle');
+const nav = document.getElementById('nav');
+navToggle.addEventListener('click', () => {
+  const open = nav.classList.toggle('open');
+  navToggle.setAttribute('aria-expanded', open);
+  navToggle.setAttribute('aria-label', open ? 'إغلاق القائمة' : 'فتح القائمة');
+});
+nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+  nav.classList.remove('open');
+  navToggle.setAttribute('aria-expanded', 'false');
+}));
+
+/* ============================================================
+   3. حركات الظهور عند التمرير (تحترم تقليل الحركة)
+   ============================================================ */
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      e.target.classList.add('in');
+      obs.unobserve(e.target);
+    });
+  }, { threshold:0.12, rootMargin:'0px 0px -40px 0px' });
+
+  document.querySelectorAll('[data-reveal]').forEach(el => io.observe(el));
+
+  // الظهور المتدرّج لمجموعات العناصر
+  document.querySelectorAll('[data-reveal-children]').forEach(group => {
+    Array.from(group.children).forEach((child, i) => {
+      child.setAttribute('data-reveal', '');
+      child.style.transitionDelay = (i * 70) + 'ms';
+      io.observe(child);
+    });
+  });
+} else {
+  document.querySelectorAll('[data-reveal]').forEach(el => el.classList.add('in'));
+}
+
+/* ============================================================
+   4. عدّادات الأرقام
+   ============================================================ */
+const animateCount = (el) => {
+  const target = parseFloat(el.dataset.count);
+  const decimals = parseInt(el.dataset.decimals || '0', 10);
+  const dur = 1600;
+  const start = performance.now();
+  const tick = (now) => {
+    const p = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - p, 3); // ease-out
+    el.textContent = (target * eased).toFixed(decimals);
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = target.toFixed(decimals);
+  };
+  requestAnimationFrame(tick);
+};
+const counters = document.querySelectorAll('[data-count]');
+if ('IntersectionObserver' in window) {
+  const co = new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting){ animateCount(e.target); obs.unobserve(e.target); } });
+  }, { threshold:0.6 });
+  counters.forEach(c => co.observe(c));
+} else {
+  counters.forEach(c => c.textContent = parseFloat(c.dataset.count).toFixed(parseInt(c.dataset.decimals||'0',10)));
+}
+
+/* ============================================================
+   5. فلترة معرض الأعمال
+   ============================================================ */
+const filterBtns = document.querySelectorAll('.filter-btn');
+const projects = document.querySelectorAll('.project');
+filterBtns.forEach(btn => btn.addEventListener('click', () => {
+  filterBtns.forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const f = btn.dataset.filter;
+  projects.forEach(p => {
+    const show = (f === 'all' || p.dataset.cat === f);
+    p.classList.toggle('hide', !show);
+  });
+}));
+
+/* ============================================================
+   6. الأسئلة الشائعة (Accordion)
+   ============================================================ */
+document.querySelectorAll('.faq-item').forEach(item => {
+  const q = item.querySelector('.faq-q');
+  const a = item.querySelector('.faq-a');
+  q.addEventListener('click', () => {
+    const open = item.classList.contains('open');
+    // أغلق الباقي (سلوك أكورديون)
+    document.querySelectorAll('.faq-item.open').forEach(other => {
+      if (other !== item){ other.classList.remove('open'); other.querySelector('.faq-q').setAttribute('aria-expanded','false'); other.querySelector('.faq-a').style.maxHeight = null; }
+    });
+    item.classList.toggle('open', !open);
+    q.setAttribute('aria-expanded', !open);
+    a.style.maxHeight = open ? null : a.scrollHeight + 'px';
+  });
+});
+
+/* ============================================================
+   7. نموذج التواصل (عرض رسالة نجاح فقط، اربطه بخدمتك)
+   ============================================================ */
+const form = document.getElementById('contactForm');
+const formMsg = document.getElementById('formMsg');
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!form.checkValidity()) { form.reportValidity(); return; }
+  formMsg.classList.add('show');
+  form.reset();
+  setTimeout(() => formMsg.classList.remove('show'), 6000);
+});
+
+/* ============================================================
+   8. زر العودة للأعلى
+   ============================================================ */
+const toTop = document.getElementById('toTop');
+window.addEventListener('scroll', () => toTop.classList.toggle('show', window.scrollY > 600), { passive:true });
+toTop.addEventListener('click', () => window.scrollTo({ top:0, behavior: reduce ? 'auto' : 'smooth' }));
+
+/* ============================================================
+   9. تفعيل الرابط النشط في القائمة حسب القسم
+   ============================================================ */
+const sections = ['about','services','work','testimonials','faq','contact'];
+const navLinks = {};
+document.querySelectorAll('.nav a[href^="#"]').forEach(a => { navLinks[a.getAttribute('href').slice(1)] = a; });
+if ('IntersectionObserver' in window) {
+  const so = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting){
+        Object.values(navLinks).forEach(l => l && l.classList.remove('active'));
+        const link = navLinks[e.target.id];
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin:'-45% 0px -50% 0px' });
+  sections.forEach(id => { const el = document.getElementById(id); if (el) so.observe(el); });
+}
+</script>
+</body>
+</html>
