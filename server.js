@@ -280,6 +280,9 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS name_ar TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS name_en TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sale_type TEXT DEFAULT 'unit';
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sizes TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_unit TEXT DEFAULT 'كجم';
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;

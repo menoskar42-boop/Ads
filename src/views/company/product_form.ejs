@@ -80,6 +80,47 @@
         </div>
       </div>
 
+      <!-- نوع المنتج / طريقة البيع -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">نوع المنتج / طريقة البيع *</label>
+        <% var st = (product && product.sale_type) || 'unit'; %>
+        <select name="sale_type" id="saleType"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+          <option value="unit"   <%= st==='unit'?'selected':'' %>>بالعدد (قطعة)</option>
+          <option value="size"   <%= st==='size'?'selected':'' %>>بمقاسات (ملابس / أحذية)</option>
+          <option value="weight" <%= st==='weight'?'selected':'' %>>بالوزن (كيلو / جرام)</option>
+        </select>
+      </div>
+
+      <!-- المقاسات (لنوع "بمقاسات") -->
+      <div id="sizesField" style="display:none">
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">المقاسات المتاحة (افصل بينها بفاصلة)</label>
+        <input type="text" name="sizes" value="<%= product && product.sizes || '' %>" dir="ltr"
+          placeholder="مثال: S, M, L, XL  أو  38, 40, 42"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+      </div>
+
+      <!-- وحدة الوزن (لنوع "بالوزن") -->
+      <div id="weightField" style="display:none">
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">وحدة الوزن</label>
+        <% var wu = (product && product.weight_unit) || 'كجم'; %>
+        <select name="weight_unit"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+          <option value="كجم" <%= wu==='كجم'?'selected':'' %>>كيلوجرام (كجم)</option>
+          <option value="جم"  <%= wu==='جم'?'selected':'' %>>جرام (جم)</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-1">السعر المكتوب بالأعلى يُحتسب لكل وحدة وزن.</p>
+      </div>
+
+      <script>
+        (function(){
+          var sel=document.getElementById('saleType');
+          var sizesF=document.getElementById('sizesField'), weightF=document.getElementById('weightField');
+          function upd(){ var v=sel.value; sizesF.style.display=v==='size'?'block':'none'; weightF.style.display=v==='weight'?'block':'none'; }
+          sel.addEventListener('change', upd); upd();
+        })();
+      </script>
+
       <div>
         <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.image') %></label>
         <% if (product && product.image_url) { %>

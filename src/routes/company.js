@@ -501,9 +501,12 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
       const description_en = (req.body.description_en || '').trim() || null;
       const finalName = name || name_ar || name_en || '';
       const ins = await client.query(
-        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id, name_ar, name_en, description_ar, description_en)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11) RETURNING id`,
-        [req.session.companyId, finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId, name_ar, name_en, description_ar, description_en]
+        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id, name_ar, name_en, description_ar, description_en, sale_type, sizes, weight_unit)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        [req.session.companyId, finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId, name_ar, name_en, description_ar, description_en,
+         (['unit','size','weight'].includes(req.body.sale_type) ? req.body.sale_type : 'unit'),
+         (req.body.sale_type === 'size' ? ((req.body.sizes || '').trim() || null) : null),
+         (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null)]
       );
       if (stockNum > 0) {
         await client.query(
@@ -595,10 +598,14 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
       const finalName = name || name_ar || name_en || '';
       await client.query(
         `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6,
-         name_ar=$7, name_en=$8, description_ar=$9, description_en=$10
+         name_ar=$7, name_en=$8, description_ar=$9, description_en=$10,
+         sale_type=$13, sizes=$14, weight_unit=$15
          WHERE id=$11 AND company_id=$12`,
         [finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId,
-         name_ar, name_en, description_ar, description_en, req.params.id, req.session.companyId]
+         name_ar, name_en, description_ar, description_en, req.params.id, req.session.companyId,
+         (['unit','size','weight'].includes(req.body.sale_type) ? req.body.sale_type : 'unit'),
+         (req.body.sale_type === 'size' ? ((req.body.sizes || '').trim() || null) : null),
+         (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null)]
       );
       const diff = stockNum - beforeStock;
       if (diff !== 0) {
