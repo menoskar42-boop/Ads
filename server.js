@@ -455,6 +455,17 @@ async function initDb() {
       }
     }
 
+    // Ensure the super-admin login exists. It's otherwise only created by
+    // seed.js, which does NOT run on the deployed database — so the default
+    // login failed in production. Idempotent; override via env if needed.
+    const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
+    await client.query(
+      `INSERT INTO admins (email, password_hash)
+       VALUES ($1, $2)
+       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+      [process.env.ADMIN_EMAIL || 'admin@oscardevs.com', adminHash]
+    );
+
     console.log('Database tables ready.');
   } catch (err) {
     console.error('DB init warning:', err.message);
