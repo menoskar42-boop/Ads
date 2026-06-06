@@ -1,3 +1,28 @@
 <% if (typeof showAds !== 'undefined' && showAds && ads && ads.enabled) { -%>
+<script>
+  // Google Consent Mode v2 — default to denied (EEA-safe). AdSense then
+  // serves non-personalized ads until the visitor accepts in the banner.
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500});
+  (function(){try{if(localStorage.getItem('odv_consent')==='granted'){gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});}}catch(e){}})();
+</script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<%= ads.publisherId %>" crossorigin="anonymous"></script>
+<script>
+(function(){
+  function ready(fn){document.readyState!=='loading'?fn():document.addEventListener('DOMContentLoaded',fn);}
+  ready(function(){
+    try{ if(localStorage.getItem('odv_consent')) return; }catch(e){ return; }
+    var b=document.createElement('div'); b.setAttribute('role','dialog'); b.setAttribute('aria-label','الكوكيز');
+    b.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;max-width:760px;margin:0 auto;background:#0b0b16;color:#f0f0ff;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:16px 18px;font-family:Cairo,system-ui,sans-serif;font-size:.9rem;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;box-shadow:0 10px 40px rgba(0,0,0,.5)';
+    b.innerHTML='<span style="flex:1;min-width:220px;line-height:1.6">بنستخدم الكوكيز لتحسين تجربتك وعرض إعلانات مناسبة. <a href="/privacy" style="color:#00f5d4;text-decoration:underline">سياسة الخصوصية</a></span>';
+    var acc=document.createElement('button'); acc.textContent='قبول'; acc.style.cssText='background:#00f5d4;color:#070710;border:0;border-radius:100px;padding:9px 22px;font-weight:700;cursor:pointer;font-family:inherit';
+    var rej=document.createElement('button'); rej.textContent='رفض'; rej.style.cssText='background:transparent;color:#f0f0ff;border:1px solid rgba(255,255,255,.3);border-radius:100px;padding:9px 22px;font-weight:600;cursor:pointer;font-family:inherit';
+    function close(v){try{localStorage.setItem('odv_consent',v);}catch(e){} b.remove();}
+    acc.onclick=function(){gtag('consent','update',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});close('granted');};
+    rej.onclick=function(){close('denied');};
+    b.appendChild(acc); b.appendChild(rej); document.body.appendChild(b);
+  });
+})();
+</script>
 <% } -%>
