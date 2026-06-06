@@ -8,7 +8,7 @@ const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const { canonicalCompanyUrl } = require('../lib/urls');
-const { PROFESSIONS } = require('../lib/portfolio_presets');
+const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -273,6 +273,40 @@ router.post('/profile', requireLogin, (req, res) => {
       return renderError(`Failed to update profile: ${dbErr.message}`);
     }
   });
+});
+
+/* ─── PAGE CONTENT EDITOR (portfolio sections) ───────────── */
+router.get('/content', requireLogin, async (req, res) => {
+  const r = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+  const company = r.rows[0];
+  if (company.page_type === 'shop') return res.redirect('/company/profile');
+  const preset = getPreset(company.profession);
+  const pc = company.page_content || {};
+  const pick = (k) => (Array.isArray(pc[k]) && pc[k].length ? pc[k] : preset[k]);
+  const content = { stats: pick('stats'), testimonials: pick('testimonials'), process: pick('process'), faq: pick('faq') };
+  res.render('company/content', { company, content, session: req.session, success: req.query.saved ? 'تم حفظ المحتوى بنجاح.' : null });
+});
+
+router.post('/content', requireLogin, async (req, res) => {
+  const b = req.body;
+  const clean = (s) => (s == null ? '' : String(s).trim());
+  const collect = (fields) => {
+    const out = [];
+    for (let i = 0; i < 12; i++) {
+      const obj = {}; let any = false;
+      for (const [key, src] of fields) { const v = clean(b[src + '_' + i]); obj[key] = v; if (v) any = true; }
+      if (any) out.push(obj);
+    }
+    return out;
+  };
+  const stats = collect([['n', 'stat_n'], ['label', 'stat_label']])
+    .map((s) => { const o = { n: s.n, label: s.label }; if (String(s.n).includes('.')) o.decimals = 1; return o; });
+  const testimonials = collect([['quote', 'testi_quote'], ['name', 'testi_name'], ['role', 'testi_role']]);
+  const process = collect([['title', 'proc_title'], ['desc', 'proc_desc']]);
+  const faq = collect([['q', 'faq_q'], ['a', 'faq_a']]);
+  const page_content = { stats, testimonials, process, faq };
+  await pool.query('UPDATE companies SET page_content = $1 WHERE id = $2', [JSON.stringify(page_content), req.session.companyId]);
+  res.redirect('/company/content?saved=1');
 });
 
 /* ─── PORTFOLIO ──────────────────────────────────────────── */

@@ -134,8 +134,32 @@ const PRESETS = {
   },
 };
 
+// Shared, profession-agnostic defaults for sections every page shows.
+// The merchant edits these from the dashboard (stored in page_content).
+const BASE = {
+  testimonials: [
+    { quote: 'تجربة احترافية من أول تواصل حتى التسليم. النتيجة فاقت توقّعاتي وأنصح بهم بشدّة.', name: 'أحمد سالم', role: 'عميل' },
+    { quote: 'التزام بالمواعيد ودقّة في التفاصيل، وتعامل راقٍ طول الوقت. شكراً على المجهود.', name: 'سارة محمود', role: 'عميلة' },
+    { quote: 'أفضل قرار اتخذته. خدمة ممتازة ومتابعة مستمرة، وسعر يستحق كل قرش.', name: 'محمد عمر', role: 'عميل' },
+  ],
+  process: [
+    { title: 'تواصل وفهم', desc: 'نسمع منك ونفهم احتياجك وأهدافك بدقّة.' },
+    { title: 'خطة واضحة', desc: 'نقدّم خطة وتسعير شفّاف بلا مفاجآت.' },
+    { title: 'تنفيذ بإتقان', desc: 'ننفّذ العمل بأعلى جودة وفي الموعد المتّفق عليه.' },
+    { title: 'تسليم ومتابعة', desc: 'نسلّمك العمل وندعمك بعدها لضمان رضاك.' },
+  ],
+  faq: [
+    { q: 'كم تستغرق الخدمة؟', a: 'تختلف المدّة حسب نوع وحجم الطلب، ونوضّح لك جدولاً زمنياً واضحاً قبل البدء.' },
+    { q: 'كيف يتم الدفع؟', a: 'نتّفق على طريقة وجدول دفع مريحين لك قبل بداية العمل.' },
+    { q: 'هل أحصل على متابعة بعد التسليم؟', a: 'نعم، نوفّر دعماً ومتابعة بعد التسليم لضمان حصولك على أفضل نتيجة.' },
+    { q: 'كيف أبدأ؟', a: 'تواصل معنا عبر النموذج أو واتساب، وسنردّ عليك في أقرب وقت.' },
+  ],
+};
+
 function getPreset(profession) {
-  return PRESETS[profession] || PRESETS.default;
+  const p = PRESETS[profession] || PRESETS.default;
+  // Shared defaults for sections that aren't profession-specific yet.
+  return Object.assign({}, BASE, p);
 }
 
 // List for the dashboard dropdown

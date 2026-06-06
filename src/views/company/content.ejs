@@ -1,0 +1,84 @@
+<%
+  pageTitle = 'محتوى الصفحة';
+  activePage = 'content';
+%>
+<%- include('_layout_top') %>
+
+  <div class="max-w-2xl space-y-6">
+    <%- include('../partials/page_guide', {
+      title: 'تعديل محتوى صفحتك',
+      intro: 'هنا تتحكّم في نصوص أقسام صفحتك: الأرقام، آراء العملاء، خطوات العمل، والأسئلة الشائعة. لو سِبت حقلاً فاضياً ياخد المحتوى الافتراضي المناسب لمجالك.',
+      steps: [
+        'عدّل أي نص في الأقسام تحت',
+        'لتعديل الاسم/الوصف/الخدمات/الألوان روح لصفحة الإعدادات',
+        'اضغط <b>حفظ المحتوى</b> في الآخر'
+      ],
+      tips: [ 'التغييرات تظهر فوراً على صفحتك العامة', 'الحقول الفاضية تاخد القيم الافتراضية لمجالك' ]
+    }) %>
+
+    <div class="bg-white rounded-2xl shadow-sm p-6 brand-border">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">محتوى صفحتك</h2>
+      <p class="text-gray-400 text-sm">عدّل نصوص الأقسام كما تحب.</p>
+    </div>
+
+    <% if (typeof success !== 'undefined' && success) { %>
+    <div class="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm"><%= success %></div>
+    <% } %>
+
+    <form method="POST" action="/company/content" class="space-y-6">
+
+      <!-- الأرقام / الإنجازات -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h3 class="font-bold text-gray-800 mb-4">الأرقام والإنجازات</h3>
+        <% (content.stats || []).forEach(function(s, i){ %>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <input type="text" name="stat_n_<%= i %>" value="<%= s.n %>" placeholder="الرقم (مثال: 500)" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" dir="ltr" />
+            <input type="text" name="stat_label_<%= i %>" value="<%= s.label %>" placeholder="الوصف (مثال: عميل سعيد)" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- آراء العملاء -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h3 class="font-bold text-gray-800 mb-4">آراء العملاء</h3>
+        <% (content.testimonials || []).forEach(function(tt, i){ %>
+          <div class="border border-gray-100 rounded-xl p-3 mb-3 space-y-2">
+            <textarea name="testi_quote_<%= i %>" rows="2" placeholder="نص الرأي" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"><%= tt.quote %></textarea>
+            <div class="grid grid-cols-2 gap-3">
+              <input type="text" name="testi_name_<%= i %>" value="<%= tt.name %>" placeholder="اسم العميل" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              <input type="text" name="testi_role_<%= i %>" value="<%= tt.role || '' %>" placeholder="صفته" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+            </div>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- خطوات العمل -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h3 class="font-bold text-gray-800 mb-4">خطوات العمل</h3>
+        <% (content.process || []).forEach(function(st, i){ %>
+          <div class="grid grid-cols-1 gap-2 mb-3">
+            <input type="text" name="proc_title_<%= i %>" value="<%= st.title %>" placeholder="عنوان الخطوة" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+            <input type="text" name="proc_desc_<%= i %>" value="<%= st.desc %>" placeholder="وصف الخطوة" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- الأسئلة الشائعة -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h3 class="font-bold text-gray-800 mb-4">الأسئلة الشائعة</h3>
+        <% (content.faq || []).forEach(function(f, i){ %>
+          <div class="border border-gray-100 rounded-xl p-3 mb-3 space-y-2">
+            <input type="text" name="faq_q_<%= i %>" value="<%= f.q %>" placeholder="السؤال" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+            <textarea name="faq_a_<%= i %>" rows="2" placeholder="الإجابة" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"><%= f.a %></textarea>
+          </div>
+        <% }) %>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md">حفظ المحتوى</button>
+        <a href="/company/dashboard" class="text-gray-500 hover:text-gray-700 text-sm">رجوع</a>
+      </div>
+    </form>
+  </div>
+
+<%- include('_layout_bottom') %>

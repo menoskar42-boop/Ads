@@ -60,10 +60,21 @@ router.get('/', async (req, res) => {
   else if (company.slug === 'petra') view = 'tenant';
   else view = 'tenant_portfolio';
 
+  const preset = getPreset(company.profession);
+  const pc = company.page_content || {};
+  const pick = (k) => (Array.isArray(pc[k]) && pc[k].length ? pc[k] : preset[k]);
+  const content = {
+    stats: pick('stats'),
+    testimonials: pick('testimonials'),
+    process: pick('process'),
+    faq: pick('faq'),
+  };
+
   res.render(view, {
     company,
-    preset: getPreset(company.profession),
-    pageContent: company.page_content || {},
+    preset,
+    pageContent: pc,
+    content,
     topAd:     ads.find(a => a.position === 'top')     || null,
     sidebarAd: ads.find(a => a.position === 'sidebar') || null,
     footerAd:  ads.find(a => a.position === 'footer')  || null,

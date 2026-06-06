@@ -585,22 +585,12 @@ ul{ list-style:none; }
   <!-- ============================== الأرقام ============================== -->
   <section class="stats" aria-label="إنجازاتنا بالأرقام">
     <div class="container">
+      <% (content.stats || []).forEach(function(s){ %>
       <div class="stat" data-reveal>
-        <div class="figure"><span data-count="13">0</span></div>
-        <div class="label">سنة من الخبرة</div>
+        <div class="figure"><span data-count="<%= s.n %>"<%= s.decimals ? ' data-decimals="'+s.decimals+'"' : '' %>>0</span><% if (s.plus) { %><span class="plus">+</span><% } %></div>
+        <div class="label"><%= s.label %></div>
       </div>
-      <div class="stat" data-reveal>
-        <div class="figure"><span data-count="480">0</span><span class="plus">+</span></div>
-        <div class="label">مشروع منجز</div>
-      </div>
-      <div class="stat" data-reveal>
-        <div class="figure"><span data-count="260">0</span><span class="plus">+</span></div>
-        <div class="label">عميل سعيد</div>
-      </div>
-      <div class="stat" data-reveal>
-        <div class="figure"><span data-count="4.9" data-decimals="1">0</span></div>
-        <div class="label">متوسط تقييم العملاء</div>
-      </div>
+      <% }) %>
     </div>
   </section>
 
@@ -783,6 +773,17 @@ ul{ list-style:none; }
       <h2 class="section-title" data-reveal style="margin-bottom:44px">ثقة العملاء هي أهم أعمالنا.</h2>
 
       <div class="testi-grid" data-reveal-children>
+        <% (content.testimonials || []).forEach(function(tt, i){ var nm=(tt.name||'').trim(); var av = nm ? nm.split(' ').slice(0,2).map(function(w){return (w||' ').charAt(0);}).join('') : '★'; %>
+        <figure class="quote<%= i===0 ? ' feat' : '' %>">
+          <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
+          <blockquote>«<%= tt.quote %>»</blockquote>
+          <figcaption class="who">
+            <span class="avatar"><%= av %></span>
+            <span><span class="name"><%= tt.name %></span><br><span class="role"><%= tt.role || '' %></span></span>
+          </figcaption>
+        </figure>
+        <% }) %>
+        <% if (false) { %>
         <figure class="quote feat">
           <div class="stars" aria-label="تقييم خمس نجوم">★★★★★</div>
           <blockquote>«تعاملت مع استوديوهات كثيرة، لكن أوْج هم الوحيدون الذين فهموا عملي قبل أن يفتحوا برنامج التصميم. النتيجة رفعت مبيعاتنا فعلاً.»</blockquote>
@@ -836,6 +837,7 @@ ul{ list-style:none; }
             <span><span class="name">محمود طارق</span><br><span class="role">مدير عام مطعم</span></span>
           </figcaption>
         </figure>
+        <% } %>
       </div>
     </div>
   </section>
@@ -847,26 +849,13 @@ ul{ list-style:none; }
       <h2 class="section-title" data-reveal>أربع خطوات واضحة، من الفكرة إلى الإطلاق.</h2>
 
       <div class="process-grid" data-reveal-children>
+        <% (content.process || []).forEach(function(st, i){ %>
         <div class="step">
-          <span class="s-no">01</span>
-          <h3>الاكتشاف</h3>
-          <p>نجلس معك لنفهم عملك وجمهورك وأهدافك، ونحلّل المنافسين والسوق.</p>
+          <span class="s-no"><%= String(i+1).padStart(2,'0') %></span>
+          <h3><%= st.title %></h3>
+          <p><%= st.desc %></p>
         </div>
-        <div class="step">
-          <span class="s-no">02</span>
-          <h3>الاستراتيجية</h3>
-          <p>نضع التوجّه الإبداعي والرسائل والملامح البصرية قبل أي تصميم.</p>
-        </div>
-        <div class="step">
-          <span class="s-no">03</span>
-          <h3>التصميم والتنفيذ</h3>
-          <p>ننتج العمل على مراحل مع جولات مراجعة واضحة وتعديلات مدروسة.</p>
-        </div>
-        <div class="step">
-          <span class="s-no">04</span>
-          <h3>الإطلاق والمتابعة</h3>
-          <p>نطلق المشروع، نقيس النتائج، وندعمك لتطويره باستمرار.</p>
-        </div>
+        <% }) %>
       </div>
     </div>
   </section>
@@ -880,27 +869,12 @@ ul{ list-style:none; }
       </div>
 
       <div class="faq-wrap" data-reveal>
-        <!-- كل عنصر = سؤال وجواب، أضف أو احذف بسهولة -->
+        <% (content.faq || []).forEach(function(f){ %>
         <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">كم يستغرق المشروع عادةً؟<span class="ic" aria-hidden="true"></span></button>
-          <div class="faq-a"><p>يعتمد على نطاق العمل. مشروع هوية بصرية يستغرق غالباً من أسبوعين إلى أربعة أسابيع، أما موقع متكامل فمن أربعة إلى ثمانية أسابيع. نعطيك جدولاً زمنياً دقيقاً بعد أول جلسة اكتشاف.</p></div>
+          <button class="faq-q" aria-expanded="false"><%= f.q %><span class="ic" aria-hidden="true"></span></button>
+          <div class="faq-a"><p><%= f.a %></p></div>
         </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">ما الذي يحدّد تكلفة المشروع؟<span class="ic" aria-hidden="true"></span></button>
-          <div class="faq-a"><p>عدد المخرجات ودرجة تعقيدها، والمدة الزمنية، ومستوى الدعم بعد التسليم. نقدّم لك عرض سعر مفصّلاً وثابتاً قبل البدء، بلا تكاليف خفية.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل أحصل على ملفات المصدر؟<span class="ic" aria-hidden="true"></span></button>
-          <div class="faq-a"><p>نعم، تمتلك كل ملفات المصدر والحقوق كاملةً بعد سداد المستحقات، مع دليل استخدام يساعد فريقك على التعامل معها.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل تقدّمون الدعم بعد التسليم؟<span class="ic" aria-hidden="true"></span></button>
-          <div class="faq-a"><p>بالتأكيد. كل مشروع يشمل 90 يوماً من الدعم والتعديلات البسيطة مجاناً، ويمكنك الاشتراك في باقة دعم شهرية بعدها.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل تعملون مع عملاء خارج مصر؟<span class="ic" aria-hidden="true"></span></button>
-          <div class="faq-a"><p>نعم، نعمل عن بُعد مع عملاء في الخليج وأوروبا وأمريكا الشمالية، وننسّق الاجتماعات بما يناسب فارق التوقيت.</p></div>
-        </div>
+        <% }) %>
       </div>
     </div>
   </section>
