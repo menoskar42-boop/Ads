@@ -8,8 +8,12 @@ const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const { canonicalCompanyUrl } = require('../lib/urls');
+const { PROFESSIONS } = require('../lib/portfolio_presets');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Profession list available to all company dashboard views (e.g. profile).
+router.use((req, res, next) => { res.locals.professions = PROFESSIONS; next(); });
 
 const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -235,7 +239,8 @@ router.post('/profile', requireLogin, (req, res) => {
            service3_title=$31, service3_desc=$32,
            hero_text_color=$33, hero_btn_bg=$34, hero_btn_text=$35,
            social_facebook=$36, social_instagram=$37, social_linkedin=$38, social_twitter=$39,
-           social_tiktok=$40, social_youtube=$41, social_threads=$42, social_website=$43
+           social_tiktok=$40, social_youtube=$41, social_threads=$42, social_website=$43,
+           profession=$44
          WHERE id=$15`,
         [
           company_name, description, safeTheme, finalLogoUrl, clean(currency) || 'EGP',
@@ -250,6 +255,7 @@ router.post('/profile', requireLogin, (req, res) => {
           heroTextColor, heroBtnBg, heroBtnText,
           socialFacebook, socialInstagram, socialLinkedin, socialTwitter,
           socialTiktok, socialYoutube, socialThreads, socialWebsite,
+          clean(req.body.profession) || null,
         ]
       );
       req.session.companyName = company_name;
