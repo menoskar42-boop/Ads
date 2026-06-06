@@ -4,8 +4,10 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
+const { canonicalCompanyUrl } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -122,10 +124,25 @@ router.get('/dashboard', requireLogin, async (req, res) => {
     const portfolioCount = await pool.query(
       'SELECT COUNT(*) FROM portfolio_items WHERE company_id = $1', [req.session.companyId]
     );
+    const company = result.rows[0];
+    // Absolute public URL of this tenant's page, encoded into a QR code the
+    // owner can download and print (works for both shop and portfolio pages).
+    let publicUrl = canonicalCompanyUrl(company.slug, req);
+    if (publicUrl.startsWith('/')) {
+      publicUrl = (process.env.SITE_ORIGIN || 'https://oscardevs.com') + publicUrl;
+    }
+    let qrDataUrl = null;
+    try {
+      qrDataUrl = await QRCode.toDataURL(publicUrl, { width: 512, margin: 2, errorCorrectionLevel: 'M' });
+    } catch (e) {
+      console.error('[dashboard] QR generation failed:', e.message);
+    }
     res.render('company/dashboard', {
-      company: result.rows[0],
+      company,
       portfolioCount: parseInt(portfolioCount.rows[0].count),
       session: req.session,
+      publicUrl,
+      qrDataUrl,
     });
   } catch (err) {
     console.error(err);
