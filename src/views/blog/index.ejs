@@ -7,6 +7,24 @@
 <title>المدوّنة | تصميم مواقع وتجارة إلكترونية — OscarDevs</title>
 <meta name="description" content="مقالات أصلية عربية في تصميم المواقع، التجارة الإلكترونية، وتحسين محركات البحث للمشاريع الصغيرة." />
 <%- include('../partials/seo_meta', { title: 'المدوّنة — OscarDevs', description: 'مقالات أصلية عربية في تصميم المواقع، التجارة الإلكترونية، تحسين محركات البحث، وريادة الأعمال الرقمية.' }) %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "مدوّنة OscarDevs",
+  "description": "مقالات أصلية عربية في تصميم المواقع، التجارة الإلكترونية، وتحسين محركات البحث للمشاريع الصغيرة.",
+  "inLanguage": "ar",
+  "url": siteOrigin + "/blog",
+  "publisher": { "@type": "Organization", "name": "OscarDevs", "url": siteOrigin },
+  "blogPost": articles.map(function(a){ return {
+    "@type": "BlogPosting",
+    "headline": a.title,
+    "description": a.excerpt || "",
+    "datePublished": a.date,
+    "url": siteOrigin + "/blog/" + a.slug
+  }; })
+}) %>
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>* { font-family: 'Cairo', sans-serif; }</style>

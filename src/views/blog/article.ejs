@@ -11,19 +11,19 @@
 <meta property="og:type" content="article" />
 <%- include('../partials/seo_meta', { title: article.title + ' | OscarDevs', description: (article.metaDescription || article.excerpt).slice(0, 160), ogType: 'article', articleDate: article.date }) %>
 <script type="application/ld+json">
-{
+<%- JSON.stringify({
   "@context": "https://schema.org",
   "@type": "BlogPosting",
-  "headline": "<%= article.title %>",
-  "description": "<%= article.excerpt %>",
-  "datePublished": "<%= article.date %>",
-  "dateModified": "<%= article.date %>",
+  "headline": article.title,
+  "description": article.excerpt,
+  "datePublished": article.date,
+  "dateModified": article.date,
   "inLanguage": "ar",
-  "mainEntityOfPage": "<%= siteOrigin %>/blog/<%= article.slug %>",
-  "image": "<%= siteOrigin %>/og-default.svg",
-  "author": { "@type": "Organization", "name": "OscarDevs", "url": "<%= siteOrigin %>" },
-  "publisher": { "@type": "Organization", "name": "OscarDevs", "logo": { "@type": "ImageObject", "url": "<%= siteOrigin %>/og-default.svg" } }
-}
+  "mainEntityOfPage": siteOrigin + "/blog/" + article.slug,
+  "image": siteOrigin + "/og-default.svg",
+  "author": { "@type": "Organization", "name": "OscarDevs", "url": siteOrigin },
+  "publisher": { "@type": "Organization", "name": "OscarDevs", "logo": { "@type": "ImageObject", "url": siteOrigin + "/og-default.svg" } }
+}) %>
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
