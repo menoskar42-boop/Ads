@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const { getPreset } = require('../lib/portfolio_presets');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -52,9 +53,17 @@ router.get('/', async (req, res) => {
   const cart = (req.session.carts && req.session.carts[company.slug]) || {};
   const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
 
-  const view = company.page_type === 'shop' ? 'tenant_shop' : 'tenant';
+  // Portfolio tenants use the new premium template, EXCEPT 'petra' which
+  // keeps its original full design as a reference.
+  let view;
+  if (company.page_type === 'shop') view = 'tenant_shop';
+  else if (company.slug === 'petra') view = 'tenant';
+  else view = 'tenant_portfolio';
+
   res.render(view, {
     company,
+    preset: getPreset(company.profession),
+    pageContent: company.page_content || {},
     topAd:     ads.find(a => a.position === 'top')     || null,
     sidebarAd: ads.find(a => a.position === 'sidebar') || null,
     footerAd:  ads.find(a => a.position === 'footer')  || null,

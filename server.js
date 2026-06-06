@@ -304,6 +304,8 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_about BOOLEAN DEFAULT true;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_services BOOLEAN DEFAULT true;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS show_portfolio BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS profession TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS page_content JSONB;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service1_title TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service1_desc TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service2_title TEXT;

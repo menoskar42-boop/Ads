@@ -6,12 +6,11 @@
 
 <!-- ===================== بيانات الصفحة (Meta) ===================== -->
 <!-- بدّل النصوص دي حسب علامتك التجارية -->
-<title>أوْج · استوديو علامات وتجارب رقمية</title>
 <%
   var displayName = (typeof pickContent === 'function' ? pickContent(company, 'company_name', company.content_i18n) : null) || company.company_name;
   var displayDesc = (typeof pickContent === 'function' ? pickContent(company, 'description', company.content_i18n) : null) || company.description || '';
-  var brandColor = company.theme_color || '#0d3b38';
-  var brandAccent = company.color_accent || '#c08a4e';
+  var brandColor = company.theme_color || preset.primary;
+  var brandAccent = company.color_accent || preset.accent;
 %>
 <title><%= displayName %> · بورتفوليو احترافي</title>
 <meta name="description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
@@ -544,10 +543,9 @@ ul{ list-style:none; }
   <section class="hero">
     <div class="container">
       <div class="hero-copy">
-        <span class="eyebrow"><span class="dot"></span> استوديو علامات وتجارب رقمية · منذ 2012</span>
-        <!-- العنوان الرئيسي (بدّله حسب المهنة) -->
-        <h1>نصمّم علاماتٍ <span class="hl">تُقنع</span>، وتجاربَ تبقى في الذاكرة.</h1>
-        <p class="sub"><%= displayDesc || 'نقدّم خدمات احترافية تبني ثقة عملائك من اللحظة الأولى — بخبرة وجودة تنافس الأفضل في مجالنا.' %></p>
+        <span class="eyebrow"><span class="dot"></span> <%= preset.hero.eyebrow %></span>
+        <h1><%- preset.hero.title %></h1>
+        <p class="sub"><%= displayDesc || preset.hero.sub %></p>
         <div class="hero-cta">
           <a href="#contact" class="btn btn-primary">
             ابدأ مشروعك
@@ -613,7 +611,7 @@ ul{ list-style:none; }
       <div>
         <span class="eyebrow" data-reveal><span class="num">01</span> · من نحن</span>
         <h2 class="section-title" data-reveal>نبذة عن <%= displayName %></h2>
-        <p class="lead" data-reveal><%= displayDesc || 'نقدّم خدمة احترافية مبنية على الخبرة والثقة، نهتم بأدقّ التفاصيل ونقيس نجاحنا برضا عملائنا ونتائجهم الحقيقية.' %></p>
+        <p class="lead" data-reveal><%= displayDesc || preset.about %></p>
 
         <div class="about-points">
           <div class="point" data-reveal>
@@ -664,49 +662,52 @@ ul{ list-style:none; }
         <article class="service">
           <span class="s-num">01</span>
           <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="3.5"/><circle cx="6.5" cy="17.5" r="3.5"/><path d="M17 14l4 4M21 14l-4 4"/></svg></div>
-          <h3><%= company.service1_title || 'الهوية البصرية' %></h3>
-          <p><%= company.service1_desc || 'شعار وأنظمة ألوان وخطوط ودليل استخدام متكامل يجعل علامتك مميّزة ومتّسقة في كل مكان.' %></p>
+          <h3><%= company.service1_title || preset.services[0].title %></h3>
+          <p><%= company.service1_desc || preset.services[0].desc %></p>
         </article>
 
         <article class="service">
           <span class="s-num">02</span>
           <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="6.5" cy="6.5" r=".6" fill="currentColor"/></svg></div>
-          <h3><%= company.service2_title || 'تصميم وتطوير المواقع' %></h3>
-          <p><%= company.service2_desc || 'مواقع ومتاجر سريعة ومتجاوبة ومُحسّنة لمحركات البحث، تترك انطباعاً أولاً يدوم.' %></p>
+          <h3><%= company.service2_title || preset.services[1].title %></h3>
+          <p><%= company.service2_desc || preset.services[1].desc %></p>
         </article>
 
         <article class="service">
           <span class="s-num">03</span>
           <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 8.5-6 1.5-1.5 6L5 3z"/></svg></div>
-          <h3><%= company.service3_title || 'تجربة وواجهة المستخدم' %></h3>
-          <p><%= company.service3_desc || 'نصمّم رحلات استخدام سلسة تقلّل الاحتكاك وترفع معدّلات التحويل بقرارات مبنية على البيانات.' %></p>
+          <h3><%= company.service3_title || preset.services[2].title %></h3>
+          <p><%= company.service3_desc || preset.services[2].desc %></p>
         </article>
 
         <article class="service">
           <span class="s-num">04</span>
           <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.6L3 21l1.9-5.8A8.5 8.5 0 1 1 21 11.5z"/></svg></div>
-          <h3>المحتوى والسوشيال ميديا</h3>
-          <p>خطة محتوى وتصاميم منشورات وإدارة حسابات تبني مجتمعاً متفاعلاً حول علامتك.</p>
+          <h3><%= company.service4_title || preset.services[3].title %></h3>
+          <p><%= company.service4_desc || preset.services[3].desc %></p>
         </article>
 
         <article class="service">
           <span class="s-num">05</span>
           <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8" fill="currentColor"/></svg></div>
-          <h3>الحملات الإعلانية</h3>
-          <p>استهداف ذكي وإبداع لافت وتقارير شفّافة، نديرها لنصل بميزانيتك إلى أعلى عائد ممكن.</p>
+          <h3><%= company.service5_title || preset.services[4].title %></h3>
+          <p><%= company.service5_desc || preset.services[4].desc %></p>
         </article>
 
         <article class="service">
           <span class="s-num">06</span>
           <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg></div>
-          <h3>التصوير والموشن</h3>
-          <p>تصوير فوتوغرافي ومقاطع موشن جرافيك احترافية تروي قصة منتجك بأسلوب يجذب الانتباه.</p>
+          <h3><%= company.service6_title || preset.services[5].title %></h3>
+          <p><%= company.service6_desc || preset.services[5].desc %></p>
         </article>
       </div>
     </div>
   </section>
 
   <% } %>
+
+  <!-- إعلان داخل المحتوى (سياسة AdSense: صفحة محتوى، بعيد عن الأزرار) -->
+  <div class="container" style="margin-inline:auto"><%- include('partials/ad_unit', { slot: ads.slots.portfolioTop }) %></div>
 
   <!-- ============================== الأعمال ============================== -->
   <section class="section work" id="work">
@@ -900,6 +901,7 @@ ul{ list-style:none; }
   </section>
 
   <!-- ============================== التواصل ============================== -->
+  <% if (company.show_contact !== false) { %>
   <section class="section contact" id="contact">
     <div class="container">
       <div>
@@ -907,76 +909,77 @@ ul{ list-style:none; }
         <h2 class="section-title" data-reveal style="margin-bottom:8px">احكِ لنا عن مشروعك.</h2>
         <p class="lead" data-reveal style="margin-bottom:28px">املأ النموذج وسنعود إليك خلال يوم عمل واحد. كل التفاصيل تبقى سرّية.</p>
 
-        <!-- النموذج: غير مفعّل افتراضياً (يعرض رسالة نجاح فقط). اربطه بخدمتك أو بريدك -->
-        <form class="contact-form" id="contactForm" novalidate data-reveal>
+        <% if (typeof sent !== 'undefined' && sent) { %>
+        <div class="form-msg show" role="status" style="margin-bottom:16px">تم استلام طلبك بنجاح، سنتواصل معك قريباً. شكراً لثقتك.</div>
+        <% } %>
+        <form class="contact-form" id="contactForm" method="POST" action="/contact/<%= company.slug %>" data-reveal>
           <div class="form-row">
             <div class="field">
               <label for="name">الاسم</label>
-              <input type="text" id="name" name="name" placeholder="اسمك الكريم" required autocomplete="name" />
+              <input type="text" id="name" name="sender_name" placeholder="اسمك الكريم" required autocomplete="name" />
             </div>
             <div class="field">
               <label for="phone">رقم الهاتف</label>
-              <input type="tel" id="phone" name="phone" placeholder="01000000000" autocomplete="tel" />
+              <input type="tel" id="phone" name="sender_phone" placeholder="01000000000" autocomplete="tel" maxlength="30" />
             </div>
           </div>
           <div class="field">
             <label for="email">البريد الإلكتروني</label>
-            <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email" />
+            <input type="email" id="email" name="sender_email" placeholder="you@example.com" autocomplete="email" />
           </div>
           <div class="field">
-            <label for="service">الخدمة المطلوبة</label>
-            <select id="service" name="service">
-              <option value="">اختر خدمة...</option>
-              <option>هوية بصرية</option>
-              <option>تصميم وتطوير موقع</option>
-              <option>تجربة وواجهة المستخدم</option>
-              <option>محتوى وسوشيال ميديا</option>
-              <option>حملة إعلانية</option>
-              <option>أخرى</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="message">تفاصيل المشروع</label>
-            <textarea id="message" name="message" placeholder="احكِ لنا عن فكرتك وأهدافك..." required></textarea>
+            <label for="message">تفاصيل طلبك</label>
+            <textarea id="message" name="message" placeholder="احكِ لنا عن طلبك..." required maxlength="5000"></textarea>
           </div>
           <button type="submit" class="btn btn-primary" style="width:100%">أرسل الطلب</button>
-          <div class="form-msg" id="formMsg" role="status">تم استلام طلبك بنجاح، سنتواصل معك قريباً. شكراً لثقتك.</div>
         </form>
       </div>
 
       <!-- معلومات التواصل (بدّلها ببياناتك) -->
       <aside class="contact-info" data-reveal>
-        <a class="info-card" href="tel:+201000000000">
+        <% if (company.contact_phone) { %>
+        <a class="info-card" href="tel:<%= company.contact_phone %>">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span>
-          <span><span class="k">اتصل بنا</span><br><span class="v">+20 100 000 0000</span></span>
+          <span><span class="k">اتصل بنا</span><br><span class="v" dir="ltr"><%= company.contact_phone %></span></span>
         </a>
-        <a class="info-card" href="mailto:hello@awj.studio">
+        <% } %>
+        <% if (company.contact_email) { %>
+        <a class="info-card" href="mailto:<%= company.contact_email %>">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 6 10 7L22 6"/></svg></span>
-          <span><span class="k">راسلنا</span><br><span class="v">hello@awj.studio</span></span>
+          <span><span class="k">راسلنا</span><br><span class="v" dir="ltr"><%= company.contact_email %></span></span>
         </a>
-        <a class="info-card" href="https://wa.me/201000000000" target="_blank" rel="noopener">
+        <% } %>
+        <% if (company.contact_whatsapp) { %>
+        <a class="info-card" href="https://wa.me/<%= String(company.contact_whatsapp).replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener">
           <span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.8 5-1.3A10 10 0 1 0 12 2zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20zm4.5-6c-.2-.1-1.4-.7-1.6-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.5 6.5 0 0 1-3.2-2.8c-.2-.4.2-.4.6-1.2a.4.4 0 0 0 0-.4l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.6 4 5.3 5.3 0 0 0 3.2.7 2.6 2.6 0 0 0 1.7-1.2 2.1 2.1 0 0 0 .2-1.2c-.1-.1-.3-.2-.6-.3z"/></svg></span>
-          <span><span class="k">واتساب</span><br><span class="v">+20 100 000 0000</span></span>
+          <span><span class="k">واتساب</span><br><span class="v" dir="ltr"><%= company.contact_whatsapp %></span></span>
         </a>
+        <% } %>
+        <% if (company.contact_address) { %>
         <a class="info-card" href="#">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-          <span><span class="k">العنوان</span><br><span class="v" style="direction:rtl">أسيوط · القاهرة، مصر</span></span>
+          <span><span class="k">العنوان</span><br><span class="v" style="direction:rtl"><%= company.contact_address %></span></span>
         </a>
+        <% } %>
 
         <!-- روابط السوشيال (بدّل الروابط) -->
         <div class="socials" aria-label="حساباتنا على التواصل الاجتماعي">
-          <a href="#" aria-label="فيسبوك"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3l.5-3.5H14V3.8c0-1 .3-1.7 1.8-1.7H18V-.7A26 26 0 0 0 15.4-1c-2.6 0-4.4 1.6-4.4 4.5V5.5H8V9h3v10h3z"/></svg></a>
-          <a href="#" aria-label="إنستجرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg></a>
-          <a href="#" aria-label="لينكدإن"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM10 9h3.8v1.7h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V21h-4v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21h-4z"/></svg></a>
-          <a href="#" aria-label="إكس تويتر"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h3l-7 8 8.2 12H16l-5-7-5.6 7H2.3l7.5-9L2 2h6.2l4.5 6.3zM16.8 20h1.7L7.3 4H5.5z"/></svg></a>
-          <a href="#" aria-label="يوتيوب"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.3-.4-4.9a2.5 2.5 0 0 0-1.8-1.8C19.1 5 12 5 12 5s-7 0-8.8.4A2.5 2.5 0 0 0 1.4 7.2C1 8.7 1 12 1 12s0 3.3.4 4.9a2.5 2.5 0 0 0 1.8 1.8C5 19 12 19 12 19s7 0 8.8-.4a2.5 2.5 0 0 0 1.8-1.8c.4-1.6.4-4.8.4-4.8zM10 15V9l5 3z"/></svg></a>
-          <a href="#" aria-label="تيك توك"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c.3 2.3 1.7 3.9 4 4.1v2.8c-1.4.1-2.7-.3-4-1v6.4a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.9a2.7 2.7 0 1 0 1.9 2.6V3z"/></svg></a>
-          <a href="#" aria-label="ثريدز"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.6 11.4c-.2 2.1-1.7 3.3-3.8 3.3-2 0-3.4-1.2-3.4-2.9 0-1.6 1.3-2.7 3.4-2.7.6 0 1.2.1 1.7.3 0-.9-.4-1.6-1.5-1.6-.8 0-1.3.3-1.6.8l-1.3-.8c.6-1 1.6-1.5 2.9-1.5 2 0 3 1.2 3 3.3v.4c.6.4 1 1 1.1 1.7zm-3.9.2c-1 0-1.7.4-1.7 1.1 0 .6.6 1 1.3 1 1 0 1.8-.6 1.9-1.8-.5-.2-1-.3-1.5-.3z"/></svg></a>
-          <a href="#" aria-label="الموقع الإلكتروني"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg></a>
+          <% if (company.social_facebook) { %><a href="<%= company.social_facebook %>" target="_blank" rel="noopener" aria-label="فيسبوك"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3l.5-3.5H14V3.8c0-1 .3-1.7 1.8-1.7H18V-.7A26 26 0 0 0 15.4-1c-2.6 0-4.4 1.6-4.4 4.5V5.5H8V9h3v10h3z"/></svg></a><% } %>
+          <% if (company.social_instagram) { %><a href="<%= company.social_instagram %>" target="_blank" rel="noopener" aria-label="إنستجرام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" stroke="none"/></svg></a><% } %>
+          <% if (company.social_linkedin) { %><a href="<%= company.social_linkedin %>" target="_blank" rel="noopener" aria-label="لينكدإن"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM10 9h3.8v1.7h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V21h-4v-5.6c0-1.3 0-3-1.9-3s-2.1 1.4-2.1 2.9V21h-4z"/></svg></a><% } %>
+          <% if (company.social_twitter) { %><a href="<%= company.social_twitter %>" target="_blank" rel="noopener" aria-label="إكس تويتر"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h3l-7 8 8.2 12H16l-5-7-5.6 7H2.3l7.5-9L2 2h6.2l4.5 6.3zM16.8 20h1.7L7.3 4H5.5z"/></svg></a><% } %>
+          <% if (company.social_youtube) { %><a href="<%= company.social_youtube %>" target="_blank" rel="noopener" aria-label="يوتيوب"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.3-.4-4.9a2.5 2.5 0 0 0-1.8-1.8C19.1 5 12 5 12 5s-7 0-8.8.4A2.5 2.5 0 0 0 1.4 7.2C1 8.7 1 12 1 12s0 3.3.4 4.9a2.5 2.5 0 0 0 1.8 1.8C5 19 12 19 12 19s7 0 8.8-.4a2.5 2.5 0 0 0 1.8-1.8c.4-1.6.4-4.8.4-4.8zM10 15V9l5 3z"/></svg></a><% } %>
+          <% if (company.social_tiktok) { %><a href="<%= company.social_tiktok %>" target="_blank" rel="noopener" aria-label="تيك توك"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c.3 2.3 1.7 3.9 4 4.1v2.8c-1.4.1-2.7-.3-4-1v6.4a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.9a2.7 2.7 0 1 0 1.9 2.6V3z"/></svg></a><% } %>
+          <% if (company.social_threads) { %><a href="<%= company.social_threads %>" target="_blank" rel="noopener" aria-label="ثريدز"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm3.6 11.4c-.2 2.1-1.7 3.3-3.8 3.3-2 0-3.4-1.2-3.4-2.9 0-1.6 1.3-2.7 3.4-2.7.6 0 1.2.1 1.7.3 0-.9-.4-1.6-1.5-1.6-.8 0-1.3.3-1.6.8l-1.3-.8c.6-1 1.6-1.5 2.9-1.5 2 0 3 1.2 3 3.3v.4c.6.4 1 1 1.1 1.7zm-3.9.2c-1 0-1.7.4-1.7 1.1 0 .6.6 1 1.3 1 1 0 1.8-.6 1.9-1.8-.5-.2-1-.3-1.5-.3z"/></svg></a><% } %>
+          <% if (company.social_website) { %><a href="<%= company.social_website %>" target="_blank" rel="noopener" aria-label="الموقع الإلكتروني"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg></a><% } %>
         </div>
       </aside>
     </div>
   </section>
+  <% } %>
+
+  <!-- إعلان أسفل المحتوى (سياسة AdSense) -->
+  <div class="container" style="margin-inline:auto"><%- include('partials/ad_unit', { slot: ads.slots.portfolioBottom }) %></div>
 </main>
 
 <!-- ============================== الفوتر ============================== -->
@@ -990,9 +993,9 @@ ul{ list-style:none; }
             <circle cx="20" cy="20" r="8.5" fill="#c0894e"/>
             <circle cx="20" cy="20" r="3.4"/>
           </svg>
-          <span>أوْج</span>
+          <span><%= displayName %></span>
         </span>
-        <p class="about-f">استوديو إبداعي يبني علامات تجارية وتجارب رقمية تترك أثراً. من أول فكرة حتى الإطلاق، نحن شريكك في النمو.</p>
+        <p class="about-f"><%= displayDesc || preset.about %></p>
       </div>
       <div>
         <h4>روابط سريعة</h4>
@@ -1007,16 +1010,16 @@ ul{ list-style:none; }
       <div>
         <h4>تواصل</h4>
         <ul>
-          <li><a href="tel:+201000000000" dir="ltr" style="display:inline-block">+20 100 000 0000</a></li>
-          <li><a href="mailto:hello@awj.studio">hello@awj.studio</a></li>
-          <li><a href="https://wa.me/201000000000">واتساب مباشر</a></li>
-          <li><a href="#contact">احجز استشارة</a></li>
+          <% if (company.contact_phone) { %><li><a href="tel:<%= company.contact_phone %>" dir="ltr" style="display:inline-block"><%= company.contact_phone %></a></li><% } %>
+          <% if (company.contact_email) { %><li><a href="mailto:<%= company.contact_email %>"><%= company.contact_email %></a></li><% } %>
+          <% if (company.contact_whatsapp) { %><li><a href="https://wa.me/<%= String(company.contact_whatsapp).replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener">واتساب مباشر</a></li><% } %>
+          <li><a href="#contact">تواصل معنا</a></li>
         </ul>
       </div>
     </div>
     <div class="bottom">
-      <span>© 2025 أوْج. جميع الحقوق محفوظة.</span>
-      <span>صُمّم وطُوّر بعناية في مصر.</span>
+      <span>© <%= new Date().getFullYear() %> <%= displayName %>. جميع الحقوق محفوظة.</span>
+      <span>صُمّم بعناية عبر OscarDevs.</span>
     </div>
   </div>
 </footer>
@@ -1140,15 +1143,7 @@ document.querySelectorAll('.faq-item').forEach(item => {
 /* ============================================================
    7. نموذج التواصل (عرض رسالة نجاح فقط، اربطه بخدمتك)
    ============================================================ */
-const form = document.getElementById('contactForm');
-const formMsg = document.getElementById('formMsg');
-form.addEventListener('submit', (e) => {
-  e.preventDefault();
-  if (!form.checkValidity()) { form.reportValidity(); return; }
-  formMsg.classList.add('show');
-  form.reset();
-  setTimeout(() => formMsg.classList.remove('show'), 6000);
-});
+/* النموذج يُرسَل فعلياً إلى الخادم POST /contact/:slug — بدون منع الإرسال. */
 
 /* ============================================================
    8. زر العودة للأعلى
