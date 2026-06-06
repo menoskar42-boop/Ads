@@ -406,15 +406,21 @@ async function initDb() {
         ['/uploads/delta-logo.png', deltaId]
       );
       // Banners — only seed if there aren't any 'section' banners yet
+      // Drop the outdated banner set (delta-banner-1/2/3) so the refreshed
+      // images apply, without touching any custom banners the store added.
+      await client.query(
+        "DELETE FROM banner_slides WHERE company_id = $1 AND slot = 'section' AND image_url LIKE '/banners/delta-banner-_.jpg'",
+        [deltaId]
+      );
       const hasSection = await client.query(
         "SELECT 1 FROM banner_slides WHERE company_id = $1 AND slot = 'section' LIMIT 1",
         [deltaId]
       );
       if (!hasSection.rows.length) {
         const banners = [
-          ['/banners/delta-banner-1.jpg', 'أحدث الموبايلات — iPhone و Samsung و Google Pixel'],
-          ['/banners/delta-banner-2.jpg', 'تخفيضات اللابتوبات — MacBook | Dell | ASUS ROG'],
-          ['/banners/delta-banner-3.jpg', 'كمبيوترات الألعاب — RGB Gaming PCs'],
+          ['/banners/delta-banner-phone.jpg', 'أحدث الموبايلات — iPhone | Samsung | Pixel'],
+          ['/banners/delta-banner-laptop.jpg', 'أقوى اللابتوبات — MacBook | Dell | ASUS ROG'],
+          ['/banners/delta-banner-pc.jpg', 'كمبيوترات الألعاب — أداء وحوش بإضاءة RGB'],
         ];
         for (let i = 0; i < banners.length; i++) {
           await client.query(
