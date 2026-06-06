@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="<%= lang %>" dir="<%= dir %>">
 <head>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3132188303904900" crossorigin="anonymous"></script>
+<%- include('../partials/ads_loader') %>
   <% var displayCompanyName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
   <% var pName = pickContent(product, 'name', company.content_i18n) || product.name; %>
   <% var pDesc = pickContent(product, 'description', company.content_i18n) || product.description || ''; %>

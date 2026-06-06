@@ -273,6 +273,7 @@ router.get('/:slug/product/:id', async (req, res) => {
       product: productResult.rows[0],
       gallery: images.rows,
       cartCount,
+      showAds: true, // product detail is content
     });
   } catch (err) {
     console.error('[GET /shop/:slug/product/:id] error:', err);

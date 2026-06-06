@@ -70,6 +70,9 @@ app.use((req, res, next) => {
   res.locals.siteOrigin = origin;
   res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
   res.locals.ads = adsConfig;
+  // Default OFF — AdSense loads only on content pages that opt in (fail-closed
+  // so prohibited pages like login/dashboards/checkout/404 never show ads).
+  res.locals.showAds = false;
   next();
 });
 
@@ -94,6 +97,7 @@ app.use(tenantMiddleware);
 // If req.tenant is set, render the tenant page
 app.use((req, res, next) => {
   if (req.tenant) {
+    res.locals.showAds = true; // tenant shop/portfolio pages are content
     return tenantRouter(req, res, next);
   }
   next();

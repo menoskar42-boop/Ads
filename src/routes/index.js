@@ -9,6 +9,7 @@ router.get('/', (req, res) => {
   res.render('home', {
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
+    showAds: true, // marketing homepage is content
   });
 });
 

@@ -7,6 +7,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const TERMS_VERSION = '1.0';
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://oscardevs.com';
 
+// Legal pages are real content — allow AdSense.
+router.use((req, res, next) => { res.locals.showAds = true; next(); });
+
 router.get('/privacy', (req, res) => {
   res.render('legal/privacy');
 });
