@@ -132,6 +132,21 @@
           class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
       </div>
 
+      <!-- فيديو المنتج (اختياري — فيديو واحد لكل منتج) -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">فيديو المنتج (اختياري)</label>
+        <% if (product && product.video_url) { %>
+          <video src="<%= product.video_url %>" controls preload="metadata" class="w-48 rounded-xl mb-2 bg-black"></video>
+          <label class="flex items-center gap-2 text-xs text-gray-500 mb-2 cursor-pointer">
+            <input type="checkbox" name="remove_video" value="1" class="w-4 h-4" />
+            حذف الفيديو الحالي
+          </label>
+        <% } %>
+        <input type="file" name="video_file" accept="video/*"
+          class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer" />
+        <p class="text-xs text-gray-400 mt-1">فيديو واحد لكل منتج (MP4 / MOV / WebM). الحد الأقصى 100 ميجا. يتم ضغطه تلقائياً لتقليل حجمه مع الحفاظ على جودته.</p>
+      </div>
+
       <div class="flex items-center gap-3 pt-4">
         <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md"><%= t('common.save') %></button>
         <a href="/company/products" class="text-gray-500 hover:text-gray-700 text-sm"><%= t('common.cancel') %></a>

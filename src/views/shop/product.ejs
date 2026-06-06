@@ -57,6 +57,12 @@
           </div>
         <% } %>
       <% } %>
+
+      <% if (product.video_url) { %>
+        <video src="<%= product.video_url %>" controls preload="metadata" playsinline
+          class="w-full rounded-2xl mt-3 bg-black" aria-label="<%= pName %> — فيديو">
+        </video>
+      <% } %>
     </div>
 
     <!-- Details -->

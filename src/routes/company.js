@@ -9,6 +9,7 @@ const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
+const { compressImage, compressVideo } = require('../lib/media');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -19,6 +20,7 @@ const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/;
+const videoMimeRegex = /^video\/(mp4|quicktime|webm|x-matroska|x-msvideo|mpeg|3gpp|3gpp2)$/;
 
 function makeUploader(prefix) {
   const storage = multer.diskStorage({
@@ -38,9 +40,39 @@ function makeUploader(prefix) {
   });
 }
 
+// Product form accepts one image + one (larger) video. Each field is validated
+// against its own MIME allowlist; uploads are compressed after they land.
+function makeMediaUploader(prefix) {
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const kind = file.fieldname === 'video_file' ? `${prefix}-video` : prefix;
+      cb(null, `${kind}-${req.session.companyId}-${Date.now()}${ext}`);
+    },
+  });
+  return multer({
+    storage,
+    limits: { fileSize: 100 * 1024 * 1024 }, // up to 100MB raw video; compressed afterwards
+    fileFilter: (req, file, cb) => {
+      if (file.fieldname === 'video_file') {
+        if (videoMimeRegex.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Only video files (MP4, MOV, WEBM, MKV, AVI) are allowed.'));
+      } else {
+        if (imageMimeRegex.test(file.mimetype)) cb(null, true);
+        else cb(new Error('Only image files (PNG, JPEG, GIF, WEBP, SVG) are allowed.'));
+      }
+    },
+  });
+}
+
 const uploadLogo = makeUploader('logo').single('logo_file');
 const uploadItemImage = makeUploader('item').single('image_file');
 const uploadProductImage = makeUploader('product').single('image_file');
+const uploadProductMedia = makeMediaUploader('product').fields([
+  { name: 'image_file', maxCount: 1 },
+  { name: 'video_file', maxCount: 1 },
+]);
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 
@@ -189,6 +221,7 @@ router.post('/profile', requireLogin, (req, res) => {
       contact_phone, contact_whatsapp, contact_email, contact_address,
     } = req.body;
     const finalLogoUrl = req.file ? `/uploads/${req.file.filename}` : (logo_url || null);
+    if (req.file) { await compressImage(req.file.path); }
     const clean = (v) => { const s = (v || '').trim(); return s || null; };
     const hex = (v) => (/^#[0-9a-fA-F]{6}$/.test((v || '').trim()) ? v.trim() : null);
     const on = (v) => v === 'on' || v === 'true';
@@ -348,6 +381,7 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
     console.log('[POST /portfolio/add] file:', req.file?.filename, 'body:', Object.keys(req.body));
     const { title, description, image_url, order_index } = req.body;
     const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    if (req.file) { await compressImage(req.file.path); }
 
     try {
       await pool.query(
@@ -496,7 +530,7 @@ router.get('/products/add', requireLogin, requireShop, async (req, res) => {
 });
 
 router.post('/products/add', requireLogin, requireShop, (req, res) => {
-  uploadProductImage(req, res, async (uploadErr) => {
+  uploadProductMedia(req, res, async (uploadErr) => {
     const renderError = async (message) => {
       const company = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
       const categories = await fetchCategories(req.session.companyId);
@@ -525,7 +559,15 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
       );
       if (!c.rows.length) categoryId = null;
     }
-    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    const imageFile = req.files && req.files.image_file && req.files.image_file[0];
+    const videoFile = req.files && req.files.video_file && req.files.video_file[0];
+    let finalImageUrl = imageFile ? `/uploads/${imageFile.filename}` : (image_url || null);
+    let finalVideoUrl = null;
+    if (imageFile) { await compressImage(imageFile.path); }
+    if (videoFile) {
+      const outPath = await compressVideo(videoFile.path);
+      finalVideoUrl = `/uploads/${path.basename(outPath)}`;
+    }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -535,12 +577,13 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
       const description_en = (req.body.description_en || '').trim() || null;
       const finalName = name || name_ar || name_en || '';
       const ins = await client.query(
-        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id, name_ar, name_en, description_ar, description_en, sale_type, sizes, weight_unit)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        `INSERT INTO products (company_id, name, description, price, image_url, stock, is_active, category_id, name_ar, name_en, description_ar, description_en, sale_type, sizes, weight_unit, video_url)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
         [req.session.companyId, finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId, name_ar, name_en, description_ar, description_en,
          (['unit','size','weight'].includes(req.body.sale_type) ? req.body.sale_type : 'unit'),
          (req.body.sale_type === 'size' ? ((req.body.sizes || '').trim() || null) : null),
-         (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null)]
+         (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null),
+         finalVideoUrl]
       );
       if (stockNum > 0) {
         await client.query(
@@ -582,7 +625,7 @@ router.get('/products/:id/edit', requireLogin, requireShop, async (req, res) => 
 });
 
 router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
-  uploadProductImage(req, res, async (uploadErr) => {
+  uploadProductMedia(req, res, async (uploadErr) => {
     const renderError = async (message) => {
       const result = await pool.query(
         'SELECT * FROM products WHERE id = $1 AND company_id = $2',
@@ -619,12 +662,25 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
       );
       if (!c.rows.length) categoryId = null;
     }
-    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
+    const imageFile = req.files && req.files.image_file && req.files.image_file[0];
+    const videoFile = req.files && req.files.video_file && req.files.video_file[0];
+    const finalImageUrl = imageFile ? `/uploads/${imageFile.filename}` : (image_url || null);
+    if (imageFile) { await compressImage(imageFile.path); }
+    let newVideoUrl = null;
+    if (videoFile) {
+      const outPath = await compressVideo(videoFile.path);
+      newVideoUrl = `/uploads/${path.basename(outPath)}`;
+    }
+    const removeVideo = req.body.remove_video === '1';
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const before = await client.query('SELECT stock FROM products WHERE id = $1 AND company_id = $2', [req.params.id, req.session.companyId]);
+      const before = await client.query('SELECT stock, video_url FROM products WHERE id = $1 AND company_id = $2', [req.params.id, req.session.companyId]);
       const beforeStock = before.rows.length ? before.rows[0].stock : 0;
+      // Keep existing video unless a new one was uploaded or the merchant chose to remove it.
+      let finalVideoUrl = before.rows.length ? before.rows[0].video_url : null;
+      if (newVideoUrl) finalVideoUrl = newVideoUrl;
+      else if (removeVideo) finalVideoUrl = null;
       const name_ar = (req.body.name_ar || '').trim() || null;
       const name_en = (req.body.name_en || '').trim() || null;
       const description_ar = (req.body.description_ar || '').trim() || null;
@@ -633,13 +689,14 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
       await client.query(
         `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6,
          name_ar=$7, name_en=$8, description_ar=$9, description_en=$10,
-         sale_type=$13, sizes=$14, weight_unit=$15
+         sale_type=$13, sizes=$14, weight_unit=$15, video_url=$16
          WHERE id=$11 AND company_id=$12`,
         [finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId,
          name_ar, name_en, description_ar, description_en, req.params.id, req.session.companyId,
          (['unit','size','weight'].includes(req.body.sale_type) ? req.body.sale_type : 'unit'),
          (req.body.sale_type === 'size' ? ((req.body.sizes || '').trim() || null) : null),
-         (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null)]
+         (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null),
+         finalVideoUrl]
       );
       const diff = stockNum - beforeStock;
       if (diff !== 0) {
@@ -786,6 +843,7 @@ router.post('/products/:id/images/add', requireLogin, requireShop, (req, res) =>
     if (!product.rows.length || !req.file) {
       return res.redirect(`/company/products/${req.params.id}/edit`);
     }
+    await compressImage(req.file.path);
     await pool.query(
       `INSERT INTO product_images (product_id, image_url) VALUES ($1, $2)`,
       [req.params.id, `/uploads/${req.file.filename}`]
@@ -831,6 +889,7 @@ router.post('/banners/add', requireLogin, (req, res) => {
       return res.redirect('/company/banners?err=' + code);
     }
     if (!req.file) return res.redirect('/company/banners?err=no_file');
+    await compressImage(req.file.path);
     try {
       const target_url = (req.body.target_url || '').trim() || null;
       const caption = (req.body.caption || '').trim() || null;
