@@ -10,6 +10,7 @@ const requireLogin = require('../middleware/auth');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
+const push = require('../lib/push');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -168,6 +169,32 @@ router.post('/login', async (req, res) => {
 /* ─── LOGOUT ─────────────────────────────────────────────── */
 router.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/company/login'));
+});
+
+/* ─── WEB PUSH (mobile notifications) ────────────────────── */
+// Expose the VAPID public key + whether push is enabled, for the client.
+router.get('/push/config', requireLogin, (req, res) => {
+  res.json({ enabled: push.isEnabled(), publicKey: push.publicKey() });
+});
+
+router.post('/push/subscribe', requireLogin, async (req, res) => {
+  try {
+    const ok = await push.saveSubscription(req.session.companyId, req.body && req.body.subscription);
+    res.json({ ok });
+  } catch (err) {
+    console.error('[push/subscribe] error:', err.message);
+    res.status(500).json({ ok: false });
+  }
+});
+
+router.post('/push/unsubscribe', requireLogin, async (req, res) => {
+  try {
+    await push.removeSubscription(req.body && req.body.endpoint);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[push/unsubscribe] error:', err.message);
+    res.status(500).json({ ok: false });
+  }
 });
 
 /* ─── DASHBOARD ──────────────────────────────────────────── */

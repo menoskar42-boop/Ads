@@ -284,6 +284,15 @@ async function initDb() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS sizes TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS weight_unit TEXT DEFAULT 'كجم';
       ALTER TABLE products ADD COLUMN IF NOT EXISTS video_url TEXT;
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_subs_company ON push_subscriptions(company_id);
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;
