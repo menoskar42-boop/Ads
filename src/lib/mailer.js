@@ -146,4 +146,27 @@ async function sendApplicationApproved({ to, fullName, businessName, slug, count
   return sendMail({ to, subject, html, text });
 }
 
-module.exports = { sendMail, sendApplicationReceived, sendApplicationApproved, siteOrigin, localeForCountry };
+/** Internal alert to the platform team when a new application arrives. */
+async function sendAdminNewApplication({ fullName, email, phone, country, businessName, businessType, slug, description }) {
+  const origin = siteOrigin();
+  const to = process.env.ADMIN_NOTIFY_EMAIL || 'support@oscardevs.com';
+  const row = (label, val) => `<tr><td style="padding:4px 10px;color:#6b7280;font-weight:700;white-space:nowrap;">${label}</td><td style="padding:4px 10px;color:#111827;">${val || '—'}</td></tr>`;
+  const adminUrl = origin + '/admin/applications';
+  const html = shell('ar', '📥 طلب جديد على المنصّة', `
+    <p style="font-size:14px;color:#4b5563;">وصلك طلب جديد لإنشاء موقع، مفصّل بالأسفل:</p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin:10px 0 18px;">
+      ${row('الاسم', fullName)}
+      ${row('البريد', email)}
+      ${row('الهاتف', phone)}
+      ${row('الدولة', country)}
+      ${row('اسم النشاط', businessName)}
+      ${row('نوع الموقع', businessType === 'shop' ? 'متجر إلكتروني' : 'بورتفوليو')}
+      ${row('الرابط المقترح', slug)}
+      ${row('الوصف', description)}
+    </table>
+    <p style="margin:8px 0;">${btn(adminUrl, 'مراجعة الطلبات')}</p>`);
+  const text = `طلب جديد: ${businessName || ''} — ${fullName || ''} (${email || ''}, ${phone || ''}, ${country || ''}). راجع: ${adminUrl}`;
+  return sendMail({ to, subject: `طلب جديد: ${businessName || ''} — OscarDevs`, html, text });
+}
+
+module.exports = { sendMail, sendApplicationReceived, sendApplicationApproved, sendAdminNewApplication, siteOrigin, localeForCountry };

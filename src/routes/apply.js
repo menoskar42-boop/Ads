@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
-const { sendApplicationReceived } = require('../lib/mailer');
+const { sendApplicationReceived, sendAdminNewApplication } = require('../lib/mailer');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -80,9 +80,14 @@ router.post('/apply', async (req, res) => {
         values.description || null, passwordHash, TERMS_VERSION, ip, ua,
       ]
     );
-    // Confirmation email (fire-and-forget, fail-open).
+    // Notification emails (fire-and-forget, fail-open).
     sendApplicationReceived({ to: values.email, fullName: values.full_name, businessName: values.business_name, country: values.country })
       .catch((e) => console.error('[apply] received-email error:', e.message));
+    sendAdminNewApplication({
+      fullName: values.full_name, email: values.email, phone: values.phone, country: values.country,
+      businessName: values.business_name, businessType: values.business_type,
+      slug: values.preferred_slug, description: values.description,
+    }).catch((e) => console.error('[apply] admin-notify error:', e.message));
     res.redirect('/apply/success');
   } catch (err) {
     console.error('[POST /apply] error:', err);
