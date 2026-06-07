@@ -9,6 +9,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= pName %> — <%= displayCompanyName %></title>
   <meta name="description" content="<%= pDesc.slice(0,150) %>" />
+  <% var productUrl = siteOrigin + '/shop/' + company.slug + '/product/' + product.id; %>
+  <link rel="canonical" href="<%= productUrl %>" />
+  <meta property="og:type" content="product" />
+  <meta property="og:title" content="<%= pName %>" />
+  <meta property="og:description" content="<%= pDesc.slice(0,150) %>" />
+  <% if (product.image_url) { %><meta property="og:image" content="<%= product.image_url %>" /><% } %>
+  <script type="application/ld+json">
+  <%- JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": pName,
+    "image": [product.image_url].filter(Boolean),
+    "description": pDesc || pName,
+    "offers": {
+      "@type": "Offer",
+      "price": Number(product.price).toFixed(2),
+      "priceCurrency": company.currency || 'EGP',
+      "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "url": productUrl
+    }
+  }) %>
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>

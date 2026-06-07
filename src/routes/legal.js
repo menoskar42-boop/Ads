@@ -102,6 +102,14 @@ router.get('/sitemap.xml', async (req, res) => {
   try {
     const r = await pool.query("SELECT slug FROM companies WHERE is_active = true ORDER BY slug");
     for (const row of r.rows) urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: today });
+    // Active shop products — helps Google index individual product pages.
+    const p = await pool.query(
+      `SELECT c.slug, p.id FROM products p
+       JOIN companies c ON c.id = p.company_id
+       WHERE p.is_active = true AND c.is_active = true AND c.page_type = 'shop'
+       ORDER BY c.slug, p.id`
+    );
+    for (const row of p.rows) urls.push({ loc: '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: today });
   } catch (_) { /* DB optional for sitemap */ }
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
