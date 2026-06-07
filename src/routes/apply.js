@@ -99,6 +99,26 @@ router.get('/apply/success', (req, res) => {
   res.render('apply/success');
 });
 
+/* ─── LIVE SLUG AVAILABILITY CHECK ───────────────────────── */
+router.get('/apply/check-slug', async (req, res) => {
+  const slug = String(req.query.slug || '').trim().toLowerCase().slice(0, 40);
+  if (!slug) return res.json({ available: false, reason: 'empty' });
+  if (!SLUG_RE.test(slug) || RESERVED_SLUGS.has(slug)) {
+    return res.json({ available: false, reason: 'invalid' });
+  }
+  try {
+    const [c, a] = await Promise.all([
+      pool.query('SELECT 1 FROM companies WHERE slug = $1', [slug]),
+      pool.query('SELECT 1 FROM signup_applications WHERE preferred_slug = $1 AND status <> $2', [slug, 'rejected']),
+    ]);
+    const taken = c.rows.length || a.rows.length;
+    res.json({ available: !taken, reason: taken ? 'taken' : 'ok' });
+  } catch (err) {
+    console.error('[GET /apply/check-slug] error:', err.message);
+    res.json({ available: false, reason: 'error' });
+  }
+});
+
 /* ─── SELF-SERVICE STATUS CHECK ──────────────────────────── */
 router.get('/apply/status', (req, res) => {
   res.render('apply/status', { result: null, email: '', error: null });

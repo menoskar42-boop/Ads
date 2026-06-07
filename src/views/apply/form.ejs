@@ -78,10 +78,11 @@
         <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم المختصر للرابط *</label>
         <div class="flex">
           <span class="inline-flex items-center px-3 rounded-r-xl bg-gray-100 text-gray-500 text-sm border border-l-0 border-gray-200">/view/</span>
-          <input type="text" name="preferred_slug" value="<%= values.preferred_slug || '' %>" required maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?"
+          <input type="text" name="preferred_slug" id="slugInput" value="<%= values.preferred_slug || '' %>" required maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?"
             class="flex-1 border border-gray-200 rounded-l-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         </div>
         <p class="text-xs text-gray-400 mt-1">حروف إنجليزية صغيرة وأرقام و"-" فقط. مثال: <code>my-store</code></p>
+        <p id="slugStatus" class="text-xs mt-1 font-semibold" style="display:none"></p>
       </div>
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-1.5">وصف نشاطك</label>
@@ -114,13 +115,59 @@
       </div>
 
       <div class="pt-3">
-        <button type="submit" class="w-full sm:w-auto bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
+        <button type="submit" id="submitBtn" class="w-full sm:w-auto bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
           إرسال الطلب
         </button>
       </div>
     </form>
   </div>
 </main>
+
+<script>
+(function () {
+  var input = document.getElementById('slugInput');
+  var status = document.getElementById('slugStatus');
+  var submit = document.getElementById('submitBtn');
+  if (!input || !status) return;
+  var timer = null;
+
+  function show(text, color) {
+    status.textContent = text;
+    status.style.display = '';
+    status.style.color = color;
+  }
+
+  function check() {
+    var slug = (input.value || '').trim().toLowerCase();
+    if (!slug) { status.style.display = 'none'; if (submit) submit.disabled = false; return; }
+    show('جارٍ التحقق...', '#9ca3af');
+    fetch('/apply/check-slug?slug=' + encodeURIComponent(slug), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.available) {
+          show('✓ الاسم متاح', '#16a34a');
+          if (submit) submit.disabled = false;
+        } else if (res.reason === 'invalid') {
+          show('✗ صيغة غير صالحة (حروف إنجليزية صغيرة وأرقام و"-" فقط)', '#dc2626');
+          if (submit) submit.disabled = true;
+        } else if (res.reason === 'taken') {
+          show('✗ الاسم محجوز بالفعل — اختر اسماً آخر', '#dc2626');
+          if (submit) submit.disabled = true;
+        } else {
+          status.style.display = 'none';
+          if (submit) submit.disabled = false;
+        }
+      })
+      .catch(function () { status.style.display = 'none'; if (submit) submit.disabled = false; });
+  }
+
+  input.addEventListener('input', function () {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(check, 450);
+  });
+  if (input.value.trim()) check();
+})();
+</script>
 
 </body>
 </html>
