@@ -1,0 +1,114 @@
+<!-- Web Push opt-in card — lets the merchant get phone notifications. -->
+<div id="pushCard" class="bg-white rounded-2xl shadow-sm p-6" style="display:none">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h3 class="font-bold text-gray-800 mb-1">🔔 إشعارات الموبايل</h3>
+      <p class="text-sm text-gray-500 max-w-md">فعّل الإشعارات عشان يوصلك تنبيه على جهازك بكل رسالة عميل، طلب حجز، أو أوردر جديد — حتى لو مش فاتح الموقع.</p>
+      <p id="pushHint" class="text-xs text-gray-400 mt-2"></p>
+    </div>
+    <button id="pushBtn" type="button"
+      class="brand-bg text-white font-bold px-5 py-2.5 rounded-xl hover:opacity-90 transition shadow-md whitespace-nowrap">
+      تفعيل الإشعارات
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var card = document.getElementById('pushCard');
+  var btn = document.getElementById('pushBtn');
+  var hint = document.getElementById('pushHint');
+  if (!card || !btn) return;
+
+  var supported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+
+  function urlB64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(base64);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function setState(text, disabled) {
+    btn.textContent = text;
+    btn.disabled = !!disabled;
+    btn.style.opacity = disabled ? '0.6' : '';
+    btn.style.cursor = disabled ? 'default' : 'pointer';
+  }
+
+  if (!supported) {
+    card.style.display = '';
+    setState('غير مدعوم على هذا المتصفح', true);
+    hint.textContent = 'افتح الموقع من Chrome على الموبايل وأضِفه للشاشة الرئيسية لتفعيل الإشعارات.';
+    return;
+  }
+
+  var publicKey = null;
+
+  fetch('/company/push/config', { credentials: 'same-origin' })
+    .then(function (r) { return r.json(); })
+    .then(function (cfg) {
+      card.style.display = '';
+      if (!cfg.enabled || !cfg.publicKey) {
+        setState('الإشعارات غير مفعّلة', true);
+        hint.textContent = 'الإشعارات لم تُضبط على مستوى المنصّة بعد.';
+        return;
+      }
+      publicKey = cfg.publicKey;
+      return navigator.serviceWorker.register('/sw.js').then(function (reg) {
+        return reg.pushManager.getSubscription().then(function (sub) {
+          if (sub && Notification.permission === 'granted') {
+            setState('✓ الإشعارات مفعّلة', true);
+            hint.textContent = 'هتوصلك التنبيهات على هذا الجهاز.';
+          } else {
+            setState('تفعيل الإشعارات', false);
+          }
+        });
+      });
+    })
+    .catch(function () {
+      card.style.display = '';
+      setState('تعذّر التحميل', true);
+    });
+
+  btn.addEventListener('click', function () {
+    if (!publicKey) return;
+    setState('جارٍ التفعيل...', true);
+    Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') {
+        setState('تفعيل الإشعارات', false);
+        hint.textContent = 'لازم تسمح بالإشعارات من المتصفح.';
+        return;
+      }
+      navigator.serviceWorker.register('/sw.js').then(function (reg) {
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8Array(publicKey),
+        });
+      }).then(function (sub) {
+        return fetch('/company/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ subscription: sub }),
+        });
+      }).then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res && res.ok) {
+            setState('✓ الإشعارات مفعّلة', true);
+            hint.textContent = 'هتوصلك التنبيهات على هذا الجهاز.';
+          } else {
+            setState('تفعيل الإشعارات', false);
+            hint.textContent = 'حصل خطأ، حاول تاني.';
+          }
+        })
+        .catch(function () {
+          setState('تفعيل الإشعارات', false);
+          hint.textContent = 'حصل خطأ، حاول تاني.';
+        });
+    });
+  });
+})();
+</script>
