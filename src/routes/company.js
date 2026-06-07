@@ -114,11 +114,13 @@ async function requireShop(req, res, next) {
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
   if (req.session.companyId) return res.redirect('/company/dashboard');
-  res.render('company/login', { error: null });
+  res.render('company/login', { error: null, notice: null });
 });
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  const renderLogin = (opts) => res.render('company/login', Object.assign({ error: null, notice: null }, opts));
   try {
     const result = await pool.query(
       `SELECT cu.*, c.company_name, c.theme_color, c.slug
@@ -128,12 +130,27 @@ router.post('/login', async (req, res) => {
       [email]
     );
     if (!result.rows.length) {
-      return res.render('company/login', { error: 'Invalid email or password.' });
+      // No active account yet — check if there's an application so we can guide them.
+      const appR = await pool.query(
+        `SELECT status, admin_notes FROM signup_applications WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
+        [email]
+      );
+      if (appR.rows.length) {
+        const st = appR.rows[0].status;
+        if (st === 'pending') {
+          return renderLogin({ notice: 'طلبك قيد المراجعة من فريقنا. بمجرد الموافقة هتقدر تدخل بنفس البريد وكلمة السر اللي سجّلت بهم. تقدر تتابع حالة طلبك من صفحة "متابعة الطلب".' });
+        }
+        if (st === 'rejected') {
+          const reason = appR.rows[0].admin_notes ? ' السبب: ' + appR.rows[0].admin_notes : ' للاستفسار تواصل معنا.';
+          return renderLogin({ error: 'للأسف لم يتم قبول طلبك.' + reason });
+        }
+      }
+      return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
     }
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      return res.render('company/login', { error: 'Invalid email or password.' });
+      return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
     }
     req.session.companyId = user.company_id;
     req.session.companyUserId = user.id;
@@ -144,7 +161,7 @@ router.post('/login', async (req, res) => {
     res.redirect('/company/dashboard');
   } catch (err) {
     console.error('Login error:', err);
-    res.render('company/login', { error: 'Something went wrong. Please try again.' });
+    renderLogin({ error: 'حدث خطأ ما. حاول مرة أخرى.' });
   }
 });
 

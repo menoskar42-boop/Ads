@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,follow" />
+<title>متابعة حالة الطلب | OscarDevs</title>
+<meta name="description" content="تابع حالة طلب إنشاء موقعك على منصّة OscarDevs." />
+<%- include('../partials/seo_meta', { title: 'متابعة حالة الطلب — OscarDevs', description: 'تابع حالة طلب إنشاء موقعك على منصّة OscarDevs.' }) %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <a href="/" class="text-sm text-gray-500 hover:text-indigo-700">← الرئيسية</a>
+  </div>
+</header>
+
+<main class="max-w-2xl mx-auto px-4 py-12">
+  <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
+    <h1 class="text-2xl font-extrabold text-gray-900 mb-2">متابعة حالة طلبك</h1>
+    <p class="text-gray-500 text-sm mb-6">اكتب البريد الإلكتروني اللي قدّمت بيه طلبك عشان تعرف موقفه.</p>
+
+    <% if (error) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-5"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/apply/status" class="flex flex-col sm:flex-row gap-3 mb-2">
+      <input type="email" name="email" value="<%= email %>" required placeholder="you@email.com"
+        class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      <button type="submit" class="bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-800 transition shadow">تحقّق</button>
+    </form>
+
+    <% if (result) { %>
+      <div class="mt-6 border-t border-gray-100 pt-6">
+        <% if (result.status === 'pending') { %>
+          <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+            <div class="flex items-center gap-2 text-amber-700 font-bold mb-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> قيد المراجعة
+            </div>
+            <p class="text-sm text-amber-800">طلبك (<%= result.business_name || '' %>) وصلنا وبيتراجع من فريقنا. هنفعّل حسابك قريباً، وبمجرد الموافقة هتقدر تدخل بنفس البريد وكلمة السر.</p>
+          </div>
+        <% } else if (result.status === 'approved') { %>
+          <div class="bg-green-50 border border-green-200 rounded-2xl p-5">
+            <div class="flex items-center gap-2 text-green-700 font-bold mb-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+              تمت الموافقة 🎉
+            </div>
+            <p class="text-sm text-green-800 mb-4">مبروك! موقعك (<%= result.business_name || '' %>) اتفعّل. ادخل لوحة التحكم بنفس البريد وكلمة السر اللي سجّلت بهم عشان تظبط صفحتك.</p>
+            <div class="flex flex-col sm:flex-row gap-3">
+              <a href="/company/login" class="bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition shadow text-center">ادخل لوحة التحكم</a>
+              <% if (result.company_slug) { %>
+                <a href="/view/<%= result.company_slug %>" target="_blank" class="bg-white border border-green-300 text-green-700 font-bold px-6 py-3 rounded-xl hover:bg-green-50 transition text-center">عاين موقعك</a>
+              <% } %>
+            </div>
+          </div>
+        <% } else if (result.status === 'rejected') { %>
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-5">
+            <div class="flex items-center gap-2 text-red-700 font-bold mb-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> لم يتم القبول
+            </div>
+            <p class="text-sm text-red-800">للأسف لم يتم قبول طلبك<% if (result.admin_notes) { %> — السبب: <%= result.admin_notes %><% } %>. تقدر تتواصل معنا أو <a href="/apply" class="underline font-semibold">تقدّم طلباً جديداً</a>.</p>
+          </div>
+        <% } else { %>
+          <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+            <p class="text-sm text-gray-600">مفيش طلب مسجّل بهذا البريد. تأكّد من كتابته صح، أو <a href="/apply" class="text-indigo-700 underline font-semibold">قدّم طلباً جديداً</a>.</p>
+          </div>
+        <% } %>
+      </div>
+    <% } %>
+  </div>
+</main>
+
+</body>
+</html>

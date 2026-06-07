@@ -90,5 +90,33 @@ router.get('/apply/success', (req, res) => {
   res.render('apply/success');
 });
 
+/* ─── SELF-SERVICE STATUS CHECK ──────────────────────────── */
+router.get('/apply/status', (req, res) => {
+  res.render('apply/status', { result: null, email: '', error: null });
+});
+
+router.post('/apply/status', async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase().slice(0, 150);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.render('apply/status', { result: null, email, error: 'اكتب بريداً إلكترونياً صحيحاً.' });
+  }
+  try {
+    const r = await pool.query(
+      `SELECT sa.status, sa.admin_notes, sa.business_name, sa.created_at,
+              c.slug AS company_slug
+       FROM signup_applications sa
+       LEFT JOIN companies c ON c.id = sa.approved_company_id
+       WHERE sa.email = $1
+       ORDER BY sa.created_at DESC LIMIT 1`,
+      [email]
+    );
+    const result = r.rows.length ? r.rows[0] : { status: 'none' };
+    res.render('apply/status', { result, email, error: null });
+  } catch (err) {
+    console.error('[POST /apply/status] error:', err);
+    res.render('apply/status', { result: null, email, error: 'حدث خطأ غير متوقع. حاول مرة أخرى.' });
+  }
+});
+
 module.exports = router;
 module.exports.TERMS_VERSION = TERMS_VERSION;
