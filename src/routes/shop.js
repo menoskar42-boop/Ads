@@ -3,6 +3,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { canonicalCompanyUrl } = require('../lib/urls');
+const push = require('../lib/push');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -247,6 +248,12 @@ router.post('/:slug/checkout', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    push.sendToCompany(company.id, {
+      title: '🛒 أوردر جديد',
+      body: `طلب جديد من ${customer_name} بإجمالي ${Number(total).toFixed(2)} ${company.currency || 'EGP'}`,
+      url: '/company/orders',
+    }).catch((e) => console.error('[push order] error:', e.message));
 
     if (customerId && !req.session.customerId) req.session.customerId = customerId;
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const { canonicalCompanyUrl, isProductionHost } = require('../lib/urls');
+const push = require('../lib/push');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -65,11 +66,17 @@ router.post('/contact/:slug', async (req, res) => {
     if (!companyResult.rows.length) {
       return res.status(404).render('404', { subdomain: slug });
     }
+    const companyId = companyResult.rows[0].id;
     await pool.query(
       `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
        VALUES ($1, $2, $3, $4, $5)`,
-      [companyResult.rows[0].id, v.sender_name, v.sender_email, v.sender_phone, v.message]
+      [companyId, v.sender_name, v.sender_email, v.sender_phone, v.message]
     );
+    push.sendToCompany(companyId, {
+      title: '📩 رسالة جديدة',
+      body: `وصلتك رسالة جديدة من ${v.sender_name}`,
+      url: '/company/messages',
+    }).catch((e) => console.error('[push contact] error:', e.message));
     res.redirect(`${canonicalCompanyUrl(slug, req)}?sent=1`);
   } catch (err) {
     console.error('[POST /contact/:slug] db error:', err);
