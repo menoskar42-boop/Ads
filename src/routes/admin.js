@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
+const { sendApplicationApproved } = require('../lib/mailer');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -389,7 +390,21 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
       [req.session.adminId, newCompanyId, (req.body.notes || '').slice(0, 1000) || null, app.id]
     );
     await client.query('COMMIT');
-    req.session.adminFlash = { type: 'success', message: `تمت الموافقة. الشركة "${app.business_name}" أُنشئت ويستطيع صاحبها الدخول بـ ${app.email}.` };
+    // Notify the merchant by email (fail-open: never blocks the approval).
+    let emailed = false;
+    try {
+      emailed = await sendApplicationApproved({
+        to: app.email,
+        fullName: app.full_name,
+        businessName: app.business_name,
+        slug: app.preferred_slug,
+      });
+    } catch (mailErr) { console.error('[approve] email error:', mailErr.message); }
+    req.session.adminFlash = {
+      type: 'success',
+      message: `تمت الموافقة. الشركة "${app.business_name}" أُنشئت ويستطيع صاحبها الدخول بـ ${app.email}.`
+        + (emailed ? ' وتم إرسال إيميل التفعيل له.' : ' (لم يُرسل إيميل — تأكد من إعداد SMTP).'),
+    };
     res.redirect('/admin/applications/' + req.params.id);
   } catch (err) {
     await client.query('ROLLBACK');

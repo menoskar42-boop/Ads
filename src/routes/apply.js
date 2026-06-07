@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
+const { sendApplicationReceived } = require('../lib/mailer');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -79,6 +80,9 @@ router.post('/apply', async (req, res) => {
         values.description || null, passwordHash, TERMS_VERSION, ip, ua,
       ]
     );
+    // Confirmation email (fire-and-forget, fail-open).
+    sendApplicationReceived({ to: values.email, fullName: values.full_name, businessName: values.business_name })
+      .catch((e) => console.error('[apply] received-email error:', e.message));
     res.redirect('/apply/success');
   } catch (err) {
     console.error('[POST /apply] error:', err);
