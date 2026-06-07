@@ -172,9 +172,29 @@ router.post('/logout', (req, res) => {
 });
 
 /* ─── WEB PUSH (mobile notifications) ────────────────────── */
-// Expose the VAPID public key + whether push is enabled, for the client.
-router.get('/push/config', requireLogin, (req, res) => {
-  res.json({ enabled: push.isEnabled(), publicKey: push.publicKey() });
+// Expose the VAPID public key + whether push is enabled + the merchant's
+// per-type preferences, for the client.
+router.get('/push/config', requireLogin, async (req, res) => {
+  let prefs = { messages: true, orders: true };
+  try {
+    const r = await pool.query('SELECT notify_messages, notify_orders FROM companies WHERE id = $1', [req.session.companyId]);
+    if (r.rows.length) prefs = { messages: r.rows[0].notify_messages !== false, orders: r.rows[0].notify_orders !== false };
+  } catch (err) { console.error('[push/config] prefs error:', err.message); }
+  res.json({ enabled: push.isEnabled(), publicKey: push.publicKey(), prefs });
+});
+
+// Save per-type notification preferences (messages / orders).
+router.post('/push/prefs', requireLogin, async (req, res) => {
+  try {
+    const messages = !!(req.body && req.body.messages);
+    const orders = !!(req.body && req.body.orders);
+    await pool.query('UPDATE companies SET notify_messages = $1, notify_orders = $2 WHERE id = $3',
+      [messages, orders, req.session.companyId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[push/prefs] error:', err.message);
+    res.status(500).json({ ok: false });
+  }
 });
 
 router.post('/push/subscribe', requireLogin, async (req, res) => {

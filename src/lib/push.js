@@ -54,9 +54,21 @@ async function removeSubscription(endpoint) {
  *
  * @param {number} companyId
  * @param {{title:string, body:string, url?:string}} payload
+ * @param {('message'|'order')} [type] - checked against the company's
+ *        notify_messages / notify_orders preference; omit to always send.
  */
-async function sendToCompany(companyId, payload) {
+async function sendToCompany(companyId, payload, type) {
   if (!configured || !companyId) return;
+  // Respect the merchant's per-type preference.
+  if (type === 'message' || type === 'order') {
+    try {
+      const col = type === 'order' ? 'notify_orders' : 'notify_messages';
+      const pref = await pool.query(`SELECT ${col} AS on FROM companies WHERE id = $1`, [companyId]);
+      if (pref.rows.length && pref.rows[0].on === false) return;
+    } catch (err) {
+      console.error('[push] pref check failed:', err.message); // fail-open: still send
+    }
+  }
   let rows = [];
   try {
     rows = (await pool.query(

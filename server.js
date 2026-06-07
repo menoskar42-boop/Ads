@@ -293,6 +293,8 @@ async function initDb() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_push_subs_company ON push_subscriptions(company_id);
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS notify_messages BOOLEAN DEFAULT true;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS notify_orders BOOLEAN DEFAULT true;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;

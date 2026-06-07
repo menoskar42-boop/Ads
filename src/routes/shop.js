@@ -253,7 +253,7 @@ router.post('/:slug/checkout', async (req, res) => {
       title: '🛒 أوردر جديد',
       body: `طلب جديد من ${customer_name} بإجمالي ${Number(total).toFixed(2)} ${company.currency || 'EGP'}`,
       url: '/company/orders',
-    }).catch((e) => console.error('[push order] error:', e.message));
+    }, 'order').catch((e) => console.error('[push order] error:', e.message));
 
     if (customerId && !req.session.customerId) req.session.customerId = customerId;
 

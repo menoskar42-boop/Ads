@@ -11,6 +11,17 @@
       تفعيل الإشعارات
     </button>
   </div>
+
+  <!-- Per-type preferences -->
+  <div id="pushPrefs" class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-5" style="display:none">
+    <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+      <input type="checkbox" id="prefMessages" class="w-4 h-4" /> رسائل العملاء وطلبات الحجز
+    </label>
+    <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+      <input type="checkbox" id="prefOrders" class="w-4 h-4" /> الأوردرات
+    </label>
+    <span id="prefSaved" class="text-xs text-green-600 font-semibold" style="display:none">✓ تم الحفظ</span>
+  </div>
 </div>
 
 <script>
@@ -46,11 +57,34 @@
   }
 
   var publicKey = null;
+  var prefsBox = document.getElementById('pushPrefs');
+  var prefMessages = document.getElementById('prefMessages');
+  var prefOrders = document.getElementById('prefOrders');
+  var prefSaved = document.getElementById('prefSaved');
+
+  function savePrefs() {
+    fetch('/company/push/prefs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ messages: prefMessages.checked, orders: prefOrders.checked }),
+    }).then(function () {
+      prefSaved.style.display = '';
+      setTimeout(function () { prefSaved.style.display = 'none'; }, 1500);
+    }).catch(function () {});
+  }
 
   fetch('/company/push/config', { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (cfg) {
       card.style.display = '';
+      if (cfg.prefs && prefsBox) {
+        prefMessages.checked = cfg.prefs.messages !== false;
+        prefOrders.checked = cfg.prefs.orders !== false;
+        prefsBox.style.display = '';
+        prefMessages.addEventListener('change', savePrefs);
+        prefOrders.addEventListener('change', savePrefs);
+      }
       if (!cfg.enabled || !cfg.publicKey) {
         setState('الإشعارات غير مفعّلة', true);
         hint.textContent = 'الإشعارات لم تُضبط على مستوى المنصّة بعد.';

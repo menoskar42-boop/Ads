@@ -76,7 +76,7 @@ router.post('/contact/:slug', async (req, res) => {
       title: '📩 رسالة جديدة',
       body: `وصلتك رسالة جديدة من ${v.sender_name}`,
       url: '/company/messages',
-    }).catch((e) => console.error('[push contact] error:', e.message));
+    }, 'message').catch((e) => console.error('[push contact] error:', e.message));
     res.redirect(`${canonicalCompanyUrl(slug, req)}?sent=1`);
   } catch (err) {
     console.error('[POST /contact/:slug] db error:', err);
