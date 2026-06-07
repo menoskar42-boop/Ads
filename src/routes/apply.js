@@ -81,7 +81,7 @@ router.post('/apply', async (req, res) => {
       ]
     );
     // Confirmation email (fire-and-forget, fail-open).
-    sendApplicationReceived({ to: values.email, fullName: values.full_name, businessName: values.business_name })
+    sendApplicationReceived({ to: values.email, fullName: values.full_name, businessName: values.business_name, country: values.country })
       .catch((e) => console.error('[apply] received-email error:', e.message));
     res.redirect('/apply/success');
   } catch (err) {

@@ -398,6 +398,7 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
         fullName: app.full_name,
         businessName: app.business_name,
         slug: app.preferred_slug,
+        country: app.country,
       });
     } catch (mailErr) { console.error('[approve] email error:', mailErr.message); }
     req.session.adminFlash = {
