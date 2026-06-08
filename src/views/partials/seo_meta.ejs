@@ -8,8 +8,9 @@
 <% if (typeof process !== 'undefined' && process.env && process.env.GOOGLE_SITE_VERIFICATION) { %>
 <meta name="google-site-verification" content="<%= process.env.GOOGLE_SITE_VERIFICATION %>" />
 <% } %>
-<% if (typeof process !== 'undefined' && process.env && process.env.BING_SITE_VERIFICATION) { %>
-<meta name="msvalidate.01" content="<%= process.env.BING_SITE_VERIFICATION %>" />
+<% var __bing = (typeof process !== 'undefined' && process.env && process.env.BING_SITE_VERIFICATION) ? process.env.BING_SITE_VERIFICATION : '2D428393B39F550EC4D90FFF3CD03DEC'; %>
+<% if (__bing) { %>
+<meta name="msvalidate.01" content="<%= __bing %>" />
 <% } %>
 <% if (typeof process !== 'undefined' && process.env && process.env.YANDEX_VERIFICATION) { %>
 <meta name="yandex-verification" content="<%= process.env.YANDEX_VERIFICATION %>" />
