@@ -61,7 +61,7 @@ if (INDEXNOW_KEY) {
   });
 }
 
-router.get('/admin/seo/ping-indexnow', (req, res) => {
+router.get('/admin/seo/ping-indexnow', async (req, res) => {
   if (!req.session || !req.session.adminId) return res.status(401).send('Unauthorized');
   if (!INDEXNOW_KEY) return res.status(400).send('INDEXNOW_KEY env var not set');
   const urls = [
@@ -72,6 +72,16 @@ router.get('/admin/seo/ping-indexnow', (req, res) => {
     SITE_ORIGIN + '/blog',
     ...ARTICLES.map(a => SITE_ORIGIN + '/blog/' + a.slug),
   ];
+  try {
+    const c = await pool.query("SELECT slug FROM companies WHERE is_active = true");
+    for (const row of c.rows) urls.push(SITE_ORIGIN + '/view/' + row.slug);
+    const p = await pool.query(
+      `SELECT c.slug, p.id FROM products p
+       JOIN companies c ON c.id = p.company_id
+       WHERE p.is_active = true AND c.is_active = true AND c.page_type = 'shop'`
+    );
+    for (const row of p.rows) urls.push(SITE_ORIGIN + '/shop/' + row.slug + '/product/' + row.id);
+  } catch (_) { /* DB optional — still ping static + articles */ }
   const body = JSON.stringify({ host: INDEXNOW_HOST, key: INDEXNOW_KEY, urlList: urls });
   const req2 = https.request({
     method: 'POST', hostname: 'api.indexnow.org', path: '/IndexNow',
