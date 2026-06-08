@@ -52,7 +52,7 @@ router.post('/contact', async (req, res) => {
 const https = require('https');
 const { ARTICLES } = require('./blog_articles');
 
-const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '';
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '2d5899a99defc142e0f21d1981772ebf';
 const INDEXNOW_HOST = (process.env.SITE_ORIGIN || 'https://oscardevs.com').replace(/^https?:\/\//, '');
 
 if (INDEXNOW_KEY) {
