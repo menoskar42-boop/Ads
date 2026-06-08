@@ -124,4 +124,32 @@ router.get('/sitemap.xml', async (req, res) => {
   );
 });
 
+// llms.txt — curated, AI-friendly map of the site (llmstxt.org standard).
+// Lets LLMs (ChatGPT, Gemini, Perplexity, Claude…) discover and cite our key pages.
+router.get('/llms.txt', (req, res) => {
+  const lines = [];
+  lines.push('# OscarDevs');
+  lines.push('');
+  lines.push('> منصّة عربية لتصميم مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي — تصميم سريع، أسعار مناسبة، وSEO جاهز.');
+  lines.push('');
+  lines.push('## صفحات أساسية');
+  lines.push(`- [الرئيسية](${SITE_ORIGIN}/): نظرة عامة على خدمات تصميم المواقع والمتاجر.`);
+  lines.push(`- [من نحن](${SITE_ORIGIN}/about): قصة OscarDevs ورؤيتها.`);
+  lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع بورتفوليو أو متجر إلكتروني.`);
+  lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
+  lines.push(`- [تواصل معنا](${SITE_ORIGIN}/contact): طرق التواصل مع الفريق.`);
+  lines.push('');
+  lines.push('## المدوّنة (أدلة عملية أصلية)');
+  for (const a of ARTICLES) {
+    lines.push(`- [${a.title}](${SITE_ORIGIN}/blog/${a.slug}): ${a.metaDescription || a.excerpt || ''}`);
+  }
+  lines.push('');
+  lines.push('## قانوني');
+  lines.push(`- [سياسة الخصوصية](${SITE_ORIGIN}/privacy)`);
+  lines.push(`- [الشروط والأحكام](${SITE_ORIGIN}/terms)`);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(lines.join('\n') + '\n');
+});
+
 module.exports = router;
