@@ -11,6 +11,7 @@ const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
 const push = require('../lib/push');
+const indexnow = require('../lib/indexnow');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -657,6 +658,20 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
         );
       }
       await client.query('COMMIT');
+      // Tell IndexNow about the new product so Bing crawls it fast (best-effort).
+      try {
+        const co = await pool.query(
+          "SELECT slug FROM companies WHERE id = $1 AND is_active = true AND page_type = 'shop'",
+          [req.session.companyId]
+        );
+        if (co.rows.length) {
+          const slug = co.rows[0].slug;
+          indexnow.ping([
+            indexnow.SITE_ORIGIN + '/shop/' + slug + '/product/' + ins.rows[0].id,
+            indexnow.SITE_ORIGIN + '/view/' + slug,
+          ]);
+        }
+      } catch (_) { /* IndexNow is best-effort */ }
       res.redirect('/company/products');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -771,6 +786,21 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
         );
       }
       await client.query('COMMIT');
+      // Re-submit the updated product to IndexNow when it's publicly visible.
+      try {
+        const co = await pool.query(
+          `SELECT c.slug FROM companies c JOIN products p ON p.company_id = c.id
+           WHERE c.id = $1 AND p.id = $2 AND c.is_active = true AND c.page_type = 'shop' AND p.is_active = true`,
+          [req.session.companyId, req.params.id]
+        );
+        if (co.rows.length) {
+          const slug = co.rows[0].slug;
+          indexnow.ping([
+            indexnow.SITE_ORIGIN + '/shop/' + slug + '/product/' + req.params.id,
+            indexnow.SITE_ORIGIN + '/view/' + slug,
+          ]);
+        }
+      } catch (_) { /* IndexNow is best-effort */ }
       res.redirect('/company/products');
     } catch (err) {
       await client.query('ROLLBACK');

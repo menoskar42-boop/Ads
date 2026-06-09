@@ -49,11 +49,9 @@ router.post('/contact', async (req, res) => {
   }
 });
 
-const https = require('https');
 const { ARTICLES } = require('./blog_articles');
-
-const INDEXNOW_KEY = process.env.INDEXNOW_KEY || '2d5899a99defc142e0f21d1981772ebf';
-const INDEXNOW_HOST = (process.env.SITE_ORIGIN || 'https://oscardevs.com').replace(/^https?:\/\//, '');
+const indexnow = require('../lib/indexnow');
+const { INDEXNOW_KEY } = indexnow;
 
 if (INDEXNOW_KEY) {
   router.get('/' + INDEXNOW_KEY + '.txt', (req, res) => {
@@ -82,16 +80,8 @@ router.get('/admin/seo/ping-indexnow', async (req, res) => {
     );
     for (const row of p.rows) urls.push(SITE_ORIGIN + '/shop/' + row.slug + '/product/' + row.id);
   } catch (_) { /* DB optional — still ping static + articles */ }
-  const body = JSON.stringify({ host: INDEXNOW_HOST, key: INDEXNOW_KEY, urlList: urls });
-  const req2 = https.request({
-    method: 'POST', hostname: 'api.indexnow.org', path: '/IndexNow',
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) },
-  }, (resp) => {
-    let data = ''; resp.on('data', c => data += c);
-    resp.on('end', () => res.type('text/plain').send(`IndexNow status ${resp.statusCode}\n${data}\n\nPinged ${urls.length} URLs.`));
-  });
-  req2.on('error', (e) => res.status(500).send('IndexNow error: ' + e.message));
-  req2.write(body); req2.end();
+  const r = await indexnow.submit(urls);
+  res.type('text/plain').send(`IndexNow status ${r.status}\n${r.body}\n\nPinged ${urls.length} URLs.`);
 });
 
 router.get('/sitemap.xml', async (req, res) => {
