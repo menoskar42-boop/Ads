@@ -4,12 +4,13 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title><%= article.title %> | OscarDevs</title>
+<% var __brand = ' | OscarDevs'; var __pageTitle = (article.title.length + __brand.length <= 60) ? (article.title + __brand) : article.title; %>
+<title><%= __pageTitle %></title>
 <meta name="description" content="<%= (article.metaDescription || article.excerpt).slice(0, 160) %>" />
 <meta property="og:title" content="<%= article.title %>" />
 <meta property="og:description" content="<%= (article.metaDescription || article.excerpt).slice(0, 160) %>" />
 <meta property="og:type" content="article" />
-<%- include('../partials/seo_meta', { title: article.title + ' | OscarDevs', description: (article.metaDescription || article.excerpt).slice(0, 160), ogType: 'article', articleDate: article.date }) %>
+<%- include('../partials/seo_meta', { title: __pageTitle, description: (article.metaDescription || article.excerpt).slice(0, 160), ogType: 'article', articleDate: article.date }) %>
 <script type="application/ld+json">
 <%- JSON.stringify({
   "@context": "https://schema.org",
