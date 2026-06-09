@@ -58,3 +58,4 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
 - `docs/GOOGLE_SEARCH_CENTRAL.md` — شروط القبول في فهرس Google + التدقيق.
 - `docs/SEO_GUIDE.md` — دليل Google لتحسين محركات البحث.
 - `docs/SEO_STRATEGY.md` — استراتيجية SEO للموقع.
+- `docs/BING_WEBMASTER_HELP.md` — مرجع Bing Webmaster Tools (كل صفحات الـ Help Center): الفهرسة، sitemaps، IndexNow، robots.txt، Block URLs، أخطاء الزحف، URL Inspection… يُراجَع عند أي تعديل SEO.
