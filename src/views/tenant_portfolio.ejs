@@ -12,7 +12,8 @@
   var brandColor = company.theme_color || preset.primary;
   var brandAccent = company.color_accent || preset.accent;
 %>
-<title><%= displayName %> · بورتفوليو احترافي</title>
+<% var __pfSuffix = ' · بورتفوليو احترافي'; %>
+<title><%= displayName %><% if ((displayName.length + __pfSuffix.length) <= 60) { %><%= __pfSuffix %><% } %></title>
 <meta name="description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
 <meta name="theme-color" content="<%= brandColor %>" />
 <meta name="color-scheme" content="light" />
