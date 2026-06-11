@@ -21,9 +21,9 @@
   "dateModified": article.date,
   "inLanguage": "ar",
   "mainEntityOfPage": siteOrigin + "/blog/" + article.slug,
-  "image": siteOrigin + "/og-default.svg",
+  "image": siteOrigin + "/logo.png",
   "author": { "@type": "Organization", "name": "OscarDevs", "url": siteOrigin },
-  "publisher": { "@type": "Organization", "name": "OscarDevs", "logo": { "@type": "ImageObject", "url": siteOrigin + "/og-default.svg" } }
+  "publisher": { "@type": "Organization", "name": "OscarDevs", "logo": { "@type": "ImageObject", "url": siteOrigin + "/logo.png" } }
 }) %>
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
@@ -83,6 +83,31 @@
     </div>
 
     <%- include('../partials/ad_unit', { slot: ads.slots.blogBottom }) %>
+
+    <% if (Array.isArray(article.faq) && article.faq.length) { %>
+    <section aria-labelledby="faq-heading" class="mt-10">
+      <h2 id="faq-heading" class="text-2xl font-extrabold text-gray-900 mb-4">أسئلة شائعة</h2>
+      <div class="space-y-3">
+        <% article.faq.forEach(function(item){ %>
+        <details class="bg-gray-50 rounded-xl p-4">
+          <summary class="font-bold text-gray-900 cursor-pointer"><%= item.q %></summary>
+          <p class="text-gray-600 leading-relaxed mt-2 mb-0"><%= item.a %></p>
+        </details>
+        <% }); %>
+      </div>
+    </section>
+    <script type="application/ld+json">
+    <%- JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": article.faq.map(function(item){ return {
+        "@type": "Question",
+        "name": item.q,
+        "acceptedAnswer": { "@type": "Answer", "text": item.a }
+      }; })
+    }) %>
+    </script>
+    <% } %>
 
     <hr class="my-10 border-gray-200" />
 
