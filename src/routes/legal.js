@@ -107,16 +107,35 @@ router.get('/sitemap.xml', async (req, res) => {
     urls.push({ loc: '/blog/' + a.slug, priority: '0.7', changefreq: 'monthly', lastmod: a.date });
   }
   try {
-    const r = await pool.query("SELECT slug, created_at FROM companies WHERE is_active = true ORDER BY slug");
-    for (const row of r.rows) urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
-    // Active shop products — helps Google index individual product pages.
+    // Only list tenant pages that pass the same indexing quality gate used in
+    // tenant.js, so the sitemap never points crawlers at noindex'd thin pages.
+    const r = await pool.query(
+      `SELECT c.slug, c.created_at, c.page_type,
+        (SELECT COUNT(*) FROM products p WHERE p.company_id = c.id AND p.is_active = true) AS prod_count,
+        (SELECT COUNT(*) FROM portfolio_items pi WHERE pi.company_id = c.id) AS pf_count,
+        COALESCE(char_length(trim(c.description)), 0) AS desc_len
+       FROM companies c WHERE c.is_active = true ORDER BY c.slug`
+    );
+    const indexableShops = new Set();
+    for (const row of r.rows) {
+      const ok = row.page_type === 'shop'
+        ? Number(row.prod_count) >= 3
+        : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
+      if (!ok) continue;
+      urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
+      if (row.page_type === 'shop') indexableShops.add(row.slug);
+    }
+    // Active products of indexable shops — helps Google index product pages.
     const p = await pool.query(
       `SELECT c.slug, p.id, p.created_at FROM products p
        JOIN companies c ON c.id = p.company_id
        WHERE p.is_active = true AND c.is_active = true AND c.page_type = 'shop'
        ORDER BY c.slug, p.id`
     );
-    for (const row of p.rows) urls.push({ loc: '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: ymd(row.created_at) });
+    for (const row of p.rows) {
+      if (!indexableShops.has(row.slug)) continue;
+      urls.push({ loc: '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: ymd(row.created_at) });
+    }
   } catch (_) { /* DB optional for sitemap */ }
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');

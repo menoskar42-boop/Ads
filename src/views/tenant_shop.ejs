@@ -17,6 +17,7 @@
   <% var sectionBanners = (banners || []).filter(function(b){ return !b.slot || b.slot === 'section'; }); %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
   <title><%= displayName %></title>
   <meta name="description" content="<%= (displayDesc || displayName).slice(0, 160) %>" />
   <%- include('partials/seo_meta', {

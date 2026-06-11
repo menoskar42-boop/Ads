@@ -22,6 +22,7 @@ router.get('/', async (req, res) => {
 
   let products = [];
   let categories = [];
+  let activeProductCount = 0;
   if (company.page_type === 'shop') {
     try {
       categories = (await pool.query(
@@ -39,6 +40,12 @@ router.get('/', async (req, res) => {
         params
       );
       products = productsResult.rows;
+      // Total active catalogue size (independent of category/search filters)
+      // drives the indexing quality gate below.
+      activeProductCount = (await pool.query(
+        'SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND is_active = true',
+        [company.id]
+      )).rows[0].n;
     } catch (err) { console.error('Products query error:', err.message); }
   }
 
@@ -57,6 +64,20 @@ router.get('/', async (req, res) => {
   if (company.page_type === 'shop') view = 'tenant_shop';
   else view = 'tenant_portfolio';
 
+  // Indexing quality gate: keep thin tenant pages out of the index (and away
+  // from AdSense review) until they hold real content, then let them in
+  // automatically. noindex,follow so links are still crawled. A filtered or
+  // search view is never the canonical page, so it's also kept out.
+  const descLen = (company.description || '').trim().length;
+  const hasFilter = Boolean((req.query.q || '').trim()) || Number.isFinite(parseInt(req.query.category, 10));
+  let indexable;
+  if (company.page_type === 'shop') indexable = activeProductCount >= 3;
+  else indexable = portfolio.length >= 2 || descLen >= 120;
+  const noindex = !indexable || hasFilter;
+  // AdSense: never show ads on genuinely thin pages (filtered views still have
+  // real content, so only true thinness suppresses ads).
+  if (!indexable) res.locals.showAds = false;
+
   const preset = getPreset(company.profession);
   const pc = company.page_content || {};
   const pick = (k) => (Array.isArray(pc[k]) && pc[k].length ? pc[k] : preset[k]);
@@ -69,6 +90,7 @@ router.get('/', async (req, res) => {
 
   res.render(view, {
     company,
+    noindex,
     preset,
     pageContent: pc,
     content,
