@@ -84,6 +84,13 @@ router.get('/admin/seo/ping-indexnow', async (req, res) => {
   res.type('text/plain').send(`IndexNow status ${r.status}\n${r.body}\n\nPinged ${urls.length} URLs.`);
 });
 
+// Format a DB timestamp as YYYY-MM-DD for <lastmod>, falling back to today
+// when the value is missing/invalid so the sitemap never emits a bad date.
+function ymd(value) {
+  const d = value ? new Date(value) : null;
+  return (d && !isNaN(d)) ? d.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+}
+
 router.get('/sitemap.xml', async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const urls = [
@@ -100,16 +107,16 @@ router.get('/sitemap.xml', async (req, res) => {
     urls.push({ loc: '/blog/' + a.slug, priority: '0.7', changefreq: 'monthly', lastmod: a.date });
   }
   try {
-    const r = await pool.query("SELECT slug FROM companies WHERE is_active = true ORDER BY slug");
-    for (const row of r.rows) urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: today });
+    const r = await pool.query("SELECT slug, created_at FROM companies WHERE is_active = true ORDER BY slug");
+    for (const row of r.rows) urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
     // Active shop products — helps Google index individual product pages.
     const p = await pool.query(
-      `SELECT c.slug, p.id FROM products p
+      `SELECT c.slug, p.id, p.created_at FROM products p
        JOIN companies c ON c.id = p.company_id
        WHERE p.is_active = true AND c.is_active = true AND c.page_type = 'shop'
        ORDER BY c.slug, p.id`
     );
-    for (const row of p.rows) urls.push({ loc: '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: today });
+    for (const row of p.rows) urls.push({ loc: '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: ymd(row.created_at) });
   } catch (_) { /* DB optional for sitemap */ }
 
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
