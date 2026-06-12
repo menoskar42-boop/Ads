@@ -81,7 +81,7 @@
       <% if (allImages.length === 0) { %>
         <div class="w-full aspect-square bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300"><%= t('common.image') %></div>
       <% } else { %>
-        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" class="w-full aspect-square object-cover rounded-2xl mb-3" />
+        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" fetchpriority="high" decoding="async" class="w-full aspect-square object-cover rounded-2xl mb-3" />
         <% if (allImages.length > 1) { %>
           <div class="grid grid-cols-5 gap-2">
             <% allImages.forEach(img => { %>
