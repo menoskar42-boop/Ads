@@ -183,4 +183,11 @@ const ARTICLES = [
 
 const BY_SLUG = Object.fromEntries(ARTICLES.map(a => [a.slug, a]));
 
+// Attach per-article FAQs (kept in a separate file) by slug, without
+// overwriting any faq already defined inline above.
+const FAQS = require('./blog_faqs');
+for (const a of ARTICLES) {
+  if (!a.faq && FAQS[a.slug]) a.faq = FAQS[a.slug];
+}
+
 module.exports = { ARTICLES, BY_SLUG };
