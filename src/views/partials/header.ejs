@@ -7,7 +7,11 @@
 <title>تصميم مواقع ومتاجر إلكترونية في مصر | OscarDevs</title>
 <meta name="description" content="OscarDevs لتصميم مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية في مصر والعالم العربي — تصميم سريع، أسعار مناسبة، وSEO جاهز من أول يوم. اطلب موقعك الآن.">
 <%- include('seo_meta', { title: 'تصميم مواقع ومتاجر إلكترونية في مصر | OscarDevs', description: 'OscarDevs لتصميم مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية في مصر والعالم العربي — تصميم سريع، أسعار مناسبة، وSEO جاهز من أول يوم. اطلب موقعك الآن.' }) %>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<%# Fonts loaded non-render-blocking (preload+swap) so the hero text paints
+    immediately in a fallback font — big mobile LCP win. Trimmed to used
+    weights only (dropped unused Cairo 300 & Syne 400). %>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Syne:wght@700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Syne:wght@700;800&display=swap"></noscript>
 <link rel="stylesheet" href="/css/landing.css?v=<%= assetVersion %>">
 </head>
 <body>
