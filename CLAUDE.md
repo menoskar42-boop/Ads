@@ -54,6 +54,7 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
 
 ## مراجع مخزّنة (لا تحذفها)
 - `docs/ADSENSE_POLICIES.md` — سياسات AdSense الإلزامية.
+- `docs/ADSENSE_CONTENT_REQUIREMENTS.md` — متطلبات المحتوى + سياسات الناشر + المحتوى قليل القيمة + ads.txt + COPPA (مرجع سبب الرفض الحالي؛ يُراجَع قبل أي طلب مراجعة).
 - `docs/ADSENSE_AUDIT.md` — تدقيق الموقع لـ AdSense وخطة الإصلاح.
 - `docs/GOOGLE_SEARCH_CENTRAL.md` — شروط القبول في فهرس Google + التدقيق.
 - `docs/SEO_GUIDE.md` — دليل Google لتحسين محركات البحث.
