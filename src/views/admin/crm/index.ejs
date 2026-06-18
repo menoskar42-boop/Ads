@@ -72,6 +72,33 @@
   <textarea id="broadcast" rows="2" placeholder="مثال: نزلت ميزة جديدة على المتجر الإلكتروني 🎉 تحبي أوريهالك؟" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
 </div>
 
+<!-- ردود جاهزة (انسخ وعدّل) -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-gray-800 mb-3">💬 ردود جاهزة (انسخ وعدّل قبل الإرسال)</h2>
+  <%
+    var REPLIES = [
+      { t: '① مجاني إزاي / إيه الكاتش؟', m: 'أيوة يا فندم، مجاني فعلاً 🌹 وطبيعي تستغربي. OscarDevs منصّة بتكبّر، فبنقدّمه مجاناً لعدد محدود من الأنشطة اللي بتشترك دلوقتي — نبني سمعتنا، وانتي تكسبي متجر بيبيع لك. مفيش رسوم خفية، والإضافات المتقدّمة مستقبلاً اختيارية.' },
+      { t: '② المثال', m: 'اتفضلي مثال حقيقي لمتجر على منصّتنا 👇 delta.oscardevs.com — تخيّلي منتجاتك معروضة كده. تحبي نبدأ؟ 😊' },
+      { t: '③ خطوات البدء', m: 'يلّا نبدأ وأنا معاكي خطوة بخطوة:\n1️⃣ ادخلي oscardevs.com/apply\n2️⃣ اختاري «متجر»\n3️⃣ اكتبي اسم نشاطك + اختاري رابط متجرك + كلمة سر + إرسال.\nإنتي بتسجّلي بنفسك لأن كلمة السر خاصة بيكي (أمان حسابك). أول ما تبعتي أفعّلك فوراً 💪' },
+      { t: '④ بكام بعد العرض؟', m: 'ضمن العرض الحالي مجاني مدى الحياة لو اشتركتي دلوقتي. بعد العرض الاشتراك بيكون مدفوع — فإنتي بتثبّتي مجانيتك للأبد لو بدأتي الآن 🎁' },
+      { t: '⑤ إزاي أضيف منتجاتي؟', m: 'سهلة جداً: بعد تسجيل الدخول من oscardevs.com/company/login، من لوحة التحكّم تضيفي منتج بصورة وسعر وقسم — وأنا معاكي في أول منتج لو حابة 🌹' },
+      { t: '⑥ صعب / محتاج خبرة؟', m: 'لأ خالص، لوحة تحكّم بسيطة — وإحنا بندعمك خطوة بخطوة. إنتي بتضيفي منتجاتك بس، والباقي علينا 😊' },
+      { t: '⑦ متابعة (مشغولة/ساكتة)', m: 'خدي وقتك يا فندم، مفيش استعجال 🌸 العرض محجوزلك، وأول ما تفضي حتى ٥ دقايق نبدأ سوا. تحبي أطمن عليكي بكره؟' }
+    ];
+  %>
+  <div class="space-y-2">
+    <% REPLIES.forEach(function(r){ %>
+    <details class="border border-gray-100 rounded-lg">
+      <summary class="cursor-pointer font-semibold text-sm text-gray-700 px-3 py-2"><%= r.t %></summary>
+      <div class="px-3 pb-3">
+        <p class="reply-text text-sm text-gray-600 whitespace-pre-line bg-gray-50 rounded p-2 leading-relaxed"><%= r.m %></p>
+        <button type="button" class="copy-btn mt-2 text-xs brand-bg text-white rounded px-3 py-1">نسخ 📋</button>
+      </div>
+    </details>
+    <% }); %>
+  </div>
+</div>
+
 <!-- قائمة العملاء -->
 <% if (!leads.length) { %>
   <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">مفيش عملاء لسه — ابدأ بإضافة عميل فوق.</div>
@@ -95,7 +122,8 @@
         </div>
         <div class="flex items-center gap-2">
           <% if (l.wa) { %>
-            <a class="wa-link inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-lg px-3 py-2" data-base="https://wa.me/<%= l.wa %>" href="https://wa.me/<%= l.wa %>" target="_blank" rel="noopener">واتساب</a>
+            <a class="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg px-3 py-2" href="https://wa.me/<%= l.wa %>" target="_blank" rel="noopener" title="افتح محادثة واتساب للرد مباشرة">💬 رد</a>
+            <a class="wa-link inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-lg px-3 py-2" data-base="https://wa.me/<%= l.wa %>" href="https://wa.me/<%= l.wa %>" target="_blank" rel="noopener" title="ابعت التحديث الجماعي">📣 تحديث</a>
           <% } else { %>
             <span class="text-xs text-gray-400">لا يوجد رقم</span>
           <% } %>
@@ -133,6 +161,19 @@
     }
     if (ta) ta.addEventListener('input', sync);
   })();
+
+  // نسخ الردود الجاهزة للحافظة.
+  document.querySelectorAll('.copy-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      var p = b.closest('details').querySelector('.reply-text');
+      if (!p) return;
+      navigator.clipboard.writeText(p.innerText).then(function(){
+        var o = b.textContent;
+        b.textContent = 'تم النسخ ✓';
+        setTimeout(function(){ b.textContent = o; }, 1500);
+      });
+    });
+  });
 </script>
 
 <%- include('../_layout_bottom') %>
