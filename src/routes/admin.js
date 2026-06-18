@@ -401,6 +401,32 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
       [req.session.adminId, newCompanyId, (req.body.notes || '').slice(0, 1000) || null, app.id]
     );
     await client.query('COMMIT');
+
+    // مزامنة الـCRM: حوّل العميل المطابق إلى «عميل ✅» (fail-open، لا يعطّل الموافقة).
+    pool.query(
+      `UPDATE crm_leads SET status='converted', next_followup = CURRENT_DATE + 3, updated_at=now()
+       WHERE phone = $1 OR (email IS NOT NULL AND email = $2)
+       RETURNING id`,
+      [app.phone, app.email]
+    ).then(async (r) => {
+      if (r.rowCount === 0) {
+        await pool.query(
+          `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
+           VALUES ($1, $2, $3, $4, $5, 'طلب تسجيل', 'converted', $6, CURRENT_DATE + 3)`,
+          [app.full_name, app.phone, app.email, app.business_name,
+           app.business_type === 'shop' ? 'متجر' : 'بورتفوليو',
+           `اتفعّل الحساب — متجر ${app.preferred_slug}`]
+        );
+      } else {
+        for (const row of r.rows) {
+          await pool.query(
+            "INSERT INTO crm_activities (lead_id, type, body) VALUES ($1, 'status', $2)",
+            [row.id, 'اتفعّل الحساب من لوحة الأدمن → عميل ✅']
+          );
+        }
+      }
+    }).catch((e) => console.error('[approve] crm-sync error:', e.message));
+
     // Notify the merchant by email (fail-open: never blocks the approval).
     let emailed = false;
     try {
