@@ -60,3 +60,4 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
 - `docs/SEO_GUIDE.md` — دليل Google لتحسين محركات البحث.
 - `docs/SEO_STRATEGY.md` — استراتيجية SEO للموقع.
 - `docs/BING_WEBMASTER_HELP.md` — مرجع Bing Webmaster Tools (كل صفحات الـ Help Center): الفهرسة، sitemaps، IndexNow، robots.txt، Block URLs، أخطاء الزحف، URL Inspection… يُراجَع عند أي تعديل SEO.
+- `docs/SALES_OUTREACH_PROMPT.md` — قالب «برومبت استهداف العملاء». **Trigger:** لما يقول المالك «ابعتلي برومبت استهداف العملاء» → أرسل البرومبت اللي في الملف ده (مع تعديل القطاع حسب طلبه).
