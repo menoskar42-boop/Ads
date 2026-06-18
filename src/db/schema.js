@@ -35,6 +35,23 @@ async function createSchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
 
+      CREATE TABLE IF NOT EXISTS crm_leads (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        phone TEXT,
+        business_name TEXT,
+        category TEXT,
+        link TEXT,
+        source TEXT,
+        status TEXT DEFAULT 'new',
+        notes TEXT,
+        next_followup DATE,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS category TEXT;
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS link TEXT;
+
       CREATE TABLE IF NOT EXISTS portfolio_items (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id),

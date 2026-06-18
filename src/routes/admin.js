@@ -429,6 +429,117 @@ router.post('/applications/:id/reject', requireAdmin, async (req, res) => {
   res.redirect('/admin/applications/' + req.params.id);
 });
 
+/* ─── CRM (العملاء المحتملين / المتابعة) ──────────────────── */
+const CRM_STATUSES = ['new', 'contacted', 'interested', 'converted', 'lost'];
+
+// Normalize a phone to an international wa.me number (Egypt-aware).
+function waNumber(phone) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.startsWith('0')) d = '20' + d.slice(1);          // 01xxxx -> 201xxxx
+  else if (!d.startsWith('20') && d.length <= 10) d = '20' + d; // bare EG mobile
+  return d;
+}
+
+router.get('/crm', requireAdmin, async (req, res) => {
+  try {
+    const status = CRM_STATUSES.includes(req.query.status) ? req.query.status : null;
+    const category = (req.query.category || '').trim() || null;
+    const params = [];
+    const conds = [];
+    if (status) { params.push(status); conds.push('status = $' + params.length); }
+    if (category) { params.push(category); conds.push('category = $' + params.length); }
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    const r = await pool.query(
+      `SELECT * FROM crm_leads ${where}
+       ORDER BY (next_followup IS NULL), next_followup ASC, created_at DESC`,
+      params
+    );
+    const leads = r.rows.map((l) => ({ ...l, wa: waNumber(l.phone) }));
+    const counts = await pool.query('SELECT status, COUNT(*)::int AS n FROM crm_leads GROUP BY status');
+    const cats = await pool.query(
+      "SELECT category, COUNT(*)::int AS n FROM crm_leads WHERE category IS NOT NULL AND category <> '' GROUP BY category ORDER BY n DESC"
+    );
+    res.render('admin/crm/index', {
+      leads,
+      countMap: Object.fromEntries(counts.rows.map((c) => [c.status, c.n])),
+      categories: cats.rows,
+      currentFilter: status || '',
+      currentCategory: category || '',
+      session: adminSession(req),
+      activePage: 'crm',
+    });
+  } catch (err) {
+    console.error('[GET /admin/crm] error:', err);
+    res.status(500).send('Error loading CRM — هل شغّلت "npm run db:schema" لإنشاء جدول crm_leads؟');
+  }
+});
+
+router.post('/crm/add', requireAdmin, async (req, res) => {
+  const { name, phone, business_name, category, link, source, notes } = req.body;
+  if (!String(phone || '').trim() && !String(name || '').trim()) {
+    return res.redirect('/admin/crm');
+  }
+  try {
+    await pool.query(
+      `INSERT INTO crm_leads (name, phone, business_name, category, link, source, notes, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'new')`,
+      [String(name || '').trim() || null, String(phone || '').trim() || null,
+       String(business_name || '').trim() || null, String(category || '').trim() || null,
+       String(link || '').trim() || null, String(source || '').trim() || null,
+       String(notes || '').trim() || null]
+    );
+  } catch (err) { console.error('[POST /admin/crm/add] error:', err); }
+  res.redirect('/admin/crm');
+});
+
+// Bulk import: paste many leads, one per line, pipe-separated:
+// الاسم | الرقم | النشاط | التصنيف | اللينك | ملاحظات
+router.post('/crm/import', requireAdmin, async (req, res) => {
+  const text = String(req.body.bulk || '');
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let inserted = 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const line of lines) {
+      const p = line.split('|').map((x) => x.trim());
+      const [name, phone, business_name, category, link, notes] = p;
+      if (!name && !phone) continue;
+      await client.query(
+        `INSERT INTO crm_leads (name, phone, business_name, category, link, notes, source, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'استيراد', 'new')`,
+        [name || null, phone || null, business_name || null, category || null, link || null, notes || null]
+      );
+      inserted++;
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[POST /admin/crm/import] error:', err);
+  } finally { client.release(); }
+  res.redirect('/admin/crm');
+});
+
+router.post('/crm/:id/update', requireAdmin, async (req, res) => {
+  const status = CRM_STATUSES.includes(req.body.status) ? req.body.status : 'new';
+  const notes = String(req.body.notes || '').trim() || null;
+  const nf = String(req.body.next_followup || '').trim() || null;
+  try {
+    await pool.query(
+      'UPDATE crm_leads SET status=$1, notes=$2, next_followup=$3, updated_at=now() WHERE id=$4',
+      [status, notes, nf, req.params.id]
+    );
+  } catch (err) { console.error('[POST /admin/crm/:id/update] error:', err); }
+  res.redirect('/admin/crm');
+});
+
+router.post('/crm/:id/delete', requireAdmin, async (req, res) => {
+  try { await pool.query('DELETE FROM crm_leads WHERE id = $1', [req.params.id]); }
+  catch (err) { console.error('[POST /admin/crm/:id/delete] error:', err); }
+  res.redirect('/admin/crm');
+});
+
 /* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
 router.post('/lang/:lang', async (req, res) => {
   const lang = req.params.lang === 'en' ? 'en' : 'ar';
