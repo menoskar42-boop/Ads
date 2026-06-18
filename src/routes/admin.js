@@ -191,6 +191,17 @@ router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
         activePage: 'dashboard',
       });
     }
+    // تأكد إن الـslug مش مكرر (زي التسجيل الجديد) — مع استثناء الشركة نفسها.
+    const dupSlug = await pool.query('SELECT id FROM companies WHERE slug = $1 AND id <> $2', [slug, req.params.id]);
+    if (dupSlug.rows.length) {
+      const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
+      return res.render('admin/companies/edit', {
+        session: adminSession(req),
+        company: result.rows[0],
+        error: `الـslug "${slug}" محجوز بالفعل لمتجر آخر — اختر اسمًا غير مكرر.`,
+        activePage: 'dashboard',
+      });
+    }
     const adsense_top = (req.body.adsense_top || '').trim() || null;
     const adsense_sidebar = (req.body.adsense_sidebar || '').trim() || null;
     const adsense_bottom = (req.body.adsense_bottom || '').trim() || null;
