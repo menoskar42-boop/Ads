@@ -3,14 +3,22 @@ const router = express.Router();
 const { Pool } = require('pg');
 const { canonicalCompanyUrl, isProductionHost } = require('../lib/urls');
 const push = require('../lib/push');
+const { ARTICLES } = require('./blog_articles');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Latest 6 articles featured on the homepage — surfaces real content for
+// users, crawlers, and the AdSense reviewer.
+const LATEST_ARTICLES = ARTICLES.slice()
+  .sort((a, b) => b.date.localeCompare(a.date))
+  .slice(0, 6);
 
 router.get('/', (req, res) => {
   res.render('home', {
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
     showAds: true, // marketing homepage is content
+    latestArticles: LATEST_ARTICLES,
   });
 });
 
