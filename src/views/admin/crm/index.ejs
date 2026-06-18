@@ -9,6 +9,8 @@
   };
   var STATUSES = ['new','contacted','interested','converted','lost'];
   function fmtDate(d){ if(!d) return ''; try{ return new Date(d).toISOString().slice(0,10); }catch(e){ return ''; } }
+  // أي لينك من غير http(s) يتضافله https تلقائياً عشان ميتعاملش كمسار داخلي.
+  function extUrl(u){ if(!u) return ''; return /^https?:\/\//i.test(u) ? u : 'https://' + u; }
 %>
 
 <div class="mb-5 flex items-center justify-between flex-wrap gap-3">
@@ -19,7 +21,7 @@
 </div>
 
 <!-- فلاتر الحالة -->
-<div class="flex flex-wrap gap-2 mb-5 text-sm">
+<div class="flex flex-wrap gap-2 mb-4 text-sm">
   <a href="/admin/crm" class="px-3 py-1.5 rounded-full font-semibold <%= currentFilter==='' ? 'brand-bg text-white' : 'bg-white text-gray-600 border border-gray-200' %>">الكل</a>
   <% STATUSES.forEach(function(s){ %>
     <a href="/admin/crm?status=<%= s %>" class="px-3 py-1.5 rounded-full font-semibold <%= currentFilter===s ? 'brand-bg text-white' : 'bg-white text-gray-600 border border-gray-200' %>">
@@ -30,7 +32,7 @@
 
 <!-- فلتر التصنيف -->
 <% if (categories && categories.length) { %>
-<div class="flex flex-wrap gap-2 mb-5 text-sm items-center">
+<div class="flex flex-wrap gap-2 mb-4 text-sm items-center">
   <span class="text-gray-400 text-xs font-bold">التصنيف:</span>
   <a href="/admin/crm<%= currentFilter ? '?status='+currentFilter : '' %>" class="px-3 py-1 rounded-full font-semibold <%= currentCategory==='' ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border border-gray-200' %>">الكل</a>
   <% categories.forEach(function(c){ %>
@@ -39,73 +41,18 @@
 </div>
 <% } %>
 
-<!-- إضافة عميل -->
-<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-  <h2 class="font-bold text-gray-800 mb-3">➕ إضافة عميل محتمل</h2>
-  <form method="POST" action="/admin/crm/add" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-    <input name="name" placeholder="الاسم" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-    <input name="phone" placeholder="رقم الواتساب (01xxxxxxxxx)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-    <input name="business_name" placeholder="اسم النشاط" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-    <input name="category" placeholder="التصنيف (ملابس/هاند ميد/أدوات منزلية...)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-    <input name="link" placeholder="لينك الصفحة (فيسبوك/إنستجرام)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-    <input name="source" placeholder="المصدر" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
-    <input name="notes" placeholder="ملاحظات" class="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
-    <button class="brand-bg text-white font-bold rounded-lg px-4 py-2 text-sm">إضافة</button>
-  </form>
+<!-- بحث سريع في العملاء الظاهرين -->
+<div class="mb-4">
+  <input id="leadSearch" type="search" placeholder="🔎 ابحث بالاسم / النشاط / الرقم..." class="w-full sm:max-w-md border border-gray-200 rounded-lg px-3 py-2 text-sm" />
 </div>
 
-<!-- استيراد جماعي (لصق نتائج البحث) -->
-<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-  <h2 class="font-bold text-gray-800 mb-2">📥 استيراد جماعي</h2>
-  <p class="text-xs text-gray-500 mb-2">الصق عملاء (سطر لكل عميل) بالصيغة دي مفصولة بـ <code>|</code>:<br>
-    <span class="font-mono text-gray-600">الاسم | الرقم | النشاط | التصنيف | اللينك | ملاحظات</span></p>
-  <form method="POST" action="/admin/crm/import">
-    <textarea name="bulk" rows="4" placeholder="إسراء | 01010959964 | هاند ميد وهدايا | هاند ميد | instagram.com/... | اهتمت بالعرض" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"></textarea>
-    <button class="mt-2 bg-gray-800 text-white font-bold rounded-lg px-4 py-2 text-sm">استيراد</button>
-  </form>
-</div>
-
-<!-- رسالة تحديث جماعية -->
-<div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-5">
-  <h2 class="font-bold text-gray-800 mb-2">📣 رسالة تحديث جماعية</h2>
-  <p class="text-xs text-gray-500 mb-2">اكتب التحديث هنا (مثلاً: ميزة جديدة على المتجر)، وهيتحط تلقائياً في زر واتساب لكل عميل — تضغط الزر وتبعت <strong>يدوياً</strong> لكل واحد.</p>
-  <textarea id="broadcast" rows="2" placeholder="مثال: نزلت ميزة جديدة على المتجر الإلكتروني 🎉 تحبي أوريهالك؟" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
-</div>
-
-<!-- ردود جاهزة (انسخ وعدّل) -->
-<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-  <h2 class="font-bold text-gray-800 mb-3">💬 ردود جاهزة (انسخ وعدّل قبل الإرسال)</h2>
-  <%
-    var REPLIES = [
-      { t: '① مجاني إزاي / إيه الكاتش؟', m: 'أيوة يا فندم، مجاني فعلاً 🌹 وطبيعي تستغربي. OscarDevs منصّة بتكبّر، فبنقدّمه مجاناً لعدد محدود من الأنشطة اللي بتشترك دلوقتي — نبني سمعتنا، وانتي تكسبي متجر بيبيع لك. مفيش رسوم خفية، والإضافات المتقدّمة مستقبلاً اختيارية.' },
-      { t: '② المثال', m: 'اتفضلي مثال حقيقي لمتجر على منصّتنا 👇 delta.oscardevs.com — تخيّلي منتجاتك معروضة كده. تحبي نبدأ؟ 😊' },
-      { t: '③ خطوات البدء', m: 'يلّا نبدأ وأنا معاكي خطوة بخطوة:\n1️⃣ ادخلي oscardevs.com/apply\n2️⃣ اختاري «متجر»\n3️⃣ اكتبي اسم نشاطك + اختاري رابط متجرك + كلمة سر + إرسال.\nإنتي بتسجّلي بنفسك لأن كلمة السر خاصة بيكي (أمان حسابك). أول ما تبعتي أفعّلك فوراً 💪' },
-      { t: '④ بكام بعد العرض؟', m: 'ضمن العرض الحالي مجاني مدى الحياة لو اشتركتي دلوقتي. بعد العرض الاشتراك بيكون مدفوع — فإنتي بتثبّتي مجانيتك للأبد لو بدأتي الآن 🎁' },
-      { t: '⑤ إزاي أضيف منتجاتي؟', m: 'سهلة جداً: بعد تسجيل الدخول من oscardevs.com/company/login، من لوحة التحكّم تضيفي منتج بصورة وسعر وقسم — وأنا معاكي في أول منتج لو حابة 🌹' },
-      { t: '⑥ صعب / محتاج خبرة؟', m: 'لأ خالص، لوحة تحكّم بسيطة — وإحنا بندعمك خطوة بخطوة. إنتي بتضيفي منتجاتك بس، والباقي علينا 😊' },
-      { t: '⑦ متابعة (مشغولة/ساكتة)', m: 'خدي وقتك يا فندم، مفيش استعجال 🌸 العرض محجوزلك، وأول ما تفضي حتى ٥ دقايق نبدأ سوا. تحبي أطمن عليكي بكره؟' }
-    ];
-  %>
-  <div class="space-y-2">
-    <% REPLIES.forEach(function(r){ %>
-    <details class="border border-gray-100 rounded-lg">
-      <summary class="cursor-pointer font-semibold text-sm text-gray-700 px-3 py-2"><%= r.t %></summary>
-      <div class="px-3 pb-3">
-        <p class="reply-text text-sm text-gray-600 whitespace-pre-line bg-gray-50 rounded p-2 leading-relaxed"><%= r.m %></p>
-        <button type="button" class="copy-btn mt-2 text-xs brand-bg text-white rounded px-3 py-1">نسخ 📋</button>
-      </div>
-    </details>
-    <% }); %>
-  </div>
-</div>
-
-<!-- قائمة العملاء -->
+<!-- قائمة العملاء (في أعلى الصفحة) -->
 <% if (!leads.length) { %>
-  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">مفيش عملاء لسه — ابدأ بإضافة عميل فوق.</div>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400">مفيش عملاء لسه — ضيف عميل أو استورد من الأدوات تحت.</div>
 <% } else { %>
-  <div class="space-y-3">
+  <div id="leadList" class="space-y-3 mb-6">
   <% leads.forEach(function(l){ %>
-    <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="lead-card bg-white rounded-2xl shadow-sm p-4" data-search="<%= ((l.name||'')+' '+(l.business_name||'')+' '+(l.phone||'')+' '+(l.category||'')).toLowerCase() %>">
       <div class="flex items-start justify-between gap-3 flex-wrap">
         <div class="min-w-[200px]">
           <div class="font-bold text-gray-900"><%= l.name || l.business_name || 'بدون اسم' %>
@@ -117,7 +64,7 @@
             <% if (l.category) { %> · <span class="bg-gray-100 text-gray-600 rounded px-1.5 py-0.5 text-xs"><%= l.category %></span><% } %>
             <% if (l.source) { %> · <span class="text-gray-400 text-xs"><%= l.source %></span><% } %>
           </div>
-          <% if (l.link) { %><div class="text-xs mt-1"><a href="<%= l.link %>" target="_blank" rel="noopener" class="text-indigo-600 underline">صفحة العميل ↗</a></div><% } %>
+          <% if (l.link) { %><div class="text-xs mt-1"><a href="<%= extUrl(l.link) %>" target="_blank" rel="noopener" class="text-indigo-600 underline">صفحة العميل ↗</a></div><% } %>
           <% if (l.notes) { %><div class="text-xs text-gray-500 mt-1">📝 <%= l.notes %></div><% } %>
         </div>
         <div class="flex items-center gap-2">
@@ -146,10 +93,82 @@
     </div>
   <% }); %>
   </div>
+  <div id="noResults" class="hidden bg-white rounded-2xl shadow-sm p-6 text-center text-gray-400 mb-6">مفيش نتيجة مطابقة للبحث.</div>
 <% } %>
 
+<!-- ====== أدوات الإدارة (قابلة للطي عشان متاخدش مساحة) ====== -->
+<h2 class="text-sm font-bold text-gray-400 mb-2 mt-8">⚙️ أدوات الإدارة</h2>
+
+<!-- إضافة عميل -->
+<details class="bg-white rounded-2xl shadow-sm mb-3">
+  <summary class="cursor-pointer font-bold text-gray-800 px-5 py-4">➕ إضافة عميل محتمل</summary>
+  <div class="px-5 pb-5">
+    <form method="POST" action="/admin/crm/add" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <input name="name" placeholder="الاسم" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      <input name="phone" placeholder="رقم الواتساب (01xxxxxxxxx)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      <input name="business_name" placeholder="اسم النشاط" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      <input name="category" placeholder="التصنيف (ملابس/هاند ميد/أدوات منزلية...)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      <input name="link" placeholder="لينك الصفحة (فيسبوك/إنستجرام)" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      <input name="source" placeholder="المصدر" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      <input name="notes" placeholder="ملاحظات" class="border border-gray-200 rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+      <button class="brand-bg text-white font-bold rounded-lg px-4 py-2 text-sm">إضافة</button>
+    </form>
+  </div>
+</details>
+
+<!-- استيراد جماعي (لصق نتائج البحث) -->
+<details class="bg-white rounded-2xl shadow-sm mb-3">
+  <summary class="cursor-pointer font-bold text-gray-800 px-5 py-4">📥 استيراد جماعي</summary>
+  <div class="px-5 pb-5">
+    <p class="text-xs text-gray-500 mb-2">الصق عملاء (سطر لكل عميل) بالصيغة دي مفصولة بـ <code>|</code>:<br>
+      <span class="font-mono text-gray-600">الاسم | الرقم | النشاط | التصنيف | اللينك | ملاحظات</span></p>
+    <form method="POST" action="/admin/crm/import">
+      <textarea name="bulk" rows="4" placeholder="إسراء | 01010959964 | هاند ميد وهدايا | هاند ميد | instagram.com/... | اهتمت بالعرض" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"></textarea>
+      <button class="mt-2 bg-gray-800 text-white font-bold rounded-lg px-4 py-2 text-sm">استيراد</button>
+    </form>
+  </div>
+</details>
+
+<!-- رسالة تحديث جماعية -->
+<details class="bg-white rounded-2xl shadow-sm mb-3">
+  <summary class="cursor-pointer font-bold text-gray-800 px-5 py-4">📣 رسالة تحديث جماعية</summary>
+  <div class="px-5 pb-5">
+    <p class="text-xs text-gray-500 mb-2">اكتب التحديث هنا، وهيتحط تلقائياً في زر «📣 تحديث» لكل عميل — تضغط الزر وتبعت <strong>يدوياً</strong> لكل واحد.</p>
+    <textarea id="broadcast" rows="2" placeholder="مثال: نزلت ميزة جديدة على المتجر الإلكتروني 🎉 تحبي أوريهالك؟" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
+  </div>
+</details>
+
+<!-- ردود جاهزة (انسخ وعدّل) -->
+<details class="bg-white rounded-2xl shadow-sm mb-3">
+  <summary class="cursor-pointer font-bold text-gray-800 px-5 py-4">💬 ردود جاهزة (انسخ وعدّل قبل الإرسال)</summary>
+  <div class="px-5 pb-5">
+    <%
+      var REPLIES = [
+        { t: '① مجاني إزاي / إيه الكاتش؟', m: 'أيوة يا فندم، مجاني فعلاً 🌹 وطبيعي تستغربي. OscarDevs منصّة بتكبّر، فبنقدّمه مجاناً لعدد محدود من الأنشطة اللي بتشترك دلوقتي — نبني سمعتنا، وانتي تكسبي متجر بيبيع لك. مفيش رسوم خفية، والإضافات المتقدّمة مستقبلاً اختيارية.' },
+        { t: '② المثال', m: 'اتفضلي مثال حقيقي لمتجر على منصّتنا 👇 delta.oscardevs.com — تخيّلي منتجاتك معروضة كده. تحبي نبدأ؟ 😊' },
+        { t: '③ خطوات البدء', m: 'يلّا نبدأ وأنا معاكي خطوة بخطوة:\n1️⃣ ادخلي oscardevs.com/apply\n2️⃣ اختاري «متجر»\n3️⃣ اكتبي اسم نشاطك + اختاري رابط متجرك + كلمة سر + إرسال.\nإنتي بتسجّلي بنفسك لأن كلمة السر خاصة بيكي (أمان حسابك). أول ما تبعتي أفعّلك فوراً 💪' },
+        { t: '④ بكام بعد العرض؟', m: 'ضمن العرض الحالي مجاني مدى الحياة لو اشتركتي دلوقتي. بعد العرض الاشتراك بيكون مدفوع — فإنتي بتثبّتي مجانيتك للأبد لو بدأتي الآن 🎁' },
+        { t: '⑤ إزاي أضيف منتجاتي؟', m: 'سهلة جداً: بعد تسجيل الدخول من oscardevs.com/company/login، من لوحة التحكّم تضيفي منتج بصورة وسعر وقسم — وأنا معاكي في أول منتج لو حابة 🌹' },
+        { t: '⑥ صعب / محتاج خبرة؟', m: 'لأ خالص، لوحة تحكّم بسيطة — وإحنا بندعمك خطوة بخطوة. إنتي بتضيفي منتجاتك بس، والباقي علينا 😊' },
+        { t: '⑦ متابعة (مشغولة/ساكتة)', m: 'خدي وقتك يا فندم، مفيش استعجال 🌸 العرض محجوزلك، وأول ما تفضي حتى ٥ دقايق نبدأ سوا. تحبي أطمن عليكي بكره؟' }
+      ];
+    %>
+    <div class="space-y-2">
+      <% REPLIES.forEach(function(r){ %>
+      <details class="border border-gray-100 rounded-lg">
+        <summary class="cursor-pointer font-semibold text-sm text-gray-700 px-3 py-2"><%= r.t %></summary>
+        <div class="px-3 pb-3">
+          <p class="reply-text text-sm text-gray-600 whitespace-pre-line bg-gray-50 rounded p-2 leading-relaxed"><%= r.m %></p>
+          <button type="button" class="copy-btn mt-2 text-xs brand-bg text-white rounded px-3 py-1">نسخ 📋</button>
+        </div>
+      </details>
+      <% }); %>
+    </div>
+  </div>
+</details>
+
 <script>
-  // اربط نص التحديث الجماعي بكل أزرار واتساب (إرسال يدوي لكل عميل).
+  // اربط نص التحديث الجماعي بكل أزرار «📣 تحديث» (إرسال يدوي لكل عميل).
   (function(){
     var ta = document.getElementById('broadcast');
     function sync(){
@@ -174,6 +193,24 @@
       });
     });
   });
+
+  // بحث فوري في قائمة العملاء الظاهرة.
+  (function(){
+    var box = document.getElementById('leadSearch');
+    if (!box) return;
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.lead-card'));
+    var none = document.getElementById('noResults');
+    box.addEventListener('input', function(){
+      var q = box.value.trim().toLowerCase();
+      var shown = 0;
+      cards.forEach(function(c){
+        var match = !q || (c.getAttribute('data-search') || '').indexOf(q) !== -1;
+        c.style.display = match ? '' : 'none';
+        if (match) shown++;
+      });
+      if (none) none.classList.toggle('hidden', shown !== 0);
+    });
+  })();
 </script>
 
 <%- include('../_layout_bottom') %>
