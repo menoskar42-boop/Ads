@@ -452,8 +452,36 @@ function waNumber(phone) {
   return d;
 }
 
+// عملاء أوّليون مخزّنون في الكود (زي المقالات) — يتزرعوا تلقائياً لو الجدول فاضي.
+// أي تعديل/حذف من اللوحة بيفضل ثابت لأن الزرع بيتم مرّة واحدة بس (وقت ما الجدول فاضي).
+const SEED_LEADS = [
+  { name: 'إسراء محمد', phone: '01010959964', business_name: 'هاند ميد وهدايا', category: 'هاند ميد', link: 'instagram.com/', source: 'فيسبوك/بحث', status: 'converted', notes: 'قدّمت طلب واتفعّلت — متجر hand. إيميل me1720011@gmail.com' },
+  { name: 'OS Handmade', phone: '01117946381', business_name: 'OS Handmade — ديكور وهاند ميد', category: 'هاند ميد/ديكور', link: 'instagram.com/oshandmade_', source: 'إنستجرام/بحث', status: 'interested', notes: 'ردّت "ماشي" واستغربت مجاني — اتبعتلها مثال delta' },
+  { name: 'بيت الهنا', phone: '01108744638', business_name: 'بيت الهنا للأدوات المنزلية', category: 'أدوات منزلية', link: 'instagram.com/beitelhana2025', source: 'إنستجرام/بحث', status: 'contacted', notes: 'محل في النزهة الجديدة، تشكيلة كبيرة' },
+  { name: 'Naomi Soap', phone: '01065524426', business_name: 'Naomi Soap — صابون هاند ميد', category: 'صابون/عناية', link: 'instagram.com/naomi_soap_09', source: 'إنستجرام/بحث', status: 'interested', notes: 'استغربت مجاني وسألت بكام — اتبعتلها مثال delta' },
+];
+
+let _crmSeeded = false;
+async function ensureCrmSeed() {
+  if (_crmSeeded) return;
+  _crmSeeded = true; // نحاول مرّة واحدة لكل تشغيل عشان ما نلفّش على DB كل طلب.
+  try {
+    const c = await pool.query('SELECT COUNT(*)::int AS n FROM crm_leads');
+    if (c.rows[0].n > 0) return; // فيه بيانات بالفعل → ما نزرعش (نحترم تعديلاتك/حذفك).
+    for (const l of SEED_LEADS) {
+      await pool.query(
+        `INSERT INTO crm_leads (name, phone, business_name, category, link, source, status, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [l.name, l.phone, l.business_name, l.category, l.link || null, l.source, l.status, l.notes]
+      );
+    }
+    console.log('[CRM] auto-seeded', SEED_LEADS.length, 'leads (table was empty)');
+  } catch (e) { console.error('[CRM] auto-seed skipped:', e.message); }
+}
+
 router.get('/crm', requireAdmin, async (req, res) => {
   try {
+    await ensureCrmSeed();
     const status = CRM_STATUSES.includes(req.query.status) ? req.query.status : null;
     const category = (req.query.category || '').trim() || null;
     const params = [];
