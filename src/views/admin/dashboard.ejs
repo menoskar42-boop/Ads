@@ -38,6 +38,7 @@
               <th class="px-4 py-3 text-center"><%= t('admin.admins') %></th>
               <th class="px-4 py-3 text-center"><%= t('company.portfolio') %></th>
               <th class="px-4 py-3 text-center">Ads</th>
+              <th class="px-4 py-3 text-center"><%= t('admin.created_at') %></th>
               <th class="px-4 py-3 text-right"><%= t('common.actions') %></th>
             </tr>
           </thead>
@@ -63,6 +64,7 @@
               <td class="px-4 py-3 text-center text-gray-600"><%= c.users_count %></td>
               <td class="px-4 py-3 text-center text-gray-600"><%= c.portfolio_count %></td>
               <td class="px-4 py-3 text-center text-gray-600"><%= c.ads_count %></td>
+              <td class="px-4 py-3 text-center text-gray-500 text-xs whitespace-nowrap"><%= c.created_at ? new Date(c.created_at).toISOString().slice(0,10) : '—' %></td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-1.5 flex-wrap">
                   <a href="<%= canonicalCompanyUrl(c.slug) %>" target="_blank" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= t('common.actions') %></a>
