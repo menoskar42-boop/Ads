@@ -466,16 +466,18 @@ async function ensureCrmSeed() {
   if (_crmSeeded) return;
   _crmSeeded = true; // نحاول مرّة واحدة لكل تشغيل عشان ما نلفّش على DB كل طلب.
   try {
-    const c = await pool.query('SELECT COUNT(*)::int AS n FROM crm_leads');
-    if (c.rows[0].n > 0) return; // فيه بيانات بالفعل → ما نزرعش (نحترم تعديلاتك/حذفك).
+    let added = 0;
     for (const l of SEED_LEADS) {
-      await pool.query(
+      // يتضاف كل عميل لوحده فقط لو رقمه مش موجود — حتى لو الجدول مليان.
+      const r = await pool.query(
         `INSERT INTO crm_leads (name, phone, business_name, category, link, source, status, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         SELECT $1,$2,$3,$4,$5,$6,$7,$8
+         WHERE NOT EXISTS (SELECT 1 FROM crm_leads WHERE phone = $2)`,
         [l.name, l.phone, l.business_name, l.category, l.link || null, l.source, l.status, l.notes]
       );
+      added += r.rowCount;
     }
-    console.log('[CRM] auto-seeded', SEED_LEADS.length, 'leads (table was empty)');
+    if (added) console.log('[CRM] auto-seeded', added, 'new lead(s) from code');
   } catch (e) { console.error('[CRM] auto-seed skipped:', e.message); }
 }
 
