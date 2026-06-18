@@ -482,6 +482,14 @@ async function ensureCrmSeed() {
 }
 
 const CRM_PRIORITIES = ['low', 'normal', 'high'];
+// عدد أيام المتابعة المقترحة لكل حالة (null = من غير متابعة).
+const FOLLOWUP_DAYS = { new: 2, contacted: 3, interested: 1, converted: 3, lost: null };
+function suggestFollowup(status) {
+  const n = FOLLOWUP_DAYS[status];
+  if (n === null || n === undefined) return null;
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
 const PRIORITY_LABELS = { low: 'منخفضة', normal: 'عادية', high: 'عالية 🔥' };
 // أنواع التفاعلات في سجل العميل (Timeline).
 const ACTIVITY_TYPES = {
@@ -593,12 +601,13 @@ router.post('/crm/add', requireAdmin, async (req, res) => {
   }
   try {
     await pool.query(
-      `INSERT INTO crm_leads (name, phone, business_name, category, link, source, notes, email, priority, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')`,
+      `INSERT INTO crm_leads (name, phone, business_name, category, link, source, notes, email, priority, status, next_followup)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new', $10)`,
       [String(name || '').trim() || null, String(phone || '').trim() || null,
        String(business_name || '').trim() || null, String(category || '').trim() || null,
        String(link || '').trim() || null, String(source || '').trim() || null,
-       String(notes || '').trim() || null, String(email || '').trim() || null, priority]
+       String(notes || '').trim() || null, String(email || '').trim() || null, priority,
+       suggestFollowup('new')]
     );
   } catch (err) { console.error('[POST /admin/crm/add] error:', err); }
   res.redirect('/admin/crm');
@@ -638,15 +647,18 @@ router.post('/crm/:id/update', requireAdmin, async (req, res) => {
   const priority = CRM_PRIORITIES.includes(req.body.priority) ? req.body.priority : 'normal';
   const notes = String(req.body.notes || '').trim() || null;
   const email = String(req.body.email || '').trim() || null;
-  const nf = String(req.body.next_followup || '').trim() || null;
+  let nf = String(req.body.next_followup || '').trim() || null;
   try {
     // لو الحالة اتغيّرت، سجّلها تلقائياً في الـTimeline.
     const prev = await pool.query('SELECT status FROM crm_leads WHERE id=$1', [req.params.id]);
+    const changed = prev.rows.length && prev.rows[0].status !== status;
+    // اقتراح تاريخ المتابعة تلقائياً عند تغيير الحالة لو الخانة سايبة فاضية.
+    if (!nf && changed) nf = suggestFollowup(status);
     await pool.query(
       'UPDATE crm_leads SET status=$1, notes=$2, next_followup=$3, email=$4, priority=$5, updated_at=now() WHERE id=$6',
       [status, notes, nf, email, priority, req.params.id]
     );
-    if (prev.rows.length && prev.rows[0].status !== status) {
+    if (changed) {
       await pool.query(
         "INSERT INTO crm_activities (lead_id, type, body) VALUES ($1, 'status', $2)",
         [req.params.id, `الحالة اتغيّرت إلى: ${status}`]
