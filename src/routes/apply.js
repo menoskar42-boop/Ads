@@ -88,6 +88,18 @@ router.post('/apply', async (req, res) => {
       businessName: values.business_name, businessType: values.business_type,
       slug: values.preferred_slug, description: values.description,
     }).catch((e) => console.error('[apply] admin-notify error:', e.message));
+
+    // أضِف مقدّم الطلب تلقائياً للـCRM كعميل «مهتم» (متابعة النهارده) — fire-and-forget
+    // ولا يعطّل الطلب. dedup بالرقم عشان ما يتكرّرش لو موجود.
+    const crmCategory = values.business_type === 'shop' ? 'متجر' : 'بورتفوليو';
+    pool.query(
+      `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
+       SELECT $1, $2, $3, $4, $5, 'طلب تسجيل', 'interested', $6, CURRENT_DATE
+       WHERE NOT EXISTS (SELECT 1 FROM crm_leads WHERE phone = $2)`,
+      [values.full_name, values.phone, values.email, values.business_name, crmCategory,
+       `قدّم طلب تسجيل (${values.business_type}) — الرابط المطلوب: ${values.preferred_slug}`]
+    ).catch((e) => console.error('[apply] crm-insert error:', e.message));
+
     res.redirect('/apply/success');
   } catch (err) {
     console.error('[POST /apply] error:', err);
