@@ -481,32 +481,100 @@ async function ensureCrmSeed() {
   } catch (e) { console.error('[CRM] auto-seed skipped:', e.message); }
 }
 
+const CRM_PRIORITIES = ['low', 'normal', 'high'];
+const PRIORITY_LABELS = { low: 'منخفضة', normal: 'عادية', high: 'عالية 🔥' };
+// أنواع التفاعلات في سجل العميل (Timeline).
+const ACTIVITY_TYPES = {
+  note: '📝 ملاحظة', call: '📞 مكالمة', whatsapp: '💬 واتساب',
+  reply: '↩️ ردّ العميل', meeting: '🤝 اجتماع', status: '🔄 تغيير حالة',
+};
+
+// ضمان وجود أعمدة/جداول CRM المتقدّمة (يشتغل مرّة واحدة، آمن وidempotent).
+let _crmSchemaReady = false;
+async function ensureCrmSchema() {
+  if (_crmSchemaReady) return;
+  _crmSchemaReady = true;
+  try {
+    await pool.query(`
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ;
+      CREATE TABLE IF NOT EXISTS crm_activities (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER REFERENCES crm_leads(id) ON DELETE CASCADE,
+        type TEXT DEFAULT 'note',
+        body TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_crm_activities_lead ON crm_activities(lead_id);
+    `);
+  } catch (e) { console.error('[CRM] ensureSchema skipped:', e.message); _crmSchemaReady = false; }
+}
+
 router.get('/crm', requireAdmin, async (req, res) => {
   try {
+    await ensureCrmSchema();
     await ensureCrmSeed();
     const status = CRM_STATUSES.includes(req.query.status) ? req.query.status : null;
     const category = (req.query.category || '').trim() || null;
+    const priority = CRM_PRIORITIES.includes(req.query.priority) ? req.query.priority : null;
+    const due = ['today', 'overdue', 'due'].includes(req.query.due) ? req.query.due : null;
+    const sort = ['followup', 'created', 'priority', 'contacted'].includes(req.query.sort) ? req.query.sort : 'followup';
+
     const params = [];
     const conds = [];
     if (status) { params.push(status); conds.push('status = $' + params.length); }
     if (category) { params.push(category); conds.push('category = $' + params.length); }
+    if (priority) { params.push(priority); conds.push('priority = $' + params.length); }
+    if (due === 'today') conds.push('next_followup = CURRENT_DATE');
+    else if (due === 'overdue') conds.push('next_followup < CURRENT_DATE');
+    else if (due === 'due') conds.push('next_followup <= CURRENT_DATE');
     const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
-    const r = await pool.query(
-      `SELECT * FROM crm_leads ${where}
-       ORDER BY (next_followup IS NULL), next_followup ASC, created_at DESC`,
-      params
-    );
-    const leads = r.rows.map((l) => ({ ...l, wa: waNumber(l.phone) }));
+
+    const orderBy = {
+      followup: '(next_followup IS NULL), next_followup ASC, created_at DESC',
+      created: 'created_at DESC',
+      priority: "(priority='high') DESC, (priority='normal') DESC, created_at DESC",
+      contacted: '(last_contacted_at IS NULL), last_contacted_at DESC',
+    }[sort];
+
+    const r = await pool.query(`SELECT * FROM crm_leads ${where} ORDER BY ${orderBy}`, params);
+
+    // سجل تفاعلات كل عميل (Timeline).
+    const acts = await pool.query('SELECT * FROM crm_activities ORDER BY created_at DESC');
+    const actMap = {};
+    acts.rows.forEach((a) => { (actMap[a.lead_id] = actMap[a.lead_id] || []).push(a); });
+    const leads = r.rows.map((l) => ({ ...l, wa: waNumber(l.phone), activities: actMap[l.id] || [] }));
+
     const counts = await pool.query('SELECT status, COUNT(*)::int AS n FROM crm_leads GROUP BY status');
     const cats = await pool.query(
       "SELECT category, COUNT(*)::int AS n FROM crm_leads WHERE category IS NOT NULL AND category <> '' GROUP BY category ORDER BY n DESC"
     );
+
+    // مؤشرات الأداء (KPIs).
+    const kq = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status='converted')::int AS converted,
+        COUNT(*) FILTER (WHERE next_followup = CURRENT_DATE)::int AS due_today,
+        COUNT(*) FILTER (WHERE next_followup < CURRENT_DATE)::int AS overdue,
+        COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '7 days')::int AS new_week,
+        COUNT(*) FILTER (WHERE priority='high')::int AS high_pri
+      FROM crm_leads
+    `);
+    const kpi = kq.rows[0];
+    kpi.conversion = kpi.total ? Math.round((kpi.converted / kpi.total) * 100) : 0;
+
     res.render('admin/crm/index', {
       leads,
       countMap: Object.fromEntries(counts.rows.map((c) => [c.status, c.n])),
       categories: cats.rows,
+      kpi,
       currentFilter: status || '',
       currentCategory: category || '',
+      currentPriority: priority || '',
+      currentDue: due || '',
+      currentSort: sort,
       session: adminSession(req),
       activePage: 'crm',
     });
@@ -517,18 +585,20 @@ router.get('/crm', requireAdmin, async (req, res) => {
 });
 
 router.post('/crm/add', requireAdmin, async (req, res) => {
-  const { name, phone, business_name, category, link, source, notes } = req.body;
+  await ensureCrmSchema();
+  const { name, phone, business_name, category, link, source, notes, email } = req.body;
+  const priority = CRM_PRIORITIES.includes(req.body.priority) ? req.body.priority : 'normal';
   if (!String(phone || '').trim() && !String(name || '').trim()) {
     return res.redirect('/admin/crm');
   }
   try {
     await pool.query(
-      `INSERT INTO crm_leads (name, phone, business_name, category, link, source, notes, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'new')`,
+      `INSERT INTO crm_leads (name, phone, business_name, category, link, source, notes, email, priority, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')`,
       [String(name || '').trim() || null, String(phone || '').trim() || null,
        String(business_name || '').trim() || null, String(category || '').trim() || null,
        String(link || '').trim() || null, String(source || '').trim() || null,
-       String(notes || '').trim() || null]
+       String(notes || '').trim() || null, String(email || '').trim() || null, priority]
     );
   } catch (err) { console.error('[POST /admin/crm/add] error:', err); }
   res.redirect('/admin/crm');
@@ -563,16 +633,67 @@ router.post('/crm/import', requireAdmin, async (req, res) => {
 });
 
 router.post('/crm/:id/update', requireAdmin, async (req, res) => {
+  await ensureCrmSchema();
   const status = CRM_STATUSES.includes(req.body.status) ? req.body.status : 'new';
+  const priority = CRM_PRIORITIES.includes(req.body.priority) ? req.body.priority : 'normal';
   const notes = String(req.body.notes || '').trim() || null;
+  const email = String(req.body.email || '').trim() || null;
   const nf = String(req.body.next_followup || '').trim() || null;
   try {
+    // لو الحالة اتغيّرت، سجّلها تلقائياً في الـTimeline.
+    const prev = await pool.query('SELECT status FROM crm_leads WHERE id=$1', [req.params.id]);
     await pool.query(
-      'UPDATE crm_leads SET status=$1, notes=$2, next_followup=$3, updated_at=now() WHERE id=$4',
-      [status, notes, nf, req.params.id]
+      'UPDATE crm_leads SET status=$1, notes=$2, next_followup=$3, email=$4, priority=$5, updated_at=now() WHERE id=$6',
+      [status, notes, nf, email, priority, req.params.id]
     );
+    if (prev.rows.length && prev.rows[0].status !== status) {
+      await pool.query(
+        "INSERT INTO crm_activities (lead_id, type, body) VALUES ($1, 'status', $2)",
+        [req.params.id, `الحالة اتغيّرت إلى: ${status}`]
+      );
+    }
   } catch (err) { console.error('[POST /admin/crm/:id/update] error:', err); }
-  res.redirect('/admin/crm');
+  res.redirect(req.get('referer') || '/admin/crm');
+});
+
+// تسجيل تفاعل (مكالمة/واتساب/ردّ/ملاحظة) + تحديث آخر تواصل.
+router.post('/crm/:id/activity', requireAdmin, async (req, res) => {
+  await ensureCrmSchema();
+  const type = Object.keys(ACTIVITY_TYPES).includes(req.body.type) ? req.body.type : 'note';
+  const body = String(req.body.body || '').trim() || null;
+  try {
+    await pool.query(
+      'INSERT INTO crm_activities (lead_id, type, body) VALUES ($1, $2, $3)',
+      [req.params.id, type, body]
+    );
+    // أي تفاعل (غير الملاحظة) بيحدّث آخر تواصل.
+    if (type !== 'note') {
+      await pool.query('UPDATE crm_leads SET last_contacted_at=now(), updated_at=now() WHERE id=$1', [req.params.id]);
+    }
+  } catch (err) { console.error('[POST /admin/crm/:id/activity] error:', err); }
+  res.redirect(req.get('referer') || '/admin/crm');
+});
+
+// تصدير كل العملاء CSV (نسخة احتياطية / تحليل).
+router.get('/crm/export.csv', requireAdmin, async (req, res) => {
+  try {
+    await ensureCrmSchema();
+    const r = await pool.query('SELECT * FROM crm_leads ORDER BY created_at DESC');
+    const cols = ['id', 'name', 'phone', 'email', 'business_name', 'category', 'status', 'priority', 'source', 'link', 'next_followup', 'last_contacted_at', 'notes', 'created_at'];
+    const esc = (v) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v).replace(/"/g, '""');
+      return /[",\n]/.test(s) ? `"${s}"` : s;
+    };
+    const rows = [cols.join(',')];
+    r.rows.forEach((l) => rows.push(cols.map((c) => esc(l[c])).join(',')));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="crm_leads.csv"');
+    res.send('﻿' + rows.join('\n')); // BOM عشان العربي يظهر صح في Excel.
+  } catch (err) {
+    console.error('[GET /admin/crm/export.csv] error:', err);
+    res.status(500).send('Export error');
+  }
 });
 
 router.post('/crm/:id/delete', requireAdmin, async (req, res) => {

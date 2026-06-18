@@ -51,6 +51,18 @@ async function createSchema() {
       );
       ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS category TEXT;
       ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS link TEXT;
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS email TEXT;
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ;
+
+      CREATE TABLE IF NOT EXISTS crm_activities (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER REFERENCES crm_leads(id) ON DELETE CASCADE,
+        type TEXT DEFAULT 'note',
+        body TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_crm_activities_lead ON crm_activities(lead_id);
 
       CREATE TABLE IF NOT EXISTS portfolio_items (
         id SERIAL PRIMARY KEY,
