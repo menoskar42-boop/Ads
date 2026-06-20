@@ -23,6 +23,32 @@
       </a>
     </div>
 
+    <!-- QR codes (الصفحة الرئيسية + التسجيل) -->
+    <% if (qrHome || qrApply) { %>
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-lg font-bold text-gray-800 mb-1">رموز QR للتسويق</h2>
+      <p class="text-gray-500 text-sm mb-4">امسحها أو حمّلها واطبعها على الكروت والمطبوعات — توصّل الناس مباشرةً للموقع.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <% if (qrHome) { %>
+        <div class="border border-gray-100 rounded-xl p-4 text-center">
+          <img src="<%= qrHome %>" alt="QR الصفحة الرئيسية" class="w-40 h-40 mx-auto" />
+          <div class="text-sm font-semibold text-gray-700 mt-2">الصفحة الرئيسية</div>
+          <div class="text-xs text-gray-400 break-all"><%= siteOrigin %></div>
+          <a href="<%= qrHome %>" download="oscardevs-home-qr.png" class="inline-block mt-2 text-xs brand-bg text-white font-bold rounded-lg px-3 py-1.5">⬇️ تحميل</a>
+        </div>
+        <% } %>
+        <% if (qrApply) { %>
+        <div class="border border-gray-100 rounded-xl p-4 text-center">
+          <img src="<%= qrApply %>" alt="QR صفحة التسجيل" class="w-40 h-40 mx-auto" />
+          <div class="text-sm font-semibold text-gray-700 mt-2">صفحة التسجيل</div>
+          <div class="text-xs text-gray-400 break-all"><%= siteOrigin %>/apply</div>
+          <a href="<%= qrApply %>" download="oscardevs-apply-qr.png" class="inline-block mt-2 text-xs brand-bg text-white font-bold rounded-lg px-3 py-1.5">⬇️ تحميل</a>
+        </div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
     <!-- Companies table -->
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
       <% if (!companies.length) { %>

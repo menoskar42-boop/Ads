@@ -4,8 +4,11 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
 const { sendApplicationApproved } = require('../lib/mailer');
+const QRCode = require('qrcode');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://oscardevs.com';
 
 const RESERVED_SLUGS = ['admin', 'company', 'view', 'api', 'public', 'static', 'shop', 'customer', 'contact', 'uploads'];
 const SLUG_REGEX = /^[a-z0-9-]+$/;
@@ -77,10 +80,21 @@ router.get('/dashboard', requireAdmin, async (req, res) => {
     `);
     const flash = req.session.adminFlash || null;
     req.session.adminFlash = null;
+    // QR codes للصفحة الرئيسية وصفحة التسجيل (للطباعة/التسويق).
+    let qrHome = null, qrApply = null;
+    try {
+      qrHome = await QRCode.toDataURL(SITE_ORIGIN, { width: 512, margin: 2, errorCorrectionLevel: 'M' });
+      qrApply = await QRCode.toDataURL(SITE_ORIGIN + '/apply', { width: 512, margin: 2, errorCorrectionLevel: 'M' });
+    } catch (e) {
+      console.error('[admin dashboard] QR generation failed:', e.message);
+    }
     res.render('admin/dashboard', {
       companies: result.rows,
       session: adminSession(req),
       flash,
+      qrHome,
+      qrApply,
+      siteOrigin: SITE_ORIGIN,
       activePage: 'dashboard',
     });
   } catch (err) {
