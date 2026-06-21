@@ -499,6 +499,7 @@ const SEED_LEADS = [
   { name: 'OS Handmade', phone: '01117946381', business_name: 'OS Handmade — ديكور وهاند ميد', category: 'هاند ميد/ديكور', link: 'instagram.com/oshandmade_', source: 'إنستجرام/بحث', status: 'interested', notes: 'ردّت "ماشي" واستغربت مجاني — اتبعتلها مثال delta' },
   { name: 'بيت الهنا', phone: '01108744638', business_name: 'بيت الهنا للأدوات المنزلية', category: 'أدوات منزلية', link: 'instagram.com/beitelhana2025', source: 'إنستجرام/بحث', status: 'contacted', notes: 'محل في النزهة الجديدة، تشكيلة كبيرة' },
   { name: 'Naomi Soap', phone: '01065524426', business_name: 'Naomi Soap — صابون هاند ميد', category: 'صابون/عناية', link: 'instagram.com/naomi_soap_09', source: 'إنستجرام/بحث', status: 'interested', notes: 'استغربت مجاني وسألت بكام — اتبعتلها مثال delta' },
+  { name: 'Hekaya Handmade', phone: '01032145350', business_name: 'Hekaya Handmade — تطريز هاند ميد', category: 'هاند ميد/أطفال', link: 'instagram.com/hekaya_handmade_', source: 'إنستجرام/بحث', status: 'new', notes: 'أطقم بيبي مطرّزة بالاسم + توزيعات، ~162 متابع، نشطة. الطلب واتساب يدوي — منتجات custom محتاجة خيارات (اسم/لون/تاريخ)' },
 ];
 
 let _crmSeeded = false;
