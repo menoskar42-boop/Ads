@@ -34,6 +34,14 @@
     if (diff === 1) return 'من إمبارح';
     return 'من ' + diff + ' يوم';
   }
+  // رسالة عرض أولى مخصّصة لكل عميل — تتفتح جاهزة في واتساب، تضغط إرسال فقط.
+  function outreachMsg(l){
+    var biz = l.business_name || l.name || 'صفحتك';
+    return 'أهلاً يا فندم 🌹 شُفت ' + biz + ' وعجبني شغلك.\n'
+      + 'أنا من OscarDevs، بنساعد الأنشطة الصغيرة يكون ليها متجر إلكتروني خاص بدل ما الطلبات والأسعار تتلخبط في رسايل الواتساب والـDM.\n'
+      + 'الفترة دي بنفعّل عدد محدود من الأنشطة مجاناً — ولو بدأتي دلوقتي مجانيتك تثبت مدى الحياة.\n'
+      + 'تحبي أبعتلك مثال متجر حقيقي شغّال تشوفيه الأول؟';
+  }
 
   // بناء روابط الفلاتر مع الحفاظ على باقي الفلاتر النشطة.
   var CUR = { status: currentFilter, category: currentCategory, priority: currentPriority, due: currentDue, sort: currentSort };
@@ -155,6 +163,7 @@
         </div>
         <div class="flex items-center gap-2">
           <% if (l.wa) { %>
+            <a class="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg px-3 py-2" href="https://wa.me/<%= l.wa %>?text=<%= encodeURIComponent(outreachMsg(l)) %>" target="_blank" rel="noopener" title="يفتح واتساب ورسالة العرض مكتوبة — اضغط إرسال فقط">📨 عرض</a>
             <a class="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg px-3 py-2" href="https://wa.me/<%= l.wa %>" target="_blank" rel="noopener" title="افتح محادثة واتساب للرد مباشرة">💬 رد</a>
             <a class="wa-link inline-flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-lg px-3 py-2" data-base="https://wa.me/<%= l.wa %>" href="https://wa.me/<%= l.wa %>" target="_blank" rel="noopener" title="ابعت التحديث الجماعي">📣 تحديث</a>
           <% } else { %>

@@ -508,6 +508,10 @@ const SEED_LEADS = [
   { name: 'NIMORA', phone: '01030567718', business_name: 'NIMORA — ملابس كاجوال', category: 'ملابس', link: 'instagram.com/nimora_123', source: 'إنستجرام — إكستنشن', status: 'new', notes: '⚠️ يحتاج تأكيد. تيشيرتات قطن أوفر سايز.' },
   { name: 'asmaanasr.resinart', phone: '01013031910', business_name: 'Asmaa Nasr — Resin Art', category: 'هاند ميد/ريزن', link: 'instagram.com/asmaanasr.resinart', source: 'إنستجرام — إكستنشن', status: 'new', notes: '⚠️ يحتاج تأكيد. أعمال ريزن هاند ميد، شحن لكل مصر.' },
   { name: 'Decoraty Cairo', phone: '01155111171', business_name: 'Decoraty — ديكور منزلي', category: 'ديكور/منزلية', link: 'facebook.com', source: 'فيسبوك — إكستنشن', status: 'new', notes: '⚠️ يحتاج تأكيد. ديكور خشب/فوانيس، مصر الجديدة. ⚠️ فيه صفحات Decoraty كتير — أكّد الصح.' },
+  // دفعة الإكستنشن — أطفال + أحذية
+  { name: 'Kids land', phone: '01112830813', business_name: 'Kids land — منتجات أطفال', category: 'أطفال', link: 'facebook.com', source: 'فيسبوك — إكستنشن', status: 'new', notes: '⚠️ يحتاج تأكيد. منتجات أطفال، ~10k متابع.' },
+  { name: 'Coco wow', phone: '01277165464', business_name: 'Coco wow — منتجات أطفال', category: 'أطفال', link: 'facebook.com', source: 'فيسبوك — إكستنشن', status: 'new', notes: '⚠️ يحتاج تأكيد. منتجات أطفال، ~122k متابع.' },
+  { name: 'US Club', phone: '01040005054', business_name: 'US Club — أحذية حريمي', category: 'أحذية', link: 'facebook.com', source: 'فيسبوك — إكستنشن', status: 'new', notes: '⚠️ يحتاج تأكيد. أحذية حريمي، ~4.9k. الرقم من نتيجة مختلفة — أكّد الواتساب.' },
 ];
 
 let _crmSeeded = false;
