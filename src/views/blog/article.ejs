@@ -129,13 +129,27 @@
   <section class="mt-12">
     <h3 class="text-lg font-bold text-gray-800 mb-4">مقالات أخرى قد تهمّك</h3>
     <div class="grid sm:grid-cols-2 gap-4">
-      <% articles.filter(function(a){return a.slug !== article.slug;}).slice(0,2).forEach(function(a){ %>
+      <%
+        // ربط حلقي: كل مقالة تربط الـ4 اللي بعدها (مع الالتفاف) — يوزّع الروابط
+        // الداخلية على كل المقالات ويساعد جوجل يكتشفها أسرع.
+        var _i = articles.findIndex(function(a){ return a.slug === article.slug; });
+        if (_i < 0) _i = 0;
+        var _rel = [];
+        for (var _k = 1; _k <= articles.length && _rel.length < 4; _k++) {
+          var _a = articles[(_i + _k) % articles.length];
+          if (_a && _a.slug !== article.slug) _rel.push(_a);
+        }
+      %>
+      <% _rel.forEach(function(a){ %>
         <a href="/blog/<%= a.slug %>" class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition border border-gray-100 block">
           <div class="text-xs text-gray-400 mb-1.5"><%= a.date %></div>
           <h4 class="font-bold text-gray-900 leading-snug mb-1.5"><%= a.title %></h4>
           <p class="text-xs text-gray-500 leading-relaxed"><%= a.excerpt %></p>
         </a>
       <% }) %>
+    </div>
+    <div class="text-center mt-5">
+      <a href="/blog" class="inline-block text-indigo-700 font-bold text-sm hover:underline">كل المقالات ←</a>
     </div>
   </section>
 </main>
