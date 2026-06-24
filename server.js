@@ -61,6 +61,19 @@ app.use(session({
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
 
+// Normalize URLs: strip trailing slash(es) and stray trailing punctuation
+// (e.g. "/apply،" from auto-linkified posts, or "/blog/x/") and 301-redirect to
+// the clean canonical path. Prevents 404s from malformed links + duplicate URLs (SEO).
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.path.length > 1) {
+    const cleaned = req.path.replace(/[/،,.]+$/u, '');
+    if (cleaned && cleaned !== req.path) {
+      return res.redirect(301, cleaned + req.originalUrl.slice(req.path.length));
+    }
+  }
+  next();
+});
+
 // SEO/canonical + central AdSense config exposed to every view. All ad
 // units across the platform (main site + every tenant) read slot ids
 // from this single object so OscarDevs' AdSense account serves the lot.
@@ -75,6 +88,9 @@ app.use((req, res, next) => {
   res.locals.showAds = false;
   next();
 });
+
+// Bare /company has no page of its own → send to login (avoids 404).
+app.get('/company', (req, res) => res.redirect('/company/login'));
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
