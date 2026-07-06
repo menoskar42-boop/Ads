@@ -1,0 +1,503 @@
+/* محتوى لمحرّكات البحث: مخفيّ بصريًّا لكنه موجود في DOM للزواحف */
+.seo-fallback {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== المتغيّرات والأساسيات ===== */
+:root {
+  --c-purple: #5b3fb5;
+  --c-purple-2: #7c5fe6;
+  --c-pink: #ff6fb5;
+  --c-yellow: #ffd23f;
+  --c-orange: #ff924c;
+  --c-green: #34d399;
+  --c-blue: #38bdf8;
+  --c-red: #ff5d5d;
+  --c-cream: #fff8ec;
+  --c-ink: #3a2c66;
+  --shadow-soft: 0 10px 0 rgba(0, 0, 0, .12);
+  --shadow-card: 0 12px 28px rgba(70, 40, 120, .25);
+  --radius: 28px;
+  --font-ar: "Baloo Bhaijaan 2", "Tahoma", sans-serif;
+  --font-en: "Fredoka", "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-ar);
+  color: var(--c-ink);
+  background: linear-gradient(160deg, #7c5fe6 0%, #5b3fb5 60%, #43308f 100%);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.hidden { display: none !important; }
+
+button { font-family: inherit; cursor: pointer; border: none; }
+
+/* ===== شاشة البداية ===== */
+.splash {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: linear-gradient(160deg, #8be9ff 0%, #7c5fe6 55%, #5b3fb5 100%);
+  overflow: hidden;
+  z-index: 50;
+}
+.splash-sun {
+  position: absolute;
+  top: 6%;
+  inset-inline-start: 8%;
+  font-size: clamp(48px, 12vw, 100px);
+  animation: spin-slow 18s linear infinite;
+}
+.splash-logo {
+  position: relative;
+  font-size: clamp(90px, 26vw, 190px);
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, .3));
+  animation: bob 2.4s ease-in-out infinite;
+}
+/* هالة متوهّجة خلف الأسد */
+.splash-logo::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,225,120,.55), transparent 65%);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+.splash-title {
+  font-size: clamp(28px, 8vw, 56px);
+  color: #fff;
+  margin: .2em 0 0;
+  text-shadow: 0 4px 0 rgba(0, 0, 0, .18);
+}
+.splash-sub {
+  font-family: var(--font-en);
+  color: var(--c-yellow);
+  font-size: clamp(16px, 4vw, 26px);
+  margin: .2em 0 1.2em;
+  letter-spacing: 1px;
+}
+.big-start-btn {
+  background: linear-gradient(180deg, var(--c-yellow), var(--c-orange));
+  color: var(--c-ink);
+  font-size: clamp(22px, 6vw, 34px);
+  font-weight: 800;
+  padding: .55em 1.4em;
+  border-radius: 999px;
+  box-shadow: var(--shadow-soft), var(--shadow-card), inset 0 -4px 0 rgba(255,146,76,.5);
+  transition: transform .14s cubic-bezier(.34,1.56,.64,1);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.big-start-btn:hover { transform: scale(1.07); }
+.big-start-btn:active { transform: scale(.92); }
+
+.splash-clouds .cloud {
+  position: absolute;
+  font-size: clamp(44px, 12vw, 90px);
+  opacity: .9;
+  animation: drift linear infinite;
+}
+.cloud.c1 { top: 22%; animation-duration: 26s; }
+.cloud.c2 { top: 40%; animation-duration: 34s; animation-delay: -8s; }
+.cloud.c3 { top: 68%; animation-duration: 30s; animation-delay: -16s; }
+
+/* ===== التطبيق ===== */
+.app {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* شريط علوي مشترك */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, rgba(124,95,230,.95), rgba(91,63,181,.88));
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(70,40,120,.28);
+}
+.topbar h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(18px, 5vw, 28px);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .2);
+}
+.icon-btn {
+  background: linear-gradient(180deg, #ffffff, #f0ecff);
+  color: var(--c-purple);
+  font-size: clamp(18px, 5vw, 26px);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-card), inset 0 -3px 0 rgba(91,63,181,.12);
+  display: grid;
+  place-items: center;
+  transition: transform .14s cubic-bezier(.34,1.56,.64,1);
+}
+.icon-btn:hover { transform: translateY(-2px) scale(1.08); }
+.icon-btn:active { transform: scale(.88); }
+
+/* عدّاد النجوم */
+.star-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(180deg, #fff7d6, #ffe9a8);
+  color: var(--c-ink);
+  font-weight: 800;
+  font-size: clamp(16px, 4.5vw, 22px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-card), inset 0 -3px 0 rgba(255,146,76,.25);
+}
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(180deg, #ff924c, #ff5d5d);
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(12px, 3.4vw, 15px);
+  padding: 3px 12px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-card);
+}
+
+/* ===== أزرار عامة ===== */
+.candy-btn {
+  background: linear-gradient(180deg, var(--c-pink), #e0489a);
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(18px, 5vw, 24px);
+  padding: .5em 1.3em;
+  border-radius: 999px;
+  box-shadow: var(--shadow-soft), inset 0 -3px 0 rgba(0,0,0,.12), inset 0 2px 0 rgba(255,255,255,.4);
+  transition: transform .14s cubic-bezier(.34,1.56,.64,1);
+}
+.candy-btn:hover { transform: translateY(-2px) scale(1.04); }
+.candy-btn:active { transform: translateY(4px) scale(.97); box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+.candy-btn:disabled { filter: grayscale(.4); }
+
+/* ===== طبقة المؤثرات ===== */
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+}
+
+/* ===== الواقع المعزّز (AR) ===== */
+.ar-screen { background: #000; min-height: 100%; }
+.ar-stage {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 160px);
+  overflow: hidden;
+  background: #111;
+}
+.ar-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ar-stage.ar-nocam {
+  background: linear-gradient(160deg, #7c5fe6, #43308f);
+}
+.ar-nocam-msg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(40px, 10vw, 64px);
+  line-height: 1.3;
+  padding: 20px;
+}
+.ar-creature {
+  position: absolute;
+  inset-block-end: 8%;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(120px, 40vw, 240px);
+  filter: drop-shadow(0 18px 20px rgba(0, 0, 0, .55));
+  cursor: pointer;
+  animation: bob 2.6s ease-in-out infinite;
+}
+.ar-creature.hop { animation: ar-hop .8s ease; }
+/* ميزو داخل الواقع المعزّز يأخذ حجماً مناسباً */
+.ar-creature .miz-svg { width: clamp(150px, 46vw, 260px); filter: drop-shadow(0 18px 20px rgba(0,0,0,.55)); }
+@keyframes ar-hop {
+  0%   { transform: translateX(-50%) translateY(0) scale(1) rotate(0deg); }
+  25%  { transform: translateX(-50%) translateY(-90px) scale(1.12) rotate(-6deg); }
+  50%  { transform: translateX(-50%) translateY(0) scale(.96) rotate(0deg); }
+  70%  { transform: translateX(-50%) translateY(-40px) scale(1.05) rotate(5deg); }
+  100% { transform: translateX(-50%) translateY(0) scale(1) rotate(0deg); }
+}
+
+/* فقاعة كلام الحيوان */
+.ar-bubble {
+  position: absolute;
+  inset-block-end: 46%;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  color: var(--c-ink);
+  font-weight: 800;
+  font-size: clamp(16px, 4.5vw, 22px);
+  padding: 10px 18px;
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+  animation: pop-in .3s ease;
+  z-index: 3;
+}
+.ar-bubble::after {
+  content: "";
+  position: absolute;
+  inset-block-end: -10px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #fff;
+}
+
+/* تلميح أعلى الشاشة */
+.ar-hint {
+  position: absolute;
+  inset-block-start: 14px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(13px, 3.6vw, 16px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  z-index: 3;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.ar-picker {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, .6);
+}
+.ar-pick {
+  flex: 0 0 auto;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 32px;
+  box-shadow: var(--shadow-card);
+  transition: transform .12s ease;
+}
+.ar-pick:active { transform: scale(.88); }
+.ar-pick.active { background: linear-gradient(160deg, #ffd23f, #ff924c); outline: 3px solid #fff; }
+
+/* ===== المساعد الصوتي (زر عائم + فقاعة) ===== */
+.assistant-fab {
+  position: fixed;
+  inset-block-end: 18px;
+  inset-inline-end: 18px;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: radial-gradient(circle at 50% 40%, #eafff1, #b8f0cf);
+  box-shadow: var(--shadow-card);
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform .12s ease;
+  animation: fab-bob 3s ease-in-out infinite; /* خمول لطيف: لا يبقى ثابتاً */
+}
+.assistant-fab .miz-svg { width: 98px; height: auto; animation: none; } /* الحاوية تتمايل بدلاً منه */
+.assistant-idle { width: 96%; height: auto; display: block; }
+.assistant-mic {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  width: 30px; height: 30px;
+  font-size: 17px;
+  background: var(--c-green);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,.3);
+}
+@keyframes fab-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.assistant-fab:active { transform: scale(.9); }
+.assistant-fab.listening {
+  background: radial-gradient(circle at 50% 40%, #ffe3e3, #ffb3b3);
+  animation: pulse 1s ease-in-out infinite;
+}
+.assistant-fab.thinking {
+  background: radial-gradient(circle at 50% 40%, #e3edff, #b9d2ff);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.assistant-bubble {
+  position: fixed;
+  inset-block-end: 92px;
+  inset-inline-end: 18px;
+  max-width: min(78vw, 340px);
+  background: #fff;
+  color: var(--c-ink);
+  font-weight: 700;
+  font-size: clamp(15px, 4vw, 19px);
+  line-height: 1.5;
+  padding: 12px 16px;
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  z-index: 70;
+  animation: pop-in .25s ease both;
+}
+
+/* ===== شاشة الأغاني والفيديو ===== */
+.video-cats {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.video-cat {
+  flex: 0 0 auto;
+  background: #fff;
+  color: var(--c-ink);
+  font-weight: 800;
+  font-size: clamp(13px, 3.6vw, 16px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-card);
+  transition: transform .12s ease;
+}
+.video-cat:active { transform: scale(.92); }
+.video-cat.active { background: linear-gradient(180deg, var(--c-pink), #e0489a); color: #fff; }
+
+.video-player { padding: 8px 16px 4px; }
+.video-frame {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  background: #000;
+}
+.video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.video-now {
+  text-align: center;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .2);
+  font-size: clamp(15px, 4vw, 19px);
+  margin: 10px 0;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding: 10px 16px 30px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+@media (min-width: 620px) { .video-grid { grid-template-columns: repeat(3, 1fr); } }
+.video-card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 14px 10px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: transform .12s ease;
+  animation: pop-in .35s ease both;
+}
+.video-card:active { transform: scale(.95); }
+.video-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #ffd6f0, #c8a8ff);
+  display: grid;
+  place-items: center;
+  font-size: clamp(38px, 11vw, 56px);
+}
+.video-play {
+  position: absolute;
+  inset-block-end: 6px;
+  inset-inline-end: 8px;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+}
+.video-title {
+  font-weight: 800;
+  font-size: clamp(13px, 3.6vw, 16px);
+  color: var(--c-ink);
+  text-align: center;
+}
+
+/* ===== حركات ===== */
+@keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-18px); } }
+@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+@keyframes drift { from { transform: translateX(-120vw); } to { transform: translateX(120vw); } }
+@keyframes pop-in { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes wobble { 0%,100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001s !important; }
+}

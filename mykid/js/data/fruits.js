@@ -1,0 +1,35 @@
+// ===== بيانات الفواكه والخضروات =====
+// id لمطابقة الصور | img: assets/fruits/<id>.png يظهر بدل الإيموجي.
+export const FRUITS = [
+  // ===== فواكه =====
+  { id: "apple", name: "تفاحة", en: "Apple", emoji: "🍎", img: "fruits/apple.png" },
+  { id: "banana", name: "موزة", en: "Banana", emoji: "🍌", img: "fruits/banana.png" },
+  { id: "grapes", name: "عنب", en: "Grapes", emoji: "🍇", img: "fruits/grapes.png" },
+  { id: "orange", name: "برتقالة", en: "Orange", emoji: "🍊", img: "fruits/orange.png" },
+  { id: "strawberry", name: "فراولة", en: "Strawberry", emoji: "🍓", img: "fruits/strawberry.png" },
+  { id: "watermelon", name: "بطيخ", en: "Watermelon", emoji: "🍉", img: "fruits/watermelon.png" },
+  { id: "peach", name: "خوخ", en: "Peach", emoji: "🍑", img: "fruits/peach.png" },
+  { id: "cherry", name: "كرز", en: "Cherry", emoji: "🍒", img: "fruits/cherry.png" },
+  { id: "kiwi", name: "كيوي", en: "Kiwi", emoji: "🥝", img: "fruits/kiwi.png" },
+  { id: "pear", name: "كمثرى", en: "Pear", emoji: "🍐", img: "fruits/pear.png" },
+  { id: "pineapple", name: "أناناس", en: "Pineapple", emoji: "🍍", img: "fruits/pineapple.png" },
+  { id: "mango", name: "مانجو", en: "Mango", emoji: "🥭", img: "fruits/mango.png" },
+  { id: "pomegranate", name: "رمّان", en: "Pomegranate", emoji: "🔴", img: "fruits/pomegranate.png" },
+  { id: "apricot", name: "مشمش", en: "Apricot", emoji: "🟠", img: "fruits/apricot.png" },
+  { id: "coconut", name: "جوز الهند", en: "Coconut", emoji: "🥥", img: "fruits/coconut.png" },
+  { id: "lemon", name: "ليمون", en: "Lemon", emoji: "🍋", img: "fruits/lemon.png" },
+  { id: "melon", name: "شمّام", en: "Melon", emoji: "🍈", img: "fruits/melon.png" },
+  // ===== خضروات =====
+  { id: "tomato", name: "طماطم", en: "Tomato", emoji: "🍅", img: "fruits/tomato.png" },
+  { id: "potato", name: "بطاطس", en: "Potato", emoji: "🥔", img: "fruits/potato.png" },
+  { id: "carrot", name: "جزر", en: "Carrot", emoji: "🥕", img: "fruits/carrot.png" },
+  { id: "cucumber", name: "خيار", en: "Cucumber", emoji: "🥒", img: "fruits/cucumber.png" },
+  { id: "eggplant", name: "باذنجان", en: "Eggplant", emoji: "🍆", img: "fruits/eggplant.png" },
+  { id: "pepper", name: "فلفل", en: "Pepper", emoji: "🫑", img: "fruits/pepper.png" },
+  { id: "zucchini", name: "كوسة", en: "Zucchini", emoji: "🥒", img: "fruits/zucchini.png" },
+  { id: "okra", name: "بامية", en: "Okra", emoji: "🟢", img: "fruits/okra.png" },
+  { id: "gherkin", name: "قثّاء", en: "Gherkin", emoji: "🥒", img: "fruits/gherkin.png" },
+  { id: "lettuce", name: "خس", en: "Lettuce", emoji: "🥬", img: "fruits/lettuce.png" },
+  { id: "garlic", name: "ثوم", en: "Garlic", emoji: "🧄", img: "fruits/garlic.png" },
+  { id: "onion", name: "بصل", en: "Onion", emoji: "🧅", img: "fruits/onion.png" },
+];

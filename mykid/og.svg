@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c5fe6"/>
+      <stop offset="100%" stop-color="#ff6fb5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <text x="600" y="150" font-family="sans-serif" font-size="64" fill="#ffffff" font-weight="bold" text-anchor="middle">🦁 عالم الاستكشاف السحري</text>
+  <text x="600" y="330" font-family="sans-serif" font-size="180" text-anchor="middle">🦁 🧒 ⭐</text>
+  <text x="600" y="450" font-family="sans-serif" font-size="48" fill="#fff8e6" font-weight="bold" text-anchor="middle">تطبيق مغامرات تعليمي للأطفال ٣–٦ سنوات</text>
+  <text x="600" y="520" font-family="sans-serif" font-size="36" fill="#ffffff" text-anchor="middle">حروف · أرقام · قراءة · ألعاب · مع صديقهم ميزو</text>
+  <text x="600" y="585" font-family="sans-serif" font-size="30" fill="#ffe6f3" text-anchor="middle">mykid.oscardevs.com</text>
+</svg>

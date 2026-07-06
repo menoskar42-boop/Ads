@@ -1,0 +1,35 @@
+// ===== بيانات الحيوانات =====
+// name: عربي | en: إنجليزي | emoji | sound: صوت الحيوان (عربي) للعب أصوات الحيوانات
+// img (اختياري): مسار صورة داخل assets/ تظهر بدل الإيموجي تلقائياً.
+//   ضع الصورة في:  assets/animals/<id>.png  وستظهر فوراً (وإلا يبقى الإيموجي).
+export const ANIMALS = [
+  { id: "lion", name: "أسد", en: "Lion", emoji: "🦁", sound: "زئير", img: "animals/lion.png" },
+  { id: "tiger", name: "نمر", en: "Tiger", emoji: "🐅", sound: "زمجرة", img: "animals/tiger.png" },
+  { id: "elephant", name: "فيل", en: "Elephant", emoji: "🐘", sound: "بريم", img: "animals/elephant.png" },
+  { id: "giraffe", name: "زرافة", en: "Giraffe", emoji: "🦒", sound: "صوت الزرافة", img: "animals/giraffe.png" },
+  { id: "monkey", name: "قرد", en: "Monkey", emoji: "🐒", sound: "أوه أوه", img: "animals/monkey.png" },
+  { id: "zebra", name: "حمار وحشي", en: "Zebra", emoji: "🦓", sound: "صهيل", img: "animals/zebra.png" },
+  { id: "panda", name: "باندا", en: "Panda", emoji: "🐼", sound: "صوت الباندا", img: "animals/panda.png" },
+  { id: "wolf", name: "ذئب", en: "Wolf", emoji: "🐺", sound: "عواء", img: "animals/wolf.png" },
+  { id: "crocodile", name: "تمساح", en: "Crocodile", emoji: "🐊", sound: "صوت التمساح", img: "animals/crocodile.png" },
+  { id: "dog", name: "كلب", en: "Dog", emoji: "🐕", sound: "نباح: هو هو", img: "animals/dog.png" },
+  { id: "cat", name: "قطة", en: "Cat", emoji: "🐈", sound: "مواء", img: "animals/cat.png" },
+  { id: "cow", name: "بقرة", en: "Cow", emoji: "🐄", sound: "خوار: مووو", img: "animals/cow.png" },
+  { id: "horse", name: "حصان", en: "Horse", emoji: "🐎", sound: "صهيل", img: "animals/horse.png" },
+  { id: "sheep", name: "خروف", en: "Sheep", emoji: "🐑", sound: "مأمأة: ماااع", img: "animals/sheep.png" },
+  { id: "frog", name: "ضفدع", en: "Frog", emoji: "🐸", sound: "نقيق", img: "animals/frog.png" },
+  { id: "turtle", name: "سلحفاة", en: "Turtle", emoji: "🐢", sound: "السلحفاة بطيئة", img: "animals/turtle.png" },
+  { id: "rabbit", name: "أرنب", en: "Rabbit", emoji: "🐰", sound: "الأرنب يقفز", img: "animals/rabbit.png" },
+  { id: "fox", name: "ثعلب", en: "Fox", emoji: "🦊", sound: "صوت الثعلب", img: "animals/fox.png" },
+  { id: "deer", name: "غزال", en: "Deer", emoji: "🦌", sound: "صوت الغزال", img: "animals/deer.png" },
+  { id: "camel", name: "جمل", en: "Camel", emoji: "🐫", sound: "صوت الجمل", img: "animals/camel.png" },
+  { id: "hippo", name: "فرس النهر", en: "Hippo", emoji: "🦛", sound: "صوت فرس النهر", img: "animals/hippo.png" },
+  { id: "rhino", name: "وحيد القرن", en: "Rhino", emoji: "🦏", sound: "صوت وحيد القرن", img: "animals/rhino.png" },
+  { id: "pig", name: "خنزير", en: "Pig", emoji: "🐖", sound: "صوت الخنزير", img: "animals/pig.png" },
+  { id: "goat", name: "ماعز", en: "Goat", emoji: "🐐", sound: "ثغاء الماعز", img: "animals/goat.png" },
+  { id: "donkey", name: "حمار", en: "Donkey", emoji: "🫏", sound: "نهيق الحمار", img: "animals/donkey.png" },
+  { id: "squirrel", name: "سنجاب", en: "Squirrel", emoji: "🐿️", sound: "صوت السنجاب", img: "animals/squirrel.png" },
+  { id: "mouse", name: "فأر", en: "Mouse", emoji: "🐭", sound: "صوت الفأر", img: "animals/mouse.png" },
+  { id: "snake", name: "ثعبان", en: "Snake", emoji: "🐍", sound: "فحيح الثعبان", img: "animals/snake.png" },
+  { id: "lizard", name: "سحلية", en: "Lizard", emoji: "🦎", sound: "صوت السحلية", img: "animals/lizard.png" },
+];

@@ -31,6 +31,24 @@ const PORT = process.env.PORT || 5000;
 // so req.hostname reflects the original tenant subdomain (e.g. delta.oscardevs.com).
 app.set('trust proxy', true);
 
+// ===== Safari Kids Adventure (mykid.oscardevs.com) — merged, host-routed =====
+// A separate ESM Express app serves the kids PWA on its own subdomain. It's
+// loaded dynamically (ES module) and fully handles any request to mykid.* —
+// so it never touches OscarDevs' middleware/session/AdSense. This keeps the
+// child-directed app ad-free (COPPA-safe) and lets one deployment host both.
+let safariApp = null;
+import('./mykid/server/app.mjs')
+  .then((m) => { safariApp = m.default; console.log('🦁 Safari Kids (mykid) app loaded'); })
+  .catch((e) => console.error('Safari Kids app failed to load:', e.message));
+
+app.use((req, res, next) => {
+  const host = (req.hostname || '').toLowerCase();
+  if (safariApp && host.startsWith('mykid.')) {
+    return safariApp(req, res, next);
+  }
+  next();
+});
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 

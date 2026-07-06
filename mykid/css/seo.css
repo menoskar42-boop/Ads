@@ -1,0 +1,134 @@
+/* ===== أنماط صفحات الأرشفة (محتوى غنيّ، خفيف، سريع) ===== */
+:root {
+  --p: #5b3fb5;
+  --p2: #7c5fe6;
+  --ink: #3a2c66;
+  --cream: #fff8ec;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Tahoma", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, #efe9ff 0%, #fff 40%);
+  line-height: 1.7;
+}
+.seo-header {
+  background: linear-gradient(160deg, var(--p2), var(--p));
+  padding: 16px 20px;
+}
+.seo-logo {
+  color: #fff;
+  font-size: clamp(18px, 4vw, 24px);
+  font-weight: 800;
+  text-decoration: none;
+}
+.seo-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 22px 18px 40px;
+}
+.seo-main h1 {
+  font-size: clamp(24px, 6vw, 38px);
+  color: var(--p);
+  margin: 12px 0;
+}
+.seo-main h2 {
+  font-size: clamp(19px, 4.5vw, 26px);
+  color: var(--p2);
+  margin: 28px 0 14px;
+}
+.seo-intro p { font-size: clamp(15px, 3.6vw, 18px); margin: 10px 0; }
+
+/* قوائم المحتوى النصّي الغنيّ (الطريقة/ماذا يتعلّم/الأمان) */
+.seo-prose { margin: 12px 0 18px; padding-inline-start: 22px; line-height: 1.9; }
+.seo-prose li { font-size: clamp(14px, 3.4vw, 17px); margin: 8px 0; }
+.seo-main h3 { font-size: clamp(15px, 3.6vw, 18px); margin: 18px 0 6px; color: var(--p2); }
+
+.seo-play {
+  display: inline-block;
+  background: linear-gradient(180deg, #ffd23f, #ff924c);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: clamp(17px, 4vw, 22px);
+  text-decoration: none;
+  padding: 12px 28px;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(120, 80, 40, .25);
+  margin: 8px 0 6px;
+}
+
+/* شبكة العناصر التعليمية */
+.seo-grid {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+.seo-card {
+  background: #fff;
+  border: 2px solid #efe9ff;
+  border-radius: 18px;
+  padding: 14px 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.seo-emoji { font-size: 40px; }
+.seo-glyph { font-size: 38px; color: var(--p); font-weight: 800; }
+.seo-name { font-weight: 800; font-size: 17px; }
+.seo-word { font-size: 14px; color: #7a6ca8; }
+
+/* أقسام الصفحة الرئيسية */
+.seo-home-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+.seo-home-card a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 2px solid #efe9ff;
+  border-radius: 20px;
+  padding: 18px 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.seo-home-card .seo-emoji { font-size: 48px; }
+
+/* الروابط الداخلية */
+.seo-related ul {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.seo-related a { color: var(--p); text-decoration: none; font-weight: 700; }
+.seo-related a:hover { text-decoration: underline; }
+
+/* مقالات الأدلة */
+.seo-crumbs { font-size: 14px; color: #7a6ca8; margin: 4px 0; }
+.seo-crumbs a { color: var(--p); text-decoration: none; }
+.seo-meta { font-size: 14px; color: #7a6ca8; margin: 0 0 10px; }
+.seo-article section { margin: 18px 0; }
+.seo-article h2 { margin: 22px 0 8px; }
+.seo-article p { font-size: clamp(15px, 3.6vw, 18px); margin: 8px 0; }
+
+.seo-footer {
+  background: #efe9ff;
+  text-align: center;
+  padding: 22px 18px;
+  font-size: 14px;
+  color: #6b5ca0;
+}
+.seo-footer a { color: var(--p); }

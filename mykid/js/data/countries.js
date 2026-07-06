@@ -1,0 +1,21 @@
+// ===== الدول العربية (أعلام) =====
+export const COUNTRIES = [
+  { name: "مصر", en: "Egypt", emoji: "🇪🇬" },
+  { name: "السعودية", en: "Saudi Arabia", emoji: "🇸🇦" },
+  { name: "الإمارات", en: "UAE", emoji: "🇦🇪" },
+  { name: "الأردن", en: "Jordan", emoji: "🇯🇴" },
+  { name: "المغرب", en: "Morocco", emoji: "🇲🇦" },
+  { name: "العراق", en: "Iraq", emoji: "🇮🇶" },
+  { name: "الجزائر", en: "Algeria", emoji: "🇩🇿" },
+  { name: "تونس", en: "Tunisia", emoji: "🇹🇳" },
+  { name: "الكويت", en: "Kuwait", emoji: "🇰🇼" },
+  { name: "قطر", en: "Qatar", emoji: "🇶🇦" },
+  { name: "لبنان", en: "Lebanon", emoji: "🇱🇧" },
+  { name: "فلسطين", en: "Palestine", emoji: "🇵🇸" },
+  { name: "سوريا", en: "Syria", emoji: "🇸🇾" },
+  { name: "اليمن", en: "Yemen", emoji: "🇾🇪" },
+  { name: "عُمان", en: "Oman", emoji: "🇴🇲" },
+  { name: "ليبيا", en: "Libya", emoji: "🇱🇾" },
+  { name: "السودان", en: "Sudan", emoji: "🇸🇩" },
+  { name: "البحرين", en: "Bahrain", emoji: "🇧🇭" },
+];
