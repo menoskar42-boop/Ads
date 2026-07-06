@@ -129,8 +129,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// امنع كشف كود الخادم/الإعدادات عبر الملفات الثابتة (ROOT يشمل مجلد server).
+app.use((req, res, next) => {
+  if (/^\/(server|node_modules|package(-lock)?\.json)(\/|$)/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  next();
+});
+
 // تقديم ملفات الواجهة الثابتة (css/js/manifest/sw...)
-app.use(express.static(ROOT, { extensions: ["html"] }));
+app.use(express.static(ROOT, { extensions: ["html"], dotfiles: "ignore" }));
 
 // أي مسار غير معروف → 404 حقيقي (لا Soft 404) كي لا تتأثّر ثقة الفهرسة
 app.get("*", (_req, res) => {
