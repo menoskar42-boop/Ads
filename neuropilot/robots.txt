@@ -1,0 +1,5 @@
+# NeuroPilot (adhd.oscardevs.com) — a free client-side focus tool.
+User-agent: *
+Allow: /
+
+Sitemap: https://adhd.oscardevs.com/sitemap.xml

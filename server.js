@@ -58,6 +58,31 @@ app.use(async (req, res, next) => {
     .send('Safari Kids is starting up — please refresh in a moment.');
 });
 
+// ===== NeuroPilot (adhd.oscardevs.com) — ADHD focus timer, host-routed =====
+// A fully client-side focus-timer (localStorage only — no DB, no API, no
+// account). Rewritten natively for OscarDevs' stack and served as static
+// files on its own subdomain, ahead of all OscarDevs middleware, so it never
+// touches the session/tenant/AdSense pipeline. Kept ad-free like mykid.
+const neuroDir = path.join(__dirname, 'neuropilot');
+const neuroStatic = express.static(neuroDir, {
+  maxAge: '1h',
+  setHeaders(res, filePath) {
+    if (/\.(?:svg|wav|png|ico|webmanifest)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  },
+});
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('adhd.')) return next();
+  // Serve a matching static asset; otherwise fall back to the app shell so
+  // any path lands on the single-page timer instead of a tenant 404.
+  neuroStatic(req, res, () => {
+    res.sendFile(path.join(neuroDir, 'index.html'));
+  });
+});
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'src/views'));
 

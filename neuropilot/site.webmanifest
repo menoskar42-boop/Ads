@@ -1,0 +1,14 @@
+{
+  "name": "NeuroPilot — مؤقّت التركيز",
+  "short_name": "NeuroPilot",
+  "description": "أداة تركيز لأصحاب فرط الحركة وتشتّت الانتباه: مهمّة واحدة ومؤقّت يبدأ بـ 3 دقائق.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F7F6",
+  "theme_color": "#4A6FA5",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+  <title>NeuroPilot — مؤقّت تركيز لأصحاب ADHD</title>
+  <meta name="description" content="أداة تركيز مجانية لأصحاب تشتّت الانتباه وفرط الحركة: مهمّة واحدة ومؤقّت يبدأ بـ 3 دقائق فقط، مع تذكير لطيف وتفريغ للأفكار — بدون تسجيل." />
+  <meta name="theme-color" content="#4A6FA5" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://adhd.oscardevs.com/" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="NeuroPilot" />
+  <meta property="og:locale" content="ar_EG" />
+  <meta property="og:url" content="https://adhd.oscardevs.com/" />
+  <meta property="og:title" content="NeuroPilot — مؤقّت تركيز لأصحاب ADHD" />
+  <meta property="og:description" content="مهمّة واحدة، مؤقّت يبدأ بـ 3 دقائق فقط، تذكير لطيف، وتفريغ للأفكار — أداة تركيز مجانية من OscarDevs." />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="NeuroPilot — مؤقّت تركيز لأصحاب ADHD" />
+  <meta name="twitter:description" content="مهمّة واحدة، مؤقّت يبدأ بـ 3 دقائق فقط، تذكير لطيف، وتفريغ للأفكار." />
+
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+  <link rel="manifest" href="/site.webmanifest" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+
+  <!-- Structured data: this is a free web application (our own work). -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "NeuroPilot",
+    "url": "https://adhd.oscardevs.com/",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Web",
+    "inLanguage": "ar",
+    "description": "أداة تركيز لأصحاب فرط الحركة وتشتّت الانتباه (ADHD): مهمّة واحدة ومؤقّت يبدأ بـ 3 دقائق فقط مع تذكير لطيف وتفريغ للأفكار.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "OscarDevs",
+      "url": "https://oscardevs.com"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- ══════════ HOME / NO-TASK VIEW ══════════ -->
+  <main id="app" class="screen">
+    <div class="wrap">
+      <!-- stats chip -->
+      <div id="statsChip" class="stats-chip hidden" dir="rtl"></div>
+
+      <div class="titlebar">
+        <button id="themeBtn" class="icon-btn" aria-label="تبديل الوضع الليلي">🌙</button>
+        <h1 class="brand">NeuroPilot</h1>
+        <span class="icon-btn placeholder" aria-hidden="true"></span>
+      </div>
+      <p class="tagline" dir="rtl">مهمّة واحدة بس. نبدأ بـ 3 دقائق.</p>
+
+      <input id="taskInput" class="task-input" placeholder="مهمتك الوحيدة دلوقتي" autocomplete="off" />
+
+      <div id="templates" class="templates hidden" dir="rtl">
+        <p class="muted-label">مهام بتكتبها كتير:</p>
+        <div id="templateChips" class="chips"></div>
+      </div>
+
+      <button id="intentionToggle" class="link-btn" dir="rtl">💡 ليه دلوقتي؟ (اختياري)</button>
+      <div id="intentionBox" class="intention-box hidden" dir="rtl">
+        <textarea id="intentionInput" rows="2" placeholder="مثلاً: علشان أخلّص الشغل قبل ما أرتاح"></textarea>
+      </div>
+
+      <button id="startBtn" class="btn btn-primary btn-lg">ابدأ دلوقتي</button>
+
+      <button id="thoughtsLink" class="link-btn hidden" dir="rtl">💭 أفكاري (<span id="thoughtsCount">0</span>)</button>
+      <button id="addThoughtLink" class="link-btn" dir="rtl">+ سجّل فكرة</button>
+
+      <a class="home-link" href="https://oscardevs.com" target="_blank" rel="noopener">مقدَّم من OscarDevs</a>
+    </div>
+
+    <!-- ══════════ TIMER VIEW ══════════ -->
+    <div id="timerView" class="wrap hidden">
+      <p id="wallClock" class="muted-label tnum"></p>
+      <div class="titlebar">
+        <button id="dumpBtn" class="icon-btn" aria-label="سجّل فكرة">💭</button>
+        <h2 id="timerTitle" class="brand"></h2>
+        <span class="icon-btn placeholder" aria-hidden="true"></span>
+      </div>
+      <p id="timerIntention" class="intention-line hidden" dir="rtl"></p>
+
+      <p id="clock" class="clock tnum">03:00</p>
+      <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
+      <p id="endTime" class="muted-label tnum" dir="rtl"></p>
+
+      <!-- running / paused controls -->
+      <div id="runControls">
+        <button id="playPauseBtn" class="btn btn-primary btn-lg">ابدأ دلوقتي</button>
+        <button id="distractedBtn" class="btn btn-accent-outline" dir="rtl">🌀 شارد ذهنياً — رجّعني بـ 5 دقايق</button>
+        <button id="moreBtn" class="link-btn" dir="rtl">⋮ المزيد</button>
+      </div>
+
+      <!-- done prompt -->
+      <div id="donePrompt" class="done hidden" dir="rtl">
+        <p class="done-title">خلصت الجلسة! 🎉</p>
+        <button id="continueBtn" class="btn btn-primary btn-lg"></button>
+        <button id="finishBtn" class="btn btn-accent btn-lg">خلصت ✓</button>
+        <button id="bumpBtn" class="link-btn"></button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ══════════ THOUGHTS VIEW ══════════ -->
+  <section id="thoughtsView" class="screen hidden" dir="rtl">
+    <div class="wrap wide">
+      <div class="row">
+        <button id="thoughtsBack" class="link-btn">← رجوع</button>
+        <h2 class="page-title">💭 أفكاري</h2>
+        <button id="clearThoughts" class="link-btn danger">مسح الكل</button>
+      </div>
+      <p id="thoughtsEmpty" class="empty hidden">
+        مفيش أفكار محفوظة لسه.<br />
+        وأنت في مهمة ولو فكرة جت في دماغك، اضغط 💭 وسجّلها هنا عشان متشتّتكش.
+      </p>
+      <ul id="thoughtsList" class="thoughts"></ul>
+    </div>
+  </section>
+
+  <!-- ══════════ OVERLAYS ══════════ -->
+  <!-- brain dump -->
+  <div id="dumpOverlay" class="overlay hidden">
+    <div class="sheet" dir="rtl">
+      <h2 class="sheet-title">💭 فكرة سريعة</h2>
+      <p class="muted-label">اكتب الفكرة وارجع لمهمتك. هتلاقيها بعدين في صفحة «أفكاري».</p>
+      <textarea id="dumpInput" rows="3" placeholder="مثلاً: لازم أبعت رسالة لـ..."></textarea>
+      <div class="sheet-actions">
+        <button id="dumpSave" class="btn btn-primary">احفظ ورجّعني للمهمة</button>
+        <button id="dumpCancel" class="btn btn-ghost">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- more menu -->
+  <div id="moreOverlay" class="overlay bottom hidden">
+    <div class="sheet" dir="rtl">
+      <button id="resetTimerBtn" class="btn btn-primary-outline">إعادة التايمر</button>
+      <button id="stopEarlyBtn" class="btn btn-accent-outline">وقف الجلسة بدري</button>
+      <button id="changeTaskBtn" class="btn btn-dashed">غيّر المهمة</button>
+      <button id="moreCancel" class="btn btn-ghost">إلغاء</button>
+    </div>
+  </div>
+
+  <!-- celebration -->
+  <div id="celebrate" class="celebrate hidden" aria-live="polite">
+    <div class="celebrate-card">
+      <p class="emoji">🎉</p>
+      <p class="celebrate-title">أحسنت!</p>
+      <p id="celebrateSub" class="celebrate-sub"></p>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
