@@ -84,9 +84,15 @@ app.use(require('./src/middleware/urls'));
 // the clean canonical path. Prevents 404s from malformed links + duplicate URLs (SEO).
 app.use((req, res, next) => {
   if (req.method === 'GET' && req.path.length > 1) {
-    const cleaned = req.path.replace(/[/،,.]+$/u, '');
-    if (cleaned && cleaned !== req.path) {
-      return res.redirect(301, cleaned + req.originalUrl.slice(req.path.length));
+    // req.path is percent-encoded (e.g. "/apply%D8%8C" for a trailing Arabic
+    // comma), so decode before matching, then re-encode the cleaned path.
+    let dec;
+    try { dec = decodeURIComponent(req.path); } catch (e) { return next(); }
+    const cleaned = dec.replace(/[/.,،]+$/u, '');
+    if (cleaned && cleaned !== dec) {
+      const query = req.originalUrl.slice(req.path.length);
+      const target = cleaned.split('/').map(encodeURIComponent).join('/');
+      return res.redirect(301, target + query);
     }
   }
   next();

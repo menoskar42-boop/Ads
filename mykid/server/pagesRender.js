@@ -31,7 +31,8 @@ function page({ slug, title, description, h1, emoji, bodyHtml, type = "website" 
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:image" content="${SITE.url}/og.png" /> href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${emoji}</text></svg>" />
+<meta name="twitter:image" content="${SITE.url}/og.png" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>${emoji}</text></svg>" />
 <link rel="stylesheet" href="/css/seo.css" />
 </head>
 <body>
