@@ -42,7 +42,11 @@ const safariReady = import('./mykid/server/app.mjs')
   .catch((e) => { console.error('Safari Kids app failed to load:', (e && e.stack) || e); });
 
 app.use(async (req, res, next) => {
-  const host = (req.hostname || '').toLowerCase();
+  // The Cloudflare Worker passes the real subdomain in X-Tenant-Host, because
+  // Replit's edge proxy clobbers X-Forwarded-Host (so req.hostname is NOT the
+  // tenant host). Read the same source the tenant middleware uses.
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
   if (!host.startsWith('mykid.')) return next();
   // The app opens the port immediately (before the async import resolves), so a
   // mykid request on a cold start could arrive first. Wait for the import here
