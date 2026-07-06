@@ -37,16 +37,21 @@ app.set('trust proxy', true);
 // so it never touches OscarDevs' middleware/session/AdSense. This keeps the
 // child-directed app ad-free (COPPA-safe) and lets one deployment host both.
 let safariApp = null;
-import('./mykid/server/app.mjs')
+const safariReady = import('./mykid/server/app.mjs')
   .then((m) => { safariApp = m.default; console.log('🦁 Safari Kids (mykid) app loaded'); })
-  .catch((e) => console.error('Safari Kids app failed to load:', e.message));
+  .catch((e) => { console.error('Safari Kids app failed to load:', (e && e.stack) || e); });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   const host = (req.hostname || '').toLowerCase();
-  if (safariApp && host.startsWith('mykid.')) {
-    return safariApp(req, res, next);
-  }
-  next();
+  if (!host.startsWith('mykid.')) return next();
+  // The app opens the port immediately (before the async import resolves), so a
+  // mykid request on a cold start could arrive first. Wait for the import here
+  // instead of falling through to the tenant router (which would 404 "no company
+  // named mykid"). If the import genuinely failed, show 503 — never the tenant 404.
+  if (!safariApp) { try { await safariReady; } catch (_e) {} }
+  if (safariApp) return safariApp(req, res, next);
+  return res.status(503).type('text/plain; charset=utf-8')
+    .send('Safari Kids is starting up — please refresh in a moment.');
 });
 
 app.set('view engine', 'ejs');
