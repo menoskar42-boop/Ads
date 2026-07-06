@@ -3,9 +3,15 @@ const { getBaseDomains } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Any host ending with these suffixes is treated as root (no tenant)
-// Replit dev-preview URLs are UUID-based and never carry tenant slugs
-const ROOT_SUFFIXES = ['.replit.dev', 'replit.dev'];
+// Any host ending with these suffixes is treated as root (no tenant).
+// - *.replit.dev  → Replit dev-preview URLs (UUID-based, never a tenant slug)
+// - *.replit.app  → the deployment URL (e.g. oscardevsads.replit.app). Without
+//   this, the first label ("oscardevsads") was parsed as a tenant slug, the
+//   lookup failed, and the root served a 404 (noindex, no meta description) —
+//   which tanked automated SEO audits that test the replit.app domain. Serving
+//   the homepage here is safe: its canonical points to oscardevs.com, so the
+//   replit.app URL never competes for indexing.
+const ROOT_SUFFIXES = ['.replit.dev', 'replit.dev', '.replit.app', 'replit.app'];
 
 function extractSubdomain(hostname) {
   const host = hostname.split(':')[0].toLowerCase();
