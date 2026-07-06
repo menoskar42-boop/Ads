@@ -4,9 +4,6 @@
 
 User-agent: *
 Allow: /
-# Content usage preferences (contentsignals.org): allow search indexing & AI answering,
-# disallow using our original content for AI model training. Does not block any crawler.
-Content-Signal: search=yes, ai-train=no, ai-input=yes
 Disallow: /admin/
 Disallow: /company/
 Disallow: /customer/
