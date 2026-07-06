@@ -26,6 +26,10 @@ router.get('/faq', (req, res) => {
   res.render('legal/faq');
 });
 
+router.get('/our-work', (req, res) => {
+  res.render('legal/our_work');
+});
+
 router.get('/contact', (req, res) => {
   res.render('legal/contact', { sent: req.query.sent === '1', error: req.query.error || null });
 });
@@ -100,6 +104,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/blog',     priority: '0.9', changefreq: 'weekly',  lastmod: today },
     { loc: '/apply',    priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/faq',      priority: '0.8', changefreq: 'monthly', lastmod: today },
+    { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/privacy',  priority: '0.4', changefreq: 'yearly',  lastmod: today },
     { loc: '/terms',    priority: '0.4', changefreq: 'yearly',  lastmod: today },
   ];
@@ -163,6 +168,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [من نحن](${SITE_ORIGIN}/about): قصة OscarDevs ورؤيتها.`);
   lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع بورتفوليو أو متجر إلكتروني.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
+  lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (Safari Kids، NeuroPilot).`);
   lines.push(`- [تواصل معنا](${SITE_ORIGIN}/contact): طرق التواصل مع الفريق.`);
   lines.push('');
   lines.push('## المدوّنة (أدلة عملية أصلية)');

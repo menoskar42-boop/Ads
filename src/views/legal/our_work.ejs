@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>من أعمالنا — تطبيقات طوّرها فريق OscarDevs</title>
+<meta name="description" content="استعرض بعض أعمال OscarDevs: تطبيقات ويب طوّرناها بالكامل — Safari Kids مغامرة تعليمية للأطفال، وNeuroPilot مؤقّت تركيز لأصحاب تشتّت الانتباه. جرّبها الآن." />
+<%- include('../partials/seo_meta', { title: 'من أعمالنا — تطبيقات طوّرها فريق OscarDevs', description: 'استعرض بعض أعمال OscarDevs: تطبيقات ويب طوّرناها بالكامل — Safari Kids مغامرة تعليمية للأطفال، وNeuroPilot مؤقّت تركيز لأصحاب تشتّت الانتباه. جرّبها الآن.' }) %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .prose p { line-height: 1.95; color: #374151; margin-bottom: 1rem; font-size: 1rem; }
+  .app-card { transition: transform .15s ease, box-shadow .15s ease; }
+  .app-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(0,0,0,.10); }
+</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-3 flex-wrap">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/faq" class="hover:text-indigo-700">الأسئلة الشائعة</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'من أعمالنا' } ] }) %>
+
+  <div class="mb-8">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">من أعمالنا</h1>
+    <p class="text-gray-600 text-base leading-8">
+      غير المواقع والمتاجر اللي بننفّذها لعملائنا، الفريق بيطوّر تطبيقات ويب كاملة من الصفر.
+      دي مجموعة مختارة من أعمالنا — تقدر تفتح كل واحد وتجرّبه بنفسك مباشرة من المتصفّح.
+    </p>
+  </div>
+
+  <div class="grid gap-6 sm:grid-cols-2">
+
+    <!-- Safari Kids -->
+    <a href="https://mykid.oscardevs.com" target="_blank" rel="noopener"
+       class="app-card block bg-white rounded-2xl shadow p-6 border border-gray-100">
+      <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
+           style="background:#FFF3E0;">🦁</div>
+      <h2 class="text-xl font-extrabold text-gray-900 mb-1">Safari Kids</h2>
+      <p class="text-sm font-semibold text-orange-600 mb-3">مغامرة تعليمية للأطفال</p>
+      <p class="text-gray-600 text-sm leading-7 mb-4">
+        تطبيق ويب تفاعلي يأخذ الأطفال في رحلة سفاري تعليمية ممتعة — بتصميم آمن وبسيط
+        مناسب للصغار، وبدون إعلانات. يعمل مباشرة من المتصفّح على الموبايل والكمبيوتر.
+      </p>
+      <span class="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
+        زيارة التطبيق <span aria-hidden="true">←</span>
+      </span>
+    </a>
+
+    <!-- NeuroPilot -->
+    <a href="https://adhd.oscardevs.com" target="_blank" rel="noopener"
+       class="app-card block bg-white rounded-2xl shadow p-6 border border-gray-100">
+      <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
+           style="background:#EAF1EC;">🧠</div>
+      <h2 class="text-xl font-extrabold text-gray-900 mb-1">NeuroPilot</h2>
+      <p class="text-sm font-semibold text-emerald-700 mb-3">مؤقّت تركيز لأصحاب تشتّت الانتباه (ADHD)</p>
+      <p class="text-gray-600 text-sm leading-7 mb-4">
+        أداة تركيز بسيطة: مهمّة واحدة، ومؤقّت يبدأ بـ 3 دقائق فقط عشان يكسر حاجز البداية،
+        مع تذكير لطيف وتفريغ للأفكار المشتّتة وإحصائيات يومية تحفّزك. مجاناً وبدون تسجيل.
+      </p>
+      <span class="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
+        زيارة التطبيق <span aria-hidden="true">←</span>
+      </span>
+    </a>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="mt-10 bg-indigo-50 rounded-2xl p-6 sm:p-8 text-center">
+    <h2 class="text-xl font-extrabold text-gray-900 mb-2">عندك فكرة تطبيق أو موقع؟</h2>
+    <p class="text-gray-600 mb-5">نقدر نحوّلها لمنتج حقيقي شغّال — من موقع بورتفوليو أو متجر، لتطبيق ويب مخصّص بالكامل.</p>
+    <a href="/apply" class="inline-block bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl px-6 py-3">
+      قدّم طلبك الآن
+    </a>
+  </div>
+
+  <%- include('../partials/ad_unit', { slot: ads.slots.pageBottom }) %>
+</main>
+
+</body>
+</html>
