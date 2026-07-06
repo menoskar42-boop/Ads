@@ -66,34 +66,35 @@ body.running { background: var(--bg-run); }
 .wrap.wide { max-width: 30rem; text-align: right; }
 
 .titlebar {
-  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
   font-size: 2.25rem;
   font-weight: 800;
   letter-spacing: -0.5px;
+  word-break: break-word;
 }
 .tagline { color: var(--muted); font-size: 1rem; margin-top: -8px; }
 
 .icon-btn {
+  flex: 0 0 auto;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.5rem;
-  padding: 6px;
+  font-size: 1.6rem;
+  padding: 8px;
   line-height: 1;
   color: var(--text);
   transition: opacity .2s;
-  position: absolute;
 }
 .icon-btn:hover { opacity: .7; }
-#themeBtn { right: 0; }        /* RTL: theme on the right edge */
-#dumpBtn  { left: 0; }
-#placesBtn { left: 0; }
-.icon-btn.placeholder { position: static; visibility: hidden; }
+.icon-btn.placeholder { visibility: hidden; }
 
 /* ── inputs ── */
 .task-input {
