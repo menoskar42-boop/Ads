@@ -63,30 +63,46 @@ app.use(async (req, res, next) => {
 // account). Rewritten natively for OscarDevs' stack and served as static
 // files on its own subdomain, ahead of all OscarDevs middleware, so it never
 // touches the session/tenant/AdSense pipeline. Kept ad-free like mykid.
+const fs = require('fs');
 const neuroDir = path.join(__dirname, 'neuropilot');
+// Per-boot cache-busting token. Changes on every deploy (server restart), so
+// the versioned CSS/JS URLs below are always fresh after a Republish. This is
+// what stops a browser/CDN from serving a stale styles.css: the app uses fixed
+// filenames (no build-time hashing like the old Vite version), so without a
+// version query a cached styles.css would hide layout updates indefinitely.
+const NEURO_VERSION = String(Date.now());
 const neuroStatic = express.static(neuroDir, {
+  index: false,
   etag: true,
   lastModified: true,
   setHeaders(res, filePath) {
     if (/\.(?:svg|wav|png|ico|webmanifest)$/i.test(filePath)) {
-      // Immutable-ish assets — safe to cache for a week.
-      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.setHeader('Cache-Control', 'public, max-age=604800'); // immutable-ish
     } else {
-      // HTML / CSS / JS / SW: always revalidate so a Republish ships instantly
-      // (the app has no hashed filenames, so a stale cache would hide updates).
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache'); // css/js/sw: always revalidate
     }
   },
 });
+// Serve the SPA shell with versioned asset links injected, so /styles.css and
+// /app.js resolve to brand-new URLs on every deploy — impossible to cache stale.
+function sendNeuroIndex(res) {
+  fs.readFile(path.join(neuroDir, 'index.html'), 'utf8', (err, html) => {
+    if (err) return res.status(500).type('text/plain').send('NeuroPilot failed to load.');
+    const out = html
+      .replace('/styles.css', '/styles.css?v=' + NEURO_VERSION)
+      .replace('/app.js', '/app.js?v=' + NEURO_VERSION);
+    res.type('html').set('Cache-Control', 'no-cache').send(out);
+  });
+}
 app.use((req, res, next) => {
   const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
   const host = String(rawHost).split(':')[0].toLowerCase();
   if (!host.startsWith('adhd.')) return next();
+  const p = req.path;
+  if (p === '/' || p === '/index.html') return sendNeuroIndex(res);
   // Serve a matching static asset; otherwise fall back to the app shell so
   // any path lands on the single-page timer instead of a tenant 404.
-  neuroStatic(req, res, () => {
-    res.sendFile(path.join(neuroDir, 'index.html'));
-  });
+  neuroStatic(req, res, () => sendNeuroIndex(res));
 });
 
 app.set('view engine', 'ejs');
