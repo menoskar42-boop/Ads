@@ -65,13 +65,16 @@ app.use(async (req, res, next) => {
 // touches the session/tenant/AdSense pipeline. Kept ad-free like mykid.
 const neuroDir = path.join(__dirname, 'neuropilot');
 const neuroStatic = express.static(neuroDir, {
-  maxAge: '1h',
+  etag: true,
+  lastModified: true,
   setHeaders(res, filePath) {
-    if (/\bsw\.js$/i.test(filePath)) {
-      // Service worker must always revalidate so updates ship immediately.
-      res.setHeader('Cache-Control', 'no-cache');
-    } else if (/\.(?:svg|wav|png|ico|webmanifest)$/i.test(filePath)) {
+    if (/\.(?:svg|wav|png|ico|webmanifest)$/i.test(filePath)) {
+      // Immutable-ish assets — safe to cache for a week.
       res.setHeader('Cache-Control', 'public, max-age=604800');
+    } else {
+      // HTML / CSS / JS / SW: always revalidate so a Republish ships instantly
+      // (the app has no hashed filenames, so a stale cache would hide updates).
+      res.setHeader('Cache-Control', 'no-cache');
     }
   },
 });

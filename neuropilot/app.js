@@ -294,9 +294,34 @@
   var swReg = null;
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").then(function (reg) {
-      swReg = reg;
-    }).catch(function () {});
+    // Kill any stale service worker from the previous NeuroPilot (Vite/PWA)
+    // deployment — it can keep serving old cached assets and hide updates.
+    // Anything whose script isn't our /sw.js gets unregistered; then we clear
+    // all caches and reload once (guarded so we never loop).
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      var stale = false;
+      regs.forEach(function (reg) {
+        var url = (reg.active && reg.active.scriptURL) ||
+                  (reg.waiting && reg.waiting.scriptURL) ||
+                  (reg.installing && reg.installing.scriptURL) || "";
+        if (url && !/\/sw\.js(\?|$)/.test(url)) { try { reg.unregister(); } catch (e) {} stale = true; }
+      });
+      var alreadyCleaned = false;
+      try { alreadyCleaned = sessionStorage.getItem("np-sw-cleaned") === "1"; } catch (e) {}
+      if (stale && !alreadyCleaned) {
+        try { sessionStorage.setItem("np-sw-cleaned", "1"); } catch (e) {}
+        var done = function () { try { location.reload(); } catch (e) {} };
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+          }).then(done, done);
+        } else { done(); }
+        return;
+      }
+      navigator.serviceWorker.register("/sw.js").then(function (reg) { swReg = reg; }).catch(function () {});
+    }).catch(function () {
+      navigator.serviceWorker.register("/sw.js").then(function (reg) { swReg = reg; }).catch(function () {});
+    });
     navigator.serviceWorker.ready.then(function (reg) { swReg = reg; }).catch(function () {});
   }
 
