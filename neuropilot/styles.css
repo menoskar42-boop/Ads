@@ -92,6 +92,7 @@ body.running { background: var(--bg-run); }
 .icon-btn:hover { opacity: .7; }
 #themeBtn { right: 0; }        /* RTL: theme on the right edge */
 #dumpBtn  { left: 0; }
+#placesBtn { left: 0; }
 .icon-btn.placeholder { position: static; visibility: hidden; }
 
 /* ── inputs ── */
@@ -321,3 +322,82 @@ textarea {
 .pill-make { background: var(--chip-bg); color: var(--primary); }
 .pill-del { background: #FFE8E8; color: #C0392B; }
 html.dark .pill-del { background: #3A2624; color: #E88B7F; }
+
+/* ── places & reminders ── */
+.places-pick { text-align: right; }
+.place-chip.active { background: var(--primary); color: #fff; }
+
+.reminders { display: flex; flex-direction: column; gap: 8px; }
+.reminder-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: .9rem;
+  text-align: right;
+}
+.reminder-card span { flex: 1; line-height: 1.5; }
+.reminder-card b { font-weight: 700; }
+.reminder-x {
+  border: none;
+  background: rgba(0,0,0,.08);
+  color: inherit;
+  width: 26px; height: 26px;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.place-add { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 4px; }
+.places-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.place-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.place-row .pin { font-size: 1.2rem; }
+.place-name { flex: 1; font-weight: 600; }
+.place-del {
+  border: none;
+  background: #FFE8E8;
+  color: #C0392B;
+  width: 30px; height: 30px;
+  border-radius: 999px;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+html.dark .place-del { background: #3A2624; color: #E88B7F; }
+
+/* ── arrival alarm overlay ── */
+.overlay.arrival { background: rgba(0,0,0,.6); z-index: 60; }
+.arrival-inner {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 22rem;
+}
+.arrival-text { color: #fff; font-size: 1.4rem; font-weight: 700; }
+.arrival-task { color: #fff; font-size: 1.8rem; font-weight: 800; }
+.arrival-stop {
+  background: rgba(255,255,255,.15);
+  border: 2px solid rgba(255,255,255,.5);
+  color: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}

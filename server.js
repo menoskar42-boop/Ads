@@ -67,7 +67,10 @@ const neuroDir = path.join(__dirname, 'neuropilot');
 const neuroStatic = express.static(neuroDir, {
   maxAge: '1h',
   setHeaders(res, filePath) {
-    if (/\.(?:svg|wav|png|ico|webmanifest)$/i.test(filePath)) {
+    if (/\bsw\.js$/i.test(filePath)) {
+      // Service worker must always revalidate so updates ship immediately.
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (/\.(?:svg|wav|png|ico|webmanifest)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800');
     }
   },

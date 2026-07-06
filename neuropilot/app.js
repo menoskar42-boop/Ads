@@ -32,6 +32,8 @@
     stats: "neuropilot-stats",
     theme: "neuropilot-theme",
     prefill: "neuropilot-prefill-task",
+    places: "neuropilot-places",
+    reminders: "neuropilot-location-reminders",
   };
 
   function readJSON(key, fallback) {
@@ -122,6 +124,139 @@
     return s;
   }
 
+  // ─────────────────────── places (saved locations) ───────────────────────
+  function getPlaces() {
+    var list = readJSON(K.places, []);
+    return Array.isArray(list) ? list.filter(function (p) {
+      return p && typeof p.id === "string" && typeof p.name === "string" &&
+        typeof p.latitude === "number" && typeof p.longitude === "number";
+    }) : [];
+  }
+  function savePlace(p) { writeJSON(K.places, getPlaces().concat([p])); }
+  function deletePlace(id) { writeJSON(K.places, getPlaces().filter(function (p) { return p.id !== id; })); }
+  function getPlaceById(id) { return getPlaces().filter(function (p) { return p.id === id; })[0] || null; }
+
+  // location reminders = a task waiting at a place ({id,title,duration,placeId,createdAt})
+  function getReminders() {
+    var list = readJSON(K.reminders, []);
+    return Array.isArray(list) ? list.filter(function (r) {
+      return r && typeof r.id === "string" && typeof r.title === "string" && typeof r.placeId === "string";
+    }) : [];
+  }
+  function addReminder(r) { writeJSON(K.reminders, getReminders().concat([r])); }
+  function deleteReminder(id) { writeJSON(K.reminders, getReminders().filter(function (r) { return r.id !== id; })); }
+
+  // ─────────────────────── geofence (foreground watcher) ───────────────────────
+  // Works only while the app is open and the screen is awake (we hold a wake
+  // lock for exactly this). Browsers can't run reliable *background* geofencing
+  // — that's the native mobile app's job. On arrival we fire a looped alarm +
+  // a notification (after the user granted permission).
+  var GEO_RADIUS_M = 100;
+  var geoWatchId = null;
+  var geoTargets = [];
+  var geoVisited = {};
+
+  function haversine(a, b) {
+    var toRad = function (d) { return (d * Math.PI) / 180; };
+    var dLat = toRad(b.latitude - a.latitude);
+    var dLon = toRad(b.longitude - a.longitude);
+    var la1 = toRad(a.latitude), la2 = toRad(b.latitude);
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * 6371000 * Math.asin(Math.sqrt(h));
+  }
+
+  // Ask for notification + geolocation permission. Returns true if location is
+  // usable (notification is best-effort — never block on it).
+  function requestGeoPermissions() {
+    if ("Notification" in window && Notification.permission === "default") {
+      try { Notification.requestPermission(); } catch (e) {}
+    }
+    if (!("geolocation" in navigator)) return Promise.resolve(false);
+    return new Promise(function (resolve) {
+      navigator.geolocation.getCurrentPosition(
+        function () { resolve(true); },
+        function () { resolve(false); },
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    });
+  }
+
+  // Re-arm the watcher over the unique places referenced by active reminders.
+  function armGeofence() {
+    var reminders = getReminders();
+    var seen = {}, list = [];
+    reminders.forEach(function (r) {
+      if (seen[r.placeId]) return;
+      var p = getPlaceById(r.placeId);
+      if (!p) return;
+      seen[r.placeId] = 1;
+      list.push({ placeId: p.id, latitude: p.latitude, longitude: p.longitude });
+    });
+    setGeofenceTargets(list);
+  }
+
+  function setGeofenceTargets(next) {
+    if (!("geolocation" in navigator)) return;
+    if (geoWatchId !== null) { navigator.geolocation.clearWatch(geoWatchId); geoWatchId = null; }
+    geoTargets = next || [];
+    if (!geoTargets.length) return;
+    var active = {};
+    geoTargets.forEach(function (t) { active[t.placeId] = 1; });
+    Object.keys(geoVisited).forEach(function (id) { if (!active[id]) delete geoVisited[id]; });
+    geoWatchId = navigator.geolocation.watchPosition(
+      function (pos) {
+        var here = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        for (var i = 0; i < geoTargets.length; i++) {
+          var t = geoTargets[i];
+          if (geoVisited[t.placeId]) continue;
+          if (haversine(here, t) <= GEO_RADIUS_M) { geoVisited[t.placeId] = 1; onArrival(t.placeId); }
+        }
+      },
+      function () { /* transient GPS errors ignored */ },
+      { enableHighAccuracy: true, maximumAge: 30000, timeout: 60000 }
+    );
+  }
+  function stopGeofence() {
+    if (geoWatchId !== null && "geolocation" in navigator) navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId = null; geoTargets = []; geoVisited = {};
+  }
+
+  // ─────────────────────── arrival alarm (looped) ───────────────────────
+  var alarmAudio = null;
+  var alarmReminder = null;
+  function startAlarm() {
+    try {
+      if (!alarmAudio) { alarmAudio = new Audio("/sounds/chime.wav"); alarmAudio.loop = true; alarmAudio.volume = 0.7; }
+      alarmAudio.currentTime = 0;
+      alarmAudio.play().catch(function () {});
+    } catch (e) {}
+    if (navigator.vibrate) { try { navigator.vibrate([300, 200, 300, 200, 300]); } catch (e) {} }
+  }
+  function stopAlarm() {
+    if (alarmAudio) { try { alarmAudio.pause(); alarmAudio.currentTime = 0; } catch (e) {} }
+    if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+  }
+
+  // Fired when the watcher detects arrival at a place with a waiting reminder.
+  function onArrival(placeId) {
+    var reminders = getReminders().filter(function (r) { return r.placeId === placeId; })
+      .sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+    var r = reminders[0];
+    if (!r) return;
+    deleteReminder(r.id);
+    armGeofence();
+    var place = getPlaceById(placeId);
+    notify("وصلت! مهمتك مستنياك: " + r.title);
+    alarmReminder = r;
+    var el = $("arrivalOverlay");
+    $("arrivalText").textContent = "📍 وصلت" + (place ? " " + place.name : "") + "! مهمتك مستنياك:";
+    $("arrivalTask").textContent = r.title;
+    show(el);
+    startAlarm();
+    renderRemindersBox();
+  }
+
   // ─────────────────────────── theme ───────────────────────────
   function storedTheme() {
     var v = localStorage.getItem(K.theme);
@@ -151,15 +286,53 @@
   }
 
   // ─────────────────────────── notifications ───────────────────────────
-  function requestNotify() {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
+  // Service worker registration — REQUIRED for real notifications inside an
+  // installed (home-screen) PWA. iOS standalone PWAs do NOT support the
+  // `new Notification()` constructor at all; notifications must be shown via
+  // the service worker registration. The SW also cleans up stale caches from
+  // the previous NeuroPilot deployment so old home-screen icons refresh.
+  var swReg = null;
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").then(function (reg) {
+      swReg = reg;
+    }).catch(function () {});
+    navigator.serviceWorker.ready.then(function (reg) { swReg = reg; }).catch(function () {});
   }
+
+  // Ask for notification permission — must be called from a user gesture on iOS.
+  function requestNotify() {
+    if (!("Notification" in window)) return Promise.resolve(false);
+    if (Notification.permission === "granted") return Promise.resolve(true);
+    if (Notification.permission === "denied") return Promise.resolve(false);
+    try {
+      var p = Notification.requestPermission();
+      // Some browsers return a promise, older ones use a callback.
+      return (p && p.then) ? p.then(function (s) { return s === "granted"; }) : Promise.resolve(false);
+    } catch (e) { return Promise.resolve(false); }
+  }
+
+  // Show a system notification. Prefer the service-worker path (works in an
+  // installed PWA, incl. iOS); fall back to the constructor on desktop.
   function notify(body) {
-    if ("Notification" in window && Notification.permission === "granted") {
-      try { new Notification("NeuroPilot", { body: body }); } catch (e) {}
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    var opts = {
+      body: body,
+      icon: "/favicon.svg",
+      badge: "/favicon.svg",
+      tag: "neuropilot-arrival",
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [300, 200, 300],
+    };
+    if (swReg && swReg.showNotification) {
+      try {
+        var pr = swReg.showNotification("NeuroPilot", opts);
+        if (pr && pr.catch) pr.catch(function () {});
+        return;
+      } catch (e) {}
     }
+    try { new Notification("NeuroPilot", opts); } catch (e) {}
   }
 
   // timer-end audible + haptic bump
@@ -175,15 +348,39 @@
   function vibrate(pattern) { if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} } }
 
   // ─────────────────────────── wake lock ───────────────────────────
-  var wakeLock = null;
-  async function acquireWakeLock() {
+  // Hold the screen awake the WHOLE time the app is open (adhd.oscardevs.com
+  // only — this file runs on no other host). ADHD users lose intent the moment
+  // the screen sleeps, and the foreground geofence watcher also stops when the
+  // device sleeps — so we re-acquire aggressively (on release, on visibility,
+  // on a 10s poll, and on any user gesture, since iOS ties Wake Lock to gestures).
+  var wakeSentinel = null;
+  function acquireWakeLock() {
+    if (!("wakeLock" in navigator)) return;
+    if (wakeSentinel && !wakeSentinel.released) return;
     try {
-      if ("wakeLock" in navigator) { wakeLock = await navigator.wakeLock.request("screen"); }
+      navigator.wakeLock.request("screen").then(function (lock) {
+        wakeSentinel = lock;
+        lock.addEventListener("release", function () {
+          if (wakeSentinel === lock) wakeSentinel = null;
+          if (document.visibilityState === "visible") acquireWakeLock();
+        });
+      }).catch(function () {});
     } catch (e) {}
   }
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && !wakeLock) acquireWakeLock();
+    if (document.visibilityState === "visible" && (!wakeSentinel || wakeSentinel.released)) acquireWakeLock();
   });
+  setInterval(function () {
+    if (document.visibilityState !== "visible") return;
+    if (wakeSentinel && !wakeSentinel.released) return;
+    wakeSentinel = null; acquireWakeLock();
+  }, 10000);
+  document.addEventListener("touchstart", function () {
+    if (!wakeSentinel || wakeSentinel.released) acquireWakeLock();
+  }, { passive: true });
+  document.addEventListener("click", function () {
+    if (!wakeSentinel || wakeSentinel.released) acquireWakeLock();
+  }, { passive: true });
 
   // ─────────────────────────── state ───────────────────────────
   var task = null;          // active task object
@@ -193,6 +390,7 @@
   var tickTimer = null;
   var reminderTimers = [];
   var clockTimer = null;
+  var selectedPlaceId = null;   // place chosen on the no-task screen
 
   function currentMinutes() { return (task && task.currentDuration) || DEFAULT_MINUTES; }
 
@@ -249,16 +447,155 @@
     else hide(link);
   }
 
+  // Place chips on the no-task screen — pick one to be reminded on arrival.
+  function renderPlacesChips() {
+    var places = getPlaces(), box = $("placesPick"), chips = $("placeChips");
+    if (!places.length) { hide(box); return; }
+    chips.innerHTML = "";
+    places.forEach(function (p) {
+      var b = document.createElement("button");
+      var active = selectedPlaceId === p.id;
+      b.className = "chip place-chip" + (active ? " active" : "");
+      b.textContent = "📍 " + p.name;
+      b.onclick = function () {
+        selectedPlaceId = active ? null : p.id;
+        renderPlacesChips();
+        syncStartLabel();
+      };
+      chips.appendChild(b);
+    });
+    show(box);
+  }
+
+  // When a place is selected, the primary button arms an arrival reminder
+  // instead of starting the timer immediately.
+  function syncStartLabel() {
+    $("startBtn").textContent = selectedPlaceId ? "🔔 نبّهني عند الوصول" : "ابدأ دلوقتي";
+  }
+
+  // Active arrival reminders shown as cancelable cards on the home screen.
+  function renderRemindersBox() {
+    var list = getReminders(), box = $("remindersBox");
+    if (!list.length) { hide(box); box.innerHTML = ""; return; }
+    box.innerHTML = "";
+    list.forEach(function (r) {
+      var place = getPlaceById(r.placeId);
+      var card = document.createElement("div");
+      card.className = "reminder-card";
+      var txt = document.createElement("span");
+      txt.innerHTML = "📍 مستنيّة وصولك لـ <b>" + escapeHtml(place ? place.name : "مكان") + "</b>: " + escapeHtml(r.title);
+      var x = document.createElement("button");
+      x.className = "reminder-x";
+      x.setAttribute("aria-label", "إلغاء التنبيه");
+      x.textContent = "×";
+      x.onclick = function () { deleteReminder(r.id); armGeofence(); renderRemindersBox(); };
+      card.appendChild(txt);
+      card.appendChild(x);
+      box.appendChild(card);
+    });
+    show(box);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
   // Show either the no-task home view or the timer view.
   function renderHome() {
     document.body.classList.remove("running");
     show($("app").querySelector(".wrap"));   // no-task wrap
     hide($("timerView"));
     hide($("thoughtsView"));
+    hide($("placesView"));
     show($("app"));
     renderStatsChip();
     renderTemplates();
     renderThoughtsLink();
+    renderPlacesChips();
+    renderRemindersBox();
+    syncStartLabel();
+  }
+
+  // ─────────────────────────── places view ───────────────────────────
+  function renderPlacesView() {
+    hide($("app"));
+    show($("placesView"));
+    var places = getPlaces(), ul = $("placesList");
+    ul.innerHTML = "";
+    if (!places.length) { show($("placesEmpty")); }
+    else {
+      hide($("placesEmpty"));
+      places.forEach(function (p) {
+        var li = document.createElement("li");
+        li.className = "place-row";
+        var pin = document.createElement("span"); pin.textContent = "📍"; pin.className = "pin";
+        var name = document.createElement("span"); name.className = "place-name"; name.textContent = p.name;
+        var del = document.createElement("button");
+        del.className = "place-del"; del.setAttribute("aria-label", "حذف"); del.textContent = "×";
+        del.onclick = function () {
+          if (!confirm("تمسح المكان ده؟")) return;
+          deletePlace(p.id);
+          // drop any reminders tied to it, then re-arm
+          getReminders().filter(function (r) { return r.placeId === p.id; })
+            .forEach(function (r) { deleteReminder(r.id); });
+          armGeofence();
+          renderPlacesView();
+        };
+        li.appendChild(pin); li.appendChild(name); li.appendChild(del);
+        ul.appendChild(li);
+      });
+    }
+  }
+
+  var savingPlace = false;
+  function saveCurrentLocation() {
+    var name = $("placeNameInput").value.trim();
+    if (!name) { alert("اكتب اسم المكان الأول"); return; }
+    if (!("geolocation" in navigator)) { alert("المتصفح ده مش بيدعم تحديد الموقع."); return; }
+    if (savingPlace) return;
+    savingPlace = true;
+    $("savePlaceBtn").textContent = "جاري الحفظ…";
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        savePlace({ id: uid(), name: name, latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        $("placeNameInput").value = "";
+        savingPlace = false;
+        $("savePlaceBtn").textContent = "📍 احفظ موقعي الحالي";
+        renderPlacesView();
+        toast("تم حفظ المكان 📍");
+      },
+      function () {
+        savingPlace = false;
+        $("savePlaceBtn").textContent = "📍 احفظ موقعي الحالي";
+        alert("مقدرناش نحصل على موقعك دلوقتي. اتأكد إن إذن الموقع مسموح وحاول تاني.");
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  }
+
+  // Arm an arrival reminder for the selected place instead of starting now.
+  function armReminderForTask(title) {
+    var pid = selectedPlaceId;
+    var place = getPlaceById(pid);
+    if (!place) { activate(title, $("intentionInput").value); return; }
+    requestGeoPermissions().then(function (ok) {
+      if (!ok) {
+        if (!confirm("تصريح الموقع مش متاح، فمش هينفع نبّهك عند الوصول. تحب تبدأ المهمة دلوقتي عادي؟")) return;
+        selectedPlaceId = null;
+        activate(title, $("intentionInput").value);
+        return;
+      }
+      addReminder({ id: uid(), title: title.trim(), duration: duration, placeId: pid, createdAt: Date.now() });
+      armGeofence();
+      $("taskInput").value = "";
+      $("intentionInput").value = "";
+      hide($("intentionBox"));
+      selectedPlaceId = null;
+      renderHome();
+      toast("تمام — هنبّهك لما توصل " + place.name + " 🔔");
+    });
   }
 
   function renderTimer() {
@@ -379,6 +716,8 @@
     if (!title) return;
     vibrate(15);
     recordTitle(title);
+    // A place is selected → arm an arrival reminder instead of starting now.
+    if (selectedPlaceId) { armReminderForTask(title); return; }
     var intention = $("intentionInput").value;
     activate(title, intention);
     $("taskInput").value = "";
@@ -565,6 +904,24 @@
       if (!confirm("تمسح كل الأفكار؟")) return;
       clearThoughts(); renderThoughtsView();
     };
+
+    // places
+    $("placesBtn").onclick = renderPlacesView;
+    $("placesBack").onclick = goHome;
+    $("savePlaceBtn").onclick = saveCurrentLocation;
+    $("placeNameInput").addEventListener("keydown", function (e) { if (e.key === "Enter") saveCurrentLocation(); });
+
+    // arrival alarm overlay
+    $("arrivalStop").onclick = function () { stopAlarm(); hide($("arrivalOverlay")); alarmReminder = null; };
+    $("arrivalStart").onclick = function () {
+      stopAlarm();
+      hide($("arrivalOverlay"));
+      var r = alarmReminder; alarmReminder = null;
+      if (!r) { goHome(); return; }
+      duration = r.duration || DEFAULT_MINUTES;
+      selectedPlaceId = null;
+      activate(r.title, "");
+    };
   }
 
   // ─────────────────────────── init ───────────────────────────
@@ -572,6 +929,9 @@
     applyTheme(storedTheme());
     bind();
     acquireWakeLock();
+    registerServiceWorker();
+    // Re-arm arrival reminders saved from a previous session (while app open).
+    armGeofence();
 
     // refresh wall clock + end time every 15s so estimates stay honest
     clockTimer = setInterval(function () {

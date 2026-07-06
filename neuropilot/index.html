@@ -59,7 +59,7 @@
       <div class="titlebar">
         <button id="themeBtn" class="icon-btn" aria-label="تبديل الوضع الليلي">🌙</button>
         <h1 class="brand">NeuroPilot</h1>
-        <span class="icon-btn placeholder" aria-hidden="true"></span>
+        <button id="placesBtn" class="icon-btn" aria-label="أماكني المحفوظة">📍</button>
       </div>
       <p class="tagline" dir="rtl">مهمّة واحدة بس. نبدأ بـ 3 دقائق.</p>
 
@@ -75,7 +75,14 @@
         <textarea id="intentionInput" rows="2" placeholder="مثلاً: علشان أخلّص الشغل قبل ما أرتاح"></textarea>
       </div>
 
+      <div id="placesPick" class="places-pick hidden" dir="rtl">
+        <p class="muted-label">نبّهني عند وصولي لـ:</p>
+        <div id="placeChips" class="chips"></div>
+      </div>
+
       <button id="startBtn" class="btn btn-primary btn-lg">ابدأ دلوقتي</button>
+
+      <div id="remindersBox" class="reminders hidden" dir="rtl"></div>
 
       <button id="thoughtsLink" class="link-btn hidden" dir="rtl">💭 أفكاري (<span id="thoughtsCount">0</span>)</button>
       <button id="addThoughtLink" class="link-btn" dir="rtl">+ سجّل فكرة</button>
@@ -129,6 +136,37 @@
       <ul id="thoughtsList" class="thoughts"></ul>
     </div>
   </section>
+
+  <!-- ══════════ PLACES VIEW ══════════ -->
+  <section id="placesView" class="screen hidden" dir="rtl">
+    <div class="wrap wide">
+      <div class="row">
+        <button id="placesBack" class="link-btn">← رجوع</button>
+        <h2 class="page-title">📍 أماكني</h2>
+      </div>
+      <p class="muted-label" style="line-height:1.7">
+        احفظ أماكنك المهمة (البيت، الشغل…) واربط مهمة بأي مكان — هننبّهك بصوت وإشعار
+        لما توصل، طول ما التطبيق مفتوح.
+      </p>
+      <div class="place-add">
+        <input id="placeNameInput" class="task-input" style="font-size:1.1rem;text-align:right"
+               placeholder="اسم المكان (مثلاً: البيت، الشغل)" autocomplete="off" />
+        <button id="savePlaceBtn" class="btn btn-primary">📍 احفظ موقعي الحالي</button>
+      </div>
+      <p id="placesEmpty" class="empty hidden">محدش محفوظ لسه. احفظ أماكنك المهمة عشان تربطها بمهامك.</p>
+      <ul id="placesList" class="places-list"></ul>
+    </div>
+  </section>
+
+  <!-- ══════════ ARRIVAL ALARM OVERLAY ══════════ -->
+  <div id="arrivalOverlay" class="overlay arrival hidden" role="dialog" aria-live="assertive">
+    <div class="arrival-inner" dir="rtl">
+      <p id="arrivalText" class="arrival-text">📍 وصلت! مهمتك مستنياك:</p>
+      <p id="arrivalTask" class="arrival-task"></p>
+      <button id="arrivalStart" class="btn btn-accent btn-lg">ابدأها دلوقتي</button>
+      <button id="arrivalStop" class="arrival-stop" aria-label="إيقاف المنبّه">🔕 إيقاف المنبّه</button>
+    </div>
+  </div>
 
   <!-- ══════════ OVERLAYS ══════════ -->
   <!-- brain dump -->
