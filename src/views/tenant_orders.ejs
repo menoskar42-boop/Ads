@@ -17,6 +17,7 @@
   var __outlets = (typeof foodOutlets !== 'undefined' && foodOutlets) ? foodOutlets : [];
   function __money(v) { var n = Number(v); if (!isFinite(n)) return '0'; return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 2 }); }
   function __vlabel(v) { return v === 'supermarket' ? t('orders.supermarket') : t('orders.restaurant'); }
+  var __cur = t('pharmacy.currency');
 %>
 <% if (__noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <title><%= __title %></title>
@@ -40,6 +41,8 @@
   .accent-bg { background: var(--accent); }
   .accent-text { color: var(--accent); }
   body { background: #faf8f4; color: #182a27; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>
 </head>
 <body class="antialiased">
@@ -59,31 +62,38 @@
   <% if (!__outlets.length) { %>
     <div class="text-center py-20 text-gray-400"><%= t('orders.empty_menu') %></div>
   <% } else { %>
+    <!-- Search -->
+    <div class="relative mb-5">
+      <span class="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-4 text-gray-400"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+      <input id="search" type="search" autocomplete="off" placeholder="<%= t('orders.search_ph') %>" class="w-full rounded-2xl border border-gray-200 bg-white ps-12 pe-4 py-3.5 text-base shadow-sm focus:border-orange-300 focus:ring-4 focus:ring-orange-100 outline-none" />
+    </div>
+
     <% __outlets.forEach(function(o){
          var oName = (lang === 'en' && o.name) ? o.name : (o.name_ar || o.name);
     %>
-      <section class="mb-8">
+      <section class="mb-8 outlet-block">
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xs font-bold accent-text bg-white border border-gray-200 rounded-full px-2.5 py-1"><%= __vlabel(o.vertical) %></span>
           <h2 class="text-xl font-extrabold"><%= oName %></h2>
         </div>
         <div class="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
-          <% if (Number(o.delivery_fee) > 0) { %><span>🛵 <%= t('orders.delivery_fee') %>: <%= __money(o.delivery_fee) %> <%= t('pharmacy.currency') %></span><% } %>
+          <% if (Number(o.delivery_fee) > 0) { %><span>🛵 <%= t('orders.delivery_fee') %>: <%= __money(o.delivery_fee) %> <%= __cur %></span><% } %>
           <% if (o.delivery_time_min) { %><span>⏱️ <%= o.delivery_time_min %> <%= t('orders.minutes') %></span><% } %>
-          <% if (Number(o.min_order) > 0) { %><span>🧾 <%= t('orders.min_order') %>: <%= __money(o.min_order) %> <%= t('pharmacy.currency') %></span><% } %>
+          <% if (Number(o.min_order) > 0) { %><span>🧾 <%= t('orders.min_order') %>: <%= __money(o.min_order) %> <%= __cur %></span><% } %>
         </div>
 
         <% (o.categories || []).forEach(function(cat){
-             var catItems = (o.items || []).filter(function(it){ return it.category_id === cat.id; });
+             var catItems = (o.items || []).filter(function(it){ return it.category_id === cat.id && it.is_available; });
              if (!catItems.length) return;
              var catName = (lang === 'en' && cat.name) ? cat.name : (cat.name_ar || cat.name);
         %>
-          <h3 class="font-bold text-gray-700 mt-5 mb-2"><%= catName %></h3>
+          <h3 class="cat-head font-bold text-gray-700 mt-5 mb-2"><%= catName %></h3>
           <div class="grid gap-3 sm:grid-cols-2">
             <% catItems.forEach(function(it){
                  var iName = (lang === 'en' && it.name) ? it.name : (it.name_ar || it.name);
+                 var hay = [it.name_ar, it.name, it.description].filter(Boolean).join(' ').toLowerCase();
             %>
-              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex gap-3">
+              <div class="menu-item bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex gap-3" data-hay="<%= hay %>">
                 <div class="h-20 w-20 shrink-0 rounded-xl bg-gray-100 grid place-items-center overflow-hidden">
                   <% if (it.image_url) { %><img src="<%= it.image_url %>" alt="<%= iName %>" loading="lazy" class="h-full w-full object-cover" /><% } else { %><span class="text-2xl opacity-40">🍽️</span><% } %>
                 </div>
@@ -91,9 +101,9 @@
                   <h4 class="font-bold leading-tight"><%= iName %></h4>
                   <% if (it.description) { %><p class="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2"><%= it.description %></p><% } %>
                   <div class="mt-auto pt-2 flex items-center justify-between">
-                    <span class="font-extrabold accent-text"><bdi><%= __money(it.price) %> <span class="text-xs text-gray-400"><%= t('pharmacy.currency') %></span></bdi></span>
+                    <span class="font-extrabold accent-text"><bdi><%= __money(it.price) %> <span class="text-xs text-gray-400"><%= __cur %></span></bdi></span>
                     <button type="button" class="add-btn accent-bg text-white rounded-full px-4 py-1.5 text-sm font-bold"
-                            data-id="<%= it.id %>" data-name="<%= iName %>" data-price="<%= Number(it.price) %>"><%= t('orders.add') %></button>
+                            data-id="<%= it.id %>" data-name="<%= iName %>" data-price="<%= Number(it.price) %>" data-outlet="<%= o.id %>"><%= t('orders.add') %></button>
                   </div>
                 </div>
               </div>
@@ -102,48 +112,197 @@
         <% }); %>
       </section>
     <% }); %>
+
+    <div id="emptySearch" class="hidden text-center py-16 text-gray-400"><%= t('orders.empty_menu') %></div>
   <% } %>
 
   <p class="mt-10 text-center text-xs text-gray-400"><%= t('pharmacy.provided_by') %> <a href="https://oscardevs.com" target="_blank" rel="noopener" class="accent-text font-bold">OscarDevs</a></p>
 </main>
 
-<!-- Floating cart (Phase 0 skeleton — full cart/checkout in later phases) -->
+<!-- Floating cart button -->
 <div id="cartBar" class="fixed inset-x-0 bottom-0 z-40 hidden">
   <div class="max-w-4xl mx-auto px-4 pb-4">
-    <button id="cartBtn" class="w-full accent-bg text-white rounded-2xl shadow-lg px-5 py-3.5 font-extrabold flex items-center justify-between">
-      <span class="flex items-center gap-2">🛒 <span id="cartCount">0</span> · <%= t('orders.cart') %></span>
-      <span id="cartTotal">0 <%= t('pharmacy.currency') %></span>
+    <button id="cartBtn" type="button" class="w-full accent-bg text-white rounded-2xl shadow-lg px-5 py-3.5 font-extrabold flex items-center justify-between">
+      <span class="flex items-center gap-2">🛒 <span id="cartCount">0</span> · <%= t('orders.your_order') %></span>
+      <span id="cartTotalBtn">0 <%= __cur %></span>
     </button>
   </div>
 </div>
 
+<!-- Cart drawer -->
+<div id="drawer" class="fixed inset-0 z-50 hidden">
+  <div id="drawerOverlay" class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-y-0 end-0 w-full sm:max-w-md bg-white shadow-2xl flex flex-col">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <h2 class="font-extrabold text-lg"><%= t('orders.your_order') %></h2>
+      <button id="drawerClose" type="button" class="grid place-items-center h-9 w-9 rounded-full hover:bg-gray-100" aria-label="close"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+
+    <form id="orderForm" method="post" action="/order/food" class="flex-1 flex flex-col min-h-0">
+      <input type="hidden" name="cart" id="cartField" />
+      <div class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3">
+        <div id="cartLines" class="space-y-3"></div>
+        <div id="cartEmpty" class="text-center text-gray-400 py-10"><%= t('orders.empty_cart') %></div>
+        <p id="minWarn" class="hidden text-sm text-red-600 font-bold bg-red-50 rounded-xl px-3 py-2"></p>
+
+        <div id="custFields" class="space-y-3 pt-2 hidden">
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.name') %></label><input name="customer_name" required class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.phone') %></label><input name="phone" type="tel" dir="ltr" required class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-end" placeholder="01xxxxxxxxx" /></div>
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.address') %></label><textarea name="address" rows="2" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 resize-none"></textarea></div>
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.notes') %></label><input name="notes" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
+          <p class="text-xs text-gray-400">💵 <%= t('orders.cod') %></p>
+        </div>
+      </div>
+
+      <div id="cartFooter" class="border-t border-gray-100 p-4 space-y-2 hidden">
+        <div class="flex justify-between text-sm"><span class="text-gray-500"><%= t('orders.subtotal') %></span><span id="sumSub">0</span></div>
+        <div class="flex justify-between text-sm"><span class="text-gray-500"><%= t('orders.delivery') %></span><span id="sumDelivery">0</span></div>
+        <div class="flex justify-between font-extrabold text-lg"><span><%= t('orders.total') %></span><span id="sumTotal" class="accent-text">0</span></div>
+        <button type="submit" id="confirmBtn" class="w-full accent-bg text-white rounded-2xl py-3.5 font-extrabold"><%= t('orders.confirm_order') %></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.id, fee:Number(o.delivery_fee)||0, min:Number(o.min_order)||0, name:(o.name_ar||o.name) }; })) %>;
+</script>
 <script>
 (function () {
   var KEY = 'oscardevs_food_cart_' + <%- JSON.stringify(company.slug) %>;
+  var CUR = <%- JSON.stringify(__cur) %>;
+  var isAr = document.documentElement.lang === 'ar';
+  var MINW = <%- JSON.stringify(t('orders.min_order_warn')) %>;
+  var outlets = {}; (window.__OUTLETS || []).forEach(function (o) { outlets[o.id] = o; });
+
   var bar = document.getElementById('cartBar');
   var countEl = document.getElementById('cartCount');
-  var totalEl = document.getElementById('cartTotal');
-  var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
-  var isAr = document.documentElement.lang === 'ar';
+  var totalBtn = document.getElementById('cartTotalBtn');
+  var drawer = document.getElementById('drawer');
+  var lines = document.getElementById('cartLines');
+  var cartEmpty = document.getElementById('cartEmpty');
+  var custFields = document.getElementById('custFields');
+  var footer = document.getElementById('cartFooter');
+  var minWarn = document.getElementById('minWarn');
+  var form = document.getElementById('orderForm');
+  var cartField = document.getElementById('cartField');
+  var confirmBtn = document.getElementById('confirmBtn');
+
   function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
   function save(c) { localStorage.setItem(KEY, JSON.stringify(c)); }
-  function fmt(n) { return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); }
-  function render() {
-    var c = load(), count = 0, total = 0;
-    Object.keys(c).forEach(function (k) { count += c[k].q; total += c[k].q * c[k].p; });
-    countEl.textContent = fmt(count);
-    totalEl.textContent = fmt(total) + ' ' + CUR;
-    bar.classList.toggle('hidden', count === 0);
+  function fmt(n) { n = Math.round(n * 100) / 100; return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); }
+  function money(n) { return fmt(n) + ' ' + CUR; }
+
+  function totals() {
+    var c = load(), count = 0, sub = 0, outSub = {};
+    Object.keys(c).forEach(function (k) {
+      count += c[k].q; sub += c[k].q * c[k].p;
+      outSub[c[k].o] = (outSub[c[k].o] || 0) + c[k].q * c[k].p;
+    });
+    var delivery = 0, warn = '';
+    Object.keys(outSub).forEach(function (oid) {
+      var o = outlets[oid]; if (!o) return;
+      delivery += o.fee;
+      if (o.min > 0 && outSub[oid] < o.min) warn = MINW + ' (' + o.name + '): ' + money(o.min);
+    });
+    return { count: count, sub: sub, delivery: delivery, total: sub + delivery, warn: warn };
   }
+
+  function renderBar() {
+    var t = totals();
+    countEl.textContent = fmt(t.count);
+    totalBtn.textContent = money(t.total);
+    bar.classList.toggle('hidden', t.count === 0);
+  }
+
+  function renderDrawer() {
+    var c = load(), t = totals();
+    lines.innerHTML = '';
+    var keys = Object.keys(c);
+    cartEmpty.classList.toggle('hidden', keys.length !== 0);
+    footer.classList.toggle('hidden', keys.length === 0);
+    custFields.classList.toggle('hidden', keys.length === 0);
+    keys.forEach(function (id) {
+      var it = c[id];
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 bg-gray-50 rounded-xl p-2';
+      row.innerHTML = '<div class="min-w-0 flex-1"><div class="font-bold text-sm truncate"></div><div class="text-xs accent-text font-bold"></div></div>'
+        + '<div class="flex items-center gap-1 bg-white rounded-full border border-gray-200 p-1">'
+        + '<button type="button" data-m="' + id + '" class="dec grid place-items-center h-7 w-7 rounded-full hover:bg-gray-100">−</button>'
+        + '<span class="w-6 text-center font-bold qv"></span>'
+        + '<button type="button" data-p="' + id + '" class="inc grid place-items-center h-7 w-7 rounded-full hover:bg-gray-100">+</button></div>'
+        + '<button type="button" data-r="' + id + '" class="rm text-red-500 px-1">🗑️</button>';
+      row.querySelector('.font-bold.text-sm').textContent = it.n;
+      row.querySelector('.accent-text').textContent = money(it.p * it.q);
+      row.querySelector('.qv').textContent = fmt(it.q);
+      lines.appendChild(row);
+    });
+    document.getElementById('sumSub').textContent = money(t.sub);
+    document.getElementById('sumDelivery').textContent = money(t.delivery);
+    document.getElementById('sumTotal').textContent = money(t.total);
+    if (t.warn) { minWarn.textContent = t.warn; minWarn.classList.remove('hidden'); confirmBtn.disabled = true; confirmBtn.style.opacity = '.5'; }
+    else { minWarn.classList.add('hidden'); confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
+  }
+
+  function openD() { renderDrawer(); drawer.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+  function closeD() { drawer.classList.add('hidden'); document.body.style.overflow = ''; }
+
   document.querySelectorAll('.add-btn').forEach(function (b) {
     b.addEventListener('click', function () {
       var c = load(), id = b.dataset.id;
-      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price), q: 0 };
-      c[id].q += 1; save(c); render();
-      b.textContent = '✓'; setTimeout(function () { b.textContent = <%- JSON.stringify(t('orders.add')) %>; }, 700);
+      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price), q: 0, o: b.dataset.outlet };
+      c[id].q += 1; save(c); renderBar();
+      b.textContent = '✓'; setTimeout(function () { b.textContent = <%- JSON.stringify(t('orders.add')) %>; }, 600);
     });
   });
-  render();
+
+  lines.addEventListener('click', function (e) {
+    var c = load(), t = e.target;
+    if (t.dataset.p) { c[t.dataset.p].q += 1; }
+    else if (t.dataset.m) { c[t.dataset.m].q -= 1; if (c[t.dataset.m].q <= 0) delete c[t.dataset.m]; }
+    else if (t.dataset.r) { delete c[t.dataset.r]; }
+    else return;
+    save(c); renderBar(); renderDrawer();
+  });
+
+  document.getElementById('cartBtn').addEventListener('click', openD);
+  document.getElementById('drawerClose').addEventListener('click', closeD);
+  document.getElementById('drawerOverlay').addEventListener('click', closeD);
+
+  form.addEventListener('submit', function (e) {
+    var c = load();
+    var arr = Object.keys(c).map(function (id) { return { id: Number(id), q: c[id].q }; });
+    if (!arr.length) { e.preventDefault(); return; }
+    cartField.value = JSON.stringify(arr);
+    // cart is cleared on the confirmation page load (only after success)
+  });
+
+  renderBar();
+})();
+</script>
+
+<!-- Instant menu search -->
+<script>
+(function () {
+  var input = document.getElementById('search');
+  if (!input) return;
+  var items = Array.prototype.slice.call(document.querySelectorAll('.menu-item'));
+  var empty = document.getElementById('emptySearch');
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('.outlet-block'));
+  var t = null;
+  function filter() {
+    var q = input.value.trim().toLowerCase(), shown = 0;
+    items.forEach(function (c) { var m = !q || (c.dataset.hay || '').indexOf(q) !== -1; c.classList.toggle('hidden', !m); if (m) shown++; });
+    // hide category heads / outlet blocks with no visible items
+    document.querySelectorAll('.cat-head').forEach(function (h) {
+      var grid = h.nextElementSibling; if (!grid) return;
+      var any = grid.querySelectorAll('.menu-item:not(.hidden)').length > 0;
+      h.classList.toggle('hidden', !any); grid.classList.toggle('hidden', !any);
+    });
+    blocks.forEach(function (b) { var any = b.querySelectorAll('.menu-item:not(.hidden)').length > 0; b.classList.toggle('hidden', !!q && !any); });
+    empty.classList.toggle('hidden', shown !== 0);
+  }
+  input.addEventListener('input', function () { clearTimeout(t); t = setTimeout(filter, 180); });
 })();
 </script>
 </body>

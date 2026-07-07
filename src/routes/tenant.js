@@ -335,4 +335,94 @@ router.post('/order/track/:token/subscribe', async (req, res) => {
   } catch (e) { console.error('track subscribe error:', e.message); res.status(500).json({ ok: false }); }
 });
 
+/* ─── Orders (restaurant/supermarket) checkout ──────────── */
+async function foodOrderGuard(req, res, next) {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'orders') {
+    return res.status(404).render('404', { subdomain: company ? company.slug : null });
+  }
+  next();
+}
+
+// Create a food order from the client cart (COD). Prices are re-read from the
+// DB (never trusted from the client) and min-order is enforced per outlet.
+router.post('/order/food', foodOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  let cart;
+  try { cart = JSON.parse(req.body.cart || '[]'); } catch (e) { cart = []; }
+  cart = (Array.isArray(cart) ? cart : [])
+    .map(x => ({ id: parseInt(x.id, 10), q: Math.max(1, parseInt(x.q, 10) || 1) }))
+    .filter(x => x.id);
+  const name = String(req.body.customer_name || '').trim().slice(0, 100);
+  const phone = String(req.body.phone || '').trim().slice(0, 30);
+  const address = String(req.body.address || '').trim().slice(0, 300);
+  const notes = String(req.body.notes || '').trim().slice(0, 500);
+  if (!cart.length || !name || phone.length < 6) return res.redirect('/?err=order');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const ids = cart.map(i => i.id);
+    const rows = (await client.query(
+      `SELECT fi.id, fi.name, fi.name_ar, fi.price, fi.outlet_id, fo.delivery_fee, fo.min_order
+       FROM food_items fi JOIN food_outlets fo ON fo.id = fi.outlet_id
+       WHERE fi.id = ANY($1) AND fo.company_id = $2 AND fi.is_available = true AND fo.is_active = true`,
+      [ids, company.id]
+    )).rows;
+    const byId = {}; rows.forEach(r => { byId[r.id] = r; });
+
+    let subtotal = 0; const outSub = {}; const outFee = {}; const lineItems = [];
+    for (const it of cart) {
+      const r = byId[it.id]; if (!r) continue;
+      const line = Number(r.price) * it.q; subtotal += line;
+      outSub[r.outlet_id] = (outSub[r.outlet_id] || 0) + line;
+      outFee[r.outlet_id] = Number(r.delivery_fee) || 0;
+      lineItems.push({ id: r.id, name: (r.name_ar || r.name), qty: it.q, price: Number(r.price), outlet: r.outlet_id });
+    }
+    if (!lineItems.length) { await client.query('ROLLBACK'); return res.redirect('/?err=order'); }
+    for (const oid of Object.keys(outSub)) {
+      const r = rows.find(x => String(x.outlet_id) === String(oid));
+      if (r && Number(r.min_order) > 0 && outSub[oid] < Number(r.min_order)) {
+        await client.query('ROLLBACK'); return res.redirect('/?err=minorder');
+      }
+    }
+    const deliveryFee = Object.keys(outFee).reduce((s, k) => s + outFee[k], 0);
+    const total = subtotal + deliveryFee;
+    const token = crypto.randomBytes(9).toString('hex');
+    const ord = (await client.query(
+      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, track_token)
+       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [company.id, lineItems[0].outlet, name, total, deliveryFee, address || null, phone, notes || null, token]
+    )).rows[0];
+    for (const li of lineItems) {
+      await client.query(
+        `INSERT INTO food_order_items (order_id, item_id, name_snapshot, quantity, price) VALUES ($1,$2,$3,$4,$5)`,
+        [ord.id, li.id, li.name, li.qty, li.price]
+      );
+    }
+    await client.query(`INSERT INTO food_order_events (order_id, status, note) VALUES ($1,'pending','created')`, [ord.id]);
+    await client.query('COMMIT');
+    push.sendToCompany(company.id, { title: '🛎️ طلب جديد', body: 'طلب جديد من ' + name, url: '/food' }, 'order')
+      .catch(e => console.error('[food order push] ' + e.message));
+    res.redirect('/order/food/' + token);
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('food order error:', e.message);
+    res.redirect('/?err=order');
+  } finally { client.release(); }
+});
+
+// Order confirmation page.
+router.get('/order/food/:token', foodOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  try {
+    const ord = (await pool.query(
+      'SELECT * FROM food_orders WHERE track_token = $1 AND company_id = $2', [req.params.token, company.id]
+    )).rows[0];
+    if (!ord) return res.redirect('/');
+    const items = (await pool.query('SELECT * FROM food_order_items WHERE order_id = $1', [ord.id])).rows;
+    res.render('orders/confirm', { company, order: ord, items, noindex: true });
+  } catch (e) { console.error('food confirm error:', e.message); res.status(500).send('Error.'); }
+});
+
 module.exports = router;
