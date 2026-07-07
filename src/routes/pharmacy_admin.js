@@ -9,6 +9,36 @@ const requireLogin = require('../middleware/auth');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { compressImage } = require('../lib/media');
+
+// Image uploads (medicine photos + banner slides) — same disk-storage pattern
+// as the company area, into public/uploads. Fail-open: a bad upload never
+// breaks the form, the image is just skipped.
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/;
+function pharmUploader(prefix) {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadDir),
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        cb(null, `${prefix}-${req.session.companyId}-${Date.now()}${ext}`);
+      },
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => imageMimeRegex.test(file.mimetype) ? cb(null, true) : cb(new Error('image only')),
+  }).single('image_file');
+}
+const uploadMedImage = pharmUploader('phmed');
+const uploadBanner = pharmUploader('phbanner');
+// Run an uploader but swallow its error so the request still completes.
+function withImage(upload) {
+  return (req, res, next) => upload(req, res, () => next());
+}
 
 // Customer-facing status notifications (Talabat-style).
 const STATUS_NOTIF = {
@@ -152,10 +182,12 @@ router.get('/inventory', gate('inventory'), async (req, res) => {
 
 // Add stock: either an existing catalog medicine (medicine_id) or a brand-new
 // medicine created on the fly (new_name_ar). Upserts the inventory row.
-router.post('/inventory/add', gate('inventory'), async (req, res) => {
+router.post('/inventory/add', gate('inventory'), withImage(uploadMedImage), async (req, res) => {
   const cid = req.company.id;
   const b = req.body || {};
   try {
+    let imageUrl = null;
+    if (req.file) { await compressImage(req.file.path); imageUrl = '/uploads/' + req.file.filename; }
     let medicineId = toInt(b.medicine_id, null);
     const newName = (b.new_name_ar || '').trim();
     if (!medicineId && newName) {
@@ -169,16 +201,17 @@ router.post('/inventory/add', gate('inventory'), async (req, res) => {
     }
     if (!medicineId) return res.redirect('/pharmacy/inventory?error=' + encodeURIComponent('اختر دواء أو اكتب اسم جديد'));
     await pool.query(
-      `INSERT INTO pharmacy_inventory (company_id, medicine_id, qty, price, cost, min_qty, expiry, barcode)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO pharmacy_inventory (company_id, medicine_id, qty, price, cost, min_qty, expiry, barcode, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (company_id, medicine_id) DO UPDATE SET
          qty = pharmacy_inventory.qty + EXCLUDED.qty,
          price = COALESCE(EXCLUDED.price, pharmacy_inventory.price),
          cost = COALESCE(EXCLUDED.cost, pharmacy_inventory.cost),
          min_qty = EXCLUDED.min_qty, expiry = COALESCE(EXCLUDED.expiry, pharmacy_inventory.expiry),
+         image_url = COALESCE(EXCLUDED.image_url, pharmacy_inventory.image_url),
          updated_at = now()`,
       [cid, medicineId, toInt(b.qty, 0), toNum(b.price, null), toNum(b.cost, null),
-       toInt(b.min_qty, 0), (b.expiry || '').trim() || null, (b.barcode || '').trim() || null]
+       toInt(b.min_qty, 0), (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, imageUrl]
     );
     res.redirect('/pharmacy/inventory?saved=1');
   } catch (e) {
@@ -187,17 +220,19 @@ router.post('/inventory/add', gate('inventory'), async (req, res) => {
   }
 });
 
-router.post('/inventory/:id/update', gate('inventory'), async (req, res) => {
+router.post('/inventory/:id/update', gate('inventory'), withImage(uploadMedImage), async (req, res) => {
   const cid = req.company.id;
   const id = toInt(req.params.id, null);
   const b = req.body || {};
   try {
+    let imageUrl = null;
+    if (req.file) { await compressImage(req.file.path); imageUrl = '/uploads/' + req.file.filename; }
     await pool.query(
       `UPDATE pharmacy_inventory SET qty=$1, price=$2, cost=$3, min_qty=$4,
-         expiry=$5, barcode=$6, updated_at=now()
+         expiry=$5, barcode=$6, image_url=COALESCE($9, image_url), updated_at=now()
        WHERE id=$7 AND company_id=$8`,
       [toInt(b.qty, 0), toNum(b.price, null), toNum(b.cost, null), toInt(b.min_qty, 0),
-       (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, id, cid]
+       (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, id, cid, imageUrl]
     );
     res.redirect('/pharmacy/inventory?saved=1');
   } catch (e) {
@@ -244,6 +279,46 @@ router.get('/api/catalog-search', gate('inventory'), async (req, res) => {
 router.post('/catalog/sync', gate('inventory'), (req, res) => {
   syncMedicinesSafe({ force: true });
   res.redirect('/pharmacy/inventory?synced=1');
+});
+
+/* ─── Banner slides (storefront carousel) ───────────────── */
+router.get('/banners', gate('settings'), async (req, res) => {
+  const banners = (await pool.query(
+    'SELECT * FROM banner_slides WHERE company_id = $1 ORDER BY order_index, created_at',
+    [req.company.id]
+  )).rows;
+  res.render('pharmacy_admin/banners', {
+    company: req.company, banners, session: req.session,
+    saved: req.query.saved === '1', error: req.query.err || null,
+  });
+});
+
+router.post('/banners/add', gate('settings'), withImage(uploadBanner), async (req, res) => {
+  if (!req.file) return res.redirect('/pharmacy/banners?err=' + encodeURIComponent('اختر صورة أولاً'));
+  try {
+    await compressImage(req.file.path);
+    await pool.query(
+      `INSERT INTO banner_slides (company_id, image_url, target_url, caption, order_index)
+       VALUES ($1,$2,$3,$4, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id=$1),0))`,
+      [req.company.id, '/uploads/' + req.file.filename, (req.body.target_url || '').trim() || null, (req.body.caption || '').trim() || null]
+    );
+    res.redirect('/pharmacy/banners?saved=1');
+  } catch (e) {
+    console.error('pharmacy banner add error:', e.message);
+    res.redirect('/pharmacy/banners?err=' + encodeURIComponent('فشل الحفظ'));
+  }
+});
+
+router.post('/banners/:id/toggle', gate('settings'), async (req, res) => {
+  await pool.query('UPDATE banner_slides SET is_active = NOT is_active WHERE id=$1 AND company_id=$2',
+    [toInt(req.params.id, null), req.company.id]);
+  res.redirect('/pharmacy/banners');
+});
+
+router.post('/banners/:id/delete', gate('settings'), async (req, res) => {
+  await pool.query('DELETE FROM banner_slides WHERE id=$1 AND company_id=$2',
+    [toInt(req.params.id, null), req.company.id]);
+  res.redirect('/pharmacy/banners');
 });
 
 /* ─── Settings ──────────────────────────────────────────── */

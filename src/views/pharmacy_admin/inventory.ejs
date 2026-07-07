@@ -36,7 +36,7 @@
   <!-- Add stock -->
   <details class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5" open>
     <summary class="font-extrabold text-emerald-700 cursor-pointer">➕ <%= t('pharmacy.admin.add_stock') %></summary>
-    <form method="post" action="/pharmacy/inventory/add" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <form method="post" action="/pharmacy/inventory/add" enctype="multipart/form-data" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div class="sm:col-span-2 relative">
         <span class="lbl"><%= t('pharmacy.admin.from_catalog') %></span>
         <input type="hidden" name="medicine_id" id="medId" />
@@ -51,6 +51,7 @@
       <div><span class="lbl"><%= t('pharmacy.admin.min_qty') %></span><input name="min_qty" type="number" min="0" value="5" class="fld" /></div>
       <div><span class="lbl"><%= t('pharmacy.admin.expiry') %></span><input name="expiry" type="date" class="fld" /></div>
       <div><span class="lbl"><%= t('pharmacy.admin.barcode') %></span><input name="barcode" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.image') %></span><input type="file" name="image_file" accept="image/*" class="fld" style="padding:4px" /></div>
       <div class="flex items-end"><button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg px-5 py-2 w-full"><%= t('pharmacy.admin.save') %></button></div>
     </form>
   </details>
@@ -69,7 +70,7 @@
       <% items.forEach(function(it){
            var expStr = it.expiry ? new Date(it.expiry).toISOString().slice(0,10) : '';
       %>
-        <form method="post" action="/pharmacy/inventory/<%= it.id %>/update"
+        <form method="post" action="/pharmacy/inventory/<%= it.id %>/update" enctype="multipart/form-data"
               class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div class="flex items-center justify-between gap-2 mb-3">
             <div class="min-w-0">
@@ -89,6 +90,10 @@
             <div><span class="lbl"><%= t('pharmacy.admin.min_qty') %></span><input name="min_qty" type="number" min="0" value="<%= it.min_qty %>" class="fld" /></div>
             <div><span class="lbl"><%= t('pharmacy.admin.expiry') %></span><input name="expiry" type="date" value="<%= expStr %>" class="fld" /></div>
             <div><span class="lbl"><%= t('pharmacy.admin.barcode') %></span><input name="barcode" value="<%= it.barcode || '' %>" class="fld" /></div>
+            <div class="flex items-center gap-2">
+              <% if (it.image_url) { %><img src="<%= it.image_url %>" alt="" class="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" /><% } %>
+              <div class="min-w-0"><span class="lbl"><%= it.image_url ? t('pharmacy.admin.change_image') : t('pharmacy.admin.image') %></span><input type="file" name="image_file" accept="image/*" class="fld" style="padding:4px" /></div>
+            </div>
           </div>
           <div class="flex gap-2 mt-3">
             <button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg px-5 py-2 text-sm"><%= t('pharmacy.admin.update') %></button>

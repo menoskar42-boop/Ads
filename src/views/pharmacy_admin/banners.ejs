@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('pharmacy.admin.banners') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; } .fld { border:1px solid #d1d5db; border-radius:10px; padding:10px 12px; width:100%; background:#fff; } .lbl { font-size:.72rem; color:#6b7280; margin-bottom:3px; display:block; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'banners' }) %>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (error) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold"><%= error %></div><% } %>
+
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
+    <h2 class="font-extrabold text-emerald-700 mb-1">🖼️ <%= t('pharmacy.admin.banners') %></h2>
+    <p class="text-xs text-gray-500 mb-4"><%= t('pharmacy.admin.banner_hint') %></p>
+    <form method="post" action="/pharmacy/banners/add" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-2">
+      <div class="sm:col-span-2"><span class="lbl"><%= t('pharmacy.admin.image') %> (1600×600)</span><input type="file" name="image_file" accept="image/*" required class="fld" style="padding:6px" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.banner_caption') %></span><input name="caption" maxlength="120" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.banner_link') %></span><input name="target_url" dir="ltr" placeholder="https://…" class="fld" /></div>
+      <div class="sm:col-span-2"><button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl px-6 py-2.5"><%= t('pharmacy.admin.banner_add') %></button></div>
+    </form>
+  </div>
+
+  <% if (!banners.length) { %>
+    <div class="text-center py-12 text-gray-400"><%= t('pharmacy.admin.no_banners') %></div>
+  <% } else { %>
+    <div class="space-y-3">
+      <% banners.forEach(function(bn){ %>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex items-center gap-3">
+          <img src="<%= bn.image_url %>" alt="" class="w-32 h-16 object-cover shrink-0" />
+          <div class="min-w-0 flex-1 py-2">
+            <% if (bn.caption) { %><div class="font-bold text-sm truncate"><%= bn.caption %></div><% } %>
+            <% if (bn.target_url) { %><a href="<%= bn.target_url %>" target="_blank" rel="noopener" class="text-xs text-emerald-700 underline truncate block" dir="ltr"><%= bn.target_url %></a><% } %>
+            <span class="text-[11px] font-bold rounded-full px-2 py-0.5 <%= bn.is_active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100' %>"><%= bn.is_active ? t('pharmacy.admin.banner_active') : t('pharmacy.admin.banner_paused') %></span>
+          </div>
+          <div class="flex items-center gap-1 pe-3 shrink-0">
+            <form method="post" action="/pharmacy/banners/<%= bn.id %>/toggle" class="inline"><button class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"><%= bn.is_active ? t('pharmacy.admin.banner_paused') : t('pharmacy.admin.banner_active') %></button></form>
+            <form method="post" action="/pharmacy/banners/<%= bn.id %>/delete" class="inline" onsubmit="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')"><button class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100"><%= t('pharmacy.admin.delete') %></button></form>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>
