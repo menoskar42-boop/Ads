@@ -23,7 +23,9 @@
       <% orders.forEach(function(o){
            var badge = { pending:'bg-emerald-100 text-emerald-800', accepted:'bg-blue-50 text-blue-700',
              preparing:'bg-indigo-50 text-indigo-700', ready:'bg-purple-50 text-purple-700',
+             out_for_delivery:'bg-orange-50 text-orange-700',
              delivered:'bg-green-50 text-green-700', rejected:'bg-red-50 text-red-600', cancelled:'bg-gray-100 text-gray-500' }[o.status] || 'bg-gray-100 text-gray-600';
+           var ev = (typeof lastEvent !== 'undefined' && lastEvent) ? lastEvent[o.id] : null;
       %>
         <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div class="flex items-center justify-between gap-2 mb-2">
@@ -39,6 +41,9 @@
               <li>• <%= it.name %> × <%= it.qty %><% if (it.price!=null) { %> — <%= Number(it.price).toFixed(2) %> <%= t('pharmacy.currency') %><% } %></li>
             <% }) %>
           </ul>
+          <% if (ev && ev.actor) { %>
+            <div class="text-xs text-gray-400 mb-2"><%= t('pharmacy.orders.changed_by') %>: <span class="font-bold text-gray-500"><%= ev.actor %></span></div>
+          <% } %>
           <div class="flex items-center justify-between gap-2 border-t pt-3">
             <span class="font-extrabold text-emerald-700"><%= Number(o.total_amount||0).toFixed(2) %> <%= t('pharmacy.currency') %></span>
             <form method="post" action="/pharmacy/orders/<%= o.id %>/status" class="flex items-center gap-2">

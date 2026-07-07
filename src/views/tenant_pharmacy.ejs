@@ -16,9 +16,10 @@
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
 %>
 <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<% var __phCanon = 'https://' + company.slug + '.oscardevs.com/'; %>
 <title><%= __phTitle %> | OscarDevs</title>
 <meta name="description" content="<%= __phDesc %>" />
-<%- include('partials/seo_meta', { title: __phTitle, description: __phDesc }) %>
+<%- include('partials/seo_meta', { title: __phTitle, description: __phDesc, canonical: __phCanon }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>

@@ -78,6 +78,16 @@ const uploadProductMedia = makeMediaUploader('product').fields([
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 
+// Pharmacy staff (non-owner) may not use the owner's company pages — redirect
+// them to their scoped /pharmacy area. Login/logout/push stay open.
+router.use((req, res, next) => {
+  if (req.session && req.session.staffId) {
+    if (req.path === '/login' || req.path === '/logout' || req.path.startsWith('/push/')) return next();
+    return res.redirect('/pharmacy');
+  }
+  next();
+});
+
 router.use(async (req, res, next) => {
   res.locals.unreadCount = 0;
   res.locals.pendingOrdersCount = 0;
@@ -132,6 +142,29 @@ router.post('/login', async (req, res) => {
       [email]
     );
     if (!result.rows.length) {
+      // Pharmacy staff account? (pharmacist / cashier / delivery) — they log in
+      // with a username and land in the /pharmacy area with a scoped role.
+      const staffR = await pool.query(
+        `SELECT ps.*, c.company_name, c.theme_color, c.slug
+         FROM pharmacy_staff ps JOIN companies c ON c.id = ps.company_id
+         WHERE lower(ps.username) = $1 AND ps.is_active = true`,
+        [email]
+      );
+      if (staffR.rows.length) {
+        const st = staffR.rows[0];
+        const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
+        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        req.session.companyId = st.company_id;
+        req.session.staffId = st.id;
+        req.session.staffRole = st.role || 'cashier';
+        req.session.staffName = st.name || st.username;
+        req.session.canSeeFinance = st.can_see_finance === true;
+        req.session.companyName = st.company_name;
+        req.session.themeColor = st.theme_color;
+        req.session.companySlug = st.slug;
+        req.session.adminLang = 'ar';
+        return res.redirect('/pharmacy');
+      }
       // No active account yet — check if there's an application so we can guide them.
       const appR = await pool.query(
         `SELECT status, admin_notes FROM signup_applications WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,

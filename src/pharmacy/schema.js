@@ -121,6 +121,24 @@ async function ensurePharmacySchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
 
+      -- Audit trail: who changed an order's status and when.
+      CREATE TABLE IF NOT EXISTS pharmacy_order_events (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES pharmacy_orders(id) ON DELETE CASCADE,
+        status TEXT,
+        actor TEXT,
+        actor_role TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_order_events_order ON pharmacy_order_events (order_id);
+
+      -- Staff extras: contact phone + sales commission percent.
+      ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS phone TEXT;
+      ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2) DEFAULT 0;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_staff_username ON pharmacy_staff (lower(username));
+      -- Optional per-order assignment to a delivery driver (used by GPS phase).
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS assigned_staff INTEGER;
+
       -- POS movements: sale (صادر) / purchase (وارد) / adjust. offline_uid gives
       -- idempotent replay when the offline POS syncs queued transactions.
       CREATE TABLE IF NOT EXISTS pharmacy_sales (

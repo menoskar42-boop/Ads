@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
@@ -13,6 +14,7 @@ const STATUS_NOTIF = {
   accepted:  { t: '✅ تم تأكيد طلبك', b: 'أكّدت الصيدلية طلبك وجاري تجهيزه.' },
   preparing: { t: '⏳ طلبك قيد التحضير', b: 'الصيدلية بتجهّز طلبك دلوقتي.' },
   ready:     { t: '📦 طلبك جاهز', b: 'طلبك جاهز للاستلام أو التوصيل.' },
+  out_for_delivery: { t: '🚗 طلبك في الطريق', b: 'مندوب التوصيل في الطريق إليك.' },
   delivered: { t: '🎉 تم تسليم طلبك', b: 'شكراً لطلبك من الصيدلية.' },
   rejected:  { t: '❌ تعذّر تنفيذ طلبك', b: 'نأسف، الصيدلية اعتذرت عن الطلب.' },
   cancelled: { t: 'تم إلغاء طلبك', b: 'تم إلغاء الطلب.' },
@@ -34,11 +36,36 @@ async function requirePharmacy(req, res, next) {
       'INSERT INTO pharmacy_settings (company_id) VALUES ($1) ON CONFLICT (company_id) DO NOTHING',
       [req.company.id]
     );
+    // Effective role + permissions. The company owner (company_users login) has
+    // everything; staff (pharmacy_staff login) are scoped by role.
+    const role = req.session.staffId ? (req.session.staffRole || 'cashier') : 'owner';
+    const canFinance = role === 'owner' ? true : (req.session.canSeeFinance === true);
+    const perms = {
+      role,
+      canFinance,
+      inventory: role === 'owner' || role === 'pharmacist',
+      pos:       role === 'owner' || role === 'pharmacist' || role === 'cashier',
+      orders:    role === 'owner' || role === 'pharmacist' || role === 'cashier' || role === 'delivery',
+      settings:  role === 'owner',
+      staff:     role === 'owner',
+      deliveryOnly: role === 'delivery',
+    };
+    req.perms = perms;
+    res.locals.perms = perms;
+    res.locals.staffName = req.session.staffName || null;
     next();
   } catch (e) {
     console.error('requirePharmacy error:', e.message);
     res.status(500).send('Error.');
   }
+}
+
+// Route-level permission gate.
+function gate(key) {
+  return function (req, res, next) {
+    if (req.perms && req.perms[key]) return next();
+    return res.status(403).render('404', { subdomain: null });
+  };
 }
 
 router.use(requireLogin, requirePharmacy);
@@ -83,7 +110,7 @@ router.get('/', async (req, res) => {
 });
 
 /* ─── Inventory ─────────────────────────────────────────── */
-router.get('/inventory', async (req, res) => {
+router.get('/inventory', gate('inventory'), async (req, res) => {
   const cid = req.company.id;
   const q = (req.query.q || '').trim();
   try {
@@ -118,7 +145,7 @@ router.get('/inventory', async (req, res) => {
 
 // Add stock: either an existing catalog medicine (medicine_id) or a brand-new
 // medicine created on the fly (new_name_ar). Upserts the inventory row.
-router.post('/inventory/add', async (req, res) => {
+router.post('/inventory/add', gate('inventory'), async (req, res) => {
   const cid = req.company.id;
   const b = req.body || {};
   try {
@@ -153,7 +180,7 @@ router.post('/inventory/add', async (req, res) => {
   }
 });
 
-router.post('/inventory/:id/update', async (req, res) => {
+router.post('/inventory/:id/update', gate('inventory'), async (req, res) => {
   const cid = req.company.id;
   const id = toInt(req.params.id, null);
   const b = req.body || {};
@@ -172,7 +199,7 @@ router.post('/inventory/:id/update', async (req, res) => {
   }
 });
 
-router.post('/inventory/:id/delete', async (req, res) => {
+router.post('/inventory/:id/delete', gate('inventory'), async (req, res) => {
   try {
     await pool.query('DELETE FROM pharmacy_inventory WHERE id=$1 AND company_id=$2',
       [toInt(req.params.id, null), req.company.id]);
@@ -184,7 +211,7 @@ router.post('/inventory/:id/delete', async (req, res) => {
 });
 
 /* ─── Settings ──────────────────────────────────────────── */
-router.get('/settings', async (req, res) => {
+router.get('/settings', gate('settings'), async (req, res) => {
   const settings = (await pool.query('SELECT * FROM pharmacy_settings WHERE company_id = $1', [req.company.id])).rows[0] || {};
   res.render('pharmacy_admin/settings', {
     company: req.company, settings, session: req.session,
@@ -192,7 +219,7 @@ router.get('/settings', async (req, res) => {
   });
 });
 
-router.post('/settings', async (req, res) => {
+router.post('/settings', gate('settings'), async (req, res) => {
   const b = req.body || {};
   try {
     await pool.query(
@@ -212,13 +239,13 @@ router.post('/settings', async (req, res) => {
 });
 
 /* ─── POS (point of sale) ───────────────────────────────── */
-router.get('/pos', (req, res) => {
+router.get('/pos', gate('pos'), (req, res) => {
   res.render('pharmacy_admin/pos', { company: req.company, session: req.session });
 });
 
 // JSON search over this pharmacy's stock — used by the POS and (later) the
 // barcode scanner. Matches Arabic/English name or barcode.
-router.get('/api/inventory-search', async (req, res) => {
+router.get('/api/inventory-search', gate('pos'), async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json([]);
   try {
@@ -237,7 +264,7 @@ router.get('/api/inventory-search', async (req, res) => {
 
 // Checkout a counter sale: validate availability, decrement stock, record the
 // sale + profit. Body: { items: [{ medicine_id, qty }] }.
-router.post('/pos/checkout', async (req, res) => {
+router.post('/pos/checkout', gate('pos'), async (req, res) => {
   const cid = req.company.id;
   const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
   if (!items.length) return res.status(400).json({ ok: false, error: 'empty' });
@@ -267,8 +294,8 @@ router.post('/pos/checkout', async (req, res) => {
     if (!lines.length) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, error: 'empty' }); }
     await stock.sellDirect(client, cid, lines);
     const sale = (await client.query(
-      `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit) VALUES ($1,'sale',$2,$3) RETURNING id`,
-      [cid, total, profit]
+      `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id) VALUES ($1,'sale',$2,$3,$4) RETURNING id`,
+      [cid, total, profit, req.session.staffId || null]
     )).rows[0];
     for (const l of lines) {
       await client.query(
@@ -288,9 +315,9 @@ router.post('/pos/checkout', async (req, res) => {
 });
 
 /* ─── Online orders inbox ───────────────────────────────── */
-const ORDER_FLOW = ['pending', 'accepted', 'preparing', 'ready', 'delivered', 'rejected', 'cancelled'];
+const ORDER_FLOW = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'rejected', 'cancelled'];
 
-router.get('/orders', async (req, res) => {
+router.get('/orders', gate('orders'), async (req, res) => {
   const cid = req.company.id;
   try {
     const orders = (await pool.query(
@@ -299,14 +326,21 @@ router.get('/orders', async (req, res) => {
     )).rows;
     const ids = orders.map(o => o.id);
     let itemsByOrder = {};
+    let lastEvent = {};
     if (ids.length) {
       const its = (await pool.query(
         `SELECT * FROM pharmacy_order_items WHERE order_id = ANY($1::int[])`, [ids]
       )).rows;
       for (const it of its) { (itemsByOrder[it.order_id] = itemsByOrder[it.order_id] || []).push(it); }
+      const evs = (await pool.query(
+        `SELECT DISTINCT ON (order_id) order_id, actor, actor_role, created_at
+         FROM pharmacy_order_events WHERE order_id = ANY($1::int[])
+         ORDER BY order_id, created_at DESC`, [ids]
+      )).rows;
+      for (const e of evs) lastEvent[e.order_id] = e;
     }
     res.render('pharmacy_admin/orders', {
-      company: req.company, orders, itemsByOrder, flow: ORDER_FLOW, session: req.session,
+      company: req.company, orders, itemsByOrder, lastEvent, flow: ORDER_FLOW, session: req.session,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('orders list error:', e.message); res.status(500).send('Error.'); }
@@ -316,11 +350,15 @@ router.get('/orders', async (req, res) => {
 //  → delivered: stock leaves (fulfill) + record the sale/profit.
 //  → rejected/cancelled: release the hold.
 //  other transitions keep the existing reservation.
-router.post('/orders/:id/status', async (req, res) => {
+router.post('/orders/:id/status', gate('orders'), async (req, res) => {
   const cid = req.company.id;
   const oid = parseInt(req.params.id, 10);
   const next = String((req.body && req.body.status) || '').trim();
   if (!ORDER_FLOW.includes(next)) return res.redirect('/pharmacy/orders?error=1');
+  // Delivery drivers may only move an order out-for-delivery / delivered.
+  if (req.perms.deliveryOnly && !['out_for_delivery', 'delivered'].includes(next)) {
+    return res.status(403).render('404', { subdomain: null });
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -349,8 +387,8 @@ router.post('/orders/:id/status', async (req, res) => {
         total += price * qty; profit += (price - cost) * qty;
       }
       const sale = (await client.query(
-        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit) VALUES ($1,'sale',$2,$3) RETURNING id`,
-        [cid, total, profit]
+        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id) VALUES ($1,'sale',$2,$3,$4) RETURNING id`,
+        [cid, total, profit, req.session.staffId || null]
       )).rows[0];
       for (const l of lines) {
         await client.query(
@@ -363,6 +401,11 @@ router.post('/orders/:id/status', async (req, res) => {
     }
 
     await client.query('UPDATE pharmacy_orders SET status = $1 WHERE id = $2', [next, oid]);
+    // Audit: record who changed the status.
+    await client.query(
+      `INSERT INTO pharmacy_order_events (order_id, status, actor, actor_role) VALUES ($1,$2,$3,$4)`,
+      [oid, next, req.session.staffName || 'المالك', req.perms.role]
+    );
     await client.query('COMMIT');
     // Notify the customer tracking this order (Talabat-style status update).
     const notif = STATUS_NOTIF[next];
@@ -381,6 +424,55 @@ router.post('/orders/:id/status', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+/* ─── Staff & roles (owner only) ────────────────────────── */
+router.get('/staff', gate('staff'), async (req, res) => {
+  try {
+    const staff = (await pool.query(
+      'SELECT * FROM pharmacy_staff WHERE company_id = $1 ORDER BY is_active DESC, created_at DESC', [req.company.id]
+    )).rows;
+    res.render('pharmacy_admin/staff', {
+      company: req.company, staff, session: req.session,
+      saved: req.query.saved === '1', error: req.query.error || null,
+    });
+  } catch (e) { console.error('staff list error:', e.message); res.status(500).send('Error.'); }
+});
+
+router.post('/staff/add', gate('staff'), async (req, res) => {
+  const b = req.body || {};
+  const name = (b.name || '').trim();
+  const username = (b.username || '').trim().toLowerCase();
+  const pw = String(b.password || '');
+  const role = ['pharmacist', 'cashier', 'delivery'].includes(b.role) ? b.role : 'cashier';
+  if (!name || !username || !pw) return res.redirect('/pharmacy/staff?error=' + encodeURIComponent('اكمل الاسم واسم المستخدم وكلمة السر'));
+  try {
+    const hash = await bcrypt.hash(pw, 10);
+    // Pharmacist sees finances by default; cashier & delivery do not.
+    const canFin = role === 'pharmacist';
+    await pool.query(
+      `INSERT INTO pharmacy_staff (company_id, name, username, password_hash, role, can_see_finance, phone, commission_percent, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true)`,
+      [req.company.id, name, username, hash, role, canFin, (b.phone || '').trim() || null, toNum(b.commission_percent, 0)]
+    );
+    res.redirect('/pharmacy/staff?saved=1');
+  } catch (e) {
+    console.error('staff add error:', e.message);
+    const msg = /unique|duplicate/i.test(e.message) ? 'اسم المستخدم مستخدم بالفعل' : 'حصل خطأ، حاول تاني';
+    res.redirect('/pharmacy/staff?error=' + encodeURIComponent(msg));
+  }
+});
+
+router.post('/staff/:id/toggle', gate('staff'), async (req, res) => {
+  await pool.query('UPDATE pharmacy_staff SET is_active = NOT is_active WHERE id = $1 AND company_id = $2',
+    [toInt(req.params.id, null), req.company.id]).catch(() => {});
+  res.redirect('/pharmacy/staff?saved=1');
+});
+
+router.post('/staff/:id/delete', gate('staff'), async (req, res) => {
+  await pool.query('DELETE FROM pharmacy_staff WHERE id = $1 AND company_id = $2',
+    [toInt(req.params.id, null), req.company.id]).catch(() => {});
+  res.redirect('/pharmacy/staff?saved=1');
 });
 
 module.exports = router;
