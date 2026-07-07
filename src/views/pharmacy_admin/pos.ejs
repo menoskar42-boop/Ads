@@ -7,14 +7,26 @@
 <title><%= t('pharmacy.admin.pos') %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
-<style>* { font-family: 'Cairo', sans-serif; } .fld{border:1px solid #d1d5db;border-radius:10px;padding:10px 12px;width:100%;outline:none}</style>
+<style>* { font-family: 'Cairo', sans-serif; } .fld{border:1px solid #d1d5db;border-radius:10px;padding:10px 12px;width:100%;outline:none}
+  .scanbtn{flex:0 0 auto;width:52px;border:1px solid #0e7c66;color:#0e7c66;background:#fff;border-radius:10px;font-size:1.4rem;cursor:pointer}
+  #scanOverlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+  #reader{width:100%;max-width:360px;border-radius:16px;overflow:hidden;background:#000}</style>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
 <%- include('nav', { active: 'pos' }) %>
 
 <main class="max-w-3xl mx-auto px-4 py-6">
-  <input id="posSearch" class="fld text-lg mb-2" placeholder="<%= t('pharmacy.pos.search') %>" autocomplete="off" autofocus />
+  <div class="flex gap-2 mb-2">
+    <input id="posSearch" class="fld text-lg" style="flex:1" placeholder="<%= t('pharmacy.pos.search') %>" autocomplete="off" autofocus />
+    <button id="posScan" type="button" class="scanbtn" aria-label="scan">📷</button>
+  </div>
   <div id="posResults" class="bg-white rounded-xl border border-gray-100 shadow-sm divide-y hidden"></div>
+
+  <div id="scanOverlay" style="display:none">
+    <div id="reader"></div>
+    <button id="scanClose" class="mt-4 bg-white text-gray-800 font-bold rounded-xl px-6 py-2">✕</button>
+  </div>
 
   <div class="mt-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
     <div class="font-extrabold text-emerald-700 mb-3">🧾 <%= t('pharmacy.pos.cart') %></div>
@@ -108,6 +120,26 @@
   var toastTimer=null;
   function toast(m){ var el=$('posToast'); el.textContent=m; el.classList.remove('hidden'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){el.classList.add('hidden');},2200); }
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  // ── Barcode camera scanning (html5-qrcode) ──
+  var scanBtn=$('posScan'), overlay=$('scanOverlay'), scanClose=$('scanClose'), scanner=null;
+  function stopScan(){ if(scanner){ scanner.stop().then(function(){ try{scanner.clear();}catch(e){} }).catch(function(){}); scanner=null; } overlay.style.display='none'; }
+  scanClose.onclick=stopScan;
+  scanBtn.onclick=function(){
+    if(typeof Html5Qrcode==='undefined'){ searchBox.focus(); toast('اكتب الباركود أو استخدم قارئ'); return; }
+    overlay.style.display='flex';
+    scanner=new Html5Qrcode('reader');
+    scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}},
+      function(code){
+        stopScan();
+        // barcode decoded → search inventory and auto-add the first match
+        fetch('/pharmacy/api/inventory-search?q='+encodeURIComponent(code))
+          .then(function(r){return r.json();})
+          .then(function(rows){ if(rows.length){ addToCart(rows[0]); toast(rows[0].name_ar); } else { searchBox.value=code; doSearch(code); } })
+          .catch(function(){});
+      }, function(){}
+    ).catch(function(){ overlay.style.display='none'; scanner=null; searchBox.focus(); toast('تعذّر فتح الكاميرا'); });
+  };
 })();
 </script>
 </body>
