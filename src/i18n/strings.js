@@ -180,7 +180,7 @@ const strings = {
 
     // Pharmacy (public storefront)
     'pharmacy.demo_badge': 'نموذج تجريبي',
-    'pharmacy.night_shift': 'خدمة ليلية',
+    'pharmacy.night_shift': 'مفتوحة ليلاً',
     'pharmacy.whatsapp': 'واتساب',
     'pharmacy.search_placeholder': 'ابحث باسم الدواء أو الباركود…',
     'pharmacy.available': 'متوفّر',
@@ -549,7 +549,7 @@ const strings = {
 
     // Pharmacy (public storefront)
     'pharmacy.demo_badge': 'Demo',
-    'pharmacy.night_shift': 'Night shift',
+    'pharmacy.night_shift': 'Open at night',
     'pharmacy.whatsapp': 'WhatsApp',
     'pharmacy.search_placeholder': 'Search by medicine name or barcode…',
     'pharmacy.available': 'In stock',
