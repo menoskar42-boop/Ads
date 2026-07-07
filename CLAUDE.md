@@ -77,6 +77,7 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
 ---
 
 ## مراجع مخزّنة (لا تحذفها)
+- `docs/SEO_MISTAKES_LOG.md` — **سجل أخطاء الـ SEO (الـ12 مشكلة اللي اتعلّمنا منها + قواعد ذهبية). راجعه قبل أي شغل SEO/قوالب جديدة عشان متكرّرش نفس الأغلاط.**
 - `docs/ADSENSE_POLICIES.md` — سياسات AdSense الإلزامية.
 - `docs/ADSENSE_CONTENT_REQUIREMENTS.md` — متطلبات المحتوى + سياسات الناشر + المحتوى قليل القيمة + ads.txt + COPPA (مرجع سبب الرفض الحالي؛ يُراجَع قبل أي طلب مراجعة).
 - `docs/ADSENSE_AUDIT.md` — تدقيق الموقع لـ AdSense وخطة الإصلاح.
