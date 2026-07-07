@@ -1,6 +1,8 @@
 <%
   pageTitle = 'Messages';
   activePage = 'messages';
+  var isSpamFolder = (typeof folder !== 'undefined' && folder === 'spam');
+  var c = (typeof counts !== 'undefined' && counts) ? counts : { inbox: 0, spam: 0 };
 %>
 <%- include('_layout_top') %>
 
@@ -11,26 +13,47 @@
     <div class="bg-white rounded-2xl shadow-sm p-6 brand-border">
       <h2 class="text-xl font-bold text-gray-800 mb-1">Inbox</h2>
       <p class="text-gray-400 text-sm">Messages from visitors of your public landing page.</p>
+
+      <!-- Folder tabs -->
+      <div class="flex gap-2 mt-4">
+        <a href="/company/messages"
+           class="text-sm font-bold rounded-xl px-4 py-2 <%= !isSpamFolder ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>">
+          📥 Inbox <span class="opacity-80">(<%= c.inbox %>)</span>
+        </a>
+        <a href="/company/messages?folder=spam"
+           class="text-sm font-bold rounded-xl px-4 py-2 <%= isSpamFolder ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' %>">
+          🚫 Spam <span class="opacity-80">(<%= c.spam %>)</span>
+        </a>
+      </div>
     </div>
+
+    <% if (isSpamFolder) { %>
+      <div class="bg-amber-50 text-amber-800 rounded-xl px-4 py-2 text-sm">
+        These messages were auto-classified as spam. Nothing here notifies you. If one is a real message, press “Not spam”.
+      </div>
+    <% } %>
 
     <% if (!messages.length) { %>
       <div class="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">
         <svg class="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
         </svg>
-        <p class="font-semibold">No messages yet.</p>
-        <p class="text-sm mt-1">Visitors who use the contact form on your page will appear here.</p>
+        <p class="font-semibold"><%= isSpamFolder ? 'No spam.' : 'No messages yet.' %></p>
+        <% if (!isSpamFolder) { %><p class="text-sm mt-1">Visitors who use the contact form on your page will appear here.</p><% } %>
       </div>
     <% } else { %>
       <div class="space-y-3">
         <% messages.forEach(m => { %>
-          <div class="bg-white rounded-2xl shadow-sm p-5 <%= m.is_read ? '' : 'brand-border' %>">
+          <div class="bg-white rounded-2xl shadow-sm p-5 <%= (!m.is_read && !isSpamFolder) ? 'brand-border' : '' %>">
             <div class="flex items-start justify-between gap-4 mb-2 flex-wrap">
               <div>
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="font-bold text-gray-800"><%= m.sender_name %></span>
-                  <% if (!m.is_read) { %>
+                  <% if (!m.is_read && !isSpamFolder) { %>
                     <span class="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">NEW</span>
+                  <% } %>
+                  <% if (isSpamFolder) { %>
+                    <span class="bg-gray-200 text-gray-600 text-xs font-bold rounded-full px-2 py-0.5">SPAM</span>
                   <% } %>
                 </div>
                 <div class="flex flex-col gap-0.5">
@@ -45,13 +68,23 @@
               <span class="text-xs text-gray-400"><%= new Date(m.created_at).toLocaleString() %></span>
             </div>
             <p class="text-sm text-gray-700 whitespace-pre-wrap mb-3"><%= m.message %></p>
-            <div class="flex items-center gap-2">
-              <% if (!m.is_read) { %>
-                <form method="POST" action="/company/messages/<%= m.id %>/read" class="inline">
-                  <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">Mark as read</button>
+            <div class="flex items-center gap-2 flex-wrap">
+              <% if (!isSpamFolder) { %>
+                <% if (!m.is_read) { %>
+                  <form method="POST" action="/company/messages/<%= m.id %>/read" class="inline">
+                    <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">Mark as read</button>
+                  </form>
+                <% } %>
+                <form method="POST" action="/company/messages/<%= m.id %>/spam" class="inline">
+                  <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition">🚫 Move to spam</button>
+                </form>
+              <% } else { %>
+                <form method="POST" action="/company/messages/<%= m.id %>/not-spam" class="inline">
+                  <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition">✓ Not spam</button>
                 </form>
               <% } %>
               <form method="POST" action="/company/messages/<%= m.id %>/delete" class="inline" onsubmit="return confirm('Delete this message?');">
+                <input type="hidden" name="folder" value="<%= isSpamFolder ? 'spam' : 'inbox' %>" />
                 <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">Delete</button>
               </form>
             </div>

@@ -330,6 +330,10 @@
     <% if (typeof sent !== 'undefined' && sent) { %><div class="form-note ok">✓ تم إرسال رسالتك بنجاح</div><% } %>
     <% if (typeof contactError !== 'undefined' && contactError) { %><div class="form-note err"><%= contactError %></div><% } %>
     <form method="POST" action="/contact/<%= company.slug %>">
+      <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;">
+        <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      </div>
+      <input type="hidden" name="ft" value="<%= Date.now() %>" />
       <div class="row2">
         <input type="text" name="sender_name" placeholder="<%= t('common.name') %>" required />
         <input type="email" name="sender_email" placeholder="<%= t('common.email') || 'البريد الإلكتروني' %>" />

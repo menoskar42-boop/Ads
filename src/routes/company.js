@@ -96,7 +96,7 @@ router.use(async (req, res, next) => {
     try {
       const r = await pool.query(
         `SELECT
-           (SELECT COUNT(*) FROM contact_messages WHERE company_id = $1 AND is_read = false) AS unread,
+           (SELECT COUNT(*) FROM contact_messages WHERE company_id = $1 AND is_read = false AND is_spam = false) AS unread,
            (SELECT COUNT(*) FROM orders WHERE company_id = $1 AND status = 'pending') AS pending_orders,
            (SELECT page_type FROM companies WHERE id = $1) AS page_type`,
         [req.session.companyId]
@@ -510,12 +510,20 @@ router.post('/portfolio/delete/:id', requireLogin, async (req, res) => {
 
 /* ─── MESSAGES ───────────────────────────────────────────── */
 router.get('/messages', requireLogin, async (req, res) => {
+  const folder = req.query.folder === 'spam' ? 'spam' : 'inbox';
+  const wantSpam = folder === 'spam';
   try {
     const result = await pool.query(
-      'SELECT * FROM contact_messages WHERE company_id = $1 ORDER BY created_at DESC',
-      [req.session.companyId]
+      'SELECT * FROM contact_messages WHERE company_id = $1 AND is_spam = $2 ORDER BY created_at DESC',
+      [req.session.companyId, wantSpam]
     );
-    res.render('company/messages', { messages: result.rows, session: req.session });
+    const counts = (await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE is_spam = false)::int AS inbox,
+              COUNT(*) FILTER (WHERE is_spam = true)::int AS spam
+       FROM contact_messages WHERE company_id = $1`,
+      [req.session.companyId]
+    )).rows[0];
+    res.render('company/messages', { messages: result.rows, folder, counts, session: req.session });
   } catch (err) {
     console.error('[GET /messages] error:', err);
     res.status(500).send('Error loading messages.');
@@ -527,7 +535,24 @@ router.post('/messages/:id/read', requireLogin, async (req, res) => {
     'UPDATE contact_messages SET is_read = true WHERE id = $1 AND company_id = $2',
     [req.params.id, req.session.companyId]
   );
+  res.redirect(req.body.folder === 'spam' ? '/company/messages?folder=spam' : '/company/messages');
+});
+
+// Move a message to the spam folder (or back to the inbox).
+router.post('/messages/:id/spam', requireLogin, async (req, res) => {
+  await pool.query(
+    'UPDATE contact_messages SET is_spam = true WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
   res.redirect('/company/messages');
+});
+
+router.post('/messages/:id/not-spam', requireLogin, async (req, res) => {
+  await pool.query(
+    'UPDATE contact_messages SET is_spam = false, is_read = false WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/messages?folder=spam');
 });
 
 router.post('/messages/:id/delete', requireLogin, async (req, res) => {
@@ -535,7 +560,7 @@ router.post('/messages/:id/delete', requireLogin, async (req, res) => {
     'DELETE FROM contact_messages WHERE id = $1 AND company_id = $2',
     [req.params.id, req.session.companyId]
   );
-  res.redirect('/company/messages');
+  res.redirect(req.body.folder === 'spam' ? '/company/messages?folder=spam' : '/company/messages');
 });
 
 async function fetchCategories(companyId) {

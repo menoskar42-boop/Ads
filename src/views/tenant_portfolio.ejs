@@ -905,6 +905,10 @@ ul{ list-style:none; }
         <div class="form-msg show" role="status" style="margin-bottom:16px">تم استلام طلبك بنجاح، سنتواصل معك قريباً. شكراً لثقتك.</div>
         <% } %>
         <form class="contact-form" id="contactForm" method="POST" action="/contact/<%= company.slug %>" data-reveal>
+          <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;">
+            <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+          </div>
+          <input type="hidden" name="ft" value="<%= Date.now() %>" />
           <div class="form-row">
             <div class="field">
               <label for="name">الاسم</label>

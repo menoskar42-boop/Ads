@@ -93,6 +93,10 @@ async function createSchema() {
       );
 
       ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS sender_phone TEXT;
+      -- Spam-flagged messages stay in the DB but show in a separate "spam"
+      -- folder in the company admin, never mixed with the real inbox.
+      ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS is_spam BOOLEAN DEFAULT false;
+      CREATE INDEX IF NOT EXISTS idx_contact_msg_company_spam ON contact_messages (company_id, is_spam);
 
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS page_type TEXT DEFAULT 'portfolio';
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';

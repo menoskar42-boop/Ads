@@ -46,6 +46,23 @@ function validateContact(body) {
   };
 }
 
+// Lightweight spam heuristics (no CAPTCHA, never blocks a real visitor). A hit
+// doesn't reject the message — it just files it under the "spam" folder.
+//  - honeypot: a hidden field humans never see; bots fill it.
+//  - timing: forms submitted in under ~2.5s are almost always bots.
+//  - link-stuffing: 2+ URLs in a contact message is a strong spam signal.
+function classifySpam(body) {
+  if (String(body.website || body.url2 || '').trim()) return true;
+  const ft = parseInt(body.ft, 10);
+  if (Number.isFinite(ft)) {
+    const age = Date.now() - ft;
+    if (age >= 0 && age < 2500) return true;
+  }
+  const links = (String(body.message || '').match(/https?:\/\//gi) || []).length;
+  if (links >= 2) return true;
+  return false;
+}
+
 router.post('/contact', async (req, res) => {
   const v = validateContact(req.body);
   if (v.error) return res.redirect(`/?error=${encodeURIComponent(v.error)}`);
@@ -75,16 +92,21 @@ router.post('/contact/:slug', async (req, res) => {
       return res.status(404).render('404', { subdomain: slug });
     }
     const companyId = companyResult.rows[0].id;
+    const isSpam = classifySpam(req.body);
     await pool.query(
-      `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [companyId, v.sender_name, v.sender_email, v.sender_phone, v.message]
+      `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message, is_spam)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [companyId, v.sender_name, v.sender_email, v.sender_phone, v.message, isSpam]
     );
-    push.sendToCompany(companyId, {
-      title: '📩 رسالة جديدة',
-      body: `وصلتك رسالة جديدة من ${v.sender_name}`,
-      url: '/company/messages',
-    }, 'message').catch((e) => console.error('[push contact] error:', e.message));
+    // Don't ping the owner for spam — it lands silently in the spam folder.
+    if (!isSpam) {
+      push.sendToCompany(companyId, {
+        title: '📩 رسالة جديدة',
+        body: `وصلتك رسالة جديدة من ${v.sender_name}`,
+        url: '/company/messages',
+      }, 'message').catch((e) => console.error('[push contact] error:', e.message));
+    }
+    // Always answer the sender the same way (don't reveal spam detection to bots).
     res.redirect(`${canonicalCompanyUrl(slug, req)}?sent=1`);
   } catch (err) {
     console.error('[POST /contact/:slug] db error:', err);
