@@ -106,6 +106,27 @@ router.get('/', async (req, res) => {
     } catch (err) { console.error('Pharmacy query error:', err.message); }
   }
 
+  // Orders tenant (restaurant / supermarket): load active outlets with their
+  // categories + available items for the menu.
+  let foodOutlets = [];
+  let foodItemCount = 0;
+  if (company.page_type === 'orders') {
+    try {
+      foodOutlets = (await pool.query(
+        'SELECT * FROM food_outlets WHERE company_id = $1 AND is_active = true ORDER BY vertical', [company.id]
+      )).rows;
+      for (const o of foodOutlets) {
+        o.categories = (await pool.query(
+          'SELECT * FROM food_categories WHERE outlet_id = $1 ORDER BY sort_order, id', [o.id]
+        )).rows;
+        o.items = (await pool.query(
+          'SELECT * FROM food_items WHERE outlet_id = $1 AND is_available = true ORDER BY sort_order, id', [o.id]
+        )).rows;
+        foodItemCount += o.items.length;
+      }
+    } catch (err) { console.error('Food query error:', err.message); }
+  }
+
   let banners = [];
   try {
     banners = (await pool.query(
@@ -120,6 +141,7 @@ router.get('/', async (req, res) => {
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
+  else if (company.page_type === 'orders') view = 'tenant_orders';
   else view = 'tenant_portfolio';
 
   // Indexing quality gate: keep thin tenant pages out of the index (and away
@@ -133,6 +155,8 @@ router.get('/', async (req, res) => {
   // The demo pharmacy (slug 'pharmacy') is a sample, not a real business —
   // keep it out of the index; real customer pharmacies index once they have stock.
   else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3 && company.slug !== 'pharmacy';
+  // Demo orders merchant (slug 'orders') stays out of the index like the demo pharmacy.
+  else if (company.page_type === 'orders') indexable = foodItemCount >= 3 && company.slug !== 'orders';
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have
@@ -168,6 +192,8 @@ router.get('/', async (req, res) => {
     pharmacyItems,
     pharmacySettings,
     pharmacyStockCount,
+    foodOutlets,
+    foodItemCount,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
     cartCount,

@@ -115,7 +115,7 @@ router.get('/companies/add', requireAdmin, (req, res) => {
 
 router.post('/companies/add', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, admin_email, admin_password } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   const form = { company_name, slug, description, theme_color, admin_email, page_type };
 
   const renderError = (error) =>
@@ -194,7 +194,7 @@ router.get('/companies/:id/edit', requireAdmin, async (req, res) => {
 
 router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, is_active } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   try {
     if (!SLUG_REGEX.test(slug) || RESERVED_SLUGS.includes(slug)) {
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
@@ -428,7 +428,7 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
           `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
            VALUES ($1, $2, $3, $4, $5, 'طلب تسجيل', 'converted', $6, CURRENT_DATE + 3)`,
           [app.full_name, app.phone, app.email, app.business_name,
-           app.business_type === 'shop' ? 'متجر' : app.business_type === 'pharmacy' ? 'صيدلية' : 'بورتفوليو',
+           app.business_type === 'shop' ? 'متجر' : app.business_type === 'pharmacy' ? 'صيدلية' : app.business_type === 'orders' ? 'مطاعم/طلبات' : 'بورتفوليو',
            `اتفعّل الحساب — ${app.preferred_slug}`]
         );
       } else {

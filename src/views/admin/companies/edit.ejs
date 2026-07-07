@@ -47,6 +47,7 @@
           <option value="portfolio" <%= (company.page_type || 'portfolio') === 'portfolio' ? 'selected' : '' %>><%= t('admin.page_type_portfolio') %></option>
           <option value="shop" <%= company.page_type === 'shop' ? 'selected' : '' %>><%= t('admin.page_type_shop') %></option>
           <option value="pharmacy" <%= company.page_type === 'pharmacy' ? 'selected' : '' %>><%= t('admin.page_type_pharmacy') %></option>
+          <option value="orders" <%= company.page_type === 'orders' ? 'selected' : '' %>><%= t('admin.page_type_orders') %></option>
         </select>
       </div>
 

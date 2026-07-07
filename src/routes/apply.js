@@ -16,7 +16,7 @@ const RESERVED_SLUGS = new Set([
 ]);
 
 router.get('/apply', (req, res) => {
-  const preType = ['shop', 'portfolio', 'pharmacy'].includes(req.query.type) ? req.query.type : '';
+  const preType = ['shop', 'portfolio', 'pharmacy', 'orders'].includes(req.query.type) ? req.query.type : '';
   res.render('apply/form', {
     error: null,
     values: preType ? { business_type: preType } : {},
@@ -47,7 +47,7 @@ router.post('/apply', async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return render('بريد إلكتروني غير صالح.');
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
-  if (!['shop', 'portfolio', 'pharmacy'].includes(values.business_type)) return render('اختر نوع الموقع.');
+  if (!['shop', 'portfolio', 'pharmacy', 'orders'].includes(values.business_type)) return render('اختر نوع الموقع.');
   if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
     return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
   }
@@ -92,7 +92,8 @@ router.post('/apply', async (req, res) => {
     // أضِف مقدّم الطلب تلقائياً للـCRM كعميل «مهتم» (متابعة النهارده) — fire-and-forget
     // ولا يعطّل الطلب. dedup بالرقم عشان ما يتكرّرش لو موجود.
     const crmCategory = values.business_type === 'shop' ? 'متجر'
-      : values.business_type === 'pharmacy' ? 'صيدلية' : 'بورتفوليو';
+      : values.business_type === 'pharmacy' ? 'صيدلية'
+      : values.business_type === 'orders' ? 'مطاعم/طلبات' : 'بورتفوليو';
     pool.query(
       `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
        SELECT $1, $2, $3, $4, $5, 'طلب تسجيل', 'interested', $6, CURRENT_DATE

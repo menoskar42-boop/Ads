@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%
+  var __name = company.company_name || 'مطعم';
+  var __suffix = lang === 'en' ? 'Order online' : 'اطلب أونلاين';
+  var __brand = ' | OscarDevs';
+  var __base = __name + ' — ' + __suffix;
+  var __title = (__base.length + __brand.length) <= 60 ? (__base + __brand) : __base.slice(0, 60);
+  var __desc = ((company.description || __base).trim()).slice(0, 155);
+  var __theme = company.theme_color || '#e8734a';
+  var __canon = 'https://' + company.slug + '.oscardevs.com/';
+  var __noindex = (typeof noindex !== 'undefined' && noindex);
+  var __otherLang = lang === 'ar' ? 'en' : 'ar';
+  var __outlets = (typeof foodOutlets !== 'undefined' && foodOutlets) ? foodOutlets : [];
+  function __money(v) { var n = Number(v); if (!isFinite(n)) return '0'; return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 2 }); }
+  function __vlabel(v) { return v === 'supermarket' ? t('orders.supermarket') : t('orders.restaurant'); }
+%>
+<% if (__noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon }) %>
+<% if (!__noindex && __outlets.length) { %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': (__outlets.some(function(o){return o.vertical==='restaurant';}) ? 'Restaurant' : 'Store'),
+  name: __name, url: __canon, description: __desc,
+  areaServed: { '@type': 'Country', name: 'Egypt' }
+}) %>
+</script>
+<% } %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  :root { --accent: <%= __theme %>; }
+  .accent-bg { background: var(--accent); }
+  .accent-text { color: var(--accent); }
+  body { background: #faf8f4; color: #182a27; }
+</style>
+</head>
+<body class="antialiased">
+
+<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100">
+  <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+    <% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="<%= __name %>" class="h-11 w-11 rounded-2xl object-cover" /><% } else { %><span class="grid place-items-center h-11 w-11 rounded-2xl accent-bg text-white text-2xl">🍽️</span><% } %>
+    <div class="min-w-0 flex-1">
+      <h1 class="text-lg font-extrabold leading-tight truncate"><%= __name %></h1>
+      <% if (company.description) { %><p class="text-xs text-gray-500 truncate"><%= company.description %></p><% } %>
+    </div>
+    <a href="?lang=<%= __otherLang %>" class="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-bold"><%= t('common.toggle_lang') %></a>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-5 pb-28">
+  <% if (!__outlets.length) { %>
+    <div class="text-center py-20 text-gray-400"><%= t('orders.empty_menu') %></div>
+  <% } else { %>
+    <% __outlets.forEach(function(o){
+         var oName = (lang === 'en' && o.name) ? o.name : (o.name_ar || o.name);
+    %>
+      <section class="mb-8">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs font-bold accent-text bg-white border border-gray-200 rounded-full px-2.5 py-1"><%= __vlabel(o.vertical) %></span>
+          <h2 class="text-xl font-extrabold"><%= oName %></h2>
+        </div>
+        <div class="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
+          <% if (Number(o.delivery_fee) > 0) { %><span>🛵 <%= t('orders.delivery_fee') %>: <%= __money(o.delivery_fee) %> <%= t('pharmacy.currency') %></span><% } %>
+          <% if (o.delivery_time_min) { %><span>⏱️ <%= o.delivery_time_min %> <%= t('orders.minutes') %></span><% } %>
+          <% if (Number(o.min_order) > 0) { %><span>🧾 <%= t('orders.min_order') %>: <%= __money(o.min_order) %> <%= t('pharmacy.currency') %></span><% } %>
+        </div>
+
+        <% (o.categories || []).forEach(function(cat){
+             var catItems = (o.items || []).filter(function(it){ return it.category_id === cat.id; });
+             if (!catItems.length) return;
+             var catName = (lang === 'en' && cat.name) ? cat.name : (cat.name_ar || cat.name);
+        %>
+          <h3 class="font-bold text-gray-700 mt-5 mb-2"><%= catName %></h3>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <% catItems.forEach(function(it){
+                 var iName = (lang === 'en' && it.name) ? it.name : (it.name_ar || it.name);
+            %>
+              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex gap-3">
+                <div class="h-20 w-20 shrink-0 rounded-xl bg-gray-100 grid place-items-center overflow-hidden">
+                  <% if (it.image_url) { %><img src="<%= it.image_url %>" alt="<%= iName %>" loading="lazy" class="h-full w-full object-cover" /><% } else { %><span class="text-2xl opacity-40">🍽️</span><% } %>
+                </div>
+                <div class="min-w-0 flex-1 flex flex-col">
+                  <h4 class="font-bold leading-tight"><%= iName %></h4>
+                  <% if (it.description) { %><p class="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2"><%= it.description %></p><% } %>
+                  <div class="mt-auto pt-2 flex items-center justify-between">
+                    <span class="font-extrabold accent-text"><bdi><%= __money(it.price) %> <span class="text-xs text-gray-400"><%= t('pharmacy.currency') %></span></bdi></span>
+                    <button type="button" class="add-btn accent-bg text-white rounded-full px-4 py-1.5 text-sm font-bold"
+                            data-id="<%= it.id %>" data-name="<%= iName %>" data-price="<%= Number(it.price) %>"><%= t('orders.add') %></button>
+                  </div>
+                </div>
+              </div>
+            <% }); %>
+          </div>
+        <% }); %>
+      </section>
+    <% }); %>
+  <% } %>
+
+  <p class="mt-10 text-center text-xs text-gray-400"><%= t('pharmacy.provided_by') %> <a href="https://oscardevs.com" target="_blank" rel="noopener" class="accent-text font-bold">OscarDevs</a></p>
+</main>
+
+<!-- Floating cart (Phase 0 skeleton — full cart/checkout in later phases) -->
+<div id="cartBar" class="fixed inset-x-0 bottom-0 z-40 hidden">
+  <div class="max-w-4xl mx-auto px-4 pb-4">
+    <button id="cartBtn" class="w-full accent-bg text-white rounded-2xl shadow-lg px-5 py-3.5 font-extrabold flex items-center justify-between">
+      <span class="flex items-center gap-2">🛒 <span id="cartCount">0</span> · <%= t('orders.cart') %></span>
+      <span id="cartTotal">0 <%= t('pharmacy.currency') %></span>
+    </button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'oscardevs_food_cart_' + <%- JSON.stringify(company.slug) %>;
+  var bar = document.getElementById('cartBar');
+  var countEl = document.getElementById('cartCount');
+  var totalEl = document.getElementById('cartTotal');
+  var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
+  var isAr = document.documentElement.lang === 'ar';
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+  function save(c) { localStorage.setItem(KEY, JSON.stringify(c)); }
+  function fmt(n) { return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); }
+  function render() {
+    var c = load(), count = 0, total = 0;
+    Object.keys(c).forEach(function (k) { count += c[k].q; total += c[k].q * c[k].p; });
+    countEl.textContent = fmt(count);
+    totalEl.textContent = fmt(total) + ' ' + CUR;
+    bar.classList.toggle('hidden', count === 0);
+  }
+  document.querySelectorAll('.add-btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var c = load(), id = b.dataset.id;
+      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price), q: 0 };
+      c[id].q += 1; save(c); render();
+      b.textContent = '✓'; setTimeout(function () { b.textContent = <%- JSON.stringify(t('orders.add')) %>; }, 700);
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>
