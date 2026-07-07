@@ -122,6 +122,9 @@ router.get('/', async (req, res) => {
         o.items = (await pool.query(
           'SELECT * FROM food_items WHERE outlet_id = $1 AND is_available = true ORDER BY sort_order, id', [o.id]
         )).rows;
+        o.rating = (await pool.query(
+          'SELECT ROUND(AVG(rating), 1) AS avg, COUNT(*)::int AS n FROM food_reviews WHERE outlet_id = $1', [o.id]
+        )).rows[0];
         foodItemCount += o.items.length;
       }
     } catch (err) { console.error('Food query error:', err.message); }
@@ -344,6 +347,31 @@ async function foodOrderGuard(req, res, next) {
   next();
 }
 
+// Validate a coupon for a company against a subtotal. Returns { ok, discount,
+// coupon } — discount is 0 when invalid. Never throws.
+async function validateFoodCoupon(db, companyId, code, subtotal) {
+  code = String(code || '').trim().toUpperCase();
+  if (!code) return { ok: false, discount: 0 };
+  try {
+    const c = (await db.query('SELECT * FROM food_coupons WHERE company_id=$1 AND code=$2', [companyId, code])).rows[0];
+    if (!c || !c.is_active) return { ok: false, discount: 0 };
+    if (c.expires_at && new Date(c.expires_at).getTime() < Date.now()) return { ok: false, discount: 0 };
+    if (c.usage_limit && Number(c.usage_limit) > 0 && Number(c.used_count) >= Number(c.usage_limit)) return { ok: false, discount: 0 };
+    if (c.min_order && subtotal < Number(c.min_order)) return { ok: false, discount: 0 };
+    let discount = subtotal * (Number(c.discount_percent) || 0) / 100;
+    if (c.max_discount && Number(c.max_discount) > 0) discount = Math.min(discount, Number(c.max_discount));
+    discount = Math.round(discount * 100) / 100;
+    return { ok: discount > 0, discount, coupon: c };
+  } catch (e) { console.error('coupon validate error:', e.message); return { ok: false, discount: 0 }; }
+}
+
+// Live coupon check for the cart drawer.
+router.get('/order/coupon-check', foodOrderGuard, async (req, res) => {
+  const subtotal = Number(req.query.subtotal) || 0;
+  const r = await validateFoodCoupon(pool, req.tenant.id, req.query.code, subtotal);
+  res.json({ ok: r.ok, discount: r.discount, percent: r.coupon ? Number(r.coupon.discount_percent) : 0 });
+});
+
 // Create a food order from the client cart (COD). Prices are re-read from the
 // DB (never trusted from the client) and min-order is enforced per outlet.
 router.post('/order/food', foodOrderGuard, async (req, res) => {
@@ -387,13 +415,17 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
       }
     }
     const deliveryFee = Object.keys(outFee).reduce((s, k) => s + outFee[k], 0);
-    const total = subtotal + deliveryFee;
+    const cp = await validateFoodCoupon(client, company.id, req.body.coupon, subtotal);
+    const discount = cp.ok ? cp.discount : 0;
+    const total = Math.max(0, subtotal + deliveryFee - discount);
     const token = crypto.randomBytes(9).toString('hex');
     const ord = (await client.query(
-      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, track_token)
-       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [company.id, lineItems[0].outlet, name, total, deliveryFee, address || null, phone, notes || null, token]
+      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, coupon_code, discount_amount, track_token)
+       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [company.id, lineItems[0].outlet, name, total, deliveryFee, address || null, phone, notes || null,
+       cp.ok ? cp.coupon.code : null, discount, token]
     )).rows[0];
+    if (cp.ok) await client.query('UPDATE food_coupons SET used_count = used_count + 1 WHERE id = $1', [cp.coupon.id]);
     for (const li of lineItems) {
       await client.query(
         `INSERT INTO food_order_items (order_id, item_id, name_snapshot, quantity, price) VALUES ($1,$2,$3,$4,$5)`,
@@ -421,7 +453,8 @@ router.get('/order/food/:token', foodOrderGuard, async (req, res) => {
     )).rows[0];
     if (!ord) return res.redirect('/');
     const items = (await pool.query('SELECT * FROM food_order_items WHERE order_id = $1', [ord.id])).rows;
-    res.render('orders/confirm', { company, order: ord, items, noindex: true });
+    const reviewed = (await pool.query('SELECT 1 FROM food_reviews WHERE order_id = $1 LIMIT 1', [ord.id])).rows.length > 0;
+    res.render('orders/confirm', { company, order: ord, items, noindex: true, reviewed: reviewed || req.query.reviewed === '1' });
   } catch (e) { console.error('food confirm error:', e.message); res.status(500).send('Error.'); }
 });
 
@@ -434,6 +467,25 @@ router.get('/order/food/:token/status', foodOrderGuard, async (req, res) => {
     if (!ord) return res.status(404).json({ ok: false });
     res.json({ ok: true, status: ord.status });
   } catch (e) { res.status(500).json({ ok: false }); }
+});
+
+// Customer rating for a delivered order (one review per order).
+router.post('/order/food/:token/review', foodOrderGuard, async (req, res) => {
+  try {
+    const ord = (await pool.query(
+      'SELECT id, outlet_id FROM food_orders WHERE track_token = $1 AND company_id = $2', [req.params.token, req.tenant.id]
+    )).rows[0];
+    if (!ord) return res.redirect('/');
+    const rating = Math.min(5, Math.max(1, parseInt(req.body.rating, 10) || 0));
+    if (rating >= 1) {
+      const ex = await pool.query('SELECT 1 FROM food_reviews WHERE order_id = $1 LIMIT 1', [ord.id]);
+      if (!ex.rows.length) {
+        await pool.query('INSERT INTO food_reviews (outlet_id, order_id, rating, comment) VALUES ($1,$2,$3,$4)',
+          [ord.outlet_id, ord.id, rating, (req.body.comment || '').trim().slice(0, 500) || null]);
+      }
+    }
+    res.redirect('/order/food/' + req.params.token + '?reviewed=1');
+  } catch (e) { console.error('food review error:', e.message); res.redirect('/order/food/' + req.params.token); }
 });
 
 module.exports = router;

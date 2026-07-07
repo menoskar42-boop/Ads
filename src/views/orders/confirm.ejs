@@ -13,7 +13,14 @@
 <title><%= t('orders.order_placed') %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
-<style>* { font-family: 'Cairo', sans-serif; } :root{ --accent: <%= __theme %>; } .accent-bg{background:var(--accent)} .accent-text{color:var(--accent)} body{background:#faf8f4;color:#182a27}</style>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  :root{ --accent: <%= __theme %>; } .accent-bg{background:var(--accent)} .accent-text{color:var(--accent)} body{background:#faf8f4;color:#182a27}
+  .stars { display:inline-flex; flex-direction:row-reverse; }
+  .stars input { display:none; }
+  .stars label { color:#d1d5db; font-size:2rem; cursor:pointer; padding:0 2px; }
+  .stars label:hover, .stars label:hover ~ label, .stars input:checked ~ label { color:#f59e0b; }
+</style>
 </head>
 <body class="antialiased">
 <main class="max-w-md mx-auto px-4 py-10">
@@ -59,6 +66,22 @@
       </ol>
     <% } %>
   </div>
+
+  <% if (order.status === 'delivered' && !reviewed) { %>
+    <form method="post" action="/order/food/<%= order.track_token %>/review" class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mt-4 text-center">
+      <h2 class="font-bold mb-2"><%= t('orders.rate_order') %></h2>
+      <div class="stars mb-3" dir="ltr">
+        <% for (var s = 5; s >= 1; s--) { %>
+          <input type="radio" name="rating" id="star<%= s %>" value="<%= s %>" required />
+          <label for="star<%= s %>">★</label>
+        <% } %>
+      </div>
+      <input name="comment" placeholder="<%= t('orders.comment') %>" class="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm mb-3" />
+      <button type="submit" class="w-full accent-bg text-white rounded-2xl py-2.5 font-bold"><%= t('orders.submit_review') %></button>
+    </form>
+  <% } else if (reviewed) { %>
+    <div class="bg-green-50 text-green-700 rounded-2xl p-4 mt-4 text-center font-bold"><%= t('orders.review_thanks') %></div>
+  <% } %>
 
   <a href="/" class="mt-6 block text-center accent-bg text-white rounded-2xl py-3 font-extrabold"><%= t('orders.back_menu') %></a>
 </main>

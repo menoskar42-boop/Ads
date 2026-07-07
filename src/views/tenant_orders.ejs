@@ -15,6 +15,7 @@
   var __noindex = (typeof noindex !== 'undefined' && noindex);
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
   var __outlets = (typeof foodOutlets !== 'undefined' && foodOutlets) ? foodOutlets : [];
+  var __rated = __outlets.filter(function (o) { return o.rating && Number(o.rating.n) > 0; });
   function __money(v) { var n = Number(v); if (!isFinite(n)) return '0'; return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 2 }); }
   function __vlabel(v) { return v === 'supermarket' ? t('orders.supermarket') : t('orders.restaurant'); }
   var __cur = t('pharmacy.currency');
@@ -25,12 +26,12 @@
 <%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon }) %>
 <% if (!__noindex && __outlets.length) { %>
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- JSON.stringify(Object.assign({
   '@context': 'https://schema.org',
   '@type': (__outlets.some(function(o){return o.vertical==='restaurant';}) ? 'Restaurant' : 'Store'),
   name: __name, url: __canon, description: __desc,
   areaServed: { '@type': 'Country', name: 'Egypt' }
-}) %>
+}, __rated.length ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(__rated[0].rating.avg), reviewCount: Number(__rated[0].rating.n) } } : {})) %>
 </script>
 <% } %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -76,6 +77,7 @@
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xs font-bold accent-text bg-white border border-gray-200 rounded-full px-2.5 py-1"><%= __vlabel(o.vertical) %></span>
           <h2 class="text-xl font-extrabold"><%= oName %></h2>
+          <% if (o.rating && Number(o.rating.n) > 0) { %><span class="text-sm text-amber-500 font-bold">★ <%= o.rating.avg %> <span class="text-gray-400 text-xs">(<%= o.rating.n %>)</span></span><% } %>
         </div>
         <div class="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
           <% if (Number(o.delivery_fee) > 0) { %><span>🛵 <%= t('orders.delivery_fee') %>: <%= __money(o.delivery_fee) %> <%= __cur %></span><% } %>
@@ -156,8 +158,15 @@
       </div>
 
       <div id="cartFooter" class="border-t border-gray-100 p-4 space-y-2 hidden">
+        <div class="flex gap-2">
+          <input id="couponInput" placeholder="<%= t('orders.coupon') %>" dir="ltr" class="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm" style="text-transform:uppercase" />
+          <button type="button" id="applyCoupon" class="bg-gray-800 text-white rounded-xl px-4 text-sm font-bold"><%= t('orders.apply') %></button>
+        </div>
+        <p id="couponMsg" class="hidden text-xs font-bold"></p>
+        <input type="hidden" name="coupon" id="couponField" />
         <div class="flex justify-between text-sm"><span class="text-gray-500"><%= t('orders.subtotal') %></span><span id="sumSub">0</span></div>
         <div class="flex justify-between text-sm"><span class="text-gray-500"><%= t('orders.delivery') %></span><span id="sumDelivery">0</span></div>
+        <div id="discountRow" class="hidden flex justify-between text-sm text-green-600"><span><%= t('orders.discount') %></span><span id="sumDiscount">0</span></div>
         <div class="flex justify-between font-extrabold text-lg"><span><%= t('orders.total') %></span><span id="sumTotal" class="accent-text">0</span></div>
         <button type="submit" id="confirmBtn" class="w-full accent-bg text-white rounded-2xl py-3.5 font-extrabold"><%= t('orders.confirm_order') %></button>
       </div>
@@ -189,6 +198,7 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
   var isAr = document.documentElement.lang === 'ar';
   var MINW = <%- JSON.stringify(t('orders.min_order_warn')) %>;
   var outlets = {}; (window.__OUTLETS || []).forEach(function (o) { outlets[o.id] = o; });
+  var appliedPercent = 0;
 
   var bar = document.getElementById('cartBar');
   var countEl = document.getElementById('cartCount');
@@ -220,7 +230,8 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
       delivery += o.fee;
       if (o.min > 0 && outSub[oid] < o.min) warn = MINW + ' (' + o.name + '): ' + money(o.min);
     });
-    return { count: count, sub: sub, delivery: delivery, total: sub + delivery, warn: warn };
+    var discount = appliedPercent > 0 ? Math.round(sub * appliedPercent / 100 * 100) / 100 : 0;
+    return { count: count, sub: sub, delivery: delivery, discount: discount, total: Math.max(0, sub + delivery - discount), warn: warn };
   }
 
   function renderBar() {
@@ -254,6 +265,9 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
     });
     document.getElementById('sumSub').textContent = money(t.sub);
     document.getElementById('sumDelivery').textContent = money(t.delivery);
+    var dr = document.getElementById('discountRow');
+    if (t.discount > 0) { dr.classList.remove('hidden'); document.getElementById('sumDiscount').textContent = '− ' + money(t.discount); }
+    else dr.classList.add('hidden');
     document.getElementById('sumTotal').textContent = money(t.total);
     if (t.warn) { minWarn.textContent = t.warn; minWarn.classList.remove('hidden'); confirmBtn.disabled = true; confirmBtn.style.opacity = '.5'; }
     else { minWarn.classList.add('hidden'); confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
@@ -283,6 +297,28 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
   document.getElementById('cartBtn').addEventListener('click', openD);
   document.getElementById('drawerClose').addEventListener('click', closeD);
   document.getElementById('drawerOverlay').addEventListener('click', closeD);
+
+  // Coupon apply
+  var couponInput = document.getElementById('couponInput');
+  var couponMsg = document.getElementById('couponMsg');
+  var couponField = document.getElementById('couponField');
+  document.getElementById('applyCoupon').addEventListener('click', function () {
+    var code = (couponInput.value || '').trim().toUpperCase();
+    if (!code) return;
+    fetch('/order/coupon-check?code=' + encodeURIComponent(code) + '&subtotal=' + totals().sub)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        couponMsg.classList.remove('hidden');
+        if (d && d.ok) {
+          appliedPercent = d.percent || 0; couponField.value = code;
+          couponMsg.textContent = <%- JSON.stringify(t('orders.coupon_applied')) %>; couponMsg.className = 'text-xs font-bold text-green-600';
+        } else {
+          appliedPercent = 0; couponField.value = '';
+          couponMsg.textContent = <%- JSON.stringify(t('orders.coupon_invalid')) %>; couponMsg.className = 'text-xs font-bold text-red-600';
+        }
+        renderDrawer(); renderBar();
+      }).catch(function () {});
+  });
 
   form.addEventListener('submit', function (e) {
     var c = load();

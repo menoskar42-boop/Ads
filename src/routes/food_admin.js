@@ -212,4 +212,41 @@ router.get('/orders/count', async (req, res) => {
   } catch (e) { res.json({ pending: 0 }); }
 });
 
+/* ─── Coupons ───────────────────────────────────────────── */
+router.get('/coupons', async (req, res) => {
+  const coupons = (await pool.query('SELECT * FROM food_coupons WHERE company_id = $1 ORDER BY id DESC', [req.company.id])).rows;
+  res.render('food_admin/coupons', {
+    company: req.company, coupons, session: req.session,
+    saved: req.query.saved === '1', error: req.query.error || null,
+  });
+});
+
+router.post('/coupons/add', async (req, res) => {
+  const b = req.body || {};
+  const code = (b.code || '').trim().toUpperCase().slice(0, 40);
+  if (!code) return res.redirect('/food/coupons?error=' + encodeURIComponent('اكتب كود'));
+  try {
+    await pool.query(
+      `INSERT INTO food_coupons (company_id, code, discount_percent, max_discount, min_order, usage_limit, expires_at, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true)
+       ON CONFLICT (company_id, code) DO UPDATE SET
+         discount_percent=EXCLUDED.discount_percent, max_discount=EXCLUDED.max_discount,
+         min_order=EXCLUDED.min_order, usage_limit=EXCLUDED.usage_limit, expires_at=EXCLUDED.expires_at, is_active=true`,
+      [req.company.id, code, toInt(b.discount_percent, 0), toNum(b.max_discount, null),
+       toNum(b.min_order, 0), toInt(b.usage_limit, 0), (b.expires_at || '').trim() || null]
+    );
+    res.redirect('/food/coupons?saved=1');
+  } catch (e) { console.error('coupon add error:', e.message); res.redirect('/food/coupons?error=1'); }
+});
+
+router.post('/coupons/:id/toggle', async (req, res) => {
+  await pool.query('UPDATE food_coupons SET is_active = NOT is_active WHERE id=$1 AND company_id=$2', [toInt(req.params.id, null), req.company.id]);
+  res.redirect('/food/coupons');
+});
+
+router.post('/coupons/:id/delete', async (req, res) => {
+  await pool.query('DELETE FROM food_coupons WHERE id=$1 AND company_id=$2', [toInt(req.params.id, null), req.company.id]);
+  res.redirect('/food/coupons');
+});
+
 module.exports = router;
