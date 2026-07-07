@@ -425,4 +425,15 @@ router.get('/order/food/:token', foodOrderGuard, async (req, res) => {
   } catch (e) { console.error('food confirm error:', e.message); res.status(500).send('Error.'); }
 });
 
+// Live status for the customer tracking page (polled).
+router.get('/order/food/:token/status', foodOrderGuard, async (req, res) => {
+  try {
+    const ord = (await pool.query(
+      'SELECT status FROM food_orders WHERE track_token = $1 AND company_id = $2', [req.params.token, req.tenant.id]
+    )).rows[0];
+    if (!ord) return res.status(404).json({ ok: false });
+    res.json({ ok: true, status: ord.status });
+  } catch (e) { res.status(500).json({ ok: false }); }
+});
+
 module.exports = router;

@@ -39,12 +39,42 @@
     <p class="mt-3 text-xs text-gray-400">💵 <%= t('orders.cod') %></p>
   </div>
 
+  <%
+    var __flow = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered'];
+    var __rank = __flow.indexOf(order.status);
+    var __bad = (order.status === 'rejected' || order.status === 'cancelled');
+  %>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mt-4">
+    <h2 class="font-bold mb-3"><%= t('orders.track_title') %></h2>
+    <% if (__bad) { %>
+      <p class="text-red-600 font-bold"><%= t('orders.status.' + order.status) %></p>
+    <% } else { %>
+      <ol class="space-y-3">
+        <% __flow.forEach(function(s, i){ var done = i <= __rank; %>
+          <li class="flex items-center gap-3">
+            <span class="grid place-items-center h-6 w-6 rounded-full text-xs <%= done ? 'accent-bg text-white' : 'bg-gray-100 text-gray-400' %>"><%= done ? '✓' : (i + 1) %></span>
+            <span class="text-sm <%= done ? 'font-bold' : 'text-gray-400' %>"><%= t('orders.status.' + s) %></span>
+          </li>
+        <% }); %>
+      </ol>
+    <% } %>
+  </div>
+
   <a href="/" class="mt-6 block text-center accent-bg text-white rounded-2xl py-3 font-extrabold"><%= t('orders.back_menu') %></a>
 </main>
 
 <script>
   // Order was created successfully — clear the local cart.
   try { localStorage.removeItem('oscardevs_food_cart_' + <%- JSON.stringify(company.slug) %>); } catch (e) {}
+  // Live status: reload when the pharmacy/merchant advances the order.
+  (function () {
+    var token = <%- JSON.stringify(order.track_token) %>, cur = <%- JSON.stringify(order.status) %>;
+    setInterval(function () {
+      fetch('/order/food/' + token + '/status').then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.ok && d.status !== cur) location.reload();
+      }).catch(function () {});
+    }, 15000);
+  })();
 </script>
 </body>
 </html>

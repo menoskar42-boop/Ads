@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('orders.admin_orders') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:7px 9px; background:#fff; font-size:.85rem; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'orders' }) %>
+
+<%
+  function __money(v){ var n=Number(v); if(!isFinite(n)) return '0'; return n.toLocaleString(lang==='ar'?'ar-EG':'en-US',{maximumFractionDigits:2}); }
+  var __cur = t('pharmacy.currency');
+  function __stColor(s){
+    if (s==='delivered') return 'text-green-700 bg-green-50';
+    if (s==='rejected'||s==='cancelled') return 'text-red-600 bg-red-50';
+    if (s==='out_for_delivery') return 'text-blue-700 bg-blue-50';
+    if (s==='pending') return 'text-amber-700 bg-amber-50';
+    return 'text-gray-700 bg-gray-100';
+  }
+%>
+
+<main class="max-w-4xl mx-auto px-4 py-6">
+  <h1 class="text-xl font-extrabold mb-4">🛎️ <%= t('orders.admin_orders') %></h1>
+
+  <% if (!orders.length) { %>
+    <div class="text-center py-16 text-gray-400"><%= t('orders.no_orders') %></div>
+  <% } else { %>
+    <div class="space-y-3">
+      <% orders.forEach(function(o){ %>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div class="flex items-start justify-between gap-2 mb-2 flex-wrap">
+            <div>
+              <span class="font-extrabold">#<%= o.id %></span>
+              <span class="text-gray-800 font-bold ms-2"><%= o.customer_name %></span>
+              <a href="tel:<%= o.phone %>" class="text-xs text-orange-700 ms-2" dir="ltr">📞 <%= o.phone %></a>
+            </div>
+            <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= __stColor(o.status) %>"><%= t('orders.status.' + o.status) %></span>
+          </div>
+          <% if (o.delivery_address) { %><p class="text-xs text-gray-500 mb-2">📍 <%= o.delivery_address %></p><% } %>
+          <div class="text-sm text-gray-700 mb-2">
+            <% (o.items||[]).forEach(function(it){ %><span class="inline-block bg-gray-50 rounded px-2 py-0.5 me-1 mb-1"><%= it.name_snapshot %> × <%= __money(it.quantity) %></span><% }); %>
+          </div>
+          <% if (o.notes) { %><p class="text-xs text-gray-500 mb-2">📝 <%= o.notes %></p><% } %>
+          <div class="flex items-center justify-between gap-2 flex-wrap border-t border-gray-50 pt-2">
+            <span class="font-extrabold text-orange-700"><bdi><%= __money(o.total) %> <%= __cur %></bdi><% if (Number(o.delivery_fee)>0) { %> <span class="text-xs text-gray-400">(+ <%= __money(o.delivery_fee) %> <%= t('orders.delivery') %>)</span><% } %></span>
+            <form method="post" action="/food/orders/<%= o.id %>/status" class="flex items-center gap-2">
+              <select name="status" class="fld">
+                <% flow.forEach(function(s){ %><option value="<%= s %>" <%= o.status===s?'selected':'' %>><%= t('orders.status.' + s) %></option><% }); %>
+              </select>
+              <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-4 py-1.5 text-sm"><%= t('orders.change_status') %></button>
+            </form>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</main>
+
+<script>
+// New-order sound alert: poll pending count, beep when it rises.
+(function () {
+  var last = <%= orders.filter(function(o){return o.status==='pending';}).length %>;
+  function beep() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+      var ctx = new Ctx(), osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = 880; osc.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+      osc.start(); osc.stop(ctx.currentTime + 0.6);
+    } catch (e) {}
+  }
+  setInterval(function () {
+    fetch('/food/orders/count').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.pending > last) { beep(); document.title = '(' + d.pending + ') ' + document.title.replace(/^\(\d+\)\s*/, ''); }
+      last = d.pending;
+    }).catch(function () {});
+  }, 20000);
+})();
+</script>
+</body>
+</html>

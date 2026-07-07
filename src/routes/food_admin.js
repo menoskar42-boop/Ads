@@ -175,4 +175,41 @@ router.post('/item/:id/delete', async (req, res) => {
   res.redirect('/food');
 });
 
+/* ─── Orders (incoming) ─────────────────────────────────── */
+const FOOD_FLOW = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'rejected', 'cancelled'];
+
+router.get('/orders', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const orders = (await pool.query(
+      'SELECT * FROM food_orders WHERE company_id = $1 ORDER BY created_at DESC LIMIT 100', [cid]
+    )).rows;
+    for (const o of orders) {
+      o.items = (await pool.query('SELECT * FROM food_order_items WHERE order_id = $1', [o.id])).rows;
+    }
+    res.render('food_admin/orders', { company: req.company, orders, session: req.session, flow: FOOD_FLOW });
+  } catch (e) { console.error('food orders error:', e.message); res.status(500).send('Error.'); }
+});
+
+router.post('/orders/:id/status', async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  const status = FOOD_FLOW.includes(req.body.status) ? req.body.status : null;
+  if (status) {
+    const r = await pool.query('UPDATE food_orders SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3 RETURNING id', [status, id, cid]);
+    if (r.rows.length) {
+      await pool.query('INSERT INTO food_order_events (order_id, status, note) VALUES ($1,$2,$3)', [id, status, 'admin']);
+    }
+  }
+  res.redirect('/food/orders');
+});
+
+// New-order poll (drives the sound alert on the orders screen).
+router.get('/orders/count', async (req, res) => {
+  try {
+    const n = (await pool.query("SELECT COUNT(*)::int AS n FROM food_orders WHERE company_id=$1 AND status='pending'", [req.company.id])).rows[0].n;
+    res.json({ pending: n });
+  } catch (e) { res.json({ pending: 0 }); }
+});
+
 module.exports = router;
