@@ -8,7 +8,10 @@
   var __style  = (typeof style  !== 'undefined' && style)  ? style  : 'display:block;text-align:center;';
   var __label  = (typeof label  !== 'undefined' && label)  ? label  : 'إعلان';
 %>
-<% if (ads && ads.enabled && __slot) { %>
+<%# Fail-closed: only render an ad unit on pages that explicitly opt in via
+   showAds (same gate as ads_loader). Keeps AdSense code off error/utility
+   pages (404, logins, checkout…) even if one accidentally includes this. %>
+<% if (typeof showAds !== 'undefined' && showAds && ads && ads.enabled && __slot) { %>
 <aside class="ad-unit" data-ad-slot="<%= __slot %>" style="margin:20px auto;max-width:100%;">
   <div style="font-size:0.7rem;color:#9ca3af;text-align:center;letter-spacing:1px;margin-bottom:4px;"><%= __label %></div>
   <ins class="adsbygoogle"
