@@ -290,12 +290,18 @@ router.get('/:slug/product/:id', async (req, res) => {
     );
     const cart = (req.session.carts && req.session.carts[slug]) || {};
     const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
+    // Keep thin shops' product pages out of the index too (same gate as the
+    // shop landing page: fewer than 3 active products = thin → noindex + no ads).
+    const thin = (await pool.query(
+      'SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND is_active = true', [company.id]
+    )).rows[0].n < 3;
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
       gallery: images.rows,
       cartCount,
-      showAds: true, // product detail is content
+      noindex: thin,
+      showAds: !thin, // product detail is content — but no ads on thin/noindex pages
     });
   } catch (err) {
     console.error('[GET /shop/:slug/product/:id] error:', err);
