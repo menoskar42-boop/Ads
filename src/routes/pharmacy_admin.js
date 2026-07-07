@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
+const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
 
 // Customer-facing status notifications (Talabat-style).
 const STATUS_NOTIF = {
@@ -127,15 +128,21 @@ router.get('/inventory', gate('inventory'), async (req, res) => {
        FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
        WHERE ${where} ORDER BY m.name_ar`, params
     )).rows;
-    // catalog medicines this pharmacy hasn't stocked yet (for the add dropdown)
-    const catalog = (await pool.query(
-      `SELECT id, name_ar, name_en, default_price FROM medicines
-       WHERE is_active = true AND id NOT IN (SELECT medicine_id FROM pharmacy_inventory WHERE company_id = $1)
-       ORDER BY name_ar LIMIT 500`, [cid]
-    )).rows;
+    // The catalog can be ~25k rows, so we don't ship it all to the page; the
+    // add form uses a type-ahead (/pharmacy/api/catalog-search) instead. Here
+    // we just show how big the catalog is and when it last refreshed.
+    const catalogCount = (await pool.query(
+      'SELECT COUNT(*)::int AS n FROM medicines WHERE is_active = true'
+    )).rows[0].n;
+    const lastSyncRow = (await pool.query(
+      "SELECT value FROM app_meta WHERE key = 'medicines_synced_at'"
+    )).rows[0];
     res.render('pharmacy_admin/inventory', {
-      company: req.company, items, catalog, currentSearch: q, session: req.session,
+      company: req.company, items, catalogCount,
+      lastSync: lastSyncRow ? lastSyncRow.value : null,
+      currentSearch: q, session: req.session,
       saved: req.query.saved === '1', error: req.query.error || null,
+      synced: req.query.synced === '1',
     });
   } catch (e) {
     console.error('pharmacy inventory error:', e.message);
@@ -208,6 +215,35 @@ router.post('/inventory/:id/delete', gate('inventory'), async (req, res) => {
     console.error('inventory delete error:', e.message);
     res.redirect('/pharmacy/inventory?error=1');
   }
+});
+
+// Type-ahead over the full (~25k) medicine catalog for the "add stock" form,
+// so every Egyptian medicine is reachable without shipping the whole list.
+router.get('/api/catalog-search', gate('inventory'), async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+  try {
+    const like = '%' + q + '%';
+    const rows = (await pool.query(
+      `SELECT id, name_ar, name_en, form, manufacturer, default_price
+       FROM medicines
+       WHERE is_active = true AND (name_ar ILIKE $1 OR name_en ILIKE $1 OR scientific_name ILIKE $1)
+       ORDER BY (name_en ILIKE $2) DESC, name_ar
+       LIMIT 25`, [like, q + '%']
+    )).rows;
+    res.json(rows);
+  } catch (e) {
+    console.error('catalog search error:', e.message);
+    res.status(500).json([]);
+  }
+});
+
+// Manual "refresh the medicines list now" button. The site also refreshes it
+// automatically (on boot + daily), but this lets the owner force it. Fire and
+// forget so the request returns immediately.
+router.post('/catalog/sync', gate('inventory'), (req, res) => {
+  syncMedicinesSafe({ force: true });
+  res.redirect('/pharmacy/inventory?synced=1');
 });
 
 /* ─── Settings ──────────────────────────────────────────── */

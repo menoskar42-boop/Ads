@@ -19,18 +19,29 @@
 
 <main class="max-w-5xl mx-auto px-4 py-6">
   <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (synced) { %><div class="mb-4 bg-blue-50 text-blue-700 rounded-xl px-4 py-2 text-sm font-bold"><%= t('pharmacy.admin.sync_started') %></div><% } %>
   <% if (error) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold"><%= error %></div><% } %>
+
+  <!-- Catalog status + manual refresh (the list also auto-updates on its own) -->
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-2">
+    <div class="text-sm text-gray-600">
+      💊 <%= t('pharmacy.admin.catalog_count').replace('%n', Number(catalogCount||0).toLocaleString(lang==='ar'?'ar-EG':'en')) %>
+      <% if (lastSync) { %><span class="text-gray-400 text-xs"> · <%= t('pharmacy.admin.last_sync') %>: <%= new Date(lastSync).toISOString().slice(0,10) %></span><% } %>
+    </div>
+    <form method="post" action="/pharmacy/catalog/sync">
+      <button class="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-3 py-1.5"><%= t('pharmacy.admin.refresh_catalog') %></button>
+    </form>
+  </div>
 
   <!-- Add stock -->
   <details class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5" open>
     <summary class="font-extrabold text-emerald-700 cursor-pointer">➕ <%= t('pharmacy.admin.add_stock') %></summary>
     <form method="post" action="/pharmacy/inventory/add" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <div class="sm:col-span-2">
+      <div class="sm:col-span-2 relative">
         <span class="lbl"><%= t('pharmacy.admin.from_catalog') %></span>
-        <select name="medicine_id" class="fld">
-          <option value=""><%= t('pharmacy.admin.choose_medicine') %></option>
-          <% catalog.forEach(function(m){ %><option value="<%= m.id %>"><%= m.name_ar %><%= m.name_en ? ' — ' + m.name_en : '' %></option><% }) %>
-        </select>
+        <input type="hidden" name="medicine_id" id="medId" />
+        <input id="catSearch" autocomplete="off" class="fld" placeholder="<%= t('pharmacy.admin.search_catalog') %>" />
+        <div id="catResults" class="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-64 overflow-auto"></div>
       </div>
       <div><span class="lbl"><%= t('pharmacy.admin.or_new') %> — <%= t('pharmacy.admin.name_ar') %></span><input name="new_name_ar" class="fld" /></div>
       <div><span class="lbl"><%= t('pharmacy.admin.name_en') %></span><input name="new_name_en" class="fld" /></div>
@@ -90,5 +101,62 @@
     </div>
   <% } %>
 </main>
+
+<script>
+(function () {
+  var lang = '<%= lang %>';
+  var box = document.getElementById('catSearch');
+  var results = document.getElementById('catResults');
+  var medId = document.getElementById('medId');
+  var priceInput = document.querySelector('input[name="price"]');
+  if (!box) return;
+  var timer = null;
+
+  function hide() { results.classList.add('hidden'); results.innerHTML = ''; }
+
+  function pick(m) {
+    medId.value = m.id;
+    var primary = (lang === 'en' && m.name_en) ? m.name_en : m.name_ar;
+    box.value = primary;
+    if (priceInput && !priceInput.value && m.default_price != null) priceInput.value = m.default_price;
+    hide();
+  }
+
+  function render(list) {
+    if (!list.length) { hide(); return; }
+    results.innerHTML = '';
+    list.forEach(function (m) {
+      var a = (lang === 'en' && m.name_en) ? m.name_en : m.name_ar;
+      var b = (lang === 'en' && m.name_en) ? m.name_ar : (m.name_en || '');
+      var row = document.createElement('div');
+      row.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-emerald-50 border-b border-gray-50';
+      row.innerHTML = '<div class="font-bold text-gray-800"></div>'
+        + '<div class="text-xs text-gray-400"></div>';
+      row.children[0].textContent = a;
+      row.children[1].textContent = [b, m.manufacturer].filter(Boolean).join(' · ');
+      row.addEventListener('mousedown', function (e) { e.preventDefault(); pick(m); });
+      results.appendChild(row);
+    });
+    results.classList.remove('hidden');
+  }
+
+  box.addEventListener('input', function () {
+    medId.value = ''; // typing invalidates a previous pick
+    var q = box.value.trim();
+    if (timer) clearTimeout(timer);
+    if (q.length < 2) { hide(); return; }
+    timer = setTimeout(function () {
+      fetch('/pharmacy/api/catalog-search?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(render)
+        .catch(hide);
+    }, 220);
+  });
+
+  document.addEventListener('click', function (e) {
+    if (e.target !== box && !results.contains(e.target)) hide();
+  });
+})();
+</script>
 </body>
 </html>

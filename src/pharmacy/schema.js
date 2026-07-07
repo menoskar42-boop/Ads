@@ -63,6 +63,23 @@ async function ensurePharmacySchema() {
       CREATE INDEX IF NOT EXISTS idx_medicines_name_ar ON medicines (name_ar);
       CREATE INDEX IF NOT EXISTS idx_medicines_name_en ON medicines (name_en);
       CREATE INDEX IF NOT EXISTS idx_medicines_barcode ON medicines (barcode);
+      -- Extra fields carried from the public Egyptian drug database + a stable
+      -- source_key so the automatic importer can upsert (update prices) instead
+      -- of duplicating on every refresh. NULL source_key = manually-added rows.
+      ALTER TABLE medicines ADD COLUMN IF NOT EXISTS scientific_name TEXT;
+      ALTER TABLE medicines ADD COLUMN IF NOT EXISTS drug_class TEXT;
+      ALTER TABLE medicines ADD COLUMN IF NOT EXISTS source_key TEXT;
+      ALTER TABLE medicines ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_medicines_source_key ON medicines (source_key);
+      CREATE INDEX IF NOT EXISTS idx_medicines_sci ON medicines (scientific_name);
+
+      -- Tiny key/value store for app-wide metadata (e.g. last catalog sync
+      -- time) so the auto-importer knows whether a refresh is due.
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
 
       -- Per-pharmacy stock. reserved_qty backs the "reserve when ordered
       -- online" rule so an item held for a web order isn't sold at the counter.
@@ -209,18 +226,21 @@ async function ensurePharmacySchema() {
   }
 }
 
-// Seed the shared catalog once (only when empty), so we never duplicate.
+// Seed the shared catalog additively: insert any medicine from the list that
+// isn't already there (matched by Arabic name), so extending SEED_MEDICINES
+// adds the new ones on the next boot without duplicating existing rows.
 async function seedCatalog(client) {
-  const { rows } = await client.query('SELECT COUNT(*)::int AS n FROM medicines');
-  if (rows[0].n > 0) return;
+  let added = 0;
   for (const m of SEED_MEDICINES) {
-    await client.query(
+    const r = await client.query(
       `INSERT INTO medicines (name_ar, name_en, manufacturer, form, unit, default_price)
-       VALUES ($1,$2,$3,$4,'علبة',$5)`,
+       SELECT $1,$2,$3,$4,'علبة',$5
+       WHERE NOT EXISTS (SELECT 1 FROM medicines WHERE name_ar = $1)`,
       [m.ar, m.en, m.maker, m.form, m.price]
     );
+    added += r.rowCount || 0;
   }
-  console.log(`Seeded ${SEED_MEDICINES.length} medicines.`);
+  if (added) console.log(`Seeded ${added} new medicines.`);
 }
 
 // Seed a demo pharmacy tenant (slug 'pharmacy') the first time, so
@@ -271,7 +291,9 @@ async function seedDemoPharmacy(client) {
     [companyId]
   );
   if (invCount.rows[0].n === 0) {
-    const meds = await client.query('SELECT id, default_price FROM medicines ORDER BY id');
+    // Only stock a handful for the demo — the full imported catalog can be
+    // ~25k rows, we don't want that many inventory rows for the sample.
+    const meds = await client.query('SELECT id, default_price FROM medicines ORDER BY id LIMIT 30');
     let i = 0;
     for (const med of meds.rows) {
       // vary stock so the demo shows in-stock / low / out states
