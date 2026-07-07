@@ -8,13 +8,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <% var __sep = ' — '; %>
-  <title><%= pName %><% if ((pName.length + __sep.length + displayCompanyName.length) <= 60) { %><%= __sep %><%= displayCompanyName %><% } %></title>
+  <% var __pTitle = pName + (((pName.length + __sep.length + displayCompanyName.length) <= 60) ? (__sep + displayCompanyName) : ''); %>
+  <title><%= __pTitle %></title>
   <meta name="description" content="<%= pDesc.slice(0,150) %>" />
   <% var productUrl = siteOrigin + '/shop/' + company.slug + '/product/' + product.id; %>
   <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
   <link rel="canonical" href="<%= productUrl %>" />
   <meta property="og:type" content="product" />
-  <meta property="og:title" content="<%= pName %>" />
+  <meta property="og:title" content="<%= __pTitle %>" />
   <meta property="og:description" content="<%= pDesc.slice(0,150) %>" />
   <% if (product.image_url) { %><meta property="og:image" content="<%= product.image_url %>" /><% } %>
   <script type="application/ld+json">

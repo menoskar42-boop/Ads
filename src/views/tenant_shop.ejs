@@ -24,7 +24,7 @@
     title: displayName,
     description: (displayDesc || displayName).slice(0, 160),
     canonical: canonicalCompanyUrl(company.slug),
-    ogImage: company.logo_url || (siteOrigin + '/og-default.svg'),
+    ogImage: company.logo_url || (siteOrigin + '/og-default.png'),
     siteLogo: company.logo_url || '',
     siteManifest: '/view/' + company.slug + '/manifest.webmanifest',
     siteAppName: displayName

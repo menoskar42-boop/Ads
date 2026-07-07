@@ -14,7 +14,8 @@
 %>
 <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <% var __pfSuffix = ' · بورتفوليو احترافي'; %>
-<title><%= displayName %><% if ((displayName.length + __pfSuffix.length) <= 60) { %><%= __pfSuffix %><% } %></title>
+<% var __pfTitle = displayName + (((displayName.length + __pfSuffix.length) <= 60) ? __pfSuffix : ''); %>
+<title><%= __pfTitle %></title>
 <meta name="description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
 <meta name="theme-color" content="<%= brandColor %>" />
 <meta name="color-scheme" content="light" />
@@ -24,7 +25,7 @@
 
 <!-- Open Graph للمشاركة على السوشيال -->
 <meta property="og:type" content="website" />
-<meta property="og:title" content="<%= displayName %>" />
+<meta property="og:title" content="<%= __pfTitle %>" />
 <meta property="og:description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
 <meta property="og:locale" content="ar_EG" />
 <% if (company.logo_url) { %><meta property="og:image" content="<%= company.logo_url %>" /><% } %>

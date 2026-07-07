@@ -102,9 +102,18 @@ app.use((req, res, next) => {
   if (!host.startsWith('adhd.')) return next();
   const p = req.path;
   if (p === '/' || p === '/index.html') return sendNeuroIndex(res);
-  // Serve a matching static asset; otherwise fall back to the app shell so
-  // any path lands on the single-page timer instead of a tenant 404.
-  neuroStatic(req, res, () => sendNeuroIndex(res));
+  // Serve a matching static asset; otherwise return a real 404. NeuroPilot is a
+  // single page (only "/"), so falling back to the shell for made-up URLs made
+  // invalid links look like valid 200 pages to crawlers (soft-404 → wasted crawl
+  // budget). A true 404 keeps the index clean.
+  neuroStatic(req, res, () => {
+    res.status(404).type('html').send(
+      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
+      '<meta name="robots" content="noindex"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>404 — NeuroPilot</title></head><body style="font-family:system-ui;background:#0b1020;color:#fff;text-align:center;padding:80px 20px">' +
+      '<h1>٤٠٤ — الصفحة غير موجودة</h1><p><a href="/" style="color:#22d3ee">ارجع لـ NeuroPilot</a></p></body></html>'
+    );
+  });
 });
 
 app.set('view engine', 'ejs');
