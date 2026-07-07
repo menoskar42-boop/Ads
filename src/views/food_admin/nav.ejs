@@ -9,6 +9,7 @@
       <a href="/food" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a>
       <a href="/food/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.admin_orders') %></a>
       <a href="/food/coupons" class="px-3 py-1.5 rounded-lg <%= __active==='coupons'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.coupons') %></a>
+      <a href="/food/ai" class="px-3 py-1.5 rounded-lg <%= __active==='ai'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🤖 <%= t('food.ai.nav') %></a>
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.view_public') %></a>
       <a href="?lang=<%= __other %>" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 font-bold"><%= t('common.toggle_lang') %></a>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.logout') %></button></form>

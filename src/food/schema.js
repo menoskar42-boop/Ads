@@ -248,6 +248,16 @@ async function seedDemoOrders(client) {
     );
     console.log('Seeded demo orders login:', DEMO_EMAIL);
   }
+
+  // Give the demo merchant an active AI-assistant subscription so the paid
+  // widget is demonstrable on the sample store (needs GROQ_API_KEY to actually
+  // reply; without it the endpoint fails closed with a friendly message).
+  await client.query(
+    `INSERT INTO food_ai_subscriptions (company_id, plan, status, started_at, expires_at, monthly_quota, used_this_period)
+     VALUES ($1,'demo','active', now(), now() + interval '365 days', 1000, 0)
+     ON CONFLICT (company_id) DO NOTHING`,
+    [companyId]
+  );
 }
 
 module.exports = { ensureFoodSchema, DEMO_SLUG };

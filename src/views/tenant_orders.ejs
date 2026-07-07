@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%- include('partials/ads_loader') %>
 <%
   var __name = company.company_name || 'مطعم';
   var __suffix = lang === 'en' ? 'Order online' : 'اطلب أونلاين';
@@ -117,6 +118,10 @@
     <% }); %>
 
     <div id="emptySearch" class="hidden text-center py-16 text-gray-400"><%= t('orders.empty_menu') %></div>
+
+    <%# AdSense — allowed here: the menu is a real publisher-content surface.
+        Kept well clear of the floating cart / checkout / tracking (policy). %>
+    <div class="mt-10"><%- include('partials/ad_unit', { slot: ads.slots.ordersMenu }) %></div>
   <% } %>
 
   <p class="mt-10 text-center text-xs text-gray-400"><%= t('pharmacy.provided_by') %> <a href="https://oscardevs.com" target="_blank" rel="noopener" class="accent-text font-bold">OscarDevs</a></p>
@@ -373,6 +378,18 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
   document.getElementById('ordersClose').addEventListener('click', function () { oModal.classList.add('hidden'); document.body.style.overflow = ''; });
   document.getElementById('ordersOverlay').addEventListener('click', function () { oModal.classList.add('hidden'); document.body.style.overflow = ''; });
 
+  // Bridge for the AI assistant: merge server-validated items into the cart.
+  window.__odvAddToCart = function (items) {
+    var c = load();
+    (items || []).forEach(function (it) {
+      var id = String(it.id);
+      if (!c[id]) c[id] = { n: it.name, p: Number(it.price) || 0, q: 0, o: String(it.outlet || '') };
+      c[id].q += Math.max(1, Number(it.qty) || 1);
+    });
+    save(c); renderBar();
+  };
+  window.__odvOpenCart = openD;
+
   renderBar();
 })();
 </script>
@@ -401,5 +418,101 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
   input.addEventListener('input', function () { clearTimeout(t); t = setTimeout(filter, 180); });
 })();
 </script>
+
+<% if (typeof aiAssistantOn !== 'undefined' && aiAssistantOn) { %>
+<!-- AI order assistant (paid feature) -->
+<button id="aiFab" type="button" class="fixed z-40 bottom-24 end-4 h-14 w-14 rounded-full accent-bg text-white shadow-lg grid place-items-center text-2xl" aria-label="<%= t('orders.ai_assistant') %>">🤖</button>
+
+<div id="aiPanel" class="fixed inset-0 z-50 hidden">
+  <div id="aiOverlay" class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-x-0 bottom-0 sm:inset-y-0 sm:end-0 sm:inset-x-auto sm:w-full sm:max-w-md bg-white shadow-2xl flex flex-col h-[80vh] sm:h-full rounded-t-2xl sm:rounded-none">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <h2 class="font-extrabold text-lg flex items-center gap-2">🤖 <%= t('orders.ai_assistant') %></h2>
+      <button id="aiClose" type="button" class="grid place-items-center h-9 w-9 rounded-full hover:bg-gray-100" aria-label="close"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="aiLog" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3 text-sm"></div>
+    <form id="aiForm" class="border-t border-gray-100 p-3 flex gap-2">
+      <input id="aiInput" autocomplete="off" maxlength="500" placeholder="<%= t('orders.ai_placeholder') %>" class="flex-1 rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm outline-none focus:border-orange-300" />
+      <button type="submit" id="aiSend" class="accent-bg text-white rounded-xl px-4 font-bold text-sm">➤</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var fab = document.getElementById('aiFab');
+  var panel = document.getElementById('aiPanel');
+  var logEl = document.getElementById('aiLog');
+  var form = document.getElementById('aiForm');
+  var input = document.getElementById('aiInput');
+  var sendBtn = document.getElementById('aiSend');
+  var isAr = document.documentElement.lang === 'ar';
+  var history = [];
+  var busy = false;
+  var HINT = isAr ? 'أهلاً! قوللي عايز تطلب إيه وأنا هجهّزلك السلة. مثلاً: «٢ برجر وعصير برتقان».' : 'Hi! Tell me what you want to order and I\'ll build your cart. e.g. "2 burgers and an orange juice".';
+  var ADDED = isAr ? 'ضفت دول لسلتك:' : 'Added to your cart:';
+  var ERR = isAr ? 'حصل خطأ، جرّب تاني.' : 'Something went wrong, try again.';
+  var OPEN_CART = isAr ? 'فتح السلة' : 'Open cart';
+
+  function bubble(role, text) {
+    var wrap = document.createElement('div');
+    wrap.className = role === 'user' ? 'flex justify-start' : 'flex justify-end';
+    var b = document.createElement('div');
+    b.className = role === 'user'
+      ? 'bg-gray-100 rounded-2xl px-3.5 py-2 max-w-[80%]'
+      : 'accent-bg text-white rounded-2xl px-3.5 py-2 max-w-[80%]';
+    b.textContent = text;
+    wrap.appendChild(b);
+    logEl.appendChild(wrap);
+    logEl.scrollTop = logEl.scrollHeight;
+    return b;
+  }
+  function openCartLink() {
+    var wrap = document.createElement('div');
+    wrap.className = 'flex justify-end';
+    var a = document.createElement('button');
+    a.type = 'button';
+    a.className = 'text-xs font-bold underline accent-text';
+    a.textContent = OPEN_CART;
+    a.addEventListener('click', function () { panel.classList.add('hidden'); if (window.__odvOpenCart) window.__odvOpenCart(); });
+    wrap.appendChild(a); logEl.appendChild(wrap); logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function open() { panel.classList.remove('hidden'); document.body.style.overflow = 'hidden'; if (!logEl.children.length) bubble('assistant', HINT); setTimeout(function () { input.focus(); }, 50); }
+  function close() { panel.classList.add('hidden'); document.body.style.overflow = ''; }
+  fab.addEventListener('click', open);
+  document.getElementById('aiClose').addEventListener('click', close);
+  document.getElementById('aiOverlay').addEventListener('click', close);
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (busy) return;
+    var msg = (input.value || '').trim();
+    if (!msg) return;
+    input.value = '';
+    bubble('user', msg);
+    history.push({ role: 'user', content: msg });
+    busy = true; sendBtn.disabled = true; sendBtn.style.opacity = '.5';
+    var typing = bubble('assistant', '…');
+    fetch('/order/food/ai', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: history.slice(-8) })
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        var d = res.d || {};
+        typing.textContent = (d.reply || (res.ok ? '' : (d.error || ERR)));
+        if (d.reply) history.push({ role: 'assistant', content: d.reply });
+        if (res.ok && d.cart && d.cart.length && window.__odvAddToCart) {
+          window.__odvAddToCart(d.cart);
+          var names = d.cart.map(function (c) { return (c.qty + '× ' + c.name); }).join('، ');
+          bubble('assistant', ADDED + ' ' + names);
+          openCartLink();
+        }
+      }).catch(function () { typing.textContent = ERR; })
+      .then(function () { busy = false; sendBtn.disabled = false; sendBtn.style.opacity = '1'; });
+  });
+})();
+</script>
+<% } %>
 </body>
 </html>

@@ -5,8 +5,39 @@ const crypto = require('crypto');
 const { getPreset } = require('../lib/portfolio_presets');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
+const aiAssistant = require('../lib/ai_order_assistant');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Load a merchant's paid AI subscription (or null). The site is free; the AI
+// order assistant only runs for merchants with an active, unexpired sub that
+// still has monthly quota left.
+async function loadAiSub(companyId) {
+  try {
+    return (await pool.query('SELECT * FROM food_ai_subscriptions WHERE company_id = $1', [companyId])).rows[0] || null;
+  } catch (e) { return null; }
+}
+// Active = status 'active', not past expiry, and quota not exhausted.
+function aiSubActive(sub) {
+  if (!sub || sub.status !== 'active') return false;
+  if (sub.expires_at && new Date(sub.expires_at).getTime() < Date.now()) return false;
+  return true;
+}
+function aiQuotaLeft(sub) {
+  const quota = Number(sub.monthly_quota) || 0;
+  const used = Number(sub.used_this_period) || 0;
+  return quota > 0 && used < quota;
+}
+// Very light per-tenant+IP rate limit for the AI endpoint (cost guard).
+const aiRate = new Map();
+function aiRateOk(key, maxPerMin) {
+  const now = Date.now();
+  const arr = (aiRate.get(key) || []).filter((t) => now - t < 60000);
+  if (arr.length >= maxPerMin) { aiRate.set(key, arr); return false; }
+  arr.push(now); aiRate.set(key, arr);
+  if (aiRate.size > 5000) aiRate.clear();
+  return true;
+}
 
 // Guard for the public pharmacy order routes: tenant must be a pharmacy whose
 // online store is enabled. Loads the settings row onto req.
@@ -110,6 +141,7 @@ router.get('/', async (req, res) => {
   // categories + available items for the menu.
   let foodOutlets = [];
   let foodItemCount = 0;
+  let aiAssistantOn = false;
   if (company.page_type === 'orders') {
     try {
       foodOutlets = (await pool.query(
@@ -127,6 +159,10 @@ router.get('/', async (req, res) => {
         )).rows[0];
         foodItemCount += o.items.length;
       }
+      // Paid AI assistant: only surface the chat widget when the merchant has an
+      // active, unexpired subscription with quota left (the site itself is free).
+      const sub = await loadAiSub(company.id);
+      aiAssistantOn = aiSubActive(sub) && aiQuotaLeft(sub);
     } catch (err) { console.error('Food query error:', err.message); }
   }
 
@@ -197,6 +233,7 @@ router.get('/', async (req, res) => {
     pharmacyStockCount,
     foodOutlets,
     foodItemCount,
+    aiAssistantOn,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
     cartCount,
@@ -370,6 +407,72 @@ router.get('/order/coupon-check', foodOrderGuard, async (req, res) => {
   const subtotal = Number(req.query.subtotal) || 0;
   const r = await validateFoodCoupon(pool, req.tenant.id, req.query.code, subtotal);
   res.json({ ok: r.ok, discount: r.discount, percent: r.coupon ? Number(r.coupon.discount_percent) : 0 });
+});
+
+// AI order assistant (PAID). Gated by an active subscription + monthly quota.
+// The model only ever sees THIS merchant's menu, and every returned item id is
+// re-validated against the DB inside the assistant lib.
+router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  const lang = (res.locals.lang === 'en') ? 'en' : 'ar';
+  const say = (ar, en) => (lang === 'en' ? en : ar);
+
+  const sub = await loadAiSub(company.id);
+  if (!aiSubActive(sub)) {
+    return res.status(403).json({ ok: false, error: say('المساعد الذكي غير مُفعّل لهذا المتجر.', 'The AI assistant is not enabled for this shop.') });
+  }
+  if (!aiQuotaLeft(sub)) {
+    return res.status(429).json({ ok: false, error: say('تم تجاوز حصّة الباقة لهذا الشهر.', 'This month\'s plan quota has been used up.') });
+  }
+  if (!aiAssistant.isEnabled()) {
+    return res.status(503).json({ ok: false, error: say('خدمة المساعد غير متاحة حالياً.', 'The assistant service is temporarily unavailable.') });
+  }
+
+  // Input sanitization + length cap.
+  const message = String((req.body && req.body.message) || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (!message) return res.status(400).json({ ok: false, error: say('اكتب رسالتك.', 'Type your message.') });
+
+  // Rate limit: 12 messages/min per (tenant, ip).
+  const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+  if (!aiRateOk(company.id + '|' + ip, 12)) {
+    return res.status(429).json({ ok: false, error: say('محاولات كتير بسرعة، استنى شوية.', 'Too many messages, please slow down.') });
+  }
+
+  // Accept a short prior history from the client (text only).
+  let history = [];
+  try {
+    const h = req.body && req.body.history;
+    if (Array.isArray(h)) history = h.slice(-8).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 500) }));
+  } catch (e) { history = []; }
+
+  try {
+    // Load the merchant's active menu (same shape the storefront uses).
+    const outlets = (await pool.query(
+      'SELECT * FROM food_outlets WHERE company_id = $1 AND is_active = true ORDER BY vertical', [company.id]
+    )).rows;
+    for (const o of outlets) {
+      o.categories = (await pool.query('SELECT * FROM food_categories WHERE outlet_id = $1 ORDER BY sort_order, id', [o.id])).rows;
+      o.items = (await pool.query('SELECT * FROM food_items WHERE outlet_id = $1 AND is_available = true ORDER BY sort_order, id', [o.id])).rows;
+    }
+
+    const out = await aiAssistant.runAssistant({
+      outlets, history, message, lang,
+      cur: (res.locals.t ? res.locals.t('pharmacy.currency') : 'ج.م'),
+      merchantName: company.company_name || company.slug,
+    });
+
+    // Cost tracking + quota accounting.
+    try {
+      await pool.query('INSERT INTO food_ai_messages (company_id, role, content, tokens) VALUES ($1,$2,$3,$4)', [company.id, 'user', message, 0]);
+      await pool.query('INSERT INTO food_ai_messages (company_id, role, content, tokens) VALUES ($1,$2,$3,$4)', [company.id, 'assistant', out.reply, out.tokens || 0]);
+      await pool.query('UPDATE food_ai_subscriptions SET used_this_period = used_this_period + 1 WHERE company_id = $1', [company.id]);
+    } catch (e) { console.error('[ai log]', e.message); }
+
+    res.json({ ok: true, reply: out.reply, cart: out.cart });
+  } catch (e) {
+    console.error('[ai assistant]', e.message);
+    res.status(502).json({ ok: false, error: say('حصل خطأ مؤقت، جرّب تاني.', 'A temporary error occurred, please try again.') });
+  }
 });
 
 // Create a food order from the client cart (COD). Prices are re-read from the

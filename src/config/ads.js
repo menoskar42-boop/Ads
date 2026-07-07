@@ -39,5 +39,9 @@ module.exports = {
     portfolioTop:     process.env.ADS_PORTFOLIO_TOP     || '',
     portfolioSidebar: process.env.ADS_PORTFOLIO_SIDEBAR || '',
     portfolioBottom:  process.env.ADS_PORTFOLIO_BOTTOM  || '',
+
+    // Orders platform — ONLY on the menu / browse content surface.
+    // NEVER on cart / checkout / order confirm-track / customer pages (AdSense policy).
+    ordersMenu:  process.env.ADS_ORDERS_MENU  || '',
   },
 };

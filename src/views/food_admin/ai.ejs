@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.ai.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'ai' }) %>
+<%
+  var __quota = sub ? (Number(sub.monthly_quota) || 0) : 0;
+  var __used = sub ? (Number(sub.used_this_period) || 0) : 0;
+  var __remaining = Math.max(0, __quota - __used);
+  function __fmt(n){ return Number(n).toLocaleString(lang==='ar'?'ar-EG':'en-US'); }
+  function __date(d){ try { return new Date(d).toLocaleDateString(lang==='ar'?'ar-EG':'en-US'); } catch(e){ return ''; } }
+  var __statusLabel = active ? t('food.ai.active') : (expired ? t('food.ai.expired') : t('food.ai.inactive'));
+  var __statusCls = active ? 'bg-green-100 text-green-700' : (expired ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-600');
+%>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
+    <div class="flex items-center justify-between gap-3 mb-2">
+      <h1 class="font-extrabold text-orange-700 text-lg flex items-center gap-2">🤖 <%= t('food.ai.title') %></h1>
+      <span class="text-xs font-bold rounded-full px-3 py-1 <%= __statusCls %>"><%= t('food.ai.status') %>: <%= __statusLabel %></span>
+    </div>
+    <p class="text-sm text-gray-500 leading-relaxed"><%= t('food.ai.intro') %></p>
+  </div>
+
+  <% if (active) { %>
+  <div class="grid gap-3 sm:grid-cols-3 mb-5">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+      <div class="text-xs text-gray-500 mb-1"><%= t('food.ai.quota') %></div>
+      <div class="text-2xl font-extrabold text-gray-800"><%= __fmt(__quota) %></div>
+      <div class="text-[11px] text-gray-400"><%= t('food.ai.messages') %></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+      <div class="text-xs text-gray-500 mb-1"><%= t('food.ai.used') %></div>
+      <div class="text-2xl font-extrabold text-orange-600"><%= __fmt(__used) %></div>
+      <div class="text-[11px] text-gray-400"><%= t('food.ai.messages') %></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+      <div class="text-xs text-gray-500 mb-1"><%= t('food.ai.remaining') %></div>
+      <div class="text-2xl font-extrabold text-green-600"><%= __fmt(__remaining) %></div>
+      <div class="text-[11px] text-gray-400"><%= t('food.ai.messages') %></div>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5 text-sm">
+    <div class="flex justify-between py-1"><span class="text-gray-500"><%= t('food.ai.plan') %></span><span class="font-bold"><%= sub.plan || '—' %></span></div>
+    <% if (sub.expires_at) { %><div class="flex justify-between py-1"><span class="text-gray-500"><%= t('food.ai.expires') %></span><span class="font-bold"><%= __date(sub.expires_at) %></span></div><% } %>
+    <div class="mt-3 h-2 rounded-full bg-gray-100 overflow-hidden">
+      <div class="h-full accent-bg" style="width: <%= __quota > 0 ? Math.min(100, Math.round(__used / __quota * 100)) : 0 %>%; background:#e8734a;"></div>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="bg-orange-50 border border-orange-100 rounded-2xl p-5">
+    <h2 class="font-bold text-orange-800 mb-1"><%= t('food.ai.how_title') %></h2>
+    <p class="text-sm text-orange-900/80 leading-relaxed mb-4"><%= t('food.ai.how_body') %></p>
+    <a href="/contact" class="inline-block bg-orange-600 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-orange-700 transition"><%= t('food.ai.contact') %></a>
+  </div>
+</main>
+</body>
+</html>

@@ -249,4 +249,18 @@ router.post('/coupons/:id/delete', async (req, res) => {
   res.redirect('/food/coupons');
 });
 
+/* ─── AI assistant (paid) — subscription + usage view ───── */
+router.get('/ai', async (req, res) => {
+  let sub = null;
+  try {
+    sub = (await pool.query('SELECT * FROM food_ai_subscriptions WHERE company_id = $1', [req.company.id])).rows[0] || null;
+  } catch (e) { console.error('ai sub load:', e.message); }
+  const now = Date.now();
+  const active = sub && sub.status === 'active' && (!sub.expires_at || new Date(sub.expires_at).getTime() >= now);
+  const expired = sub && sub.status === 'active' && sub.expires_at && new Date(sub.expires_at).getTime() < now;
+  res.render('food_admin/ai', {
+    company: req.company, session: req.session, sub, active, expired,
+  });
+});
+
 module.exports = router;
