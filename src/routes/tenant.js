@@ -266,7 +266,9 @@ router.get('/order/track/:token', async (req, res) => {
     const order = await loadTrackedOrder(req);
     if (!order) return res.redirect('/');
     const items = (await pool.query(
-      'SELECT name, qty, price FROM pharmacy_order_items WHERE order_id = $1', [order.id]
+      `SELECT oi.name, oi.qty, oi.price, m.name_en AS med_en
+       FROM pharmacy_order_items oi LEFT JOIN medicines m ON m.id = oi.medicine_id
+       WHERE oi.order_id = $1`, [order.id]
     )).rows;
     res.render('tenant_pharmacy_track', {
       company: req.tenant, order, items, noindex: true,

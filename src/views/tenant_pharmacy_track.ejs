@@ -57,8 +57,8 @@
 
   <!-- items -->
   <div class="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-sm">
-    <% items.forEach(function(it){ %>
-      <div class="flex justify-between py-1"><span><%= it.name %> × <%= it.qty %></span><% if (it.price!=null) { %><span class="text-gray-500"><%= Number(it.price).toFixed(2) %> <%= t('pharmacy.currency') %></span><% } %></div>
+    <% items.forEach(function(it){ var _nm = (lang==='en' && it.med_en) ? it.med_en : it.name; %>
+      <div class="flex justify-between py-1"><span><%= _nm %> × <%= it.qty %></span><% if (it.price!=null) { %><span class="text-gray-500"><%= Number(it.price).toFixed(2) %> <%= t('pharmacy.currency') %></span><% } %></div>
     <% }) %>
     <div class="flex justify-between border-t mt-2 pt-2 font-extrabold"><span><%= t('pharmacy.pos.total') %></span><span class="brand-text"><%= Number(order.total_amount||0).toFixed(2) %> <%= t('pharmacy.currency') %></span></div>
   </div>

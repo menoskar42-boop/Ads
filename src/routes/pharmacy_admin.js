@@ -329,7 +329,8 @@ router.get('/orders', gate('orders'), async (req, res) => {
     let lastEvent = {};
     if (ids.length) {
       const its = (await pool.query(
-        `SELECT * FROM pharmacy_order_items WHERE order_id = ANY($1::int[])`, [ids]
+        `SELECT oi.*, m.name_en AS med_en FROM pharmacy_order_items oi
+         LEFT JOIN medicines m ON m.id = oi.medicine_id WHERE oi.order_id = ANY($1::int[])`, [ids]
       )).rows;
       for (const it of its) { (itemsByOrder[it.order_id] = itemsByOrder[it.order_id] || []).push(it); }
       const evs = (await pool.query(

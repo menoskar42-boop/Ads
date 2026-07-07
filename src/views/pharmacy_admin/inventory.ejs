@@ -62,8 +62,9 @@
               class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
           <div class="flex items-center justify-between gap-2 mb-3">
             <div class="min-w-0">
-              <div class="font-extrabold text-gray-900 truncate"><%= it.name_ar %></div>
-              <div class="text-xs text-gray-400"><%= it.name_en || '' %><% if (it.form) { %> · <%= it.form %><% } %></div>
+              <% var _p = (lang==='en' && it.name_en) ? it.name_en : it.name_ar; var _s = (lang==='en' && it.name_en) ? it.name_ar : it.name_en; %>
+              <div class="font-extrabold text-gray-900 truncate"><%= _p %></div>
+              <div class="text-xs text-gray-400"><%= _s || '' %><% if (it.form) { %> · <%= it.form %><% } %></div>
             </div>
             <% var avail = Number(it.available_qty)||0; var st = avail<=0?'out':(it.qty<=it.min_qty?'low':'in'); %>
             <span class="shrink-0 text-xs font-bold rounded-full px-2 py-1 <%= st==='in'?'text-green-700 bg-green-50':(st==='low'?'text-amber-700 bg-amber-50':'text-red-600 bg-red-50') %>">

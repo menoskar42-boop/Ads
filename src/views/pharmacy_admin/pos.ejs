@@ -47,7 +47,9 @@
 <script>
 (function(){
   var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
+  var LANG = <%- JSON.stringify(lang) %>;
   var MSG = { done: <%- JSON.stringify(t('pharmacy.pos.done')) %>, insuf: <%- JSON.stringify(t('pharmacy.pos.insufficient')) %>, avail: <%- JSON.stringify(t('pharmacy.pos.available_short')) %> };
+  function nm(it){ return (LANG==='en' && it.name_en) ? it.name_en : it.name_ar; }
   var cart = {}; // medicine_id -> {name, price, qty, available}
   var $ = function(id){ return document.getElementById(id); };
   var searchBox = $('posSearch'), results = $('posResults');
@@ -69,7 +71,8 @@
         rows.forEach(function(it){
           var d=document.createElement('button');
           d.className='w-full text-start px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-2';
-          d.innerHTML='<span><b>'+esc(it.name_ar)+'</b>'+(it.name_en?' <span style="color:#9ca3af;font-size:.8rem">'+esc(it.name_en)+'</span>':'')+'</span>'+
+          var _pri=nm(it), _sec=(LANG==='en'&&it.name_en)?it.name_ar:it.name_en;
+          d.innerHTML='<span><b>'+esc(_pri)+'</b>'+(_sec?' <span style="color:#9ca3af;font-size:.8rem">'+esc(_sec)+'</span>':'')+'</span>'+
             '<span style="white-space:nowrap"><span style="color:#0e7c66;font-weight:700">'+(Number(it.price)||0).toFixed(2)+' '+CUR+'</span> · '+MSG.avail+' '+it.available+'</span>';
           d.onclick=function(){ addToCart(it); searchBox.value=''; results.classList.add('hidden'); searchBox.focus(); };
           results.appendChild(d);
@@ -80,7 +83,7 @@
 
   function addToCart(it){
     var id=it.medicine_id;
-    if(!cart[id]) cart[id]={ name:it.name_ar, price:Number(it.price)||0, qty:0, available:Number(it.available)||0 };
+    if(!cart[id]) cart[id]={ name:nm(it), price:Number(it.price)||0, qty:0, available:Number(it.available)||0 };
     if(cart[id].qty < cart[id].available) cart[id].qty++;
     else toast(MSG.insuf);
     render();
@@ -135,7 +138,7 @@
         // barcode decoded → search inventory and auto-add the first match
         fetch('/pharmacy/api/inventory-search?q='+encodeURIComponent(code))
           .then(function(r){return r.json();})
-          .then(function(rows){ if(rows.length){ addToCart(rows[0]); toast(rows[0].name_ar); } else { searchBox.value=code; doSearch(code); } })
+          .then(function(rows){ if(rows.length){ addToCart(rows[0]); toast(nm(rows[0])); } else { searchBox.value=code; doSearch(code); } })
           .catch(function(){});
       }, function(){}
     ).catch(function(){ overlay.style.display='none'; scanner=null; searchBox.focus(); toast('تعذّر فتح الكاميرا'); });
