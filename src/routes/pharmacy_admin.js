@@ -427,6 +427,32 @@ router.post('/orders/:id/status', gate('orders'), async (req, res) => {
   }
 });
 
+/* ─── Delivery driver live location (GPS) ───────────────── */
+// Driver (or any staff with orders access) posts their current location for an
+// order that's out for delivery. The pharmacy + the customer see it on a map.
+router.post('/orders/:id/location', gate('orders'), async (req, res) => {
+  const oid = toInt(req.params.id, null);
+  const lat = parseFloat(req.body && req.body.lat);
+  const lng = parseFloat(req.body && req.body.lng);
+  if (!oid || !Number.isFinite(lat) || !Number.isFinite(lng)) return res.status(400).json({ ok: false });
+  await pool.query(
+    'UPDATE pharmacy_orders SET driver_lat=$1, driver_lng=$2, driver_loc_at=now() WHERE id=$3 AND company_id=$4',
+    [lat, lng, oid, req.company.id]
+  ).catch(() => {});
+  res.json({ ok: true });
+});
+
+// Pharmacy-side poll for a driver's latest location.
+router.get('/orders/:id/location', gate('orders'), async (req, res) => {
+  try {
+    const r = (await pool.query(
+      'SELECT driver_lat AS lat, driver_lng AS lng, driver_loc_at AS at, status FROM pharmacy_orders WHERE id=$1 AND company_id=$2',
+      [toInt(req.params.id, null), req.company.id]
+    )).rows[0];
+    res.json(r || {});
+  } catch (e) { res.status(500).json({}); }
+});
+
 /* ─── Staff & roles (owner only) ────────────────────────── */
 router.get('/staff', gate('staff'), async (req, res) => {
   try {

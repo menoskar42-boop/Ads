@@ -286,6 +286,17 @@ router.get('/order/track/:token/status', async (req, res) => {
   } catch (e) { res.status(500).json({}); }
 });
 
+// Customer poll for the delivery driver's live location (only while the order
+// is out for delivery).
+router.get('/order/track/:token/location', async (req, res) => {
+  try {
+    const order = await loadTrackedOrder(req);
+    if (!order) return res.status(404).json({});
+    if (order.status !== 'out_for_delivery' || order.driver_lat == null) return res.json({});
+    res.json({ lat: Number(order.driver_lat), lng: Number(order.driver_lng), at: order.driver_loc_at });
+  } catch (e) { res.status(500).json({}); }
+});
+
 router.post('/order/track/:token/subscribe', async (req, res) => {
   try {
     const order = await loadTrackedOrder(req);

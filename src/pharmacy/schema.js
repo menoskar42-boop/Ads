@@ -138,6 +138,11 @@ async function ensurePharmacySchema() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_staff_username ON pharmacy_staff (lower(username));
       -- Optional per-order assignment to a delivery driver (used by GPS phase).
       ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS assigned_staff INTEGER;
+      -- Live delivery-driver location for an out-for-delivery order (GPS phase),
+      -- shown to the pharmacy and the customer on a map.
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS driver_lat NUMERIC(9,6);
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS driver_lng NUMERIC(9,6);
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS driver_loc_at TIMESTAMPTZ;
 
       -- POS movements: sale (صادر) / purchase (وارد) / adjust. offline_uid gives
       -- idempotent replay when the offline POS syncs queued transactions.

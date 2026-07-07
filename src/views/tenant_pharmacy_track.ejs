@@ -9,7 +9,9 @@
 <link rel="canonical" href="<%= canonical %>" />
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
-<style>* { font-family: 'Cairo', sans-serif; } :root{--brand:<%= __theme %>} .brand-bg{background:var(--brand)} .brand-text{color:var(--brand)}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>* { font-family: 'Cairo', sans-serif; } :root{--brand:<%= __theme %>} .brand-bg{background:var(--brand)} .brand-text{color:var(--brand)} #drvmap{height:240px;border-radius:14px;overflow:hidden;margin-top:12px}
   .dot{width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
   .done .dot{background:var(--brand);color:#fff} .todo .dot{background:#e5e7eb;color:#9ca3af}
   .line{width:2px;flex:1;background:#e5e7eb;margin:2px auto} .done .line{background:var(--brand)}</style>
@@ -55,6 +57,14 @@
     </div>
   <% } %>
 
+  <% if (order.status === 'out_for_delivery') { %>
+    <div class="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <p class="font-bold text-orange-700 mb-1"><%= t('pharmacy.gps.on_the_way') %></p>
+      <div id="drvmap"></div>
+      <p id="noLoc" class="text-xs text-gray-400 mt-2"><%= t('pharmacy.gps.no_loc') %></p>
+    </div>
+  <% } %>
+
   <!-- items -->
   <div class="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-sm">
     <% items.forEach(function(it){ var _nm = (lang==='en' && it.med_en) ? it.med_en : it.name; %>
@@ -81,6 +91,25 @@
       if(d && d.status && d.status !== CURRENT) location.reload();
     }).catch(function(){});
   }, 20000);
+
+  // Live driver map (rendered only while out for delivery).
+  var mapEl = document.getElementById('drvmap');
+  if (mapEl && typeof L !== 'undefined') {
+    var map = L.map(mapEl, { attributionControl:false }).setView([26.82, 30.80], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+    var marker = null; var noLoc = document.getElementById('noLoc');
+    function pollLoc(){
+      fetch('/order/track/'+TOKEN+'/location').then(function(r){return r.json();}).then(function(d){
+        if(d && d.lat!=null && d.lng!=null){
+          if(noLoc) noLoc.style.display='none';
+          var ll=[Number(d.lat), Number(d.lng)];
+          if(!marker){ marker=L.marker(ll).addTo(map); map.setView(ll,15); } else { marker.setLatLng(ll); }
+        }
+      }).catch(function(){});
+    }
+    setTimeout(function(){ map.invalidateSize(); pollLoc(); }, 200);
+    setInterval(pollLoc, 8000);
+  }
 
   var btn = document.getElementById('notifBtn'); if(!btn) return;
   var hint = document.getElementById('notifHint');

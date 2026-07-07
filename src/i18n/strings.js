@@ -302,6 +302,11 @@ const strings = {
     'pharmacy.role.cashier': 'كاشير',
     'pharmacy.role.delivery': 'موصّل (ديليفري)',
     'pharmacy.role.owner': 'مالك',
+    'pharmacy.gps.share': '📍 شارك موقعي',
+    'pharmacy.gps.sharing': '⏹️ جاري المشاركة… (إيقاف)',
+    'pharmacy.gps.driver_map': 'موقع الموصّل',
+    'pharmacy.gps.no_loc': 'لسه مفيش موقع للموصّل',
+    'pharmacy.gps.on_the_way': '🚗 الموصّل في الطريق إليك',
   },
 
   en: {
@@ -597,6 +602,11 @@ const strings = {
     'pharmacy.role.cashier': 'Cashier',
     'pharmacy.role.delivery': 'Delivery',
     'pharmacy.role.owner': 'Owner',
+    'pharmacy.gps.share': '📍 Share my location',
+    'pharmacy.gps.sharing': '⏹️ Sharing… (stop)',
+    'pharmacy.gps.driver_map': 'Driver location',
+    'pharmacy.gps.no_loc': 'No driver location yet',
+    'pharmacy.gps.on_the_way': '🚗 The driver is on the way',
   },
 };
 
