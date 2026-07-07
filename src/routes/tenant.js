@@ -3,6 +3,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const { getPreset } = require('../lib/portfolio_presets');
 const stock = require('../pharmacy/stock');
+const push = require('../lib/push');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -224,6 +225,12 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
     );
     await stock.reserve(client, company.id, [{ medicine_id: mid, qty }]);
     await client.query('COMMIT');
+    // Mobile push to the pharmacy owner — same channel as shop orders/messages.
+    push.sendToCompany(company.id, {
+      title: '🧾 طلب صيدلية جديد',
+      body: `طلب جديد من ${name}: ${inv.name_ar} × ${qty}`,
+      url: '/pharmacy/orders',
+    }, 'order').catch((e) => console.error('[push pharmacy order] error:', e.message));
     res.render('tenant_pharmacy_order', {
       company, item: null, settings: req.pharmacySettings, noindex: true, done: true,
       order: { id: ord.id, name: inv.name_ar, qty, total },

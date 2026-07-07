@@ -12,8 +12,12 @@
 // exactly like the core initDb() migration.
 
 const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
 
 const DEMO_SLUG = 'pharmacy';
+// Demo login for the sample pharmacy so the admin area can be tried out.
+const DEMO_EMAIL = 'pharmacy@demo.oscardevs.com';
+const DEMO_PASSWORD = 'pharmacy123';
 
 // A small starter set of well-known medicines sold in Egypt, used to seed the
 // global catalog the first time (pharmacy admins add/extend their own later).
@@ -210,6 +214,19 @@ async function seedDemoPharmacy(client) {
      ON CONFLICT (company_id) DO NOTHING`,
     [companyId]
   );
+
+  // Demo login (only if the pharmacy has no user yet) so the /pharmacy admin
+  // area can be tried. Safe: fake pharmacy, no real customer data.
+  const hasUser = await client.query('SELECT 1 FROM company_users WHERE company_id = $1 LIMIT 1', [companyId]);
+  if (!hasUser.rows.length) {
+    const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
+    await client.query(
+      `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3)
+       ON CONFLICT (email) DO NOTHING`,
+      [companyId, DEMO_EMAIL, hash]
+    );
+    console.log('Seeded demo pharmacy login:', DEMO_EMAIL);
+  }
 
   // Give the demo pharmacy stock for the seeded catalog (only if it has none).
   const invCount = await client.query(

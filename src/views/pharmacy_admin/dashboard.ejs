@@ -7,7 +7,7 @@
 <title><%= t('pharmacy.admin.dashboard') %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
-<style>* { font-family: 'Cairo', sans-serif; }</style>
+<style>* { font-family: 'Cairo', sans-serif; } .brand-bg{ background:#0e7c66; }</style>
 </head>
 <body class="bg-gray-50 text-gray-800">
 <%- include('nav', { active: 'dashboard' }) %>
@@ -36,6 +36,12 @@
     <a href="/pharmacy/inventory" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl px-6 py-3">📦 <%= t('pharmacy.admin.inventory') %></a>
     <a href="/pharmacy/settings" class="bg-white border-2 border-emerald-700 text-emerald-700 font-bold rounded-xl px-6 py-3">⚙️ <%= t('pharmacy.admin.settings') %></a>
     <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="bg-white border border-gray-200 text-gray-700 font-bold rounded-xl px-6 py-3">🔗 <%= t('pharmacy.admin.view_public') %></a>
+  </div>
+
+  <!-- Mobile push notifications (new order / message) — reuses the shared setup
+       card + the /company/push/* endpoints (same login session). -->
+  <div class="mt-6">
+    <%- include('../company/_push_setup') %>
   </div>
 </main>
 </body>
