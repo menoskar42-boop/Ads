@@ -28,6 +28,8 @@
     <button id="scanClose" class="mt-4 bg-white text-gray-800 font-bold rounded-xl px-6 py-2">✕</button>
   </div>
 
+  <div id="posStatus" class="hidden text-sm font-bold rounded-xl px-4 py-2 mt-2"></div>
+
   <div class="mt-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
     <div class="font-extrabold text-emerald-700 mb-3">🧾 <%= t('pharmacy.pos.cart') %></div>
     <div id="posEmpty" class="text-center text-gray-400 py-8"><%= t('pharmacy.pos.empty') %></div>
@@ -46,53 +48,98 @@
 
 <script>
 (function(){
-  var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
+  var CUR  = <%- JSON.stringify(t('pharmacy.currency')) %>;
   var LANG = <%- JSON.stringify(lang) %>;
-  var MSG = { done: <%- JSON.stringify(t('pharmacy.pos.done')) %>, insuf: <%- JSON.stringify(t('pharmacy.pos.insufficient')) %>, avail: <%- JSON.stringify(t('pharmacy.pos.available_short')) %> };
-  function nm(it){ return (LANG==='en' && it.name_en) ? it.name_en : it.name_ar; }
-  var cart = {}; // medicine_id -> {name, price, qty, available}
+  var MSG  = {
+    done: <%- JSON.stringify(t('pharmacy.pos.done')) %>, insuf: <%- JSON.stringify(t('pharmacy.pos.insufficient')) %>,
+    avail: <%- JSON.stringify(t('pharmacy.pos.available_short')) %>, offline: <%- JSON.stringify(t('pharmacy.pos.offline')) %>,
+    online: <%- JSON.stringify(t('pharmacy.pos.online')) %>, pending: <%- JSON.stringify(t('pharmacy.pos.pending')) %>,
+    savedOff: <%- JSON.stringify(t('pharmacy.pos.saved_offline')) %>, loading: <%- JSON.stringify(t('pharmacy.pos.loading')) %>
+  };
+  var DBNAME = 'oscardevs_pos_<%= company.id %>';
   var $ = function(id){ return document.getElementById(id); };
-  var searchBox = $('posSearch'), results = $('posResults');
-  var timer = null;
+  function nm(it){ return (LANG==='en' && it.name_en) ? it.name_en : it.name_ar; }
+  function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function uidGen(){ return (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(36).slice(2)); }
 
+  // Register the /pharmacy-scoped SW so the POS shell loads offline.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pharmacy-sw.js', { scope: '/pharmacy/' }).catch(function(){});
+  }
+
+  // ── IndexedDB (inventory cache + offline sale queue) ──
+  var db = null;
+  function openDB(){
+    return new Promise(function(res, rej){
+      var r = indexedDB.open(DBNAME, 1);
+      r.onupgradeneeded = function(e){
+        var d = e.target.result;
+        if(!d.objectStoreNames.contains('inv')) d.createObjectStore('inv', { keyPath:'medicine_id' });
+        if(!d.objectStoreNames.contains('queue')) d.createObjectStore('queue', { keyPath:'uid' });
+      };
+      r.onsuccess = function(e){ res(e.target.result); };
+      r.onerror = function(){ rej(r.error); };
+    });
+  }
+  function tx(store, mode){ return db.transaction(store, mode).objectStore(store); }
+  function getAll(store){ return new Promise(function(res){ var out=[]; var c=tx(store,'readonly').openCursor(); c.onsuccess=function(e){ var cur=e.target.result; if(cur){ out.push(cur.value); cur.continue(); } else res(out); }; c.onerror=function(){ res(out); }; }); }
+  function put(store, val){ return new Promise(function(res){ var rq=tx(store,'readwrite').put(val); rq.onsuccess=function(){res();}; rq.onerror=function(){res();}; }); }
+  function del(store, key){ return new Promise(function(res){ var rq=tx(store,'readwrite').delete(key); rq.onsuccess=function(){res();}; rq.onerror=function(){res();}; }); }
+  function clearStore(store){ return new Promise(function(res){ var rq=tx(store,'readwrite').clear(); rq.onsuccess=function(){res();}; rq.onerror=function(){res();}; }); }
+
+  var cart = {}; // medicine_id -> {name, price, qty, available}
+
+  // Refresh the local inventory cache from the server (when online).
+  function refreshInventory(){
+    if(!navigator.onLine) return Promise.resolve();
+    return fetch('/pharmacy/api/inventory-all').then(function(r){ return r.json(); }).then(function(rows){
+      if(!Array.isArray(rows)) return;
+      return clearStore('inv').then(function(){
+        return Promise.all(rows.map(function(it){ return put('inv', it); }));
+      });
+    }).catch(function(){});
+  }
+
+  // Search the LOCAL cache (works offline).
+  var searchBox = $('posSearch'), results = $('posResults'), timer=null;
   searchBox.addEventListener('input', function(){
-    clearTimeout(timer);
-    var q = searchBox.value.trim();
-    if (!q){ results.classList.add('hidden'); results.innerHTML=''; return; }
-    timer = setTimeout(function(){ doSearch(q); }, 200);
+    clearTimeout(timer); var q=searchBox.value.trim();
+    if(!q){ results.classList.add('hidden'); results.innerHTML=''; return; }
+    timer = setTimeout(function(){ doSearch(q); }, 150);
   });
-
   function doSearch(q){
-    fetch('/pharmacy/api/inventory-search?q=' + encodeURIComponent(q))
-      .then(function(r){ return r.json(); })
-      .then(function(rows){
-        results.innerHTML='';
-        if(!rows.length){ results.classList.add('hidden'); return; }
-        rows.forEach(function(it){
-          var d=document.createElement('button');
-          d.className='w-full text-start px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-2';
-          var _pri=nm(it), _sec=(LANG==='en'&&it.name_en)?it.name_ar:it.name_en;
-          d.innerHTML='<span><b>'+esc(_pri)+'</b>'+(_sec?' <span style="color:#9ca3af;font-size:.8rem">'+esc(_sec)+'</span>':'')+'</span>'+
-            '<span style="white-space:nowrap"><span style="color:#0e7c66;font-weight:700">'+(Number(it.price)||0).toFixed(2)+' '+CUR+'</span> · '+MSG.avail+' '+it.available+'</span>';
-          d.onclick=function(){ addToCart(it); searchBox.value=''; results.classList.add('hidden'); searchBox.focus(); };
-          results.appendChild(d);
-        });
-        results.classList.remove('hidden');
-      }).catch(function(){});
+    var ql = q.toLowerCase();
+    getAll('inv').then(function(rows){
+      var m = rows.filter(function(it){
+        return (it.name_ar && it.name_ar.toLowerCase().indexOf(ql)>=0) ||
+               (it.name_en && it.name_en.toLowerCase().indexOf(ql)>=0) ||
+               (it.barcode && String(it.barcode)===q);
+      }).slice(0,30);
+      results.innerHTML='';
+      if(!m.length){ results.classList.add('hidden'); return; }
+      m.forEach(function(it){
+        var b=document.createElement('button');
+        b.className='w-full text-start px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-2';
+        var pri=nm(it), sec=(LANG==='en'&&it.name_en)?it.name_ar:it.name_en;
+        b.innerHTML='<span><b>'+esc(pri)+'</b>'+(sec?' <span style="color:#9ca3af;font-size:.8rem">'+esc(sec)+'</span>':'')+'</span>'+
+          '<span style="white-space:nowrap"><span style="color:#0e7c66;font-weight:700">'+(Number(it.price)||0).toFixed(2)+' '+CUR+'</span> · '+MSG.avail+' '+it.available+'</span>';
+        b.onclick=function(){ addToCart(it); searchBox.value=''; results.classList.add('hidden'); searchBox.focus(); };
+        results.appendChild(b);
+      });
+      results.classList.remove('hidden');
+    });
   }
 
   function addToCart(it){
     var id=it.medicine_id;
     if(!cart[id]) cart[id]={ name:nm(it), price:Number(it.price)||0, qty:0, available:Number(it.available)||0 };
-    if(cart[id].qty < cart[id].available) cart[id].qty++;
-    else toast(MSG.insuf);
+    if(cart[id].qty < cart[id].available) cart[id].qty++; else toast(MSG.insuf);
     render();
   }
-
   function render(){
     var box=$('posCart'); box.innerHTML=''; var total=0, any=false;
     Object.keys(cart).forEach(function(id){
-      var c=cart[id]; if(c.qty<=0) return; any=true; total += c.price*c.qty;
+      var c=cart[id]; if(c.qty<=0) return; any=true; total+=c.price*c.qty;
       var row=document.createElement('div'); row.className='py-3 flex items-center justify-between gap-2';
       row.innerHTML='<div class="min-w-0"><div class="font-bold truncate">'+esc(c.name)+'</div><div style="color:#6b7280;font-size:.8rem">'+c.price.toFixed(2)+' '+CUR+'</div></div>';
       var ctrl=document.createElement('div'); ctrl.className='flex items-center gap-2 shrink-0';
@@ -107,42 +154,87 @@
     $('posTotal').textContent = total.toFixed(2);
   }
 
+  // Checkout: queue the sale locally, decrement local stock, then try to sync.
   $('posCheckout').onclick=function(){
-    var items=Object.keys(cart).filter(function(id){return cart[id].qty>0;}).map(function(id){return {medicine_id:id, qty:cart[id].qty};});
+    var items=Object.keys(cart).filter(function(id){return cart[id].qty>0;}).map(function(id){
+      return { medicine_id:parseInt(id,10), qty:cart[id].qty, price:cart[id].price, name:cart[id].name };
+    });
     if(!items.length) return;
-    $('posCheckout').disabled=true;
-    fetch('/pharmacy/pos/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
-      .then(function(r){return r.json();})
-      .then(function(res){
-        $('posCheckout').disabled=false;
-        if(res.ok){ cart={}; render(); toast(MSG.done); }
-        else { toast(res.name ? (MSG.insuf+': '+res.name) : MSG.insuf); }
-      }).catch(function(){ $('posCheckout').disabled=false; });
+    var sale={ uid:uidGen(), items:items, ts:Date.now() };
+    put('queue', sale).then(function(){
+      // optimistic local stock decrement
+      return Promise.all(items.map(function(it){
+        return new Promise(function(res){ var rq=tx('inv','readwrite').get(it.medicine_id); rq.onsuccess=function(e){ var rec=e.target.result; if(rec){ rec.available=Math.max(0,(Number(rec.available)||0)-it.qty); tx('inv','readwrite').put(rec); } res(); }; rq.onerror=function(){res();}; });
+      }));
+    }).then(function(){
+      cart={}; render();
+      toast(navigator.onLine ? MSG.done : MSG.savedOff);
+      trySync();
+    });
   };
 
-  var toastTimer=null;
-  function toast(m){ var el=$('posToast'); el.textContent=m; el.classList.remove('hidden'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){el.classList.add('hidden');},2200); }
-  function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  // Flush the offline queue to the server (idempotent via uid).
+  var syncing=false;
+  function trySync(){
+    if(syncing || !navigator.onLine){ updateStatus(); return Promise.resolve(); }
+    syncing=true;
+    return getAll('queue').then(function(q){
+      if(!q.length){ syncing=false; updateStatus(); return; }
+      var sales=q.map(function(s){ return { offline_uid:s.uid, items:s.items }; });
+      return fetch('/pharmacy/pos/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sales:sales})})
+        .then(function(r){ return r.json(); }).then(function(res){
+          var done=(res && res.synced) || [];
+          return Promise.all(done.map(function(uid){ return del('queue', uid); }));
+        }).then(function(){ return refreshInventory(); })
+        .then(function(){ syncing=false; updateStatus(); })
+        .catch(function(){ syncing=false; updateStatus(); });
+    }).catch(function(){ syncing=false; updateStatus(); });
+  }
 
-  // ── Barcode camera scanning (html5-qrcode) ──
+  function updateStatus(){
+    var el=$('posStatus');
+    getAll('queue').then(function(q){
+      var pend=q.length;
+      if(!navigator.onLine){
+        el.textContent=MSG.offline+(pend?(' · '+pend+' '+MSG.pending):'');
+        el.className='text-sm font-bold rounded-xl px-4 py-2 mt-2 bg-amber-50 text-amber-700';
+      } else if(pend){
+        el.textContent=pend+' '+MSG.pending+'…';
+        el.className='text-sm font-bold rounded-xl px-4 py-2 mt-2 bg-blue-50 text-blue-700';
+      } else {
+        el.classList.add('hidden'); return;
+      }
+      el.classList.remove('hidden');
+    });
+  }
+
+  window.addEventListener('online', function(){ trySync(); refreshInventory().then(updateStatus); });
+  window.addEventListener('offline', updateStatus);
+
+  var toastTimer=null;
+  function toast(m){ var el=$('posToast'); el.textContent=m; el.classList.remove('hidden'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){el.classList.add('hidden');},2400); }
+
+  // ── Barcode camera scanning ──
   var scanBtn=$('posScan'), overlay=$('scanOverlay'), scanClose=$('scanClose'), scanner=null;
   function stopScan(){ if(scanner){ scanner.stop().then(function(){ try{scanner.clear();}catch(e){} }).catch(function(){}); scanner=null; } overlay.style.display='none'; }
   scanClose.onclick=stopScan;
   scanBtn.onclick=function(){
-    if(typeof Html5Qrcode==='undefined'){ searchBox.focus(); toast('اكتب الباركود أو استخدم قارئ'); return; }
-    overlay.style.display='flex';
-    scanner=new Html5Qrcode('reader');
-    scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}},
-      function(code){
-        stopScan();
-        // barcode decoded → search inventory and auto-add the first match
-        fetch('/pharmacy/api/inventory-search?q='+encodeURIComponent(code))
-          .then(function(r){return r.json();})
-          .then(function(rows){ if(rows.length){ addToCart(rows[0]); toast(nm(rows[0])); } else { searchBox.value=code; doSearch(code); } })
-          .catch(function(){});
-      }, function(){}
-    ).catch(function(){ overlay.style.display='none'; scanner=null; searchBox.focus(); toast('تعذّر فتح الكاميرا'); });
+    if(typeof Html5Qrcode==='undefined'){ searchBox.focus(); return; }
+    overlay.style.display='flex'; scanner=new Html5Qrcode('reader');
+    scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}}, function(code){
+      stopScan();
+      getAll('inv').then(function(rows){
+        var hit=rows.filter(function(it){ return it.barcode && String(it.barcode)===String(code); })[0];
+        if(hit){ addToCart(hit); toast(nm(hit)); } else { searchBox.value=code; doSearch(code); }
+      });
+    }, function(){}).catch(function(){ overlay.style.display='none'; scanner=null; searchBox.focus(); });
   };
+
+  // ── Boot ──
+  openDB().then(function(d){ db=d; return refreshInventory(); }).then(function(){ trySync(); updateStatus(); }).catch(function(){
+    // IndexedDB unavailable — degrade gracefully to online-only search.
+    toast(MSG.loading);
+  });
 })();
 </script>
 </body>

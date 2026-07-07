@@ -314,6 +314,77 @@ router.post('/pos/checkout', gate('pos'), async (req, res) => {
   }
 });
 
+// Full inventory snapshot for the offline POS (cached in the browser's
+// IndexedDB so search + sell keep working with no connection).
+router.get('/api/inventory-all', gate('pos'), async (req, res) => {
+  try {
+    const rows = (await pool.query(
+      `SELECT pi.medicine_id, pi.price, GREATEST(pi.qty - pi.reserved_qty, 0) AS available,
+              COALESCE(NULLIF(pi.barcode,''), m.barcode) AS barcode, m.name_ar, m.name_en
+       FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+       WHERE pi.company_id = $1 ORDER BY m.name_ar`, [req.company.id]
+    )).rows;
+    res.json(rows);
+  } catch (e) { console.error('inventory-all error:', e.message); res.status(500).json([]); }
+});
+
+// Sync a batch of sales made offline. Each carries an offline_uid; replays are
+// idempotent (a uid already recorded is skipped). Offline sales are facts that
+// already happened at the counter, so they're always applied (no availability
+// rejection) — stock is decremented and floored at zero.
+router.post('/pos/sync', gate('pos'), async (req, res) => {
+  const cid = req.company.id;
+  const sales = Array.isArray(req.body && req.body.sales) ? req.body.sales : [];
+  const synced = [];
+  for (const s of sales) {
+    const uid = String((s && s.offline_uid) || '').slice(0, 64);
+    const items = Array.isArray(s && s.items) ? s.items : [];
+    if (!uid || !items.length) continue;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const exists = (await client.query(
+        'SELECT 1 FROM pharmacy_sales WHERE company_id=$1 AND offline_uid=$2', [cid, uid]
+      )).rows[0];
+      if (exists) { await client.query('COMMIT'); synced.push(uid); continue; }
+      let total = 0, profit = 0; const lines = [];
+      for (const raw of items) {
+        const mid = parseInt(raw.medicine_id, 10);
+        const qty = Math.max(1, parseInt(raw.qty, 10) || 0);
+        if (!mid) continue;
+        const inv = (await client.query(
+          'SELECT pi.price, pi.cost, m.name_ar FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id WHERE pi.company_id=$1 AND pi.medicine_id=$2 FOR UPDATE',
+          [cid, mid]
+        )).rows[0];
+        const price = inv ? (Number(inv.price) || 0) : (Number(raw.price) || 0);
+        const cost = inv ? (Number(inv.cost) || 0) : 0;
+        total += price * qty; profit += (price - cost) * qty;
+        lines.push({ medicine_id: mid, name: inv ? inv.name_ar : (raw.name || ''), qty, price, cost });
+      }
+      if (!lines.length) { await client.query('ROLLBACK'); continue; }
+      await stock.sellDirect(client, cid, lines);
+      const sale = (await client.query(
+        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id, offline_uid)
+         VALUES ($1,'sale',$2,$3,$4,$5) ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
+        [cid, total, profit, req.session.staffId || null, uid]
+      )).rows[0];
+      if (sale) {
+        for (const l of lines) {
+          await client.query(
+            'INSERT INTO pharmacy_sale_items (sale_id, medicine_id, name, qty, price, cost) VALUES ($1,$2,$3,$4,$5,$6)',
+            [sale.id, l.medicine_id, l.name, l.qty, l.price, l.cost]
+          );
+        }
+      }
+      await client.query('COMMIT'); synced.push(uid);
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('pos sync error:', e.message);
+    } finally { client.release(); }
+  }
+  res.json({ ok: true, synced });
+});
+
 /* ─── Online orders inbox ───────────────────────────────── */
 const ORDER_FLOW = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'rejected', 'cancelled'];
 
