@@ -215,6 +215,10 @@ async function ensurePharmacySchema() {
         address TEXT,
         updated_at TIMESTAMPTZ DEFAULT now()
       );
+      -- Optional map location for local/GEO SEO (Google Maps, "pharmacy near me",
+      -- and Schema.org geo). Set by the pharmacy from the settings map picker.
+      ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS lat NUMERIC(9,6);
+      ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS lng NUMERIC(9,6);
     `);
 
     await seedCatalog(client);

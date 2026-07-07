@@ -258,14 +258,17 @@ router.get('/settings', gate('settings'), async (req, res) => {
 router.post('/settings', gate('settings'), async (req, res) => {
   const b = req.body || {};
   try {
+    // Map location: keep only valid coordinate ranges, else null.
+    let lat = toNum(b.lat, null); let lng = toNum(b.lng, null);
+    if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) { lat = null; lng = null; }
     await pool.query(
       `UPDATE pharmacy_settings SET
          online_store_enabled=$1, delivery_enabled=$2, delivery_fee=$3,
-         is_night_shift=$4, whatsapp=$5, address=$6, updated_at=now()
-       WHERE company_id=$7`,
+         is_night_shift=$4, whatsapp=$5, address=$6, lat=$7, lng=$8, updated_at=now()
+       WHERE company_id=$9`,
       [b.online_store_enabled === 'on', b.delivery_enabled === 'on', toNum(b.delivery_fee, 0),
        b.is_night_shift === 'on', (b.whatsapp || '').trim() || null, (b.address || '').trim() || null,
-       req.company.id]
+       lat, lng, req.company.id]
     );
     res.redirect('/pharmacy/settings?saved=1');
   } catch (e) {

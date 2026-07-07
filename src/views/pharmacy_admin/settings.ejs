@@ -7,6 +7,8 @@
 <title><%= t('pharmacy.admin.settings') %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>* { font-family: 'Cairo', sans-serif; } .fld { border:1px solid #d1d5db; border-radius:10px; padding:10px 12px; width:100%; background:#fff; }</style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -50,8 +52,57 @@
       <input name="address" value="<%= settings.address || '' %>" class="fld" />
     </div>
 
+    <div>
+      <label class="font-bold text-sm block mb-1"><%= t('pharmacy.admin.location') %></label>
+      <p class="text-xs text-gray-500 mb-2"><%= t('pharmacy.admin.location_hint') %></p>
+      <div class="flex gap-2 mb-2 flex-wrap">
+        <button type="button" id="detectBtn" class="text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-3 py-2"><%= t('pharmacy.admin.detect_location') %></button>
+        <button type="button" id="clearLoc" class="text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-lg px-3 py-2"><%= t('pharmacy.admin.clear_location') %></button>
+        <span id="locStatus" class="text-sm text-emerald-700 font-bold self-center" style="<%= (settings.lat!=null&&settings.lng!=null)?'':'display:none' %>"><%= t('pharmacy.admin.location_set') %></span>
+      </div>
+      <div id="map" style="height:260px;border-radius:12px;overflow:hidden;border:1px solid #d1d5db;"></div>
+      <input type="hidden" name="lat" id="lat" value="<%= settings.lat!=null?Number(settings.lat):'' %>" />
+      <input type="hidden" name="lng" id="lng" value="<%= settings.lng!=null?Number(settings.lng):'' %>" />
+    </div>
+
     <button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl px-6 py-3 w-full"><%= t('pharmacy.admin.save') %></button>
   </form>
 </main>
+
+<script>
+(function () {
+  var latI = document.getElementById('lat'), lngI = document.getElementById('lng');
+  var status = document.getElementById('locStatus');
+  var hasLoc = latI.value !== '' && lngI.value !== '';
+  // Default view: Assiut, Egypt (owner's city) when no location is set yet.
+  var start = hasLoc ? [parseFloat(latI.value), parseFloat(lngI.value)] : [27.1783, 31.1859];
+  var map = L.map('map').setView(start, hasLoc ? 15 : 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+  var marker = null;
+  function save(lat, lng) { latI.value = lat.toFixed(6); lngI.value = lng.toFixed(6); status.style.display = ''; }
+  function setMarker(lat, lng) {
+    if (marker) { marker.setLatLng([lat, lng]); }
+    else {
+      marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+      marker.on('dragend', function (e) { var p = e.target.getLatLng(); save(p.lat, p.lng); });
+    }
+    save(lat, lng);
+  }
+  if (hasLoc) setMarker(start[0], start[1]);
+  map.on('click', function (e) { setMarker(e.latlng.lat, e.latlng.lng); map.setView(e.latlng, Math.max(map.getZoom(), 15)); });
+  document.getElementById('detectBtn').addEventListener('click', function () {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      map.setView([lat, lng], 16); setMarker(lat, lng);
+    }, function () { alert('تعذّر تحديد الموقع — فعّل صلاحية الموقع وحاول تاني.'); }, { enableHighAccuracy: true, timeout: 10000 });
+  });
+  document.getElementById('clearLoc').addEventListener('click', function () {
+    if (marker) { map.removeLayer(marker); marker = null; }
+    latI.value = ''; lngI.value = ''; status.style.display = 'none';
+  });
+  setTimeout(function () { map.invalidateSize(); }, 200);
+})();
+</script>
 </body>
 </html>

@@ -49,6 +49,7 @@
   company.logo_url ? { image: company.logo_url } : {},
   __wa ? { telephone: '+' + __wa } : {},
   (pharmacySettings && pharmacySettings.address) ? { address: { '@type': 'PostalAddress', streetAddress: pharmacySettings.address, addressCountry: 'EG' } } : {},
+  (pharmacySettings && pharmacySettings.lat != null && pharmacySettings.lng != null) ? { geo: { '@type': 'GeoCoordinates', latitude: Number(pharmacySettings.lat), longitude: Number(pharmacySettings.lng) }, hasMap: 'https://www.google.com/maps/search/?api=1&query=' + Number(pharmacySettings.lat) + ',' + Number(pharmacySettings.lng) } : {},
   __oh ? { openingHours: __oh } : {}
 )) %>
 </script>
@@ -79,7 +80,14 @@
         <div class="flex items-center gap-2 mt-1 text-sm text-white/90 flex-wrap">
           <% if (__isDemo) { %><span class="bg-white/25 rounded-full px-2 py-0.5 text-xs font-bold"><%= t('pharmacy.demo_badge') %></span><% } %>
           <% if (pharmacySettings && pharmacySettings.is_night_shift) { %><span class="bg-white/25 rounded-full px-2 py-0.5 text-xs">🌙 <%= t('pharmacy.night_shift') %></span><% } %>
-          <% if (pharmacySettings && pharmacySettings.address) { %><span>📍 <%= pharmacySettings.address %></span><% } %>
+          <%
+            var __hasGeo = pharmacySettings && pharmacySettings.lat != null && pharmacySettings.lng != null;
+            var __mapUrl = __hasGeo ? ('https://www.google.com/maps/search/?api=1&query=' + Number(pharmacySettings.lat) + ',' + Number(pharmacySettings.lng)) : null;
+          %>
+          <% if (pharmacySettings && pharmacySettings.address) { %>
+            <% if (__hasGeo) { %><a href="<%= __mapUrl %>" target="_blank" rel="noopener" class="underline">📍 <%= pharmacySettings.address %></a>
+            <% } else { %><span>📍 <%= pharmacySettings.address %></span><% } %>
+          <% } else if (__hasGeo) { %><a href="<%= __mapUrl %>" target="_blank" rel="noopener" class="underline">📍 <%= t('pharmacy.view_on_map') %></a><% } %>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
