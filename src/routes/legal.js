@@ -6,6 +6,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const TERMS_VERSION = '1.0';
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://oscardevs.com';
+// Bare base domain (e.g. "oscardevs.com") for building the production subdomain
+// URLs that tenant pages canonicalize to — so the sitemap lists the same URLs.
+const BASE_DOMAIN = SITE_ORIGIN.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
 // Legal pages are real content — allow AdSense.
 router.use((req, res, next) => { res.locals.showAds = true; next(); });
@@ -76,7 +79,7 @@ router.get('/admin/seo/ping-indexnow', async (req, res) => {
   ];
   try {
     const c = await pool.query("SELECT slug FROM companies WHERE is_active = true");
-    for (const row of c.rows) urls.push(SITE_ORIGIN + '/view/' + row.slug);
+    for (const row of c.rows) urls.push('https://' + row.slug + '.' + BASE_DOMAIN + '/');
     const p = await pool.query(
       `SELECT c.slug, p.id FROM products p
        JOIN companies c ON c.id = p.company_id
@@ -134,7 +137,7 @@ router.get('/sitemap.xml', async (req, res) => {
         ? Number(row.stock_count) >= 3
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
-      urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
+      urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
       if (row.page_type === 'shop') indexableShops.add(row.slug);
     }
     // Active products of indexable shops — helps Google index product pages.
@@ -156,7 +159,7 @@ router.get('/sitemap.xml', async (req, res) => {
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
     urls.map(u =>
-      `  <url>\n    <loc>${SITE_ORIGIN}${u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+      `  <url>\n    <loc>${u.loc.startsWith('http') ? u.loc : SITE_ORIGIN + u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     ).join('\n') +
     '\n</urlset>\n'
   );

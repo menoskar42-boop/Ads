@@ -6,7 +6,8 @@ Allow: /
 Disallow: /admin/
 Disallow: /company/
 Disallow: /customer/
-Disallow: /uploads/
+# /uploads/ stays crawlable: it holds tenant logos + product/medicine images
+# referenced by public pages, Schema.org and og:image.
 
 # AdSense crawler must access everything to render ad context
 User-agent: Mediapartners-Google
