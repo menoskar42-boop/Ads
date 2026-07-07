@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('pharmacy.admin.inventory') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  input, select { outline: none; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; width:100%; background:#fff; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'inventory' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (error) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold"><%= error %></div><% } %>
+
+  <!-- Add stock -->
+  <details class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5" open>
+    <summary class="font-extrabold text-emerald-700 cursor-pointer">➕ <%= t('pharmacy.admin.add_stock') %></summary>
+    <form method="post" action="/pharmacy/inventory/add" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="sm:col-span-2">
+        <span class="lbl"><%= t('pharmacy.admin.from_catalog') %></span>
+        <select name="medicine_id" class="fld">
+          <option value=""><%= t('pharmacy.admin.choose_medicine') %></option>
+          <% catalog.forEach(function(m){ %><option value="<%= m.id %>"><%= m.name_ar %><%= m.name_en ? ' — ' + m.name_en : '' %></option><% }) %>
+        </select>
+      </div>
+      <div><span class="lbl"><%= t('pharmacy.admin.or_new') %> — <%= t('pharmacy.admin.name_ar') %></span><input name="new_name_ar" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.name_en') %></span><input name="new_name_en" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.qty') %></span><input name="qty" type="number" min="0" value="0" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.price') %></span><input name="price" type="number" step="0.01" min="0" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.cost') %></span><input name="cost" type="number" step="0.01" min="0" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.min_qty') %></span><input name="min_qty" type="number" min="0" value="5" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.expiry') %></span><input name="expiry" type="date" class="fld" /></div>
+      <div><span class="lbl"><%= t('pharmacy.admin.barcode') %></span><input name="barcode" class="fld" /></div>
+      <div class="flex items-end"><button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg px-5 py-2 w-full"><%= t('pharmacy.admin.save') %></button></div>
+    </form>
+  </details>
+
+  <!-- Search -->
+  <form method="get" class="mb-4 flex gap-2">
+    <% if (lang !== 'ar') { %><input type="hidden" name="lang" value="<%= lang %>" /><% } %>
+    <input name="q" value="<%= currentSearch || '' %>" placeholder="<%= t('pharmacy.admin.search_inv') %>" class="fld flex-1" style="padding:10px 12px;font-size:1rem" />
+    <button class="bg-gray-800 text-white rounded-lg px-5 font-bold"><%= t('common.search') %></button>
+  </form>
+
+  <% if (!items.length) { %>
+    <div class="text-center py-14 text-gray-500"><%= t('pharmacy.admin.no_items') %></div>
+  <% } else { %>
+    <div class="space-y-3">
+      <% items.forEach(function(it){
+           var expStr = it.expiry ? new Date(it.expiry).toISOString().slice(0,10) : '';
+      %>
+        <form method="post" action="/pharmacy/inventory/<%= it.id %>/update"
+              class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div class="min-w-0">
+              <div class="font-extrabold text-gray-900 truncate"><%= it.name_ar %></div>
+              <div class="text-xs text-gray-400"><%= it.name_en || '' %><% if (it.form) { %> · <%= it.form %><% } %></div>
+            </div>
+            <% var avail = Number(it.available_qty)||0; var st = avail<=0?'out':(it.qty<=it.min_qty?'low':'in'); %>
+            <span class="shrink-0 text-xs font-bold rounded-full px-2 py-1 <%= st==='in'?'text-green-700 bg-green-50':(st==='low'?'text-amber-700 bg-amber-50':'text-red-600 bg-red-50') %>">
+              <%= st==='in'?t('pharmacy.available'):(st==='low'?t('pharmacy.limited'):t('pharmacy.out')) %>
+            </span>
+          </div>
+          <div class="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div><span class="lbl"><%= t('pharmacy.admin.qty') %></span><input name="qty" type="number" min="0" value="<%= it.qty %>" class="fld" /></div>
+            <div><span class="lbl"><%= t('pharmacy.admin.price') %></span><input name="price" type="number" step="0.01" min="0" value="<%= it.price!=null?Number(it.price):'' %>" class="fld" /></div>
+            <div><span class="lbl"><%= t('pharmacy.admin.cost') %></span><input name="cost" type="number" step="0.01" min="0" value="<%= it.cost!=null?Number(it.cost):'' %>" class="fld" /></div>
+            <div><span class="lbl"><%= t('pharmacy.admin.min_qty') %></span><input name="min_qty" type="number" min="0" value="<%= it.min_qty %>" class="fld" /></div>
+            <div><span class="lbl"><%= t('pharmacy.admin.expiry') %></span><input name="expiry" type="date" value="<%= expStr %>" class="fld" /></div>
+            <div><span class="lbl"><%= t('pharmacy.admin.barcode') %></span><input name="barcode" value="<%= it.barcode || '' %>" class="fld" /></div>
+          </div>
+          <div class="flex gap-2 mt-3">
+            <button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-lg px-5 py-2 text-sm"><%= t('pharmacy.admin.update') %></button>
+            <button formaction="/pharmacy/inventory/<%= it.id %>/delete"
+                    onclick="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')"
+                    class="bg-red-50 text-red-600 font-bold rounded-lg px-4 py-2 text-sm"><%= t('pharmacy.admin.delete') %></button>
+          </div>
+        </form>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>

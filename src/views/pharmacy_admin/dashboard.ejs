@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('pharmacy.admin.dashboard') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'dashboard' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <div class="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+    <%
+      var cards = [
+        { label: t('pharmacy.admin.total_items'), val: stats.total, cls: 'text-gray-900' },
+        { label: t('pharmacy.admin.low_stock'), val: stats.low_stock, cls: 'text-amber-600' },
+        { label: t('pharmacy.admin.out_stock'), val: stats.out_stock, cls: 'text-red-600' },
+        { label: t('pharmacy.admin.pending_orders'), val: pendingOrders, cls: 'text-emerald-700' },
+        { label: t('pharmacy.admin.today_sales'), val: Number(today.sales||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-gray-900' },
+        { label: t('pharmacy.admin.today_profit'), val: Number(today.profit||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-emerald-700' }
+      ];
+    %>
+    <% cards.forEach(function(c){ %>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div class="text-2xl font-extrabold <%= c.cls %> tabular-nums"><%= c.val %></div>
+        <div class="text-xs text-gray-500 mt-1"><%= c.label %></div>
+      </div>
+    <% }) %>
+  </div>
+
+  <div class="mt-6 flex flex-wrap gap-3">
+    <a href="/pharmacy/inventory" class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl px-6 py-3">📦 <%= t('pharmacy.admin.inventory') %></a>
+    <a href="/pharmacy/settings" class="bg-white border-2 border-emerald-700 text-emerald-700 font-bold rounded-xl px-6 py-3">⚙️ <%= t('pharmacy.admin.settings') %></a>
+    <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="bg-white border border-gray-200 text-gray-700 font-bold rounded-xl px-6 py-3">🔗 <%= t('pharmacy.admin.view_public') %></a>
+  </div>
+</main>
+</body>
+</html>

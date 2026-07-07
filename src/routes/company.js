@@ -222,6 +222,10 @@ router.post('/push/unsubscribe', requireLogin, async (req, res) => {
 router.get('/dashboard', requireLogin, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
+    // Pharmacy tenants have their own admin area with inventory/POS/orders.
+    if (result.rows.length && result.rows[0].page_type === 'pharmacy') {
+      return res.redirect('/pharmacy');
+    }
     const portfolioCount = await pool.query(
       'SELECT COUNT(*) FROM portfolio_items WHERE company_id = $1', [req.session.companyId]
     );
