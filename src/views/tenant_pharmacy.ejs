@@ -8,35 +8,43 @@
   var __suffix = lang === 'en' ? 'Online Pharmacy' : 'صيدلية أونلاين';
   var __brand = ' | OscarDevs';
   var __phTitleBase = (__phName + ' — ' + __suffix);
-  // Keep the whole <title> within ~60 chars (stored Bing rule): append the
-  // brand suffix only when it still fits, otherwise show the title alone.
+  // Keep the whole <title> within ~60 chars (stored Bing rule).
   var __phTitle = (__phTitleBase.length + __brand.length) <= 60 ? (__phTitleBase + __brand) : __phTitleBase.slice(0, 60);
   var __phDesc = ((company.description || (__phName + ' — ' + __suffix)).trim()).slice(0, 155);
-  var __theme = company.theme_color || '#0e7c66';
   var __isDemo = company.slug === 'pharmacy';
   var __online = pharmacySettings && pharmacySettings.online_store_enabled;
   var __wa = pharmacySettings && pharmacySettings.whatsapp ? String(pharmacySettings.whatsapp).replace(/[^0-9]/g, '') : '';
-  var __qs = currentSearch ? ('&q=' + encodeURIComponent(currentSearch)) : '';
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
   var __phCanon = 'https://' + company.slug + '.oscardevs.com/';
   var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
-  // Local/GEO opening hours for structured data.
+  var __hasGeo = pharmacySettings && pharmacySettings.lat != null && pharmacySettings.lng != null;
+  var __mapUrl = __hasGeo ? ('https://www.google.com/maps/search/?api=1&query=' + Number(pharmacySettings.lat) + ',' + Number(pharmacySettings.lng)) : null;
+  // Opening hours for structured data + the "open now" badge (Egypt ≈ UTC+2).
   var __oh = null;
+  var __isOpen = false;
   if (pharmacySettings) {
-    if (pharmacySettings.is_night_shift) __oh = 'Mo-Su 00:00-23:59';
+    if (pharmacySettings.is_night_shift) { __oh = 'Mo-Su 00:00-23:59'; __isOpen = true; }
     else if (pharmacySettings.open_hour != null && pharmacySettings.close_hour != null) {
       var __pad = function (n) { n = parseInt(n, 10); return (n < 10 ? '0' : '') + n + ':00'; };
       __oh = 'Mo-Su ' + __pad(pharmacySettings.open_hour) + '-' + __pad(pharmacySettings.close_hour);
+      var __eHour = (new Date().getUTCHours() + 2) % 24;
+      var __o = parseInt(pharmacySettings.open_hour, 10), __c = parseInt(pharmacySettings.close_hour, 10);
+      __isOpen = (__o <= __c) ? (__eHour >= __o && __eHour < __c) : (__eHour >= __o || __eHour < __c);
     }
   }
+  function __money(v) {
+    if (v == null) return null;
+    var n = Number(v); if (!isFinite(n)) return null;
+    return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 2 });
+  }
+  var __hasBanners = typeof banners !== 'undefined' && banners && banners.length;
 %>
 <% if (__pageNoindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <title><%= __phTitle %></title>
 <meta name="description" content="<%= __phDesc %>" />
 <%- include('partials/seo_meta', { title: __phTitle, description: __phDesc, canonical: __phCanon }) %>
 <% if (!__pageNoindex) { %>
-<%# GEO / local structured data — helps Google local pack, Maps and AI answer
-    engines understand this is a real Egyptian pharmacy. Only on indexable pages. %>
+<%# GEO / local structured data — only on indexable pages. %>
 <script type="application/ld+json">
 <%- JSON.stringify(Object.assign({
   '@context': 'https://schema.org',
@@ -49,137 +57,358 @@
   company.logo_url ? { image: company.logo_url } : {},
   __wa ? { telephone: '+' + __wa } : {},
   (pharmacySettings && pharmacySettings.address) ? { address: { '@type': 'PostalAddress', streetAddress: pharmacySettings.address, addressCountry: 'EG' } } : {},
-  (pharmacySettings && pharmacySettings.lat != null && pharmacySettings.lng != null) ? { geo: { '@type': 'GeoCoordinates', latitude: Number(pharmacySettings.lat), longitude: Number(pharmacySettings.lng) }, hasMap: 'https://www.google.com/maps/search/?api=1&query=' + Number(pharmacySettings.lat) + ',' + Number(pharmacySettings.lng) } : {},
+  __hasGeo ? { geo: { '@type': 'GeoCoordinates', latitude: Number(pharmacySettings.lat), longitude: Number(pharmacySettings.lng) }, hasMap: __mapUrl } : {},
   __oh ? { openingHours: __oh } : {}
 )) %>
 </script>
 <% } %>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: { sans: ['Cairo', 'system-ui', 'sans-serif'] },
+      colors: {
+        brand: { 50:'#eef8f5',100:'#d3ede6',200:'#a6dbce',300:'#71c2b1',400:'#3fa392',500:'#1f8a7b',600:'#137063',700:'#0f5a50',800:'#0e4841',900:'#0c3b36' },
+        sand: { 50:'#faf8f4',100:'#f4f0e8',200:'#e9e2d5',300:'#d8cdb8' },
+        ink: '#182a27',
+        accent: '#e8734a',
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(24,42,39,.04), 0 6px 20px -8px rgba(24,42,39,.10)',
+        cardHover: '0 2px 4px rgba(24,42,39,.05), 0 14px 34px -10px rgba(24,42,39,.18)',
+        lift: '0 10px 40px -12px rgba(24,42,39,.22)',
+      },
+      borderRadius: { xl2: '1.25rem' },
+    } }
+  }
+</script>
 <style>
   * { font-family: 'Cairo', sans-serif; }
-  :root { --brand: <%= __theme %>; }
-  .brand-bg { background: var(--brand); }
-  .brand-text { color: var(--brand); }
-  .brand-border { border-color: var(--brand); }
+  html { scroll-behavior: smooth; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  :focus-visible { outline: 3px solid #1f8a7b; outline-offset: 2px; border-radius: 6px; }
+  .ph-grid { background-image: radial-gradient(rgba(24,42,39,.10) 1px, transparent 1px); background-size: 14px 14px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
 </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
 
-<!-- Header -->
-<header class="brand-bg text-white">
-  <div class="max-w-4xl mx-auto px-4 py-5">
-    <div class="flex items-center gap-3">
-      <% if (company.logo_url) { %>
-        <img src="<%= company.logo_url %>" alt="<%= __phName %>" class="w-12 h-12 rounded-xl object-cover bg-white/20" />
-      <% } else { %>
-        <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl">💊</div>
-      <% } %>
-      <div class="flex-1 min-w-0">
-        <h1 class="text-2xl font-extrabold leading-tight truncate"><%= __phName %></h1>
-        <div class="flex items-center gap-2 mt-1 text-sm text-white/90 flex-wrap">
-          <% if (__isDemo) { %><span class="bg-white/25 rounded-full px-2 py-0.5 text-xs font-bold"><%= t('pharmacy.demo_badge') %></span><% } %>
-          <% if (pharmacySettings && pharmacySettings.is_night_shift) { %><span class="bg-white/25 rounded-full px-2 py-0.5 text-xs">🌙 <%= t('pharmacy.night_shift') %></span><% } %>
-          <%
-            var __hasGeo = pharmacySettings && pharmacySettings.lat != null && pharmacySettings.lng != null;
-            var __mapUrl = __hasGeo ? ('https://www.google.com/maps/search/?api=1&query=' + Number(pharmacySettings.lat) + ',' + Number(pharmacySettings.lng)) : null;
-          %>
-          <% if (pharmacySettings && pharmacySettings.address) { %>
-            <% if (__hasGeo) { %><a href="<%= __mapUrl %>" target="_blank" rel="noopener" class="underline">📍 <%= pharmacySettings.address %></a>
-            <% } else { %><span>📍 <%= pharmacySettings.address %></span><% } %>
-          <% } else if (__hasGeo) { %><a href="<%= __mapUrl %>" target="_blank" rel="noopener" class="underline">📍 <%= t('pharmacy.view_on_map') %></a><% } %>
-        </div>
+<body class="bg-sand-50 text-ink antialiased">
+
+<!-- ═══ HEADER ═══ -->
+<header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-sand-200">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6">
+    <div class="flex items-center gap-3 py-3">
+      <a href="/" class="flex items-center gap-3 min-w-0" aria-label="<%= __phName %>">
+        <% if (company.logo_url) { %>
+          <img src="<%= company.logo_url %>" alt="<%= __phName %>" class="h-11 w-11 shrink-0 rounded-2xl object-cover" />
+        <% } else { %>
+          <span class="grid place-items-center h-11 w-11 shrink-0 rounded-2xl bg-brand-500 text-white shadow-sm">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16"/><path d="M6 11v5a5 5 0 0 0 10 0v-5"/><path d="M11 6.5 13 4"/><path d="M9.5 8 15 2.5"/></svg>
+          </span>
+        <% } %>
+        <span class="min-w-0">
+          <h1 class="text-[17px] sm:text-lg font-extrabold leading-tight truncate"><%= __phName %></h1>
+          <% if (company.description) { %><p class="text-[12px] text-brand-700/80 leading-tight truncate"><%= company.description %></p><% } %>
+        </span>
+      </a>
+
+      <div class="hidden md:flex items-center gap-2 ms-2">
+        <% if (__isOpen) { %>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-brand-50 text-brand-700 px-3 py-1.5 text-[13px] font-semibold border border-brand-100">
+          <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75 animate-ping"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span></span>
+          <%= t('pharmacy.open_now') %>
+        </span>
+        <% } %>
+        <% if (pharmacySettings && pharmacySettings.is_night_shift) { %>
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 text-indigo-700 px-3 py-1.5 text-[13px] font-semibold border border-indigo-100">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 15.5A8.5 8.5 0 1 1 8.5 4a6.5 6.5 0 0 0 11.5 11.5z"/></svg>
+          <%= t('pharmacy.night_shift') %>
+        </span>
+        <% } %>
+        <% if (__isDemo) { %><span class="inline-flex items-center rounded-full bg-sand-100 text-ink/60 px-3 py-1.5 text-[13px] font-semibold border border-sand-200"><%= t('pharmacy.demo_badge') %></span><% } %>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <a href="?lang=<%= __otherLang %><%= __qs %>"
-           class="inline-flex items-center bg-white/20 hover:bg-white/30 rounded-lg px-3 py-2 text-sm font-bold"
-           aria-label="language"><%= t('common.toggle_lang') %></a>
+
+      <div class="flex items-center gap-2 ms-auto">
+        <a href="?lang=<%= __otherLang %>" class="inline-flex items-center gap-1.5 rounded-full border border-sand-200 bg-white hover:bg-sand-50 px-3 py-2 text-[13px] font-bold transition" aria-label="language">
+          <svg viewBox="0 0 24 24" class="h-4 w-4 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+          <%= t('common.toggle_lang') %>
+        </a>
         <% if (__wa) { %>
-          <a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener"
-             class="hidden sm:inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 rounded-xl px-3 py-2 text-sm font-bold">
-            <%= t('pharmacy.whatsapp') %>
-          </a>
+        <a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-full bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white px-3.5 sm:px-4 py-2 text-[13px] sm:text-sm font-bold shadow-sm transition">
+          <svg viewBox="0 0 24 24" class="h-4 w-4" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.004c5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2zm0 18.15h-.003a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.11.82.83-3.03-.2-.31a8.19 8.19 0 0 1-1.26-4.39c0-4.54 3.7-8.23 8.24-8.23 2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 0 1 2.41 5.82c0 4.54-3.7 8.24-8.24 8.24z"/></svg>
+          <span class="hidden sm:inline"><%= t('pharmacy.whatsapp') %></span>
+        </a>
         <% } %>
       </div>
     </div>
-    <% if (company.description) { %>
-      <p class="mt-3 text-white/90 text-sm leading-7"><%= company.description %></p>
+
+    <% if ((pharmacySettings && pharmacySettings.address) || __hasGeo) { %>
+    <div class="flex items-center gap-3 pb-3 -mt-0.5">
+      <a href="<%= __mapUrl || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(pharmacySettings.address || __phName)) %>" target="_blank" rel="noopener"
+         class="inline-flex items-center gap-1.5 text-[13px] text-ink/70 hover:text-brand-600 transition min-w-0">
+        <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 text-accent" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span class="truncate"><%= (pharmacySettings && pharmacySettings.address) ? pharmacySettings.address : t('pharmacy.find_map') %></span>
+      </a>
+      <% if (__isOpen) { %>
+      <span class="md:hidden inline-flex items-center gap-1.5 ms-auto rounded-full bg-brand-50 text-brand-700 px-2.5 py-1 text-[12px] font-semibold border border-brand-100 shrink-0">
+        <span class="h-2 w-2 rounded-full bg-brand-500"></span><%= t('pharmacy.open_now') %>
+      </span>
+      <% } %>
+    </div>
     <% } %>
   </div>
 </header>
 
-<main class="max-w-4xl mx-auto px-4 py-6">
+<main class="mx-auto max-w-6xl px-4 sm:px-6">
 
-  <!-- Search -->
-  <form method="get" class="mb-5">
-    <% if (lang !== 'ar') { %><input type="hidden" name="lang" value="<%= lang %>" /><% } %>
-    <div class="flex gap-2">
-      <input name="q" value="<%= currentSearch || '' %>" placeholder="<%= t('pharmacy.search_placeholder') %>"
-             class="flex-1 rounded-xl border-2 brand-border px-4 py-3 text-base outline-none bg-white" />
-      <button type="submit" class="brand-bg text-white rounded-xl px-5 py-3 font-bold"><%= t('common.search') %></button>
-    </div>
-  </form>
-
-  <% if (!pharmacyItems || pharmacyItems.length === 0) { %>
-    <div class="text-center py-16 text-gray-500">
-      <% if (currentSearch) { %>
-        <%= t('pharmacy.no_results_for') %> «<%= currentSearch %>». <%= t('pharmacy.try_another') %>
-      <% } else { %>
-        <%= t('pharmacy.no_stock') %>
-      <% } %>
-    </div>
-  <% } else { %>
-    <div class="grid gap-3 sm:grid-cols-2">
-      <% pharmacyItems.forEach(function(it){
-           var avail = Number(it.available_qty) || 0;
-           var state = avail <= 0 ? 'out' : (avail <= 5 ? 'low' : 'in');
-           var price = it.price != null ? Number(it.price).toFixed(2) : null;
-           var primary = (lang === 'en' && it.name_en) ? it.name_en : it.name_ar;
-           var secondary = (lang === 'en' && it.name_en) ? it.name_ar : it.name_en;
-      %>
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <h2 class="font-extrabold text-gray-900 leading-tight"><%= primary %></h2>
-              <% if (secondary) { %><p class="text-xs text-gray-400"><%= secondary %></p><% } %>
-              <p class="text-xs text-gray-500 mt-1">
-                <% if (it.form) { %><%= it.form %><% } %><% if (it.manufacturer) { %> · <%= it.manufacturer %><% } %>
-              </p>
-            </div>
-            <% if (state === 'in') { %>
-              <span class="shrink-0 text-xs font-bold text-green-700 bg-green-50 rounded-full px-2 py-1"><%= t('pharmacy.available') %></span>
-            <% } else if (state === 'low') { %>
-              <span class="shrink-0 text-xs font-bold text-amber-700 bg-amber-50 rounded-full px-2 py-1"><%= t('pharmacy.limited') %></span>
-            <% } else { %>
-              <span class="shrink-0 text-xs font-bold text-gray-500 bg-gray-100 rounded-full px-2 py-1"><%= t('pharmacy.out') %></span>
+  <!-- ═══ HERO CAROUSEL (admin-managed banner_slides) ═══ -->
+  <% if (__hasBanners) { %>
+  <section id="carousel" class="mt-4 sm:mt-6" aria-roledescription="carousel" aria-label="<%= __phName %>" tabindex="0">
+    <div class="relative overflow-hidden rounded-2xl shadow-card bg-brand-800">
+      <div id="carTrack" class="flex transition-transform duration-500 ease-out" aria-live="polite">
+        <% banners.forEach(function(bn, bi){ %>
+          <div class="carslide relative shrink-0 w-full aspect-[16/7] sm:aspect-[16/6]" role="group" aria-roledescription="slide">
+            <% var __slide = '<img src="'+ bn.image_url +'" alt="'+ (bn.caption ? String(bn.caption).replace(/"/g,'&quot;') : __phName) +'" class="absolute inset-0 w-full h-full object-cover" loading="'+(bi===0?'eager':'lazy')+'" />'; %>
+            <% if (bn.target_url) { %><a href="<%= bn.target_url %>" class="block absolute inset-0"><%- __slide %></a><% } else { %><%- __slide %><% } %>
+            <% if (bn.caption) { %>
+              <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 to-transparent"></div>
+              <div class="absolute inset-x-0 bottom-0 p-5 sm:p-8"><h2 class="text-white text-lg sm:text-2xl font-extrabold leading-snug drop-shadow"><%= bn.caption %></h2></div>
             <% } %>
           </div>
-          <div class="mt-3 flex items-center justify-between">
-            <% if (price) { %><bdi class="brand-text font-extrabold text-lg"><%= price %> <%= t('pharmacy.currency') %></bdi><% } else { %><span></span><% } %>
-            <% if (__online && state !== 'out') { %>
-              <a href="/order?m=<%= it.medicine_id %><%= lang !== 'ar' ? '&lang=' + lang : '' %>"
-                 class="brand-bg text-white rounded-lg px-4 py-2 text-sm font-bold"><%= t('pharmacy.order') %></a>
-            <% } else if (state === 'out') { %>
-              <span class="text-xs text-gray-400"><%= t('pharmacy.ask_alternative') %></span>
-            <% } else { %>
-              <span class="text-xs text-gray-400"><%= t('pharmacy.order_from_pharmacy') %></span>
-            <% } %>
-          </div>
-        </div>
-      <% }) %>
+        <% }); %>
+      </div>
+      <button id="carPrev" type="button" class="carctrl absolute top-1/2 -translate-y-1/2 start-3 grid place-items-center h-10 w-10 rounded-full bg-white/90 hover:bg-white text-ink shadow-lift transition" aria-label="prev"><svg viewBox="0 0 24 24" class="h-5 w-5 rtl:rotate-180" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button id="carNext" type="button" class="carctrl absolute top-1/2 -translate-y-1/2 end-3 grid place-items-center h-10 w-10 rounded-full bg-white/90 hover:bg-white text-ink shadow-lift transition" aria-label="next"><svg viewBox="0 0 24 24" class="h-5 w-5 rtl:rotate-180" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <div id="carDots" class="absolute bottom-3 inset-x-0 flex justify-center gap-2" role="tablist" aria-label="slides"></div>
     </div>
+  </section>
   <% } %>
 
-  <!-- trust / footer -->
-  <div class="mt-10 text-center text-sm text-gray-400">
-    <% if (__online) { %>
-      <p class="mb-1"><%= t('pharmacy.online_note') %></p>
-    <% } %>
-    <p><%= t('pharmacy.provided_by') %>
-      <a href="https://oscardevs.com" target="_blank" rel="noopener" class="brand-text font-bold underline">OscarDevs</a>
-    </p>
-  </div>
+  <% if (!pharmacyItems || pharmacyItems.length === 0) { %>
+    <!-- Empty stock -->
+    <section class="mt-8 text-center py-16 rounded-2xl bg-white border border-dashed border-sand-300">
+      <div class="mx-auto grid place-items-center h-16 w-16 rounded-2xl bg-brand-50 text-brand-400 mb-4"><svg viewBox="0 0 24 24" class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M9 6h2"/></svg></div>
+      <p class="font-bold"><%= t('pharmacy.no_stock') %></p>
+      <% if (__wa) { %><a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 text-sm font-bold transition"><%= t('pharmacy.whatsapp') %></a><% } %>
+    </section>
+  <% } else { %>
+
+    <!-- ═══ SEARCH (instant, client-side) ═══ -->
+    <section class="mt-6 sm:mt-8">
+      <label for="search" class="sr-only"><%= t('pharmacy.meds_title') %></label>
+      <div class="relative">
+        <span class="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-4 text-ink/40">
+          <svg id="searchIcon" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <svg id="searchSpin" viewBox="0 0 24 24" class="h-5 w-5 hidden animate-spin text-brand-500" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" stroke-opacity=".25"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        </span>
+        <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="<%= t('pharmacy.search_placeholder') %>"
+               class="w-full rounded-2xl border border-sand-200 bg-white ps-12 pe-4 py-4 text-base font-medium shadow-card placeholder:text-ink/35 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 transition" />
+      </div>
+    </section>
+
+    <!-- ═══ MEDICINES GRID ═══ -->
+    <section id="meds" class="mt-6 sm:mt-8 scroll-mt-24">
+      <div class="flex items-baseline justify-between mb-4">
+        <h2 class="text-lg sm:text-xl font-extrabold"><%= t('pharmacy.meds_title') %></h2>
+        <span id="resultCount" class="text-[13px] text-ink/55 font-semibold"><%= __money(pharmacyItems.length) %> <%= t('pharmacy.items_word') %></span>
+      </div>
+
+      <div id="medsGrid" class="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <% pharmacyItems.forEach(function(it){
+             var avail = Number(it.available_qty) || 0;
+             var minq = Number(it.min_qty) || 0;
+             var state = avail <= 0 ? 'out' : (((minq > 0 && Number(it.qty) <= minq) || avail <= 5) ? 'low' : 'in');
+             var price = __money(it.price);
+             var primary = (lang === 'en' && it.name_en) ? it.name_en : it.name_ar;
+             var secondary = (lang === 'en' && it.name_en) ? it.name_ar : it.name_en;
+             var subline = [secondary, it.form].filter(Boolean).join(' · ');
+             var initial = (primary || '؟').trim().charAt(0);
+             var searchHay = [it.name_ar, it.name_en, it.scientific_name].filter(Boolean).join(' ');
+        %>
+        <article class="med-card group flex flex-col rounded-xl2 bg-white border border-sand-200 shadow-card <%= state==='out' ? '' : 'hover:shadow-cardHover hover:-translate-y-0.5' %> transition-all duration-200 overflow-hidden"
+                 data-hay="<%= searchHay.toLowerCase() %>">
+          <div class="relative aspect-square <%= it.image_url ? 'bg-sand-100' : 'bg-brand-50' %> grid place-items-center p-4">
+            <% if (it.image_url) { %>
+              <img src="<%= it.image_url %>" alt="<%= primary %>" loading="lazy" class="absolute inset-0 w-full h-full object-contain p-4 <%= state==='out' ? 'opacity-50 grayscale' : '' %>" />
+            <% } else { %>
+              <div class="relative flex flex-col items-center justify-center">
+                <div class="relative grid place-items-center h-16 w-16 rounded-2xl bg-white border border-brand-100 shadow-sm">
+                  <svg viewBox="0 0 24 24" class="h-8 w-8 text-brand-300" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M9 6h2"/></svg>
+                  <span class="absolute -bottom-2 -end-2 grid place-items-center h-7 w-7 rounded-full bg-brand-500 text-white text-sm font-extrabold"><%= initial %></span>
+                </div>
+                <p class="mt-3 text-[11px] font-semibold text-brand-700/60"><%= t('pharmacy.no_image') %></p>
+              </div>
+            <% } %>
+            <% if (state === 'in') { %>
+              <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full bg-brand-50 text-brand-700 border border-brand-200 px-2 py-0.5 text-[11px] font-bold"><span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span><%= t('pharmacy.available') %></span>
+            <% } else if (state === 'low') { %>
+              <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 text-[11px] font-bold"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span><%= t('pharmacy.limited') %></span>
+            <% } else { %>
+              <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 text-[11px] font-bold"><span class="h-1.5 w-1.5 rounded-full bg-red-500"></span><%= t('pharmacy.out') %></span>
+            <% } %>
+          </div>
+          <div class="flex flex-col flex-1 p-3">
+            <h3 class="font-bold text-[15px] leading-tight <%= state==='out' ? 'text-ink/70' : '' %>"><%= primary %></h3>
+            <% if (subline) { %><p class="text-[12px] text-ink/50 leading-tight"><%= subline %></p><% } %>
+            <div class="mt-auto pt-3 flex items-end justify-between gap-2">
+              <% if (price) { %><p class="font-extrabold <%= state==='out' ? 'text-ink/45' : 'text-brand-700' %>"><bdi><span class="text-lg"><%= price %></span> <span class="text-[12px] font-semibold text-ink/50"><%= t('pharmacy.currency') %></span></bdi></p><% } else { %><span></span><% } %>
+              <% if (state === 'out') { %>
+                <span class="inline-flex items-center rounded-full bg-sand-100 text-ink/40 border border-sand-200 px-3.5 py-2 text-[13px] font-bold"><%= t('pharmacy.out') %></span>
+              <% } else if (__online) { %>
+                <a href="/order?m=<%= it.medicine_id %><%= lang !== 'ar' ? '&lang=' + lang : '' %>" class="inline-flex items-center gap-1 rounded-full bg-accent hover:brightness-95 active:brightness-90 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition">
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12.4a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.3L22 7H6"/></svg>
+                  <%= t('pharmacy.order') %>
+                </a>
+              <% } else if (__wa) { %>
+                <a href="https://wa.me/<%= __wa %>?text=<%= encodeURIComponent(t('pharmacy.order_wa_msg') + ' ' + primary) %>" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-full bg-brand-500 hover:bg-brand-600 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition"><%= t('pharmacy.order_wa_btn') %></a>
+              <% } else { %>
+                <span class="text-xs text-ink/40"><%= t('pharmacy.order_from_pharmacy') %></span>
+              <% } %>
+            </div>
+          </div>
+        </article>
+        <% }); %>
+      </div>
+
+      <!-- No search results (client-toggled) -->
+      <div id="emptySearch" class="hidden text-center py-16">
+        <div class="mx-auto grid place-items-center h-16 w-16 rounded-2xl bg-sand-100 text-ink/40 mb-4"><svg viewBox="0 0 24 24" class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <p class="font-bold text-[15px]"><%= t('pharmacy.no_results_generic') %></p>
+        <p class="text-[13px] text-ink/50 mt-1"><%= t('pharmacy.try_another') %></p>
+        <% if (__wa) { %><a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-500 hover:bg-brand-600 text-white px-4 py-2.5 text-sm font-bold transition"><%= t('pharmacy.whatsapp') %></a><% } %>
+      </div>
+    </section>
+  <% } %>
+
 </main>
 
+<!-- ═══ TRUST BAR ═══ -->
+<footer class="mt-10 border-t border-sand-200 bg-white">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <% if (pharmacySettings && pharmacySettings.delivery_enabled) { %>
+      <div class="flex items-start gap-3">
+        <span class="grid place-items-center h-10 w-10 shrink-0 rounded-xl bg-brand-50 text-brand-600"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/></svg></span>
+        <div><p class="font-bold text-sm"><%= t('pharmacy.delivery_home') %></p><% if (pharmacySettings.delivery_fee != null && Number(pharmacySettings.delivery_fee) > 0) { %><p class="text-[12px] text-ink/55"><%= __money(pharmacySettings.delivery_fee) %> <%= t('pharmacy.currency') %></p><% } %></div>
+      </div>
+      <% } %>
+      <% if (__oh) { %>
+      <div class="flex items-start gap-3">
+        <span class="grid place-items-center h-10 w-10 shrink-0 rounded-xl bg-brand-50 text-brand-600"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div><p class="font-bold text-sm"><%= t('pharmacy.working_hours') %></p><p class="text-[12px] text-ink/55"><% if (pharmacySettings.is_night_shift) { %><%= t('pharmacy.hours_24') %><% } else { %><span dir="ltr"><%= __oh.replace('Mo-Su ', '') %></span><% } %></p></div>
+      </div>
+      <% } %>
+      <% if (__wa) { %>
+      <a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="flex items-start gap-3 hover:opacity-80 transition">
+        <span class="grid place-items-center h-10 w-10 shrink-0 rounded-xl bg-brand-50 text-brand-600"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22c5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2z"/></svg></span>
+        <div><p class="font-bold text-sm"><%= t('pharmacy.whatsapp') %></p><p class="text-[12px] text-ink/55" dir="ltr">+<%= __wa %></p></div>
+      </a>
+      <% } %>
+      <% if (__hasGeo || (pharmacySettings && pharmacySettings.address)) { %>
+      <a href="<%= __mapUrl || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(pharmacySettings.address || __phName)) %>" target="_blank" rel="noopener" class="flex items-start gap-3 hover:opacity-80 transition">
+        <span class="grid place-items-center h-10 w-10 shrink-0 rounded-xl bg-brand-50 text-brand-600"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+        <div><p class="font-bold text-sm"><%= t('pharmacy.find_map') %></p><% if (pharmacySettings && pharmacySettings.address) { %><p class="text-[12px] text-ink/55 truncate"><%= pharmacySettings.address %></p><% } %></div>
+      </a>
+      <% } %>
+    </div>
+    <% if (__online) { %><p class="mt-8 text-center text-[12px] text-ink/45"><%= t('pharmacy.online_note') %></p><% } %>
+    <p class="mt-2 text-center text-[12px] text-ink/40"><%= t('pharmacy.provided_by') %> <a href="https://oscardevs.com" target="_blank" rel="noopener" class="font-bold text-brand-600">OscarDevs</a></p>
+  </div>
+</footer>
+
+<script>
+/* Hero carousel — RTL-aware, autoplay, a11y */
+(function () {
+  var root = document.getElementById('carousel');
+  if (!root) return;
+  var track = document.getElementById('carTrack');
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.carslide'));
+  var dotsWrap = document.getElementById('carDots');
+  var prev = document.getElementById('carPrev');
+  var next = document.getElementById('carNext');
+  var N = slides.length;
+  if (N === 0) { root.remove(); return; }
+  if (N === 1) { prev.remove(); next.remove(); dotsWrap.remove(); return; }
+  var i = 0, timer = null, paused = false, AUTO = 5500;
+  slides.forEach(function (_, idx) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-label', 'slide ' + (idx + 1));
+    b.className = 'h-2 rounded-full transition-all duration-300';
+    b.addEventListener('click', function () { go(idx); restart(); });
+    dotsWrap.appendChild(b);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+  function render() {
+    var rtl = document.documentElement.dir === 'rtl';
+    track.style.transform = 'translateX(' + (i * 100 * (rtl ? 1 : -1)) + '%)';
+    dots.forEach(function (d, idx) {
+      var on = idx === i;
+      d.classList.toggle('bg-white', on); d.classList.toggle('w-6', on);
+      d.classList.toggle('bg-white/50', !on); d.classList.toggle('w-2', !on);
+      d.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+  function go(n) { i = (n + N) % N; render(); }
+  function nextS() { go(i + 1); } function prevS() { go(i - 1); }
+  function start() { if (!paused) timer = setInterval(nextS, AUTO); }
+  function stop() { clearInterval(timer); }
+  function restart() { stop(); start(); }
+  next.addEventListener('click', function () { nextS(); restart(); });
+  prev.addEventListener('click', function () { prevS(); restart(); });
+  ['mouseenter', 'focusin'].forEach(function (e) { root.addEventListener(e, function () { paused = true; stop(); }); });
+  ['mouseleave', 'focusout'].forEach(function (e) { root.addEventListener(e, function () { paused = false; restart(); }); });
+  root.addEventListener('keydown', function (e) {
+    var rtl = document.documentElement.dir === 'rtl';
+    if (e.key === 'ArrowRight') { rtl ? nextS() : prevS(); restart(); }
+    if (e.key === 'ArrowLeft') { rtl ? prevS() : nextS(); restart(); }
+  });
+  var x0 = null;
+  track.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; stop(); }, { passive: true });
+  track.addEventListener('touchend', function (e) {
+    if (x0 === null) return;
+    var dx = e.changedTouches[0].clientX - x0, rtl = document.documentElement.dir === 'rtl';
+    if (Math.abs(dx) > 40) { (rtl ? dx > 0 : dx < 0) ? nextS() : prevS(); }
+    x0 = null; restart();
+  }, { passive: true });
+  render(); start();
+})();
+
+/* Instant client-side search over the rendered cards */
+(function () {
+  var input = document.getElementById('search');
+  if (!input) return;
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.med-card'));
+  var empty = document.getElementById('emptySearch');
+  var grid = document.getElementById('medsGrid');
+  var count = document.getElementById('resultCount');
+  var icon = document.getElementById('searchIcon');
+  var spin = document.getElementById('searchSpin');
+  var unit = <%- JSON.stringify(t('pharmacy.items_word')) %>;
+  var isAr = document.documentElement.lang === 'ar';
+  var toAr = function (n) { return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); };
+  var t = null;
+  function filter() {
+    var q = input.value.trim().toLowerCase();
+    var shown = 0;
+    cards.forEach(function (c) {
+      var match = !q || (c.dataset.hay || '').indexOf(q) !== -1;
+      c.classList.toggle('hidden', !match);
+      if (match) shown++;
+    });
+    empty.classList.toggle('hidden', shown !== 0);
+    grid.classList.toggle('hidden', shown === 0);
+    count.textContent = toAr(shown) + ' ' + unit;
+  }
+  input.addEventListener('input', function () {
+    icon.classList.add('hidden'); spin.classList.remove('hidden');
+    clearTimeout(t);
+    t = setTimeout(function () { spin.classList.add('hidden'); icon.classList.remove('hidden'); filter(); }, 220);
+  });
+})();
+</script>
 </body>
 </html>

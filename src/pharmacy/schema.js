@@ -100,6 +100,8 @@ async function ensurePharmacySchema() {
       CREATE INDEX IF NOT EXISTS idx_pharm_inv_company ON pharmacy_inventory (company_id);
       CREATE INDEX IF NOT EXISTS idx_pharm_inv_med ON pharmacy_inventory (medicine_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_inv_uniq ON pharmacy_inventory (company_id, medicine_id);
+      -- Optional product photo for the storefront card (per-pharmacy).
+      ALTER TABLE pharmacy_inventory ADD COLUMN IF NOT EXISTS image_url TEXT;
 
       -- Online orders (patient -> pharmacy).
       CREATE TABLE IF NOT EXISTS pharmacy_orders (
