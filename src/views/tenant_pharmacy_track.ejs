@@ -31,7 +31,7 @@
       ['ready', t('pharmacy.track.step_ready')],
       ['delivered', t('pharmacy.track.step_delivered')],
     ];
-    var order_rank = { pending:0, accepted:1, preparing:2, ready:3, delivered:4 };
+    var order_rank = { pending:0, accepted:1, preparing:2, ready:3, out_for_delivery:3, delivered:4 };
     var cur = order_rank[order.status];
     var terminalBad = (order.status === 'rejected' || order.status === 'cancelled');
   %>
