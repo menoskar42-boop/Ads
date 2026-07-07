@@ -315,6 +315,33 @@ async function seedDemoPharmacy(client) {
     }
     console.log('Seeded demo pharmacy inventory.');
   }
+
+  // Seed a couple of demo banner slides so the storefront carousel is visible
+  // on the sample (self-contained SVG data-URIs — no external image needed).
+  const hasBanner = await client.query('SELECT 1 FROM banner_slides WHERE company_id = $1 LIMIT 1', [companyId]);
+  if (!hasBanner.rows.length) {
+    const demo = [
+      { img: svgBanner('#0e7c66', '#0c3b36'), cap: 'توصيل سريع لكل مناطق أسيوط خلال 45 دقيقة' },
+      { img: svgBanner('#e8734a', '#c85630'), cap: 'خصومات على أدوية البرد والمناعة' },
+    ];
+    let bi = 0;
+    for (const b of demo) {
+      await client.query(
+        'INSERT INTO banner_slides (company_id, image_url, caption, order_index) VALUES ($1,$2,$3,$4)',
+        [companyId, b.img, b.cap, bi++]
+      );
+    }
+    console.log('Seeded demo pharmacy banners.');
+  }
+}
+
+// Build a self-contained gradient banner as an SVG data-URI (no external file).
+function svgBanner(c1, c2) {
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='1600' height='600'>"
+    + "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>"
+    + "<stop offset='0' stop-color='" + c1 + "'/><stop offset='1' stop-color='" + c2 + "'/>"
+    + "</linearGradient></defs><rect width='1600' height='600' fill='url(#g)'/></svg>";
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
 
 module.exports = { ensurePharmacySchema, DEMO_SLUG };
