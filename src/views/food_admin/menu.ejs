@@ -49,7 +49,7 @@
           <div><span class="lbl"><%= t('food.admin.delivery_time') %></span><input name="delivery_time_min" type="number" min="0" value="<%= o ? (o.delivery_time_min||30) : 30 %>" class="fld" /></div>
           <div><span class="lbl"><%= t('orders.min_order') %> (<%= t('pharmacy.currency') %>)</span><input name="min_order" type="number" step="0.01" min="0" value="<%= o ? Number(o.min_order||0) : 0 %>" class="fld" /></div>
           <div><span class="lbl"><%= t('food.admin.hours') %></span><div class="flex gap-1"><input name="opening_time" value="<%= o ? (o.opening_time||'09:00') : '09:00' %>" class="fld" dir="ltr" /><input name="closing_time" value="<%= o ? (o.closing_time||'23:00') : '23:00' %>" class="fld" dir="ltr" /></div></div>
-          <div class="flex items-end"><button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-5 py-2 w-full text-sm"><%= t('pharmacy.admin.save') %></button></div>
+          <div class="flex items-end"><button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-5 py-2 w-full text-sm"><%= t('pharmacy.admin.save') %></button></div>
         </form>
       </details>
 
@@ -61,7 +61,7 @@
           <input type="hidden" name="outlet_id" value="<%= o.id %>" />
           <div><span class="lbl"><%= t('food.admin.category') %> (<%= t('food.admin.name_ar') %>)</span><input name="name_ar" class="fld" style="min-width:160px" /></div>
           <div><span class="lbl"><%= t('food.admin.name') %></span><input name="name" class="fld" style="min-width:140px" /></div>
-          <button class="bg-gray-800 text-white font-bold rounded-lg px-4 py-2 text-sm">+ <%= t('food.admin.add_category') %></button>
+          <button type="submit" class="bg-gray-800 text-white font-bold rounded-lg px-4 py-2 text-sm">+ <%= t('food.admin.add_category') %></button>
         </form>
 
         <% o.categories.forEach(function(cat){
@@ -88,8 +88,8 @@
                 </div>
                 <div class="sm:col-span-4"><span class="lbl"><%= t('food.admin.description') %></span><input name="description" value="<%= it.description || '' %>" class="fld" /></div>
                 <div class="sm:col-span-2 flex gap-2">
-                  <button class="bg-orange-600 text-white font-bold rounded-lg px-4 py-1.5 text-sm flex-1"><%= t('pharmacy.admin.save') %></button>
-                  <button formaction="/food/item/<%= it.id %>/delete" formnovalidate onclick="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')" class="bg-red-50 text-red-600 font-bold rounded-lg px-3 py-1.5 text-sm"><%= t('pharmacy.admin.delete') %></button>
+                  <button type="submit" class="bg-orange-600 text-white font-bold rounded-lg px-4 py-1.5 text-sm flex-1"><%= t('pharmacy.admin.save') %></button>
+                  <button type="submit" formaction="/food/item/<%= it.id %>/delete" formnovalidate onclick="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')" class="bg-red-50 text-red-600 font-bold rounded-lg px-3 py-1.5 text-sm"><%= t('pharmacy.admin.delete') %></button>
                 </div>
               </form>
             <% }); %>
@@ -103,7 +103,7 @@
               <div><span class="lbl"><%= t('food.admin.price') %></span><input name="price" type="number" step="0.01" min="0" value="0" class="fld" /></div>
               <div><span class="lbl"><%= t('food.admin.image') %></span><input type="file" name="image_file" accept="image/*" class="fld" style="padding:3px" /></div>
               <div class="sm:col-span-2"><span class="lbl"><%= t('food.admin.description') %></span><input name="description" class="fld" /></div>
-              <div class="sm:col-span-6"><button class="bg-gray-800 text-white font-bold rounded-lg px-4 py-1.5 text-sm">+ <%= t('food.admin.add_item') %></button></div>
+              <div class="sm:col-span-6"><button type="submit" class="bg-gray-800 text-white font-bold rounded-lg px-4 py-1.5 text-sm">+ <%= t('food.admin.add_item') %></button></div>
             </form>
           </div>
         <% }); %>
