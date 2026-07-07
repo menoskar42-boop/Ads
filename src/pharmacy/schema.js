@@ -100,8 +100,9 @@ async function ensurePharmacySchema() {
       CREATE INDEX IF NOT EXISTS idx_pharm_inv_company ON pharmacy_inventory (company_id);
       CREATE INDEX IF NOT EXISTS idx_pharm_inv_med ON pharmacy_inventory (medicine_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_inv_uniq ON pharmacy_inventory (company_id, medicine_id);
-      -- Optional product photo for the storefront card (per-pharmacy).
+      -- Optional product photo + description for the storefront card (per-pharmacy).
       ALTER TABLE pharmacy_inventory ADD COLUMN IF NOT EXISTS image_url TEXT;
+      ALTER TABLE pharmacy_inventory ADD COLUMN IF NOT EXISTS description TEXT;
 
       -- Online orders (patient -> pharmacy).
       CREATE TABLE IF NOT EXISTS pharmacy_orders (
@@ -221,6 +222,8 @@ async function ensurePharmacySchema() {
       -- and Schema.org geo). Set by the pharmacy from the settings map picker.
       ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS lat NUMERIC(9,6);
       ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS lng NUMERIC(9,6);
+      -- Storefront: show product photos, or list medicines as names only.
+      ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS show_images BOOLEAN DEFAULT true;
     `);
 
     await seedCatalog(client);

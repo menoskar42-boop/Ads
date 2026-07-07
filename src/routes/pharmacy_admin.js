@@ -201,17 +201,19 @@ router.post('/inventory/add', gate('inventory'), withImage(uploadMedImage), asyn
     }
     if (!medicineId) return res.redirect('/pharmacy/inventory?error=' + encodeURIComponent('اختر دواء أو اكتب اسم جديد'));
     await pool.query(
-      `INSERT INTO pharmacy_inventory (company_id, medicine_id, qty, price, cost, min_qty, expiry, barcode, image_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `INSERT INTO pharmacy_inventory (company_id, medicine_id, qty, price, cost, min_qty, expiry, barcode, image_url, description)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        ON CONFLICT (company_id, medicine_id) DO UPDATE SET
          qty = pharmacy_inventory.qty + EXCLUDED.qty,
          price = COALESCE(EXCLUDED.price, pharmacy_inventory.price),
          cost = COALESCE(EXCLUDED.cost, pharmacy_inventory.cost),
          min_qty = EXCLUDED.min_qty, expiry = COALESCE(EXCLUDED.expiry, pharmacy_inventory.expiry),
          image_url = COALESCE(EXCLUDED.image_url, pharmacy_inventory.image_url),
+         description = COALESCE(EXCLUDED.description, pharmacy_inventory.description),
          updated_at = now()`,
       [cid, medicineId, toInt(b.qty, 0), toNum(b.price, null), toNum(b.cost, null),
-       toInt(b.min_qty, 0), (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, imageUrl]
+       toInt(b.min_qty, 0), (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, imageUrl,
+       (b.description || '').trim() || null]
     );
     res.redirect('/pharmacy/inventory?saved=1');
   } catch (e) {
@@ -229,10 +231,11 @@ router.post('/inventory/:id/update', gate('inventory'), withImage(uploadMedImage
     if (req.file) { await compressImage(req.file.path); imageUrl = '/uploads/' + req.file.filename; }
     await pool.query(
       `UPDATE pharmacy_inventory SET qty=$1, price=$2, cost=$3, min_qty=$4,
-         expiry=$5, barcode=$6, image_url=COALESCE($9, image_url), updated_at=now()
+         expiry=$5, barcode=$6, image_url=COALESCE($9, image_url), description=$10, updated_at=now()
        WHERE id=$7 AND company_id=$8`,
       [toInt(b.qty, 0), toNum(b.price, null), toNum(b.cost, null), toInt(b.min_qty, 0),
-       (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, id, cid, imageUrl]
+       (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, id, cid, imageUrl,
+       (b.description || '').trim() || null]
     );
     res.redirect('/pharmacy/inventory?saved=1');
   } catch (e) {
@@ -339,11 +342,12 @@ router.post('/settings', gate('settings'), async (req, res) => {
     await pool.query(
       `UPDATE pharmacy_settings SET
          online_store_enabled=$1, delivery_enabled=$2, delivery_fee=$3,
-         is_night_shift=$4, whatsapp=$5, address=$6, lat=$7, lng=$8, updated_at=now()
-       WHERE company_id=$9`,
+         is_night_shift=$4, whatsapp=$5, address=$6, lat=$7, lng=$8,
+         show_images=$9, updated_at=now()
+       WHERE company_id=$10`,
       [b.online_store_enabled === 'on', b.delivery_enabled === 'on', toNum(b.delivery_fee, 0),
        b.is_night_shift === 'on', (b.whatsapp || '').trim() || null, (b.address || '').trim() || null,
-       lat, lng, req.company.id]
+       lat, lng, b.show_images === 'on', req.company.id]
     );
     res.redirect('/pharmacy/settings?saved=1');
   } catch (e) {

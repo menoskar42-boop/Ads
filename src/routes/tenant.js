@@ -86,7 +86,7 @@ router.get('/', async (req, res) => {
       }
       pharmacyItems = (await pool.query(
         `SELECT pi.id, pi.medicine_id, pi.qty, pi.reserved_qty, pi.price, pi.expiry,
-                pi.min_qty, pi.image_url,
+                pi.min_qty, pi.image_url, pi.description,
                 GREATEST(pi.qty - pi.reserved_qty, 0) AS available_qty,
                 m.name_ar, m.name_en, m.form, m.manufacturer, m.scientific_name
          FROM pharmacy_inventory pi

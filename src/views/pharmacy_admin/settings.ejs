@@ -32,6 +32,14 @@
       <span class="font-bold"><%= t('pharmacy.admin.delivery') %></span>
     </label>
 
+    <label class="flex items-start gap-3 cursor-pointer">
+      <input type="checkbox" name="show_images" class="mt-1 w-5 h-5 accent-emerald-700" <%= settings.show_images !== false ? 'checked' : '' %> />
+      <span>
+        <span class="font-bold block"><%= t('pharmacy.admin.show_images') %></span>
+        <span class="text-sm text-gray-500"><%= t('pharmacy.admin.show_images_hint') %></span>
+      </span>
+    </label>
+
     <div>
       <label class="lbl font-bold text-sm block mb-1"><%= t('pharmacy.admin.delivery_fee') %> (<%= t('pharmacy.currency') %>)</label>
       <input name="delivery_fee" type="number" step="0.01" min="0" value="<%= settings.delivery_fee!=null?Number(settings.delivery_fee):0 %>" class="fld" />

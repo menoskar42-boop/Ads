@@ -13,6 +13,7 @@
   var __phDesc = ((company.description || (__phName + ' — ' + __suffix)).trim()).slice(0, 155);
   var __isDemo = company.slug === 'pharmacy';
   var __online = pharmacySettings && pharmacySettings.online_store_enabled;
+  var __showImages = !(pharmacySettings && pharmacySettings.show_images === false);
   var __wa = pharmacySettings && pharmacySettings.whatsapp ? String(pharmacySettings.whatsapp).replace(/[^0-9]/g, '') : '';
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
   var __phCanon = 'https://' + company.slug + '.oscardevs.com/';
@@ -228,9 +229,13 @@
              var subline = [secondary, it.form].filter(Boolean).join(' · ');
              var initial = (primary || '؟').trim().charAt(0);
              var searchHay = [it.name_ar, it.name_en, it.scientific_name].filter(Boolean).join(' ');
+             var badgeCls = state==='in' ? 'bg-brand-50 text-brand-700 border-brand-200' : (state==='low' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200');
+             var badgeDot = state==='in' ? 'bg-brand-500' : (state==='low' ? 'bg-amber-500' : 'bg-red-500');
+             var badgeTxt = state==='in' ? t('pharmacy.available') : (state==='low' ? t('pharmacy.limited') : t('pharmacy.out'));
         %>
         <article class="med-card group flex flex-col rounded-xl2 bg-white border border-sand-200 shadow-card <%= state==='out' ? '' : 'hover:shadow-cardHover hover:-translate-y-0.5' %> transition-all duration-200 overflow-hidden"
                  data-hay="<%= searchHay.toLowerCase() %>">
+          <% if (__showImages) { %>
           <div class="relative aspect-square <%= it.image_url ? 'bg-sand-100' : 'bg-brand-50' %> grid place-items-center p-4">
             <% if (it.image_url) { %>
               <img src="<%= it.image_url %>" alt="<%= primary %>" loading="lazy" class="absolute inset-0 w-full h-full object-contain p-4 <%= state==='out' ? 'opacity-50 grayscale' : '' %>" />
@@ -243,17 +248,16 @@
                 <p class="mt-3 text-[11px] font-semibold text-brand-700/60"><%= t('pharmacy.no_image') %></p>
               </div>
             <% } %>
-            <% if (state === 'in') { %>
-              <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full bg-brand-50 text-brand-700 border border-brand-200 px-2 py-0.5 text-[11px] font-bold"><span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span><%= t('pharmacy.available') %></span>
-            <% } else if (state === 'low') { %>
-              <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 text-[11px] font-bold"><span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span><%= t('pharmacy.limited') %></span>
-            <% } else { %>
-              <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 text-[11px] font-bold"><span class="h-1.5 w-1.5 rounded-full bg-red-500"></span><%= t('pharmacy.out') %></span>
-            <% } %>
+            <span class="absolute top-2.5 start-2.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold <%= badgeCls %>"><span class="h-1.5 w-1.5 rounded-full <%= badgeDot %>"></span><%= badgeTxt %></span>
           </div>
+          <% } %>
           <div class="flex flex-col flex-1 p-3">
-            <h3 class="font-bold text-[15px] leading-tight <%= state==='out' ? 'text-ink/70' : '' %>"><%= primary %></h3>
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="font-bold text-[15px] leading-tight <%= state==='out' ? 'text-ink/70' : '' %>"><%= primary %></h3>
+              <% if (!__showImages) { %><span class="shrink-0 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold <%= badgeCls %>"><span class="h-1.5 w-1.5 rounded-full <%= badgeDot %>"></span><%= badgeTxt %></span><% } %>
+            </div>
             <% if (subline) { %><p class="text-[12px] text-ink/50 leading-tight"><%= subline %></p><% } %>
+            <% if (it.description) { %><p class="text-[12px] text-ink/55 leading-snug mt-1"><%= it.description %></p><% } %>
             <div class="mt-auto pt-3 flex items-end justify-between gap-2">
               <% if (price) { %><p class="font-extrabold <%= state==='out' ? 'text-ink/45' : 'text-brand-700' %>"><bdi><span class="text-lg"><%= price %></span> <span class="text-[12px] font-semibold text-ink/50"><%= t('pharmacy.currency') %></span></bdi></p><% } else { %><span></span><% } %>
               <% if (state === 'out') { %>
