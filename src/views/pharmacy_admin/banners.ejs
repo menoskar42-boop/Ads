@@ -20,7 +20,7 @@
     <h2 class="font-extrabold text-emerald-700 mb-1">🖼️ <%= t('pharmacy.admin.banners') %></h2>
     <p class="text-xs text-gray-500 mb-4"><%= t('pharmacy.admin.banner_hint') %></p>
     <form method="post" action="/pharmacy/banners/add" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-2">
-      <div class="sm:col-span-2"><span class="lbl"><%= t('pharmacy.admin.image') %> (1600×600)</span><input type="file" name="image_file" accept="image/*" required class="fld" style="padding:6px" /></div>
+      <div class="sm:col-span-2"><span class="lbl"><%= t('pharmacy.admin.banner_image') %> (1600×600)</span><input type="file" name="image_file" accept="image/*" required class="fld" style="padding:6px" /></div>
       <div><span class="lbl"><%= t('pharmacy.admin.banner_caption') %></span><input name="caption" maxlength="120" class="fld" /></div>
       <div><span class="lbl"><%= t('pharmacy.admin.banner_link') %></span><input name="target_url" dir="ltr" placeholder="https://…" class="fld" /></div>
       <div class="sm:col-span-2"><button class="bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl px-6 py-2.5"><%= t('pharmacy.admin.banner_add') %></button></div>
