@@ -316,6 +316,72 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
   }
 });
 
+// Create a MULTI-medicine order from the client cart. The customer enters their
+// contact details once and checks out the whole cart (COD). Prices/availability
+// are re-read from the DB per item and stock is reserved for all of them.
+router.post('/order/cart', pharmacyOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  const b = req.body || {};
+  const langQ = res.locals.lang === 'en' ? '?lang=en' : '';
+  let cart;
+  try { cart = JSON.parse(b.cart || '[]'); } catch (e) { cart = []; }
+  cart = (Array.isArray(cart) ? cart : [])
+    .map((x) => ({ id: parseInt(x.id, 10), q: Math.max(1, parseInt(x.q, 10) || 1) }))
+    .filter((x) => x.id);
+  const name = String(b.customer_name || '').trim().slice(0, 100);
+  const phone = String(b.customer_phone || '').trim().slice(0, 30);
+  const address = String(b.customer_address || '').trim().slice(0, 300);
+  if (!cart.length || !name || phone.length < 6) return res.redirect('/' + langQ);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const lines = [];
+    let itemsTotal = 0;
+    for (const c of cart) {
+      const inv = (await client.query(
+        `SELECT pi.price, GREATEST(pi.qty - pi.reserved_qty,0) AS available, m.name_ar
+         FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+         WHERE pi.company_id = $1 AND pi.medicine_id = $2 FOR UPDATE`, [company.id, c.id]
+      )).rows[0];
+      if (!inv || Number(inv.available) < c.q) { await client.query('ROLLBACK'); return res.redirect('/' + langQ); }
+      const price = Number(inv.price) || 0;
+      itemsTotal += price * c.q;
+      lines.push({ medicine_id: c.id, name: inv.name_ar, qty: c.q, price });
+    }
+    // Flat delivery fee (if the pharmacy enabled delivery with a fee).
+    const s = req.pharmacySettings || {};
+    const deliveryFee = (s.delivery_enabled && Number(s.delivery_fee) > 0) ? Number(s.delivery_fee) : 0;
+    const total = itemsTotal + deliveryFee;
+    const token = crypto.randomBytes(9).toString('hex');
+    const ord = (await client.query(
+      `INSERT INTO pharmacy_orders (company_id, customer_name, customer_phone, customer_address, total_amount, status, track_token)
+       VALUES ($1,$2,$3,$4,$5,'pending',$6) RETURNING id`,
+      [company.id, name, phone, address || null, total, token]
+    )).rows[0];
+    for (const ln of lines) {
+      await client.query(
+        `INSERT INTO pharmacy_order_items (order_id, medicine_id, name, qty, price) VALUES ($1,$2,$3,$4,$5)`,
+        [ord.id, ln.medicine_id, ln.name, ln.qty, ln.price]
+      );
+    }
+    await stock.reserve(client, company.id, lines.map((l) => ({ medicine_id: l.medicine_id, qty: l.qty })));
+    await client.query('COMMIT');
+    push.sendToCompany(company.id, {
+      title: '🧾 طلب صيدلية جديد',
+      body: `طلب جديد من ${name}: ${lines.length} صنف`,
+      url: '/pharmacy/orders',
+    }, 'order').catch((e) => console.error('[push pharmacy cart order] error:', e.message));
+    return res.redirect('/order/track/' + token + langQ);
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('cart order create error:', e.message);
+    return res.redirect('/' + langQ);
+  } finally {
+    client.release();
+  }
+});
+
 // ── Customer order tracking (Talabat-style) ──
 // Public, keyed by the order's unguessable token. Shows live status and lets
 // the customer enable push so the pharmacy's status updates reach their phone.

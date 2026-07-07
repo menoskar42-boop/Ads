@@ -263,10 +263,11 @@
               <% if (state === 'out') { %>
                 <span class="inline-flex items-center rounded-full bg-sand-100 text-ink/40 border border-sand-200 px-3.5 py-2 text-[13px] font-bold"><%= t('pharmacy.out') %></span>
               <% } else if (__online) { %>
-                <a href="/order?m=<%= it.medicine_id %><%= lang !== 'ar' ? '&lang=' + lang : '' %>" class="inline-flex items-center gap-1 rounded-full bg-accent hover:brightness-95 active:brightness-90 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition">
+                <button type="button" class="ph-add inline-flex items-center gap-1 rounded-full bg-accent hover:brightness-95 active:brightness-90 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition"
+                        data-id="<%= it.medicine_id %>" data-name="<%= primary %>" data-price="<%= Number(it.price) || 0 %>" data-max="<%= avail %>">
                   <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12.4a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.3L22 7H6"/></svg>
-                  <%= t('pharmacy.order') %>
-                </a>
+                  <span class="ph-add-label"><%= t('pharmacy.cart.add') %></span>
+                </button>
               <% } else if (__wa) { %>
                 <a href="https://wa.me/<%= __wa %>?text=<%= encodeURIComponent(t('pharmacy.order_wa_msg') + ' ' + primary) %>" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-full bg-brand-500 hover:bg-brand-600 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition"><%= t('pharmacy.order_wa_btn') %></a>
               <% } else { %>
@@ -414,5 +415,162 @@
   });
 })();
 </script>
+
+<% if (__online) { %>
+<!-- ═══ CART (multi-medicine, one checkout) ═══ -->
+<div id="phCartBar" class="fixed inset-x-0 bottom-0 z-40 hidden">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 pb-4">
+    <button id="phCartBtn" type="button" class="w-full bg-accent text-white rounded-2xl shadow-lift px-5 py-3.5 font-extrabold flex items-center justify-between">
+      <span class="flex items-center gap-2">
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12.4a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.3L22 7H6"/></svg>
+        <span id="phCartCount">0</span> · <%= t('pharmacy.cart.view') %>
+      </span>
+      <span id="phCartTotalBtn">0 <%= t('pharmacy.currency') %></span>
+    </button>
+  </div>
+</div>
+
+<div id="phDrawer" class="fixed inset-0 z-50 hidden">
+  <div id="phDrawerOverlay" class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-y-0 end-0 w-full sm:max-w-md bg-white shadow-2xl flex flex-col">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-sand-200">
+      <h2 class="font-extrabold text-lg"><%= t('pharmacy.cart.title') %></h2>
+      <button id="phDrawerClose" type="button" class="grid place-items-center h-9 w-9 rounded-full hover:bg-sand-100" aria-label="close"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <form id="phOrderForm" method="post" action="/order/cart" class="flex-1 flex flex-col min-h-0">
+      <input type="hidden" name="cart" id="phCartField" />
+      <% if (lang !== 'ar') { %><input type="hidden" name="lang" value="<%= lang %>" /><% } %>
+      <div class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3">
+        <div id="phCartLines" class="space-y-3"></div>
+        <div id="phCartEmpty" class="text-center text-ink/40 py-10"><%= t('pharmacy.cart.empty') %></div>
+        <div id="phCustFields" class="space-y-3 pt-2 hidden">
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('pharmacy.order.your_name') %></label><input name="customer_name" required maxlength="100" class="w-full rounded-xl border-2 border-sand-200 px-3.5 py-2.5 focus:border-brand-400 outline-none" /></div>
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('pharmacy.order.your_phone') %></label><input name="customer_phone" type="tel" dir="ltr" required maxlength="30" class="w-full rounded-xl border-2 border-sand-200 px-3.5 py-2.5 text-end focus:border-brand-400 outline-none" placeholder="01xxxxxxxxx" /></div>
+          <div><label class="block text-[13px] font-bold mb-1"><%= t('pharmacy.order.your_address') %></label><textarea name="customer_address" rows="2" maxlength="300" class="w-full rounded-xl border-2 border-sand-200 px-3.5 py-2.5 resize-none focus:border-brand-400 outline-none"></textarea></div>
+          <p class="text-xs text-ink/45">💵 <%= t('pharmacy.cart.cod') %></p>
+        </div>
+      </div>
+      <div id="phCartFooter" class="border-t border-sand-200 p-4 space-y-2 hidden">
+        <div class="flex justify-between text-sm"><span class="text-ink/55"><%= t('pharmacy.cart.subtotal') %></span><span id="phSumSub">0</span></div>
+        <div id="phDeliveryRow" class="hidden justify-between text-sm"><span class="text-ink/55"><%= t('pharmacy.cart.delivery') %></span><span id="phSumDelivery">0</span></div>
+        <div class="flex justify-between font-extrabold text-lg"><span><%= t('pharmacy.cart.total') %></span><span id="phSumTotal" class="text-brand-700">0</span></div>
+        <button type="submit" class="w-full bg-accent text-white rounded-2xl py-3.5 font-extrabold"><%= t('pharmacy.cart.confirm') %></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'oscardevs_ph_cart_' + <%- JSON.stringify(company.slug) %>;
+  var CKEY = 'oscardevs_ph_contact_' + <%- JSON.stringify(company.slug) %>;
+  var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
+  var ADD = <%- JSON.stringify(t('pharmacy.cart.add')) %>;
+  var ADDED = <%- JSON.stringify(t('pharmacy.cart.added')) %>;
+  var MAXW = <%- JSON.stringify(t('pharmacy.cart.max_reached')) %>;
+  var DELIVERY = <%- JSON.stringify(pharmacySettings && pharmacySettings.delivery_enabled && Number(pharmacySettings.delivery_fee) > 0 ? Number(pharmacySettings.delivery_fee) : 0) %>;
+  var isAr = document.documentElement.lang === 'ar';
+
+  var bar = document.getElementById('phCartBar');
+  var countEl = document.getElementById('phCartCount');
+  var totalBtn = document.getElementById('phCartTotalBtn');
+  var drawer = document.getElementById('phDrawer');
+  var lines = document.getElementById('phCartLines');
+  var cartEmpty = document.getElementById('phCartEmpty');
+  var custFields = document.getElementById('phCustFields');
+  var footer = document.getElementById('phCartFooter');
+  var form = document.getElementById('phOrderForm');
+  var cartField = document.getElementById('phCartField');
+
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+  function save(c) { localStorage.setItem(KEY, JSON.stringify(c)); }
+  function fmt(n) { n = Math.round(n * 100) / 100; return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); }
+  function money(n) { return fmt(n) + ' ' + CUR; }
+
+  function totals() {
+    var c = load(), count = 0, sub = 0;
+    Object.keys(c).forEach(function (k) { count += c[k].q; sub += c[k].q * c[k].p; });
+    var delivery = count > 0 ? DELIVERY : 0;
+    return { count: count, sub: sub, delivery: delivery, total: sub + delivery };
+  }
+  function renderBar() {
+    var t = totals();
+    countEl.textContent = fmt(t.count);
+    totalBtn.textContent = money(t.total);
+    bar.classList.toggle('hidden', t.count === 0);
+  }
+  function renderDrawer() {
+    var c = load(), t = totals();
+    lines.innerHTML = '';
+    var keys = Object.keys(c);
+    cartEmpty.classList.toggle('hidden', keys.length !== 0);
+    footer.classList.toggle('hidden', keys.length === 0);
+    custFields.classList.toggle('hidden', keys.length === 0);
+    keys.forEach(function (id) {
+      var it = c[id];
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 bg-sand-50 rounded-xl p-2';
+      row.innerHTML = '<div class="min-w-0 flex-1"><div class="font-bold text-sm truncate"></div><div class="text-xs text-brand-700 font-bold"></div></div>'
+        + '<div class="flex items-center gap-1 bg-white rounded-full border border-sand-200 p-1">'
+        + '<button type="button" data-m="' + id + '" class="grid place-items-center h-7 w-7 rounded-full hover:bg-sand-100">−</button>'
+        + '<span class="w-6 text-center font-bold qv"></span>'
+        + '<button type="button" data-p="' + id + '" class="grid place-items-center h-7 w-7 rounded-full hover:bg-sand-100">+</button></div>'
+        + '<button type="button" data-r="' + id + '" class="text-red-500 px-1">🗑️</button>';
+      row.querySelector('.font-bold.text-sm').textContent = it.n;
+      row.querySelector('.text-brand-700').textContent = money(it.p * it.q);
+      row.querySelector('.qv').textContent = fmt(it.q);
+      lines.appendChild(row);
+    });
+    document.getElementById('phSumSub').textContent = money(t.sub);
+    var dr = document.getElementById('phDeliveryRow');
+    if (t.delivery > 0) { dr.classList.remove('hidden'); dr.classList.add('flex'); document.getElementById('phSumDelivery').textContent = money(t.delivery); }
+    else { dr.classList.add('hidden'); dr.classList.remove('flex'); }
+    document.getElementById('phSumTotal').textContent = money(t.total);
+  }
+  function openD() { renderDrawer(); drawer.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+  function closeD() { drawer.classList.add('hidden'); document.body.style.overflow = ''; }
+
+  document.querySelectorAll('.ph-add').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var c = load(), id = b.dataset.id, max = parseInt(b.dataset.max, 10) || 999;
+      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price) || 0, q: 0 };
+      if (c[id].q >= max) { var lbl0 = b.querySelector('.ph-add-label'); if (lbl0) { lbl0.textContent = MAXW; setTimeout(function () { lbl0.textContent = ADD; }, 1200); } return; }
+      c[id].q += 1; save(c); renderBar();
+      var lbl = b.querySelector('.ph-add-label');
+      if (lbl) { lbl.textContent = ADDED; setTimeout(function () { lbl.textContent = ADD; }, 700); }
+    });
+  });
+
+  lines.addEventListener('click', function (e) {
+    var c = load(), tg = e.target;
+    if (tg.dataset.p) { c[tg.dataset.p].q += 1; }
+    else if (tg.dataset.m) { c[tg.dataset.m].q -= 1; if (c[tg.dataset.m].q <= 0) delete c[tg.dataset.m]; }
+    else if (tg.dataset.r) { delete c[tg.dataset.r]; }
+    else return;
+    save(c); renderBar(); renderDrawer();
+  });
+
+  document.getElementById('phCartBtn').addEventListener('click', openD);
+  document.getElementById('phDrawerClose').addEventListener('click', closeD);
+  document.getElementById('phDrawerOverlay').addEventListener('click', closeD);
+
+  form.addEventListener('submit', function (e) {
+    var c = load();
+    var arr = Object.keys(c).map(function (id) { return { id: Number(id), q: c[id].q }; });
+    if (!arr.length) { e.preventDefault(); return; }
+    cartField.value = JSON.stringify(arr);
+    try { localStorage.setItem(CKEY, JSON.stringify({ customer_name: form.customer_name.value, customer_phone: form.customer_phone.value, customer_address: form.customer_address.value })); } catch (x) {}
+    try { localStorage.removeItem(KEY); } catch (x) {}
+  });
+
+  try {
+    var saved = JSON.parse(localStorage.getItem(CKEY) || 'null');
+    if (saved) { ['customer_name', 'customer_phone', 'customer_address'].forEach(function (k) { if (form[k] && saved[k]) form[k].value = saved[k]; }); }
+  } catch (x) {}
+
+  renderBar();
+})();
+</script>
+<% } %>
 </body>
 </html>
