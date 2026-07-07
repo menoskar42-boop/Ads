@@ -2,8 +2,24 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const { getPreset } = require('../lib/portfolio_presets');
+const stock = require('../pharmacy/stock');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Guard for the public pharmacy order routes: tenant must be a pharmacy whose
+// online store is enabled. Loads the settings row onto req.
+async function pharmacyOrderGuard(req, res, next) {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'pharmacy') {
+    return res.status(404).render('404', { subdomain: company ? company.slug : null });
+  }
+  try {
+    const s = (await pool.query('SELECT * FROM pharmacy_settings WHERE company_id = $1', [company.id])).rows[0] || {};
+    if (!s.online_store_enabled) return res.redirect('/');
+    req.pharmacySettings = s;
+    next();
+  } catch (e) { console.error('order guard error:', e.message); res.status(500).send('Error.'); }
+}
 
 router.get('/', async (req, res) => {
   const company = req.tenant;
@@ -67,7 +83,7 @@ router.get('/', async (req, res) => {
                  ' OR m.barcode = $' + params.length + ')';
       }
       pharmacyItems = (await pool.query(
-        `SELECT pi.id, pi.qty, pi.reserved_qty, pi.price, pi.expiry,
+        `SELECT pi.id, pi.medicine_id, pi.qty, pi.reserved_qty, pi.price, pi.expiry,
                 GREATEST(pi.qty - pi.reserved_qty, 0) AS available_qty,
                 m.name_ar, m.name_en, m.form, m.manufacturer
          FROM pharmacy_inventory pi
@@ -153,6 +169,73 @@ router.get('/', async (req, res) => {
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
   });
+});
+
+// Public order form for one medicine (?m=<medicine_id>).
+router.get('/order', pharmacyOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  const mid = parseInt(req.query.m, 10);
+  try {
+    const item = (await pool.query(
+      `SELECT pi.medicine_id, pi.price, GREATEST(pi.qty - pi.reserved_qty,0) AS available,
+              m.name_ar, m.name_en, m.form
+       FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+       WHERE pi.company_id = $1 AND pi.medicine_id = $2`, [company.id, mid]
+    )).rows[0];
+    if (!item || Number(item.available) <= 0) return res.redirect('/');
+    res.render('tenant_pharmacy_order', {
+      company, item, settings: req.pharmacySettings, noindex: true, done: false, order: null,
+      error: req.query.e || null,
+      canonical: 'https://' + company.slug + '.oscardevs.com/',
+    });
+  } catch (e) { console.error('order form error:', e.message); res.status(500).send('Error.'); }
+});
+
+// Create the order + reserve stock (owner rule #14: reserved so it isn't sold
+// at the counter). Single-item quick order.
+router.post('/order', pharmacyOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  const b = req.body || {};
+  const mid = parseInt(b.medicine_id, 10);
+  const qty = Math.max(1, parseInt(b.qty, 10) || 1);
+  const name = String(b.customer_name || '').trim().slice(0, 100);
+  const phone = String(b.customer_phone || '').trim().slice(0, 30);
+  const address = String(b.customer_address || '').trim().slice(0, 300);
+  if (!mid || !name || !phone) return res.redirect('/order?m=' + mid + '&e=1');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      `SELECT pi.price, GREATEST(pi.qty - pi.reserved_qty,0) AS available, m.name_ar
+       FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+       WHERE pi.company_id = $1 AND pi.medicine_id = $2 FOR UPDATE`, [company.id, mid]
+    )).rows[0];
+    if (!inv || Number(inv.available) < qty) { await client.query('ROLLBACK'); return res.redirect('/order?m=' + mid + '&e=2'); }
+    const price = Number(inv.price) || 0;
+    const total = price * qty;
+    const ord = (await client.query(
+      `INSERT INTO pharmacy_orders (company_id, customer_name, customer_phone, customer_address, total_amount, status)
+       VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id`,
+      [company.id, name, phone, address || null, total]
+    )).rows[0];
+    await client.query(
+      `INSERT INTO pharmacy_order_items (order_id, medicine_id, name, qty, price) VALUES ($1,$2,$3,$4,$5)`,
+      [ord.id, mid, inv.name_ar, qty, price]
+    );
+    await stock.reserve(client, company.id, [{ medicine_id: mid, qty }]);
+    await client.query('COMMIT');
+    res.render('tenant_pharmacy_order', {
+      company, item: null, settings: req.pharmacySettings, noindex: true, done: true,
+      order: { id: ord.id, name: inv.name_ar, qty, total },
+      canonical: 'https://' + company.slug + '.oscardevs.com/',
+    });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('order create error:', e.message);
+    res.redirect('/order?m=' + mid + '&e=3');
+  } finally {
+    client.release();
+  }
 });
 
 module.exports = router;

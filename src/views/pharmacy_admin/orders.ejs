@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('pharmacy.orders.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'orders' }) %>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓</div><% } %>
+  <h1 class="text-xl font-extrabold mb-4"><%= t('pharmacy.orders.title') %></h1>
+
+  <% if (!orders.length) { %>
+    <div class="text-center py-14 text-gray-500"><%= t('pharmacy.orders.none') %></div>
+  <% } else { %>
+    <div class="space-y-3">
+      <% orders.forEach(function(o){
+           var badge = { pending:'bg-emerald-100 text-emerald-800', accepted:'bg-blue-50 text-blue-700',
+             preparing:'bg-indigo-50 text-indigo-700', ready:'bg-purple-50 text-purple-700',
+             delivered:'bg-green-50 text-green-700', rejected:'bg-red-50 text-red-600', cancelled:'bg-gray-100 text-gray-500' }[o.status] || 'bg-gray-100 text-gray-600';
+      %>
+        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="font-extrabold"><%= t('pharmacy.orders.order') %> #<%= o.id %></span>
+            <span class="text-xs font-bold rounded-full px-2 py-1 <%= badge %>"><%= t('pharmacy.status.' + o.status) %></span>
+          </div>
+          <div class="text-sm text-gray-600 mb-2">
+            👤 <%= o.customer_name %> · <span dir="ltr"><%= o.customer_phone %></span>
+            <% if (o.customer_address) { %><br>📍 <%= o.customer_address %><% } %>
+          </div>
+          <ul class="text-sm text-gray-700 mb-3 ps-1">
+            <% (itemsByOrder[o.id] || []).forEach(function(it){ %>
+              <li>• <%= it.name %> × <%= it.qty %><% if (it.price!=null) { %> — <%= Number(it.price).toFixed(2) %> <%= t('pharmacy.currency') %><% } %></li>
+            <% }) %>
+          </ul>
+          <div class="flex items-center justify-between gap-2 border-t pt-3">
+            <span class="font-extrabold text-emerald-700"><%= Number(o.total_amount||0).toFixed(2) %> <%= t('pharmacy.currency') %></span>
+            <form method="post" action="/pharmacy/orders/<%= o.id %>/status" class="flex items-center gap-2">
+              <select name="status" class="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <% flow.forEach(function(s){ %><option value="<%= s %>" <%= s===o.status?'selected':'' %>><%= t('pharmacy.status.' + s) %></option><% }) %>
+              </select>
+              <button class="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm font-bold"><%= t('pharmacy.orders.change_status') %></button>
+            </form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>

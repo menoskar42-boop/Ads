@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
+const stock = require('../pharmacy/stock');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -196,6 +197,169 @@ router.post('/settings', async (req, res) => {
   } catch (e) {
     console.error('settings update error:', e.message);
     res.redirect('/pharmacy/settings?error=1');
+  }
+});
+
+/* ─── POS (point of sale) ───────────────────────────────── */
+router.get('/pos', (req, res) => {
+  res.render('pharmacy_admin/pos', { company: req.company, session: req.session });
+});
+
+// JSON search over this pharmacy's stock — used by the POS and (later) the
+// barcode scanner. Matches Arabic/English name or barcode.
+router.get('/api/inventory-search', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.json([]);
+  try {
+    const rows = (await pool.query(
+      `SELECT pi.medicine_id, pi.price, GREATEST(pi.qty - pi.reserved_qty,0) AS available,
+              m.name_ar, m.name_en
+       FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+       WHERE pi.company_id = $1 AND (
+         m.name_ar ILIKE $2 OR m.name_en ILIKE $2 OR pi.barcode = $3 OR m.barcode = $3)
+       ORDER BY m.name_ar LIMIT 30`,
+      [req.company.id, '%' + q + '%', q]
+    )).rows;
+    res.json(rows);
+  } catch (e) { console.error('pos search error:', e.message); res.status(500).json([]); }
+});
+
+// Checkout a counter sale: validate availability, decrement stock, record the
+// sale + profit. Body: { items: [{ medicine_id, qty }] }.
+router.post('/pos/checkout', async (req, res) => {
+  const cid = req.company.id;
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ ok: false, error: 'empty' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let total = 0, profit = 0;
+    const lines = [];
+    for (const raw of items) {
+      const mid = parseInt(raw.medicine_id, 10);
+      const qty = Math.max(1, parseInt(raw.qty, 10) || 0);
+      if (!mid) continue;
+      const inv = (await client.query(
+        `SELECT pi.qty, pi.reserved_qty, pi.price, pi.cost, m.name_ar
+         FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+         WHERE pi.company_id = $1 AND pi.medicine_id = $2 FOR UPDATE`, [cid, mid]
+      )).rows[0];
+      if (!inv) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, error: 'not_found' }); }
+      const available = Math.max(0, inv.qty - inv.reserved_qty);
+      if (available < qty) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, error: 'insufficient', name: inv.name_ar }); }
+      const price = Number(inv.price) || 0;
+      const cost = Number(inv.cost) || 0;
+      total += price * qty;
+      profit += (price - cost) * qty;
+      lines.push({ medicine_id: mid, name: inv.name_ar, qty, price, cost });
+    }
+    if (!lines.length) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, error: 'empty' }); }
+    await stock.sellDirect(client, cid, lines);
+    const sale = (await client.query(
+      `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit) VALUES ($1,'sale',$2,$3) RETURNING id`,
+      [cid, total, profit]
+    )).rows[0];
+    for (const l of lines) {
+      await client.query(
+        `INSERT INTO pharmacy_sale_items (sale_id, medicine_id, name, qty, price, cost) VALUES ($1,$2,$3,$4,$5,$6)`,
+        [sale.id, l.medicine_id, l.name, l.qty, l.price, l.cost]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, total, profit });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('pos checkout error:', e.message);
+    res.status(500).json({ ok: false, error: 'server' });
+  } finally {
+    client.release();
+  }
+});
+
+/* ─── Online orders inbox ───────────────────────────────── */
+const ORDER_FLOW = ['pending', 'accepted', 'preparing', 'ready', 'delivered', 'rejected', 'cancelled'];
+
+router.get('/orders', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const orders = (await pool.query(
+      `SELECT * FROM pharmacy_orders WHERE company_id = $1 ORDER BY
+         CASE WHEN status = 'pending' THEN 0 ELSE 1 END, created_at DESC LIMIT 200`, [cid]
+    )).rows;
+    const ids = orders.map(o => o.id);
+    let itemsByOrder = {};
+    if (ids.length) {
+      const its = (await pool.query(
+        `SELECT * FROM pharmacy_order_items WHERE order_id = ANY($1::int[])`, [ids]
+      )).rows;
+      for (const it of its) { (itemsByOrder[it.order_id] = itemsByOrder[it.order_id] || []).push(it); }
+    }
+    res.render('pharmacy_admin/orders', {
+      company: req.company, orders, itemsByOrder, flow: ORDER_FLOW, session: req.session,
+      saved: req.query.saved === '1',
+    });
+  } catch (e) { console.error('orders list error:', e.message); res.status(500).send('Error.'); }
+});
+
+// Change an order's status and apply the reservation lifecycle:
+//  → delivered: stock leaves (fulfill) + record the sale/profit.
+//  → rejected/cancelled: release the hold.
+//  other transitions keep the existing reservation.
+router.post('/orders/:id/status', async (req, res) => {
+  const cid = req.company.id;
+  const oid = parseInt(req.params.id, 10);
+  const next = String((req.body && req.body.status) || '').trim();
+  if (!ORDER_FLOW.includes(next)) return res.redirect('/pharmacy/orders?error=1');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const ord = (await client.query(
+      'SELECT * FROM pharmacy_orders WHERE id = $1 AND company_id = $2 FOR UPDATE', [oid, cid]
+    )).rows[0];
+    if (!ord) { await client.query('ROLLBACK'); return res.redirect('/pharmacy/orders?error=1'); }
+    const prev = ord.status;
+    const terminalDone = ['delivered', 'rejected', 'cancelled'].includes(prev);
+    const items = (await client.query(
+      'SELECT medicine_id, qty FROM pharmacy_order_items WHERE order_id = $1', [oid]
+    )).rows.filter(i => i.medicine_id);
+
+    if (next === 'delivered' && prev !== 'delivered' && !['rejected', 'cancelled'].includes(prev)) {
+      await stock.fulfill(client, cid, items);
+      // record the sale + profit (cost pulled from current inventory)
+      let total = 0, profit = 0;
+      const lines = (await client.query(
+        `SELECT oi.medicine_id, oi.name, oi.qty, oi.price, pi.cost
+         FROM pharmacy_order_items oi
+         LEFT JOIN pharmacy_inventory pi ON pi.company_id = $2 AND pi.medicine_id = oi.medicine_id
+         WHERE oi.order_id = $1`, [oid, cid]
+      )).rows;
+      for (const l of lines) {
+        const price = Number(l.price) || 0, cost = Number(l.cost) || 0, qty = Number(l.qty) || 0;
+        total += price * qty; profit += (price - cost) * qty;
+      }
+      const sale = (await client.query(
+        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit) VALUES ($1,'sale',$2,$3) RETURNING id`,
+        [cid, total, profit]
+      )).rows[0];
+      for (const l of lines) {
+        await client.query(
+          `INSERT INTO pharmacy_sale_items (sale_id, medicine_id, name, qty, price, cost) VALUES ($1,$2,$3,$4,$5,$6)`,
+          [sale.id, l.medicine_id, l.name, l.qty, l.price, Number(l.cost) || null]
+        );
+      }
+    } else if (['rejected', 'cancelled'].includes(next) && !terminalDone) {
+      await stock.release(client, cid, items);
+    }
+
+    await client.query('UPDATE pharmacy_orders SET status = $1 WHERE id = $2', [next, oid]);
+    await client.query('COMMIT');
+    res.redirect('/pharmacy/orders?saved=1');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('order status error:', e.message);
+    res.redirect('/pharmacy/orders?error=1');
+  } finally {
+    client.release();
   }
 });
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('pharmacy.admin.pos') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; } .fld{border:1px solid #d1d5db;border-radius:10px;padding:10px 12px;width:100%;outline:none}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'pos' }) %>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <input id="posSearch" class="fld text-lg mb-2" placeholder="<%= t('pharmacy.pos.search') %>" autocomplete="off" autofocus />
+  <div id="posResults" class="bg-white rounded-xl border border-gray-100 shadow-sm divide-y hidden"></div>
+
+  <div class="mt-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+    <div class="font-extrabold text-emerald-700 mb-3">🧾 <%= t('pharmacy.pos.cart') %></div>
+    <div id="posEmpty" class="text-center text-gray-400 py-8"><%= t('pharmacy.pos.empty') %></div>
+    <div id="posCart" class="divide-y"></div>
+    <div id="posFooter" class="hidden mt-4">
+      <div class="flex items-center justify-between text-lg font-extrabold mb-3">
+        <span><%= t('pharmacy.pos.total') %></span>
+        <span><span id="posTotal">0</span> <%= t('pharmacy.currency') %></span>
+      </div>
+      <button id="posCheckout" class="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl px-6 py-3 w-full text-lg"><%= t('pharmacy.pos.checkout') %></button>
+    </div>
+  </div>
+
+  <div id="posToast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg hidden"></div>
+</main>
+
+<script>
+(function(){
+  var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
+  var MSG = { done: <%- JSON.stringify(t('pharmacy.pos.done')) %>, insuf: <%- JSON.stringify(t('pharmacy.pos.insufficient')) %>, avail: <%- JSON.stringify(t('pharmacy.pos.available_short')) %> };
+  var cart = {}; // medicine_id -> {name, price, qty, available}
+  var $ = function(id){ return document.getElementById(id); };
+  var searchBox = $('posSearch'), results = $('posResults');
+  var timer = null;
+
+  searchBox.addEventListener('input', function(){
+    clearTimeout(timer);
+    var q = searchBox.value.trim();
+    if (!q){ results.classList.add('hidden'); results.innerHTML=''; return; }
+    timer = setTimeout(function(){ doSearch(q); }, 200);
+  });
+
+  function doSearch(q){
+    fetch('/pharmacy/api/inventory-search?q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(rows){
+        results.innerHTML='';
+        if(!rows.length){ results.classList.add('hidden'); return; }
+        rows.forEach(function(it){
+          var d=document.createElement('button');
+          d.className='w-full text-start px-4 py-3 hover:bg-gray-50 flex items-center justify-between gap-2';
+          d.innerHTML='<span><b>'+esc(it.name_ar)+'</b>'+(it.name_en?' <span style="color:#9ca3af;font-size:.8rem">'+esc(it.name_en)+'</span>':'')+'</span>'+
+            '<span style="white-space:nowrap"><span style="color:#0e7c66;font-weight:700">'+(Number(it.price)||0).toFixed(2)+' '+CUR+'</span> · '+MSG.avail+' '+it.available+'</span>';
+          d.onclick=function(){ addToCart(it); searchBox.value=''; results.classList.add('hidden'); searchBox.focus(); };
+          results.appendChild(d);
+        });
+        results.classList.remove('hidden');
+      }).catch(function(){});
+  }
+
+  function addToCart(it){
+    var id=it.medicine_id;
+    if(!cart[id]) cart[id]={ name:it.name_ar, price:Number(it.price)||0, qty:0, available:Number(it.available)||0 };
+    if(cart[id].qty < cart[id].available) cart[id].qty++;
+    else toast(MSG.insuf);
+    render();
+  }
+
+  function render(){
+    var box=$('posCart'); box.innerHTML=''; var total=0, any=false;
+    Object.keys(cart).forEach(function(id){
+      var c=cart[id]; if(c.qty<=0) return; any=true; total += c.price*c.qty;
+      var row=document.createElement('div'); row.className='py-3 flex items-center justify-between gap-2';
+      row.innerHTML='<div class="min-w-0"><div class="font-bold truncate">'+esc(c.name)+'</div><div style="color:#6b7280;font-size:.8rem">'+c.price.toFixed(2)+' '+CUR+'</div></div>';
+      var ctrl=document.createElement('div'); ctrl.className='flex items-center gap-2 shrink-0';
+      ctrl.innerHTML='<button class="w-8 h-8 rounded-lg bg-gray-100 font-bold">−</button><span class="w-8 text-center font-bold">'+c.qty+'</span><button class="w-8 h-8 rounded-lg bg-gray-100 font-bold">+</button>';
+      var btns=ctrl.querySelectorAll('button');
+      btns[0].onclick=function(){ c.qty--; render(); };
+      btns[1].onclick=function(){ if(c.qty<c.available) c.qty++; else toast(MSG.insuf); render(); };
+      row.appendChild(ctrl); box.appendChild(row);
+    });
+    $('posEmpty').classList.toggle('hidden', any);
+    $('posFooter').classList.toggle('hidden', !any);
+    $('posTotal').textContent = total.toFixed(2);
+  }
+
+  $('posCheckout').onclick=function(){
+    var items=Object.keys(cart).filter(function(id){return cart[id].qty>0;}).map(function(id){return {medicine_id:id, qty:cart[id].qty};});
+    if(!items.length) return;
+    $('posCheckout').disabled=true;
+    fetch('/pharmacy/pos/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:items})})
+      .then(function(r){return r.json();})
+      .then(function(res){
+        $('posCheckout').disabled=false;
+        if(res.ok){ cart={}; render(); toast(MSG.done); }
+        else { toast(res.name ? (MSG.insuf+': '+res.name) : MSG.insuf); }
+      }).catch(function(){ $('posCheckout').disabled=false; });
+  };
+
+  var toastTimer=null;
+  function toast(m){ var el=$('posToast'); el.textContent=m; el.classList.remove('hidden'); clearTimeout(toastTimer); toastTimer=setTimeout(function(){el.classList.add('hidden');},2200); }
+  function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+})();
+</script>
+</body>
+</html>

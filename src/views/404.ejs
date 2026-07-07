@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<%- include('partials/ads_loader') %>
+<%# No ads_loader on 404 — error pages must never carry AdSense code (policy).
+    Guarantees zero adsbygoogle in the 404 source, regardless of showAds. %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>الصفحة غير موجودة (404) | OscarDevs</title>
