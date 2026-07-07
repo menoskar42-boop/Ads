@@ -39,8 +39,8 @@
   <% } else { %>
     <h1 class="text-2xl font-extrabold mb-1"><%= t('pharmacy.order.title') %></h1>
     <% var _ip = (lang==='en' && item.name_en) ? item.name_en : item.name_ar; var _is = (lang==='en' && item.name_en) ? item.name_ar : item.name_en; %>
-    <p class="text-gray-600 mb-5"><b><%= _ip %></b><% if (_is) { %> — <%= _is %><% } %>
-      <% if (item.price!=null) { %> · <span class="brand-text font-bold"><%= Number(item.price).toFixed(2) %> <%= t('pharmacy.currency') %></span><% } %></p>
+    <p class="text-gray-600 mb-5"><b><bdi><%= _ip %></bdi></b><% if (_is) { %> — <bdi><%= _is %></bdi><% } %>
+      <% if (item.price!=null) { %> · <bdi class="brand-text font-bold"><%= Number(item.price).toFixed(2) %> <%= t('pharmacy.currency') %></bdi><% } %></p>
 
     <% if (typeof error !== 'undefined' && error) { %><div class="mb-4 bg-red-50 text-red-600 rounded-xl px-4 py-2 text-sm font-bold"><%= t('pharmacy.order.error') %></div><% } %>
 
