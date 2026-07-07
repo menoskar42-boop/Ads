@@ -54,6 +54,7 @@
       <h1 class="text-lg font-extrabold leading-tight truncate"><%= __name %></h1>
       <% if (company.description) { %><p class="text-xs text-gray-500 truncate"><%= company.description %></p><% } %>
     </div>
+    <button type="button" id="myOrdersBtn" class="hidden rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-bold">🧾 <%= t('orders.my_orders') %></button>
     <a href="?lang=<%= __otherLang %>" class="rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-bold"><%= t('common.toggle_lang') %></a>
   </div>
 </header>
@@ -164,12 +165,26 @@
   </div>
 </div>
 
+<!-- My orders (device-local history) -->
+<div id="ordersModal" class="fixed inset-0 z-50 hidden">
+  <div id="ordersOverlay" class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-y-0 end-0 w-full sm:max-w-md bg-white shadow-2xl flex flex-col">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <h2 class="font-extrabold text-lg"><%= t('orders.my_orders') %></h2>
+      <button type="button" id="ordersClose" class="grid place-items-center h-9 w-9 rounded-full hover:bg-gray-100" aria-label="close"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div id="ordersList" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3"></div>
+  </div>
+</div>
+
 <script>
 window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.id, fee:Number(o.delivery_fee)||0, min:Number(o.min_order)||0, name:(o.name_ar||o.name) }; })) %>;
 </script>
 <script>
 (function () {
   var KEY = 'oscardevs_food_cart_' + <%- JSON.stringify(company.slug) %>;
+  var HKEY = 'oscardevs_food_history_' + <%- JSON.stringify(company.slug) %>;
+  var CKEY = 'oscardevs_food_contact_' + <%- JSON.stringify(company.slug) %>;
   var CUR = <%- JSON.stringify(__cur) %>;
   var isAr = document.documentElement.lang === 'ar';
   var MINW = <%- JSON.stringify(t('orders.min_order_warn')) %>;
@@ -274,8 +289,53 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
     var arr = Object.keys(c).map(function (id) { return { id: Number(id), q: c[id].q }; });
     if (!arr.length) { e.preventDefault(); return; }
     cartField.value = JSON.stringify(arr);
+    // Remember this order (device-local) + contact info for next time.
+    try {
+      var hist = JSON.parse(localStorage.getItem(HKEY) || '[]');
+      hist.unshift({ items: c, total: totals().total, ts: Date.now() });
+      localStorage.setItem(HKEY, JSON.stringify(hist.slice(0, 10)));
+      localStorage.setItem(CKEY, JSON.stringify({ customer_name: form.customer_name.value, phone: form.phone.value, address: form.address.value }));
+    } catch (x) {}
     // cart is cleared on the confirmation page load (only after success)
   });
+
+  /* Prefill contact from the last order */
+  try {
+    var saved = JSON.parse(localStorage.getItem(CKEY) || 'null');
+    if (saved) { ['customer_name', 'phone', 'address'].forEach(function (k) { if (form[k] && saved[k]) form[k].value = saved[k]; }); }
+  } catch (x) {}
+
+  /* My orders — device-local history + reorder */
+  var myBtn = document.getElementById('myOrdersBtn');
+  var oModal = document.getElementById('ordersModal');
+  var oList = document.getElementById('ordersList');
+  function loadHist() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } }
+  function fmtDate(ts) { try { return new Date(ts).toLocaleDateString(isAr ? 'ar-EG' : 'en-US'); } catch (e) { return ''; } }
+  var ITEMS_W = <%- JSON.stringify(t('orders.items_count')) %>, REORDER = <%- JSON.stringify(t('orders.reorder')) %>, TRACK = <%- JSON.stringify(t('orders.track')) %>, NOHIST = <%- JSON.stringify(t('orders.no_history')) %>;
+  function renderHist() {
+    var h = loadHist(); oList.innerHTML = '';
+    if (!h.length) { oList.innerHTML = '<p class="text-center text-gray-400 py-10">' + NOHIST + '</p>'; return; }
+    h.forEach(function (o) {
+      var n = Object.keys(o.items || {}).length;
+      var card = document.createElement('div');
+      card.className = 'bg-gray-50 rounded-xl p-3';
+      card.innerHTML = '<div class="flex justify-between text-sm mb-1"><span class="text-gray-500 dt"></span><span class="font-bold tot"></span></div>'
+        + '<div class="text-xs text-gray-500 mb-2 cnt"></div>'
+        + '<div class="flex gap-2"><button type="button" class="re accent-bg text-white rounded-full px-3 py-1.5 text-xs font-bold flex-1"></button>'
+        + (o.token ? '<a href="/order/food/' + o.token + '" class="tr bg-white border border-gray-200 rounded-full px-3 py-1.5 text-xs font-bold text-center"></a>' : '') + '</div>';
+      card.querySelector('.dt').textContent = fmtDate(o.ts);
+      card.querySelector('.tot').textContent = money(o.total || 0);
+      card.querySelector('.cnt').textContent = fmt(n) + ' ' + ITEMS_W;
+      card.querySelector('.re').textContent = REORDER;
+      if (o.token) card.querySelector('.tr').textContent = TRACK;
+      card.querySelector('.re').addEventListener('click', function () { save(o.items); renderBar(); oModal.classList.add('hidden'); document.body.style.overflow = ''; openD(); });
+      oList.appendChild(card);
+    });
+  }
+  if (loadHist().length) myBtn.classList.remove('hidden');
+  myBtn.addEventListener('click', function () { renderHist(); oModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; });
+  document.getElementById('ordersClose').addEventListener('click', function () { oModal.classList.add('hidden'); document.body.style.overflow = ''; });
+  document.getElementById('ordersOverlay').addEventListener('click', function () { oModal.classList.add('hidden'); document.body.style.overflow = ''; });
 
   renderBar();
 })();
