@@ -106,6 +106,20 @@ async function ensurePharmacySchema() {
         qty INTEGER NOT NULL DEFAULT 1,
         price NUMERIC(10,2)
       );
+      -- Unguessable token for the customer order-tracking page.
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS track_token TEXT;
+      CREATE INDEX IF NOT EXISTS idx_pharm_orders_token ON pharmacy_orders (track_token);
+
+      -- Customer push subscriptions, tied to a single order, so the patient
+      -- gets a notification when the pharmacy updates the status (Talabat-style).
+      CREATE TABLE IF NOT EXISTS pharmacy_order_subs (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES pharmacy_orders(id) ON DELETE CASCADE,
+        endpoint TEXT UNIQUE,
+        p256dh TEXT,
+        auth TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
 
       -- POS movements: sale (صادر) / purchase (وارد) / adjust. offline_uid gives
       -- idempotent replay when the offline POS syncs queued transactions.

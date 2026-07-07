@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<% var __theme = company.theme_color || '#0e7c66'; %>
+<title><%= t('pharmacy.track.title') %> — <%= company.company_name %></title>
+<link rel="canonical" href="<%= canonical %>" />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; } :root{--brand:<%= __theme %>} .brand-bg{background:var(--brand)} .brand-text{color:var(--brand)}
+  .dot{width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
+  .done .dot{background:var(--brand);color:#fff} .todo .dot{background:#e5e7eb;color:#9ca3af}
+  .line{width:2px;flex:1;background:#e5e7eb;margin:2px auto} .done .line{background:var(--brand)}</style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+<header class="brand-bg text-white"><div class="max-w-md mx-auto px-4 py-4 font-extrabold text-lg">💊 <%= company.company_name %></div></header>
+
+<main class="max-w-md mx-auto px-4 py-6">
+  <h1 class="text-2xl font-extrabold mb-1"><%= t('pharmacy.track.title') %></h1>
+  <p class="text-gray-500 mb-5"><%= t('pharmacy.orders.order') %> #<%= order.id %> · <%= order.customer_name %></p>
+
+  <%
+    var steps = [
+      ['placed', t('pharmacy.track.step_placed')],
+      ['accepted', t('pharmacy.track.step_accepted')],
+      ['preparing', t('pharmacy.track.step_preparing')],
+      ['ready', t('pharmacy.track.step_ready')],
+      ['delivered', t('pharmacy.track.step_delivered')],
+    ];
+    var order_rank = { pending:0, accepted:1, preparing:2, ready:3, delivered:4 };
+    var cur = order_rank[order.status];
+    var terminalBad = (order.status === 'rejected' || order.status === 'cancelled');
+  %>
+
+  <% if (terminalBad) { %>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center">
+      <div class="text-4xl mb-2"><%= order.status === 'rejected' ? '❌' : '🚫' %></div>
+      <p class="font-bold text-gray-700"><%= order.status === 'rejected' ? t('pharmacy.track.rejected') : t('pharmacy.track.cancelled') %></p>
+    </div>
+  <% } else { %>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <% steps.forEach(function(s, i){ var done = i <= cur; %>
+        <div class="flex items-stretch gap-3 <%= done ? 'done' : 'todo' %>">
+          <div class="flex flex-col items-center">
+            <div class="dot"><%= done ? '✓' : (i+1) %></div>
+            <% if (i < steps.length-1) { %><div class="line"></div><% } %>
+          </div>
+          <div class="pb-6 pt-1">
+            <div class="font-bold <%= done ? 'brand-text' : 'text-gray-400' %>"><%= s[1] %></div>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <!-- items -->
+  <div class="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-sm">
+    <% items.forEach(function(it){ %>
+      <div class="flex justify-between py-1"><span><%= it.name %> × <%= it.qty %></span><% if (it.price!=null) { %><span class="text-gray-500"><%= Number(it.price).toFixed(2) %> <%= t('pharmacy.currency') %></span><% } %></div>
+    <% }) %>
+    <div class="flex justify-between border-t mt-2 pt-2 font-extrabold"><span><%= t('pharmacy.pos.total') %></span><span class="brand-text"><%= Number(order.total_amount||0).toFixed(2) %> <%= t('pharmacy.currency') %></span></div>
+  </div>
+
+  <% if (pushKey && !terminalBad) { %>
+    <button id="notifBtn" class="mt-4 brand-bg text-white font-bold rounded-xl px-6 py-3 w-full"><%= t('pharmacy.track.enable') %></button>
+    <p id="notifHint" class="text-xs text-gray-400 text-center mt-2"><%= t('pharmacy.track.enable_hint') %></p>
+  <% } %>
+  <a href="/" class="block text-center text-sm text-gray-500 underline mt-4"><%= t('pharmacy.order.back') %></a>
+</main>
+
+<script>
+(function(){
+  var TOKEN = <%- JSON.stringify(order.track_token) %>;
+  var CURRENT = <%- JSON.stringify(order.status) %>;
+
+  // Live status poll — reload when the pharmacy advances the order.
+  setInterval(function(){
+    fetch('/order/track/'+TOKEN+'/status').then(function(r){return r.json();}).then(function(d){
+      if(d && d.status && d.status !== CURRENT) location.reload();
+    }).catch(function(){});
+  }, 20000);
+
+  var btn = document.getElementById('notifBtn'); if(!btn) return;
+  var hint = document.getElementById('notifHint');
+  var KEY = <%- JSON.stringify(pushKey) %>;
+  var enabledTxt = <%- JSON.stringify(t('pharmacy.track.enabled')) %>;
+  function u8(b){ var p='='.repeat((4-b.length%4)%4); var s=(b+p).replace(/-/g,'+').replace(/_/g,'/'); var r=atob(s),o=new Uint8Array(r.length); for(var i=0;i<r.length;i++)o[i]=r.charCodeAt(i); return o; }
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)){ btn.disabled=true; return; }
+
+  btn.onclick=function(){
+    btn.disabled=true;
+    Notification.requestPermission().then(function(p){
+      if(p!=='granted'){ btn.disabled=false; return; }
+      navigator.serviceWorker.register('/sw.js').then(function(reg){
+        return reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:u8(KEY) });
+      }).then(function(sub){
+        return fetch('/order/track/'+TOKEN+'/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:sub})});
+      }).then(function(){ btn.textContent=enabledTxt; hint&&(hint.style.display='none'); }).catch(function(){ btn.disabled=false; });
+    });
+  };
+})();
+</script>
+</body>
+</html>

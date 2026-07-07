@@ -98,4 +98,45 @@ async function sendToCompany(companyId, payload, type) {
   }));
 }
 
-module.exports = { isEnabled, publicKey, saveSubscription, removeSubscription, sendToCompany };
+/** Persist a customer's browser subscription tied to one order (tracking). */
+async function saveOrderSubscription(orderId, sub) {
+  if (!orderId || !sub || !sub.endpoint || !sub.keys) return false;
+  await pool.query(
+    `INSERT INTO pharmacy_order_subs (order_id, endpoint, p256dh, auth)
+     VALUES ($1,$2,$3,$4)
+     ON CONFLICT (endpoint) DO UPDATE SET order_id = EXCLUDED.order_id,
+       p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+    [orderId, sub.endpoint, sub.keys.p256dh, sub.keys.auth]
+  );
+  return true;
+}
+
+/** Notify the customer(s) tracking a specific order. Never throws. */
+async function sendToOrder(orderId, payload) {
+  if (!configured || !orderId) return;
+  let rows = [];
+  try {
+    rows = (await pool.query(
+      'SELECT endpoint, p256dh, auth FROM pharmacy_order_subs WHERE order_id = $1', [orderId]
+    )).rows;
+  } catch (err) { console.error('[push] load order subs failed:', err.message); return; }
+  const data = JSON.stringify({
+    title: payload.title || 'OscarDevs',
+    body: payload.body || '',
+    url: payload.url || '/',
+  });
+  await Promise.all(rows.map(async (r) => {
+    const subscription = { endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } };
+    try {
+      await webpush.sendNotification(subscription, data);
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        await pool.query('DELETE FROM pharmacy_order_subs WHERE endpoint = $1', [r.endpoint]).catch(() => {});
+      } else {
+        console.error('[push] order send failed:', err.statusCode || err.message);
+      }
+    }
+  }));
+}
+
+module.exports = { isEnabled, publicKey, saveSubscription, removeSubscription, sendToCompany, saveOrderSubscription, sendToOrder };

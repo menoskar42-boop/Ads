@@ -6,6 +6,17 @@ const router = express.Router();
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const stock = require('../pharmacy/stock');
+const push = require('../lib/push');
+
+// Customer-facing status notifications (Talabat-style).
+const STATUS_NOTIF = {
+  accepted:  { t: '✅ تم تأكيد طلبك', b: 'أكّدت الصيدلية طلبك وجاري تجهيزه.' },
+  preparing: { t: '⏳ طلبك قيد التحضير', b: 'الصيدلية بتجهّز طلبك دلوقتي.' },
+  ready:     { t: '📦 طلبك جاهز', b: 'طلبك جاهز للاستلام أو التوصيل.' },
+  delivered: { t: '🎉 تم تسليم طلبك', b: 'شكراً لطلبك من الصيدلية.' },
+  rejected:  { t: '❌ تعذّر تنفيذ طلبك', b: 'نأسف، الصيدلية اعتذرت عن الطلب.' },
+  cancelled: { t: 'تم إلغاء طلبك', b: 'تم إلغاء الطلب.' },
+};
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -353,6 +364,15 @@ router.post('/orders/:id/status', async (req, res) => {
 
     await client.query('UPDATE pharmacy_orders SET status = $1 WHERE id = $2', [next, oid]);
     await client.query('COMMIT');
+    // Notify the customer tracking this order (Talabat-style status update).
+    const notif = STATUS_NOTIF[next];
+    if (notif && ord.track_token) {
+      push.sendToOrder(oid, {
+        title: notif.t,
+        body: (req.company.company_name || '') + ' — ' + notif.b,
+        url: 'https://' + req.company.slug + '.oscardevs.com/order/track/' + ord.track_token,
+      }).catch((e) => console.error('[push order->customer] error:', e.message));
+    }
     res.redirect('/pharmacy/orders?saved=1');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});

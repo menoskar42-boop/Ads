@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const crypto = require('crypto');
 const { getPreset } = require('../lib/portfolio_presets');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
@@ -214,10 +215,11 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
     if (!inv || Number(inv.available) < qty) { await client.query('ROLLBACK'); return res.redirect('/order?m=' + mid + '&e=2'); }
     const price = Number(inv.price) || 0;
     const total = price * qty;
+    const token = crypto.randomBytes(9).toString('hex');
     const ord = (await client.query(
-      `INSERT INTO pharmacy_orders (company_id, customer_name, customer_phone, customer_address, total_amount, status)
-       VALUES ($1,$2,$3,$4,$5,'pending') RETURNING id`,
-      [company.id, name, phone, address || null, total]
+      `INSERT INTO pharmacy_orders (company_id, customer_name, customer_phone, customer_address, total_amount, status, track_token)
+       VALUES ($1,$2,$3,$4,$5,'pending',$6) RETURNING id`,
+      [company.id, name, phone, address || null, total, token]
     )).rows[0];
     await client.query(
       `INSERT INTO pharmacy_order_items (order_id, medicine_id, name, qty, price) VALUES ($1,$2,$3,$4,$5)`,
@@ -233,7 +235,7 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
     }, 'order').catch((e) => console.error('[push pharmacy order] error:', e.message));
     res.render('tenant_pharmacy_order', {
       company, item: null, settings: req.pharmacySettings, noindex: true, done: true,
-      order: { id: ord.id, name: inv.name_ar, qty, total },
+      order: { id: ord.id, name: inv.name_ar, qty, total, token },
       canonical: 'https://' + company.slug + '.oscardevs.com/',
     });
   } catch (e) {
@@ -243,6 +245,52 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// ── Customer order tracking (Talabat-style) ──
+// Public, keyed by the order's unguessable token. Shows live status and lets
+// the customer enable push so the pharmacy's status updates reach their phone.
+async function loadTrackedOrder(req) {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'pharmacy') return null;
+  const token = String(req.params.token || '').trim();
+  if (!token) return null;
+  const o = (await pool.query(
+    'SELECT * FROM pharmacy_orders WHERE track_token = $1 AND company_id = $2', [token, company.id]
+  )).rows[0];
+  return o || null;
+}
+
+router.get('/order/track/:token', async (req, res) => {
+  try {
+    const order = await loadTrackedOrder(req);
+    if (!order) return res.redirect('/');
+    const items = (await pool.query(
+      'SELECT name, qty, price FROM pharmacy_order_items WHERE order_id = $1', [order.id]
+    )).rows;
+    res.render('tenant_pharmacy_track', {
+      company: req.tenant, order, items, noindex: true,
+      pushKey: push.publicKey(),
+      canonical: 'https://' + req.tenant.slug + '.oscardevs.com/',
+    });
+  } catch (e) { console.error('track error:', e.message); res.status(500).send('Error.'); }
+});
+
+router.get('/order/track/:token/status', async (req, res) => {
+  try {
+    const order = await loadTrackedOrder(req);
+    if (!order) return res.status(404).json({});
+    res.json({ status: order.status });
+  } catch (e) { res.status(500).json({}); }
+});
+
+router.post('/order/track/:token/subscribe', async (req, res) => {
+  try {
+    const order = await loadTrackedOrder(req);
+    if (!order) return res.status(404).json({ ok: false });
+    const ok = await push.saveOrderSubscription(order.id, req.body && req.body.subscription);
+    res.json({ ok: !!ok });
+  } catch (e) { console.error('track subscribe error:', e.message); res.status(500).json({ ok: false }); }
 });
 
 module.exports = router;
