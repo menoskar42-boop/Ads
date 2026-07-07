@@ -591,5 +591,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
 });
 
-// Run schema migration in background — does not block startup
-initDb().catch(err => console.error('DB init warning:', err.message));
+// Run schema migration in background — does not block startup.
+// After the core tables are ready, ensure the pharmacy module's tables and
+// demo pharmacy exist (additive, idempotent — safe on every boot).
+const { ensurePharmacySchema } = require('./src/pharmacy/schema');
+initDb()
+  .then(() => ensurePharmacySchema())
+  .catch(err => console.error('DB init warning:', err.message));
