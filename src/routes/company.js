@@ -259,6 +259,10 @@ router.get('/dashboard', requireLogin, async (req, res) => {
     if (result.rows.length && result.rows[0].page_type === 'pharmacy') {
       return res.redirect('/pharmacy');
     }
+    // Orders (restaurant/supermarket) tenants have their own menu/orders admin.
+    if (result.rows.length && result.rows[0].page_type === 'orders') {
+      return res.redirect('/food');
+    }
     const portfolioCount = await pool.query(
       'SELECT COUNT(*) FROM portfolio_items WHERE company_id = $1', [req.session.companyId]
     );

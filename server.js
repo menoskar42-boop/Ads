@@ -18,6 +18,7 @@ const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
 const pharmacyAdminRouter = require('./src/routes/pharmacy_admin');
+const foodAdminRouter = require('./src/routes/food_admin');
 const adminRouter = require('./src/routes/admin');
 const shopRouter = require('./src/routes/shop');
 const customerRouter = require('./src/routes/customer');
@@ -180,6 +181,7 @@ app.get('/company', (req, res) => res.redirect('/company/login'));
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
 app.use('/pharmacy', pharmacyAdminRouter);
+app.use('/food', foodAdminRouter);
 
 // Super admin panel must be before tenant middleware too
 app.use('/admin', adminRouter);

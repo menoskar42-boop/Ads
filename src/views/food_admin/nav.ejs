@@ -1,0 +1,15 @@
+<%
+  var __active = typeof active !== 'undefined' ? active : '';
+  var __other = lang === 'ar' ? 'en' : 'ar';
+%>
+<header class="bg-orange-600 text-white">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <a href="/food" class="font-extrabold text-lg flex items-center gap-1">🍽️ <%= company.company_name %></a>
+    <nav class="flex items-center gap-1 text-sm mr-auto ms-auto flex-wrap">
+      <a href="/food" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a>
+      <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.view_public') %></a>
+      <a href="?lang=<%= __other %>" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 font-bold"><%= t('common.toggle_lang') %></a>
+      <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.logout') %></button></form>
+    </nav>
+  </div>
+</header>

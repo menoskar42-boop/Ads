@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.admin.menu_title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:7px 9px; width:100%; background:#fff; font-size:.85rem; }
+  .lbl { font-size:.68rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'menu' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (error) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold"><%= error %></div><% } %>
+
+  <% ['restaurant','supermarket'].forEach(function(vert){
+       var o = outlets.find(function(x){ return x.vertical === vert; });
+       var vlabel = vert === 'supermarket' ? t('orders.supermarket') : t('orders.restaurant');
+  %>
+    <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="text-2xl"><%= vert === 'supermarket' ? '🛒' : '🍔' %></span>
+        <h2 class="text-xl font-extrabold"><%= vlabel %><% if (o) { %> — <%= o.name_ar || o.name %><% } %></h2>
+        <% if (o) { %>
+          <form method="post" action="/food/outlet/<%= o.id %>/toggle" class="ms-auto inline">
+            <button class="text-xs font-bold rounded-full px-3 py-1 <%= o.is_active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100' %>"><%= o.is_active ? t('food.admin.pause') : t('food.admin.activate') %></button>
+          </form>
+        <% } %>
+      </div>
+
+      <!-- Outlet settings -->
+      <details class="mb-4" <%= o ? '' : 'open' %>>
+        <summary class="font-bold text-orange-700 cursor-pointer text-sm"><%= o ? t('food.admin.settings') : t('food.admin.create') %></summary>
+        <form method="post" action="/food/outlet/save" enctype="multipart/form-data" class="mt-3 grid gap-3 sm:grid-cols-3">
+          <input type="hidden" name="vertical" value="<%= vert %>" />
+          <% if (o) { %><input type="hidden" name="id" value="<%= o.id %>" /><% } %>
+          <div><span class="lbl"><%= t('food.admin.name') %></span><input name="name" value="<%= o ? (o.name||'') : '' %>" class="fld" /></div>
+          <div><span class="lbl"><%= t('food.admin.name_ar') %></span><input name="name_ar" value="<%= o ? (o.name_ar||'') : '' %>" class="fld" /></div>
+          <div><span class="lbl"><%= t('food.admin.image') %></span><input type="file" name="image_file" accept="image/*" class="fld" style="padding:3px" /></div>
+          <div class="sm:col-span-3"><span class="lbl"><%= t('food.admin.description') %></span><input name="description" value="<%= o ? (o.description||'') : '' %>" class="fld" /></div>
+          <div><span class="lbl"><%= t('orders.delivery_fee') %> (<%= t('pharmacy.currency') %>)</span><input name="delivery_fee" type="number" step="0.01" min="0" value="<%= o ? Number(o.delivery_fee||0) : 0 %>" class="fld" /></div>
+          <div><span class="lbl"><%= t('food.admin.delivery_time') %></span><input name="delivery_time_min" type="number" min="0" value="<%= o ? (o.delivery_time_min||30) : 30 %>" class="fld" /></div>
+          <div><span class="lbl"><%= t('orders.min_order') %> (<%= t('pharmacy.currency') %>)</span><input name="min_order" type="number" step="0.01" min="0" value="<%= o ? Number(o.min_order||0) : 0 %>" class="fld" /></div>
+          <div><span class="lbl"><%= t('food.admin.hours') %></span><div class="flex gap-1"><input name="opening_time" value="<%= o ? (o.opening_time||'09:00') : '09:00' %>" class="fld" dir="ltr" /><input name="closing_time" value="<%= o ? (o.closing_time||'23:00') : '23:00' %>" class="fld" dir="ltr" /></div></div>
+          <div class="flex items-end"><button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-5 py-2 w-full text-sm"><%= t('pharmacy.admin.save') %></button></div>
+        </form>
+      </details>
+
+      <% if (!o) { %>
+        <p class="text-sm text-gray-400"><%= t('food.admin.no_outlet') %></p>
+      <% } else { %>
+        <!-- Add category -->
+        <form method="post" action="/food/category/add" class="flex gap-2 items-end mb-4 flex-wrap">
+          <input type="hidden" name="outlet_id" value="<%= o.id %>" />
+          <div><span class="lbl"><%= t('food.admin.category') %> (<%= t('food.admin.name_ar') %>)</span><input name="name_ar" class="fld" style="min-width:160px" /></div>
+          <div><span class="lbl"><%= t('food.admin.name') %></span><input name="name" class="fld" style="min-width:140px" /></div>
+          <button class="bg-gray-800 text-white font-bold rounded-lg px-4 py-2 text-sm">+ <%= t('food.admin.add_category') %></button>
+        </form>
+
+        <% o.categories.forEach(function(cat){
+             var catItems = o.items.filter(function(it){ return it.category_id === cat.id; });
+        %>
+          <div class="border border-gray-100 rounded-xl p-3 mb-3">
+            <div class="flex items-center gap-2 mb-2">
+              <h3 class="font-bold text-gray-700"><%= cat.name_ar || cat.name %></h3>
+              <form method="post" action="/food/category/<%= cat.id %>/delete" class="ms-auto inline" onsubmit="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')"><button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1"><%= t('pharmacy.admin.delete') %></button></form>
+            </div>
+
+            <% catItems.forEach(function(it){ %>
+              <form method="post" action="/food/item/<%= it.id %>/update" enctype="multipart/form-data" class="grid gap-2 sm:grid-cols-6 items-end bg-gray-50 rounded-lg p-2 mb-2">
+                <input type="hidden" name="category_id" value="<%= cat.id %>" />
+                <div class="sm:col-span-2 flex items-center gap-2">
+                  <% if (it.image_url) { %><img src="<%= it.image_url %>" alt="" class="w-9 h-9 rounded object-cover shrink-0" /><% } %>
+                  <div class="min-w-0 flex-1"><span class="lbl"><%= t('food.admin.name_ar') %></span><input name="name_ar" value="<%= it.name_ar || '' %>" class="fld" /></div>
+                </div>
+                <div><span class="lbl"><%= t('food.admin.name') %></span><input name="name" value="<%= it.name || '' %>" class="fld" /></div>
+                <div><span class="lbl"><%= t('food.admin.price') %></span><input name="price" type="number" step="0.01" min="0" value="<%= Number(it.price||0) %>" class="fld" /></div>
+                <div><span class="lbl"><%= t('food.admin.image') %></span><input type="file" name="image_file" accept="image/*" class="fld" style="padding:3px" /></div>
+                <div class="flex items-center gap-2">
+                  <label class="flex items-center gap-1 text-xs font-bold"><input type="checkbox" name="is_available" <%= it.is_available ? 'checked' : '' %> class="w-4 h-4 accent-orange-600" /><%= t('food.admin.available') %></label>
+                </div>
+                <div class="sm:col-span-4"><span class="lbl"><%= t('food.admin.description') %></span><input name="description" value="<%= it.description || '' %>" class="fld" /></div>
+                <div class="sm:col-span-2 flex gap-2">
+                  <button class="bg-orange-600 text-white font-bold rounded-lg px-4 py-1.5 text-sm flex-1"><%= t('pharmacy.admin.save') %></button>
+                  <button formaction="/food/item/<%= it.id %>/delete" formnovalidate onclick="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')" class="bg-red-50 text-red-600 font-bold rounded-lg px-3 py-1.5 text-sm"><%= t('pharmacy.admin.delete') %></button>
+                </div>
+              </form>
+            <% }); %>
+
+            <!-- Add item to this category -->
+            <form method="post" action="/food/item/add" enctype="multipart/form-data" class="grid gap-2 sm:grid-cols-6 items-end mt-2 pt-2 border-t border-dashed border-gray-200">
+              <input type="hidden" name="outlet_id" value="<%= o.id %>" />
+              <input type="hidden" name="category_id" value="<%= cat.id %>" />
+              <div><span class="lbl"><%= t('food.admin.name_ar') %></span><input name="name_ar" class="fld" /></div>
+              <div><span class="lbl"><%= t('food.admin.name') %></span><input name="name" class="fld" /></div>
+              <div><span class="lbl"><%= t('food.admin.price') %></span><input name="price" type="number" step="0.01" min="0" value="0" class="fld" /></div>
+              <div><span class="lbl"><%= t('food.admin.image') %></span><input type="file" name="image_file" accept="image/*" class="fld" style="padding:3px" /></div>
+              <div class="sm:col-span-2"><span class="lbl"><%= t('food.admin.description') %></span><input name="description" class="fld" /></div>
+              <div class="sm:col-span-6"><button class="bg-gray-800 text-white font-bold rounded-lg px-4 py-1.5 text-sm">+ <%= t('food.admin.add_item') %></button></div>
+            </form>
+          </div>
+        <% }); %>
+      <% } %>
+    </section>
+  <% }); %>
+</main>
+</body>
+</html>
