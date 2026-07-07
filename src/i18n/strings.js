@@ -175,6 +175,25 @@ const strings = {
     'status.shipped': 'تم الشحن',
     'status.delivered': 'تم التسليم',
     'status.cancelled': 'ملغي',
+
+    // Pharmacy (public storefront)
+    'pharmacy.demo_badge': 'نموذج تجريبي',
+    'pharmacy.night_shift': 'خدمة ليلية',
+    'pharmacy.whatsapp': 'واتساب',
+    'pharmacy.search_placeholder': 'ابحث باسم الدواء أو الباركود…',
+    'pharmacy.available': 'متوفّر',
+    'pharmacy.limited': 'كمية محدودة',
+    'pharmacy.out': 'غير متوفّر',
+    'pharmacy.order': 'اطلب',
+    'pharmacy.order_from_pharmacy': 'اطلب من الصيدلية',
+    'pharmacy.ask_alternative': 'اسأل عن البديل',
+    'pharmacy.no_results_for': 'مفيش نتائج لـ',
+    'pharmacy.try_another': 'جرّب اسم تاني أو اسأل الصيدلية.',
+    'pharmacy.no_stock': 'لسه مفيش أدوية مضافة في المخزون.',
+    'pharmacy.online_note': 'الطلب أونلاين متاح — يوصلك أو تستلمه من الصيدلية.',
+    'pharmacy.provided_by': 'مدعوم بنظام إدارة الصيدليات من',
+    'pharmacy.order_wa_msg': 'السلام عليكم، أريد طلب:',
+    'pharmacy.currency': 'ج.م',
   },
 
   en: {
@@ -343,6 +362,25 @@ const strings = {
     'status.shipped': 'Shipped',
     'status.delivered': 'Delivered',
     'status.cancelled': 'Cancelled',
+
+    // Pharmacy (public storefront)
+    'pharmacy.demo_badge': 'Demo',
+    'pharmacy.night_shift': 'Night shift',
+    'pharmacy.whatsapp': 'WhatsApp',
+    'pharmacy.search_placeholder': 'Search by medicine name or barcode…',
+    'pharmacy.available': 'In stock',
+    'pharmacy.limited': 'Limited stock',
+    'pharmacy.out': 'Out of stock',
+    'pharmacy.order': 'Order',
+    'pharmacy.order_from_pharmacy': 'Order from the pharmacy',
+    'pharmacy.ask_alternative': 'Ask for an alternative',
+    'pharmacy.no_results_for': 'No results for',
+    'pharmacy.try_another': 'Try another name or ask the pharmacy.',
+    'pharmacy.no_stock': 'No medicines added to the inventory yet.',
+    'pharmacy.online_note': 'Online ordering available — delivery or pickup from the pharmacy.',
+    'pharmacy.provided_by': 'Powered by the pharmacy management system from',
+    'pharmacy.order_wa_msg': 'Hello, I would like to order:',
+    'pharmacy.currency': 'EGP',
   },
 };
 

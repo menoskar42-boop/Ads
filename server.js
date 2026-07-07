@@ -119,7 +119,11 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '7d',
   setHeaders(res, filePath) {
-    if (/\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot)$/i.test(filePath)) {
+    if (/(?:robots\.txt|sitemap[^/]*\.xml)$/i.test(filePath)) {
+      // SEO control files must always revalidate — a 7-day cache made a stale
+      // robots.txt/sitemap stick in the browser/CDN long after a deploy.
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (/\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
     } else if (/\.(?:css|js)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800');
