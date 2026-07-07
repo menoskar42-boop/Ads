@@ -129,7 +129,9 @@ router.get('/', async (req, res) => {
   const hasFilter = Boolean((req.query.q || '').trim()) || Number.isFinite(parseInt(req.query.category, 10));
   let indexable;
   if (company.page_type === 'shop') indexable = activeProductCount >= 3;
-  else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3;
+  // The demo pharmacy (slug 'pharmacy') is a sample, not a real business —
+  // keep it out of the index; real customer pharmacies index once they have stock.
+  else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3 && company.slug !== 'pharmacy';
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have

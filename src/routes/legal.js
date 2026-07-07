@@ -126,6 +126,8 @@ router.get('/sitemap.xml', async (req, res) => {
     for (const row of r.rows) {
       // Same quality gate tenant.js uses, per page type, so the sitemap never
       // points crawlers at a page that renders noindex.
+      // The demo pharmacy is a sample — never list it in the sitemap.
+      if (row.page_type === 'pharmacy' && row.slug === 'pharmacy') continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
