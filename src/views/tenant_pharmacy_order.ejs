@@ -11,8 +11,10 @@
 <link rel="canonical" href="<%= canonical %>" />
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
-<style>* { font-family: 'Cairo', sans-serif; } :root{--brand:<%= __theme %>} .brand-bg{background:var(--brand)} .brand-text{color:var(--brand)}
-  .fld{border:2px solid var(--brand);border-radius:12px;padding:12px 14px;width:100%;outline:none;font-size:1rem;background:#fff}</style>
+<style>* { font-family: 'Cairo', sans-serif; } :root{--brand:<%= __theme %>} .brand-bg{background:var(--brand)} .brand-text{color:var(--brand)} .brand-border{border-color:var(--brand)}
+  .fld{border:2px solid var(--brand);border-radius:12px;padding:12px 14px;width:100%;outline:none;font-size:1rem;background:#fff}
+  .qbtn{width:52px;height:52px;border:2px solid var(--brand);color:var(--brand);border-radius:12px;font-size:1.6rem;font-weight:800;background:#fff;line-height:1;cursor:pointer;flex:0 0 auto}
+  .qbtn:active{transform:scale(.95)}</style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen">
 <header class="brand-bg text-white">
@@ -43,7 +45,12 @@
       <% if (lang !== 'ar') { %><input type="hidden" name="lang" value="<%= lang %>" /><% } %>
       <div>
         <label class="text-sm font-bold block mb-1"><%= t('pharmacy.order.quantity') %></label>
-        <input name="qty" type="number" min="1" max="<%= item.available %>" value="1" class="fld" />
+        <div class="flex items-center gap-2">
+          <button type="button" id="qMinus" class="qbtn" aria-label="-">−</button>
+          <input id="qInput" name="qty" type="number" min="1" max="<%= item.available %>" value="1"
+                 class="fld text-center" style="flex:1;font-size:1.2rem;font-weight:700" />
+          <button type="button" id="qPlus" class="qbtn" aria-label="+">+</button>
+        </div>
       </div>
       <div>
         <label class="text-sm font-bold block mb-1"><%= t('pharmacy.order.your_name') %></label>
@@ -60,6 +67,16 @@
       <button class="brand-bg text-white font-extrabold rounded-xl px-6 py-3 w-full text-lg"><%= t('pharmacy.order.place') %></button>
       <a href="/" class="block text-center text-sm text-gray-500 underline mt-2"><%= t('pharmacy.order.back') %></a>
     </form>
+    <script>
+    (function(){
+      var inp=document.getElementById('qInput'); if(!inp) return;
+      var max=<%= Number(item.available)||1 %>;
+      function clamp(v){ v=parseInt(v,10)||1; if(v<1)v=1; if(v>max)v=max; return v; }
+      document.getElementById('qMinus').onclick=function(){ inp.value=clamp((parseInt(inp.value,10)||1)-1); };
+      document.getElementById('qPlus').onclick=function(){ inp.value=clamp((parseInt(inp.value,10)||1)+1); };
+      inp.addEventListener('change',function(){ inp.value=clamp(inp.value); });
+    })();
+    </script>
   <% } %>
 </main>
 </body>
