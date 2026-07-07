@@ -118,13 +118,18 @@ router.get('/sitemap.xml', async (req, res) => {
       `SELECT c.slug, c.created_at, c.page_type,
         (SELECT COUNT(*) FROM products p WHERE p.company_id = c.id AND p.is_active = true) AS prod_count,
         (SELECT COUNT(*) FROM portfolio_items pi WHERE pi.company_id = c.id) AS pf_count,
+        (SELECT COUNT(*) FROM pharmacy_inventory piv WHERE piv.company_id = c.id) AS stock_count,
         COALESCE(char_length(trim(c.description)), 0) AS desc_len
        FROM companies c WHERE c.is_active = true ORDER BY c.slug`
     );
     const indexableShops = new Set();
     for (const row of r.rows) {
+      // Same quality gate tenant.js uses, per page type, so the sitemap never
+      // points crawlers at a page that renders noindex.
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
+        : row.page_type === 'pharmacy'
+        ? Number(row.stock_count) >= 3
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
       urls.push({ loc: '/view/' + row.slug, priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });

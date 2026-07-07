@@ -6,7 +6,11 @@
 <%
   var __phName = company.company_name || 'صيدلية';
   var __suffix = lang === 'en' ? 'Online Pharmacy' : 'صيدلية أونلاين';
-  var __phTitle = (__phName + ' — ' + __suffix).slice(0, 60);
+  var __brand = ' | OscarDevs';
+  var __phTitleBase = (__phName + ' — ' + __suffix);
+  // Keep the whole <title> within ~60 chars (stored Bing rule): append the
+  // brand suffix only when it still fits, otherwise show the title alone.
+  var __phTitle = (__phTitleBase.length + __brand.length) <= 60 ? (__phTitleBase + __brand) : __phTitleBase.slice(0, 60);
   var __phDesc = ((company.description || (__phName + ' — ' + __suffix)).trim()).slice(0, 155);
   var __theme = company.theme_color || '#0e7c66';
   var __isDemo = company.slug === 'pharmacy';
@@ -14,12 +18,41 @@
   var __wa = pharmacySettings && pharmacySettings.whatsapp ? String(pharmacySettings.whatsapp).replace(/[^0-9]/g, '') : '';
   var __qs = currentSearch ? ('&q=' + encodeURIComponent(currentSearch)) : '';
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
+  var __phCanon = 'https://' + company.slug + '.oscardevs.com/';
+  var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
+  // Local/GEO opening hours for structured data.
+  var __oh = null;
+  if (pharmacySettings) {
+    if (pharmacySettings.is_night_shift) __oh = 'Mo-Su 00:00-23:59';
+    else if (pharmacySettings.open_hour != null && pharmacySettings.close_hour != null) {
+      var __pad = function (n) { n = parseInt(n, 10); return (n < 10 ? '0' : '') + n + ':00'; };
+      __oh = 'Mo-Su ' + __pad(pharmacySettings.open_hour) + '-' + __pad(pharmacySettings.close_hour);
+    }
+  }
 %>
-<% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
-<% var __phCanon = 'https://' + company.slug + '.oscardevs.com/'; %>
-<title><%= __phTitle %> | OscarDevs</title>
+<% if (__pageNoindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<title><%= __phTitle %></title>
 <meta name="description" content="<%= __phDesc %>" />
 <%- include('partials/seo_meta', { title: __phTitle, description: __phDesc, canonical: __phCanon }) %>
+<% if (!__pageNoindex) { %>
+<%# GEO / local structured data — helps Google local pack, Maps and AI answer
+    engines understand this is a real Egyptian pharmacy. Only on indexable pages. %>
+<script type="application/ld+json">
+<%- JSON.stringify(Object.assign({
+  '@context': 'https://schema.org',
+  '@type': 'Pharmacy',
+  name: __phName,
+  url: __phCanon,
+  description: __phDesc,
+  areaServed: { '@type': 'Country', name: 'Egypt' }
+},
+  company.logo_url ? { image: company.logo_url } : {},
+  __wa ? { telephone: '+' + __wa } : {},
+  (pharmacySettings && pharmacySettings.address) ? { address: { '@type': 'PostalAddress', streetAddress: pharmacySettings.address, addressCountry: 'EG' } } : {},
+  __oh ? { openingHours: __oh } : {}
+)) %>
+</script>
+<% } %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
