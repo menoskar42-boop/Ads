@@ -57,6 +57,20 @@
   </div>
   <% } %>
 
+  <% if (active) { %>
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('food.ai.upsell_title') %></h2>
+    <p class="text-sm text-gray-500 mb-3"><%= t('food.ai.upsell_desc') %></p>
+    <form method="post" action="/food/ai/upsell" class="flex items-center gap-3">
+      <input type="hidden" name="upsell_enabled" value="0" />
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" name="upsell_enabled" value="1" <%= (sub && sub.upsell_enabled) ? 'checked' : '' %> class="h-5 w-5 accent-orange-600" onchange="this.form.submit()" />
+        <span class="text-sm font-bold"><%= (sub && sub.upsell_enabled) ? t('food.ai.upsell_on') : t('food.ai.upsell_off') %></span>
+      </label>
+    </form>
+  </div>
+  <% } %>
+
   <div class="bg-orange-50 border border-orange-100 rounded-2xl p-5">
     <h2 class="font-bold text-orange-800 mb-1"><%= t('food.ai.how_title') %></h2>
     <p class="text-sm text-orange-900/80 leading-relaxed mb-4"><%= t('food.ai.how_body') %></p>

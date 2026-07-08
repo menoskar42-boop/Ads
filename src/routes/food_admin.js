@@ -250,17 +250,67 @@ router.post('/coupons/:id/delete', async (req, res) => {
 });
 
 /* ─── AI assistant (paid) — subscription + usage view ───── */
+async function loadSub(companyId) {
+  try { return (await pool.query('SELECT * FROM food_ai_subscriptions WHERE company_id = $1', [companyId])).rows[0] || null; }
+  catch (e) { console.error('ai sub load:', e.message); return null; }
+}
+function subActive(sub) {
+  return Boolean(sub && sub.status === 'active' && (!sub.expires_at || new Date(sub.expires_at).getTime() >= Date.now()));
+}
+
 router.get('/ai', async (req, res) => {
-  let sub = null;
-  try {
-    sub = (await pool.query('SELECT * FROM food_ai_subscriptions WHERE company_id = $1', [req.company.id])).rows[0] || null;
-  } catch (e) { console.error('ai sub load:', e.message); }
+  const sub = await loadSub(req.company.id);
   const now = Date.now();
-  const active = sub && sub.status === 'active' && (!sub.expires_at || new Date(sub.expires_at).getTime() >= now);
+  const active = subActive(sub);
   const expired = sub && sub.status === 'active' && sub.expires_at && new Date(sub.expires_at).getTime() < now;
   res.render('food_admin/ai', {
     company: req.company, session: req.session, sub, active, expired,
   });
+});
+
+// Toggle the AI upsell suggestions on/off (merchant control; needs a sub).
+router.post('/ai/upsell', async (req, res) => {
+  try {
+    const on = req.body.upsell_enabled === '1' || req.body.upsell_enabled === 'on';
+    await pool.query('UPDATE food_ai_subscriptions SET upsell_enabled = $1 WHERE company_id = $2', [on, req.company.id]);
+  } catch (e) { console.error('upsell toggle:', e.message); }
+  res.redirect('/food/ai');
+});
+
+/* ─── Smart reports (paid) — sales analytics ────────────── */
+router.get('/reports', async (req, res) => {
+  const cid = req.company.id;
+  const sub = await loadSub(cid);
+  const active = subActive(sub);
+  let data = null;
+  if (active) {
+    try {
+      const summary = (await pool.query(`
+        SELECT COUNT(*)::int AS orders,
+               COALESCE(SUM(total),0)::numeric AS revenue,
+               COALESCE(AVG(total),0)::numeric AS avg_order,
+               COUNT(*) FILTER (WHERE status='delivered')::int AS delivered,
+               COUNT(*) FILTER (WHERE status IN ('rejected','cancelled'))::int AS lost
+        FROM food_orders WHERE company_id = $1`, [cid])).rows[0];
+      const top = (await pool.query(`
+        SELECT oi.name_snapshot AS name, SUM(oi.quantity)::int AS qty, COALESCE(SUM(oi.quantity*oi.price),0)::numeric AS revenue
+        FROM food_order_items oi JOIN food_orders o ON o.id = oi.order_id
+        WHERE o.company_id = $1 AND o.status <> 'rejected' AND o.status <> 'cancelled'
+        GROUP BY oi.name_snapshot ORDER BY qty DESC LIMIT 8`, [cid])).rows;
+      const bottom = (await pool.query(`
+        SELECT oi.name_snapshot AS name, SUM(oi.quantity)::int AS qty
+        FROM food_order_items oi JOIN food_orders o ON o.id = oi.order_id
+        WHERE o.company_id = $1 AND o.status <> 'rejected' AND o.status <> 'cancelled'
+        GROUP BY oi.name_snapshot ORDER BY qty ASC LIMIT 5`, [cid])).rows;
+      const hours = (await pool.query(`
+        SELECT EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Africa/Cairo'))::int AS hour, COUNT(*)::int AS n
+        FROM food_orders WHERE company_id = $1 GROUP BY hour ORDER BY n DESC LIMIT 3`, [cid])).rows;
+      const byStatus = (await pool.query(`
+        SELECT status, COUNT(*)::int AS n FROM food_orders WHERE company_id = $1 GROUP BY status`, [cid])).rows;
+      data = { summary, top, bottom, hours, byStatus };
+    } catch (e) { console.error('[reports]', e.message); }
+  }
+  res.render('food_admin/reports', { company: req.company, session: req.session, active, data });
 });
 
 module.exports = router;

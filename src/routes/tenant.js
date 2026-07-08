@@ -142,6 +142,7 @@ router.get('/', async (req, res) => {
   let foodOutlets = [];
   let foodItemCount = 0;
   let aiAssistantOn = false;
+  let foodUpsellOn = false;
   if (company.page_type === 'orders') {
     try {
       foodOutlets = (await pool.query(
@@ -163,6 +164,8 @@ router.get('/', async (req, res) => {
       // active, unexpired subscription with quota left (the site itself is free).
       const sub = await loadAiSub(company.id);
       aiAssistantOn = aiSubActive(sub) && aiQuotaLeft(sub);
+      // Upsell suggestions ride the same subscription but don't burn message quota.
+      foodUpsellOn = aiSubActive(sub) && sub.upsell_enabled !== false;
     } catch (err) { console.error('Food query error:', err.message); }
   }
 
@@ -234,6 +237,7 @@ router.get('/', async (req, res) => {
     foodOutlets,
     foodItemCount,
     aiAssistantOn,
+    foodUpsellOn,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
     cartCount,
@@ -539,6 +543,47 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
     console.error('[ai assistant]', e.message);
     res.status(502).json({ ok: false, error: say('حصل خطأ مؤقت، جرّب تاني.', 'A temporary error occurred, please try again.') });
   }
+});
+
+// Upsell suggestions (PAID, part of the AI subscription). Given the cart's item
+// ids, suggest a few complementary items from the SAME merchant's menu — from
+// categories not already in the cart. Pure menu-driven (no invented content).
+router.get('/order/food/upsell', foodOrderGuard, async (req, res) => {
+  const company = req.tenant;
+  try {
+    const sub = await loadAiSub(company.id);
+    if (!aiSubActive(sub) || sub.upsell_enabled === false) return res.json({ items: [] });
+    const ids = String(req.query.ids || '').split(',').map((x) => parseInt(x, 10)).filter(Boolean).slice(0, 40);
+    if (!ids.length) return res.json({ items: [] });
+    // Outlets + categories already represented in the cart.
+    const ctx = (await pool.query(
+      `SELECT fi.id, fi.outlet_id, fi.category_id
+       FROM food_items fi JOIN food_outlets fo ON fo.id = fi.outlet_id
+       WHERE fo.company_id = $1 AND fi.id = ANY($2::int[])`, [company.id, ids]
+    )).rows;
+    if (!ctx.length) return res.json({ items: [] });
+    const outletIds = [...new Set(ctx.map((r) => r.outlet_id))];
+    const cartCats = new Set(ctx.map((r) => r.category_id));
+    // Candidate items from the same outlets, not already in the cart, available.
+    const cands = (await pool.query(
+      `SELECT fi.id, fi.name, fi.name_ar, fi.price, fi.category_id, fi.outlet_id
+       FROM food_items fi
+       WHERE fi.outlet_id = ANY($1::int[]) AND fi.is_available = true AND fi.id <> ALL($2::int[])
+       ORDER BY fi.sort_order, fi.id`, [outletIds, ids]
+    )).rows;
+    // Prefer items whose category is NOT in the cart (complementary), else any.
+    const complementary = cands.filter((c) => !cartCats.has(c.category_id));
+    const pick = (complementary.length ? complementary : cands).slice(0, 3);
+    const lang = res.locals.lang === 'en' ? 'en' : 'ar';
+    res.json({
+      items: pick.map((c) => ({
+        id: c.id,
+        name: (lang === 'en' && c.name) ? c.name : (c.name_ar || c.name),
+        price: Number(c.price) || 0,
+        outlet: c.outlet_id,
+      })),
+    });
+  } catch (e) { console.error('[upsell]', e.message); res.json({ items: [] }); }
 });
 
 // Create a food order from the client cart (COD). Prices are re-read from the

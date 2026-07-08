@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.reports.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'reports' }) %>
+<%
+  var __cur = t('pharmacy.currency');
+  function __money(v){ var n=Number(v); if(!isFinite(n)) return '0'; return n.toLocaleString(lang==='ar'?'ar-EG':'en-US',{maximumFractionDigits:2}); }
+  function __int(v){ return Number(v||0).toLocaleString(lang==='ar'?'ar-EG':'en-US'); }
+  function __hr(h){ h=Number(h)||0; var ap=h<12?'ص':'م'; var h12=h%12; if(h12===0)h12=12; return h12+' '+ap; }
+%>
+
+<main class="max-w-4xl mx-auto px-4 py-6">
+  <h1 class="text-xl font-extrabold text-orange-700 mb-4">📊 <%= t('food.reports.title') %></h1>
+
+  <% if (!active) { %>
+    <div class="bg-orange-50 border border-orange-100 rounded-2xl p-6 text-center">
+      <p class="font-bold text-orange-800 mb-1"><%= t('food.reports.locked') %></p>
+      <a href="/food/ai" class="inline-block mt-3 bg-orange-600 text-white font-bold px-6 py-2.5 rounded-xl"><%= t('food.ai.nav') %></a>
+    </div>
+  <% } else if (!data || !data.summary || Number(data.summary.orders) === 0) { %>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-gray-400"><%= t('food.reports.no_data') %></div>
+  <% } else { %>
+    <div class="grid gap-3 sm:grid-cols-4 mb-5">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div class="text-xs text-gray-500 mb-1"><%= t('food.reports.orders') %></div>
+        <div class="text-2xl font-extrabold text-gray-800"><%= __int(data.summary.orders) %></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div class="text-xs text-gray-500 mb-1"><%= t('food.reports.revenue') %></div>
+        <div class="text-2xl font-extrabold text-green-600"><%= __money(data.summary.revenue) %> <span class="text-xs text-gray-400"><%= __cur %></span></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div class="text-xs text-gray-500 mb-1"><%= t('food.reports.avg_order') %></div>
+        <div class="text-2xl font-extrabold text-orange-600"><%= __money(data.summary.avg_order) %> <span class="text-xs text-gray-400"><%= __cur %></span></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
+        <div class="text-xs text-gray-500 mb-1"><%= t('food.reports.delivered') %></div>
+        <div class="text-2xl font-extrabold text-gray-800"><%= __int(data.summary.delivered) %></div>
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h2 class="font-bold text-gray-700 mb-3">🔥 <%= t('food.reports.top') %></h2>
+        <% if (!data.top.length) { %><p class="text-sm text-gray-400"><%= t('food.reports.no_data') %></p><% } else { var __max = Number(data.top[0].qty)||1; %>
+          <div class="space-y-2">
+          <% data.top.forEach(function(r){ %>
+            <div>
+              <div class="flex justify-between text-sm mb-1"><span class="font-semibold truncate"><%= r.name %></span><span class="text-gray-500"><%= __int(r.qty) %></span></div>
+              <div class="h-2 rounded-full bg-gray-100 overflow-hidden"><div class="h-full" style="width: <%= Math.round(Number(r.qty)/__max*100) %>%; background:#e8734a;"></div></div>
+            </div>
+          <% }); %>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h2 class="font-bold text-gray-700 mb-3">🧊 <%= t('food.reports.bottom') %></h2>
+        <% if (!data.bottom.length) { %><p class="text-sm text-gray-400"><%= t('food.reports.no_data') %></p><% } else { %>
+          <ul class="space-y-1.5 text-sm">
+          <% data.bottom.forEach(function(r){ %>
+            <li class="flex justify-between"><span class="truncate"><%= r.name %></span><span class="text-gray-400"><%= __int(r.qty) %></span></li>
+          <% }); %>
+          </ul>
+        <% } %>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h2 class="font-bold text-gray-700 mb-3">⏰ <%= t('food.reports.peak_hours') %></h2>
+        <% if (!data.hours.length) { %><p class="text-sm text-gray-400"><%= t('food.reports.no_data') %></p><% } else { %>
+          <div class="flex flex-wrap gap-2">
+          <% data.hours.forEach(function(h){ %>
+            <span class="rounded-full bg-orange-50 text-orange-700 border border-orange-100 px-3 py-1.5 text-sm font-bold"><%= __hr(h.hour) %> · <%= __int(h.n) %></span>
+          <% }); %>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h2 class="font-bold text-gray-700 mb-3">📦 <%= t('food.reports.by_status') %></h2>
+        <ul class="space-y-1.5 text-sm">
+        <% data.byStatus.forEach(function(s){ %>
+          <li class="flex justify-between"><span><%= t('orders.status.' + s.status) %></span><span class="font-bold"><%= __int(s.n) %></span></li>
+        <% }); %>
+        </ul>
+      </div>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>

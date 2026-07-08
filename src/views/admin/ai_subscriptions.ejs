@@ -1,0 +1,59 @@
+<%
+  pageTitle = 'AI Subscriptions';
+  activePage = 'ai';
+  function _d(v){ try { return v ? new Date(v).toLocaleDateString('ar-EG') : '—'; } catch(e){ return '—'; } }
+  function _active(m){ return m.status === 'active' && (!m.expires_at || new Date(m.expires_at).getTime() >= Date.now()); }
+%>
+<%- include('_layout_top') %>
+
+  <div class="space-y-6">
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-xl font-bold text-gray-800 mb-1">اشتراكات المساعد الذكي — منصّة الطلبات</h2>
+      <p class="text-gray-400 text-sm">الموقع مجاني، ومساعد الطلب بالذكاء الاصطناعي ميزة مدفوعة. فعّل الاشتراك للتاجر وحدّد الحصّة الشهرية.</p>
+    </div>
+
+    <% if (flash) { %>
+      <div class="rounded-xl px-4 py-3 text-sm font-bold <%= flash.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700' %>"><%= flash.msg %></div>
+    <% } %>
+
+    <% if (!merchants.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-400">لا يوجد تجّار من نوع «طلبات» بعد.</div>
+    <% } else { %>
+      <div class="space-y-4">
+        <% merchants.forEach(function(m){ var on = _active(m); %>
+          <div class="bg-white rounded-2xl shadow-sm p-5">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-bold text-gray-800"><%= m.company_name %></h3>
+                  <span class="text-xs font-bold rounded-full px-2.5 py-0.5 <%= on ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600' %>"><%= on ? 'مُفعّل' : 'غير مُفعّل' %></span>
+                </div>
+                <a href="https://<%= m.slug %>.oscardevs.com" target="_blank" rel="noopener" class="text-xs text-indigo-600 underline"><%= m.slug %>.oscardevs.com</a>
+                <div class="mt-2 text-sm text-gray-600 flex flex-wrap gap-x-5 gap-y-1">
+                  <span>الباقة: <b><%= m.plan || '—' %></b></span>
+                  <span>الحصّة: <b><%= m.monthly_quota || 0 %></b></span>
+                  <span>المُستهلَك: <b><%= m.used_this_period || 0 %></b></span>
+                  <span>ينتهي: <b><%= _d(m.expires_at) %></b></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4">
+              <form method="post" action="/admin/ai-subscriptions/<%= m.id %>/activate" class="flex flex-wrap items-end gap-3">
+                <div><label class="block text-[11px] text-gray-500 mb-1">الباقة</label><input name="plan" value="<%= m.plan || 'basic' %>" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-28" /></div>
+                <div><label class="block text-[11px] text-gray-500 mb-1">الحصّة/شهر</label><input name="monthly_quota" type="number" min="0" value="<%= m.monthly_quota || 1000 %>" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-28" /></div>
+                <div><label class="block text-[11px] text-gray-500 mb-1">المدّة (يوم)</label><input name="days" type="number" min="1" value="30" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-24" /></div>
+                <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg px-4 py-2 text-sm"><%= on ? 'تجديد/تحديث' : 'تفعيل' %></button>
+              </form>
+              <% if (on) { %>
+                <form method="post" action="/admin/ai-subscriptions/<%= m.id %>/reset-usage"><button class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg px-4 py-2 text-sm">تصفير العدّاد</button></form>
+                <form method="post" action="/admin/ai-subscriptions/<%= m.id %>/deactivate" onsubmit="return confirm('إيقاف الاشتراك؟');"><button class="bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-lg px-4 py-2 text-sm">إيقاف</button></form>
+              <% } %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+
+<%- include('_layout_bottom') %>

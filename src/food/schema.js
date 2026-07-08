@@ -149,8 +149,10 @@ async function ensureFoodSchema() {
         started_at TIMESTAMPTZ,
         expires_at TIMESTAMPTZ,
         monthly_quota INTEGER DEFAULT 0,
-        used_this_period INTEGER DEFAULT 0
+        used_this_period INTEGER DEFAULT 0,
+        upsell_enabled BOOLEAN DEFAULT true
       );
+      ALTER TABLE food_ai_subscriptions ADD COLUMN IF NOT EXISTS upsell_enabled BOOLEAN DEFAULT true;
 
       CREATE TABLE IF NOT EXISTS food_ai_messages (
         id SERIAL PRIMARY KEY,

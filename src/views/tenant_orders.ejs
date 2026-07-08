@@ -160,6 +160,13 @@
           <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.notes') %></label><input name="notes" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
           <p class="text-xs text-gray-400">💵 <%= t('orders.cod') %></p>
         </div>
+
+        <% if (typeof foodUpsellOn !== 'undefined' && foodUpsellOn) { %>
+        <div id="upsellBox" class="hidden pt-1">
+          <p class="text-[13px] font-bold text-gray-600 mb-2">✨ <%= t('orders.upsell_hint') %></p>
+          <div id="upsellList" class="flex flex-wrap gap-2"></div>
+        </div>
+        <% } %>
       </div>
 
       <div id="cartFooter" class="border-t border-gray-100 p-4 space-y-2 hidden">
@@ -278,7 +285,36 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
     else { minWarn.classList.add('hidden'); confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
   }
 
-  function openD() { renderDrawer(); drawer.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
+  var UPSELL_ON = <%- JSON.stringify(typeof foodUpsellOn !== 'undefined' && foodUpsellOn) %>;
+  function renderUpsell() {
+    if (!UPSELL_ON) return;
+    var box = document.getElementById('upsellBox'), list = document.getElementById('upsellList');
+    if (!box || !list) return;
+    var c = load(), ids = Object.keys(c);
+    if (!ids.length) { box.classList.add('hidden'); return; }
+    fetch('/order/food/upsell?ids=' + ids.join(','))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var items = (d && d.items) || [];
+        if (!items.length) { box.classList.add('hidden'); return; }
+        list.innerHTML = '';
+        items.forEach(function (it) {
+          if (c[String(it.id)]) return; // already in cart
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold hover:border-orange-300';
+          b.innerHTML = '<span class="accent-text">＋</span> ' + it.name + ' · ' + money(it.price);
+          b.addEventListener('click', function () {
+            var cc = load();
+            if (!cc[it.id]) cc[it.id] = { n: it.name, p: Number(it.price) || 0, q: 0, o: String(it.outlet || '') };
+            cc[it.id].q += 1; save(cc); renderBar(); renderDrawer(); renderUpsell();
+          });
+          list.appendChild(b);
+        });
+        box.classList.toggle('hidden', !list.children.length);
+      }).catch(function () { box.classList.add('hidden'); });
+  }
+  function openD() { renderDrawer(); renderUpsell(); drawer.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
   function closeD() { drawer.classList.add('hidden'); document.body.style.overflow = ''; }
 
   document.querySelectorAll('.add-btn').forEach(function (b) {

@@ -767,6 +767,74 @@ router.post('/crm/:id/delete', requireAdmin, async (req, res) => {
   res.redirect('/admin/crm');
 });
 
+/* ─── AI SUBSCRIPTIONS (orders merchants) ───────────────── */
+// The orders site is free; the AI order-assistant is a paid add-on. Only the
+// super admin can activate a merchant's subscription and set its monthly quota.
+router.get('/ai-subscriptions', requireAdmin, async (req, res) => {
+  try {
+    const merchants = (await pool.query(`
+      SELECT c.id, c.company_name, c.slug,
+             s.plan, s.status, s.started_at, s.expires_at, s.monthly_quota, s.used_this_period, s.upsell_enabled
+      FROM companies c
+      LEFT JOIN food_ai_subscriptions s ON s.company_id = c.id
+      WHERE c.page_type = 'orders'
+      ORDER BY c.created_at DESC
+    `)).rows;
+    const flash = req.session.adminFlash || null;
+    req.session.adminFlash = null;
+    res.render('admin/ai_subscriptions', {
+      merchants, session: adminSession(req), flash, activePage: 'ai',
+    });
+  } catch (err) {
+    console.error('[admin ai-subs] error:', err.message);
+    res.status(500).send('Error loading AI subscriptions.');
+  }
+});
+
+// Activate / renew a subscription (or update its quota / expiry).
+router.post('/ai-subscriptions/:id/activate', requireAdmin, async (req, res) => {
+  const cid = parseInt(req.params.id, 10);
+  const plan = String(req.body.plan || 'basic').trim().slice(0, 40) || 'basic';
+  const quota = Math.max(0, parseInt(req.body.monthly_quota, 10) || 0);
+  const days = Math.max(1, parseInt(req.body.days, 10) || 30);
+  try {
+    const owns = (await pool.query("SELECT 1 FROM companies WHERE id = $1 AND page_type = 'orders'", [cid])).rows.length;
+    if (!owns) { req.session.adminFlash = { type: 'error', msg: 'التاجر غير موجود.' }; return res.redirect('/admin/ai-subscriptions'); }
+    await pool.query(`
+      INSERT INTO food_ai_subscriptions (company_id, plan, status, started_at, expires_at, monthly_quota, used_this_period)
+      VALUES ($1, $2, 'active', now(), now() + ($3 || ' days')::interval, $4, 0)
+      ON CONFLICT (company_id) DO UPDATE SET
+        plan = EXCLUDED.plan, status = 'active', started_at = now(),
+        expires_at = now() + ($3 || ' days')::interval, monthly_quota = EXCLUDED.monthly_quota, used_this_period = 0
+    `, [cid, plan, String(days), quota]);
+    req.session.adminFlash = { type: 'success', msg: 'تم تفعيل الاشتراك.' };
+  } catch (err) {
+    console.error('[admin ai activate] error:', err.message);
+    req.session.adminFlash = { type: 'error', msg: 'حصل خطأ.' };
+  }
+  res.redirect('/admin/ai-subscriptions');
+});
+
+// Deactivate a subscription (widget disappears on the storefront).
+router.post('/ai-subscriptions/:id/deactivate', requireAdmin, async (req, res) => {
+  const cid = parseInt(req.params.id, 10);
+  try {
+    await pool.query("UPDATE food_ai_subscriptions SET status = 'inactive' WHERE company_id = $1", [cid]);
+    req.session.adminFlash = { type: 'success', msg: 'تم إيقاف الاشتراك.' };
+  } catch (err) { console.error('[admin ai deactivate] error:', err.message); }
+  res.redirect('/admin/ai-subscriptions');
+});
+
+// Reset the monthly usage counter (new billing period).
+router.post('/ai-subscriptions/:id/reset-usage', requireAdmin, async (req, res) => {
+  const cid = parseInt(req.params.id, 10);
+  try {
+    await pool.query('UPDATE food_ai_subscriptions SET used_this_period = 0 WHERE company_id = $1', [cid]);
+    req.session.adminFlash = { type: 'success', msg: 'تم تصفير العدّاد.' };
+  } catch (err) { console.error('[admin ai reset] error:', err.message); }
+  res.redirect('/admin/ai-subscriptions');
+});
+
 /* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
 router.post('/lang/:lang', async (req, res) => {
   const lang = req.params.lang === 'en' ? 'en' : 'ar';
