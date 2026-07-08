@@ -270,15 +270,18 @@ router.post('/payments', async (req, res) => {
   const gateway = ['none', 'paymob', 'fawry', 'stripe', 'paypal'].includes(b.gateway) ? b.gateway : 'none';
   try {
     await pool.query(
-      `INSERT INTO payment_settings (company_id, cod_enabled, instapay_handle, wallet_number, payoneer_email, bank_details, gateway, gateway_public_key, instructions, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
+      `INSERT INTO payment_settings (company_id, cod_enabled, cod_terms, custom_methods, instapay_handle, wallet_number, payoneer_email, bank_details, gateway, gateway_public_key, gateway_exclusive, instructions, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
        ON CONFLICT (company_id) DO UPDATE SET
-         cod_enabled=EXCLUDED.cod_enabled, instapay_handle=EXCLUDED.instapay_handle, wallet_number=EXCLUDED.wallet_number,
+         cod_enabled=EXCLUDED.cod_enabled, cod_terms=EXCLUDED.cod_terms, custom_methods=EXCLUDED.custom_methods,
+         instapay_handle=EXCLUDED.instapay_handle, wallet_number=EXCLUDED.wallet_number,
          payoneer_email=EXCLUDED.payoneer_email, bank_details=EXCLUDED.bank_details, gateway=EXCLUDED.gateway,
-         gateway_public_key=EXCLUDED.gateway_public_key, instructions=EXCLUDED.instructions, updated_at=now()`,
-      [req.company.id, b.cod_enabled === '1', (b.instapay_handle || '').trim() || null, (b.wallet_number || '').trim() || null,
+         gateway_public_key=EXCLUDED.gateway_public_key, gateway_exclusive=EXCLUDED.gateway_exclusive,
+         instructions=EXCLUDED.instructions, updated_at=now()`,
+      [req.company.id, b.cod_enabled === '1', (b.cod_terms || '').trim() || null, (b.custom_methods || '').trim() || null,
+       (b.instapay_handle || '').trim() || null, (b.wallet_number || '').trim() || null,
        (b.payoneer_email || '').trim() || null, (b.bank_details || '').trim() || null, gateway,
-       (b.gateway_public_key || '').trim() || null, (b.instructions || '').trim() || null]
+       (b.gateway_public_key || '').trim() || null, b.gateway_exclusive === '1', (b.instructions || '').trim() || null]
     );
   } catch (e) { console.error('[accounting payments]', e.message); }
   res.redirect('/accounting/payments?saved=1');

@@ -16,13 +16,22 @@
   <p class="text-sm text-gray-500 mb-4"><%= t('acct.payments.intro') %></p>
 
   <form method="post" action="/accounting/payments" class="space-y-5">
-    <!-- Cash on delivery -->
+    <!-- Default method (COD / custom terms like 50% deposit) -->
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <label class="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="cod_enabled" value="1" <%= pay.cod_enabled ? 'checked' : '' %> class="h-5 w-5 accent-emerald-600" />
-        <span class="font-bold">💵 <%= t('acct.payments.cod') %></span>
+        <span class="font-bold">💵 <%= t('acct.payments.default_method') %></span>
       </label>
-      <p class="text-xs text-gray-400 mt-1"><%= t('acct.payments.cod_note') %></p>
+      <p class="text-xs text-gray-400 mt-1 mb-3"><%= t('acct.payments.cod_note') %></p>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.cod_terms') %></span>
+        <input name="cod_terms" value="<%= pay.cod_terms || '' %>" class="fld" placeholder="<%= t('acct.payments.cod_terms_ph') %>" /></div>
+    </div>
+
+    <!-- Custom methods (free text the admin writes) -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <h2 class="font-bold text-emerald-800 mb-1"><%= t('acct.payments.custom_title') %></h2>
+      <p class="text-xs text-gray-500 mb-2"><%= t('acct.payments.custom_desc') %></p>
+      <textarea name="custom_methods" rows="2" class="fld" placeholder="<%= t('acct.payments.custom_ph') %>"><%= pay.custom_methods || '' %></textarea>
     </div>
 
     <!-- Manual e-wallet / InstaPay / Payoneer / bank -->
@@ -49,6 +58,11 @@
         </select>
       </div>
       <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway_key') %></span><input name="gateway_public_key" dir="ltr" value="<%= pay.gateway_public_key || '' %>" class="fld" placeholder="pk_… / API key" /></div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" name="gateway_exclusive" value="1" <%= pay.gateway_exclusive ? 'checked' : '' %> class="h-5 w-5 accent-emerald-600" />
+        <span class="text-sm font-bold"><%= t('acct.payments.gateway_exclusive') %></span>
+      </label>
+      <p class="text-[11px] text-gray-400"><%= t('acct.payments.gateway_exclusive_note') %></p>
       <p class="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2"><%= t('acct.payments.gateway_soon') %></p>
     </div>
 

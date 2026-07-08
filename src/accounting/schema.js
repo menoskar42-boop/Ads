@@ -63,6 +63,12 @@ async function ensureAccountingSchema() {
         instructions TEXT,                          -- shown to the buyer at checkout
         updated_at TIMESTAMPTZ DEFAULT now()
       );
+      -- Admin can rename/redefine the default method (e.g. "50% deposit + 50% on
+      -- delivery"), add free-form custom methods, and choose whether enabling a
+      -- gateway replaces the other methods or coexists with them.
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS cod_terms TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS custom_methods TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_exclusive BOOLEAN DEFAULT false;
 
       -- Cost columns for COGS (pharmacy_inventory already has cost + price).
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0;
