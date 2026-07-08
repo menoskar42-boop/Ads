@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('acct.pay.return_title') %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen grid place-items-center px-4">
+  <div class="bg-white rounded-2xl shadow p-8 text-center max-w-sm w-full">
+    <div class="text-5xl mb-3"><%= ok ? '✅' : '⏳' %></div>
+    <h1 class="text-xl font-extrabold mb-2"><%= ok ? t('acct.pay.thanks') : t('acct.pay.processing') %></h1>
+    <p class="text-gray-500 text-sm mb-5"><%= ok ? t('acct.pay.thanks_note') : t('acct.pay.processing_note') %></p>
+    <a href="/" class="inline-block bg-emerald-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('acct.pay.home') %></a>
+  </div>
+</body>
+</html>

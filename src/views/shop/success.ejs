@@ -47,6 +47,10 @@
     </table>
     </div>
 
+    <% if (typeof canPayOnline !== 'undefined' && canPayOnline) { %>
+      <a href="/shop/<%= company.slug %>/pay/<%= order.id %>" class="block w-full text-center bg-emerald-600 text-white font-extrabold px-6 py-3 rounded-xl hover:bg-emerald-700 transition mb-3">💳 <%= t('acct.pay.pay_online') %></a>
+    <% } %>
+
     <a href="<%= canonicalCompanyUrl(company.slug) %>" class="inline-block brand-bg text-white font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition">
       <%= t('public.continue_shopping') %>
     </a>

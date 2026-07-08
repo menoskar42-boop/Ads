@@ -5,7 +5,33 @@
 //
 // Flow: auth token → register order → payment key → hosted iframe URL.
 // Docs: https://developers.paymob.com/  (Egypt, EGP, amounts in piasters).
+const crypto = require('crypto');
 const BASE = process.env.PAYMOB_BASE || 'https://accept.paymob.com/api';
+
+// Verify a Paymob transaction callback with the merchant's HMAC secret. Paymob
+// concatenates a fixed ordered set of fields from the transaction object and
+// signs with HMAC-SHA512. We recompute and compare in constant time.
+const HMAC_FIELDS = [
+  'amount_cents', 'created_at', 'currency', 'error_occured', 'has_parent_transaction',
+  'id', 'integration_id', 'is_3d_secure', 'is_auth', 'is_capture', 'is_refunded',
+  'is_standalone_payment', 'is_voided', 'order', 'owner', 'pending',
+  'source_data_pan', 'source_data_sub_type', 'source_data_type', 'success',
+];
+function verifyCallbackHmac(obj, hmacSecret, provided) {
+  if (!hmacSecret || !provided || !obj) return false;
+  const get = (k) => {
+    if (k === 'order') return obj.order && obj.order.id != null ? obj.order.id : obj.order;
+    if (k === 'source_data_pan') return obj.source_data && obj.source_data.pan;
+    if (k === 'source_data_sub_type') return obj.source_data && obj.source_data.sub_type;
+    if (k === 'source_data_type') return obj.source_data && obj.source_data.type;
+    return obj[k];
+  };
+  const concat = HMAC_FIELDS.map((k) => { const v = get(k); return v == null ? '' : String(v); }).join('');
+  const digest = crypto.createHmac('sha512', hmacSecret).update(concat).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(provided)));
+  } catch (e) { return false; }
+}
 
 async function postJson(url, body) {
   const res = await fetch(url, {
@@ -71,4 +97,4 @@ async function createPaymentUrl(creds, order) {
   return { url: `${BASE}/acceptance/iframes/${creds.iframeId}?payment_token=${pk.token}`, orderId: reg.id };
 }
 
-module.exports = { createPaymentUrl };
+module.exports = { createPaymentUrl, verifyCallbackHmac };

@@ -75,6 +75,11 @@ async function ensureAccountingSchema() {
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_secret TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_integration_id TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_iframe_id TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_hmac TEXT;
+
+      -- Online-payment state on shop orders (COD orders stay 'unpaid'/'cod').
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_ref TEXT;
 
       -- Cost columns for COGS (pharmacy_inventory already has cost + price).
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0;

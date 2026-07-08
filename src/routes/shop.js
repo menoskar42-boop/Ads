@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const push = require('../lib/push');
 const { loadPaymentMethods } = require('../lib/payment_methods');
+const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
+const paymob = require('../lib/gateways/paymob');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -274,6 +276,73 @@ router.post('/:slug/checkout', async (req, res) => {
   }
 });
 
+// Initiate an online payment for an existing order via the merchant's gateway.
+// Redirects the buyer to the hosted payment page (Paymob iframe).
+router.get('/:slug/pay/:orderId', async (req, res) => {
+  const { slug } = req.params;
+  const orderId = parseInt(req.params.orderId, 10);
+  const placed = req.session.placedOrders || [];
+  try {
+    const company = await loadShopCompany(slug);
+    if (!company) return res.status(404).render('404', { subdomain: slug });
+    const o = (await pool.query('SELECT * FROM orders WHERE id=$1 AND company_id=$2', [orderId, company.id])).rows[0];
+    if (!o) return res.status(404).send('Not found.');
+    if (!placed.includes(orderId) && o.customer_id !== req.session.customerId) return res.status(403).send('Forbidden.');
+    if (o.payment_status === 'paid') return res.redirect(`/shop/${slug}/order/${orderId}`);
+
+    const nameParts = String(o.customer_name || '').trim().split(/\s+/);
+    const out = await createGatewayPayment(pool, company, {
+      amountCents: Math.round(Number(o.total_amount) * 100),
+      currency: company.currency || 'EGP',
+      merchantOrderId: `shop-${orderId}`,
+      billing: {
+        first_name: nameParts[0] || 'Customer', last_name: nameParts.slice(1).join(' ') || 'NA',
+        email: o.customer_email || 'na@na.com', phone: o.customer_phone || 'NA', street: o.shipping_address || 'NA',
+      },
+    });
+    await pool.query("UPDATE orders SET payment_status='pending', payment_ref=$1 WHERE id=$2", [String(out.orderId || ''), orderId]);
+    res.redirect(out.url);
+  } catch (err) {
+    console.error('[shop pay initiate]', err.message);
+    res.redirect(`/shop/${slug}/order/${orderId}?payerror=1`);
+  }
+});
+
+// Buyer return page (informational — do NOT trust query params to mark paid).
+router.get('/pay/return', (req, res) => {
+  const ok = String(req.query.success) === 'true';
+  res.render('shop/pay_return', { ok });
+});
+
+// Server-to-server webhook from Paymob. HMAC-verified with the MERCHANT'S secret
+// before marking the order paid. This is the only trusted source of truth.
+router.post('/pay/paymob/callback', async (req, res) => {
+  try {
+    const obj = (req.body && req.body.obj) || {};
+    const providedHmac = req.query.hmac || (req.body && req.body.hmac);
+    const merchantOrderId = obj.order && obj.order.merchant_order_id;
+    const m = /^shop-(\d+)$/.exec(String(merchantOrderId || ''));
+    if (!m) return res.status(200).send('ignored');
+    const orderId = parseInt(m[1], 10);
+    const o = (await pool.query('SELECT company_id FROM orders WHERE id=$1', [orderId])).rows[0];
+    if (!o) return res.status(200).send('no order');
+    const settings = (await pool.query('SELECT gateway_hmac FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
+    const hmacSecret = settings && settings.gateway_hmac;
+    if (!paymob.verifyCallbackHmac(obj, hmacSecret, providedHmac)) {
+      console.error('[paymob callback] HMAC mismatch for order', orderId);
+      return res.status(403).send('bad hmac');
+    }
+    if (obj.success === true || obj.success === 'true') {
+      await pool.query("UPDATE orders SET payment_status='paid', payment_ref=$1 WHERE id=$2 AND payment_status <> 'paid'", [String(obj.id || ''), orderId]);
+      push.sendToCompany(o.company_id, { title: '💳 دفع أونلاين', body: `تم دفع الطلب #${orderId} أونلاين`, url: '/company/orders' }, 'order').catch(() => {});
+    }
+    res.status(200).send('ok');
+  } catch (err) {
+    console.error('[paymob callback]', err.message);
+    res.status(200).send('err');
+  }
+});
+
 router.get('/:slug/product/:id', async (req, res) => {
   const { slug, id } = req.params;
   try {
@@ -333,7 +402,11 @@ router.get('/:slug/order/:id', async (req, res) => {
       return res.status(403).send('Forbidden.');
     }
     const items = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [orderId]);
-    res.render('shop/success', { company, order, items: items.rows });
+    // Offer online payment only if the merchant configured a ready gateway and
+    // the order isn't already paid.
+    const paySettings = await loadPaySettings(pool, company.id);
+    const canPayOnline = gatewayReady(paySettings) && order.payment_status !== 'paid';
+    res.render('shop/success', { company, order, items: items.rows, canPayOnline });
   } catch (err) {
     console.error('[GET /shop/:slug/order/:id] error:', err);
     res.status(500).send('Error.');
