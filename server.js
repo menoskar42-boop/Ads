@@ -141,11 +141,18 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
   },
 }));
+// Persistent session store in Postgres so logins/saves survive cold starts and
+// instance recycling on Autoscale (the default MemoryStore loses every session
+// on restart → intermittent logouts and silently-failing POST saves).
+const { Pool: SessionPool } = require('pg');
+const sessionPool = new SessionPool({ connectionString: process.env.DATABASE_URL });
+const sessionStore = require('./src/lib/pg_session_store')(session, sessionPool);
 app.use(session({
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'oscardevs-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' },
 }));
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
