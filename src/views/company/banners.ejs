@@ -71,11 +71,11 @@
                 <% var slotLabel = b.slot === 'hero1' ? 'كرت الهيرو الأول' : (b.slot === 'hero2' ? 'كرت الهيرو الثاني' : 'الهيرو الرئيسي'); %>
                 <p class="text-xs text-gray-400 mt-0.5"><span class="inline-block bg-gray-100 text-gray-600 rounded px-1.5 py-0.5"><%= slotLabel %></span> · <%= t('company.position') %>: <%= i + 1 %></p>
               </div>
-              <div class="flex items-center gap-1">
-                <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="up" /><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === 0 ? 'disabled' : '' %>>↑</button></form>
-                <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="down" /><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === banners.length - 1 ? 'disabled' : '' %>>↓</button></form>
-                <form method="POST" action="/company/banners/<%= b.id %>/toggle" class="inline"><button type="submit" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"><%= b.is_active ? t('company.hide') : t('company.show') %></button></form>
-                <form method="POST" action="/company/banners/<%= b.id %>/delete" class="inline" onsubmit="return confirm('<%= t('common.confirm_delete') %>');"><button type="submit" class="text-xs px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100"><%= t('common.delete') %></button></form>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="up" /><button type="submit" class="text-xs px-2.5 py-1.5 min-h-[36px] rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === 0 ? 'disabled' : '' %>>↑</button></form>
+                <form method="POST" action="/company/banners/<%= b.id %>/move" class="inline"><input type="hidden" name="direction" value="down" /><button type="submit" class="text-xs px-2.5 py-1.5 min-h-[36px] rounded bg-gray-100 text-gray-600 hover:bg-gray-200" <%= i === banners.length - 1 ? 'disabled' : '' %>>↓</button></form>
+                <form method="POST" action="/company/banners/<%= b.id %>/toggle" class="inline"><button type="submit" class="text-xs px-2.5 py-1.5 min-h-[36px] rounded bg-gray-100 text-gray-600 hover:bg-gray-200"><%= b.is_active ? t('company.hide') : t('company.show') %></button></form>
+                <form method="POST" action="/company/banners/<%= b.id %>/delete" class="inline" onsubmit="return confirm('<%= t('common.confirm_delete') %>');"><button type="submit" class="text-xs px-2.5 py-1.5 min-h-[36px] rounded bg-red-50 text-red-700 hover:bg-red-100"><%= t('common.delete') %></button></form>
               </div>
             </div>
           <% }) %>

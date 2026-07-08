@@ -31,7 +31,8 @@
       <div class="flex gap-3 text-sm"><span class="text-gray-400 w-24"><%= t('common.shipping_address') %></span><span class="whitespace-pre-wrap"><%= order.shipping_address %></span></div>
     </div>
 
-    <table class="w-full text-sm mb-6">
+    <div class="overflow-x-auto mb-6">
+    <table class="w-full text-sm min-w-[360px]">
       <thead class="text-gray-400 text-xs uppercase border-b">
         <tr><th class="px-3 py-2 text-start"><%= t('common.name') %></th><th class="px-3 py-2 text-center"><%= t('public.qty') %></th><th class="px-3 py-2 text-end"><%= t('public.subtotal') %></th></tr>
       </thead>
@@ -44,6 +45,7 @@
         <tr class="font-bold border-t"><td class="px-3 py-2 text-start"><%= t('public.total') %></td><td></td><td class="px-3 py-2 text-end brand-text font-mono text-lg"><%= Number(order.total_amount).toFixed(2) %> <%= company.currency || 'EGP' %></td></tr>
       </tfoot>
     </table>
+    </div>
 
     <a href="<%= canonicalCompanyUrl(company.slug) %>" class="inline-block brand-bg text-white font-semibold px-6 py-3 rounded-xl hover:opacity-90 transition">
       <%= t('public.continue_shopping') %>

@@ -93,14 +93,14 @@
               <td class="px-4 py-3 text-center text-gray-500 text-xs whitespace-nowrap"><%= c.created_at ? new Date(c.created_at).toISOString().slice(0,10) : '—' %></td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-1.5 flex-wrap">
-                  <a href="<%= canonicalCompanyUrl(c.slug) %>" target="_blank" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= t('common.actions') %></a>
-                  <a href="/admin/companies/<%= c.id %>/edit" class="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition"><%= t('common.edit') %></a>
+                  <a href="<%= canonicalCompanyUrl(c.slug) %>" target="_blank" class="text-xs px-2.5 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= t('common.actions') %></a>
+                  <a href="/admin/companies/<%= c.id %>/edit" class="text-xs px-2.5 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition"><%= t('common.edit') %></a>
                   <form method="POST" action="/admin/companies/<%= c.id %>/reset-password" class="inline" onsubmit="return promptResetPassword(this)">
                     <input type="hidden" name="new_password" />
-                    <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition">Reset PW</button>
+                    <button type="submit" class="text-xs px-2.5 py-2 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition">Reset PW</button>
                   </form>
                   <form method="POST" action="/admin/companies/<%= c.id %>/delete" class="inline" onsubmit="return confirm('<%= t('common.confirm_delete') %>');">
-                    <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition"><%= t('common.delete') %></button>
+                    <button type="submit" class="text-xs px-2.5 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition"><%= t('common.delete') %></button>
                   </form>
                 </div>
               </td>

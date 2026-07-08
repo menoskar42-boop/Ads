@@ -45,7 +45,8 @@
       <% if (!movements.length) { %>
         <p class="text-center text-gray-400 text-sm py-4"><%= t('company.no_movements') %></p>
       <% } else { %>
-        <table class="w-full text-sm">
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[460px]">
           <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
               <th class="px-3 py-2 text-left"><%= t('company.when') %></th>
@@ -65,6 +66,7 @@
             <% }) %>
           </tbody>
         </table>
+        </div>
       <% } %>
     </div>
   </div>

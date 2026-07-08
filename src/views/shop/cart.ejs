@@ -48,7 +48,8 @@
     </div>
   <% } else { %>
     <form method="POST" action="/shop/<%= company.slug %>/cart/update" class="bg-white rounded-2xl shadow overflow-hidden">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[520px]">
         <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
           <tr>
             <th class="px-4 py-3 text-left"><%= t('common.name') %></th>
@@ -90,6 +91,7 @@
           </tr>
         </tfoot>
       </table>
+      </div>
       <div class="p-4 flex items-center justify-between gap-3 flex-wrap border-t">
         <button type="submit" class="text-sm px-4 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= t('common.save') %></button>
         <a href="/shop/<%= company.slug %>/checkout" class="brand-btn text-white text-sm font-bold px-6 py-2 rounded-xl hover:opacity-90 transition shadow">

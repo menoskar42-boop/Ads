@@ -54,12 +54,12 @@
                   </td>
                   <td class="px-4 py-3 text-right">
                     <div class="flex items-center justify-end gap-1.5 flex-wrap">
-                      <a href="/company/products/<%= p.id %>/edit" class="text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition"><%= t('common.edit') %></a>
+                      <a href="/company/products/<%= p.id %>/edit" class="text-xs px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition"><%= t('common.edit') %></a>
                       <form method="POST" action="/company/products/<%= p.id %>/toggle-active" class="inline">
-                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= p.is_active ? t('company.hide') : t('company.show') %></button>
+                        <button type="submit" class="text-xs px-2.5 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"><%= p.is_active ? t('company.hide') : t('company.show') %></button>
                       </form>
                       <form method="POST" action="/company/products/<%= p.id %>/delete" class="inline" onsubmit="return confirm('<%= t('common.confirm_delete') %>');">
-                        <button type="submit" class="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition"><%= t('common.delete') %></button>
+                        <button type="submit" class="text-xs px-2.5 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition"><%= t('common.delete') %></button>
                       </form>
                     </div>
                   </td>

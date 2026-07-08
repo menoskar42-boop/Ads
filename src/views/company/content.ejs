@@ -31,7 +31,7 @@
       <div class="bg-white rounded-2xl shadow-sm p-6">
         <h3 class="font-bold text-gray-800 mb-4">الأرقام والإنجازات</h3>
         <% (content.stats || []).forEach(function(s, i){ %>
-          <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <input type="text" name="stat_n_<%= i %>" value="<%= s.n %>" placeholder="الرقم (مثال: 500)" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" dir="ltr" />
             <input type="text" name="stat_label_<%= i %>" value="<%= s.label %>" placeholder="الوصف (مثال: عميل سعيد)" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
           </div>
@@ -44,7 +44,7 @@
         <% (content.testimonials || []).forEach(function(tt, i){ %>
           <div class="border border-gray-100 rounded-xl p-3 mb-3 space-y-2">
             <textarea name="testi_quote_<%= i %>" rows="2" placeholder="نص الرأي" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"><%= tt.quote %></textarea>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="text" name="testi_name_<%= i %>" value="<%= tt.name %>" placeholder="اسم العميل" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               <input type="text" name="testi_role_<%= i %>" value="<%= tt.role || '' %>" placeholder="صفته" class="border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
             </div>

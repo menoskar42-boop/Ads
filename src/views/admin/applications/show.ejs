@@ -26,9 +26,9 @@
       <h3 class="font-bold text-gray-700 mb-1">بيانات مقدّم الطلب</h3>
       <% function row(label, val) { %><% } %>
       <% var R = function(label, val, mono){ %>
-        <div class="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
-          <span class="text-xs text-gray-400 font-semibold"><%= label %></span>
-          <span class="text-sm <%= mono ? 'font-mono' : 'font-semibold' %> text-gray-800 text-left ltr"><%= val || '—' %></span>
+        <div class="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+          <span class="text-xs text-gray-400 font-semibold shrink-0"><%= label %></span>
+          <span class="text-sm <%= mono ? 'font-mono' : 'font-semibold' %> text-gray-800 text-left ltr break-all min-w-0"><%= val || '—' %></span>
         </div>
       <% }; %>
       <%- R('الاسم الكامل', app.full_name) %>
