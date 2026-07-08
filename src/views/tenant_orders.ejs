@@ -45,6 +45,13 @@
   body { background: #faf8f4; color: #182a27; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* Crystal / glossy buttons with a hover shine sweep + glow. */
+  .crystal { position: relative; overflow: hidden; isolation: isolate; transition: box-shadow .35s ease, transform .2s ease, filter .35s ease; }
+  .crystal::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.06) 42%, rgba(255,255,255,0) 60%); }
+  .crystal::before { content: ''; position: absolute; top: -20%; left: -80%; width: 55%; height: 160%; pointer-events: none; transform: skewX(-22deg); background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent); transition: left .6s ease; }
+  .crystal:hover::before, .crystal:focus-visible::before { left: 130%; }
+  .crystal:hover, .crystal:focus-visible { filter: brightness(1.09) saturate(1.05); box-shadow: 0 10px 26px -8px var(--accent), inset 0 1px 0 rgba(255,255,255,.4); transform: translateY(-1px); }
+  @media (prefers-reduced-motion: reduce) { .crystal::before { transition: none; } .crystal:hover { transform: none; } }
 </style>
 </head>
 <body class="antialiased">
@@ -106,7 +113,7 @@
                   <% if (it.description) { %><p class="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2"><%= it.description %></p><% } %>
                   <div class="mt-auto pt-2 flex items-center justify-between">
                     <span class="font-extrabold accent-text"><bdi><%= __money(it.price) %> <span class="text-xs text-gray-400"><%= __cur %></span></bdi></span>
-                    <button type="button" class="add-btn accent-bg text-white rounded-full px-4 py-1.5 text-sm font-bold"
+                    <button type="button" class="add-btn crystal accent-bg text-white rounded-full px-4 py-1.5 text-sm font-bold"
                             data-id="<%= it.id %>" data-name="<%= iName %>" data-price="<%= Number(it.price) %>" data-outlet="<%= o.id %>"><%= t('orders.add') %></button>
                   </div>
                 </div>
@@ -130,7 +137,7 @@
 <!-- Floating cart button -->
 <div id="cartBar" class="fixed inset-x-0 bottom-0 z-40 hidden">
   <div class="max-w-4xl mx-auto px-4 pb-4">
-    <button id="cartBtn" type="button" class="w-full accent-bg text-white rounded-2xl shadow-lg px-5 py-3.5 font-extrabold flex items-center justify-between">
+    <button id="cartBtn" type="button" class="w-full crystal accent-bg text-white rounded-2xl shadow-lg px-5 py-3.5 font-extrabold flex items-center justify-between">
       <span class="flex items-center gap-2">🛒 <span id="cartCount">0</span> · <%= t('orders.your_order') %></span>
       <span id="cartTotalBtn">0 <%= __cur %></span>
     </button>
@@ -180,7 +187,7 @@
         <div class="flex justify-between text-sm"><span class="text-gray-500"><%= t('orders.delivery') %></span><span id="sumDelivery">0</span></div>
         <div id="discountRow" class="hidden flex justify-between text-sm text-green-600"><span><%= t('orders.discount') %></span><span id="sumDiscount">0</span></div>
         <div class="flex justify-between font-extrabold text-lg"><span><%= t('orders.total') %></span><span id="sumTotal" class="accent-text">0</span></div>
-        <button type="submit" id="confirmBtn" class="w-full accent-bg text-white rounded-2xl py-3.5 font-extrabold"><%= t('orders.confirm_order') %></button>
+        <button type="submit" id="confirmBtn" class="w-full crystal accent-bg text-white rounded-2xl py-3.5 font-extrabold"><%= t('orders.confirm_order') %></button>
       </div>
     </form>
   </div>
@@ -457,7 +464,7 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
 
 <% if (typeof aiAssistantOn !== 'undefined' && aiAssistantOn) { %>
 <!-- AI order assistant (paid feature) -->
-<button id="aiFab" type="button" class="fixed z-40 bottom-24 end-4 h-14 w-14 rounded-full accent-bg text-white shadow-lg grid place-items-center text-2xl" aria-label="<%= t('orders.ai_assistant') %>">🤖</button>
+<button id="aiFab" type="button" class="fixed z-40 bottom-24 end-4 h-14 w-14 rounded-full crystal accent-bg text-white shadow-lg grid place-items-center text-2xl" aria-label="<%= t('orders.ai_assistant') %>">🤖</button>
 
 <div id="aiPanel" class="fixed inset-0 z-50 hidden">
   <div id="aiOverlay" class="absolute inset-0 bg-black/50"></div>

@@ -89,8 +89,16 @@
 <style>
   * { font-family: 'Cairo', sans-serif; }
   html { scroll-behavior: smooth; }
+  :root { --accent: #e8734a; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* Crystal / glossy buttons with a hover shine sweep + glow. */
+  .crystal { position: relative; overflow: hidden; isolation: isolate; transition: box-shadow .35s ease, transform .2s ease, filter .35s ease; }
+  .crystal::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.38), rgba(255,255,255,.06) 42%, rgba(255,255,255,0) 60%); }
+  .crystal::before { content: ''; position: absolute; top: -20%; left: -80%; width: 55%; height: 160%; pointer-events: none; transform: skewX(-22deg); background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent); transition: left .6s ease; }
+  .crystal:hover::before, .crystal:focus-visible::before { left: 130%; }
+  .crystal:hover, .crystal:focus-visible { filter: brightness(1.09) saturate(1.05); box-shadow: 0 10px 26px -8px var(--accent), inset 0 1px 0 rgba(255,255,255,.4); transform: translateY(-1px); }
+  @media (prefers-reduced-motion: reduce) { .crystal::before { transition: none; } .crystal:hover { transform: none; } }
   :focus-visible { outline: 3px solid #1f8a7b; outline-offset: 2px; border-radius: 6px; }
   .ph-grid { background-image: radial-gradient(rgba(24,42,39,.10) 1px, transparent 1px); background-size: 14px 14px; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
@@ -263,7 +271,7 @@
               <% if (state === 'out') { %>
                 <span class="inline-flex items-center rounded-full bg-sand-100 text-ink/40 border border-sand-200 px-3.5 py-2 text-[13px] font-bold"><%= t('pharmacy.out') %></span>
               <% } else if (__online) { %>
-                <button type="button" class="ph-add inline-flex items-center gap-1 rounded-full bg-accent hover:brightness-95 active:brightness-90 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition"
+                <button type="button" class="ph-add crystal inline-flex items-center gap-1 rounded-full bg-accent hover:brightness-95 active:brightness-90 text-white px-3.5 py-2 text-[13px] font-bold shadow-sm transition"
                         data-id="<%= it.medicine_id %>" data-name="<%= primary %>" data-price="<%= Number(it.price) || 0 %>" data-max="<%= avail %>">
                   <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12.4a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.3L22 7H6"/></svg>
                   <span class="ph-add-label"><%= t('pharmacy.cart.add') %></span>
@@ -420,7 +428,7 @@
 <!-- ═══ CART (multi-medicine, one checkout) ═══ -->
 <div id="phCartBar" class="fixed inset-x-0 bottom-0 z-40 hidden">
   <div class="mx-auto max-w-6xl px-4 sm:px-6 pb-4">
-    <button id="phCartBtn" type="button" class="w-full bg-accent text-white rounded-2xl shadow-lift px-5 py-3.5 font-extrabold flex items-center justify-between">
+    <button id="phCartBtn" type="button" class="w-full crystal bg-accent text-white rounded-2xl shadow-lift px-5 py-3.5 font-extrabold flex items-center justify-between">
       <span class="flex items-center gap-2">
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12.4a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.3L22 7H6"/></svg>
         <span id="phCartCount">0</span> · <%= t('pharmacy.cart.view') %>
@@ -454,7 +462,7 @@
         <div class="flex justify-between text-sm"><span class="text-ink/55"><%= t('pharmacy.cart.subtotal') %></span><span id="phSumSub">0</span></div>
         <div id="phDeliveryRow" class="hidden justify-between text-sm"><span class="text-ink/55"><%= t('pharmacy.cart.delivery') %></span><span id="phSumDelivery">0</span></div>
         <div class="flex justify-between font-extrabold text-lg"><span><%= t('pharmacy.cart.total') %></span><span id="phSumTotal" class="text-brand-700">0</span></div>
-        <button type="submit" class="w-full bg-accent text-white rounded-2xl py-3.5 font-extrabold"><%= t('pharmacy.cart.confirm') %></button>
+        <button type="submit" class="w-full crystal bg-accent text-white rounded-2xl py-3.5 font-extrabold"><%= t('pharmacy.cart.confirm') %></button>
       </div>
     </form>
   </div>
