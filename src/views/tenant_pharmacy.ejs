@@ -462,6 +462,7 @@
         <div class="flex justify-between text-sm"><span class="text-ink/55"><%= t('pharmacy.cart.subtotal') %></span><span id="phSumSub">0</span></div>
         <div id="phDeliveryRow" class="hidden justify-between text-sm"><span class="text-ink/55"><%= t('pharmacy.cart.delivery') %></span><span id="phSumDelivery">0</span></div>
         <div class="flex justify-between font-extrabold text-lg"><span><%= t('pharmacy.cart.total') %></span><span id="phSumTotal" class="text-brand-700">0</span></div>
+        <% if (typeof payment !== 'undefined' && payment) { %><div class="pt-1"><%- include('partials/payment_methods', { payment: payment }) %></div><% } %>
         <button type="submit" class="w-full crystal bg-accent text-white rounded-2xl py-3.5 font-extrabold"><%= t('pharmacy.cart.confirm') %></button>
       </div>
     </form>

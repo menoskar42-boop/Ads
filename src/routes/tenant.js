@@ -6,6 +6,7 @@ const { getPreset } = require('../lib/portfolio_presets');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
 const aiAssistant = require('../lib/ai_order_assistant');
+const { loadPaymentMethods } = require('../lib/payment_methods');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -180,6 +181,12 @@ router.get('/', async (req, res) => {
   const cart = (req.session.carts && req.session.carts[company.slug]) || {};
   const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
 
+  // Payment methods the merchant chose to show (default: cash on delivery).
+  let payment = null;
+  if (['shop', 'pharmacy', 'orders'].includes(company.page_type)) {
+    payment = await loadPaymentMethods(pool, company, res.locals.t);
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
@@ -238,6 +245,7 @@ router.get('/', async (req, res) => {
     foodItemCount,
     aiAssistantOn,
     foodUpsellOn,
+    payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
     cartCount,

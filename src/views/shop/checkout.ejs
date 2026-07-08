@@ -88,6 +88,10 @@
       </div>
     <% } %>
 
+    <div class="border-t pt-4">
+      <%- include('../partials/payment_methods', { payment: payment }) %>
+    </div>
+
     <button type="submit" class="brand-btn text-white font-bold w-full py-3 rounded-xl hover:opacity-90 transition shadow">
       <%= t('public.place_order') %>
     </button>

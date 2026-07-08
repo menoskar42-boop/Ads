@@ -1,0 +1,15 @@
+<%# Renders the merchant's payment methods. Expects `payment` = {methods, instructions}. %>
+<% if (typeof payment !== 'undefined' && payment && payment.methods && payment.methods.length) { %>
+<div class="pay-methods">
+  <div class="pay-methods-title" style="font-weight:700;font-size:.9rem;margin-bottom:8px;">💳 <%= t('acct.payments.checkout_title') %></div>
+  <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">
+    <% payment.methods.forEach(function(mth){ %>
+      <li style="display:flex;align-items:center;gap:8px;border:1px solid #e5e7eb;border-radius:12px;padding:9px 12px;font-size:.86rem;">
+        <span style="font-weight:700;"><%= mth.label %></span>
+        <% if (mth.detail) { %><span dir="ltr" style="margin-inline-start:auto;color:#6b7280;font-family:monospace;font-size:.82rem;"><%= mth.detail %></span><% } %>
+      </li>
+    <% }); %>
+  </ul>
+  <% if (payment.instructions) { %><p style="font-size:.78rem;color:#6b7280;margin-top:8px;line-height:1.6;"><%= payment.instructions %></p><% } %>
+</div>
+<% } %>

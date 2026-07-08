@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const push = require('../lib/push');
+const { loadPaymentMethods } = require('../lib/payment_methods');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -157,9 +158,11 @@ router.get('/:slug/checkout', async (req, res) => {
       if (c.rows.length) prefill = { ...c.rows[0] };
     }
 
+    const payment = await loadPaymentMethods(pool, company, res.locals.t);
     res.render('shop/checkout', {
       company,
       prefill,
+      payment,
       customerId: req.session.customerId || null,
       error: req.query.error || null,
     });

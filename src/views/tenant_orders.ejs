@@ -187,6 +187,7 @@
         <div class="flex justify-between text-sm"><span class="text-gray-500"><%= t('orders.delivery') %></span><span id="sumDelivery">0</span></div>
         <div id="discountRow" class="hidden flex justify-between text-sm text-green-600"><span><%= t('orders.discount') %></span><span id="sumDiscount">0</span></div>
         <div class="flex justify-between font-extrabold text-lg"><span><%= t('orders.total') %></span><span id="sumTotal" class="accent-text">0</span></div>
+        <% if (typeof payment !== 'undefined' && payment) { %><div class="pt-1"><%- include('partials/payment_methods', { payment: payment }) %></div><% } %>
         <button type="submit" id="confirmBtn" class="w-full crystal accent-bg text-white rounded-2xl py-3.5 font-extrabold"><%= t('orders.confirm_order') %></button>
       </div>
     </form>
