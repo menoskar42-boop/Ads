@@ -19,7 +19,8 @@
   <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('acct.saved') %></div><% } %>
   <div class="flex items-baseline justify-between mb-3 flex-wrap gap-2">
     <h1 class="text-lg font-extrabold text-emerald-800"><%= t('acct.costs.title') %></h1>
-    <% if (settings.markup_enabled) { %><span class="text-xs text-gray-500"><%= t('acct.costs.markup_hint') %> <b><%= Number(settings.markup_percent) %>%</b></span><% } %>
+    <% if (settings.markup_enabled) { %><span class="text-xs text-gray-500"><%= t('acct.costs.markup_hint') %> <b><%= Number(settings.markup_percent) %>%</b></span>
+    <% } else { %><a href="/accounting/settings" class="text-xs text-emerald-700 underline"><%= t('acct.costs.markup_setup') %></a><% } %>
   </div>
 
   <% if (!items.length) { %>

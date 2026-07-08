@@ -23,3 +23,18 @@
     </nav>
   </div>
 </header>
+<script>
+/* Non-blocking delete confirm: a first click on any [data-confirm] control turns
+   it into a "confirm?" state; a second click within 3s performs the action. No
+   native confirm() dialog (which blocks the page / hangs headless browsers). */
+(function () {
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-confirm]');
+    if (!b || b.dataset.armed === '1') return;
+    e.preventDefault(); e.stopPropagation();
+    if (!b.dataset.label) b.dataset.label = b.innerHTML;
+    b.innerHTML = b.dataset.confirm || '⚠︎'; b.dataset.armed = '1';
+    setTimeout(function () { b.dataset.armed = ''; b.innerHTML = b.dataset.label; }, 3000);
+  }, true);
+})();
+</script>

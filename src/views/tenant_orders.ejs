@@ -131,7 +131,7 @@
     <div class="mt-10"><%- include('partials/ad_unit', { slot: ads.slots.ordersMenu }) %></div>
   <% } %>
 
-  <p class="mt-10 text-center text-xs text-gray-400"><%= t('pharmacy.provided_by') %> <a href="https://oscardevs.com" target="_blank" rel="noopener" class="accent-text font-bold">OscarDevs</a></p>
+  <p class="mt-10 text-center text-xs text-gray-400"><%= t('orders.provided_by') %> <a href="https://oscardevs.com" target="_blank" rel="noopener" class="accent-text font-bold">OscarDevs</a></p>
 </main>
 
 <!-- Floating cart button -->
@@ -177,6 +177,7 @@
       </div>
 
       <div id="cartFooter" class="border-t border-gray-100 p-4 space-y-2 hidden">
+        <label for="couponInput" class="block text-[13px] font-bold text-gray-600"><%= t('orders.coupon') %></label>
         <div class="flex gap-2">
           <input id="couponInput" placeholder="<%= t('orders.coupon') %>" dir="ltr" class="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm" style="text-transform:uppercase" />
           <button type="button" id="applyCoupon" class="bg-gray-800 text-white rounded-xl px-4 text-sm font-bold"><%= t('orders.apply') %></button>

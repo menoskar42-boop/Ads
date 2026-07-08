@@ -48,7 +48,7 @@
           </div>
           <div class="flex items-center gap-3 shrink-0">
             <span class="font-extrabold text-red-600"><%= m(e.amount) %> <span class="text-xs text-gray-400"><%= company.currency || 'EGP' %></span></span>
-            <form method="post" action="/accounting/expenses/<%= e.id %>/delete" onsubmit="return confirm('<%= t('common.confirm_delete') %>')"><button class="text-red-500 text-sm">🗑️</button></form>
+            <form method="post" action="/accounting/expenses/<%= e.id %>/delete"><button class="text-red-500 text-sm" data-confirm="<%= t('common.tap_confirm') %>">🗑️</button></form>
           </div>
         </div>
       <% }); %>

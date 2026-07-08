@@ -70,7 +70,7 @@
           <div class="border border-gray-100 rounded-xl p-3 mb-3">
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-bold text-gray-700"><%= cat.name_ar || cat.name %></h3>
-              <form method="post" action="/food/category/<%= cat.id %>/delete" class="ms-auto inline" onsubmit="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')"><button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1"><%= t('pharmacy.admin.delete') %></button></form>
+              <form method="post" action="/food/category/<%= cat.id %>/delete" class="ms-auto inline"><button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1" data-confirm="<%= t('common.tap_confirm') %>"><%= t('pharmacy.admin.delete') %></button></form>
             </div>
 
             <% catItems.forEach(function(it){ %>
@@ -89,7 +89,7 @@
                 <div class="sm:col-span-4"><span class="lbl"><%= t('food.admin.description') %></span><input name="description" value="<%= it.description || '' %>" class="fld" /></div>
                 <div class="sm:col-span-2 flex gap-2">
                   <button type="submit" class="bg-orange-600 text-white font-bold rounded-lg px-4 py-1.5 text-sm flex-1"><%= t('pharmacy.admin.save') %></button>
-                  <button type="submit" formaction="/food/item/<%= it.id %>/delete" formnovalidate onclick="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')" class="bg-red-50 text-red-600 font-bold rounded-lg px-3 py-1.5 text-sm"><%= t('pharmacy.admin.delete') %></button>
+                  <button type="submit" formaction="/food/item/<%= it.id %>/delete" formnovalidate data-confirm="<%= t('common.tap_confirm') %>" class="bg-red-50 text-red-600 font-bold rounded-lg px-3 py-1.5 text-sm"><%= t('pharmacy.admin.delete') %></button>
                 </div>
               </form>
             <% }); %>

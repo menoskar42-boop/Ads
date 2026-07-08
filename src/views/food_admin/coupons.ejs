@@ -47,7 +47,7 @@
           <span class="text-[11px] font-bold rounded-full px-2 py-0.5 <%= c.is_active ? 'text-green-700 bg-green-50':'text-gray-500 bg-gray-100' %>"><%= c.is_active ? t('pharmacy.admin.banner_active') : t('pharmacy.admin.banner_paused') %></span>
           <div class="ms-auto flex gap-1">
             <form method="post" action="/food/coupons/<%= c.id %>/toggle" class="inline"><button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600"><%= c.is_active ? t('pharmacy.admin.banner_paused') : t('pharmacy.admin.banner_active') %></button></form>
-            <form method="post" action="/food/coupons/<%= c.id %>/delete" class="inline" onsubmit="return confirm('<%= t('pharmacy.admin.confirm_delete') %>')"><button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600"><%= t('pharmacy.admin.delete') %></button></form>
+            <form method="post" action="/food/coupons/<%= c.id %>/delete" class="inline"><button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600" data-confirm="<%= t('common.tap_confirm') %>"><%= t('pharmacy.admin.delete') %></button></form>
           </div>
         </div>
       <% }); %>
