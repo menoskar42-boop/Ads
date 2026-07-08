@@ -31,6 +31,12 @@
     <p class="mt-2 text-sm"><%= t('orders.order_number') %>: <span class="font-extrabold accent-text">#<%= order.id %></span></p>
   </div>
 
+  <% if (order.payment_status === 'paid') { %>
+    <div class="mb-5 bg-emerald-50 text-emerald-700 rounded-xl px-4 py-2 text-sm font-bold text-center">✅ <%= t('acct.pay.thanks') %></div>
+  <% } else if (typeof canPayOnline !== 'undefined' && canPayOnline) { %>
+    <a href="<%= payUrl %>" class="block w-full text-center accent-bg text-white font-extrabold px-6 py-3 rounded-2xl mb-5">💳 <%= t('acct.pay.pay_online') %></a>
+  <% } %>
+
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
     <% (items||[]).forEach(function(it){ %>
       <div class="flex items-center justify-between py-1.5 text-sm border-b border-gray-50 last:border-0">

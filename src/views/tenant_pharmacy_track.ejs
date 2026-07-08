@@ -23,6 +23,12 @@
   <h1 class="text-2xl font-extrabold mb-1"><%= t('pharmacy.track.title') %></h1>
   <p class="text-gray-500 mb-5"><%= t('pharmacy.orders.order') %> #<%= order.id %> · <%= order.customer_name %></p>
 
+  <% if (order.payment_status === 'paid') { %>
+    <div class="mb-5 bg-emerald-50 text-emerald-700 rounded-xl px-4 py-2 text-sm font-bold text-center">✅ <%= t('acct.pay.thanks') %></div>
+  <% } else if (typeof canPayOnline !== 'undefined' && canPayOnline) { %>
+    <a href="<%= payUrl %>" class="block w-full text-center brand-bg text-white font-extrabold px-6 py-3 rounded-xl mb-5">💳 <%= t('acct.pay.pay_online') %></a>
+  <% } %>
+
   <%
     var steps = [
       ['placed', t('pharmacy.track.step_placed')],

@@ -7,6 +7,8 @@ const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
 const aiAssistant = require('../lib/ai_order_assistant');
 const { loadPaymentMethods } = require('../lib/payment_methods');
+const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
+const paymob = require('../lib/gateways/paymob');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -417,9 +419,12 @@ router.get('/order/track/:token', async (req, res) => {
        FROM pharmacy_order_items oi LEFT JOIN medicines m ON m.id = oi.medicine_id
        WHERE oi.order_id = $1`, [order.id]
     )).rows;
+    const paySettings = await loadPaySettings(pool, req.tenant.id);
+    const canPayOnline = gatewayReady(paySettings) && order.payment_status !== 'paid';
     res.render('tenant_pharmacy_track', {
       company: req.tenant, order, items, noindex: true,
       pushKey: push.publicKey(),
+      canPayOnline, payUrl: '/order/pharmacy/pay/' + order.track_token,
       canonical: 'https://' + req.tenant.slug + '.oscardevs.com/',
     });
   } catch (e) { console.error('track error:', e.message); res.status(500).send('Error.'); }
@@ -431,6 +436,75 @@ router.get('/order/track/:token/status', async (req, res) => {
     if (!order) return res.status(404).json({});
     res.json({ status: order.status });
   } catch (e) { res.status(500).json({}); }
+});
+
+/* ─── Online payment (pharmacy + food), same flow as the shop ──
+   Each merchant is a single page type, transacts with their OWN gateway keys.
+   merchantOrderId is prefixed per vertical so the webhook can route it. */
+async function initiateTenantPay(req, res, { table, prefix, total, name, phone, email, addr, backUrl }) {
+  const company = req.tenant;
+  try {
+    const paySettings = await loadPaySettings(pool, company.id);
+    if (!gatewayReady(paySettings)) return res.redirect(backUrl + '?payerror=1');
+    const parts = String(name || '').trim().split(/\s+/);
+    const out = await createGatewayPayment(pool, company, {
+      amountCents: Math.round(Number(total) * 100),
+      currency: company.currency || 'EGP',
+      merchantOrderId: prefix + '-' + req.__orderId,
+      billing: { first_name: parts[0] || 'Customer', last_name: parts.slice(1).join(' ') || 'NA', email: email || 'na@na.com', phone: phone || 'NA', street: addr || 'NA' },
+    });
+    await pool.query(`UPDATE ${table} SET payment_status='pending', payment_ref=$1 WHERE id=$2`, [String(out.orderId || ''), req.__orderId]);
+    res.redirect(out.url);
+  } catch (err) { console.error('[tenant pay initiate]', err.message); res.redirect(backUrl + '?payerror=1'); }
+}
+
+router.get('/order/pharmacy/pay/:token', pharmacyOrderGuard, async (req, res) => {
+  const o = (await pool.query('SELECT * FROM pharmacy_orders WHERE track_token=$1 AND company_id=$2', [req.params.token, req.tenant.id])).rows[0];
+  if (!o) return res.redirect('/');
+  if (o.payment_status === 'paid') return res.redirect('/order/track/' + o.track_token);
+  req.__orderId = o.id;
+  return initiateTenantPay(req, res, { table: 'pharmacy_orders', prefix: 'pharmacy', total: o.total_amount, name: o.customer_name, phone: o.customer_phone, addr: o.customer_address, backUrl: '/order/track/' + o.track_token });
+});
+
+router.get('/order/food/pay/:token', foodOrderGuard, async (req, res) => {
+  const o = (await pool.query('SELECT * FROM food_orders WHERE track_token=$1 AND company_id=$2', [req.params.token, req.tenant.id])).rows[0];
+  if (!o) return res.redirect('/');
+  if (o.payment_status === 'paid') return res.redirect('/order/food/' + o.track_token);
+  req.__orderId = o.id;
+  return initiateTenantPay(req, res, { table: 'food_orders', prefix: 'food', total: o.total, name: o.customer_name, phone: o.phone, addr: o.delivery_address, backUrl: '/order/food/' + o.track_token });
+});
+
+// Informational buyer return page (never trusts query params).
+router.get('/order/pay/return', (req, res) => {
+  res.render('shop/pay_return', { ok: String(req.query.success) === 'true' });
+});
+
+// Server-to-server Paymob webhook for tenant (pharmacy/food) orders. HMAC-verified
+// with the merchant's own secret before marking paid — the only trusted source.
+router.post('/order/pay/paymob/callback', async (req, res) => {
+  try {
+    const company = req.tenant;
+    if (!company) return res.status(200).send('no tenant');
+    const obj = (req.body && req.body.obj) || {};
+    const providedHmac = req.query.hmac || (req.body && req.body.hmac);
+    const moid = String((obj.order && obj.order.merchant_order_id) || '');
+    const m = /^(pharmacy|food)-(\d+)$/.exec(moid);
+    if (!m) return res.status(200).send('ignored');
+    const table = m[1] === 'pharmacy' ? 'pharmacy_orders' : 'food_orders';
+    const orderId = parseInt(m[2], 10);
+    const o = (await pool.query(`SELECT company_id FROM ${table} WHERE id=$1`, [orderId])).rows[0];
+    if (!o || o.company_id !== company.id) return res.status(200).send('no order');
+    const settings = (await pool.query('SELECT gateway_hmac FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
+    if (!paymob.verifyCallbackHmac(obj, settings && settings.gateway_hmac, providedHmac)) {
+      console.error('[paymob tenant callback] HMAC mismatch', moid);
+      return res.status(403).send('bad hmac');
+    }
+    if (obj.success === true || obj.success === 'true') {
+      await pool.query(`UPDATE ${table} SET payment_status='paid', payment_ref=$1 WHERE id=$2 AND payment_status <> 'paid'`, [String(obj.id || ''), orderId]);
+      push.sendToCompany(o.company_id, { title: '💳 دفع أونلاين', body: 'تم دفع الطلب #' + orderId + ' أونلاين', url: company.page_type === 'pharmacy' ? '/pharmacy/orders' : '/food/orders' }, 'order').catch(() => {});
+    }
+    res.status(200).send('ok');
+  } catch (err) { console.error('[paymob tenant callback]', err.message); res.status(200).send('err'); }
 });
 
 // Customer poll for the delivery driver's live location (only while the order
@@ -676,7 +750,13 @@ router.get('/order/food/:token', foodOrderGuard, async (req, res) => {
     if (!ord) return res.redirect('/');
     const items = (await pool.query('SELECT * FROM food_order_items WHERE order_id = $1', [ord.id])).rows;
     const reviewed = (await pool.query('SELECT 1 FROM food_reviews WHERE order_id = $1 LIMIT 1', [ord.id])).rows.length > 0;
-    res.render('orders/confirm', { company, order: ord, items, noindex: true, reviewed: reviewed || req.query.reviewed === '1' });
+    const paySettings = await loadPaySettings(pool, company.id);
+    const canPayOnline = gatewayReady(paySettings) && ord.payment_status !== 'paid';
+    res.render('orders/confirm', {
+      company, order: ord, items, noindex: true,
+      reviewed: reviewed || req.query.reviewed === '1',
+      canPayOnline, payUrl: '/order/food/pay/' + ord.track_token,
+    });
   } catch (e) { console.error('food confirm error:', e.message); res.status(500).send('Error.'); }
 });
 

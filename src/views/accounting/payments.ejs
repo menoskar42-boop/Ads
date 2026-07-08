@@ -65,9 +65,17 @@
       </div>
       <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.hmac') %></span><input name="gateway_hmac" dir="ltr" value="<%= pay.gateway_hmac || '' %>" class="fld" placeholder="HMAC secret" autocomplete="off" /></div>
       <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway_key') %> <span class="text-gray-400">(<%= t('acct.payments.optional') %>)</span></span><input name="gateway_public_key" dir="ltr" value="<%= pay.gateway_public_key || '' %>" class="fld" placeholder="pk_… / public key" /></div>
-      <div class="bg-gray-50 rounded-lg px-3 py-2">
-        <span class="text-[11px] text-gray-500 block mb-1"><%= t('acct.payments.callback_url') %></span>
-        <code class="text-[11px] break-all" dir="ltr">https://<%= company.slug %>.oscardevs.com/shop/pay/paymob/callback</code>
+      <%
+        var __cb = company.page_type === 'shop'
+          ? 'https://oscardevs.com/shop/pay/paymob/callback'
+          : 'https://' + company.slug + '.oscardevs.com/order/pay/paymob/callback';
+        var __ret = company.page_type === 'shop'
+          ? 'https://oscardevs.com/shop/pay/return'
+          : 'https://' + company.slug + '.oscardevs.com/order/pay/return';
+      %>
+      <div class="bg-gray-50 rounded-lg px-3 py-2 space-y-2">
+        <div><span class="text-[11px] text-gray-500 block mb-0.5"><%= t('acct.payments.callback_url') %></span><code class="text-[11px] break-all" dir="ltr"><%= __cb %></code></div>
+        <div><span class="text-[11px] text-gray-500 block mb-0.5"><%= t('acct.payments.return_url') %></span><code class="text-[11px] break-all" dir="ltr"><%= __ret %></code></div>
       </div>
       <label class="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="gateway_exclusive" value="1" <%= pay.gateway_exclusive ? 'checked' : '' %> class="h-5 w-5 accent-emerald-600" />
