@@ -5,9 +5,13 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const multer = require('multer');
 const requireLogin = require('../middleware/auth');
+const sheet = require('../lib/sheet_import');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const uploadSheet = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024 } }).single('sheet');
+function withSheet(req, res, next) { uploadSheet(req, res, () => next()); }
 
 function toNum(v, d) { const n = parseFloat(v); return Number.isFinite(n) ? n : d; }
 function toInt(v, d) { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; }
@@ -288,6 +292,43 @@ router.post('/payments', async (req, res) => {
     );
   } catch (e) { console.error('[accounting payments]', e.message); }
   res.redirect('/accounting/payments?saved=1');
+});
+
+/* ─── Bulk import / update via spreadsheet (CSV, opens in Excel) ── */
+router.get('/import', (req, res) => {
+  const cols = sheet.columnsFor(req.company.page_type);
+  res.render('accounting/import', {
+    company: req.company, session: req.session, cols, result: null,
+    supported: !!cols,
+  });
+});
+
+// Download an Excel template in the admin's current language.
+router.get('/import/template.xlsx', (req, res) => {
+  const lang = res.locals.lang === 'en' ? 'en' : 'ar';
+  const buf = sheet.buildTemplateXlsx(req.company.page_type, lang);
+  if (!buf) return res.redirect('/accounting/import');
+  const fname = 'oscardevs-' + req.company.page_type + '-template.xlsx';
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + fname + '"');
+  res.send(buf);
+});
+
+router.post('/import', withSheet, async (req, res) => {
+  const cols = sheet.columnsFor(req.company.page_type);
+  let result = null;
+  try {
+    if (!req.file || !req.file.buffer) {
+      result = { error: true };
+    } else {
+      const rows = sheet.parseSheet(req.company.page_type, req.file.buffer);
+      result = await sheet.applyRows(pool, req.company, rows);
+      result.total = rows.length;
+    }
+  } catch (e) { console.error('[accounting import]', e.message); result = { error: true }; }
+  res.render('accounting/import', {
+    company: req.company, session: req.session, cols, result, supported: !!cols,
+  });
 });
 
 module.exports = router;

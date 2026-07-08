@@ -4,9 +4,9 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>اطلب تصميم موقعك أو متجرك الإلكتروني | OscarDevs</title>
-<meta name="description" content="قدّم طلب إنشاء موقع بورتفوليو أو متجر إلكتروني احترافي مع OscarDevs — تصميم سريع وأسعار مناسبة في مصر والعالم العربي. ابدأ موقعك الآن." />
-<%- include('../partials/seo_meta', { title: 'اطلب تصميم موقعك أو متجرك الإلكتروني | OscarDevs', description: 'قدّم طلب إنشاء موقع بورتفوليو أو متجر إلكتروني احترافي مع OscarDevs — تصميم سريع وأسعار مناسبة في مصر والعالم العربي. ابدأ موقعك الآن.' }) %>
+<title>أنشئ موقعك أو متجرك أو صيدليتك أو مطعمك | OscarDevs</title>
+<meta name="description" content="قدّم طلب إنشاء بورتفوليو، متجر إلكتروني، صيدلية أونلاين، أو صفحة مطاعم/طلبات مع OscarDevs — تسجيل ذاتي، تفعيل سريع، وأسعار مناسبة في مصر والعالم العربي." />
+<%- include('../partials/seo_meta', { title: 'أنشئ موقعك أو متجرك أو صيدليتك أو مطعمك | OscarDevs', description: 'قدّم طلب إنشاء بورتفوليو، متجر إلكتروني، صيدلية أونلاين، أو صفحة مطاعم/طلبات مع OscarDevs — تسجيل ذاتي، تفعيل سريع، وأسعار مناسبة في مصر والعالم العربي.' }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>* { font-family: 'Cairo', sans-serif; }</style>
@@ -23,8 +23,9 @@
 <main class="max-w-3xl mx-auto px-4 py-10">
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'قدّم طلب' } ] }) %>
   <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
-    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">قدّم طلب إنشاء موقعك</h1>
-    <p class="text-gray-500 text-sm mb-8">املأ بياناتك بدقّة وبعد الموافقة من فريقنا هتقدر تدخل لوحة تحكم موقعك مباشرة.</p>
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">قدّم طلب إنشاء صفحتك</h1>
+    <p class="text-gray-500 text-sm mb-2">اختَر نوع صفحتك — <strong>بورتفوليو</strong>، <strong>متجر إلكتروني</strong>، <strong>صيدلية أونلاين</strong>، أو <strong>مطاعم/سوبر ماركت</strong> — واملأ بياناتك بدقّة. بعد موافقة فريقنا هتدخل لوحة تحكم صفحتك مباشرة.</p>
+    <p class="text-gray-400 text-xs mb-8">الصفحة والطلبات مجانية بالكامل؛ مميزات الذكاء الاصطناعي للمطاعم هي الجزء المدفوع الاختياري.</p>
 
     <% if (error) { %>
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6"><%= error %></div>
@@ -71,8 +72,8 @@
             <option value="">-- اختر --</option>
             <option value="shop" <%= values.business_type === 'shop' ? 'selected' : '' %>>متجر إلكتروني</option>
             <option value="portfolio" <%= values.business_type === 'portfolio' ? 'selected' : '' %>>بورتفوليو</option>
-            <option value="pharmacy" <%= values.business_type === 'pharmacy' ? 'selected' : '' %>>نظام إدارة صيدلية</option>
-            <option value="orders" <%= values.business_type === 'orders' ? 'selected' : '' %>>طلبات (مطعم/سوبر ماركت)</option>
+            <option value="pharmacy" <%= values.business_type === 'pharmacy' ? 'selected' : '' %>>صيدلية أونلاين</option>
+            <option value="orders" <%= values.business_type === 'orders' ? 'selected' : '' %>>مطاعم / سوبر ماركت (طلبات)</option>
           </select>
         </div>
       </div>

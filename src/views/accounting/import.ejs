@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('acct.import.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'import' }) %>
+<main class="max-w-2xl mx-auto px-4 py-6">
+  <h1 class="text-lg font-extrabold text-emerald-800 mb-1"><%= t('acct.import.title') %></h1>
+  <p class="text-sm text-gray-500 mb-5"><%= t('acct.import.intro') %></p>
+
+  <% if (!supported) { %>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-gray-400"><%= t('acct.import.unsupported') %></div>
+  <% } else { %>
+
+    <% if (result) { %>
+      <% if (result.error) { %>
+        <div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= t('acct.import.err') %></div>
+      <% } else { %>
+        <div class="mb-4 bg-green-50 text-green-800 rounded-xl px-4 py-3 text-sm">
+          <b><%= t('acct.import.done') %></b> — <%= t('acct.import.created') %>: <%= result.created %> · <%= t('acct.import.updated') %>: <%= result.updated %> · <%= t('acct.import.skipped') %>: <%= result.skipped %> (<%= t('acct.import.total') %>: <%= result.total %>)
+        </div>
+        <% if (result.errors && result.errors.length) { %>
+          <div class="mb-4 bg-amber-50 text-amber-800 rounded-xl px-4 py-3 text-xs">
+            <b><%= t('acct.import.warnings') %>:</b>
+            <ul class="mt-1 list-disc ps-5 space-y-0.5">
+              <% result.errors.slice(0,20).forEach(function(e){ %><li><%= t('acct.import.row') %> <%= e.row %>: <%= e.msg %></li><% }); %>
+            </ul>
+          </div>
+        <% } %>
+      <% } %>
+    <% } %>
+
+    <!-- Step 1: download template -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+      <h2 class="font-bold text-gray-800 mb-1">1) <%= t('acct.import.step_download') %></h2>
+      <p class="text-xs text-gray-500 mb-3"><%= t('acct.import.download_note') %></p>
+      <a href="/accounting/import/template.xlsx" class="inline-block bg-gray-800 text-white font-bold rounded-xl px-5 py-2.5 text-sm">⬇︎ <%= t('acct.import.download_btn') %></a>
+      <div class="mt-3 flex flex-wrap gap-1.5">
+        <% cols.forEach(function(c){ %><span class="text-[11px] rounded-full bg-gray-100 text-gray-600 px-2.5 py-1"><%= lang==='en'?c.en:c.ar %></span><% }); %>
+      </div>
+    </div>
+
+    <!-- Step 2: upload -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <h2 class="font-bold text-gray-800 mb-1">2) <%= t('acct.import.step_upload') %></h2>
+      <p class="text-xs text-gray-500 mb-3"><%= t('acct.import.upload_note') %></p>
+      <form method="post" action="/accounting/import" enctype="multipart/form-data" class="flex flex-wrap items-center gap-3">
+        <input type="file" name="sheet" accept=".xlsx,.xls,.csv" required class="text-sm" />
+        <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 py-2.5 text-sm"><%= t('acct.import.upload_btn') %></button>
+      </form>
+      <p class="text-[11px] text-gray-400 mt-3">📷 <%= t('acct.import.image_note') %></p>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>
