@@ -196,6 +196,7 @@ app.get('/company', (req, res) => res.redirect('/company/login'));
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
+app.use('/accounting', require('./src/routes/accounting'));
 app.use('/pharmacy', pharmacyAdminRouter);
 app.use('/food', foodAdminRouter);
 
@@ -620,10 +621,12 @@ app.listen(PORT, '0.0.0.0', () => {
 // demo pharmacy exist (additive, idempotent — safe on every boot).
 const { ensurePharmacySchema } = require('./src/pharmacy/schema');
 const { ensureFoodSchema } = require('./src/food/schema');
+const { ensureAccountingSchema } = require('./src/accounting/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
 initDb()
   .then(() => ensurePharmacySchema())
   .then(() => ensureFoodSchema())
+  .then(() => ensureAccountingSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),
   // and can never crash boot. A daily timer keeps a long-running instance

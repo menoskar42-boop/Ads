@@ -1,0 +1,24 @@
+<%
+  var __a = typeof active !== 'undefined' ? active : '';
+  var __other = lang === 'ar' ? 'en' : 'ar';
+  // Back link to the merchant's own admin panel (differs per page type).
+  var __back = company.page_type === 'pharmacy' ? '/pharmacy'
+             : company.page_type === 'orders' ? '/food'
+             : '/company/dashboard';
+  function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__a===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
+%>
+<header class="bg-emerald-700 text-white">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <a href="/accounting" class="font-extrabold text-lg flex items-center gap-1">📊 <%= t('acct.title') %></a>
+    <nav class="flex items-center gap-1 text-sm mr-auto ms-auto flex-wrap">
+      <a href="/accounting" class="<%= __cls('report') %>"><%= t('acct.nav.report') %></a>
+      <a href="/accounting/costs" class="<%= __cls('costs') %>"><%= t('acct.nav.costs') %></a>
+      <a href="/accounting/expenses" class="<%= __cls('expenses') %>"><%= t('acct.nav.expenses') %></a>
+      <a href="/accounting/staff" class="<%= __cls('staff') %>"><%= t('acct.nav.staff') %></a>
+      <a href="/accounting/payments" class="<%= __cls('payments') %>"><%= t('acct.nav.payments') %></a>
+      <a href="/accounting/settings" class="<%= __cls('settings') %>"><%= t('acct.nav.settings') %></a>
+      <a href="<%= __back %>" class="px-3 py-1.5 rounded-lg hover:bg-white/15">↩︎ <%= t('acct.nav.back') %></a>
+      <a href="?lang=<%= __other %>" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 font-bold"><%= t('common.toggle_lang') %></a>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('acct.nav.payments') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; } .fld{border:1px solid #d1d5db;border-radius:10px;padding:9px 11px;width:100%;background:#fff;font-size:.9rem}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'payments' }) %>
+<main class="max-w-2xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('acct.saved') %></div><% } %>
+  <p class="text-sm text-gray-500 mb-4"><%= t('acct.payments.intro') %></p>
+
+  <form method="post" action="/accounting/payments" class="space-y-5">
+    <!-- Cash on delivery -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" name="cod_enabled" value="1" <%= pay.cod_enabled ? 'checked' : '' %> class="h-5 w-5 accent-emerald-600" />
+        <span class="font-bold">💵 <%= t('acct.payments.cod') %></span>
+      </label>
+      <p class="text-xs text-gray-400 mt-1"><%= t('acct.payments.cod_note') %></p>
+    </div>
+
+    <!-- Manual e-wallet / InstaPay / Payoneer / bank -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+      <h2 class="font-bold text-emerald-800"><%= t('acct.payments.manual_title') %></h2>
+      <p class="text-xs text-gray-500"><%= t('acct.payments.manual_desc') %></p>
+      <div><span class="text-xs text-gray-500 block mb-1">InstaPay (IPA)</span><input name="instapay_handle" dir="ltr" value="<%= pay.instapay_handle || '' %>" class="fld" placeholder="name@instapay" /></div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.wallet') %></span><input name="wallet_number" dir="ltr" value="<%= pay.wallet_number || '' %>" class="fld" placeholder="01xxxxxxxxx" /></div>
+      <div><span class="text-xs text-gray-500 block mb-1">Payoneer</span><input name="payoneer_email" dir="ltr" value="<%= pay.payoneer_email || '' %>" class="fld" placeholder="email@example.com" /></div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.bank') %></span><textarea name="bank_details" rows="2" class="fld"><%= pay.bank_details || '' %></textarea></div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.instructions') %></span><textarea name="instructions" rows="2" class="fld" placeholder="<%= t('acct.payments.instructions_ph') %>"><%= pay.instructions || '' %></textarea></div>
+    </div>
+
+    <!-- Online gateway (infrastructure) -->
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+      <h2 class="font-bold text-emerald-800"><%= t('acct.payments.gateway_title') %></h2>
+      <p class="text-xs text-gray-500"><%= t('acct.payments.gateway_desc') %></p>
+      <div>
+        <span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway') %></span>
+        <select name="gateway" class="fld">
+          <% [['none', t('acct.payments.gateway_none')], ['paymob','Paymob'], ['fawry','Fawry'], ['stripe','Stripe'], ['paypal','PayPal']].forEach(function(g){ %>
+            <option value="<%= g[0] %>" <%= pay.gateway===g[0]?'selected':'' %>><%= g[1] %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway_key') %></span><input name="gateway_public_key" dir="ltr" value="<%= pay.gateway_public_key || '' %>" class="fld" placeholder="pk_… / API key" /></div>
+      <p class="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2"><%= t('acct.payments.gateway_soon') %></p>
+    </div>
+
+    <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-8 py-3 w-full sm:w-auto"><%= t('acct.save') %></button>
+  </form>
+</main>
+</body>
+</html>

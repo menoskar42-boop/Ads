@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('acct.nav.expenses') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; } .fld{border:1px solid #d1d5db;border-radius:10px;padding:9px 11px;width:100%;background:#fff;font-size:.9rem}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'expenses' }) %>
+<%
+  function m(v){ var n=Number(v)||0; return n.toLocaleString(lang==='ar'?'ar-EG':'en-US',{maximumFractionDigits:2}); }
+%>
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
+    <h2 class="font-bold text-emerald-800 mb-3"><%= t('acct.expenses.add') %></h2>
+    <form method="post" action="/accounting/expenses/add" class="grid gap-3 sm:grid-cols-2">
+      <div class="sm:col-span-2"><span class="text-xs text-gray-500 block mb-1"><%= t('acct.expenses.label') %></span><input name="label" required class="fld" placeholder="<%= t('acct.expenses.label_ph') %>" /></div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.expenses.category') %></span>
+        <select name="category" class="fld">
+          <% ['salary','rent','utilities','supplies','other'].forEach(function(c){ %><option value="<%= c %>"><%= t('acct.expcat.' + c) %></option><% }); %>
+        </select>
+      </div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.expenses.amount') %> (<%= company.currency || 'EGP' %>)</span><input name="amount" type="number" step="0.01" min="0" required class="fld" /></div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.expenses.recurrence') %></span>
+        <select name="recurrence" class="fld">
+          <option value="monthly"><%= t('acct.expenses.monthly') %></option>
+          <option value="once"><%= t('acct.expenses.once') %></option>
+        </select>
+      </div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.expenses.date') %></span><input name="incurred_on" type="date" class="fld" /></div>
+      <div class="sm:col-span-2"><button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 py-2.5 w-full sm:w-auto">+ <%= t('acct.expenses.add') %></button></div>
+    </form>
+  </div>
+
+  <% if (!expenses.length) { %>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-gray-400"><%= t('acct.expenses.none') %></div>
+  <% } else { %>
+    <div class="space-y-2">
+      <% expenses.forEach(function(e){ %>
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="font-bold text-sm truncate"><%= e.label %></div>
+            <div class="text-xs text-gray-400"><%= t('acct.expcat.' + e.category) %> · <%= e.recurrence==='monthly' ? t('acct.expenses.monthly') : t('acct.expenses.once') %></div>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <span class="font-extrabold text-red-600"><%= m(e.amount) %> <span class="text-xs text-gray-400"><%= company.currency || 'EGP' %></span></span>
+            <form method="post" action="/accounting/expenses/<%= e.id %>/delete" onsubmit="return confirm('<%= t('common.confirm_delete') %>')"><button class="text-red-500 text-sm">🗑️</button></form>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+</main>
+</body>
+</html>
