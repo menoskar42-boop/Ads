@@ -57,7 +57,13 @@
           <% }); %>
         </select>
       </div>
-      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway_key') %></span><input name="gateway_public_key" dir="ltr" value="<%= pay.gateway_public_key || '' %>" class="fld" placeholder="pk_… / API key" /></div>
+      <p class="text-[12px] text-gray-600 bg-gray-50 rounded-lg px-3 py-2"><%= t('acct.payments.own_keys') %></p>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.api_key') %></span><input name="gateway_secret" dir="ltr" value="<%= pay.gateway_secret || '' %>" class="fld" placeholder="Paymob API key" autocomplete="off" /></div>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div><span class="text-xs text-gray-500 block mb-1">Integration ID <span class="text-gray-400">(Paymob)</span></span><input name="gateway_integration_id" dir="ltr" value="<%= pay.gateway_integration_id || '' %>" class="fld" placeholder="e.g. 123456" /></div>
+        <div><span class="text-xs text-gray-500 block mb-1">iFrame ID <span class="text-gray-400">(Paymob)</span></span><input name="gateway_iframe_id" dir="ltr" value="<%= pay.gateway_iframe_id || '' %>" class="fld" placeholder="e.g. 98765" /></div>
+      </div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway_key') %> <span class="text-gray-400">(<%= t('acct.payments.optional') %>)</span></span><input name="gateway_public_key" dir="ltr" value="<%= pay.gateway_public_key || '' %>" class="fld" placeholder="pk_… / public key" /></div>
       <label class="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="gateway_exclusive" value="1" <%= pay.gateway_exclusive ? 'checked' : '' %> class="h-5 w-5 accent-emerald-600" />
         <span class="text-sm font-bold"><%= t('acct.payments.gateway_exclusive') %></span>

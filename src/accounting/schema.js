@@ -69,6 +69,12 @@ async function ensureAccountingSchema() {
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS cod_terms TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS custom_methods TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_exclusive BOOLEAN DEFAULT false;
+      -- Per-merchant gateway credentials (each admin enters their OWN keys). The
+      -- platform transacts with the merchant's own gateway account; nothing is
+      -- shared/global. secret = API key; integration_id + iframe_id are Paymob's.
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_secret TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_integration_id TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_iframe_id TEXT;
 
       -- Cost columns for COGS (pharmacy_inventory already has cost + price).
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0;
