@@ -1,0 +1,44 @@
+<% pageTitle = t('onb.title') %>
+<%- include('head') %>
+<main class="wrap" style="padding-top:20px;padding-bottom:48px">
+  <section style="text-align:center;margin:8px 0 22px">
+    <div class="hanko" style="width:52px;height:52px;margin:0 auto 12px;font-size:1.4rem">計</div>
+    <h1 class="kkb-display" style="font-size:1.7rem;margin:0 0 8px"><%= t('onb.title') %></h1>
+    <p class="muted" style="margin:0"><%= t('onb.sub') %></p>
+  </section>
+
+  <section class="card" style="padding:22px">
+    <% if (error) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:10px 12px;font-size:.9rem;font-weight:600;margin-bottom:14px"><%= error %></div><% } %>
+    <form method="post" action="/onboarding" style="display:flex;flex-direction:column;gap:16px">
+
+      <div>
+        <label class="lbl">💰 <%= t('onb.income') %></label>
+        <input name="monthly_income" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" />
+        <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.income_hint') %></p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="lbl">📅 <%= t('onb.salary_day') %></label>
+          <input name="salary_day" type="number" inputmode="numeric" min="1" max="31" value="1" required class="fld" dir="ltr" />
+          <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.salary_day_hint') %></p>
+        </div>
+        <div>
+          <label class="lbl">🌐 <%= t('onb.currency') %></label>
+          <select name="currency" class="fld" dir="ltr">
+            <% currencies.forEach(function(c){ %><option value="<%= c %>" <%= c === 'EGP' ? 'selected' : '' %>><%= c %></option><% }) %>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="lbl">🎯 <%= t('onb.goal') %></label>
+        <input name="saving_goal" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" />
+        <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.goal_hint') %></p>
+      </div>
+
+      <button class="btn btn-primary" style="margin-top:4px">✨ <%= t('onb.finish') %></button>
+    </form>
+  </section>
+</main>
+<%- include('foot') %>

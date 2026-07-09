@@ -100,11 +100,38 @@ router.post('/guest', async (req, res) => {
 
 router.post('/logout', (req, res) => { req.session.kkbUserId = null; res.redirect('/'); });
 
-/* ─── Placeholders (built in the next steps) ───────────── */
+/* ─── Onboarding ───────────────────────────────────────── */
+const CURRENCIES = ['EGP', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD', 'EUR', 'GBP', 'MAD', 'DZD', 'TND'];
+function toNum(v, d) { const n = parseFloat(String(v).replace(/[^\d.\-]/g, '')); return Number.isFinite(n) ? n : d; }
+function toInt(v, d) { const n = parseInt(String(v).replace(/[^\d\-]/g, ''), 10); return Number.isFinite(n) ? n : d; }
+
 router.get('/onboarding', requireKkb, (req, res) => {
-  res.render('kakeibo/placeholder', { title: 'Onboarding', note: 'الخطوة الجاية: إعداد الدخل والعملة وهدف الادخار.' });
+  // Already onboarded? straight to the app.
+  if (res.locals.profile && res.locals.profile.onboarded) return res.redirect('/app');
+  res.render('kakeibo/onboarding', { currencies: CURRENCIES, error: null });
 });
+
+router.post('/onboarding', requireKkb, async (req, res) => {
+  const b = req.body || {};
+  const income = toNum(b.monthly_income, NaN);
+  const goal = toNum(b.saving_goal, NaN);
+  const day = Math.min(31, Math.max(1, toInt(b.salary_day, 1)));
+  const currency = CURRENCIES.includes(String(b.currency)) ? b.currency : 'EGP';
+  if (!Number.isFinite(income) || income < 0 || !Number.isFinite(goal) || goal < 0) {
+    return res.render('kakeibo/onboarding', { currencies: CURRENCIES, error: res.locals.t('onb.err') });
+  }
+  try {
+    await pool.query(
+      `UPDATE kkb_profiles SET monthly_income=$1, saving_goal=$2, salary_day=$3, currency=$4, lang=$5, onboarded=true WHERE user_id=$6`,
+      [income, goal, day, currency, res.locals.lang, req.session.kkbUserId]
+    );
+    res.redirect('/app');
+  } catch (e) { console.error('[kkb onboarding]', e.message); res.render('kakeibo/onboarding', { currencies: CURRENCIES, error: res.locals.t('onb.err') }); }
+});
+
+/* ─── Placeholder (built in the next step) ─────────────── */
 router.get('/app', requireKkb, (req, res) => {
+  if (!res.locals.profile || !res.locals.profile.onboarded) return res.redirect('/onboarding');
   res.render('kakeibo/placeholder', { title: 'Dashboard', note: 'الخطوة الجاية: لوحة المعلومات.' });
 });
 
