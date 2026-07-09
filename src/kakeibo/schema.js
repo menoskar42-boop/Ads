@@ -45,6 +45,26 @@ async function ensureKakeiboSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_kkb_exp_user ON kkb_expenses (user_id);
       CREATE INDEX IF NOT EXISTS idx_kkb_exp_user_date ON kkb_expenses (user_id, spent_on);
+
+      -- Salary schedule type: 'fixed' (salary_day), 'last' (last day of month),
+      -- 'before_last' (day before last). Payday is shifted earlier off weekends.
+      ALTER TABLE kkb_profiles ADD COLUMN IF NOT EXISTS salary_type TEXT DEFAULT 'fixed';
+      -- Weekend definition for the payday shift (varies by country):
+      -- 'fri_sat' | 'fri' | 'sat_sun' | 'sun' | 'none'.
+      ALTER TABLE kkb_profiles ADD COLUMN IF NOT EXISTS weekend TEXT DEFAULT 'fri_sat';
+      -- Country for official public-holiday shifting (ISO-ish code: EG/SA/AE…).
+      ALTER TABLE kkb_profiles ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'EG';
+
+      -- Custom / user-added holidays (any org's days off). Combined with the
+      -- built-in national list for the payday shift.
+      CREATE TABLE IF NOT EXISTS kkb_holidays (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        holiday_on DATE NOT NULL,
+        label TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_kkb_hol_user ON kkb_holidays (user_id, holiday_on);
     `);
     console.log('Kakeibo schema ready.');
   } finally {

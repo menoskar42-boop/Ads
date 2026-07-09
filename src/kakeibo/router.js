@@ -108,8 +108,12 @@ function toInt(v, d) { const n = parseInt(String(v).replace(/[^\d\-]/g, ''), 10)
 router.get('/onboarding', requireKkb, (req, res) => {
   // Already onboarded? straight to the app.
   if (res.locals.profile && res.locals.profile.onboarded) return res.redirect('/app');
-  res.render('kakeibo/onboarding', { currencies: CURRENCIES, error: null });
+  res.render('kakeibo/onboarding', { currencies: CURRENCIES, countries: COUNTRIES, error: null });
 });
+
+const { COUNTRIES } = require('./holidays');
+const SALARY_TYPES = ['fixed', 'last', 'before_last'];
+const WEEKENDS = ['fri_sat', 'fri', 'sat_sun', 'sun', 'none'];
 
 router.post('/onboarding', requireKkb, async (req, res) => {
   const b = req.body || {};
@@ -117,16 +121,19 @@ router.post('/onboarding', requireKkb, async (req, res) => {
   const goal = toNum(b.saving_goal, NaN);
   const day = Math.min(31, Math.max(1, toInt(b.salary_day, 1)));
   const currency = CURRENCIES.includes(String(b.currency)) ? b.currency : 'EGP';
+  const salaryType = SALARY_TYPES.includes(String(b.salary_type)) ? b.salary_type : 'fixed';
+  const weekend = WEEKENDS.includes(String(b.weekend)) ? b.weekend : 'fri_sat';
+  const country = COUNTRIES.includes(String(b.country)) ? b.country : 'EG';
   if (!Number.isFinite(income) || income < 0 || !Number.isFinite(goal) || goal < 0) {
-    return res.render('kakeibo/onboarding', { currencies: CURRENCIES, error: res.locals.t('onb.err') });
+    return res.render('kakeibo/onboarding', { currencies: CURRENCIES, countries: COUNTRIES, error: res.locals.t('onb.err') });
   }
   try {
     await pool.query(
-      `UPDATE kkb_profiles SET monthly_income=$1, saving_goal=$2, salary_day=$3, currency=$4, lang=$5, onboarded=true WHERE user_id=$6`,
-      [income, goal, day, currency, res.locals.lang, req.session.kkbUserId]
+      `UPDATE kkb_profiles SET monthly_income=$1, saving_goal=$2, salary_day=$3, salary_type=$4, weekend=$5, country=$6, currency=$7, lang=$8, onboarded=true WHERE user_id=$9`,
+      [income, goal, day, salaryType, weekend, country, currency, res.locals.lang, req.session.kkbUserId]
     );
     res.redirect('/app');
-  } catch (e) { console.error('[kkb onboarding]', e.message); res.render('kakeibo/onboarding', { currencies: CURRENCIES, error: res.locals.t('onb.err') }); }
+  } catch (e) { console.error('[kkb onboarding]', e.message); res.render('kakeibo/onboarding', { currencies: CURRENCIES, countries: COUNTRIES, error: res.locals.t('onb.err') }); }
 });
 
 /* ─── Placeholder (built in the next step) ─────────────── */
