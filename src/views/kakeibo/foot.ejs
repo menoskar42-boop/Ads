@@ -1,0 +1,16 @@
+<script>
+/* Theme toggle: cycles light → dark → system, persisted in localStorage. */
+(function(){
+  var root=document.documentElement, KEY='kkb_theme';
+  function apply(v){ if(v==='light'||v==='dark') root.setAttribute('data-theme',v); else root.removeAttribute('data-theme'); }
+  try{ apply(localStorage.getItem(KEY)||'system'); }catch(e){}
+  var btn=document.getElementById('themeBtn');
+  if(btn) btn.addEventListener('click',function(){
+    var cur; try{cur=localStorage.getItem(KEY)||'system';}catch(e){cur='system';}
+    var next=cur==='system'?'light':cur==='light'?'dark':'system';
+    try{localStorage.setItem(KEY,next);}catch(e){} apply(next);
+  });
+})();
+</script>
+</body>
+</html>

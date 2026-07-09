@@ -1,0 +1,56 @@
+<% pageTitle = mode === 'signup' ? t('auth.signup') : t('auth.login') %>
+<%- include('head') %>
+
+<main class="wrap" style="padding-top:24px;padding-bottom:48px">
+
+  <!-- Hero -->
+  <section style="text-align:center;margin:14px 0 26px">
+    <h1 class="kkb-display" style="font-size:2.1rem;line-height:1.3;margin:0 0 12px;white-space:pre-line"><%= t('landing.hero') %></h1>
+    <p class="muted" style="margin:0 auto;max-width:34ch"><%= t('landing.sub') %></p>
+  </section>
+
+  <!-- Auth card -->
+  <section class="card" style="padding:22px">
+    <% if (error) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:10px 12px;font-size:.9rem;font-weight:600;margin-bottom:14px"><%= error %></div><% } %>
+
+    <form method="post" action="/<%= mode === 'signup' ? 'signup' : 'login' %>" style="display:flex;flex-direction:column;gap:14px">
+      <% if (mode === 'signup') { %>
+        <div><label class="lbl"><%= t('common.name') %></label><input name="name" class="fld" maxlength="80" autocomplete="name" /></div>
+      <% } %>
+      <div><label class="lbl"><%= t('common.email') %></label><input name="email" type="email" dir="ltr" required class="fld" autocomplete="email" /></div>
+      <div><label class="lbl"><%= t('common.password') %></label><input name="password" type="password" required minlength="6" class="fld" autocomplete="<%= mode === 'signup' ? 'new-password' : 'current-password' %>" /></div>
+      <button class="btn btn-primary"><%= mode === 'signup' ? t('auth.signup') : t('auth.login') %></button>
+    </form>
+
+    <p style="text-align:center;margin:14px 0 0;font-size:.9rem" class="muted">
+      <% if (mode === 'signup') { %>
+        <%= t('auth.have_account') %> <a href="/?mode=login"><%= t('auth.login') %></a>
+      <% } else { %>
+        <%= t('auth.no_account') %> <a href="/?mode=signup"><%= t('auth.signup') %></a>
+      <% } %>
+    </p>
+
+    <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
+      <span style="flex:1;height:1px;background:var(--line)"></span>
+      <span class="muted" style="font-size:.8rem"><%= t('common.or') %></span>
+      <span style="flex:1;height:1px;background:var(--line)"></span>
+    </div>
+
+    <form method="post" action="/guest">
+      <button class="btn btn-ghost" style="margin-bottom:10px">🚀 <%= t('auth.guest') %></button>
+    </form>
+    <p class="muted" style="font-size:.78rem;text-align:center;margin:0 0 14px"><%= t('auth.guest_note') %></p>
+
+    <button class="btn btn-ghost" disabled style="margin-bottom:8px" title="<%= t('auth.soon') %>"><%= t('auth.google') %> · <%= t('auth.soon') %></button>
+    <button class="btn btn-ghost" disabled title="<%= t('auth.soon') %>"><%= t('auth.apple') %> · <%= t('auth.soon') %></button>
+  </section>
+
+  <!-- Feature hints -->
+  <section style="display:grid;gap:10px;margin-top:22px">
+    <% ['landing.f1','landing.f2','landing.f3'].forEach(function(k){ %>
+      <div class="card" style="padding:13px 16px;display:flex;align-items:center;gap:10px"><span class="accent" style="font-size:1.1rem">◆</span><span style="font-weight:600"><%= t(k) %></span></div>
+    <% }) %>
+  </section>
+</main>
+
+<%- include('foot') %>

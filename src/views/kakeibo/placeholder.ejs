@@ -1,0 +1,12 @@
+<% pageTitle = title %>
+<%- include('head') %>
+<main class="wrap" style="padding-top:40px;text-align:center">
+  <div class="card" style="padding:30px 22px">
+    <div class="hanko" style="width:56px;height:56px;margin:0 auto 14px;font-size:1.6rem">家</div>
+    <h1 class="kkb-display" style="margin:0 0 6px"><%= title %></h1>
+    <p class="muted" style="margin:0 0 20px"><%= note %></p>
+    <% if (user) { %><p style="font-size:.9rem;margin:0 0 16px">👋 <%= user.display_name || user.email || 'Guest' %></p><% } %>
+    <form method="post" action="/logout"><button class="btn btn-ghost"><%= t('common.logout') %></button></form>
+  </div>
+</main>
+<%- include('foot') %>

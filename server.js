@@ -154,6 +154,18 @@ app.use(session({
   saveUninitialized: false,
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' },
 }));
+
+// ===== Kakeibo (kakeibo.oscardevs.com) — AI financial coach, host-routed =====
+// Its own product: runs after the shared session/body parsers but before the
+// OscarDevs i18n/tenant/ads pipeline, so it never mixes with the merchant site.
+const kakeiboRouter = require('./src/kakeibo/router');
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('kakeibo.')) return next();
+  return kakeiboRouter(req, res, next);
+});
+
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
 
@@ -622,11 +634,13 @@ app.listen(PORT, '0.0.0.0', () => {
 const { ensurePharmacySchema } = require('./src/pharmacy/schema');
 const { ensureFoodSchema } = require('./src/food/schema');
 const { ensureAccountingSchema } = require('./src/accounting/schema');
+const { ensureKakeiboSchema } = require('./src/kakeibo/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
 initDb()
   .then(() => ensurePharmacySchema())
   .then(() => ensureFoodSchema())
   .then(() => ensureAccountingSchema())
+  .then(() => ensureKakeiboSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),
   // and can never crash boot. A daily timer keeps a long-running instance
