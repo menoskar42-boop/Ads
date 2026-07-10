@@ -14,6 +14,12 @@
   <% if (!hasData) { %>
     <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0"><%= t('rev.none') %></p></div>
   <% } else { %>
+    <% if (typeof narrative !== 'undefined' && narrative) { %>
+    <section class="card" style="padding:14px 16px;margin-bottom:12px;border-inline-start:3px solid var(--accent)">
+      <div class="muted" style="font-size:.68rem;font-weight:700">🤖 <%= t('ai.monthly_review') %></div>
+      <div style="font-size:.92rem;margin-top:3px;line-height:1.55"><%= narrative %></div>
+    </section>
+    <% } %>
     <section style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="card" style="padding:16px"><div class="muted" style="font-size:.78rem">💰 <%= t('rev.earned') %></div><div style="font-weight:800;font-size:1.2rem;margin-top:3px"><bdi><%= money(review.income) %></bdi></div></div>
       <div class="card" style="padding:16px"><div class="muted" style="font-size:.78rem">💸 <%= t('rev.spent') %></div><div style="font-weight:800;font-size:1.2rem;margin-top:3px;color:var(--warn)"><bdi><%= money(review.spent) %></bdi></div></div>

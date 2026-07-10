@@ -45,12 +45,20 @@ async function dashboard(pool, userId, profile) {
   const goalProgress = goal > 0 ? Math.max(0, Math.min(100, Math.round((remaining / goal) * 100))) : 0;
   const daysLeft = Math.max(0, Math.ceil((nextPay - today) / 86400000));
 
+  // Local (free) forecast: project this period's end from the current daily rate.
+  const totalDays = Math.max(1, Math.round((nextPay - periodStart) / 86400000));
+  const daysElapsed = Math.max(1, Math.round((today - periodStart) / 86400000) + 1);
+  const dailyRate = spentPeriod / daysElapsed;
+  const projectedSpend = Math.round(dailyRate * totalDays);
+  const projectedRemaining = Math.round(income - projectedSpend);
+  const willOverspend = projectedSpend > income;
+
   const recent = (await pool.query(
     'SELECT id, amount, description, category, payment_method, spent_on FROM kkb_expenses WHERE user_id=$1 ORDER BY spent_on DESC, id DESC LIMIT 8',
     [userId]
   )).rows;
 
-  return { periodStart, nextPay, daysLeft, income, goal, spentPeriod, remaining, savingRate, goalProgress, spentToday, spentWeek, spentMonth, recent };
+  return { periodStart, nextPay, daysLeft, income, goal, spentPeriod, remaining, savingRate, goalProgress, spentToday, spentWeek, spentMonth, recent, projectedSpend, projectedRemaining, willOverspend };
 }
 
 async function categoryBreakdown(pool, userId, fromYmd, toYmdExcl) {

@@ -129,6 +129,13 @@ router.post('/logout', (req, res) => { req.session.kkbUserId = null; res.redirec
 const CURRENCIES = ['EGP', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD', 'EUR', 'GBP', 'MAD', 'DZD', 'TND'];
 function toNum(v, d) { const n = parseFloat(String(v).replace(/[^\d.\-]/g, '')); return Number.isFinite(n) ? n : d; }
 function toInt(v, d) { const n = parseInt(String(v).replace(/[^\d\-]/g, ''), 10); return Number.isFinite(n) ? n : d; }
+function isoWeekKey(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7; d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const wk = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return d.getUTCFullYear() + '-W' + (wk < 10 ? '0' + wk : wk);
+}
 
 router.get('/onboarding', requireKkb, (req, res) => {
   // Doubles as the salary/holidays editor once onboarded (prefilled from profile).
@@ -173,8 +180,8 @@ router.get('/app', requireOnboarded, async (req, res) => {
   try {
     const uid = req.session.kkbUserId;
     const data = await stats.dashboard(pool, uid, res.locals.profile);
-    // Personalized daily insight — cached per day (one AI call max/day, or none).
-    let insight = null;
+    // Personalized daily insight + challenge — cached per day (max 2 calls/day, or none).
+    let insight = null, challenge = null;
     if (ai.isEnabled() && data.recent.length) {
       const now = new Date();
       const topCats = await stats.categoryBreakdown(pool, uid, stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1)), stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
@@ -183,8 +190,12 @@ router.get('/app', requireOnboarded, async (req, res) => {
         { role: 'system', content: ai.coachSystem(res.locals.lang) },
         { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE short insight (max 2 sentences) about my spending right now — specific and useful.' },
       ], 140);
+      challenge = await ai.cachedText(pool, uid, 'challenge', stats.ymd(now), [
+        { role: 'system', content: ai.coachSystem(res.locals.lang) },
+        { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE tiny, concrete money-saving challenge for TODAY (max 12 words, actionable, no intro).' },
+      ], 40);
     }
-    res.render('kakeibo/dashboard', Object.assign({ data, insight }, APP_LOCALS));
+    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge }, APP_LOCALS));
   } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
 });
 
@@ -244,7 +255,24 @@ router.get('/reports', requireOnboarded, async (req, res) => {
       stats.monthlySeries(pool, uid, 6),
       stats.weeklySeries(pool, uid, 7),
     ]);
-    res.render('kakeibo/reports', Object.assign({ byCat, monthly, weekly }, APP_LOCALS));
+    // AI weekly report + saving suggestions — cached per ISO week.
+    let weeklyReport = null, suggestions = null;
+    if (ai.isEnabled() && byCat.length) {
+      const wk = isoWeekKey(now);
+      const catCtx = byCat.slice(0, 4).map((c) => c.key + '=' + Math.round(c.total)).join(', ');
+      const thisWk = weekly.length ? Math.round(weekly[weekly.length - 1].total) : 0;
+      const prevWk = weekly.length > 1 ? Math.round(weekly[weekly.length - 2].total) : 0;
+      weeklyReport = await ai.cachedText(pool, uid, 'weekly', wk, [
+        { role: 'system', content: ai.coachSystem(res.locals.lang) },
+        { role: 'user', content: 'This week spent=' + thisWk + ', last week=' + prevWk + ', top categories(' + (res.locals.profile.currency) + '): ' + catCtx + '. Write a 2-sentence weekly summary + one concrete tip.' },
+      ], 150);
+      const sg = await ai.cachedText(pool, uid, 'suggestions', wk, [
+        { role: 'system', content: ai.coachSystem(res.locals.lang) + ' Reply as JSON {"tips":["...","..."]}.' },
+        { role: 'user', content: 'Top categories(' + res.locals.profile.currency + '): ' + catCtx + '. Give 2 specific saving suggestions, each ≤ 12 words.' },
+      ], 90);
+      if (sg) { try { const j = JSON.parse(sg); if (Array.isArray(j.tips)) suggestions = j.tips.slice(0, 3); } catch (e) { suggestions = [sg]; } }
+    }
+    res.render('kakeibo/reports', Object.assign({ byCat, monthly, weekly, weeklyReport, suggestions }, APP_LOCALS));
   } catch (e) { console.error('[kkb reports]', e.message); res.status(500).send('Error.'); }
 });
 
@@ -255,12 +283,22 @@ router.get('/review', requireOnboarded, async (req, res) => {
     let y = now.getFullYear(), m = now.getMonth();
     const q = String(req.query.ym || '');
     if (/^\d{4}-\d{1,2}$/.test(q)) { const [yy, mm] = q.split('-').map(Number); y = yy; m = Math.min(11, Math.max(0, mm - 1)); }
-    const review = await stats.monthReview(pool, req.session.kkbUserId, res.locals.profile, y, m);
+    const uid = req.session.kkbUserId;
+    const review = await stats.monthReview(pool, uid, res.locals.profile, y, m);
     const cur = new Date(y, m, 1);
     const prev = new Date(y, m - 1, 1), next = new Date(y, m + 1, 1);
     const monthName = cur.toLocaleDateString(res.locals.lang === 'en' ? 'en-US' : 'ar-EG', { month: 'long', year: 'numeric' });
+    // AI monthly narrative — cached per month (only for months with data).
+    let narrative = null;
+    if (ai.isEnabled() && review.spent > 0) {
+      const catCtx = (review.cats || []).slice(0, 4).map((c) => c.key + '=' + Math.round(c.total)).join(', ');
+      narrative = await ai.cachedText(pool, uid, 'monthly', y + '-' + (m + 1), [
+        { role: 'system', content: ai.coachSystem(res.locals.lang) },
+        { role: 'user', content: 'Month: earned=' + Math.round(review.income) + ', spent=' + Math.round(review.spent) + ', saved=' + Math.round(review.saved) + ', rate=' + review.rate + '%, top(' + res.locals.profile.currency + '): ' + catCtx + '. Write a 2–3 sentence review with one takeaway.' },
+      ], 170);
+    }
     res.render('kakeibo/review', Object.assign({
-      review, monthName,
+      review, monthName, narrative,
       prevYm: prev.getFullYear() + '-' + (prev.getMonth() + 1),
       nextYm: (next <= now ? next.getFullYear() + '-' + (next.getMonth() + 1) : null),
     }, APP_LOCALS));

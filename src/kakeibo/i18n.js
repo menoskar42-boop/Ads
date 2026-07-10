@@ -73,6 +73,8 @@ const STR = {
     'prof.currency': 'العملة', 'prof.saved': 'تم الحفظ ✓', 'prof.guest': 'حساب ضيف', 'prof.guest_note': 'بياناتك على هذا الجهاز — أنشئ حساباً للاحتفاظ بها.',
     'prof.edit_salary': 'إعدادات الراتب والإجازات',
     'ai.insight': 'رؤية اليوم', 'ai.badge': 'ذكاء اصطناعي', 'ai.suggested': 'اقتراح تلقائي للفئة ✓', 'ai.thinking': 'بيفكّر…',
+    'ai.challenge': 'تحدّي اليوم', 'ai.forecast': 'توقّع آخر الفترة', 'ai.forecast_spend': 'متوقّع تصرف', 'ai.forecast_left': 'متوقّع يتبقّى',
+    'ai.overspend': 'على هذا المعدّل هتتجاوز دخلك — خفّف شوية.', 'ai.weekly': 'ملخّص الأسبوع', 'ai.suggestions': 'اقتراحات للتوفير', 'ai.monthly_review': 'مراجعة الذكاء الاصطناعي',
   },
   en: {
     'app.name': 'Kakeibo',
@@ -147,6 +149,8 @@ const STR = {
     'prof.currency': 'Currency', 'prof.saved': 'Saved ✓', 'prof.guest': 'Guest account', 'prof.guest_note': 'Your data is on this device — create an account to keep it.',
     'prof.edit_salary': 'Salary & holidays settings',
     'ai.insight': "Today's insight", 'ai.badge': 'AI', 'ai.suggested': 'Category auto-suggested ✓', 'ai.thinking': 'Thinking…',
+    'ai.challenge': "Today's challenge", 'ai.forecast': 'End-of-period forecast', 'ai.forecast_spend': 'Projected spend', 'ai.forecast_left': 'Projected left',
+    'ai.overspend': 'At this rate you will exceed your income — ease up.', 'ai.weekly': 'Weekly summary', 'ai.suggestions': 'Saving suggestions', 'ai.monthly_review': 'AI review',
   },
 };
 

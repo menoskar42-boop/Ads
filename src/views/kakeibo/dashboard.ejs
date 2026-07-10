@@ -25,7 +25,21 @@
       <div style="height:100%;width:<%= spentPct %>%;background:<%= spentPct>85?'var(--warn)':'var(--accent-2)' %>"></div>
     </div>
     <div class="muted" style="font-size:.72rem;margin-top:6px;display:flex;justify-content:space-between"><span><%= t('dash.saving_rate') %>: <b class="accent"><%= data.savingRate %>%</b></span><span><%= money(data.spentPeriod) %></span></div>
+    <!-- Forecast (local projection) -->
+    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:.78rem">
+      <div style="display:flex;justify-content:space-between"><span class="muted">🔮 <%= t('ai.forecast') %> · <%= t('ai.forecast_spend') %></span><b><%= money(data.projectedSpend) %></b></div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px"><span class="muted"><%= t('ai.forecast_left') %></span><b style="color:<%= data.projectedRemaining>=0?'var(--accent-2)':'var(--accent)' %>"><%= money(data.projectedRemaining) %></b></div>
+      <% if (data.willOverspend) { %><div style="margin-top:6px;color:var(--accent);font-weight:700">⚠️ <%= t('ai.overspend') %></div><% } %>
+    </div>
   </section>
+
+  <!-- Daily challenge -->
+  <% if (typeof challenge !== 'undefined' && challenge) { %>
+  <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;gap:11px;align-items:center;background:color-mix(in srgb,var(--accent-2) 8%,var(--surface))">
+    <span style="font-size:1.3rem">🎯</span>
+    <div><div class="muted" style="font-size:.68rem;font-weight:700"><%= t('ai.challenge') %></div><div style="font-weight:700;font-size:.92rem;margin-top:1px"><%= challenge %></div></div>
+  </section>
+  <% } %>
 
   <!-- AI insight -->
   <% if (typeof insight !== 'undefined' && insight) { %>
