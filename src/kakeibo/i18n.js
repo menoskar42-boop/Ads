@@ -74,7 +74,8 @@ const STR = {
     'prof.edit_salary': 'إعدادات الراتب والإجازات',
     'ai.insight': 'رؤية اليوم', 'ai.badge': 'ذكاء اصطناعي', 'ai.suggested': 'اقتراح تلقائي للفئة ✓', 'ai.thinking': 'بيفكّر…',
     'ai.challenge': 'تحدّي اليوم', 'ai.forecast': 'توقّع آخر الفترة', 'ai.forecast_spend': 'متوقّع تصرف', 'ai.forecast_left': 'متوقّع يتبقّى',
-    'ai.overspend': 'على هذا المعدّل هتتجاوز دخلك — خفّف شوية.', 'ai.weekly': 'ملخّص الأسبوع', 'ai.suggestions': 'اقتراحات للتوفير', 'ai.monthly_review': 'مراجعة الذكاء الاصطناعي',
+    'ai.overspend': 'على هذا المعدّل هتتجاوز دخلك — خفّف شوية.', 'ai.weekly': 'ملخّص الأسبوع', 'ai.suggestions': 'اقتراحات للتوفير', 'ai.voice': 'إدخال بالصوت', 'ai.voice_hint': 'قول مثلاً: «اشتريت بنزين بـ500 جنيه»', 'ai.listening': 'بستمع…', 'ai.scan': 'قراءة الفاتورة تلقائياً…', 'ai.scan_done': 'تمت قراءة الفاتورة ✓', 'ai.scan_fail': 'مقدرتش أقرأ الفاتورة — اكتب يدوياً.', 'ai.voice_unsupported': 'المتصفّح مايدعمش الإدخال الصوتي.',
+    'ai.monthly_review': 'مراجعة الذكاء الاصطناعي',
   },
   en: {
     'app.name': 'Kakeibo',
@@ -150,7 +151,8 @@ const STR = {
     'prof.edit_salary': 'Salary & holidays settings',
     'ai.insight': "Today's insight", 'ai.badge': 'AI', 'ai.suggested': 'Category auto-suggested ✓', 'ai.thinking': 'Thinking…',
     'ai.challenge': "Today's challenge", 'ai.forecast': 'End-of-period forecast', 'ai.forecast_spend': 'Projected spend', 'ai.forecast_left': 'Projected left',
-    'ai.overspend': 'At this rate you will exceed your income — ease up.', 'ai.weekly': 'Weekly summary', 'ai.suggestions': 'Saving suggestions', 'ai.monthly_review': 'AI review',
+    'ai.overspend': 'At this rate you will exceed your income — ease up.', 'ai.weekly': 'Weekly summary', 'ai.suggestions': 'Saving suggestions', 'ai.voice': 'Voice entry', 'ai.voice_hint': 'Say e.g. "I bought fuel for 500"', 'ai.listening': 'Listening…', 'ai.scan': 'Reading receipt…', 'ai.scan_done': 'Receipt read ✓', 'ai.scan_fail': 'Could not read the receipt — enter manually.', 'ai.voice_unsupported': 'Voice entry is not supported in this browser.',
+    'ai.monthly_review': 'AI review',
   },
 };
 

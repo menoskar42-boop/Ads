@@ -209,15 +209,39 @@ router.post('/ai/categorize', requireOnboarded, async (req, res) => {
   } catch (e) { res.json({ category: null }); }
 });
 
+/* ─── AI: voice → expense fields (local-first) ─────────── */
+router.post('/ai/voice', requireOnboarded, async (req, res) => {
+  const text = String((req.body && req.body.text) || '').slice(0, 200);
+  if (!text.trim()) return res.json({ ok: false });
+  try {
+    const out = await ai.parseVoice(pool, req.session.kkbUserId, text, res.locals.lang);
+    res.json({ ok: true, amount: out.amount, description: out.description, category: out.category, label: res.locals.t('cat.' + out.category) });
+  } catch (e) { res.json({ ok: false }); }
+});
+
+/* ─── AI: OCR a receipt image → expense fields ─────────── */
+const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }).single('image');
+function withMemImage(req, res, next) { uploadMem(req, res, () => next()); }
+router.post('/ai/ocr', requireOnboarded, withMemImage, async (req, res) => {
+  if (!ai.isEnabled()) return res.json({ ok: false, disabled: true });
+  if (!req.file || !req.file.buffer) return res.json({ ok: false });
+  try {
+    const dataUrl = 'data:' + (req.file.mimetype || 'image/jpeg') + ';base64,' + req.file.buffer.toString('base64');
+    const out = await ai.ocrReceipt(dataUrl, res.locals.lang);
+    if (!out) return res.json({ ok: false });
+    res.json({ ok: true, amount: out.amount, date: out.date, merchant: out.merchant, category: out.category, label: res.locals.t('cat.' + out.category) });
+  } catch (e) { console.error('[kkb ocr route]', e.message); res.json({ ok: false }); }
+});
+
 /* ─── Add / edit / delete expense ──────────────────────── */
 router.get('/add', requireOnboarded, (req, res) => {
-  res.render('kakeibo/add', Object.assign({ error: null, today: stats.ymd(new Date()) }, APP_LOCALS));
+  res.render('kakeibo/add', Object.assign({ error: null, today: stats.ymd(new Date()), aiEnabled: ai.isEnabled() }, APP_LOCALS));
 });
 router.post('/add', requireOnboarded, withReceipt, async (req, res) => {
   const b = req.body || {};
   const amount = toNum(b.amount, NaN);
   if (!Number.isFinite(amount) || amount <= 0) {
-    return res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()) }, APP_LOCALS));
+    return res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()), aiEnabled: ai.isEnabled() }, APP_LOCALS));
   }
   const category = CATEGORY_KEYS.includes(String(b.category)) ? b.category : 'other';
   const method = PAYMENT_METHODS.includes(String(b.payment_method)) ? b.payment_method : 'cash';
@@ -232,7 +256,7 @@ router.post('/add', requireOnboarded, withReceipt, async (req, res) => {
       [req.session.kkbUserId, amount, desc || null, category, method, receiptUrl, spentOn]
     );
     res.redirect('/app');
-  } catch (e) { console.error('[kkb add]', e.message); res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()) }, APP_LOCALS)); }
+  } catch (e) { console.error('[kkb add]', e.message); res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()), aiEnabled: ai.isEnabled() }, APP_LOCALS)); }
 });
 router.post('/expense/:id/delete', requireOnboarded, async (req, res) => {
   await pool.query('DELETE FROM kkb_expenses WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);

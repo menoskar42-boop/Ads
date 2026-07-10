@@ -130,4 +130,47 @@ function financeContext(profile, d, topCats) {
   ].join('; ');
 }
 
-module.exports = { isEnabled, chat, getCache, setCache, hash, localCategorize, categorize, cachedText, coachSystem, financeContext, MODEL };
+/* ─── Voice expense parsing (local-first) ──────────────── */
+function arToLatin(s) { return String(s).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)); }
+function extractAmount(text) {
+  const t = arToLatin(text).replace(/[,،\s]/g, ' ');
+  const m = t.match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : null;
+}
+// Parse a spoken/typed sentence into {amount, description, category}.
+async function parseVoice(pool, userId, text, lang) {
+  const localAmount = extractAmount(text);
+  const localCat = localCategorize(text) || 'other';
+  const fallback = { amount: localAmount, description: String(text || '').trim().slice(0, 120), category: localCat, source: 'local' };
+  if (!isEnabled()) return fallback;
+  try {
+    const { text: out, tokens } = await chat([
+      { role: 'system', content: 'Extract one expense from the sentence. Reply JSON {"amount":number|null,"description":string,"category":"<one of: ' + CATEGORY_KEYS.join(', ') + '>"}. Keep description short (the item, not the whole sentence).' },
+      { role: 'user', content: String(text || '').slice(0, 200) },
+    ], { json: true, maxTokens: 70, temperature: 0 });
+    const j = JSON.parse(out);
+    if (userId && tokens) setCache(pool, userId, 'voice', hash(String(text).slice(0, 60)), { ok: 1 }, tokens).catch(() => {});
+    return {
+      amount: (typeof j.amount === 'number' && j.amount > 0) ? j.amount : localAmount,
+      description: String(j.description || text).slice(0, 120),
+      category: CATEGORY_KEYS.includes(j.category) ? j.category : localCat,
+      source: 'ai',
+    };
+  } catch (e) { console.error('[kkb voice]', e.message); return fallback; }
+}
+
+/* ─── OCR receipt (vision) ─────────────────────────────── */
+async function ocrReceipt(dataUrl, lang) {
+  if (!isEnabled()) return null;
+  try {
+    const { text } = await chat([
+      { role: 'system', content: 'You read a receipt image and extract the purchase. Reply JSON {"amount":number|null,"date":"YYYY-MM-DD"|null,"merchant":string|null,"category":"<one of: ' + CATEGORY_KEYS.join(', ') + '>"}. Use the grand TOTAL for amount.' },
+      { role: 'user', content: [{ type: 'text', text: 'Extract this receipt.' }, { type: 'image_url', image_url: { url: dataUrl } }] },
+    ], { json: true, maxTokens: 140, temperature: 0 });
+    const j = JSON.parse(text);
+    if (!CATEGORY_KEYS.includes(j.category)) j.category = 'other';
+    return j;
+  } catch (e) { console.error('[kkb ocr]', e.message); return null; }
+}
+
+module.exports = { isEnabled, chat, getCache, setCache, hash, localCategorize, categorize, cachedText, coachSystem, financeContext, parseVoice, ocrReceipt, MODEL };

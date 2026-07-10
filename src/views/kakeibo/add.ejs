@@ -6,6 +6,13 @@
 
   <form method="post" action="/add" enctype="multipart/form-data" class="card" style="padding:20px;display:flex;flex-direction:column;gap:16px">
 
+    <!-- Quick capture: voice + receipt scan -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button type="button" id="voiceBtn" class="btn btn-ghost" style="padding:11px">🎤 <%= t('ai.voice') %></button>
+      <button type="button" id="scanBtn" class="btn btn-ghost" style="padding:11px">📷 <%= aiEnabled ? t('add.receipt').replace(/\s*\(.+\)/,'') : t('add.receipt').replace(/\s*\(.+\)/,'') %></button>
+    </div>
+    <p id="capMsg" class="muted" style="font-size:.74rem;margin:-8px 2px 0;text-align:center;display:none"></p>
+
     <div style="text-align:center">
       <label class="lbl" style="text-align:center"><%= t('add.amount') %></label>
       <input name="amount" type="number" inputmode="decimal" step="0.01" min="0" required autofocus
@@ -47,7 +54,7 @@
 
     <div>
       <label class="lbl">🧾 <%= t('add.receipt') %></label>
-      <input name="receipt" type="file" accept="image/*" capture="environment" class="fld" style="padding:9px" />
+      <input name="receipt" id="receiptInput" type="file" accept="image/*" capture="environment" class="fld" style="padding:9px" />
     </div>
 
     <button class="btn btn-primary">💾 <%= t('add.save') %></button>
@@ -75,6 +82,51 @@
       }).catch(function(){});
   }
   if(inp){ inp.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(ask,700);}); inp.addEventListener('blur',ask); }
+
+  // Shared helpers to prefill the form from voice/OCR results.
+  window.__kkbFill=function(d){
+    if(d.amount!=null){ var a=document.querySelector('input[name="amount"]'); if(a) a.value=d.amount; }
+    if(d.description){ if(inp){ inp.value=d.description; } }
+    if(d.date && /^\d{4}-\d{2}-\d{2}$/.test(d.date)){ var dt=document.querySelector('input[name="spent_on"]'); if(dt) dt.value=d.date; }
+    if(d.category){ userTouched=false; pick(d.category); userTouched=true; }
+  };
+})();
+
+// Voice entry (Web Speech API) → parse → prefill.
+(function(){
+  var btn=document.getElementById('voiceBtn'), msg=document.getElementById('capMsg');
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  var UNS=<%- JSON.stringify(t('ai.voice_unsupported')) %>, LIS=<%- JSON.stringify(t('ai.listening')) %>, HINT=<%- JSON.stringify(t('ai.voice_hint')) %>;
+  function show(t){ msg.textContent=t; msg.style.display=''; }
+  if(!btn) return;
+  if(!SR){ btn.addEventListener('click',function(){show(UNS);}); return; }
+  btn.addEventListener('click',function(){
+    var rec=new SR(); rec.lang=document.documentElement.lang==='en'?'en-US':'ar-EG'; rec.interimResults=false; rec.maxAlternatives=1;
+    show(LIS+' — '+HINT); btn.disabled=true;
+    rec.onresult=function(e){ var txt=e.results[0][0].transcript;
+      fetch('/ai/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:txt})})
+        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ window.__kkbFill(d); msg.textContent='✓ '+txt; } else { msg.textContent=txt; } })
+        .catch(function(){ msg.textContent=txt; });
+    };
+    rec.onerror=function(){ btn.disabled=false; };
+    rec.onend=function(){ btn.disabled=false; };
+    rec.start();
+  });
+})();
+
+// Receipt scan (OCR via vision) — triggered by the scan button / file pick.
+(function(){
+  var scan=document.getElementById('scanBtn'), file=document.getElementById('receiptInput'), msg=document.getElementById('capMsg');
+  var AIEN=<%- JSON.stringify(!!aiEnabled) %>, SCAN=<%- JSON.stringify(t('ai.scan')) %>, DONE=<%- JSON.stringify(t('ai.scan_done')) %>, FAIL=<%- JSON.stringify(t('ai.scan_fail')) %>;
+  if(scan&&file) scan.addEventListener('click',function(){ file.click(); });
+  if(file&&AIEN) file.addEventListener('change',function(){
+    if(!file.files||!file.files[0])return;
+    msg.textContent=SCAN; msg.style.display='';
+    var fd=new FormData(); fd.append('image',file.files[0]);
+    fetch('/ai/ocr',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){ window.__kkbFill(d); msg.textContent=DONE; } else { msg.textContent=FAIL; }
+    }).catch(function(){ msg.textContent=FAIL; });
+  });
 })();
 </script>
 <%- include('app_nav', { active: 'add' }) %>
