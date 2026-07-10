@@ -1,0 +1,23 @@
+<%
+  var __active = typeof active !== 'undefined' ? active : '';
+  var __items = [
+    ['home','/app','🏠','nav.home'],
+    ['reports','/reports','📊','nav.reports'],
+    ['add','/add','➕','nav.add'],
+    ['review','/review','📅','nav.review'],
+    ['profile','/profile','👤','nav.profile']
+  ];
+%>
+<nav style="position:fixed;inset-inline:0;bottom:0;z-index:40;background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom));display:flex;justify-content:space-around">
+  <% __items.forEach(function(it){ var on = __active===it[0]; %>
+    <a href="<%= it[1] %>" style="flex:1;text-align:center;text-decoration:none;padding:6px 2px;border-radius:12px;<%= it[0]==='add' ? 'position:relative;top:-6px' : '' %>">
+      <% if (it[0]==='add') { %>
+        <span style="display:inline-grid;place-items:center;width:46px;height:46px;border-radius:16px;background:var(--accent);color:#fff;font-size:1.3rem;box-shadow:var(--shadow)"><%= it[2] %></span>
+      <% } else { %>
+        <span style="display:block;font-size:1.15rem;opacity:<%= on ? '1':'.55' %>"><%= it[2] %></span>
+        <span style="display:block;font-size:.66rem;font-weight:700;margin-top:1px;color:<%= on ? 'var(--accent)' : 'var(--muted)' %>"><%= t(it[3]) %></span>
+      <% } %>
+    </a>
+  <% }) %>
+</nav>
+<div style="height:78px"></div>

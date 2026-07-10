@@ -5,10 +5,30 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { Pool } = require('pg');
 const { makeT, normLang } = require('./i18n');
+const { CATEGORIES, CATEGORY_KEYS, PAYMENT_METHODS } = require('./categories');
+const stats = require('./stats');
+let compressImage = null;
+try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Receipt uploads (optional). Reuse the shared public/uploads dir.
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const uploadReceipt = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, 'kkb-' + (req.session.kkbUserId || 'x') + '-' + Date.now() + path.extname(file.originalname || '').toLowerCase().slice(0, 6)),
+  }),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => /^image\//.test(file.mimetype) ? cb(null, true) : cb(null, false),
+}).single('receipt');
+function withReceipt(req, res, next) { uploadReceipt(req, res, () => next()); }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Attach lang/dir/t + current user to every request.
@@ -29,6 +49,10 @@ router.use(async (req, res, next) => {
       } else { req.session.kkbUserId = null; }
     } catch (e) { console.error('[kkb user load]', e.message); }
   }
+  const cur = res.locals.profile ? res.locals.profile.currency : 'EGP';
+  const loc = lang === 'ar' ? 'ar-EG' : 'en-US';
+  res.locals.money = (v) => { const n = Number(v) || 0; return n.toLocaleString(loc, { maximumFractionDigits: 2 }) + ' ' + cur; };
+  res.locals.num = (v) => (Number(v) || 0).toLocaleString(loc, { maximumFractionDigits: 0 });
   next();
 });
 
@@ -106,8 +130,7 @@ function toNum(v, d) { const n = parseFloat(String(v).replace(/[^\d.\-]/g, ''));
 function toInt(v, d) { const n = parseInt(String(v).replace(/[^\d\-]/g, ''), 10); return Number.isFinite(n) ? n : d; }
 
 router.get('/onboarding', requireKkb, (req, res) => {
-  // Already onboarded? straight to the app.
-  if (res.locals.profile && res.locals.profile.onboarded) return res.redirect('/app');
+  // Doubles as the salary/holidays editor once onboarded (prefilled from profile).
   res.render('kakeibo/onboarding', { currencies: CURRENCIES, countries: COUNTRIES, error: null });
 });
 
@@ -136,10 +159,128 @@ router.post('/onboarding', requireKkb, async (req, res) => {
   } catch (e) { console.error('[kkb onboarding]', e.message); res.render('kakeibo/onboarding', { currencies: CURRENCIES, countries: COUNTRIES, error: res.locals.t('onb.err') }); }
 });
 
-/* ─── Placeholder (built in the next step) ─────────────── */
-router.get('/app', requireKkb, (req, res) => {
+// Guard: must be onboarded to reach the app screens.
+function requireOnboarded(req, res, next) {
+  if (!req.session.kkbUserId) return res.redirect('/');
   if (!res.locals.profile || !res.locals.profile.onboarded) return res.redirect('/onboarding');
-  res.render('kakeibo/placeholder', { title: 'Dashboard', note: 'الخطوة الجاية: لوحة المعلومات.' });
+  next();
+}
+const APP_LOCALS = { CATEGORIES, PAYMENT_METHODS };
+
+/* ─── Dashboard ────────────────────────────────────────── */
+router.get('/app', requireOnboarded, async (req, res) => {
+  try {
+    const data = await stats.dashboard(pool, req.session.kkbUserId, res.locals.profile);
+    res.render('kakeibo/dashboard', Object.assign({ data }, APP_LOCALS));
+  } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── Add / edit / delete expense ──────────────────────── */
+router.get('/add', requireOnboarded, (req, res) => {
+  res.render('kakeibo/add', Object.assign({ error: null, today: stats.ymd(new Date()) }, APP_LOCALS));
+});
+router.post('/add', requireOnboarded, withReceipt, async (req, res) => {
+  const b = req.body || {};
+  const amount = toNum(b.amount, NaN);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()) }, APP_LOCALS));
+  }
+  const category = CATEGORY_KEYS.includes(String(b.category)) ? b.category : 'other';
+  const method = PAYMENT_METHODS.includes(String(b.payment_method)) ? b.payment_method : 'cash';
+  const desc = String(b.description || '').trim().slice(0, 200);
+  const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spent_on || '')) ? b.spent_on : stats.ymd(new Date());
+  let receiptUrl = null;
+  if (req.file) { receiptUrl = '/uploads/' + req.file.filename; if (compressImage) { try { await compressImage(req.file.path); } catch (e) {} } }
+  try {
+    await pool.query(
+      `INSERT INTO kkb_expenses (user_id, amount, description, category, payment_method, receipt_url, spent_on)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [req.session.kkbUserId, amount, desc || null, category, method, receiptUrl, spentOn]
+    );
+    res.redirect('/app');
+  } catch (e) { console.error('[kkb add]', e.message); res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()) }, APP_LOCALS)); }
+});
+router.post('/expense/:id/delete', requireOnboarded, async (req, res) => {
+  await pool.query('DELETE FROM kkb_expenses WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);
+  res.redirect(req.get('Referrer') && /\/expenses/.test(req.get('Referrer')) ? '/expenses' : '/app');
+});
+router.get('/expenses', requireOnboarded, async (req, res) => {
+  const rows = (await pool.query('SELECT * FROM kkb_expenses WHERE user_id=$1 ORDER BY spent_on DESC, id DESC LIMIT 200', [req.session.kkbUserId])).rows;
+  res.render('kakeibo/expenses', Object.assign({ rows }, APP_LOCALS));
+});
+
+/* ─── Reports ──────────────────────────────────────────── */
+router.get('/reports', requireOnboarded, async (req, res) => {
+  try {
+    const uid = req.session.kkbUserId;
+    const now = new Date();
+    const mStart = stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+    const mEnd = stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+    const [byCat, monthly, weekly] = await Promise.all([
+      stats.categoryBreakdown(pool, uid, mStart, mEnd),
+      stats.monthlySeries(pool, uid, 6),
+      stats.weeklySeries(pool, uid, 7),
+    ]);
+    res.render('kakeibo/reports', Object.assign({ byCat, monthly, weekly }, APP_LOCALS));
+  } catch (e) { console.error('[kkb reports]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── Monthly review ───────────────────────────────────── */
+router.get('/review', requireOnboarded, async (req, res) => {
+  try {
+    const now = new Date();
+    let y = now.getFullYear(), m = now.getMonth();
+    const q = String(req.query.ym || '');
+    if (/^\d{4}-\d{1,2}$/.test(q)) { const [yy, mm] = q.split('-').map(Number); y = yy; m = Math.min(11, Math.max(0, mm - 1)); }
+    const review = await stats.monthReview(pool, req.session.kkbUserId, res.locals.profile, y, m);
+    const cur = new Date(y, m, 1);
+    const prev = new Date(y, m - 1, 1), next = new Date(y, m + 1, 1);
+    const monthName = cur.toLocaleDateString(res.locals.lang === 'en' ? 'en-US' : 'ar-EG', { month: 'long', year: 'numeric' });
+    res.render('kakeibo/review', Object.assign({
+      review, monthName,
+      prevYm: prev.getFullYear() + '-' + (prev.getMonth() + 1),
+      nextYm: (next <= now ? next.getFullYear() + '-' + (next.getMonth() + 1) : null),
+    }, APP_LOCALS));
+  } catch (e) { console.error('[kkb review]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── Profile / settings ───────────────────────────────── */
+router.get('/profile', requireOnboarded, (req, res) => {
+  res.render('kakeibo/profile', Object.assign({ currencies: CURRENCIES, saved: req.query.saved === '1' }, APP_LOCALS));
+});
+router.post('/profile', requireOnboarded, async (req, res) => {
+  const b = req.body || {};
+  const income = toNum(b.monthly_income, res.locals.profile.monthly_income);
+  const goal = toNum(b.saving_goal, res.locals.profile.saving_goal);
+  const currency = CURRENCIES.includes(String(b.currency)) ? b.currency : res.locals.profile.currency;
+  try {
+    await pool.query('UPDATE kkb_profiles SET monthly_income=$1, saving_goal=$2, currency=$3 WHERE user_id=$4',
+      [Math.max(0, income), Math.max(0, goal), currency, req.session.kkbUserId]);
+  } catch (e) { console.error('[kkb profile]', e.message); }
+  res.redirect('/profile?saved=1');
+});
+
+/* ─── PWA (manifest + service worker) ──────────────────── */
+router.get('/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').json({
+    name: 'Kakeibo', short_name: 'Kakeibo', start_url: '/', display: 'standalone',
+    background_color: '#f6f2ea', theme_color: '#c0392b', lang: 'ar', dir: 'rtl',
+    icons: [{ src: '/kkb-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+  });
+});
+router.get('/kkb-icon.svg', (req, res) => {
+  res.type('image/svg+xml').set('Cache-Control', 'public, max-age=604800').send(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="#c0392b"/><text x="96" y="128" font-size="96" text-anchor="middle" fill="#fff" font-family="sans-serif">家</text></svg>'
+  );
+});
+router.get('/sw.js', (req, res) => {
+  res.type('application/javascript').set('Cache-Control', 'no-cache').send(
+    "const C='kkb-v1';self.addEventListener('install',e=>self.skipWaiting());" +
+    "self.addEventListener('activate',e=>self.clients.claim());" +
+    "self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;" +
+    "e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));return r})" +
+    ".catch(()=>caches.match(e.request)))});"
+  );
 });
 
 module.exports = router;

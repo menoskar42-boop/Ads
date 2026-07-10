@@ -1,0 +1,73 @@
+<% pageTitle = t('nav.home') %>
+<%- include('head') %>
+<%
+  var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
+  function __d(v){ try { return new Date(v).toLocaleDateString(lang==='en'?'en-US':'ar-EG',{day:'numeric',month:'short'}); } catch(e){ return ''; } }
+  var spentPct = data.income>0 ? Math.min(100, Math.round(data.spentPeriod/data.income*100)) : 0;
+%>
+<main class="wrap" style="max-width:520px;padding-top:6px">
+
+  <!-- Remaining card -->
+  <section class="card" style="padding:20px 22px;background:linear-gradient(135deg,var(--surface),var(--paper))">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div class="muted" style="font-size:.82rem;font-weight:600"><%= t('dash.remaining') %></div>
+        <div class="kkb-display" style="font-size:2rem;font-weight:700;margin-top:2px;color:<%= data.remaining>=0?'var(--ink)':'var(--accent)' %>"><bdi><%= money(data.remaining) %></bdi></div>
+        <div class="muted" style="font-size:.76rem"><%= t('dash.of_income') %> <%= money(data.income) %></div>
+      </div>
+      <div style="text-align:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px 12px">
+        <div class="accent" style="font-size:1.3rem;font-weight:800"><%= num(data.daysLeft) %></div>
+        <div class="muted" style="font-size:.66rem"><%= t('dash.days_left') %></div>
+        <div class="muted" style="font-size:.62rem;margin-top:2px"><%= t('dash.next_pay') %>: <%= __d(data.nextPay) %></div>
+      </div>
+    </div>
+    <div style="height:9px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:14px">
+      <div style="height:100%;width:<%= spentPct %>%;background:<%= spentPct>85?'var(--warn)':'var(--accent-2)' %>"></div>
+    </div>
+    <div class="muted" style="font-size:.72rem;margin-top:6px;display:flex;justify-content:space-between"><span><%= t('dash.saving_rate') %>: <b class="accent"><%= data.savingRate %>%</b></span><span><%= money(data.spentPeriod) %></span></div>
+  </section>
+
+  <!-- Goal + tiles -->
+  <section style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+    <div class="card" style="padding:14px 16px">
+      <div class="muted" style="font-size:.76rem;font-weight:600">🎯 <%= t('dash.goal') %></div>
+      <div style="font-weight:800;margin-top:2px"><%= money(data.goal) %></div>
+      <div style="height:7px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:8px"><div style="height:100%;width:<%= data.goalProgress %>%;background:var(--accent)"></div></div>
+      <div class="muted" style="font-size:.68rem;margin-top:4px"><%= t('dash.goal_progress') %>: <%= data.goalProgress %>%</div>
+    </div>
+    <div class="card" style="padding:14px 16px;display:grid;gap:8px">
+      <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.today') %></span><b><%= money(data.spentToday) %></b></div>
+      <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.week') %></span><b><%= money(data.spentWeek) %></b></div>
+      <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.month') %></span><b><%= money(data.spentMonth) %></b></div>
+    </div>
+  </section>
+
+  <!-- Recent -->
+  <section style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 8px">
+      <h2 class="kkb-display" style="font-size:1.05rem;margin:0"><%= t('dash.recent') %></h2>
+      <% if (data.recent.length) { %><a href="/expenses" style="font-size:.8rem"><%= lang==='en'?'All':'الكل' %></a><% } %>
+    </div>
+    <% if (!data.recent.length) { %>
+      <div class="card" style="padding:26px;text-align:center">
+        <p class="muted" style="margin:0 0 12px"><%= t('dash.no_expenses') %></p>
+        <a href="/add" class="btn btn-primary" style="width:auto;display:inline-flex;padding:11px 20px">➕ <%= t('dash.add_first') %></a>
+      </div>
+    <% } else { %>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <% data.recent.forEach(function(e){ var c=__cat[e.category]||__cat.other; %>
+          <div class="card" style="padding:11px 14px;display:flex;align-items:center;gap:11px">
+            <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:<%= c.color %>1f;font-size:1.15rem"><%= c.icon %></span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= e.description || t('cat.'+c.key) %></div>
+              <div class="muted" style="font-size:.72rem"><%= t('cat.'+c.key) %> · <%= __d(e.spent_on) %></div>
+            </div>
+            <b style="white-space:nowrap"><bdi><%= money(e.amount) %></bdi></b>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</main>
+<%- include('app_nav', { active: 'home' }) %>
+<%- include('foot') %>

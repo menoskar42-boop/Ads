@@ -1,0 +1,57 @@
+<% pageTitle = t('add.title') %>
+<%- include('head') %>
+<main class="wrap" style="padding-top:6px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('add.title') %></h1>
+  <% if (error) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:10px 12px;font-size:.9rem;font-weight:600;margin-bottom:12px"><%= error %></div><% } %>
+
+  <form method="post" action="/add" enctype="multipart/form-data" class="card" style="padding:20px;display:flex;flex-direction:column;gap:16px">
+
+    <div style="text-align:center">
+      <label class="lbl" style="text-align:center"><%= t('add.amount') %></label>
+      <input name="amount" type="number" inputmode="decimal" step="0.01" min="0" required autofocus
+        class="fld kkb-display" dir="ltr" placeholder="0" style="text-align:center;font-size:2rem;font-weight:700;border:0;background:transparent" />
+    </div>
+
+    <div>
+      <label class="lbl"><%= t('add.category') %></label>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <% CATEGORIES.forEach(function(c, i){ %>
+          <label style="cursor:pointer">
+            <input type="radio" name="category" value="<%= c.key %>" <%= i===0?'checked':'' %> style="position:absolute;opacity:0" onchange="document.querySelectorAll('.catchip').forEach(function(x){x.dataset.on='0'});this.parentNode.querySelector('.catchip').dataset.on='1'" />
+            <span class="catchip" data-on="<%= i===0?'1':'0' %>" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;border:1.5px solid var(--line);border-radius:14px;font-size:.7rem;font-weight:700;transition:.15s">
+              <span style="font-size:1.2rem"><%= c.icon %></span><%= t('cat.'+c.key) %>
+            </span>
+          </label>
+        <% }) %>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label class="lbl"><%= t('add.method') %></label>
+        <select name="payment_method" class="fld">
+          <% PAYMENT_METHODS.forEach(function(m){ %><option value="<%= m %>"><%= t('pm.'+m) %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label class="lbl"><%= t('add.date') %></label>
+        <input name="spent_on" type="date" value="<%= today %>" class="fld" dir="ltr" />
+      </div>
+    </div>
+
+    <div>
+      <label class="lbl"><%= t('add.desc') %></label>
+      <input name="description" maxlength="200" class="fld" />
+    </div>
+
+    <div>
+      <label class="lbl">🧾 <%= t('add.receipt') %></label>
+      <input name="receipt" type="file" accept="image/*" capture="environment" class="fld" style="padding:9px" />
+    </div>
+
+    <button class="btn btn-primary">💾 <%= t('add.save') %></button>
+  </form>
+</main>
+<style>.catchip[data-on="1"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}</style>
+<%- include('app_nav', { active: 'add' }) %>
+<%- include('foot') %>

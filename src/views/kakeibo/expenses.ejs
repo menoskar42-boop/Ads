@@ -1,0 +1,32 @@
+<% pageTitle = t('dash.recent') %>
+<%- include('head') %>
+<%
+  var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
+  function __d(v){ try { return new Date(v).toLocaleDateString(lang==='en'?'en-US':'ar-EG',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; } }
+%>
+<main class="wrap" style="padding-top:6px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('dash.recent') %></h1>
+  <% if (!rows.length) { %>
+    <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0 0 12px"><%= t('dash.no_expenses') %></p><a href="/add" class="btn btn-primary" style="width:auto;display:inline-flex;padding:11px 20px">➕ <%= t('dash.add_first') %></a></div>
+  <% } else { %>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <% rows.forEach(function(e){ var c=__cat[e.category]||__cat.other; %>
+        <div class="card" style="padding:11px 14px;display:flex;align-items:center;gap:11px">
+          <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:<%= c.color %>1f;font-size:1.15rem"><%= c.icon %></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= e.description || t('cat.'+c.key) %></div>
+            <div class="muted" style="font-size:.72rem"><%= t('cat.'+c.key) %> · <%= t('pm.'+e.payment_method) %> · <%= __d(e.spent_on) %></div>
+          </div>
+          <b style="white-space:nowrap"><bdi><%= money(e.amount) %></bdi></b>
+          <% if (e.receipt_url) { %><a href="<%= e.receipt_url %>" target="_blank" style="font-size:1rem">🧾</a><% } %>
+          <form method="post" action="/expense/<%= e.id %>/delete"><button type="submit" data-confirm="🗑️?" style="border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem">🗑️</button></form>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+<script>
+(function(){document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-confirm]');if(!b||b.dataset.armed==='1')return;e.preventDefault();e.stopPropagation();if(!b.dataset.label)b.dataset.label=b.innerHTML;b.innerHTML=b.dataset.confirm;b.dataset.armed='1';setTimeout(function(){b.dataset.armed='';b.innerHTML=b.dataset.label;},3000);},true);})();
+</script>
+<%- include('app_nav', { active: 'home' }) %>
+<%- include('foot') %>

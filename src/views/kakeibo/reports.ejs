@@ -1,0 +1,88 @@
+<% pageTitle = t('rep.title') %>
+<%- include('head') %>
+<%
+  var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
+  var catTotal = byCat.reduce(function(s,x){ return s + Number(x.total); }, 0);
+  // Build conic-gradient stops for the donut.
+  var acc = 0, stops = [];
+  byCat.forEach(function(x){
+    var c = __cat[x.key] || __cat.other;
+    var pct = catTotal>0 ? (Number(x.total)/catTotal*100) : 0;
+    stops.push(c.color + ' ' + acc.toFixed(2) + '% ' + (acc+pct).toFixed(2) + '%');
+    acc += pct;
+  });
+  var conic = stops.length ? ('conic-gradient(' + stops.join(',') + ')') : 'var(--line)';
+  var monMax = Math.max(1, ...monthly.map(function(m){ return Number(m.total); }));
+  var wkMax = Math.max(1, ...weekly.map(function(w){ return Number(w.total); }));
+%>
+<main class="wrap" style="padding-top:6px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('rep.title') %></h1>
+
+  <!-- Category donut -->
+  <section class="card" style="padding:18px">
+    <div style="font-weight:700;margin-bottom:12px">🥧 <%= t('rep.by_category') %> <span class="muted" style="font-size:.75rem;font-weight:500">· <%= t('rep.this_month') %></span></div>
+    <% if (catTotal<=0) { %>
+      <p class="muted" style="text-align:center;padding:16px 0;margin:0"><%= t('rep.no_data') %></p>
+    <% } else { %>
+      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div style="width:130px;height:130px;border-radius:50%;background:<%= conic %>;display:grid;place-items:center;flex:none">
+          <div style="width:78px;height:78px;border-radius:50%;background:var(--surface);display:grid;place-items:center;text-align:center">
+            <span style="font-size:.7rem" class="muted"><%= t('rep.this_month') %></span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:6px">
+          <% byCat.forEach(function(x){ var c=__cat[x.key]||__cat.other; var pct=catTotal>0?Math.round(Number(x.total)/catTotal*100):0; %>
+            <div style="display:flex;align-items:center;gap:8px;font-size:.82rem">
+              <span style="width:11px;height:11px;border-radius:3px;background:<%= c.color %>;flex:none"></span>
+              <span style="flex:1"><%= c.icon %> <%= t('cat.'+x.key) %></span>
+              <b><%= pct %>%</b>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- Monthly bars -->
+  <section class="card" style="padding:18px;margin-top:12px">
+    <div style="font-weight:700;margin-bottom:14px">📊 <%= t('rep.monthly') %> <span class="muted" style="font-size:.75rem;font-weight:500">· <%= t('rep.last6') %></span></div>
+    <div style="display:flex;align-items:flex-end;gap:8px;height:120px">
+      <% monthly.forEach(function(m){ var h=Math.round(Number(m.total)/monMax*100); %>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="width:100%;max-width:34px;height:<%= Math.max(3,h) %>%;background:var(--accent-2);border-radius:7px 7px 0 0"></div>
+          <span class="muted" style="font-size:.66rem" dir="ltr"><%= m.label %></span>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <!-- Weekly bars -->
+  <section class="card" style="padding:18px;margin-top:12px">
+    <div style="font-weight:700;margin-bottom:14px">🗓️ <%= t('rep.weekly') %> <span class="muted" style="font-size:.75rem;font-weight:500">· <%= t('rep.last7w') %></span></div>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:100px">
+      <% weekly.forEach(function(w,i){ var h=Math.round(Number(w.total)/wkMax*100); %>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="width:100%;max-width:26px;height:<%= Math.max(3,h) %>%;background:var(--accent);border-radius:6px 6px 0 0"></div>
+          <span class="muted" style="font-size:.6rem"><%= i===weekly.length-1 ? (lang==='en'?'now':'الآن') : ('-'+(weekly.length-1-i)) %></span>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <!-- Top categories -->
+  <% if (byCat.length) { %>
+  <section class="card" style="padding:18px;margin-top:12px">
+    <div style="font-weight:700;margin-bottom:10px">🏆 <%= t('rep.top') %></div>
+    <% byCat.slice(0,5).forEach(function(x,i){ var c=__cat[x.key]||__cat.other; %>
+      <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)">
+        <b class="muted" style="width:16px"><%= i+1 %></b>
+        <span style="font-size:1.1rem"><%= c.icon %></span>
+        <span style="flex:1"><%= t('cat.'+x.key) %></span>
+        <b><bdi><%= money(x.total) %></bdi></b>
+      </div>
+    <% }) %>
+  </section>
+  <% } %>
+</main>
+<%- include('app_nav', { active: 'reports' }) %>
+<%- include('foot') %>

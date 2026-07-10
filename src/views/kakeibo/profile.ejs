@@ -1,0 +1,34 @@
+<% pageTitle = t('prof.title') %>
+<%- include('head') %>
+<main class="wrap" style="padding-top:6px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('prof.title') %></h1>
+  <% if (saved) { %><div style="background:rgba(47,111,94,.12);color:var(--accent-2);border-radius:12px;padding:9px 12px;font-size:.88rem;font-weight:700;margin-bottom:12px"><%= t('prof.saved') %></div><% } %>
+
+  <section class="card" style="padding:18px;display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    <span class="hanko" style="width:46px;height:46px;font-size:1.3rem">👤</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:800"><%= user.display_name || user.email || 'Guest' %></div>
+      <% if (user.is_guest) { %><div class="muted" style="font-size:.74rem"><%= t('prof.guest') %> — <%= t('prof.guest_note') %></div>
+      <% } else if (user.email) { %><div class="muted" style="font-size:.76rem" dir="ltr"><%= user.email %></div><% } %>
+    </div>
+  </section>
+
+  <section class="card" style="padding:18px">
+    <div style="font-weight:700;margin-bottom:12px">💼 <%= t('prof.settings') %></div>
+    <form method="post" action="/profile" style="display:flex;flex-direction:column;gap:14px">
+      <div><label class="lbl"><%= t('prof.income') %></label><input name="monthly_income" type="number" step="0.01" min="0" value="<%= Number(profile.monthly_income) %>" class="fld" dir="ltr" /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label class="lbl"><%= t('prof.goal') %></label><input name="saving_goal" type="number" step="0.01" min="0" value="<%= Number(profile.saving_goal) %>" class="fld" dir="ltr" /></div>
+        <div><label class="lbl"><%= t('prof.currency') %></label><select name="currency" class="fld" dir="ltr"><% currencies.forEach(function(c){ %><option value="<%= c %>" <%= c===profile.currency?'selected':'' %>><%= c %></option><% }) %></select></div>
+      </div>
+      <button class="btn btn-primary"><%= t('common.save') %></button>
+    </form>
+  </section>
+
+  <section style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+    <a href="/onboarding" class="btn btn-ghost">📅 <%= t('prof.edit_salary') %></a>
+    <form method="post" action="/logout"><button class="btn btn-ghost" style="color:var(--accent)"><%= t('common.logout') %></button></form>
+  </section>
+</main>
+<%- include('app_nav', { active: 'profile' }) %>
+<%- include('foot') %>

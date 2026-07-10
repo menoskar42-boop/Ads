@@ -1,5 +1,6 @@
 <% pageTitle = t('onb.title') %>
 <%- include('head') %>
+<% var p = (typeof profile !== 'undefined' && profile) ? profile : {}; %>
 <main class="wrap" style="padding-top:20px;padding-bottom:48px">
   <section style="text-align:center;margin:8px 0 22px">
     <div class="hanko" style="width:52px;height:52px;margin:0 auto 12px;font-size:1.4rem">計</div>
@@ -13,22 +14,23 @@
 
       <div>
         <label class="lbl">💰 <%= t('onb.income') %></label>
-        <input name="monthly_income" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" />
+        <input name="monthly_income" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" value="<%= (p.monthly_income && Number(p.monthly_income)>0) ? Number(p.monthly_income) : '' %>" />
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.income_hint') %></p>
       </div>
 
       <div>
         <label class="lbl">📅 <%= t('onb.salary_type') %></label>
+        <% var pst = p.salary_type || 'fixed'; %>
         <select name="salary_type" id="salaryType" class="fld">
-          <option value="fixed"><%= t('onb.stype.fixed') %></option>
-          <option value="last"><%= t('onb.stype.last') %></option>
-          <option value="before_last"><%= t('onb.stype.before_last') %></option>
+          <option value="fixed" <%= pst==='fixed'?'selected':'' %>><%= t('onb.stype.fixed') %></option>
+          <option value="last" <%= pst==='last'?'selected':'' %>><%= t('onb.stype.last') %></option>
+          <option value="before_last" <%= pst==='before_last'?'selected':'' %>><%= t('onb.stype.before_last') %></option>
         </select>
       </div>
 
       <div id="salaryDayRow">
         <label class="lbl"># <%= t('onb.salary_day') %></label>
-        <input name="salary_day" type="number" inputmode="numeric" min="1" max="31" value="1" class="fld" dir="ltr" />
+        <input name="salary_day" type="number" inputmode="numeric" min="1" max="31" value="<%= p.salary_day || 1 %>" class="fld" dir="ltr" />
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.salary_day_hint') %></p>
       </div>
 
@@ -45,7 +47,7 @@
       <div>
         <label class="lbl">🏳️ <%= t('onb.country') %></label>
         <select name="country" class="fld">
-          <% countries.forEach(function(c){ %><option value="<%= c %>" <%= c==='EG'?'selected':'' %>><%= __cname(c) %></option><% }) %>
+          <% countries.forEach(function(c){ %><option value="<%= c %>" <%= c===(p.country||'EG')?'selected':'' %>><%= __cname(c) %></option><% }) %>
         </select>
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.country_hint') %></p>
       </div>
@@ -54,13 +56,13 @@
         <div>
           <label class="lbl">🗓️ <%= t('onb.weekend') %></label>
           <select name="weekend" class="fld">
-            <% ['fri_sat','fri','sat_sun','sun','none'].forEach(function(w){ %><option value="<%= w %>" <%= w==='fri_sat'?'selected':'' %>><%= t('onb.wknd.' + w) %></option><% }) %>
+            <% ['fri_sat','fri','sat_sun','sun','none'].forEach(function(w){ %><option value="<%= w %>" <%= w===(p.weekend||'fri_sat')?'selected':'' %>><%= t('onb.wknd.' + w) %></option><% }) %>
           </select>
         </div>
         <div>
           <label class="lbl">🌐 <%= t('onb.currency') %></label>
           <select name="currency" class="fld" dir="ltr">
-            <% currencies.forEach(function(c){ %><option value="<%= c %>" <%= c === 'EGP' ? 'selected' : '' %>><%= c %></option><% }) %>
+            <% currencies.forEach(function(c){ %><option value="<%= c %>" <%= c === (p.currency||'EGP') ? 'selected' : '' %>><%= c %></option><% }) %>
           </select>
         </div>
       </div>
@@ -68,7 +70,7 @@
 
       <div>
         <label class="lbl">🎯 <%= t('onb.goal') %></label>
-        <input name="saving_goal" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" />
+        <input name="saving_goal" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" value="<%= (p.saving_goal && Number(p.saving_goal)>0) ? Number(p.saving_goal) : '' %>" />
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.goal_hint') %></p>
       </div>
 
