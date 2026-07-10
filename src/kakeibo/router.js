@@ -14,6 +14,7 @@ const { CATEGORIES, CATEGORY_KEYS, PAYMENT_METHODS } = require('./categories');
 const stats = require('./stats');
 const ai = require('./ai');
 const health = require('./health');
+const gamify = require('./gamify');
 let compressImage = null;
 try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
@@ -185,6 +186,15 @@ router.get('/app', requireOnboarded, async (req, res) => {
     const monthCats = await stats.categoryBreakdown(pool, uid, stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1)), stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
     const hs = health.score(res.locals.profile, data, monthCats);
     const goals = (await pool.query('SELECT * FROM kkb_goals WHERE user_id=$1 ORDER BY id DESC LIMIT 3', [uid])).rows;
+    const gam = await gamify.compute(pool, uid, res.locals.profile, data);
+    // Smart notice: this week vs last week (local, week-over-week).
+    let smart = null;
+    const w2 = await stats.weeklySeries(pool, uid, 2);
+    if (w2.length === 2 && Number(w2[0].total) > 0) {
+      const prev = Number(w2[0].total), cur = Number(w2[1].total);
+      const pct = Math.round((cur - prev) / prev * 100);
+      if (Math.abs(pct) >= 10) smart = { up: pct > 0, pct: Math.abs(pct) };
+    }
     // Personalized daily insight + challenge — cached per day (max 2 calls/day, or none).
     let insight = null, challenge = null;
     if (ai.isEnabled() && data.recent.length) {
@@ -199,7 +209,7 @@ router.get('/app', requireOnboarded, async (req, res) => {
         { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE tiny, concrete money-saving challenge for TODAY (max 12 words, actionable, no intro).' },
       ], 40);
     }
-    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals }, APP_LOCALS));
+    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals, gam, smart }, APP_LOCALS));
   } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
 });
 

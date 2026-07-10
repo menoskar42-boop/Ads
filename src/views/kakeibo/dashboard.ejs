@@ -7,6 +7,14 @@
 %>
 <main class="wrap" style="max-width:520px;padding-top:6px">
 
+  <!-- Smart notice -->
+  <% if (typeof smart !== 'undefined' && smart) { %>
+  <div style="display:flex;align-items:center;gap:9px;background:<%= smart.up?'color-mix(in srgb,var(--warn) 12%,var(--surface))':'color-mix(in srgb,var(--accent-2) 12%,var(--surface))' %>;border:1px solid var(--line);border-radius:14px;padding:11px 14px;margin-bottom:12px;font-size:.86rem;font-weight:600">
+    <span style="font-size:1.1rem"><%= smart.up?'📈':'📉' %></span>
+    <span><%= smart.up ? t('smart.up') : t('smart.down') %> <b class="<%= smart.up?'':'accent' %>" style="<%= smart.up?'color:var(--warn)':'' %>"><%= smart.pct %>%</b></span>
+  </div>
+  <% } %>
+
   <!-- Remaining card -->
   <section class="card" style="padding:20px 22px;background:linear-gradient(135deg,var(--surface),var(--paper))">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -66,6 +74,28 @@
       <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.month') %></span><b><%= money(data.spentMonth) %></b></div>
     </div>
   </section>
+
+  <!-- Gamification -->
+  <% if (typeof gam !== 'undefined' && gam) { %>
+  <section class="card" style="padding:16px;margin-top:12px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:color-mix(in srgb,var(--accent) 14%,transparent);flex:none">
+        <b class="kkb-display accent" style="font-size:1.2rem"><%= gam.level %></b>
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:700"><span><%= t('gam.level') %> <%= gam.level %></span><span class="muted"><%= gam.xp %> <%= t('gam.xp') %> · <%= gam.streak %> <%= t('gam.streak') %></span></div>
+        <div style="height:8px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:6px"><div style="height:100%;width:<%= gam.levelPct %>%;background:var(--accent)"></div></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
+      <% gam.badges.forEach(function(b){ %>
+        <span title="<%= t('badge.'+b.key) %>" style="display:grid;place-items:center;width:34px;height:34px;border-radius:10px;font-size:1.05rem;<%= b.unlocked ? 'background:color-mix(in srgb,var(--accent-2) 16%,transparent)' : 'background:var(--paper);filter:grayscale(1);opacity:.4' %>">
+          <%= ({first_expense:'🌱',logger30:'📒',streak7:'🔥',streak30:'🏆',first_goal:'🎯',goal_done:'✅',saver:'🐷',diversified:'⚖️'})[b.key] %>
+        </span>
+      <% }) %>
+    </div>
+  </section>
+  <% } %>
 
   <!-- Financial health score -->
   <% if (typeof hs !== 'undefined' && hs) {
