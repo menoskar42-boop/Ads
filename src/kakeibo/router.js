@@ -15,6 +15,7 @@ const stats = require('./stats');
 const ai = require('./ai');
 const health = require('./health');
 const gamify = require('./gamify');
+const twin = require('./twin');
 let compressImage = null;
 try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
@@ -187,6 +188,7 @@ router.get('/app', requireOnboarded, async (req, res) => {
     const hs = health.score(res.locals.profile, data, monthCats);
     const goals = (await pool.query('SELECT * FROM kkb_goals WHERE user_id=$1 ORDER BY id DESC LIMIT 3', [uid])).rows;
     const gam = await gamify.compute(pool, uid, res.locals.profile, data);
+    const twinData = await twin.detect(pool, uid);
     // Smart notice: this week vs last week (local, week-over-week).
     let smart = null;
     const w2 = await stats.weeklySeries(pool, uid, 2);
@@ -209,8 +211,14 @@ router.get('/app', requireOnboarded, async (req, res) => {
         { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE tiny, concrete money-saving challenge for TODAY (max 12 words, actionable, no intro).' },
       ], 40);
     }
-    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals, gam, smart, aiEnabled: ai.isEnabled() }, APP_LOCALS));
+    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals, gam, smart, twin: twinData, aiEnabled: ai.isEnabled() }, APP_LOCALS));
   } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── Financial Twin (recurring prediction) ────────────── */
+router.get('/twin', requireOnboarded, async (req, res) => {
+  const t = await twin.detect(pool, req.session.kkbUserId);
+  res.render('kakeibo/twin', Object.assign({ twin: t }, APP_LOCALS));
 });
 
 /* ─── Financial goals ──────────────────────────────────── */

@@ -75,6 +75,15 @@
     </div>
   </section>
 
+  <!-- Financial Twin: predicted recurring -->
+  <% if (typeof twin !== 'undefined' && twin && twin.predictedTotal > 0) { %>
+  <a href="/twin" class="card" style="padding:14px 16px;margin-top:12px;display:flex;gap:11px;align-items:center;text-decoration:none;color:inherit;border-inline-start:3px solid var(--accent-2)">
+    <span style="font-size:1.3rem">🧬</span>
+    <div style="flex:1"><div class="muted" style="font-size:.68rem;font-weight:700"><%= t('twin.title') %> · <%= t('twin.predicted') %></div><div style="font-weight:800;font-size:1.02rem"><bdi><%= money(twin.predictedTotal) %></bdi></div></div>
+    <span class="muted" style="font-size:1.1rem">‹</span>
+  </a>
+  <% } %>
+
   <!-- Gamification -->
   <% if (typeof gam !== 'undefined' && gam) { %>
   <section class="card" style="padding:16px;margin-top:12px">

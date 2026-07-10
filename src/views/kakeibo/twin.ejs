@@ -1,0 +1,36 @@
+<% pageTitle = t('twin.title') %>
+<%- include('head') %>
+<%
+  var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
+%>
+<main class="wrap" style="padding-top:6px">
+  <div style="display:flex;align-items:center;gap:10px;margin:4px 4px 14px">
+    <span style="display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:color-mix(in srgb,var(--accent-2) 16%,transparent);font-size:1.3rem">🧬</span>
+    <div><h1 class="kkb-display" style="font-size:1.2rem;margin:0"><%= t('twin.title') %></h1><div class="muted" style="font-size:.74rem"><%= t('twin.sub') %></div></div>
+  </div>
+
+  <% if (!twin.recurring.length) { %>
+    <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0"><%= t('twin.none') %></p></div>
+  <% } else { %>
+    <section class="card" style="padding:18px;margin-bottom:14px;text-align:center">
+      <div class="muted" style="font-size:.76rem">🔮 <%= t('twin.predicted') %></div>
+      <div class="kkb-display accent" style="font-size:1.8rem;font-weight:700;margin-top:2px"><bdi><%= money(twin.predictedTotal) %></bdi></div>
+    </section>
+
+    <h2 class="kkb-display" style="font-size:1.02rem;margin:0 4px 8px"><%= t('twin.recurring') %></h2>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <% twin.recurring.forEach(function(r){ var c=__cat[r.category]||__cat.other; %>
+        <div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:11px;<%= r.alreadyThisMonth?'opacity:.6':'' %>">
+          <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:<%= c.color %>1f;font-size:1.1rem"><%= c.icon %></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= r.label || t('cat.'+r.category) %></div>
+            <div class="muted" style="font-size:.72rem"><%= t('twin.due_day') %> <%= r.typicalDay %> · <%= r.count %> <%= t('twin.times') %><% if (r.alreadyThisMonth) { %> · <%= t('twin.already') %><% } %></div>
+          </div>
+          <b style="white-space:nowrap"><bdi><%= money(r.avgAmount) %></bdi></b>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+<%- include('app_nav', { active: 'home' }) %>
+<%- include('foot') %>
