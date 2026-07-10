@@ -221,6 +221,37 @@ router.get('/twin', requireOnboarded, async (req, res) => {
   res.render('kakeibo/twin', Object.assign({ twin: t }, APP_LOCALS));
 });
 
+/* ─── Investment tracking ──────────────────────────────── */
+const ASSET_TYPES = ['stock', 'fund', 'etf', 'gold', 'crypto', 'real_estate', 'other'];
+router.get('/investments', requireOnboarded, async (req, res) => {
+  const rows = (await pool.query('SELECT * FROM kkb_investments WHERE user_id=$1 ORDER BY amount DESC', [req.session.kkbUserId])).rows;
+  const total = rows.reduce((s, r) => s + Number(r.amount), 0);
+  const yearGain = rows.reduce((s, r) => s + Number(r.amount) * Number(r.expected_return) / 100, 0);
+  const wReturn = total > 0 ? (yearGain / total * 100) : 0;
+  // Projected value 1y / 5y (compound at each holding's own rate).
+  const proj = (yrs) => rows.reduce((s, r) => s + Number(r.amount) * Math.pow(1 + Number(r.expected_return) / 100, yrs), 0);
+  res.render('kakeibo/investments', Object.assign({
+    rows, assetTypes: ASSET_TYPES, total, yearGain, wReturn,
+    proj1: proj(1), proj5: proj(5),
+  }, APP_LOCALS));
+});
+router.post('/investments/add', requireOnboarded, async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 80);
+  const type = ASSET_TYPES.includes(String(b.asset_type)) ? b.asset_type : 'stock';
+  const amount = toNum(b.amount, 0);
+  const ret = toNum(b.expected_return, 0);
+  if (name && amount > 0) {
+    await pool.query('INSERT INTO kkb_investments (user_id, name, asset_type, amount, expected_return) VALUES ($1,$2,$3,$4,$5)',
+      [req.session.kkbUserId, name, type, amount, ret]);
+  }
+  res.redirect('/investments');
+});
+router.post('/investments/:id/delete', requireOnboarded, async (req, res) => {
+  await pool.query('DELETE FROM kkb_investments WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);
+  res.redirect('/investments');
+});
+
 /* ─── Financial goals ──────────────────────────────────── */
 const GOAL_ICONS = ['🎯', '🚗', '🏠', '💍', '✈️', '🎓', '📱', '💻', '🛡️', '👶'];
 router.get('/goals', requireOnboarded, async (req, res) => {

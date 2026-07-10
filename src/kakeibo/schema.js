@@ -97,6 +97,18 @@ async function ensureKakeiboSchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_kkb_goals_user ON kkb_goals (user_id);
+
+      -- Investment holdings (stocks / funds / ETF / gold …) with expected return.
+      CREATE TABLE IF NOT EXISTS kkb_investments (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        name TEXT,
+        asset_type TEXT DEFAULT 'stock',      -- stock/fund/etf/gold/crypto/real_estate/other
+        amount NUMERIC(14,2) DEFAULT 0,       -- amount invested
+        expected_return NUMERIC(6,2) DEFAULT 0, -- expected ANNUAL return %
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_kkb_inv_user ON kkb_investments (user_id);
     `);
     console.log('Kakeibo schema ready.');
   } finally {

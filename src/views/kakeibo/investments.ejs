@@ -1,0 +1,53 @@
+<% pageTitle = t('inv.title') %>
+<%- include('head') %>
+<% var __ico = {stock:'📈',fund:'🏦',etf:'📊',gold:'🥇',crypto:'🪙',real_estate:'🏢',other:'💼'}; %>
+<main class="wrap" style="padding-top:6px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px">📈 <%= t('inv.title') %></h1>
+
+  <% if (rows.length) { %>
+  <section class="card" style="padding:18px;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:center">
+      <div><div class="muted" style="font-size:.72rem"><%= t('inv.total') %></div><div style="font-weight:800;font-size:1.2rem"><bdi><%= money(total) %></bdi></div></div>
+      <div><div class="muted" style="font-size:.72rem"><%= t('inv.wreturn') %></div><div class="accent" style="font-weight:800;font-size:1.2rem"><%= wReturn.toFixed(1) %>%</div></div>
+      <div><div class="muted" style="font-size:.72rem"><%= t('inv.proj1') %></div><div style="font-weight:700"><bdi><%= money(proj1) %></bdi></div></div>
+      <div><div class="muted" style="font-size:.72rem"><%= t('inv.proj5') %></div><div style="font-weight:700"><bdi><%= money(proj5) %></bdi></div></div>
+    </div>
+  </section>
+  <% } %>
+
+  <details class="card" style="padding:16px;margin-bottom:14px">
+    <summary style="font-weight:700;cursor:pointer">➕ <%= t('inv.add') %></summary>
+    <form method="post" action="/investments/add" style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+      <div><label class="lbl"><%= t('inv.name') %></label><input name="name" required maxlength="80" class="fld" /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label class="lbl"><%= t('inv.type') %></label><select name="asset_type" class="fld"><% assetTypes.forEach(function(tp){ %><option value="<%= tp %>"><%= __ico[tp] %> <%= t('it.'+tp) %></option><% }) %></select></div>
+        <div><label class="lbl"><%= t('inv.amount') %></label><input name="amount" type="number" step="0.01" min="0" required class="fld" dir="ltr" /></div>
+      </div>
+      <div><label class="lbl"><%= t('inv.return') %></label><input name="expected_return" type="number" step="0.1" class="fld" dir="ltr" placeholder="e.g. 10" /></div>
+      <button class="btn btn-primary"><%= t('common.save') %></button>
+    </form>
+  </details>
+
+  <% if (!rows.length) { %>
+    <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0"><%= t('inv.none') %></p></div>
+  <% } else { %>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <% rows.forEach(function(r){ %>
+        <div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:11px">
+          <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);font-size:1.15rem"><%= __ico[r.asset_type]||'💼' %></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= r.name %></div>
+            <div class="muted" style="font-size:.72rem"><%= t('it.'+r.asset_type) %> · <%= Number(r.expected_return) %>% / <%= lang==='en'?'yr':'سنة' %></div>
+          </div>
+          <b style="white-space:nowrap"><bdi><%= money(r.amount) %></bdi></b>
+          <form method="post" action="/investments/<%= r.id %>/delete"><button data-confirm="🗑️?" style="border:0;background:transparent;color:var(--muted);cursor:pointer">🗑️</button></form>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+<script>
+(function(){document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-confirm]');if(!b||b.dataset.armed==='1')return;e.preventDefault();e.stopPropagation();if(!b.dataset.label)b.dataset.label=b.innerHTML;b.innerHTML=b.dataset.confirm;b.dataset.armed='1';setTimeout(function(){b.dataset.armed='';b.innerHTML=b.dataset.label;},3000);},true);})();
+</script>
+<%- include('app_nav', { active: 'profile' }) %>
+<%- include('foot') %>
