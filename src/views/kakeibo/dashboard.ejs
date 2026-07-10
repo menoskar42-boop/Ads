@@ -67,6 +67,53 @@
     </div>
   </section>
 
+  <!-- Financial health score -->
+  <% if (typeof hs !== 'undefined' && hs) {
+       var hcolor = hs.grade==='excellent'?'var(--accent-2)':hs.grade==='good'?'#3fa392':hs.grade==='fair'?'var(--warn)':'var(--accent)';
+  %>
+  <section class="card" style="padding:16px;margin-top:12px">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="width:76px;height:76px;border-radius:50%;background:conic-gradient(<%= hcolor %> <%= hs.score %>%, var(--paper) 0);display:grid;place-items:center;flex:none">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--surface);display:grid;place-items:center">
+          <b class="kkb-display" style="font-size:1.3rem;color:<%= hcolor %>"><%= hs.score %></b>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div class="muted" style="font-size:.72rem;font-weight:700"><%= t('hs.title') %></div>
+        <div style="font-weight:800;font-size:1.05rem;color:<%= hcolor %>"><%= t('hs.'+hs.grade) %></div>
+        <div style="display:flex;gap:4px;margin-top:7px">
+          <% hs.parts.forEach(function(p){ var w=Math.round(p.value/p.max*100); %>
+            <div style="flex:1" title="<%= t('hs.'+p.key) %>">
+              <div style="height:5px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden"><div style="height:100%;width:<%= w %>%;background:<%= hcolor %>"></div></div>
+              <div class="muted" style="font-size:.56rem;text-align:center;margin-top:2px"><%= t('hs.'+p.key) %></div>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </section>
+  <% } %>
+
+  <!-- Goals strip -->
+  <% if (typeof goals !== 'undefined' && goals && goals.length) { %>
+  <section style="margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 8px">
+      <h2 class="kkb-display" style="font-size:1.05rem;margin:0">🎯 <%= t('goals.title') %></h2>
+      <a href="/goals" style="font-size:.8rem"><%= lang==='en'?'All':'الكل' %></a>
+    </div>
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px" class="no-scrollbar">
+      <% goals.forEach(function(g){ var tg=Number(g.target_amount)||0, sv=Number(g.saved_amount)||0; var pc=tg>0?Math.min(100,Math.round(sv/tg*100)):0; %>
+        <a href="/goals" class="card" style="padding:12px 14px;min-width:150px;text-decoration:none;color:inherit">
+          <div style="font-size:1.3rem"><%= g.icon %></div>
+          <div style="font-weight:700;font-size:.85rem;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= g.title %></div>
+          <div style="height:6px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:7px"><div style="height:100%;width:<%= pc %>%;background:var(--accent)"></div></div>
+          <div class="muted" style="font-size:.68rem;margin-top:4px"><%= pc %>%</div>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+  <% } %>
+
   <!-- Recent -->
   <section style="margin-top:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 8px">

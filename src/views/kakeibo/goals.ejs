@@ -1,0 +1,73 @@
+<% pageTitle = t('goals.title') %>
+<%- include('head') %>
+<%
+  function monthsLeft(d){ if(!d) return null; var t=new Date(d), n=new Date(); var m=(t.getFullYear()-n.getFullYear())*12+(t.getMonth()-n.getMonth()); return Math.max(0,m); }
+  function fdate(d){ try{ return new Date(d).toLocaleDateString(lang==='en'?'en-US':'ar-EG',{month:'short',year:'numeric'}); }catch(e){ return ''; } }
+%>
+<main class="wrap" style="padding-top:6px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px">🎯 <%= t('goals.title') %></h1>
+
+  <!-- Add goal -->
+  <details class="card" style="padding:16px;margin-bottom:14px">
+    <summary style="font-weight:700;cursor:pointer">➕ <%= t('goals.add') %></summary>
+    <form method="post" action="/goals/add" style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+      <div>
+        <label class="lbl"><%= t('goals.icon') %></label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <% icons.forEach(function(ic,i){ %>
+            <label style="cursor:pointer"><input type="radio" name="icon" value="<%= ic %>" <%= i===0?'checked':'' %> style="position:absolute;opacity:0" onchange="document.querySelectorAll('.gic').forEach(function(x){x.style.borderColor='var(--line)'});this.parentNode.querySelector('.gic').style.borderColor='var(--accent)'" /><span class="gic" style="display:grid;place-items:center;width:40px;height:40px;border:1.5px solid <%= i===0?'var(--accent)':'var(--line)' %>;border-radius:12px;font-size:1.2rem"><%= ic %></span></label>
+          <% }) %>
+        </div>
+      </div>
+      <div><label class="lbl"><%= t('goals.name') %></label><input name="title" required maxlength="80" class="fld" placeholder="<%= lang==='en'?'e.g. New car':'مثلاً: عربية جديدة' %>" /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label class="lbl"><%= t('goals.target') %></label><input name="target_amount" type="number" step="0.01" min="0" required class="fld" dir="ltr" /></div>
+        <div><label class="lbl"><%= t('goals.saved') %></label><input name="saved_amount" type="number" step="0.01" min="0" value="0" class="fld" dir="ltr" /></div>
+      </div>
+      <div><label class="lbl"><%= t('goals.date') %></label><input name="target_date" type="date" class="fld" dir="ltr" /></div>
+      <button class="btn btn-primary"><%= t('common.save') %></button>
+    </form>
+  </details>
+
+  <% if (!goals.length) { %>
+    <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0"><%= t('goals.none') %></p></div>
+  <% } else { %>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <% goals.forEach(function(g){
+           var target=Number(g.target_amount)||0, saved=Number(g.saved_amount)||0;
+           var pct=target>0?Math.min(100,Math.round(saved/target*100)):0;
+           var remaining=Math.max(0,target-saved);
+           var ml=monthsLeft(g.target_date);
+           var monthlyNeed=(ml && ml>0)?Math.ceil(remaining/ml):null;
+           var done=saved>=target && target>0;
+      %>
+        <div class="card" style="padding:16px">
+          <div style="display:flex;align-items:center;gap:11px">
+            <span style="display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:1.5rem"><%= g.icon %></span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:800"><%= g.title %></div>
+              <div class="muted" style="font-size:.76rem"><bdi><%= money(saved) %></bdi> / <bdi><%= money(target) %></bdi><% if (g.target_date) { %> · <%= fdate(g.target_date) %><% } %></div>
+            </div>
+            <form method="post" action="/goals/<%= g.id %>/delete"><button data-confirm="🗑️?" style="border:0;background:transparent;color:var(--muted);cursor:pointer">🗑️</button></form>
+          </div>
+          <div style="height:9px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:12px"><div style="height:100%;width:<%= pct %>%;background:<%= done?'var(--accent-2)':'var(--accent)' %>"></div></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+            <span style="font-size:.8rem;font-weight:700"><%= pct %>%<% if (done) { %> · <%= t('goals.done') %><% } %></span>
+            <% if (!done && monthlyNeed) { %><span class="muted" style="font-size:.74rem"><bdi><%= money(monthlyNeed) %></bdi> <%= t('goals.monthly_need') %> · <%= ml %> <%= t('goals.months_left') %></span><% } %>
+          </div>
+          <% if (!done) { %>
+          <form method="post" action="/goals/<%= g.id %>/contribute" style="display:flex;gap:8px;margin-top:10px">
+            <input name="amount" type="number" step="0.01" class="fld" dir="ltr" placeholder="<%= t('goals.contribute') %>" style="flex:1;padding:8px 10px" />
+            <button class="btn btn-ghost" style="width:auto;padding:8px 14px">＋</button>
+          </form>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</main>
+<script>
+(function(){document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-confirm]');if(!b||b.dataset.armed==='1')return;e.preventDefault();e.stopPropagation();if(!b.dataset.label)b.dataset.label=b.innerHTML;b.innerHTML=b.dataset.confirm;b.dataset.armed='1';setTimeout(function(){b.dataset.armed='';b.innerHTML=b.dataset.label;},3000);},true);})();
+</script>
+<%- include('app_nav', { active: 'profile' }) %>
+<%- include('foot') %>

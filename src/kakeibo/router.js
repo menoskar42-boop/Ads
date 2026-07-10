@@ -13,6 +13,7 @@ const { makeT, normLang } = require('./i18n');
 const { CATEGORIES, CATEGORY_KEYS, PAYMENT_METHODS } = require('./categories');
 const stats = require('./stats');
 const ai = require('./ai');
+const health = require('./health');
 let compressImage = null;
 try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
@@ -180,11 +181,14 @@ router.get('/app', requireOnboarded, async (req, res) => {
   try {
     const uid = req.session.kkbUserId;
     const data = await stats.dashboard(pool, uid, res.locals.profile);
+    const now = new Date();
+    const monthCats = await stats.categoryBreakdown(pool, uid, stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1)), stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
+    const hs = health.score(res.locals.profile, data, monthCats);
+    const goals = (await pool.query('SELECT * FROM kkb_goals WHERE user_id=$1 ORDER BY id DESC LIMIT 3', [uid])).rows;
     // Personalized daily insight + challenge — cached per day (max 2 calls/day, or none).
     let insight = null, challenge = null;
     if (ai.isEnabled() && data.recent.length) {
-      const now = new Date();
-      const topCats = await stats.categoryBreakdown(pool, uid, stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1)), stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
+      const topCats = monthCats;
       const ctx = ai.financeContext(res.locals.profile, data, topCats);
       insight = await ai.cachedText(pool, uid, 'insight', stats.ymd(now), [
         { role: 'system', content: ai.coachSystem(res.locals.lang) },
@@ -195,8 +199,39 @@ router.get('/app', requireOnboarded, async (req, res) => {
         { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE tiny, concrete money-saving challenge for TODAY (max 12 words, actionable, no intro).' },
       ], 40);
     }
-    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge }, APP_LOCALS));
+    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals }, APP_LOCALS));
   } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── Financial goals ──────────────────────────────────── */
+const GOAL_ICONS = ['🎯', '🚗', '🏠', '💍', '✈️', '🎓', '📱', '💻', '🛡️', '👶'];
+router.get('/goals', requireOnboarded, async (req, res) => {
+  const rows = (await pool.query('SELECT * FROM kkb_goals WHERE user_id=$1 ORDER BY id DESC', [req.session.kkbUserId])).rows;
+  res.render('kakeibo/goals', Object.assign({ goals: rows, icons: GOAL_ICONS }, APP_LOCALS));
+});
+router.post('/goals/add', requireOnboarded, async (req, res) => {
+  const b = req.body || {};
+  const title = String(b.title || '').trim().slice(0, 80);
+  const target = toNum(b.target_amount, 0);
+  const icon = GOAL_ICONS.includes(String(b.icon)) ? b.icon : '🎯';
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.target_date || '')) ? b.target_date : null;
+  if (title && target > 0) {
+    await pool.query('INSERT INTO kkb_goals (user_id, title, icon, target_amount, saved_amount, target_date) VALUES ($1,$2,$3,$4,$5,$6)',
+      [req.session.kkbUserId, title, icon, target, toNum(b.saved_amount, 0), date]);
+  }
+  res.redirect('/goals');
+});
+router.post('/goals/:id/contribute', requireOnboarded, async (req, res) => {
+  const amt = toNum(req.body && req.body.amount, 0);
+  if (amt !== 0) {
+    await pool.query('UPDATE kkb_goals SET saved_amount = GREATEST(0, saved_amount + $1) WHERE id=$2 AND user_id=$3',
+      [amt, toInt(req.params.id, null), req.session.kkbUserId]);
+  }
+  res.redirect('/goals');
+});
+router.post('/goals/:id/delete', requireOnboarded, async (req, res) => {
+  await pool.query('DELETE FROM kkb_goals WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);
+  res.redirect('/goals');
 });
 
 /* ─── AI: categorize a description (local-first, cached) ── */

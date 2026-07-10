@@ -76,6 +76,7 @@ const STR = {
     'ai.challenge': 'تحدّي اليوم', 'ai.forecast': 'توقّع آخر الفترة', 'ai.forecast_spend': 'متوقّع تصرف', 'ai.forecast_left': 'متوقّع يتبقّى',
     'ai.overspend': 'على هذا المعدّل هتتجاوز دخلك — خفّف شوية.', 'ai.weekly': 'ملخّص الأسبوع', 'ai.suggestions': 'اقتراحات للتوفير', 'ai.voice': 'إدخال بالصوت', 'ai.voice_hint': 'قول مثلاً: «اشتريت بنزين بـ500 جنيه»', 'ai.listening': 'بستمع…', 'ai.scan': 'قراءة الفاتورة تلقائياً…', 'ai.scan_done': 'تمت قراءة الفاتورة ✓', 'ai.scan_fail': 'مقدرتش أقرأ الفاتورة — اكتب يدوياً.', 'ai.voice_unsupported': 'المتصفّح مايدعمش الإدخال الصوتي.',
     'ai.monthly_review': 'مراجعة الذكاء الاصطناعي',
+    'goals.title': 'الأهداف المالية', 'goals.add': 'هدف جديد', 'goals.name': 'اسم الهدف', 'goals.target': 'المبلغ المطلوب', 'goals.saved': 'الموفَّر حالياً', 'goals.date': 'تاريخ الهدف (اختياري)', 'goals.icon': 'أيقونة', 'goals.none': 'لسه مفيش أهداف — ابدأ حلمك.', 'goals.contribute': 'إضافة مبلغ', 'goals.monthly_need': 'شهرياً للوصول', 'goals.done': 'اكتمل! 🎉', 'goals.months_left': 'شهر متبقّي', 'hs.title': 'الصحة المالية', 'hs.excellent': 'ممتازة', 'hs.good': 'جيدة', 'hs.fair': 'متوسطة', 'hs.weak': 'تحتاج انتباه', 'hs.save': 'الادخار', 'hs.goal': 'الأهداف', 'hs.risk': 'ضبط الصرف', 'hs.log': 'الالتزام', 'hs.div': 'التنويع',
   },
   en: {
     'app.name': 'Kakeibo',
@@ -153,6 +154,7 @@ const STR = {
     'ai.challenge': "Today's challenge", 'ai.forecast': 'End-of-period forecast', 'ai.forecast_spend': 'Projected spend', 'ai.forecast_left': 'Projected left',
     'ai.overspend': 'At this rate you will exceed your income — ease up.', 'ai.weekly': 'Weekly summary', 'ai.suggestions': 'Saving suggestions', 'ai.voice': 'Voice entry', 'ai.voice_hint': 'Say e.g. "I bought fuel for 500"', 'ai.listening': 'Listening…', 'ai.scan': 'Reading receipt…', 'ai.scan_done': 'Receipt read ✓', 'ai.scan_fail': 'Could not read the receipt — enter manually.', 'ai.voice_unsupported': 'Voice entry is not supported in this browser.',
     'ai.monthly_review': 'AI review',
+    'goals.title': 'Financial goals', 'goals.add': 'New goal', 'goals.name': 'Goal name', 'goals.target': 'Target amount', 'goals.saved': 'Saved so far', 'goals.date': 'Target date (optional)', 'goals.icon': 'Icon', 'goals.none': 'No goals yet — start your dream.', 'goals.contribute': 'Add amount', 'goals.monthly_need': 'monthly to reach it', 'goals.done': 'Completed! 🎉', 'goals.months_left': 'months left', 'hs.title': 'Financial health', 'hs.excellent': 'Excellent', 'hs.good': 'Good', 'hs.fair': 'Fair', 'hs.weak': 'Needs attention', 'hs.save': 'Saving', 'hs.goal': 'Goals', 'hs.risk': 'Spending control', 'hs.log': 'Consistency', 'hs.div': 'Diversity',
   },
 };
 

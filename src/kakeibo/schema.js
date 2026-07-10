@@ -84,6 +84,19 @@ async function ensureKakeiboSchema() {
         kind TEXT, tokens INTEGER DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT now()
       );
+
+      -- Financial goals (car / home / trip / wedding …) with progress.
+      CREATE TABLE IF NOT EXISTS kkb_goals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        title TEXT,
+        icon TEXT DEFAULT '🎯',
+        target_amount NUMERIC(14,2) DEFAULT 0,
+        saved_amount NUMERIC(14,2) DEFAULT 0,
+        target_date DATE,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_kkb_goals_user ON kkb_goals (user_id);
     `);
     console.log('Kakeibo schema ready.');
   } finally {
