@@ -209,7 +209,7 @@ router.get('/app', requireOnboarded, async (req, res) => {
         { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE tiny, concrete money-saving challenge for TODAY (max 12 words, actionable, no intro).' },
       ], 40);
     }
-    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals, gam, smart }, APP_LOCALS));
+    res.render('kakeibo/dashboard', Object.assign({ data, insight, challenge, hs, goals, gam, smart, aiEnabled: ai.isEnabled() }, APP_LOCALS));
   } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
 });
 
@@ -268,6 +268,43 @@ router.post('/goals/:id/plan', requireOnboarded, async (req, res) => {
 router.get('/simulator', requireOnboarded, async (req, res) => {
   const cats = await stats.avgCategoryMonthly(pool, req.session.kkbUserId, 3);
   res.render('kakeibo/simulator', Object.assign({ cats, income: Math.round(Number(res.locals.profile.monthly_income) || 0) }, APP_LOCALS));
+});
+
+/* ─── AI Coach chat (personalized, cost-limited) ───────── */
+const coachRate = new Map();
+function coachAllowed(uid) {
+  const now = Date.now();
+  const arr = (coachRate.get(uid) || []).filter((t) => now - t < 3600000);
+  if (arr.length >= 25) { coachRate.set(uid, arr); return false; }
+  arr.push(now); coachRate.set(uid, arr);
+  if (coachRate.size > 4000) coachRate.clear();
+  return true;
+}
+router.get('/coach', requireOnboarded, (req, res) => {
+  res.render('kakeibo/coach', Object.assign({ aiEnabled: ai.isEnabled() }, APP_LOCALS));
+});
+router.post('/coach/ask', requireOnboarded, async (req, res) => {
+  if (!ai.isEnabled()) return res.json({ ok: false, disabled: true });
+  const uid = req.session.kkbUserId;
+  const msg = String((req.body && req.body.message) || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!msg) return res.json({ ok: false });
+  if (!coachAllowed(uid)) return res.json({ ok: false, limited: true });
+  try {
+    const data = await stats.dashboard(pool, uid, res.locals.profile);
+    const now = new Date();
+    const topCats = await stats.categoryBreakdown(pool, uid, stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1)), stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
+    const ctx = ai.financeContext(res.locals.profile, data, topCats);
+    let history = [];
+    try { const h = req.body && req.body.history; if (Array.isArray(h)) history = h.slice(-6).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 300) })); } catch (e) {}
+    const messages = [
+      { role: 'system', content: ai.coachSystem(res.locals.lang) + ' You are the user\'s personal money coach. Their current numbers: ' + ctx + '. Answer their question using these numbers; be practical and encouraging. Keep it to 2–4 sentences.' },
+      ...history,
+      { role: 'user', content: msg },
+    ];
+    const { text, tokens } = await ai.chat(messages, { maxTokens: 220, temperature: 0.6 });
+    ai.setCache(pool, uid, 'coach', ai.hash(msg + Date.now()), { text }, tokens).catch(() => {});
+    res.json({ ok: true, reply: text });
+  } catch (e) { console.error('[kkb coach]', e.message); res.json({ ok: false }); }
 });
 
 /* ─── AI: categorize a description (local-first, cached) ── */

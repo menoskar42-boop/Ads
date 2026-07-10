@@ -171,5 +171,8 @@
     <% } %>
   </section>
 </main>
+<% if (typeof aiEnabled !== 'undefined' && aiEnabled) { %>
+<a href="/coach" aria-label="<%= t('coach.open') %>" style="position:fixed;bottom:92px;inset-inline-end:16px;z-index:35;display:grid;place-items:center;width:54px;height:54px;border-radius:18px;background:var(--accent);color:#fff;font-size:1.5rem;box-shadow:var(--shadow);text-decoration:none">🤖</a>
+<% } %>
 <%- include('app_nav', { active: 'home' }) %>
 <%- include('foot') %>
