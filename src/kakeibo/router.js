@@ -243,6 +243,32 @@ router.post('/goals/:id/delete', requireOnboarded, async (req, res) => {
   await pool.query('DELETE FROM kkb_goals WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);
   res.redirect('/goals');
 });
+// AI plan for a goal — concrete steps to hit the target by the date. Cached/month.
+router.post('/goals/:id/plan', requireOnboarded, async (req, res) => {
+  if (!ai.isEnabled()) return res.json({ ok: false, disabled: true });
+  const uid = req.session.kkbUserId;
+  const g = (await pool.query('SELECT * FROM kkb_goals WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), uid])).rows[0];
+  if (!g) return res.json({ ok: false });
+  try {
+    const target = Number(g.target_amount) || 0, saved = Number(g.saved_amount) || 0, gap = Math.max(0, target - saved);
+    let monthsLeft = null;
+    if (g.target_date) { const t = new Date(g.target_date), n = new Date(); monthsLeft = Math.max(1, (t.getFullYear() - n.getFullYear()) * 12 + (t.getMonth() - n.getMonth())); }
+    const cats = await stats.avgCategoryMonthly(pool, uid, 3);
+    const catCtx = cats.slice(0, 4).map((c) => c.key + '=' + c.monthly).join(', ');
+    const now = new Date();
+    const plan = await ai.cachedText(pool, uid, 'plan', g.id + '-' + now.getFullYear() + '-' + (now.getMonth() + 1), [
+      { role: 'system', content: ai.coachSystem(res.locals.lang) },
+      { role: 'user', content: 'Goal "' + g.title + '": need ' + gap + ' ' + res.locals.profile.currency + (monthsLeft ? ' in ' + monthsLeft + ' months' : '') + '. My avg monthly spend by category(' + res.locals.profile.currency + '): ' + (catCtx || 'unknown') + ', income=' + Math.round(Number(res.locals.profile.monthly_income) || 0) + '. Give a short realistic plan: how much to save monthly and which 1–2 categories to trim (with amounts). Max 3 sentences.' },
+    ], 180);
+    res.json({ ok: !!plan, plan: plan });
+  } catch (e) { console.error('[kkb plan]', e.message); res.json({ ok: false }); }
+});
+
+/* ─── Budget simulator ("what-if") — client-side, free ─── */
+router.get('/simulator', requireOnboarded, async (req, res) => {
+  const cats = await stats.avgCategoryMonthly(pool, req.session.kkbUserId, 3);
+  res.render('kakeibo/simulator', Object.assign({ cats, income: Math.round(Number(res.locals.profile.monthly_income) || 0) }, APP_LOCALS));
+});
 
 /* ─── AI: categorize a description (local-first, cached) ── */
 router.post('/ai/categorize', requireOnboarded, async (req, res) => {

@@ -106,4 +106,17 @@ async function monthReview(pool, userId, profile, year, month0) {
   return { year, month0, income, spent, saved, rate, largest, cats };
 }
 
-module.exports = { dashboard, categoryBreakdown, monthlySeries, weeklySeries, monthReview, loadCustomHolidays, ymd };
+// Average monthly spend per category over the last N months (for simulations).
+async function avgCategoryMonthly(pool, userId, months) {
+  const now = new Date();
+  const s = ymd(new Date(now.getFullYear(), now.getMonth() - (months - 1), 1));
+  const e = ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  const rows = (await pool.query(
+    `SELECT category, COALESCE(SUM(amount),0)::numeric AS total FROM kkb_expenses
+     WHERE user_id=$1 AND spent_on >= $2 AND spent_on < $3 GROUP BY category ORDER BY total DESC`,
+    [userId, s, e]
+  )).rows;
+  return rows.map((r) => ({ key: r.category, monthly: Math.round(Number(r.total) / months) })).filter((c) => c.monthly > 0);
+}
+
+module.exports = { dashboard, categoryBreakdown, monthlySeries, weeklySeries, monthReview, avgCategoryMonthly, loadCustomHolidays, ymd };

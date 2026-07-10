@@ -16,7 +16,10 @@
   var wkMax = Math.max(1, ...weekly.map(function(w){ return Number(w.total); }));
 %>
 <main class="wrap" style="padding-top:6px">
-  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('rep.title') %></h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 4px 14px">
+    <h1 class="kkb-display" style="font-size:1.3rem;margin:0"><%= t('rep.title') %></h1>
+    <a href="/simulator" class="pill">🧪 <%= t('sim.open') %></a>
+  </div>
 
   <% if (typeof weeklyReport !== 'undefined' && weeklyReport) { %>
   <section class="card" style="padding:14px 16px;margin-bottom:12px;border-inline-start:3px solid var(--accent)">

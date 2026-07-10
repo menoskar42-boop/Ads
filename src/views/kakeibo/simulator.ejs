@@ -1,0 +1,68 @@
+<% pageTitle = t('sim.title') %>
+<%- include('head') %>
+<%
+  var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
+  var baseline = cats.reduce(function(s,c){ return s + Number(c.monthly); }, 0);
+%>
+<main class="wrap" style="padding-top:6px;padding-bottom:20px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 6px">🧪 <%= t('sim.title') %></h1>
+  <p class="muted" style="font-size:.82rem;margin:0 4px 14px"><%= t('sim.intro') %></p>
+
+  <% if (!cats.length) { %>
+    <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0"><%= t('sim.no_data') %></p></div>
+  <% } else { %>
+    <!-- Live result -->
+    <section class="card" style="padding:18px;margin-bottom:14px;position:sticky;top:8px;z-index:5">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
+        <div><div class="muted" style="font-size:.72rem"><%= t('sim.monthly_saved') %></div><div id="mSaved" class="kkb-display accent" style="font-size:1.5rem;font-weight:700">0</div></div>
+        <div><div class="muted" style="font-size:.72rem"><%= t('sim.yearly_saved') %></div><div id="ySaved" class="kkb-display" style="font-size:1.5rem;font-weight:700">0</div></div>
+      </div>
+      <div class="muted" style="font-size:.72rem;text-align:center;margin-top:8px"><%= t('sim.baseline') %>: <span id="base"></span> → <%= t('sim.adjusted') %>: <b id="adj"></b></div>
+    </section>
+
+    <section class="card" style="padding:18px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <label class="lbl">💵 <%= t('sim.income_delta') %></label>
+        <input id="incomeDelta" type="range" min="-50" max="50" value="0" step="5" style="width:100%" />
+        <div class="muted" style="font-size:.74rem;text-align:center"><span id="incLbl">0%</span></div>
+      </div>
+      <% cats.forEach(function(c){ var cc=__cat[c.key]||__cat.other; %>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:.86rem;margin-bottom:4px">
+            <span><%= cc.icon %> <%= t('cat.'+c.key) %> <span class="muted">· <bdi><%= money(c.monthly) %></bdi></span></span>
+            <b class="sim-out" data-key="<%= c.key %>">0%</b>
+          </div>
+          <input class="sim-slider" data-key="<%= c.key %>" data-monthly="<%= c.monthly %>" type="range" min="0" max="100" value="0" step="5" style="width:100%;accent-color:<%= cc.color %>" />
+        </div>
+      <% }) %>
+    </section>
+  <% } %>
+</main>
+<script>
+(function(){
+  var income=<%- JSON.stringify(income) %>, base=<%- JSON.stringify(baseline) %>;
+  var cur=<%- JSON.stringify((typeof profile!=='undefined'&&profile)?profile.currency:'EGP') %>;
+  var isAr=document.documentElement.lang==='ar';
+  function m(n){ n=Math.round(n); var s=n.toLocaleString(isAr?'ar-EG':'en-US'); return s+' '+cur; }
+  var sliders=Array.prototype.slice.call(document.querySelectorAll('.sim-slider'));
+  var incD=document.getElementById('incomeDelta');
+  function recompute(){
+    var cut=0;
+    sliders.forEach(function(s){ var mo=Number(s.dataset.monthly)||0; var pct=Number(s.value)||0; cut+=mo*pct/100;
+      var out=document.querySelector('.sim-out[data-key="'+s.dataset.key+'"]'); if(out) out.textContent=pct+'%'; });
+    var incPct=Number(incD?incD.value:0)||0; var incAmt=income*incPct/100;
+    var adjusted=base-cut;
+    var monthlySaved=cut+incAmt;
+    document.getElementById('base').textContent=m(base);
+    document.getElementById('adj').textContent=m(adjusted);
+    document.getElementById('mSaved').textContent=m(monthlySaved);
+    document.getElementById('ySaved').textContent=m(monthlySaved*12);
+    var il=document.getElementById('incLbl'); if(il) il.textContent=(incPct>0?'+':'')+incPct+'%';
+  }
+  sliders.forEach(function(s){ s.addEventListener('input',recompute); });
+  if(incD) incD.addEventListener('input',recompute);
+  recompute();
+})();
+</script>
+<%- include('app_nav', { active: 'reports' }) %>
+<%- include('foot') %>

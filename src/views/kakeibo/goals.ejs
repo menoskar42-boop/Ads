@@ -60,6 +60,8 @@
             <input name="amount" type="number" step="0.01" class="fld" dir="ltr" placeholder="<%= t('goals.contribute') %>" style="flex:1;padding:8px 10px" />
             <button class="btn btn-ghost" style="width:auto;padding:8px 14px">＋</button>
           </form>
+          <button type="button" class="btn btn-ghost planBtn" data-id="<%= g.id %>" style="margin-top:8px;padding:9px">🧠 <%= t('plan.btn') %></button>
+          <div class="planOut" data-for="<%= g.id %>" style="display:none;margin-top:8px;font-size:.88rem;line-height:1.55;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 12px"></div>
           <% } %>
         </div>
       <% }) %>
@@ -68,6 +70,18 @@
 </main>
 <script>
 (function(){document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-confirm]');if(!b||b.dataset.armed==='1')return;e.preventDefault();e.stopPropagation();if(!b.dataset.label)b.dataset.label=b.innerHTML;b.innerHTML=b.dataset.confirm;b.dataset.armed='1';setTimeout(function(){b.dataset.armed='';b.innerHTML=b.dataset.label;},3000);},true);})();
+(function(){
+  var LOAD=<%- JSON.stringify(t('plan.loading')) %>, OFF=<%- JSON.stringify(t('plan.off')) %>;
+  document.querySelectorAll('.planBtn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var id=btn.dataset.id, out=document.querySelector('.planOut[data-for="'+id+'"]');
+      out.style.display=''; out.textContent=LOAD; btn.disabled=true;
+      fetch('/goals/'+id+'/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})
+        .then(function(r){return r.json();}).then(function(d){ out.textContent = d.disabled?OFF : (d.ok?d.plan:OFF); })
+        .catch(function(){ out.textContent=OFF; }).then(function(){ btn.disabled=false; });
+    });
+  });
+})();
 </script>
 <%- include('app_nav', { active: 'profile' }) %>
 <%- include('foot') %>
