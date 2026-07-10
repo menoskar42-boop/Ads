@@ -72,6 +72,7 @@ const STR = {
     'prof.title': 'حسابي', 'prof.settings': 'الإعدادات المالية', 'prof.income': 'الدخل الشهري', 'prof.goal': 'هدف الادخار',
     'prof.currency': 'العملة', 'prof.saved': 'تم الحفظ ✓', 'prof.guest': 'حساب ضيف', 'prof.guest_note': 'بياناتك على هذا الجهاز — أنشئ حساباً للاحتفاظ بها.',
     'prof.edit_salary': 'إعدادات الراتب والإجازات',
+    'ai.insight': 'رؤية اليوم', 'ai.badge': 'ذكاء اصطناعي', 'ai.suggested': 'اقتراح تلقائي للفئة ✓', 'ai.thinking': 'بيفكّر…',
   },
   en: {
     'app.name': 'Kakeibo',
@@ -145,6 +146,7 @@ const STR = {
     'prof.title': 'Profile', 'prof.settings': 'Financial settings', 'prof.income': 'Monthly income', 'prof.goal': 'Saving goal',
     'prof.currency': 'Currency', 'prof.saved': 'Saved ✓', 'prof.guest': 'Guest account', 'prof.guest_note': 'Your data is on this device — create an account to keep it.',
     'prof.edit_salary': 'Salary & holidays settings',
+    'ai.insight': "Today's insight", 'ai.badge': 'AI', 'ai.suggested': 'Category auto-suggested ✓', 'ai.thinking': 'Thinking…',
   },
 };
 

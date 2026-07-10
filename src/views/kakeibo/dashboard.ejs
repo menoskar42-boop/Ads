@@ -27,6 +27,17 @@
     <div class="muted" style="font-size:.72rem;margin-top:6px;display:flex;justify-content:space-between"><span><%= t('dash.saving_rate') %>: <b class="accent"><%= data.savingRate %>%</b></span><span><%= money(data.spentPeriod) %></span></div>
   </section>
 
+  <!-- AI insight -->
+  <% if (typeof insight !== 'undefined' && insight) { %>
+  <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;gap:11px;align-items:flex-start;border-inline-start:3px solid var(--accent)">
+    <span style="font-size:1.2rem">🤖</span>
+    <div>
+      <div class="muted" style="font-size:.68rem;font-weight:700;letter-spacing:.04em"><%= t('ai.insight') %> · <%= t('ai.badge') %></div>
+      <div style="font-size:.92rem;margin-top:2px;line-height:1.55"><%= insight %></div>
+    </div>
+  </section>
+  <% } %>
+
   <!-- Goal + tiles -->
   <section style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
     <div class="card" style="padding:14px 16px">

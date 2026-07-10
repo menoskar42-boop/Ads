@@ -65,6 +65,25 @@ async function ensureKakeiboSchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_kkb_hol_user ON kkb_holidays (user_id, holiday_on);
+
+      -- AI cache — store generated insights/reports/categorizations so we never
+      -- re-call OpenAI for the same thing (cost control). Keyed per user+kind+key.
+      CREATE TABLE IF NOT EXISTS kkb_ai_cache (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        ckey TEXT NOT NULL,
+        content JSONB,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (user_id, kind, ckey)
+      );
+      -- Token usage log (cost visibility).
+      CREATE TABLE IF NOT EXISTS kkb_ai_usage (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        kind TEXT, tokens INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
     `);
     console.log('Kakeibo schema ready.');
   } finally {

@@ -12,6 +12,7 @@ const { Pool } = require('pg');
 const { makeT, normLang } = require('./i18n');
 const { CATEGORIES, CATEGORY_KEYS, PAYMENT_METHODS } = require('./categories');
 const stats = require('./stats');
+const ai = require('./ai');
 let compressImage = null;
 try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
@@ -170,9 +171,31 @@ const APP_LOCALS = { CATEGORIES, PAYMENT_METHODS };
 /* ─── Dashboard ────────────────────────────────────────── */
 router.get('/app', requireOnboarded, async (req, res) => {
   try {
-    const data = await stats.dashboard(pool, req.session.kkbUserId, res.locals.profile);
-    res.render('kakeibo/dashboard', Object.assign({ data }, APP_LOCALS));
+    const uid = req.session.kkbUserId;
+    const data = await stats.dashboard(pool, uid, res.locals.profile);
+    // Personalized daily insight — cached per day (one AI call max/day, or none).
+    let insight = null;
+    if (ai.isEnabled() && data.recent.length) {
+      const now = new Date();
+      const topCats = await stats.categoryBreakdown(pool, uid, stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1)), stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)));
+      const ctx = ai.financeContext(res.locals.profile, data, topCats);
+      insight = await ai.cachedText(pool, uid, 'insight', stats.ymd(now), [
+        { role: 'system', content: ai.coachSystem(res.locals.lang) },
+        { role: 'user', content: 'My finances: ' + ctx + '. Give me ONE short insight (max 2 sentences) about my spending right now — specific and useful.' },
+      ], 140);
+    }
+    res.render('kakeibo/dashboard', Object.assign({ data, insight }, APP_LOCALS));
   } catch (e) { console.error('[kkb dashboard]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── AI: categorize a description (local-first, cached) ── */
+router.post('/ai/categorize', requireOnboarded, async (req, res) => {
+  const desc = String((req.body && req.body.description) || '').slice(0, 120);
+  if (!desc.trim()) return res.json({ category: null });
+  try {
+    const out = await ai.categorize(pool, req.session.kkbUserId, desc, res.locals.lang);
+    res.json({ category: out.category, label: res.locals.t('cat.' + out.category) });
+  } catch (e) { res.json({ category: null }); }
 });
 
 /* ─── Add / edit / delete expense ──────────────────────── */

@@ -41,7 +41,8 @@
 
     <div>
       <label class="lbl"><%= t('add.desc') %></label>
-      <input name="description" maxlength="200" class="fld" />
+      <input name="description" id="descInput" maxlength="200" class="fld" autocomplete="off" />
+      <p id="aiSug" class="muted" style="font-size:.72rem;margin:5px 2px 0;display:none"></p>
     </div>
 
     <div>
@@ -53,5 +54,28 @@
   </form>
 </main>
 <style>.catchip[data-on="1"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}</style>
+<script>
+/* Auto-suggest a category from the description (local-first on the server;
+   AI only when needed). Fires once the user pauses typing. Never blocks saving. */
+(function(){
+  var inp=document.getElementById('descInput'), sug=document.getElementById('aiSug');
+  var SUG=<%- JSON.stringify(t('ai.suggested')) %>, userTouched=false;
+  document.querySelectorAll('input[name="category"]').forEach(function(r){ r.addEventListener('change',function(){userTouched=true;}); });
+  var timer=null, last='';
+  function pick(cat){
+    var r=document.querySelector('input[name="category"][value="'+cat+'"]'); if(!r)return;
+    r.checked=true; document.querySelectorAll('.catchip').forEach(function(x){x.dataset.on='0'});
+    r.parentNode.querySelector('.catchip').dataset.on='1';
+  }
+  function ask(){
+    var v=(inp.value||'').trim(); if(v.length<2||v===last||userTouched){return;} last=v;
+    fetch('/ai/categorize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({description:v})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d&&d.category&&!userTouched){ pick(d.category); sug.textContent=SUG+' — '+(d.label||d.category); sug.style.display=''; }
+      }).catch(function(){});
+  }
+  if(inp){ inp.addEventListener('input',function(){clearTimeout(timer);timer=setTimeout(ask,700);}); inp.addEventListener('blur',ask); }
+})();
+</script>
 <%- include('app_nav', { active: 'add' }) %>
 <%- include('foot') %>
