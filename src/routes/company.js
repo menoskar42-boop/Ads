@@ -21,7 +21,9 @@ router.use((req, res, next) => { res.locals.professions = PROFESSIONS; next(); }
 const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/;
+// SVG excluded on purpose: it is active content (can carry <script>) — see the
+// /uploads CSP sandbox in server.js. Only passive raster formats are accepted.
+const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp)$/;
 const videoMimeRegex = /^video\/(mp4|quicktime|webm|x-matroska|x-msvideo|mpeg|3gpp|3gpp2)$/;
 
 function makeUploader(prefix) {

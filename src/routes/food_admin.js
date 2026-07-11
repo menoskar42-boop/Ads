@@ -14,7 +14,8 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/;
+// SVG excluded on purpose (active content). Only passive raster formats.
+const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp)$/;
 const uploadFoodImage = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),

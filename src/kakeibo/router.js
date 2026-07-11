@@ -31,7 +31,8 @@ const uploadReceipt = multer({
     filename: (req, file, cb) => cb(null, 'kkb-' + (req.session.kkbUserId || 'x') + '-' + Date.now() + path.extname(file.originalname || '').toLowerCase().slice(0, 6)),
   }),
   limits: { fileSize: 6 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => /^image\//.test(file.mimetype) ? cb(null, true) : cb(null, false),
+  // SVG excluded on purpose (active content) — only passive raster receipts.
+  fileFilter: (req, file, cb) => /^image\/(png|jpe?g|gif|webp|heic|heif)$/.test(file.mimetype) ? cb(null, true) : cb(null, false),
 }).single('receipt');
 function withReceipt(req, res, next) { uploadReceipt(req, res, () => next()); }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

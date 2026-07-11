@@ -19,7 +19,8 @@ const { compressImage } = require('../lib/media');
 // breaks the form, the image is just skipped.
 const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp|svg\+xml)$/;
+// SVG excluded on purpose (active content). Only passive raster formats.
+const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp)$/;
 function pharmUploader(prefix) {
   return multer({
     storage: multer.diskStorage({

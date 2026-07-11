@@ -130,6 +130,15 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '7d',
   setHeaders(res, filePath) {
+    // SECURITY: user-uploaded files live under /uploads. Neutralize active
+    // content (e.g. an SVG/HTML file with an embedded <script>) if it's opened
+    // directly as a top-level document: the sandbox CSP blocks script execution
+    // and nosniff prevents MIME confusion. This does NOT affect legitimate
+    // inline <img> embedding (a sub-resource's CSP is ignored by the browser).
+    if (/[\\/]uploads[\\/]/.test(filePath)) {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    }
     if (/(?:robots\.txt|sitemap[^/]*\.xml)$/i.test(filePath)) {
       // SEO control files must always revalidate — a 7-day cache made a stale
       // robots.txt/sitemap stick in the browser/CDN long after a deploy.
