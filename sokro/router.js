@@ -16,6 +16,10 @@ const registry = require('./registry'); // unified Actions + Skills resolver
 const browser = require('./browser');
 const planner = require('./ai/planner');
 const executor = require('./workflows/executor');
+const permissions = require('./permissions');
+const voice = require('./voice');
+const multer = require('multer');
+const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
 const { loginLimiter } = require('../src/middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -153,29 +157,73 @@ router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
 });
 
 // ── Orchestrator: plan → execute (validate + retry) → summarize ──────────────
-router.post('/api/run', auth.requireAuth, async (req, res) => {
-  const goal = String((req.body && req.body.goal) || '').trim();
-  if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
-  const ctx = {
-    userId: req.sokroUser.id,
+function sokroCtx(userId, taskId) {
+  return {
+    userId, taskId,
     llm: require('./llm'),
     memory, browser, actions: registry,
     log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
   };
+}
+async function executePlan(ctx, goal, taskId, plan, res) {
+  await memory.updateTask(taskId, { status: 'running' });
+  const results = await executor.execute(ctx, plan);
+  const ok = results.length > 0 && results.every((r) => r.result.ok);
+  const summary = await planner.summarize(ctx, goal, results);
+  await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary } });
+  res.json({ ok, taskId, plan: plan.steps, results, summary });
+}
+
+// Plan the goal; if it needs SENSITIVE permissions, pause and ask for (voice)
+// consent, otherwise execute immediately (e.g. search/report just runs).
+router.post('/api/run', auth.requireAuth, async (req, res) => {
+  const goal = String((req.body && req.body.goal) || '').trim();
+  if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
   try {
     const task = await memory.createTask(req.sokroUser.id, goal, (req.body && req.body.conversationId) || null);
-    ctx.taskId = task.id;
+    const ctx = sokroCtx(req.sokroUser.id, task.id);
     const plan = await planner.plan(ctx, goal);
-    await memory.updateTask(task.id, { plan, status: 'running' });
-    const results = await executor.execute(ctx, plan);
-    const ok = results.length > 0 && results.every((r) => r.result.ok);
-    const summary = await planner.summarize(ctx, goal, results);
-    await memory.updateTask(task.id, { status: ok ? 'done' : 'failed', result: { summary } });
-    res.json({ ok, taskId: task.id, intent: plan.intent, plan: plan.steps, message: plan.message, results, summary });
+    const perms = permissions.forPlan(plan, registry);
+    await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
+    if (perms.requiresConsent) {
+      return res.json({ ok: true, taskId: task.id, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, message: plan.message || null });
+    }
+    return await executePlan(ctx, goal, task.id, plan, res);
   } catch (e) {
     console.error('[sokro] run:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Resume a paused task after the user grants (voice) consent.
+router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
+  try {
+    const t = (await pool.query('SELECT id, goal, plan FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
+    if (!t) return res.status(404).json({ ok: false, error: 'task not found' });
+    if (!t.plan || !Array.isArray(t.plan.steps)) return res.status(400).json({ ok: false, error: 'task has no plan' });
+    return await executePlan(sokroCtx(req.sokroUser.id, t.id), t.goal, t.id, t.plan, res);
+  } catch (e) {
+    console.error('[sokro] execute:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Voice → text (Whisper).
+router.post('/api/voice', auth.requireAuth, (req, res) => uploadAudio(req, res, async () => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'audio required' });
+  try { res.json({ ok: true, text: await voice.transcribe(req.file.buffer, req.file.originalname || 'audio.webm') }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+}));
+
+// Text → speech (high-quality Egyptian Arabic). Returns MP3 audio.
+router.post('/api/speak', auth.requireAuth, async (req, res) => {
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ ok: false, error: 'text required' });
+  try {
+    const mp3 = await voice.speak(text, { voice: req.body.voice });
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.send(mp3);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // Public landing page (indexable, SEO/AdSense-aware — real content, no ads yet).

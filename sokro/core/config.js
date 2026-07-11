@@ -27,6 +27,8 @@ const config = {
     planner: true,
     browser: false,
     scheduler: false,
+    permissions: true,
+    voice: true,
   },
 };
 
