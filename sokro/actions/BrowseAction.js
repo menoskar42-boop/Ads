@@ -10,6 +10,14 @@ const { register } = require('./_registry');
 async function run(ctx, input) {
   const url = String((input && input.url) || '').trim();
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
+  // Prefer the user's LIVE browser via the connected extension (logged-in
+  // sessions, no server Chromium). Falls back to server-side Playwright.
+  const ext = require('../extension-bridge');
+  if (ctx.userId && ext.connected(ctx.userId)) {
+    const r = await ext.run(ctx.userId, 'browse', { url, selector: input && input.selector, screenshot: !!(input && input.screenshot) });
+    if (r.ok) { if (ctx.log) ctx.log('browse(ext)', { url }); return { ok: true, output: Object.assign({ url }, r.output) }; }
+    return { ok: false, error: r.error };
+  }
   if (!ctx.browser || !ctx.browser.available()) {
     return { ok: false, error: 'browser engine not installed (run: npm i playwright && npx playwright install chromium)' };
   }

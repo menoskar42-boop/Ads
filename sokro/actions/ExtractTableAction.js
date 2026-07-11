@@ -8,6 +8,12 @@ const { register } = require('./_registry');
 async function run(ctx, input) {
   const url = String((input && input.url) || '').trim();
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
+  const ext = require('../extension-bridge');
+  if (ctx.userId && ext.connected(ctx.userId)) {
+    const r = await ext.run(ctx.userId, 'extract_table', { url, selector: input && input.selector });
+    if (r.ok) { if (ctx.log) ctx.log('extract_table(ext)', { url }); return { ok: true, output: Object.assign({ url }, r.output) }; }
+    return { ok: false, error: r.error };
+  }
   if (!ctx.browser || !ctx.browser.available()) {
     return { ok: false, error: 'browser engine not installed (run: npm i playwright && npx playwright install chromium)' };
   }

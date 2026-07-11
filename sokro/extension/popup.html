@@ -1,0 +1,24 @@
+<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8" />
+<style>
+  body{font-family:system-ui,'Cairo',sans-serif;width:260px;margin:0;padding:16px;background:#0b1020;color:#eef1ff}
+  h3{margin:0 0 10px;font-size:1rem}
+  .row{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:.9rem}
+  .dot{width:10px;height:10px;border-radius:50%;background:#666;flex:none}
+  .dot.on{background:#22c55e}
+  button{width:100%;padding:10px;border:0;border-radius:10px;background:#5b6cff;color:#fff;font-weight:700;cursor:pointer;margin-top:8px;font-family:inherit}
+  a{color:#8ea2ff}
+  p{font-size:12px;color:#9aa2cf;line-height:1.6}
+</style>
+</head>
+<body>
+  <h3>Sokro — جسر المتصفح</h3>
+  <div class="row"><span id="dot" class="dot"></span><span id="status">بيتحقّق…</span></div>
+  <div class="row"><label><input type="checkbox" id="active" checked /> مفعّل (يستقبل أوامر Sokro)</label></div>
+  <button id="open">افتح Sokro</button>
+  <p>لازم تكون مسجّل دخول على <a href="https://sokro.oscardevs.com/app" target="_blank">sokro.oscardevs.com</a> عشان الجسر يشتغل.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -21,6 +21,7 @@ const voice = require('./voice');
 const settings = require('./settings');
 const reports = require('./reports');
 const scheduler = require('./scheduler');
+const extBridge = require('./extension-bridge');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -288,8 +289,32 @@ router.post('/internal/cron', async (req, res) => {
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ── Browser-extension bridge (uses the user's LIVE browser) ──────────────────
+// The extension long-polls for a command, runs it in the user's real browser
+// (logged-in sessions), and posts the result back.
+router.post('/api/ext/poll', auth.requireAuth, async (req, res) => {
+  extBridge.markSeen(req.sokroUser.id);
+  try { res.json({ ok: true, command: await extBridge.next(req.sokroUser.id) }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.post('/api/ext/result', auth.requireAuth, async (req, res) => {
+  const b = req.body || {};
+  if (!b.id) return res.status(400).json({ ok: false, error: 'id required' });
+  try { await extBridge.result(req.sokroUser.id, b.id, b.output, b.error); res.json({ ok: true }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.get('/api/ext/status', auth.requireAuth, (req, res) => {
+  res.json({ ok: true, connected: extBridge.connected(req.sokroUser.id) });
+});
+
 // The single voice app screen.
 router.get('/app', (_req, res) => res.type('html').set('Cache-Control', 'no-cache').sendFile(path.join(__dirname, 'ui', 'app.html')));
+
+// Serve the Chrome extension files (zip these to load unpacked).
+router.get('/ext/:file', (req, res) => {
+  const safe = /^[a-zA-Z0-9._-]+$/.test(req.params.file) ? req.params.file : 'manifest.json';
+  res.sendFile(path.join(__dirname, 'extension', safe));
+});
 
 // Public landing page (indexable, SEO/AdSense-aware — real content, no ads yet).
 router.get('/', (_req, res) => {

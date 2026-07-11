@@ -95,6 +95,21 @@ async function ensureSokroSchema() {
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS sokro_sched_due_idx ON sokro_scheduled_tasks(active, next_run_at);
+
+      -- Browser-extension bridge: commands the server enqueues for the user's
+      -- Chrome extension to run in their LIVE browser (logged-in sessions), plus
+      -- the result the extension posts back. Avoids server-side Chromium.
+      CREATE TABLE IF NOT EXISTS sokro_ext_commands (
+        id         SERIAL PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        kind       TEXT NOT NULL,                 -- browse | extract_table | click | fill
+        input      JSONB,
+        status     TEXT NOT NULL DEFAULT 'pending', -- pending | running | done | error
+        output     JSONB,
+        error      TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_ext_pending_idx ON sokro_ext_commands(user_id, status, id);
     `);
     console.log('Sokro schema ready.');
   } finally {
