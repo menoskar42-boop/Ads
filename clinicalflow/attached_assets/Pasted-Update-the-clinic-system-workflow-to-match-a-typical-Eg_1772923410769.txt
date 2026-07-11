@@ -1,0 +1,218 @@
+Update the clinic system workflow to match a typical Egyptian clinic process and add a simple queue display feature.
+
+Important constraints:
+
+• Do NOT redesign the system architecture  
+• Do NOT break existing permissions or roles  
+• Keep the implementation lightweight for demo presentation  
+• Do NOT introduce complex backend services  
+• Preserve current appointment logic where possible  
+
+Roles in system:
+
+Admin  
+Reception  
+Doctor  
+
+------------------------------------------------
+1. Egyptian Clinic Workflow
+------------------------------------------------
+
+Modify the visit workflow to match how Egyptian clinics operate.
+
+New workflow:
+
+Booking → Payment (Arrival) → Waiting Queue → In Consultation → Completed
+
+Explanation:
+
+Booking  
+Patient books appointment normally.
+
+Payment = Arrival  
+When the invoice is paid, the system automatically marks the patient as Arrived.
+
+There is no separate "Check In" step.
+
+Queue Order  
+Patients are ordered in the waiting queue based on the invoice payment time, which represents arrival time.
+
+Earlier payment means earlier position in queue.
+
+------------------------------------------------
+2. Waiting Queue Management
+------------------------------------------------
+
+Create a clear "Waiting Queue" visible to:
+
+Admin  
+Reception  
+
+Each patient entry should show:
+
+Patient Name  
+Doctor Name  
+Arrival Time  
+Payment Status  
+
+Queue order is determined by payment time.
+
+------------------------------------------------
+3. Urgent Consultation (كشف مستعجل)
+------------------------------------------------
+
+Add a feature called:
+
+Urgent Consultation
+
+This can be applied:
+
+• during booking  
+• after booking  
+• before the patient enters the doctor  
+
+Urgent patients must appear at the top of the waiting queue.
+
+Add a red badge:
+
+URGENT
+
+------------------------------------------------
+4. Send Patient to Doctor
+------------------------------------------------
+
+Reception can click:
+
+Send to Doctor
+
+Status becomes:
+
+In Consultation
+
+Doctor can then click:
+
+Complete Visit
+
+Status becomes:
+
+Completed
+
+------------------------------------------------
+5. Discounts on Invoice
+------------------------------------------------
+
+Allow reception or admin to apply a discount to the invoice.
+
+Discount range:
+
+0% to 100%
+
+Example:
+
+Consultation Fee = 300  
+Discount = 100%  
+
+Total = 0
+
+The invoice should remain in the system but show the applied discount.
+
+------------------------------------------------
+6. Refund Feature
+------------------------------------------------
+
+Add a simple refund action.
+
+Admin or reception can click:
+
+Refund
+
+Behavior:
+
+Invoice status becomes:
+
+Refunded
+
+The invoice must NOT be deleted.
+
+Payment history remains visible for transparency.
+
+------------------------------------------------
+7. Reception Dashboard
+------------------------------------------------
+
+Reception dashboard should clearly display:
+
+Waiting Queue  
+Urgent Patients  
+Patients In Consultation  
+Completed Visits Today  
+
+------------------------------------------------
+8. Doctor Dashboard
+------------------------------------------------
+
+Doctor dashboard should show:
+
+Patients Waiting  
+Current Patient  
+Next Patient  
+
+Hide administrative elements such as revenue and billing.
+
+------------------------------------------------
+9. Waiting Screen (Queue Display)
+------------------------------------------------
+
+Add a new page for a clinic waiting screen.
+
+Route example:
+
+/queue-screen
+
+This page can be displayed on a TV in the reception area.
+
+Display:
+
+Doctor Name  
+Current Patient  
+Next 5 Patients in queue  
+
+Urgent patients should appear clearly.
+
+Example layout:
+
+Doctor: Dr Ahmed Hassan
+
+Current Patient  
+Mohamed Ali
+
+Next Patients  
+Sara Mohamed  
+Ahmed Ibrahim  
+Mahmoud Hassan
+
+------------------------------------------------
+10. Call Next Patient Button
+------------------------------------------------
+
+Add a button for reception or doctor:
+
+Call Next Patient
+
+When clicked:
+
+The next patient in the queue moves from
+
+Waiting
+
+to
+
+In Consultation
+
+and appears as the current patient on the queue screen.
+
+------------------------------------------------
+Goal
+------------------------------------------------
+
+The goal is to make the clinic system behave like a real Egyptian clinic while remaining simple and suitable for demo presentation.

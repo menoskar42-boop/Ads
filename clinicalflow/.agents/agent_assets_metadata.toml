@@ -1,0 +1,14 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "vt9SJhIHMvF1RGw0VNjHw"
+uri = "file://claude.md"
+type = "text"
+title = "claude.md — ClinicalFlow Project Structure"
+
+[[outputs]]
+id = "QPzCiALYqVVhu5ccYvurs"
+uri = "file://screenshots/clinicalflow_screenshots.zip"
+type = "unspecified"
+title = "ClinicalFlow — كل الصور (62 صفحة)"

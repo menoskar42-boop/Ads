@@ -1,0 +1,176 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow platform by implementing a Smart Home Visit Dispatch system.
+
+This system must allow patients to request home visits and automatically match them with the nearest available doctor who provides home visit services.
+
+Important constraints:
+
+• Do NOT break the existing clinic appointment system
+• Maintain compatibility with the multi-clinic SaaS architecture
+• Ensure doctors can still manually approve or reject requests
+• Keep the implementation scalable and efficient
+
+---
+
+1. Home Visit Option on Homepage
+
+Add a new option on the homepage search area.
+
+Example buttons:
+
+Book Clinic Visit
+Book Home Visit
+
+If the user selects "Home Visit":
+
+Show a form asking for:
+
+Governorate
+Full address
+Preferred day
+Preferred time
+
+---
+
+2. Detect Patient Location
+
+Allow the system to optionally request the patient location.
+
+Use browser geolocation if permitted.
+
+Store:
+
+latitude
+longitude
+
+If location permission is denied, use the provided address.
+
+---
+
+3. Find Eligible Doctors
+
+When a home visit request is submitted, the system should search for doctors who:
+
+Have "Home Visit Available" enabled
+Serve the selected governorate
+Are available during the requested time
+
+---
+
+4. Smart Nearest Doctor Algorithm
+
+Calculate the distance between:
+
+patient location
+doctor service location
+
+Sort doctors by distance.
+
+Example:
+
+Dr Ahmed → 3 km
+Dr Sara → 5 km
+Dr Omar → 8 km
+
+---
+
+5. Smart Dispatch Queue
+
+Send the request to the nearest doctor first.
+
+Doctor receives a notification:
+
+New home visit request near you.
+
+Doctor sees:
+
+Patient name
+Governorate
+Address
+Requested time
+Distance from patient
+
+Buttons:
+
+Approve
+Reject
+
+---
+
+6. Escalation Logic
+
+If the first doctor does not respond within a configurable time window (example: 5 minutes):
+
+Automatically send the request to the next nearest doctor.
+
+Continue until a doctor accepts.
+
+---
+
+7. Request Status
+
+Home visit requests should support the following statuses:
+
+pending
+sent_to_doctor
+approved
+rejected
+completed
+
+---
+
+8. Patient Notifications
+
+Notify the patient when:
+
+The request is being processed
+A doctor accepts the request
+The request is rejected
+
+Example message:
+
+A nearby doctor has accepted your home visit request.
+
+---
+
+9. Doctor Home Visit Dashboard
+
+Create a doctor-only page:
+
+Home Visit Requests
+
+This page should show:
+
+Pending requests
+Approved visits
+Rejected visits
+
+Doctors can approve or reject requests.
+
+---
+
+10. Homepage Promotion
+
+Display a section on the homepage:
+
+Home Visits Available
+
+Show doctors who offer home visit services.
+
+Each card should display:
+
+Doctor name
+Specialty
+Home visit price
+Service areas
+
+Button:
+
+Request Home Visit
+
+---
+
+Goal
+
+Create an intelligent home visit system that automatically connects patients with the nearest available doctor while maintaining full compatibility with the ClinicFlow SaaS architecture.

@@ -1,0 +1,214 @@
+You misunderstood the product architecture.
+
+ClinicFlow is NOT just a clinic management system.
+
+It must be a combination of two systems in one platform:
+
+1) Healthcare Marketplace (for patients)
+2) Clinic Management System (for clinics)
+
+The system must support both at the same time.
+
+Do NOT rebuild the project from scratch.  
+Reorganize the existing system architecture.
+
+------------------------------------------------
+PART 1 — PATIENT MARKETPLACE (PUBLIC WEBSITE)
+------------------------------------------------
+
+The public website must behave like a doctor booking marketplace.
+
+Example user flow:
+
+Patient opens homepage  
+Patient searches for a doctor  
+Patient chooses doctor  
+Patient selects clinic location  
+Patient books appointment
+
+The homepage must NOT start with "Select Clinic".
+
+Instead create a marketplace homepage.
+
+Homepage sections should include:
+
+Doctor search (specialty + location)
+
+Doctors near the user
+
+Earliest available appointments today
+
+Top rated doctors
+
+Latest medical offers
+
+Buttons:
+
+Find Doctor  
+Register as Patient  
+Register as Doctor  
+Register as Clinic
+
+------------------------------------------------
+PUBLIC PAGES
+------------------------------------------------
+
+Create public SEO-friendly pages.
+
+Doctor public page
+
+Example:
+
+/doctor/{doctor_slug}
+
+Display:
+
+Doctor photo  
+Specialty  
+Qualifications  
+Ratings  
+Clinics where the doctor works  
+Available appointments
+
+Include:
+
+Book Appointment button
+
+------------------------------------------------
+
+Clinic public page
+
+Example:
+
+/clinic/{clinic_slug}
+
+Display:
+
+Clinic information  
+Doctors working in the clinic  
+Available appointments  
+Clinic rating
+
+Include:
+
+Book Appointment button
+
+------------------------------------------------
+PATIENT REGISTRATION
+------------------------------------------------
+
+Patients must register at the PLATFORM LEVEL.
+
+Remove the clinic field from patient registration.
+
+Correct fields:
+
+Name  
+Phone  
+Email  
+Password
+
+Patients should be able to book in ANY clinic.
+
+------------------------------------------------
+PART 2 — CLINIC MANAGEMENT SYSTEM
+------------------------------------------------
+
+Clinics must have their own management dashboard.
+
+Example route:
+
+/dashboard
+
+Only clinic staff should access this area.
+
+Roles:
+
+Clinic Admin  
+Doctor  
+Receptionist
+
+------------------------------------------------
+CLINIC DASHBOARD FEATURES
+------------------------------------------------
+
+Appointment management
+
+Patient queue
+
+Invoices and payments
+
+Medical records
+
+Reports
+
+Doctor schedules
+
+Waiting room management
+
+------------------------------------------------
+MULTI-CLINIC DOCTOR SYSTEM
+------------------------------------------------
+
+Doctors may work in multiple clinics.
+
+Create a linking table:
+
+doctor_clinics
+
+Fields:
+
+doctor_id  
+clinic_id  
+role
+
+After login, doctors must see a screen:
+
+Select Clinic
+
+Then enter the clinic dashboard.
+
+------------------------------------------------
+CORRECT SYSTEM STRUCTURE
+------------------------------------------------
+
+Public marketplace:
+
+/
+
+Doctor search:
+
+/search
+
+Doctor profile:
+
+/doctor/{slug}
+
+Clinic profile:
+
+/clinic/{slug}
+
+------------------------------------------------
+
+Authentication:
+
+/login  
+/signup
+
+------------------------------------------------
+
+Clinic system:
+
+/dashboard
+
+------------------------------------------------
+GOAL
+------------------------------------------------
+
+Transform ClinicFlow from a clinic-first system into a hybrid platform:
+
+Healthcare Marketplace for patients
+
+PLUS
+
+Clinic Management SaaS for clinics.

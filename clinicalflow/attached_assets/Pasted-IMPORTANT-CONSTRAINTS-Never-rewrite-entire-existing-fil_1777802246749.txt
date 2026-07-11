@@ -1,0 +1,190 @@
+IMPORTANT CONSTRAINTS:
+
+* Never rewrite entire existing files
+* Always use str_replace for edits
+* Do NOT refactor architecture
+* Do NOT change business logic
+* Focus only on UI polish and consistency
+* Keep implementation minimal
+
+---
+
+TASK: Apply Production UI Polish (Visual + UX Consistency)
+
+---
+
+GOAL:
+Make the system look like a professional SaaS product
+
+---
+
+STEP 1 — Typography System
+
+Standardize font sizes:
+
+* Page title: 20–24px
+* Section title: 16–18px
+* Body: 14px
+* Small text: 12px
+
+Apply consistent font-weight hierarchy
+
+---
+
+STEP 2 — Spacing System
+
+Apply consistent spacing:
+
+* card padding: 16px
+* section gap: 20–24px
+* button padding: 8px 12px
+
+Remove random spacing
+
+---
+
+STEP 3 — Card-Based Layout
+
+Wrap major sections in cards:
+
+* white background
+* border-radius: 12px
+* subtle shadow
+
+Apply to:
+
+* dashboards
+* tables
+* forms
+
+---
+
+STEP 4 — Buttons Standardization
+
+Create 3 button types:
+
+1. Primary (main action)
+2. Secondary
+3. Danger (delete)
+
+Ensure:
+
+* same colors everywhere
+* same size
+
+---
+
+STEP 5 — Status Colors
+
+Standardize colors:
+
+* success → green
+* warning → orange
+* error → red
+* info → blue
+
+Apply to:
+
+* queue
+* payments
+* alerts
+
+---
+
+STEP 6 — Empty States
+
+For empty pages:
+
+Show message:
+
+* "لا توجد بيانات حالياً"
+
+Add optional action button
+
+---
+
+STEP 7 — Loading States
+
+Add:
+
+* spinner OR skeleton
+
+Apply to:
+
+* tables
+* dashboards
+* booking
+
+---
+
+STEP 8 — Table Polish
+
+Improve tables:
+
+* row hover effect
+* zebra rows
+* aligned columns
+* consistent spacing
+
+---
+
+STEP 9 — Form Improvements
+
+* clear labels
+* placeholder hints
+* validation messages
+
+---
+
+STEP 10 — Navigation Polish
+
+* highlight active page
+* reduce clutter
+* consistent icons
+
+---
+
+STEP 11 — Quick Actions
+
+Add top actions:
+
+Doctor:
+
+* "المريض التالي"
+
+Clinic:
+
+* "إضافة مريض"
+* "فتح الفاتورة"
+
+---
+
+STEP 12 — Mobile Responsiveness (basic)
+
+* stack cards vertically
+* avoid overflow
+
+---
+
+STEP 13 — Remove Visual Noise
+
+* remove duplicate buttons
+* remove unnecessary text
+* simplify screens
+
+---
+
+STEP 14 — Consistency Check
+
+Ensure:
+
+* same style across all pages
+* no mixed design patterns
+
+---
+
+FINAL OUTPUT:
+
+* list of UI improvements
+* screenshots before/after (if possible)
+* confirmation UI is consistent

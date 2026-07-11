@@ -1,0 +1,224 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow platform by creating a professional marketing landing page for the system itself, similar to modern medical booking platforms.
+
+The landing page must promote the platform and allow registration for three types of users:
+
+Doctor
+Clinic
+Patient
+
+Important constraints:
+
+• Do NOT redesign the existing system architecture
+• Maintain compatibility with the current multi-clinic SaaS structure
+• Keep the implementation lightweight and scalable
+• Ensure clear role-based registration
+
+---
+
+1. Marketing Landing Page
+
+---
+
+Create a public homepage for the platform.
+
+Example route:
+
+/
+
+The page should function as a marketing landing page introducing the platform to visitors.
+
+---
+
+2. Hero Section (Main Banner)
+
+---
+
+Add a hero section with:
+
+Large headline
+Short description of the platform
+Call-to-action buttons
+
+Example buttons:
+
+Find a Doctor
+Register as Doctor
+Register a Clinic
+
+---
+
+3. Image Slider
+
+---
+
+Create a slide carousel similar to medical platforms like Vezeeta.
+
+Each slide should include:
+
+Image
+Title
+Short description
+
+Example slides:
+
+Slide 1
+Book the best doctors near you.
+
+Slide 2
+Manage your clinic efficiently.
+
+Slide 3
+Smart AI assistant to help patients choose doctors.
+
+Images should be optimized for fast loading.
+
+---
+
+4. Latest Offers Section
+
+---
+
+Add a section called:
+
+Latest Medical Offers
+
+Clinics can publish promotional offers.
+
+Example:
+
+Discount on cardiology consultation
+Free follow-up visit
+Special packages
+
+Each offer should display:
+
+Clinic Name
+Doctor Name
+Offer Description
+Expiry Date
+Button: Book Now
+
+---
+
+5. Registration Buttons
+
+---
+
+Add clear registration options on the homepage.
+
+Buttons:
+
+Sign Up as Patient
+Register as Doctor
+Register a Clinic
+
+---
+
+6. User Registration System
+
+---
+
+Create separate signup flows for:
+
+Patients
+Doctors
+Clinics
+
+---
+
+## Patient Registration Fields
+
+Full Name
+Phone Number
+Email
+Password
+
+---
+
+## Doctor Registration Fields
+
+Full Name
+Phone Number
+Email
+Specialty
+Graduation Year
+Password
+
+---
+
+## Clinic Registration Fields
+
+Clinic Name
+Address
+City
+Phone Number
+Admin Name
+Email
+Password
+
+---
+
+7. Unique Registration Number
+
+---
+
+Every account in the platform must receive a unique registration number.
+
+Examples:
+
+PAT-10001 (Patient)
+DOC-20001 (Doctor)
+CLN-30001 (Clinic)
+
+This number should be generated automatically at signup.
+
+---
+
+8. Clinic Selecting Doctors
+
+---
+
+When a clinic registers, the clinic admin should be able to search and select doctors already registered in the platform.
+
+Process:
+
+Search doctor by name or specialty
+Send collaboration request
+
+Doctors can accept or reject the clinic invitation.
+
+Once accepted, the doctor becomes associated with the clinic.
+
+---
+
+9. Public Platform Sections
+
+---
+
+The landing page should also include:
+
+Platform Features
+How It Works
+Why Choose Our Platform
+
+These sections help promote the system to clinics and doctors.
+
+---
+
+10. SEO and Performance
+
+---
+
+Ensure the landing page is optimized for:
+
+Fast loading
+Mobile responsiveness
+SEO friendly structure
+
+---
+
+## Goal
+
+Create a modern marketing homepage that attracts patients, doctors, and clinics to join the platform while integrating smoothly with the existing ClinicFlow SaaS architecture.

@@ -1,0 +1,139 @@
+You are a senior medical SaaS architect.
+
+Modify the ClinicFlow patient record system to protect doctor-to-doctor privacy while still allowing medical collaboration within the same specialty.
+
+Important design goal:
+
+Doctors must NOT see which doctor previously treated the patient.
+
+However, they should still be able to access relevant lab results and radiology within their own specialty.
+
+---
+
+1. Hide Previous Doctor Identity
+
+---
+
+In the patient medical history timeline:
+
+Do NOT display the name of previous doctors.
+
+Instead show only:
+
+visit_date
+specialty
+visit_type
+
+Example:
+
+Previous Visit
+Specialty: Cardiology
+Date: 12 Mar 2026
+
+Doctor name must NOT be visible to other doctors.
+
+---
+
+2. Prescription Privacy
+
+---
+
+Doctors can ONLY see prescriptions they personally created.
+
+Condition:
+
+prescriptions.doctor_id = current_doctor_id
+
+Doctors cannot view prescriptions created by other doctors.
+
+---
+
+3. Lab Results Visibility Rules
+
+---
+
+Doctors may view lab results uploaded by other doctors only if:
+
+lab_tests.specialty_id = doctor.specialty_id
+
+However:
+
+Do NOT display the doctor who requested the test.
+
+Visible fields:
+
+test_name
+result_file
+upload_date
+specialty
+
+Hidden fields:
+
+ordering_doctor_name
+ordering_doctor_id
+
+---
+
+4. Radiology Visibility Rules
+
+---
+
+Radiology files follow the same rule.
+
+Doctors may view radiology uploaded by doctors within the same specialty.
+
+Condition:
+
+radiology.specialty_id = doctor.specialty_id
+
+Do NOT display:
+
+doctor_name
+doctor_id
+
+Only display:
+
+scan_type
+upload_date
+specialty
+file
+
+---
+
+5. Patient Timeline Privacy Mode
+
+---
+
+Patient timeline should display events without revealing doctor identities.
+
+Example:
+
+12 Mar 2026
+Cardiology Consultation
+
+10 Mar 2026
+Cardiology Lab Test
+
+8 Mar 2026
+Cardiology Radiology
+
+Doctor names must remain hidden.
+
+---
+
+6. Admin Override
+
+---
+
+Admins can see full details including:
+
+doctor_name
+doctor_id
+
+because admin requires full operational visibility.
+
+---
+
+## Goal
+
+Maintain patient medical continuity while preventing doctor-to-doctor visibility to avoid professional sensitivity and preserve privacy.

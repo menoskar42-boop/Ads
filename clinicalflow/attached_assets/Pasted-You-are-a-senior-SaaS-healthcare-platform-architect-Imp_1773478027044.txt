@@ -1,0 +1,126 @@
+You are a senior SaaS healthcare platform architect.
+
+Implement a dynamic medical offers system for the ClinicFlow platform.
+
+The goal is to allow clinic admins to create promotional offers that attract patients and increase bookings.
+
+Important constraints:
+
+• Do NOT break the current appointment or billing system
+• Maintain compatibility with the multi-clinic SaaS architecture
+• Ensure offers can be displayed on the homepage and clinic pages
+
+---
+
+1. Offer Engine
+
+Create a dynamic offers system called:
+
+Offers Engine
+
+Each clinic admin must be able to create and manage promotional offers.
+
+---
+
+2. Offer Types
+
+Support the following offer types:
+
+Percentage Discount
+Fixed Amount Discount
+Free Follow-Up Visit
+Consultation Package
+Family Package
+First Visit Discount
+Urgent Visit Discount
+Reward Points System
+
+---
+
+3. Services Covered
+
+Offers may apply to:
+
+Consultation
+Follow-up visit
+Urgent visit
+All services
+
+---
+
+4. Offer Fields
+
+Each offer should include:
+
+Title
+Description
+Offer Type
+Discount Type
+Discount Value
+Applicable Service Type
+Doctor (optional)
+Clinic
+Start Date
+End Date
+Maximum Uses (optional)
+
+---
+
+5. Smart Offer Conditions
+
+Support conditions such as:
+
+First visit only
+Specific weekdays
+Specific hours
+Limited number of uses
+
+---
+
+6. Admin Dashboard
+
+Clinic admins must have an interface to:
+
+Create offer
+Edit offer
+Activate / deactivate offer
+View offer usage statistics
+
+---
+
+7. Homepage Display
+
+Display active offers in the homepage section:
+
+Latest Medical Offers
+
+Each offer card should display:
+
+Offer Title
+Discount Badge
+Doctor Name
+Clinic Name
+Offer Expiration Date
+Button: Book Now
+
+---
+
+8. Clinic Page Display
+
+Display active offers on the clinic page in a dedicated section.
+
+---
+
+9. Booking Integration
+
+When the user clicks:
+
+Book Now
+
+The system should apply the offer automatically during booking.
+
+---
+
+Goal
+
+Create a flexible promotional offers system that allows clinics to attract patients and increase bookings while maintaining full compatibility with the ClinicFlow SaaS architecture.

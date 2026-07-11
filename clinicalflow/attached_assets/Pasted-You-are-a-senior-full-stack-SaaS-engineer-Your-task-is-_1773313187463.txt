@@ -1,0 +1,308 @@
+You are a senior full-stack SaaS engineer.
+Your task is to enhance the existing ClinicFlow clinic management system while keeping the architecture lightweight and suitable for SaaS demo deployment.
+
+Important constraints:
+
+• Do NOT rebuild the entire system
+• Do NOT introduce heavy infrastructure
+• Preserve existing roles and permissions (Admin, Reception, Doctor, Patient)
+• Preserve the current appointment logic where possible
+• Keep the system suitable for demo and SaaS clinic deployment
+• Avoid over-engineering
+
+The goal is to make the system behave like a real clinic management platform used daily by clinics.
+
+---
+
+1. Fix Critical Issues Identified in System Analysis
+
+---
+
+Implement the following improvements:
+
+Invoice Numbers
+Generate unique invoice numbers automatically.
+
+Example format:
+
+INV-YYYYMMDD-###
+
+Example:
+
+INV-20260307-001
+INV-20260307-002
+
+Notifications Dropdown
+The notification bell must open a dropdown showing recent system events such as:
+
+New appointment booked
+Invoice payment received
+Patient uploaded document
+Doctor schedule updated
+
+Currency Setting
+Add currency selection in system settings:
+
+USD
+EGP
+SAR
+AED
+
+The selected currency should update billing and revenue displays.
+
+RTL Arabic Support
+Ensure proper RTL layout when Arabic is selected:
+
+Correct sidebar alignment
+Correct icon spacing
+Correct table layout
+
+---
+
+2. Waiting Screen (Clinic Queue Display)
+
+---
+
+Create a public waiting screen page for clinic reception.
+
+Example route:
+
+/queue-display
+
+This screen can be shown on a TV in the clinic waiting area.
+
+Display:
+
+Doctor Name
+Current Patient
+Next 5 Patients
+
+Example layout:
+
+Doctor: Dr Ahmed Hassan
+
+Current Patient
+Mohamed Ali
+
+Next Patients
+Sara Mohamed
+Ahmed Ibrahim
+Mahmoud Hassan
+
+Queue updates automatically when reception calls next patient.
+
+---
+
+3. Patient Queue Based on Payment Time
+
+---
+
+Modify queue logic to follow real Egyptian clinic workflow.
+
+New flow:
+
+Booking
+↓
+Invoice Payment = Patient Arrival
+↓
+Waiting Queue
+↓
+Doctor Consultation
+↓
+Completed Visit
+
+Queue order must be determined by invoice payment timestamp.
+
+Earlier payment = earlier position in queue.
+
+---
+
+4. Complete Patient Medical Record System
+
+---
+
+Create a full patient medical record module.
+
+Each patient must have a structured medical file containing:
+
+Patient Profile
+• Name
+• Phone
+• Gender
+• Age
+• Address
+• Emergency contact
+
+Medical History
+• Previous diagnoses
+• Chronic diseases
+• Allergies
+• Previous surgeries
+
+Clinical Visits
+Each visit stores:
+
+Doctor
+Specialty
+Symptoms
+Diagnosis
+Treatment notes
+
+Prescriptions
+• medication
+• dosage
+• duration
+
+Lab Tests
+Upload lab reports linked to the visit.
+
+Radiology
+Upload X-ray / MRI / CT images.
+
+Medical Documents
+Allow upload of PDFs and images.
+
+Patient Timeline
+Display chronological timeline:
+
+2026
+Consultation – Cardiology
+
+2025
+Blood Test
+
+2024
+Prescription
+
+Doctors must only see documents related to their specialty.
+
+---
+
+5. Clinic Analytics Dashboard
+
+---
+
+Create a reporting dashboard for clinic owners.
+
+Display analytics cards:
+
+Today's Patients
+Today's Revenue
+Most Active Doctor
+Most Requested Specialty
+
+Charts:
+
+Appointments per day
+Revenue by doctor
+Patient visit distribution
+
+Use existing system data.
+
+No complex analytics engine required.
+
+---
+
+6. Appointment Reminder System
+
+---
+
+Create an appointment reminder system.
+
+Patient Reminders
+Send reminder before appointment.
+
+Example:
+
+"You have an appointment tomorrow at 6 PM."
+
+Doctor Reminders
+Notify doctor of:
+
+First patient of the day
+Clinic location
+Appointment schedule
+
+Notifications can be:
+
+Email
+SMS simulation
+In-app notifications
+
+For demo purposes notifications can be simulated.
+
+---
+
+7. Nearby Doctor Discovery
+
+---
+
+Allow patients to find the nearest doctor in a selected specialty.
+
+Requirements:
+
+Each clinic location must store:
+
+City
+Area
+GPS coordinates (optional)
+
+When searching for a doctor:
+
+Sort results by distance from patient location.
+
+AI assistant should also suggest nearby doctors based on patient location.
+
+Example:
+
+Patient searches for "Cardiology"
+
+System returns:
+
+Dr Ahmed – 1.2 km
+Dr Hassan – 3.4 km
+Dr Omar – 5.1 km
+
+---
+
+8. Doctor Rating System
+
+---
+
+Implement a simple doctor rating system.
+
+After completing a visit, the patient can rate the doctor.
+
+Rating scale:
+
+1 to 5 stars
+
+Patients can optionally leave a short comment.
+
+Doctor profile should display:
+
+Average rating
+Total reviews
+
+Example:
+
+Dr Ahmed Hassan
+Rating: 4.7 ⭐
+Reviews: 120
+
+Admin can moderate reviews if necessary.
+
+---
+
+## Goal
+
+Transform ClinicFlow into a realistic SaaS clinic management platform with:
+
+queue management
+complete patient records
+analytics dashboard
+appointment reminders
+nearby doctor search
+doctor ratings
+
+while keeping the system simple, fast, and suitable for SaaS deployment.

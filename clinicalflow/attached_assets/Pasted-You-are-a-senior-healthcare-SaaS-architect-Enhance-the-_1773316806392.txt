@@ -1,0 +1,152 @@
+You are a senior healthcare SaaS architect.
+
+Enhance the ClinicFlow system to support Egyptian clinic workflows where clinics often differentiate between two types of visits:
+
+Consultation (كشف)
+Follow-up Consultation (استشارة)
+
+Important constraints:
+
+• Do NOT redesign the whole system
+• Maintain compatibility with the existing appointment system
+• Allow dynamic configuration per clinic
+• Keep implementation simple and scalable
+
+---
+
+1. Visit Types System
+
+---
+
+Introduce a new configurable entity called:
+
+Visit Type
+
+Examples:
+
+Consultation (كشف)
+Follow-up (استشارة)
+
+Each visit type should contain:
+
+id
+name
+price
+duration_minutes
+clinic_id
+
+Example:
+
+Consultation
+price = 300
+duration = 20 minutes
+
+Follow-up
+price = 150
+duration = 10 minutes
+
+---
+
+2. Clinic Configuration
+
+---
+
+Each clinic admin should be able to configure which visit types are enabled.
+
+Possible configurations:
+
+Consultation only
+Follow-up only
+Both consultation and follow-up
+
+---
+
+3. Visit Order Logic
+
+---
+
+Allow clinics to define how visits should be handled.
+
+Configuration options:
+
+1. Consultation first then Follow-up
+2. Follow-up first then Consultation
+3. Independent visits (no required order)
+
+This configuration should be editable in clinic settings.
+
+---
+
+4. Appointment Booking
+
+---
+
+When booking an appointment the user must choose:
+
+Visit Type
+
+Example options:
+
+Consultation
+Follow-up
+
+The selected visit type affects:
+
+price
+duration
+invoice generation
+
+---
+
+5. Queue System Integration
+
+---
+
+In the waiting queue display show the visit type.
+
+Example:
+
+Patient Name
+Visit Type
+Doctor
+
+Example row:
+
+Mohamed Ahmed | Consultation | Dr Omar
+
+---
+
+6. Billing Integration
+
+---
+
+Invoices must include visit type.
+
+Example:
+
+Service: Consultation
+Price: 300 EGP
+
+or
+
+Service: Follow-up
+Price: 150 EGP
+
+---
+
+7. Reports Integration
+
+---
+
+Reports must track statistics separately:
+
+Total Consultations
+Total Follow-ups
+
+Revenue by visit type.
+
+---
+
+## Goal
+
+Allow Egyptian clinics to dynamically configure how consultations and follow-ups work without modifying the core system.

@@ -1,0 +1,173 @@
+I want to add an AI Smart Booking Assistant to my clinic management system.
+
+Important constraints:
+
+* This project is currently a DEMO version that I present to clients.
+* Do NOT break any existing features.
+* Do NOT redesign the current system architecture.
+* Keep the implementation simple and lightweight.
+* Do NOT add complex AI agent frameworks.
+* Just integrate a simple OpenAI API based assistant.
+
+I already have an OpenAI API key and will store it as an environment variable.
+
+The assistant must help patients book appointments through a chat interface.
+
+---
+
+## AI Assistant Features
+
+1. Chat-based booking assistant.
+
+Patients can either:
+
+* type their symptoms
+* request a specialty
+* request a specific doctor
+* ask for the earliest available appointment
+
+Examples of user messages:
+
+"عندي ألم في الأسنان"
+"عاوز دكتور جلدية"
+"عاوز أحجز عند دكتور أحمد"
+"عاوز أقرب ميعاد"
+
+The assistant should guide the patient step by step until an appointment is created.
+
+The AI must NEVER invent doctors or appointment times.
+It must only use data from the system database.
+
+---
+
+## Suggested Quick Buttons
+
+At the start of the chat show clickable quick prompts:
+
+* عندي ألم في الأسنان
+* عندي صداع شديد
+* عندي ألم في المعدة
+* عاوز دكتور جلدية
+* عاوز دكتور أسنان
+* عاوز أقرب ميعاد
+* عاوز أحجز عند دكتور معين
+
+Clicking a button should send the message directly to the chat.
+
+---
+
+## Supported Booking Flows
+
+The assistant must support 3 booking flows:
+
+1. Symptom based booking
+
+Example:
+User: "عندي ألم في الأسنان"
+
+AI suggests:
+Dentistry specialty
+
+Then the system shows available dentists.
+
+2. Specialty booking
+
+Example:
+User: "عاوز دكتور جلدية"
+
+System shows dermatology doctors.
+
+3. Doctor name booking
+
+Example:
+User: "عاوز دكتور أحمد"
+
+System searches doctors by name and shows available time slots.
+
+---
+
+## Database Integration
+
+The assistant must fetch real data from the system:
+
+Doctors
+Specialties
+Schedules
+Available time slots
+
+Example functions the AI can use:
+
+getDoctorsBySpecialty()
+searchDoctorByName()
+getDoctorAvailableSlots()
+createAppointment()
+
+The AI should guide the conversation but the system should execute these functions.
+
+---
+
+## Unavailable Specialty Handling
+
+If the AI detects a specialty that does not exist in the clinic, respond:
+
+"هذا التخصص غير متوفر في العيادة حالياً"
+
+Then show the available specialties.
+
+---
+
+## Earliest Appointment Feature
+
+If the user asks for:
+
+"أقرب ميعاد"
+
+The system should find the earliest available slot across doctors and offer it.
+
+---
+
+## Cost Optimization
+
+This is important.
+
+Do NOT send the entire database to the AI.
+
+Only send:
+
+* available specialties
+* doctors relevant to the request
+* available time slots
+
+---
+
+## OpenAI Integration
+
+Use OpenAI API with a simple prompt-based approach.
+
+The API key will be stored in environment variables:
+
+OPENAI_API_KEY
+
+Do not hardcode the key.
+
+---
+
+## UI Requirements
+
+Add a simple chat interface:
+
+AI Assistant
+Message input
+Quick suggestion buttons
+
+The design should match the current UI style of the system.
+
+---
+
+## Important
+
+This must remain a DEMO friendly feature.
+
+Keep the code clean and simple so it can be shown to potential clinic clients.
+
+Do not add unnecessary dependencies or complex AI frameworks.

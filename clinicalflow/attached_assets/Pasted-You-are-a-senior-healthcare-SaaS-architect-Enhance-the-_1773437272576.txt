@@ -1,0 +1,142 @@
+You are a senior healthcare SaaS architect.
+
+Enhance the ClinicFlow system by improving the Doctor Profile Page with two conversion-focused features:
+
+1. Nearest Available Appointment Display (with clinic location)
+2. AI Assistant to help patients decide if the doctor is suitable for their symptoms.
+
+Important constraints:
+
+• Do NOT redesign the whole system
+• Preserve existing appointment and scheduling logic
+• Support doctors working in multiple clinics
+• Maintain multi-clinic SaaS data isolation using clinic_id
+• Keep the implementation lightweight
+
+---
+
+FEATURE 1
+Nearest Available Appointments with Location
+--------------------------------------------
+
+Add a section to the doctor profile page that displays the doctor's nearest available appointment slots.
+
+Doctors may work in multiple clinics or medical centers.
+
+Therefore each appointment slot must include:
+
+Doctor Name
+Clinic Name
+Clinic Address
+Appointment Date
+Appointment Time
+Visit Type (Consultation / Follow-up / Urgent)
+
+Example display:
+
+Next Available Appointments
+
+Today
+5:00 PM
+Clinic: Al Salam Medical Center
+Address: Nasr City
+
+5:30 PM
+Clinic: Al Noor Clinic
+Address: Heliopolis
+
+Tomorrow
+4:40 PM
+Clinic: Al Salam Medical Center
+
+Each slot should include a direct booking button.
+
+Example:
+
+Book Appointment
+
+The system must fetch available slots from all clinics where the doctor works.
+
+Slots must be ordered by:
+
+appointment_date
+appointment_time
+
+---
+
+## MULTI-CLINIC SUPPORT
+
+Doctors may belong to multiple clinics.
+
+Appointment slots must include:
+
+clinic_id
+clinic_name
+clinic_address
+
+When showing available slots, the system must merge schedules from all clinics associated with the doctor.
+
+---
+
+FEATURE 2
+AI Assistant for Doctor Suitability
+-----------------------------------
+
+Add a button on the doctor profile page:
+
+"Is this doctor suitable for my condition?"
+
+When clicked, open a small chat interface.
+
+The patient can describe symptoms.
+
+Example input:
+
+"I have chest pain"
+"I feel knee pain"
+"I have severe headache"
+
+The AI should analyze the symptoms and compare them with the doctor's specialty.
+
+AI responses should follow these rules:
+
+If the symptoms match the doctor's specialty:
+
+Respond that the doctor can help with this condition.
+
+Then display the nearest available appointment slots.
+
+Example response:
+
+"These symptoms are often treated by cardiology specialists.
+Dr Ahmed Hassan can help you with this condition."
+
+Show appointment slots and a booking button.
+
+---
+
+If the symptoms do NOT match the doctor's specialty:
+
+Suggest a more suitable specialty.
+
+Example:
+
+"These symptoms may be better evaluated by a Neurology specialist."
+
+Optionally display recommended doctors in that specialty.
+
+---
+
+## AI SAFETY RULE
+
+The AI must NOT provide medical diagnosis.
+
+It should only guide patients toward the appropriate specialty.
+
+---
+
+## GOAL
+
+Improve the doctor profile page by:
+
+• Displaying real-time

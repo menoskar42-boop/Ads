@@ -1,0 +1,197 @@
+You are a senior SaaS architecture engineer.
+
+Your task is to review and improve the architecture of the ClinicFlow clinic management system to prevent common SaaS and medical system mistakes while preserving the existing application logic.
+
+Important constraints:
+
+• Do NOT rebuild the system from scratch
+• Preserve existing workflows and UI where possible
+• Focus on architecture safeguards and data isolation
+• Keep the implementation lightweight and suitable for SaaS hosting
+• Ensure medical data privacy
+
+---
+
+1. Multi-Clinic Data Isolation (Critical)
+
+---
+
+This system must support multiple clinics in a SaaS environment.
+
+Every major table must include:
+
+clinic_id
+
+Example tables:
+
+patients
+appointments
+doctors
+invoices
+documents
+lab_tests
+radiology
+
+All queries must filter by clinic_id.
+
+Example:
+
+SELECT * FROM patients WHERE clinic_id = current_clinic
+
+This prevents data from one clinic appearing in another clinic.
+
+---
+
+2. Database Performance Protection
+
+---
+
+Add database indexes on the following fields to ensure scalability:
+
+clinic_id
+patient_id
+doctor_id
+appointment_date
+
+Example:
+
+CREATE INDEX idx_patients_clinic_id
+CREATE INDEX idx_appointments_clinic_id
+
+This ensures the system remains fast even with large datasets.
+
+---
+
+3. Secure Medical File Storage
+
+---
+
+Medical files such as:
+
+X-rays
+Lab results
+Medical reports
+
+must NOT be stored directly in the application server.
+
+Instead:
+
+Use external storage (S3 style storage).
+
+Database stores only:
+
+file_url
+file_type
+patient_id
+doctor_id
+specialty_id
+clinic_id
+
+---
+
+4. Doctor Data Visibility Rules
+
+---
+
+Implement strict medical data visibility rules.
+
+Doctors must NOT see all patients in the clinic.
+
+Doctor visibility rules:
+
+---
+
+## Prescriptions
+
+Doctors can ONLY see prescriptions they personally created.
+
+Condition:
+
+prescriptions.doctor_id = current_doctor_id
+
+This protects medical responsibility and patient privacy.
+
+---
+
+## Radiology & Lab Tests
+
+Doctors may see radiology and lab results uploaded by other doctors BUT only within their own specialty.
+
+Condition:
+
+documents.specialty_id = doctor.specialty_id
+AND documents.clinic_id = current_clinic
+
+This allows collaboration within the same specialty while protecting cross-specialty privacy.
+
+Example:
+
+Cardiology doctor
+can see cardiology lab tests and radiology results.
+
+Dentistry doctor
+cannot see cardiology results.
+
+---
+
+## Patient List
+
+Doctors should normally see:
+
+patients assigned to them through appointments or visits.
+
+Condition:
+
+appointments.doctor_id = current_doctor_id
+
+Doctors should NOT browse the full clinic patient list.
+
+---
+
+5. Audit Logging for Medical Access
+
+---
+
+Implement an audit log for sensitive actions.
+
+Track:
+
+user_id
+patient_id
+action_type
+timestamp
+
+Examples of tracked actions:
+
+view medical file
+upload radiology
+view lab test
+edit prescription
+
+This ensures traceability for medical data access.
+
+---
+
+6. Secure Query Patterns
+
+---
+
+All backend queries must always include clinic filtering.
+
+Example pattern:
+
+WHERE clinic_id = current_clinic_id
+
+Never allow queries without clinic isolation.
+
+---
+
+## Goal
+
+Prevent critical SaaS and medical privacy issues by enforcing:
+
+• strict clinic data isolation
+• scalable database performance
+• secure medical document storage
+• controlled doctor visibility rules
+• audit logging for medical data access

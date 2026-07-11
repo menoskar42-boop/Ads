@@ -1,0 +1,116 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow doctor and clinic public pages by adding social media profile integration.
+
+Doctors and clinics must be able to display links to their social media profiles on their public booking pages.
+
+Important constraints:
+
+• Do NOT redesign the existing page architecture
+• Maintain compatibility with the existing doctor and clinic profile system
+• Ensure links are optional
+• Keep the implementation lightweight
+
+---
+
+1. Social Media Fields for Doctor Profiles
+
+---
+
+Add optional social media fields to the doctor profile.
+
+Supported platforms:
+
+Facebook
+Instagram
+LinkedIn
+YouTube
+TikTok
+Personal Website
+
+Fields example:
+
+facebook_url
+instagram_url
+linkedin_url
+youtube_url
+tiktok_url
+website_url
+
+Doctors should be able to add or edit these links from their profile settings.
+
+---
+
+2. Social Media Fields for Clinic Profiles
+
+---
+
+Add the same optional fields for clinic profiles.
+
+Clinic admins should be able to add links to the clinic's official social media pages.
+
+Example:
+
+facebook_url
+instagram_url
+linkedin_url
+youtube_url
+website_url
+
+---
+
+3. Display on Public Pages
+
+---
+
+Display social media icons on:
+
+Doctor public page
+Clinic public page
+
+Only show icons for platforms that have a link.
+
+Example display:
+
+Follow Dr Ahmed Hassan
+
+[Facebook Icon]
+[Instagram Icon]
+[LinkedIn Icon]
+
+Clicking an icon should open the social page in a new browser tab.
+
+---
+
+4. Admin Permissions
+
+---
+
+Editing permissions:
+
+Doctor page → editable by the doctor (and optionally clinic admin if allowed)
+
+Clinic page → editable by clinic admin (and optionally reception staff if granted permission)
+
+---
+
+5. Visual Design
+
+---
+
+Use recognizable social media icons.
+
+Place them in a section called:
+
+"Follow on Social Media"
+
+Position:
+
+Below doctor/clinic information
+or near the contact information
+
+---
+
+## Goal
+
+Allow doctors and clinics to connect their social media presence with their booking pages, increasing trust and helping convert followers into patients.

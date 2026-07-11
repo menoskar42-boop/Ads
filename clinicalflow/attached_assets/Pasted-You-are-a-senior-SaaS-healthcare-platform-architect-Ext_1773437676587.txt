@@ -1,0 +1,164 @@
+You are a senior SaaS healthcare platform architect.
+
+Extend the ClinicFlow Clinic Public Profile Page by adding two marketing-focused features:
+
+1. Nearest Available Appointments in the Clinic
+2. Google Maps Clinic Location
+
+These features must enhance the clinic marketing page without breaking the current scheduling or appointment architecture.
+
+Important constraints:
+
+• Do NOT redesign the scheduling system
+• Preserve compatibility with multi-clinic SaaS architecture
+• Keep implementation lightweight
+• Ensure fast loading for public pages
+
+---
+
+FEATURE 1
+Nearest Available Appointments for the Clinic
+---------------------------------------------
+
+Add a section on the clinic public page called:
+
+"Nearest Available Appointments"
+
+This section should display the earliest available appointment slots from doctors working in the clinic.
+
+The system must:
+
+Collect available appointment slots from all doctors assigned to the clinic.
+
+Display the closest available times.
+
+Sort results by:
+
+appointment_date
+appointment_time
+
+---
+
+## Displayed Information
+
+Each available slot must show:
+
+Doctor Name
+Doctor Specialty
+Appointment Date
+Appointment Time
+Visit Type (Consultation / Follow-up / Urgent)
+
+Example layout:
+
+Nearest Available Appointments
+
+Today
+
+5:00 PM
+Dr Ahmed Hassan
+Cardiology
+Consultation
+Button: Book Now
+
+5:20 PM
+Dr Sara Ali
+Dermatology
+Follow-up
+Button: Book Now
+
+Tomorrow
+
+4:40 PM
+Dr Omar Mahmoud
+Orthopedics
+Consultation
+Button: Book Now
+
+---
+
+## Booking Integration
+
+When the user clicks "Book Now":
+
+Redirect the user to the appointment booking page with:
+
+doctor pre-selected
+clinic pre-selected
+appointment slot pre-selected
+
+---
+
+FEATURE 2
+Google Maps Clinic Location
+---------------------------
+
+Add a map section to the clinic public page.
+
+Section title:
+
+Clinic Location
+
+The map must display the exact clinic location using Google Maps.
+
+---
+
+## Clinic Location Fields
+
+Add the following fields to the clinic profile:
+
+clinic_address
+clinic_city
+latitude
+longitude
+
+---
+
+## Map Display
+
+Embed a Google Maps view showing the clinic location.
+
+The map should include:
+
+Location marker
+Clinic name
+Clickable directions link
+
+Example:
+
+"Get Directions"
+
+When clicked it should open Google Maps navigation.
+
+---
+
+## Admin Configuration
+
+Clinic admins must be able to configure location details from the admin dashboard.
+
+Editable fields:
+
+Address
+City
+Latitude
+Longitude
+
+Optionally allow the admin to pick the location directly on the map.
+
+---
+
+## Performance Considerations
+
+Public clinic pages must load quickly.
+
+Use lazy loading for the map component to avoid slowing down page rendering.
+
+---
+
+## Goal
+
+Upgrade the clinic profile page into a professional marketing landing page by:
+
+• showing real-time appointment availability
+• displaying the clinic location on an interactive map
+• making it easy for patients to find and book doctors

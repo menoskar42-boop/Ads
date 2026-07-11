@@ -1,0 +1,161 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow system by implementing a Clinic Public Profile Page feature designed as a marketing page for each clinic.
+
+The goal is to allow clinics to present themselves professionally to patients and increase the value of the platform subscription.
+
+Important constraints:
+
+• Do NOT redesign the entire system architecture
+• Maintain compatibility with the existing multi-clinic SaaS structure
+• Ensure proper role-based permissions
+• Keep implementation lightweight and scalable
+
+---
+
+1. Clinic Public Page
+
+---
+
+Create a public page for each clinic.
+
+Example route:
+
+/clinic/{clinic_id}
+
+This page should act as a marketing profile for the clinic.
+
+The page must include:
+
+Clinic Name
+Clinic Logo
+Clinic Cover Image
+Short Description about the clinic
+Address
+Phone Number
+Working Hours
+
+---
+
+2. Clinic Description Section
+
+---
+
+Allow the clinic admin to write a marketing description.
+
+Example content:
+
+Clinic history
+Specialties offered
+Quality of services
+Facilities available
+
+The text should support basic formatting.
+
+---
+
+3. Doctors Working in the Clinic
+
+---
+
+Display a list of doctors currently working in the clinic.
+
+For each doctor show:
+
+Doctor Photo
+Doctor Name
+Specialty
+Rating
+Button: View Doctor Profile
+
+This list must automatically update based on the doctors assigned to the clinic.
+
+---
+
+4. Clinic Rating System
+
+---
+
+Patients should be able to rate the clinic after completing a visit.
+
+Rating scale:
+
+1 to 5 stars
+
+Patients may optionally leave a short review.
+
+The clinic page should display:
+
+Average rating
+Total number of reviews
+
+Example:
+
+Rating: 4.6 ⭐
+Reviews: 120
+
+---
+
+5. Doctor Ratings
+
+---
+
+Display the average rating of each doctor working in the clinic.
+
+Example:
+
+Dr Ahmed Hassan
+Cardiology
+Rating: 4.8 ⭐
+
+---
+
+6. Editing Permissions
+
+---
+
+Only the clinic admin can create and manage the clinic profile by default.
+
+However, the clinic admin may grant editing permissions to reception staff.
+
+Permissions should include:
+
+Edit clinic description
+Upload clinic images
+Update contact information
+
+---
+
+7. Admin Control Panel
+
+---
+
+Add a clinic profile editor in the admin dashboard.
+
+Sections should include:
+
+Basic Information
+Clinic Description
+Images
+Contact Details
+Doctors List
+
+---
+
+8. SEO and Marketing Purpose
+
+---
+
+The clinic page should be designed to function as a marketing landing page.
+
+The page must be easily shareable.
+
+Example link:
+
+clinicflow.com/clinic/al-salam-clinic
+
+---
+
+## Goal
+
+Create a professional clinic profile page that helps clinics promote their services, display their doctors, and build trust with patients while integrating seamlessly with the ClinicFlow SaaS platform.

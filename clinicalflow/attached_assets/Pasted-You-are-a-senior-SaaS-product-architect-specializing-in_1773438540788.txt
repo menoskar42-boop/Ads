@@ -1,0 +1,285 @@
+You are a senior SaaS product architect specializing in healthcare platforms.
+
+Design and implement a professional marketing landing page for the ClinicFlow platform similar to modern doctor booking platforms.
+
+The page must attract three types of users:
+
+Patients
+Doctors
+Clinics
+
+Important constraints:
+
+• Do NOT break the existing SaaS architecture
+• Use existing doctors, clinics, and appointment data
+• Keep the design modern and mobile responsive
+• Ensure fast loading performance
+
+---
+
+1. Navigation Header
+
+---
+
+Create a modern top navigation bar.
+
+Elements:
+
+Platform Logo
+
+Menu:
+
+Find Doctors
+Specialties
+Medical Offers
+For Doctors
+For Clinics
+
+Buttons:
+
+Login
+Sign Up
+
+---
+
+2. Hero Section
+
+---
+
+Create a large hero section with a background medical image.
+
+Main headline:
+
+Find and book the best doctors near you.
+
+Short description:
+
+Search doctors by specialty and location and book appointments instantly.
+
+---
+
+3. Doctor Search System
+
+---
+
+Add a prominent search box.
+
+Fields:
+
+Specialty dropdown
+Location dropdown
+
+Example layout:
+
+[ Specialty ]   [ Location ]   [ Search Button ]
+
+Search results should display doctors matching the criteria.
+
+---
+
+4. Image Slider
+
+---
+
+Add a carousel slider below the hero section.
+
+Slides should promote the platform.
+
+Example slides:
+
+Slide 1
+Book top doctors easily.
+
+Slide 2
+Manage your clinic efficiently.
+
+Slide 3
+AI assistant helps patients choose the right doctor.
+
+Images should be optimized for fast loading.
+
+---
+
+5. Nearest Available Appointments
+
+---
+
+Create a section titled:
+
+Nearest Available Appointments
+
+Display cards showing the closest available appointment slots.
+
+Each card should display:
+
+Doctor Photo
+Doctor Name
+Specialty
+Clinic Name
+Appointment Time
+Visit Type
+
+Example:
+
+Dr Ahmed Hassan
+Cardiology
+
+Today
+5:00 PM
+Clinic: Al Salam Medical Center
+
+Button:
+
+Book Now
+
+Appointments must be sorted by:
+
+appointment_date
+appointment_time
+
+---
+
+6. Top Rated Doctors
+
+---
+
+Create a section:
+
+Top Rated Doctors
+
+Display doctor cards including:
+
+Doctor Photo
+Doctor Name
+Specialty
+Average Rating
+Number of Reviews
+
+Example:
+
+Dr Sara Ali
+Dermatology
+Rating: 4.9 ⭐
+120 reviews
+
+Button:
+
+View Profile
+
+---
+
+7. Medical Specialties
+
+---
+
+Display common specialties as clickable cards.
+
+Examples:
+
+Cardiology
+Dermatology
+Orthopedics
+Neurology
+Dentistry
+Internal Medicine
+
+Clicking a specialty should show doctors in that category.
+
+---
+
+8. Latest Medical Offers
+
+---
+
+Create a section called:
+
+Latest Medical Offers
+
+Clinics can publish offers such as:
+
+Discount on consultation
+Free follow-up visit
+Package deals
+
+Each offer card should show:
+
+Clinic Name
+Doctor Name
+Offer Description
+Expiry Date
+Button: Book Now
+
+---
+
+9. For Doctors and Clinics
+
+---
+
+Create a marketing section encouraging doctors and clinics to join.
+
+Title:
+
+Grow your practice with ClinicFlow
+
+Benefits:
+
+Appointment management
+Clinic marketing page
+AI assistant for patient booking
+Patient management tools
+
+Buttons:
+
+Register as Doctor
+Register a Clinic
+
+---
+
+10. Patient Testimonials
+
+---
+
+Add a section showing patient reviews about the platform.
+
+Example:
+
+★★★★★
+
+"Booking my appointment was very easy."
+
+---
+
+11. Interactive Map
+
+---
+
+Add a map section displaying nearby clinics.
+
+Use stored clinic coordinates.
+
+Map markers should represent clinics.
+
+---
+
+12. Footer
+
+---
+
+Footer must include:
+
+About the platform
+Contact
+Privacy Policy
+Terms of Service
+
+Social media links.
+
+---
+
+## Goal
+
+Create a modern medical platform landing page that:
+
+helps patients quickly find doctors
+promotes doctors and clinics
+encourages platform registrations

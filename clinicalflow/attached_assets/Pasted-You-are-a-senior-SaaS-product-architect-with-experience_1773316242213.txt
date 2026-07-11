@@ -1,0 +1,188 @@
+You are a senior SaaS product architect with experience building clinic management systems.
+
+Your task is to enhance the existing ClinicFlow system by proposing and implementing three high-impact features commonly used in modern clinic systems.
+
+Important constraints:
+
+• Do NOT redesign the whole system
+• Preserve existing workflows and database structures where possible
+• Keep implementation lightweight and scalable
+• Avoid unnecessary services or infrastructure
+• Focus on features that improve real clinic operations
+
+The goal is to transform the system from a demo clinic manager into a practical clinic SaaS product.
+
+---
+
+FEATURE 1
+Clinic Waiting Screen (Queue Display)
+-------------------------------------
+
+Create a patient waiting display screen that can be shown on a TV or monitor in the clinic waiting area.
+
+Add a new route:
+
+/queue-display
+
+The screen should automatically update.
+
+Display sections:
+
+CURRENT PATIENT
+NEXT PATIENTS
+DOCTOR NAME
+
+Example layout:
+
+Doctor: Dr Ahmed Hassan
+
+Now In Consultation
+Mohamed Ali
+
+Next Patients
+Sara Mohamed
+Ahmed Ibrahim
+Mahmoud Hassan
+
+Queue order must follow:
+
+invoice payment time
+
+Urgent cases should appear at the top.
+
+Add optional sound notification when calling the next patient.
+
+Reception actions should include:
+
+Call Next Patient
+Send To Doctor
+
+When reception calls a patient:
+
+status changes from Waiting → In Consultation.
+
+---
+
+FEATURE 2
+Appointment Reminder System
+---------------------------
+
+Create a lightweight appointment reminder system.
+
+Purpose:
+
+Reduce missed appointments.
+
+When an appointment is created the system should schedule reminders.
+
+Types of reminders:
+
+Appointment confirmation
+24 hour reminder
+2 hour reminder
+
+Example message:
+
+"Reminder: you have an appointment tomorrow at 6:00 PM with Dr Ahmed Hassan."
+
+For demo mode:
+
+simulate sending via:
+
+SMS
+WhatsApp
+Email
+
+Messages should include:
+
+patient name
+doctor name
+date
+time
+clinic address
+
+Add a reminder status field in appointments table:
+
+reminder_sent_24h
+reminder_sent_2h
+
+---
+
+FEATURE 3
+Smart Electronic Prescription
+-----------------------------
+
+Create a professional electronic prescription module.
+
+Doctors should be able to generate digital prescriptions after a visit.
+
+Prescription fields:
+
+diagnosis
+medications
+dosage
+duration
+notes
+
+Add medication autocomplete.
+
+Example:
+
+Doctor types:
+
+para
+
+Suggestions appear:
+
+Paracetamol
+Panadol
+Paramol
+
+Add a frequently used medications list per doctor.
+
+Allow doctors to save common prescription templates.
+
+Example templates:
+
+Cold Treatment
+Hypertension Treatment
+Pain Relief
+
+Prescriptions must be:
+
+stored in patient medical file
+printable as a professional PDF
+
+The printed prescription should include:
+
+clinic name
+doctor name
+specialty
+patient name
+date
+medications list
+
+---
+
+## SYSTEM INTEGRATION
+
+These features must integrate with existing modules:
+
+appointments
+patients
+doctors
+invoices
+
+Avoid creating redundant systems.
+
+---
+
+## GOAL
+
+Upgrade ClinicFlow into a practical clinic SaaS product by adding:
+
+patient queue management
+appointment reminder automation
+smart electronic prescriptions
+
+while keeping the system simple, fast, and scalable.

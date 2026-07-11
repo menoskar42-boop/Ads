@@ -1,0 +1,180 @@
+You are a senior SaaS architect specialized in clinic management systems.
+
+Enhance the existing ClinicFlow system to support Egyptian clinic workflows where clinics commonly manage three visit types:
+
+Consultation (كشف)
+Follow-up Consultation (استشارة)
+Urgent Consultation (كشف مستعجل)
+
+The system must allow each clinic admin to dynamically configure how these visit types are prioritized in the waiting queue.
+
+Important constraints:
+
+• Do NOT redesign the whole system
+• Preserve existing appointment, invoice, and queue logic
+• Implement the feature as a flexible configuration system
+• Keep the implementation lightweight and scalable
+
+---
+
+1. Visit Types
+
+---
+
+Create a configurable visit type system.
+
+Default visit types:
+
+Consultation (كشف)
+Follow-up (استشارة)
+Urgent Consultation (كشف مستعجل)
+
+Each visit type should include:
+
+id
+name
+price
+duration_minutes
+priority_flag
+clinic_id
+
+Urgent consultation should have a priority flag.
+
+---
+
+2. Queue Priority Configuration
+
+---
+
+Add a new configuration section in clinic settings:
+
+Queue Priority Settings
+
+Each clinic admin can define how patient types should be served.
+
+Example configuration options:
+
+Option 1:
+Urgent → Consultation → Follow-up
+
+Option 2:
+Urgent → Consultation → Follow-up → Consultation
+
+Option 3:
+Urgent always first, then normal queue order
+
+Option 4:
+Fully dynamic rotation between visit types
+
+Admins should be able to adjust the order using a drag-and-drop priority list.
+
+Example configuration:
+
+1 Urgent
+2 Consultation
+3 Follow-up
+
+---
+
+3. Dynamic Queue Engine
+
+---
+
+Modify the queue system to use a dynamic priority engine.
+
+Queue ordering logic should consider:
+
+visit_type
+payment_time
+urgent_flag
+
+Example priority logic:
+
+Urgent patients always appear before others.
+
+After urgent cases, queue follows the clinic configuration.
+
+Example sequence:
+
+Urgent
+Consultation
+Follow-up
+Consultation
+
+This must be calculated dynamically when displaying the queue.
+
+---
+
+4. Queue Display Integration
+
+---
+
+Update the waiting queue display to show visit type.
+
+Example row:
+
+Patient Name | Visit Type | Doctor | Arrival Time
+
+Example:
+
+Mohamed Ahmed | Consultation | Dr Omar | 17:20
+
+Urgent cases must display a red badge:
+
+URGENT
+
+---
+
+5. Booking Integration
+
+---
+
+When booking an appointment, the user must choose visit type.
+
+Options should include:
+
+Consultation
+Follow-up
+Urgent Consultation
+
+Visit type affects:
+
+queue priority
+appointment duration
+invoice price
+
+---
+
+6. Admin Control Panel
+
+---
+
+Clinic admins must be able to:
+
+enable or disable visit types
+change visit prices
+change duration
+define queue priority order
+enable urgent consultation option
+
+---
+
+7. Reports Integration
+
+---
+
+Reports must track statistics for each visit type separately.
+
+Example analytics:
+
+Total Consultations
+Total Follow-ups
+Total Urgent Visits
+
+Revenue by visit type.
+
+---
+
+## Goal
+
+Create a flexible visit type and queue priority system that reflects real Egyptian clinic workflows while keeping the platform simple, scalable, and configurable per clinic.

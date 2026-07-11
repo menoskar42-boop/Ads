@@ -1,0 +1,175 @@
+"}
+You are a senior SaaS architect specialized in clinic management systems.
+
+Improve the queue management system in ClinicFlow so that patient order is determined dynamically based on a queue strategy configured by each clinic admin.
+
+The system already supports visit types:
+
+Consultation (كشف)  
+Follow-up (استشارة)  
+Urgent Consultation (كشف مستعجل)
+
+Currently, the system has limited logic and cannot represent the real workflows used in many Egyptian clinics.
+
+Your task is to implement a dynamic queue engine that determines the next patient based on the queue strategy selected by the clinic admin.
+
+Important constraints:
+
+• Do NOT redesign the entire application  
+• Preserve the existing appointment, invoice, and waiting queue system  
+• Maintain high performance even with large queues  
+• Keep the implementation simple and configurable  
+
+------------------------------------------------
+1. Arrival Number
+------------------------------------------------
+
+When the patient pays the invoice, assign a fixed arrival number.
+
+Example fields:
+
+arrival_number  
+payment_time  
+
+This number must NEVER change.
+
+It represents the order in which patients arrived.
+
+------------------------------------------------
+2. Visit Types
+------------------------------------------------
+
+Each visit must include:
+
+visit_type
+
+Possible values:
+
+consultation  
+followup  
+urgent
+
+Urgent visits should have higher priority but must still respect clinic configuration.
+
+------------------------------------------------
+3. Queue Strategy Configuration
+------------------------------------------------
+
+Add a new setting for each clinic called:
+
+queue_strategy
+
+Admins can select from the following strategies:
+
+Strategy A
+Serve strictly by payment order.
+
+Queue logic:
+
+ORDER BY payment_time
+
+--------------------------------------------
+
+Strategy B
+Visit Type Priority
+
+Admin defines visit priority order.
+
+Example:
+
+consultation
+followup
+
+Queue logic:
+
+ORDER BY visit_type_priority, payment_time
+
+--------------------------------------------
+
+Strategy C
+Alternating Visits
+
+Serve consultation then follow-up alternately.
+
+Pattern:
+
+consultation → followup → consultation → followup
+
+--------------------------------------------
+
+Strategy D
+Custom Rotation
+
+Admin defines a pattern such as:
+
+consultation
+consultation
+followup
+
+Meaning:
+
+serve 2 consultations then 1 follow-up repeatedly.
+
+--------------------------------------------
+
+Strategy E
+Urgent First
+
+Urgent visits always appear first.
+
+Remaining patients follow payment order.
+
+------------------------------------------------
+4. Queue Engine
+------------------------------------------------
+
+Create a queue engine that selects the next patient dynamically.
+
+The engine must consider:
+
+urgent priority  
+queue strategy  
+payment time  
+
+Example pseudo logic:
+
+1 check urgent patients  
+2 apply clinic queue strategy  
+3 fallback to payment order  
+
+------------------------------------------------
+5. Queue Display
+------------------------------------------------
+
+Update queue display to show:
+
+Arrival Number  
+Patient Name  
+Visit Type  
+Doctor  
+Arrival Time  
+
+Example:
+
+21 | Mohamed Ahmed | Consultation | Dr Omar | 17:20  
+22 | Sara Ali | Follow-up | Dr Omar | 17:25  
+
+Urgent visits should display a red badge.
+
+------------------------------------------------
+6. Call Next Patient
+------------------------------------------------
+
+When reception clicks "Call Next Patient":
+
+The queue engine determines the correct patient based on clinic strategy.
+
+Update patient status:
+
+waiting → in_consultation
+
+------------------------------------------------
+Goal
+------------------------------------------------
+
+Create a flexible queue system where each clinic admin can configure how patients are served while keeping the system fast, predictable, and suitable for real clinic workflow

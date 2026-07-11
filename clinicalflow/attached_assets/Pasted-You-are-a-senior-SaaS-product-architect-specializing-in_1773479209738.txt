@@ -1,0 +1,157 @@
+You are a senior SaaS product architect specializing in healthcare systems.
+
+Enhance the ClinicFlow system by implementing a Doctor Profile Page feature.
+
+This feature should allow each doctor to create and manage a professional public profile page that can be viewed by patients.
+
+Important constraints:
+
+• Do NOT redesign the entire system architecture
+• Maintain compatibility with the existing doctor and user tables
+• Ensure that profile editing permissions follow role-based access control
+• Keep the implementation scalable for multi-clinic SaaS deployment
+
+---
+
+1. Doctor Profile Page
+
+---
+
+Create a dedicated profile page for each doctor.
+
+Example route:
+
+/doctor-profile/{doctor_id}
+
+This page should display professional information about the doctor and help patients understand the doctor's background.
+
+---
+
+2. Profile Fields
+
+---
+
+Each doctor profile should include the following fields:
+
+Doctor Name
+Profile Photo (upload)
+Specialty
+Graduation Year
+
+Postgraduate Studies
+Example:
+Master's degree
+PhD
+Diploma
+
+Professional Certifications
+Example:
+Board certifications
+Training certificates
+
+Medical Conferences Attended
+
+Professional Positions
+Example:
+Head of Department
+Consultant Cardiologist
+
+Important Medical Work
+Example:
+Research work
+Published studies
+Major surgeries or achievements
+
+Additional Information
+Free text field for any extra details.
+
+---
+
+3. Profile Image Upload
+
+---
+
+Doctors should be able to upload a profile image.
+
+Image requirements:
+
+Max file size limit
+Accept common formats (jpg, png)
+Store images using the system file storage.
+
+---
+
+4. Editing Permissions
+
+---
+
+The primary owner of the profile is the doctor.
+
+Only the doctor can create and manage their profile by default.
+
+However, the doctor may grant editing permission to:
+
+Clinic Admin
+Reception Staff
+
+This permission should be configurable per doctor.
+
+Example setting:
+
+Allow Admin to edit profile: Yes / No
+Allow Reception to edit profile: Yes / No
+
+---
+
+5. Profile Editor Interface
+
+---
+
+Provide a simple editor interface for doctors.
+
+Sections should be clearly organized:
+
+Basic Information
+Education
+Certifications
+Conferences
+Professional Experience
+Achievements
+Additional Notes
+
+---
+
+6. Public Visibility
+
+---
+
+Doctor profiles should be visible to patients during:
+
+Doctor search
+Appointment booking
+
+Patients should be able to view:
+
+Doctor photo
+Qualifications
+Professional history
+
+---
+
+7. Security and Data Isolation
+
+---
+
+Ensure that:
+
+Doctors can only edit their own profiles.
+
+Admin and reception can edit profiles only if the doctor grants permission.
+
+Profiles must remain isolated per clinic in the SaaS system using clinic_id.
+
+---
+
+## Goal
+
+Create a professional doctor profile system that improves patient trust, enhances doctor visibility, and integrates smoothly with the clinic appointment platform.

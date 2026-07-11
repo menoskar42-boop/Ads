@@ -1,0 +1,151 @@
+You are a senior SaaS platform architect for healthcare systems.
+
+Modify the ClinicFlow authentication and doctor access system to support multi-clinic doctor accounts.
+
+Currently the system assumes a doctor belongs to a single clinic.
+
+The goal is to allow a doctor to log in once and access multiple clinics where they work.
+
+Important constraints:
+
+• Do NOT break the existing role system
+• Preserve multi-clinic SaaS data isolation
+• Maintain clinic_id filtering for all data
+• Keep implementation simple and scalable
+
+---
+
+1. Global Doctor Account
+
+---
+
+Doctors should have a single platform account.
+
+Doctor login should not be tied to a specific clinic.
+
+Doctor fields:
+
+doctor_id
+name
+email
+password
+specialty
+
+Doctors authenticate once using their platform account.
+
+---
+
+2. Doctor-Clinic Relationship
+
+---
+
+Create a linking table:
+
+doctor_clinics
+
+Fields:
+
+doctor_id
+clinic_id
+role_in_clinic
+is_active
+
+This table defines which clinics the doctor works with.
+
+Example:
+
+doctor_id = 12
+clinic_id = 3
+
+doctor_id = 12
+clinic_id = 7
+
+Meaning the doctor works in two clinics.
+
+---
+
+3. Post Login Clinic Selection
+
+---
+
+After the doctor logs in, display a screen:
+
+"Select Clinic"
+
+Show a list of clinics the doctor is associated with.
+
+Each card shows:
+
+Clinic Name
+Clinic Address
+Button: Enter Clinic
+
+Example:
+
+Al Salam Medical Center
+Nasr City
+
+Al Noor Clinic
+Heliopolis
+
+---
+
+4. Session Clinic Context
+
+---
+
+When the doctor selects a clinic, the system sets:
+
+current_clinic_id
+
+All queries must filter by:
+
+clinic_id = current_clinic_id
+
+This ensures proper data isolation.
+
+---
+
+5. Doctor Dashboard
+
+---
+
+After selecting a clinic, the doctor dashboard should show:
+
+Today's appointments in that clinic
+Waiting patients in that clinic
+Clinic-specific statistics
+
+Doctors should only see patients belonging to the selected clinic.
+
+---
+
+6. Switching Clinics
+
+---
+
+Doctors must be able to switch clinics easily.
+
+Add a "Switch Clinic" option in the dashboard header.
+
+Clicking it returns to the clinic selection screen.
+
+---
+
+7. Admin Clinic Assignment
+
+---
+
+Clinic admins should be able to assign doctors to their clinic.
+
+Admin interface must allow:
+
+Add doctor to clinic
+Remove doctor from clinic
+Activate / deactivate doctor access
+
+---
+
+## Goal
+
+Allow doctors to use one platform account while working in multiple clinics, improving usability and maintaining secure clinic data isolation.

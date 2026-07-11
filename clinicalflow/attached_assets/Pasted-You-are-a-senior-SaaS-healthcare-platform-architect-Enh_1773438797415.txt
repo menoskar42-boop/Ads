@@ -1,0 +1,179 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow platform by adding growth and conversion features to the marketing landing page and the user system.
+
+The goal is to increase platform adoption by doctors, clinics, and patients while keeping the system scalable.
+
+Important constraints:
+
+• Do NOT redesign the current architecture
+• Maintain compatibility with the existing doctor, clinic, and appointment system
+• Keep the implementation lightweight
+• Ensure multi-clinic SaaS compatibility
+
+---
+
+FEATURE 1
+Doctor and Clinic Referral System
+---------------------------------
+
+Implement a referral system for doctors and clinics.
+
+Each doctor and clinic should automatically receive a unique referral code.
+
+Example:
+
+DOC-48211
+CLN-28412
+
+Also generate a referral link.
+
+Example:
+
+clinicflow.com/ref/DOC-48211
+
+When a new doctor or clinic registers using the referral link:
+
+The system records the referral relationship.
+
+---
+
+## Referral Rewards
+
+When a referred doctor or clinic becomes active:
+
+Reward the referrer.
+
+Possible rewards:
+
+Free subscription month
+Platform credits
+Feature upgrades
+
+---
+
+FEATURE 2
+Patient Referral Program
+------------------------
+
+Patients should also receive a referral code.
+
+Example:
+
+PAT-19283
+
+Patients can invite friends using:
+
+clinicflow.com/invite/PAT-19283
+
+When a new patient registers and books an appointment using this code:
+
+Reward both users.
+
+Possible rewards:
+
+Discount on consultation
+Platform points
+Booking credits
+
+---
+
+FEATURE 3
+Nearby Doctors Detection
+------------------------
+
+Enhance the landing page to automatically detect doctors near the user.
+
+Steps:
+
+Request user location permission.
+
+Use geolocation coordinates.
+
+Calculate distance between the user and clinic locations.
+
+Display doctors sorted by distance.
+
+Example display:
+
+Doctors Near You
+
+Dr Ahmed Hassan
+Cardiology
+1.2 km away
+Clinic: Al Salam Medical Center
+
+---
+
+FEATURE 4
+First Available Appointment Today
+---------------------------------
+
+Add a section showing the earliest available appointment slots for today.
+
+Sort appointments by:
+
+current_date
+appointment_time
+
+Display example:
+
+Earliest Appointments Today
+
+Dr Sara Ali
+Dermatology
+Today 5:00 PM
+Clinic: Al Noor Clinic
+
+---
+
+FEATURE 5
+Quick Booking Button
+--------------------
+
+Each doctor card should include a fast booking button.
+
+Example:
+
+Quick Book
+
+Clicking the button should open the booking modal with:
+
+doctor pre-selected
+clinic pre-selected
+first available slot pre-selected
+
+---
+
+FEATURE 6
+Landing Page Optimization
+-------------------------
+
+Update the landing page layout to include:
+
+Hero search (specialty + location)
+
+Nearby Doctors section
+
+Earliest Appointments Today section
+
+Top Rated Doctors
+
+Latest Medical Offers
+
+Call-to-action buttons:
+
+Find a Doctor
+Register as Doctor
+Register a Clinic
+
+---
+
+## Goal
+
+Transform the ClinicFlow homepage into a powerful healthcare marketplace landing page that:
+
+helps patients quickly find nearby doctors
+displays the earliest available appointments
+encourages quick booking
+grows the platform using referral programs.

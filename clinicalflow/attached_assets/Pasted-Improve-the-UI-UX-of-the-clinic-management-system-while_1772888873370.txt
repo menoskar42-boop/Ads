@@ -1,0 +1,168 @@
+Improve the UI/UX of the clinic management system while preserving all existing logic, permissions, and database structure.
+Do NOT change backend logic or workflows. Only improve interface usability and layout.
+
+This is a demo system that must remain simple and professional for client presentations.
+
+---
+
+2. AI Booking Button Visibility
+
+---
+
+The "Book Appointment by Chat" button should NOT appear on every page.
+
+Show it only on:
+
+* Dashboard
+* Patients page
+* Appointments page
+
+Hide it from:
+
+* Billing
+* Reports
+* Settings
+* Services
+* Specialties
+* User Management
+* Document Audit
+
+Rename the button label to:
+
+AI Booking Assistant
+
+Add a small robot icon to the button.
+
+---
+
+3. Appointment Workflow Visualization
+
+---
+
+Keep the existing workflow states but improve visual clarity.
+
+Current states:
+
+Scheduled
+Arrived
+Waiting
+In Consultation
+Completed
+No Show
+
+Display them as a horizontal pipeline above the appointment list:
+
+Scheduled → Arrived → Waiting → In Consultation → Completed
+
+Use subtle color coding:
+
+Scheduled = gray
+Arrived = blue
+Waiting = orange
+In Consultation = green
+Completed = dark green
+No Show = red
+
+Do NOT change workflow logic.
+
+---
+
+4. Patient List Quick Actions
+
+---
+
+On the Patients page, add quick action buttons for each patient row:
+
+View Profile
+Book Appointment
+Medical File
+
+These should appear as small icon buttons on the right side of the patient row.
+
+Keep the existing navigation intact.
+
+---
+
+5. Doctor Cards Improvement
+
+---
+
+Inside the Doctors page, add two additional quick actions on each doctor card:
+
+View Profile
+Today's Appointments
+
+Existing buttons must remain:
+
+Schedule
+Deactivate
+
+Do not change doctor activation logic.
+
+---
+
+6. Reports Enhancement
+
+---
+
+Extend the Reports dashboard by adding three new analytics cards:
+
+Top Doctor Today
+Most Booked Specialty
+Average Visit Duration
+
+These should be simple calculated statistics using existing appointment data.
+
+No complex analytics engine required.
+
+---
+
+7. Settings Page Layout
+
+---
+
+The Settings page currently appears as a long form.
+
+Split it into tab sections:
+
+Clinic Info
+Branding
+Tax / VAT
+Notifications
+AI Settings
+
+Each tab should load its section content while keeping the same data structure.
+
+---
+
+8. Dashboard Card Visual Improvement
+
+---
+
+Improve dashboard readability by adding larger icons to the stat cards.
+
+Example cards:
+
+Today's Appointments
+Arrived Patients
+In Consultation
+Completed Visits
+Today's Revenue
+
+Increase icon size slightly and improve spacing for better visual hierarchy.
+
+---
+
+## Important Constraints
+
+Do NOT modify:
+
+* database schema
+* user roles
+* permissions
+* backend logic
+* appointment workflow
+
+Only improve interface usability and layout.
+
+The system must remain lightweight and suitable for demo presentations.

@@ -1,0 +1,143 @@
+# ClinicFlow — Replit Agent Prompts
+
+---
+
+## PROMPT 1 — ربط Supabase بالكامل
+
+```
+You are a senior full-stack engineer with 30+ years of experience.
+The ClinicFlow project already has:
+- A complete Supabase schema in `001_schema.sql` (28 tables, RLS policies in `002_rls.sql`)
+- An Express backend in `server.js` with Supabase clients already wired (supabaseAdmin + supabaseAs)
+- Supabase env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY (set in Replit Secrets)
+- All API routes already written in server.js (auth, patients, appointments, visits, invoices, users, etc.)
+- Frontend stores in src/stores/ that are currently in-memory (createStore pattern)
+- Auth stored in localStorage keys: cf_token, cf_refresh, cf_user
+
+YOUR TASK — migrate the frontend from in-memory stores to real Supabase API calls:
+
+PHASE 1 — Authentication (highest priority):
+1. Create `src/lib/api.ts` — axios or fetch wrapper that reads cf_token from localStorage and adds Authorization header to every request. Include auto-refresh logic using cf_refresh token via POST /api/auth/refresh.
+2. Rewrite `src/contexts/AuthContext.tsx`:
+   - loginAsPatient(phone, password) → POST /api/auth/patient-login
+   - loginStaff(email, password) → POST /api/auth/login → store JWT in localStorage(cf_token, cf_refresh, cf_user)
+   - loginAsSuperAdmin(password) → POST /api/auth/superadmin
+   - registerPatient(data) → POST /api/auth/register-patient
+   - logout() → clear localStorage keys + call POST /api/auth/logout
+   - On app load, call GET /api/auth/me with stored token to restore session
+   - Keep existing interface: loginAsPatient, loginStaff, loginAsSuperAdmin, registerPatient, selectClinicForDoctor, switchClinic, logout, isAuthenticated
+3. Add POST /api/auth/patient-login route to server.js that looks up patient by phone in `patients` table and validates password hash (use bcrypt or store plain for now).
+
+PHASE 2 — Core data hooks (replace in-memory stores):
+4. Create `src/hooks/useApi.ts` with typed fetch helpers for each resource.
+5. Replace these hooks to call real API instead of in-memory stores:
+   - usePatients → GET /api/patients, POST /api/patients
+   - useAppointments → GET /api/appointments, POST /api/appointments, PATCH /api/appointments/:id
+   - useVisits → GET /api/visits, POST /api/visits, PATCH /api/visits/:id
+   - useUsers → GET /api/users (clinic-scoped)
+   - useSpecialties → GET /api/specialties (public, no auth)
+6. Keep the existing hook interfaces identical (same return shape) so no page components break.
+
+PHASE 3 — Patient persistence:
+7. When a patient registers, POST /api/patients to create record in DB.
+8. Remove localStorage persistence (cf_registered_patients, cf_patient_passwords, cf_registrations) — DB is now the source of truth.
+9. patientStore.ts and registrationStore.ts become thin wrappers that read from API responses, not localStorage.
+
+PHASE 4 — Staff/User management:
+10. POST /api/auth/users (already in server.js) creates Supabase Auth user + users table row.
+11. SuperAdmin clinic creation should also create the admin user via POST /api/auth/users.
+
+CONSTRAINTS:
+- Do NOT break the existing UI. Keep all page components unchanged.
+- Keep the in-memory fallback working when Supabase is not configured (supabaseReady === false).
+- Use loading states and error boundaries — never let the app crash silently.
+- All API calls must include the JWT from localStorage.
+- The Supabase project URL is already in SUPABASE_URL env var — do not hardcode it.
+- Run `npm install` if you add new dependencies.
+- After each phase, test by checking the browser console for errors.
+- Commit checkpoints after each working phase.
+```
+
+---
+
+## PROMPT 2 — إضافة موظفي العيادات الجدد بعد الموافقة
+
+```
+You are a senior full-stack engineer with 30+ years of experience
+working on ClinicFlow — a multi-clinic SaaS platform in React + TypeScript.
+
+CURRENT STATE:
+- When a doctor or clinic registers via /register, a RegistrationEntry is saved in registrationStore with type='doctor' or type='clinic' and status pending.
+- registrationStore.ts: createStore<RegistrationEntry> with localStorage persistence in cf_registrations.
+- SuperAdmin.tsx: currently only manages clinics (add/edit/toggle). Has NO tab for pending registrations.
+- userStore.ts: in-memory store of User objects (staff). Adding a user = userStore.add(user).
+- clinicStore.ts: in-memory store of Clinic objects. Adding a clinic = clinicStore.add(clinic).
+- AuthContext.tsx: STAFF_PASSWORDS is a hardcoded Record<string, string> keyed by userId.
+- registrationStore RegistrationEntry shape: { id, regNumber, referralCode, type: 'patient'|'doctor'|'clinic', name, email, phone, password, specialtyId?, clinicName?, address?, city?, adminName?, userId?, status?: string, createdAt }
+
+YOUR TASK — implement the full registration approval workflow:
+
+STEP 1 — Add `status` field to RegistrationEntry:
+- In src/types/index.ts, add `status?: 'pending' | 'approved' | 'rejected'` to RegistrationEntry interface.
+- In registrationStore.ts, set default status='pending' in registerUser().
+- Add exported helper: `approveRegistration(id: string): void` — sets status='approved'.
+- Add exported helper: `rejectRegistration(id: string, reason?: string): void` — sets status='rejected', saves rejectionReason.
+
+STEP 2 — Add "Pending Registrations" tab to SuperAdmin.tsx:
+- Add a new tab "طلبات التسجيل / Registrations" between the existing stats and clinics sections.
+- Show a badge count of pending registrations on the tab.
+- Display a table/list of ALL pending registrations (doctors + clinics) with columns:
+  * النوع (Doctor/Clinic badge colored differently)
+  * الاسم / Name
+  * البريد الإلكتروني / Email  
+  * الهاتف / Phone
+  * تاريخ الطلب / Request Date
+  * زر "موافقة / Approve" (green)
+  * زر "رفض / Reject" (red, opens confirm dialog)
+- Rejected registrations show in a separate collapsed section.
+
+STEP 3 — Approve CLINIC registration:
+When super admin approves a clinic registration:
+1. Create a new Clinic in clinicStore:
+   { id: `clinic-${Date.now()}`, name: entry.clinicName, nameAr: entry.clinicName, address: entry.address, city: entry.city, phone: entry.phone, subscriptionPlan: 'basic', maxDoctors: 5, aiEnabled: false, advancedReports: false, isActive: true, createdAt: new Date().toISOString() }
+2. Create a new User (admin) in userStore:
+   { id: `u-${Date.now()}`, name: entry.adminName || entry.name, nameAr: entry.adminName || entry.name, email: entry.email, role: 'admin', clinicId: newClinicId, isActive: true, createdAt: new Date().toISOString() }
+3. Save the password in STAFF_PASSWORDS equivalent in localStorage key `cf_staff_passwords` as { [userId]: password }.
+4. Update AuthContext.loginStaff() to ALSO check localStorage `cf_staff_passwords` (merge with hardcoded STAFF_PASSWORDS) so the new staff can log in immediately.
+5. Update the registrationStore entry status to 'approved' and save userId.
+6. Show success toast: "تم تفعيل عيادة {clinicName} وإنشاء حساب المدير" / "Clinic {clinicName} activated and admin account created"
+
+STEP 4 — Approve DOCTOR registration:
+When super admin approves a doctor registration:
+1. Show a dialog asking which clinic to assign the doctor to (dropdown of all active clinics from clinicStore) + role (doctor/reception/admin).
+2. Create a new User in userStore:
+   { id: `u-${Date.now()}`, name: entry.name, nameAr: entry.name, email: entry.email, role: selectedRole, specialtyId: entry.specialtyId, clinicId: selectedClinicId, isActive: true, createdAt: new Date().toISOString() }
+3. Save password to localStorage `cf_staff_passwords`.
+4. Update registrationStore entry status to 'approved'.
+5. Show success toast.
+
+STEP 5 — Update AuthContext.loginStaff():
+- After checking hardcoded STAFF_PASSWORDS, also check localStorage['cf_staff_passwords']:
+  const dynamicPasswords = JSON.parse(localStorage.getItem('cf_staff_passwords') || '{}');
+  const expected = STAFF_PASSWORDS[staffUser.id] || dynamicPasswords[staffUser.id];
+- This enables newly approved staff to login immediately without restarting the app.
+
+STEP 6 — Persist new users and clinics to localStorage:
+- In userStore.ts, add a `persistUser(user)` function similar to patientStore's `persistPatient`.
+  localStorage key: `cf_staff_users`. Load on startup and merge with mockUsers (no duplicates by id).
+- In clinicStore.ts, add `persistClinic(clinic)` with localStorage key `cf_staff_clinics`.
+  Load on startup and merge with mock clinics.
+- Call persistUser() and persistClinic() from the approval flow.
+
+STEP 7 — Show approval status to registrant:
+- In RegisterPage.tsx, the pending screen already shows the regNumber.
+- No changes needed here — the registrant was told "you'll receive an email" which is the future Supabase flow.
+
+CONSTRAINTS:
+- Keep full Arabic/English (isAr) support everywhere.
+- Do not break existing functionality — all current staff logins must still work.
+- Approval dialogs must be clean, use existing shadcn/ui components (Dialog, Select, Button, Badge, Table).
+- Persist everything to localStorage so approvals survive page refresh.
+- All new toast messages must be bilingual.
+- Test: after approving a clinic, immediately try logging in with the new clinic's email/password — it must work.
+```

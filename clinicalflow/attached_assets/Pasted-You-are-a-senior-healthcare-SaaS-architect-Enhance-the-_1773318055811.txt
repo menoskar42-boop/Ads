@@ -1,0 +1,143 @@
+You are a senior healthcare SaaS architect.
+
+Enhance the ClinicFlow system to support Home Visit appointments for doctors.
+This feature must be configurable per doctor because some doctors offer home visits while others do not.
+
+Important constraints:
+
+• Do NOT redesign the system architecture
+• Preserve existing appointment and visit logic
+• Implement as a configurable doctor-level feature
+• Keep the system lightweight and scalable
+
+---
+
+1. Doctor Home Visit Settings
+
+---
+
+Extend the doctor configuration panel.
+
+Add the following fields to each doctor:
+
+home_visit_enabled (boolean)
+home_visit_price
+home_visit_duration_minutes
+home_visit_daily_limit
+home_visit_radius_km (optional)
+
+If home_visit_enabled = false
+Home visits should not appear in booking options.
+
+---
+
+2. Booking Integration
+
+---
+
+When a patient books an appointment with a doctor who supports home visits, the system should show:
+
+Visit Type
+
+Options:
+
+Clinic Visit
+Home Visit
+
+If the doctor does not support home visits, only show:
+
+Clinic Visit
+
+---
+
+3. Address Collection
+
+---
+
+When Home Visit is selected, require the patient to provide:
+
+Full Address
+Area
+City
+Location (optional map pin)
+
+Store this information in the appointment record.
+
+---
+
+4. Queue Handling
+
+---
+
+Home visits should NOT appear in the clinic waiting queue.
+
+Instead they should appear in a separate list:
+
+Home Visits Schedule
+
+Displayed for:
+
+Doctor
+Admin
+Reception
+
+Example:
+
+Patient Name
+Address
+Visit Time
+Doctor
+
+---
+
+5. Pricing Integration
+
+---
+
+Invoices must reflect the visit type.
+
+Example:
+
+Service: Home Visit
+Price: 500 EGP
+
+or
+
+Service: Clinic Visit
+Price: 300 EGP
+
+---
+
+6. Doctor Dashboard
+
+---
+
+Doctors should see two sections:
+
+Clinic Appointments
+Home Visits
+
+Home visits should show:
+
+Patient Name
+Address
+Phone
+Scheduled Time
+
+---
+
+7. Reports Integration
+
+---
+
+Reports should include:
+
+Total Home Visits
+Total Clinic Visits
+Revenue from Home Visits
+
+---
+
+## Goal
+
+Add a flexible home visit feature allowing each doctor to independently enable or disable home visits while maintaining compatibility with the existing appointment system.

@@ -1,0 +1,160 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow system by implementing shareable marketing pages for both doctors and clinics.
+
+Each doctor and clinic must have a unique public page link and an automatically generated QR code that can be shared with patients for direct booking.
+
+Important constraints:
+
+• Do NOT redesign the system architecture
+• Maintain compatibility with the existing multi-clinic SaaS structure
+• Ensure links are SEO-friendly and easy to share
+• Keep implementation lightweight
+
+---
+
+1. Doctor Public Page URL
+
+---
+
+Each doctor must have a unique public URL.
+
+Example:
+
+/doctor/dr-ahmed-hassan
+
+or
+
+/doctor/{doctor_id}
+
+This page must display:
+
+Doctor Photo
+Doctor Name
+Specialty
+Qualifications
+Clinic Locations
+Ratings
+Nearest Available Appointments
+
+Include a prominent button:
+
+Book Appointment
+
+---
+
+2. Clinic Public Page URL
+
+---
+
+Each clinic must have a unique public URL.
+
+Example:
+
+/clinic/al-salam-medical-center
+
+or
+
+/clinic/{clinic_id}
+
+This page should display:
+
+Clinic Name
+Clinic Description
+Clinic Address
+Google Maps Location
+Doctors Working in the Clinic
+Nearest Available Appointments in the Clinic
+Ratings and Reviews
+
+Include a button:
+
+Book Appointment
+
+---
+
+3. QR Code Generation
+
+---
+
+Automatically generate a QR code for each public page.
+
+Generate QR codes for:
+
+Doctor Profile Page
+Clinic Profile Page
+
+Example:
+
+Doctor QR → directs to doctor page
+Clinic QR → directs to clinic page
+
+---
+
+4. QR Code Display in Dashboard
+
+---
+
+Doctors and clinic admins must be able to view their QR codes in their dashboard.
+
+Example sections:
+
+Doctor Dashboard → "Share My Booking Page"
+
+Clinic Admin Dashboard → "Share Clinic Booking Page"
+
+Options:
+
+Download QR Code
+Copy Page Link
+Share Link
+
+---
+
+5. QR Code Usage
+
+---
+
+The QR code should allow patients to:
+
+Scan the code using their phone camera.
+
+Open the doctor or clinic booking page instantly.
+
+Then choose a time and book an appointment.
+
+---
+
+6. SEO Friendly URLs
+
+---
+
+Public URLs should use readable slugs.
+
+Example:
+
+clinicflow.com/doctor/dr-ahmed-hassan
+clinicflow.com/clinic/al-salam-medical-center
+
+---
+
+7. Marketing Purpose
+
+---
+
+These pages should function as marketing landing pages for doctors and clinics.
+
+The page must encourage immediate booking.
+
+Example sections:
+
+Doctor Information
+Ratings
+Available Times
+Book Now Button
+
+---
+
+## Goal
+
+Enable doctors and clinics to promote their booking pages using unique links and QR codes, making it easy for patients to scan and book appointments instantly.

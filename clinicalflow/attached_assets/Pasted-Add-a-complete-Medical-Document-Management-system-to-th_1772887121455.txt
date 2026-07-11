@@ -1,0 +1,182 @@
+Add a complete Medical Document Management system to the clinic platform.
+
+This system will allow storing prescriptions, lab tests, and radiology files inside the patient's medical file with strict specialty-based privacy rules.
+
+The implementation must remain simple and compatible with the current demo architecture.
+
+---
+
+## Document Types
+
+Support these document types:
+
+* prescription
+* lab_test
+* radiology
+* medical_report
+
+---
+
+## Document Data Structure
+
+Each medical document must store:
+
+document_id
+patient_id
+specialty_id
+doctor_id
+uploaded_by
+document_type
+file_url
+upload_date
+
+---
+
+## Upload Permissions
+
+The following roles can upload medical documents:
+
+Doctor
+Reception
+Admin
+
+Reception staff and Admin must be able to upload documents for a patient and assign them to the correct specialty.
+
+---
+
+## Specialty-Based Privacy
+
+Doctors must ONLY see documents that belong to their specialty.
+
+Example:
+
+Cardiology doctor → sees cardiology documents only
+Dentistry doctor → sees dentistry documents only
+
+Doctors must never see files belonging to other specialties.
+
+---
+
+## Doctor Document Visibility Modes
+
+Admin must be able to configure document visibility for doctors.
+
+Two visibility modes:
+
+own_only
+Doctor can see only documents uploaded by themselves.
+
+specialty_all
+Doctor can see all documents uploaded by doctors in the same specialty.
+
+---
+
+## Patient Medical File UI
+
+Inside the patient profile create a section called:
+
+Medical Documents
+
+Documents must be grouped by specialty.
+
+Example:
+
+Cardiology
+Prescriptions
+Lab Tests
+Radiology
+
+Dentistry
+Prescriptions
+X-rays
+
+---
+
+## Doctor Interface
+
+Doctors must see these buttons inside their specialty section:
+
+Prescriptions
+Lab Tests
+Radiology
+Upload Document
+
+---
+
+## Reception Interface
+
+Reception staff can upload files and assign them to:
+
+patient
+specialty
+document type
+
+---
+
+## Admin Controls
+
+Admin must be able to:
+
+upload documents
+configure doctor document visibility
+manage document permissions
+
+---
+
+## Audit Log (Security Feature)
+
+Add a document access audit log.
+
+Every time a document is accessed, record:
+
+user_id
+patient_id
+document_id
+action (view / upload / download)
+timestamp
+
+This allows tracking who accessed patient data.
+
+---
+
+## Secure File Access
+
+Medical files must NOT be publicly accessible.
+
+Requirements:
+
+Files must require authentication.
+Do not allow direct public file URLs.
+Use protected access links for viewing documents.
+
+---
+
+## Patient Medical Timeline
+
+Add a Patient Timeline view.
+
+The timeline should show medical history chronologically.
+
+Example:
+
+2024
+Lab Test – Blood Analysis
+
+2025
+Radiology – Chest X-ray
+
+2026
+Prescription – Cardiology
+
+This allows doctors to quickly review the patient's medical history.
+
+---
+
+## Goal
+
+Create a structured, secure patient medical file system that:
+
+protects patient privacy
+organizes medical documents by specialty
+tracks document access
+improves doctor efficiency when reviewing patient history

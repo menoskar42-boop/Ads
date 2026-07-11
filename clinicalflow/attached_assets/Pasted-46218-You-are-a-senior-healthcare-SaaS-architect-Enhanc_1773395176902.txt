@@ -1,0 +1,160 @@
+46218"}
+You are a senior healthcare SaaS architect.
+
+Enhance the ClinicFlow system to properly support Home Visit scheduling where home visit availability is different from clinic working hours.
+
+Important constraints:
+
+• Do NOT redesign the entire system  
+• Keep the current appointment architecture  
+• Integrate home visits into the unified visit engine  
+• Allow configuration per doctor by clinic admin  
+
+------------------------------------------------
+1. Separate Schedules for Doctors
+------------------------------------------------
+
+Each doctor must have two independent schedules:
+
+Clinic Schedule  
+Home Visit Schedule
+
+Clinic Schedule defines when the doctor is available in the clinic.
+
+Home Visit Schedule defines when the doctor is available for home visits.
+
+Example:
+
+Clinic Schedule:
+Mon – Thu
+4:00 PM → 9:00 PM
+
+Home Visit Schedule:
+Sat – Sun
+10:00 AM → 2:00 PM
+
+Both schedules must be configurable by the clinic admin.
+
+------------------------------------------------
+2. Doctor Configuration
+------------------------------------------------
+
+Extend doctor settings with:
+
+home_visit_enabled (boolean)
+
+If disabled:
+Home visit booking should not appear.
+
+If enabled:
+Admin can configure home visit availability.
+
+------------------------------------------------
+3. Home Visit Time Slots
+------------------------------------------------
+
+Create a home visit schedule module.
+
+Fields:
+
+doctor_id  
+day_of_week  
+start_time  
+end_time  
+max_home_visits_per_day
+
+These time slots should be separate from clinic slots.
+
+------------------------------------------------
+4. Booking Logic
+------------------------------------------------
+
+When a patient books an appointment, the system must ask:
+
+Visit Mode
+
+Options:
+
+Clinic Visit  
+Home Visit
+
+If Home Visit is selected:
+
+Only show time slots from the Home Visit Schedule.
+
+If Clinic Visit is selected:
+
+Only show slots from the Clinic Schedule.
+
+------------------------------------------------
+5. Unified Visit Engine Integration
+------------------------------------------------
+
+Both visit types must use the same visit engine.
+
+visit_mode values:
+
+clinic  
+home
+
+visit_type values:
+
+consultation  
+followup  
+urgent
+
+Example record:
+
+visit_type = consultation  
+visit_mode = home
+
+------------------------------------------------
+6. Queue Handling
+------------------------------------------------
+
+Clinic visits appear in the clinic waiting queue.
+
+Home visits appear in a separate section:
+
+Home Visits Schedule
+
+Displayed to:
+
+Doctor  
+Admin  
+Reception
+
+Example list:
+
+Patient Name  
+Address  
+Visit Time  
+Doctor
+
+------------------------------------------------
+7. Address Requirement
+------------------------------------------------
+
+For home visits require:
+
+Full address  
+Area  
+Phone number  
+Optional map location
+
+------------------------------------------------
+8. Reports Integration
+------------------------------------------------
+
+Reports should track:
+
+Total Clinic Visits  
+Total Home Visits  
+
+Revenue from Home Visits
+
+------------------------------------------------
+Goal
+------------------------------------------------
+
+Support doctors who perform home visits with separate scheduling while keeping the system unified and scalable for SaaS depl

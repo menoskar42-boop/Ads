@@ -1,0 +1,165 @@
+You are a senior SaaS healthcare platform architect.
+
+Enhance the ClinicFlow platform by adding a printable marketing sheet feature for clinics and doctors.
+
+The goal is to allow clinics and doctors to generate a printable page that includes a QR code and direct booking link so patients can quickly access their booking page without navigating the main platform.
+
+Important constraints:
+
+• Do NOT modify the existing booking logic
+• Maintain compatibility with doctor and clinic public pages
+• Ensure the feature is simple to generate and print
+• Support multiple print formats
+
+---
+
+FEATURE
+Printable Booking Sheet
+-----------------------
+
+Create a feature that allows clinics and doctors to generate a printable booking sheet containing:
+
+QR code
+Direct booking link
+Basic contact information
+
+---
+
+1. Access Location
+
+---
+
+Add a button in:
+
+Clinic Admin Dashboard
+Doctor Dashboard
+
+Button label example:
+
+Print Booking Page
+
+---
+
+2. Printable Sheet Content
+
+---
+
+The generated page must include:
+
+Platform logo
+
+Clinic or doctor name
+
+QR code pointing directly to the booking page.
+
+Example links:
+
+clinicflow.com/clinic/{clinic_slug}
+
+clinicflow.com/doctor/{doctor_slug}
+
+Also display the booking link as text.
+
+Example:
+
+Book online:
+
+clinicflow.com/doctor/dr-ahmed-hassan
+
+---
+
+3. Contact Information
+
+---
+
+Include optional fields:
+
+Phone number
+Clinic address
+Working hours
+
+---
+
+4. Print Layout Options
+
+---
+
+Provide two printable formats:
+
+---
+
+Format A
+A4 Poster
+
+Large QR code in the center
+
+Large title:
+
+Book Your Appointment Online
+
+QR code
+
+Doctor or clinic name
+
+Contact details
+
+---
+
+Format B
+Small Receipt Style
+
+A narrow vertical layout similar to a restaurant receipt.
+
+Includes:
+
+Small QR code
+Short booking link
+Doctor/clinic name
+Phone number
+
+Optimized for thermal printers.
+
+---
+
+5. Download Options
+
+---
+
+Allow the user to:
+
+Print directly
+Download as PDF
+Download QR image
+
+---
+
+6. Branding
+
+---
+
+Allow the clinic admin to include:
+
+Clinic logo
+Clinic name
+Clinic colors (optional)
+
+---
+
+7. QR Code Behavior
+
+---
+
+When the patient scans the QR code:
+
+The system must open the doctor or clinic booking page directly.
+
+The patient should be able to immediately:
+
+View available appointments
+Book an appointment
+
+---
+
+## Goal
+
+Allow clinics and doctors to easily distribute printed booking sheets that patients can scan with their phones to access the booking page instantly.

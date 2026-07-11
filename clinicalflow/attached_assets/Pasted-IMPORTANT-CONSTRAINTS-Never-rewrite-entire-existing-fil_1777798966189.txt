@@ -1,0 +1,245 @@
+IMPORTANT CONSTRAINTS:
+
+* Never rewrite entire existing files
+* Always use str_replace for edits to existing files
+* Do NOT refactor architecture
+* Do NOT break existing logic
+* Focus ONLY on UI/UX improvements
+* Apply changes incrementally
+
+---
+
+TASK: Implement UX Simplification & Dashboard Redesign
+
+---
+
+GOAL:
+Simplify UI and improve usability without changing core system behavior
+
+---
+
+STEP 1 — Role-Based UI Filtering
+
+Identify user roles:
+
+* patient
+* doctor
+* clinic_admin
+
+---
+
+FOR doctor:
+
+ONLY show:
+
+* patients
+* appointments
+* prescriptions
+* basic dashboard
+* "Next Patient" button
+
+HIDE:
+
+* warehouse
+* advanced finance
+* admin tools
+* system configs
+
+---
+
+FOR clinic_admin:
+
+SHOW:
+
+* queue
+* billing
+* doctors
+* patients
+* campaigns
+
+HIDE:
+
+* irrelevant doctor-only tools
+
+---
+
+IMPLEMENT:
+
+* conditional rendering based on role
+* do NOT delete routes, only hide UI access
+
+---
+
+STEP 2 — Sidebar Simplification
+
+Reduce sidebar items:
+
+GROUP items into:
+
+1. Core:
+
+* Dashboard
+* Patients
+* Appointments
+* Queue
+
+2. Management:
+
+* Billing
+* Doctors
+* Campaigns
+
+3. Advanced:
+
+* Analytics
+* Settings
+
+---
+
+Ensure:
+
+* max 6–8 visible items per role
+
+---
+
+STEP 3 — Merge Queue Systems
+
+Replace:
+
+* Queue
+* Smart Queue
+
+WITH:
+
+Single Queue page
+
+ADD toggle:
+
+* Normal Mode
+* Smart Mode
+
+---
+
+DO NOT change backend logic
+Only control UI toggle behavior
+
+---
+
+STEP 4 — Booking Flow Simplification
+
+Current:
+multi-step complex flow
+
+CHANGE TO:
+
+1. Select specialty
+2. Auto-show nearest available doctor + slot
+3. Confirm booking
+
+---
+
+ADD fallback:
+
+IF no slots:
+→ show message:
+"لا توجد مواعيد متاحة حالياً"
+
+---
+
+STEP 5 — Patient Dashboard Simplification
+
+Reduce to:
+
+* My Appointments
+* My Queue Status
+* My Files
+
+---
+
+REMOVE cluttered sections
+
+---
+
+STEP 6 — Doctor Dashboard Optimization
+
+Add:
+
+* "Next Patient" button (prominent)
+
+SHOW:
+
+* today's patients
+* current queue
+* quick actions
+
+---
+
+REMOVE:
+
+* deep analytics from main view
+
+---
+
+STEP 7 — Hide Broken/Unused Pages
+
+Detect routes:
+
+* /warehouse
+* /lab
+* /booking-center
+
+---
+
+IF not implemented:
+
+→ remove from navigation
+
+DO NOT delete code
+
+---
+
+STEP 8 — Fix Translation Issues
+
+Replace broken keys:
+
+* doctors.active
+* reports.appointments
+
+WITH proper Arabic labels
+
+---
+
+STEP 9 — UI Clarity Improvements
+
+Add:
+
+* empty states:
+  "لا توجد بيانات"
+
+* loading indicators
+
+* error messages
+
+---
+
+STEP 10 — Validate UX
+
+Simulate:
+
+* doctor login
+* clinic login
+* patient usage
+
+Check:
+
+* navigation clarity
+* no dead links
+* no confusion
+
+---
+
+FINAL OUTPUT:
+
+* list of UI changes applied
+* before/after summary
+* confirmation system still works
