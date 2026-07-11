@@ -31,8 +31,9 @@ async function plan(ctx, goal, recentContext = []) {
 
 // Short, user-facing natural-language summary of what happened.
 async function summarize(ctx, goal, results) {
+  const preamble = require('../assistant-profile').buildPreamble(ctx && ctx.prefs);
   const langInstr = require('../core/lang').replyInstruction(ctx && ctx.prefs && ctx.prefs.lang);
-  const sys = langInstr + ' Summarize the outcome for the user in 1-3 short sentences. Be concrete about what was done.';
+  const sys = preamble + ' ' + langInstr + ' Summarize the outcome for the user in 1-3 short sentences. Be concrete about what was done.';
   const user = `Goal: ${goal}\nResults: ${JSON.stringify(results).slice(0, 4000)}`;
   try {
     const { text } = await llm.chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });

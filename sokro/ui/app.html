@@ -19,6 +19,7 @@
   #auth{margin:auto;width:100%;max-width:380px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:24px}
   #auth h2{margin-bottom:6px}#auth p{color:#9aa2cf;font-size:.9rem;margin-bottom:16px}
   .fld{width:100%;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;color:#fff;font-size:1rem;margin-bottom:10px}
+  .lbl2{display:block;color:#9aa2cf;font-size:.82rem;margin:10px 2px 4px}
   .btn{width:100%;border:0;border-radius:12px;padding:13px;font-weight:800;font-size:1rem;cursor:pointer;background:linear-gradient(90deg,#5b6cff,#22d3ee);color:#08122b}
   .link{background:none;border:0;color:#8ea2ff;cursor:pointer;font:inherit;text-decoration:underline;margin-top:10px}
   .err{color:#ff9a9a;font-size:.85rem;margin-bottom:8px;min-height:1em}
@@ -49,8 +50,7 @@
   <div class="top">
     <div class="brand">Sokro <span>OS</span></div>
     <div style="display:flex;gap:14px;align-items:center">
-      <button id="ltoggle" class="link hidden" style="margin:0">🗣️ مصري</button>
-      <button id="vtoggle" class="link hidden" style="margin:0">🔊 صوت أنثى</button>
+      <button id="gear" class="link hidden" style="margin:0">⚙️ إعدادات</button>
       <button id="logout" class="link hidden" style="margin:0">خروج</button>
     </div>
   </div>
@@ -74,6 +74,30 @@
     </div>
   </div>
 
+  <div id="settings" class="hidden" style="position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px">
+    <div style="width:100%;max-width:420px;background:#141b3a;border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:22px" onclick="event.stopPropagation()">
+      <h2 style="margin-bottom:12px">⚙️ إعدادات المساعد</h2>
+      <label class="lbl2">اسم المساعد</label>
+      <input id="setName" class="fld" placeholder="Selena" />
+      <label class="lbl2">الشخصية</label>
+      <select id="setPersona" class="fld">
+        <option value="professional">احترافي</option>
+        <option value="friendly">ودود</option>
+        <option value="funny">مرِح</option>
+        <option value="minimal">مختصر</option>
+        <option value="teacher">معلّم</option>
+      </select>
+      <label class="lbl2">الصوت</label>
+      <select id="setVoice" class="fld"><option value="female">أنثى</option><option value="male">ذكر</option></select>
+      <label class="lbl2">لغة الردّ</label>
+      <select id="setLang" class="fld"><option value="egyptian">مصري</option><option value="msa">فصحى</option><option value="english">English</option></select>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button id="setSave" class="btn" style="flex:1">حفظ</button>
+        <button id="setClose" class="no" style="flex:1;border-radius:12px;padding:13px">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <div id="dock" class="dock hidden">
     <div class="status" id="status">دوس المايك وقول اللي عايزه</div>
     <div class="microw">
@@ -87,22 +111,26 @@
   var $=function(s){return document.querySelector(s)};
   var mode='login';
   var audioEl=new Audio();
-  var SETTINGS={ voice:'female', lang:'egyptian' };
-  var LANG_LABEL={ egyptian:'مصري', msa:'فصحى', english:'English' };
-  function paintToggles(){ $('#vtoggle').textContent='🔊 '+(SETTINGS.voice==='female'?'صوت أنثى':'صوت ذكر'); $('#ltoggle').textContent='🗣️ '+(LANG_LABEL[SETTINGS.lang]||'مصري'); }
-  async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok){ SETTINGS=d.settings; paintToggles(); } }catch(e){} }
-  async function saveSettings(patch){ Object.assign(SETTINGS,patch); paintToggles(); try{ await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)}); }catch(e){} }
+  var SETTINGS={ assistantName:'Selena', voice:'female', lang:'egyptian', personality:'professional' };
+  async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
+  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); }
+  async function saveSettingsForm(){
+    var patch={ assistantName:$('#setName').value.trim()||'Selena', personality:$('#setPersona').value, voice:$('#setVoice').value, lang:$('#setLang').value };
+    SETTINGS=Object.assign({},SETTINGS,patch); $('#settings').classList.add('hidden');
+    try{ var r=await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)}); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){}
+  }
 
   // ---------- auth ----------
   function showAuth(){ $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden'); $('#dock').classList.add('hidden'); $('#logout').classList.add('hidden'); }
   function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
-    $('#logout').classList.remove('hidden'); $('#vtoggle').classList.remove('hidden'); $('#ltoggle').classList.remove('hidden');
+    $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
     loadSettings();
     if(!$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً '+(user&&user.display_name?user.display_name:'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، أو أي مهمة.'); }
   }
   document.addEventListener('click',function(e){
-    if(e.target.id==='vtoggle') saveSettings({voice:SETTINGS.voice==='female'?'male':'female'});
-    if(e.target.id==='ltoggle'){ var o=['egyptian','msa','english']; saveSettings({lang:o[(o.indexOf(SETTINGS.lang)+1)%3]}); }
+    if(e.target.id==='gear') openSettings();
+    if(e.target.id==='setClose'||e.target.id==='settings') $('#settings').classList.add('hidden');
+    if(e.target.id==='setSave') saveSettingsForm();
   });
   $('#authToggle').onclick=function(){ mode=mode==='login'?'signup':'login';
     $('#name').classList.toggle('hidden',mode==='login');
