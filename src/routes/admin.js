@@ -39,7 +39,8 @@ router.get('/login', (req, res) => {
   res.render('admin/login', { error: null });
 });
 
-router.post('/login', async (req, res) => {
+const { loginLimiter } = require('../middleware/rateLimit');
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query('SELECT * FROM admins WHERE email = $1', [email]);

@@ -15,7 +15,8 @@ router.get('/login', (req, res) => {
   res.render('customer/login', { error: null });
 });
 
-router.post('/login', async (req, res) => {
+const { loginLimiter } = require('../middleware/rateLimit');
+router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const r = await pool.query('SELECT * FROM customers WHERE email = $1', [email]);

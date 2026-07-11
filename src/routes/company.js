@@ -131,7 +131,8 @@ router.get('/login', (req, res) => {
   res.render('company/login', { error: null, notice: null });
 });
 
-router.post('/login', async (req, res) => {
+const { loginLimiter } = require('../middleware/rateLimit');
+router.post('/login', loginLimiter, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   const renderLogin = (opts) => res.render('company/login', Object.assign({ error: null, notice: null }, opts));
