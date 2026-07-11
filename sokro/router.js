@@ -6,8 +6,13 @@
 // Later phases add auth, memory, the LLM layer, browser automation, the planner
 // (with validator + retry), skills/workflows, permissions, scheduler and voice.
 const express = require('express');
+const { Pool } = require('pg');
 const config = require('./core/config');
+const auth = require('./auth');
+const vault = require('./secrets/vault');
+const { loginLimiter } = require('../src/middleware/rateLimit');
 
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = express.Router();
 
 const TITLE = 'Sokro — مساعدك الذكي اللي بينفّذ المهام بصوتك';
@@ -16,6 +21,84 @@ const DESC = 'Sokro نظام ذكاء اصطناعي بينفّذ مهامك ا�
 // Health + API smoke check (mobile app / uptime probes hit these).
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env: config.env }));
 router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features: config.features }));
+
+// ── Auth API (mobile + web) ──────────────────────────────────────────────────
+const COOKIE = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 };
+
+router.post('/api/auth/signup', loginLimiter, async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    const name = String(req.body.name || '').trim().slice(0, 80) || null;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || password.length < 8) {
+      return res.status(400).json({ ok: false, error: 'email صحيح + كلمة سر 8 أحرف على الأقل' });
+    }
+    const hash = await auth.hashPassword(password);
+    let row;
+    try {
+      row = (await pool.query(
+        'INSERT INTO sokro_users (email, password_hash, display_name) VALUES ($1,$2,$3) RETURNING id, email',
+        [email, hash, name]
+      )).rows[0];
+    } catch (e) {
+      if (e.code === '23505') return res.status(409).json({ ok: false, error: 'الإيميل مسجّل بالفعل' });
+      throw e;
+    }
+    const token = auth.sign({ sub: row.id, email: row.email });
+    res.cookie('sokro_token', token, COOKIE);
+    res.json({ ok: true, token, user: { id: row.id, email: row.email } });
+  } catch (e) { console.error('[sokro] signup:', e.message); res.status(500).json({ ok: false, error: 'server error' }); }
+});
+
+router.post('/api/auth/login', loginLimiter, async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    const u = (await pool.query('SELECT id, email, password_hash FROM sokro_users WHERE email = $1', [email])).rows[0];
+    if (!u || !(await auth.checkPassword(password, u.password_hash))) {
+      return res.status(401).json({ ok: false, error: 'بيانات الدخول غير صحيحة' });
+    }
+    const token = auth.sign({ sub: u.id, email: u.email });
+    res.cookie('sokro_token', token, COOKIE);
+    res.json({ ok: true, token, user: { id: u.id, email: u.email } });
+  } catch (e) { console.error('[sokro] login:', e.message); res.status(500).json({ ok: false, error: 'server error' }); }
+});
+
+router.post('/api/auth/logout', (_req, res) => { res.clearCookie('sokro_token'); res.json({ ok: true }); });
+
+router.get('/api/auth/me', auth.requireAuth, async (req, res) => {
+  const u = (await pool.query('SELECT id, email, display_name, created_at FROM sokro_users WHERE id = $1', [req.sokroUser.id])).rows[0];
+  if (!u) return res.status(404).json({ ok: false });
+  res.json({ ok: true, user: u });
+});
+
+// ── Secrets vault API — store/list/delete. Values are AES-256-GCM encrypted and
+// NEVER returned in plaintext or sent to the AI. Listing exposes names only. ───
+router.post('/api/secrets', auth.requireAuth, async (req, res) => {
+  try {
+    if (!vault.configured()) return res.status(503).json({ ok: false, error: 'vault key not configured (SOKRO_SECRET_KEY)' });
+    const name = String(req.body.name || '').trim().toLowerCase().slice(0, 60);
+    const value = String(req.body.value || '');
+    if (!name || !value) return res.status(400).json({ ok: false, error: 'name + value مطلوبين' });
+    const ciphertext = vault.encrypt(value);
+    await pool.query(
+      `INSERT INTO sokro_secrets (user_id, name, ciphertext) VALUES ($1,$2,$3)
+       ON CONFLICT (user_id, name) DO UPDATE SET ciphertext = EXCLUDED.ciphertext, updated_at = now()`,
+      [req.sokroUser.id, name, ciphertext]
+    );
+    res.json({ ok: true, name });
+  } catch (e) { console.error('[sokro] secret save:', e.message); res.status(500).json({ ok: false, error: 'server error' }); }
+});
+
+router.get('/api/secrets', auth.requireAuth, async (req, res) => {
+  const rows = (await pool.query('SELECT name, updated_at FROM sokro_secrets WHERE user_id = $1 ORDER BY name', [req.sokroUser.id])).rows;
+  res.json({ ok: true, secrets: rows }); // names only — never values
+});
+
+router.delete('/api/secrets/:name', auth.requireAuth, async (req, res) => {
+  await pool.query('DELETE FROM sokro_secrets WHERE user_id = $1 AND name = $2', [req.sokroUser.id, String(req.params.name).toLowerCase()]);
+  res.json({ ok: true });
+});
 
 // Public landing page (indexable, SEO/AdSense-aware — real content, no ads yet).
 router.get('/', (_req, res) => {

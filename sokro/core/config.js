@@ -22,7 +22,7 @@ const config = {
 
   // Feature flags — each phase flips its flag on when it ships.
   features: {
-    auth: false,
+    auth: true,
     memory: false,
     planner: false,
     browser: false,
