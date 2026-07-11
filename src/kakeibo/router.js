@@ -529,6 +529,34 @@ router.post('/add', requireOnboarded, withReceipt, async (req, res) => {
     res.redirect('/app');
   } catch (e) { console.error('[kkb add]', e.message); res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()), aiEnabled: ai.isEnabled() }, APP_LOCALS)); }
 });
+router.get('/expense/:id/edit', requireOnboarded, async (req, res) => {
+  const ex = (await pool.query('SELECT * FROM kkb_expenses WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId])).rows[0];
+  if (!ex) return res.redirect('/expenses');
+  res.render('kakeibo/add', Object.assign({ error: null, today: stats.ymd(new Date()), aiEnabled: ai.isEnabled(), editExpense: ex }, APP_LOCALS));
+});
+router.post('/expense/:id/update', requireOnboarded, withReceipt, async (req, res) => {
+  const id = toInt(req.params.id, null);
+  const b = req.body || {};
+  const amount = toNum(b.amount, NaN);
+  const ex = (await pool.query('SELECT * FROM kkb_expenses WHERE id=$1 AND user_id=$2', [id, req.session.kkbUserId])).rows[0];
+  if (!ex) return res.redirect('/expenses');
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.render('kakeibo/add', Object.assign({ error: res.locals.t('add.err'), today: stats.ymd(new Date()), aiEnabled: ai.isEnabled(), editExpense: ex }, APP_LOCALS));
+  }
+  const category = CATEGORY_KEYS.includes(String(b.category)) ? b.category : ex.category;
+  const method = PAYMENT_METHODS.includes(String(b.payment_method)) ? b.payment_method : ex.payment_method;
+  const desc = String(b.description || '').trim().slice(0, 200);
+  const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spent_on || '')) ? b.spent_on : stats.ymd(new Date(ex.spent_on));
+  let receiptUrl = ex.receipt_url;
+  if (req.file) { receiptUrl = '/uploads/' + req.file.filename; if (compressImage) { try { await compressImage(req.file.path); } catch (e) {} } }
+  try {
+    await pool.query(
+      'UPDATE kkb_expenses SET amount=$1, description=$2, category=$3, payment_method=$4, receipt_url=$5, spent_on=$6 WHERE id=$7 AND user_id=$8',
+      [amount, desc || null, category, method, receiptUrl, spentOn, id, req.session.kkbUserId]
+    );
+    res.redirect('/expenses');
+  } catch (e) { console.error('[kkb update]', e.message); res.redirect('/expenses'); }
+});
 router.post('/expense/:id/delete', requireOnboarded, async (req, res) => {
   await pool.query('DELETE FROM kkb_expenses WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);
   res.redirect(req.get('Referrer') && /\/expenses/.test(req.get('Referrer')) ? '/expenses' : '/app');

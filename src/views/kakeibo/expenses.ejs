@@ -19,6 +19,7 @@
           </div>
           <b style="white-space:nowrap"><bdi><%= money(e.amount) %></bdi></b>
           <% if (e.receipt_url) { %><a href="<%= e.receipt_url %>" target="_blank" style="font-size:1rem">🧾</a><% } %>
+          <a href="/expense/<%= e.id %>/edit" style="font-size:.95rem;text-decoration:none">✏️</a>
           <form method="post" action="/expense/<%= e.id %>/delete"><button type="submit" data-confirm="🗑️?" style="border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem">🗑️</button></form>
         </div>
       <% }) %>

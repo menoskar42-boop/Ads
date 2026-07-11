@@ -1,10 +1,14 @@
-<% pageTitle = t('add.title') %>
+<%
+  var ed = (typeof editExpense !== 'undefined' && editExpense) ? editExpense : null;
+  function __eymd(v){ try{ var d=new Date(v); var p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }catch(e){ return today; } }
+  pageTitle = ed ? t('add.edit') : t('add.title');
+%>
 <%- include('head') %>
 <main class="wrap" style="padding-top:6px">
-  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('add.title') %></h1>
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= ed ? t('add.edit') : t('add.title') %></h1>
   <% if (error) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:10px 12px;font-size:.9rem;font-weight:600;margin-bottom:12px"><%= error %></div><% } %>
 
-  <form method="post" action="/add" enctype="multipart/form-data" class="card" style="padding:20px;display:flex;flex-direction:column;gap:16px">
+  <form method="post" action="<%= ed ? '/expense/'+ed.id+'/update' : '/add' %>" enctype="multipart/form-data" class="card" style="padding:20px;display:flex;flex-direction:column;gap:16px">
 
     <!-- Quick capture: voice + receipt scan -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -15,17 +19,17 @@
 
     <div style="text-align:center">
       <label class="lbl" style="text-align:center"><%= t('add.amount') %></label>
-      <input name="amount" type="number" inputmode="decimal" step="0.01" min="0" required autofocus
+      <input name="amount" type="number" inputmode="decimal" step="0.01" min="0" required autofocus value="<%= ed ? Number(ed.amount) : '' %>"
         class="fld kkb-display" dir="ltr" placeholder="0" style="text-align:center;font-size:2rem;font-weight:700;border:0;background:transparent" />
     </div>
 
     <div>
       <label class="lbl"><%= t('add.category') %></label>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        <% CATEGORIES.forEach(function(c, i){ %>
+        <% CATEGORIES.forEach(function(c, i){ var sel = ed ? (ed.category===c.key) : (i===0); %>
           <label style="cursor:pointer">
-            <input type="radio" name="category" value="<%= c.key %>" <%= i===0?'checked':'' %> style="position:absolute;opacity:0" onchange="document.querySelectorAll('.catchip').forEach(function(x){x.dataset.on='0'});this.parentNode.querySelector('.catchip').dataset.on='1'" />
-            <span class="catchip" data-on="<%= i===0?'1':'0' %>" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;border:1.5px solid var(--line);border-radius:14px;font-size:.7rem;font-weight:700;transition:.15s">
+            <input type="radio" name="category" value="<%= c.key %>" <%= sel?'checked':'' %> style="position:absolute;opacity:0" onchange="document.querySelectorAll('.catchip').forEach(function(x){x.dataset.on='0'});this.parentNode.querySelector('.catchip').dataset.on='1'" />
+            <span class="catchip" data-on="<%= sel?'1':'0' %>" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;border:1.5px solid var(--line);border-radius:14px;font-size:.7rem;font-weight:700;transition:.15s">
               <span style="font-size:1.2rem"><%= c.icon %></span><%= t('cat.'+c.key) %>
             </span>
           </label>
@@ -37,27 +41,27 @@
       <div>
         <label class="lbl"><%= t('add.method') %></label>
         <select name="payment_method" class="fld">
-          <% PAYMENT_METHODS.forEach(function(m){ %><option value="<%= m %>"><%= t('pm.'+m) %></option><% }) %>
+          <% PAYMENT_METHODS.forEach(function(m){ %><option value="<%= m %>" <%= ed && ed.payment_method===m ? 'selected':'' %>><%= t('pm.'+m) %></option><% }) %>
         </select>
       </div>
       <div>
         <label class="lbl"><%= t('add.date') %></label>
-        <input name="spent_on" type="date" value="<%= today %>" class="fld" dir="ltr" />
+        <input name="spent_on" type="date" value="<%= ed ? __eymd(ed.spent_on) : today %>" class="fld" dir="ltr" />
       </div>
     </div>
 
     <div>
       <label class="lbl"><%= t('add.desc') %></label>
-      <input name="description" id="descInput" maxlength="200" class="fld" autocomplete="off" />
+      <input name="description" id="descInput" maxlength="200" class="fld" autocomplete="off" value="<%= ed && ed.description ? ed.description : '' %>" />
       <p id="aiSug" class="muted" style="font-size:.72rem;margin:5px 2px 0;display:none"></p>
     </div>
 
     <div>
-      <label class="lbl">🧾 <%= t('add.receipt') %></label>
+      <label class="lbl">🧾 <%= t('add.receipt') %><% if (ed && ed.receipt_url) { %> · <a href="<%= ed.receipt_url %>" target="_blank">🧾</a><% } %></label>
       <input name="receipt" id="receiptInput" type="file" accept="image/*" capture="environment" class="fld" style="padding:9px" />
     </div>
 
-    <button class="btn btn-primary">💾 <%= t('add.save') %></button>
+    <button class="btn btn-primary">💾 <%= ed ? t('add.update') : t('add.save') %></button>
   </form>
 </main>
 <style>.catchip[data-on="1"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}</style>
