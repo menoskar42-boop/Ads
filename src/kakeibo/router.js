@@ -658,7 +658,26 @@ router.get('/review', requireOnboarded, async (req, res) => {
 
 /* ─── Profile / settings ───────────────────────────────── */
 router.get('/profile', requireOnboarded, (req, res) => {
-  res.render('kakeibo/profile', Object.assign({ currencies: CURRENCIES, saved: req.query.saved === '1', pushEnabled: kpush.isEnabled(), pushKey: kpush.publicKey() }, APP_LOCALS));
+  const uerrMap = { email: res.locals.t('auth.err_email'), pass: res.locals.t('auth.err_pass'), exists: res.locals.t('auth.err_exists') };
+  res.render('kakeibo/profile', Object.assign({ currencies: CURRENCIES, saved: req.query.saved === '1', pushEnabled: kpush.isEnabled(), pushKey: kpush.publicKey(), upErr: uerrMap[req.query.uerr] || null, upgraded: req.query.upgraded === '1' }, APP_LOCALS));
+});
+
+// Guest → real account: keep all data, just add email + password.
+router.post('/account/upgrade', requireOnboarded, async (req, res) => {
+  const u = res.locals.user;
+  if (!u || !u.is_guest) return res.redirect('/profile');
+  const b = req.body || {};
+  const email = String(b.email || '').trim().toLowerCase();
+  const password = String(b.password || '');
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (!EMAIL_RE.test(email)) return res.redirect('/profile?uerr=email');
+  if (password.length < 6) return res.redirect('/profile?uerr=pass');
+  try {
+    if ((await pool.query('SELECT 1 FROM kkb_users WHERE lower(email)=$1 AND id<>$2', [email, u.id])).rows.length) return res.redirect('/profile?uerr=exists');
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query('UPDATE kkb_users SET email=$1, password_hash=$2, display_name=COALESCE(NULLIF($3,\'\'), display_name), is_guest=false WHERE id=$4', [email, hash, name, u.id]);
+    res.redirect('/profile?upgraded=1');
+  } catch (e) { console.error('[kkb upgrade]', e.message); res.redirect('/profile?uerr=email'); }
 });
 
 /* ─── Push notifications ───────────────────────────────── */

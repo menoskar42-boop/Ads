@@ -4,14 +4,30 @@
   <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 14px"><%= t('prof.title') %></h1>
   <% if (saved) { %><div style="background:rgba(47,111,94,.12);color:var(--accent-2);border-radius:12px;padding:9px 12px;font-size:.88rem;font-weight:700;margin-bottom:12px"><%= t('prof.saved') %></div><% } %>
 
+  <% if (typeof upgraded !== 'undefined' && upgraded) { %><div style="background:rgba(47,111,94,.12);color:var(--accent-2);border-radius:12px;padding:9px 12px;font-size:.88rem;font-weight:700;margin-bottom:12px"><%= t('up.done') %></div><% } %>
+
   <section class="card" style="padding:18px;display:flex;align-items:center;gap:12px;margin-bottom:12px">
     <span class="hanko" style="width:46px;height:46px;font-size:1.3rem">👤</span>
     <div style="flex:1;min-width:0">
       <div style="font-weight:800"><%= user.display_name || user.email || 'Guest' %></div>
-      <% if (user.is_guest) { %><div class="muted" style="font-size:.74rem"><%= t('prof.guest') %> — <%= t('prof.guest_note') %></div>
+      <% if (user.is_guest) { %><div class="muted" style="font-size:.74rem"><%= t('prof.guest') %></div>
       <% } else if (user.email) { %><div class="muted" style="font-size:.76rem" dir="ltr"><%= user.email %></div><% } %>
     </div>
   </section>
+
+  <% if (user.is_guest) { %>
+  <section class="card" style="padding:18px;margin-bottom:12px;border:1.5px solid var(--accent)">
+    <div style="font-weight:800;margin-bottom:2px">🔐 <%= t('up.title') %></div>
+    <p class="muted" style="font-size:.78rem;margin:0 0 12px"><%= t('up.hint') %></p>
+    <% if (typeof upErr !== 'undefined' && upErr) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:8px 12px;font-size:.85rem;font-weight:600;margin-bottom:10px"><%= upErr %></div><% } %>
+    <form method="post" action="/account/upgrade" style="display:flex;flex-direction:column;gap:10px">
+      <input name="name" maxlength="80" class="fld" placeholder="<%= t('common.name') %>" />
+      <input name="email" type="email" dir="ltr" required class="fld" placeholder="<%= t('common.email') %>" />
+      <input name="password" type="password" required minlength="6" class="fld" placeholder="<%= t('common.password') %>" />
+      <button class="btn btn-primary"><%= t('up.btn') %></button>
+    </form>
+  </section>
+  <% } %>
 
   <section class="card" style="padding:18px">
     <div style="font-weight:700;margin-bottom:12px">💼 <%= t('prof.settings') %></div>
