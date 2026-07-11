@@ -13,9 +13,13 @@ function makeProvider() {
 
   async function chat({ messages, model, json = false, temperature = 0.2, maxTokens } = {}) {
     if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
-    const body = { model: model || planModel, messages, temperature };
+    const useModel = model || planModel;
+    const reasoning = /^(gpt-5|o\d)/i.test(useModel); // gpt-5 / o-series
+    const body = { model: useModel, messages };
+    // Reasoning models reject a custom temperature and use max_completion_tokens.
+    if (!reasoning) body.temperature = temperature;
     if (json) body.response_format = { type: 'json_object' };
-    if (maxTokens) body.max_tokens = maxTokens;
+    if (maxTokens) body[reasoning ? 'max_completion_tokens' : 'max_tokens'] = maxTokens;
     const r = await fetch(BASE + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },

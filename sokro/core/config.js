@@ -12,9 +12,9 @@ const config = {
     provider: process.env.SOKRO_LLM_PROVIDER || 'openai',
     openai: {
       apiKey: process.env.OPENAI_API_KEY || '',
-      // Cheap model for intent + planning; smart model for hard reasoning.
-      planModel: process.env.SOKRO_PLAN_MODEL || 'gpt-4o-mini',
-      smartModel: process.env.SOKRO_SMART_MODEL || 'gpt-4o',
+      // GPT-5 for planning + reasoning (override per-tier via env if needed).
+      planModel: process.env.SOKRO_PLAN_MODEL || 'gpt-5',
+      smartModel: process.env.SOKRO_SMART_MODEL || 'gpt-5',
     },
   },
 
