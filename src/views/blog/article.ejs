@@ -21,7 +21,7 @@
   "dateModified": article.date,
   "inLanguage": "ar",
   "mainEntityOfPage": siteOrigin + "/blog/" + article.slug,
-  "image": siteOrigin + "/logo.png",
+  "image": siteOrigin + (article.image || "/og-default.png"),
   "author": { "@type": "Organization", "name": "OscarDevs", "url": siteOrigin },
   "publisher": { "@type": "Organization", "name": "OscarDevs", "logo": { "@type": "ImageObject", "url": siteOrigin + "/logo.png" } }
 }) %>

@@ -19,16 +19,16 @@
 <meta name="description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
 <meta name="theme-color" content="<%= brandColor %>" />
 <meta name="color-scheme" content="light" />
-<link rel="canonical" href="<%= canonicalCompanyUrl(company.slug) %>" />
-<meta property="og:url" content="<%= canonicalCompanyUrl(company.slug) %>" />
+<%- include('partials/seo_meta', {
+  title: __pfTitle,
+  description: (displayDesc || displayName).slice(0,160),
+  canonical: canonicalCompanyUrl(company.slug),
+  ogImage: company.logo_url || (siteOrigin + '/og-default.png'),
+  siteLogo: company.logo_url || '',
+  siteManifest: '/view/' + company.slug + '/manifest.webmanifest',
+  siteAppName: displayName
+}) %>
 <%- include('partials/ads_loader') %>
-
-<!-- Open Graph للمشاركة على السوشيال -->
-<meta property="og:type" content="website" />
-<meta property="og:title" content="<%= __pfTitle %>" />
-<meta property="og:description" content="<%= (displayDesc || displayName).slice(0,160) %>" />
-<meta property="og:locale" content="ar_EG" />
-<% if (company.logo_url) { %><meta property="og:image" content="<%= company.logo_url %>" /><% } %>
 
 <!-- ===================== الخطوط (Google Fonts) ===================== -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />

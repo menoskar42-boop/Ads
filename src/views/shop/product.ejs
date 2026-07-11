@@ -35,10 +35,10 @@
   }) %>
   </script>
   <%
+    // Breadcrumb: Store → Product. We deliberately skip a category level because
+    // the ?category filtered view is noindex — pointing a breadcrumb at a
+    // non-indexable URL weakens the structured-data hierarchy.
     var crumbs = [{ "@type": "ListItem", "position": 1, "name": displayCompanyName, "item": canonicalCompanyUrl(company.slug) }];
-    if (product.category_name && product.category_id) {
-      crumbs.push({ "@type": "ListItem", "position": 2, "name": product.category_name, "item": canonicalCompanyUrl(company.slug) + '?category=' + product.category_id });
-    }
     crumbs.push({ "@type": "ListItem", "position": crumbs.length + 1, "name": pName, "item": productUrl });
   %>
   <script type="application/ld+json">
