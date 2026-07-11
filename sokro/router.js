@@ -19,6 +19,7 @@ const executor = require('./workflows/executor');
 const permissions = require('./permissions');
 const voice = require('./voice');
 const settings = require('./settings');
+const reports = require('./reports');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -237,6 +238,20 @@ router.get('/api/settings', auth.requireAuth, async (req, res) => {
 });
 router.put('/api/settings', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, settings: await settings.update(req.sokroUser.id, req.body || {}) });
+});
+
+// Generate + download a report (Excel / Markdown / CSV / JSON) from content the
+// assistant produced. Returned as a file attachment — no server storage needed.
+router.post('/api/report', auth.requireAuth, (req, res) => {
+  const b = req.body || {};
+  const payload = { title: String(b.title || 'report'), text: String(b.text || ''), rows: Array.isArray(b.rows) ? b.rows : null };
+  try {
+    const f = reports.build(b.format, payload);
+    const name = (payload.title || 'report').replace(/[^\w؀-ۿ -]/g, '').trim().slice(0, 60) || 'report';
+    res.setHeader('Content-Type', f.mime);
+    res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(name) + '.' + f.ext);
+    res.send(f.buffer);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // The single voice app screen.

@@ -136,11 +136,25 @@
   }
 
   function renderResult(d){
-    var parts=[];
-    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o&&o.report) parts.push(o.report); });
-    var summary=d.summary||(parts.length?parts.join('\n\n'):(d.ok?'تمّت المهمة.':'المهمة فشلت.'));
+    var report=null;
+    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o&&o.report){ report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; } });
+    var summary=d.summary||(report?report.text:(d.ok?'تمّت المهمة.':'المهمة فشلت.'));
     addMsg('ai',summary);
+    if(report) addDownloads(report);
     speak(summary);
+  }
+  function addDownloads(payload){
+    var el=document.createElement('div'); el.className='plan'; el.style.background='rgba(34,211,238,.08)';
+    el.innerHTML='<div>⬇︎ تنزيل التقرير:</div><div class="row"><button class="ok" data-f="xlsx">Excel</button><button class="ok" data-f="md">Markdown</button></div>';
+    $('#log').appendChild(el); $('#log').scrollTop=1e9;
+    el.querySelectorAll('button').forEach(function(btn){ btn.onclick=function(){ dl(btn.dataset.f,payload); }; });
+  }
+  async function dl(format,payload){
+    try{
+      var r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({format:format},payload))});
+      if(!r.ok) return; var b=await r.blob(); var u=URL.createObjectURL(b);
+      var a=document.createElement('a'); a.href=u; a.download=(payload.title||'report')+'.'+(format==='xlsx'?'xlsx':'md'); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+    }catch(e){}
   }
 
   function renderConsent(d){
