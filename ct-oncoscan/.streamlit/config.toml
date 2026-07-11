@@ -1,0 +1,9 @@
+[server]
+headless = true
+address = "0.0.0.0"
+port = 5000
+# Raised from the 200 MB default to accommodate full-study DICOM
+# archives. Counted per file, so a single 800 MB .zip is allowed.
+maxUploadSize = 1024
+# WebSocket messages need to carry slice progress + file payloads.
+maxMessageSize = 1024

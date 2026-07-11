@@ -1,0 +1,37 @@
+#!/bin/bash
+# unrar wrapper → unar
+# rarfile calls: unrar x -y -p- -idq [flags] archive.rar /dest/dir/
+# unar expects: unar -output-directory /dest/dir/ archive.rar
+
+ARCHIVE=""
+DEST=""
+MODE=""
+
+for arg in "$@"; do
+    case "$arg" in
+        x|e|l|t|v) MODE="$arg" ;;
+        -*)         ;;  # skip flags like -y -p- -idq
+        *.rar|*.RAR) ARCHIVE="$arg" ;;
+        *)
+            if [[ -n "$ARCHIVE" && -z "$DEST" ]]; then
+                DEST="$arg"
+            fi
+            ;;
+    esac
+done
+
+case "$MODE" in
+    l|v|t)
+        unar -t "$ARCHIVE"
+        ;;
+    x|e)
+        if [[ -n "$DEST" ]]; then
+            unar -f -o "$DEST" "$ARCHIVE"
+        else
+            unar -f "$ARCHIVE"
+        fi
+        ;;
+    *)
+        unar "$ARCHIVE"
+        ;;
+esac
