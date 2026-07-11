@@ -17,7 +17,8 @@ async function run(ctx, input) {
   const sources = (s.output && s.output.results) || [];
   if (!sources.length) return { ok: false, error: 'no search results to report on' };
 
-  const sys = 'You are a research assistant. Using ONLY the provided search results, write a concise, well-structured report in the user\'s language (Arabic if the topic is Arabic). Use short sections and bullet points, and reference source numbers like [1], [2].';
+  const langInstr = require('../core/lang').replyInstruction(ctx && ctx.prefs && ctx.prefs.lang);
+  const sys = langInstr + ' You are a research assistant. Using ONLY the provided search results, write a concise, well-structured report. Use short sections and bullet points, and reference source numbers like [1], [2].';
   const user = `Topic: ${query}\nSearch results:\n${sources.map((r, i) => `[${i + 1}] ${r.title} — ${r.url}`).join('\n')}`;
   let report;
   try {

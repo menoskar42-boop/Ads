@@ -18,6 +18,8 @@ const planner = require('./ai/planner');
 const executor = require('./workflows/executor');
 const permissions = require('./permissions');
 const voice = require('./voice');
+const settings = require('./settings');
+const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
 const { loginLimiter } = require('../src/middleware/rateLimit');
@@ -157,9 +159,9 @@ router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
 });
 
 // ── Orchestrator: plan → execute (validate + retry) → summarize ──────────────
-function sokroCtx(userId, taskId) {
+function sokroCtx(userId, taskId, prefs) {
   return {
-    userId, taskId,
+    userId, taskId, prefs: prefs || {},
     llm: require('./llm'),
     memory, browser, actions: registry,
     log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
@@ -180,8 +182,9 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
   const goal = String((req.body && req.body.goal) || '').trim();
   if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
   try {
+    const prefs = await settings.get(req.sokroUser.id);
     const task = await memory.createTask(req.sokroUser.id, goal, (req.body && req.body.conversationId) || null);
-    const ctx = sokroCtx(req.sokroUser.id, task.id);
+    const ctx = sokroCtx(req.sokroUser.id, task.id, prefs);
     const plan = await planner.plan(ctx, goal);
     const perms = permissions.forPlan(plan, registry);
     await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
@@ -201,7 +204,8 @@ router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
     const t = (await pool.query('SELECT id, goal, plan FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
     if (!t) return res.status(404).json({ ok: false, error: 'task not found' });
     if (!t.plan || !Array.isArray(t.plan.steps)) return res.status(400).json({ ok: false, error: 'task has no plan' });
-    return await executePlan(sokroCtx(req.sokroUser.id, t.id), t.goal, t.id, t.plan, res);
+    const prefs = await settings.get(req.sokroUser.id);
+    return await executePlan(sokroCtx(req.sokroUser.id, t.id, prefs), t.goal, t.id, t.plan, res);
   } catch (e) {
     console.error('[sokro] execute:', e.message);
     res.status(500).json({ ok: false, error: e.message });
@@ -220,11 +224,23 @@ router.post('/api/speak', auth.requireAuth, async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
   if (!text) return res.status(400).json({ ok: false, error: 'text required' });
   try {
-    const mp3 = await voice.speak(text, { voice: req.body.voice });
+    const s = await settings.get(req.sokroUser.id);
+    const mp3 = await voice.speak(text, { voice: settings.ttsVoice(s.voice), lang: s.lang });
     res.setHeader('Content-Type', 'audio/mpeg');
     res.send(mp3);
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
+
+// ── Per-user assistant settings (voice / language / personality / name) ──────
+router.get('/api/settings', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, settings: await settings.get(req.sokroUser.id), options: { voices: settings.VOICES, langs: settings.LANGS, personalities: settings.PERSONALITIES } });
+});
+router.put('/api/settings', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, settings: await settings.update(req.sokroUser.id, req.body || {}) });
+});
+
+// The single voice app screen.
+router.get('/app', (_req, res) => res.type('html').set('Cache-Control', 'no-cache').sendFile(path.join(__dirname, 'ui', 'app.html')));
 
 // Public landing page (indexable, SEO/AdSense-aware — real content, no ads yet).
 router.get('/', (_req, res) => {
