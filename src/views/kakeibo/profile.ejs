@@ -32,6 +32,18 @@
     <a href="/twin" class="btn btn-ghost">🧬 <%= t('twin.title') %></a>
     <a href="/simulator" class="btn btn-ghost">🧪 <%= t('sim.title') %></a>
     <a href="/onboarding" class="btn btn-ghost">📅 <%= t('prof.edit_salary') %></a>
+  </section>
+
+  <section class="card" style="padding:16px;margin-top:14px">
+    <div style="font-weight:700;margin-bottom:2px">⬇︎ <%= t('exp.title') %></div>
+    <p class="muted" style="font-size:.76rem;margin:0 0 12px"><%= t('exp.hint') %></p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <a href="/export/expenses.csv" class="btn btn-ghost">📊 <%= t('exp.csv') %></a>
+      <a href="/export/data.json" class="btn btn-ghost">🗂️ <%= t('exp.json') %></a>
+    </div>
+  </section>
+
+  <section style="margin-top:14px">
     <form method="post" action="/logout"><button class="btn btn-ghost" style="color:var(--accent)"><%= t('common.logout') %></button></form>
   </section>
 </main>

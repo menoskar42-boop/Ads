@@ -577,6 +577,29 @@ router.post('/profile', requireOnboarded, async (req, res) => {
   res.redirect('/profile?saved=1');
 });
 
+/* ─── Data export (own your data) ──────────────────────── */
+function csvCell(v) { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+router.get('/export/expenses.csv', requireOnboarded, async (req, res) => {
+  const rows = (await pool.query('SELECT spent_on, amount, category, payment_method, description FROM kkb_expenses WHERE user_id=$1 ORDER BY spent_on DESC', [req.session.kkbUserId])).rows;
+  const header = ['date', 'amount', 'category', 'payment_method', 'description'];
+  const lines = [header.join(',')].concat(rows.map((r) => [stats.ymd(new Date(r.spent_on)), Number(r.amount), r.category, r.payment_method, r.description || ''].map(csvCell).join(',')));
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="kakeibo-expenses.csv"');
+  res.send('﻿' + lines.join('\r\n') + '\r\n');
+});
+router.get('/export/data.json', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const [profile, expenses, goals, investments] = await Promise.all([
+    pool.query('SELECT monthly_income, saving_goal, salary_day, salary_type, weekend, country, currency FROM kkb_profiles WHERE user_id=$1', [uid]),
+    pool.query('SELECT spent_on, amount, category, payment_method, description FROM kkb_expenses WHERE user_id=$1 ORDER BY spent_on', [uid]),
+    pool.query('SELECT title, target_amount, saved_amount, target_date FROM kkb_goals WHERE user_id=$1', [uid]),
+    pool.query('SELECT name, asset_type, amount, expected_return FROM kkb_investments WHERE user_id=$1', [uid]),
+  ]);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="kakeibo-data.json"');
+  res.send(JSON.stringify({ app: 'Kakeibo', exported_at: new Date().toISOString(), profile: profile.rows[0] || null, expenses: expenses.rows, goals: goals.rows, investments: investments.rows }, null, 2));
+});
+
 /* ─── PWA (manifest + service worker) ──────────────────── */
 router.get('/manifest.webmanifest', (req, res) => {
   res.type('application/manifest+json').json({
