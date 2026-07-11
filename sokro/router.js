@@ -169,13 +169,14 @@ function sokroCtx(userId, taskId, prefs) {
     log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
   };
 }
-async function executePlan(ctx, goal, taskId, plan, res) {
+async function executePlan(ctx, goal, taskId, plan, res, convId) {
   await memory.updateTask(taskId, { status: 'running' });
   const results = await executor.execute(ctx, plan);
   const ok = results.length > 0 && results.every((r) => r.result.ok);
   const summary = await planner.summarize(ctx, goal, results);
   await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary } });
-  res.json({ ok, taskId, plan: plan.steps, results, summary });
+  if (convId && summary) { try { await memory.addMessage(convId, 'assistant', summary); } catch (_) {} }
+  res.json({ ok, taskId, conversationId: convId || null, plan: plan.steps, results, summary });
 }
 
 // Plan the goal; if it needs SENSITIVE permissions, pause and ask for (voice)
@@ -185,19 +186,25 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
   if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
   try {
     const prefs = await settings.get(req.sokroUser.id);
-    const task = await memory.createTask(req.sokroUser.id, goal, (req.body && req.body.conversationId) || null);
+    // Resolve (or start) a conversation so the whole exchange is remembered.
+    let convId = (req.body && req.body.conversationId) || null;
+    if (!convId) convId = (await memory.createConversation(req.sokroUser.id, goal.slice(0, 60))).id;
+    await memory.addMessage(convId, 'user', goal);
+    const task = await memory.createTask(req.sokroUser.id, goal, convId);
     const ctx = sokroCtx(req.sokroUser.id, task.id, prefs);
     const plan = await planner.plan(ctx, goal);
     const perms = permissions.forPlan(plan, registry);
     await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
     if (perms.requiresConsent) {
-      return res.json({ ok: true, taskId: task.id, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, message: plan.message || null });
+      return res.json({ ok: true, taskId: task.id, conversationId: convId, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, message: plan.message || null });
     }
     if (!plan.steps || !plan.steps.length) {
       await memory.updateTask(task.id, { status: 'failed' });
-      return res.json({ ok: false, taskId: task.id, plan: [], message: plan.message || null });
+      const msg = plan.message || null;
+      if (msg) { try { await memory.addMessage(convId, 'assistant', msg); } catch (_) {} }
+      return res.json({ ok: false, taskId: task.id, conversationId: convId, plan: [], message: msg });
     }
-    return await executePlan(ctx, goal, task.id, plan, res);
+    return await executePlan(ctx, goal, task.id, plan, res, convId);
   } catch (e) {
     console.error('[sokro] run:', e.message);
     res.status(500).json({ ok: false, error: e.message });
@@ -207,11 +214,11 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
 // Resume a paused task after the user grants (voice) consent.
 router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
   try {
-    const t = (await pool.query('SELECT id, goal, plan FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
+    const t = (await pool.query('SELECT id, goal, plan, conversation_id FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
     if (!t) return res.status(404).json({ ok: false, error: 'task not found' });
     if (!t.plan || !Array.isArray(t.plan.steps)) return res.status(400).json({ ok: false, error: 'task has no plan' });
     const prefs = await settings.get(req.sokroUser.id);
-    return await executePlan(sokroCtx(req.sokroUser.id, t.id, prefs), t.goal, t.id, t.plan, res);
+    return await executePlan(sokroCtx(req.sokroUser.id, t.id, prefs), t.goal, t.id, t.plan, res, t.conversation_id);
   } catch (e) {
     console.error('[sokro] execute:', e.message);
     res.status(500).json({ ok: false, error: e.message });

@@ -111,7 +111,22 @@
   var $=function(s){return document.querySelector(s)};
   var mode='login';
   var audioEl=new Audio();
+  var convId=null;
   var SETTINGS={ assistantName:'Selena', voice:'female', lang:'egyptian', personality:'professional' };
+  async function loadHistory(){
+    try{
+      var r=await fetch('/api/conversations'); var d=await r.json();
+      if(d.ok && d.conversations && d.conversations.length){
+        convId=d.conversations[0].id;
+        var m=await fetch('/api/conversations/'+convId+'/messages'); var md=await m.json();
+        if(md.ok && md.messages && md.messages.length){
+          md.messages.forEach(function(msg){ addMsg(msg.role==='user'?'me':'ai', msg.content); });
+          return true;
+        }
+      }
+    }catch(e){}
+    return false;
+  }
   async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
   function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); }
   async function saveSettingsForm(){
@@ -122,10 +137,11 @@
 
   // ---------- auth ----------
   function showAuth(){ $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden'); $('#dock').classList.add('hidden'); $('#logout').classList.add('hidden'); }
-  function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
+  async function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
     $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
     loadSettings();
-    if(!$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً'+(user&&user.display_name?(' '+user.display_name):'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، اخلقلك صورة، أو أي مهمة.'); }
+    var had=await loadHistory();
+    if(!had && !$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً'+(user&&user.display_name?(' '+user.display_name):'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، اخلقلك صورة، أو أي مهمة.'); }
   }
   document.addEventListener('click',function(e){
     if(e.target.id==='gear') openSettings();
@@ -211,8 +227,9 @@
     addMsg('me',text);
     var think=addMsg('ai','بفكّر وبخطّط…','think');
     try{
-      var r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:text})});
+      var r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:text,conversationId:convId})});
       var d=await r.json();
+      if(d.conversationId) convId=d.conversationId;
       think.remove();
       if(!d.ok){ addMsg('ai', d.message || d.error || 'الطلب ده مش ضمن قدراتي دلوقتي — جرّب «ابحثلي…» أو «اعمل صورة…».'); return; }
       if(d.requiresConsent) renderConsent(d); else renderResult(d);
