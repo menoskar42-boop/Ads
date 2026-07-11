@@ -22,7 +22,15 @@ async function withPage(fn, opts = {}) {
   if (!playwright) {
     throw new Error('browser engine not installed — run: npm i playwright && npx playwright install chromium');
   }
-  const browser = await playwright.chromium.launch({ headless: opts.headless !== false });
+  // Container-safe flags — Chromium won't start inside Replit/containers without
+  // --no-sandbox + --disable-dev-shm-usage. SOKRO_CHROMIUM_PATH lets you point at
+  // a system/nix Chromium if the bundled one isn't available.
+  const launchOpts = {
+    headless: opts.headless !== false,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+  };
+  if (process.env.SOKRO_CHROMIUM_PATH) launchOpts.executablePath = process.env.SOKRO_CHROMIUM_PATH;
+  const browser = await playwright.chromium.launch(launchOpts);
   try {
     const context = await browser.newContext({
       userAgent: opts.userAgent || 'Mozilla/5.0 (compatible; SokroBot/1.0)',
