@@ -83,7 +83,7 @@ function afterAuthRedirect(res, profile) {
 /* ─── Landing / auth ───────────────────────────────────── */
 router.get('/', (req, res) => {
   if (res.locals.user) return afterAuthRedirect(res, res.locals.profile);
-  res.render('kakeibo/login', { mode: req.query.mode === 'signup' ? 'signup' : 'login', error: null });
+  res.render('kakeibo/login', { mode: req.query.mode === 'signup' ? 'signup' : 'login', error: req.query.err === 'oauth' ? res.locals.t('auth.err_invalid') : null, googleAuth: googleConfigured() });
 });
 
 router.post('/signup', async (req, res) => {
@@ -128,6 +128,44 @@ router.post('/guest', async (req, res) => {
 });
 
 router.post('/logout', (req, res) => { req.session.kkbUserId = null; res.redirect('/'); });
+
+/* ─── Google Sign-In (real OAuth 2.0) ──────────────────── */
+const KKB_ORIGIN = process.env.KAKEIBO_ORIGIN || 'https://kakeibo.oscardevs.com';
+function googleConfigured() { return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET); }
+router.get('/auth/google', (req, res) => {
+  if (!googleConfigured()) return res.redirect('/');
+  const state = require('crypto').randomBytes(16).toString('hex');
+  req.session.kkbOauthState = state;
+  const params = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    redirect_uri: KKB_ORIGIN + '/auth/google/callback',
+    response_type: 'code', scope: 'openid email profile', state, prompt: 'select_account',
+  });
+  res.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
+});
+router.get('/auth/google/callback', async (req, res) => {
+  if (!googleConfigured()) return res.redirect('/');
+  const { code, state } = req.query;
+  if (!code || !state || state !== req.session.kkbOauthState) return res.redirect('/?err=oauth');
+  req.session.kkbOauthState = null;
+  try {
+    const tok = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ code, client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, redirect_uri: KKB_ORIGIN + '/auth/google/callback', grant_type: 'authorization_code' }),
+    });
+    const tj = await tok.json();
+    if (!tj.access_token) return res.redirect('/?err=oauth');
+    const ui = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + tj.access_token } });
+    const uj = await ui.json();
+    const email = String(uj.email || '').toLowerCase();
+    if (!email) return res.redirect('/?err=oauth');
+    let u = (await pool.query('SELECT * FROM kkb_users WHERE lower(email)=$1', [email])).rows[0];
+    if (!u) { const id = await createUser({ email, name: uj.name || uj.given_name || null }); u = { id }; }
+    req.session.kkbUserId = u.id;
+    const profile = (await pool.query('SELECT * FROM kkb_profiles WHERE user_id=$1', [u.id])).rows[0];
+    return afterAuthRedirect(res, profile);
+  } catch (e) { console.error('[kkb google]', e.message); res.redirect('/?err=oauth'); }
+});
 
 /* ─── Onboarding ───────────────────────────────────────── */
 const CURRENCIES = ['EGP', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD', 'EUR', 'GBP', 'MAD', 'DZD', 'TND'];

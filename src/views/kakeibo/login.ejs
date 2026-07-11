@@ -41,7 +41,11 @@
     </form>
     <p class="muted" style="font-size:.78rem;text-align:center;margin:0 0 14px"><%= t('auth.guest_note') %></p>
 
-    <button class="btn btn-ghost" disabled style="margin-bottom:8px" title="<%= t('auth.soon') %>"><%= t('auth.google') %> · <%= t('auth.soon') %></button>
+    <% if (typeof googleAuth !== 'undefined' && googleAuth) { %>
+      <a href="/auth/google" class="btn btn-ghost" style="margin-bottom:8px">🔵 <%= t('auth.google') %></a>
+    <% } else { %>
+      <button class="btn btn-ghost" disabled style="margin-bottom:8px" title="<%= t('auth.soon') %>"><%= t('auth.google') %> · <%= t('auth.soon') %></button>
+    <% } %>
     <button class="btn btn-ghost" disabled title="<%= t('auth.soon') %>"><%= t('auth.apple') %> · <%= t('auth.soon') %></button>
   </section>
 
