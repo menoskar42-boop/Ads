@@ -31,6 +31,55 @@ async function ensureSokroSchema() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         UNIQUE (user_id, name)
       );
+
+      -- ── Memory ───────────────────────────────────────────────────────────
+      -- Conversations + their messages (short-term context window for the LLM).
+      CREATE TABLE IF NOT EXISTS sokro_conversations (
+        id         SERIAL PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        title      TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_messages (
+        id              SERIAL PRIMARY KEY,
+        conversation_id INTEGER NOT NULL REFERENCES sokro_conversations(id) ON DELETE CASCADE,
+        role            TEXT NOT NULL,          -- user | assistant | system | tool
+        content         TEXT NOT NULL,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_messages_conv_idx ON sokro_messages(conversation_id, id);
+
+      -- Durable per-user context / long-term memory (JSONB → future-proof).
+      CREATE TABLE IF NOT EXISTS sokro_user_context (
+        user_id    INTEGER PRIMARY KEY REFERENCES sokro_users(id) ON DELETE CASCADE,
+        data       JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      -- High-level tasks (a run) + their per-step execution history.
+      CREATE TABLE IF NOT EXISTS sokro_tasks (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        conversation_id INTEGER REFERENCES sokro_conversations(id) ON DELETE SET NULL,
+        goal            TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'pending',  -- pending|running|done|failed
+        plan            JSONB,
+        result          JSONB,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_execution_history (
+        id         SERIAL PRIMARY KEY,
+        task_id    INTEGER NOT NULL REFERENCES sokro_tasks(id) ON DELETE CASCADE,
+        step       INTEGER NOT NULL DEFAULT 0,
+        action     TEXT,
+        status     TEXT NOT NULL,               -- ok | error | retry
+        input      JSONB,
+        output     JSONB,
+        error      TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
     `);
     console.log('Sokro schema ready.');
   } finally {

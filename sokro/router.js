@@ -10,6 +10,7 @@ const { Pool } = require('pg');
 const config = require('./core/config');
 const auth = require('./auth');
 const vault = require('./secrets/vault');
+const memory = require('./memory');
 const { loginLimiter } = require('../src/middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -107,6 +108,19 @@ router.get('/api/secrets', auth.requireAuth, async (req, res) => {
 router.delete('/api/secrets/:name', auth.requireAuth, async (req, res) => {
   await pool.query('DELETE FROM sokro_secrets WHERE user_id = $1 AND name = $2', [req.sokroUser.id, String(req.params.name).toLowerCase()]);
   res.json({ ok: true });
+});
+
+// ── Memory API (read) ────────────────────────────────────────────────────────
+router.get('/api/conversations', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, conversations: await memory.listConversations(req.sokroUser.id) });
+});
+router.get('/api/conversations/:id/messages', auth.requireAuth, async (req, res) => {
+  const msgs = await memory.getMessagesFor(req.sokroUser.id, parseInt(req.params.id, 10), 100);
+  if (msgs === null) return res.status(404).json({ ok: false, error: 'not found' });
+  res.json({ ok: true, messages: msgs });
+});
+router.get('/api/context', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, context: await memory.getContext(req.sokroUser.id) });
 });
 
 // Public landing page (indexable, SEO/AdSense-aware — real content, no ads yet).
