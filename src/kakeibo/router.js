@@ -16,6 +16,7 @@ const ai = require('./ai');
 const health = require('./health');
 const gamify = require('./gamify');
 const twin = require('./twin');
+const kpush = require('./push');
 let compressImage = null;
 try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
@@ -563,7 +564,20 @@ router.get('/review', requireOnboarded, async (req, res) => {
 
 /* ─── Profile / settings ───────────────────────────────── */
 router.get('/profile', requireOnboarded, (req, res) => {
-  res.render('kakeibo/profile', Object.assign({ currencies: CURRENCIES, saved: req.query.saved === '1' }, APP_LOCALS));
+  res.render('kakeibo/profile', Object.assign({ currencies: CURRENCIES, saved: req.query.saved === '1', pushEnabled: kpush.isEnabled(), pushKey: kpush.publicKey() }, APP_LOCALS));
+});
+
+/* ─── Push notifications ───────────────────────────────── */
+router.post('/push/subscribe', requireOnboarded, async (req, res) => {
+  try { await kpush.saveSub(req.session.kkbUserId, req.body && req.body.subscription); res.json({ ok: true }); }
+  catch (e) { console.error('[kkb push sub]', e.message); res.json({ ok: false }); }
+});
+router.post('/push/unsubscribe', requireOnboarded, async (req, res) => {
+  try { await kpush.removeSub(req.body && req.body.endpoint); res.json({ ok: true }); } catch (e) { res.json({ ok: false }); }
+});
+router.post('/push/test', requireOnboarded, async (req, res) => {
+  const n = await kpush.sendToUser(req.session.kkbUserId, { title: 'Kakeibo', body: res.locals.lang === 'en' ? 'Notifications are on ✓' : 'الإشعارات اشتغلت ✓', url: '/app' });
+  res.json({ ok: n > 0, sent: n });
 });
 router.post('/profile', requireOnboarded, async (req, res) => {
   const b = req.body || {};
@@ -619,7 +633,11 @@ router.get('/sw.js', (req, res) => {
     "self.addEventListener('activate',e=>self.clients.claim());" +
     "self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;" +
     "e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));return r})" +
-    ".catch(()=>caches.match(e.request)))});"
+    ".catch(()=>caches.match(e.request)))});" +
+    "self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(_){}" +
+    "e.waitUntil(self.registration.showNotification(d.title||'Kakeibo',{body:d.body||'',icon:'/kkb-icon.svg',badge:'/kkb-icon.svg',data:{url:d.url||'/app'}}))});" +
+    "self.addEventListener('notificationclick',e=>{e.notification.close();var u=(e.notification.data&&e.notification.data.url)||'/app';" +
+    "e.waitUntil(clients.matchAll({type:'window'}).then(cs=>{for(const c of cs){if('focus'in c)return c.focus();}return clients.openWindow(u);}))});"
   );
 });
 

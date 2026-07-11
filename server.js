@@ -649,3 +649,10 @@ initDb()
   .catch(err => console.error('DB init warning:', err.message));
 
 setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();
+
+// Kakeibo daily expense-logging reminders (best-effort; self-gated to evening +
+// once/day per user). Checks hourly so long-running instances remind opted-in users.
+try {
+  const kkbPush = require('./src/kakeibo/push');
+  setInterval(() => { kkbPush.dailyReminders().catch(() => {}); }, 60 * 60 * 1000).unref();
+} catch (e) { /* push optional */ }

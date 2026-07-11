@@ -127,6 +127,18 @@ async function ensureKakeiboSchema() {
         UNIQUE (family_id, user_id),
         UNIQUE (user_id)                    -- one family per user
       );
+
+      -- Web-push subscriptions (reminders / budget alerts). Shared VAPID keys.
+      CREATE TABLE IF NOT EXISTS kkb_push_subs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        endpoint TEXT UNIQUE,
+        p256dh TEXT,
+        auth TEXT,
+        last_sent_on DATE,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_kkb_push_user ON kkb_push_subs (user_id);
     `);
     console.log('Kakeibo schema ready.');
   } finally {
