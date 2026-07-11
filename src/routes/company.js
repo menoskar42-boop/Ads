@@ -140,7 +140,7 @@ router.post('/login', async (req, res) => {
       `SELECT cu.*, c.company_name, c.theme_color, c.slug
        FROM company_users cu
        JOIN companies c ON c.id = cu.company_id
-       WHERE cu.email = $1`,
+       WHERE cu.email = $1 AND c.is_active = true`,
       [email]
     );
     if (!result.rows.length) {
@@ -149,7 +149,7 @@ router.post('/login', async (req, res) => {
       const staffR = await pool.query(
         `SELECT ps.*, c.company_name, c.theme_color, c.slug
          FROM pharmacy_staff ps JOIN companies c ON c.id = ps.company_id
-         WHERE lower(ps.username) = $1 AND ps.is_active = true`,
+         WHERE lower(ps.username) = $1 AND ps.is_active = true AND c.is_active = true`,
         [email]
       );
       if (staffR.rows.length) {

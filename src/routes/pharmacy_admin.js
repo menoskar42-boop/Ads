@@ -60,7 +60,8 @@ async function requirePharmacy(req, res, next) {
   if (!req.session || !req.session.companyId) return res.redirect('/company/login');
   try {
     const r = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
-    if (!r.rows.length || r.rows[0].page_type !== 'pharmacy') {
+    // Suspended (is_active = false) pharmacies lose dashboard access immediately.
+    if (!r.rows.length || r.rows[0].page_type !== 'pharmacy' || r.rows[0].is_active === false) {
       return res.status(404).render('404', { subdomain: null });
     }
     req.company = r.rows[0];

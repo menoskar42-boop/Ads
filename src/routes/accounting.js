@@ -20,7 +20,8 @@ async function loadCompany(req, res, next) {
   if (!req.session || !req.session.companyId) return res.redirect('/company/login');
   try {
     const r = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
-    if (!r.rows.length) return res.redirect('/company/login');
+    // Suspended (is_active = false) companies lose dashboard access immediately.
+    if (!r.rows.length || r.rows[0].is_active === false) return res.redirect('/company/login?suspended=1');
     req.company = r.rows[0];
     // Lazily ensure a settings row exists.
     req.settings = (await pool.query('SELECT * FROM accounting_settings WHERE company_id = $1', [req.company.id])).rows[0]
