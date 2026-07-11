@@ -26,7 +26,7 @@ const config = {
     memory: true,
     planner: true,
     browser: false,
-    scheduler: false,
+    scheduler: true,
     permissions: true,
     voice: true,
   },

@@ -80,6 +80,21 @@ async function ensureSokroSchema() {
         error      TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+
+      -- Scheduler / watchers: recurring goals executed by a periodic cron ping
+      -- (no queues/workers). Sensitive plans are skipped on auto-runs.
+      CREATE TABLE IF NOT EXISTS sokro_scheduled_tasks (
+        id            SERIAL PRIMARY KEY,
+        user_id       INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        goal          TEXT NOT NULL,
+        every_minutes INTEGER NOT NULL DEFAULT 60,
+        next_run_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_run_at   TIMESTAMPTZ,
+        last_result   JSONB,
+        active        BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_sched_due_idx ON sokro_scheduled_tasks(active, next_run_at);
     `);
     console.log('Sokro schema ready.');
   } finally {

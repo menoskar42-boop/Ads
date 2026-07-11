@@ -20,6 +20,7 @@ const permissions = require('./permissions');
 const voice = require('./voice');
 const settings = require('./settings');
 const reports = require('./reports');
+const scheduler = require('./scheduler');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -252,6 +253,28 @@ router.post('/api/report', auth.requireAuth, (req, res) => {
     res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(name) + '.' + f.ext);
     res.send(f.buffer);
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Scheduler / watchers (recurring goals) ───────────────────────────────────
+router.post('/api/schedule', auth.requireAuth, async (req, res) => {
+  const goal = String((req.body && req.body.goal) || '').trim();
+  if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
+  res.json({ ok: true, task: await scheduler.create(req.sokroUser.id, goal, req.body.everyMinutes) });
+});
+router.get('/api/schedule', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, tasks: await scheduler.list(req.sokroUser.id) });
+});
+router.delete('/api/schedule/:id', auth.requireAuth, async (req, res) => {
+  await scheduler.remove(req.sokroUser.id, req.params.id);
+  res.json({ ok: true });
+});
+// Cron tick — hit by an external scheduler (e.g. Replit Scheduled Deployment /
+// cron-job.org) every N minutes. Protected by the SOKRO_CRON_KEY header.
+router.post('/internal/cron', async (req, res) => {
+  const key = process.env.SOKRO_CRON_KEY;
+  if (!key || req.headers['x-cron-key'] !== key) return res.status(403).json({ ok: false, error: 'forbidden' });
+  try { res.json({ ok: true, ran: await scheduler.runDue(20) }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // The single voice app screen.
