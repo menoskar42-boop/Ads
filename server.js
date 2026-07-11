@@ -127,6 +127,21 @@ app.use(compression());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cookieParser());
+
+// ===== Sokro (sokro.oscardevs.com) — AI Operating System, host-routed =====
+// Its own product (voice-driven task execution). Mounted BEFORE express.static
+// so the subdomain serves its own robots.txt/sitemap.xml (a physical
+// public/robots.txt would otherwise be served for every host). It uses its own
+// JWT-cookie auth — not express-session — so the body parsers + cookieParser
+// above are all it needs; it stays fully isolated from the OscarDevs pipeline.
+const sokroRouter = require('./sokro/router');
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('sokro.')) return next();
+  return sokroRouter(req, res, next);
+});
+
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: '7d',
   setHeaders(res, filePath) {
@@ -197,16 +212,6 @@ app.use((req, res, next) => {
   return kakeiboRouter(req, res, next);
 });
 
-// ===== Sokro (sokro.oscardevs.com) — AI Operating System, host-routed =====
-// Its own product (voice-driven task execution). Same isolation as kakeibo:
-// runs after the shared session/body parsers, before the OscarDevs pipeline.
-const sokroRouter = require('./sokro/router');
-app.use((req, res, next) => {
-  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
-  const host = String(rawHost).split(':')[0].toLowerCase();
-  if (!host.startsWith('sokro.')) return next();
-  return sokroRouter(req, res, next);
-});
 
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));

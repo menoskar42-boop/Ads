@@ -38,6 +38,32 @@ const DESC = 'Sokro نظام ذكاء اصطناعي بينفّذ مهامك ا�
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env: config.env }));
 router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features: config.features }));
 
+// ── SEO: subdomain-specific robots.txt + sitemap ────────────────────────────
+// The landing page ('/') is real content → indexable. Everything else on this
+// subdomain (the app shell, all APIs, the extension, internal cron) has no
+// crawlable content and must stay out of the index — mirrors the AdSense/SEO
+// rule (no thin/app pages in search). Google treats a subdomain as its own
+// property, so it needs its own robots + sitemap, not the main site's.
+router.get('/robots.txt', (_req, res) => {
+  res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(
+    'User-agent: *\n' +
+    'Allow: /$\n' +
+    'Disallow: /app\n' +
+    'Disallow: /api/\n' +
+    'Disallow: /ext/\n' +
+    'Disallow: /internal/\n' +
+    'Sitemap: ' + config.origin + '/sitemap.xml\n'
+  );
+});
+router.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml').set('Cache-Control', 'public, max-age=86400').send(
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    '  <url><loc>' + config.origin + '/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n' +
+    '</urlset>\n'
+  );
+});
+
 // LLM layer status (no API call / no cost) — confirms the active provider + key.
 router.get('/api/llm/status', auth.requireAuth, (_req, res) => {
   const llm = require('./llm');
