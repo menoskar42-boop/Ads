@@ -32,7 +32,7 @@ async function run(ctx, input) {
 
 register({
   name: 'generate_image',
-  description: 'Generate an image from a text description and return its URL.',
+  description: 'Create, draw or generate an image/picture from a text description (e.g. "a cat", "قطة", "صورة منظر"). Returns the image URL.',
   permissions: ['network'],
   inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, size: { type: 'string' } }, required: ['prompt'] },
   run,

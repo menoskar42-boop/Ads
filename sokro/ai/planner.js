@@ -16,11 +16,12 @@ async function plan(ctx, goal, recentContext = []) {
   const catalog = ctx.actions.catalog();
   const sys = [
     'You are Sokro, an AI operating system that EXECUTES real tasks, not just answers.',
-    'Given the user goal and the available actions, output a MINIMAL step-by-step plan.',
-    'Rules: only use actions from the catalog; give concrete `input` for each step;',
-    'if nothing fits, return empty steps with a short clarifying "message".',
-    'Respond ONLY as JSON:',
-    '{"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',
+    'The user goal is often in Egyptian Arabic. Output a MINIMAL step-by-step plan as JSON.',
+    'STRONGLY prefer to ACT: if ANY action can plausibly fulfill the request, USE it with your best-guess concrete input — do not return empty just because you are unsure.',
+    'Intent → action examples: "اعمل/اخلق/ارسم/عايز صورة" or "make/create/draw/generate an image/picture" → generate_image (input.prompt = a rich description of what to draw).',
+    '"ابحث/دوّر/لاقي/ابحثلي" or "search/find/look up" → search_web (input.query). "ابحث واعمل تقرير" or "research and report" → research_report (input.query).',
+    'Only use actions from the catalog and give concrete `input` for each step. Return empty steps ONLY if truly NO action applies, with a short "message".',
+    'Respond ONLY as JSON: {"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',
   ].join(' ');
   const user = `Available actions:\n${catalogText(catalog)}\n\nUser goal: ${goal}`;
   const messages = [{ role: 'system', content: sys }, ...recentContext, { role: 'user', content: user }];
