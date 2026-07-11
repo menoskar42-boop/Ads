@@ -50,4 +50,13 @@ function isHoliday(date, country) {
 
 const COUNTRIES = Object.keys(FIXED);
 
-module.exports = { FIXED, ISLAMIC, isHoliday, COUNTRIES };
+// Built-in holiday dates for a country + year (national fixed + Islamic approx),
+// as sorted 'YYYY-MM-DD' strings — for showing the user what's already covered.
+function listBuiltin(country, year) {
+  const out = [];
+  (FIXED[country] || FIXED.EG).forEach((mmdd) => out.push(year + '-' + mmdd));
+  (ISLAMIC[year] || []).forEach((mmdd) => out.push(year + '-' + mmdd));
+  return out.sort();
+}
+
+module.exports = { FIXED, ISLAMIC, isHoliday, COUNTRIES, listBuiltin };

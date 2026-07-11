@@ -1,0 +1,44 @@
+<% pageTitle = t('hol.title') %>
+<%- include('head') %>
+<%
+  function fdate(s){ try{ return new Date(s).toLocaleDateString(lang==='en'?'en-US':'ar-EG',{day:'numeric',month:'short',year:'numeric'}); }catch(e){ return s; } }
+%>
+<main class="wrap" style="padding-top:6px;padding-bottom:20px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 6px">📅 <%= t('hol.title') %></h1>
+  <p class="muted" style="font-size:.82rem;margin:0 4px 14px"><%= t('hol.intro') %></p>
+
+  <section class="card" style="padding:16px;margin-bottom:14px">
+    <form method="post" action="/holidays/add" style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+      <div><label class="lbl"><%= t('hol.date') %></label><input name="holiday_on" type="date" required class="fld" dir="ltr" /></div>
+      <div><label class="lbl"><%= t('hol.label') %></label><input name="label" maxlength="80" class="fld" /></div>
+      <button class="btn btn-primary" style="width:auto;padding:0 16px">＋</button>
+    </form>
+  </section>
+
+  <% if (!rows.length) { %>
+    <div class="card" style="padding:20px;text-align:center;margin-bottom:14px"><p class="muted" style="margin:0"><%= t('hol.none') %></p></div>
+  <% } else { %>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <% rows.forEach(function(h){ %>
+        <div class="card" style="padding:11px 14px;display:flex;align-items:center;gap:11px">
+          <span style="font-size:1.1rem">🎌</span>
+          <div style="flex:1"><div style="font-weight:700;font-size:.9rem"><%= h.label || fdate(h.holiday_on) %></div><% if (h.label) { %><div class="muted" style="font-size:.72rem"><%= fdate(h.holiday_on) %></div><% } %></div>
+          <form method="post" action="/holidays/<%= h.id %>/delete"><button data-confirm="🗑️?" style="border:0;background:transparent;color:var(--muted);cursor:pointer">🗑️</button></form>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <section class="card" style="padding:16px">
+    <div style="font-weight:700;margin-bottom:2px">🏳️ <%= t('hol.builtin') %> · <%= country %></div>
+    <p class="muted" style="font-size:.74rem;margin:0 0 10px"><%= t('hol.builtin_hint') %></p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <% builtin.forEach(function(d){ %><span class="pill" style="font-size:.72rem;cursor:default"><%= fdate(d) %></span><% }) %>
+    </div>
+  </section>
+</main>
+<script>
+(function(){document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-confirm]');if(!b||b.dataset.armed==='1')return;e.preventDefault();e.stopPropagation();if(!b.dataset.label)b.dataset.label=b.innerHTML;b.innerHTML=b.dataset.confirm;b.dataset.armed='1';setTimeout(function(){b.dataset.armed='';b.innerHTML=b.dataset.label;},3000);},true);})();
+</script>
+<%- include('app_nav', { active: 'profile' }) %>
+<%- include('foot') %>

@@ -167,6 +167,28 @@ router.get('/auth/google/callback', async (req, res) => {
   } catch (e) { console.error('[kkb google]', e.message); res.redirect('/?err=oauth'); }
 });
 
+/* ─── Custom holidays ──────────────────────────────────── */
+const holidays = require('./holidays');
+router.get('/holidays', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const rows = (await pool.query('SELECT id, holiday_on, label FROM kkb_holidays WHERE user_id=$1 ORDER BY holiday_on', [uid])).rows;
+  const country = res.locals.profile.country || 'EG';
+  const year = new Date().getFullYear();
+  const builtin = holidays.listBuiltin(country, year).concat(holidays.listBuiltin(country, year + 1));
+  res.render('kakeibo/holidays', Object.assign({ rows, builtin, year, country }, APP_LOCALS));
+});
+router.post('/holidays/add', requireOnboarded, async (req, res) => {
+  const b = req.body || {};
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.holiday_on || '')) ? b.holiday_on : null;
+  const label = String(b.label || '').trim().slice(0, 80) || null;
+  if (date) await pool.query('INSERT INTO kkb_holidays (user_id, holiday_on, label) VALUES ($1,$2,$3)', [req.session.kkbUserId, date, label]);
+  res.redirect('/holidays');
+});
+router.post('/holidays/:id/delete', requireOnboarded, async (req, res) => {
+  await pool.query('DELETE FROM kkb_holidays WHERE id=$1 AND user_id=$2', [toInt(req.params.id, null), req.session.kkbUserId]);
+  res.redirect('/holidays');
+});
+
 /* ─── Onboarding ───────────────────────────────────────── */
 const CURRENCIES = ['EGP', 'SAR', 'AED', 'KWD', 'QAR', 'BHD', 'OMR', 'JOD', 'USD', 'EUR', 'GBP', 'MAD', 'DZD', 'TND'];
 function toNum(v, d) { const n = parseFloat(String(v).replace(/[^\d.\-]/g, '')); return Number.isFinite(n) ? n : d; }
