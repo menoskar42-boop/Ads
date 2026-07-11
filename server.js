@@ -150,6 +150,28 @@ app.use(express.static(path.join(__dirname, 'public'), {
     }
   },
 }));
+
+// Persistent-storage fallback for uploads: the local filesystem is ephemeral on
+// Autoscale (files wiped on redeploy), so if express.static above 404s an
+// /uploads file, serve it from Object Storage instead. Keeps merchant logos /
+// product images / banners alive across deploys.
+const _objStore = require('./src/lib/object_store');
+app.get('/uploads/:file', async (req, res, next) => {
+  if (!_objStore.enabled()) return next();
+  try {
+    const buf = await _objStore.get(req.params.file);
+    if (!buf) return next();
+    const ext = path.extname(req.params.file).toLowerCase();
+    const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp'
+      : ext === '.gif' ? 'image/gif' : ext === '.mp4' ? 'video/mp4'
+      : (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' : 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    res.setHeader('Cache-Control', 'public, max-age=2592000');
+    return res.send(buf);
+  } catch (_) { return next(); }
+});
 // Persistent session store in Postgres so logins/saves survive cold starts and
 // instance recycling on Autoscale (the default MemoryStore loses every session
 // on restart → intermittent logouts and silently-failing POST saves).

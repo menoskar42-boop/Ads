@@ -38,32 +38,35 @@ const COMPRESSIBLE_IMAGE = /\.(png|jpe?g|webp)$/i; // svg/gif are left untouched
  * is unchanged so callers don't need to update the stored URL.
  */
 async function compressImage(absPath) {
-  if (!sharp || !absPath || !COMPRESSIBLE_IMAGE.test(absPath)) return;
-  if (!fs.existsSync(absPath)) return;
-  const ext = path.extname(absPath).toLowerCase();
-  const tmp = absPath + '.tmp';
-  try {
-    let img = sharp(absPath, { failOn: 'none' }).rotate(); // honour EXIF orientation
-    const meta = await img.metadata();
-    if (meta.width && meta.width > 1600) {
-      img = img.resize({ width: 1600, withoutEnlargement: true });
-    }
-    if (ext === '.png') img = img.png({ quality: 82, compressionLevel: 9, palette: true });
-    else if (ext === '.webp') img = img.webp({ quality: 82 });
-    else img = img.jpeg({ quality: 82, mozjpeg: true });
+  if (sharp && absPath && COMPRESSIBLE_IMAGE.test(absPath) && fs.existsSync(absPath)) {
+    const ext = path.extname(absPath).toLowerCase();
+    const tmp = absPath + '.tmp';
+    try {
+      let img = sharp(absPath, { failOn: 'none' }).rotate(); // honour EXIF orientation
+      const meta = await img.metadata();
+      if (meta.width && meta.width > 1600) {
+        img = img.resize({ width: 1600, withoutEnlargement: true });
+      }
+      if (ext === '.png') img = img.png({ quality: 82, compressionLevel: 9, palette: true });
+      else if (ext === '.webp') img = img.webp({ quality: 82 });
+      else img = img.jpeg({ quality: 82, mozjpeg: true });
 
-    await img.toFile(tmp);
-    const origSize = fs.statSync(absPath).size;
-    const newSize = fs.statSync(tmp).size;
-    if (newSize > 0 && newSize < origSize) {
-      fs.renameSync(tmp, absPath);
-    } else {
-      fs.unlinkSync(tmp);
+      await img.toFile(tmp);
+      const origSize = fs.statSync(absPath).size;
+      const newSize = fs.statSync(tmp).size;
+      if (newSize > 0 && newSize < origSize) {
+        fs.renameSync(tmp, absPath);
+      } else {
+        fs.unlinkSync(tmp);
+      }
+    } catch (err) {
+      console.warn('[media] compressImage failed, keeping original:', err.message);
+      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
     }
-  } catch (err) {
-    console.warn('[media] compressImage failed, keeping original:', err.message);
-    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
   }
+  // Mirror the finalized upload to persistent object storage so it survives
+  // redeploys on the ephemeral filesystem (best-effort, never breaks an upload).
+  try { await require('./object_store').mirror(absPath); } catch (_) {}
 }
 
 /**
