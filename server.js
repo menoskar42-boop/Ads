@@ -175,6 +175,17 @@ app.use((req, res, next) => {
   return kakeiboRouter(req, res, next);
 });
 
+// ===== Sokro (sokro.oscardevs.com) — AI Operating System, host-routed =====
+// Its own product (voice-driven task execution). Same isolation as kakeibo:
+// runs after the shared session/body parsers, before the OscarDevs pipeline.
+const sokroRouter = require('./sokro/router');
+app.use((req, res, next) => {
+  const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
+  const host = String(rawHost).split(':')[0].toLowerCase();
+  if (!host.startsWith('sokro.')) return next();
+  return sokroRouter(req, res, next);
+});
+
 app.use(i18nMiddleware);
 app.use(require('./src/middleware/urls'));
 
