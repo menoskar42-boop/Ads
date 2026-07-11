@@ -305,7 +305,7 @@ router.post('/banners/add', gate('settings'), withImage(uploadBanner), async (re
     await pool.query(
       `INSERT INTO banner_slides (company_id, image_url, target_url, caption, order_index)
        VALUES ($1,$2,$3,$4, COALESCE((SELECT MAX(order_index)+1 FROM banner_slides WHERE company_id=$1),0))`,
-      [req.company.id, '/uploads/' + req.file.filename, (req.body.target_url || '').trim() || null, (req.body.caption || '').trim() || null]
+      [req.company.id, '/uploads/' + req.file.filename, require('../lib/safeUrl').cleanUrlForStore(req.body.target_url), (req.body.caption || '').trim() || null]
     );
     res.redirect('/pharmacy/banners?saved=1');
   } catch (e) {

@@ -1054,7 +1054,7 @@ router.post('/banners/add', requireLogin, (req, res) => {
     if (!req.file) return res.redirect('/company/banners?err=no_file');
     await compressImage(req.file.path);
     try {
-      const target_url = (req.body.target_url || '').trim() || null;
+      const target_url = require('../lib/safeUrl').cleanUrlForStore(req.body.target_url);
       const caption = (req.body.caption || '').trim() || null;
       const validSlots = ['section', 'hero1', 'hero2'];
       const slot = validSlots.includes(req.body.slot) ? req.body.slot : 'section';

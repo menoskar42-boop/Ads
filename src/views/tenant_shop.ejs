@@ -130,7 +130,7 @@
       <% if (heroBanners1.length) { %>
         <div class="hero-slides"<%= heroBanners1.length > 1 ? ' data-slides' : '' %>>
           <% heroBanners1.forEach(function(b, i){ %>
-            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= safeUrl(b.target_url) %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
               <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
             </a>
           <% }) %>
@@ -146,7 +146,7 @@
       <% if (heroBanners2.length) { %>
         <div class="hero-slides"<%= heroBanners2.length > 1 ? ' data-slides' : '' %>>
           <% heroBanners2.forEach(function(b, i){ %>
-            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= b.target_url || '#' %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
+            <a class="hero-slide<%= i === 0 ? ' active' : '' %>" style="background-image:url('<%= b.image_url %>')" href="<%= safeUrl(b.target_url) %>" <%- b.target_url ? 'target="_blank" rel="noopener"' : '' %>>
               <% if (b.caption) { %><span class="hero-slide-cap"><%= b.caption %></span><% } %>
             </a>
           <% }) %>

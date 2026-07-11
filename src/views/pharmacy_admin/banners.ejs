@@ -36,7 +36,7 @@
           <img src="<%= bn.image_url %>" alt="" class="w-32 h-16 object-cover shrink-0" />
           <div class="min-w-0 flex-1 py-2">
             <% if (bn.caption) { %><div class="font-bold text-sm truncate"><%= bn.caption %></div><% } %>
-            <% if (bn.target_url) { %><a href="<%= bn.target_url %>" target="_blank" rel="noopener" class="text-xs text-emerald-700 underline truncate block" dir="ltr"><%= bn.target_url %></a><% } %>
+            <% if (bn.target_url) { %><a href="<%= safeUrl(bn.target_url) %>" target="_blank" rel="noopener" class="text-xs text-emerald-700 underline truncate block" dir="ltr"><%= bn.target_url %></a><% } %>
             <span class="text-[11px] font-bold rounded-full px-2 py-0.5 <%= bn.is_active ? 'text-green-700 bg-green-50' : 'text-gray-500 bg-gray-100' %>"><%= bn.is_active ? t('pharmacy.admin.banner_active') : t('pharmacy.admin.banner_paused') %></span>
           </div>
           <div class="flex items-center gap-1 pe-3 shrink-0">

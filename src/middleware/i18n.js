@@ -1,4 +1,5 @@
 const { t, normalizeLang, pickContent, DEFAULT_LANG } = require('../i18n/strings');
+const { safeUrl } = require('../lib/safeUrl');
 
 // Decides which language to use for the current request based on:
 //   1. URL ?lang=ar|en query param (one-time override; also writes cookie)
@@ -41,6 +42,8 @@ module.exports = function i18nMiddleware(req, res, next) {
   res.locals.t = (key) => t(key, lang);
   res.locals.pickContent = (row, field, companyContentI18n) =>
     pickContent(row, field, lang, companyContentI18n);
+  // Defuse stored-XSS in merchant-controlled link fields (banner/ad target_url).
+  res.locals.safeUrl = safeUrl;
 
   next();
 };

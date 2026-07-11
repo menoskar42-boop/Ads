@@ -182,7 +182,7 @@
         <% banners.forEach(function(bn, bi){ %>
           <div class="carslide relative shrink-0 w-full aspect-[16/7] sm:aspect-[16/6]" role="group" aria-roledescription="slide">
             <% var __slide = '<img src="'+ bn.image_url +'" alt="'+ (bn.caption ? String(bn.caption).replace(/"/g,'&quot;') : __phName) +'" class="absolute inset-0 w-full h-full object-cover" loading="'+(bi===0?'eager':'lazy')+'" />'; %>
-            <% if (bn.target_url) { %><a href="<%= bn.target_url %>" class="block absolute inset-0"><%- __slide %></a><% } else { %><%- __slide %><% } %>
+            <% if (bn.target_url) { %><a href="<%= safeUrl(bn.target_url) %>" class="block absolute inset-0"><%- __slide %></a><% } else { %><%- __slide %><% } %>
             <% if (bn.caption) { %>
               <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 to-transparent"></div>
               <div class="absolute inset-x-0 bottom-0 p-5 sm:p-8"><h2 class="text-white text-lg sm:text-2xl font-extrabold leading-snug drop-shadow"><%= bn.caption %></h2></div>
