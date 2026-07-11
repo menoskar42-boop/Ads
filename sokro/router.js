@@ -12,6 +12,7 @@ const auth = require('./auth');
 const vault = require('./secrets/vault');
 const memory = require('./memory');
 const actions = require('./actions'); // registers built-in actions on load
+const registry = require('./registry'); // unified Actions + Skills resolver
 const browser = require('./browser');
 const planner = require('./ai/planner');
 const executor = require('./workflows/executor');
@@ -129,16 +130,17 @@ router.get('/api/context', auth.requireAuth, async (req, res) => {
 
 // ── Actions API ──────────────────────────────────────────────────────────────
 router.get('/api/actions', auth.requireAuth, (_req, res) => {
-  res.json({ ok: true, browserAvailable: browser.available(), actions: actions.catalog() });
+  res.json({ ok: true, browserAvailable: browser.available(), actions: registry.catalog() });
 });
 router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
-  const action = actions.get(req.params.name);
+  const action = registry.get(req.params.name);
   if (!action) return res.status(404).json({ ok: false, error: 'unknown action' });
   const ctx = {
     userId: req.sokroUser.id,
     llm: require('./llm'),
     memory,
     browser,
+    actions: registry,
     log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
   };
   try {
@@ -157,7 +159,7 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
   const ctx = {
     userId: req.sokroUser.id,
     llm: require('./llm'),
-    memory, browser, actions,
+    memory, browser, actions: registry,
     log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
   };
   try {
