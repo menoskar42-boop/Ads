@@ -139,6 +139,15 @@ async function ensureKakeiboSchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_kkb_push_user ON kkb_push_subs (user_id);
+
+      -- Per-category monthly budgets (core Kakeibo: set a limit per category).
+      CREATE TABLE IF NOT EXISTS kkb_category_budgets (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        category TEXT NOT NULL,
+        monthly_limit NUMERIC(14,2) DEFAULT 0,
+        UNIQUE (user_id, category)
+      );
     `);
     console.log('Kakeibo schema ready.');
   } finally {

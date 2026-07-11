@@ -538,6 +538,34 @@ router.get('/expenses', requireOnboarded, async (req, res) => {
   res.render('kakeibo/expenses', Object.assign({ rows }, APP_LOCALS));
 });
 
+/* ─── Category budgets (core Kakeibo) ──────────────────── */
+router.get('/budgets', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const now = new Date();
+  const mStart = stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+  const mEnd = stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  const limits = {};
+  (await pool.query('SELECT category, monthly_limit FROM kkb_category_budgets WHERE user_id=$1', [uid])).rows.forEach((r) => { limits[r.category] = Number(r.monthly_limit); });
+  const spentRows = await stats.categoryBreakdown(pool, uid, mStart, mEnd);
+  const spent = {}; spentRows.forEach((r) => { spent[r.key] = r.total; });
+  res.render('kakeibo/budgets', Object.assign({ limits, spent, saved: req.query.saved === '1' }, APP_LOCALS));
+});
+router.post('/budgets/save', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const b = req.body || {};
+  for (const c of CATEGORY_KEYS) {
+    const val = toNum(b['limit_' + c], 0);
+    if (val > 0) {
+      await pool.query(
+        `INSERT INTO kkb_category_budgets (user_id, category, monthly_limit) VALUES ($1,$2,$3)
+         ON CONFLICT (user_id, category) DO UPDATE SET monthly_limit=EXCLUDED.monthly_limit`, [uid, c, val]);
+    } else {
+      await pool.query('DELETE FROM kkb_category_budgets WHERE user_id=$1 AND category=$2', [uid, c]);
+    }
+  }
+  res.redirect('/budgets?saved=1');
+});
+
 /* ─── Reports ──────────────────────────────────────────── */
 router.get('/reports', requireOnboarded, async (req, res) => {
   try {

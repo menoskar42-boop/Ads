@@ -18,7 +18,7 @@
 <main class="wrap" style="padding-top:6px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 4px 14px">
     <h1 class="kkb-display" style="font-size:1.3rem;margin:0"><%= t('rep.title') %></h1>
-    <a href="/simulator" class="pill">🧪 <%= t('sim.open') %></a>
+    <span style="display:flex;gap:6px"><a href="/budgets" class="pill">🎛️</a><a href="/simulator" class="pill">🧪 <%= t('sim.open') %></a></span>
   </div>
 
   <% if (typeof weeklyReport !== 'undefined' && weeklyReport) { %>

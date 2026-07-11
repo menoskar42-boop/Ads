@@ -1,0 +1,36 @@
+<% pageTitle = t('bud.title') %>
+<%- include('head') %>
+<main class="wrap" style="padding-top:6px;padding-bottom:20px">
+  <h1 class="kkb-display" style="font-size:1.3rem;margin:4px 4px 6px">🎛️ <%= t('bud.title') %></h1>
+  <p class="muted" style="font-size:.82rem;margin:0 4px 14px"><%= t('bud.intro') %></p>
+  <% if (saved) { %><div style="background:rgba(47,111,94,.12);color:var(--accent-2);border-radius:12px;padding:9px 12px;font-size:.88rem;font-weight:700;margin-bottom:12px"><%= t('bud.saved') %></div><% } %>
+
+  <form method="post" action="/budgets/save" style="display:flex;flex-direction:column;gap:12px">
+    <% CATEGORIES.forEach(function(c){
+         var lim = Number(limits[c.key] || 0);
+         var sp = Number(spent[c.key] || 0);
+         var pct = lim > 0 ? Math.min(100, Math.round(sp / lim * 100)) : 0;
+         var over = lim > 0 && sp > lim;
+    %>
+      <div class="card" style="padding:14px 16px">
+        <div style="display:flex;align-items:center;gap:11px">
+          <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:<%= c.color %>1f;font-size:1.15rem"><%= c.icon %></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.92rem"><%= t('cat.'+c.key) %></div>
+            <div class="muted" style="font-size:.72rem"><%= t('bud.spent') %>: <bdi><%= money(sp) %></bdi><% if (lim>0) { %> · <%= over ? t('bud.over') : (t('bud.left')+': ') %><% if (!over) { %><bdi><%= money(lim - sp) %></bdi><% } %><% } %></div>
+          </div>
+          <div style="width:110px">
+            <span class="muted" style="font-size:.6rem;display:block;text-align:end;margin-bottom:2px"><%= t('bud.limit') %></span>
+            <input name="limit_<%= c.key %>" type="number" step="0.01" min="0" value="<%= lim>0?lim:'' %>" class="fld" dir="ltr" placeholder="<%= t('bud.no_limit') %>" style="padding:7px 9px;text-align:center" />
+          </div>
+        </div>
+        <% if (lim > 0) { %>
+        <div style="height:7px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:10px"><div style="height:100%;width:<%= pct %>%;background:<%= over ? 'var(--accent)' : (pct>85?'var(--warn)':c.color) %>"></div></div>
+        <% } %>
+      </div>
+    <% }) %>
+    <button class="btn btn-primary" style="position:sticky;bottom:82px"><%= t('common.save') %></button>
+  </form>
+</main>
+<%- include('app_nav', { active: 'reports' }) %>
+<%- include('foot') %>
