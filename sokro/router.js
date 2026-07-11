@@ -22,6 +22,7 @@ const settings = require('./settings');
 const reports = require('./reports');
 const scheduler = require('./scheduler');
 const extBridge = require('./extension-bridge');
+const realtime = require('./realtime');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -305,6 +306,14 @@ router.post('/api/ext/result', auth.requireAuth, async (req, res) => {
 });
 router.get('/api/ext/status', auth.requireAuth, (req, res) => {
   res.json({ ok: true, connected: extBridge.connected(req.sokroUser.id) });
+});
+
+// Mint an ephemeral Realtime session token (client connects to OpenAI directly).
+router.post('/api/realtime/session', auth.requireAuth, async (req, res) => {
+  try {
+    const s = await realtime.session(req.sokroUser.id);
+    res.json({ ok: true, model: s.model, clientSecret: s.clientSecret });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // The single voice app screen.
