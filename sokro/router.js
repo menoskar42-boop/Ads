@@ -22,6 +22,15 @@ const DESC = 'Sokro نظام ذكاء اصطناعي بينفّذ مهامك ا�
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env: config.env }));
 router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features: config.features }));
 
+// LLM layer status (no API call / no cost) — confirms the active provider + key.
+router.get('/api/llm/status', auth.requireAuth, (_req, res) => {
+  const llm = require('./llm');
+  try {
+    const p = llm.get();
+    res.json({ ok: true, provider: p.name, configured: !!p.configured, models: p.models, available: llm.available() });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ── Auth API (mobile + web) ──────────────────────────────────────────────────
 const COOKIE = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 };
 

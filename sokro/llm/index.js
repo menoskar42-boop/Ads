@@ -24,4 +24,14 @@ function get(name) {
 
 function available() { return Object.keys(factories); }
 
-module.exports = { register, get, available };
+// Convenience helpers that use the configured provider — callers just do
+// llm.chat(...) without knowing which vendor is active.
+function chat(opts) { return get().chat(opts); }
+function json(opts) { return get().json(opts); }
+function embed(texts) { return get().embed(texts); }
+
+module.exports = { register, get, available, chat, json, embed };
+
+// Load built-in adapters so they self-register (module.exports is already set
+// above, so their `require('./index')` resolves register cleanly).
+require('./openai');
