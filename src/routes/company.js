@@ -734,7 +734,7 @@ router.post('/products/add', requireLogin, requireShop, (req, res) => {
           const slug = co.rows[0].slug;
           indexnow.ping([
             indexnow.SITE_ORIGIN + '/shop/' + slug + '/product/' + ins.rows[0].id,
-            indexnow.SITE_ORIGIN + '/view/' + slug,
+            indexnow.SITE_ORIGIN.replace('://', '://' + slug + '.') + '/',
           ]);
         }
       } catch (_) { /* IndexNow is best-effort */ }
@@ -863,7 +863,7 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
           const slug = co.rows[0].slug;
           indexnow.ping([
             indexnow.SITE_ORIGIN + '/shop/' + slug + '/product/' + req.params.id,
-            indexnow.SITE_ORIGIN + '/view/' + slug,
+            indexnow.SITE_ORIGIN.replace('://', '://' + slug + '.') + '/',
           ]);
         }
       } catch (_) { /* IndexNow is best-effort */ }

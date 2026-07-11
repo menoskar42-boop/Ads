@@ -11,7 +11,7 @@
   "@context": "https://schema.org",
   "@type": "<%= __orgType %>",
   "name": <%- JSON.stringify(company.company_name) %>,
-  "url": "<%= siteOrigin %>/view/<%= company.slug %>",
+  "url": <%- JSON.stringify(typeof canonicalCompanyUrl === 'function' ? canonicalCompanyUrl(company.slug) : (siteOrigin + '/view/' + company.slug)) %>,
   <% if (company.logo_url) { %>"logo": <%- JSON.stringify(company.logo_url.indexOf('http') === 0 ? company.logo_url : (siteOrigin + company.logo_url)) %>,<% } %>
   <% if (company.description) { %>"description": <%- JSON.stringify(company.description) %>,<% } %>
   <% if (company.contact_email) { %>"email": <%- JSON.stringify(company.contact_email) %>,<% } %>
