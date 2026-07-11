@@ -125,7 +125,7 @@
   function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
     $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
     loadSettings();
-    if(!$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً '+(user&&user.display_name?user.display_name:'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، أو أي مهمة.'); }
+    if(!$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً'+(user&&user.display_name?(' '+user.display_name):'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، اخلقلك صورة، أو أي مهمة.'); }
   }
   document.addEventListener('click',function(e){
     if(e.target.id==='gear') openSettings();
@@ -214,7 +214,7 @@
       var r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:text})});
       var d=await r.json();
       think.remove();
-      if(!d.ok){ addMsg('ai','معرفتش أنفّذ: '+(d.error||'')); return; }
+      if(!d.ok){ addMsg('ai', d.message || d.error || 'الطلب ده مش ضمن قدراتي دلوقتي — جرّب «ابحثلي…» أو «اعمل صورة…».'); return; }
       if(d.requiresConsent) renderConsent(d); else renderResult(d);
     }catch(e){ think.remove(); addMsg('ai','تعذّر الاتصال بالسيرفر.'); }
   }

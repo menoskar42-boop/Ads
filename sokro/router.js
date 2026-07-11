@@ -193,6 +193,10 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     if (perms.requiresConsent) {
       return res.json({ ok: true, taskId: task.id, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, message: plan.message || null });
     }
+    if (!plan.steps || !plan.steps.length) {
+      await memory.updateTask(task.id, { status: 'failed' });
+      return res.json({ ok: false, taskId: task.id, plan: [], message: plan.message || null });
+    }
     return await executePlan(ctx, goal, task.id, plan, res);
   } catch (e) {
     console.error('[sokro] run:', e.message);
