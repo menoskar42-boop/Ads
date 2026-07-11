@@ -252,6 +252,91 @@ router.post('/investments/:id/delete', requireOnboarded, async (req, res) => {
   res.redirect('/investments');
 });
 
+/* ─── Family / shared budget ───────────────────────────── */
+function inviteCode() {
+  const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return require('crypto').randomBytes(6).reduce((s, b) => s + a[b % a.length], '');
+}
+async function loadFamily(userId) {
+  const m = (await pool.query('SELECT * FROM kkb_family_members WHERE user_id=$1', [userId])).rows[0];
+  if (!m) return null;
+  const family = (await pool.query('SELECT * FROM kkb_families WHERE id=$1', [m.family_id])).rows[0];
+  if (!family) return null;
+  return { family, role: m.role, memberId: m.id };
+}
+
+router.get('/family', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const fam = await loadFamily(uid);
+  if (!fam) return res.render('kakeibo/family', Object.assign({ family: null }, APP_LOCALS));
+  const now = new Date();
+  const mStart = stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+  const mEnd = stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  const members = (await pool.query(
+    `SELECT u.id, u.display_name, u.email, u.is_guest, m.role, m.id AS member_id,
+            COALESCE(p.monthly_income,0) AS income,
+            COALESCE((SELECT SUM(amount) FROM kkb_expenses e WHERE e.user_id=u.id AND e.spent_on >= $2 AND e.spent_on < $3),0)::numeric AS spent
+     FROM kkb_family_members m JOIN kkb_users u ON u.id=m.user_id LEFT JOIN kkb_profiles p ON p.user_id=u.id
+     WHERE m.family_id=$1 ORDER BY (m.role='owner') DESC, m.joined_at`,
+    [fam.family.id, mStart, mEnd]
+  )).rows;
+  const totalIncome = members.reduce((s, x) => s + Number(x.income), 0);
+  const totalSpent = members.reduce((s, x) => s + Number(x.spent), 0);
+  const rate = totalIncome > 0 ? Math.round((totalIncome - totalSpent) / totalIncome * 100) : 0;
+  res.render('kakeibo/family', Object.assign({
+    family: fam.family, myRole: fam.role, members, totalIncome, totalSpent, rate,
+    isOwner: fam.role === 'owner',
+  }, APP_LOCALS));
+});
+
+router.post('/family/create', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  if (await loadFamily(uid)) return res.redirect('/family');
+  const name = String((req.body && req.body.name) || '').trim().slice(0, 60) || (res.locals.lang === 'en' ? 'My family' : 'عائلتي');
+  try {
+    let code, tries = 0;
+    do { code = inviteCode(); tries++; } while (tries < 5 && (await pool.query('SELECT 1 FROM kkb_families WHERE invite_code=$1', [code])).rows.length);
+    const f = (await pool.query('INSERT INTO kkb_families (owner_id, name, invite_code) VALUES ($1,$2,$3) RETURNING id', [uid, name, code])).rows[0];
+    await pool.query('INSERT INTO kkb_family_members (family_id, user_id, role) VALUES ($1,$2,$3) ON CONFLICT (user_id) DO NOTHING', [f.id, uid, 'owner']);
+  } catch (e) { console.error('[kkb family create]', e.message); }
+  res.redirect('/family');
+});
+
+router.post('/family/join', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  if (await loadFamily(uid)) return res.redirect('/family');
+  const code = String((req.body && req.body.code) || '').trim().toUpperCase().slice(0, 12);
+  try {
+    const f = (await pool.query('SELECT id FROM kkb_families WHERE invite_code=$1', [code])).rows[0];
+    if (f) {
+      const role = req.body && req.body.role === 'child' ? 'child' : 'member';
+      await pool.query('INSERT INTO kkb_family_members (family_id, user_id, role) VALUES ($1,$2,$3) ON CONFLICT (user_id) DO NOTHING', [f.id, uid, role]);
+    } else { return res.redirect('/family?err=code'); }
+  } catch (e) { console.error('[kkb family join]', e.message); }
+  res.redirect('/family');
+});
+
+router.post('/family/leave', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const fam = await loadFamily(uid);
+  if (fam && fam.role !== 'owner') await pool.query('DELETE FROM kkb_family_members WHERE user_id=$1', [uid]);
+  res.redirect('/family');
+});
+router.post('/family/delete', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const fam = await loadFamily(uid);
+  if (fam && fam.role === 'owner') await pool.query('DELETE FROM kkb_families WHERE id=$1 AND owner_id=$2', [fam.family.id, uid]);
+  res.redirect('/family');
+});
+router.post('/family/member/:mid/remove', requireOnboarded, async (req, res) => {
+  const uid = req.session.kkbUserId;
+  const fam = await loadFamily(uid);
+  if (fam && fam.role === 'owner') {
+    await pool.query('DELETE FROM kkb_family_members WHERE id=$1 AND family_id=$2 AND role<>$3', [toInt(req.params.mid, null), fam.family.id, 'owner']);
+  }
+  res.redirect('/family');
+});
+
 /* ─── Financial goals ──────────────────────────────────── */
 const GOAL_ICONS = ['🎯', '🚗', '🏠', '💍', '✈️', '🎓', '📱', '💻', '🛡️', '👶'];
 router.get('/goals', requireOnboarded, async (req, res) => {

@@ -109,6 +109,24 @@ async function ensureKakeiboSchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_kkb_inv_user ON kkb_investments (user_id);
+
+      -- Family / shared household budget. A user belongs to at most one family.
+      CREATE TABLE IF NOT EXISTS kkb_families (
+        id SERIAL PRIMARY KEY,
+        owner_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        name TEXT,
+        invite_code TEXT UNIQUE,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS kkb_family_members (
+        id SERIAL PRIMARY KEY,
+        family_id INTEGER REFERENCES kkb_families(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES kkb_users(id) ON DELETE CASCADE,
+        role TEXT DEFAULT 'member',        -- owner / member / child / viewer
+        joined_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (family_id, user_id),
+        UNIQUE (user_id)                    -- one family per user
+      );
     `);
     console.log('Kakeibo schema ready.');
   } finally {

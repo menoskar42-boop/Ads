@@ -1,0 +1,77 @@
+<% pageTitle = t('fam.title') %>
+<%- include('head') %>
+<main class="wrap" style="padding-top:6px">
+  <div style="display:flex;align-items:center;gap:10px;margin:4px 4px 14px">
+    <span style="display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:color-mix(in srgb,var(--accent) 14%,transparent);font-size:1.3rem">👨‍👩‍👧</span>
+    <div><h1 class="kkb-display" style="font-size:1.2rem;margin:0"><%= t('fam.title') %></h1><div class="muted" style="font-size:.74rem"><%= t('fam.sub') %></div></div>
+  </div>
+
+  <% if (!family) { %>
+    <!-- Create or join -->
+    <section class="card" style="padding:18px;margin-bottom:12px">
+      <h2 style="font-weight:800;margin:0 0 4px">➕ <%= t('fam.create') %></h2>
+      <p class="muted" style="font-size:.78rem;margin:0 0 12px"><%= t('fam.create_hint') %></p>
+      <form method="post" action="/family/create" style="display:flex;gap:8px">
+        <input name="name" maxlength="60" class="fld" placeholder="<%= t('fam.name') %>" style="flex:1" />
+        <button class="btn btn-primary" style="width:auto;padding:0 18px"><%= t('fam.create') %></button>
+      </form>
+    </section>
+    <section class="card" style="padding:18px">
+      <h2 style="font-weight:800;margin:0 0 4px">🔑 <%= t('fam.join') %></h2>
+      <p class="muted" style="font-size:.78rem;margin:0 0 12px"><%= t('fam.join_hint') %></p>
+      <form method="post" action="/family/join" style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:8px">
+          <input name="code" required maxlength="12" class="fld" dir="ltr" placeholder="<%= t('fam.code') %>" style="flex:1;text-transform:uppercase" />
+          <button class="btn btn-ghost" style="width:auto;padding:0 18px"><%= t('fam.join') %></button>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer"><input type="checkbox" name="role" value="child" /> <%= t('fam.as_child') %></label>
+      </form>
+    </section>
+  <% } else { %>
+    <!-- Family dashboard -->
+    <section class="card" style="padding:18px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-weight:800;font-size:1.05rem"><%= family.name %></div><div class="muted" style="font-size:.72rem"><%= t('frole.'+myRole) %></div></div>
+        <div style="text-align:center;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:7px 12px">
+          <div class="muted" style="font-size:.6rem"><%= t('fam.invite') %></div>
+          <div class="kkb-display" dir="ltr" style="font-weight:800;letter-spacing:.15em"><%= family.invite_code %></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px;text-align:center">
+        <div><div class="muted" style="font-size:.68rem"><%= t('fam.total_income') %></div><div style="font-weight:800"><bdi><%= money(totalIncome) %></bdi></div></div>
+        <div><div class="muted" style="font-size:.68rem"><%= t('fam.total_spent') %></div><div style="font-weight:800;color:var(--warn)"><bdi><%= money(totalSpent) %></bdi></div></div>
+        <div><div class="muted" style="font-size:.68rem"><%= t('fam.rate') %></div><div style="font-weight:800" class="accent"><%= rate %>%</div></div>
+      </div>
+    </section>
+
+    <h2 class="kkb-display" style="font-size:1.02rem;margin:0 4px 8px"><%= t('fam.members') %></h2>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <% members.forEach(function(mb){ var me = user && mb.id===user.id; %>
+        <div class="card" style="padding:12px 14px;display:flex;align-items:center;gap:11px">
+          <span style="display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--paper);border:1px solid var(--line);font-size:1.1rem"><%= mb.role==='owner'?'👑':mb.role==='child'?'🧒':'👤' %></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= mb.display_name || mb.email || 'Guest' %><% if (me) { %> · <span class="accent"><%= t('fam.you') %></span><% } %></div>
+            <div class="muted" style="font-size:.72rem"><%= t('frole.'+mb.role) %> · <%= money(mb.spent) %></div>
+          </div>
+          <b class="muted" style="font-size:.78rem;white-space:nowrap"><bdi><%= money(mb.income) %></bdi></b>
+          <% if (isOwner && mb.role!=='owner') { %>
+            <form method="post" action="/family/member/<%= mb.member_id %>/remove"><button data-confirm="✕?" style="border:0;background:transparent;color:var(--muted);cursor:pointer">✕</button></form>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+
+    <div style="margin-top:16px">
+      <% if (isOwner) { %>
+        <form method="post" action="/family/delete"><button data-confirm="<%= t('common.confirm_delete') %>" class="btn btn-ghost" style="color:var(--accent)"><%= t('fam.delete') %></button></form>
+      <% } else { %>
+        <form method="post" action="/family/leave"><button data-confirm="<%= t('common.confirm_delete') %>" class="btn btn-ghost" style="color:var(--accent)"><%= t('fam.leave') %></button></form>
+      <% } %>
+    </div>
+  <% } %>
+</main>
+<script>
+(function(){document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-confirm]');if(!b||b.dataset.armed==='1')return;e.preventDefault();e.stopPropagation();if(!b.dataset.label)b.dataset.label=b.innerHTML;b.innerHTML=b.dataset.confirm;b.dataset.armed='1';setTimeout(function(){b.dataset.armed='';b.innerHTML=b.dataset.label;},3000);},true);})();
+</script>
+<%- include('app_nav', { active: 'profile' }) %>
+<%- include('foot') %>
