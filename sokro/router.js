@@ -11,6 +11,8 @@ const config = require('./core/config');
 const auth = require('./auth');
 const vault = require('./secrets/vault');
 const memory = require('./memory');
+const actions = require('./actions'); // registers built-in actions on load
+const browser = require('./browser');
 const { loginLimiter } = require('../src/middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -121,6 +123,29 @@ router.get('/api/conversations/:id/messages', auth.requireAuth, async (req, res)
 });
 router.get('/api/context', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, context: await memory.getContext(req.sokroUser.id) });
+});
+
+// ── Actions API ──────────────────────────────────────────────────────────────
+router.get('/api/actions', auth.requireAuth, (_req, res) => {
+  res.json({ ok: true, browserAvailable: browser.available(), actions: actions.catalog() });
+});
+router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
+  const action = actions.get(req.params.name);
+  if (!action) return res.status(404).json({ ok: false, error: 'unknown action' });
+  const ctx = {
+    userId: req.sokroUser.id,
+    llm: require('./llm'),
+    memory,
+    browser,
+    log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
+  };
+  try {
+    const result = await action.run(ctx, req.body || {});
+    res.json(result && typeof result.ok !== 'undefined' ? result : { ok: true, output: result });
+  } catch (e) {
+    console.error('[sokro] action run:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // Public landing page (indexable, SEO/AdSense-aware — real content, no ads yet).
