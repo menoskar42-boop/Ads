@@ -554,8 +554,11 @@ async function validateFoodCoupon(db, companyId, code, subtotal) {
   } catch (e) { console.error('coupon validate error:', e.message); return { ok: false, discount: 0 }; }
 }
 
-// Live coupon check for the cart drawer.
-router.get('/order/coupon-check', foodOrderGuard, async (req, res) => {
+// Live coupon check for the cart drawer. Rate-limited per tenant+IP so it can't
+// be abused as an oracle to brute-force a merchant's private coupon codes.
+const { rateLimit: _rl, clientIp: _cip } = require('../middleware/rateLimit');
+const _couponLimiter = _rl({ name: 'coupon', windowMs: 60000, max: 20, keyFn: (req) => ((req.tenant && req.tenant.id) || 't') + '|' + _cip(req) });
+router.get('/order/coupon-check', _couponLimiter, foodOrderGuard, async (req, res) => {
   const subtotal = Number(req.query.subtotal) || 0;
   const r = await validateFoodCoupon(pool, req.tenant.id, req.query.code, subtotal);
   res.json({ ok: r.ok, discount: r.discount, percent: r.coupon ? Number(r.coupon.discount_percent) : 0 });
@@ -775,9 +778,12 @@ router.get('/order/food/:token/status', foodOrderGuard, async (req, res) => {
 router.post('/order/food/:token/review', foodOrderGuard, async (req, res) => {
   try {
     const ord = (await pool.query(
-      'SELECT id, outlet_id FROM food_orders WHERE track_token = $1 AND company_id = $2', [req.params.token, req.tenant.id]
+      'SELECT id, outlet_id, status FROM food_orders WHERE track_token = $1 AND company_id = $2', [req.params.token, req.tenant.id]
     )).rows[0];
-    if (!ord) return res.redirect('/');
+    // Server-side enforcement of the UI's delivered-only rule: reviews are only
+    // accepted for delivered orders, so an attacker can't place a throwaway COD
+    // order and immediately spam ratings to skew the public aggregateRating.
+    if (!ord || ord.status !== 'delivered') return res.redirect('/order/food/' + req.params.token);
     const rating = Math.min(5, Math.max(1, parseInt(req.body.rating, 10) || 0));
     if (rating >= 1) {
       const ex = await pool.query('SELECT 1 FROM food_reviews WHERE order_id = $1 LIMIT 1', [ord.id]);
