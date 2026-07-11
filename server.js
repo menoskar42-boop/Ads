@@ -583,16 +583,25 @@ async function initDb() {
       }
     }
 
-    // Ensure demo store-owner logins exist so each store can be managed from its dashboard.
+    // Ensure demo store-owner logins exist so each store can be managed from its
+    // dashboard. SECURITY: these demo tenants are PUBLIC and linked from the
+    // homepage, so they must never carry predictable passwords. Provide a
+    // per-tenant secret (DEMO_DELTA_PASSWORD / DEMO_PETRA_PASSWORD) if you need
+    // to log in; otherwise the account is rotated to a random, unknowable
+    // password on every boot so the old seeded creds (delta123/petra123) can
+    // never be used again.
     const bcrypt = require('bcryptjs');
+    const crypto = require('crypto');
     const demoOwners = [
-      ['delta', 'delta@test.com', 'delta123', 'shop'],
-      ['petra', 'petra@test.com', 'petra123', 'portfolio'],
+      ['delta', 'delta@test.com', 'shop'],
+      ['petra', 'petra@test.com', 'portfolio'],
     ];
-    for (const [slug, email, pwd, pageType] of demoOwners) {
+    for (const [slug, email, pageType] of demoOwners) {
       const c = await client.query('SELECT id FROM companies WHERE slug = $1', [slug]);
       if (c.rows.length) {
         await client.query('UPDATE companies SET page_type = $1 WHERE id = $2', [pageType, c.rows[0].id]);
+        const envPwd = process.env['DEMO_' + slug.toUpperCase() + '_PASSWORD'];
+        const pwd = (envPwd && envPwd.length >= 8) ? envPwd : crypto.randomBytes(24).toString('hex');
         const hash = await bcrypt.hash(pwd, 10);
         await client.query(
           `INSERT INTO company_users (company_id, email, password_hash)
@@ -603,16 +612,29 @@ async function initDb() {
       }
     }
 
-    // Ensure the super-admin login exists. It's otherwise only created by
-    // seed.js, which does NOT run on the deployed database — so the default
-    // login failed in production. Idempotent; override via env if needed.
-    const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
-    await client.query(
-      `INSERT INTO admins (email, password_hash)
-       VALUES ($1, $2)
-       ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
-      [process.env.ADMIN_EMAIL || 'admin@oscardevs.com', adminHash]
-    );
+    // SECURITY: never bootstrap the super-admin from predictable hardcoded
+    // defaults — that turned a missing secret into a full platform backdoor
+    // (anyone could log in with the known default email/password). Only create
+    // or rotate the admin when BOTH secrets are explicitly provided. If they're
+    // missing, skip entirely (admin login stays disabled) and warn loudly.
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim();
+    const adminPassword = process.env.ADMIN_PASSWORD || '';
+    if (adminEmail && adminPassword) {
+      const adminHash = await bcrypt.hash(adminPassword, 10);
+      await client.query(
+        `INSERT INTO admins (email, password_hash)
+         VALUES ($1, $2)
+         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+        [adminEmail, adminHash]
+      );
+      // Neutralize any legacy default-credential admin left over from earlier
+      // boots (before this fix), unless it's the configured admin itself.
+      if (adminEmail !== 'admin@oscardevs.com') {
+        await client.query('DELETE FROM admins WHERE email = $1', ['admin@oscardevs.com']);
+      }
+    } else {
+      console.warn('[SECURITY] ADMIN_EMAIL/ADMIN_PASSWORD not set — super-admin bootstrap skipped (no default account created). Set them as deployment secrets to enable admin login.');
+    }
 
     console.log('Database tables ready.');
   } catch (err) {
