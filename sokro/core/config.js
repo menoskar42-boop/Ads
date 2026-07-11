@@ -24,7 +24,7 @@ const config = {
   features: {
     auth: true,
     memory: true,
-    planner: false,
+    planner: true,
     browser: false,
     scheduler: false,
   },

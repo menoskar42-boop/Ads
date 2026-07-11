@@ -13,6 +13,8 @@ const vault = require('./secrets/vault');
 const memory = require('./memory');
 const actions = require('./actions'); // registers built-in actions on load
 const browser = require('./browser');
+const planner = require('./ai/planner');
+const executor = require('./workflows/executor');
 const { loginLimiter } = require('../src/middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -144,6 +146,32 @@ router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
     res.json(result && typeof result.ok !== 'undefined' ? result : { ok: true, output: result });
   } catch (e) {
     console.error('[sokro] action run:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Orchestrator: plan → execute (validate + retry) → summarize ──────────────
+router.post('/api/run', auth.requireAuth, async (req, res) => {
+  const goal = String((req.body && req.body.goal) || '').trim();
+  if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
+  const ctx = {
+    userId: req.sokroUser.id,
+    llm: require('./llm'),
+    memory, browser, actions,
+    log: (name, data) => console.log('[sokro:action]', name, JSON.stringify(data || {})),
+  };
+  try {
+    const task = await memory.createTask(req.sokroUser.id, goal, (req.body && req.body.conversationId) || null);
+    ctx.taskId = task.id;
+    const plan = await planner.plan(ctx, goal);
+    await memory.updateTask(task.id, { plan, status: 'running' });
+    const results = await executor.execute(ctx, plan);
+    const ok = results.length > 0 && results.every((r) => r.result.ok);
+    const summary = await planner.summarize(ctx, goal, results);
+    await memory.updateTask(task.id, { status: ok ? 'done' : 'failed', result: { summary } });
+    res.json({ ok, taskId: task.id, intent: plan.intent, plan: plan.steps, message: plan.message, results, summary });
+  } catch (e) {
+    console.error('[sokro] run:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
