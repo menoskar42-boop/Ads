@@ -136,12 +136,19 @@
   }
 
   function renderResult(d){
-    var report=null;
-    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o&&o.report){ report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; } });
+    var report=null, images=[];
+    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); } });
     var summary=d.summary||(report?report.text:(d.ok?'تمّت المهمة.':'المهمة فشلت.'));
     addMsg('ai',summary);
+    images.forEach(addImage);
     if(report) addDownloads(report);
     speak(summary);
+  }
+  function addImage(url){
+    var el=document.createElement('div'); el.className='msg ai'; el.style.padding='6px';
+    var a=document.createElement('a'); a.href=url; a.target='_blank'; a.download='sokro-image.png';
+    var img=document.createElement('img'); img.src=url; img.alt='صورة مولّدة'; img.style.cssText='max-width:100%;border-radius:12px;display:block';
+    a.appendChild(img); el.appendChild(a); $('#log').appendChild(el); $('#log').scrollTop=1e9;
   }
   function addDownloads(payload){
     var el=document.createElement('div'); el.className='plan'; el.style.background='rgba(34,211,238,.08)';
