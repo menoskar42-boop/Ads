@@ -91,7 +91,12 @@ async function doBrowse(input) {
     target: { tabId }, args: [input.selector || null],
     func: (sel) => {
       const el = sel ? document.querySelector(sel) : document.body;
-      return { title: document.title, text: el ? (el.innerText || '').slice(0, 8000) : '' };
+      var seen = {}; var links = [];
+      document.querySelectorAll('a[href]').forEach(function (a) {
+        var href = a.href; if (!/^https?:/.test(href) || seen[href]) return; seen[href] = 1;
+        links.push({ text: (a.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80), url: href });
+      });
+      return { title: document.title, text: el ? (el.innerText || '').slice(0, 8000) : '', links: links.slice(0, 80) };
     },
   });
   let screenshot = null;
