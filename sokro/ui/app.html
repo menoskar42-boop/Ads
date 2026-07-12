@@ -380,9 +380,15 @@
   function endRealtime(){ try{rtDc&&rtDc.close();}catch(e){} try{rtPc&&rtPc.close();}catch(e){} try{rtStream&&rtStream.getTracks().forEach(function(t){t.stop();});}catch(e){} rtPc=null;rtStream=null;rtDc=null; setCall(false); }
   async function onRtEvent(ev){
     var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
-    if(m.type==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); }
-    else if(m.type==='response.audio_transcript.done' && m.transcript){ addMsg('ai',m.transcript); }
-    else if(m.type==='response.function_call_arguments.done'){ await runRtTool(m.name,m.call_id,m.arguments); }
+    var t=m.type||'';
+    // Live listening/speaking state — the ChatGPT-Voice "orb" feel.
+    if(t==='input_audio_buffer.speech_started'){ if(rtOn) setStatus('👂 بيسمعك…'); }
+    else if(t==='input_audio_buffer.speech_stopped'){ if(rtOn) setStatus('🟢 مكالمة مباشرة'); }
+    else if(t==='response.audio.delta'||t==='response.created'){ if(rtOn) setStatus('🗣️ Sokro بيرد…'); }
+    else if(t==='response.done'){ if(rtOn) setStatus('🟢 مكالمة مباشرة — اتكلم عادي'); }
+    if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); }
+    else if(t==='response.audio_transcript.done' && m.transcript){ addMsg('ai',m.transcript); }
+    else if(t==='response.function_call_arguments.done'){ await runRtTool(m.name,m.call_id,m.arguments); }
   }
   function toolLabel(n){ return ({search_web:'🔎 بيبحث في الويب',generate_image:'🎨 بيولّد صورة',research_report:'📊 بيبحث ويجهّز تقرير',browse:'🌐 بيفتح صفحة',extract_table:'📋 بيسحب جدول',fill_submit:'📝 بيملأ نموذج'})[n]||('⚙️ بينفّذ: '+n); }
   // Executes a tool the model asked for MID-CALL (voice-controlled agent) and
