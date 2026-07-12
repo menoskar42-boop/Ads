@@ -10,11 +10,30 @@
 const fs = require('fs');
 const path = require('path');
 
+// The @replit/object-storage Client constructor eagerly kicks off an async
+// init() and stores ONLY the promise (this.state.promise). When no bucket is
+// configured, init() calls getDefaultBucketId() which fetches the Replit storage
+// sidecar and REJECTS — and because nothing attaches a .catch to that stored
+// promise, it becomes an UNHANDLED REJECTION that crashes Node 22 at boot
+// (deploy healthcheck 500 → crash loop). So we: (1) pass an explicit bucketId
+// when one is configured (init then never fetches the sidecar), and (2) always
+// attach a .catch to the init promise so a failure just disables the mirror
+// instead of taking the whole app down.
 let client = null;
 try {
   const { Client } = require('@replit/object-storage');
-  client = new Client();
-} catch (_) { /* not installed/configured — local-only fallback */ }
+  const bucketId = process.env.OBJECT_STORAGE_BUCKET_ID
+    || process.env.REPLIT_OBJECT_STORAGE_BUCKET_ID
+    || process.env.REPLIT_DEFAULT_BUCKET_ID || '';
+  client = bucketId ? new Client({ bucketId }) : new Client();
+  const initPromise = client && client.state && client.state.promise;
+  if (initPromise && typeof initPromise.catch === 'function') {
+    initPromise.catch((e) => {
+      console.warn('[object_store] init failed — mirror disabled (local-only):', (e && e.message) || e);
+      client = null;
+    });
+  }
+} catch (_) { client = null; /* not installed/configured — local-only fallback */ }
 
 function enabled() { return !!client; }
 

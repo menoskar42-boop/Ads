@@ -1,4 +1,18 @@
 require('dotenv').config();
+
+// Deploy-stability backstop: Node 22 crashes the process on an unhandled promise
+// rejection, which on Replit Autoscale turns a background failure (e.g. an
+// optional SDK's async init that can't reach its sidecar) into a boot-time
+// healthcheck 500 → crash loop. Log these instead of dying. Real request errors
+// are still handled by Express' error middleware; this only catches stray
+// background rejections that would otherwise take the whole deploy down.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', (reason && reason.stack) || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', (err && err.stack) || err);
+});
+
 // compression is optional — if it isn't installed yet (e.g. node_modules
 // not refreshed after a pull) the app must still boot, just without gzip.
 let compression;
