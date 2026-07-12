@@ -6,5 +6,6 @@ require('./SearchWebAction');
 require('./GenerateImageAction');
 require('./BrowseAction');
 require('./ExtractTableAction');
+require('./FillSubmitAction');
 
 module.exports = require('./_registry');

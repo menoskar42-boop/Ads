@@ -64,6 +64,7 @@ async function execute(cmd) {
   try {
     if (cmd.kind === 'browse') output = await doBrowse(cmd.input || {});
     else if (cmd.kind === 'extract_table') output = await doExtractTable(cmd.input || {});
+    else if (cmd.kind === 'fill_submit') output = await doFillSubmit(cmd.input || {});
     else error = 'unknown kind: ' + cmd.kind;
   } catch (e) { error = String((e && e.message) || e); }
   await postResult(cmd.id, output, error);
@@ -97,6 +98,42 @@ async function doBrowse(input) {
   if (input.screenshot) { try { screenshot = await chrome.tabs.captureVisibleTab(); } catch (e) {} }
   try { chrome.tabs.remove(tabId); } catch (e) {}
   return Object.assign({ url: input.url }, result, { screenshot });
+}
+
+async function doFillSubmit(input) {
+  const tabId = await openAndWait(input.url);
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId }, args: [input.fields || [], input.submit || null],
+    func: (fields, submit) => {
+      var filled = 0;
+      (fields || []).forEach(function (f) {
+        try {
+          var el = document.querySelector(f.selector);
+          if (el) {
+            el.focus();
+            el.value = f.value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            filled++;
+          }
+        } catch (e) {}
+      });
+      var submitted = false;
+      if (submit) { try { var s = document.querySelector(submit); if (s) { s.click(); submitted = true; } } catch (e) {} }
+      return { filled: filled, submitted: submitted };
+    },
+  });
+  // Give a submit navigation a moment, then read the resulting page.
+  if (result.submitted) await new Promise((r) => setTimeout(r, 1500));
+  let after = { title: '', text: '' };
+  try {
+    const [{ result: a }] = await chrome.scripting.executeScript({
+      target: { tabId }, func: () => ({ title: document.title, text: (document.body && document.body.innerText || '').slice(0, 6000) }),
+    });
+    after = a;
+  } catch (e) {}
+  try { chrome.tabs.remove(tabId); } catch (e) {}
+  return { url: input.url, filled: result.filled, submitted: result.submitted, title: after.title, text: after.text };
 }
 
 async function doExtractTable(input) {

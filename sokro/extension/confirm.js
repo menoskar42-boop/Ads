@@ -4,7 +4,9 @@
 (function () {
   var data = {};
   try { data = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch (e) {}
-  var label = data.kind === 'extract_table' ? 'استخراج جدول من صفحة' : 'قراءة محتوى صفحة';
+  var label = data.kind === 'extract_table' ? 'استخراج جدول من صفحة'
+    : data.kind === 'fill_submit' ? 'ملء نموذج وإرساله في صفحة'
+    : 'قراءة محتوى صفحة';
   document.getElementById('msg').innerHTML =
     'Sokro عايز يعمل: <b>' + label + '</b><br>من الموقع: <b>' + (data.domain || '؟') + '</b>';
 
