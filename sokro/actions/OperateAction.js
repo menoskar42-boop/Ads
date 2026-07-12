@@ -9,6 +9,17 @@ const { register } = require('./_registry');
 
 function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.startsWith('www.') ? x.hostname.slice(4) : 'www.' + x.hostname; return x.href; } catch (_) { return null; } }
 
+// Wait for the page to FULLY settle before reading the DOM — critical for JS/SPA
+// sites (e.g. sylndr) that keep rendering after the `load` event. We wait for the
+// network to go idle (generously), then give the framework a short settle window
+// to paint, so collectDom() sees the real interactive elements, not a skeleton.
+async function settlePage(page) {
+  await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+  // Extra settle: some frameworks fetch data on a microtask after networkidle.
+  await page.waitForTimeout(1200).catch(() => {});
+}
+
 // Runs inside page.evaluate — tags visible interactive elements and returns them.
 /* istanbul ignore next */
 function collectDom() {
@@ -40,11 +51,12 @@ async function run(ctx, input) {
     const result = await ctx.browser.withPage(async (page) => {
       try { await page.goto(url, { waitUntil: 'load', timeout: 30000 }); }
       catch (e) { const alt = wwwVariant(url); if (alt && alt !== url) await page.goto(alt, { waitUntil: 'load', timeout: 30000 }); else throw e; }
+      await settlePage(page); // let the full page (incl. JS-rendered content) finish first
 
       const trail = [];
       let answer = null;
       for (let step = 0; step < maxSteps; step++) {
-        await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+        await settlePage(page); // re-settle after each action before reading the DOM
         const obs = await page.evaluate(collectDom);
         const sys = 'You operate a web browser toward a goal, one step at a time. Given the current page (text + its visible interactive elements, each with an [idx]) decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Click links/buttons to navigate toward the goal (filters, listings, a specific item). Use done when the goal information is visible on the page — put it in answer.';
         const user = 'Goal: ' + goal + '\nURL: ' + obs.url + '\nPage text:\n' + obs.text + '\n\nInteractive elements:\n' + obs.items.map(function (e) { return '[' + e.idx + '] ' + e.tag + (e.type ? '/' + e.type : '') + ': ' + e.label; }).join('\n');
@@ -73,7 +85,13 @@ async function run(ctx, input) {
     });
     return { ok: true, output: result };
   } catch (e) {
-    return { ok: false, error: 'operate failed: ' + e.message };
+    // A launch failure (missing shared lib / OOM on the server) is not the user's
+    // fault — translate it into an actionable message instead of a raw stack.
+    const m = String(e.message || '');
+    if (/\.so\.\d|Failed to launch|browserType\.launch|Target closed|libgbm|libnss|Executable doesn't exist/i.test(m)) {
+      return { ok: false, error: 'متصفّح السيرفر مقدرش يشتغل دلوقتي (مكتبة ناقصة أو ذاكرة). لو لسه منزّلين تحديث بيئة .replit استنى النشر يخلص وجرّب تاني، أو استخدم إضافة سوكرو في متصفحك عشان التصفّح داخل الموقع.' };
+    }
+    return { ok: false, error: 'operate failed: ' + m };
   }
 }
 
