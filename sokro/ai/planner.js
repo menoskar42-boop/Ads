@@ -71,16 +71,23 @@ async function plan(ctx, goal, recentContext = []) {
   };
 }
 
-// Short, user-facing natural-language summary of what happened.
+// Short, user-facing summary AND a semantic check of whether the user's goal was
+// actually achieved (not just "no step threw"). Folded into ONE JSON call so it
+// adds no extra cost/latency. Returns { summary, achieved }.
 async function summarize(ctx, goal, results) {
   const preamble = require('../assistant-profile').buildPreamble(ctx && ctx.prefs);
   const langInstr = require('../core/lang').replyInstruction(ctx && ctx.prefs && ctx.prefs.lang);
-  const sys = preamble + ' ' + langInstr + ' Summarize the outcome for the user in 1-3 short sentences. Be concrete about what was done.';
+  const sys = preamble + ' ' + langInstr +
+    ' Judge whether the results actually achieve the user\'s goal (not just that no error was thrown — e.g. an empty search or a form that did not submit means NOT achieved). ' +
+    'Reply ONLY as JSON: {"summary":"1-3 short sentences for the user about what was done","achieved":true|false}.';
   const user = `Goal: ${goal}\nResults: ${JSON.stringify(results).slice(0, 4000)}`;
   try {
-    const { text } = await llm.chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
-    return text;
-  } catch (_) { return null; }
+    const out = await llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
+    if (out && typeof out.summary === 'string') return { summary: out.summary, achieved: out.achieved !== false };
+  } catch (_) {}
+  // Fallback: plain summary, achievement unknown (treated as achieved if steps ran).
+  try { const { text } = await llm.chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); return { summary: text, achieved: true }; }
+  catch (_) { return { summary: null, achieved: true }; }
 }
 
 module.exports = { plan, summarize };

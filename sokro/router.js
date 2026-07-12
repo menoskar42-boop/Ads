@@ -211,11 +211,14 @@ function sokroCtx(userId, taskId, prefs) {
 async function executePlan(ctx, goal, taskId, plan, res, convId) {
   await memory.updateTask(taskId, { status: 'running' });
   const results = await executor.execute(ctx, plan);
-  const ok = results.length > 0 && results.every((r) => r.result.ok);
-  const summary = await planner.summarize(ctx, goal, results);
-  await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary } });
+  const techOk = results.length > 0 && results.every((r) => r.result.ok);
+  const s = await planner.summarize(ctx, goal, results); // { summary, achieved }
+  const summary = s && s.summary;
+  // Semantic success = technically ok AND the goal was actually achieved.
+  const ok = techOk && (s ? s.achieved !== false : true);
+  await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary, achieved: ok } });
   if (convId && summary) { try { await memory.addMessage(convId, 'assistant', summary); } catch (_) {} }
-  res.json({ ok, taskId, conversationId: convId || null, plan: plan.steps, results, summary });
+  res.json({ ok, taskId, conversationId: convId || null, plan: plan.steps, results, summary, achieved: ok });
 }
 
 // Plan the goal; if it needs SENSITIVE permissions, pause and ask for (voice)
