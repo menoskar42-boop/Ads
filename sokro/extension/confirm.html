@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sokro — تأكيد</title>
+<style>
+  *{box-sizing:border-box;font-family:system-ui,'Segoe UI',Tahoma,sans-serif;margin:0}
+  body{background:#0b1020;color:#eef1ff;padding:20px}
+  h3{font-size:1.1rem;margin-bottom:6px}
+  .who{color:#aebbff;font-size:.85rem;margin-bottom:14px}
+  .box{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 14px;line-height:1.8;font-size:.95rem;margin-bottom:12px}
+  .box b{color:#22d3ee}
+  label{display:flex;align-items:center;gap:8px;font-size:.9rem;color:#c3c9ee;margin-bottom:16px;cursor:pointer}
+  .row{display:flex;gap:10px}
+  button{flex:1;border:0;border-radius:10px;padding:12px;font-weight:800;font-size:.95rem;cursor:pointer}
+  .allow{background:linear-gradient(90deg,#22c55e,#16a34a);color:#fff}
+  .deny{background:transparent;border:1px solid rgba(255,255,255,.3);color:#eef1ff}
+</style>
+</head>
+<body>
+  <h3>Sokro يطلب إذن</h3>
+  <div class="who">تنفيذ مهمة في متصفحك الحالي</div>
+  <div class="box" id="msg">…</div>
+  <label><input type="checkbox" id="always" /> اسمح دايماً لهذا الموقع من غير سؤال</label>
+  <div class="row">
+    <button class="allow" id="allow">تنفيذ</button>
+    <button class="deny" id="deny">رفض</button>
+  </div>
+  <script src="confirm.js"></script>
+</body>
+</html>

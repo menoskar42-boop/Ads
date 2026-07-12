@@ -13,20 +13,60 @@ async function poll() {
   } catch (e) { /* not logged in / offline — ignore */ }
 }
 
+async function postResult(id, output, error) {
+  try {
+    await fetch(API + '/api/ext/result', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, output, error }),
+    });
+  } catch (e) { /* ignore */ }
+}
+
+function domainOf(url) { try { return new URL(url).hostname; } catch (e) { return ''; } }
+function isApprovedDomain(domain) {
+  return new Promise((res) => chrome.storage.local.get('approvedDomains', (o) => res(((o.approvedDomains || []).indexOf(domain) >= 0))));
+}
+function approveDomain(domain) {
+  return new Promise((res) => chrome.storage.local.get('approvedDomains', (o) => {
+    const l = o.approvedDomains || []; if (l.indexOf(domain) < 0) l.push(domain); chrome.storage.local.set({ approvedDomains: l }, res);
+  }));
+}
+
+// Ask the user, in a small popup window, to approve running THIS task on THIS
+// domain in their live browser. Nothing runs until they say yes (or they've
+// approved the domain before). Auto-denies after 90s so a task can't hang.
+const pendingConfirms = {};
+function requestConfirm(cmd) {
+  return new Promise((resolve) => {
+    const domain = domainOf(cmd.input && cmd.input.url);
+    const payload = encodeURIComponent(JSON.stringify({ id: cmd.id, domain, kind: cmd.kind }));
+    pendingConfirms[cmd.id] = resolve;
+    chrome.windows.create({ url: chrome.runtime.getURL('confirm.html') + '#' + payload, type: 'popup', width: 440, height: 300 }, () => {});
+    setTimeout(() => { if (pendingConfirms[cmd.id]) { delete pendingConfirms[cmd.id]; resolve({ allow: false }); } }, 90000);
+  });
+}
+
 async function execute(cmd) {
+  // Consent gate: reading/interacting with a page in the user's LIVE browser
+  // (their logged-in sessions) must be explicitly approved per domain first.
+  const domain = domainOf(cmd.input && cmd.input.url);
+  let allow = false;
+  if (domain && await isApprovedDomain(domain)) allow = true;
+  else {
+    const d = await requestConfirm(cmd);
+    allow = !!(d && d.allow);
+    if (allow && d.always && domain) await approveDomain(domain);
+  }
+  if (!allow) return postResult(cmd.id, null, 'declined by user');
+
   let output = null, error = null;
   try {
     if (cmd.kind === 'browse') output = await doBrowse(cmd.input || {});
     else if (cmd.kind === 'extract_table') output = await doExtractTable(cmd.input || {});
     else error = 'unknown kind: ' + cmd.kind;
   } catch (e) { error = String((e && e.message) || e); }
-  try {
-    await fetch(API + '/api/ext/result', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: cmd.id, output, error }),
-    });
-  } catch (e) { /* ignore */ }
+  await postResult(cmd.id, output, error);
 }
 
 function openAndWait(url) {
@@ -83,4 +123,9 @@ chrome.storage.local.get('active', (o) => { active = o.active !== false; poll();
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (msg && msg.type === 'setActive') { active = !!msg.value; chrome.storage.local.set({ active }); if (active) poll(); send({ ok: true }); }
   if (msg && msg.type === 'getActive') { chrome.storage.local.get('active', (o) => send({ active: o.active !== false })); return true; }
+  if (msg && msg.type === 'sokroDecision') {
+    const r = pendingConfirms[msg.id];
+    if (r) { delete pendingConfirms[msg.id]; r({ allow: !!msg.allow, always: !!msg.always }); }
+    send && send({ ok: true });
+  }
 });
