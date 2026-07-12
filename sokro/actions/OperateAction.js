@@ -281,7 +281,26 @@ async function run(ctx, input) {
     noSite = true;
     url = 'https://www.google.com/search?q=' + encodeURIComponent(goal);
   }
-  try { url = await require('../lib/urlGuard').assertSafeUrl(url); } catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
+  // Self-heal a mistyped/voice-garbled host (e.g. "we.sylndr.com" → "www.sylndr.com"
+  // → "sylndr.com"): try the URL, then the www + registrable-domain variants, and
+  // use the first that resolves + passes the SSRF guard.
+  {
+    const guard = require('../lib/urlGuard');
+    const candidates = [url];
+    try {
+      const u = new URL(url);
+      const parts = u.hostname.split('.');
+      const base = parts.slice(-2).join('.');
+      if (u.hostname !== 'www.' + base) candidates.push(u.protocol + '//www.' + base + u.pathname + u.search);
+      if (u.hostname !== base) candidates.push(u.protocol + '//' + base + u.pathname + u.search);
+    } catch (_) {}
+    let safe = null, lastErr = '';
+    for (const c of candidates) {
+      try { safe = await guard.assertSafeUrl(c); break; } catch (e) { lastErr = e.message; }
+    }
+    if (!safe) return { ok: false, error: 'الموقع مش موجود أو الدومين غلط: ' + lastErr + ' — تأكد من الاسم (مثلاً sylndr.com مش we.sylndr.com).' };
+    url = safe;
+  }
   if (noSite) {
     const br = ctx.actions && ctx.actions.get && ctx.actions.get('browse');
     if (br) {
