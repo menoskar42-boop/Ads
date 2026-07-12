@@ -20,12 +20,26 @@ function makeProvider() {
     if (!reasoning) body.temperature = temperature;
     if (json) body.response_format = { type: 'json_object' };
     if (maxTokens) body[reasoning ? 'max_completion_tokens' : 'max_tokens'] = maxTokens;
-    const r = await fetch(BASE + '/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error('openai chat ' + r.status + ': ' + (await r.text()).slice(0, 300));
+    // Retry on 429 (rate-limit) / 503 with exponential backoff. On a low usage
+    // tier, bursty planner/summarizer calls hit the per-minute cap — a short wait
+    // + retry rides it out instead of failing the whole task.
+    let r, lastBody = '';
+    for (let attempt = 0; attempt < 4; attempt++) {
+      r = await fetch(BASE + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) break;
+      lastBody = (await r.text()).slice(0, 300);
+      if ((r.status === 429 || r.status === 503) && attempt < 3) {
+        const retryAfter = parseFloat(r.headers.get('retry-after')) || 0;
+        const wait = Math.max(retryAfter * 1000, 800 * Math.pow(2, attempt)); // 0.8s,1.6s,3.2s
+        await new Promise((res) => setTimeout(res, wait));
+        continue;
+      }
+      throw new Error('openai chat ' + r.status + ': ' + lastBody);
+    }
     const data = await r.json();
     const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
     return { text, raw: data };
