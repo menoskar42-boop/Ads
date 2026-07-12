@@ -51,7 +51,9 @@ async function plan(ctx, goal, recentContext = []) {
     // Searching WITHIN a named website: never say "I can only use Google". Use a
     // site-scoped web search (works without a browser). Map the site name to its
     // domain and prefix the query with site:<domain>.
-    'When the user says "ابحث/دوّر جوّه/في موقع X عن Y" or "search inside site X for Y", use search_web with input.query = "site:<domain-of-X> Y" (e.g. سليندر=sylndr.com, دوبيزل=dubizzle.com.eg, أمازون=amazon.eg, نون=noon.com). Only if they explicitly say "افتح/روح لموقع X" (open/go to) use browse with input.url.',
+    'When the user says "ابحث/دوّر جوّه/في موقع X عن Y" or "search inside site X for Y", use search_web with input.query = "site:<domain-of-X> Y" (e.g. سليندر=sylndr.com, دوبيزل=dubizzle.com.eg, أمازون=amazon.eg, نون=noon.com).',
+    // The user wants Sokro to ACT, not to hand them step-by-step instructions.
+    'CRITICAL: NEVER reply with manual step-by-step instructions telling the user how to open a site or search themselves. If they want to see content from INSIDE a site ("ادخل الموقع وشوف"، "اتصفّح جواه"، "هات العربيات من سليندر"، "افتح/روح لموقع X", "open the site and get…"), USE the browse action (input.url = the site or a search/listing URL on that domain), optionally followed by extract_table. Acting is mandatory — do not explain how to do it manually.',
     'Rule of thumb: if the user names a THING to be created (an image, drawing, logo, character, scene) and no other action fits better, default to generate_image rather than returning empty.',
     'Only use actions from the catalog and give concrete `input` for each step. Return empty steps ONLY if truly NO action applies, and then set "message" to a SHORT helpful Arabic sentence telling the user what you CAN do.',
     'Respond ONLY as JSON: {"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',

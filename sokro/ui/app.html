@@ -126,6 +126,11 @@
 (function(){
   var $=function(s){return document.querySelector(s)};
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(e){} }
+  // Keep the screen awake while Sokro is open (mobile + desktop). Wake locks are
+  // auto-released when the tab is hidden, so re-acquire when it becomes visible.
+  var wakeLock=null;
+  async function requestWake(){ try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',function(){ wakeLock=null; }); } }catch(e){} }
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible' && !wakeLock) requestWake(); });
   var mode='login';
   var audioEl=new Audio();
   // TTS is OPT-IN: replies are text-first (cheaper, clearer). The user turns on
@@ -164,6 +169,7 @@
   async function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
     $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
     $('#mute').classList.remove('hidden'); $('#mute').textContent=speakAloud?'🔊':'🔈';
+    requestWake(); // keep the screen on while using Sokro
     loadSettings();
     var had=await loadHistory();
     if(!had && !$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً'+(user&&user.display_name?(' '+user.display_name):'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، اخلقلك صورة، أو أي مهمة.'); }

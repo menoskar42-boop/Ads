@@ -23,7 +23,7 @@ async function run(ctx, input) {
     return { ok: false, error: r.error };
   }
   if (!ctx.browser || !ctx.browser.available()) {
-    return { ok: false, error: 'browser engine not installed (run: npm i playwright && npx playwright install chromium)' };
+    return { ok: false, error: 'محتاج تشغّل متصفّح سوكرو عشان أدخل الموقع بنفسي: نزّل إضافة كروم من sokro.oscardevs.com/ext ووصّلها، أو فعّل متصفّح السيرفر (Playwright). (browser engine unavailable)' };
   }
   try {
     const out = await ctx.browser.withPage(async (page) => {
