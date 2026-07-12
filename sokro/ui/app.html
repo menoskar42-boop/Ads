@@ -308,6 +308,9 @@
     images.forEach(addImage);
     if(report) addDownloads(report);
     speak(summary);
+    // If a step failed, show WHY (the real reason + all methods tried) — so
+    // "المهمة فشلت" isn't a dead end on the text/mobile path either.
+    if(d.ok===false){ (d.results||[]).forEach(function(r){ var rr=r.result; if(rr && rr.ok===false){ showFailure(rr); } }); }
     // A sensitive step (pay/delete/submit) is waiting for the user's OK — show an
     // INLINE confirm card in the chat (not a popup) and accept a voice "أكّد" too.
     if(confirm && d.taskId) renderInlineConfirm(confirm, d.taskId);
