@@ -265,6 +265,9 @@
     var txt=await r.text();
     try{ return JSON.parse(txt); }
     catch(e){ var snip=txt.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,90);
+      if(r.status===429 || /rate exceeded|too many/i.test(txt)){
+        return { ok:false, rateLimited:true, error:'الطلبات كتير على السيرفر في وقت قصير (Rate exceeded) — استنى ثانية وجرّب تاني.' };
+      }
       return { ok:false, error:'السيرفر ردّ بصفحة (status '+r.status+') مش JSON — غالباً السيرفر وقع/بيعيد التشغيل أو الرام خلصت. '+(snip?('['+snip+']'):'') }; }
   }
   // Natural, VARIED "give me a sec" phrases so it feels human, not scripted.
@@ -613,6 +616,13 @@
   // working while you talk to it.
   async function runRtTool(name,callId,argsStr){
     var args={}; try{ args=JSON.parse(argsStr||'{}'); }catch(e){}
+    // Don't fire another server request while a confirmation is already pending —
+    // that's what caused the request storm → "Rate exceeded". Just tell the model
+    // to wait for the user's confirmation.
+    if(pendingConfirm){
+      try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:JSON.stringify({status:'awaiting_user_confirmation',note:'استنى تأكيد المستخدم بصمت — لا تنادِ الأداة تاني.'})}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
+      return;
+    }
     var chip=addMsg('ai',toolLabel(name)+'…','think');
     var out;
     logEvent('طلب أداة: '+name);
@@ -650,7 +660,11 @@
     var chip=addMsg('ai',toolLabel(name)+'…','think');
     try{
       var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))});
-      var d=await apiJson(r); try{chip.remove();}catch(e){}
+      var d=await apiJson(r);
+      // Rate-limited → wait a moment and retry ONCE (the platform throttle is brief).
+      if(d&&d.rateLimited){ logEvent('⏳ اترفض (Rate) — بعيد بعد ثانيتين'); await new Promise(function(res){setTimeout(res,2500);});
+        r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))}); d=await apiJson(r); }
+      try{chip.remove();}catch(e){}
       // Surface the REAL reason on failure so we can diagnose, not a generic line.
       var reason = (d&&(d.error || (d.output&&d.output.error))) || '';
       if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); logEvent('❌ فشل '+name+': '+reason); }
