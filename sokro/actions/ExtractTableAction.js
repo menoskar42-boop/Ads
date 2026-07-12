@@ -6,8 +6,10 @@
 const { register } = require('./_registry');
 
 async function run(ctx, input) {
-  const url = String((input && input.url) || '').trim();
+  let url = String((input && input.url) || '').trim();
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
+  try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
+  catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
     const r = await ext.run(ctx.userId, 'extract_table', { url, selector: input && input.selector });

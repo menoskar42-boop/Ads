@@ -8,8 +8,12 @@
 const { register } = require('./_registry');
 
 async function run(ctx, input) {
-  const url = String((input && input.url) || '').trim();
+  let url = String((input && input.url) || '').trim();
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
+  // SSRF guard: never let a browse target hit localhost / the private network /
+  // the cloud metadata endpoint (server Playwright shares the deployment's LAN).
+  try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
+  catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
   // Prefer the user's LIVE browser via the connected extension (logged-in
   // sessions, no server Chromium). Falls back to server-side Playwright.
   const ext = require('../extension-bridge');

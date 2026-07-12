@@ -7,8 +7,15 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
+// Never ship a KNOWN default secret to production — that would let anyone forge
+// tokens. If no secret is configured in production we fall back to a random
+// per-boot key (unguessable; sessions just don't survive a restart) instead of
+// the shared dev string. Set SOKRO_JWT_SECRET (or SESSION_SECRET) to persist.
+const RANDOM_FALLBACK = crypto.randomBytes(32).toString('hex');
 function tokenSecret() {
-  return process.env.SOKRO_JWT_SECRET || process.env.SESSION_SECRET || 'sokro-dev-secret-change-me';
+  const s = process.env.SOKRO_JWT_SECRET || process.env.SESSION_SECRET;
+  if (s) return s;
+  return process.env.NODE_ENV === 'production' ? RANDOM_FALLBACK : 'sokro-dev-secret-change-me';
 }
 
 function b64url(buf) {

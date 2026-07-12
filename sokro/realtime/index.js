@@ -8,21 +8,28 @@
 const config = require('../core/config');
 const settings = require('../settings');
 const registry = require('../registry');
+const permissions = require('../permissions');
 const AP = require('../assistant-profile');
 const lang = require('../core/lang');
 
 const BASE = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 
 function tools() {
-  return registry.catalog().map((c) => {
-    const cap = registry.get(c.name);
-    return {
-      type: 'function',
-      name: c.name,
-      description: c.description || '',
-      parameters: (cap && cap.inputSchema) || { type: 'object', properties: { query: { type: 'string' } } },
-    };
-  });
+  // Only expose NON-sensitive tools to the live model. Sensitive ones
+  // (browser/login/social/payment…) require explicit consent, which the realtime
+  // tool-call bridge can't collect mid-call — so they're withheld here and the
+  // consent-gated /api/run flow remains the only path to them.
+  return registry.catalog()
+    .filter((c) => { const cap = registry.get(c.name); return !permissions.isSensitive(cap && cap.permissions); })
+    .map((c) => {
+      const cap = registry.get(c.name);
+      return {
+        type: 'function',
+        name: c.name,
+        description: c.description || '',
+        parameters: (cap && cap.inputSchema) || { type: 'object', properties: { query: { type: 'string' } } },
+      };
+    });
 }
 
 async function session(userId) {

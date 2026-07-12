@@ -74,7 +74,7 @@ router.get('/api/llm/status', auth.requireAuth, (_req, res) => {
 });
 
 // ── Auth API (mobile + web) ──────────────────────────────────────────────────
-const COOKIE = { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 3600 * 1000 };
+const COOKIE = { httpOnly: true, sameSite: 'lax', secure: config.env === 'production', path: '/', maxAge: 7 * 24 * 3600 * 1000 };
 
 router.post('/api/auth/signup', loginLimiter, async (req, res) => {
   try {
@@ -171,6 +171,17 @@ router.get('/api/actions', auth.requireAuth, (_req, res) => {
 router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
   const action = registry.get(req.params.name);
   if (!action) return res.status(404).json({ ok: false, error: 'unknown action' });
+  // Consent gate: direct execution (used by the realtime tool-call bridge and
+  // the actions UI) must NOT bypass the consent the planner enforces. Sensitive
+  // actions (browser/login/social/payment…) can only run through /api/run, which
+  // pauses for the user's confirmation first.
+  if (permissions.isSensitive(action.permissions)) {
+    return res.status(403).json({
+      ok: false, requiresConsent: true,
+      sensitive: (action.permissions || []).filter((p) => permissions.SENSITIVE.has(p)),
+      error: 'هذا الإجراء يتطلب تأكيدًا — نفّذه من خلال طلب كامل (/api/run) عشان ياخد موافقتك الأول',
+    });
+  }
   const ctx = {
     userId: req.sokroUser.id,
     llm: require('./llm'),
@@ -217,10 +228,18 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     // Resolve (or start) a conversation so the whole exchange is remembered.
     let convId = (req.body && req.body.conversationId) || null;
     if (!convId) convId = (await memory.createConversation(req.sokroUser.id, goal.slice(0, 60))).id;
+    // Pull the recent turns BEFORE recording the new one, so the planner has the
+    // conversation context (follow-up questions like "و كمان بالإنجليزي") without
+    // duplicating the current goal it appends itself.
+    let recentContext = [];
+    try {
+      const prev = await memory.getMessagesFor(req.sokroUser.id, convId, 8);
+      if (Array.isArray(prev)) recentContext = prev.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 1500) }));
+    } catch (_) {}
     await memory.addMessage(convId, 'user', goal);
     const task = await memory.createTask(req.sokroUser.id, goal, convId);
     const ctx = sokroCtx(req.sokroUser.id, task.id, prefs);
-    const plan = await planner.plan(ctx, goal);
+    const plan = await planner.plan(ctx, goal, recentContext);
     const perms = permissions.forPlan(plan, registry);
     await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
     if (perms.requiresConsent) {
