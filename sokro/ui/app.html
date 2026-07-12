@@ -25,10 +25,14 @@
   .err{color:#ff9a9a;font-size:.85rem;margin-bottom:8px;min-height:1em}
   /* chat */
   #log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:8px 2px 16px}
-  .msg{max-width:85%;padding:11px 14px;border-radius:16px;line-height:1.75;font-size:.96rem;white-space:pre-wrap}
+  .msg{max-width:85%;padding:11px 14px;border-radius:16px;line-height:1.75;font-size:.96rem;display:flex;flex-direction:column;gap:4px}
+  .msg .msg-text{white-space:pre-wrap}
   .me{align-self:flex-start;background:#2a356b}
   .ai{align-self:flex-end;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
   .ai.think{color:#9aa2cf;font-style:italic}
+  .copybtn{align-self:flex-end;background:transparent;border:0;color:inherit;opacity:.5;cursor:pointer;font-size:.82rem;padding:1px 3px;line-height:1;border-radius:6px}
+  .copybtn:hover{opacity:1;background:rgba(255,255,255,.08)}
+  .copybtn.ok{opacity:1}
   .plan{align-self:flex-end;max-width:85%;background:rgba(120,140,255,.10);border:1px solid rgba(120,140,255,.3);border-radius:16px;padding:12px 14px;font-size:.9rem}
   .plan ol{margin:6px 18px 10px}.plan .perms{color:#ffd58a;font-size:.82rem;margin-bottom:8px}
   .plan .row{display:flex;gap:8px;margin-top:8px}
@@ -170,7 +174,17 @@
   $('#logout').onclick=async function(){ await fetch('/api/auth/logout',{method:'POST'}); location.reload(); };
 
   // ---------- chat ----------
-  function addMsg(who,text,cls){ var d=document.createElement('div'); d.className='msg '+(who==='me'?'me':'ai')+(cls?' '+cls:''); d.textContent=text; $('#log').appendChild(d); $('#log').scrollTop=1e9; return d; }
+  function copyText(t,btn){
+    function done(){ if(!btn)return; var o=btn.textContent; btn.textContent='✓'; btn.classList.add('ok'); setTimeout(function(){ btn.textContent=o; btn.classList.remove('ok'); },1200); }
+    function fallback(){ try{ var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }catch(e){} }
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done,function(){ fallback(); done(); }); } else { fallback(); done(); } }catch(e){ fallback(); done(); }
+  }
+  function addMsg(who,text,cls){
+    var d=document.createElement('div'); d.className='msg '+(who==='me'?'me':'ai')+(cls?' '+cls:'');
+    var body=document.createElement('div'); body.className='msg-text'; body.textContent=text; d.appendChild(body);
+    if(cls!=='think'){ var b=document.createElement('button'); b.type='button'; b.className='copybtn'; b.title='نسخ'; b.textContent='📋'; b.onclick=function(){ copyText(text,b); }; d.appendChild(b); }
+    $('#log').appendChild(d); $('#log').scrollTop=1e9; return d;
+  }
 
   async function speak(text){
     if(!text) return;

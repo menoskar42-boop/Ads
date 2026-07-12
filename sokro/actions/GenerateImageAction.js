@@ -13,15 +13,22 @@ async function run(ctx, input) {
   const key = config.llm.openai.apiKey;
   if (!key) return { ok: false, error: 'OPENAI_API_KEY not configured' };
   try {
+    // gpt-image-1 is the current image model (dall-e-3 was retired — it now
+    // rejects with invalid_value). gpt-image-1 does NOT accept response_format
+    // and ALWAYS returns base64 (b64_json), never a URL, so we build a data URL
+    // from the bytes below. Model + quality overridable via env.
+    const model = process.env.SOKRO_IMAGE_MODEL || 'gpt-image-1';
+    const body = { model, prompt, n: 1, size: (input && input.size) || '1024x1024' };
+    if (/^gpt-image/i.test(model)) body.quality = process.env.SOKRO_IMAGE_QUALITY || 'medium';
     const r = await fetch(BASE + '/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-      body: JSON.stringify({ model: process.env.SOKRO_IMAGE_MODEL || 'dall-e-3', prompt, n: 1, size: (input && input.size) || '1024x1024' }),
+      body: JSON.stringify(body),
     });
     if (!r.ok) return { ok: false, error: 'image gen ' + r.status + ': ' + (await r.text()).slice(0, 200) };
     const data = await r.json();
     const item = (data.data && data.data[0]) || {};
-    const url = item.url || (item.b64_json ? ('data:image/png;base64,' + item.b64_json) : null);
+    const url = item.b64_json ? ('data:image/png;base64,' + item.b64_json) : (item.url || null);
     if (!url) return { ok: false, error: 'no image returned' };
     if (ctx && ctx.log) ctx.log('generate_image', { prompt });
     return { ok: true, output: { prompt, imageUrl: url } };
