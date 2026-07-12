@@ -256,16 +256,19 @@
   }
   function addDownloads(payload){
     var el=document.createElement('div'); el.className='plan'; el.style.background='rgba(34,211,238,.08)';
-    el.innerHTML='<div>⬇︎ تنزيل التقرير:</div><div class="row"><button class="ok" data-f="xlsx">Excel</button><button class="ok" data-f="md">Markdown</button></div>';
+    el.innerHTML='<div>⬇︎ تنزيل التقرير:</div><div class="row"><button class="ok" data-f="pdf">PDF</button><button class="ok" data-f="xlsx">Excel</button><button class="ok" data-f="md">Markdown</button></div>';
     $('#log').appendChild(el); scrollToBottom();
     el.querySelectorAll('button').forEach(function(btn){ btn.onclick=function(){ dl(btn.dataset.f,payload); }; });
   }
   async function dl(format,payload){
+    var ext={pdf:'pdf',xlsx:'xlsx',csv:'csv',json:'json',md:'md'}[format]||'md';
     try{
       var r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({format:format},payload))});
-      if(!r.ok) return; var b=await r.blob(); var u=URL.createObjectURL(b);
-      var a=document.createElement('a'); a.href=u; a.download=(payload.title||'report')+'.'+(format==='xlsx'?'xlsx':'md'); document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
-    }catch(e){}
+      if(!r.ok){ var e=await r.json().catch(function(){return{};}); addMsg('ai','تعذّر إنشاء الملف: '+(e.error||('HTTP '+r.status))); return; }
+      var b=await r.blob(); var u=URL.createObjectURL(b);
+      var a=document.createElement('a'); a.href=u; a.download=(payload.title||'report')+'.'+ext; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){URL.revokeObjectURL(u);},2000);
+    }catch(e){ addMsg('ai','تعذّر تنزيل الملف.'); }
   }
 
   function renderConsent(d){

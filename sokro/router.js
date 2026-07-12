@@ -304,11 +304,12 @@ router.put('/api/settings', auth.requireAuth, async (req, res) => {
 
 // Generate + download a report (Excel / Markdown / CSV / JSON) from content the
 // assistant produced. Returned as a file attachment — no server storage needed.
-router.post('/api/report', auth.requireAuth, (req, res) => {
+router.post('/api/report', auth.requireAuth, async (req, res) => {
   const b = req.body || {};
   const payload = { title: String(b.title || 'report'), text: String(b.text || ''), rows: Array.isArray(b.rows) ? b.rows : null };
   try {
-    const f = reports.build(b.format, payload);
+    const fmt = String(b.format || 'md').toLowerCase();
+    const f = fmt === 'pdf' ? await reports.toPDF(payload) : reports.build(b.format, payload);
     const name = (payload.title || 'report').replace(/[^\w؀-ۿ -]/g, '').trim().slice(0, 60) || 'report';
     res.setHeader('Content-Type', f.mime);
     res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(name) + '.' + f.ext);

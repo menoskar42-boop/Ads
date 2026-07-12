@@ -12,7 +12,9 @@ async function transcribe(buffer, filename = 'audio.webm', language = 'ar') {
   if (!key) throw new Error('OPENAI_API_KEY not configured');
   const form = new FormData();
   form.append('file', new Blob([buffer]), filename);
-  form.append('model', 'whisper-1');
+  // gpt-4o-transcribe recognises Egyptian Arabic, names and numbers better than
+  // the original Whisper. Overridable (SOKRO_STT_MODEL) — e.g. back to whisper-1.
+  form.append('model', process.env.SOKRO_STT_MODEL || 'gpt-4o-transcribe');
   if (language) form.append('language', language);
   const r = await fetch(BASE + '/audio/transcriptions', {
     method: 'POST',
