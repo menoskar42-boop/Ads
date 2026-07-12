@@ -53,6 +53,11 @@
   #mic:active{transform:scale(.94)}
   #mic.rec{animation:pulse 1.1s infinite;background:linear-gradient(135deg,#ff5b6c,#ff9a3c)}
   #send{width:74px;height:74px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1.7rem;box-shadow:0 8px 30px rgba(34,197,94,.4);transition:transform .12s;flex:none;display:flex;align-items:center;justify-content:center}
+  #attach{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#cdd6ff;font-size:1.2rem;cursor:pointer;flex:none}
+  #attach:hover{background:rgba(255,255,255,.12)}
+  #pendbar{display:flex;align-items:center;gap:8px;width:100%;max-width:520px;margin-bottom:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:6px 10px}
+  #pendbar img{width:42px;height:42px;object-fit:cover;border-radius:8px}
+  #pendbar .rm{margin-inline-start:auto;background:transparent;border:0;color:#ff9a9a;cursor:pointer;font-size:1.1rem}
   #send:active{transform:scale(.94)}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,91,108,.5)}50%{box-shadow:0 0 0 16px rgba(255,91,108,0)}}
   .hidden{display:none!important}
@@ -120,7 +125,10 @@
   <audio id="rtaudio" autoplay></audio>
   <div id="dock" class="dock hidden">
     <div class="status" id="status">اكتب طلبك… أو اضغط 📞 لمكالمة صوتية</div>
+    <div id="pendbar" class="hidden"></div>
     <div class="microw">
+      <button id="attach" title="أضف صورة">📎</button>
+      <input id="file" type="file" accept="image/*" style="display:none" />
       <input id="text" placeholder="اكتب طلبك هنا…" />
       <button id="send" class="hidden" title="إرسال">➤</button>
       <button id="call" title="مكالمة صوتية مباشرة — اتكلم معاه" style="width:74px;height:74px;border-radius:50%;border:0;background:linear-gradient(135deg,#5b6cff,#22d3ee);color:#fff;font-size:1.7rem;cursor:pointer;flex:none;box-shadow:0 8px 30px rgba(91,108,255,.45);transition:transform .12s">📞</button>
@@ -345,8 +353,36 @@
   }
   // WhatsApp-style composer: show the send button while typing (hide the mic),
   // send on Enter or on the ➤ button, and always scroll to the newest message.
-  function toggleSend(){ var has=$('#text').value.trim().length>0; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
-  function sendText(){ var t=$('#text').value.trim(); if(!t)return; run(t); $('#text').value=''; toggleSend(); scrollToBottom(); }
+  // ---------- attachments (image the model can read) ----------
+  var pendingImage=null;
+  $('#attach').onclick=function(){ $('#file').click(); };
+  $('#file').onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(!f)return;
+    var r=new FileReader(); r.onload=function(){ pendingImage=r.result; showPending(); toggleSend(); }; r.readAsDataURL(f); e.target.value=''; };
+  function showPending(){ var b=$('#pendbar'); if(!pendingImage){ b.classList.add('hidden'); b.innerHTML=''; return; }
+    b.classList.remove('hidden'); b.innerHTML='<img src="'+pendingImage+'"><span style="font-size:.85rem;color:#c3c9ee">صورة جاهزة تتبعت</span><button class="rm" title="شيل">✕</button>';
+    b.querySelector('.rm').onclick=function(){ pendingImage=null; showPending(); toggleSend(); }; }
+  // Send typed text (and/or an image) INTO an active call over the data channel,
+  // so the live model sees what you type/attach mid-conversation.
+  function sendToCall(text,image){
+    if(!rtDc||rtDc.readyState!=='open'){ addMsg('ai','المكالمة مش جاهزة لسه.'); return; }
+    var content=[]; if(image) content.push({type:'input_image',image_url:image}); if(text) content.push({type:'input_text',text:text});
+    if(!content.length) return;
+    if(image) addImage(image); if(text) addMsg('me',text);
+    try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:content}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
+  }
+  async function runVision(text,image){
+    if(image) addImage(image); if(text) addMsg('me',text);
+    var think=addMsg('ai','بشوف الصورة…','think');
+    try{ var r=await fetch('/api/vision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,image:image,conversationId:convId})});
+      var d=await r.json(); think.remove(); if(d.conversationId) convId=d.conversationId;
+      if(d.ok&&d.answer){ addMsg('ai',d.answer); speak(d.answer); } else addMsg('ai','معرفتش أقرا الصورة: '+(d.error||'')); }
+    catch(e){ think.remove(); addMsg('ai','تعذّر تحليل الصورة.'); }
+  }
+  // ---------- composer: one button (📞 → ➤ while typing), image-aware ----------
+  function toggleSend(){ var has=$('#text').value.trim().length>0 || !!pendingImage; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
+  function sendText(){ var t=$('#text').value.trim(); var img=pendingImage; if(!t&&!img)return;
+    if(rtOn){ sendToCall(t,img); } else if(img){ runVision(t,img); } else { run(t); }
+    $('#text').value=''; pendingImage=null; showPending(); toggleSend(); scrollToBottom(); }
   $('#text').addEventListener('input',toggleSend);
   $('#text').addEventListener('focus',scrollToBottom);
   $('#text').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendText(); } });

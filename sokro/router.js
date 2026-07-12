@@ -292,6 +292,33 @@ router.post('/api/voice', auth.requireAuth, (req, res) => uploadAudio(req, res, 
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 }));
 
+// Vision: the user attaches an image (+ optional text) and the model "reads" it.
+// Used by the text composer's 📎 attach button (the live call sends images
+// straight over the data channel instead). Accepts a data: URL or an http(s) URL.
+router.post('/api/vision', auth.requireAuth, async (req, res) => {
+  const text = String((req.body && req.body.text) || '').trim();
+  const image = String((req.body && req.body.image) || '').trim();
+  if (!/^(data:image\/|https?:\/\/)/i.test(image)) return res.status(400).json({ ok: false, error: 'valid image required' });
+  try {
+    const prefs = await settings.get(req.sokroUser.id);
+    const AP = require('./assistant-profile');
+    const lang = require('./core/lang');
+    const sys = AP.buildPreamble(prefs) + ' ' + lang.replyInstruction(prefs.lang) + ' The user shared an image — look at it and answer helpfully.';
+    const messages = [
+      { role: 'system', content: sys },
+      { role: 'user', content: [{ type: 'text', text: text || 'بُص الصورة دي وقوللي فيها إيه أو رأيك فيها.' }, { type: 'image_url', image_url: { url: image } }] },
+    ];
+    const out = await require('./llm').chat({ messages });
+    let convId = (req.body && req.body.conversationId) || null;
+    try {
+      if (!convId) convId = (await memory.createConversation(req.sokroUser.id, (text || 'صورة').slice(0, 60))).id;
+      await memory.addMessage(convId, 'user', '[صورة] ' + text);
+      if (out && out.text) await memory.addMessage(convId, 'assistant', out.text);
+    } catch (_) {}
+    res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
+  } catch (e) { console.error('[sokro] vision:', e.message); res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // Text → speech (high-quality Egyptian Arabic). Returns MP3 audio.
 router.post('/api/speak', auth.requireAuth, async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
