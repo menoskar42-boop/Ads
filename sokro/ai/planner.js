@@ -12,6 +12,30 @@ function catalogText(catalog) {
   return catalog.map((a) => `- ${a.name}: ${a.description}`).join('\n');
 }
 
+// Deterministic fast-path / safety net for the two most common commands. It runs
+// with NO LLM, so an obvious "draw a cat" / "search X" NEVER fails just because
+// the model was flaky, unavailable, or returned empty steps. Used both as a
+// fast path and as the fallback when the LLM produces nothing usable.
+function heuristicPlan(goal, names) {
+  const g = ' ' + String(goal).toLowerCase().trim() + ' ';
+  const has = (arr) => arr.some((w) => g.includes(w));
+  const imageWords = ['صور', 'ارسم', 'إرسم', 'ارسملي', 'ارسملى', 'رسمة', 'رسمه', 'رسملي', 'ارسمه', 'لوجو', 'logo', 'draw', 'picture', 'image', 'رسم '];
+  const searchWords = ['ابحث', 'ابحثلي', 'ابحثلى', 'دوّر', 'دور ', 'لاقي', 'لاقيلي', 'search', 'find ', 'google', 'جوجل'];
+  const reportWords = ['تقرير', 'report', 'فيديو', 'video', 'ملف', 'حجز', 'احجز', 'book', 'انشر', 'بوست', 'post'];
+  const makeVerbs = ['اعمل', 'اعملي', 'اعملى', 'اعمللي', 'اعمللى', 'اخلق', 'اخلقلي', 'صمم', 'صمملي', 'هات', 'هاتلي', 'عايز', 'عاوز', 'عايزة'];
+  const wantImage = has(imageWords);
+  const wantSearch = has(searchWords);
+  if (wantSearch && !wantImage && names.has('search_web')) {
+    return { intent: 'search', steps: [{ action: 'search_web', input: { query: goal }, reason: 'كلمات بحث صريحة' }], _heuristic: true };
+  }
+  const words = String(goal).trim().split(/\s+/);
+  const makeVerb = makeVerbs.some((w) => words[0] && words[0].startsWith(w));
+  if (names.has('generate_image') && (wantImage || (makeVerb && words.length <= 5 && !has(reportWords) && !wantSearch))) {
+    return { intent: 'image', steps: [{ action: 'generate_image', input: { prompt: goal }, reason: 'طلب توليد صورة' }], _heuristic: true };
+  }
+  return null;
+}
+
 async function plan(ctx, goal, recentContext = []) {
   const catalog = ctx.actions.catalog();
   const sys = [
@@ -28,11 +52,23 @@ async function plan(ctx, goal, recentContext = []) {
     'Only use actions from the catalog and give concrete `input` for each step. Return empty steps ONLY if truly NO action applies, and then set "message" to a SHORT helpful Arabic sentence telling the user what you CAN do.',
     'Respond ONLY as JSON: {"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',
   ].join(' ');
+  const names = new Set(catalog.map((a) => a.name));
   const user = `Available actions:\n${catalogText(catalog)}\n\nUser goal: ${goal}`;
   const messages = [{ role: 'system', content: sys }, ...recentContext, { role: 'user', content: user }];
-  const out = await llm.json({ messages });
-  if (!out || !Array.isArray(out.steps)) return { intent: 'unknown', steps: [], message: (out && out.message) || 'could not plan' };
-  return out;
+  // Ask the LLM, but never let a thrown/absent model turn an obvious command
+  // into a dead end — fall back to the deterministic heuristic below.
+  let out = null;
+  try { out = await llm.json({ messages }); } catch (e) { out = null; }
+  if (out && Array.isArray(out.steps) && out.steps.length) return out;
+  // LLM returned nothing usable (empty steps, unparseable, or unavailable):
+  // try the deterministic heuristic so "ارسم صورة قطة" / "ابحثلي..." still run.
+  const h = heuristicPlan(goal, names);
+  if (h) return h;
+  return {
+    intent: 'unknown',
+    steps: [],
+    message: (out && out.message) || 'مش قادر أحدّد المطلوب — جرّب مثلاً «ارسملي صورة قطة» أو «ابحثلي عن أسعار كذا».',
+  };
 }
 
 // Short, user-facing natural-language summary of what happened.
