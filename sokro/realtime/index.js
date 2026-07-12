@@ -78,7 +78,8 @@ async function session(userId) {
         audio: {
           input: {
             // Better live transcription than whisper-1 (Egyptian Arabic/names/numbers).
-            transcription: { model: process.env.SOKRO_REALTIME_TRANSCRIBE || 'gpt-4o-transcribe' },
+            // language hint = Arabic so short cues like «أكّد/أيوه» aren't misheard as English.
+            transcription: { model: process.env.SOKRO_REALTIME_TRANSCRIBE || 'gpt-4o-transcribe', language: 'ar' },
             // server_vad gives natural barge-in (the user can interrupt the model).
             turn_detection: { type: 'server_vad', silence_duration_ms: 500 },
           },

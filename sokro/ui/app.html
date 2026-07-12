@@ -328,6 +328,17 @@
   // can tap أكّد or just SAY "أكّد/كمّل" (voice counts as pressing the button). If a
   // call is open, the request is spoken AND written.
   var pendingConfirm=null;
+  // Learn THIS user's confirm vocabulary over time: the words they actually use to
+  // say "yes" get remembered (persisted) and always accepted next time — helps a
+  // lot when the recognizer mishears «أكّد». `lastUtterance` = the user's most
+  // recent spoken/typed line, so pressing the أكّد button can learn what they said.
+  var confirmVocab=[]; try{ confirmVocab=JSON.parse(localStorage.getItem('sokro_confirmwords')||'[]')||[]; }catch(e){ confirmVocab=[]; }
+  var lastUtterance='';
+  function learnConfirmWord(w){ w=String(w||'').trim().toLowerCase(); if(!w) return;
+    if(w.length>16 || w.split(/\s+/).length>2) return;           // only short cues
+    if(/\d/.test(w)) return;
+    if(confirmVocab.indexOf(w)<0){ confirmVocab.push(w); try{ localStorage.setItem('sokro_confirmwords', JSON.stringify(confirmVocab.slice(-40))); }catch(e){}
+      logEvent('🧠 اتعلّمت إن «'+w+'» = تأكيد'); } }
   function renderInlineConfirm(confirm, taskId, onYes){
     var el=document.createElement('div'); el.className='plan';
     var msg=confirm.answer||('محتاج تأكيدك قبل إجراء حسّاس: «'+confirm.label+'».');
@@ -343,7 +354,9 @@
           try{ var r=await fetch('/api/run/'+taskId+'/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmSensitive:true})}); endThinking(think); renderResult(await r.json()); }
           catch(e){ endThinking(think); addMsg('ai','تعذّر تنفيذ الإجراء.'); } };
     var doCancel=function(){ done('تمام، وقّفت.'); addMsg('ai','تمام، مضغطتش على الزر.'); };
-    el.querySelector('.ok').onclick=doConfirm;
+    // Pressing the button = an explicit YES. If the user had just SPOKEN something
+    // the recognizer didn't map to yes, learn that phrase as their confirm word.
+    el.querySelector('.ok').onclick=function(){ if(lastUtterance) learnConfirmWord(lastUtterance); doConfirm(); };
     el.querySelector('.no').onclick=doCancel;
     pendingConfirm={ yes:doConfirm, no:doCancel };
   }
@@ -351,11 +364,22 @@
   // return true (so it isn't treated as a brand-new request).
   function handleConfirmWord(text){
     if(!pendingConfirm) return false;
-    var t=' '+String(text||'').trim().toLowerCase()+' ';
-    var yes=/(أكّد|اكد|أكد|كمّل|كمل|أيوه|ايوه|اه|نعم|تمام|موافق|امشي|go ahead|confirm|yes|ok)/;
-    var no=/(لأ|لا|وقف|وقّف|بطّل|بطل|الغِ|الغي|إلغاء|cancel|stop|no)/;
+    var raw=String(text||'').trim();
+    var t=' '+raw.toLowerCase()+' ';
+    // Broad YES set — the voice recognizer often mishears «أكّد», so accept any
+    // natural affirmative (أيوه/تمام/ماشي/موافق/حاضر/يلا…) AND common mis-
+    // transcriptions of "akkid" (akhet/aket/aked…). Check NO first so «لأ» wins.
+    var no=/(^|\s)(لأ|لأه|لاء|لا|no|nope|cancel|stop|بطّل|بطل|وقف|وقّف|الغِ|الغي|إلغاء|كفاية|بلاش)(\s|$)/;
+    var yes=/(أكّد|أكد|اكد|اكّد|كمّل|كمل|كمله|أيوه|ايوه|ايوة|أيوة|اه|آه|أه|نعم|تمام|تمّام|ماشي|ماشى|موافق|موافقة|حاضر|اعمل|نفّذ|نفذ|دوس|امشي|يلا|يلّا|go ahead|do it|confirm|yes|yep|yeah|ok|okay|sure|proceed)/;
+    // Latin mis-hears of an Arabic "yes/أكّد": short token starting like ak/aiw/tam…
+    var mishear=/^(ak|akk|aked|akhet|aket|akid|akkid|aiwa|aywa|aiwah|tamam|mashi|mashy|yalla|na3am|aywah)/i;
     if(no.test(t)){ pendingConfirm.no(); return true; }
-    if(yes.test(t)){ pendingConfirm.yes(); return true; }
+    // A word THIS user previously used to confirm (learned) always counts.
+    var learned = confirmVocab.indexOf(raw.toLowerCase())>=0;
+    if(yes.test(t) || mishear.test(raw) || learned){ if(!learned) learnConfirmWord(raw); pendingConfirm.yes(); return true; }
+    // Last resort: a very short single-word reply while awaiting confirm is almost
+    // always an attempt to say "yes" — treat it as confirm rather than a new task.
+    if(raw && raw.split(/\s+/).length===1 && raw.length<=8){ learnConfirmWord(raw); pendingConfirm.yes(); return true; }
     return false;
   }
   // Reliable download for both data: URLs (what gpt-image-1 returns) and http(s).
@@ -439,6 +463,7 @@
 
   async function run(text){
     if(!text||!text.trim()) return;
+    lastUtterance=text;
     if(handleConfirmWord(text)){ addMsg('me',text); return; } // "أكّد/لأ" → the pending confirm
     stopSpeaking(); // silence the previous reply the moment a new one starts
     addMsg('me',text);
@@ -500,6 +525,10 @@
   function toggleSend(){ var has=$('#text').value.trim().length>0 || !!pendingImage || !!pendingFile; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
   function sendText(){ var t=$('#text').value.trim(); var img=pendingImage, file=pendingFile; if(!t&&!img&&!file)return;
     $('#text').value=''; pendingImage=null; pendingFile=null; showPending(); toggleSend();
+    // Typing is ALWAYS a valid way to confirm — even during a call — for when the
+    // voice recognizer keeps mishearing «أكّد». A pending confirm takes priority.
+    if(t && pendingConfirm){ lastUtterance=t; addMsg('me',t); if(!handleConfirmWord(t)){ learnConfirmWord(t); pendingConfirm.yes(); } scrollToBottom(); return; }
+    if(t) lastUtterance=t;
     if(file){ runFile(t,file); }
     else if(rtOn){ sendToCall(t,img); }
     else if(img){ runVision(t,img); }
@@ -603,7 +632,7 @@
     // input_audio_transcription.(completed|done); the MODEL's spoken reply ends with
     // audio_transcript.done (GA renamed it output_audio_transcript.done). We show
     // BOTH sides so the whole call is a readable, copyable transcript.
-    if(/input_audio_transcription\.(completed|done)$/.test(t) && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } if(handleConfirmWord(m.transcript)) return; }
+    if(/input_audio_transcription\.(completed|done)$/.test(t) && m.transcript){ addMsg('me',m.transcript); lastUtterance=m.transcript; if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } if(handleConfirmWord(m.transcript)) return; }
     else if(/(^|\.)(output_)?audio_transcript\.done$/.test(t) && m.transcript){ addMsg('ai',m.transcript); }
     else if(t==='response.function_call_arguments.done'){
       if(m.name==='end_call'){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; }
@@ -636,7 +665,7 @@
         try{chip.remove();}catch(e){}
         logEvent('🔒 دخلنا التأكيد لأداة: '+name);
         if(!pendingConfirm){ var lbl=toolLabel(name).replace(/^[^ ]+ /,'');
-          renderInlineConfirm({ answer:'محتاج تأكيدك قبل ما '+lbl+'. قول «أكّد» أو اضغط الزر.' }, null, function(){ return retryRtTool(name,args); }); }
+          renderInlineConfirm({ answer:'محتاج تأكيدك قبل ما '+lbl+'. قول «أكّد» (أو أي كلمة زي أيوه/تمام)، أو اكتبها، أو اضغط الزر.' }, null, function(){ return retryRtTool(name,args); }); }
         out={status:'awaiting_user_confirmation',note:'انتظر تأكيد المستخدم بصمت. لا تنادِ الأداة تاني ولا تكرّر طلب التأكيد؛ استنى لحد ما ييجي التأكيد.'};
       }
       else { out=d.output||d; try{chip.remove();}catch(e){}
