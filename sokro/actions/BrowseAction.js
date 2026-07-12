@@ -28,9 +28,11 @@ async function run(ctx, input) {
   // sessions, no server Chromium). Falls back to server-side Playwright.
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
-    // keepOpen → open a VISIBLE tab and leave it open (for "افتح جوجل" the user
-    // wants the site to stay, not flash open then close).
-    const r = await ext.run(ctx.userId, 'browse', { url, selector: input && input.selector, screenshot: !!(input && input.screenshot), keepOpen: !!(input && input.keepOpen) });
+    // Keep the opened tab OPEN by default — the user asked to open a page in their
+    // browser and expects to see it. Only internal callers that scrape-and-discard
+    // (e.g. navigate_site hops) pass keepOpen:false to avoid leaving a trail of tabs.
+    const keepOpen = !(input && input.keepOpen === false);
+    const r = await ext.run(ctx.userId, 'browse', { url, selector: input && input.selector, screenshot: !!(input && input.screenshot), keepOpen });
     if (r.ok) { if (ctx.log) ctx.log('browse(ext)', { url }); return { ok: true, output: Object.assign({ url }, r.output) }; }
     return { ok: false, error: r.error };
   }

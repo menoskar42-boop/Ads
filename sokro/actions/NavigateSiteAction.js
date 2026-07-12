@@ -26,7 +26,7 @@ async function run(ctx, input) {
   for (let hop = 0; hop < maxHops; hop++) {
     if (visited.has(current)) break;
     visited.add(current);
-    const r = await browse.run(ctx, { url: current });
+    const r = await browse.run(ctx, { url: current, keepOpen: false }); // scrape hops: don't leave tabs open
     if (!r.ok) { trail.push({ url: current, error: r.error }); if (hop === 0) return { ok: false, error: r.error }; break; }
     const page = r.output || {};
     trail.push({ url: current, title: page.title || '' });
