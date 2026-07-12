@@ -29,6 +29,20 @@ function verifyStep(dec, preSig, post) {
   return post.signature !== preSig; // click / goto must change the page
 }
 
+// Check connectivity before acting — the browser knowing it is offline (or a
+// lightweight probe failing) means the next step would fail anyway. We give the
+// network a short grace period to come back before giving up.
+async function ensureOnline(page, waitMs) {
+  const start = Date.now();
+  for (;;) {
+    let online = true;
+    try { online = await page.evaluate(function () { return typeof navigator === 'undefined' ? true : navigator.onLine !== false; }); } catch (_) { online = true; }
+    if (online) return true;
+    if (Date.now() - start >= (waitMs || 12000)) return false;
+    await page.waitForTimeout(2000).catch(() => {});
+  }
+}
+
 function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.startsWith('www.') ? x.hostname.slice(4) : 'www.' + x.hostname; return x.href; } catch (_) { return null; } }
 
 // Wait for the page to FULLY settle before reading the DOM — critical for JS/SPA
@@ -194,6 +208,13 @@ async function run(ctx, input) {
       let lastGoodUrl = page.url(); // checkpoint: url after the last VERIFIED-good step
       let stuckStreak = 0;     // consecutive failed/no-effect steps → triggers recovery
       for (let step = 0; step < maxSteps; step++) {
+        // Verify connectivity before every step — if we're offline, waiting is
+        // pointless; report clearly instead of failing on a dead network.
+        if (!(await ensureOnline(page, 12000))) {
+          if (ctx.log) ctx.log('operate.offline', { step: step + 1 });
+          answer = 'الاتصال بالإنترنت اتقطع أثناء التنفيذ — وقفت عند ' + page.url() + '. جرّب تاني لما النت يرجع (تقدر تكمّل من نفس النقطة بـ resume).';
+          break;
+        }
         await settlePage(page); // re-settle after each action before reading the state
         // Structured browser state: clickables, input fields (with current values),
         // current page state (title/url/scroll), and the last action + whether it
