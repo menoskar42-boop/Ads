@@ -25,8 +25,23 @@ function heuristicPlan(goal, names) {
   const makeVerbs = ['اعمل', 'اعملي', 'اعملى', 'اعمللي', 'اعمللى', 'اخلق', 'اخلقلي', 'صمم', 'صمملي', 'هات', 'هاتلي', 'عايز', 'عاوز', 'عايزة'];
   const wantImage = has(imageWords);
   const wantSearch = has(searchWords);
+  // A concrete site to open/interact with → operate. This catches "افتح sylndr.com
+  // واضغط..." even when the LLM planner fumbles and returns nothing, so the request
+  // never dead-ends with "مش قادر أحدّد المطلوب".
+  const domainRe = /\b((?:[a-z0-9-]+\.)+(?:com|net|org|io|eg|co|me|app|store|shop|dev|ai|gov|edu|sa|ae)(?:\.[a-z]{2})?)(\/[^\s]*)?/i;
+  const dm = String(goal).match(domainRe);
+  const interactWords = ['افتح', 'اضغط', 'دوس', 'حدد', 'فلتر', 'اختار', 'ادخل', 'روح', 'صفّي', 'اعمل فلتر', 'open', 'click', 'filter', 'select', 'go to', 'operate'];
+  if (dm && names.has('operate')) {
+    const url = 'https://' + dm[1] + (dm[2] || '');
+    return { intent: 'operate', steps: [{ action: 'operate', input: { url, goal }, reason: 'موقع محدّد + تفاعل داخله' }], _heuristic: true };
+  }
   if (wantSearch && !wantImage && names.has('search_web')) {
     return { intent: 'search', steps: [{ action: 'search_web', input: { query: goal }, reason: 'كلمات بحث صريحة' }], _heuristic: true };
+  }
+  // "افتح/اتصفّح موقع X" without a bare domain but with interaction verbs → operate
+  // with a Google search as the entry (operate opens it, then acts).
+  if (has(interactWords) && names.has('operate') && !wantImage) {
+    return { intent: 'operate', steps: [{ action: 'operate', input: { goal }, reason: 'طلب تفاعل داخل موقع' }], _heuristic: true };
   }
   const words = String(goal).trim().split(/\s+/);
   const makeVerb = makeVerbs.some((w) => words[0] && words[0].startsWith(w));
