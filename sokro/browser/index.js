@@ -33,8 +33,10 @@ async function withPage(fn, opts = {}) {
   const browser = await playwright.chromium.launch(launchOpts);
   try {
     const context = await browser.newContext({
-      userAgent: opts.userAgent || 'Mozilla/5.0 (compatible; SokroBot/1.0)',
+      // A real browser UA — many sites serve empty/blocked pages to obvious bots.
+      userAgent: opts.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       viewport: opts.viewport || { width: 1280, height: 800 },
+      locale: 'ar-EG',
     });
     if (opts.storageState) await context.addCookies(opts.storageState.cookies || []);
     const page = await context.newPage();
