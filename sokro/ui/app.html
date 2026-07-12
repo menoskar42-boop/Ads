@@ -17,7 +17,8 @@
 <style>
   *{box-sizing:border-box;font-family:'Cairo',system-ui,sans-serif;margin:0}
   body{background:radial-gradient(1000px 600px at 50% -10%,#1b2550,#0b1020);color:#eef1ff;min-height:100vh;display:flex;flex-direction:column}
-  .top{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06)}
+  .top{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:40;background:#0b1020;backdrop-filter:blur(6px)}
+  #gear{background:rgba(91,108,255,.18);border:1px solid rgba(91,108,255,.5);border-radius:10px;padding:6px 10px;color:#dfe4ff}
   .brand{font-weight:900;font-size:1.1rem}.brand span{background:linear-gradient(90deg,#7c8bff,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
   .muted{color:#9aa2cf}
   .wrap{flex:1;max-width:720px;width:100%;margin:0 auto;padding:16px;display:flex;flex-direction:column}
@@ -277,8 +278,8 @@
   }
 
   function renderResult(d){
-    var report=null, images=[], confirm=null, proceed=null;
-    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); if(o.awaitingConfirm) confirm={ label:o.sensitive||'إجراء حساس', answer:o.answer }; if(o.awaitingProceed) proceed={ answer:o.answer, fix:o.prediction&&o.prediction.fix }; } });
+    var report=null, images=[], confirm=null, proceed=null, tips=null;
+    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); if(o.awaitingConfirm) confirm={ label:o.sensitive||'إجراء حساس', answer:o.answer }; if(o.awaitingProceed) proceed={ answer:o.answer, fix:o.prediction&&o.prediction.fix }; if(o.suggestions&&o.suggestions.length) tips=o.suggestions; } });
     var summary=d.summary||(report?report.text:(d.ok?'تمّت المهمة.':'المهمة فشلت.'));
     addMsg('ai',summary);
     images.forEach(addImage);
@@ -289,6 +290,8 @@
     if(confirm && d.taskId) renderInlineConfirm(confirm, d.taskId);
     // Failure predicted before start — offer to proceed anyway (fallback) or fix.
     if(proceed && d.taskId) renderProceedCard(proceed, d.taskId);
+    // Post-task improvement tips (only when there are any).
+    if(tips) { var t=document.createElement('div'); t.className='plan'; t.innerHTML='<div style="font-weight:700;margin-bottom:6px">💡 اقتراحات</div><ul style="margin:0;padding-inline-start:18px">'+tips.map(function(s){return '<li>'+String(s).replace(/[<>]/g,'')+'</li>';}).join('')+'</ul>'; $('#log').appendChild(t); scrollToBottom(); }
   }
   function renderProceedCard(p, taskId){
     var el=document.createElement('div'); el.className='plan';

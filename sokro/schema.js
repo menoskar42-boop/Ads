@@ -110,6 +110,24 @@ async function ensureSokroSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS sokro_ext_pending_idx ON sokro_ext_commands(user_id, status, id);
+
+      -- Operator learning memory: successful action sequences per site, a
+      -- structural fingerprint of the site's start page (to detect big layout
+      -- changes over time), and usage frequency (to learn the user's favorite
+      -- sites). Lets a later run reuse a path that worked and warn when a site
+      -- changed shape. Namespaced + additive.
+      CREATE TABLE IF NOT EXISTS sokro_operate_memory (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        host        TEXT NOT NULL,
+        goal        TEXT,
+        fingerprint TEXT,
+        trail       JSONB,
+        uses        INTEGER NOT NULL DEFAULT 1,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_operate_mem_idx ON sokro_operate_memory(user_id, host, updated_at DESC);
     `);
     console.log('Sokro schema ready.');
   } finally {

@@ -267,9 +267,29 @@ async function run(ctx, input) {
       catch (e) { const alt = wwwVariant(url); if (alt && alt !== url) await page.goto(alt, { waitUntil: 'load', timeout: 30000 }); else throw e; }
       await settlePage(page); // let the full page (incl. JS-rendered content) finish first
 
+      // Learning memory: fingerprint the start page, recall what worked here before,
+      // and flag a BIG layout change since last time.
+      const mem = require('../lib/operateMemory');
+      const host = mem.hostOf(page.url());
+      let startFp = null, memBlock = '';
+      try {
+        const first = await browserState.capture(page, null);
+        startFp = mem.fingerprint(first);
+        const prior = await mem.recall(ctx.userId, host);
+        if (prior) {
+          if (mem.bigChange(prior.fingerprint, startFp)) memBlock += '\n\n⚠️ SITE CHANGED: this site\'s layout changed a lot since last time — trust the current screenshot/state, not old structure.';
+          if (Array.isArray(prior.trail) && prior.trail.length) {
+            memBlock += '\n\nA PATH THAT WORKED BEFORE here (hint — adapt to the current page):\n' +
+              prior.trail.slice(0, 8).map((t, i) => '  ' + (i + 1) + '. ' + t.action + (t.thought ? ' — ' + t.thought : '')).join('\n');
+          }
+        }
+      } catch (_) {}
+      const siteChanged = /SITE CHANGED/.test(memBlock);
+
       const trail = [];
       const failShots = []; // JPEG data URLs captured at the moment of a failure (cap 4)
       let answer = null;
+      let achieved = false;    // the model declared the goal done → a success to remember
       let prevSig = null;      // page signature BEFORE the last action
       let pending = null;      // the action object we executed last step {action, idx, text}
       let lastGoodUrl = page.url(); // checkpoint: url after the last VERIFIED-good step
@@ -308,7 +328,7 @@ async function run(ctx, input) {
         // a DIFFERENT route to the goal (e.g. another button, menu, or URL).
         const avoidBlock = avoid.size ? ('\n\nAVOID (these already failed — take a DIFFERENT route):\n' +
           Array.from(avoid.entries()).slice(-8).map(([k, n]) => '  ' + k + (n > 1 ? (' ×' + n) : '')).join('\n')) : '';
-        const user = 'Goal: ' + goal + '\n\n' + browserState.format(state) + recentBlock + errBlock + avoidBlock;
+        const user = 'Goal: ' + goal + '\n\n' + browserState.format(state) + recentBlock + errBlock + avoidBlock + (step === 0 ? memBlock : '');
         const content = [{ type: 'text', text: user }];
         if (shot) content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.toString('base64') } });
         let dec = null;
@@ -318,7 +338,7 @@ async function run(ctx, input) {
         prevSig = state.signature;
         pending = dec && dec.action ? { action: dec.action, idx: dec.idx, text: dec.text } : null;
         const te = trail[trail.length - 1]; // the entry we just pushed — annotate it below
-        if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
+        if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; achieved = !!(dec && dec.action === 'done'); break; }
 
         // ── Confirm-before-sensitive: run as a rehearsal and STOP right before a
         // pay/delete/submit button. The user confirms (by voice is fine) and the
@@ -392,7 +412,16 @@ async function run(ctx, input) {
         answer = 'وصلت لـ ' + page.url() + '\n' + finalText.slice(0, 1500);
       }
       rememberSession(ctx.userId, goal, page.url()); // checkpoint for a later resume
-      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10), failShots, awaitingConfirm, sensitive: sensitiveLabel };
+      // Learn: if the goal was achieved, save the winning path for next time.
+      if (achieved && host) { try { await mem.record(ctx.userId, host, goal, startFp, trail); } catch (_) {} }
+      // Suggest improvements AFTER the task — only when there's something worth saying.
+      const suggestions = [];
+      if (errors.length >= 2) suggestions.push('الموقع طلّع ' + errors.length + ' أخطاء تشغيل — لو النتيجة ناقصة نجرّبه وقت أهدأ أو نعتمد على البحث.');
+      if (siteChanged) suggestions.push('شكل الموقع اتغيّر من آخر مرة — لو أي أتمتة قديمة بايظة، شغّلها تاني عشان أحدّث المسار المحفوظ.');
+      if (failShots.length) suggestions.push('في خطوات فشلت وأنا نفّذت — لو بيتكرر، وصّل إضافة سوكرو عشان متصفحك الحي يكون أضمن.');
+      if (avoid.size >= 3) suggestions.push('اترباكت في كذا عنصر — لو معاك رابط الصفحة المطلوبة مباشرة، ابعتهولي عشان أوصل أسرع.');
+      if (!achieved && !awaitingConfirm) suggestions.push('ماوصلتش للهدف بالكامل — جرّب توصّف المطلوب بتفصيل أدق أو تديني نقطة بداية أقرب.');
+      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10), failShots, awaitingConfirm, sensitive: sensitiveLabel, suggestions: suggestions.slice(0, 3) };
     });
     return { ok: true, output: result };
   } catch (e) {
