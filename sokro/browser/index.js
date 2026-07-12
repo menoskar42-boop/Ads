@@ -22,20 +22,27 @@ async function withPage(fn, opts = {}) {
   if (!playwright) {
     throw new Error('browser engine not installed — run: npm i playwright && npx playwright install chromium');
   }
-  // Container-safe flags — Chromium won't start inside Replit/containers without
-  // --no-sandbox + --disable-dev-shm-usage. SOKRO_CHROMIUM_PATH lets you point at
-  // a system/nix Chromium if the bundled one isn't available.
-  const launchOpts = {
-    headless: opts.headless !== false,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-  };
+  // Container-safe + LOW-MEMORY flags — Chromium won't start inside Replit/containers
+  // without --no-sandbox + --disable-dev-shm-usage, and the rest trim RAM so it has
+  // a better chance on a small (0.5 GiB) instance. For extreme low memory set
+  // SOKRO_BROWSER_SINGLE_PROCESS=1 (uses one process — lighter but less stable on
+  // heavy sites). SOKRO_CHROMIUM_PATH points at a system/nix Chromium if needed.
+  const args = [
+    '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
+    '--no-zygote', '--disable-extensions', '--disable-background-networking',
+    '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
+    '--disable-features=IsolateOrigins,site-per-process,TranslateUI',
+    '--renderer-process-limit=1', '--js-flags=--max-old-space-size=256',
+  ];
+  if (process.env.SOKRO_BROWSER_SINGLE_PROCESS === '1') args.push('--single-process');
+  const launchOpts = { headless: opts.headless !== false, args };
   if (process.env.SOKRO_CHROMIUM_PATH) launchOpts.executablePath = process.env.SOKRO_CHROMIUM_PATH;
   const browser = await playwright.chromium.launch(launchOpts);
   try {
     const context = await browser.newContext({
       // A real browser UA — many sites serve empty/blocked pages to obvious bots.
       userAgent: opts.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport: opts.viewport || { width: 1280, height: 800 },
+      viewport: opts.viewport || { width: 1024, height: 720 },
       locale: 'ar-EG',
     });
     if (opts.storageState) await context.addCookies(opts.storageState.cookies || []);
