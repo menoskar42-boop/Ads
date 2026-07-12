@@ -32,6 +32,11 @@ function makeProvider() {
       });
       if (r.ok) break;
       lastBody = (await r.text()).slice(0, 300);
+      // Don't waste retries when the balance is actually empty — that 429 won't
+      // recover (it needs a top-up), so fail fast with a clear message.
+      if (/insufficient_quota|exceeded your current quota|billing/i.test(lastBody)) {
+        throw new Error('openai 429 insufficient_quota — رصيد OpenAI خلص، اشحن الـ credit balance. ' + lastBody);
+      }
       if ((r.status === 429 || r.status === 503) && attempt < 3) {
         const retryAfter = parseFloat(r.headers.get('retry-after')) || 0;
         const wait = Math.max(retryAfter * 1000, 800 * Math.pow(2, attempt)); // 0.8s,1.6s,3.2s
