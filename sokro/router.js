@@ -83,6 +83,18 @@ router.get('/api/llm/status', auth.requireAuth, (_req, res) => {
     res.json({ ok: true, provider: p.name, configured: !!p.configured, models: p.models, available: llm.available() });
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
+// Real LLM health check — makes a tiny actual call so you can tell if the API key
+// is out of quota/credits (which would make every plan/summary silently generic).
+router.get('/api/llm/test', auth.requireAuth, async (_req, res) => {
+  try {
+    const llm = require('./llm');
+    const { text } = await llm.chat({ messages: [{ role: 'user', content: 'Reply with the single word: OK' }], maxTokens: 5 });
+    res.json({ ok: true, working: /ok/i.test(text || ''), reply: (text || '').slice(0, 40) });
+  } catch (e) {
+    // Surface the real provider error (e.g. 429 insufficient_quota / 401 invalid key).
+    res.json({ ok: false, working: false, error: String(e.message || e).slice(0, 300) });
+  }
+});
 
 // ── Auth API (mobile + web) ──────────────────────────────────────────────────
 const COOKIE = { httpOnly: true, sameSite: 'lax', secure: config.env === 'production', path: '/', maxAge: 7 * 24 * 3600 * 1000 };

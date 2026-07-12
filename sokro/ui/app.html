@@ -300,11 +300,26 @@
     try{ var u=new SpeechSynthesisUtterance(text); u.lang='ar-EG'; speechSynthesis.speak(u); }catch(e){}
   }
 
+  // Render web-search results as a clean, clickable list — so the user SEES the
+  // actual findings even when the AI summary is generic/failed.
+  function renderSearchResults(list){
+    var el=document.createElement('div'); el.className='msg ai'; var b=document.createElement('div'); b.className='msg-text';
+    var html='<div style="font-weight:700;margin-bottom:6px">🔎 النتايج</div>';
+    list.slice(0,8).forEach(function(r){
+      var t=String(r.title||r.url).replace(/[<>]/g,''); var u=String(r.url||''); var s=String(r.snippet||'').replace(/[<>]/g,'').slice(0,160);
+      html+='<div style="margin:8px 0;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)"><a href="'+u.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener" style="color:#8ea2ff;font-weight:600;text-decoration:none">'+t+'</a>'+(s?('<div style="font-size:.85rem;color:#c3c9ee;margin-top:2px">'+s+'</div>'):'')+'</div>';
+    });
+    b.innerHTML=html; el.appendChild(b); $('#log').appendChild(el); scrollToBottom();
+  }
   function renderResult(d){
-    var report=null, images=[], confirm=null, proceed=null, tips=null;
-    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); if(o.awaitingConfirm) confirm={ label:o.sensitive||'إجراء حساس', answer:o.answer }; if(o.awaitingProceed) proceed={ answer:o.answer, fix:o.prediction&&o.prediction.fix }; if(o.suggestions&&o.suggestions.length) tips=o.suggestions; } });
+    var report=null, images=[], confirm=null, proceed=null, tips=null, results=[], answers=[];
+    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); if(o.awaitingConfirm) confirm={ label:o.sensitive||'إجراء حساس', answer:o.answer }; if(o.awaitingProceed) proceed={ answer:o.answer, fix:o.prediction&&o.prediction.fix }; if(o.suggestions&&o.suggestions.length) tips=o.suggestions; if(Array.isArray(o.results)&&o.results.length&&o.results[0]&&o.results[0].url) results=results.concat(o.results); if(o.answer && !o.awaitingConfirm && !o.awaitingProceed && String(o.answer).length>2) answers.push(String(o.answer)); } });
     var summary=d.summary||(report?report.text:(d.ok?'تمّت المهمة.':'المهمة فشلت.'));
     addMsg('ai',summary);
+    // Show the ACTUAL results (not just the summary) so a generic "تمّت المهمة" is
+    // never a dead end: web-search links, and any text answer the tool returned.
+    if(results.length) renderSearchResults(results);
+    answers.forEach(function(a){ if(a && a.indexOf(summary)<0) addMsg('ai',a); });
     images.forEach(addImage);
     if(report) addDownloads(report);
     speak(summary);
