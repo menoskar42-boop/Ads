@@ -221,9 +221,11 @@ async function resolveTarget(page, state, idx) {
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   const goal = String((input && (input.goal || input.query)) || '').trim();
-  // Resume: continue from the last page the previous run reached for this user.
+  // Resume: continue from the last page ONLY when the user explicitly asked to
+  // continue (resume). Previously ANY url-less call reopened the last page — that's
+  // why every new request re-opened the same site in a fresh tab.
   const wantResume = !!(input && (input.resume || input.continue));
-  if ((wantResume || !url) && ctx.userId && sessions.has(ctx.userId)) {
+  if (wantResume && ctx.userId && sessions.has(ctx.userId)) {
     url = sessions.get(ctx.userId).url || url;
   }
   if (!goal) return { ok: false, error: 'goal required' };
