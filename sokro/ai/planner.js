@@ -92,6 +92,10 @@ async function plan(ctx, goal, recentContext = []) {
     'You are Sokro, an AI operating system that EXECUTES real tasks, not just answers.',
     'The user goal is often in Egyptian Arabic. Output a MINIMAL step-by-step plan as JSON.',
     'STRONGLY prefer to ACT: if ANY action can plausibly fulfill the request, USE it with your best-guess concrete input — do not return empty just because you are unsure.',
+    // HIGHEST-PRIORITY ROUTING RULE (prevents plain info searches being sent to the
+    // browser tools, which fail server-side). An information/price/fact lookup is a
+    // search_web job, NOT a browser job.
+    'TOP PRIORITY: if the user is asking to FIND OUT information / prices / facts / news ("ابحثلي عن أسعار X"، "معلومات عن Y"، "كام سعر Z"، "أخبار كذا"، "find/search for prices of X") and does NOT explicitly tell you to OPEN or GO INTO a specific named website, you MUST use search_web (input.query = the whole query) — or research_report for a deep report. NEVER route a plain information/price search to browse / operate / fill_submit; those are ONLY for when the user explicitly names a site to open or interact with.',
     // Image intent — do NOT require the literal word "صورة". A make/draw/want verb
     // followed by a CONCRETE NOUN (animal, object, scene, person, logo…) means
     // "generate an image of that noun". e.g. "اعملي قطة"/"اعمللي قطه"/"ارسملي كلب"/
