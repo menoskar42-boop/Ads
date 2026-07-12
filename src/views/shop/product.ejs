@@ -13,11 +13,17 @@
   <meta name="description" content="<%= pDesc.slice(0,150) %>" />
   <% var productUrl = siteOrigin + '/shop/' + company.slug + '/product/' + product.id; %>
   <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
-  <link rel="canonical" href="<%= productUrl %>" />
-  <meta property="og:type" content="product" />
-  <meta property="og:title" content="<%= __pTitle %>" />
-  <meta property="og:description" content="<%= pDesc.slice(0,150) %>" />
-  <% if (product.image_url) { %><meta property="og:image" content="<%= product.image_url %>" /><% } %>
+  <%# Shared social/app metadata stack (canonical, og, twitter, favicons, GA) —
+      the product's own <title>, meta description and Product JSON-LD stay below. %>
+  <%- include('../partials/seo_meta', {
+    title: __pTitle,
+    description: pDesc.slice(0,160),
+    canonical: productUrl,
+    ogType: 'product',
+    ogImage: (product.image_url || ''),
+    siteLogo: (company.logo_url || ''),
+    siteAppName: displayCompanyName
+  }) %>
   <script type="application/ld+json">
   <%- JSON.stringify({
     "@context": "https://schema.org",
