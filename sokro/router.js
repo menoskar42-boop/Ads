@@ -23,6 +23,7 @@ const reports = require('./reports');
 const scheduler = require('./scheduler');
 const extBridge = require('./extension-bridge');
 const realtime = require('./realtime');
+const content = require('./content');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -58,12 +59,19 @@ router.get('/robots.txt', (_req, res) => {
   );
 });
 router.get('/sitemap.xml', (_req, res) => {
+  const urls = ['  <url><loc>' + config.origin + '/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>']
+    .concat(content.PAGES.map((p) => '  <url><loc>' + config.origin + '/guides/' + p.slug + '</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>'));
   res.type('application/xml').set('Cache-Control', 'public, max-age=86400').send(
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    '  <url><loc>' + config.origin + '/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n' +
-    '</urlset>\n'
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.join('\n') + '\n</urlset>\n'
   );
+});
+
+// Public content guides (indexable, real content, internal-linked).
+router.get('/guides/:slug', (req, res) => {
+  const page = content.get(String(req.params.slug || ''));
+  if (!page) return res.status(404).type('text/plain; charset=utf-8').send('الصفحة غير موجودة');
+  res.type('html').set('Cache-Control', 'public, max-age=3600').send(content.render(page));
 });
 
 // LLM layer status (no API call / no cost) — confirms the active provider + key.
@@ -563,6 +571,13 @@ router.get('/', (_req, res) => {
     <details><summary>بيتكلم مصري ولا فصحى ولا إنجليزي؟</summary><p>تقدر تختار لغة الرد من الإعدادات: مصري (الافتراضي)، فصحى، أو إنجليزي — وكمان صوت أنثى أو ذكر واسم وشخصية للمساعد.</p></details>
     <details><summary>هل ينفّذ أي حاجة من غير ما يسألني؟</summary><p>لأ. المهام العادية (بحث/صورة/تلخيص) بتتنفّذ على طول، لكن أي خطوة حسّاسة بتوقف وتطلب موافقتك الأول.</p></details>
     <details><summary>بيشتغل على الموبايل؟</summary><p>أيوه، بيشتغل من المتصفح على الموبايل والكمبيوتر بنفس الحساب.</p></details>
+
+    <h2>أدلة ومقالات</h2>
+    <ul>
+      <li><a href="${config.origin}/guides/market-research">بحث سوق وتقارير Excel بالذكاء الاصطناعي</a></li>
+      <li><a href="${config.origin}/guides/voice-to-report">من أمر صوتي لمخرجات جاهزة</a></li>
+      <li><a href="${config.origin}/guides/ai-agent-arabic-business">دليل عملي: وكيل ذكاء اصطناعي للشركات العربية</a></li>
+    </ul>
   </section>
 
   <footer>
