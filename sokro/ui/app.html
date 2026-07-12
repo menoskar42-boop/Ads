@@ -325,8 +325,12 @@
       var d=await r.json();
       if(d.conversationId) convId=d.conversationId;
       think.remove();
-      if(!d.ok){ addMsg('ai', d.message || d.error || 'الطلب ده مش ضمن قدراتي دلوقتي — جرّب «ابحثلي…» أو «اعمل صورة…».'); return; }
-      if(d.requiresConsent) renderConsent(d); else renderResult(d);
+      if(d.requiresConsent){ renderConsent(d); return; }
+      // A plan that RAN (has a summary or results) — even if it didn't fully
+      // succeed (e.g. search found nothing) — shows its real outcome, not the
+      // generic "not in my capabilities" (which is only for a truly empty plan).
+      if(d.summary || (Array.isArray(d.results) && d.results.length)){ renderResult(d); return; }
+      addMsg('ai', d.message || d.error || 'مش قادر أحدّد المطلوب — جرّب مثلاً «ابحثلي عن أسعار كذا» أو «ارسملي صورة قطة».');
     }catch(e){ think.remove(); addMsg('ai','تعذّر الاتصال بالسيرفر.'); }
   }
   // WhatsApp-style composer: show the send button while typing (hide the mic),

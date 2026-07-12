@@ -75,11 +75,35 @@ function parseBing(html, limit) {
   return out;
 }
 
+// Brave Search API — reliable from datacenter IPs (unlike scraping DDG/Bing,
+// which a Replit IP often gets blocked/empty on). Used first when a key is set.
+async function braveSearch(query, limit) {
+  const key = process.env.SOKRO_BRAVE_KEY || process.env.BRAVE_SEARCH_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch('https://api.search.brave.com/res/v1/web/search?count=' + limit + '&q=' + encodeURIComponent(query), {
+      headers: { Accept: 'application/json', 'X-Subscription-Token': key },
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const items = (data.web && data.web.results) || [];
+    return items.slice(0, limit).map((x) => ({ title: decode(x.title || ''), url: x.url, snippet: decode(x.description || '') }))
+      .filter((x) => x.title && /^https?:\/\//.test(x.url));
+  } catch (_) { return null; }
+}
+
 async function run(ctx, input) {
   const query = String((input && input.query) || '').trim();
   if (!query) return { ok: false, error: 'query required' };
   const limit = Math.min(Math.max(parseInt(input && input.limit, 10) || 8, 1), 20);
   const q = encodeURIComponent(query);
+
+  // Prefer the Brave API when configured — it works reliably server-side.
+  const brave = await braveSearch(query, limit);
+  if (brave && brave.length) {
+    if (ctx && ctx.log) ctx.log('search_web', { query, count: brave.length, used: 'brave' });
+    return { ok: true, output: { query, engine: 'brave', results: brave } };
+  }
 
   const providers = [
     { name: 'ddg', url: 'https://html.duckduckgo.com/html/?q=' + q, parse: parseDDG },
