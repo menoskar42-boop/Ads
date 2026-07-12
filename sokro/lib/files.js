@@ -49,4 +49,29 @@ function extract(name, buf, depth = 0) {
   return out; // unsupported (pdf/binary)
 }
 
-module.exports = { extract };
+// RAR isn't an open format — it needs a library (node-unrar-js, pure WASM, no
+// native build). Lazy + optional: if the lib isn't installed we return a clear
+// flag so the caller tells the user to use zip instead. Async because the WASM
+// extractor initialises asynchronously.
+async function extractRar(buf) {
+  let unrar;
+  try { unrar = require('node-unrar-js'); } catch (_) { return { text: '', images: [], needLib: true }; }
+  try {
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    const ex = await unrar.createExtractorFromData({ data: ab });
+    const list = ex.extract();
+    const out = { text: '', images: [] };
+    const parts = [];
+    for (const f of list.files) {
+      if (!f.extraction || (f.fileHeader && f.fileHeader.flags && f.fileHeader.flags.directory)) continue;
+      const sub = extract(f.fileHeader.name, Buffer.from(f.extraction), 1);
+      if (sub.text) parts.push('### ' + f.fileHeader.name + '\n' + sub.text);
+      for (const im of sub.images) { if (out.images.length < 6) out.images.push(im); }
+      if (parts.join('\n').length > 60000) break;
+    }
+    out.text = parts.join('\n\n').slice(0, 60000);
+    return out;
+  } catch (e) { return { text: '', images: [], error: e.message }; }
+}
+
+module.exports = { extract, extractRar };

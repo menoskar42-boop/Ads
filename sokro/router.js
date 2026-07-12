@@ -328,9 +328,12 @@ router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, as
   const name = req.file.originalname || 'file';
   const promptText = String((req.body && req.body.text) || '').trim();
   try {
-    const got = require('./lib/files').extract(name, req.file.buffer);
+    const filesLib = require('./lib/files');
+    const isRar = /\.rar$/i.test(name);
+    const got = isRar ? await filesLib.extractRar(req.file.buffer) : filesLib.extract(name, req.file.buffer);
+    if (got.needLib) return res.json({ ok: false, error: 'ملفات RAR محتاجة تفعيل (ثبّت node-unrar-js على السيرفر) — لحد كده استخدم ZIP.' });
     if (!got.text && !got.images.length) {
-      return res.json({ ok: false, error: 'النوع ده مش مقدر أقراه (جرّب صورة، نص، Word، أو ملف مضغوط zip). ملفات PDF لسه مش مدعومة.' });
+      return res.json({ ok: false, error: 'النوع ده مش مقدر أقراه (جرّب صورة، نص، Word، أو ملف مضغوط zip/rar). ملفات PDF لسه مش مدعومة.' });
     }
     const prefs = await settings.get(req.sokroUser.id);
     const AP = require('./assistant-profile');
