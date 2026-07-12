@@ -368,6 +368,33 @@ router.post('/api/realtime/session', auth.requireAuth, async (req, res) => {
 // The single voice app screen.
 router.get('/app', (_req, res) => res.type('html').set('Cache-Control', 'no-cache').sendFile(path.join(__dirname, 'ui', 'app.html')));
 
+// ── PWA: make /app installable as a mobile/desktop app (no native client) ─────
+router.get('/manifest.webmanifest', (_req, res) => {
+  res.type('application/manifest+json').set('Cache-Control', 'no-cache').json({
+    name: 'Sokro', short_name: 'Sokro', start_url: '/app', scope: '/app',
+    display: 'standalone', background_color: '#0b1020', theme_color: '#0b1020',
+    lang: 'ar', dir: 'rtl', description: 'مساعدك الذكي اللي بينفّذ المهام بصوتك',
+    icons: [{ src: '/sokro-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+  });
+});
+router.get('/sokro-icon.svg', (_req, res) => {
+  res.type('image/svg+xml').set('Cache-Control', 'public, max-age=604800').send(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b6cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><rect width="192" height="192" rx="42" fill="#0b1020"/><circle cx="96" cy="96" r="52" fill="url(#g)"/><text x="96" y="120" font-size="70" font-family="sans-serif" font-weight="900" text-anchor="middle" fill="#08122b">S</text></svg>'
+  );
+});
+router.get('/sw.js', (_req, res) => {
+  // App-shell service worker for installability. Network-first (so a redeploy is
+  // picked up immediately), with a cached fallback when offline.
+  res.type('application/javascript').set('Cache-Control', 'no-cache').send(
+    "const C='sokro-v1';" +
+    "self.addEventListener('install',e=>self.skipWaiting());" +
+    "self.addEventListener('activate',e=>self.clients.claim());" +
+    "self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;" +
+    "if(e.request.url.indexOf('/api/')>-1)return;" +
+    "e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)));});"
+  );
+});
+
 // Serve the Chrome extension files (zip these to load unpacked).
 router.get('/ext/:file', (req, res) => {
   const safe = /^[a-zA-Z0-9._-]+$/.test(req.params.file) ? req.params.file : 'manifest.json';
