@@ -36,6 +36,41 @@ function heuristicPlan(goal, names) {
   return null;
 }
 
+// Only `fill_submit` can actually TYPE into a site's box via the extension;
+// `operate`/`navigate_site` only read. So when a step is really "type X and search
+// in a site", rewrite it to fill_submit (auto-find the box, press Enter, keep the
+// tab open) — works on ANY site, not just Google.
+function extractSearchQuery(goal) {
+  const g = String(goal || '');
+  let m = g.match(/(?:ابحث|ابحثلي|دوّر|دور|اكتب|بحث|search|find|look up|type)[\s\S]*?(?:عن|على|بخصوص|for|about|:)\s+(.+)$/i);
+  if (m && m[1]) return m[1].trim().replace(/^["'«»]+|["'«»]+$/g, '').trim();
+  m = g.match(/(?:ابحث|ابحثلي|دوّر|دور|اكتب|search|find|type)\s+(.+)$/i);
+  if (m && m[1]) return m[1].trim();
+  return '';
+}
+function isSimpleSearch(goal) {
+  const g = String(goal || '').toLowerCase();
+  if (!/ابحث|دوّر|دور|اكتب|بحث|search|find|look up|type/.test(g)) return false;
+  // Skip genuinely multi-step interactive tasks — those still belong to operate.
+  if (/فلتر|filter|قارن|compare|سجل دخول|login|checkout|اشتري|شراء|أضف للسلة|add to cart|ثم اضغط|then click/.test(g)) return false;
+  return true;
+}
+function rewriteTypingSteps(plan, names) {
+  if (!plan || !Array.isArray(plan.steps) || !names.has('fill_submit')) return plan;
+  plan.steps = plan.steps.map((s) => {
+    if (!s || !s.input) return s;
+    if ((s.action === 'operate' || s.action === 'navigate_site') && /^https?:\/\//.test(String(s.input.url || ''))) {
+      const g = String(s.input.goal || s.input.query || '');
+      if (isSimpleSearch(g)) {
+        const q = extractSearchQuery(g) || g;
+        return { action: 'fill_submit', input: { url: s.input.url, fields: [{ selector: '', value: q }], submit: '', keepOpen: true }, reason: 'كتابة وبحث في خانة الموقع' };
+      }
+    }
+    return s;
+  });
+  return plan;
+}
+
 async function plan(ctx, goal, recentContext = []) {
   const catalog = ctx.actions.catalog();
   const sys = [
@@ -72,7 +107,7 @@ async function plan(ctx, goal, recentContext = []) {
   // into a dead end — fall back to the deterministic heuristic below.
   let out = null;
   try { out = await llm.json({ messages }); } catch (e) { out = null; }
-  if (out && Array.isArray(out.steps) && out.steps.length) return out;
+  if (out && Array.isArray(out.steps) && out.steps.length) return rewriteTypingSteps(out, names);
   // LLM returned nothing usable (empty steps, unparseable, or unavailable):
   // try the deterministic heuristic so "ارسم صورة قطة" / "ابحثلي..." still run.
   const h = heuristicPlan(goal, names);
