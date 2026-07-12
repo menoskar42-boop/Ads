@@ -62,6 +62,7 @@
   <div class="top">
     <div class="brand">Sokro <span>OS</span></div>
     <div style="display:flex;gap:14px;align-items:center">
+      <a id="extlink" class="link hidden" href="/ext" target="_blank" rel="noopener" style="margin:0;text-decoration:none" title="ثبّت إضافة المتصفح عشان يتصفّح المواقع بنفسه">🧩 المتصفح</a>
       <button id="mute" class="link hidden" style="margin:0;font-size:1.1rem;text-decoration:none" title="قراءة الرد بصوت">🔈</button>
       <button id="gear" class="link hidden" style="margin:0">⚙️ إعدادات</button>
       <button id="logout" class="link hidden" style="margin:0">خروج</button>
@@ -169,6 +170,7 @@
   async function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
     $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
     $('#mute').classList.remove('hidden'); $('#mute').textContent=speakAloud?'🔊':'🔈';
+    $('#extlink').classList.remove('hidden');
     requestWake(); // keep the screen on while using Sokro
     loadSettings();
     var had=await loadHistory();
