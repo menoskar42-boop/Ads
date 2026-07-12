@@ -243,7 +243,7 @@ router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
   // Browser tools may run mid-call once the user CONFIRMS (by voice/tap) — the
   // client re-sends with consent:true. Truly high-risk scopes (login/payment/
   // social) still can't be self-approved here and must go through /api/run.
-  const IN_CALL_OK = new Set(['browse', 'navigate_site', 'operate', 'extract_table']);
+  const IN_CALL_OK = new Set(['browse', 'navigate_site', 'operate', 'extract_table', 'fill_submit']);
   if (permissions.isSensitive(action.permissions)) {
     const consented = req.body && req.body.consent === true && IN_CALL_OK.has(req.params.name);
     if (!consented) {

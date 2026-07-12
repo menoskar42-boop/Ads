@@ -77,7 +77,7 @@ async function run(ctx, input) {
 register({
   name: 'fill_submit',
   description: 'Fill form fields on a web page and optionally submit (login boxes, search forms, checkout). input.fields=[{selector,value}], optional input.submit=CSS selector of the submit button. A value of "{{secret:NAME}}" is replaced by a stored secret. Requires the user\'s browser.',
-  permissions: ['browser'],
+  permissions: ['browser', 'submit'],
   inputSchema: {
     type: 'object',
     properties: {

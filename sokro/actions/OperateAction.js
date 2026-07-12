@@ -243,21 +243,21 @@ async function run(ctx, input) {
   // Chromium crash. The server-side Operator is used only when no extension.
   let extConnected = false;
   try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
-  let extFallbackErr = '', extTried = [];
   if (extConnected) {
+    // ALWAYS prefer the user's extension browser when connected — never fall back
+    // to the server browser (it's unreliable on 0.5 GiB and would just fail).
     const fb = await tryFallback(ctx, url, goal, 'running in your connected browser');
     if (fb && fb.ok) return fb;
-    extFallbackErr = fb && fb.error; extTried = (fb && fb.tried) || []; // keep ALL reasons
+    return { ok: false, error: (fb && fb.error) || 'التنفيذ في متصفحك فشل', tried: (fb && fb.tried) || [] };
   }
   if (!ctx.browser || !ctx.browser.available()) {
     // Primary method (server browser) unavailable → fall back automatically.
     const fb = await tryFallback(ctx, url, goal, 'server browser unavailable');
     if (fb && fb.ok) return fb;
-    const tried = extTried.concat((fb && fb.tried) || []);
     return {
       ok: false,
-      error: (extFallbackErr || (fb && fb.error) || 'مفيش متصفّح متاح') + ' — وصّل إضافة سوكرو في متصفحك أو فعّل متصفح السيرفر (Chromium في .replit + رام كافية).',
-      tried, // every method + why it failed, so the UI can show ALL reasons
+      error: ((fb && fb.error) || 'مفيش متصفّح متاح') + ' — وصّل إضافة سوكرو في متصفحك أو فعّل متصفح السيرفر (Chromium في .replit + رام كافية).',
+      tried: (fb && fb.tried) || [], // every method + why it failed, so the UI can show ALL reasons
     };
   }
   const maxSteps = Math.min(Math.max(parseInt(input && input.maxSteps, 10) || 6, 1), 10);

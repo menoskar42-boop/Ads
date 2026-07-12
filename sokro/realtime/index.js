@@ -18,7 +18,9 @@ const BASE = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 // browser (via the Sokro extension when connected) and are confirmed inline —
 // by voice ("أكّد") — right before they act. This is the core product: control
 // the browser by voice. Truly high-risk scopes (login/payment/social) stay out.
-const IN_CALL_SENSITIVE = new Set(['browse', 'navigate_site', 'operate', 'extract_table']);
+// Read/navigate tools are non-sensitive now (no confirm). fill_submit stays
+// sensitive but is still usable in a call — behind an inline voice confirm.
+const IN_CALL_SENSITIVE = new Set(['fill_submit']);
 
 function tools() {
   // Expose non-sensitive tools + the browser tools above. The remaining sensitive
