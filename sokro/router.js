@@ -307,14 +307,19 @@ router.put('/api/settings', auth.requireAuth, async (req, res) => {
 router.post('/api/report', auth.requireAuth, async (req, res) => {
   const b = req.body || {};
   const payload = { title: String(b.title || 'report'), text: String(b.text || ''), rows: Array.isArray(b.rows) ? b.rows : null };
+  const fmt = String(b.format || 'md').toLowerCase();
   try {
-    const fmt = String(b.format || 'md').toLowerCase();
     const f = fmt === 'pdf' ? await reports.toPDF(payload) : reports.build(b.format, payload);
     const name = (payload.title || 'report').replace(/[^\w؀-ۿ -]/g, '').trim().slice(0, 60) || 'report';
     res.setHeader('Content-Type', f.mime);
     res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(name) + '.' + f.ext);
     res.send(f.buffer);
-  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  } catch (e) {
+    // PDF depends on the browser engine; if it's missing/unlaunchable, return a
+    // clear, friendly message (422) so the client can offer Excel/Markdown.
+    if (fmt === 'pdf') return res.status(422).json({ ok: false, error: 'تعذّر إنشاء PDF على الخادم حاليًا — استخدم Excel أو Markdown' });
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ── Scheduler / watchers (recurring goals) ───────────────────────────────────
