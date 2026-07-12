@@ -92,6 +92,29 @@ async function braveSearch(query, limit) {
   } catch (_) { return null; }
 }
 
+// Run the search in the USER'S browser via the extension — their residential IP
+// isn't blocked the way a datacenter (Replit) IP is. We open a Bing results page
+// (closed after), and read the external result links off it.
+async function extSearch(ctx, query, limit) {
+  try {
+    const ext = require('../extension-bridge');
+    if (!(ctx && ctx.userId && ext.connected(ctx.userId))) return null;
+    const r = await ext.run(ctx.userId, 'browse', { url: 'https://www.bing.com/search?q=' + encodeURIComponent(query) + '&setlang=ar', keepOpen: false });
+    if (!(r && r.ok && r.output && Array.isArray(r.output.links))) return null;
+    const seen = new Set(); const out = [];
+    for (const l of r.output.links) {
+      const u = l && l.url;
+      if (!u || !/^https?:\/\//.test(u)) continue;
+      let host = ''; try { host = new URL(u).hostname; } catch (_) { continue; }
+      if (/(^|\.)(bing|microsoft|msn|live|go\.microsoft)\.com$/.test(host) || /bing\.com|microsoft/.test(host)) continue;
+      if (seen.has(u) || !l.text || l.text.trim().length < 3) continue;
+      seen.add(u); out.push({ title: decode(l.text), url: u, snippet: '' });
+      if (out.length >= limit) break;
+    }
+    return out.length ? out : null;
+  } catch (_) { return null; }
+}
+
 async function run(ctx, input) {
   const query = String((input && input.query) || '').trim();
   if (!query) return { ok: false, error: 'query required' };
@@ -103,6 +126,12 @@ async function run(ctx, input) {
   if (brave && brave.length) {
     if (ctx && ctx.log) ctx.log('search_web', { query, count: brave.length, used: 'brave' });
     return { ok: true, output: { query, engine: 'brave', results: brave } };
+  }
+  // No Brave key → search in the user's own browser (unblocked IP) if connected.
+  const viaExt = await extSearch(ctx, query, limit);
+  if (viaExt && viaExt.length) {
+    if (ctx && ctx.log) ctx.log('search_web', { query, count: viaExt.length, used: 'extension' });
+    return { ok: true, output: { query, engine: 'browser', results: viaExt } };
   }
 
   const providers = [
