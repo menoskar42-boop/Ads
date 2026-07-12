@@ -56,7 +56,7 @@
   <div class="top">
     <div class="brand">Sokro <span>OS</span></div>
     <div style="display:flex;gap:14px;align-items:center">
-      <button id="mute" class="link hidden" style="margin:0;font-size:1.1rem;text-decoration:none" title="كتم/تشغيل صوت المساعد">🔊</button>
+      <button id="mute" class="link hidden" style="margin:0;font-size:1.1rem;text-decoration:none" title="قراءة الرد بصوت">🔈</button>
       <button id="gear" class="link hidden" style="margin:0">⚙️ إعدادات</button>
       <button id="logout" class="link hidden" style="margin:0">خروج</button>
     </div>
@@ -121,7 +121,11 @@
   var $=function(s){return document.querySelector(s)};
   var mode='login';
   var audioEl=new Audio();
-  var muted=false;
+  // TTS is OPT-IN: replies are text-first (cheaper, clearer). The user turns on
+  // "read aloud" when they want it; the choice persists. The live call is a
+  // separate explicit mode and always plays its own audio.
+  var speakAloud=false;
+  try{ speakAloud = localStorage.getItem('sokro_speak')==='1'; }catch(e){}
   var convId=null;
   var SETTINGS={ assistantName:'Selena', voice:'female', lang:'egyptian', personality:'professional' };
   async function loadHistory(){
@@ -151,7 +155,8 @@
   // ---------- auth ----------
   function showAuth(){ $('#auth').classList.remove('hidden'); $('#app').classList.add('hidden'); $('#dock').classList.add('hidden'); $('#logout').classList.add('hidden'); }
   async function showApp(user){ $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden'); $('#dock').classList.remove('hidden');
-    $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden'); $('#mute').classList.remove('hidden');
+    $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
+    $('#mute').classList.remove('hidden'); $('#mute').textContent=speakAloud?'🔊':'🔈';
     loadSettings();
     var had=await loadHistory();
     if(!had && !$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً'+(user&&user.display_name?(' '+user.display_name):'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، اخلقلك صورة، أو أي مهمة.'); }
@@ -159,7 +164,7 @@
   // Direct handlers — the modal's inner wrapper calls event.stopPropagation(),
   // so clicks on these never bubble to a document-level delegate.
   $('#gear').onclick=openSettings;
-  $('#mute').onclick=function(){ muted=!muted; $('#mute').textContent=muted?'🔇':'🔊'; audioEl.muted=muted; try{ var rt=$('#rtaudio'); if(rt) rt.muted=muted; }catch(e){} if(muted) stopSpeaking(); };
+  $('#mute').onclick=function(){ speakAloud=!speakAloud; $('#mute').textContent=speakAloud?'🔊':'🔈'; $('#mute').title=speakAloud?'إيقاف القراءة بصوت':'قراءة الرد بصوت'; try{ localStorage.setItem('sokro_speak', speakAloud?'1':'0'); }catch(e){} if(!speakAloud) stopSpeaking(); };
   $('#setSave').onclick=saveSettingsForm;
   $('#setClose').onclick=function(){ $('#settings').classList.add('hidden'); };
   $('#settings').addEventListener('click',function(e){ if(e.target.id==='settings') $('#settings').classList.add('hidden'); });
@@ -200,11 +205,11 @@
   // stack/overlap (a common issue with the browser TTS fallback).
   function stopSpeaking(){ try{ audioEl.pause(); audioEl.currentTime=0; }catch(e){} try{ if(window.speechSynthesis) speechSynthesis.cancel(); }catch(e){} }
   async function speak(text){
-    if(!text || muted) return;
+    if(!text || !speakAloud) return; // opt-in: no TTS call at all unless enabled
     stopSpeaking();
     try{
       var r=await fetch('/api/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})});
-      if(r.ok){ var b=await r.blob(); audioEl.src=URL.createObjectURL(b); audioEl.muted=muted; audioEl.play().catch(function(){ setStatus('اضغط 🔊 لو الصوت مش شغّال'); }); return; }
+      if(r.ok){ var b=await r.blob(); audioEl.src=URL.createObjectURL(b); audioEl.play().catch(function(){ setStatus('اضغط 🔊 لو الصوت مش شغّال'); }); return; }
     }catch(e){}
     try{ var u=new SpeechSynthesisUtterance(text); u.lang='ar-EG'; speechSynthesis.speak(u); }catch(e){}
   }
@@ -345,7 +350,7 @@
       if(!sd.ok||!sd.clientSecret){ addMsg('ai','تعذّر بدء المكالمة: '+(sd.error||'راجع OPENAI_API_KEY')); return; }
       rtStream=await navigator.mediaDevices.getUserMedia({audio:true});
       rtPc=new RTCPeerConnection();
-      rtPc.ontrack=function(e){ var rt=$('#rtaudio'); rt.srcObject=e.streams[0]; rt.muted=muted; };
+      rtPc.ontrack=function(e){ var rt=$('#rtaudio'); rt.srcObject=e.streams[0]; };
       rtStream.getTracks().forEach(function(t){ rtPc.addTrack(t,rtStream); });
       rtDc=rtPc.createDataChannel('oai-events'); rtDc.onmessage=onRtEvent;
       var offer=await rtPc.createOffer(); await rtPc.setLocalDescription(offer);
