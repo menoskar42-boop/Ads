@@ -16,7 +16,7 @@ function catalogText(catalog) {
 // with NO LLM, so an obvious "draw a cat" / "search X" NEVER fails just because
 // the model was flaky, unavailable, or returned empty steps. Used both as a
 // fast path and as the fallback when the LLM produces nothing usable.
-function heuristicPlan(goal, names) {
+function heuristicPlan(goal, names, extConnected) {
   const g = ' ' + String(goal).toLowerCase().trim() + ' ';
   const has = (arr) => arr.some((w) => g.includes(w));
   const imageWords = ['صور', 'ارسم', 'إرسم', 'ارسملي', 'ارسملى', 'رسمة', 'رسمه', 'رسملي', 'ارسمه', 'لوجو', 'logo', 'draw', 'picture', 'image', 'رسم '];
@@ -31,17 +31,24 @@ function heuristicPlan(goal, names) {
   const domainRe = /\b((?:[a-z0-9-]+\.)+(?:com|net|org|io|eg|co|me|app|store|shop|dev|ai|gov|edu|sa|ae)(?:\.[a-z]{2})?)(\/[^\s]*)?/i;
   const dm = String(goal).match(domainRe);
   const interactWords = ['افتح', 'اضغط', 'دوس', 'حدد', 'فلتر', 'اختار', 'ادخل', 'روح', 'صفّي', 'اعمل فلتر', 'open', 'click', 'filter', 'select', 'go to', 'operate'];
-  if (dm && names.has('operate')) {
-    const url = 'https://' + dm[1] + (dm[2] || '');
-    return { intent: 'operate', steps: [{ action: 'operate', input: { url, goal }, reason: 'موقع محدّد + تفاعل داخله' }], _heuristic: true };
+  // A named site: with the extension → operate inside it; WITHOUT it → a site-scoped
+  // web search (works with no browser).
+  if (dm) {
+    if (extConnected && names.has('operate')) {
+      const url = 'https://' + dm[1] + (dm[2] || '');
+      return { intent: 'operate', steps: [{ action: 'operate', input: { url, goal }, reason: 'موقع محدّد + إضافة موصولة' }], _heuristic: true };
+    }
+    if (names.has('search_web')) {
+      return { intent: 'search', steps: [{ action: 'search_web', input: { query: 'site:' + dm[1] + ' ' + goal.replace(dm[0], '').trim() }, reason: 'بحث داخل الموقع (بدون متصفح)' }], _heuristic: true };
+    }
   }
   if (wantSearch && !wantImage && names.has('search_web')) {
     return { intent: 'search', steps: [{ action: 'search_web', input: { query: goal }, reason: 'كلمات بحث صريحة' }], _heuristic: true };
   }
-  // "افتح/اتصفّح موقع X" without a bare domain but with interaction verbs → operate
-  // with a Google search as the entry (operate opens it, then acts).
-  if (has(interactWords) && names.has('operate') && !wantImage) {
-    return { intent: 'operate', steps: [{ action: 'operate', input: { goal }, reason: 'طلب تفاعل داخل موقع' }], _heuristic: true };
+  // Interaction verbs → operate ONLY with the extension; otherwise fall through to a
+  // plain web search so we never push a failing browser action.
+  if (extConnected && has(interactWords) && names.has('operate') && !wantImage) {
+    return { intent: 'operate', steps: [{ action: 'operate', input: { goal }, reason: 'تفاعل داخل موقع + إضافة موصولة' }], _heuristic: true };
   }
   const words = String(goal).trim().split(/\s+/);
   const makeVerb = makeVerbs.some((w) => words[0] && words[0].startsWith(w));
@@ -88,37 +95,40 @@ function rewriteTypingSteps(plan, names) {
 
 async function plan(ctx, goal, recentContext = []) {
   const catalog = ctx.actions.catalog();
-  const sys = [
+  // The live-browser tools (browse/operate/fill_submit/navigate_site/extract_table)
+  // are only reliable when the user's EXTENSION is connected. Without it, they fall
+  // to the server browser which is unreliable — so we DON'T tell the model to prefer
+  // them; it routes browser-ish requests to search_web instead.
+  let extConnected = false;
+  try { extConnected = !!(ctx && ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
+  const base = [
     'You are Sokro, an AI operating system that EXECUTES real tasks, not just answers.',
     'The user goal is often in Egyptian Arabic. Output a MINIMAL step-by-step plan as JSON.',
     'STRONGLY prefer to ACT: if ANY action can plausibly fulfill the request, USE it with your best-guess concrete input — do not return empty just because you are unsure.',
-    // HIGHEST-PRIORITY ROUTING RULE (prevents plain info searches being sent to the
-    // browser tools, which fail server-side). An information/price/fact lookup is a
-    // search_web job, NOT a browser job.
-    'TOP PRIORITY: if the user is asking to FIND OUT information / prices / facts / news ("ابحثلي عن أسعار X"، "معلومات عن Y"، "كام سعر Z"، "أخبار كذا"، "find/search for prices of X") and does NOT explicitly tell you to OPEN or GO INTO a specific named website, you MUST use search_web (input.query = the whole query) — or research_report for a deep report. NEVER route a plain information/price search to browse / operate / fill_submit; those are ONLY for when the user explicitly names a site to open or interact with.',
-    // Image intent — do NOT require the literal word "صورة". A make/draw/want verb
-    // followed by a CONCRETE NOUN (animal, object, scene, person, logo…) means
-    // "generate an image of that noun". e.g. "اعملي قطة"/"اعمللي قطه"/"ارسملي كلب"/
-    // "هاتلي منظر بحر"/"عايز لوجو لمطعم" → generate_image with input.prompt = that noun, richly described.
+    'TOP PRIORITY: if the user is asking to FIND OUT information / prices / facts / news ("ابحثلي عن أسعار X"، "معلومات عن Y"، "كام سعر Z"، "أخبار كذا"، "find/search for prices of X"), use search_web (input.query = the whole query) — or research_report for a deep report.',
     'Intent → action examples: "اعمل/اعملي/اعمللي/اخلق/ارسم/ارسملي/هاتلي/عايز/عاوز صورة" OR the same verbs + a bare noun like "قطة/كلب/منظر/لوجو/بيت" (WITHOUT the word صورة) → generate_image (input.prompt = a rich description of the thing to draw). "make/create/draw/generate a cat/picture/logo" → generate_image.',
     '"ابحث/دوّر/لاقي/ابحثلي" or "search/find/look up" → search_web (input.query). "ابحث واعمل تقرير" or "research and report" → research_report (input.query).',
-    // Searching WITHIN a named website: never say "I can only use Google". Use a
-    // site-scoped web search (works without a browser). Map the site name to its
-    // domain and prefix the query with site:<domain>.
     'When the user says "ابحث/دوّر جوّه/في موقع X عن Y" or "search inside site X for Y", use search_web with input.query = "site:<domain-of-X> Y" (e.g. سليندر=sylndr.com, دوبيزل=dubizzle.com.eg, أمازون=amazon.eg, نون=noon.com).',
-    // The user wants Sokro to ACT, not to hand them step-by-step instructions.
-    // Plain "open/go to a site" (no scraping) → browse with keepOpen so the tab
-    // STAYS open in front of the user, instead of flashing open then closing.
-    'If the user just wants to OPEN a site and leave it in front of them ("افتح جوجل"، "افتح يوتيوب"، "روح لموقع X"، "open google", "go to X") WITHOUT asking to read/extract anything, use the browse action with input.url = the site AND input.keepOpen = true. Do NOT use operate for a simple open.',
-    'CRITICAL: NEVER reply with manual step-by-step instructions telling the user how to open a site or search themselves. If they want to see content from INSIDE a site ("ادخل الموقع وشوف"، "اتصفّح جواه"، "هات العربيات من سليندر"، "open the site and get…"), USE the browse action (input.url = the site or a search/listing URL on that domain), optionally followed by extract_table. Acting is mandatory — do not explain how to do it manually.',
-    // Typing into a site\'s search/input box then submitting → fill_submit (runs in
-    // the user\'s live browser and LEAVES the tab open with the results).
-    'If the user wants to OPEN a site and TYPE something in its search/input box and search/submit ("افتح جوجل واكتب/ابحث عن كذا"، "دوّر على كذا في يوتيوب"، "open X and search for Y"), use the fill_submit action: input.url = the site (e.g. https://www.google.com), input.fields = [{"selector":"","value":"<the text to type>"}] (leave selector empty to auto-find the search box), input.submit = "" (empty → it presses Enter), input.keepOpen = true. Do NOT use operate or navigate_site for a simple search-in-a-box.',
-    'For tasks that need to INTERACT inside a site — apply filters, pick a make/model, click into a specific item, then read what appears (e.g. "دوّر على رينو ميجان في سيلندر وهات ملخص الفحص") — use the operate action (a click/type/scroll loop) with input.url = the site\'s HOMEPAGE root (prefer the www host, e.g. https://www.sylndr.com) and input.goal = the full task. For simply reading pages by following links use navigate_site; for a SINGLE known page use browse. Never use search_web for content that lives inside one site.',
+  ];
+  // Browser-routing guidance — INCLUDED ONLY when the extension is connected.
+  const browserRules = [
+    'The user\'s live browser (Sokro extension) IS connected, so you can act inside sites.',
+    'If the user just wants to OPEN a site ("افتح جوجل"، "روح لموقع X"، "open X") WITHOUT reading/extracting, use browse with input.url = the site AND input.keepOpen = true.',
+    'If they want to OPEN a site and TYPE in its search box then submit ("افتح جوجل واكتب/ابحث عن كذا"، "دوّر على كذا في يوتيوب"), use fill_submit: input.url = the site, input.fields = [{"selector":"","value":"<text>"}], input.submit = "", input.keepOpen = true.',
+    'For tasks that INTERACT inside a site — filters, pick a make/model, click into an item, read what appears ("دوّر على رينو ميجان في سيلندر") — use operate with input.url = the site homepage (prefer www) and input.goal = the full task. For reading by following links use navigate_site; for a SINGLE known page use browse.',
+    'NEVER reply with manual step-by-step instructions telling the user to open a site themselves — ACT using the tools above.',
+  ];
+  // No-browser guidance — when the extension is NOT connected, keep everything to
+  // tools that don't need a live browser.
+  const noBrowserRules = [
+    'The live browser is NOT available right now (no extension connected). So do NOT use browse / operate / fill_submit / navigate_site / extract_table. For anything that would need a website, use search_web (for a specific site use input.query = "site:<domain> <what they want>"), generate_image, or research_report instead. Never tell the user to open a site manually — give them the answer via search_web.',
+  ];
+  const tail = [
     'Rule of thumb: if the user names a THING to be created (an image, drawing, logo, character, scene) and no other action fits better, default to generate_image rather than returning empty.',
     'Only use actions from the catalog and give concrete `input` for each step. Return empty steps ONLY if truly NO action applies, and then set "message" to a SHORT helpful Arabic sentence telling the user what you CAN do.',
     'Respond ONLY as JSON: {"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',
-  ].join(' ');
+  ];
+  const sys = base.concat(extConnected ? browserRules : noBrowserRules).concat(tail).join(' ');
   const names = new Set(catalog.map((a) => a.name));
   const user = `Available actions:\n${catalogText(catalog)}\n\nUser goal: ${goal}`;
   const messages = [{ role: 'system', content: sys }, ...recentContext, { role: 'user', content: user }];
@@ -129,7 +139,7 @@ async function plan(ctx, goal, recentContext = []) {
   if (out && Array.isArray(out.steps) && out.steps.length) return rewriteTypingSteps(out, names);
   // LLM returned nothing usable (empty steps, unparseable, or unavailable):
   // try the deterministic heuristic so "ارسم صورة قطة" / "ابحثلي..." still run.
-  const h = heuristicPlan(goal, names);
+  const h = heuristicPlan(goal, names, extConnected);
   if (h) return h;
   return {
     intent: 'unknown',
