@@ -378,6 +378,14 @@
     }catch(e){ addMsg('ai','تعذّر بدء المكالمة: '+e.message); endRealtime(); }
   }
   function endRealtime(){ try{rtDc&&rtDc.close();}catch(e){} try{rtPc&&rtPc.close();}catch(e){} try{rtStream&&rtStream.getTracks().forEach(function(t){t.stop();});}catch(e){} rtPc=null;rtStream=null;rtDc=null; setCall(false); }
+  // Voice command to hang up: the model can't close the WebRTC (it's on the
+  // client), so we detect end-phrases in the user's own transcript and end here.
+  function isEndCall(t){
+    var s=String(t||'').toLowerCase().trim();
+    if(/hang ?up|end (the )?call|stop (the )?call|goodbye/.test(s)) return true;
+    if(/(اقفل|قفل|اوقف|أوقف|وقّف|وقف|انهي|إنهاء|انهاء|اقفلي|قفلي).{0,8}(المكالمة|المكالمه|الكول|الاتصال|مكالمة|مكالمه)/.test(s)) return true;
+    return false;
+  }
   async function onRtEvent(ev){
     var m; try{ m=JSON.parse(ev.data); }catch(e){ return; }
     var t=m.type||'';
@@ -386,7 +394,7 @@
     else if(t==='input_audio_buffer.speech_stopped'){ if(rtOn) setStatus('🟢 مكالمة مباشرة'); }
     else if(t==='response.audio.delta'||t==='response.created'){ if(rtOn) setStatus('🗣️ Sokro بيرد…'); }
     else if(t==='response.done'){ if(rtOn) setStatus('🟢 مكالمة مباشرة — اتكلم عادي'); }
-    if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); }
+    if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } }
     else if(t==='response.audio_transcript.done' && m.transcript){ addMsg('ai',m.transcript); }
     else if(t==='response.function_call_arguments.done'){ await runRtTool(m.name,m.call_id,m.arguments); }
   }
