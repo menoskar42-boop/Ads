@@ -127,8 +127,8 @@
     <div class="status" id="status">اكتب طلبك… أو اضغط 📞 لمكالمة صوتية</div>
     <div id="pendbar" class="hidden"></div>
     <div class="microw">
-      <button id="attach" title="أضف صورة">📎</button>
-      <input id="file" type="file" accept="image/*" style="display:none" />
+      <button id="attach" title="أضف صورة أو ملف">📎</button>
+      <input id="file" type="file" accept="image/*,.txt,.csv,.md,.json,.log,.html,.xml,.yml,.yaml,.docx,.zip" style="display:none" />
       <input id="text" placeholder="اكتب طلبك هنا…" />
       <button id="send" class="hidden" title="إرسال">➤</button>
       <button id="call" title="مكالمة صوتية مباشرة — اتكلم معاه" style="width:74px;height:74px;border-radius:50%;border:0;background:linear-gradient(135deg,#5b6cff,#22d3ee);color:#fff;font-size:1.7rem;cursor:pointer;flex:none;box-shadow:0 8px 30px rgba(91,108,255,.45);transition:transform .12s">📞</button>
@@ -354,13 +354,26 @@
   // WhatsApp-style composer: show the send button while typing (hide the mic),
   // send on Enter or on the ➤ button, and always scroll to the newest message.
   // ---------- attachments (image the model can read) ----------
-  var pendingImage=null;
+  var pendingImage=null, pendingFile=null;
   $('#attach').onclick=function(){ $('#file').click(); };
-  $('#file').onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(!f)return;
-    var r=new FileReader(); r.onload=function(){ pendingImage=r.result; showPending(); toggleSend(); }; r.readAsDataURL(f); e.target.value=''; };
-  function showPending(){ var b=$('#pendbar'); if(!pendingImage){ b.classList.add('hidden'); b.innerHTML=''; return; }
-    b.classList.remove('hidden'); b.innerHTML='<img src="'+pendingImage+'"><span style="font-size:.85rem;color:#c3c9ee">صورة جاهزة تتبعت</span><button class="rm" title="شيل">✕</button>';
-    b.querySelector('.rm').onclick=function(){ pendingImage=null; showPending(); toggleSend(); }; }
+  $('#file').onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(!f){return;}
+    pendingImage=null; pendingFile=null;
+    if(f.type&&f.type.indexOf('image/')===0){ var r=new FileReader(); r.onload=function(){ pendingImage=r.result; showPending(); toggleSend(); }; r.readAsDataURL(f); }
+    else { pendingFile=f; showPending(); toggleSend(); }
+    e.target.value=''; };
+  function clearPend(){ pendingImage=null; pendingFile=null; showPending(); toggleSend(); }
+  function showPending(){ var b=$('#pendbar');
+    if(pendingImage){ b.classList.remove('hidden'); b.innerHTML='<img src="'+pendingImage+'"><span style="font-size:.85rem;color:#c3c9ee">صورة جاهزة تتبعت</span><button class="rm" title="شيل">✕</button>'; }
+    else if(pendingFile){ b.classList.remove('hidden'); b.innerHTML='<span style="font-size:1.2rem">📄</span><span style="font-size:.85rem;color:#c3c9ee">'+pendingFile.name.replace(/[<>]/g,'')+'</span><button class="rm" title="شيل">✕</button>'; }
+    else { b.classList.add('hidden'); b.innerHTML=''; return; }
+    b.querySelector('.rm').onclick=clearPend; }
+  async function runFile(text,file){
+    addMsg('me',(text?text+' ':'')+'📄 '+file.name);
+    var think=addMsg('ai','بقرأ الملف…','think');
+    try{ var fd=new FormData(); fd.append('file',file); fd.append('text',text||''); if(convId) fd.append('conversationId',convId);
+      var r=await fetch('/api/file',{method:'POST',body:fd}); var d=await r.json(); think.remove(); if(d.conversationId) convId=d.conversationId;
+      if(d.ok&&d.answer){ addMsg('ai',d.answer); speak(d.answer); } else addMsg('ai', d.error||'معرفتش أقرا الملف.'); }
+    catch(e){ think.remove(); addMsg('ai','تعذّر قراءة الملف.'); } }
   // Send typed text (and/or an image) INTO an active call over the data channel,
   // so the live model sees what you type/attach mid-conversation.
   function sendToCall(text,image){
@@ -379,10 +392,14 @@
     catch(e){ think.remove(); addMsg('ai','تعذّر تحليل الصورة.'); }
   }
   // ---------- composer: one button (📞 → ➤ while typing), image-aware ----------
-  function toggleSend(){ var has=$('#text').value.trim().length>0 || !!pendingImage; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
-  function sendText(){ var t=$('#text').value.trim(); var img=pendingImage; if(!t&&!img)return;
-    if(rtOn){ sendToCall(t,img); } else if(img){ runVision(t,img); } else { run(t); }
-    $('#text').value=''; pendingImage=null; showPending(); toggleSend(); scrollToBottom(); }
+  function toggleSend(){ var has=$('#text').value.trim().length>0 || !!pendingImage || !!pendingFile; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
+  function sendText(){ var t=$('#text').value.trim(); var img=pendingImage, file=pendingFile; if(!t&&!img&&!file)return;
+    $('#text').value=''; pendingImage=null; pendingFile=null; showPending(); toggleSend();
+    if(file){ runFile(t,file); }
+    else if(rtOn){ sendToCall(t,img); }
+    else if(img){ runVision(t,img); }
+    else { run(t); }
+    scrollToBottom(); }
   $('#text').addEventListener('input',toggleSend);
   $('#text').addEventListener('focus',scrollToBottom);
   $('#text').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendText(); } });

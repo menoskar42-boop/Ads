@@ -27,6 +27,7 @@ const content = require('./content');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
+const uploadFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }).single('file');
 const { loginLimiter } = require('../src/middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -318,6 +319,35 @@ router.post('/api/vision', auth.requireAuth, async (req, res) => {
     res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
   } catch (e) { console.error('[sokro] vision:', e.message); res.status(500).json({ ok: false, error: e.message }); }
 });
+
+// File → answer: the user attaches a document / zip / text file (📎). We extract
+// its readable content (text + any images inside) server-side and let the model
+// use it. Images alone go through /api/vision instead.
+router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, async () => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'file required' });
+  const name = req.file.originalname || 'file';
+  const promptText = String((req.body && req.body.text) || '').trim();
+  try {
+    const got = require('./lib/files').extract(name, req.file.buffer);
+    if (!got.text && !got.images.length) {
+      return res.json({ ok: false, error: 'النوع ده مش مقدر أقراه (جرّب صورة، نص، Word، أو ملف مضغوط zip). ملفات PDF لسه مش مدعومة.' });
+    }
+    const prefs = await settings.get(req.sokroUser.id);
+    const AP = require('./assistant-profile');
+    const lang = require('./core/lang');
+    const sys = AP.buildPreamble(prefs) + ' ' + lang.replyInstruction(prefs.lang) + ' The user shared a file; use its extracted content to answer.';
+    const userContent = [{ type: 'text', text: (promptText || 'لخّصلي أو حلّلي محتوى الملف ده.') + '\n\n[ملف: ' + name + ']\n' + (got.text || '(بدون نص — صور فقط)').slice(0, 60000) }];
+    for (const im of got.images.slice(0, 4)) userContent.push({ type: 'image_url', image_url: { url: im } });
+    const out = await require('./llm').chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: userContent }] });
+    let convId = (req.body && req.body.conversationId) || null;
+    try {
+      if (!convId) convId = (await memory.createConversation(req.sokroUser.id, name.slice(0, 60))).id;
+      await memory.addMessage(convId, 'user', '[ملف: ' + name + '] ' + promptText);
+      if (out && out.text) await memory.addMessage(convId, 'assistant', out.text);
+    } catch (_) {}
+    res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
+  } catch (e) { console.error('[sokro] file:', e.message); res.status(500).json({ ok: false, error: e.message }); }
+}));
 
 // Text → speech (high-quality Egyptian Arabic). Returns MP3 audio.
 router.post('/api/speak', auth.requireAuth, async (req, res) => {

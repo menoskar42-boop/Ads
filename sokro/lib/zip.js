@@ -52,4 +52,51 @@ function zipStore(files) {
   return Buffer.concat([...local, cd, eocd]);
 }
 
-module.exports = { zipStore, crc32 };
+// ── Reader ───────────────────────────────────────────────────────────────────
+const zlib = require('zlib');
+
+function findEOCD(buf) {
+  const min = Math.max(0, buf.length - 65557 - 22);
+  for (let i = buf.length - 22; i >= min; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      return { count: buf.readUInt16LE(i + 10), cdOffset: buf.readUInt32LE(i + 16) };
+    }
+  }
+  return null;
+}
+
+// Extract entries from a .zip Buffer → [{ name, data:Buffer }]. Handles STORE (0)
+// and DEFLATE (8). Bounded by maxEntries/maxBytes so a malicious archive can't
+// blow up memory. Corrupt/unsupported entries are skipped, not fatal.
+function unzipEntries(buf, opts = {}) {
+  const maxEntries = opts.maxEntries || 80;
+  const maxBytes = opts.maxBytes || 6 * 1024 * 1024;
+  const eocd = findEOCD(buf);
+  if (!eocd) throw new Error('not a zip');
+  const out = [];
+  let p = eocd.cdOffset;
+  for (let n = 0; n < eocd.count && out.length < maxEntries; n++) {
+    if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(p + 10);
+    const compSize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const localOffset = buf.readUInt32LE(p + 42);
+    const name = buf.toString('utf8', p + 46, p + 46 + nameLen);
+    p += 46 + nameLen + extraLen + commentLen;
+    if (name.endsWith('/') || name.startsWith('__MACOSX/')) continue;
+    if (localOffset + 30 > buf.length || buf.readUInt32LE(localOffset) !== 0x04034b50) continue;
+    const lNameLen = buf.readUInt16LE(localOffset + 26);
+    const lExtraLen = buf.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + lNameLen + lExtraLen;
+    const comp = buf.slice(dataStart, dataStart + compSize);
+    let data;
+    try { data = method === 0 ? comp : zlib.inflateRawSync(comp); } catch (_) { continue; }
+    if (data.length > maxBytes) data = data.slice(0, maxBytes);
+    out.push({ name, data });
+  }
+  return out;
+}
+
+module.exports = { zipStore, crc32, unzipEntries };
