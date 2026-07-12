@@ -140,8 +140,10 @@
   function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); }
   async function saveSettingsForm(){
     var patch={ assistantName:$('#setName').value.trim()||'Selena', personality:$('#setPersona').value, voice:$('#setVoice').value, lang:$('#setLang').value };
-    SETTINGS=Object.assign({},SETTINGS,patch); $('#settings').classList.add('hidden');
-    try{ var r=await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)}); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){}
+    var btn=$('#setSave'), orig=btn.textContent; btn.disabled=true; btn.textContent='…';
+    try{ var r=await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)}); var d=await r.json(); SETTINGS=(d&&d.ok&&d.settings)?d.settings:Object.assign({},SETTINGS,patch); }
+    catch(e){ SETTINGS=Object.assign({},SETTINGS,patch); }
+    btn.disabled=false; btn.textContent=orig; $('#settings').classList.add('hidden');
   }
 
   // ---------- auth ----------
@@ -152,11 +154,12 @@
     var had=await loadHistory();
     if(!had && !$('#log').dataset.greeted){ $('#log').dataset.greeted='1'; addMsg('ai','أهلاً'+(user&&user.display_name?(' '+user.display_name):'')+'! قوللي عايز إيه — أبحث، أعملك تقرير، اخلقلك صورة، أو أي مهمة.'); }
   }
-  document.addEventListener('click',function(e){
-    if(e.target.id==='gear') openSettings();
-    if(e.target.id==='setClose'||e.target.id==='settings') $('#settings').classList.add('hidden');
-    if(e.target.id==='setSave') saveSettingsForm();
-  });
+  // Direct handlers — the modal's inner wrapper calls event.stopPropagation(),
+  // so clicks on these never bubble to a document-level delegate.
+  $('#gear').onclick=openSettings;
+  $('#setSave').onclick=saveSettingsForm;
+  $('#setClose').onclick=function(){ $('#settings').classList.add('hidden'); };
+  $('#settings').addEventListener('click',function(e){ if(e.target.id==='settings') $('#settings').classList.add('hidden'); });
   $('#authToggle').onclick=function(){ mode=mode==='login'?'signup':'login';
     $('#name').classList.toggle('hidden',mode==='login');
     $('#authBtn').textContent=mode==='login'?'دخول':'إنشاء حساب';
