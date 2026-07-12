@@ -7,6 +7,16 @@
 // degrades gracefully with a clear error when it isn't installed.
 const { register } = require('./_registry');
 
+// Toggle the www. prefix so a wrong-guessed host (sylndr.com vs www.sylndr.com)
+// can be retried automatically.
+function wwwVariant(url) {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.startsWith('www.') ? u.hostname.slice(4) : 'www.' + u.hostname;
+    return u.href;
+  } catch (_) { return null; }
+}
+
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
@@ -26,8 +36,16 @@ async function run(ctx, input) {
     return { ok: false, error: 'محتاج تشغّل متصفّح سوكرو عشان أدخل الموقع بنفسي: نزّل إضافة كروم من sokro.oscardevs.com/ext ووصّلها، أو فعّل متصفّح السيرفر (Playwright). (browser engine unavailable)' };
   }
   try {
+    let usedUrl = url;
     const out = await ctx.browser.withPage(async (page) => {
-      await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+      // Try the URL; on a navigation failure, retry the www-toggled host once.
+      try { await page.goto(url, { waitUntil: 'load', timeout: 30000 }); }
+      catch (e) {
+        const alt = wwwVariant(url);
+        if (!alt || alt === url) throw e;
+        await page.goto(alt, { waitUntil: 'load', timeout: 30000 });
+        usedUrl = alt;
+      }
       // Let a JS/SPA site (like a car marketplace) finish rendering its links.
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
       const sel = input && input.selector;
@@ -52,8 +70,8 @@ async function run(ctx, input) {
       const title = await page.title();
       return { title, text: data.text, links: data.links, screenshot };
     });
-    if (ctx.log) ctx.log('browse', { url });
-    return { ok: true, output: Object.assign({ url }, out) };
+    if (ctx.log) ctx.log('browse', { url: usedUrl });
+    return { ok: true, output: Object.assign({ url: usedUrl }, out) };
   } catch (e) {
     return { ok: false, error: 'browse failed: ' + e.message };
   }

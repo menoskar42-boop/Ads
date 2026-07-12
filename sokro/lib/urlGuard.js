@@ -36,6 +36,9 @@ async function assertSafeUrl(raw) {
   let u;
   try { u = new URL(String(raw || '').trim()); } catch (_) { throw new Error('invalid url'); }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('only http/https allowed');
+  // Collapse accidental double slashes in the path (a model often builds
+  // ".../ar//used-cars", which many sites 404). Never touch the protocol's "//".
+  if (u.pathname) u.pathname = u.pathname.replace(/\/{2,}/g, '/');
   const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (!host) throw new Error('missing host');
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') ||
