@@ -121,30 +121,44 @@ async function doBrowse(input) {
 }
 
 async function doFillSubmit(input) {
-  const tabId = await openAndWait(input.url);
+  const keep = input.keepOpen !== false; // default: leave the tab open (see results)
+  const tabId = await openAndWait(input.url, keep);
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId }, args: [input.fields || [], input.submit || null],
     func: (fields, submit) => {
-      var filled = 0;
+      function vis(el){ var r=el.getBoundingClientRect(); return r.width>2&&r.height>2; }
+      // Robustly find the target input even if the given selector is wrong: fall
+      // back to a visible search/text box (so "type in the search box" just works).
+      function findInput(sel){
+        if (sel){ try{ var e=document.querySelector(sel); if(e) return e; }catch(_){} }
+        var cands=['input[type="search"]','input[name="q"]','textarea[name="q"]','input[aria-label*="search" i]','input[placeholder*="بحث"]','input[placeholder*="search" i]','[role="search"] input','input[type="text"]','textarea'];
+        for(var i=0;i<cands.length;i++){ var list=document.querySelectorAll(cands[i]); for(var j=0;j<list.length;j++){ if(vis(list[j])) return list[j]; } }
+        return null;
+      }
+      var filled = 0, target = null;
       (fields || []).forEach(function (f) {
         try {
-          var el = document.querySelector(f.selector);
-          if (el) {
-            el.focus();
-            el.value = f.value;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            filled++;
-          }
+          var el = findInput(f.selector); if(!el) return; target = el;
+          el.focus(); el.value = f.value;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          filled++;
         } catch (e) {}
       });
       var submitted = false;
-      if (submit) { try { var s = document.querySelector(submit); if (s) { s.click(); submitted = true; } } catch (e) {} }
+      if (submit) {
+        // Explicit submit selector → click it; else submit the field's form or press Enter.
+        try { var s = document.querySelector(submit); if (s) { s.click(); submitted = true; } } catch (e) {}
+        if (!submitted && target) {
+          try { if (target.form) { target.form.submit(); submitted = true; } } catch (e) {}
+          if (!submitted) { try { target.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})); target.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',keyCode:13,which:13,bubbles:true})); submitted = true; } catch (e) {} }
+        }
+      }
       return { filled: filled, submitted: submitted };
     },
   });
   // Give a submit navigation a moment, then read the resulting page.
-  if (result.submitted) await new Promise((r) => setTimeout(r, 1500));
+  if (result.submitted) await new Promise((r) => setTimeout(r, 1600));
   let after = { title: '', text: '' };
   try {
     const [{ result: a }] = await chrome.scripting.executeScript({
@@ -152,8 +166,8 @@ async function doFillSubmit(input) {
     });
     after = a;
   } catch (e) {}
-  try { chrome.tabs.remove(tabId); } catch (e) {}
-  return { url: input.url, filled: result.filled, submitted: result.submitted, title: after.title, text: after.text };
+  if (!keep) { try { chrome.tabs.remove(tabId); } catch (e) {} }
+  return { url: input.url, filled: result.filled, submitted: result.submitted, title: after.title, text: after.text, keptOpen: keep };
 }
 
 async function doExtractTable(input) {

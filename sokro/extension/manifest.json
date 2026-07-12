@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sokro Browser Bridge",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "يخلّي Sokro ينفّذ مهام في متصفحك الحي (بحث/حجز/نشر) بجلساتك المسجّلة — بدون متصفح على السيرفر. كل مهمة بتطلب موافقتك بالدومين الأول.",
   "permissions": ["tabs", "scripting", "storage", "alarms"],
   "host_permissions": ["https://sokro.oscardevs.com/*", "<all_urls>"],

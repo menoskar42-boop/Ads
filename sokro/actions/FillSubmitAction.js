@@ -44,7 +44,7 @@ async function run(ctx, input) {
   // sent as concrete values only to the trusted bridge, never to the model.
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
-    const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit, consented: !!ctx.consented });
+    const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit, consented: !!ctx.consented, keepOpen: !(input && input.keepOpen === false) });
     if (r.ok) { if (ctx.log) ctx.log('fill_submit(ext)', { url, fields: fields.length }); return { ok: true, output: Object.assign({ url }, r.output) }; }
     return { ok: false, error: r.error };
   }
@@ -78,6 +78,7 @@ register({
   name: 'fill_submit',
   description: 'Fill form fields on a web page and optionally submit (login boxes, search forms, checkout). input.fields=[{selector,value}], optional input.submit=CSS selector of the submit button. A value of "{{secret:NAME}}" is replaced by a stored secret. Requires the user\'s browser.',
   permissions: ['browser', 'submit'],
+  // (keepOpen defaults true → the tab with the results stays open in the user's browser)
   inputSchema: {
     type: 'object',
     properties: {
