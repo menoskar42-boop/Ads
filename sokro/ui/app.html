@@ -406,9 +406,13 @@
   // Voice command to hang up: the model can't close the WebRTC (it's on the
   // client), so we detect end-phrases in the user's own transcript and end here.
   function isEndCall(t){
-    var s=String(t||'').toLowerCase().trim();
-    if(/hang ?up|end (the )?call|stop (the )?call|goodbye/.test(s)) return true;
-    if(/(اقفل|قفل|اوقف|أوقف|وقّف|وقف|انهي|إنهاء|انهاء|اقفلي|قفلي).{0,8}(المكالمة|المكالمه|الكول|الاتصال|مكالمة|مكالمه)/.test(s)) return true;
+    var s=String(t||'').toLowerCase().trim().replace(/[.،,!؟]/g,' ');
+    if(/hang ?up|end (the )?call|stop (the )?call|goodbye|bye bye/.test(s)) return true;
+    // any close/stop/end verb near a call word (order-independent, small gap)
+    if(/(اقفل|قفل|اغلق|أغلق|اوقف|أوقف|وقّف|وقف|سكّر|سكر|انهي|أنهي|إنهاء|انهاء|خلص|كفايه|كفاية|بس كده)[^]{0,12}(المكالمة|المكالمه|مكالمة|مكالمه|الكول|كول|الاتصال|اتصال|التليفون)/.test(s)) return true;
+    if(/(المكالمة|المكالمه|الكول|الاتصال)[^]{0,12}(اقفل|قفل|اغلق|خلاص|كفايه|كفاية|بس)/.test(s)) return true;
+    // short standalone commands
+    if(/^(اقفل|قفل|سكّر|سكر|خلاص خلاص|بس خلاص|كفاية كده|إنهاء)$/.test(s)) return true;
     return false;
   }
   async function onRtEvent(ev){
