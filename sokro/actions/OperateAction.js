@@ -226,9 +226,24 @@ async function run(ctx, input) {
   if ((wantResume || !url) && ctx.userId && sessions.has(ctx.userId)) {
     url = sessions.get(ctx.userId).url || url;
   }
-  if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
   if (!goal) return { ok: false, error: 'goal required' };
+  // No starting site given → don't dead-end. Open a Google search for the goal in
+  // the user's browser and LEAVE it open so they see the results right away.
+  let noSite = false;
+  if (!/^https?:\/\//i.test(url)) {
+    noSite = true;
+    url = 'https://www.google.com/search?q=' + encodeURIComponent(goal);
+  }
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); } catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
+  if (noSite) {
+    const br = ctx.actions && ctx.actions.get && ctx.actions.get('browse');
+    if (br) {
+      try {
+        const r = await br.run(ctx, { url, keepOpen: true });
+        if (r && r.ok) return { ok: true, output: Object.assign({ openedSearch: true, query: goal }, r.output) };
+      } catch (_) {}
+    }
+  }
   // Failure prediction — if a blocker makes failure likely, ASK before starting
   // (unless the user already chose to proceed / confirm / resume).
   const proceed = !!(input && (input.proceed || input.force || input.resume || input.confirmSensitive));
