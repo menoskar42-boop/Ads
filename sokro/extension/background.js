@@ -53,11 +53,17 @@ function requestConfirm(cmd) {
 const READ_ONLY = new Set(['browse', 'extract_table']);
 
 async function execute(cmd) {
-  // Consent gate: only WRITE commands (fill_submit) need per-domain approval.
-  // Opening/reading a page runs directly so "افتح جوجل" doesn't nag.
+  // Consent is handled ONCE in the Sokro app (a single "أكّد", and only for
+  // irreversible writes). So the extension does NOT pop its own window:
+  //   • reads (browse/extract_table) → always run.
+  //   • writes already confirmed in the app (input.consented) → run.
+  //   • a previously always-allowed domain → run.
+  // Only an unconfirmed write on a new domain would ask (shouldn't happen in the
+  // normal flow, kept as a safety net).
   const domain = domainOf(cmd.input && cmd.input.url);
   let allow = false;
   if (READ_ONLY.has(cmd.kind)) allow = true;
+  else if (cmd.input && cmd.input.consented) allow = true;
   else if (domain && await isApprovedDomain(domain)) allow = true;
   else {
     const d = await requestConfirm(cmd);

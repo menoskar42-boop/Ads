@@ -256,6 +256,8 @@ router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
   }
   const ctx = {
     userId: req.sokroUser.id,
+    // The user already confirmed here (voice/tap) → the extension must NOT ask again.
+    consented: !!(req.body && req.body.consent === true),
     llm: require('./llm'),
     memory,
     browser,

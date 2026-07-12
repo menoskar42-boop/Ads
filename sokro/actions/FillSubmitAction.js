@@ -44,7 +44,7 @@ async function run(ctx, input) {
   // sent as concrete values only to the trusted bridge, never to the model.
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
-    const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit });
+    const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit, consented: !!ctx.consented });
     if (r.ok) { if (ctx.log) ctx.log('fill_submit(ext)', { url, fields: fields.length }); return { ok: true, output: Object.assign({ url }, r.output) }; }
     return { ok: false, error: r.error };
   }
