@@ -551,9 +551,14 @@ function extFiles() {
 }
 router.get('/ext.zip', (_req, res) => {
   try {
+    let ver = 'x';
+    try { ver = JSON.parse(_fs.readFileSync(path.join(__dirname, 'extension', 'manifest.json'), 'utf8')).version || 'x'; } catch (_) {}
     const buf = require('./lib/zip').zipStore(extFiles());
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', 'attachment; filename="sokro-extension.zip"');
+    // Never cache the download, and put the version in the filename, so the user
+    // always gets the LATEST build (a cached sokro-extension.zip was serving stale).
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Content-Disposition', 'attachment; filename="sokro-extension-' + ver + '.zip"');
     res.send(buf);
   } catch (e) { res.status(500).send('zip error: ' + e.message); }
 });
