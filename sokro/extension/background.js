@@ -56,7 +56,7 @@ function requestConfirm(cmd) {
 // Reading/opening a page is low-risk → no popup. Only WRITES (submitting a form:
 // publish/save/send) ask for consent, matching Sokro's "confirm only irreversible
 // actions" rule.
-const READ_ONLY = new Set(['browse', 'extract_table']);
+const READ_ONLY = new Set(['browse', 'extract_table', 'op_state', 'op_act']);
 
 async function execute(cmd) {
   // Consent is handled ONCE in the Sokro app (a single "أكّد", and only for
@@ -83,6 +83,8 @@ async function execute(cmd) {
     if (cmd.kind === 'browse') output = await doBrowse(cmd.input || {});
     else if (cmd.kind === 'extract_table') output = await doExtractTable(cmd.input || {});
     else if (cmd.kind === 'fill_submit') output = await doFillSubmit(cmd.input || {});
+    else if (cmd.kind === 'op_state') output = await doOpState(cmd.input || {});
+    else if (cmd.kind === 'op_act') output = await doOpAct(cmd.input || {});
     else error = 'unknown kind: ' + cmd.kind;
   } catch (e) { error = String((e && e.message) || e); }
   await postResult(cmd.id, output, error);
@@ -174,6 +176,77 @@ async function doFillSubmit(input) {
   } catch (e) {}
   if (!keep) { try { chrome.tabs.remove(tabId); } catch (e) {} }
   return { url: input.url, filled: result.filled, submitted: result.submitted, title: after.title, text: after.text, keptOpen: keep };
+}
+
+// ── Operator: drive ONE persistent tab (click / type / select / scroll) ──────
+let opTab = null; // the tab the Operator keeps open across steps
+
+function waitComplete(id) {
+  return new Promise((resolve) => {
+    function l(tid, info) { if (tid === id && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(l); setTimeout(resolve, 900); } }
+    chrome.tabs.onUpdated.addListener(l);
+    setTimeout(resolve, 12000); // hard cap
+  });
+}
+async function ensureOpTab(url) {
+  if (opTab != null) { try { await chrome.tabs.get(opTab); } catch (_) { opTab = null; } }
+  if (opTab == null) {
+    opTab = await new Promise((res) => chrome.tabs.create({ url: url || 'about:blank', active: true }, (t) => res(t.id)));
+    await waitComplete(opTab);
+  } else if (url) {
+    await new Promise((res) => chrome.tabs.update(opTab, { url, active: true }, () => res()));
+    await waitComplete(opTab);
+  }
+  return opTab;
+}
+// Runs in the page: tag visible interactive elements + return the state.
+function opCollect() {
+  function vis(el) { var r = el.getBoundingClientRect(); return r.width > 3 && r.height > 3 && r.bottom > 0 && r.top < window.innerHeight + 800; }
+  var inputs = [], clickables = [], i = 0;
+  Array.prototype.slice.call(document.querySelectorAll('input,textarea,select')).forEach(function (el) {
+    if (inputs.length >= 25 || !vis(el)) return; if ((el.type || '').toLowerCase() === 'hidden') return;
+    el.setAttribute('data-sokro-idx', String(i));
+    inputs.push({ idx: i, tag: el.tagName.toLowerCase(), type: el.type || '', label: (el.getAttribute('aria-label') || el.placeholder || el.name || '').trim().slice(0, 50), value: String(el.value || '').slice(0, 60) });
+    i++;
+  });
+  Array.prototype.slice.call(document.querySelectorAll('a[href],button,[role="button"],[onclick],summary,[role="option"],[role="tab"],[role="menuitem"]')).forEach(function (el) {
+    if (clickables.length >= 50 || !vis(el)) return; if (el.matches('input,textarea,select')) return;
+    el.setAttribute('data-sokro-idx', String(i));
+    clickables.push({ idx: i, tag: el.tagName.toLowerCase(), label: (el.innerText || el.getAttribute('aria-label') || el.title || '').trim().replace(/\s+/g, ' ').slice(0, 60) });
+    i++;
+  });
+  return { title: document.title, url: location.href, text: (document.body ? document.body.innerText : '').slice(0, 2500), inputs: inputs, clickables: clickables };
+}
+async function opStateOf(id) {
+  const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: id }, func: opCollect });
+  return result;
+}
+async function doOpState(input) {
+  const id = await ensureOpTab(input.url);
+  return await opStateOf(id);
+}
+async function doOpAct(input) {
+  if (opTab == null) throw new Error('no operator tab (open a page first)');
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId: opTab }, args: [input.action || '', input.idx, input.text || ''],
+    func: (action, idx, text) => {
+      var el = (idx != null && idx !== '') ? document.querySelector('[data-sokro-idx="' + idx + '"]') : null;
+      try {
+        if (action === 'click') { if (!el) return { ok: false, err: 'element not found' }; el.scrollIntoView({ block: 'center' }); el.click(); return { ok: true }; }
+        if (action === 'type') { if (!el) return { ok: false, err: 'field not found' }; el.focus(); el.value = text; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return { ok: true }; }
+        if (action === 'select') { if (!el) return { ok: false, err: 'select not found' };
+          if (el.tagName === 'SELECT') { var opt = Array.prototype.slice.call(el.options).find(function (o) { return (o.text || '').indexOf(text) >= 0 || o.value === text; }); if (opt) { el.value = opt.value; el.dispatchEvent(new Event('change', { bubbles: true })); return { ok: true }; } return { ok: false, err: 'option not found' }; }
+          el.click(); return { ok: true }; }
+        if (action === 'enter') { if (el) { el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true })); if (el.form) { try { el.form.requestSubmit ? el.form.requestSubmit() : el.form.submit(); } catch (e) {} } } return { ok: true }; }
+        if (action === 'scroll') { window.scrollBy(0, window.innerHeight * 0.85); return { ok: true }; }
+      } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
+      return { ok: false, err: 'unknown action' };
+    },
+  });
+  await new Promise((r) => setTimeout(r, 1100)); // let the page react/navigate
+  await waitComplete(opTab).catch(() => {});
+  const st = await opStateOf(opTab);
+  return Object.assign({ acted: result }, st);
 }
 
 async function doExtractTable(input) {

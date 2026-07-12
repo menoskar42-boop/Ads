@@ -218,6 +218,51 @@ async function resolveTarget(page, state, idx) {
   return await firstVisible(build());
 }
 
+// Interactive Operator driven THROUGH the extension: op_state (observe) → LLM
+// decides → op_act (click/type/select/scroll) in the same live tab → repeat.
+// Returns a result, or null if the extension didn't respond (caller falls back).
+async function runExtOperator(ctx, url, goal, maxSteps, confirmSensitive) {
+  const ext = require('../extension-bridge');
+  let st = await ext.run(ctx.userId, 'op_state', { url }, 60000);
+  if (!st || !st.ok) return null;
+  let state = st.output || {};
+  const trail = [], avoid = new Map();
+  let answer = null, prevSig = null, awaitingConfirm = false, sensitiveLabel = null;
+  for (let step = 0; step < maxSteps; step++) {
+    const clicks = state.clickables || [], inputs = state.inputs || [];
+    const sig = [state.title, state.url, clicks.length, inputs.length, (state.text || '').length].join('|');
+    const changed = prevSig === null ? true : sig !== prevSig;
+    const sys = 'You operate the user\'s REAL browser tab toward a goal, one step at a time. You get the INPUT FIELDS and CLICKABLE elements (each with an [idx]) plus the page text. Reply ONLY JSON: {"thought":"short","action":"click|type|select|scroll|enter|done","idx":<idx for click/type/select>,"text":"<text for type/select>","answer":"<Arabic answer, only when done>"}. Type into a field then press its button (or action "enter"). Click buttons/links/options/tabs to open dropdowns, apply filters, reach a listing or a specific item. If an action changed nothing, try a DIFFERENT element. Use done when the goal information is visible — put it in answer.';
+    const listTxt = 'INPUT FIELDS:\n' + (inputs.length ? inputs.map((e) => '  [' + e.idx + '] ' + e.tag + (e.type ? '/' + e.type : '') + ' ' + (e.label || '') + (e.value ? (' = "' + e.value + '"') : '')).join('\n') : '  (none)') +
+      '\n\nCLICKABLE:\n' + (clicks.length ? clicks.map((e) => '  [' + e.idx + '] ' + e.tag + ': ' + (e.label || '')).join('\n') : '  (none)');
+    const recent = trail.slice(-6).map((t, i) => '  ' + (i + 1) + '. ' + t.action + (t.idx != null ? (' #' + t.idx) : '') + (t.changed ? '' : ' (no change)') + (t.thought ? ' — ' + t.thought : '')).join('\n');
+    const avoidTxt = avoid.size ? ('\n\nAVOID (already failed):\n' + Array.from(avoid.keys()).slice(-6).map((k) => '  ' + k).join('\n')) : '';
+    const user = 'Goal: ' + goal + '\nPage: ' + (state.title || '') + ' — ' + state.url + '\n\n' + listTxt + '\n\nPAGE TEXT:\n' + (state.text || '').slice(0, 2000) + (trail.length ? ('\n\nRECENT:\n' + recent) : '') + avoidTxt;
+    let dec = null;
+    try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); } catch (_) {}
+    if (ctx.log) ctx.log('operate.ext', { step: step + 1, url: state.url, changed, action: dec && dec.action, idx: dec && dec.idx });
+    trail.push({ step, title: state.title, url: state.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, text: dec && dec.text, thought: dec && dec.thought });
+    prevSig = sig;
+    if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
+    // Stop before a sensitive (pay/delete/submit) button unless already confirmed.
+    if (dec.action === 'click' && dec.idx != null && !confirmSensitive) {
+      const d = clicks.find((e) => e.idx === dec.idx);
+      if (d && isSensitiveLabel(d.label)) { awaitingConfirm = true; sensitiveLabel = d.label; answer = 'وقفت قبل إجراء حسّاس: «' + (d.label || 'زر') + '». قول «أكّد» عشان أضغطه.'; break; }
+    }
+    const act = await ext.run(ctx.userId, 'op_act', { action: dec.action, idx: dec.idx, text: dec.text }, 45000);
+    if (!act || !act.ok) { trail.push({ error: (act && act.error) || 'act failed' }); avoid.set(dec.action + ' #' + dec.idx, 1); break; }
+    if (act.output && act.output.acted && act.output.acted.ok === false) {
+      const lbl = (clicks.find((e) => e.idx === dec.idx) || {}).label || ('#' + dec.idx);
+      avoid.set(dec.action + ' «' + lbl + '»', (avoid.get(dec.action + ' «' + lbl + '»') || 0) + 1);
+    }
+    state = act.output || state;
+  }
+  if (!answer) answer = 'وصلت لـ ' + (state.url || '') + '\n' + (state.text || '').slice(0, 1200);
+  const suggestions = [];
+  if (!awaitingConfirm && trail.filter((t) => t.changed === false).length >= 2) suggestions.push('بعض الخطوات ماأثّرتش — لو المطلوب دقيق، وصّفه أكتر أو ادّيني رابط الصفحة مباشرة.');
+  return { ok: true, output: { goal, viaExtension: true, steps: trail.length, trail, answer, finalUrl: state.url, awaitingConfirm, sensitive: sensitiveLabel, suggestions } };
+}
+
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   const goal = String((input && (input.goal || input.query)) || '').trim();
@@ -255,28 +300,26 @@ async function run(ctx, input) {
       return { ok: false, output: { awaitingProceed: true, prediction: pf, answer: '⚠️ احتمال الفشل ~' + pf.pct + '%: ' + pf.reason + '.\n' + pf.fix } };
     }
   }
+  const maxSteps = Math.min(Math.max(parseInt(input && input.maxSteps, 10) || 6, 1), 10);
+  // Sensitive actions (pay/delete/submit…) are only pressed after the user confirms
+  // — the confirmation can be by voice (caller re-runs with confirmSensitive:true).
+  const confirmSensitive = !!(input && (input.confirmSensitive || input.confirm));
   // Prefer the user's LIVE browser (Sokro extension) when connected: it's logged-in,
   // reliable, and sidesteps the server browser's 0.5 GiB memory limit that makes
   // Chromium crash. The server-side Operator is used only when no extension.
   let extConnected = false;
   try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
   if (extConnected) {
-    // In the user's own browser we can't run the full click/type loop yet, but we
-    // must NOT close the tab (navigate_site does). So OPEN the page and LEAVE it
-    // open (like "افتح الموقع"), read what's there, and hand it to the user — this
-    // fixes "opens then closes immediately" for "open site AND do X".
+    // Real interactive Operator IN THE USER'S BROWSER: open ONE persistent tab,
+    // observe its clickable elements + input fields, let the model pick an action
+    // (click / type / select / scroll / done), execute it in that SAME tab, and
+    // repeat. This is what enables pressing buttons / opening dropdowns / filters.
+    const r = await runExtOperator(ctx, url, goal, maxSteps, confirmSensitive);
+    if (r) return r;
+    // Extension didn't respond → fall back to a plain open (keepOpen).
     const br = ctx.actions && ctx.actions.get && ctx.actions.get('browse');
-    if (br) {
-      try {
-        const r = await br.run(ctx, { url, keepOpen: true });
-        if (r && r.ok) {
-          return { ok: true, output: Object.assign({ opened: true, keptOpen: true, goal, note: 'فتحت الموقع وسيبته مفتوح قدامك. التفاعل التلقائي (ضغط أزرار) لسه بيتطوّر — تقدر تكمّل بنفسك أو تقولي أبحث/أكتب حاجة معيّنة.' }, r.output) };
-        }
-      } catch (_) {}
-    }
-    const fb = await tryFallback(ctx, url, goal, 'running in your connected browser');
-    if (fb && fb.ok) return fb;
-    return { ok: false, error: (fb && fb.error) || 'التنفيذ في متصفحك فشل', tried: (fb && fb.tried) || [] };
+    if (br) { try { const b = await br.run(ctx, { url, keepOpen: true }); if (b && b.ok) return { ok: true, output: Object.assign({ opened: true }, b.output) }; } catch (_) {} }
+    return { ok: false, error: 'الإضافة مردّتش — اتأكد إنها موصولة ومحدّثة (v1.7.0).' };
   }
   if (!ctx.browser || !ctx.browser.available()) {
     // Primary method (server browser) unavailable → fall back automatically.
@@ -288,12 +331,6 @@ async function run(ctx, input) {
       tried: (fb && fb.tried) || [], // every method + why it failed, so the UI can show ALL reasons
     };
   }
-  const maxSteps = Math.min(Math.max(parseInt(input && input.maxSteps, 10) || 6, 1), 10);
-  // Sensitive actions (pay/delete/submit…) are only pressed after the user confirms
-  // — and the confirmation can be by voice, so the caller simply re-runs with
-  // confirmSensitive:true + resume:true once the user says "أكّد/كمّل".
-  const confirmSensitive = !!(input && (input.confirmSensitive || input.confirm));
-
   try {
     const result = await ctx.browser.withPage(async (page) => {
       // Capture runtime errors as they happen — JS exceptions, console errors, and
