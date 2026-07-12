@@ -277,13 +277,57 @@
   }
 
   function renderResult(d){
-    var report=null, images=[];
-    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); } });
+    var report=null, images=[], confirm=null, proceed=null;
+    (d.results||[]).forEach(function(r){ var o=r.result&&r.result.output; if(o){ if(o.report) report={ title:o.topic||'تقرير', text:o.report, rows:o.sources||null }; if(o.imageUrl) images.push(o.imageUrl); if(o.awaitingConfirm) confirm={ label:o.sensitive||'إجراء حساس', answer:o.answer }; if(o.awaitingProceed) proceed={ answer:o.answer, fix:o.prediction&&o.prediction.fix }; } });
     var summary=d.summary||(report?report.text:(d.ok?'تمّت المهمة.':'المهمة فشلت.'));
     addMsg('ai',summary);
     images.forEach(addImage);
     if(report) addDownloads(report);
     speak(summary);
+    // A sensitive step (pay/delete/submit) is waiting for the user's OK — show an
+    // INLINE confirm card in the chat (not a popup) and accept a voice "أكّد" too.
+    if(confirm && d.taskId) renderInlineConfirm(confirm, d.taskId);
+    // Failure predicted before start — offer to proceed anyway (fallback) or fix.
+    if(proceed && d.taskId) renderProceedCard(proceed, d.taskId);
+  }
+  function renderProceedCard(p, taskId){
+    var el=document.createElement('div'); el.className='plan';
+    el.innerHTML='<div>'+String(p.answer||'احتمال فشل عالي.').replace(/[<>]/g,'').replace(/\n/g,'<br>')+'</div><div class="row"><button class="ok">كمّل بأي حال</button><button class="no">أصلح الأول</button></div>';
+    $('#log').appendChild(el); scrollToBottom(); speak(p.answer||'فيه احتمال فشل، تكمّل؟');
+    el.querySelector('.ok').onclick=async function(){ el.querySelector('.row').innerHTML='<span class="muted">بكمّل…</span>';
+      var think=addThinking('بنفّذ'); try{ var r=await fetch('/api/run/'+taskId+'/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proceed:true})}); endThinking(think); renderResult(await r.json()); }catch(e){ endThinking(think); addMsg('ai','تعذّر التنفيذ.'); } };
+    el.querySelector('.no').onclick=function(){ el.querySelector('.row').innerHTML='<span class="muted">تمام — '+String(p.fix||'صلّح البلوكر الأول.').replace(/[<>]/g,'')+'</span>'; };
+  }
+  // Inline sensitive-action confirmation, right inside the conversation. The user
+  // can tap أكّد or just SAY "أكّد/كمّل" (voice counts as pressing the button). If a
+  // call is open, the request is spoken AND written.
+  var pendingConfirm=null;
+  function renderInlineConfirm(confirm, taskId){
+    var el=document.createElement('div'); el.className='plan';
+    var msg=confirm.answer||('محتاج تأكيدك قبل إجراء حسّاس: «'+confirm.label+'».');
+    el.innerHTML='<div>🔒 '+msg.replace(/[<>]/g,'')+'</div><div class="row"><button class="ok">أكّد ✅</button><button class="no">لأ، وقّف</button></div>';
+    $('#log').appendChild(el); scrollToBottom();
+    speak(msg); // spoken with the text — during a call too
+    function done(txt){ el.querySelector('.row').innerHTML='<span class="muted">'+txt+'</span>'; pendingConfirm=null; }
+    var doConfirm=async function(){ done('بنفّذ…');
+      var think=addThinking('بنفّذ الإجراء');
+      try{ var r=await fetch('/api/run/'+taskId+'/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmSensitive:true})}); endThinking(think); renderResult(await r.json()); }
+      catch(e){ endThinking(think); addMsg('ai','تعذّر تنفيذ الإجراء.'); } };
+    var doCancel=function(){ done('تمام، وقّفت.'); addMsg('ai','تمام، مضغطتش على الزر.'); };
+    el.querySelector('.ok').onclick=doConfirm;
+    el.querySelector('.no').onclick=doCancel;
+    pendingConfirm={ yes:doConfirm, no:doCancel };
+  }
+  // If a confirmation is pending, map a spoken/typed yes/no to the buttons and
+  // return true (so it isn't treated as a brand-new request).
+  function handleConfirmWord(text){
+    if(!pendingConfirm) return false;
+    var t=' '+String(text||'').trim().toLowerCase()+' ';
+    var yes=/(أكّد|اكد|أكد|كمّل|كمل|أيوه|ايوه|اه|نعم|تمام|موافق|امشي|go ahead|confirm|yes|ok)/;
+    var no=/(لأ|لا|وقف|وقّف|بطّل|بطل|الغِ|الغي|إلغاء|cancel|stop|no)/;
+    if(no.test(t)){ pendingConfirm.no(); return true; }
+    if(yes.test(t)){ pendingConfirm.yes(); return true; }
+    return false;
   }
   // Reliable download for both data: URLs (what gpt-image-1 returns) and http(s).
   // A plain <a download> often just OPENS a big data URL, so convert it to a Blob.
@@ -366,6 +410,7 @@
 
   async function run(text){
     if(!text||!text.trim()) return;
+    if(handleConfirmWord(text)){ addMsg('me',text); return; } // "أكّد/لأ" → the pending confirm
     stopSpeaking(); // silence the previous reply the moment a new one starts
     addMsg('me',text);
     var think=addThinking('بفكّر وبخطّط');
@@ -525,7 +570,7 @@
     else if(t==='input_audio_buffer.speech_stopped'){ if(rtOn) setStatus('🟢 مكالمة مباشرة'); }
     else if(t==='response.audio.delta'||t==='response.created'){ if(rtOn) setStatus('🗣️ Sokro بيرد…'); }
     else if(t==='response.done'){ if(rtOn) setStatus('🟢 مكالمة مباشرة — اتكلم عادي'); }
-    if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } }
+    if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } if(handleConfirmWord(m.transcript)) return; }
     else if(t==='response.audio_transcript.done' && m.transcript){ addMsg('ai',m.transcript); }
     else if(t==='response.function_call_arguments.done'){
       if(m.name==='end_call'){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; }

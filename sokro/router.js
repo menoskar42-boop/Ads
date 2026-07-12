@@ -332,6 +332,15 @@ router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
     const t = (await pool.query('SELECT id, goal, plan, conversation_id FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
     if (!t) return res.status(404).json({ ok: false, error: 'task not found' });
     if (!t.plan || !Array.isArray(t.plan.steps)) return res.status(400).json({ ok: false, error: 'task has no plan' });
+    // Sensitive-action confirmation (the user just approved a pay/delete step —
+    // by voice or button): resume the operate step and let it press the button.
+    if (req.body && req.body.confirmSensitive) {
+      t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { resume: true, confirmSensitive: true }); } });
+    }
+    // Proceed despite a predicted-failure warning (user chose "كمّل بأي حال").
+    if (req.body && req.body.proceed) {
+      t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { proceed: true }); } });
+    }
     const prefs = await settings.get(req.sokroUser.id);
     return await executePlan(sokroCtx(req.sokroUser.id, t.id, prefs), t.goal, t.id, t.plan, res, t.conversation_id);
   } catch (e) {

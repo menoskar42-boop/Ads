@@ -18,6 +18,13 @@ function rememberSession(userId, goal, url) {
   if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
 }
 
+// Buttons that COMMIT something irreversible (buy / pay / submit / delete /
+// confirm / subscribe). By default the Operator runs as a rehearsal and STOPS
+// right before pressing one of these, so the user can confirm — unless the caller
+// passes confirmSensitive:true.
+const SENSITIVE_LABEL = /(اشتري|شراء|اشتراك|اشترك|ادفع|الدفع|ادفع الآن|أكمل الشراء|اتمام الطلب|تأكيد الطلب|تأكيد الدفع|تأكيد|احجز|حجز|احذف|حذف|امسح|إرسال الطلب|أرسل الطلب|سجل|تسجيل|اشترك الآن|buy|purchase|pay|checkout|place order|confirm|subscribe|delete|remove|submit order|book now|sign up|order now)/i;
+function isSensitiveLabel(s) { return SENSITIVE_LABEL.test(String(s || '')); }
+
 // Did the executed action actually take effect? (verify success of each step)
 function verifyStep(dec, preSig, post) {
   if (dec.action === 'scroll') return true; // soft action — always "ok"
@@ -41,6 +48,50 @@ async function ensureOnline(page, waitMs) {
     if (Date.now() - start >= (waitMs || 12000)) return false;
     await page.waitForTimeout(2000).catch(() => {});
   }
+}
+
+// Fallback chain when the PRIMARY method (server-browser Operator) can't run or
+// fails: try navigate_site (which uses the user's extension browser when
+// connected), then a single browse, then a site-scoped web search (needs no
+// browser at all). Returns a result object or null if every fallback failed.
+async function tryFallback(ctx, url, goal, reason) {
+  const reg = ctx.actions;
+  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (_) { return ''; } })();
+  const attempts = [
+    ['navigate_site', () => ({ url, goal, maxHops: 3 })],
+    ['browse', () => ({ url })],
+    ['search_web', () => ({ query: host ? ('site:' + host + ' ' + goal) : goal })],
+  ];
+  for (const [name, mkInput] of attempts) {
+    const act = reg && reg.get && reg.get(name);
+    if (!act) continue;
+    try {
+      const r = await act.run(ctx, mkInput());
+      if (r && r.ok) {
+        if (ctx.log) ctx.log('operate.fallback', { used: name, reason });
+        const out = (r.output && typeof r.output === 'object') ? r.output : { result: r.output };
+        return { ok: true, output: Object.assign({ fallbackUsed: name, fallbackReason: reason }, out) };
+      }
+    } catch (_) { /* try the next fallback */ }
+  }
+  return null;
+}
+
+// Pre-flight: predict how likely this run is to FAIL before we start, so we can
+// offer to fix the blocker first instead of failing mid-way. Returns
+// { pct, reason, fix } for a high-risk run, or null when it looks safe.
+function predictFailure(ctx) {
+  const browserOk = !!(ctx.browser && ctx.browser.available());
+  let extConnected = false;
+  try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
+  if (!browserOk && !extConnected) {
+    return {
+      pct: 80,
+      reason: 'متصفّح السيرفر مش متاح ومفيش إضافة موصولة — التفاعل جوّه الموقع غالباً هيفشل',
+      fix: 'انشر تعديل .replit (libgbm) أو وصّل إضافة سوكرو في متصفحك؛ بعدها التنفيذ التفاعلي يشتغل. أقدر أكمّل دلوقتي بالبحث كبديل لو حابب.',
+    };
+  }
+  return null;
 }
 
 function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.startsWith('www.') ? x.hostname.slice(4) : 'www.' + x.hostname; return x.href; } catch (_) { return null; } }
@@ -175,10 +226,26 @@ async function run(ctx, input) {
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
   if (!goal) return { ok: false, error: 'goal required' };
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); } catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
+  // Failure prediction — if a blocker makes failure likely, ASK before starting
+  // (unless the user already chose to proceed / confirm / resume).
+  const proceed = !!(input && (input.proceed || input.force || input.resume || input.confirmSensitive));
+  if (!proceed) {
+    const pf = predictFailure(ctx);
+    if (pf) {
+      return { ok: false, output: { awaitingProceed: true, prediction: pf, answer: '⚠️ احتمال الفشل ~' + pf.pct + '%: ' + pf.reason + '.\n' + pf.fix } };
+    }
+  }
   if (!ctx.browser || !ctx.browser.available()) {
-    return { ok: false, error: 'محتاج متصفّح السيرفر عشان أشغّل الـ Operator — فعّل Playwright (ومكتبات Chromium في .replit).' };
+    // Primary method (server browser) unavailable → fall back automatically.
+    const fb = await tryFallback(ctx, url, goal, 'server browser unavailable');
+    if (fb) return fb;
+    return { ok: false, error: 'محتاج متصفّح السيرفر عشان أشغّل الـ Operator — فعّل Playwright (ومكتبات Chromium في .replit)، أو وصّل إضافة سوكرو في متصفحك.' };
   }
   const maxSteps = Math.min(Math.max(parseInt(input && input.maxSteps, 10) || 6, 1), 10);
+  // Sensitive actions (pay/delete/submit…) are only pressed after the user confirms
+  // — and the confirmation can be by voice, so the caller simply re-runs with
+  // confirmSensitive:true + resume:true once the user says "أكّد/كمّل".
+  const confirmSensitive = !!(input && (input.confirmSensitive || input.confirm));
 
   try {
     const result = await ctx.browser.withPage(async (page) => {
@@ -207,6 +274,8 @@ async function run(ctx, input) {
       let pending = null;      // the action object we executed last step {action, idx, text}
       let lastGoodUrl = page.url(); // checkpoint: url after the last VERIFIED-good step
       let stuckStreak = 0;     // consecutive failed/no-effect steps → triggers recovery
+      const avoid = new Map(); // elements/paths that already FAILED → try a different route
+      let awaitingConfirm = false, sensitiveLabel = null; // paused before a sensitive action
       for (let step = 0; step < maxSteps; step++) {
         // Verify connectivity before every step — if we're offline, waiting is
         // pointless; report clearly instead of failing on a dead network.
@@ -227,7 +296,7 @@ async function run(ctx, input) {
         // alongside the structured state. JPEG + modest quality keeps it small;
         // viewport-only (not full page) keeps it focused.
         const shot = await page.screenshot({ type: 'jpeg', quality: 55 }).catch(() => null);
-        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS a structured BROWSER STATE: the input fields you can type into, the clickable elements (each tagged with an [idx]), the current page state (title/url/scroll), and the last action you took with whether it changed the page. Use the screenshot to see the layout and the [idx] lists to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Type into the search/input field then click the search button; click links/buttons to reach filters, listings, or a specific item. You also get RECENT ACTIONS (your last steps — do not repeat a step that made no change) and RUNTIME ERRORS (JS/network failures on the page — use them to understand why something is empty or broken). If the last action did NOT change the page, pick a DIFFERENT element. Use done when the goal information is visible — put it in answer.';
+        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS a structured BROWSER STATE: the input fields you can type into, the clickable elements (each tagged with an [idx]), the current page state (title/url/scroll), and the last action you took with whether it changed the page. Use the screenshot to see the layout and the [idx] lists to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Type into the search/input field then click the search button; click links/buttons to reach filters, listings, or a specific item. You also get RECENT ACTIONS (your last steps — do not repeat a step that made no change) and RUNTIME ERRORS (JS/network failures on the page — use them to understand why something is empty or broken). You also get an AVOID list — elements/paths that already failed; do NOT use them again, find another route. If the last action did NOT change the page, pick a DIFFERENT element. Use done when the goal information is visible — put it in answer.';
         // Give the model MEMORY: the last few actions it took (so it doesn't loop)
         // and any runtime errors seen so far (so it understands broken pages).
         const recent = trail.slice(-8).map((t, i) => '  ' + (trail.length - trail.slice(-8).length + i + 1) + '. ' +
@@ -235,7 +304,11 @@ async function run(ctx, input) {
         const recentBlock = trail.length ? ('\n\nRECENT ACTIONS (most recent last):\n' + recent) : '';
         const errBlock = errors.length ? ('\n\nRUNTIME ERRORS (page/JS/network — newest last):\n' +
           errors.slice(-6).map((e) => '  [' + e.kind + '] ' + e.msg).join('\n')) : '';
-        const user = 'Goal: ' + goal + '\n\n' + browserState.format(state) + recentBlock + errBlock;
+        // Elements/paths that already failed — tell the model to AVOID them and take
+        // a DIFFERENT route to the goal (e.g. another button, menu, or URL).
+        const avoidBlock = avoid.size ? ('\n\nAVOID (these already failed — take a DIFFERENT route):\n' +
+          Array.from(avoid.entries()).slice(-8).map(([k, n]) => '  ' + k + (n > 1 ? (' ×' + n) : '')).join('\n')) : '';
+        const user = 'Goal: ' + goal + '\n\n' + browserState.format(state) + recentBlock + errBlock + avoidBlock;
         const content = [{ type: 'text', text: user }];
         if (shot) content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.toString('base64') } });
         let dec = null;
@@ -246,6 +319,20 @@ async function run(ctx, input) {
         pending = dec && dec.action ? { action: dec.action, idx: dec.idx, text: dec.text } : null;
         const te = trail[trail.length - 1]; // the entry we just pushed — annotate it below
         if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
+
+        // ── Confirm-before-sensitive: run as a rehearsal and STOP right before a
+        // pay/delete/submit button. The user confirms (by voice is fine) and the
+        // caller re-runs with confirmSensitive:true + resume:true to press it. ──
+        if (dec.action === 'click' && dec.idx != null && !confirmSensitive) {
+          const d = findDescriptor(state, dec.idx);
+          if (d && isSensitiveLabel(d.label)) {
+            awaitingConfirm = true; sensitiveLabel = d.label; te.awaitingConfirm = true; te.sensitive = d.label;
+            if (ctx.log) ctx.log('operate.confirm', { step: step + 1, label: d.label });
+            rememberSession(ctx.userId, goal, page.url());
+            answer = 'وقفت قبل إجراء حسّاس: «' + (d.label || 'زر') + '». محتاج تأكيدك الأول — قول «أكّد» أو «كمّل» بصوتك وأنا أضغطه، أو «لأ» عشان أوقف.';
+            break;
+          }
+        }
 
         // ── Execute the action, targeting the element via MORE THAN ONE selector ──
         const preSig = state.signature;
@@ -277,7 +364,13 @@ async function run(ctx, input) {
 
         if (ok) { lastGoodUrl = page.url(); stuckStreak = 0; continue; }
 
-        // ── Failure: snapshot the moment of failure + recover ──
+        // ── Failure: remember this element/path so we try a DIFFERENT route next,
+        // snapshot the moment of failure, then recover ──
+        if (dec.idx != null && (dec.action === 'click' || dec.action === 'type')) {
+          const d = findDescriptor(state, dec.idx);
+          const key = dec.action + ' «' + ((d && d.label) || ('#' + dec.idx)) + '»';
+          avoid.set(key, (avoid.get(key) || 0) + 1);
+        }
         const fshot = await page.screenshot({ type: 'jpeg', quality: 55 }).catch(() => null);
         if (fshot && failShots.length < 4) { failShots.push('data:image/jpeg;base64,' + fshot.toString('base64')); te.failShot = failShots.length - 1; }
         stuckStreak++;
@@ -299,14 +392,18 @@ async function run(ctx, input) {
         answer = 'وصلت لـ ' + page.url() + '\n' + finalText.slice(0, 1500);
       }
       rememberSession(ctx.userId, goal, page.url()); // checkpoint for a later resume
-      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10), failShots };
+      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10), failShots, awaitingConfirm, sensitive: sensitiveLabel };
     });
     return { ok: true, output: result };
   } catch (e) {
     // A launch failure (missing shared lib / OOM on the server) is not the user's
     // fault — translate it into an actionable message instead of a raw stack.
     const m = String(e.message || '');
-    if (/\.so\.\d|Failed to launch|browserType\.launch|Target closed|libgbm|libnss|Executable doesn't exist/i.test(m)) {
+    const launchFail = /\.so\.\d|Failed to launch|browserType\.launch|Target closed|libgbm|libnss|Executable doesn't exist/i.test(m);
+    // Primary method crashed → try the fallback chain before surfacing an error.
+    const fb = await tryFallback(ctx, url, goal, launchFail ? 'server browser launch failed' : m);
+    if (fb) return fb;
+    if (launchFail) {
       return { ok: false, error: 'متصفّح السيرفر مقدرش يشتغل دلوقتي (مكتبة ناقصة أو ذاكرة). لو لسه منزّلين تحديث بيئة .replit استنى النشر يخلص وجرّب تاني، أو استخدم إضافة سوكرو في متصفحك عشان التصفّح داخل الموقع.' };
     }
     return { ok: false, error: 'operate failed: ' + m };
@@ -317,7 +414,7 @@ register({
   name: 'operate',
   description: 'Drive a browser toward a goal like an Operator: open a page then click/type/scroll/navigate step-by-step until the goal is done. Verifies each step, handles cookie/consent popups, retries with fallback selectors, and reloads/rolls back if a page gets stuck. Use for tasks that need real interaction inside a site (apply filters, click into a specific item, read what appears). input.url = start page, input.goal = what to accomplish. input.resume=true continues from where the previous run stopped.',
   permissions: ['browser'],
-  inputSchema: { type: 'object', properties: { url: { type: 'string' }, goal: { type: 'string' }, maxSteps: { type: 'number' }, resume: { type: 'boolean' } }, required: ['goal'] },
+  inputSchema: { type: 'object', properties: { url: { type: 'string' }, goal: { type: 'string' }, maxSteps: { type: 'number' }, resume: { type: 'boolean' }, confirmSensitive: { type: 'boolean' } }, required: ['goal'] },
   run,
 });
 
