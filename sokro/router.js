@@ -416,6 +416,26 @@ router.get('/ext.zip', (_req, res) => {
   } catch (e) { res.status(500).send('zip error: ' + e.message); }
 });
 router.get('/ext', (_req, res) => {
+  // Chrome blocks one-click install of self-hosted extensions — a real
+  // "Add to Chrome" button only works from the Chrome Web Store. Once the
+  // extension is published there, set SOKRO_EXT_STORE_URL and this page swaps the
+  // ZIP download for a proper store button, no code change needed.
+  const storeUrl = process.env.SOKRO_EXT_STORE_URL || '';
+  const cta = storeUrl
+    ? `<a class="dl" href="${storeUrl}" target="_blank" rel="noopener">➕ إضافة إلى كروم</a>
+       <ol>
+         <li>اضغط <b>➕ إضافة إلى كروم</b> فوق، وبعدها <b>Add extension</b> في النافذة اللي هتظهر.</li>
+         <li>ارجع لـ <a href="/app">Sokro /app</a> وسجّل دخولك — الإضافة هتتوصّل تلقائياً. أول مهمة تصفّح هتظهرلك نافذة تأكيد بالدومين.</li>
+       </ol>`
+    : `<a class="dl" href="/ext.zip">⬇︎ تحميل الإضافة (ZIP)</a>
+       <div class="note" style="color:#c3c9ee;background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);margin-top:14px">ℹ️ كروم مبيسمحش بتثبيت مباشر من أي موقع لأسباب أمان — التثبيت بضغطة «إضافة إلى كروم» بيبقى متاح بس بعد نشر الإضافة على Chrome Web Store.</div>
+       <ol>
+         <li>نزّل ملف <code>sokro-extension.zip</code> من الزر فوق، وفُكّ الضغط (Extract) في فولدر.</li>
+         <li>افتح كروم على <code>chrome://extensions</code></li>
+         <li>فعّل <b>Developer mode</b> (المفتاح أعلى اليمين).</li>
+         <li>اضغط <b>Load unpacked</b> واختار الفولدر اللي فكيت فيه الملفات.</li>
+         <li>ارجع لـ <a href="/app">Sokro /app</a> وسجّل دخولك — الإضافة هتتوصّل تلقائياً. أول مهمة تصفّح هتظهرلك نافذة تأكيد بالدومين.</li>
+       </ol>`;
   res.type('html').set('Cache-Control', 'no-cache').send(`<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>Sokro — تثبيت إضافة المتصفح</title>
@@ -433,14 +453,7 @@ code{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-ra
 a{color:#8ea2ff}</style></head><body><div class="wrap">
 <h1>ثبّت إضافة <span>Sokro</span> للمتصفح</h1>
 <p class="sub">الإضافة بتخلّي Sokro ينفّذ مهام (يفتح مواقع، يملأ نماذج، يسحب بيانات) <b>في متصفحك الحي بجلساتك المسجّلة</b> — كل مهمة بتطلب موافقتك بالدومين الأول.</p>
-<a class="dl" href="/ext.zip">⬇︎ تحميل الإضافة (ZIP)</a>
-<ol>
-  <li>نزّل ملف <code>sokro-extension.zip</code> من الزر فوق، وفُكّ الضغط (Extract) في فولدر.</li>
-  <li>افتح كروم على <code>chrome://extensions</code></li>
-  <li>فعّل <b>Developer mode</b> (المفتاح أعلى اليمين).</li>
-  <li>اضغط <b>Load unpacked</b> واختار الفولدر اللي فكيت فيه الملفات.</li>
-  <li>ارجع لـ <a href="/app">Sokro /app</a> وسجّل دخولك — الإضافة هتتوصّل تلقائياً. أول مهمة تصفّح هتظهرلك نافذة تأكيد بالدومين.</li>
-</ol>
+${cta}
 <div class="note">🔒 خصوصية: الإضافة بتتصفّح بس لما Sokro يطلب، وبعد موافقتك. الأوامر بتيجي من حسابك على Sokro، ومفيش بيانات بتتبعت لأي طرف تالت.</div>
 </div></body></html>`);
 });
