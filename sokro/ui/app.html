@@ -46,6 +46,8 @@
   #mic{width:74px;height:74px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,#5b6cff,#22d3ee);color:#08122b;font-size:1.8rem;box-shadow:0 8px 30px rgba(91,108,255,.45);transition:transform .12s}
   #mic:active{transform:scale(.94)}
   #mic.rec{animation:pulse 1.1s infinite;background:linear-gradient(135deg,#ff5b6c,#ff9a3c)}
+  #send{width:74px;height:74px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:1.7rem;box-shadow:0 8px 30px rgba(34,197,94,.4);transition:transform .12s;flex:none;display:flex;align-items:center;justify-content:center}
+  #send:active{transform:scale(.94)}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,91,108,.5)}50%{box-shadow:0 0 0 16px rgba(255,91,108,0)}}
   .hidden{display:none!important}
 </style>
@@ -108,6 +110,7 @@
     <div class="microw">
       <button id="call" title="مكالمة مباشرة (زي شات فويس)" style="width:52px;height:52px;border-radius:50%;border:0;background:#243056;color:#fff;font-size:1.3rem;cursor:pointer;flex:none">📞</button>
       <input id="text" placeholder="أو اكتب طلبك هنا…" />
+      <button id="send" class="hidden" title="إرسال">➤</button>
       <button id="mic" title="تكلّم مرة">🎤</button>
     </div>
   </div>
@@ -174,6 +177,7 @@
   $('#logout').onclick=async function(){ await fetch('/api/auth/logout',{method:'POST'}); location.reload(); };
 
   // ---------- chat ----------
+  function scrollToBottom(){ try{ var l=$('#log'); if(l) l.scrollTop=l.scrollHeight; }catch(e){} try{ window.scrollTo(0,document.body.scrollHeight); }catch(e){} }
   function copyText(t,btn){
     function done(){ if(!btn)return; var o=btn.textContent; btn.textContent='✓'; btn.classList.add('ok'); setTimeout(function(){ btn.textContent=o; btn.classList.remove('ok'); },1200); }
     function fallback(){ try{ var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }catch(e){} }
@@ -183,7 +187,7 @@
     var d=document.createElement('div'); d.className='msg '+(who==='me'?'me':'ai')+(cls?' '+cls:'');
     var body=document.createElement('div'); body.className='msg-text'; body.textContent=text; d.appendChild(body);
     if(cls!=='think'){ var b=document.createElement('button'); b.type='button'; b.className='copybtn'; b.title='نسخ'; b.textContent='📋'; b.onclick=function(){ copyText(text,b); }; d.appendChild(b); }
-    $('#log').appendChild(d); $('#log').scrollTop=1e9; return d;
+    $('#log').appendChild(d); scrollToBottom(); return d;
   }
 
   async function speak(text){
@@ -208,12 +212,12 @@
     var el=document.createElement('div'); el.className='msg ai'; el.style.padding='6px';
     var a=document.createElement('a'); a.href=url; a.target='_blank'; a.download='sokro-image.png';
     var img=document.createElement('img'); img.src=url; img.alt='صورة مولّدة'; img.style.cssText='max-width:100%;border-radius:12px;display:block';
-    a.appendChild(img); el.appendChild(a); $('#log').appendChild(el); $('#log').scrollTop=1e9;
+    a.appendChild(img); el.appendChild(a); $('#log').appendChild(el); scrollToBottom();
   }
   function addDownloads(payload){
     var el=document.createElement('div'); el.className='plan'; el.style.background='rgba(34,211,238,.08)';
     el.innerHTML='<div>⬇︎ تنزيل التقرير:</div><div class="row"><button class="ok" data-f="xlsx">Excel</button><button class="ok" data-f="md">Markdown</button></div>';
-    $('#log').appendChild(el); $('#log').scrollTop=1e9;
+    $('#log').appendChild(el); scrollToBottom();
     el.querySelectorAll('button').forEach(function(btn){ btn.onclick=function(){ dl(btn.dataset.f,payload); }; });
   }
   async function dl(format,payload){
@@ -229,7 +233,7 @@
     var steps=(d.plan||[]).map(function(s){return '<li>'+ (s.action||'') + (s.reason?(' — '+s.reason):'') +'</li>'}).join('');
     var perms=(d.permissions&&d.permissions.sensitive||[]).join('، ');
     el.innerHTML='<div>هعمل الخطوات دي:</div><ol>'+steps+'</ol>'+(perms?'<div class="perms">⚠️ يتطلب إذن: '+perms+'</div>':'')+'<div class="row"><button class="ok">أأكّد ✅</button><button class="no">إلغاء</button></div>';
-    $('#log').appendChild(el); $('#log').scrollTop=1e9;
+    $('#log').appendChild(el); scrollToBottom();
     speak('هعمل '+((d.plan||[]).length)+' خطوات، ويتطلب إذن: '+(perms||'لا شيء')+'. أأكّد؟');
     el.querySelector('.ok').onclick=async function(){ el.querySelector('.row').innerHTML='<span class="muted">بنفّذ…</span>';
       try{ var r=await fetch('/api/run/'+d.taskId+'/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); renderResult(await r.json()); }
@@ -251,7 +255,14 @@
       if(d.requiresConsent) renderConsent(d); else renderResult(d);
     }catch(e){ think.remove(); addMsg('ai','تعذّر الاتصال بالسيرفر.'); }
   }
-  $('#text').addEventListener('keydown',function(e){ if(e.key==='Enter'&&this.value.trim()){ run(this.value.trim()); this.value=''; } });
+  // WhatsApp-style composer: show the send button while typing (hide the mic),
+  // send on Enter or on the ➤ button, and always scroll to the newest message.
+  function toggleSend(){ var has=$('#text').value.trim().length>0; $('#send').classList.toggle('hidden',!has); $('#mic').classList.toggle('hidden',has); }
+  function sendText(){ var t=$('#text').value.trim(); if(!t)return; run(t); $('#text').value=''; toggleSend(); scrollToBottom(); }
+  $('#text').addEventListener('input',toggleSend);
+  $('#text').addEventListener('focus',scrollToBottom);
+  $('#text').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendText(); } });
+  $('#send').onclick=sendText;
 
   // ---------- voice input ----------
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
