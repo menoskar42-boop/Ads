@@ -48,6 +48,10 @@ async function plan(ctx, goal, recentContext = []) {
     // "هاتلي منظر بحر"/"عايز لوجو لمطعم" → generate_image with input.prompt = that noun, richly described.
     'Intent → action examples: "اعمل/اعملي/اعمللي/اخلق/ارسم/ارسملي/هاتلي/عايز/عاوز صورة" OR the same verbs + a bare noun like "قطة/كلب/منظر/لوجو/بيت" (WITHOUT the word صورة) → generate_image (input.prompt = a rich description of the thing to draw). "make/create/draw/generate a cat/picture/logo" → generate_image.',
     '"ابحث/دوّر/لاقي/ابحثلي" or "search/find/look up" → search_web (input.query). "ابحث واعمل تقرير" or "research and report" → research_report (input.query).',
+    // Searching WITHIN a named website: never say "I can only use Google". Use a
+    // site-scoped web search (works without a browser). Map the site name to its
+    // domain and prefix the query with site:<domain>.
+    'When the user says "ابحث/دوّر جوّه/في موقع X عن Y" or "search inside site X for Y", use search_web with input.query = "site:<domain-of-X> Y" (e.g. سليندر=sylndr.com, دوبيزل=dubizzle.com.eg, أمازون=amazon.eg, نون=noon.com). Only if they explicitly say "افتح/روح لموقع X" (open/go to) use browse with input.url.',
     'Rule of thumb: if the user names a THING to be created (an image, drawing, logo, character, scene) and no other action fits better, default to generate_image rather than returning empty.',
     'Only use actions from the catalog and give concrete `input` for each step. Return empty steps ONLY if truly NO action applies, and then set "message" to a SHORT helpful Arabic sentence telling the user what you CAN do.',
     'Respond ONLY as JSON: {"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',
