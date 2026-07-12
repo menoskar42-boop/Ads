@@ -31,8 +31,8 @@ const { loginLimiter } = require('../src/middleware/rateLimit');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const router = express.Router();
 
-const TITLE = 'Sokro — مساعدك الذكي اللي بينفّذ المهام بصوتك';
-const DESC = 'Sokro نظام ذكاء اصطناعي بينفّذ مهامك الحقيقية بأمر صوتي: بحث وتقارير، توليد صور، حجوزات، ونشر على السوشيال — إنت تقول، وهو ينفّذ.';
+const TITLE = 'Sokro — وكيل ذكاء اصطناعي عربي للبحث والتقارير';
+const DESC = 'Sokro وكيل ذكاء اصطناعي عربي (AI agent) ينفّذ مهامك بأمر صوتي أو نصّي: بحث في الويب وتقارير Excel/PDF، توليد صور، وتلخيص — إنت تقول، وهو ينفّذ ويطلّع النتيجة.';
 
 // Health + API smoke check (mobile app / uptime probes hit these).
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env: config.env }));
@@ -45,10 +45,12 @@ router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features
 // rule (no thin/app pages in search). Google treats a subdomain as its own
 // property, so it needs its own robots + sitemap, not the main site's.
 router.get('/robots.txt', (_req, res) => {
+  // NOTE: /app is intentionally NOT disallowed. It carries a <meta noindex>, and
+  // Google can only honor noindex if it's allowed to crawl the page (blocking it
+  // in robots would leave a bare, description-less /app URL indexable via inbound
+  // links). Only non-content endpoints are disallowed.
   res.type('text/plain').set('Cache-Control', 'public, max-age=86400').send(
     'User-agent: *\n' +
-    'Allow: /$\n' +
-    'Disallow: /app\n' +
     'Disallow: /api/\n' +
     'Disallow: /ext/\n' +
     'Disallow: /internal/\n' +
@@ -478,6 +480,11 @@ router.get('/', (_req, res) => {
 <meta property="og:description" content="${DESC}" />
 <meta property="og:url" content="${config.origin}/" />
 <meta property="og:locale" content="ar_EG" />
+<meta property="og:image" content="https://oscardevs.com/og-default.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${TITLE}" />
+<meta name="twitter:description" content="${DESC}" />
+<meta name="twitter:image" content="https://oscardevs.com/og-default.png" />
 <meta name="theme-color" content="#0b1020" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -513,9 +520,9 @@ router.get('/', (_req, res) => {
 </head>
 <body>
   <main class="wrap">
-    <span class="badge">نظام تشغيل ذكي بالأوامر الصوتية</span>
+    <span class="badge">وكيل ذكاء اصطناعي عربي — بحث · تقارير · صور</span>
     <h1>قول لـ <span>Sokro</span> اللي عايزه… وهو ينفّذه</h1>
-    <p class="sub">Sokro مش مجرد مساعد بيرد. ده نظام بينفّذ مهام حقيقية بأمر صوتي أو كتابي: يبحث ويعملّك تقرير، يخلق صورة، يجهّز حجز، أو يلخّص صفحة — إنت تقول، وهو يعمل. المحادثات بتتحفظ في حسابك، وأي خطوة حسّاسة ماتتنفّذش غير بموافقتك.</p>
+    <p class="sub">Sokro مش مجرد مساعد بيرد. ده وكيل ذكاء اصطناعي عربي بينفّذ مهام حقيقية بأمر صوتي أو نصّي: يبحث في الويب ويعملّك تقرير Excel/PDF، يخلق صورة، أو يلخّص صفحة — إنت تقول، وهو ينفّذ ويطلّع النتيجة. المحادثات بتتحفظ في حسابك، وأي خطوة حسّاسة ماتتنفّذش غير بموافقتك.</p>
     <a class="cta" href="${config.origin}/app">جرّب Sokro دلوقتي</a>
     <div class="grid">
       <div class="card"><div class="ico">🔎</div><h3>بحث + تقرير</h3><p>يبحث في الويب، يلخّص المصادر، ويطلّعلك تقرير Excel أو Markdown جاهز للتنزيل.</p></div>
@@ -527,7 +534,7 @@ router.get('/', (_req, res) => {
 
   <section>
     <h2>Sokro إيه بالظبط؟</h2>
-    <p>Sokro نظام مساعد ذكي بينفّذ مهام فعلية بدل ما يكتفي بالرد. بتديله هدف بصوتك أو بالكتابة — زي «ابحثلي عن أسعار كذا واعملّي تقرير» أو «ارسملي صورة لمنتج» — فيحلّل الطلب، يخطّط الخطوات، وينفّذها باستخدام أدوات متخصصة (بحث ويب، توليد صور، تلخيص، تقارير). هو أحد منتجات <a href="https://oscardevs.com/our-work">OscarDevs</a>، ومبني ليشتغل من المتصفح ومن الموبايل بنفس الحساب.</p>
+    <p>Sokro وكيل ذكاء اصطناعي عربي (AI agent) بينفّذ مهام فعلية بدل ما يكتفي بالرد. بتديله هدف بصوتك أو بالكتابة — زي «ابحثلي عن أسعار كذا واعملّي تقرير» أو «ارسملي صورة لمنتج» — فيحلّل الطلب، يخطّط الخطوات، وينفّذها باستخدام أدوات متخصصة (بحث ويب، توليد صور، تلخيص، تقارير). هو أحد منتجات <a href="https://oscardevs.com/our-work">OscarDevs</a>، ومبني ليشتغل من المتصفح ومن الموبايل بنفس الحساب.</p>
 
     <h2>حالات استخدام</h2>
     <ul>
@@ -546,7 +553,7 @@ router.get('/', (_req, res) => {
     </ol>
 
     <h2>الخصوصية والأمان</h2>
-    <p>حسابك محميّ بكلمة سر مشفّرة، والجلسات موقّعة بمفتاح سرّي. أي بيانات اعتماد بتضيفها بتتخزّن مشفّرة (AES-256) وماتترجعش كنص ولا تتبعت للموديل. الأوامر الحسّاسة — زي تشغيل متصفح أو النشر على السوشيال — <strong>ماتتنفّذش إلا بموافقة صريحة منك</strong>، والوصول للمواقع الداخلية/الخاصة محجوب لأسباب أمنية. للتفاصيل الكاملة راجع <a href="https://oscardevs.com/privacy">سياسة الخصوصية</a>.</p>
+    <p>حسابك محميّ بكلمة سر مشفّرة، والجلسات موقّعة بمفتاح سرّي. أي بيانات اعتماد بتضيفها بتتخزّن مشفّرة (AES-256) وماتترجعش كنص ولا تتبعت للموديل. الأوامر الحسّاسة — زي تشغيل متصفّح أو تعبئة نموذج على موقع — <strong>ماتتنفّذش إلا بموافقة صريحة منك</strong>، والوصول للمواقع الداخلية/الخاصة محجوب لأسباب أمنية. للتفاصيل الكاملة راجع <a href="https://oscardevs.com/privacy">سياسة الخصوصية</a>.</p>
 
     <h2>حدود التنفيذ</h2>
     <p>Sokro أداة مساعدة، مش بديل عن قرارك. ممكن نتائج البحث تكون ناقصة أو محتاجة مراجعة، وتوليد الصور له قيود المزوّد. الخطوات اللي تلمس حسابات أو مدفوعات بتحتاج تأكيدك، والمنتج قيد التطوير المستمر فبنضيف قدرات ونحسّن باستمرار.</p>
