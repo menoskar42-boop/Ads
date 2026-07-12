@@ -6,6 +6,7 @@
 // SAME live page, re-observes, and repeats until the goal is met or it runs out of
 // steps. Uses the server browser (Playwright) — one page kept open across steps.
 const { register } = require('./_registry');
+const browserState = require('../lib/browserState');
 
 function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.startsWith('www.') ? x.hostname.slice(4) : 'www.' + x.hostname; return x.href; } catch (_) { return null; } }
 
@@ -35,20 +36,18 @@ async function settlePage(page) {
   await page.waitForTimeout(600).catch(() => {});
 }
 
-// Runs inside page.evaluate — tags visible interactive elements and returns them.
-/* istanbul ignore next */
-function collectDom() {
-  const els = Array.prototype.slice.call(document.querySelectorAll('a[href],button,input,select,textarea,[role="button"],[onclick]'));
-  const items = [];
-  els.forEach(function (el) {
-    if (items.length >= 45) return;
-    const r = el.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > (window.innerHeight + 1500)) return;
-    el.setAttribute('data-sokro-idx', String(items.length));
-    const label = (el.innerText || el.value || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.name || '').trim().replace(/\s+/g, ' ').slice(0, 70);
-    items.push({ idx: items.length, tag: el.tagName.toLowerCase(), type: el.type || '', label: label });
-  });
-  return { title: document.title, url: location.href, text: (document.body ? document.body.innerText : '').slice(0, 2500), items: items };
+// Auto-retry waiting for an element to show up before acting on it. On a JS/SPA
+// page the target element (a button, a result row) may not exist on the first
+// try — it renders a beat later. We wait for it, and if it still isn't there we
+// re-settle the page once and wait again before giving up, so a transient miss
+// doesn't waste the whole step.
+async function waitForEl(page, sel) {
+  try { await page.waitForSelector(sel, { state: 'visible', timeout: 5000 }); return true; }
+  catch (_) {
+    await settlePage(page);
+    try { await page.waitForSelector(sel, { state: 'visible', timeout: 5000 }); return true; }
+    catch (__) { return false; }
+  }
 }
 
 async function run(ctx, input) {
@@ -64,46 +63,65 @@ async function run(ctx, input) {
 
   try {
     const result = await ctx.browser.withPage(async (page) => {
+      // Capture runtime errors as they happen — JS exceptions, console errors, and
+      // failed network requests — so the model can SEE why a page misbehaves
+      // (e.g. a search that returns nothing because an API call 500'd). Bounded ring
+      // buffer; each entry is timestamped by step so we can show only what's new.
+      const errors = [];
+      const pushErr = (kind, msg) => { errors.push({ kind, msg: String(msg || '').slice(0, 180), step: -1 }); if (errors.length > 40) errors.shift(); };
+      page.on('pageerror', (err) => pushErr('js', err && err.message));
+      page.on('console', (m) => { try { if (m.type() === 'error') pushErr('console', m.text()); } catch (_) {} });
+      page.on('requestfailed', (req) => { try { pushErr('net', (req.failure() && req.failure().errorText || 'failed') + ' ' + req.url()); } catch (_) {} });
+      page.on('response', (r) => { try { if (r.status() >= 500) pushErr('net', r.status() + ' ' + r.url()); } catch (_) {} });
+
       try { await page.goto(url, { waitUntil: 'load', timeout: 30000 }); }
       catch (e) { const alt = wwwVariant(url); if (alt && alt !== url) await page.goto(alt, { waitUntil: 'load', timeout: 30000 }); else throw e; }
       await settlePage(page); // let the full page (incl. JS-rendered content) finish first
 
       const trail = [];
       let answer = null;
-      let prevSig = null;    // signature of the page BEFORE the last action
-      let lastAction = null; // the action we took last step (to judge if it worked)
+      let prevSig = null;    // page signature BEFORE the last action
+      let pending = null;    // the action object we executed last step {action, idx, text}
       for (let step = 0; step < maxSteps; step++) {
-        await settlePage(page); // re-settle after each action before reading the DOM
-        const obs = await page.evaluate(collectDom);
-        // Signature of the current page = title + url + how many elements/how much
-        // text. If the LAST action was meant to navigate/change things but the
-        // signature is identical, the page did NOT actually change → tell the model
-        // so it tries a different element instead of repeating a dead click.
-        const sig = [obs.title, obs.url, obs.items.length, obs.text.length].join('|');
-        const changed = prevSig === null ? true : sig !== prevSig;
-        const stuckNote = (lastAction && ['click', 'type', 'goto'].includes(lastAction) && !changed)
-          ? '\n\n⚠️ NOTE: the previous action (' + lastAction + ') did NOT change the page (same title/URL/content). Try a DIFFERENT element or approach — do not repeat it.'
-          : '';
+        await settlePage(page); // re-settle after each action before reading the state
+        // Structured browser state: clickables, input fields (with current values),
+        // current page state (title/url/scroll), and the last action + whether it
+        // actually changed the page. If the previous action left the signature
+        // identical, it did NOT change anything → the model is told to try another.
+        const state = await browserState.capture(page, null);
+        const changed = prevSig === null ? true : state.signature !== prevSig;
+        state.lastAction = pending ? Object.assign({}, pending, { changed }) : null;
         // A screenshot lets the model SEE the page (layout, which element is where)
-        // alongside the DOM text — the way an Operator decides. JPEG + modest quality
-        // keeps the payload small; viewport-only (not full page) keeps it focused.
+        // alongside the structured state. JPEG + modest quality keeps it small;
+        // viewport-only (not full page) keeps it focused.
         const shot = await page.screenshot({ type: 'jpeg', quality: 55 }).catch(() => null);
-        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS its title, URL, text and its visible interactive elements (each tagged with an [idx]). Use the screenshot to see the layout (where the search box, filters, results are) and the [idx] list to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Click links/buttons to navigate toward the goal (filters, listings, a specific item); type into the search box then click search. If told the previous action did not change the page, pick a different element. Use done when the goal information is visible — put it in answer.';
-        const user = 'Goal: ' + goal + '\nPage title: ' + (obs.title || '(none)') + '\nURL: ' + obs.url + '\nPage text:\n' + obs.text + '\n\nInteractive elements:\n' + obs.items.map(function (e) { return '[' + e.idx + '] ' + e.tag + (e.type ? '/' + e.type : '') + ': ' + e.label; }).join('\n') + stuckNote;
+        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS a structured BROWSER STATE: the input fields you can type into, the clickable elements (each tagged with an [idx]), the current page state (title/url/scroll), and the last action you took with whether it changed the page. Use the screenshot to see the layout and the [idx] lists to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Type into the search/input field then click the search button; click links/buttons to reach filters, listings, or a specific item. You also get RECENT ACTIONS (your last steps — do not repeat a step that made no change) and RUNTIME ERRORS (JS/network failures on the page — use them to understand why something is empty or broken). If the last action did NOT change the page, pick a DIFFERENT element. Use done when the goal information is visible — put it in answer.';
+        // Give the model MEMORY: the last few actions it took (so it doesn't loop)
+        // and any runtime errors seen so far (so it understands broken pages).
+        const recent = trail.slice(-8).map((t, i) => '  ' + (trail.length - trail.slice(-8).length + i + 1) + '. ' +
+          t.action + (t.idx != null ? (' #' + t.idx) : '') + (t.changed ? '' : ' (no change)') + (t.thought ? ' — ' + t.thought : '')).join('\n');
+        const recentBlock = trail.length ? ('\n\nRECENT ACTIONS (most recent last):\n' + recent) : '';
+        const errBlock = errors.length ? ('\n\nRUNTIME ERRORS (page/JS/network — newest last):\n' +
+          errors.slice(-6).map((e) => '  [' + e.kind + '] ' + e.msg).join('\n')) : '';
+        const user = 'Goal: ' + goal + '\n\n' + browserState.format(state) + recentBlock + errBlock;
         const content = [{ type: 'text', text: user }];
         if (shot) content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.toString('base64') } });
         let dec = null;
         try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content }] }); } catch (_) {}
-        if (ctx.log) ctx.log('operate', { step, title: obs.title, url: obs.url, changed, action: dec && dec.action, idx: dec && dec.idx });
-        trail.push({ title: obs.title, url: obs.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, thought: dec && dec.thought });
-        prevSig = sig;
-        lastAction = dec && dec.action;
+        if (ctx.log) ctx.log('operate', { step, title: state.title, url: state.url, changed, errors: errors.length, action: dec && dec.action, idx: dec && dec.idx });
+        trail.push({ step, title: state.title, url: state.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, text: dec && dec.text, thought: dec && dec.thought });
+        prevSig = state.signature;
+        pending = dec && dec.action ? { action: dec.action, idx: dec.idx, text: dec.text } : null;
         if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
         try {
           if (dec.action === 'click' && dec.idx != null) {
-            await Promise.all([page.waitForLoadState('domcontentloaded', { timeout: 12000 }).catch(() => {}), page.click('[data-sokro-idx="' + dec.idx + '"]', { timeout: 8000 })]);
+            const sel = '[data-sokro-idx="' + dec.idx + '"]';
+            await waitForEl(page, sel); // auto-wait/retry if it isn't there yet
+            await Promise.all([page.waitForLoadState('domcontentloaded', { timeout: 12000 }).catch(() => {}), page.click(sel, { timeout: 8000 })]);
           } else if (dec.action === 'type' && dec.idx != null) {
-            await page.fill('[data-sokro-idx="' + dec.idx + '"]', String(dec.text || ''), { timeout: 8000 });
+            const sel = '[data-sokro-idx="' + dec.idx + '"]';
+            await waitForEl(page, sel);
+            await page.fill(sel, String(dec.text || ''), { timeout: 8000 });
           } else if (dec.action === 'scroll') {
             await page.evaluate(function () { window.scrollBy(0, window.innerHeight); });
           } else if (dec.action === 'goto' && /^https?:\/\//.test(dec.url || '')) {
@@ -115,7 +133,7 @@ async function run(ctx, input) {
         const finalText = await page.evaluate(function () { return document.body ? document.body.innerText.slice(0, 2500) : ''; });
         answer = 'وصلت لـ ' + page.url() + '\n' + finalText.slice(0, 1500);
       }
-      return { goal, steps: trail.length, trail, answer, finalUrl: page.url() };
+      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10) };
     });
     return { ok: true, output: result };
   } catch (e) {
