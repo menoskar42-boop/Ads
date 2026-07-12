@@ -3,14 +3,20 @@
 // (their logged-in sessions), and posts the result back. No server Chromium.
 const API = 'https://sokro.oscardevs.com';
 let active = true;
+let polling = false; // guard: only ONE long-poll in flight at a time
 
 async function poll() {
-  if (!active) return;
+  if (!active || polling) return;
+  polling = true;
   try {
     const r = await fetch(API + '/api/ext/poll', { method: 'POST', credentials: 'include' });
     const d = await r.json();
     if (d && d.ok && d.command) await execute(d.command);
   } catch (e) { /* not logged in / offline — ignore */ }
+  finally { polling = false; }
+  // Re-issue immediately (server holds the request open, so this is a long-poll
+  // loop, not a tight loop). Keeps the worker alive + commands near-instant.
+  if (active) setTimeout(poll, 200);
 }
 
 async function postResult(id, output, error) {
@@ -185,10 +191,12 @@ async function doExtractTable(input) {
   return { url: input.url, rows: result.rows };
 }
 
-// Poll fast while the worker is alive; a 30s alarm is the backstop wake-up.
+// LONG-POLL loop: each poll() holds a request open ~25s server-side, which keeps
+// this service worker alive AND delivers commands within ~1s. We re-issue right
+// after each poll returns (a single in-flight request, guarded by `polling`), and
+// a 30s alarm is the backstop that restarts the loop if the worker was suspended.
 chrome.alarms.create('poll', { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'poll') poll(); });
-setInterval(poll, 2000);
 chrome.storage.local.get('active', (o) => { active = o.active !== false; poll(); });
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {

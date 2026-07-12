@@ -491,7 +491,9 @@ router.post('/internal/cron', async (req, res) => {
 // (logged-in sessions), and posts the result back.
 router.post('/api/ext/poll', auth.requireAuth, async (req, res) => {
   extBridge.markSeen(req.sokroUser.id);
-  try { res.json({ ok: true, command: await extBridge.next(req.sokroUser.id) }); }
+  // Long-poll: hold up to 25s (under Cloudflare's ~100s cap) so the extension gets
+  // commands instantly and its service worker stays awake.
+  try { res.json({ ok: true, command: await extBridge.nextWait(req.sokroUser.id, 25000) }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 router.post('/api/ext/result', auth.requireAuth, async (req, res) => {

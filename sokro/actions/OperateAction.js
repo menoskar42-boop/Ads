@@ -259,8 +259,19 @@ async function run(ctx, input) {
   let extConnected = false;
   try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
   if (extConnected) {
-    // ALWAYS prefer the user's extension browser when connected — never fall back
-    // to the server browser (it's unreliable on 0.5 GiB and would just fail).
+    // In the user's own browser we can't run the full click/type loop yet, but we
+    // must NOT close the tab (navigate_site does). So OPEN the page and LEAVE it
+    // open (like "افتح الموقع"), read what's there, and hand it to the user — this
+    // fixes "opens then closes immediately" for "open site AND do X".
+    const br = ctx.actions && ctx.actions.get && ctx.actions.get('browse');
+    if (br) {
+      try {
+        const r = await br.run(ctx, { url, keepOpen: true });
+        if (r && r.ok) {
+          return { ok: true, output: Object.assign({ opened: true, keptOpen: true, goal, note: 'فتحت الموقع وسيبته مفتوح قدامك. التفاعل التلقائي (ضغط أزرار) لسه بيتطوّر — تقدر تكمّل بنفسك أو تقولي أبحث/أكتب حاجة معيّنة.' }, r.output) };
+        }
+      } catch (_) {}
+    }
     const fb = await tryFallback(ctx, url, goal, 'running in your connected browser');
     if (fb && fb.ok) return fb;
     return { ok: false, error: (fb && fb.error) || 'التنفيذ في متصفحك فشل', tried: (fb && fb.tried) || [] };

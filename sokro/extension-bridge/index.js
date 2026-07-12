@@ -28,6 +28,20 @@ async function run(userId, kind, input, timeoutMs = 90000) {
   return { ok: false, error: 'extension did not respond (is it connected?)' };
 }
 
+// Extension side (LONG-POLL): hold the request open until a command appears or the
+// hold window elapses. This keeps the extension's service worker awake (an in-flight
+// fetch) and delivers commands within ~700ms instead of waiting for a 30s alarm —
+// which is what caused "extension did not respond" and Cloudflare 524 timeouts.
+async function nextWait(userId, holdMs = 25000) {
+  const start = Date.now();
+  for (;;) {
+    const cmd = await next(userId);
+    if (cmd) return cmd;
+    if (Date.now() - start >= holdMs) return null;
+    await sleep(700);
+  }
+}
+
 // Extension side: claim the oldest pending command for this user.
 async function next(userId) {
   const r = (await pool.query(
@@ -52,4 +66,4 @@ const _seen = new Map(); // userId -> ts
 function markSeen(userId) { _seen.set(userId, Date.now()); }
 function connected(userId) { const t = _seen.get(userId); return !!t && (Date.now() - t) < 60000; }
 
-module.exports = { run, next, result, markSeen, connected };
+module.exports = { run, next, nextWait, result, markSeen, connected };
