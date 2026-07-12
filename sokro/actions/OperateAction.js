@@ -235,6 +235,16 @@ async function run(ctx, input) {
       return { ok: false, output: { awaitingProceed: true, prediction: pf, answer: '⚠️ احتمال الفشل ~' + pf.pct + '%: ' + pf.reason + '.\n' + pf.fix } };
     }
   }
+  // Prefer the user's LIVE browser (Sokro extension) when connected: it's logged-in,
+  // reliable, and sidesteps the server browser's 0.5 GiB memory limit that makes
+  // Chromium crash. The server-side Operator is used only when no extension.
+  let extConnected = false;
+  try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
+  if (extConnected) {
+    const fb = await tryFallback(ctx, url, goal, 'running in your connected browser');
+    if (fb) return fb;
+    // extension path produced nothing → fall through to the server Operator below.
+  }
   if (!ctx.browser || !ctx.browser.available()) {
     // Primary method (server browser) unavailable → fall back automatically.
     const fb = await tryFallback(ctx, url, goal, 'server browser unavailable');
