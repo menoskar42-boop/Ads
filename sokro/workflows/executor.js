@@ -12,10 +12,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function execute(ctx, plan, opts = {}) {
   const onStep = opts.onStep || function () {};
   const maxRetries = opts.maxRetries != null ? opts.maxRetries : 2;
+  // Generous safety net ONLY — a heavy plan is allowed to run long and finish
+  // (the user prefers a full result over an early cut-off); this just stops a
+  // truly runaway plan from never returning.
+  const maxSteps = opts.maxSteps != null ? opts.maxSteps : 20;
+  const timeBudgetMs = opts.timeBudgetMs != null ? opts.timeBudgetMs : 210000;
+  const startedAt = Date.now();
   const steps = (plan && plan.steps) || [];
   const results = [];
 
   for (let i = 0; i < steps.length; i++) {
+    if (i >= maxSteps || (Date.now() - startedAt) > timeBudgetMs) {
+      results.push({ step: i, action: '(stopped)', result: { ok: true, output: { note: 'وقفت بدري عشان المهمة كبيرة — دي نتيجة جزئية. جرّب طلب أضيق (عربية واحدة أو صفحة واحدة).', truncated: true, remaining: steps.length - i } } });
+      break;
+    }
     const step = steps[i];
     const action = ctx.actions.get(step.action);
     let result;

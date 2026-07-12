@@ -36,6 +36,11 @@
   .me{align-self:flex-start;background:#2a356b}
   .ai{align-self:flex-end;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
   .ai.think{color:#9aa2cf;font-style:italic}
+  .dots{display:inline-flex;gap:4px;vertical-align:middle;margin-inline-start:4px}
+  .dots span{width:7px;height:7px;border-radius:50%;background:#8ea2ff;display:inline-block;animation:dotpulse 1.3s infinite both}
+  .dots span:nth-child(2){animation-delay:.18s}.dots span:nth-child(3){animation-delay:.36s}
+  @keyframes dotpulse{0%,75%,100%{opacity:.25;transform:scale(.8)}35%{opacity:1;transform:scale(1)}}
+  .think.stalled .dots span{animation:none;opacity:.5;transform:none;background:#6b7299}
   .copybtn{align-self:flex-end;background:transparent;border:0;color:inherit;opacity:.5;cursor:pointer;font-size:.82rem;padding:1px 3px;line-height:1;border-radius:6px}
   .copybtn:hover{opacity:1;background:rgba(255,255,255,.08)}
   .copybtn.ok{opacity:1}
@@ -231,6 +236,18 @@
     if(cls!=='think'){ var b=document.createElement('button'); b.type='button'; b.className='copybtn'; b.title='نسخ'; b.textContent='📋'; b.onclick=function(){ copyText(text,b); }; d.appendChild(b); }
     $('#log').appendChild(d); scrollToBottom(); return d;
   }
+  // Animated "working" bubble: the 3 dots pulse while a task runs; if it drags on
+  // (>45s) they freeze to hint it's taking unusually long (maybe stuck).
+  function addThinking(label){
+    var d=document.createElement('div'); d.className='msg ai think';
+    var body=document.createElement('div'); body.className='msg-text';
+    body.appendChild(document.createTextNode((label||'بشتغل على طلبك')+' '));
+    var dots=document.createElement('span'); dots.className='dots'; dots.innerHTML='<span></span><span></span><span></span>';
+    body.appendChild(dots); d.appendChild(body); $('#log').appendChild(d); scrollToBottom();
+    d._stall=setTimeout(function(){ d.classList.add('stalled'); if(body.firstChild) body.firstChild.textContent='أخدت وقت أطول من المعتاد، لسه بشتغل '; }, 45000);
+    return d;
+  }
+  function endThinking(el){ if(!el)return; try{ clearTimeout(el._stall); }catch(e){} el.remove(); }
 
   // Barge-in: stop whatever the assistant is currently saying so replies never
   // stack/overlap (a common issue with the browser TTS fallback).
@@ -337,19 +354,19 @@
     if(!text||!text.trim()) return;
     stopSpeaking(); // silence the previous reply the moment a new one starts
     addMsg('me',text);
-    var think=addMsg('ai','بفكّر وبخطّط…','think');
+    var think=addThinking('بفكّر وبخطّط');
     try{
       var r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:text,conversationId:convId})});
       var d=await r.json();
       if(d.conversationId) convId=d.conversationId;
-      think.remove();
+      endThinking(think);
       if(d.requiresConsent){ renderConsent(d); return; }
       // A plan that RAN (has a summary or results) — even if it didn't fully
       // succeed (e.g. search found nothing) — shows its real outcome, not the
       // generic "not in my capabilities" (which is only for a truly empty plan).
       if(d.summary || (Array.isArray(d.results) && d.results.length)){ renderResult(d); return; }
       addMsg('ai', d.message || d.error || 'مش قادر أحدّد المطلوب — جرّب مثلاً «ابحثلي عن أسعار كذا» أو «ارسملي صورة قطة».');
-    }catch(e){ think.remove(); addMsg('ai','تعذّر الاتصال بالسيرفر.'); }
+    }catch(e){ endThinking(think); addMsg('ai','تعذّر الاتصال بالسيرفر.'); }
   }
   // WhatsApp-style composer: show the send button while typing (hide the mic),
   // send on Enter or on the ➤ button, and always scroll to the newest message.
@@ -369,11 +386,11 @@
     b.querySelector('.rm').onclick=clearPend; }
   async function runFile(text,file){
     addMsg('me',(text?text+' ':'')+'📄 '+file.name);
-    var think=addMsg('ai','بقرأ الملف…','think');
+    var think=addThinking('بقرأ الملف');
     try{ var fd=new FormData(); fd.append('file',file); fd.append('text',text||''); if(convId) fd.append('conversationId',convId);
-      var r=await fetch('/api/file',{method:'POST',body:fd}); var d=await r.json(); think.remove(); if(d.conversationId) convId=d.conversationId;
+      var r=await fetch('/api/file',{method:'POST',body:fd}); var d=await r.json(); endThinking(think); if(d.conversationId) convId=d.conversationId;
       if(d.ok&&d.answer){ addMsg('ai',d.answer); speak(d.answer); } else addMsg('ai', d.error||'معرفتش أقرا الملف.'); }
-    catch(e){ think.remove(); addMsg('ai','تعذّر قراءة الملف.'); } }
+    catch(e){ endThinking(think); addMsg('ai','تعذّر قراءة الملف.'); } }
   // Send typed text (and/or an image) INTO an active call over the data channel,
   // so the live model sees what you type/attach mid-conversation.
   function sendToCall(text,image){
@@ -385,11 +402,11 @@
   }
   async function runVision(text,image){
     if(image) addImage(image); if(text) addMsg('me',text);
-    var think=addMsg('ai','بشوف الصورة…','think');
+    var think=addThinking('بشوف الصورة');
     try{ var r=await fetch('/api/vision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,image:image,conversationId:convId})});
-      var d=await r.json(); think.remove(); if(d.conversationId) convId=d.conversationId;
+      var d=await r.json(); endThinking(think); if(d.conversationId) convId=d.conversationId;
       if(d.ok&&d.answer){ addMsg('ai',d.answer); speak(d.answer); } else addMsg('ai','معرفتش أقرا الصورة: '+(d.error||'')); }
-    catch(e){ think.remove(); addMsg('ai','تعذّر تحليل الصورة.'); }
+    catch(e){ endThinking(think); addMsg('ai','تعذّر تحليل الصورة.'); }
   }
   // ---------- composer: one button (📞 → ➤ while typing), image-aware ----------
   function toggleSend(){ var has=$('#text').value.trim().length>0 || !!pendingImage || !!pendingFile; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
