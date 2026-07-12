@@ -70,9 +70,9 @@ async function execute(cmd) {
   await postResult(cmd.id, output, error);
 }
 
-function openAndWait(url) {
+function openAndWait(url, active) {
   return new Promise((resolve) => {
-    chrome.tabs.create({ url, active: false }, (tab) => {
+    chrome.tabs.create({ url, active: !!active }, (tab) => {
       const id = tab.id;
       function listener(tabId, info) {
         if (tabId === id && info.status === 'complete') {
@@ -86,7 +86,10 @@ function openAndWait(url) {
 }
 
 async function doBrowse(input) {
-  const tabId = await openAndWait(input.url);
+  // keepOpen → open a VISIBLE tab and DON'T close it (the user asked to open the
+  // site and keep it in front of them). Otherwise a background tab we read + close.
+  const keep = !!input.keepOpen;
+  const tabId = await openAndWait(input.url, keep);
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId }, args: [input.selector || null],
     func: (sel) => {
@@ -101,8 +104,8 @@ async function doBrowse(input) {
   });
   let screenshot = null;
   if (input.screenshot) { try { screenshot = await chrome.tabs.captureVisibleTab(); } catch (e) {} }
-  try { chrome.tabs.remove(tabId); } catch (e) {}
-  return Object.assign({ url: input.url }, result, { screenshot });
+  if (!keep) { try { chrome.tabs.remove(tabId); } catch (e) {} }
+  return Object.assign({ url: input.url, keptOpen: keep }, result, { screenshot });
 }
 
 async function doFillSubmit(input) {
