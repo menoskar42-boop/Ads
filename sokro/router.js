@@ -162,6 +162,60 @@ router.delete('/api/secrets/:name', auth.requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Gmail API (OAuth2) — connect once, then the gmail_api skill reads/sends mail
+// through the official API (reliable, no scraping). We store ONLY the encrypted
+// refresh token in the vault (sokro_secrets 'gmail_refresh'); access tokens are
+// minted on demand and never persisted. Needs GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET.
+const gmail = require('./integrations/gmail');
+const GMAIL_SECRET_NAME = 'gmail_refresh';
+
+router.get('/api/gmail/status', auth.requireAuth, async (req, res) => {
+  const row = (await pool.query('SELECT 1 FROM sokro_secrets WHERE user_id=$1 AND name=$2', [req.sokroUser.id, GMAIL_SECRET_NAME])).rows[0];
+  res.json({ ok: true, configured: gmail.configured(), connected: !!row });
+});
+
+// Start the OAuth flow. state = a short-lived signed token carrying the user id
+// (CSRF protection: the callback only accepts a state it signed for THIS user).
+router.get('/api/gmail/connect', auth.requireAuth, (req, res) => {
+  if (!gmail.configured()) return res.status(503).type('text/plain; charset=utf-8').send('Gmail API غير مُفعّل — لازم يتضبط GMAIL_CLIENT_ID و GMAIL_CLIENT_SECRET في الإعدادات الأول.');
+  if (!vault.configured()) return res.status(503).type('text/plain; charset=utf-8').send('الخزنة غير مضبوطة (SOKRO_SECRET_KEY) — مش ممكن نخزّن التوكن بأمان.');
+  const state = auth.sign({ sub: req.sokroUser.id, purpose: 'gmail_oauth' }, 600);
+  res.redirect(gmail.authUrl(state));
+});
+
+// Google redirects back here with ?code + ?state. Verify state, exchange the
+// code for a refresh token, encrypt + store it, then bounce back to the app.
+router.get('/api/gmail/callback', async (req, res) => {
+  try {
+    if (req.query.error) return res.redirect('/app?gmail=denied');
+    const claims = auth.verify(String(req.query.state || ''));
+    if (!claims || claims.purpose !== 'gmail_oauth' || !claims.sub) return res.status(400).type('text/plain; charset=utf-8').send('state غير صالح — ابدأ الربط من جديد.');
+    const code = String(req.query.code || '');
+    if (!code) return res.redirect('/app?gmail=denied');
+    const tok = await gmail.exchangeCode(code);
+    if (!tok.refresh_token) {
+      // Google only returns a refresh_token on the first consent. Force re-consent
+      // by sending them through again (authUrl already sets prompt=consent).
+      return res.redirect('/app?gmail=retry');
+    }
+    const ciphertext = vault.encrypt(tok.refresh_token);
+    await pool.query(
+      `INSERT INTO sokro_secrets (user_id, name, ciphertext) VALUES ($1,$2,$3)
+       ON CONFLICT (user_id, name) DO UPDATE SET ciphertext = EXCLUDED.ciphertext, updated_at = now()`,
+      [claims.sub, GMAIL_SECRET_NAME, ciphertext]
+    );
+    res.redirect('/app?gmail=connected');
+  } catch (e) {
+    console.error('[sokro] gmail callback:', e.message);
+    res.redirect('/app?gmail=error');
+  }
+});
+
+router.delete('/api/gmail', auth.requireAuth, async (req, res) => {
+  await pool.query('DELETE FROM sokro_secrets WHERE user_id=$1 AND name=$2', [req.sokroUser.id, GMAIL_SECRET_NAME]);
+  res.json({ ok: true });
+});
+
 // ── Memory API (read) ────────────────────────────────────────────────────────
 router.get('/api/conversations', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, conversations: await memory.listConversations(req.sokroUser.id) });

@@ -119,6 +119,11 @@
       <select id="setVoice" class="fld"><option value="female">أنثى</option><option value="male">ذكر</option></select>
       <label class="lbl2">لغة الردّ</label>
       <select id="setLang" class="fld"><option value="egyptian">مصري</option><option value="msa">فصحى</option><option value="english">English</option></select>
+      <label class="lbl2">جيميل (Gmail API)</label>
+      <div id="gmailBox" style="display:flex;align-items:center;gap:10px;font-size:13px;color:#6b7280">
+        <span id="gmailState">جارٍ الفحص…</span>
+        <a id="gmailConnect" href="/api/gmail/connect" class="hidden" style="color:#2563eb;text-decoration:none;font-weight:600">اربط جيميل ←</a>
+      </div>
       <div style="display:flex;gap:10px;margin-top:16px">
         <button id="setSave" class="btn" style="flex:1">حفظ</button>
         <button id="setClose" class="no" style="flex:1;border-radius:12px;padding:13px">إغلاق</button>
@@ -177,7 +182,15 @@
     return false;
   }
   async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
-  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); }
+  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); }
+  async function refreshGmail(){
+    var s=$('#gmailState'), a=$('#gmailConnect'); if(!s) return;
+    try{ var d=await (await fetch('/api/gmail/status')).json();
+      if(!d.configured){ s.textContent='غير مُفعّل على الخادم'; a.classList.add('hidden'); }
+      else if(d.connected){ s.textContent='مربوط ✓'; a.textContent='إعادة الربط ←'; a.classList.remove('hidden'); }
+      else{ s.textContent='مش مربوط'; a.textContent='اربط جيميل ←'; a.classList.remove('hidden'); }
+    }catch(e){ s.textContent='—'; }
+  }
   async function saveSettingsForm(){
     var patch={ assistantName:$('#setName').value.trim()||'Selena', personality:$('#setPersona').value, voice:$('#setVoice').value, lang:$('#setLang').value };
     var btn=$('#setSave'), orig=btn.textContent; btn.disabled=true; btn.textContent='…';
