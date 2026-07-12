@@ -14,6 +14,22 @@ function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.sta
 // sites (e.g. sylndr) that keep rendering after the `load` event. We wait for the
 // network to go idle (generously), then give the framework a short settle window
 // to paint, so collectDom() sees the real interactive elements, not a skeleton.
+// Wait until the DOM stops mutating for a quiet window (default 500ms) — a real
+// signal the framework finished rendering — instead of a blind fixed delay. Capped
+// so an always-animating page (tickers, carousels) never blocks forever.
+async function waitForDomStable(page, quietMs, timeoutMs) {
+  await page.evaluate(function (cfg) {
+    return new Promise(function (resolve) {
+      var quiet = cfg.quietMs, cap = cfg.timeoutMs, t, obs;
+      function done() { try { obs.disconnect(); } catch (e) {} clearTimeout(t); clearTimeout(hard); resolve(); }
+      var hard = setTimeout(done, cap);
+      t = setTimeout(done, quiet);
+      obs = new MutationObserver(function () { clearTimeout(t); t = setTimeout(done, quiet); });
+      obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+    });
+  }, { quietMs: quietMs || 500, timeoutMs: timeoutMs || 4000 }).catch(function () {});
+}
+
 async function settlePage(page) {
   await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
@@ -32,8 +48,8 @@ async function settlePage(page) {
     var inter = Array.prototype.slice.call(document.querySelectorAll('a[href],button,[role="button"]')).filter(vis);
     return inter.length >= 8;
   }, { timeout: 8000 }).catch(function () {});
-  // Tiny final settle for the last paint after the elements appear.
-  await page.waitForTimeout(600).catch(() => {});
+  // Smart final settle: wait for the DOM to actually go quiet, not a fixed timer.
+  await waitForDomStable(page, 500, 4000);
 }
 
 // Auto-retry waiting for an element to show up before acting on it. On a JS/SPA
