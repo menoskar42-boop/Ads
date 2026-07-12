@@ -253,6 +253,12 @@
   }
   // Animated "working" bubble: the 3 dots pulse while a task runs; if it drags on
   // (>45s) they freeze to hint it's taking unusually long (maybe stuck).
+  // Natural, VARIED "give me a sec" phrases so it feels human, not scripted.
+  var _lastThink=-1;
+  function thinkingLabel(){
+    var opts=['ثواني هشوف','خليني أتأكد','ثانية بس أدوّرلك','لحظة أراجع','استنى شوية أجيبهالك','ثواني بس','خليني أشوف الأول'];
+    var i; do{ i=Math.floor(Math.random()*opts.length); }while(opts.length>1 && i===_lastThink); _lastThink=i; return opts[i];
+  }
   function addThinking(label){
     var d=document.createElement('div'); d.className='msg ai think';
     var body=document.createElement('div'); body.className='msg-text';
@@ -416,7 +422,7 @@
     if(handleConfirmWord(text)){ addMsg('me',text); return; } // "أكّد/لأ" → the pending confirm
     stopSpeaking(); // silence the previous reply the moment a new one starts
     addMsg('me',text);
-    var think=addThinking('بفكّر وبخطّط');
+    var think=addThinking(thinkingLabel());
     try{
       var r=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal:text,conversationId:convId})});
       var d=await r.json();

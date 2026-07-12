@@ -48,7 +48,8 @@ async function session(userId) {
   const s = await settings.get(userId);
   const instructions = AP.buildPreamble(s) + ' ' + lang.replyInstruction(s.lang) +
     ' You are a live voice assistant. You can EXECUTE tasks by calling the provided tools (search the web, generate images, research + report, browse sites). ' +
-    'When the user asks for something a tool can do, call it, then tell them the result naturally. Keep spoken replies short and conversational.';
+    'When the user asks for something a tool can do, FIRST say a short, natural filler out loud — VARY it each time, e.g. «ثواني هشوف», «خليني أتأكد», «ثانية بس أدوّرلك», «استنى لحظة أجيبهالك», «لحظة أراجع» — THEN call the tool, then tell them the result naturally. ' +
+    'Never reuse the same filler twice in a row. Keep spoken replies short and conversational, and vary your phrasing so you never sound repetitive or scripted.';
   const voice = s.voice === 'male' ? 'ash' : 'shimmer';
   const model = process.env.SOKRO_REALTIME_MODEL || 'gpt-realtime';
 
