@@ -402,23 +402,79 @@ router.get('/', (_req, res) => {
   .card .ico{font-size:1.6rem}
   .card h3{margin:8px 0 4px;font-size:1.02rem}
   .card p{color:#b9c0e6;font-size:.9rem;line-height:1.7}
-  footer{margin-top:44px;color:#8b93c0;font-size:.82rem}
+  .cta{display:inline-block;margin-top:26px;background:linear-gradient(90deg,#5b6cff,#22d3ee);color:#08122b;font-weight:800;text-decoration:none;border-radius:100px;padding:13px 30px}
+  section{max-width:820px;margin:0 auto;padding:0 22px 8px;text-align:right}
+  section h2{font-size:clamp(1.3rem,4vw,1.7rem);margin:40px 0 12px;font-weight:900}
+  section p,section li{color:#c3c9ee;line-height:1.95;font-size:1rem}
+  section ul{margin:8px 24px}
+  .steps{counter-reset:s;list-style:none;margin:8px 0;padding:0}
+  .steps li{position:relative;padding:8px 44px 8px 0;margin-bottom:6px}
+  .steps li::before{counter-increment:s;content:counter(s);position:absolute;right:0;top:6px;width:30px;height:30px;border-radius:50%;background:rgba(120,140,255,.18);border:1px solid rgba(120,140,255,.4);color:#aebbff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+  details{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 18px;margin:10px 0}
+  details summary{cursor:pointer;font-weight:700;color:#eef1ff}
+  details p{margin-top:8px}
+  footer{margin-top:44px;color:#8b93c0;font-size:.82rem;text-align:center;padding:24px;border-top:1px solid rgba(255,255,255,.06)}
+  footer a{margin:0 8px}
   a{color:#8ea2ff}
 </style>
 </head>
 <body>
   <main class="wrap">
-    <span class="badge">🚧 قيد التطوير — نظام تشغيل ذكي</span>
+    <span class="badge">نظام تشغيل ذكي بالأوامر الصوتية</span>
     <h1>قول لـ <span>Sokro</span> اللي عايزه… وهو ينفّذه</h1>
-    <p class="sub">Sokro مش مجرد مساعد بيرد. ده نظام بينفّذ مهام حقيقية بأمر صوتي: يبحث ويعملّك تقرير، يخلق صورة، يحجز، أو ينشر بوست — إنت تقول، وهو يعمل.</p>
+    <p class="sub">Sokro مش مجرد مساعد بيرد. ده نظام بينفّذ مهام حقيقية بأمر صوتي أو كتابي: يبحث ويعملّك تقرير، يخلق صورة، يجهّز حجز، أو يلخّص صفحة — إنت تقول، وهو يعمل. المحادثات بتتحفظ في حسابك، وأي خطوة حسّاسة ماتتنفّذش غير بموافقتك.</p>
+    <a class="cta" href="${config.origin}/app">جرّب Sokro دلوقتي</a>
     <div class="grid">
-      <div class="card"><div class="ico">🔎</div><h3>بحث + تقرير</h3><p>يبحث ويلخّص ويطلّعلك تقرير Excel/PDF جاهز.</p></div>
-      <div class="card"><div class="ico">🎨</div><h3>توليد صور</h3><p>يخلق الصورة اللي في دماغك ويبعتهالك.</p></div>
-      <div class="card"><div class="ico">✈️</div><h3>حجوزات</h3><p>يدوّر ويجهّز حجز التذكرة أو الفندق لحد التأكيد.</p></div>
-      <div class="card"><div class="ico">📱</div><h3>نشر سوشيال</h3><p>ينشر بوستاتك على حساباتك بأمان بإذنك.</p></div>
+      <div class="card"><div class="ico">🔎</div><h3>بحث + تقرير</h3><p>يبحث في الويب، يلخّص المصادر، ويطلّعلك تقرير Excel أو Markdown جاهز للتنزيل.</p></div>
+      <div class="card"><div class="ico">🎨</div><h3>توليد صور</h3><p>تقوله يرسم أو يخلق صورة بوصف بسيط، ويرجّعهالك في المحادثة على طول.</p></div>
+      <div class="card"><div class="ico">🗣️</div><h3>مكالمة صوتية مباشرة</h3><p>مكالمة حيّة زي المساعدات الصوتية — يسمعك ويرد بصوت، وينفّذ المهام أثناء الكلام.</p></div>
+      <div class="card"><div class="ico">⚙️</div><h3>إعدادات شخصية</h3><p>تختار اسم المساعد، شخصيته، صوته (أنثى/ذكر)، ولغة الرد (مصري/فصحى/إنجليزي).</p></div>
     </div>
-    <footer>Sokro — أحد منتجات <a href="https://oscardevs.com/our-work">OscarDevs</a>.</footer>
   </main>
+
+  <section>
+    <h2>Sokro إيه بالظبط؟</h2>
+    <p>Sokro نظام مساعد ذكي بينفّذ مهام فعلية بدل ما يكتفي بالرد. بتديله هدف بصوتك أو بالكتابة — زي «ابحثلي عن أسعار كذا واعملّي تقرير» أو «ارسملي صورة لمنتج» — فيحلّل الطلب، يخطّط الخطوات، وينفّذها باستخدام أدوات متخصصة (بحث ويب، توليد صور، تلخيص، تقارير). هو أحد منتجات <a href="https://oscardevs.com/our-work">OscarDevs</a>، ومبني ليشتغل من المتصفح ومن الموبايل بنفس الحساب.</p>
+
+    <h2>حالات استخدام</h2>
+    <ul>
+      <li><strong>بحث سوق سريع:</strong> يجمع أسعار/منتجات من الويب ويطلّعها في تقرير منظّم.</li>
+      <li><strong>محتوى بصري:</strong> توليد صور لمنشور أو فكرة أو تصوّر مبدئي لمنتج.</li>
+      <li><strong>تلخيص وأبحاث:</strong> يقرا صفحات ويطلّع خلاصة نقاط + مصادر.</li>
+      <li><strong>مهام صوتية أثناء المشي/السواقة:</strong> تكلّمه وهو يرد وينفّذ من غير ما تكتب.</li>
+    </ul>
+
+    <h2>إزاي بيشتغل؟</h2>
+    <ol class="steps">
+      <li>بتقول أو تكتب اللي عايزه بلغتك الطبيعية.</li>
+      <li>Sokro يفهم القصد ويرسم خطة خطوات واضحة.</li>
+      <li>لو الخطة فيها خطوة حسّاسة (زي دخول حساب أو نشر)، بيوقف ويطلب موافقتك الأول.</li>
+      <li>ينفّذ الأدوات المطلوبة ويرجّعلك النتيجة (نص/صورة/تقرير) — والمحادثة تتحفظ في حسابك.</li>
+    </ol>
+
+    <h2>الخصوصية والأمان</h2>
+    <p>حسابك محميّ بكلمة سر مشفّرة، والجلسات موقّعة بمفتاح سرّي. أي بيانات اعتماد بتضيفها بتتخزّن مشفّرة (AES-256) وماتترجعش كنص ولا تتبعت للموديل. الأوامر الحسّاسة — زي تشغيل متصفح أو النشر على السوشيال — <strong>ماتتنفّذش إلا بموافقة صريحة منك</strong>، والوصول للمواقع الداخلية/الخاصة محجوب لأسباب أمنية. للتفاصيل الكاملة راجع <a href="https://oscardevs.com/privacy">سياسة الخصوصية</a>.</p>
+
+    <h2>حدود التنفيذ</h2>
+    <p>Sokro أداة مساعدة، مش بديل عن قرارك. ممكن نتائج البحث تكون ناقصة أو محتاجة مراجعة، وتوليد الصور له قيود المزوّد. الخطوات اللي تلمس حسابات أو مدفوعات بتحتاج تأكيدك، والمنتج قيد التطوير المستمر فبنضيف قدرات ونحسّن باستمرار.</p>
+
+    <h2>أسئلة شائعة</h2>
+    <details><summary>محتاج أعمل حساب؟</summary><p>أيوه، بتسجّل بإيميل وكلمة سر عشان محادثاتك وإعداداتك تتحفظ وترجعلك في أي جهاز.</p></details>
+    <details><summary>بيتكلم مصري ولا فصحى ولا إنجليزي؟</summary><p>تقدر تختار لغة الرد من الإعدادات: مصري (الافتراضي)، فصحى، أو إنجليزي — وكمان صوت أنثى أو ذكر واسم وشخصية للمساعد.</p></details>
+    <details><summary>هل ينفّذ أي حاجة من غير ما يسألني؟</summary><p>لأ. المهام العادية (بحث/صورة/تلخيص) بتتنفّذ على طول، لكن أي خطوة حسّاسة بتوقف وتطلب موافقتك الأول.</p></details>
+    <details><summary>بيشتغل على الموبايل؟</summary><p>أيوه، بيشتغل من المتصفح على الموبايل والكمبيوتر بنفس الحساب.</p></details>
+  </section>
+
+  <footer>
+    Sokro — أحد منتجات <a href="https://oscardevs.com/our-work">OscarDevs</a>.
+    <br/>
+    <a href="https://oscardevs.com/privacy">الخصوصية</a> ·
+    <a href="https://oscardevs.com/terms">الشروط</a> ·
+    <a href="https://oscardevs.com/contact">تواصل معنا</a>
+  </footer>
+
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Sokro","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":${JSON.stringify(DESC)},"url":"${config.origin}/","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"OscarDevs","url":"https://oscardevs.com"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"محتاج أعمل حساب لاستخدام Sokro؟","acceptedAnswer":{"@type":"Answer","text":"أيوه، بتسجّل بإيميل وكلمة سر عشان المحادثات والإعدادات تتحفظ وترجعلك في أي جهاز."}},{"@type":"Question","name":"Sokro بيتكلم مصري ولا فصحى ولا إنجليزي؟","acceptedAnswer":{"@type":"Answer","text":"تقدر تختار لغة الرد من الإعدادات: مصري (الافتراضي)، فصحى، أو إنجليزي، وكمان صوت أنثى أو ذكر."}},{"@type":"Question","name":"هل ينفّذ أي مهمة من غير موافقة؟","acceptedAnswer":{"@type":"Answer","text":"لأ. المهام العادية زي البحث وتوليد الصور بتتنفّذ مباشرة، لكن أي خطوة حسّاسة بتوقف وتطلب موافقتك الأول."}}]}</script>
 </body>
 </html>`);
 });
