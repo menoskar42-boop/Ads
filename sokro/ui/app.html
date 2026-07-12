@@ -253,6 +253,20 @@
   }
   // Animated "working" bubble: the 3 dots pulse while a task runs; if it drags on
   // (>45s) they freeze to hint it's taking unusually long (maybe stuck).
+  // Clear, timestamped activity log so we can see EXACTLY what happened and when
+  // (entered confirm at HH:MM:SS, started, failed because …). Rendered as small
+  // muted lines in the conversation.
+  function nowT(){ try{ return new Date().toLocaleTimeString('ar-EG',{hour12:false}); }catch(e){ return ''; } }
+  function logEvent(text){ var d=document.createElement('div'); d.className='msg ai'; d.style.opacity='.75'; d.style.fontSize='.82rem';
+    var b=document.createElement('div'); b.className='msg-text'; b.textContent='⏱ '+nowT()+' — '+text; d.appendChild(b); $('#log').appendChild(d); scrollToBottom(); return d; }
+  // Parse a fetch response as JSON, but if the server returned HTML/text (500/502/
+  // restart), surface the STATUS + a snippet instead of a cryptic "Unexpected token".
+  async function apiJson(r){
+    var txt=await r.text();
+    try{ return JSON.parse(txt); }
+    catch(e){ var snip=txt.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,90);
+      return { ok:false, error:'السيرفر ردّ بصفحة (status '+r.status+') مش JSON — غالباً السيرفر وقع/بيعيد التشغيل أو الرام خلصت. '+(snip?('['+snip+']'):'') }; }
+  }
   // Natural, VARIED "give me a sec" phrases so it feels human, not scripted.
   var _lastThink=-1;
   function thinkingLabel(){
@@ -601,23 +615,26 @@
     var args={}; try{ args=JSON.parse(argsStr||'{}'); }catch(e){}
     var chip=addMsg('ai',toolLabel(name)+'…','think');
     var out;
+    logEvent('طلب أداة: '+name);
     try{
       var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args)});
-      var d=await r.json();
+      var d=await apiJson(r);
       if(r.status===403 && d.requiresConsent){
         // A browser tool mid-call — ask for confirmation INLINE (voice "أكّد"
         // works). Only ONE confirm card at a time (avoid a re-ask loop). Tell the
         // model to WAIT silently — don't re-call the tool.
         try{chip.remove();}catch(e){}
+        logEvent('🔒 دخلنا التأكيد لأداة: '+name);
         if(!pendingConfirm){ var lbl=toolLabel(name).replace(/^[^ ]+ /,'');
           renderInlineConfirm({ answer:'محتاج تأكيدك قبل ما '+lbl+'. قول «أكّد» أو اضغط الزر.' }, null, function(){ return retryRtTool(name,args); }); }
         out={status:'awaiting_user_confirmation',note:'انتظر تأكيد المستخدم بصمت. لا تنادِ الأداة تاني ولا تكرّر طلب التأكيد؛ استنى لحد ما ييجي التأكيد.'};
       }
       else { out=d.output||d; try{chip.remove();}catch(e){}
         var reason=(d&&(d.error||(d.output&&d.output.error)))||'';
-        if(d && d.ok===false && reason) addMsg('ai','❌ سبب الفشل: '+reason);
+        if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); logEvent('❌ فشل '+name+': '+reason); }
+        else logEvent('✔️ تمّت أداة: '+name);
         showRtToolOutput(name,d); }
-    }catch(e){ out={error:e.message}; try{chip.remove();}catch(_){} addMsg('ai','❌ سبب الفشل: '+(e.message||'خطأ في الاتصال')); }
+    }catch(e){ out={error:e.message}; try{chip.remove();}catch(_){} addMsg('ai','❌ سبب الفشل: '+(e.message||'خطأ في الاتصال')); logEvent('❌ استثناء '+name+': '+(e.message||'')); }
     try{
       rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:JSON.stringify(out).slice(0,6000)}}));
       rtDc.send(JSON.stringify({type:'response.create'}));
@@ -629,13 +646,15 @@
   // Re-run a browser tool AFTER the user confirmed (consent:true), then feed the
   // result back into the live call so the model continues talking about it.
   async function retryRtTool(name,args){
+    logEvent('✅ أكّدت — ببدأ تنفيذ: '+name);
     var chip=addMsg('ai',toolLabel(name)+'…','think');
     try{
       var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))});
-      var d=await r.json(); try{chip.remove();}catch(e){}
+      var d=await apiJson(r); try{chip.remove();}catch(e){}
       // Surface the REAL reason on failure so we can diagnose, not a generic line.
       var reason = (d&&(d.error || (d.output&&d.output.error))) || '';
-      if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); }
+      if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); logEvent('❌ فشل '+name+': '+reason); }
+      else logEvent('✔️ تمّ التنفيذ: '+name);
       showRtToolOutput(name,d);
       var feed = (d && d.ok===false && reason) ? ('[فشل '+name+'] السبب: '+reason) : ('[نتيجة '+name+']: '+JSON.stringify(d.output||d).slice(0,3000));
       try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:feed}]}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
