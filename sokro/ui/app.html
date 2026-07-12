@@ -211,11 +211,36 @@
     if(report) addDownloads(report);
     speak(summary);
   }
+  // Reliable download for both data: URLs (what gpt-image-1 returns) and http(s).
+  // A plain <a download> often just OPENS a big data URL, so convert it to a Blob.
+  function downloadUrl(url,filename){
+    try{
+      if(String(url).indexOf('data:')===0){
+        var parts=url.split(','); var mime=((parts[0].match(/:(.*?);/)||[])[1])||'image/png';
+        var bin=atob(parts[1]); var arr=new Uint8Array(bin.length);
+        for(var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+        var u=URL.createObjectURL(new Blob([arr],{type:mime}));
+        var a=document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){URL.revokeObjectURL(u);},2000);
+      } else {
+        var a2=document.createElement('a'); a2.href=url; a2.download=filename; document.body.appendChild(a2); a2.click(); a2.remove();
+      }
+    }catch(e){ try{ window.open(url,'_blank'); }catch(_){} }
+  }
+  var imgSeq=0;
   function addImage(url){
     var el=document.createElement('div'); el.className='msg ai'; el.style.padding='6px';
-    var a=document.createElement('a'); a.href=url; a.target='_blank'; a.download='sokro-image.png';
-    var img=document.createElement('img'); img.src=url; img.alt='صورة مولّدة'; img.style.cssText='max-width:100%;border-radius:12px;display:block';
-    a.appendChild(img); el.appendChild(a); $('#log').appendChild(el); scrollToBottom();
+    var img=document.createElement('img'); img.src=url; img.alt='صورة مولّدة'; img.style.cssText='max-width:100%;border-radius:12px;display:block;cursor:zoom-in';
+    img.onclick=function(){ try{ window.open(url,'_blank'); }catch(e){} };
+    el.appendChild(img);
+    var bar=document.createElement('div'); bar.style.cssText='display:flex;gap:8px;margin-top:8px;align-items:center';
+    var dl=document.createElement('button'); dl.className='ok'; dl.style.cssText='border:0;border-radius:10px;padding:8px 14px;font-weight:800;cursor:pointer';
+    dl.textContent='⬇︎ تحميل الصورة';
+    var name='sokro-image-'+(++imgSeq)+'.png';
+    dl.onclick=function(){ downloadUrl(url,name); };
+    var open=document.createElement('a'); open.href=url; open.target='_blank'; open.textContent='فتح في تبويب'; open.style.cssText='color:#8ea2ff;font-size:.88rem';
+    bar.appendChild(dl); bar.appendChild(open); el.appendChild(bar);
+    $('#log').appendChild(el); scrollToBottom();
   }
   function addDownloads(payload){
     var el=document.createElement('div'); el.className='plan'; el.style.background='rgba(34,211,238,.08)';
