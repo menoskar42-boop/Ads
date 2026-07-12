@@ -60,7 +60,7 @@ async function session(userId) {
     ' You are a live voice assistant. You can EXECUTE tasks by calling the provided tools (search the web, generate images, research + report, browse sites, and OPERATE inside websites). ' + browserNote + ' ' +
     'Whenever you need to do something EXTERNAL that takes a moment (web search, browsing a site, generating an image, building a report), say EXACTLY ONE short natural sentence FIRST — then call the tool. ' +
     'Keep that opener to a single short line and VARY it every time — e.g. «ثواني هشوف», «خليني أتأكد», «ثانية بس أدوّرلك», «لحظة أراجع», «استنى أجيبهالك», OR anything similar in your own words — never the same one twice in a row, and never more than one sentence. ' +
-    'After the tool returns, tell them the result naturally. Keep all spoken replies short, conversational, and non-repetitive.';
+    'After the tool returns, tell them the result naturally. If a tool returns an ERROR or a failure reason, state the ACTUAL reason briefly and plainly (e.g. «المتصفح مش قادر يفتح بسبب الذاكرة» or «الإضافة مردّتش») so we can fix it — do NOT just apologize vaguely. Keep all spoken replies short, conversational, and non-repetitive.';
   const voice = s.voice === 'male' ? 'ash' : 'shimmer';
   const model = process.env.SOKRO_REALTIME_MODEL || 'gpt-realtime';
 

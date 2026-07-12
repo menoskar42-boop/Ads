@@ -606,14 +606,18 @@
       var d=await r.json();
       if(r.status===403 && d.requiresConsent){
         // A browser tool mid-call — ask for confirmation INLINE (voice "أكّد"
-        // works). Tell the model we're waiting; run it for real after approval.
+        // works). Only ONE confirm card at a time (avoid a re-ask loop). Tell the
+        // model to WAIT silently — don't re-call the tool.
         try{chip.remove();}catch(e){}
-        var lbl=toolLabel(name).replace(/^[^ ]+ /,'');
-        renderInlineConfirm({ answer:'محتاج تأكيدك قبل ما '+lbl+'. قول «أكّد» أو اضغط الزر.' }, null, function(){ return retryRtTool(name,args); });
-        out={status:'awaiting_user_confirmation',note:'اطلب من المستخدم تأكيد شفهي «أكّد» قبل التنفيذ'};
+        if(!pendingConfirm){ var lbl=toolLabel(name).replace(/^[^ ]+ /,'');
+          renderInlineConfirm({ answer:'محتاج تأكيدك قبل ما '+lbl+'. قول «أكّد» أو اضغط الزر.' }, null, function(){ return retryRtTool(name,args); }); }
+        out={status:'awaiting_user_confirmation',note:'انتظر تأكيد المستخدم بصمت. لا تنادِ الأداة تاني ولا تكرّر طلب التأكيد؛ استنى لحد ما ييجي التأكيد.'};
       }
-      else { out=d.output||d; try{chip.remove();}catch(e){} showRtToolOutput(name,d); }
-    }catch(e){ out={error:e.message}; try{chip.querySelector('.msg-text').textContent='⚠️ فشل: '+name;}catch(_){} }
+      else { out=d.output||d; try{chip.remove();}catch(e){}
+        var reason=(d&&(d.error||(d.output&&d.output.error)))||'';
+        if(d && d.ok===false && reason) addMsg('ai','❌ سبب الفشل: '+reason);
+        showRtToolOutput(name,d); }
+    }catch(e){ out={error:e.message}; try{chip.remove();}catch(_){} addMsg('ai','❌ سبب الفشل: '+(e.message||'خطأ في الاتصال')); }
     try{
       rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:JSON.stringify(out).slice(0,6000)}}));
       rtDc.send(JSON.stringify({type:'response.create'}));
@@ -626,9 +630,16 @@
   // result back into the live call so the model continues talking about it.
   async function retryRtTool(name,args){
     var chip=addMsg('ai',toolLabel(name)+'…','think');
-    try{ var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))}); var d=await r.json(); try{chip.remove();}catch(e){} showRtToolOutput(name,d);
-      try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'[نتيجة '+name+']: '+JSON.stringify(d.output||d).slice(0,3000)}]}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
-    }catch(e){ try{chip.remove();}catch(_){} addMsg('ai','تعذّر تنفيذ الإجراء بعد التأكيد.'); }
+    try{
+      var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))});
+      var d=await r.json(); try{chip.remove();}catch(e){}
+      // Surface the REAL reason on failure so we can diagnose, not a generic line.
+      var reason = (d&&(d.error || (d.output&&d.output.error))) || '';
+      if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); }
+      showRtToolOutput(name,d);
+      var feed = (d && d.ok===false && reason) ? ('[فشل '+name+'] السبب: '+reason) : ('[نتيجة '+name+']: '+JSON.stringify(d.output||d).slice(0,3000));
+      try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:feed}]}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
+    }catch(e){ try{chip.remove();}catch(_){} addMsg('ai','❌ سبب الفشل: '+(e.message||'خطأ في الاتصال بالسيرفر')); }
   }
   $('#call').onclick=function(){ if(rtOn||rtPc||rtBusy){ endRealtime(); } else { startRealtime(); } };
   $('#callmute').onclick=function(){ rtMuted=!rtMuted; applyMute(); setStatus(rtMuted?'🔇 الميكروفون مكتوم — اضغط 🔇 للرجوع':'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك'); };

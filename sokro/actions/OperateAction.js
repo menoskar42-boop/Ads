@@ -62,6 +62,7 @@ async function tryFallback(ctx, url, goal, reason) {
     ['browse', () => ({ url })],
     ['search_web', () => ({ query: host ? ('site:' + host + ' ' + goal) : goal })],
   ];
+  const tried = [];
   for (const [name, mkInput] of attempts) {
     const act = reg && reg.get && reg.get(name);
     if (!act) continue;
@@ -72,9 +73,11 @@ async function tryFallback(ctx, url, goal, reason) {
         const out = (r.output && typeof r.output === 'object') ? r.output : { result: r.output };
         return { ok: true, output: Object.assign({ fallbackUsed: name, fallbackReason: reason }, out) };
       }
-    } catch (_) { /* try the next fallback */ }
+      tried.push(name + ': ' + ((r && r.error) || 'رجّع بدون نتيجة')); // remember WHY it failed
+    } catch (e) { tried.push(name + ': ' + (e.message || 'exception')); }
   }
-  return null;
+  // Every fallback failed → return the REAL reasons so the user can see them.
+  return { ok: false, error: 'كل الطرق فشلت — ' + tried.join(' | '), tried };
 }
 
 // Pre-flight: predict how likely this run is to FAIL before we start, so we can
@@ -240,16 +243,17 @@ async function run(ctx, input) {
   // Chromium crash. The server-side Operator is used only when no extension.
   let extConnected = false;
   try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
+  let extFallbackErr = '';
   if (extConnected) {
     const fb = await tryFallback(ctx, url, goal, 'running in your connected browser');
-    if (fb) return fb;
-    // extension path produced nothing → fall through to the server Operator below.
+    if (fb && fb.ok) return fb;
+    extFallbackErr = fb && fb.error; // remember the real reason; try server browser next
   }
   if (!ctx.browser || !ctx.browser.available()) {
     // Primary method (server browser) unavailable → fall back automatically.
     const fb = await tryFallback(ctx, url, goal, 'server browser unavailable');
-    if (fb) return fb;
-    return { ok: false, error: 'محتاج متصفّح السيرفر عشان أشغّل الـ Operator — فعّل Playwright (ومكتبات Chromium في .replit)، أو وصّل إضافة سوكرو في متصفحك.' };
+    if (fb && fb.ok) return fb;
+    return { ok: false, error: (extFallbackErr || (fb && fb.error) || 'مفيش متصفّح متاح') + ' — وصّل إضافة سوكرو في متصفحك أو فعّل متصفح السيرفر (Chromium في .replit + رام كافية).' };
   }
   const maxSteps = Math.min(Math.max(parseInt(input && input.maxSteps, 10) || 6, 1), 10);
   // Sensitive actions (pay/delete/submit…) are only pressed after the user confirms
@@ -441,11 +445,12 @@ async function run(ctx, input) {
     const launchFail = /\.so\.\d|Failed to launch|browserType\.launch|Target closed|libgbm|libnss|Executable doesn't exist/i.test(m);
     // Primary method crashed → try the fallback chain before surfacing an error.
     const fb = await tryFallback(ctx, url, goal, launchFail ? 'server browser launch failed' : m);
-    if (fb) return fb;
+    if (fb && fb.ok) return fb;
+    const fbErr = fb && fb.error ? (' | البدائل: ' + fb.error) : '';
     if (launchFail) {
-      return { ok: false, error: 'متصفّح السيرفر مقدرش يشتغل دلوقتي (مكتبة ناقصة أو ذاكرة). لو لسه منزّلين تحديث بيئة .replit استنى النشر يخلص وجرّب تاني، أو استخدم إضافة سوكرو في متصفحك عشان التصفّح داخل الموقع.' };
+      return { ok: false, error: 'متصفّح السيرفر مقدرش يشتغل (مكتبة ناقصة أو ذاكرة قليلة 0.5GB): ' + m.slice(0, 160) + fbErr + ' — الأضمن: وصّل إضافة سوكرو في متصفحك.' };
     }
-    return { ok: false, error: 'operate failed: ' + m };
+    return { ok: false, error: 'operate failed: ' + m + fbErr };
   }
 }
 
