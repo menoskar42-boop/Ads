@@ -56,13 +56,17 @@
   #send:active{transform:scale(.94)}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,91,108,.5)}50%{box-shadow:0 0 0 16px rgba(255,91,108,0)}}
   .hidden{display:none!important}
+  #extlink{position:fixed;bottom:calc(104px + env(safe-area-inset-bottom));left:14px;z-index:40;display:inline-flex;align-items:center;gap:6px;
+    background:rgba(120,140,255,.16);border:1px solid rgba(120,140,255,.4);color:#cdd6ff;
+    text-decoration:none;font-weight:800;font-size:.85rem;border-radius:100px;padding:9px 15px;
+    box-shadow:0 6px 20px rgba(0,0,0,.35);backdrop-filter:blur(6px)}
+  #extlink:hover{background:rgba(120,140,255,.28)}
 </style>
 </head>
 <body>
   <div class="top">
     <div class="brand">Sokro <span>OS</span></div>
     <div style="display:flex;gap:14px;align-items:center">
-      <a id="extlink" class="link hidden" href="/ext" target="_blank" rel="noopener" style="margin:0;text-decoration:none" title="ثبّت إضافة المتصفح عشان يتصفّح المواقع بنفسه">🧩 المتصفح</a>
       <button id="mute" class="link hidden" style="margin:0;font-size:1.1rem;text-decoration:none" title="قراءة الرد بصوت">🔈</button>
       <button id="gear" class="link hidden" style="margin:0">⚙️ إعدادات</button>
       <button id="logout" class="link hidden" style="margin:0">خروج</button>
@@ -112,6 +116,7 @@
     </div>
   </div>
 
+  <a id="extlink" class="hidden" href="/ext" target="_blank" rel="noopener" title="ثبّت إضافة المتصفح عشان Sokro يتصفّح المواقع بنفسه">🧩 المتصفح</a>
   <audio id="rtaudio" autoplay></audio>
   <div id="dock" class="dock hidden">
     <div class="status" id="status">دوس المايك — أو 📞 لمكالمة مباشرة</div>
