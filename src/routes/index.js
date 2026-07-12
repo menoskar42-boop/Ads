@@ -58,8 +58,18 @@ function classifySpam(body) {
     const age = Date.now() - ft;
     if (age >= 0 && age < 2500) return true;
   }
-  const links = (String(body.message || '').match(/https?:\/\//gi) || []).length;
+  const msg = String(body.message || '');
+  const email = String(body.sender_email || '').toLowerCase().trim();
+  // link-stuffing: 2+ URLs in a contact message is a strong spam signal.
+  const links = (msg.match(/https?:\/\//gi) || []).length;
   if (links >= 2) return true;
+  // Anonymous file-drop / URL-shortener links are a classic malware & phishing
+  // vector in cold contact-form spam (e.g. a mega.nz link wrapped in an emotional
+  // story to bait a click). Flag even a single one.
+  if (/\b(?:mega\.nz|mega\.io|anonfiles|anonfile|mediafire|dropmefiles|gofile\.io|bit\.ly|tinyurl|cutt\.ly|is\.gd|grabify|iplogger|t\.me)\b/i.test(msg)) return true;
+  // Obviously fake / throwaway sender addresses.
+  if (/^(?:test|testing|admin|noreply|no-reply|spam|abuse|example)@/i.test(email)) return true;
+  if (/@(?:mailinator\.com|guerrillamail\.\w+|10minutemail\.\w+|tempmail\.\w+|trashmail\.\w+|yopmail\.\w+|sharklasers\.com|example\.(?:com|org|net))$/i.test(email)) return true;
   return false;
 }
 
@@ -67,10 +77,14 @@ router.post('/contact', async (req, res) => {
   const v = validateContact(req.body);
   if (v.error) return res.redirect(`/?error=${encodeURIComponent(v.error)}`);
   try {
+    // Platform-inbox messages get the same spam screening as tenant messages,
+    // so throwaway-email + file-drop-link bait lands in the spam folder instead
+    // of the main inbox.
+    const isSpam = classifySpam(req.body);
     await pool.query(
-      `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
-       VALUES (NULL, $1, $2, $3, $4)`,
-      [v.sender_name, v.sender_email, v.sender_phone, v.message]
+      `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message, is_spam)
+       VALUES (NULL, $1, $2, $3, $4, $5)`,
+      [v.sender_name, v.sender_email, v.sender_phone, v.message, isSpam]
     );
     res.redirect('/?sent=1');
   } catch (err) {
