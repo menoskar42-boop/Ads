@@ -79,17 +79,22 @@ function parseBing(html, limit) {
 // which a Replit IP often gets blocked/empty on). Used first when a key is set.
 async function braveSearch(query, limit) {
   const key = process.env.SOKRO_BRAVE_KEY || process.env.BRAVE_SEARCH_KEY;
-  if (!key) return null;
+  if (!key) return { results: null, note: 'no-brave-key' };
   try {
     const r = await fetch('https://api.search.brave.com/res/v1/web/search?count=' + limit + '&q=' + encodeURIComponent(query), {
-      headers: { Accept: 'application/json', 'X-Subscription-Token': key },
+      headers: { Accept: 'application/json', 'Accept-Encoding': 'gzip', 'X-Subscription-Token': key },
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      // Surface WHY so a wrong key (401) / over-quota (429) is diagnosable instead
+      // of silently falling through to the blocked engines.
+      return { results: null, note: 'brave-http-' + r.status };
+    }
     const data = await r.json();
     const items = (data.web && data.web.results) || [];
-    return items.slice(0, limit).map((x) => ({ title: decode(x.title || ''), url: x.url, snippet: decode(x.description || '') }))
+    const results = items.slice(0, limit).map((x) => ({ title: decode(x.title || ''), url: x.url, snippet: decode(x.description || '') }))
       .filter((x) => x.title && /^https?:\/\//.test(x.url));
-  } catch (_) { return null; }
+    return { results };
+  } catch (e) { return { results: null, note: 'brave-err:' + (e && e.message || '').slice(0, 40) }; }
 }
 
 // Run the search in the USER'S browser via the extension — their residential IP
@@ -123,10 +128,11 @@ async function run(ctx, input) {
 
   // Prefer the Brave API when configured — it works reliably server-side.
   const brave = await braveSearch(query, limit);
-  if (brave && brave.length) {
-    if (ctx && ctx.log) ctx.log('search_web', { query, count: brave.length, used: 'brave' });
-    return { ok: true, output: { query, engine: 'brave', results: brave } };
+  if (brave.results && brave.results.length) {
+    if (ctx && ctx.log) ctx.log('search_web', { query, count: brave.results.length, used: 'brave' });
+    return { ok: true, output: { query, engine: 'brave', results: brave.results } };
   }
+  const braveNote = brave.note || ''; // e.g. no-brave-key / brave-http-401 / brave-http-429
   // No Brave key → search in the user's own browser (unblocked IP) if connected.
   const viaExt = await extSearch(ctx, query, limit);
   if (viaExt && viaExt.length) {
@@ -152,9 +158,15 @@ async function run(ctx, input) {
     } catch (e) { errors.push(p.name + ':' + e.message); }
   }
 
-  if (ctx && ctx.log) ctx.log('search_web', { query, count: results.length, used: used || 'none' });
+  if (ctx && ctx.log) ctx.log('search_web', { query, count: results.length, used: used || 'none', brave: braveNote });
   if (!results.length) {
-    return { ok: false, error: 'no results from any engine (' + errors.join(', ') + ')', output: { query, results: [] } };
+    // Include the Brave status so a bad key / quota is obvious. Guidance depends on it.
+    const braveMsg = braveNote === 'no-brave-key'
+      ? 'مفيش مفتاح Brave (SOKRO_BRAVE_KEY) — محرّكات البحث بتحجب سيرفر الاستضافة، فالبحث مش هيشتغل من غير المفتاح.'
+      : (braveNote.startsWith('brave-http-401') ? 'مفتاح Brave غلط (401) — راجع SOKRO_BRAVE_KEY.'
+        : (braveNote.startsWith('brave-http-429') ? 'كوتة Brave خلصت (429) — استنى أو رقّي الخطة.'
+          : (braveNote ? ('Brave: ' + braveNote + '. ') : '') + 'مفيش نتايج من محرّكات البحث (' + errors.join(', ') + ') — غالباً IP الاستضافة محجوب؛ حط مفتاح Brave.'));
+    return { ok: false, error: braveMsg, output: { query, results: [] } };
   }
   return { ok: true, output: { query, engine: used, results } };
 }
