@@ -563,6 +563,10 @@ router.get('/ext', (_req, res) => {
   // extension is published there, set SOKRO_EXT_STORE_URL and this page swaps the
   // ZIP download for a proper store button, no code change needed.
   const storeUrl = process.env.SOKRO_EXT_STORE_URL || '';
+  // Show the version the SERVER is currently serving, so the user can confirm the
+  // ZIP they download matches the latest (a stale deploy = old extension).
+  let extVersion = '?';
+  try { extVersion = JSON.parse(_fs.readFileSync(path.join(__dirname, 'extension', 'manifest.json'), 'utf8')).version || '?'; } catch (_) {}
   const cta = storeUrl
     ? `<a class="dl" href="${storeUrl}" target="_blank" rel="noopener">➕ إضافة إلى كروم</a>
        <ol>
@@ -594,9 +598,10 @@ code{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-ra
 .note{margin-top:20px;color:#ffd58a;font-size:.9rem;background:rgba(255,213,138,.08);border:1px solid rgba(255,213,138,.25);border-radius:12px;padding:12px 14px;line-height:1.8}
 a{color:#8ea2ff}</style></head><body><div class="wrap">
 <h1>ثبّت إضافة <span>Sokro</span> للمتصفح</h1>
-<p class="sub">الإضافة بتخلّي Sokro ينفّذ مهام (يفتح مواقع، يملأ نماذج، يسحب بيانات) <b>في متصفحك الحي بجلساتك المسجّلة</b> — كل مهمة بتطلب موافقتك بالدومين الأول.</p>
+<p class="sub">الإضافة بتخلّي Sokro ينفّذ مهام (يفتح مواقع، يملأ نماذج، يسحب بيانات) <b>في متصفحك الحي بجلساتك المسجّلة</b>.</p>
+<div class="note" style="color:#a7f3d0;background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.35)">📦 النسخة المتاحة على السيرفر دلوقتي: <b style="direction:ltr;display:inline-block">v${extVersion}</b> — بعد ما تحمّل وتعمل Reload، اتأكد إن نفس الرقم ده ظاهر في <code>chrome://extensions</code>. لو رقم أقل، يبقى السيرفر محتاج <b>Republish</b> الأول.</div>
 ${cta}
-<div class="note">🔒 خصوصية: الإضافة بتتصفّح بس لما Sokro يطلب، وبعد موافقتك. الأوامر بتيجي من حسابك على Sokro، ومفيش بيانات بتتبعت لأي طرف تالت.</div>
+<div class="note">🔒 خصوصية: الإضافة بتتصفّح بس لما Sokro يطلب. القراءة/الفتح مش بتطلب نافذة؛ بس الكتابة (إرسال فورم) بعد تأكيدك في التطبيق.</div>
 </div></body></html>`);
 });
 // Serve individual extension files (used by the manifest / manual loading).
