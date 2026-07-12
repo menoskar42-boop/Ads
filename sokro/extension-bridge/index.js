@@ -11,7 +11,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Server side: enqueue a command and wait for the extension to return a result.
-async function run(userId, kind, input, timeoutMs = 45000) {
+async function run(userId, kind, input, timeoutMs = 90000) {
   const cmd = (await pool.query(
     'INSERT INTO sokro_ext_commands (user_id, kind, input) VALUES ($1,$2,$3::jsonb) RETURNING id',
     [userId, kind, JSON.stringify(input || {})]
