@@ -49,11 +49,27 @@ async function assertSafeUrl(raw) {
     if (isPrivateIP(host)) throw new Error('blocked private address');
     return u.href;
   }
-  let addrs;
-  try { addrs = await dns.lookup(host, { all: true }); } catch (_) { throw new Error('dns resolution failed'); }
+  const addrs = await resolveHost(host);
   if (!addrs || !addrs.length) throw new Error('dns resolution failed');
-  for (const a of addrs) { if (isPrivateIP(a.address)) throw new Error('resolves to a private address'); }
+  for (const ip of addrs) { if (isPrivateIP(ip)) throw new Error('resolves to a private address'); }
   return u.href;
+}
+
+// Resolve a hostname robustly: the OS resolver (dns.lookup) can be flaky in some
+// containers (Replit), so we ALSO try direct A/AAAA queries (dns.resolve4/6) and
+// retry once. A single transient failure shouldn't block a legitimate public site.
+async function resolveHost(host) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { const a = await dns.lookup(host, { all: true }); if (a && a.length) return a.map((x) => x.address); } catch (_) {}
+    try {
+      const v4 = await dns.resolve4(host).catch(() => []);
+      const v6 = await dns.resolve6(host).catch(() => []);
+      const all = (v4 || []).concat(v6 || []);
+      if (all.length) return all;
+    } catch (_) {}
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 350));
+  }
+  return null;
 }
 
 module.exports = { assertSafeUrl, isPrivateIP };
