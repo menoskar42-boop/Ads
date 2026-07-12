@@ -311,17 +311,20 @@
   // can tap أكّد or just SAY "أكّد/كمّل" (voice counts as pressing the button). If a
   // call is open, the request is spoken AND written.
   var pendingConfirm=null;
-  function renderInlineConfirm(confirm, taskId){
+  function renderInlineConfirm(confirm, taskId, onYes){
     var el=document.createElement('div'); el.className='plan';
     var msg=confirm.answer||('محتاج تأكيدك قبل إجراء حسّاس: «'+confirm.label+'».');
     el.innerHTML='<div>🔒 '+msg.replace(/[<>]/g,'')+'</div><div class="row"><button class="ok">أكّد ✅</button><button class="no">لأ، وقّف</button></div>';
     $('#log').appendChild(el); scrollToBottom();
     speak(msg); // spoken with the text — during a call too
     function done(txt){ el.querySelector('.row').innerHTML='<span class="muted">'+txt+'</span>'; pendingConfirm=null; }
-    var doConfirm=async function(){ done('بنفّذ…');
-      var think=addThinking('بنفّذ الإجراء');
-      try{ var r=await fetch('/api/run/'+taskId+'/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmSensitive:true})}); endThinking(think); renderResult(await r.json()); }
-      catch(e){ endThinking(think); addMsg('ai','تعذّر تنفيذ الإجراء.'); } };
+    // Custom action (e.g. re-run a mid-call browser tool with consent) OR the
+    // default: resume the paused task via the execute endpoint.
+    var doConfirm = onYes
+      ? async function(){ done('تمام…'); try{ await onYes(); }catch(e){} }
+      : async function(){ done('بنفّذ…'); var think=addThinking('بنفّذ الإجراء');
+          try{ var r=await fetch('/api/run/'+taskId+'/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmSensitive:true})}); endThinking(think); renderResult(await r.json()); }
+          catch(e){ endThinking(think); addMsg('ai','تعذّر تنفيذ الإجراء.'); } };
     var doCancel=function(){ done('تمام، وقّفت.'); addMsg('ai','تمام، مضغطتش على الزر.'); };
     el.querySelector('.ok').onclick=doConfirm;
     el.querySelector('.no').onclick=doCancel;
@@ -579,8 +582,12 @@
     else if(t==='input_audio_buffer.speech_stopped'){ if(rtOn) setStatus('🟢 مكالمة مباشرة'); }
     else if(t==='response.audio.delta'||t==='response.created'){ if(rtOn) setStatus('🗣️ Sokro بيرد…'); }
     else if(t==='response.done'){ if(rtOn) setStatus('🟢 مكالمة مباشرة — اتكلم عادي'); }
-    if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } if(handleConfirmWord(m.transcript)) return; }
-    else if(t==='response.audio_transcript.done' && m.transcript){ addMsg('ai',m.transcript); }
+    // Tolerant to GA/beta event names: the USER's speech transcript ends with
+    // input_audio_transcription.(completed|done); the MODEL's spoken reply ends with
+    // audio_transcript.done (GA renamed it output_audio_transcript.done). We show
+    // BOTH sides so the whole call is a readable, copyable transcript.
+    if(/input_audio_transcription\.(completed|done)$/.test(t) && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } if(handleConfirmWord(m.transcript)) return; }
+    else if(/(^|\.)(output_)?audio_transcript\.done$/.test(t) && m.transcript){ addMsg('ai',m.transcript); }
     else if(t==='response.function_call_arguments.done'){
       if(m.name==='end_call'){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; }
       await runRtTool(m.name,m.call_id,m.arguments);
@@ -597,15 +604,31 @@
     try{
       var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(args)});
       var d=await r.json();
-      if(r.status===403){ out={error:'needs confirmation'}; chip.querySelector('.msg-text').textContent='🔒 '+name+' محتاج تأكيد — نفّذها من الشات'; }
-      else { out=d.output||d; try{chip.remove();}catch(e){}
-        if(d&&d.output){ if(d.output.imageUrl) addImage(d.output.imageUrl); if(d.output.report) addDownloads({title:d.output.topic||'تقرير',text:d.output.report,rows:d.output.sources||null}); if(Array.isArray(d.output.results)&&d.output.results.length) addMsg('ai','✅ '+toolLabel(name).replace(/^[^ ]+ /,'')+' — لقيت '+d.output.results.length+' نتيجة'); }
+      if(r.status===403 && d.requiresConsent){
+        // A browser tool mid-call — ask for confirmation INLINE (voice "أكّد"
+        // works). Tell the model we're waiting; run it for real after approval.
+        try{chip.remove();}catch(e){}
+        var lbl=toolLabel(name).replace(/^[^ ]+ /,'');
+        renderInlineConfirm({ answer:'محتاج تأكيدك قبل ما '+lbl+'. قول «أكّد» أو اضغط الزر.' }, null, function(){ return retryRtTool(name,args); });
+        out={status:'awaiting_user_confirmation',note:'اطلب من المستخدم تأكيد شفهي «أكّد» قبل التنفيذ'};
       }
+      else { out=d.output||d; try{chip.remove();}catch(e){} showRtToolOutput(name,d); }
     }catch(e){ out={error:e.message}; try{chip.querySelector('.msg-text').textContent='⚠️ فشل: '+name;}catch(_){} }
     try{
       rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:JSON.stringify(out).slice(0,6000)}}));
       rtDc.send(JSON.stringify({type:'response.create'}));
     }catch(e){}
+  }
+  function showRtToolOutput(name,d){
+    if(d&&d.output){ if(d.output.imageUrl) addImage(d.output.imageUrl); if(d.output.report) addDownloads({title:d.output.topic||'تقرير',text:d.output.report,rows:d.output.sources||null}); if(Array.isArray(d.output.results)&&d.output.results.length) addMsg('ai','✅ '+toolLabel(name).replace(/^[^ ]+ /,'')+' — لقيت '+d.output.results.length+' نتيجة'); }
+  }
+  // Re-run a browser tool AFTER the user confirmed (consent:true), then feed the
+  // result back into the live call so the model continues talking about it.
+  async function retryRtTool(name,args){
+    var chip=addMsg('ai',toolLabel(name)+'…','think');
+    try{ var r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))}); var d=await r.json(); try{chip.remove();}catch(e){} showRtToolOutput(name,d);
+      try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'[نتيجة '+name+']: '+JSON.stringify(d.output||d).slice(0,3000)}]}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
+    }catch(e){ try{chip.remove();}catch(_){} addMsg('ai','تعذّر تنفيذ الإجراء بعد التأكيد.'); }
   }
   $('#call').onclick=function(){ if(rtOn||rtPc||rtBusy){ endRealtime(); } else { startRealtime(); } };
   $('#callmute').onclick=function(){ rtMuted=!rtMuted; applyMute(); setStatus(rtMuted?'🔇 الميكروفون مكتوم — اضغط 🔇 للرجوع':'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك'); };

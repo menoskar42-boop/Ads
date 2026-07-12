@@ -240,12 +240,19 @@ router.post('/api/actions/:name/run', auth.requireAuth, async (req, res) => {
   // the actions UI) must NOT bypass the consent the planner enforces. Sensitive
   // actions (browser/login/social/payment…) can only run through /api/run, which
   // pauses for the user's confirmation first.
+  // Browser tools may run mid-call once the user CONFIRMS (by voice/tap) — the
+  // client re-sends with consent:true. Truly high-risk scopes (login/payment/
+  // social) still can't be self-approved here and must go through /api/run.
+  const IN_CALL_OK = new Set(['browse', 'navigate_site', 'operate', 'extract_table']);
   if (permissions.isSensitive(action.permissions)) {
-    return res.status(403).json({
-      ok: false, requiresConsent: true,
-      sensitive: (action.permissions || []).filter((p) => permissions.SENSITIVE.has(p)),
-      error: 'هذا الإجراء يتطلب تأكيدًا — نفّذه من خلال طلب كامل (/api/run) عشان ياخد موافقتك الأول',
-    });
+    const consented = req.body && req.body.consent === true && IN_CALL_OK.has(req.params.name);
+    if (!consented) {
+      return res.status(403).json({
+        ok: false, requiresConsent: true,
+        sensitive: (action.permissions || []).filter((p) => permissions.SENSITIVE.has(p)),
+        error: 'هذا الإجراء يتطلب تأكيدًا — أكّد بصوتك أو من خلال طلب كامل (/api/run) عشان ياخد موافقتك الأول',
+      });
+    }
   }
   const ctx = {
     userId: req.sokroUser.id,
