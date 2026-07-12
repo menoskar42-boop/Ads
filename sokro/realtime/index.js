@@ -19,7 +19,7 @@ function tools() {
   // (browser/login/social/payment…) require explicit consent, which the realtime
   // tool-call bridge can't collect mid-call — so they're withheld here and the
   // consent-gated /api/run flow remains the only path to them.
-  return registry.catalog()
+  const list = registry.catalog()
     .filter((c) => { const cap = registry.get(c.name); return !permissions.isSensitive(cap && cap.permissions); })
     .map((c) => {
       const cap = registry.get(c.name);
@@ -30,6 +30,16 @@ function tools() {
         parameters: (cap && cap.inputSchema) || { type: 'object', properties: { query: { type: 'string' } } },
       };
     });
+  // Client-side control tool: lets the user END the call by voice. The model
+  // calls this whenever the user asks to stop/close/hang up; the browser handles
+  // it by closing the WebRTC connection (the model can't close it itself).
+  list.push({
+    type: 'function',
+    name: 'end_call',
+    description: 'End / hang up the live voice call. Call this immediately whenever the user asks to stop, close, end, or hang up the call (e.g. "اقفل المكالمة", "خلاص كفاية", "أوقف المكالمة", "hang up", "end call").',
+    parameters: { type: 'object', properties: {} },
+  });
+  return list;
 }
 
 async function session(userId) {

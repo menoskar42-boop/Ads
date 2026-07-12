@@ -119,12 +119,12 @@
   <a id="extlink" class="hidden" href="/ext" target="_blank" rel="noopener" title="ثبّت إضافة المتصفح عشان Sokro يتصفّح المواقع بنفسه">🧩 المتصفح</a>
   <audio id="rtaudio" autoplay></audio>
   <div id="dock" class="dock hidden">
-    <div class="status" id="status">دوس المايك — أو 📞 لمكالمة مباشرة</div>
+    <div class="status" id="status">اكتب طلبك… أو اضغط 📞 لمكالمة صوتية</div>
     <div class="microw">
-      <button id="call" title="مكالمة مباشرة (زي شات فويس)" style="width:52px;height:52px;border-radius:50%;border:0;background:#243056;color:#fff;font-size:1.3rem;cursor:pointer;flex:none">📞</button>
-      <input id="text" placeholder="أو اكتب طلبك هنا…" />
+      <input id="text" placeholder="اكتب طلبك هنا…" />
       <button id="send" class="hidden" title="إرسال">➤</button>
-      <button id="mic" title="تكلّم مرة">🎤</button>
+      <button id="call" title="مكالمة صوتية مباشرة — اتكلم معاه" style="width:74px;height:74px;border-radius:50%;border:0;background:linear-gradient(135deg,#5b6cff,#22d3ee);color:#fff;font-size:1.7rem;cursor:pointer;flex:none;box-shadow:0 8px 30px rgba(91,108,255,.45);transition:transform .12s">📞</button>
+      <button id="mic" style="display:none" aria-hidden="true">🎤</button>
     </div>
   </div>
 
@@ -135,8 +135,11 @@
   // Keep the screen awake while Sokro is open (mobile + desktop). Wake locks are
   // auto-released when the tab is hidden, so re-acquire when it becomes visible.
   var wakeLock=null;
-  async function requestWake(){ try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',function(){ wakeLock=null; }); } }catch(e){} }
+  async function requestWake(){ try{ if('wakeLock' in navigator && !wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',function(){ wakeLock=null; }); } }catch(e){} }
   document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible' && !wakeLock) requestWake(); });
+  // Some browsers only grant a wake lock after a user gesture — re-try on the
+  // first tap/click so the screen actually stays on.
+  document.addEventListener('pointerdown',function(){ if(!wakeLock) requestWake(); },{passive:true});
   var mode='login';
   var audioEl=new Audio();
   // TTS is OPT-IN: replies are text-first (cheaper, clearer). The user turns on
@@ -342,7 +345,7 @@
   }
   // WhatsApp-style composer: show the send button while typing (hide the mic),
   // send on Enter or on the ➤ button, and always scroll to the newest message.
-  function toggleSend(){ var has=$('#text').value.trim().length>0; $('#send').classList.toggle('hidden',!has); $('#mic').classList.toggle('hidden',has); }
+  function toggleSend(){ var has=$('#text').value.trim().length>0; $('#send').classList.toggle('hidden',!has); $('#call').classList.toggle('hidden',has); }
   function sendText(){ var t=$('#text').value.trim(); if(!t)return; run(t); $('#text').value=''; toggleSend(); scrollToBottom(); }
   $('#text').addEventListener('input',toggleSend);
   $('#text').addEventListener('focus',scrollToBottom);
@@ -387,7 +390,7 @@
 
   // ---------- realtime live call (OpenAI Realtime API over WebRTC) ----------
   var rtPc=null, rtStream=null, rtDc=null, rtOn=false, rtBusy=false;
-  function setCall(on){ rtOn=on; $('#call').textContent=on?'⏹️':'📞'; $('#call').style.background=on?'#ff5b6c':'#243056'; setStatus(on?'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك':'دوس المايك — أو 📞 لمكالمة مباشرة'); }
+  function setCall(on){ rtOn=on; $('#call').textContent=on?'⏹️':'📞'; $('#call').style.background=on?'#ff5b6c':'linear-gradient(135deg,#5b6cff,#22d3ee)'; setStatus(on?'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك':'اكتب طلبك… أو اضغط 📞 لمكالمة صوتية'); }
   async function startRealtime(){
     if(rtPc||rtBusy) return; // guard: a double-tap must not open two overlapping calls
     rtBusy=true;
@@ -436,7 +439,10 @@
     else if(t==='response.done'){ if(rtOn) setStatus('🟢 مكالمة مباشرة — اتكلم عادي'); }
     if(t==='conversation.item.input_audio_transcription.completed' && m.transcript){ addMsg('me',m.transcript); if(rtOn&&isEndCall(m.transcript)){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; } }
     else if(t==='response.audio_transcript.done' && m.transcript){ addMsg('ai',m.transcript); }
-    else if(t==='response.function_call_arguments.done'){ await runRtTool(m.name,m.call_id,m.arguments); }
+    else if(t==='response.function_call_arguments.done'){
+      if(m.name==='end_call'){ addMsg('ai','تمام، قفلت المكالمة.'); endRealtime(); return; }
+      await runRtTool(m.name,m.call_id,m.arguments);
+    }
   }
   function toolLabel(n){ return ({search_web:'🔎 بيبحث في الويب',generate_image:'🎨 بيولّد صورة',research_report:'📊 بيبحث ويجهّز تقرير',browse:'🌐 بيفتح صفحة',extract_table:'📋 بيسحب جدول',fill_submit:'📝 بيملأ نموذج'})[n]||('⚙️ بينفّذ: '+n); }
   // Executes a tool the model asked for MID-CALL (voice-controlled agent) and
