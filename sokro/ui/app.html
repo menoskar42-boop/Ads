@@ -358,9 +358,11 @@
   };
 
   // ---------- realtime live call (OpenAI Realtime API over WebRTC) ----------
-  var rtPc=null, rtStream=null, rtDc=null, rtOn=false;
+  var rtPc=null, rtStream=null, rtDc=null, rtOn=false, rtBusy=false;
   function setCall(on){ rtOn=on; $('#call').textContent=on?'⏹️':'📞'; $('#call').style.background=on?'#ff5b6c':'#243056'; setStatus(on?'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك':'دوس المايك — أو 📞 لمكالمة مباشرة'); }
   async function startRealtime(){
+    if(rtPc||rtBusy) return; // guard: a double-tap must not open two overlapping calls
+    rtBusy=true;
     try{
       setStatus('🎙️ بيطلب إذن المايك…');
       rtStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).catch(function(){ throw new Error('محتاج إذن الميكروفون'); });
@@ -371,7 +373,7 @@
       rtPc.ontrack=function(e){ var rt=$('#rtaudio'); rt.srcObject=e.streams[0]; rt.play&&rt.play().catch(function(){}); };
       // Connection health: reflect drops in the UI and end cleanly instead of a silent dead call.
       rtPc.onconnectionstatechange=function(){ if(!rtPc)return; var s=rtPc.connectionState;
-        if(s==='connected'){ setCall(true); }
+        if(s==='connected'){ rtBusy=false; setCall(true); }
         else if(s==='failed'){ addMsg('ai','المكالمة اتقطعت (الشبكة). اضغط 📞 تاني.'); endRealtime(); }
         else if(s==='disconnected'){ setStatus('⚠️ الاتصال بيتقطّع…'); } };
       rtStream.getTracks().forEach(function(t){ rtPc.addTrack(t,rtStream); });
@@ -383,7 +385,7 @@
       setCall(true);
     }catch(e){ addMsg('ai','تعذّر بدء المكالمة: '+e.message); endRealtime(); }
   }
-  function endRealtime(){ try{rtDc&&rtDc.close();}catch(e){} try{rtPc&&rtPc.close();}catch(e){} try{rtStream&&rtStream.getTracks().forEach(function(t){t.stop();});}catch(e){} rtPc=null;rtStream=null;rtDc=null; setCall(false); }
+  function endRealtime(){ rtBusy=false; try{rtDc&&rtDc.close();}catch(e){} try{rtPc&&rtPc.close();}catch(e){} try{rtStream&&rtStream.getTracks().forEach(function(t){t.stop();});}catch(e){} try{var rt=$('#rtaudio'); if(rt){ rt.srcObject=null; }}catch(e){} rtPc=null;rtStream=null;rtDc=null; setCall(false); }
   // Voice command to hang up: the model can't close the WebRTC (it's on the
   // client), so we detect end-phrases in the user's own transcript and end here.
   function isEndCall(t){
@@ -425,7 +427,7 @@
       rtDc.send(JSON.stringify({type:'response.create'}));
     }catch(e){}
   }
-  $('#call').onclick=function(){ rtOn?endRealtime():startRealtime(); };
+  $('#call').onclick=function(){ if(rtOn||rtPc||rtBusy){ endRealtime(); } else { startRealtime(); } };
 
   // ---------- init ----------
   (async function(){
