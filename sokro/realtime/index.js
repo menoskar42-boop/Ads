@@ -33,23 +33,35 @@ async function session(userId) {
     ' You are a live voice assistant. You can EXECUTE tasks by calling the provided tools (search the web, generate images, research + report, browse sites). ' +
     'When the user asks for something a tool can do, call it, then tell them the result naturally. Keep spoken replies short and conversational.';
   const voice = s.voice === 'male' ? 'ash' : 'shimmer';
-  const model = process.env.SOKRO_REALTIME_MODEL || 'gpt-4o-realtime-preview';
+  const model = process.env.SOKRO_REALTIME_MODEL || 'gpt-realtime';
 
-  const r = await fetch(BASE + '/realtime/sessions', {
+  // GA Realtime API: mint an ephemeral client secret via /realtime/client_secrets
+  // (the old beta /realtime/sessions endpoint returns 404 "Invalid URL"). The
+  // session config now nests audio.input/output and lives under a `session` key.
+  const r = await fetch(BASE + '/realtime/client_secrets', {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'OpenAI-Beta': 'realtime=v1' },
+    headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model, voice, instructions,
-      modalities: ['audio', 'text'],
-      tools: tools(),
-      tool_choice: 'auto',
-      turn_detection: { type: 'server_vad' },
-      input_audio_transcription: { model: 'whisper-1' },
+      session: {
+        type: 'realtime',
+        model,
+        instructions,
+        audio: {
+          input: {
+            transcription: { model: 'whisper-1' },
+            turn_detection: { type: 'server_vad' },
+          },
+          output: { voice },
+        },
+        tools: tools(),
+        tool_choice: 'auto',
+      },
     }),
   });
-  if (!r.ok) throw new Error('realtime session ' + r.status + ': ' + (await r.text()).slice(0, 300));
+  if (!r.ok) throw new Error('realtime client_secret ' + r.status + ': ' + (await r.text()).slice(0, 300));
   const data = await r.json();
-  return { model, clientSecret: data.client_secret && data.client_secret.value, raw: data };
+  // GA returns the ephemeral key as a top-level `value` (ek_...).
+  return { model, clientSecret: data.value || (data.client_secret && data.client_secret.value), raw: data };
 }
 
 module.exports = { session, tools };

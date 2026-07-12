@@ -288,7 +288,7 @@
       rtStream.getTracks().forEach(function(t){ rtPc.addTrack(t,rtStream); });
       rtDc=rtPc.createDataChannel('oai-events'); rtDc.onmessage=onRtEvent;
       var offer=await rtPc.createOffer(); await rtPc.setLocalDescription(offer);
-      var r=await fetch('https://api.openai.com/v1/realtime?model='+encodeURIComponent(sd.model),{method:'POST',body:offer.sdp,headers:{Authorization:'Bearer '+sd.clientSecret,'Content-Type':'application/sdp','OpenAI-Beta':'realtime=v1'}});
+      var r=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',body:offer.sdp,headers:{Authorization:'Bearer '+sd.clientSecret,'Content-Type':'application/sdp'}});
       if(!r.ok){ addMsg('ai','تعذّر الاتصال بالمكالمة.'); endRealtime(); return; }
       await rtPc.setRemoteDescription({type:'answer',sdp:await r.text()});
       setCall(true);
