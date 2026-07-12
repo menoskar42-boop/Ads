@@ -267,11 +267,28 @@
     bar.appendChild(dl); bar.appendChild(open); el.appendChild(bar);
     $('#log').appendChild(el); scrollToBottom();
   }
+  function escH(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // PDF via the USER's browser print dialog (Save as PDF): perfect Arabic, works
+  // regardless of server RAM — the server Chromium can't run on 0.5 GiB.
+  function printReport(payload){
+    var w=window.open('','_blank');
+    if(!w){ addMsg('ai','فعّل النوافذ المنبثقة عشان أطلّعلك الـ PDF (طباعة → حفظ كـ PDF).'); return; }
+    var rows=(payload.rows||[]).map(function(r){ return '<li>'+escH(r.title||'')+(r.url?(' — <span style="color:#2555c0">'+escH(r.url)+'</span>'):'')+'</li>'; }).join('');
+    var html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>'+escH(payload.title||'تقرير')+'</title>'
+      +'<style>*{font-family:system-ui,\'Segoe UI\',Tahoma,sans-serif}body{padding:26px;line-height:1.9;color:#111}'
+      +'h1{font-size:22px;border-bottom:2px solid #5b6cff;padding-bottom:8px}.t{white-space:pre-wrap;font-size:14px}'
+      +'h2{font-size:16px;margin-top:20px}li{margin-bottom:5px;font-size:13px}.foot{margin-top:28px;color:#888;font-size:10px;border-top:1px solid #ddd;padding-top:6px}</style></head><body>'
+      +'<h1>'+escH(payload.title||'تقرير')+'</h1><div class="t">'+escH(payload.text||'')+'</div>'
+      +(rows?'<h2>المصادر</h2><ul>'+rows+'</ul>':'')
+      +'<div class="foot">تقرير من Sokro — sokro.oscardevs.com</div></body></html>';
+    w.document.write(html); w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 500);
+  }
   function addDownloads(payload){
     var el=document.createElement('div'); el.className='plan'; el.style.background='rgba(34,211,238,.08)';
     el.innerHTML='<div>⬇︎ تنزيل التقرير:</div><div class="row"><button class="ok" data-f="pdf">PDF</button><button class="ok" data-f="xlsx">Excel</button><button class="ok" data-f="md">Markdown</button></div>';
     $('#log').appendChild(el); scrollToBottom();
-    el.querySelectorAll('button').forEach(function(btn){ btn.onclick=function(){ dl(btn.dataset.f,payload); }; });
+    el.querySelectorAll('button').forEach(function(btn){ btn.onclick=function(){ if(btn.dataset.f==='pdf') printReport(payload); else dl(btn.dataset.f,payload); }; });
   }
   async function dl(format,payload){
     var ext={pdf:'pdf',xlsx:'xlsx',csv:'csv',json:'json',md:'md'}[format]||'md';
