@@ -8,5 +8,6 @@ require('./BrowseAction');
 require('./ExtractTableAction');
 require('./FillSubmitAction');
 require('./NavigateSiteAction');
+require('./OperateAction');
 
 module.exports = require('./_registry');
