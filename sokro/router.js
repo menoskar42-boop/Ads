@@ -400,7 +400,51 @@ router.get('/sw.js', (_req, res) => {
   );
 });
 
-// Serve the Chrome extension files (zip these to load unpacked).
+// ── Chrome extension: install page + one-click ZIP download ──────────────────
+const _fs = require('fs');
+function extFiles() {
+  const dir = path.join(__dirname, 'extension');
+  return _fs.readdirSync(dir).filter((f) => /\.(json|js|html|png|svg)$/i.test(f))
+    .map((name) => ({ name, buffer: _fs.readFileSync(path.join(dir, name)) }));
+}
+router.get('/ext.zip', (_req, res) => {
+  try {
+    const buf = require('./lib/zip').zipStore(extFiles());
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="sokro-extension.zip"');
+    res.send(buf);
+  } catch (e) { res.status(500).send('zip error: ' + e.message); }
+});
+router.get('/ext', (_req, res) => {
+  res.type('html').set('Cache-Control', 'no-cache').send(`<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><title>Sokro — تثبيت إضافة المتصفح</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;font-family:'Cairo',sans-serif;margin:0}body{background:radial-gradient(1000px 600px at 50% -10%,#1b2550,#0b1020);color:#eef1ff;min-height:100vh}
+.wrap{max-width:640px;margin:0 auto;padding:48px 22px}h1{font-size:clamp(1.6rem,5vw,2.2rem);font-weight:900;margin-bottom:8px}
+h1 span{background:linear-gradient(90deg,#7c8bff,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+p.sub{color:#c3c9ee;line-height:1.9;margin-bottom:22px}
+.dl{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(90deg,#5b6cff,#22d3ee);color:#08122b;font-weight:900;text-decoration:none;border-radius:100px;padding:15px 32px;font-size:1.05rem}
+ol{counter-reset:s;list-style:none;padding:0;margin:28px 0 0}
+li{position:relative;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px 60px 16px 16px;margin-bottom:12px;line-height:1.9}
+li::before{counter-increment:s;content:counter(s);position:absolute;right:16px;top:14px;width:32px;height:32px;border-radius:50%;background:rgba(120,140,255,.18);border:1px solid rgba(120,140,255,.4);color:#aebbff;font-weight:900;display:flex;align-items:center;justify-content:center}
+code{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:2px 8px;font-family:monospace;direction:ltr;display:inline-block}
+.note{margin-top:20px;color:#ffd58a;font-size:.9rem;background:rgba(255,213,138,.08);border:1px solid rgba(255,213,138,.25);border-radius:12px;padding:12px 14px;line-height:1.8}
+a{color:#8ea2ff}</style></head><body><div class="wrap">
+<h1>ثبّت إضافة <span>Sokro</span> للمتصفح</h1>
+<p class="sub">الإضافة بتخلّي Sokro ينفّذ مهام (يفتح مواقع، يملأ نماذج، يسحب بيانات) <b>في متصفحك الحي بجلساتك المسجّلة</b> — كل مهمة بتطلب موافقتك بالدومين الأول.</p>
+<a class="dl" href="/ext.zip">⬇︎ تحميل الإضافة (ZIP)</a>
+<ol>
+  <li>نزّل ملف <code>sokro-extension.zip</code> من الزر فوق، وفُكّ الضغط (Extract) في فولدر.</li>
+  <li>افتح كروم على <code>chrome://extensions</code></li>
+  <li>فعّل <b>Developer mode</b> (المفتاح أعلى اليمين).</li>
+  <li>اضغط <b>Load unpacked</b> واختار الفولدر اللي فكيت فيه الملفات.</li>
+  <li>ارجع لـ <a href="/app">Sokro /app</a> وسجّل دخولك — الإضافة هتتوصّل تلقائياً. أول مهمة تصفّح هتظهرلك نافذة تأكيد بالدومين.</li>
+</ol>
+<div class="note">🔒 خصوصية: الإضافة بتتصفّح بس لما Sokro يطلب، وبعد موافقتك. الأوامر بتيجي من حسابك على Sokro، ومفيش بيانات بتتبعت لأي طرف تالت.</div>
+</div></body></html>`);
+});
+// Serve individual extension files (used by the manifest / manual loading).
 router.get('/ext/:file', (req, res) => {
   const safe = /^[a-zA-Z0-9._-]+$/.test(req.params.file) ? req.params.file : 'manifest.json';
   res.sendFile(path.join(__dirname, 'extension', safe));
