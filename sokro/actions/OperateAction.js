@@ -16,8 +16,23 @@ function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.sta
 async function settlePage(page) {
   await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-  // Extra settle: some frameworks fetch data on a microtask after networkidle.
-  await page.waitForTimeout(1200).catch(() => {});
+  // Beyond networkidle, actively wait for MEANINGFUL elements to render — a search
+  // box (before we search) OR results/cards/links (after we search) — instead of a
+  // blind fixed delay. On a JS/SPA site the skeleton is present at networkidle but
+  // the real interactive content paints a moment later. We cap the wait so a page
+  // that legitimately has none never blocks the loop.
+  await page.waitForFunction(function () {
+    var vis = function (el) { var r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < window.innerHeight + 1500; };
+    // A visible search box?
+    var searchSel = 'input[type="search"],input[name*="search" i],input[id*="search" i],input[placeholder*="search" i],input[placeholder*="بحث"],[role="search"] input';
+    var boxes = Array.prototype.slice.call(document.querySelectorAll(searchSel));
+    if (boxes.some(vis)) return true;
+    // Or a meaningful amount of interactive content / result cards.
+    var inter = Array.prototype.slice.call(document.querySelectorAll('a[href],button,[role="button"]')).filter(vis);
+    return inter.length >= 8;
+  }, { timeout: 8000 }).catch(function () {});
+  // Tiny final settle for the last paint after the elements appear.
+  await page.waitForTimeout(600).catch(() => {});
 }
 
 // Runs inside page.evaluate — tags visible interactive elements and returns them.
@@ -58,10 +73,16 @@ async function run(ctx, input) {
       for (let step = 0; step < maxSteps; step++) {
         await settlePage(page); // re-settle after each action before reading the DOM
         const obs = await page.evaluate(collectDom);
-        const sys = 'You operate a web browser toward a goal, one step at a time. Given the current page (text + its visible interactive elements, each with an [idx]) decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Click links/buttons to navigate toward the goal (filters, listings, a specific item). Use done when the goal information is visible on the page — put it in answer.';
+        // A screenshot lets the model SEE the page (layout, which element is where)
+        // alongside the DOM text — the way an Operator decides. JPEG + modest quality
+        // keeps the payload small; viewport-only (not full page) keeps it focused.
+        const shot = await page.screenshot({ type: 'jpeg', quality: 55 }).catch(() => null);
+        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS its text and its visible interactive elements (each tagged with an [idx]). Use the screenshot to see the layout (where the search box, filters, results are) and the [idx] list to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Click links/buttons to navigate toward the goal (filters, listings, a specific item); type into the search box then click search. Use done when the goal information is visible — put it in answer.';
         const user = 'Goal: ' + goal + '\nURL: ' + obs.url + '\nPage text:\n' + obs.text + '\n\nInteractive elements:\n' + obs.items.map(function (e) { return '[' + e.idx + '] ' + e.tag + (e.type ? '/' + e.type : '') + ': ' + e.label; }).join('\n');
+        const content = [{ type: 'text', text: user }];
+        if (shot) content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.toString('base64') } });
         let dec = null;
-        try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); } catch (_) {}
+        try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content }] }); } catch (_) {}
         if (ctx.log) ctx.log('operate', { step, url: obs.url, action: dec && dec.action, idx: dec && dec.idx });
         trail.push({ url: obs.url, action: (dec && dec.action) || 'none', idx: dec && dec.idx, thought: dec && dec.thought });
         if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
