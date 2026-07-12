@@ -70,21 +70,34 @@ async function run(ctx, input) {
 
       const trail = [];
       let answer = null;
+      let prevSig = null;    // signature of the page BEFORE the last action
+      let lastAction = null; // the action we took last step (to judge if it worked)
       for (let step = 0; step < maxSteps; step++) {
         await settlePage(page); // re-settle after each action before reading the DOM
         const obs = await page.evaluate(collectDom);
+        // Signature of the current page = title + url + how many elements/how much
+        // text. If the LAST action was meant to navigate/change things but the
+        // signature is identical, the page did NOT actually change → tell the model
+        // so it tries a different element instead of repeating a dead click.
+        const sig = [obs.title, obs.url, obs.items.length, obs.text.length].join('|');
+        const changed = prevSig === null ? true : sig !== prevSig;
+        const stuckNote = (lastAction && ['click', 'type', 'goto'].includes(lastAction) && !changed)
+          ? '\n\n⚠️ NOTE: the previous action (' + lastAction + ') did NOT change the page (same title/URL/content). Try a DIFFERENT element or approach — do not repeat it.'
+          : '';
         // A screenshot lets the model SEE the page (layout, which element is where)
         // alongside the DOM text — the way an Operator decides. JPEG + modest quality
         // keeps the payload small; viewport-only (not full page) keeps it focused.
         const shot = await page.screenshot({ type: 'jpeg', quality: 55 }).catch(() => null);
-        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS its text and its visible interactive elements (each tagged with an [idx]). Use the screenshot to see the layout (where the search box, filters, results are) and the [idx] list to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Click links/buttons to navigate toward the goal (filters, listings, a specific item); type into the search box then click search. Use done when the goal information is visible — put it in answer.';
-        const user = 'Goal: ' + goal + '\nURL: ' + obs.url + '\nPage text:\n' + obs.text + '\n\nInteractive elements:\n' + obs.items.map(function (e) { return '[' + e.idx + '] ' + e.tag + (e.type ? '/' + e.type : '') + ': ' + e.label; }).join('\n');
+        const sys = 'You operate a web browser toward a goal, one step at a time. You are given a SCREENSHOT of the current page PLUS its title, URL, text and its visible interactive elements (each tagged with an [idx]). Use the screenshot to see the layout (where the search box, filters, results are) and the [idx] list to act. Decide the SINGLE next action. Reply ONLY JSON: {"thought":"short","action":"click|type|scroll|goto|done","idx":<element idx for click/type>,"text":"<text for type>","url":"<url for goto>","answer":"<the answer in Arabic, only when action=done>"}. Click links/buttons to navigate toward the goal (filters, listings, a specific item); type into the search box then click search. If told the previous action did not change the page, pick a different element. Use done when the goal information is visible — put it in answer.';
+        const user = 'Goal: ' + goal + '\nPage title: ' + (obs.title || '(none)') + '\nURL: ' + obs.url + '\nPage text:\n' + obs.text + '\n\nInteractive elements:\n' + obs.items.map(function (e) { return '[' + e.idx + '] ' + e.tag + (e.type ? '/' + e.type : '') + ': ' + e.label; }).join('\n') + stuckNote;
         const content = [{ type: 'text', text: user }];
         if (shot) content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.toString('base64') } });
         let dec = null;
         try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content }] }); } catch (_) {}
-        if (ctx.log) ctx.log('operate', { step, url: obs.url, action: dec && dec.action, idx: dec && dec.idx });
-        trail.push({ url: obs.url, action: (dec && dec.action) || 'none', idx: dec && dec.idx, thought: dec && dec.thought });
+        if (ctx.log) ctx.log('operate', { step, title: obs.title, url: obs.url, changed, action: dec && dec.action, idx: dec && dec.idx });
+        trail.push({ title: obs.title, url: obs.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, thought: dec && dec.thought });
+        prevSig = sig;
+        lastAction = dec && dec.action;
         if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
         try {
           if (dec.action === 'click' && dec.idx != null) {
