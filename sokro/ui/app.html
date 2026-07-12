@@ -640,8 +640,7 @@
         out={status:'awaiting_user_confirmation',note:'انتظر تأكيد المستخدم بصمت. لا تنادِ الأداة تاني ولا تكرّر طلب التأكيد؛ استنى لحد ما ييجي التأكيد.'};
       }
       else { out=d.output||d; try{chip.remove();}catch(e){}
-        var reason=(d&&(d.error||(d.output&&d.output.error)))||'';
-        if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); logEvent('❌ فشل '+name+': '+reason); }
+        if(d && d.ok===false){ var reason=showFailure(d); logEvent('❌ فشل '+name+': '+(reason||'')); }
         else logEvent('✔️ تمّت أداة: '+name);
         showRtToolOutput(name,d); }
     }catch(e){ out={error:e.message}; try{chip.remove();}catch(_){} addMsg('ai','❌ سبب الفشل: '+(e.message||'خطأ في الاتصال')); logEvent('❌ استثناء '+name+': '+(e.message||'')); }
@@ -649,6 +648,18 @@
       rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:callId,output:JSON.stringify(out).slice(0,6000)}}));
       rtDc.send(JSON.stringify({type:'response.create'}));
     }catch(e){}
+  }
+  // Show ALL failure reasons, not just one: the top-level error PLUS every method
+  // that was tried (server browser / extension / search) with why each failed.
+  function showFailure(d){
+    var reason=(d&&(d.error||(d.output&&d.output.error)))||'';
+    var tried=(d&&(d.tried||(d.output&&d.output.tried)))||[];
+    if(!reason && (!tried||!tried.length)) return '';
+    var html='<div style="color:#ff9aa6;font-weight:700">❌ سبب الفشل</div>';
+    if(reason) html+='<div>'+String(reason).replace(/[<>]/g,'')+'</div>';
+    if(tried&&tried.length){ html+='<div style="margin-top:6px;font-size:.85rem;opacity:.85">كل المحاولات:</div><ul style="margin:4px 0;padding-inline-start:18px;font-size:.85rem">'+tried.map(function(t){return '<li>'+String(t).replace(/[<>]/g,'')+'</li>';}).join('')+'</ul>'; }
+    var el=document.createElement('div'); el.className='msg ai'; var b=document.createElement('div'); b.className='msg-text'; b.innerHTML=html; el.appendChild(b); $('#log').appendChild(el); scrollToBottom();
+    return reason || (tried[0]||'');
   }
   function showRtToolOutput(name,d){
     if(d&&d.output){ if(d.output.imageUrl) addImage(d.output.imageUrl); if(d.output.report) addDownloads({title:d.output.topic||'تقرير',text:d.output.report,rows:d.output.sources||null}); if(Array.isArray(d.output.results)&&d.output.results.length) addMsg('ai','✅ '+toolLabel(name).replace(/^[^ ]+ /,'')+' — لقيت '+d.output.results.length+' نتيجة'); }
@@ -665,12 +676,13 @@
       if(d&&d.rateLimited){ logEvent('⏳ اترفض (Rate) — بعيد بعد ثانيتين'); await new Promise(function(res){setTimeout(res,2500);});
         r=await fetch('/api/actions/'+encodeURIComponent(name)+'/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},args,{consent:true}))}); d=await apiJson(r); }
       try{chip.remove();}catch(e){}
-      // Surface the REAL reason on failure so we can diagnose, not a generic line.
-      var reason = (d&&(d.error || (d.output&&d.output.error))) || '';
-      if(d && d.ok===false && reason){ addMsg('ai','❌ سبب الفشل: '+reason); logEvent('❌ فشل '+name+': '+reason); }
+      // Surface ALL reasons on failure so we can diagnose, not a generic line.
+      var reason='';
+      if(d && d.ok===false){ reason=showFailure(d); logEvent('❌ فشل '+name+': '+(reason||'')); }
       else logEvent('✔️ تمّ التنفيذ: '+name);
       showRtToolOutput(name,d);
-      var feed = (d && d.ok===false && reason) ? ('[فشل '+name+'] السبب: '+reason) : ('[نتيجة '+name+']: '+JSON.stringify(d.output||d).slice(0,3000));
+      var triedTxt=(d&&(d.tried||(d.output&&d.output.tried))||[]).join(' | ');
+      var feed = (d && d.ok===false) ? ('[فشل '+name+'] الأسباب: '+(reason||'')+(triedTxt?(' — '+triedTxt):'')) : ('[نتيجة '+name+']: '+JSON.stringify(d.output||d).slice(0,3000));
       try{ rtDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:feed}]}})); rtDc.send(JSON.stringify({type:'response.create'})); }catch(e){}
     }catch(e){ try{chip.remove();}catch(_){} addMsg('ai','❌ سبب الفشل: '+(e.message||'خطأ في الاتصال بالسيرفر')); }
   }

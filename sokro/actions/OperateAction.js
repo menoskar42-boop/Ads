@@ -243,17 +243,22 @@ async function run(ctx, input) {
   // Chromium crash. The server-side Operator is used only when no extension.
   let extConnected = false;
   try { extConnected = !!(ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
-  let extFallbackErr = '';
+  let extFallbackErr = '', extTried = [];
   if (extConnected) {
     const fb = await tryFallback(ctx, url, goal, 'running in your connected browser');
     if (fb && fb.ok) return fb;
-    extFallbackErr = fb && fb.error; // remember the real reason; try server browser next
+    extFallbackErr = fb && fb.error; extTried = (fb && fb.tried) || []; // keep ALL reasons
   }
   if (!ctx.browser || !ctx.browser.available()) {
     // Primary method (server browser) unavailable → fall back automatically.
     const fb = await tryFallback(ctx, url, goal, 'server browser unavailable');
     if (fb && fb.ok) return fb;
-    return { ok: false, error: (extFallbackErr || (fb && fb.error) || 'مفيش متصفّح متاح') + ' — وصّل إضافة سوكرو في متصفحك أو فعّل متصفح السيرفر (Chromium في .replit + رام كافية).' };
+    const tried = extTried.concat((fb && fb.tried) || []);
+    return {
+      ok: false,
+      error: (extFallbackErr || (fb && fb.error) || 'مفيش متصفّح متاح') + ' — وصّل إضافة سوكرو في متصفحك أو فعّل متصفح السيرفر (Chromium في .replit + رام كافية).',
+      tried, // every method + why it failed, so the UI can show ALL reasons
+    };
   }
   const maxSteps = Math.min(Math.max(parseInt(input && input.maxSteps, 10) || 6, 1), 10);
   // Sensitive actions (pay/delete/submit…) are only pressed after the user confirms
@@ -447,10 +452,11 @@ async function run(ctx, input) {
     const fb = await tryFallback(ctx, url, goal, launchFail ? 'server browser launch failed' : m);
     if (fb && fb.ok) return fb;
     const fbErr = fb && fb.error ? (' | البدائل: ' + fb.error) : '';
+    const tried = ['operate (server browser): ' + m.slice(0, 120)].concat((fb && fb.tried) || []);
     if (launchFail) {
-      return { ok: false, error: 'متصفّح السيرفر مقدرش يشتغل (مكتبة ناقصة أو ذاكرة قليلة 0.5GB): ' + m.slice(0, 160) + fbErr + ' — الأضمن: وصّل إضافة سوكرو في متصفحك.' };
+      return { ok: false, tried, error: 'متصفّح السيرفر مقدرش يشتغل (مكتبة ناقصة أو ذاكرة قليلة 0.5GB): ' + m.slice(0, 160) + fbErr + ' — الأضمن: وصّل إضافة سوكرو في متصفحك.' };
     }
-    return { ok: false, error: 'operate failed: ' + m + fbErr };
+    return { ok: false, tried, error: 'operate failed: ' + m + fbErr };
   }
 }
 
