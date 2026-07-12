@@ -8,6 +8,27 @@
 const { register } = require('./_registry');
 const browserState = require('../lib/browserState');
 
+// Per-user "last position" so a follow-up run can CONTINUE from where the previous
+// one stopped (input.resume) instead of starting over from the homepage. In-memory
+// and bounded — a best-effort convenience, not durable state.
+const sessions = new Map(); // userId -> { goal, url }
+function rememberSession(userId, goal, url) {
+  if (!userId || !url) return;
+  sessions.set(userId, { goal, url });
+  if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
+}
+
+// Did the executed action actually take effect? (verify success of each step)
+function verifyStep(dec, preSig, post) {
+  if (dec.action === 'scroll') return true; // soft action — always "ok"
+  if (dec.action === 'type') {
+    const want = String(dec.text || '').slice(0, 15);
+    if (!want) return post.signature !== preSig;
+    return (post.inputs || []).some((e) => String(e.value || '').includes(want));
+  }
+  return post.signature !== preSig; // click / goto must change the page
+}
+
 function wwwVariant(u) { try { const x = new URL(u); x.hostname = x.hostname.startsWith('www.') ? x.hostname.slice(4) : 'www.' + x.hostname; return x.href; } catch (_) { return null; } }
 
 // Wait for the page to FULLY settle before reading the DOM — critical for JS/SPA
@@ -30,6 +51,33 @@ async function waitForDomStable(page, quietMs, timeoutMs) {
   }, { quietMs: quietMs || 500, timeoutMs: timeoutMs || 4000 }).catch(function () {});
 }
 
+// Auto-dismiss the noise that blocks interaction: cookie/consent banners
+// (click accept) and notification/newsletter modals (click later/deny/close). We
+// match short, well-known button labels only (AR + EN) so we don't click random
+// page buttons. Runs every settle; best-effort and silent on miss.
+async function dismissPopups(page) {
+  try {
+    await page.evaluate(function () {
+      var vis = function (el) { var r = el.getBoundingClientRect(); return r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < window.innerHeight + 200; };
+      var norm = function (s) { return (s || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+      var accept = ['accept', 'accept all', 'i accept', 'agree', 'i agree', 'allow all', 'got it', 'ok', 'okay', 'موافق', 'أوافق', 'اوافق', 'قبول', 'اقبل', 'موافقة', 'قبول الكل', 'تمام', 'فهمت', 'حسنا', 'حسناً'];
+      var dismiss = ['later', 'not now', 'maybe later', 'no thanks', 'no, thanks', 'deny', 'block', 'dismiss', 'close', 'لاحقا', 'لاحقاً', 'ليس الآن', 'لا شكرا', 'لا شكراً', 'تجاهل', 'إغلاق', 'اغلاق', 'رفض', 'مش دلوقتي'];
+      var els = Array.prototype.slice.call(document.querySelectorAll('button,[role="button"],a,input[type="button"],input[type="submit"]'));
+      var pick = function (list) {
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i]; if (!vis(el)) continue;
+          var t = norm(el.innerText || el.value || el.getAttribute('aria-label'));
+          if (t && t.length <= 22 && list.indexOf(t) !== -1) return el;
+        }
+        return null;
+      };
+      var btn = pick(accept) || pick(dismiss);
+      if (btn) { btn.click(); return true; }
+      return false;
+    });
+  } catch (_) {}
+}
+
 async function settlePage(page) {
   await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
@@ -50,25 +98,66 @@ async function settlePage(page) {
   }, { timeout: 8000 }).catch(function () {});
   // Smart final settle: wait for the DOM to actually go quiet, not a fixed timer.
   await waitForDomStable(page, 500, 4000);
+  // Clear cookie/consent/notification popups that would otherwise block clicks.
+  await dismissPopups(page);
 }
 
-// Auto-retry waiting for an element to show up before acting on it. On a JS/SPA
-// page the target element (a button, a result row) may not exist on the first
-// try — it renders a beat later. We wait for it, and if it still isn't there we
-// re-settle the page once and wait again before giving up, so a transient miss
-// doesn't waste the whole step.
-async function waitForEl(page, sel) {
-  try { await page.waitForSelector(sel, { state: 'visible', timeout: 5000 }); return true; }
-  catch (_) {
-    await settlePage(page);
-    try { await page.waitForSelector(sel, { state: 'visible', timeout: 5000 }); return true; }
-    catch (__) { return false; }
+// Look up the descriptor (label/type/href/kind) of the element the model chose,
+// from the state we showed it — so we can build fallback selectors if the primary
+// one disappears after a re-render.
+function findDescriptor(state, idx) {
+  const inp = (state.inputs || []).find((e) => e.idx === idx);
+  if (inp) return { kind: 'input', label: inp.label, type: inp.type };
+  const cl = (state.clickables || []).find((e) => e.idx === idx);
+  if (cl) return { kind: 'clickable', label: cl.label, href: cl.href, tag: cl.tag };
+  return null;
+}
+
+// Return the FIRST candidate locator that is actually visible — trying them in
+// order until one resolves. Resilient to layout/markup changes because we don't
+// depend on a single selector.
+async function firstVisible(cands) {
+  for (const loc of cands) {
+    try { const f = loc.first(); if (await f.isVisible({ timeout: 1200 })) return f; } catch (_) {}
   }
+  return null;
+}
+
+// Resolve the target element using MORE THAN ONE selector: the fresh
+// data-sokro-idx first, then semantic fallbacks derived from what we knew about
+// the element (its text/role/placeholder/href). If nothing is visible we re-settle
+// the page once and try again, so a transient render miss or a reshaped page still
+// resolves. Returns a Playwright Locator or null.
+async function resolveTarget(page, state, idx) {
+  const desc = findDescriptor(state, idx);
+  const build = () => {
+    const c = [page.locator('[data-sokro-idx="' + idx + '"]')];
+    if (desc) {
+      const label = (desc.label || '').trim();
+      if (desc.kind === 'input') {
+        if (label) { c.push(page.getByPlaceholder(label)); try { c.push(page.getByLabel(label)); } catch (_) {} }
+        c.push(page.locator('input[type="search"],input[name*="search" i],input[placeholder*="بحث"],input[type="text"],textarea'));
+      } else {
+        if (label) { c.push(page.getByRole('button', { name: label })); c.push(page.getByRole('link', { name: label })); c.push(page.getByText(label, { exact: false })); }
+        if (desc.href) c.push(page.locator('a[href="' + String(desc.href).replace(/"/g, '\\"') + '"]'));
+      }
+    }
+    return c;
+  };
+  let el = await firstVisible(build());
+  if (el) return el;
+  await settlePage(page);           // transient miss → let it settle and retry once
+  return await firstVisible(build());
 }
 
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   const goal = String((input && (input.goal || input.query)) || '').trim();
+  // Resume: continue from the last page the previous run reached for this user.
+  const wantResume = !!(input && (input.resume || input.continue));
+  if ((wantResume || !url) && ctx.userId && sessions.has(ctx.userId)) {
+    url = sessions.get(ctx.userId).url || url;
+  }
   if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
   if (!goal) return { ok: false, error: 'goal required' };
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); } catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
@@ -89,15 +178,21 @@ async function run(ctx, input) {
       page.on('console', (m) => { try { if (m.type() === 'error') pushErr('console', m.text()); } catch (_) {} });
       page.on('requestfailed', (req) => { try { pushErr('net', (req.failure() && req.failure().errorText || 'failed') + ' ' + req.url()); } catch (_) {} });
       page.on('response', (r) => { try { if (r.status() >= 500) pushErr('net', r.status() + ' ' + r.url()); } catch (_) {} });
+      // Auto-handle native JS dialogs (alert/confirm/beforeunload) so a modal never
+      // freezes the loop waiting for a human click.
+      page.on('dialog', (d) => { try { d.dismiss(); } catch (_) {} });
 
       try { await page.goto(url, { waitUntil: 'load', timeout: 30000 }); }
       catch (e) { const alt = wwwVariant(url); if (alt && alt !== url) await page.goto(alt, { waitUntil: 'load', timeout: 30000 }); else throw e; }
       await settlePage(page); // let the full page (incl. JS-rendered content) finish first
 
       const trail = [];
+      const failShots = []; // JPEG data URLs captured at the moment of a failure (cap 4)
       let answer = null;
-      let prevSig = null;    // page signature BEFORE the last action
-      let pending = null;    // the action object we executed last step {action, idx, text}
+      let prevSig = null;      // page signature BEFORE the last action
+      let pending = null;      // the action object we executed last step {action, idx, text}
+      let lastGoodUrl = page.url(); // checkpoint: url after the last VERIFIED-good step
+      let stuckStreak = 0;     // consecutive failed/no-effect steps → triggers recovery
       for (let step = 0; step < maxSteps; step++) {
         await settlePage(page); // re-settle after each action before reading the state
         // Structured browser state: clickables, input fields (with current values),
@@ -128,28 +223,62 @@ async function run(ctx, input) {
         trail.push({ step, title: state.title, url: state.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, text: dec && dec.text, thought: dec && dec.thought });
         prevSig = state.signature;
         pending = dec && dec.action ? { action: dec.action, idx: dec.idx, text: dec.text } : null;
+        const te = trail[trail.length - 1]; // the entry we just pushed — annotate it below
         if (!dec || dec.action === 'done') { answer = (dec && dec.answer) || ''; break; }
+
+        // ── Execute the action, targeting the element via MORE THAN ONE selector ──
+        const preSig = state.signature;
+        let ok = false, note = '';
         try {
           if (dec.action === 'click' && dec.idx != null) {
-            const sel = '[data-sokro-idx="' + dec.idx + '"]';
-            await waitForEl(page, sel); // auto-wait/retry if it isn't there yet
-            await Promise.all([page.waitForLoadState('domcontentloaded', { timeout: 12000 }).catch(() => {}), page.click(sel, { timeout: 8000 })]);
+            const target = await resolveTarget(page, state, dec.idx);
+            if (!target) throw new Error('العنصر رقم ' + dec.idx + ' مش موجود/مش ظاهر');
+            await Promise.all([page.waitForLoadState('domcontentloaded', { timeout: 12000 }).catch(() => {}), target.click({ timeout: 8000 })]);
           } else if (dec.action === 'type' && dec.idx != null) {
-            const sel = '[data-sokro-idx="' + dec.idx + '"]';
-            await waitForEl(page, sel);
-            await page.fill(sel, String(dec.text || ''), { timeout: 8000 });
+            const target = await resolveTarget(page, state, dec.idx);
+            if (!target) throw new Error('حقل الكتابة رقم ' + dec.idx + ' مش موجود');
+            await target.fill(String(dec.text || ''), { timeout: 8000 });
           } else if (dec.action === 'scroll') {
             await page.evaluate(function () { window.scrollBy(0, window.innerHeight); });
           } else if (dec.action === 'goto' && /^https?:\/\//.test(dec.url || '')) {
             await page.goto(dec.url, { waitUntil: 'load', timeout: 20000 });
           } else { break; }
-        } catch (e) { trail.push({ error: e.message }); }
+          // ── Verify the step actually took effect ──
+          await settlePage(page);
+          const post = await browserState.capture(page, null);
+          ok = verifyStep(dec, preSig, post);
+          if (!ok) note = 'اتنفّذت لكن الصفحة ماتأثرتش';
+        } catch (e) { ok = false; note = e.message; }
+
+        te.ok = ok; if (note) te.note = note;
+        // Clear, human-readable log line for every step.
+        if (ctx.log) ctx.log('operate.step', { step: step + 1, action: dec.action, idx: dec.idx, ok, note: note || '' });
+
+        if (ok) { lastGoodUrl = page.url(); stuckStreak = 0; continue; }
+
+        // ── Failure: snapshot the moment of failure + recover ──
+        const fshot = await page.screenshot({ type: 'jpeg', quality: 55 }).catch(() => null);
+        if (fshot && failShots.length < 4) { failShots.push('data:image/jpeg;base64,' + fshot.toString('base64')); te.failShot = failShots.length - 1; }
+        stuckStreak++;
+        if (stuckStreak === 1) {
+          // First failure / hang → reload the page and try to continue.
+          if (ctx.log) ctx.log('operate.recover', { step: step + 1, action: 'reload' });
+          await page.reload({ waitUntil: 'load', timeout: 20000 }).catch(() => {});
+          await settlePage(page);
+        } else if (lastGoodUrl && lastGoodUrl !== page.url()) {
+          // Still stuck → roll back to the last VERIFIED-good page and resume there.
+          if (ctx.log) ctx.log('operate.recover', { step: step + 1, action: 'rollback', to: lastGoodUrl });
+          await page.goto(lastGoodUrl, { waitUntil: 'load', timeout: 20000 }).catch(() => {});
+          await settlePage(page);
+          stuckStreak = 0;
+        }
       }
       if (!answer) {
         const finalText = await page.evaluate(function () { return document.body ? document.body.innerText.slice(0, 2500) : ''; });
         answer = 'وصلت لـ ' + page.url() + '\n' + finalText.slice(0, 1500);
       }
-      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10) };
+      rememberSession(ctx.userId, goal, page.url()); // checkpoint for a later resume
+      return { goal, steps: trail.length, trail, answer, finalUrl: page.url(), errors: errors.slice(-10), failShots };
     });
     return { ok: true, output: result };
   } catch (e) {
@@ -165,9 +294,9 @@ async function run(ctx, input) {
 
 register({
   name: 'operate',
-  description: 'Drive a browser toward a goal like an Operator: open a page then click/type/scroll/navigate step-by-step until the goal is done. Use for tasks that need real interaction inside a site (apply filters, click into a specific item, read what appears). input.url = start page, input.goal = what to accomplish.',
+  description: 'Drive a browser toward a goal like an Operator: open a page then click/type/scroll/navigate step-by-step until the goal is done. Verifies each step, handles cookie/consent popups, retries with fallback selectors, and reloads/rolls back if a page gets stuck. Use for tasks that need real interaction inside a site (apply filters, click into a specific item, read what appears). input.url = start page, input.goal = what to accomplish. input.resume=true continues from where the previous run stopped.',
   permissions: ['browser'],
-  inputSchema: { type: 'object', properties: { url: { type: 'string' }, goal: { type: 'string' }, maxSteps: { type: 'number' } }, required: ['url', 'goal'] },
+  inputSchema: { type: 'object', properties: { url: { type: 'string' }, goal: { type: 'string' }, maxSteps: { type: 'number' }, resume: { type: 'boolean' } }, required: ['goal'] },
   run,
 });
 
