@@ -47,12 +47,18 @@ function requestConfirm(cmd) {
   });
 }
 
+// Reading/opening a page is low-risk → no popup. Only WRITES (submitting a form:
+// publish/save/send) ask for consent, matching Sokro's "confirm only irreversible
+// actions" rule.
+const READ_ONLY = new Set(['browse', 'extract_table']);
+
 async function execute(cmd) {
-  // Consent gate: reading/interacting with a page in the user's LIVE browser
-  // (their logged-in sessions) must be explicitly approved per domain first.
+  // Consent gate: only WRITE commands (fill_submit) need per-domain approval.
+  // Opening/reading a page runs directly so "افتح جوجل" doesn't nag.
   const domain = domainOf(cmd.input && cmd.input.url);
   let allow = false;
-  if (domain && await isApprovedDomain(domain)) allow = true;
+  if (READ_ONLY.has(cmd.kind)) allow = true;
+  else if (domain && await isApprovedDomain(domain)) allow = true;
   else {
     const d = await requestConfirm(cmd);
     allow = !!(d && d.allow);
