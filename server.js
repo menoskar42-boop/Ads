@@ -33,6 +33,7 @@ const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
 const pharmacyAdminRouter = require('./src/routes/pharmacy_admin');
 const foodAdminRouter = require('./src/routes/food_admin');
+const clinicAdminRouter = require('./src/routes/clinic_admin');
 const adminRouter = require('./src/routes/admin');
 const shopRouter = require('./src/routes/shop');
 const customerRouter = require('./src/routes/customer');
@@ -272,6 +273,7 @@ app.use('/company', companyRouter);
 app.use('/accounting', require('./src/routes/accounting'));
 app.use('/pharmacy', pharmacyAdminRouter);
 app.use('/food', foodAdminRouter);
+app.use('/clinic', clinicAdminRouter);
 
 // Super admin panel must be before tenant middleware too
 app.use('/admin', adminRouter);

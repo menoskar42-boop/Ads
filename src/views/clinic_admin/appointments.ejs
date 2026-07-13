@@ -1,0 +1,39 @@
+<%- include('head', { title: 'المواعيد', tab: 'appointments' }) %>
+<%
+  var __statuses = { '':'الكل', pending:'بانتظار', confirmed:'مؤكّد', done:'تمّت', cancelled:'ملغاة' };
+  function __badge(s){ return s==='confirmed'?'bg-emerald-100 text-emerald-700':(s==='done'?'bg-slate-200 text-slate-600':(s==='cancelled'?'bg-rose-100 text-rose-600':'bg-amber-100 text-amber-700')); }
+  function __label(s){ return {pending:'بانتظار',confirmed:'مؤكّد',done:'تمّت',cancelled:'ملغاة'}[s]||s; }
+%>
+<h1 class="text-2xl font-black text-slate-900 mb-1">المواعيد</h1>
+<p class="text-slate-500 mb-4">أكّد أو ألغِ الحجوزات وتابع طابور اليوم</p>
+
+<div class="flex items-center gap-2 mb-4 flex-wrap">
+  <% Object.keys(__statuses).forEach(function(k){ %>
+    <a href="/clinic/appointments<%= k?('?status='+k):'' %>" class="px-3 py-1.5 rounded-full text-sm font-bold <%= status===k ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-600' %>"><%= __statuses[k] %></a>
+  <% }); %>
+</div>
+
+<% if (!appts.length) { %>
+  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">مفيش حجوزات هنا.</div>
+<% } else { %>
+<div class="space-y-3">
+  <% appts.forEach(function(a){ %>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
+    <div class="min-w-0 flex-1">
+      <div class="font-bold text-slate-900"><%= a.patient_name %> <a href="tel:<%= a.patient_phone %>" class="text-brand-600 text-sm font-semibold" dir="ltr"><%= a.patient_phone %></a></div>
+      <div class="text-xs text-slate-500 mt-0.5"><%= a.doctor_name || 'بدون طبيب' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '' %></div>
+      <% if (a.reason) { %><div class="text-xs text-slate-400 mt-0.5">📝 <%= a.reason %></div><% } %>
+    </div>
+    <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= __badge(a.status) %>"><%= __label(a.status) %></span>
+    <form method="post" action="/clinic/appointments/<%= a.id %>/status" class="flex items-center gap-1">
+      <input type="hidden" name="back" value="<%= status %>" />
+      <% ['confirmed','done','cancelled'].forEach(function(st){ if(a.status!==st){ %>
+        <button name="status" value="<%= st %>" class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 font-semibold"><%= __label(st) %></button>
+      <% } }); %>
+    </form>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+</main></body></html>

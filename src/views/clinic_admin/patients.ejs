@@ -1,0 +1,42 @@
+<%- include('head', { title: 'المرضى', tab: 'patients' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">المرضى</h1>
+<p class="text-slate-500 mb-6">سجلّ مرضى العيادة (بيانات خاصة — لا تظهر للجمهور)</p>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <div class="lg:col-span-1">
+    <div class="bg-white border border-slate-200 rounded-2xl p-5 lg:sticky lg:top-4">
+      <h2 class="font-extrabold text-slate-900 mb-3">إضافة مريض</h2>
+      <form method="post" action="/clinic/patients" class="grid gap-2.5">
+        <input name="name" required maxlength="80" placeholder="اسم المريض" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="phone" maxlength="20" placeholder="رقم الموبايل" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <div class="flex gap-2">
+          <select name="gender" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1 bg-white"><option value="">النوع</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option></select>
+          <input name="birth_year" type="number" min="1900" max="2025" placeholder="سنة الميلاد" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+        </div>
+        <textarea name="notes" maxlength="1000" rows="3" placeholder="ملاحظات (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+      </form>
+    </div>
+  </div>
+  <div class="lg:col-span-2">
+    <form method="get" class="mb-3"><input name="q" value="<%= q %>" placeholder="بحث بالاسم أو الموبايل…" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm" /></form>
+    <% if (!patients.length) { %>
+      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">مفيش مرضى مسجّلين لسه.</div>
+    <% } else { %>
+    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <% patients.forEach(function(p){ %>
+      <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+        <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">🧑</div>
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-slate-900 truncate"><%= p.name %> <a href="tel:<%= p.phone %>" class="text-brand-600 text-sm" dir="ltr"><%= p.phone||'' %></a></div>
+          <div class="text-xs text-slate-500"><%= p.gender||'' %><%= p.birth_year?(' · '+p.birth_year):'' %><%= p.notes?(' · '+String(p.notes).slice(0,40)):'' %></div>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>

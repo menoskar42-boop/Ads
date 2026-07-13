@@ -1,0 +1,47 @@
+<%- include('head', { title: 'لوحة التحكم', tab: 'dashboard' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">مرحبًا 👋</h1>
+<p class="text-slate-500 mb-6">نظرة سريعة على عيادتك اليوم</p>
+
+<div class="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-8">
+  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+    <div class="text-3xl font-black text-brand-600"><%= stats.pending %></div>
+    <div class="text-sm text-slate-500 mt-1">حجوزات بانتظار التأكيد</div>
+  </div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+    <div class="text-3xl font-black text-slate-900"><%= stats.today %></div>
+    <div class="text-sm text-slate-500 mt-1">مواعيد اليوم</div>
+  </div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+    <div class="text-3xl font-black text-slate-900"><%= stats.doctors %></div>
+    <div class="text-sm text-slate-500 mt-1">الأطباء</div>
+  </div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+    <div class="text-3xl font-black text-slate-900"><%= stats.patients %></div>
+    <div class="text-sm text-slate-500 mt-1">المرضى</div>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-3">
+  <h2 class="text-lg font-extrabold text-slate-900">المواعيد القادمة</h2>
+  <a href="/clinic/appointments" class="text-brand-600 font-bold text-sm">كل المواعيد ←</a>
+</div>
+
+<% if (!upcoming.length) { %>
+  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">مفيش مواعيد قادمة حاليًا.</div>
+<% } else { %>
+<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+  <% upcoming.forEach(function(a){ %>
+  <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center">🗓️</div>
+    <div class="min-w-0 flex-1">
+      <div class="font-bold text-slate-900 truncate"><%= a.patient_name %> <span class="text-slate-400 font-normal text-sm" dir="ltr"><%= a.patient_phone %></span></div>
+      <div class="text-xs text-slate-500"><%= a.doctor_name || 'بدون طبيب محدد' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '' %></div>
+    </div>
+    <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status==='confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>"><%= a.status==='confirmed' ? 'مؤكّد' : 'بانتظار' %></span>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+</main></body></html>

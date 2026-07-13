@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= title %> — <%= company.company_name %></title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
+    colors: { brand: { 50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#0891b2',600:'#0e7490',700:'#155e75',800:'#164e63',900:'#0c4a5e' } }
+  } } };
+</script>
+<style>body{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+<%
+  var __tab = typeof tab !== 'undefined' ? tab : '';
+  function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__tab===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
+%>
+<header class="bg-brand-700 text-white">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <a href="/clinic" class="font-extrabold text-lg flex items-center gap-1">🩺 <%= company.company_name %></a>
+    <nav class="flex items-center gap-1 text-sm ms-auto flex-wrap">
+      <a href="/clinic" class="<%= __cls('dashboard') %>">لوحة التحكم</a>
+      <a href="/clinic/appointments" class="<%= __cls('appointments') %>">المواعيد</a>
+      <a href="/clinic/doctors" class="<%= __cls('doctors') %>">الأطباء</a>
+      <a href="/clinic/patients" class="<%= __cls('patients') %>">المرضى</a>
+      <a href="/clinic/settings" class="<%= __cls('settings') %>">الإعدادات</a>
+      <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15">عرض الصفحة ↗</a>
+      <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15">خروج</button></form>
+    </nav>
+  </div>
+</header>
+<main class="max-w-5xl mx-auto px-4 py-6">
