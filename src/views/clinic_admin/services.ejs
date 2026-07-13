@@ -1,0 +1,67 @@
+<%- include('head', { title: 'الخدمات والأسعار', tab: 'services' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">الخدمات والأسعار</h1>
+<p class="text-slate-500 mb-6">الخدمات اللي بتتحاسب عليها العيادة، وأنواع الزيارات وأسعارها</p>
+
+<div class="grid gap-6 lg:grid-cols-2">
+  <!-- Services -->
+  <div class="space-y-4">
+    <div class="bg-white border border-slate-200 rounded-2xl p-5">
+      <h2 class="font-extrabold text-slate-900 mb-3">إضافة خدمة</h2>
+      <form method="post" action="/clinic/services" class="grid gap-2.5">
+        <input name="name" required maxlength="120" placeholder="اسم الخدمة (مثلاً: أشعة، تحليل، جلسة)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <div class="flex gap-2">
+          <input name="price" type="number" step="0.01" min="0" placeholder="السعر (ج)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="doctor_pct" type="number" step="0.01" min="0" max="100" value="60" placeholder="نسبة الطبيب %" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+        </div>
+        <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="is_active" value="1" checked /> مُفعّلة</label>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+      </form>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">الخدمات (<%= services.length %>)</div>
+      <% if (!services.length) { %>
+        <div class="p-6 text-center text-slate-400 text-sm">مفيش خدمات مضافة.</div>
+      <% } else { services.forEach(function(s){ %>
+      <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-slate-900 <%= s.is_active?'':'opacity-50 line-through' %>"><%= s.name %></div>
+          <div class="text-xs text-slate-500"><%= Number(s.price).toLocaleString('ar-EG') %> ج · نسبة الطبيب <%= Number(s.doctor_pct) %>٪</div>
+        </div>
+        <form method="post" action="/clinic/services/<%= s.id %>/delete" onsubmit="return confirm('حذف الخدمة؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+      </div>
+      <% }); } %>
+    </div>
+  </div>
+
+  <!-- Visit types -->
+  <div class="space-y-4">
+    <div class="bg-white border border-slate-200 rounded-2xl p-5">
+      <h2 class="font-extrabold text-slate-900 mb-3">إضافة نوع زيارة</h2>
+      <form method="post" action="/clinic/visit-types" class="grid gap-2.5">
+        <input name="name" required maxlength="80" placeholder="نوع الزيارة (كشف / استشارة / متابعة)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <div class="flex gap-2">
+          <input name="price" type="number" step="0.01" min="0" placeholder="السعر (ج)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="duration_min" type="number" min="1" value="20" placeholder="المدة (دقيقة)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+        </div>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+      </form>
+    </div>
+    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">أنواع الزيارات (<%= visitTypes.length %>)</div>
+      <% if (!visitTypes.length) { %>
+        <div class="p-6 text-center text-slate-400 text-sm">مفيش أنواع زيارات.</div>
+      <% } else { visitTypes.forEach(function(t){ %>
+      <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-slate-900"><%= t.name %></div>
+          <div class="text-xs text-slate-500"><%= Number(t.price).toLocaleString('ar-EG') %> ج · <%= t.duration_min %> دقيقة</div>
+        </div>
+        <form method="post" action="/clinic/visit-types/<%= t.id %>/delete" onsubmit="return confirm('حذف نوع الزيارة؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+      </div>
+      <% }); } %>
+    </div>
+  </div>
+</div>
+
+</main></body></html>

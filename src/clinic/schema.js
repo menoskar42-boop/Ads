@@ -275,6 +275,26 @@ async function seedDemoClinic(client) {
     }
   }
 
+  // Demo visit types + services (only seed once) so the queue/billing screens
+  // have realistic data to show. Idempotent: skip if any already exist.
+  const vtCount = await client.query('SELECT COUNT(*)::int AS n FROM clinic_visit_types WHERE company_id = $1', [companyId]);
+  if (!vtCount.rows[0].n) {
+    const vts = [ ['كشف', 200, 20], ['استشارة', 150, 15], ['متابعة', 100, 10] ];
+    for (let i = 0; i < vts.length; i++) {
+      await client.query(
+        'INSERT INTO clinic_visit_types (company_id, name, price, duration_min, sort_order) VALUES ($1,$2,$3,$4,$5)',
+        [companyId, vts[i][0], vts[i][1], vts[i][2], i]
+      );
+    }
+  }
+  const svCount = await client.query('SELECT COUNT(*)::int AS n FROM clinic_services WHERE company_id = $1', [companyId]);
+  if (!svCount.rows[0].n) {
+    const svs = [ ['كشف', 200, 60], ['استشارة', 150, 70], ['جلسة ليزر', 500, 50], ['تنظيف أسنان', 350, 55], ['تطعيم', 120, 40] ];
+    for (const s of svs) {
+      await client.query('INSERT INTO clinic_services (company_id, name, price, doctor_pct) VALUES ($1,$2,$3,$4)', [companyId, s[0], s[1], s[2]]);
+    }
+  }
+
   // Demo login (only if the clinic has no user yet) so the /clinic admin can be tried.
   const hasUser = await client.query('SELECT 1 FROM company_users WHERE company_id = $1 LIMIT 1', [companyId]);
   if (!hasUser.rows.length) {

@@ -1,0 +1,183 @@
+<%- include('head', { title: 'ملف ' + patient.name, tab: 'patients' }) %>
+<%
+  function fmtDate(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString('ar-EG',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  var STLABEL = { waiting:'في الانتظار', in_room:'في الكشف', done:'تمّت', cancelled:'ملغى' };
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/clinic/patients" class="text-brand-600 text-sm">‹ المرضى</a>
+  <h1 class="text-2xl font-black text-slate-900"><%= patient.name %></h1>
+</div>
+<p class="text-slate-500 mb-6 text-sm">
+  <span dir="ltr"><%= patient.phone || '' %></span><%= patient.gender?(' · '+patient.gender):'' %><%= patient.birth_year?(' · مواليد '+patient.birth_year):'' %>
+</p>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <!-- Left: forms -->
+  <div class="lg:col-span-1 space-y-4">
+    <!-- Vitals -->
+    <div id="vitals" class="bg-white border border-slate-200 rounded-2xl p-5">
+      <h2 class="font-extrabold text-slate-900 mb-3">تسجيل العلامات الحيوية</h2>
+      <form method="post" action="/clinic/patients/<%= patient.id %>/vitals" class="grid grid-cols-2 gap-2">
+        <input name="systolic" type="number" placeholder="الانقباضي" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="diastolic" type="number" placeholder="الانبساطي" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="heart_rate" type="number" placeholder="النبض" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="temperature" type="number" step="0.1" placeholder="الحرارة °م" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="weight" type="number" step="0.1" placeholder="الوزن كجم" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="height" type="number" step="0.1" placeholder="الطول سم" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="spo2" type="number" placeholder="SpO₂ %" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />
+        <button class="col-span-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">حفظ القياسات</button>
+      </form>
+    </div>
+
+    <!-- Clinical note -->
+    <div id="notes" class="bg-white border border-slate-200 rounded-2xl p-5">
+      <h2 class="font-extrabold text-slate-900 mb-3">ملاحظة إكلينيكية</h2>
+      <form method="post" action="/clinic/patients/<%= patient.id %>/notes" class="grid gap-2">
+        <select name="category" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="general">عامة</option><option value="complaint">الشكوى</option>
+          <option value="exam">الفحص</option><option value="diagnosis">التشخيص</option><option value="plan">الخطة العلاجية</option>
+        </select>
+        <select name="doctor_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="">الطبيب</option>
+          <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
+        </select>
+        <textarea name="content" rows="3" required maxlength="5000" placeholder="اكتب الملاحظة…" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">حفظ الملاحظة</button>
+      </form>
+    </div>
+
+    <!-- Prescription -->
+    <div id="prescriptions" class="bg-white border border-slate-200 rounded-2xl p-5">
+      <h2 class="font-extrabold text-slate-900 mb-3">روشتة</h2>
+      <form method="post" action="/clinic/patients/<%= patient.id %>/prescriptions" class="grid gap-2">
+        <select name="doctor_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="">الطبيب</option>
+          <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
+        </select>
+        <div id="rx-rows" class="grid gap-2">
+          <div class="grid grid-cols-2 gap-2">
+            <input name="med_name" placeholder="الدواء" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />
+            <input name="med_dose" placeholder="الجرعة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+            <input name="med_freq" placeholder="التكرار" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+            <input name="med_duration" placeholder="المدة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />
+          </div>
+        </div>
+        <button type="button" onclick="addRxRow()" class="text-xs text-brand-600 font-bold text-right">+ دواء آخر</button>
+        <textarea name="notes" rows="2" maxlength="1000" placeholder="تعليمات إضافية (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">حفظ الروشتة</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Right: history -->
+  <div class="lg:col-span-2 space-y-6">
+    <!-- Visits -->
+    <section id="visits">
+      <h2 class="font-extrabold text-slate-900 mb-3">الزيارات (<%= visits.length %>)</h2>
+      <% if (!visits.length) { %>
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-sm">لا توجد زيارات مسجّلة.</div>
+      <% } else { %>
+      <div class="space-y-2.5">
+        <% visits.forEach(function(v){ %>
+        <div class="bg-white border border-slate-200 rounded-2xl p-4">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div class="font-bold text-slate-800 text-sm"><%= fmtDate(v.visit_date) %><%= v.doctor_name?(' · '+v.doctor_name):'' %><%= v.visit_type_name?(' · '+v.visit_type_name):'' %></div>
+            <span class="text-xs text-slate-400"><%= STLABEL[v.status] %></span>
+          </div>
+          <% if (v.diagnosis) { %><div class="text-sm text-slate-600 mt-1"><span class="text-slate-400">التشخيص:</span> <%= v.diagnosis %></div><% } %>
+          <% if (v.notes) { %><div class="text-sm text-slate-600 mt-0.5"><%= v.notes %></div><% } %>
+          <details class="mt-2"><summary class="text-xs text-brand-600 cursor-pointer">تعديل التشخيص</summary>
+            <form method="post" action="/clinic/visits/<%= v.id %>/diagnosis" class="grid gap-2 mt-2">
+              <input type="hidden" name="patient_id" value="<%= patient.id %>" />
+              <input name="diagnosis" value="<%= v.diagnosis||'' %>" placeholder="التشخيص" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+              <textarea name="notes" rows="2" placeholder="ملاحظات الزيارة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= v.notes||'' %></textarea>
+              <button class="bg-slate-800 text-white font-bold rounded-xl px-4 py-1.5 text-sm w-fit">حفظ</button>
+            </form>
+          </details>
+        </div>
+        <% }); %>
+      </div>
+      <% } %>
+    </section>
+
+    <!-- Vitals history -->
+    <% if (vitals.length) { %>
+    <section>
+      <h2 class="font-extrabold text-slate-900 mb-3">سجل العلامات الحيوية</h2>
+      <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
+        <table class="w-full text-sm text-right min-w-[520px]">
+          <thead class="text-xs text-slate-400 border-b border-slate-100"><tr>
+            <th class="p-3 font-medium">التاريخ</th><th class="p-3 font-medium">ضغط</th><th class="p-3 font-medium">نبض</th>
+            <th class="p-3 font-medium">حرارة</th><th class="p-3 font-medium">وزن</th><th class="p-3 font-medium">SpO₂</th>
+          </tr></thead>
+          <tbody>
+            <% vitals.forEach(function(x){ %>
+            <tr class="border-b border-slate-50 last:border-0">
+              <td class="p-3 text-slate-500 text-xs"><%= fmtDT(x.recorded_at) %></td>
+              <td class="p-3"><%= (x.systolic&&x.diastolic)?(x.systolic+'/'+x.diastolic):'—' %></td>
+              <td class="p-3"><%= x.heart_rate||'—' %></td>
+              <td class="p-3"><%= x.temperature||'—' %></td>
+              <td class="p-3"><%= x.weight||'—' %></td>
+              <td class="p-3"><%= x.spo2||'—' %></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <% } %>
+
+    <!-- Notes history -->
+    <% if (notes.length) { %>
+    <section>
+      <h2 class="font-extrabold text-slate-900 mb-3">الملاحظات الإكلينيكية</h2>
+      <div class="space-y-2">
+        <% notes.forEach(function(n){ %>
+        <div class="bg-white border border-slate-200 rounded-2xl p-4">
+          <div class="text-xs text-slate-400 mb-1"><%= fmtDT(n.created_at) %><%= n.doctor_name?(' · '+n.doctor_name):'' %><%= n.category&&n.category!=='general'?(' · '+n.category):'' %></div>
+          <% if (n.title) { %><div class="font-bold text-slate-800 text-sm"><%= n.title %></div><% } %>
+          <div class="text-sm text-slate-600 whitespace-pre-line"><%= n.content %></div>
+        </div>
+        <% }); %>
+      </div>
+    </section>
+    <% } %>
+
+    <!-- Prescriptions history -->
+    <% if (prescriptions.length) { %>
+    <section>
+      <h2 class="font-extrabold text-slate-900 mb-3">الروشتات</h2>
+      <div class="space-y-2">
+        <% prescriptions.forEach(function(r){ %>
+        <div class="bg-white border border-slate-200 rounded-2xl p-4">
+          <div class="text-xs text-slate-400 mb-2"><%= fmtDT(r.created_at) %><%= r.doctor_name?(' · '+r.doctor_name):'' %></div>
+          <ul class="text-sm text-slate-700 space-y-1">
+            <% r.meds.forEach(function(m){ %>
+            <li class="flex gap-2"><span class="text-brand-500">•</span><span><strong><%= m.name %></strong><%= m.dose?(' — '+m.dose):'' %><%= m.freq?(' · '+m.freq):'' %><%= m.duration?(' · '+m.duration):'' %></span></li>
+            <% }); %>
+          </ul>
+          <% if (r.notes) { %><div class="text-xs text-slate-500 mt-2"><%= r.notes %></div><% } %>
+        </div>
+        <% }); %>
+      </div>
+    </section>
+    <% } %>
+  </div>
+</div>
+
+<script>
+function addRxRow(){
+  var wrap = document.getElementById('rx-rows');
+  var div = document.createElement('div');
+  div.className = 'grid grid-cols-2 gap-2 border-t border-slate-100 pt-2';
+  div.innerHTML = '<input name="med_name" placeholder="الدواء" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />'
+    + '<input name="med_dose" placeholder="الجرعة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />'
+    + '<input name="med_freq" placeholder="التكرار" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />'
+    + '<input name="med_duration" placeholder="المدة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />';
+  wrap.appendChild(div);
+}
+</script>
+
+</main></body></html>

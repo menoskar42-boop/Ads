@@ -26,9 +26,12 @@
     <a href="/clinic" class="font-extrabold text-lg flex items-center gap-1">🩺 <%= company.company_name %></a>
     <nav class="flex items-center gap-1 text-sm ms-auto flex-wrap">
       <a href="/clinic" class="<%= __cls('dashboard') %>">لوحة التحكم</a>
+      <a href="/clinic/queue" class="<%= __cls('queue') %>">الطابور</a>
       <a href="/clinic/appointments" class="<%= __cls('appointments') %>">المواعيد</a>
-      <a href="/clinic/doctors" class="<%= __cls('doctors') %>">الأطباء</a>
       <a href="/clinic/patients" class="<%= __cls('patients') %>">المرضى</a>
+      <a href="/clinic/invoices" class="<%= __cls('invoices') %>">الفواتير</a>
+      <a href="/clinic/doctors" class="<%= __cls('doctors') %>">الأطباء</a>
+      <a href="/clinic/services" class="<%= __cls('services') %>">الخدمات</a>
       <a href="/clinic/settings" class="<%= __cls('settings') %>">الإعدادات</a>
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15">عرض الصفحة ↗</a>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15">خروج</button></form>

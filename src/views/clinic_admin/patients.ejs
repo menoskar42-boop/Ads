@@ -26,13 +26,14 @@
     <% } else { %>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <% patients.forEach(function(p){ %>
-      <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+      <a href="/clinic/patients/<%= p.id %>" class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0 hover:bg-brand-50/40">
         <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">🧑</div>
         <div class="min-w-0 flex-1">
-          <div class="font-bold text-slate-900 truncate"><%= p.name %> <a href="tel:<%= p.phone %>" class="text-brand-600 text-sm" dir="ltr"><%= p.phone||'' %></a></div>
+          <div class="font-bold text-slate-900 truncate"><%= p.name %> <span class="text-brand-600 text-sm" dir="ltr"><%= p.phone||'' %></span></div>
           <div class="text-xs text-slate-500"><%= p.gender||'' %><%= p.birth_year?(' · '+p.birth_year):'' %><%= p.notes?(' · '+String(p.notes).slice(0,40)):'' %></div>
         </div>
-      </div>
+        <div class="text-slate-300">‹</div>
+      </a>
       <% }); %>
     </div>
     <% } %>
