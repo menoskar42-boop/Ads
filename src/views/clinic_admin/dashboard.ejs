@@ -3,23 +3,33 @@
 <h1 class="text-2xl font-black text-slate-900 mb-1">مرحبًا 👋</h1>
 <p class="text-slate-500 mb-6">نظرة سريعة على عيادتك اليوم</p>
 
-<div class="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-8">
-  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+<div class="grid gap-4 grid-cols-2 lg:grid-cols-5 mb-6">
+  <a href="/clinic/queue" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
+    <div class="text-3xl font-black text-amber-600"><%= stats.waiting %></div>
+    <div class="text-sm text-slate-500 mt-1">في الطابور الآن</div>
+  </a>
+  <a href="/clinic/appointments" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-brand-600"><%= stats.pending %></div>
     <div class="text-sm text-slate-500 mt-1">حجوزات بانتظار التأكيد</div>
-  </div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-5">
-    <div class="text-3xl font-black text-slate-900"><%= stats.today %></div>
-    <div class="text-sm text-slate-500 mt-1">مواعيد اليوم</div>
-  </div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+  </a>
+  <a href="/clinic/finance" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
+    <div class="text-3xl font-black text-emerald-600"><%= stats.revenue.toLocaleString('ar-EG') %></div>
+    <div class="text-sm text-slate-500 mt-1">تحصيل اليوم (ج)</div>
+  </a>
+  <a href="/clinic/doctors" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-slate-900"><%= stats.doctors %></div>
     <div class="text-sm text-slate-500 mt-1">الأطباء</div>
-  </div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+  </a>
+  <a href="/clinic/patients" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-slate-900"><%= stats.patients %></div>
     <div class="text-sm text-slate-500 mt-1">المرضى</div>
-  </div>
+  </a>
+</div>
+
+<div class="flex flex-wrap gap-2 mb-8">
+  <a href="/clinic/queue" class="bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-xl px-4 py-2">➕ تسجيل وصول مريض</a>
+  <a href="/clinic/invoices" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2">🧾 فاتورة جديدة</a>
+  <a href="/clinic/patients" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2">🧑 إضافة مريض</a>
 </div>
 
 <div class="flex items-center justify-between mb-3">

@@ -32,17 +32,18 @@ router.use(requireLogin, requireClinic);
 router.get('/', async (req, res) => {
   const cid = req.company.id;
   try {
-    const [pending, today, docs, patients, upcoming] = await Promise.all([
+    const [pending, waiting, docs, patients, revenue, upcoming] = await Promise.all([
       pool.query("SELECT COUNT(*)::int n FROM clinic_appointments WHERE company_id=$1 AND status='pending'", [cid]),
-      pool.query("SELECT COUNT(*)::int n FROM clinic_appointments WHERE company_id=$1 AND slot_at::date = (now() AT TIME ZONE 'Africa/Cairo')::date", [cid]),
+      pool.query("SELECT COUNT(*)::int n FROM clinic_visits WHERE company_id=$1 AND visit_date=(now() AT TIME ZONE 'Africa/Cairo')::date AND status IN ('waiting','in_room')", [cid]),
       pool.query('SELECT COUNT(*)::int n FROM clinic_doctors WHERE company_id=$1 AND is_active=true', [cid]),
       pool.query('SELECT COUNT(*)::int n FROM clinic_patients WHERE company_id=$1', [cid]),
+      pool.query("SELECT COALESCE(SUM(amount),0) AS t FROM clinic_payments WHERE company_id=$1 AND created_at::date=(now() AT TIME ZONE 'Africa/Cairo')::date", [cid]),
       pool.query(`SELECT a.*, d.name AS doctor_name FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
                   WHERE a.company_id=$1 AND a.status IN ('pending','confirmed') ORDER BY a.slot_at NULLS LAST, a.id DESC LIMIT 12`, [cid]),
     ]);
     res.render('clinic_admin/dashboard', {
       company: req.company, tab: 'dashboard',
-      stats: { pending: pending.rows[0].n, today: today.rows[0].n, doctors: docs.rows[0].n, patients: patients.rows[0].n },
+      stats: { pending: pending.rows[0].n, waiting: waiting.rows[0].n, doctors: docs.rows[0].n, patients: patients.rows[0].n, revenue: Number(revenue.rows[0].t) },
       upcoming: upcoming.rows,
     });
   } catch (e) { console.error('[clinic dashboard]', e.message); res.status(500).send('error'); }
@@ -503,6 +504,59 @@ router.post('/invoices/:id/payments', async (req, res) => {
     console.error('[clinic payment]', e.message);
   } finally { client.release(); }
   res.redirect('/clinic/invoices/' + id);
+});
+
+// ── Finance report (revenue, payment mix, doctor earnings, top services) ─────
+router.get('/finance', async (req, res) => {
+  const cid = req.company.id;
+  // Optional month filter (YYYY-MM); default = current Cairo month.
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : null;
+  const monthExpr = month ? '$2::date' : "date_trunc('month', now() AT TIME ZONE 'Africa/Cairo')::date";
+  const params = month ? [cid, month + '-01'] : [cid];
+  try {
+    const [totals, byMethod, byDoctor, byService, daily] = await Promise.all([
+      // Collected + billed + outstanding within the month.
+      pool.query(
+        `SELECT
+           COALESCE(SUM(paid_amount),0) AS collected,
+           COALESCE(SUM(total_amount),0) AS billed,
+           COALESCE(SUM(CASE WHEN status IN ('pending','partial') THEN total_amount - paid_amount ELSE 0 END),0) AS outstanding
+         FROM clinic_invoices
+         WHERE company_id=$1 AND status<>'cancelled'
+           AND created_at >= ${monthExpr} AND created_at < (${monthExpr} + INTERVAL '1 month')`, params),
+      pool.query(
+        `SELECT method, COALESCE(SUM(amount),0) AS total, COUNT(*) AS n FROM clinic_payments
+         WHERE company_id=$1 AND created_at >= ${monthExpr} AND created_at < (${monthExpr} + INTERVAL '1 month')
+         GROUP BY method ORDER BY total DESC`, params),
+      // Doctor earnings = sum of item doctor_share on PAID invoices, attributed
+      // via the invoice's visit → doctor.
+      pool.query(
+        `SELECT d.id, d.name, COALESCE(SUM(ii.doctor_share),0) AS earnings, COUNT(DISTINCT i.id) AS invoices
+         FROM clinic_invoices i
+         JOIN clinic_visits v ON v.id = i.visit_id
+         JOIN clinic_doctors d ON d.id = v.doctor_id
+         JOIN clinic_invoice_items ii ON ii.invoice_id = i.id
+         WHERE i.company_id=$1 AND i.status='paid'
+           AND i.paid_at >= ${monthExpr} AND i.paid_at < (${monthExpr} + INTERVAL '1 month')
+         GROUP BY d.id, d.name ORDER BY earnings DESC`, params),
+      pool.query(
+        `SELECT ii.name, COUNT(*) AS n, COALESCE(SUM(ii.total_price),0) AS revenue
+         FROM clinic_invoice_items ii JOIN clinic_invoices i ON i.id = ii.invoice_id
+         WHERE i.company_id=$1 AND i.status<>'cancelled'
+           AND i.created_at >= ${monthExpr} AND i.created_at < (${monthExpr} + INTERVAL '1 month')
+         GROUP BY ii.name ORDER BY revenue DESC LIMIT 10`, params),
+      pool.query(
+        `SELECT (created_at AT TIME ZONE 'Africa/Cairo')::date AS d, COALESCE(SUM(amount),0) AS total
+         FROM clinic_payments
+         WHERE company_id=$1 AND created_at >= ${monthExpr} AND created_at < (${monthExpr} + INTERVAL '1 month')
+         GROUP BY d ORDER BY d`, params),
+    ]);
+    res.render('clinic_admin/finance', {
+      company: req.company, tab: 'invoices', month: month || '',
+      totals: totals.rows[0], byMethod: byMethod.rows, byDoctor: byDoctor.rows,
+      byService: byService.rows, daily: daily.rows,
+    });
+  } catch (e) { console.error('[clinic finance]', e.message); res.status(500).send('error'); }
 });
 
 router.post('/invoices/:id/cancel', async (req, res) => {
