@@ -84,6 +84,140 @@ async function ensureClinicSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_patients_company ON clinic_patients (company_id, name);
     `);
+
+    // ── Clinical + billing layer (visits, records, invoices) ─────────────────
+    await client.query(`
+      -- Services a clinic bills for (each carries the doctor's share %).
+      CREATE TABLE IF NOT EXISTS clinic_services (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        price       NUMERIC(10,2) NOT NULL DEFAULT 0,
+        doctor_pct  NUMERIC(5,2) NOT NULL DEFAULT 60,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_services_company ON clinic_services (company_id, is_active);
+
+      -- Visit types (كشف / استشارة / متابعة) with price + duration.
+      CREATE TABLE IF NOT EXISTS clinic_visit_types (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        price       NUMERIC(10,2) NOT NULL DEFAULT 0,
+        duration_min INTEGER NOT NULL DEFAULT 20,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        sort_order  INTEGER NOT NULL DEFAULT 0
+      );
+
+      -- Weekly working hours per doctor (day 0=Sun..6=Sat).
+      CREATE TABLE IF NOT EXISTS clinic_doctor_schedules (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        doctor_id   INTEGER NOT NULL REFERENCES clinic_doctors(id) ON DELETE CASCADE,
+        day_of_week INTEGER NOT NULL,
+        start_time  TIME NOT NULL,
+        end_time    TIME NOT NULL,
+        is_active   BOOLEAN NOT NULL DEFAULT true
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_sched_doctor ON clinic_doctor_schedules (company_id, doctor_id, day_of_week);
+
+      -- A visit (encounter). arrival_at doubles as the queue sort key (Egyptian
+      -- clinic rule: order by arrival/payment time).
+      CREATE TABLE IF NOT EXISTS clinic_visits (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id     INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        doctor_id      INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        appointment_id INTEGER REFERENCES clinic_appointments(id) ON DELETE SET NULL,
+        visit_type_id  INTEGER REFERENCES clinic_visit_types(id) ON DELETE SET NULL,
+        status         TEXT NOT NULL DEFAULT 'waiting', -- waiting|in_room|done|cancelled
+        visit_date     DATE NOT NULL DEFAULT (now() AT TIME ZONE 'Africa/Cairo')::date,
+        arrival_at     TIMESTAMPTZ,
+        is_urgent      BOOLEAN NOT NULL DEFAULT false,
+        diagnosis      TEXT,
+        notes          TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_visits_company ON clinic_visits (company_id, visit_date, status);
+      CREATE INDEX IF NOT EXISTS idx_clinic_visits_patient ON clinic_visits (company_id, patient_id);
+
+      -- Vital signs per visit.
+      CREATE TABLE IF NOT EXISTS clinic_vitals (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        visit_id    INTEGER REFERENCES clinic_visits(id) ON DELETE CASCADE,
+        patient_id  INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        systolic    INTEGER, diastolic INTEGER, heart_rate INTEGER,
+        temperature NUMERIC(4,1), weight NUMERIC(5,1), height NUMERIC(5,1), spo2 INTEGER,
+        notes       TEXT,
+        recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      -- Clinical notes per visit.
+      CREATE TABLE IF NOT EXISTS clinic_notes (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        visit_id    INTEGER REFERENCES clinic_visits(id) ON DELETE CASCADE,
+        patient_id  INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        doctor_id   INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        category    TEXT NOT NULL DEFAULT 'general',
+        title       TEXT,
+        content     TEXT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_notes_patient ON clinic_notes (company_id, patient_id);
+
+      -- Prescriptions (medications stored as JSONB list).
+      CREATE TABLE IF NOT EXISTS clinic_prescriptions (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        visit_id     INTEGER REFERENCES clinic_visits(id) ON DELETE CASCADE,
+        patient_id   INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        doctor_id    INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        medications  JSONB NOT NULL DEFAULT '[]',
+        notes        TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_rx_patient ON clinic_prescriptions (company_id, patient_id);
+
+      -- Invoices + items + payments. paid_at = the queue-priority time.
+      CREATE TABLE IF NOT EXISTS clinic_invoices (
+        id              SERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id      INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        visit_id        INTEGER REFERENCES clinic_visits(id) ON DELETE SET NULL,
+        status          TEXT NOT NULL DEFAULT 'pending', -- pending|partial|paid|cancelled
+        discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+        subtotal        NUMERIC(10,2) NOT NULL DEFAULT 0,
+        total_amount    NUMERIC(10,2) NOT NULL DEFAULT 0,
+        paid_amount     NUMERIC(10,2) NOT NULL DEFAULT 0,
+        paid_at         TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_inv_company ON clinic_invoices (company_id, status, created_at);
+      CREATE TABLE IF NOT EXISTS clinic_invoice_items (
+        id           SERIAL PRIMARY KEY,
+        invoice_id   INTEGER NOT NULL REFERENCES clinic_invoices(id) ON DELETE CASCADE,
+        service_id   INTEGER REFERENCES clinic_services(id) ON DELETE SET NULL,
+        name         TEXT NOT NULL,
+        quantity     INTEGER NOT NULL DEFAULT 1,
+        unit_price   NUMERIC(10,2) NOT NULL DEFAULT 0,
+        total_price  NUMERIC(10,2) NOT NULL DEFAULT 0,
+        doctor_share NUMERIC(10,2) NOT NULL DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS clinic_payments (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        invoice_id  INTEGER NOT NULL REFERENCES clinic_invoices(id) ON DELETE CASCADE,
+        amount      NUMERIC(10,2) NOT NULL,
+        method      TEXT NOT NULL DEFAULT 'cash',
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_pay_company ON clinic_payments (company_id, created_at);
+    `);
+
     await seedDemoClinic(client);
     console.log('Clinic schema ready.');
   } catch (e) {
