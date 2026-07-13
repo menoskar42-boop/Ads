@@ -12,7 +12,23 @@
   <a href="/clinic/invoices" class="text-brand-600 text-sm">‹ الفواتير</a>
   <h1 class="text-2xl font-black text-slate-900">فاتورة #<%= inv.id %></h1>
   <span class="text-xs rounded-full px-2.5 py-1 font-bold <%= STCLS[inv.status] %>"><%= STLABEL[inv.status] %></span>
+  <button onclick="window.print()" class="no-print ms-auto bg-slate-100 hover:bg-slate-200 rounded-xl px-4 py-2 text-sm font-bold">🖨️ طباعة</button>
 </div>
+<div class="print-only hidden mb-4">
+  <div class="text-xl font-black text-slate-900"><%= company.company_name %></div>
+  <div class="text-sm text-slate-500">فاتورة #<%= inv.id %></div>
+</div>
+<style>
+  @media print {
+    header, nav, .no-print, form { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: #fff !important; }
+    main { max-width: 100% !important; padding: 0 !important; }
+    .lg\:col-span-1 { display: none !important; }
+    .lg\:col-span-2 { grid-column: span 3 / span 3 !important; }
+    .border { border-color: #e2e8f0 !important; }
+  }
+</style>
 
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="lg:col-span-2 space-y-4">
