@@ -172,6 +172,22 @@ router.get('/', async (req, res) => {
     } catch (err) { console.error('Food query error:', err.message); }
   }
 
+  // Clinic tenant: load the clinic's doctors + settings. Each clinic is its own
+  // page (no shared directory); its doctors each get a public /doctor/<slug> page.
+  let clinicDoctors = [];
+  let clinicSettings = null;
+  if (company.page_type === 'clinic') {
+    try {
+      clinicDoctors = (await pool.query(
+        'SELECT * FROM clinic_doctors WHERE company_id = $1 AND is_active = true ORDER BY sort_order, id',
+        [company.id]
+      )).rows;
+      clinicSettings = (await pool.query(
+        'SELECT * FROM clinic_settings WHERE company_id = $1', [company.id]
+      )).rows[0] || null;
+    } catch (err) { console.error('Clinic query error:', err.message); }
+  }
+
   let banners = [];
   try {
     banners = (await pool.query(
@@ -193,6 +209,7 @@ router.get('/', async (req, res) => {
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
   else if (company.page_type === 'orders') view = 'tenant_orders';
+  else if (company.page_type === 'clinic') view = 'tenant_clinic';
   else view = 'tenant_portfolio';
 
   // Indexing quality gate: keep thin tenant pages out of the index (and away
@@ -208,6 +225,9 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3 && company.slug !== 'pharmacy';
   // Demo orders merchant (slug 'orders') stays out of the index like the demo pharmacy.
   else if (company.page_type === 'orders') indexable = foodItemCount >= 3 && company.slug !== 'orders';
+  // A clinic indexes once it has a real doctor + a description; the demo clinic
+  // (slug 'clinic') stays out of the index like the other demos.
+  else if (company.page_type === 'clinic') indexable = clinicDoctors.length >= 1 && descLen >= 40 && company.slug !== 'clinic';
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have
@@ -216,6 +236,9 @@ router.get('/', async (req, res) => {
   // Pharmacy pages carry no ads at all for now (owner's decision to keep the
   // pharmacy vertical clear of AdSense while the account is under review).
   if (company.page_type === 'pharmacy') res.locals.showAds = false;
+  // Medical (clinic) pages likewise carry NO ads — health content is sensitive
+  // and we keep the clinic vertical clear of AdSense (owner's decision).
+  if (company.page_type === 'clinic') res.locals.showAds = false;
 
   const preset = getPreset(company.profession);
   const pc = company.page_content || {};
@@ -247,6 +270,8 @@ router.get('/', async (req, res) => {
     foodItemCount,
     aiAssistantOn,
     foodUpsellOn,
+    clinicDoctors,
+    clinicSettings,
     payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
@@ -254,6 +279,49 @@ router.get('/', async (req, res) => {
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
   });
+});
+
+// ── Clinic tenant public routes ─────────────────────────────────────────────
+function clinicGuard(req, res, next) {
+  if (!req.tenant || req.tenant.page_type !== 'clinic') return res.redirect('/');
+  next();
+}
+
+// Public doctor profile page (each doctor of a clinic has its own indexable page).
+router.get('/doctor/:slug', clinicGuard, async (req, res) => {
+  const company = req.tenant;
+  try {
+    const doctor = (await pool.query(
+      'SELECT * FROM clinic_doctors WHERE company_id=$1 AND slug=$2 AND is_active=true',
+      [company.id, String(req.params.slug || '').slice(0, 80)]
+    )).rows[0];
+    if (!doctor) return res.redirect('/');
+    const clinicSettings = (await pool.query('SELECT * FROM clinic_settings WHERE company_id=$1', [company.id])).rows[0] || null;
+    const clinicDoctors = (await pool.query('SELECT id,slug,name,specialty FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order,id', [company.id])).rows;
+    const indexable = !!(doctor.bio && doctor.bio.trim().length >= 40) && company.slug !== 'clinic';
+    res.render('tenant_clinic_doctor', { company, doctor, clinicSettings, clinicDoctors, noindex: !indexable, sent: req.query.sent === '1' });
+  } catch (e) { console.error('Doctor page:', e.message); res.redirect('/'); }
+});
+
+// Appointment booking submission (public form → clinic_appointments).
+router.post('/book', clinicGuard, async (req, res) => {
+  const company = req.tenant;
+  const name = String((req.body && req.body.patient_name) || '').trim().slice(0, 80);
+  const phone = String((req.body && req.body.patient_phone) || '').trim().slice(0, 20);
+  if (!name || phone.replace(/[^0-9]/g, '').length < 7) return res.redirect('/?error=1#book');
+  let doctorId = parseInt(req.body.doctor_id, 10); if (!Number.isFinite(doctorId)) doctorId = null;
+  let slotAt = null; if (req.body.slot_at) { const d = new Date(req.body.slot_at); if (!isNaN(d.getTime())) slotAt = d.toISOString(); }
+  const reason = String((req.body && req.body.reason) || '').trim().slice(0, 300);
+  try {
+    if (doctorId) { const ok = (await pool.query('SELECT 1 FROM clinic_doctors WHERE id=$1 AND company_id=$2', [doctorId, company.id])).rowCount; if (!ok) doctorId = null; }
+    await pool.query(
+      'INSERT INTO clinic_appointments (company_id, doctor_id, patient_name, patient_phone, slot_at, reason) VALUES ($1,$2,$3,$4,$5,$6)',
+      [company.id, doctorId, name, phone, slotAt, reason || null]
+    );
+    const ref = req.get('referer') || '';
+    const back = ref.includes('/doctor/') ? ref.split('?')[0].split('#')[0] : '/';
+    res.redirect(back + '?sent=1#book');
+  } catch (e) { console.error('Booking:', e.message); res.redirect('/?error=1#book'); }
 });
 
 // Public order form for one medicine (?m=<medicine_id>).

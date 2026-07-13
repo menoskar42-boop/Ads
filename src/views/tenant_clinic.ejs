@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%
+  var __cName = company.company_name || 'عيادة';
+  var __spec = (clinicSettings && clinicSettings.specialty) || '';
+  var __suffix = lang === 'en' ? 'Clinic — Book Online' : 'حجز مواعيد أونلاين';
+  var __brand = ' | OscarDevs';
+  var __titleBase = __cName + (__spec ? (' — ' + __spec) : (' — ' + (lang === 'en' ? 'Clinic' : 'عيادة')));
+  var __cTitle = (__titleBase.length + __brand.length) <= 60 ? (__titleBase + __brand) : __titleBase.slice(0, 60);
+  var __cDesc = ((company.description || (__cName + ' — ' + __suffix)).trim()).slice(0, 155);
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com/');
+  var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
+  var __wa = clinicSettings && clinicSettings.whatsapp ? String(clinicSettings.whatsapp).replace(/[^0-9]/g, '') : '';
+  var __phone = clinicSettings && clinicSettings.phone ? String(clinicSettings.phone).replace(/[^0-9+]/g, '') : '';
+  var __hasGeo = clinicSettings && clinicSettings.map_lat != null && clinicSettings.map_lng != null;
+  var __mapUrl = __hasGeo ? ('https://www.google.com/maps/search/?api=1&query=' + Number(clinicSettings.map_lat) + ',' + Number(clinicSettings.map_lng))
+    : (clinicSettings && clinicSettings.address ? ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(clinicSettings.address)) : null);
+  var __booking = !clinicSettings || clinicSettings.booking_enabled !== false;
+  function __money(v){ if(v==null) return null; var n=Number(v); if(!isFinite(n)) return null; return n.toLocaleString(lang==='ar'?'ar-EG':'en-US',{maximumFractionDigits:0}); }
+%>
+<% if (__pageNoindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<title><%= __cTitle %></title>
+<meta name="description" content="<%= __cDesc %>" />
+<%- include('partials/seo_meta', { title: __cTitle, description: __cDesc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __cName, ogImage: company.logo_url || '' }) %>
+<% if (!__pageNoindex) { %>
+<%# GEO / medical structured data — only on indexable pages. %>
+<script type="application/ld+json">
+<%- JSON.stringify(Object.assign({
+  '@context': 'https://schema.org',
+  '@type': 'MedicalClinic',
+  name: __cName,
+  url: __canon,
+  description: __cDesc,
+  areaServed: { '@type': 'Country', name: 'Egypt' },
+  medicalSpecialty: __spec || undefined
+},
+  company.logo_url ? { image: company.logo_url } : {},
+  __phone ? { telephone: __phone } : {},
+  (clinicSettings && clinicSettings.address) ? { address: { '@type': 'PostalAddress', streetAddress: clinicSettings.address, addressCountry: 'EG' } } : {},
+  __hasGeo ? { geo: { '@type': 'GeoCoordinates', latitude: Number(clinicSettings.map_lat), longitude: Number(clinicSettings.map_lng) }, hasMap: __mapUrl } : {},
+  (clinicDoctors && clinicDoctors.length) ? { employee: clinicDoctors.map(function(d){ return { '@type': 'Physician', name: d.name, medicalSpecialty: d.specialty || __spec, url: __canon + 'doctor/' + d.slug }; }) } : {}
+)) %>
+</script>
+<% } %>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
+    colors: { brand: { 50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#0891b2',600:'#0e7490',700:'#155e75',800:'#164e63',900:'#0c4a5e' },
+              ink: { 700:'#134e4a',800:'#0f3d3a',900:'#0b2e2c' } }
+  } } };
+</script>
+<style>body{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<!-- Header -->
+<header class="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="<%= __cName %>" class="w-11 h-11 rounded-xl object-cover border border-slate-200" /><% } else { %>
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-white grid place-items-center text-xl">🩺</div><% } %>
+      <div class="min-w-0">
+        <h1 class="font-extrabold text-slate-900 truncate leading-tight"><%= __cName %></h1>
+        <% if (__spec) { %><p class="text-xs text-brand-600 font-semibold truncate"><%= __spec %></p><% } %>
+      </div>
+    </div>
+    <% if (__booking) { %><a href="#book" class="hidden sm:inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-full px-4 py-2 text-sm">احجز موعد</a><% } %>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="bg-gradient-to-b from-brand-50 to-slate-50">
+  <div class="max-w-5xl mx-auto px-4 py-10 sm:py-14 text-center">
+    <div class="inline-flex items-center gap-2 bg-white border border-brand-200 text-brand-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">✅ حجز مواعيد إلكتروني سهل وسريع</div>
+    <h2 class="text-2xl sm:text-4xl font-black text-slate-900 leading-tight">أهلاً بك في <span class="text-brand-600"><%= __cName %></span></h2>
+    <p class="mt-3 text-slate-600 max-w-2xl mx-auto leading-relaxed"><%= (clinicSettings && clinicSettings.about) || __cDesc %></p>
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+      <% if (__booking) { %><a href="#book" class="inline-flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-full px-6 py-3 shadow-lg shadow-brand-500/30">احجز موعدك الآن ←</a><% } %>
+      <% if (__wa) { %><a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-brand-300 text-slate-700 font-bold rounded-full px-6 py-3">💬 واتساب</a><% } %>
+    </div>
+    <% if (clinicSettings && clinicSettings.hours) { %><p class="mt-4 text-sm text-slate-500">🕒 <%= clinicSettings.hours %></p><% } %>
+  </div>
+</section>
+
+<!-- Doctors -->
+<section class="max-w-5xl mx-auto px-4 py-10">
+  <h3 class="text-xl sm:text-2xl font-extrabold text-slate-900 mb-1">أطباء العيادة</h3>
+  <p class="text-slate-500 text-sm mb-6">اختر الطبيب المناسب واحجز موعدك</p>
+  <% if (!clinicDoctors || !clinicDoctors.length) { %>
+    <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">يتم إضافة الأطباء قريبًا.</div>
+  <% } else { %>
+  <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <% clinicDoctors.forEach(function(d){ %>
+    <div class="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-lg hover:border-brand-200 transition flex flex-col">
+      <div class="flex items-center gap-3">
+        <% if (d.photo_url) { %><img src="<%= d.photo_url %>" alt="<%= d.name %>" class="w-16 h-16 rounded-2xl object-cover border border-slate-200" /><% } else { %>
+        <div class="w-16 h-16 rounded-2xl bg-brand-50 text-brand-600 grid place-items-center text-2xl">👨‍⚕️</div><% } %>
+        <div class="min-w-0">
+          <a href="/doctor/<%= d.slug %>" class="font-extrabold text-slate-900 hover:text-brand-600 leading-tight block truncate"><%= d.name %></a>
+          <p class="text-xs text-brand-600 font-semibold"><%= d.title || '' %><%= d.specialty ? (' · ' + d.specialty) : '' %></p>
+        </div>
+      </div>
+      <% if (d.bio) { %><p class="mt-3 text-sm text-slate-600 leading-relaxed line-clamp-3"><%= d.bio %></p><% } %>
+      <div class="mt-3 flex items-center justify-between text-sm">
+        <% if (d.fee != null) { %><span class="text-slate-500">الكشف: <b class="text-slate-800"><%= __money(d.fee) %> ج</b></span><% } else { %><span></span><% } %>
+        <a href="/doctor/<%= d.slug %>" class="text-brand-600 font-bold hover:underline">الملف والحجز ←</a>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+</section>
+
+<!-- Info / contact -->
+<section class="max-w-5xl mx-auto px-4 pb-10 grid gap-5 sm:grid-cols-2">
+  <div class="bg-white border border-slate-200 rounded-2xl p-6">
+    <h4 class="font-extrabold text-slate-900 mb-3">معلومات العيادة</h4>
+    <ul class="space-y-2 text-sm text-slate-600">
+      <% if (__spec) { %><li>🩺 التخصص: <b class="text-slate-800"><%= __spec %></b></li><% } %>
+      <% if (clinicSettings && clinicSettings.hours) { %><li>🕒 المواعيد: <%= clinicSettings.hours %></li><% } %>
+      <% if (clinicSettings && clinicSettings.address) { %><li>📍 العنوان: <%= clinicSettings.address %></li><% } %>
+      <% if (__phone) { %><li>📞 الهاتف: <a href="tel:<%= __phone %>" class="text-brand-600 font-semibold" dir="ltr"><%= __phone %></a></li><% } %>
+    </ul>
+    <% if (__mapUrl) { %><a href="<%= __mapUrl %>" target="_blank" rel="noopener" class="mt-4 inline-flex items-center gap-1.5 text-brand-600 font-bold text-sm">🗺️ افتح الموقع على الخريطة</a><% } %>
+  </div>
+  <div class="bg-brand-600 text-white rounded-2xl p-6 flex flex-col justify-center">
+    <h4 class="font-extrabold text-lg mb-1">محتاج تحجز بسرعة؟</h4>
+    <p class="text-brand-100 text-sm mb-4">احجز موعدك أونلاين في دقيقة، ونأكّد لك الموعد.</p>
+    <div class="flex flex-wrap gap-2">
+      <% if (__booking) { %><a href="#book" class="bg-white text-brand-700 font-bold rounded-full px-5 py-2.5 text-sm">احجز الآن</a><% } %>
+      <% if (__wa) { %><a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="bg-brand-500 hover:bg-brand-400 text-white font-bold rounded-full px-5 py-2.5 text-sm">واتساب</a><% } %>
+    </div>
+  </div>
+</section>
+
+<!-- Booking form -->
+<% if (__booking) { %>
+<section id="book" class="max-w-2xl mx-auto px-4 pb-14">
+  <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8">
+    <h3 class="text-xl font-extrabold text-slate-900 mb-1">احجز موعدك</h3>
+    <p class="text-slate-500 text-sm mb-5">املأ البيانات وسنتواصل معك لتأكيد الموعد.</p>
+    <% if (typeof sent !== 'undefined' && sent) { %>
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-sm font-semibold">✅ تم استلام طلب الحجز — هنتواصل معك لتأكيد الموعد قريبًا.</div>
+    <% } %>
+    <form method="POST" action="/book" class="grid gap-3 mt-3">
+      <input type="text" name="patient_name" required maxlength="80" placeholder="الاسم" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+      <input type="tel" name="patient_phone" required maxlength="20" placeholder="رقم الموبايل" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" dir="ltr" />
+      <select name="doctor_id" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
+        <option value="">— اختر الطبيب (اختياري) —</option>
+        <% (clinicDoctors||[]).forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %><%= d.specialty ? (' - ' + d.specialty) : '' %></option><% }); %>
+      </select>
+      <input type="datetime-local" name="slot_at" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+      <textarea name="reason" maxlength="300" rows="2" placeholder="سبب الزيارة (اختياري)" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"></textarea>
+      <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl py-3">تأكيد الحجز</button>
+    </form>
+  </div>
+</section>
+<% } %>
+
+<footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+  مدعوم بواسطة <a href="https://oscardevs.com" class="text-brand-600 font-semibold">OscarDevs</a> — نظام إدارة العيادات
+</footer>
+</body>
+</html>
