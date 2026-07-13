@@ -122,6 +122,7 @@ router.get('/sitemap.xml', async (req, res) => {
         (SELECT COUNT(*) FROM products p WHERE p.company_id = c.id AND p.is_active = true) AS prod_count,
         (SELECT COUNT(*) FROM portfolio_items pi WHERE pi.company_id = c.id) AS pf_count,
         (SELECT COUNT(*) FROM pharmacy_inventory piv WHERE piv.company_id = c.id) AS stock_count,
+        (SELECT COUNT(*) FROM clinic_doctors cd WHERE cd.company_id = c.id AND cd.is_active = true) AS doc_count,
         COALESCE(char_length(trim(c.description)), 0) AS desc_len
        FROM companies c WHERE c.is_active = true ORDER BY c.slug`
     );
@@ -129,12 +130,15 @@ router.get('/sitemap.xml', async (req, res) => {
     for (const row of r.rows) {
       // Same quality gate tenant.js uses, per page type, so the sitemap never
       // points crawlers at a page that renders noindex.
-      // The demo pharmacy is a sample — never list it in the sitemap.
+      // Demo tenants (slug === page_type) are samples — never list them.
       if (row.page_type === 'pharmacy' && row.slug === 'pharmacy') continue;
+      if (row.page_type === 'clinic' && row.slug === 'clinic') continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
         ? Number(row.stock_count) >= 3
+        : row.page_type === 'clinic'
+        ? (Number(row.doc_count) >= 1 && Number(row.desc_len) >= 40)
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
       urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
