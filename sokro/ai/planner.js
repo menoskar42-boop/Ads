@@ -154,16 +154,20 @@ async function plan(ctx, goal, recentContext = []) {
 async function summarize(ctx, goal, results) {
   const preamble = require('../assistant-profile').buildPreamble(ctx && ctx.prefs);
   const langInstr = require('../core/lang').replyInstruction(ctx && ctx.prefs && ctx.prefs.lang);
+  const cfg = require('../core/config').llm.openai;
+  // Model on the size of the TASK: a deep report earns the SMART model; a plain
+  // search / browse / image gets summarized by the cheap FAST model.
+  const heavy = (results || []).some((r) => r && r.action === 'research_report' || (r && r.result && r.result.output && r.result.output.report));
+  const model = heavy ? cfg.smartModel : cfg.fastModel;
   const sys = preamble + ' ' + langInstr +
-    ' Judge whether the results actually achieve the user\'s goal (not just that no error was thrown — e.g. an empty search or a form that did not submit means NOT achieved). ' +
-    'Reply ONLY as JSON: {"summary":"1-3 short sentences for the user about what was done","achieved":true|false}.';
+    ' Read the results and answer the user in a short, natural SUMMARY (not a list of links). Judge whether the results actually achieve the goal (an empty search or a form that did not submit = NOT achieved). ' +
+    'Reply ONLY as JSON: {"summary":"1-3 short sentences answering the user","achieved":true|false}.';
   const user = `Goal: ${goal}\nResults: ${JSON.stringify(results).slice(0, 4000)}`;
   try {
-    const out = await llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
+    const out = await llm.json({ model, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
     if (out && typeof out.summary === 'string') return { summary: out.summary, achieved: out.achieved !== false };
   } catch (_) {}
-  // Fallback: plain summary, achievement unknown (treated as achieved if steps ran).
-  try { const { text } = await llm.chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); return { summary: text, achieved: true }; }
+  try { const { text } = await llm.chat({ model, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); return { summary: text, achieved: true }; }
   catch (_) { return { summary: null, achieved: true }; }
 }
 

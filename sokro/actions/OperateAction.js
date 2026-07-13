@@ -239,7 +239,7 @@ async function runExtOperator(ctx, url, goal, maxSteps, confirmSensitive) {
     const avoidTxt = avoid.size ? ('\n\nAVOID (already failed):\n' + Array.from(avoid.keys()).slice(-6).map((k) => '  ' + k).join('\n')) : '';
     const user = 'Goal: ' + goal + '\nPage: ' + (state.title || '') + ' — ' + state.url + '\n\n' + listTxt + '\n\nPAGE TEXT:\n' + (state.text || '').slice(0, 2000) + (trail.length ? ('\n\nRECENT:\n' + recent) : '') + avoidTxt;
     let dec = null;
-    try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); } catch (_) {}
+    try { dec = await ctx.llm.json({ model: require('../core/config').llm.openai.fastModel, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }); } catch (_) {}
     if (ctx.log) ctx.log('operate.ext', { step: step + 1, url: state.url, changed, action: dec && dec.action, idx: dec && dec.idx });
     trail.push({ step, title: state.title, url: state.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, text: dec && dec.text, thought: dec && dec.thought });
     prevSig = sig;
@@ -435,7 +435,7 @@ async function run(ctx, input) {
         const content = [{ type: 'text', text: user }];
         if (shot) content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + shot.toString('base64') } });
         let dec = null;
-        try { dec = await ctx.llm.json({ messages: [{ role: 'system', content: sys }, { role: 'user', content }] }); } catch (_) {}
+        try { dec = await ctx.llm.json({ model: require('../core/config').llm.openai.fastModel, messages: [{ role: 'system', content: sys }, { role: 'user', content }] }); } catch (_) {}
         if (ctx.log) ctx.log('operate', { step, title: state.title, url: state.url, changed, errors: errors.length, action: dec && dec.action, idx: dec && dec.idx });
         trail.push({ step, title: state.title, url: state.url, changed, action: (dec && dec.action) || 'none', idx: dec && dec.idx, text: dec && dec.text, thought: dec && dec.thought });
         prevSig = state.signature;

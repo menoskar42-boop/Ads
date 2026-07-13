@@ -23,7 +23,8 @@ async function run(ctx, input) {
   const user = `Topic: ${query}\nSearch results:\n${sources.map((r, i) => `[${i + 1}] ${r.title} — ${r.url}`).join('\n')}`;
   let report;
   try {
-    const out = await ctx.llm.chat({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
+    // A deep report earns the SMART model (it's the heavy-reasoning task).
+    const out = await ctx.llm.chat({ model: require('../core/config').llm.openai.smartModel, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
     report = out.text;
   } catch (e) {
     return { ok: false, error: 'report synthesis failed: ' + e.message };
