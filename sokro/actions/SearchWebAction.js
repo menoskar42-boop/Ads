@@ -140,6 +140,9 @@ async function run(ctx, input) {
     return { ok: true, output: { query, engine: 'browser', results: viaExt } };
   }
 
+  // Normal engines (no key needed). These are flaky from a datacenter IP — one may
+  // return empty while another works, and a retry often succeeds — so we try all of
+  // them across TWO passes before giving up.
   const providers = [
     { name: 'ddg', url: 'https://html.duckduckgo.com/html/?q=' + q, parse: parseDDG },
     { name: 'lite', url: 'https://lite.duckduckgo.com/lite/?q=' + q, parse: parseLite },
@@ -149,23 +152,26 @@ async function run(ctx, input) {
   let results = [];
   let used = null;
   const errors = [];
-  for (const p of providers) {
-    try {
-      const html = await getText(p.url);
-      const r = p.parse(html, limit);
-      if (r.length) { results = r; used = p.name; break; }
-      errors.push(p.name + ':empty');
-    } catch (e) { errors.push(p.name + ':' + e.message); }
+  for (let pass = 0; pass < 2 && !results.length; pass++) {
+    for (const p of providers) {
+      try {
+        const html = await getText(p.url);
+        const r = p.parse(html, limit);
+        if (r.length) { results = r; used = p.name; break; }
+        errors.push(p.name + ':empty');
+      } catch (e) { errors.push(p.name + ':' + e.message); }
+    }
+    if (!results.length && pass === 0) await new Promise((r) => setTimeout(r, 600)); // brief wait, then retry
   }
 
   if (ctx && ctx.log) ctx.log('search_web', { query, count: results.length, used: used || 'none', brave: braveNote });
   if (!results.length) {
-    // Include the Brave status so a bad key / quota is obvious. Guidance depends on it.
-    const braveMsg = braveNote === 'no-brave-key'
-      ? 'مفيش مفتاح Brave (SOKRO_BRAVE_KEY) — محرّكات البحث بتحجب سيرفر الاستضافة، فالبحث مش هيشتغل من غير المفتاح.'
-      : (braveNote.startsWith('brave-http-401') ? 'مفتاح Brave غلط (401) — راجع SOKRO_BRAVE_KEY.'
-        : (braveNote.startsWith('brave-http-429') ? 'كوتة Brave خلصت (429) — استنى أو رقّي الخطة.'
-          : (braveNote ? ('Brave: ' + braveNote + '. ') : '') + 'مفيش نتايج من محرّكات البحث (' + errors.join(', ') + ') — غالباً IP الاستضافة محجوب؛ حط مفتاح Brave.'));
+    // The normal engines were tried (twice) and returned nothing. Keep the message
+    // soft — search MIGHT work next time; Brave is an OPTIONAL reliability upgrade.
+    const braveMsg = braveNote.startsWith('brave-http-401') ? 'مفتاح Brave غلط (401) — راجع SOKRO_BRAVE_KEY.'
+      : (braveNote.startsWith('brave-http-429') ? 'كوتة Brave خلصت (429) — استنى شوية.'
+        : (braveNote && braveNote !== 'no-brave-key' ? ('Brave: ' + braveNote + '. ') : '') +
+          'مفيش نتايج دلوقتي — محرّكات البحث بتحجب سيرفر الاستضافة أحياناً. جرّب تاني بعد شوية، أو حط مفتاح Brave (SOKRO_BRAVE_KEY) لبحث مضمون.');
     return { ok: false, error: braveMsg, output: { query, results: [] } };
   }
   return { ok: true, output: { query, engine: used, results } };
