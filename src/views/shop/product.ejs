@@ -175,7 +175,7 @@
         <p class="text-xs text-gray-400 uppercase font-semibold mb-1"><%= product.category_name %></p>
       <% } %>
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-3"><%= pName %></h1>
-      <div class="text-3xl font-black brand-text mb-4"><%= Number(product.price).toFixed(2) %> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || 'كجم' %></span><% } %></div>
+      <div class="text-3xl font-black brand-text mb-4" data-base="<%= Number(product.price) %>"><span id="pPriceVal"><%= Number(product.price).toFixed(2) %></span> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || 'كجم' %></span><% } %></div>
 
       <% if (product.stock > 0) { %>
         <p class="text-sm text-green-600 font-semibold mb-4">✓ <%= t('public.in_stock') %> (<%= product.stock %>)</p>
@@ -189,8 +189,21 @@
 
       <% var sizeList = (product.sale_type === 'size' && product.sizes) ? product.sizes.split(',').map(function(s){return s.trim();}).filter(Boolean) : []; %>
       <% if (product.stock > 0) { %>
-        <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="mt-auto">
+        <form method="POST" action="/shop/<%= company.slug %>/cart/add" class="mt-auto" id="addForm">
           <input type="hidden" name="product_id" value="<%= product.id %>" />
+          <% if (typeof variants !== 'undefined' && variants.length) { %>
+            <input type="hidden" name="variant_id" id="variantInput" value="" />
+            <div class="mb-4">
+              <div class="text-sm font-semibold text-gray-600 mb-2">اختر الخيار</div>
+              <div class="flex flex-wrap gap-2" id="variantRow">
+                <% variants.forEach(function(v){ %>
+                  <button type="button" class="variant-opt inline-block border border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    data-id="<%= v.id %>" data-delta="<%= Number(v.price_delta) %>" data-stock="<%= v.stock %>" data-image="<%= v.image_url || '' %>" <%= v.stock <= 0 ? 'disabled' : '' %>><%= v.label %><%= v.stock <= 0 ? ' (نفد)' : '' %></button>
+                <% }); %>
+              </div>
+              <p id="variantHint" class="text-xs text-amber-600 mt-2">اختر خيار قبل الإضافة للسلة.</p>
+            </div>
+          <% } %>
           <% if (sizeList.length) { %>
             <div class="mb-4">
               <div class="text-sm font-semibold text-gray-600 mb-2">اختر المقاس</div>
@@ -208,11 +221,40 @@
             <input type="number" name="quantity" value="1" min="1" max="<%= product.stock %>"
               class="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
             <% if (product.sale_type === 'weight') { %><span class="text-sm text-gray-500"><%= product.weight_unit || 'كجم' %></span><% } %>
-            <button type="submit" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
+            <button type="submit" id="addBtn" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
               <%= t('public.add_to_cart') %>
             </button>
           </div>
         </form>
+        <% if (typeof variants !== 'undefined' && variants.length) { %>
+        <script>
+        (function () {
+          var row = document.getElementById('variantRow'); if (!row) return;
+          var input = document.getElementById('variantInput'), addBtn = document.getElementById('addBtn');
+          var priceVal = document.getElementById('pPriceVal'), qty = document.querySelector('#addForm input[name=quantity]');
+          var hint = document.getElementById('variantHint');
+          var priceWrap = priceVal ? priceVal.parentElement : null;
+          var base = priceWrap ? Number(priceWrap.getAttribute('data-base')) || 0 : 0;
+          function lock(v) { if (addBtn) { addBtn.disabled = v; addBtn.style.opacity = v ? '.5' : ''; addBtn.style.cursor = v ? 'not-allowed' : ''; } }
+          lock(true); // require a choice first
+          row.querySelectorAll('.variant-opt').forEach(function (b) {
+            b.addEventListener('click', function () {
+              if (b.disabled) return;
+              row.querySelectorAll('.variant-opt').forEach(function (o) { o.classList.remove('bg-gray-900', 'text-white', 'border-gray-900'); });
+              b.classList.add('bg-gray-900', 'text-white', 'border-gray-900');
+              input.value = b.dataset.id;
+              if (priceVal) priceVal.textContent = (base + Number(b.dataset.delta || 0)).toFixed(2);
+              var st = parseInt(b.dataset.stock, 10) || 0;
+              if (qty) { qty.max = st; if (+qty.value > st) qty.value = st || 1; }
+              if (b.dataset.image && window.odvSetImg) { /* variant image handled below */ }
+              if (b.dataset.image) { var m = document.getElementById('mainImage'); if (m) m.src = b.dataset.image; }
+              if (hint) hint.style.display = 'none';
+              lock(false);
+            });
+          });
+        })();
+        </script>
+        <% } %>
       <% } %>
     </div>
   </div>

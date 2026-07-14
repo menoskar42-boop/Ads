@@ -30,7 +30,11 @@ function getCart(req, slug) {
 function parseCartKey(k) {
   const s = String(k);
   const i = s.indexOf('|');
-  return i < 0 ? { id: parseInt(s, 10), size: null } : { id: parseInt(s.slice(0, i), 10), size: s.slice(i + 1) };
+  if (i < 0) return { id: parseInt(s, 10), size: null, variantId: null };
+  const seg = s.slice(i + 1);
+  const m = /^v(\d+)$/.exec(seg); // variant key: "<productId>|v<variantId>"
+  if (m) return { id: parseInt(s.slice(0, i), 10), size: null, variantId: parseInt(m[1], 10) };
+  return { id: parseInt(s.slice(0, i), 10), size: seg, variantId: null };
 }
 
 /* ─── CART ───────────────────────────────────────────────── */
@@ -58,11 +62,28 @@ router.post('/:slug/cart/add', async (req, res) => {
       return res.redirect(canonicalCompanyUrl(slug, req));
     }
     const cart = getCart(req, slug);
-    const sizeSel = (req.body.size || '').toString().trim();
-    const key = sizeSel ? `${productId}|${sizeSel}` : String(productId);
+    // Variant selection (phase 8): validate it belongs to the product + is active,
+    // and check the VARIANT's own stock. Falls back to the legacy size label.
+    const variantId = parseInt(req.body.variant_id, 10);
+    let key, availStock = productResult.rows[0].stock;
+    if (Number.isFinite(variantId)) {
+      const v = (await pool.query(
+        'SELECT id, stock FROM product_variants WHERE id=$1 AND product_id=$2 AND is_active=true',
+        [variantId, productId]
+      )).rows[0];
+      if (!v) {
+        if (wantsJson) return res.status(400).json({ ok: false, error: 'Invalid option.' });
+        return res.redirect(canonicalCompanyUrl(slug, req));
+      }
+      key = `${productId}|v${variantId}`;
+      availStock = v.stock;
+    } else {
+      const sizeSel = (req.body.size || '').toString().trim();
+      key = sizeSel ? `${productId}|${sizeSel}` : String(productId);
+    }
     const existing = cart[key] || 0;
     const requested = existing + quantity;
-    if (requested > productResult.rows[0].stock) {
+    if (requested > availStock) {
       if (wantsJson) return res.status(400).json({ ok: false, error: 'Not enough stock for the requested quantity.' });
       return res.redirect(`/shop/${slug}/cart?error=${encodeURIComponent('Not enough stock for the requested quantity.')}`);
     }
@@ -200,23 +221,39 @@ router.post('/:slug/checkout', async (req, res) => {
     const items = [];
     let total = 0;
     for (const key of keys) {
-      const { id: productId, size } = parseCartKey(key);
+      const { id: productId, size, variantId } = parseCartKey(key);
       if (!Number.isFinite(productId)) continue;
       const qty = cart[key];
-      const upd = await client.query(
-        `UPDATE products SET stock = stock - $1
-         WHERE id = $2 AND company_id = $3 AND stock >= $1 AND is_active = true
-         RETURNING id, name, price`,
-        [qty, productId, company.id]
-      );
-      if (!upd.rows.length) {
-        await client.query('ROLLBACK');
-        return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`);
+      // Always confirm the product exists/active + its base price.
+      const prod = (await client.query(
+        'SELECT id, name, price FROM products WHERE id=$1 AND company_id=$2 AND is_active=true', [productId, company.id]
+      )).rows[0];
+      if (!prod) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
+
+      let unitPrice = Number(prod.price);
+      let itemName = prod.name;
+      if (Number.isFinite(variantId)) {
+        // Variant path: decrement the VARIANT's stock; price = base + price_delta.
+        const vu = await client.query(
+          `UPDATE product_variants SET stock = stock - $1
+           WHERE id=$2 AND product_id=$3 AND is_active=true AND stock >= $1
+           RETURNING label, price_delta`,
+          [qty, variantId, productId]
+        );
+        if (!vu.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
+        unitPrice = Number(prod.price) + Number(vu.rows[0].price_delta || 0);
+        itemName = `${prod.name} (${vu.rows[0].label})`;
+      } else {
+        // Simple / size path: decrement the product's own stock.
+        const upd = await client.query(
+          `UPDATE products SET stock = stock - $1 WHERE id=$2 AND company_id=$3 AND stock >= $1 AND is_active=true RETURNING id`,
+          [qty, productId, company.id]
+        );
+        if (!upd.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
+        if (size) itemName = `${prod.name} (مقاس: ${size})`;
       }
-      const p = upd.rows[0];
-      const nameWithSize = size ? `${p.name} (مقاس: ${size})` : p.name;
-      items.push({ product_id: p.id, product_name: nameWithSize, unit_price: Number(p.price), quantity: qty });
-      total += Number(p.price) * qty;
+      items.push({ product_id: prod.id, variant_id: Number.isFinite(variantId) ? variantId : null, product_name: itemName, unit_price: unitPrice, quantity: qty });
+      total += unitPrice * qty;
     }
 
     let customerId = req.session.customerId || null;
@@ -243,9 +280,9 @@ router.post('/:slug/checkout', async (req, res) => {
 
     for (const it of items) {
       await client.query(
-        `INSERT INTO order_items (order_id, product_id, product_name, unit_price, quantity)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [orderId, it.product_id, it.product_name, it.unit_price, it.quantity]
+        `INSERT INTO order_items (order_id, product_id, product_name, unit_price, quantity, variant_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [orderId, it.product_id, it.product_name, it.unit_price, it.quantity, it.variant_id || null]
       );
       await client.query(
         `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, order_id)
@@ -380,10 +417,15 @@ router.get('/:slug/product/:id', async (req, res) => {
       canReview = !!bought && !already;
     }
     const recommended = await recommendations.forProduct(productResult.rows[0], 6);
+    const variants = (await pool.query(
+      'SELECT id, label, price_delta, stock, image_url, attributes FROM product_variants WHERE product_id=$1 AND is_active=true ORDER BY sort_order, id',
+      [productId]
+    )).rows;
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
       gallery: images.rows,
+      variants,
       cartCount,
       reviews: rv.reviews,
       reviewBreakdown: rv.breakdown,

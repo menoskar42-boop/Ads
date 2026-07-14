@@ -762,14 +762,46 @@ router.get('/products/:id/edit', requireLogin, requireShop, async (req, res) => 
     'SELECT * FROM product_images WHERE product_id = $1 ORDER BY order_index, created_at',
     [req.params.id]
   );
+  const variants = await pool.query(
+    'SELECT * FROM product_variants WHERE product_id = $1 ORDER BY sort_order, id', [req.params.id]
+  );
   res.render('company/product_form', {
     product: result.rows[0],
     company: company.rows[0],
     categories,
     images: images.rows,
+    variants: variants.rows,
     session: req.session,
     error: null,
   });
+});
+
+/* ─── PRODUCT VARIANTS (phase 8) ─────────────────────────── */
+router.post('/products/:id/variants/add', requireLogin, requireShop, async (req, res) => {
+  const pid = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const label = String(b.label || '').trim().slice(0, 120);
+  const num = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
+  try {
+    const owns = (await pool.query('SELECT id FROM products WHERE id=$1 AND company_id=$2', [pid, req.session.companyId])).rowCount;
+    if (owns && label) {
+      await pool.query(
+        'INSERT INTO product_variants (product_id, company_id, label, sku, price_delta, stock) VALUES ($1,$2,$3,$4,$5,$6)',
+        [pid, req.session.companyId, label, String(b.sku || '').slice(0, 60) || null, num(b.price_delta, 0), parseInt(b.stock, 10) || 0]
+      );
+    }
+  } catch (e) { console.error('[variant add]', e.message); }
+  res.redirect('/company/products/' + pid + '/edit');
+});
+router.post('/products/:id/variants/:vid/delete', requireLogin, requireShop, async (req, res) => {
+  const pid = parseInt(req.params.id, 10);
+  try {
+    await pool.query(
+      'DELETE FROM product_variants WHERE id=$1 AND product_id=$2 AND company_id=$3',
+      [parseInt(req.params.vid, 10), pid, req.session.companyId]
+    );
+  } catch (e) { console.error('[variant delete]', e.message); }
+  res.redirect('/company/products/' + pid + '/edit');
 });
 
 router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {

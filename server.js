@@ -557,6 +557,23 @@ async function initDb() {
         UNIQUE (customer_id, product_id)
       );
       CREATE INDEX IF NOT EXISTS idx_wishlist_customer ON wishlist_items (customer_id);
+      -- Product variants (Amazon roadmap phase 8): size/color/… with own stock + price delta.
+      CREATE TABLE IF NOT EXISTS product_variants (
+        id          SERIAL PRIMARY KEY,
+        product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        company_id  INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        label       TEXT NOT NULL,
+        attributes  JSONB NOT NULL DEFAULT '{}',
+        sku         TEXT,
+        price_delta NUMERIC(10,2) NOT NULL DEFAULT 0,
+        stock       INTEGER NOT NULL DEFAULT 0,
+        image_url   TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants (product_id, is_active);
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS uq_product_review_customer ON product_reviews (product_id, customer_id) WHERE customer_id IS NOT NULL;
       -- Search acceleration (Amazon roadmap phase 1): fast catalogue scans + name lookups.
       CREATE INDEX IF NOT EXISTS idx_products_company_active ON products (company_id, is_active);
