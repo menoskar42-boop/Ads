@@ -259,8 +259,8 @@ router.post('/visits', async (req, res) => {
     }
     if (pid || b.doctor_id) {
       await pool.query(
-        `INSERT INTO clinic_visits (company_id, patient_id, doctor_id, visit_type_id, status, arrival_at, is_urgent)
-         VALUES ($1,$2,$3,$4,'waiting', now(), $5)`,
+        `INSERT INTO clinic_visits (company_id, patient_id, doctor_id, visit_type_id, status, visit_date, arrival_at, is_urgent)
+         VALUES ($1,$2,$3,$4,'waiting', (now() AT TIME ZONE 'Africa/Cairo')::date, now(), $5)`,
         [cid, pid, parseInt(b.doctor_id, 10) || null, parseInt(b.visit_type_id, 10) || null, String(b.is_urgent) === '1']
       );
     }
@@ -806,7 +806,7 @@ router.post('/staff/:id/check', requireModule('hr'), async (req, res) => {
     if (open) {
       await pool.query('UPDATE clinic_attendance SET check_out=now() WHERE id=$1', [open.id]);
     } else {
-      await pool.query('INSERT INTO clinic_attendance (company_id, staff_id, check_in) VALUES ($1,$2, now())', [cid, sid]);
+      await pool.query("INSERT INTO clinic_attendance (company_id, staff_id, work_date, check_in) VALUES ($1,$2,(now() AT TIME ZONE 'Africa/Cairo')::date, now())", [cid, sid]);
     }
   } catch (e) { console.error('[attendance]', e.message); }
   res.redirect('/clinic/staff');

@@ -132,7 +132,7 @@ async function ensureClinicSchema() {
         appointment_id INTEGER REFERENCES clinic_appointments(id) ON DELETE SET NULL,
         visit_type_id  INTEGER REFERENCES clinic_visit_types(id) ON DELETE SET NULL,
         status         TEXT NOT NULL DEFAULT 'waiting', -- waiting|in_room|done|cancelled
-        visit_date     DATE NOT NULL DEFAULT (now() AT TIME ZONE 'Africa/Cairo')::date,
+        visit_date     DATE NOT NULL DEFAULT CURRENT_DATE, -- app sets Cairo date explicitly on insert
         arrival_at     TIMESTAMPTZ,
         is_urgent      BOOLEAN NOT NULL DEFAULT false,
         diagnosis      TEXT,
@@ -301,7 +301,7 @@ async function ensureClinicSchema() {
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
         staff_id    INTEGER NOT NULL REFERENCES clinic_staff(id) ON DELETE CASCADE,
-        work_date   DATE NOT NULL DEFAULT (now() AT TIME ZONE 'Africa/Cairo')::date,
+        work_date   DATE NOT NULL DEFAULT CURRENT_DATE, -- app sets Cairo date explicitly on insert
         check_in    TIMESTAMPTZ,
         check_out   TIMESTAMPTZ,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
