@@ -334,6 +334,23 @@ async function ensureClinicSchema() {
         is_active    BOOLEAN NOT NULL DEFAULT true,
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      -- Per-clinic WhatsApp API config. Each clinic stores ITS OWN credentials
+      -- so messages come from the clinic's own number. provider: cloud|generic.
+      CREATE TABLE IF NOT EXISTS clinic_whatsapp (
+        company_id       INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        provider         TEXT NOT NULL DEFAULT 'cloud', -- cloud (Meta) | generic (API URL)
+        phone_number_id  TEXT,   -- Cloud API: WhatsApp phone number ID
+        access_token     TEXT,   -- Cloud API: permanent access token
+        api_url          TEXT,   -- generic: gateway endpoint
+        api_token        TEXT,   -- generic: gateway token/key
+        sender_number    TEXT,   -- display/sender number (informational)
+        active           BOOLEAN NOT NULL DEFAULT false, -- clinic switched sending on
+        auto_confirm     BOOLEAN NOT NULL DEFAULT false, -- auto-send on new booking
+        confirm_template TEXT,
+        reminder_template TEXT,
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
       CREATE TABLE IF NOT EXISTS clinic_webhooks (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

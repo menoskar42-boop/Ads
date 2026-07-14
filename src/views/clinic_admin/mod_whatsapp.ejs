@@ -1,0 +1,96 @@
+<%- include('head', { title: 'واتساب', tab: 'whatsapp' }) %>
+<% var provider = w.provider || 'cloud'; %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">ربط واتساب العيادة</h1>
+<p class="text-slate-500 mb-6">كل عيادة تضع مفتاح الـWhatsApp API الخاص بها — عشان الرسائل تطلع من رقم العيادة نفسها.</p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-2xl px-4 py-3 mb-5 text-sm">تم حفظ الإعدادات ✅</div><% } %>
+<% if (test) { %><div class="bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl px-4 py-3 mb-5 text-sm"><%= test %></div><% } %>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <div class="lg:col-span-2 space-y-4">
+    <form method="post" action="/clinic/whatsapp" class="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div>
+        <label class="block text-sm font-bold text-slate-700 mb-1.5">مزوّد الخدمة</label>
+        <select name="provider" id="provider" onchange="toggleProvider()" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="cloud" <%= provider==='cloud'?'selected':'' %>>WhatsApp Cloud API (Meta الرسمي)</option>
+          <option value="generic" <%= provider==='generic'?'selected':'' %>>مزوّد خارجي (رابط API + توكِن)</option>
+        </select>
+      </div>
+
+      <!-- Cloud API fields -->
+      <div id="cloud-fields" class="space-y-3 <%= provider==='generic'?'hidden':'' %>">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Phone Number ID</label>
+          <input name="phone_number_id" value="<%= w.phone_number_id||'' %>" dir="ltr" placeholder="مثلاً: 123456789012345" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">Access Token (توكِن دائم)</label>
+          <input name="access_token" value="<%= w.access_token||'' %>" dir="ltr" placeholder="EAAG..." class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono" />
+        </div>
+      </div>
+
+      <!-- Generic gateway fields -->
+      <div id="generic-fields" class="space-y-3 <%= provider==='generic'?'':'hidden' %>">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">رابط الـAPI</label>
+          <input name="api_url" value="<%= w.api_url||'' %>" dir="ltr" placeholder="https://gateway.example.com/send" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">التوكِن / المفتاح</label>
+          <input name="api_token" value="<%= w.api_token||'' %>" dir="ltr" placeholder="API token" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono" />
+        </div>
+        <p class="text-xs text-slate-400">يُرسَل طلب POST بصيغة JSON: <code dir="ltr">{ phone, message }</code> مع الهيدر <code dir="ltr">Authorization: Bearer &lt;token&gt;</code>.</p>
+      </div>
+
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">رقم العيادة على واتساب (للعرض)</label>
+        <input name="sender_number" value="<%= w.sender_number||'' %>" dir="ltr" placeholder="201000000000" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </div>
+
+      <hr class="border-slate-100" />
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">قالب رسالة تأكيد الحجز</label>
+        <textarea name="confirm_template" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= w.confirm_template || defConfirm %></textarea>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">قالب رسالة التذكير</label>
+        <textarea name="reminder_template" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= w.reminder_template || defReminder %></textarea>
+      </div>
+      <p class="text-xs text-slate-400">المتغيّرات المتاحة: <code dir="ltr">{name}</code> اسم المريض · <code dir="ltr">{clinic}</code> اسم العيادة · <code dir="ltr">{doctor}</code> الطبيب · <code dir="ltr">{time}</code> الموعد.</p>
+
+      <div class="space-y-2 pt-2">
+        <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="active" value="1" <%= w.active?'checked':'' %> /> تفعيل إرسال الرسائل</label>
+        <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="auto_confirm" value="1" <%= w.auto_confirm?'checked':'' %> /> إرسال رسالة تأكيد تلقائياً عند كل حجز جديد</label>
+      </div>
+
+      <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5 text-sm">حفظ الإعدادات</button>
+    </form>
+  </div>
+
+  <div class="lg:col-span-1 space-y-4">
+    <div class="bg-white border border-slate-200 rounded-2xl p-5">
+      <h2 class="font-extrabold text-slate-900 mb-2 text-sm">اختبار الإرسال</h2>
+      <p class="text-xs text-slate-500 mb-3">احفظ الإعدادات أولاً، ثم أرسل رسالة تجريبية لرقمك للتأكد.</p>
+      <form method="post" action="/clinic/whatsapp/test" class="grid gap-2">
+        <input name="test_phone" dir="ltr" placeholder="01000000000" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <button class="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl px-4 py-2 text-sm">إرسال رسالة اختبار</button>
+      </form>
+    </div>
+    <div class="bg-teal-50 border border-teal-200 rounded-2xl p-4 text-xs text-teal-800 leading-relaxed">
+      <strong>من فين أجيب البيانات؟</strong><br />
+      لـ Cloud API الرسمي: من لوحة <span dir="ltr">Meta for Developers → WhatsApp → API Setup</span> تلاقي <span dir="ltr">Phone Number ID</span> وتعمل <span dir="ltr">Permanent Access Token</span>.<br />
+      لو بتستخدم مزوّد خارجي (جيتواي)، حط رابط الإرسال والتوكِن اللي بعتهولك المزوّد.
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleProvider(){
+  var v = document.getElementById('provider').value;
+  document.getElementById('cloud-fields').classList.toggle('hidden', v!=='cloud');
+  document.getElementById('generic-fields').classList.toggle('hidden', v!=='generic');
+}
+</script>
+
+</main></body></html>

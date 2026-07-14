@@ -74,7 +74,13 @@ router.get('/appointments', async (req, res) => {
       `SELECT a.*, d.name AS doctor_name FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
        WHERE ${where} ORDER BY a.created_at DESC LIMIT 300`, params
     )).rows;
-    res.render('clinic_admin/appointments', { company: req.company, tab: 'appointments', appts: rows, status });
+    // Is WhatsApp ready (module on + clinic activated it)? Drives the send button.
+    let waReady = false;
+    if (req.enabledModules && req.enabledModules.has('whatsapp')) {
+      const w = (await pool.query('SELECT active FROM clinic_whatsapp WHERE company_id=$1', [cid])).rows[0];
+      waReady = !!(w && w.active);
+    }
+    res.render('clinic_admin/appointments', { company: req.company, tab: 'appointments', appts: rows, status, waReady });
   } catch (e) { console.error(e.message); res.status(500).send('error'); }
 });
 router.post('/appointments/:id/status', async (req, res) => {
@@ -83,6 +89,27 @@ router.post('/appointments/:id/status', async (req, res) => {
     try { await pool.query('UPDATE clinic_appointments SET status=$1 WHERE id=$2 AND company_id=$3', [st, parseInt(req.params.id, 10), req.company.id]); }
     catch (e) { console.error(e.message); }
   }
+  res.redirect('/clinic/appointments' + (req.body.back ? ('?status=' + encodeURIComponent(req.body.back)) : ''));
+});
+
+// Manually send the confirmation WhatsApp for one appointment.
+router.post('/appointments/:id/whatsapp', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    if (!req.enabledModules || !req.enabledModules.has('whatsapp')) return res.redirect('/clinic/appointments');
+    const a = (await pool.query(
+      `SELECT a.*, d.name AS doctor_name FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
+       WHERE a.id=$1 AND a.company_id=$2`, [parseInt(req.params.id, 10), cid])).rows[0];
+    const w = (await pool.query('SELECT * FROM clinic_whatsapp WHERE company_id=$1', [cid])).rows[0];
+    if (a && w && w.active) {
+      const msg = renderTemplate(w.confirm_template || DEFAULT_CONFIRM_TPL, {
+        name: a.patient_name, clinic: req.company.company_name,
+        doctor: a.doctor_name ? (' مع ' + a.doctor_name) : '',
+        time: a.slot_at ? new Date(a.slot_at).toLocaleString('ar-EG') : '',
+      });
+      await sendWhatsApp(w, a.patient_phone, msg);
+    }
+  } catch (e) { console.error('[appt whatsapp]', e.message); }
   res.redirect('/clinic/appointments' + (req.body.back ? ('?status=' + encodeURIComponent(req.body.back)) : ''));
 });
 
@@ -583,7 +610,57 @@ router.post('/invoices/:id/cancel', async (req, res) => {
 //  OPTIONAL MODULES (each gated by requireModule — super-admin controls on/off)
 // ═══════════════════════════════════════════════════════════════════════════
 const crypto = require('crypto');
+const { sendWhatsApp, renderTemplate } = require('../lib/whatsapp');
 const num = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
+
+const DEFAULT_CONFIRM_TPL = 'مرحباً {name}، تم استلام حجزك في {clinic}{doctor}. سنؤكّد الموعد قريباً. شكراً لك.';
+const DEFAULT_REMINDER_TPL = 'تذكير: لديك موعد في {clinic}{doctor} يوم {time}. برجاء الحضور قبل الموعد بـ10 دقائق.';
+
+// ── Module: WhatsApp (per-clinic API config) ─────────────────────────────────
+router.get('/whatsapp', requireModule('whatsapp'), async (req, res) => {
+  try {
+    const w = (await pool.query('SELECT * FROM clinic_whatsapp WHERE company_id=$1', [req.company.id])).rows[0] || {};
+    res.render('clinic_admin/mod_whatsapp', {
+      company: req.company, tab: 'whatsapp', w,
+      defConfirm: DEFAULT_CONFIRM_TPL, defReminder: DEFAULT_REMINDER_TPL,
+      saved: req.query.saved === '1', test: req.query.test || null,
+    });
+  } catch (e) { console.error('[whatsapp]', e.message); res.status(500).send('error'); }
+});
+router.post('/whatsapp', requireModule('whatsapp'), async (req, res) => {
+  const b = req.body || {};
+  const provider = b.provider === 'generic' ? 'generic' : 'cloud';
+  try {
+    await pool.query(
+      `INSERT INTO clinic_whatsapp (company_id, provider, phone_number_id, access_token, api_url, api_token, sender_number, active, auto_confirm, confirm_template, reminder_template, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
+       ON CONFLICT (company_id) DO UPDATE SET provider=EXCLUDED.provider, phone_number_id=EXCLUDED.phone_number_id,
+         access_token=EXCLUDED.access_token, api_url=EXCLUDED.api_url, api_token=EXCLUDED.api_token,
+         sender_number=EXCLUDED.sender_number, active=EXCLUDED.active, auto_confirm=EXCLUDED.auto_confirm,
+         confirm_template=EXCLUDED.confirm_template, reminder_template=EXCLUDED.reminder_template, updated_at=now()`,
+      [req.company.id, provider,
+        String(b.phone_number_id || '').trim().slice(0, 120) || null,
+        String(b.access_token || '').trim().slice(0, 500) || null,
+        String(b.api_url || '').trim().slice(0, 300) || null,
+        String(b.api_token || '').trim().slice(0, 500) || null,
+        String(b.sender_number || '').trim().slice(0, 30) || null,
+        String(b.active) === '1', String(b.auto_confirm) === '1',
+        String(b.confirm_template || '').slice(0, 1000) || null,
+        String(b.reminder_template || '').slice(0, 1000) || null]
+    );
+  } catch (e) { console.error('[whatsapp save]', e.message); }
+  res.redirect('/clinic/whatsapp?saved=1');
+});
+router.post('/whatsapp/test', requireModule('whatsapp'), async (req, res) => {
+  const to = String(req.body.test_phone || '').trim();
+  try {
+    const w = (await pool.query('SELECT * FROM clinic_whatsapp WHERE company_id=$1', [req.company.id])).rows[0];
+    if (!w || !to) return res.redirect('/clinic/whatsapp?test=' + encodeURIComponent('أدخل رقماً للاختبار واحفظ الإعدادات أولاً'));
+    const msg = 'رسالة اختبار من ' + req.company.company_name + ' عبر OscarDevs.';
+    const r = await sendWhatsApp(w, to, msg);
+    res.redirect('/clinic/whatsapp?test=' + encodeURIComponent(r.ok ? 'تم إرسال رسالة الاختبار ✅' : ('فشل الإرسال: ' + r.error)));
+  } catch (e) { res.redirect('/clinic/whatsapp?test=' + encodeURIComponent('خطأ: ' + e.message)); }
+});
 
 // ── Module: Inventory ────────────────────────────────────────────────────────
 router.get('/inventory', requireModule('inventory'), async (req, res) => {

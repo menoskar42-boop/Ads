@@ -25,6 +25,12 @@
       <% if (a.reason) { %><div class="text-xs text-slate-400 mt-0.5">📝 <%= a.reason %></div><% } %>
     </div>
     <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= __badge(a.status) %>"><%= __label(a.status) %></span>
+    <% if (typeof waReady !== 'undefined' && waReady && a.patient_phone) { %>
+    <form method="post" action="/clinic/appointments/<%= a.id %>/whatsapp" class="inline">
+      <input type="hidden" name="back" value="<%= status %>" />
+      <button class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="إرسال تأكيد واتساب">💬 واتساب</button>
+    </form>
+    <% } %>
     <form method="post" action="/clinic/appointments/<%= a.id %>/status" class="flex items-center gap-1">
       <input type="hidden" name="back" value="<%= status %>" />
       <% ['confirmed','done','cancelled'].forEach(function(st){ if(a.status!==st){ %>

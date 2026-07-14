@@ -12,6 +12,7 @@ const MODULES = [
   { key: 'branches',   label: 'الفروع',         icon: '🏢', path: '/clinic/branches',   desc: 'إدارة فروع العيادة المتعددة (لو أكثر من مقر).' },
   { key: 'hr',         label: 'الموظفون',       icon: '👥', path: '/clinic/staff',      desc: 'بيانات الموظفين وتسجيل الحضور والانصراف.' },
   { key: 'callcenter', label: 'مركز الاتصال',   icon: '📞', path: '/clinic/calls',      desc: 'سجل المكالمات والمتابعات مع المرضى وحجز المكالمات القادمة.' },
+  { key: 'whatsapp',   label: 'واتساب',         icon: '💬', path: '/clinic/whatsapp',   desc: 'ربط رقم واتساب العيادة (Cloud API أو مزوّد خارجي) لإرسال تأكيدات وتذكير المواعيد. كل عيادة تضع مفتاحها الخاص.' },
   { key: 'api',        label: 'API والمكاملات', icon: '🔌', path: '/clinic/integrations', desc: 'مفاتيح API وويب-هوكس لربط العيادة بأنظمة خارجية.' },
 ];
 

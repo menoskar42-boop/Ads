@@ -9,8 +9,33 @@ const aiAssistant = require('../lib/ai_order_assistant');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
+const { getEnabledModules } = require('../clinic/modules');
+const { sendWhatsApp, renderTemplate } = require('../lib/whatsapp');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const DEFAULT_CONFIRM_TPL = 'مرحباً {name}، تم استلام حجزك في {clinic}{doctor}. سنؤكّد الموعد قريباً. شكراً لك.';
+
+// Fire-and-forget WhatsApp booking confirmation. Only sends if the clinic has
+// the whatsapp module enabled, activated it, and turned on auto-confirm. Any
+// failure is swallowed — booking must never depend on message delivery.
+async function maybeSendBookingConfirm(company, name, phone, doctorId) {
+  try {
+    const mods = await getEnabledModules(pool, company.id);
+    if (!mods.has('whatsapp')) return;
+    const w = (await pool.query('SELECT * FROM clinic_whatsapp WHERE company_id=$1', [company.id])).rows[0];
+    if (!w || !w.active || !w.auto_confirm) return;
+    let doctorName = '';
+    if (doctorId) {
+      const d = (await pool.query('SELECT name FROM clinic_doctors WHERE id=$1 AND company_id=$2', [doctorId, company.id])).rows[0];
+      if (d) doctorName = ' مع ' + d.name;
+    }
+    const msg = renderTemplate(w.confirm_template || DEFAULT_CONFIRM_TPL, {
+      name, clinic: company.company_name, doctor: doctorName, time: '',
+    });
+    await sendWhatsApp(w, phone, msg);
+  } catch (e) { console.error('[booking whatsapp]', e.message); }
+}
 
 // Load a merchant's paid AI subscription (or null). The site is free; the AI
 // order assistant only runs for merchants with an active, unexpired sub that
@@ -318,6 +343,8 @@ router.post('/book', clinicGuard, async (req, res) => {
       'INSERT INTO clinic_appointments (company_id, doctor_id, patient_name, patient_phone, slot_at, reason) VALUES ($1,$2,$3,$4,$5,$6)',
       [company.id, doctorId, name, phone, slotAt, reason || null]
     );
+    // Auto-confirm over WhatsApp (best-effort, non-blocking).
+    maybeSendBookingConfirm(company, name, phone, doctorId);
     const ref = req.get('referer') || '';
     const back = ref.includes('/doctor/') ? ref.split('?')[0].split('#')[0] : '/';
     res.redirect(back + '?sent=1#book');
