@@ -832,6 +832,31 @@ router.post('/coupons/:id/delete', requireLogin, requireShop, async (req, res) =
   res.redirect('/company/coupons');
 });
 
+/* ─── SHIPPING ZONES (phase 12) ──────────────────────────── */
+router.get('/shipping', requireLogin, requireShop, async (req, res) => {
+  try {
+    const rows = (await pool.query('SELECT * FROM shipping_zones WHERE company_id=$1 ORDER BY governorate', [req.session.companyId])).rows;
+    res.render('company/shipping', { zones: rows, session: req.session });
+  } catch (e) { console.error('[shipping]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/shipping/add', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  const gov = String(b.governorate || '').trim().slice(0, 60);
+  const num = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
+  try {
+    if (gov) await pool.query(
+      `INSERT INTO shipping_zones (company_id, governorate, cost, free_over, eta_days) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (company_id, governorate) DO UPDATE SET cost=EXCLUDED.cost, free_over=EXCLUDED.free_over, eta_days=EXCLUDED.eta_days`,
+      [req.session.companyId, gov, num(b.cost, 0), num(b.free_over, null), String(b.eta_days || '').slice(0, 40) || null]
+    );
+  } catch (e) { console.error('[shipping add]', e.message); }
+  res.redirect('/company/shipping');
+});
+router.post('/shipping/:id/delete', requireLogin, requireShop, async (req, res) => {
+  try { await pool.query('DELETE FROM shipping_zones WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.session.companyId]); } catch (e) { console.error(e.message); }
+  res.redirect('/company/shipping');
+});
+
 /* ─── STORE FEATURE FLAGS (phase 21) ─────────────────────── */
 router.get('/features', requireLogin, requireShop, async (req, res) => {
   try {

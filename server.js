@@ -603,6 +603,20 @@ async function initDb() {
       );
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_zone TEXT;
+      -- Shipping zones by governorate (Amazon roadmap phase 12).
+      CREATE TABLE IF NOT EXISTS shipping_zones (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        governorate    TEXT NOT NULL,
+        cost           NUMERIC(10,2) NOT NULL DEFAULT 0,
+        free_over      NUMERIC(10,2),
+        eta_days       TEXT,
+        is_active      BOOLEAN NOT NULL DEFAULT true,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, governorate)
+      );
       -- Per-store feature flags (Amazon roadmap phase 21). Only overrides stored.
       CREATE TABLE IF NOT EXISTS company_features (
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

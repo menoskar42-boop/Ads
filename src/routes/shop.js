@@ -8,6 +8,7 @@ const reviews = require('../lib/reviews');
 const recommendations = require('../lib/recommendations');
 const shopFeatures = require('../lib/shop_features');
 const deals = require('../lib/deals');
+const shipping = require('../lib/shipping');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
@@ -186,10 +187,12 @@ router.get('/:slug/checkout', async (req, res) => {
     }
 
     const payment = await loadPaymentMethods(pool, company, res.locals.t);
+    const zones = await shipping.getZones(company.id);
     res.render('shop/checkout', {
       company,
       prefill,
       payment,
+      shippingZones: zones,
       customerId: req.session.customerId || null,
       error: req.query.error || null,
     });
@@ -295,14 +298,22 @@ router.post('/:slug/checkout', async (req, res) => {
         await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id=$1', [cpn.id]);
       }
     }
-    const finalTotal = Math.max(0, +(total - discountAmount).toFixed(2));
+    const afterDiscount = Math.max(0, +(total - discountAmount).toFixed(2));
+    // Shipping (phase 12): cost by governorate, free over threshold.
+    const govr = String(req.body.shipping_zone || '').trim().slice(0, 60);
+    let shipCost = 0, shipZoneName = null;
+    if (govr) {
+      const zone = await shipping.zoneFor(company.id, govr);
+      if (zone) { shipCost = shipping.costFor(zone, afterDiscount); shipZoneName = zone.governorate; }
+    }
+    const finalTotal = +(afterDiscount + shipCost).toFixed(2);
 
     const orderInsert = await client.query(
       `INSERT INTO orders (company_id, customer_id, customer_name, customer_phone, customer_email,
-                           shipping_address, total_amount, status, notes, coupon_code, discount_amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10) RETURNING id`,
+                           shipping_address, total_amount, status, notes, coupon_code, discount_amount, shipping_cost, shipping_zone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12) RETURNING id`,
       [company.id, customerId, customer_name, customer_phone, customer_email || null,
-       shipping_address, finalTotal, notes || null, appliedCode, discountAmount]
+       shipping_address, finalTotal, notes || null, appliedCode, discountAmount, shipCost, shipZoneName]
     );
     const orderId = orderInsert.rows[0].id;
 

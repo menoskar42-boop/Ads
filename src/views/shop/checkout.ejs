@@ -41,6 +41,17 @@
   <% } %>
 
   <form method="POST" action="/shop/<%= company.slug %>/checkout" class="bg-white rounded-2xl shadow p-6 space-y-5">
+    <% if (typeof shippingZones !== 'undefined' && shippingZones.length) { %>
+    <div>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">المحافظة (للشحن) *</label>
+      <select name="shipping_zone" required class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+        <option value="">اختر المحافظة</option>
+        <% shippingZones.forEach(function(z){ %>
+          <option value="<%= z.governorate %>"><%= z.governorate %> — <%= Number(z.cost)===0 ? 'شحن مجاني' : (Number(z.cost)+' ج') %><%= z.free_over ? (' (مجاني فوق '+Number(z.free_over)+' ج)') : '' %><%= z.eta_days ? (' · '+z.eta_days) : '' %></option>
+        <% }); %>
+      </select>
+    </div>
+    <% } %>
     <div>
       <label class="block text-sm font-semibold text-gray-600 mb-1.5">كوبون خصم (اختياري)</label>
       <input type="text" name="coupon_code" maxlength="40" placeholder="لو معاك كود خصم اكتبه هنا" dir="ltr"

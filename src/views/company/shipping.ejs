@@ -1,0 +1,31 @@
+<% pageTitle = 'الشحن'; activePage = 'shipping'; %>
+<%- include('_layout_top') %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">الشحن حسب المحافظة</h2>
+    <p class="text-gray-500 text-sm mb-5">حدّد تكلفة الشحن لكل محافظة — العميل يختار محافظته في الـcheckout فتتحسب تلقائياً.</p>
+
+    <form method="POST" action="/company/shipping/add" class="grid sm:grid-cols-4 gap-2 mb-6">
+      <input name="governorate" required maxlength="60" placeholder="المحافظة (القاهرة)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="cost" type="number" step="0.01" min="0" required placeholder="التكلفة" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="free_over" type="number" step="0.01" min="0" placeholder="مجاني فوق" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="eta_days" maxlength="40" placeholder="مدة التوصيل (2-3 أيام)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <button class="brand-bg text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 sm:col-span-4">+ إضافة/تحديث محافظة</button>
+    </form>
+
+    <% if (!zones.length) { %>
+      <p class="text-sm text-gray-400 text-center py-6">مفيش محافظات مضافة — أضف واحدة عشان الشحن يشتغل.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% zones.forEach(function(z){ %>
+        <div class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+          <span class="font-bold text-gray-800 flex-1 text-sm"><%= z.governorate %></span>
+          <span class="text-emerald-600 font-bold text-sm"><%= Number(z.cost)===0 ? 'مجاني' : (Number(z.cost)+' ج') %></span>
+          <% if (z.free_over) { %><span class="text-xs text-gray-400">مجاني فوق <%= Number(z.free_over) %></span><% } %>
+          <% if (z.eta_days) { %><span class="text-xs text-gray-400"><%= z.eta_days %></span><% } %>
+          <form method="POST" action="/company/shipping/<%= z.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="bg-red-500 text-white text-xs rounded-full w-6 h-6">×</button></form>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>
