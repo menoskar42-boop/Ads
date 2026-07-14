@@ -176,7 +176,27 @@
         <p class="text-xs text-gray-400 uppercase font-semibold mb-1"><%= product.category_name %></p>
       <% } %>
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-3"><%= pName %></h1>
-      <div class="text-3xl font-black brand-text mb-4" data-base="<%= Number(product.price) %>"><span id="pPriceVal"><%= Number(product.price).toFixed(2) %></span> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || 'كجم' %></span><% } %></div>
+      <% var __deal = (typeof deal !== 'undefined') ? deal : null; var __basePrice = Number(product.price); var __dealPrice = __deal ? +(__basePrice * (1 - __deal.discount_pct/100)).toFixed(2) : __basePrice; %>
+      <div class="mb-4">
+        <div class="text-3xl font-black brand-text" data-base="<%= __dealPrice %>">
+          <% if (__deal) { %><span class="text-lg text-gray-400 line-through font-bold me-2"><%= __basePrice.toFixed(2) %></span><% } %>
+          <span id="pPriceVal"><%= __dealPrice.toFixed(2) %></span> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || 'كجم' %></span><% } %>
+          <% if (__deal) { %><span class="text-sm bg-rose-100 text-rose-600 rounded-lg px-2 py-1 ms-1 font-bold">-<%= __deal.discount_pct %>%</span><% } %>
+        </div>
+        <% if (__deal && __deal.ends_at) { %>
+        <div class="mt-2 inline-flex items-center gap-1.5 bg-gray-900 text-white text-xs font-bold rounded-lg px-3 py-1.5">⏳ ينتهي العرض خلال <span id="dealCountdown" data-ends="<%= new Date(__deal.ends_at).toISOString() %>">—</span></div>
+        <script>
+        (function(){
+          var el=document.getElementById('dealCountdown'); if(!el) return;
+          var ends=new Date(el.dataset.ends).getTime();
+          function tick(){ var d=ends-Date.now(); if(d<=0){ el.textContent='انتهى'; return; }
+            var h=Math.floor(d/3.6e6), m=Math.floor(d%3.6e6/6e4), s=Math.floor(d%6e4/1000);
+            var dd=Math.floor(h/24); el.textContent=(dd>0?dd+'ي ':'')+(h%24)+'س '+m+'د '+s+'ث'; }
+          tick(); setInterval(tick,1000);
+        })();
+        </script>
+        <% } %>
+      </div>
 
       <% if (product.stock > 0) { %>
         <p class="text-sm text-green-600 font-semibold mb-4">✓ <%= t('public.in_stock') %> (<%= product.stock %>)</p>

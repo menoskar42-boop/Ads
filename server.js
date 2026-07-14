@@ -574,6 +574,35 @@ async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants (product_id, is_active);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL;
+      -- Deals / Deal of the Day (Amazon roadmap phase 10).
+      CREATE TABLE IF NOT EXISTS deals (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        product_id   INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        discount_pct SMALLINT NOT NULL CHECK (discount_pct BETWEEN 1 AND 90),
+        ends_at      TIMESTAMPTZ,
+        is_active    BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_deals_company ON deals (company_id, is_active);
+      CREATE INDEX IF NOT EXISTS idx_deals_product ON deals (product_id, is_active);
+      -- Coupons (Amazon roadmap phase 11).
+      CREATE TABLE IF NOT EXISTS coupons (
+        id               SERIAL PRIMARY KEY,
+        company_id       INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        code             TEXT NOT NULL,
+        discount_type    TEXT NOT NULL DEFAULT 'percent', -- percent | fixed
+        discount_value   NUMERIC(10,2) NOT NULL DEFAULT 0,
+        min_order_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+        max_uses         INTEGER,
+        used_count       INTEGER NOT NULL DEFAULT 0,
+        expires_at       TIMESTAMPTZ,
+        is_active        BOOLEAN NOT NULL DEFAULT true,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, code)
+      );
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS coupon_code TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
       -- Per-store feature flags (Amazon roadmap phase 21). Only overrides stored.
       CREATE TABLE IF NOT EXISTS company_features (
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

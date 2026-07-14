@@ -777,6 +777,61 @@ router.get('/products/:id/edit', requireLogin, requireShop, async (req, res) => 
   });
 });
 
+/* ─── DEALS (phase 10) ───────────────────────────────────── */
+router.get('/deals', requireLogin, requireShop, async (req, res) => {
+  try {
+    const cid = req.session.companyId;
+    const [rows, products] = await Promise.all([
+      pool.query(`SELECT d.*, p.name AS product_name FROM deals d JOIN products p ON p.id=d.product_id
+                  WHERE d.company_id=$1 ORDER BY d.created_at DESC`, [cid]),
+      pool.query('SELECT id, name, name_ar, price FROM products WHERE company_id=$1 AND is_active=true ORDER BY name', [cid]),
+    ]);
+    res.render('company/deals', { deals: rows.rows, products: products.rows, session: req.session });
+  } catch (e) { console.error('[deals]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/deals/add', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  const pid = parseInt(b.product_id, 10);
+  const pct = Math.max(1, Math.min(90, parseInt(b.discount_pct, 10) || 0));
+  const ends = b.ends_at && !isNaN(Date.parse(b.ends_at)) ? new Date(b.ends_at).toISOString() : null;
+  try {
+    const owns = (await pool.query('SELECT 1 FROM products WHERE id=$1 AND company_id=$2', [pid, req.session.companyId])).rowCount;
+    if (owns && pct) await pool.query('INSERT INTO deals (company_id, product_id, discount_pct, ends_at) VALUES ($1,$2,$3,$4)', [req.session.companyId, pid, pct, ends]);
+  } catch (e) { console.error('[deal add]', e.message); }
+  res.redirect('/company/deals');
+});
+router.post('/deals/:id/delete', requireLogin, requireShop, async (req, res) => {
+  try { await pool.query('DELETE FROM deals WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.session.companyId]); } catch (e) { console.error(e.message); }
+  res.redirect('/company/deals');
+});
+
+/* ─── COUPONS (phase 11) ─────────────────────────────────── */
+router.get('/coupons', requireLogin, requireShop, async (req, res) => {
+  try {
+    const rows = (await pool.query('SELECT * FROM coupons WHERE company_id=$1 ORDER BY created_at DESC', [req.session.companyId])).rows;
+    res.render('company/coupons', { coupons: rows, session: req.session });
+  } catch (e) { console.error('[coupons]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/coupons/add', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  const code = String(b.code || '').trim().toUpperCase().replace(/\s+/g, '').slice(0, 40);
+  const type = b.discount_type === 'fixed' ? 'fixed' : 'percent';
+  const num = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
+  const exp = b.expires_at && !isNaN(Date.parse(b.expires_at)) ? new Date(b.expires_at).toISOString() : null;
+  try {
+    if (code) await pool.query(
+      `INSERT INTO coupons (company_id, code, discount_type, discount_value, min_order_amount, max_uses, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (company_id, code) DO NOTHING`,
+      [req.session.companyId, code, type, num(b.discount_value, 0), num(b.min_order_amount, 0), parseInt(b.max_uses, 10) || null, exp]
+    );
+  } catch (e) { console.error('[coupon add]', e.message); }
+  res.redirect('/company/coupons');
+});
+router.post('/coupons/:id/delete', requireLogin, requireShop, async (req, res) => {
+  try { await pool.query('DELETE FROM coupons WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.session.companyId]); } catch (e) { console.error(e.message); }
+  res.redirect('/company/coupons');
+});
+
 /* ─── STORE FEATURE FLAGS (phase 21) ─────────────────────── */
 router.get('/features', requireLogin, requireShop, async (req, res) => {
   try {

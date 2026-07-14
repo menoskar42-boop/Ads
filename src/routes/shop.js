@@ -7,6 +7,7 @@ const push = require('../lib/push');
 const reviews = require('../lib/reviews');
 const recommendations = require('../lib/recommendations');
 const shopFeatures = require('../lib/shop_features');
+const deals = require('../lib/deals');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
@@ -253,6 +254,9 @@ router.post('/:slug/checkout', async (req, res) => {
         if (!upd.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
         if (size) itemName = `${prod.name} (مقاس: ${size})`;
       }
+      // Apply an active deal discount (phase 10) to the effective unit price.
+      const deal = await deals.dealForProduct(company.id, prod.id);
+      if (deal) unitPrice = deals.applyPct(unitPrice, deal.discount_pct);
       items.push({ product_id: prod.id, variant_id: Number.isFinite(variantId) ? variantId : null, product_name: itemName, unit_price: unitPrice, quantity: qty });
       total += unitPrice * qty;
     }
@@ -270,12 +274,35 @@ router.post('/:slug/checkout', async (req, res) => {
       }
     }
 
+    // Coupon (phase 11): validate + apply against the item subtotal. Atomic
+    // used_count increment inside the transaction prevents over-use.
+    let discountAmount = 0, appliedCode = null;
+    const couponCode = String((req.body.coupon_code || '')).trim().toUpperCase().replace(/\s+/g, '').slice(0, 40);
+    if (couponCode) {
+      const cpn = (await client.query(
+        `SELECT * FROM coupons WHERE company_id=$1 AND code=$2 AND is_active=true
+           AND (expires_at IS NULL OR expires_at > now())
+           AND (max_uses IS NULL OR used_count < max_uses)
+         FOR UPDATE`,
+        [company.id, couponCode]
+      )).rows[0];
+      if (cpn && total >= Number(cpn.min_order_amount || 0)) {
+        discountAmount = cpn.discount_type === 'fixed'
+          ? Math.min(total, Number(cpn.discount_value))
+          : +(total * Number(cpn.discount_value) / 100).toFixed(2);
+        discountAmount = Math.max(0, Math.min(total, discountAmount));
+        appliedCode = cpn.code;
+        await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id=$1', [cpn.id]);
+      }
+    }
+    const finalTotal = Math.max(0, +(total - discountAmount).toFixed(2));
+
     const orderInsert = await client.query(
       `INSERT INTO orders (company_id, customer_id, customer_name, customer_phone, customer_email,
-                           shipping_address, total_amount, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8) RETURNING id`,
+                           shipping_address, total_amount, status, notes, coupon_code, discount_amount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10) RETURNING id`,
       [company.id, customerId, customer_name, customer_phone, customer_email || null,
-       shipping_address, total, notes || null]
+       shipping_address, finalTotal, notes || null, appliedCode, discountAmount]
     );
     const orderId = orderInsert.rows[0].id;
 
@@ -296,7 +323,7 @@ router.post('/:slug/checkout', async (req, res) => {
 
     push.sendToCompany(company.id, {
       title: '🛒 أوردر جديد',
-      body: `طلب جديد من ${customer_name} بإجمالي ${Number(total).toFixed(2)} ${company.currency || 'EGP'}`,
+      body: `طلب جديد من ${customer_name} بإجمالي ${Number(finalTotal).toFixed(2)} ${company.currency || 'EGP'}`,
       url: '/company/orders',
     }, 'order').catch((e) => console.error('[push order] error:', e.message));
 
@@ -423,11 +450,13 @@ router.get('/:slug/product/:id', async (req, res) => {
       [productId]
     )).rows;
     const feat = await shopFeatures.getFeatures(company.id);
+    const deal = feat.deals === false ? null : await deals.dealForProduct(company.id, productId);
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
       gallery: images.rows,
       variants: feat.variants === false ? [] : variants,
+      deal,
       feat,
       cartCount,
       reviews: rv.reviews,

@@ -1,0 +1,32 @@
+<% pageTitle = 'العروض'; activePage = 'deals'; %>
+<%- include('_layout_top') %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">العروض (عرض ينتهي وقته)</h2>
+    <p class="text-gray-500 text-sm mb-5">خصم مؤقت على منتج مع عدّاد تنازلي — بيظهر على المتجر تلقائياً.</p>
+
+    <form method="POST" action="/company/deals/add" class="grid sm:grid-cols-4 gap-2 mb-6">
+      <select name="product_id" required class="col-span-2 sm:col-span-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value="">اختر المنتج</option>
+        <% products.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name_ar || p.name %> — <%= Number(p.price) %> ج</option><% }); %>
+      </select>
+      <input name="discount_pct" type="number" min="1" max="90" required placeholder="نسبة الخصم %" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="ends_at" type="datetime-local" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <button class="brand-bg text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90">+ إضافة عرض</button>
+    </form>
+
+    <% if (!deals.length) { %>
+      <p class="text-sm text-gray-400 text-center py-6">مفيش عروض حالياً.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% deals.forEach(function(d){ var ended = d.ends_at && new Date(d.ends_at) < new Date(); %>
+        <div class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 <%= (!d.is_active||ended)?'opacity-50':'' %>">
+          <span class="font-bold text-gray-800 flex-1 text-sm"><%= d.product_name %></span>
+          <span class="text-rose-600 font-black text-sm">-<%= d.discount_pct %>%</span>
+          <span class="text-xs text-gray-400"><%= d.ends_at ? ('ينتهي: ' + new Date(d.ends_at).toLocaleString('ar-EG')) : 'بدون نهاية' %><%= ended ? ' (انتهى)' : '' %></span>
+          <form method="POST" action="/company/deals/<%= d.id %>/delete" onsubmit="return confirm('حذف العرض؟')"><button class="bg-red-500 text-white text-xs rounded-full w-6 h-6">×</button></form>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

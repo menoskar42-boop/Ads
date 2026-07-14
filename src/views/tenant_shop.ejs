@@ -228,8 +228,12 @@
         <% var pCat = (categories.find(c => String(c.id) === String(p.category_id)) || {}); %>
         <% var pCatName = pCat.id ? (pickContent(pCat, 'name', company.content_i18n) || pCat.name) : ''; %>
         <%
-          var disc = 0, oldPrice = 0, stars = '', reviews = 0;
-          if (isDelta) {
+          var disc = 0, oldPrice = 0, stars = '', reviews = 0, dealEnds = null, showPrice = Number(p.price);
+          var __deal = (typeof deals !== 'undefined' && deals && deals[p.id]) ? deals[p.id] : null;
+          if (typeof __on === 'function' && __on('deals') && __deal) {
+            disc = __deal.discount_pct; oldPrice = Number(p.price);
+            showPrice = oldPrice * (1 - disc / 100); dealEnds = __deal.ends_at;
+          } else if (isDelta) {
             var discs = [10, 15, 20, 25, 30, 40];
             disc = discs[p.id % discs.length];
             oldPrice = Number(p.price) / (1 - disc / 100);
@@ -241,7 +245,8 @@
           <a class="pc-img-wrap" href="/shop/<%= company.slug %>/product/<%= p.id %>">
             <div class="pc-img" style="background-image:url('<%= p.image_url || '' %>'); background-color: var(--line-soft);"></div>
             <% if (p.stock <= 0) { %><div class="pc-badge out"><%= t('public.out_of_stock') %></div>
-            <% } else if (isDelta) { %><div class="pc-badge">-<%= disc %>%</div><% } %>
+            <% } else if (disc > 0) { %><div class="pc-badge">-<%= disc %>%</div><% } %>
+            <% if (dealEnds) { %><div class="pc-badge" style="inset-inline-start:8px;inset-inline-end:auto;background:#111827;" data-deal-ends="<%= new Date(dealEnds).toISOString() %>">⏳ <span class="deal-cd">عرض</span></div><% } %>
           </a>
           <% if (__on('wishlist')) { %>
           <button class="pc-fav" type="button" aria-label="favorite" data-fav="<%= p.id %>">
@@ -258,7 +263,7 @@
             <a href="/shop/<%= company.slug %>/product/<%= p.id %>"><div class="pc-name"><%= pName %></div></a>
             <% if (isDelta) { %><div class="pc-rating"><span class="pc-stars"><%= stars %></span><span>(<%= reviews.toLocaleString('en-US') %>)</span></div><% } %>
             <div class="pc-price-row">
-              <span class="pc-price"><% if (isDelta) { %><span class="pc-old"><%= oldPrice.toFixed(2) %></span><% } %><%= Number(p.price).toFixed(2) %> <%= cur %></span>
+              <span class="pc-price"><% if (disc > 0) { %><span class="pc-old"><%= oldPrice.toFixed(2) %></span><% } %><%= showPrice.toFixed(2) %> <%= cur %></span>
               <% if (p.stock > 0) { %>
                 <button class="pc-add" type="button" data-product="<%= p.id %>" data-name="<%= pName %>" aria-label="<%= t('public.add_to_cart') %>">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>

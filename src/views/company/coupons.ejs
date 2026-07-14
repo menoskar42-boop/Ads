@@ -1,0 +1,34 @@
+<% pageTitle = 'كوبونات الخصم'; activePage = 'coupons'; %>
+<%- include('_layout_top') %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">كوبونات الخصم</h2>
+    <p class="text-gray-500 text-sm mb-5">أكواد يدخلها العميل في السلة فيتخصم من الإجمالي.</p>
+
+    <form method="POST" action="/company/coupons/add" class="grid sm:grid-cols-3 gap-2 mb-6">
+      <input name="code" required maxlength="40" placeholder="الكود (SAVE20)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm uppercase" />
+      <select name="discount_type" class="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value="percent">نسبة %</option><option value="fixed">مبلغ ثابت</option>
+      </select>
+      <input name="discount_value" type="number" step="0.01" min="0" required placeholder="القيمة" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="min_order_amount" type="number" step="0.01" min="0" placeholder="حد أدنى للطلب" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="max_uses" type="number" min="1" placeholder="أقصى استخدام" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="expires_at" type="datetime-local" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <button class="brand-bg text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90 sm:col-span-3">+ إضافة كوبون</button>
+    </form>
+
+    <% if (!coupons.length) { %>
+      <p class="text-sm text-gray-400 text-center py-6">مفيش كوبونات.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% coupons.forEach(function(c){ var exp = c.expires_at && new Date(c.expires_at) < new Date(); %>
+        <div class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 <%= (!c.is_active||exp)?'opacity-50':'' %>">
+          <span class="font-mono font-bold text-gray-800 flex-1" dir="ltr"><%= c.code %></span>
+          <span class="text-emerald-600 font-bold text-sm"><%= c.discount_type === 'percent' ? (c.discount_value + '%') : (c.discount_value + ' ج') %></span>
+          <span class="text-xs text-gray-400"><%= c.used_count %><%= c.max_uses ? ('/' + c.max_uses) : '' %> استُخدم<%= exp ? ' · منتهي' : '' %></span>
+          <form method="POST" action="/company/coupons/<%= c.id %>/delete" onsubmit="return confirm('حذف الكوبون؟')"><button class="bg-red-500 text-white text-xs rounded-full w-6 h-6">×</button></form>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

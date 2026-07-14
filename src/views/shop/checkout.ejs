@@ -41,6 +41,11 @@
   <% } %>
 
   <form method="POST" action="/shop/<%= company.slug %>/checkout" class="bg-white rounded-2xl shadow p-6 space-y-5">
+    <div>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">كوبون خصم (اختياري)</label>
+      <input type="text" name="coupon_code" maxlength="40" placeholder="لو معاك كود خصم اكتبه هنا" dir="ltr"
+        class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-200" />
+    </div>
     <div class="grid sm:grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('common.full_name') %> *</label>
