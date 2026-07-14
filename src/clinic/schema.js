@@ -361,6 +361,15 @@ async function ensureClinicSchema() {
       );
     `);
 
+    // Self-heal installs created before the migration-safe fix: older dev/prod
+    // tables may still carry the DEFAULT (now() AT TIME ZONE 'Africa/Cairo')::date
+    // that some migration generators cannot serialize. Reset to CURRENT_DATE
+    // (idempotent; no-op on fresh installs which already use CURRENT_DATE).
+    await client.query(`
+      ALTER TABLE clinic_visits     ALTER COLUMN visit_date SET DEFAULT CURRENT_DATE;
+      ALTER TABLE clinic_attendance ALTER COLUMN work_date  SET DEFAULT CURRENT_DATE;
+    `);
+
     await seedDemoClinic(client);
     console.log('Clinic schema ready.');
   } catch (e) {
