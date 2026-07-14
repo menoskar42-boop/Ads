@@ -324,6 +324,7 @@ router.get('/doctor/:slug', clinicGuard, async (req, res) => {
     const clinicSettings = (await pool.query('SELECT * FROM clinic_settings WHERE company_id=$1', [company.id])).rows[0] || null;
     const clinicDoctors = (await pool.query('SELECT id,slug,name,specialty FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order,id', [company.id])).rows;
     const indexable = !!(doctor.bio && doctor.bio.trim().length >= 40) && company.slug !== 'clinic';
+    res.locals.showAds = false; // medical page — never serve ads (AdSense policy)
     res.render('tenant_clinic_doctor', { company, doctor, clinicSettings, clinicDoctors, noindex: !indexable, sent: req.query.sent === '1' });
   } catch (e) { console.error('Doctor page:', e.message); res.redirect('/'); }
 });

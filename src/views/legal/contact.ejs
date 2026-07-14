@@ -4,10 +4,11 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>اتصل بنا | OscarDevs — رد خلال 24 ساعة</title>
-<meta name="description" content="تواصل مع فريق OscarDevs عبر البريد، واتساب، أو نموذج الاتصال المباشر. نرد على استفسارك خلال 24 ساعة عمل." />
-<%- include('../partials/seo_meta', { title: 'اتصل بنا — OscarDevs', description: 'تواصل مع فريق OscarDevs عبر البريد الإلكتروني، واتساب، أو نموذج الاتصال المباشر. ردنا خلال ٢٤ ساعة.' }) %>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"ContactPage","name":"اتصل بنا — OscarDevs","url":"<%= siteOrigin %>/contact","mainEntity":{"@type":"Organization","name":"OscarDevs","email":"contact@oscardevs.com","telephone":"+201552406406","url":"<%= siteOrigin %>","contactPoint":{"@type":"ContactPoint","telephone":"+201552406406","contactType":"customer service","availableLanguage":["ar","en"]}}}</script>
+<% var __contactTitle = 'اتصل بنا | OscarDevs — رد خلال 24 ساعة'; var __contactDesc = 'تواصل مع فريق OscarDevs عبر البريد، واتساب، أو نموذج الاتصال المباشر. نرد على استفسارك خلال 24 ساعة عمل.'; %>
+<title><%= __contactTitle %></title>
+<meta name="description" content="<%= __contactDesc %>" />
+<%- include('../partials/seo_meta', { title: __contactTitle, description: __contactDesc }) %>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"ContactPage","name":"اتصل بنا — OscarDevs","url":"<%= siteOrigin %>/contact","mainEntity":{"@id":"<%= siteOrigin %>#organization"}}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"اتصل بنا","item":"<%= siteOrigin %>/contact"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
