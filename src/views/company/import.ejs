@@ -1,0 +1,18 @@
+<% pageTitle = 'استيراد منتجات'; activePage = 'products'; %>
+<%- include('_layout_top') %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">استيراد منتجات (CSV)</h2>
+    <p class="text-gray-500 text-sm mb-4">الصق بيانات منتجاتك — كل سطر منتج بالترتيب: <b dir="ltr">الاسم, السعر, المخزون, الوصف</b>. (أول سطر عناوين اختياري.)</p>
+
+    <% if (result) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">تم استيراد <%= result.added %> منتج ✅</div><% } %>
+
+    <form method="POST" action="/company/products/import">
+      <textarea name="csv" rows="12" dir="ltr" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono" placeholder="الاسم,السعر,المخزون,الوصف
+قميص قطن,250,10,قميص رجالي
+حذاء رياضي,600,5,مريح وخفيف"></textarea>
+      <button type="submit" class="mt-3 brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow">استيراد</button>
+      <a href="/company/products" class="ms-2 text-gray-500 text-sm">رجوع للمنتجات</a>
+    </form>
+    <p class="text-xs text-gray-400 mt-3">تلميح: من Excel/Google Sheets، اختر الأعمدة (الاسم/السعر/المخزون/الوصف)، انسخها، والصقها هنا.</p>
+  </div>
+<%- include('_layout_bottom') %>

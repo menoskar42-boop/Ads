@@ -832,6 +832,48 @@ router.post('/coupons/:id/delete', requireLogin, requireShop, async (req, res) =
   res.redirect('/company/coupons');
 });
 
+/* ─── CSV PRODUCT IMPORT (competitor phase 28) ───────────── */
+// Tolerant CSV line parser (handles quoted fields containing commas).
+function parseCsvLine(line) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+router.get('/products/import', requireLogin, requireShop, (req, res) => {
+  res.render('company/import', { session: req.session, result: req.query.done ? { added: parseInt(req.query.done, 10) || 0 } : null });
+});
+router.post('/products/import', requireLogin, requireShop, async (req, res) => {
+  const text = String(req.body.csv || '').trim();
+  if (!text) return res.redirect('/company/products/import');
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  // Optional header row: detect if first row is non-numeric price.
+  let start = 0;
+  if (lines.length) { const f = parseCsvLine(lines[0]); if (f[1] && isNaN(Number(f[1]))) start = 1; }
+  let added = 0;
+  for (let i = start; i < lines.length && added < 1000; i++) {
+    const cols = parseCsvLine(lines[i]); // name, price, stock, description, name_en
+    const name = (cols[0] || '').slice(0, 200);
+    const price = Number(cols[1]);
+    if (!name || !isFinite(price)) continue;
+    try {
+      await pool.query(
+        `INSERT INTO products (company_id, name, name_ar, price, stock, description, is_active)
+         VALUES ($1,$2,$2,$3,$4,$5,true)`,
+        [req.session.companyId, name, price, parseInt(cols[2], 10) || 0, (cols[3] || '').slice(0, 2000) || null]
+      );
+      added++;
+    } catch (e) { /* skip bad row */ }
+  }
+  res.redirect('/company/products/import?done=' + added);
+});
+
 /* ─── MARKETING: PIXELS + FEED (phase 24) ────────────────── */
 router.get('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
