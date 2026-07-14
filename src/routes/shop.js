@@ -489,18 +489,25 @@ router.get('/:slug/product/:id', async (req, res) => {
     )).rows;
     const feat = await shopFeatures.getFeatures(company.id);
     const deal = feat.deals === false ? null : await deals.dealForProduct(company.id, productId);
+    const questions = (await pool.query(
+      'SELECT author_name, question, answer, answered_at, created_at FROM product_questions WHERE product_id=$1 AND is_approved=true ORDER BY created_at DESC LIMIT 20',
+      [productId]
+    )).rows;
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
       gallery: images.rows,
       variants: feat.variants === false ? [] : variants,
       deal,
+      questions,
       feat,
       cartCount,
       reviews: rv.reviews,
       reviewBreakdown: rv.breakdown,
       canReview,
       reviewSent: req.query.reviewed === '1',
+      asked: req.query.asked === '1',
+      customerId: req.session.customerId || null,
       recommended,
       noindex: thin,
       showAds: !thin, // product detail is content — but no ads on thin/noindex pages
@@ -538,6 +545,27 @@ router.post('/:slug/product/:id/review', async (req, res) => {
     await reviews.recompute(productId);
     res.redirect(back + '?reviewed=1#reviews');
   } catch (e) { console.error('[review submit]', e.message); res.redirect(back); }
+});
+
+// Ask a question about a product (phase 17). Notifies the merchant.
+router.post('/:slug/product/:id/question', async (req, res) => {
+  const { slug, id } = req.params;
+  const productId = parseInt(id, 10);
+  const back = '/shop/' + encodeURIComponent(slug) + '/product/' + productId;
+  const q = String(req.body.question || '').trim().slice(0, 500);
+  try {
+    const company = await loadShopCompany(slug);
+    if (!company || !q) return res.redirect(back);
+    const owns = (await pool.query('SELECT 1 FROM products WHERE id=$1 AND company_id=$2 AND is_active=true', [productId, company.id])).rowCount;
+    if (owns) {
+      await pool.query(
+        'INSERT INTO product_questions (product_id, company_id, customer_id, author_name, question) VALUES ($1,$2,$3,$4,$5)',
+        [productId, company.id, req.session.customerId || null, String(req.body.author_name || '').slice(0, 60) || null, q]
+      );
+      push.sendToCompany(company.id, { title: 'سؤال جديد على منتج', body: q.slice(0, 80), url: '/company/questions' }).catch(() => {});
+    }
+  } catch (e) { console.error('[question]', e.message); }
+  res.redirect(back + '?asked=1#qa');
 });
 
 router.get('/:slug/order/:id', async (req, res) => {

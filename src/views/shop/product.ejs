@@ -357,6 +357,32 @@
   </section>
   <% } %>
 
+  <!-- Q&A (phase 17) -->
+  <% if (__on('qa')) { %>
+  <section id="qa" class="mt-8 border-t border-gray-100 pt-6">
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4">أسئلة وأجوبة</h2>
+    <% if (typeof asked !== 'undefined' && asked) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">اتبعت سؤالك — هيتم الرد قريباً ✅</div><% } %>
+    <form method="post" action="/shop/<%= company.slug %>/product/<%= product.id %>/question" class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5 grid gap-2">
+      <% if (!customerId) { %><input name="author_name" maxlength="60" placeholder="اسمك (اختياري)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" /><% } %>
+      <textarea name="question" rows="2" required maxlength="500" placeholder="اسأل عن المنتج…" class="border border-gray-200 rounded-xl px-3 py-2 text-sm"></textarea>
+      <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2 text-sm w-fit">اسأل</button>
+    </form>
+    <% if (!questions.length) { %>
+      <p class="text-gray-400 text-sm">لسه مفيش أسئلة — اسأل أول سؤال.</p>
+    <% } else { %>
+      <div class="space-y-4">
+        <% questions.forEach(function(q){ %>
+        <div class="border-b border-gray-100 pb-3 last:border-0">
+          <div class="text-sm font-bold text-gray-800">❓ <%= q.question %></div>
+          <div class="text-xs text-gray-400"><%= q.author_name || 'زائر' %></div>
+          <% if (q.answer) { %><div class="mt-1.5 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-700"><span class="text-emerald-600 font-bold">↳ رد البائع:</span> <%= q.answer %></div><% } %>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </section>
+  <% } %>
+
   <!-- Recommendations (phase 5) -->
   <% if (__on('recommendations') && typeof recommended !== 'undefined' && recommended.length) { %>
   <section class="mt-8 border-t border-gray-100 pt-6">

@@ -51,7 +51,8 @@
             <span class="text-gray-400"><%= new Date(o.created_at).toLocaleString() %></span>
             <span class="font-bold text-gray-800"><%= Number(o.total_amount).toFixed(2) %></span>
           </div>
-          <a href="/shop/<%= o.slug %>/order/<%= o.id %>" class="text-xs text-blue-600 hover:underline mt-2 inline-block">View details →</a>
+          <a href="/customer/orders/<%= o.id %>" class="text-xs text-indigo-600 font-bold hover:underline mt-2 inline-block me-3">🚚 تتبّع الطلب ←</a>
+          <a href="/shop/<%= o.slug %>/order/<%= o.id %>" class="text-xs text-blue-600 hover:underline mt-2 inline-block">التفاصيل →</a>
         </div>
       <% }) %>
     </div>

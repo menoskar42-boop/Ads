@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<%- include('../partials/ads_loader') %>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>تتبّع الطلب #<%= order.id %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script><style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<%
+  var STEPS = [['pending','تم الطلب'],['confirmed','تم التأكيد'],['preparing','بيتجهّز'],['shipped','تم الشحن'],['out_for_delivery','في الطريق'],['delivered','تم التوصيل']];
+  var LABEL = {pending:'تم الطلب',confirmed:'تم التأكيد',preparing:'بيتجهّز',shipped:'تم الشحن',out_for_delivery:'في الطريق',delivered:'تم التوصيل',cancelled:'ملغى'};
+  var cancelled = order.status === 'cancelled';
+  var curIdx = STEPS.findIndex(function(s){ return s[0]===order.status; });
+%>
+<header class="bg-white shadow-sm"><div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+  <a href="/customer/orders" class="text-indigo-600 font-bold text-sm">‹ طلباتي</a>
+  <span class="font-bold text-gray-800">طلب #<%= order.id %></span>
+</div></header>
+<main class="max-w-2xl mx-auto px-4 py-8">
+  <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+    <div class="text-sm text-gray-500 mb-1"><%= order.company_name %></div>
+    <div class="text-2xl font-black text-gray-900 mb-1"><%= Number(order.total_amount).toLocaleString('ar-EG') %> ج</div>
+    <div class="text-sm font-bold <%= cancelled ? 'text-rose-600' : 'text-emerald-600' %>"><%= LABEL[order.status] || order.status %></div>
+  </div>
+
+  <% if (cancelled) { %>
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 mb-5 text-sm">الطلب اتلغى.</div>
+  <% } else { %>
+  <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+    <div class="space-y-0">
+      <% STEPS.forEach(function(s, i){ var done = i <= curIdx; %>
+      <div class="flex items-start gap-3">
+        <div class="flex flex-col items-center">
+          <div class="w-7 h-7 rounded-full grid place-items-center text-xs <%= done ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400' %>"><%= done ? '✓' : (i+1) %></div>
+          <% if (i < STEPS.length-1) { %><div class="w-0.5 h-8 <%= i < curIdx ? 'bg-emerald-500' : 'bg-gray-200' %>"></div><% } %>
+        </div>
+        <div class="pt-1 pb-3">
+          <div class="text-sm font-bold <%= done ? 'text-gray-800' : 'text-gray-400' %>"><%= s[1] %></div>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+    <h2 class="font-bold text-gray-700 mb-2 text-sm">المنتجات</h2>
+    <% items.forEach(function(it){ %>
+    <div class="flex justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
+      <span class="text-gray-700"><%= it.product_name %> × <%= it.quantity %></span>
+      <span class="font-bold text-gray-800"><%= Number(it.unit_price * it.quantity).toLocaleString('ar-EG') %> ج</span>
+    </div>
+    <% }); %>
+    <% if (Number(order.shipping_cost) > 0) { %><div class="flex justify-between text-sm py-1.5 text-gray-500"><span>الشحن<%= order.shipping_zone ? (' — ' + order.shipping_zone) : '' %></span><span><%= Number(order.shipping_cost) %> ج</span></div><% } %>
+    <% if (Number(order.discount_amount) > 0) { %><div class="flex justify-between text-sm py-1.5 text-emerald-600"><span>خصم<%= order.coupon_code ? (' ('+order.coupon_code+')') : '' %></span><span>- <%= Number(order.discount_amount) %> ج</span></div><% } %>
+  </div>
+
+  <% if (order.status === 'delivered' && !returnStatus) { %>
+  <details class="bg-white rounded-2xl shadow-sm p-5">
+    <summary class="text-sm font-bold text-gray-700 cursor-pointer">طلب إرجاع / استرداد</summary>
+    <form method="POST" action="/customer/orders/<%= order.id %>/return" class="mt-3 grid gap-2">
+      <input name="reason" maxlength="120" placeholder="سبب الإرجاع" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <textarea name="notes" rows="2" maxlength="500" placeholder="تفاصيل (اختياري)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm"></textarea>
+      <button class="bg-rose-600 text-white font-bold rounded-xl px-4 py-2 text-sm w-fit">إرسال طلب الإرجاع</button>
+    </form>
+  </details>
+  <% } else if (returnStatus) { %>
+    <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded-2xl p-4 text-sm">طلب الإرجاع: <%= {pending:'قيد المراجعة',approved:'مقبول',rejected:'مرفوض',refunded:'تم الاسترداد'}[returnStatus] || returnStatus %></div>
+  <% } %>
+</main>
+</body></html>

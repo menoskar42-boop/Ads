@@ -79,7 +79,7 @@ const uploadProductMedia = makeMediaUploader('product').fields([
   { name: 'video_file', maxCount: 1 },
 ]);
 
-const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+const ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
 
 // Pharmacy staff (non-owner) may not use the owner's company pages — redirect
 // them to their scoped /pharmacy area. Login/logout/push stay open.
@@ -832,6 +832,34 @@ router.post('/coupons/:id/delete', requireLogin, requireShop, async (req, res) =
   res.redirect('/company/coupons');
 });
 
+/* ─── PRODUCT Q&A + RETURNS (phases 17, 20) ──────────────── */
+router.get('/questions', requireLogin, requireShop, async (req, res) => {
+  try {
+    const [qs, rets] = await Promise.all([
+      pool.query(`SELECT q.*, p.name AS product_name FROM product_questions q JOIN products p ON p.id=q.product_id
+                  WHERE q.company_id=$1 ORDER BY (q.answer IS NULL) DESC, q.created_at DESC LIMIT 100`, [req.session.companyId]),
+      pool.query(`SELECT r.*, o.customer_name FROM return_requests r JOIN orders o ON o.id=r.order_id
+                  WHERE r.company_id=$1 ORDER BY (r.status='pending') DESC, r.created_at DESC LIMIT 100`, [req.session.companyId]),
+    ]);
+    res.render('company/questions', { questions: qs.rows, returns: rets.rows, session: req.session });
+  } catch (e) { console.error('[questions]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/questions/:id/answer', requireLogin, requireShop, async (req, res) => {
+  const ans = String(req.body.answer || '').trim().slice(0, 1000);
+  try {
+    if (ans) await pool.query('UPDATE product_questions SET answer=$1, answered_at=now() WHERE id=$2 AND company_id=$3', [ans, parseInt(req.params.id, 10), req.session.companyId]);
+  } catch (e) { console.error(e.message); }
+  res.redirect('/company/questions');
+});
+router.post('/returns/:id/status', requireLogin, requireShop, async (req, res) => {
+  const st = ['pending', 'approved', 'rejected', 'refunded'].includes(req.body.status) ? req.body.status : null;
+  try {
+    if (st) await pool.query('UPDATE return_requests SET status=$1, admin_notes=$2 WHERE id=$3 AND company_id=$4',
+      [st, String(req.body.admin_notes || '').slice(0, 300) || null, parseInt(req.params.id, 10), req.session.companyId]);
+  } catch (e) { console.error(e.message); }
+  res.redirect('/company/questions');
+});
+
 /* ─── SHIPPING ZONES (phase 12) ──────────────────────────── */
 router.get('/shipping', requireLogin, requireShop, async (req, res) => {
   try {
@@ -1061,10 +1089,15 @@ router.get('/orders/:id', requireLogin, requireShop, async (req, res) => {
 router.post('/orders/:id/status', requireLogin, requireShop, async (req, res) => {
   const { status } = req.body;
   if (!ORDER_STATUSES.includes(status)) return res.redirect(`/company/orders/${req.params.id}`);
-  await pool.query(
-    'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3',
+  const upd = await pool.query(
+    'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3 RETURNING id',
     [status, req.params.id, req.session.companyId]
   );
+  // Record in the tracking timeline (phase 15).
+  if (upd.rows.length) {
+    await pool.query('INSERT INTO order_status_history (order_id, status, note) VALUES ($1,$2,$3)',
+      [upd.rows[0].id, status, String(req.body.note || '').slice(0, 200) || null]).catch(() => {});
+  }
   res.redirect(`/company/orders/${req.params.id}`);
 });
 

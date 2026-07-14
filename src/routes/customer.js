@@ -126,6 +126,24 @@ router.get('/wishlist', requireCustomer, async (req, res) => {
   }
 });
 
+/* ─── ORDER TRACKING (phase 15) ──────────────────────────── */
+router.get('/orders/:id', requireCustomer, async (req, res) => {
+  const oid = parseInt(req.params.id, 10);
+  try {
+    const order = (await pool.query(
+      `SELECT o.*, c.company_name, c.slug FROM orders o JOIN companies c ON c.id=o.company_id
+       WHERE o.id=$1 AND o.customer_id=$2`, [oid, req.session.customerId]
+    )).rows[0];
+    if (!order) return res.redirect('/customer/orders');
+    const [items, history, ret] = await Promise.all([
+      pool.query('SELECT * FROM order_items WHERE order_id=$1 ORDER BY id', [oid]),
+      pool.query('SELECT status, note, created_at FROM order_status_history WHERE order_id=$1 ORDER BY created_at', [oid]),
+      pool.query("SELECT status FROM return_requests WHERE order_id=$1 ORDER BY id DESC LIMIT 1", [oid]),
+    ]);
+    res.render('customer/order_track', { order, items: items.rows, history: history.rows, returnStatus: ret.rows[0] ? ret.rows[0].status : null, session: req.session });
+  } catch (e) { console.error('[order track]', e.message); res.status(500).send('Error.'); }
+});
+
 /* ─── SAVED ADDRESSES (phase 13) ─────────────────────────── */
 router.get('/addresses', requireCustomer, async (req, res) => {
   try {

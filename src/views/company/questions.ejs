@@ -1,0 +1,47 @@
+<% pageTitle = 'أسئلة ومرتجعات'; activePage = 'questions'; %>
+<%- include('_layout_top') %>
+  <div class="grid lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-xl font-bold text-gray-800 mb-4">أسئلة المنتجات</h2>
+      <% if (!questions.length) { %><p class="text-sm text-gray-400">مفيش أسئلة.</p><% } %>
+      <div class="space-y-4">
+        <% questions.forEach(function(q){ %>
+        <div class="border-b border-gray-100 pb-3 last:border-0">
+          <div class="text-xs text-gray-400 mb-0.5"><%= q.product_name %> · <%= q.author_name || 'زائر' %></div>
+          <div class="text-sm font-bold text-gray-800">❓ <%= q.question %></div>
+          <% if (q.answer) { %>
+            <div class="mt-1.5 text-sm text-emerald-700">↳ <%= q.answer %></div>
+          <% } else { %>
+            <form method="POST" action="/company/questions/<%= q.id %>/answer" class="mt-2 flex gap-2">
+              <input name="answer" required maxlength="1000" placeholder="اكتب الرد…" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+              <button class="brand-bg text-white text-xs font-bold px-4 py-2 rounded-lg">رد</button>
+            </form>
+          <% } %>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-xl font-bold text-gray-800 mb-4">طلبات الإرجاع</h2>
+      <% if (!returns.length) { %><p class="text-sm text-gray-400">مفيش طلبات إرجاع.</p><% } %>
+      <div class="space-y-3">
+        <% returns.forEach(function(r){ var L={pending:'قيد المراجعة',approved:'مقبول',rejected:'مرفوض',refunded:'تم الاسترداد'}; %>
+        <div class="border border-gray-200 rounded-xl p-3">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-gray-800 text-sm flex-1">طلب #<%= r.order_id %> — <%= r.customer_name %></span>
+            <span class="text-xs bg-gray-100 rounded px-2 py-0.5"><%= L[r.status] || r.status %></span>
+          </div>
+          <% if (r.reason) { %><div class="text-sm text-gray-600 mt-1"><%= r.reason %></div><% } %>
+          <form method="POST" action="/company/returns/<%= r.id %>/status" class="mt-2 flex gap-2">
+            <select name="status" class="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white">
+              <% ['pending','approved','rejected','refunded'].forEach(function(s){ %><option value="<%= s %>" <%= r.status===s?'selected':'' %>><%= L[s] %></option><% }); %>
+            </select>
+            <button class="bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded-lg">تحديث</button>
+          </form>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+  </div>
+<%- include('_layout_bottom') %>
