@@ -181,9 +181,12 @@ router.get('/:slug/checkout', async (req, res) => {
     if (!Object.keys(cart).length) return res.redirect(`/shop/${slug}/cart`);
 
     let prefill = {};
+    let savedAddresses = [];
+    let customerPoints = 0;
     if (req.session.customerId) {
-      const c = await pool.query('SELECT email, full_name, phone, address FROM customers WHERE id = $1', [req.session.customerId]);
-      if (c.rows.length) prefill = { ...c.rows[0] };
+      const c = await pool.query('SELECT email, full_name, phone, address, loyalty_points FROM customers WHERE id = $1', [req.session.customerId]);
+      if (c.rows.length) { prefill = { ...c.rows[0] }; customerPoints = c.rows[0].loyalty_points || 0; }
+      savedAddresses = (await pool.query('SELECT * FROM customer_addresses WHERE customer_id=$1 ORDER BY is_default DESC, id DESC', [req.session.customerId])).rows;
     }
 
     const payment = await loadPaymentMethods(pool, company, res.locals.t);
@@ -193,6 +196,8 @@ router.get('/:slug/checkout', async (req, res) => {
       prefill,
       payment,
       shippingZones: zones,
+      savedAddresses,
+      customerPoints,
       customerId: req.session.customerId || null,
       error: req.query.error || null,
     });
@@ -298,7 +303,19 @@ router.post('/:slug/checkout', async (req, res) => {
         await client.query('UPDATE coupons SET used_count = used_count + 1 WHERE id=$1', [cpn.id]);
       }
     }
-    const afterDiscount = Math.max(0, +(total - discountAmount).toFixed(2));
+    let afterDiscount = Math.max(0, +(total - discountAmount).toFixed(2));
+    // Loyalty points redemption (phase 19): 100 points = 1 currency unit.
+    let pointsRedeemed = 0, pointsDiscount = 0;
+    if (customerId) {
+      const cust = (await client.query('SELECT loyalty_points FROM customers WHERE id=$1 FOR UPDATE', [customerId])).rows[0];
+      const wantRedeem = Math.max(0, parseInt(req.body.redeem_points, 10) || 0);
+      if (cust && wantRedeem > 0) {
+        const usablePoints = Math.min(wantRedeem, cust.loyalty_points, Math.floor(afterDiscount) * 100);
+        pointsDiscount = Math.floor(usablePoints / 100);
+        pointsRedeemed = pointsDiscount * 100;
+        afterDiscount = Math.max(0, +(afterDiscount - pointsDiscount).toFixed(2));
+      }
+    }
     // Shipping (phase 12): cost by governorate, free over threshold.
     const govr = String(req.body.shipping_zone || '').trim().slice(0, 60);
     let shipCost = 0, shipZoneName = null;
@@ -307,15 +324,25 @@ router.post('/:slug/checkout', async (req, res) => {
       if (zone) { shipCost = shipping.costFor(zone, afterDiscount); shipZoneName = zone.governorate; }
     }
     const finalTotal = +(afterDiscount + shipCost).toFixed(2);
+    // Loyalty earning (phase 19): 1 point per currency unit of the final total.
+    const pointsEarned = customerId ? Math.floor(finalTotal) : 0;
+    const paymentMethod = ['cod', 'card', 'wallet', 'instapay'].includes(req.body.payment_method) ? req.body.payment_method : 'cod';
 
     const orderInsert = await client.query(
       `INSERT INTO orders (company_id, customer_id, customer_name, customer_phone, customer_email,
-                           shipping_address, total_amount, status, notes, coupon_code, discount_amount, shipping_cost, shipping_zone)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12) RETURNING id`,
+                           shipping_address, total_amount, status, notes, coupon_code, discount_amount,
+                           shipping_cost, shipping_zone, points_redeemed, points_earned, payment_method)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
       [company.id, customerId, customer_name, customer_phone, customer_email || null,
-       shipping_address, finalTotal, notes || null, appliedCode, discountAmount, shipCost, shipZoneName]
+       shipping_address, finalTotal, notes || null, appliedCode, discountAmount, shipCost, shipZoneName,
+       pointsRedeemed, pointsEarned, paymentMethod]
     );
     const orderId = orderInsert.rows[0].id;
+    // Apply loyalty delta + initial status history.
+    if (customerId && (pointsRedeemed || pointsEarned)) {
+      await client.query('UPDATE customers SET loyalty_points = GREATEST(0, loyalty_points - $1 + $2) WHERE id=$3', [pointsRedeemed, pointsEarned, customerId]);
+    }
+    await client.query("INSERT INTO order_status_history (order_id, status, note) VALUES ($1,'pending','تم استلام الطلب')", [orderId]);
 
     for (const it of items) {
       await client.query(

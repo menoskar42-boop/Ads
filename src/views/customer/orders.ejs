@@ -15,7 +15,9 @@
   <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
     <a href="/" class="font-bold text-gray-800">Oscardevs Ads</a>
     <div class="flex items-center gap-3 text-sm">
-      <span class="text-gray-500"><%= session.customerEmail %></span>
+      <a href="/customer/addresses" class="text-gray-500 hover:text-indigo-600 font-bold">عناويني</a>
+      <a href="/customer/points" class="text-gray-500 hover:text-indigo-600 font-bold">نقاطي</a>
+      <span class="text-gray-500 hidden sm:inline"><%= session.customerEmail %></span>
       <form method="POST" action="/customer/lang/<%= lang === 'ar' ? 'en' : 'ar' %>" class="inline">
         <button type="submit" class="text-xs font-bold text-gray-500 border border-gray-200 rounded-lg px-2 py-1 hover:text-blue-500"><%= t('common.toggle_lang') %></button>
       </form>

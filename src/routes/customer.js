@@ -126,6 +126,67 @@ router.get('/wishlist', requireCustomer, async (req, res) => {
   }
 });
 
+/* ─── SAVED ADDRESSES (phase 13) ─────────────────────────── */
+router.get('/addresses', requireCustomer, async (req, res) => {
+  try {
+    const rows = (await pool.query('SELECT * FROM customer_addresses WHERE customer_id=$1 ORDER BY is_default DESC, id DESC', [req.session.customerId])).rows;
+    res.render('customer/addresses', { addresses: rows, session: req.session });
+  } catch (e) { console.error('[addresses]', e.message); res.status(500).send('Error.'); }
+});
+router.post('/addresses/add', requireCustomer, async (req, res) => {
+  const b = req.body || {};
+  const s = (v, n) => String(v || '').trim().slice(0, n) || null;
+  const cid = req.session.customerId;
+  try {
+    const makeDefault = String(b.is_default) === '1';
+    if (makeDefault) await pool.query('UPDATE customer_addresses SET is_default=false WHERE customer_id=$1', [cid]);
+    const cnt = (await pool.query('SELECT COUNT(*)::int n FROM customer_addresses WHERE customer_id=$1', [cid])).rows[0].n;
+    await pool.query(
+      `INSERT INTO customer_addresses (customer_id, label, recipient_name, phone, governorate, city, street, apartment, notes, is_default)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [cid, s(b.label, 40), s(b.recipient_name, 100), s(b.phone, 30), s(b.governorate, 60), s(b.city, 60), s(b.street, 200), s(b.apartment, 60), s(b.notes, 300), makeDefault || cnt === 0]
+    );
+  } catch (e) { console.error('[address add]', e.message); }
+  res.redirect('/customer/addresses');
+});
+router.post('/addresses/:id/default', requireCustomer, async (req, res) => {
+  const cid = req.session.customerId;
+  try {
+    await pool.query('UPDATE customer_addresses SET is_default=false WHERE customer_id=$1', [cid]);
+    await pool.query('UPDATE customer_addresses SET is_default=true WHERE id=$1 AND customer_id=$2', [parseInt(req.params.id, 10), cid]);
+  } catch (e) { console.error(e.message); }
+  res.redirect('/customer/addresses');
+});
+router.post('/addresses/:id/delete', requireCustomer, async (req, res) => {
+  try { await pool.query('DELETE FROM customer_addresses WHERE id=$1 AND customer_id=$2', [parseInt(req.params.id, 10), req.session.customerId]); } catch (e) { console.error(e.message); }
+  res.redirect('/customer/addresses');
+});
+
+/* ─── LOYALTY POINTS (phase 19) ──────────────────────────── */
+router.get('/points', requireCustomer, async (req, res) => {
+  try {
+    const c = (await pool.query('SELECT loyalty_points FROM customers WHERE id=$1', [req.session.customerId])).rows[0] || { loyalty_points: 0 };
+    const orders = (await pool.query('SELECT id, points_earned, points_redeemed, total_amount, created_at FROM orders WHERE customer_id=$1 AND (points_earned>0 OR points_redeemed>0) ORDER BY id DESC LIMIT 50', [req.session.customerId])).rows;
+    res.render('customer/points', { points: c.loyalty_points, orders, session: req.session });
+  } catch (e) { console.error('[points]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── RETURN REQUESTS (phase 20) ─────────────────────────── */
+router.post('/orders/:id/return', requireCustomer, async (req, res) => {
+  const oid = parseInt(req.params.id, 10);
+  try {
+    const o = (await pool.query('SELECT id, company_id FROM orders WHERE id=$1 AND customer_id=$2', [oid, req.session.customerId])).rows[0];
+    if (o) {
+      const dup = (await pool.query("SELECT 1 FROM return_requests WHERE order_id=$1 AND status IN ('pending','approved')", [oid])).rowCount;
+      if (!dup) await pool.query(
+        'INSERT INTO return_requests (order_id, company_id, customer_id, reason, notes) VALUES ($1,$2,$3,$4,$5)',
+        [oid, o.company_id, req.session.customerId, String(req.body.reason || '').slice(0, 120) || null, String(req.body.notes || '').slice(0, 500) || null]
+      );
+    }
+  } catch (e) { console.error('[return]', e.message); }
+  res.redirect('/customer/orders');
+});
+
 /* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
 router.post('/lang/:lang', async (req, res) => {
   const lang = req.params.lang === 'en' ? 'en' : 'ar';

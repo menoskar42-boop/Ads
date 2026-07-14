@@ -557,6 +557,74 @@ async function initDb() {
         UNIQUE (customer_id, product_id)
       );
       CREATE INDEX IF NOT EXISTS idx_wishlist_customer ON wishlist_items (customer_id);
+      -- Customer saved addresses (Amazon roadmap phase 13).
+      CREATE TABLE IF NOT EXISTS customer_addresses (
+        id             SERIAL PRIMARY KEY,
+        customer_id    INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        label          TEXT,
+        recipient_name TEXT,
+        phone          TEXT,
+        governorate    TEXT,
+        city           TEXT,
+        street         TEXT,
+        apartment      TEXT,
+        notes          TEXT,
+        is_default     BOOLEAN NOT NULL DEFAULT false,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_customer_addresses ON customer_addresses (customer_id);
+      -- Product Q&A (Amazon roadmap phase 17).
+      CREATE TABLE IF NOT EXISTS product_questions (
+        id          SERIAL PRIMARY KEY,
+        product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        company_id  INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        author_name TEXT,
+        question    TEXT NOT NULL,
+        answer      TEXT,
+        answered_at TIMESTAMPTZ,
+        is_approved BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_product_questions ON product_questions (product_id, is_approved);
+      -- Loyalty points (Amazon roadmap phase 19).
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS loyalty_points INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_redeemed INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_earned INTEGER NOT NULL DEFAULT 0;
+      -- Order status tracking (Amazon roadmap phase 15).
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'cod';
+      CREATE TABLE IF NOT EXISTS order_status_history (
+        id         SERIAL PRIMARY KEY,
+        order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        status     TEXT NOT NULL,
+        note       TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_order_status_history ON order_status_history (order_id, created_at);
+      -- Back-in-stock / price-drop alerts (Amazon roadmap phase 18).
+      CREATE TABLE IF NOT EXISTS stock_notifications (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        email       TEXT NOT NULL,
+        notify_on   TEXT NOT NULL DEFAULT 'back_in_stock',
+        notified    BOOLEAN NOT NULL DEFAULT false,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_notifications ON stock_notifications (product_id, notified);
+      -- Return / refund requests (Amazon roadmap phase 20).
+      CREATE TABLE IF NOT EXISTS return_requests (
+        id          SERIAL PRIMARY KEY,
+        order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        company_id  INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        reason      TEXT,
+        notes       TEXT,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        admin_notes TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_return_requests ON return_requests (company_id, status);
       -- Product variants (Amazon roadmap phase 8): size/color/… with own stock + price delta.
       CREATE TABLE IF NOT EXISTS product_variants (
         id          SERIAL PRIMARY KEY,

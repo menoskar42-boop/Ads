@@ -41,6 +41,29 @@
   <% } %>
 
   <form method="POST" action="/shop/<%= company.slug %>/checkout" class="bg-white rounded-2xl shadow p-6 space-y-5">
+    <% if (typeof savedAddresses !== 'undefined' && savedAddresses.length) { %>
+    <div>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">📍 عنوان محفوظ (اختياري)</label>
+      <select id="savedAddrPick" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white">
+        <option value="">— اكتب عنوان جديد —</option>
+        <% savedAddresses.forEach(function(a){ %>
+          <option value="<%= a.id %>"
+            data-name="<%= a.recipient_name || '' %>" data-phone="<%= a.phone || '' %>" data-gov="<%= a.governorate || '' %>"
+            data-addr="<%= [a.governorate,a.city,a.street,a.apartment].filter(Boolean).join('، ') %>"><%= (a.label||'عنوان') + ' — ' + [a.governorate,a.city].filter(Boolean).join('، ') %></option>
+        <% }); %>
+      </select>
+      <script>
+      (function(){ var s=document.getElementById('savedAddrPick'); if(!s) return; s.addEventListener('change',function(){
+        var o=s.options[s.selectedIndex]; if(!o.value) return;
+        var f=s.closest('form');
+        if(f.customer_name && o.dataset.name) f.customer_name.value=o.dataset.name;
+        if(f.customer_phone && o.dataset.phone) f.customer_phone.value=o.dataset.phone;
+        if(f.shipping_address && o.dataset.addr) f.shipping_address.value=o.dataset.addr;
+        if(f.shipping_zone && o.dataset.gov){ for(var i=0;i<f.shipping_zone.options.length;i++){ if(f.shipping_zone.options[i].value===o.dataset.gov){ f.shipping_zone.selectedIndex=i; break; } } }
+      }); })();
+      </script>
+    </div>
+    <% } %>
     <% if (typeof shippingZones !== 'undefined' && shippingZones.length) { %>
     <div>
       <label class="block text-sm font-semibold text-gray-600 mb-1.5">المحافظة (للشحن) *</label>
@@ -56,6 +79,23 @@
       <label class="block text-sm font-semibold text-gray-600 mb-1.5">كوبون خصم (اختياري)</label>
       <input type="text" name="coupon_code" maxlength="40" placeholder="لو معاك كود خصم اكتبه هنا" dir="ltr"
         class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-200" />
+    </div>
+    <% if (typeof customerPoints !== 'undefined' && customerPoints >= 100) { %>
+    <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+      <label class="block text-sm font-semibold text-indigo-700 mb-1.5">⭐ عندك <%= customerPoints %> نقطة (= <%= (customerPoints/100).toFixed(2) %> ج)</label>
+      <div class="flex items-center gap-2">
+        <input type="number" name="redeem_points" min="0" max="<%= customerPoints %>" step="100" placeholder="عدد النقاط اللي تستخدمها" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+        <span class="text-xs text-gray-500">كل 100 نقطة = 1 ج</span>
+      </div>
+    </div>
+    <% } %>
+    <div>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">طريقة الدفع</label>
+      <div class="flex flex-wrap gap-2">
+        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="cod" checked /> عند الاستلام (كاش)</label>
+        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="wallet" /> محفظة (فودافون كاش…)</label>
+        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="instapay" /> InstaPay</label>
+      </div>
     </div>
     <div class="grid sm:grid-cols-2 gap-4">
       <div>
