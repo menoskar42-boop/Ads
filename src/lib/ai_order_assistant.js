@@ -16,8 +16,14 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const MAX_TOOL_ROUNDS = 4;
 
+// Resolve the Groq key tolerantly — accept the common secret names so the
+// feature isn't silently disabled by a naming mismatch (GROQ_API_KEY preferred).
+function groqKey() {
+  return process.env.GROQ_API_KEY || process.env.GROQ_KEY || process.env.GROQ || '';
+}
+
 function isEnabled() {
-  return Boolean(process.env.GROQ_API_KEY);
+  return Boolean(groqKey());
 }
 
 // Words that mark a category/item as a drink / dessert / side — used to steer
@@ -146,7 +152,7 @@ async function callGroq(messages, tools) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${groqKey()}`,
     },
     body: JSON.stringify({
       model: DEFAULT_MODEL,
