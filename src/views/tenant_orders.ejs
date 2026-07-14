@@ -553,6 +553,10 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
           bubble('assistant', ADDED + ' ' + names);
           openCartLink();
         }
+        // Receptionist finished the order → hand off to the secure cart/checkout.
+        if (res.ok && d.checkout) {
+          setTimeout(function () { close(); if (window.__odvOpenCart) window.__odvOpenCart(); }, 700);
+        }
       }).catch(function () { typing.textContent = ERR; })
       .then(function () { busy = false; sendBtn.disabled = false; sendBtn.style.opacity = '1'; });
   });

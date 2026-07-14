@@ -1,24 +1,36 @@
-// AI order assistant — powered by Groq (OpenAI-compatible chat API).
+// AI order assistant — a natural, human-like restaurant RECEPTIONIST that takes
+// orders inside the storefront (not WhatsApp). Powered by Groq (OpenAI-compatible
+// chat API — cheaper / generous free tier, owner's decision).
 //
-// The customer types naturally ("عايز 2 برجر وعصير" / "2 burgers and a juice")
-// and the model maps that onto THIS merchant's menu only, decides quantities,
-// and calls the `add_to_cart` tool. The server validates every item id against
-// the menu before trusting it, so the model can never invent products or prices.
+// It behaves like a real front-desk employee: greets warmly, knows every dish on
+// THIS merchant's menu, infers likely ingredients from the dish name when the
+// owner didn't write a description, knows the exact prices, upsells naturally
+// ("تحب أضيفلك حاجة ساقعة معاها؟"), and when the customer is done it hands the
+// built cart over to checkout — all grounded strictly in the real menu.
 //
-// Groq is used instead of Anthropic because it is cheaper / has a more generous
-// free tier (owner's decision). It speaks the OpenAI chat-completions dialect,
-// so we call it with the global fetch (Node 18+) — no SDK dependency.
+// Groq speaks the OpenAI chat-completions dialect, so we call it with global
+// fetch (Node 18+) — no SDK dependency.
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
-const MAX_TOOL_ROUNDS = 3;
+// A strong, tool-capable, Arabic-fluent default. Override with GROQ_MODEL.
+const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const MAX_TOOL_ROUNDS = 4;
 
 function isEnabled() {
   return Boolean(process.env.GROQ_API_KEY);
 }
 
+// Words that mark a category/item as a drink / dessert / side — used to steer
+// upsell suggestions ("something cold with that?").
+const DRINK_HINTS = ['مشروب', 'عصير', 'كولا', 'بيبسي', 'مياه', 'ساقع', 'ساقعة', 'صودا', 'شاي', 'قهوة', 'drink', 'juice', 'soda', 'cola', 'water', 'beverage', 'coffee', 'tea'];
+const DESSERT_HINTS = ['حلو', 'تحلية', 'حلويات', 'كيك', 'ايس كريم', 'آيس', 'dessert', 'cake', 'ice cream', 'sweet'];
+
+function matchesHints(text, hints) {
+  const t = String(text || '').toLowerCase();
+  return hints.some((h) => t.includes(h));
+}
+
 // Flatten the merchant's outlets → a lookup of available items the model may use.
-// Returns { list: [{id,name,name_ar,price,outlet_id,outlet,category}], byId: Map }.
 function buildMenu(outlets) {
   const list = [];
   const byId = new Map();
@@ -28,14 +40,19 @@ function buildMenu(outlets) {
     (o.categories || []).forEach((c) => { cats[c.id] = c.name_ar || c.name || ''; });
     (o.items || []).forEach((it) => {
       if (it.is_available === false) return;
+      const category = cats[it.category_id] || '';
+      const nameBlob = [it.name, it.name_ar, category].join(' ');
       const row = {
         id: it.id,
         name: it.name || '',
         name_ar: it.name_ar || '',
         price: Number(it.price) || 0,
+        description: (it.description || '').trim(),
         outlet_id: o.id,
         outlet: outletName,
-        category: cats[it.category_id] || '',
+        category,
+        isDrink: matchesHints(nameBlob, DRINK_HINTS),
+        isDessert: matchesHints(nameBlob, DESSERT_HINTS),
       };
       list.push(row);
       byId.set(String(it.id), row);
@@ -48,28 +65,45 @@ function menuAsText(list, cur) {
   return list.map((r) => {
     const names = [r.name_ar, r.name].filter(Boolean).join(' / ');
     const cat = r.category ? ` [${r.category}]` : '';
-    return `#${r.id} — ${names}${cat} — ${r.price} ${cur}`;
+    const desc = r.description ? ` — ${r.description}` : '';
+    return `#${r.id} — ${names}${cat} — ${r.price} ${cur}${desc}`;
   }).join('\n');
 }
 
 function systemPrompt(list, lang, cur, merchantName) {
   const menu = menuAsText(list, cur);
+  const hasDrinks = list.some((r) => r.isDrink);
+  const hasDesserts = list.some((r) => r.isDessert);
   return [
-    `You are the ordering assistant for "${merchantName}", a food/grocery shop.`,
-    `Your ONLY job is to help the customer build a cart from the menu below.`,
+    `أنت موظف استقبال الطلبات في مطعم "${merchantName}". اسمك مش مهم — المهم إنك بتتكلم زي موظف بشري حقيقي، ودود ومحترف وسريع.`,
+    `بتساعد الزبون يطلب أكله من المنيو اللي تحت، وتبني له السلة، وفي الآخر تساعده يكمّل الطلب.`,
     ``,
-    `STRICT RULES:`,
-    `- You may ONLY reference items that appear in the MENU list. Never invent items, prices, or availability.`,
-    `- When the customer decides on items, call the add_to_cart tool with the exact item ids and quantities.`,
-    `- If a request has no matching item, say so briefly and suggest the closest available items by name.`,
-    `- Do not discuss anything unrelated to ordering from this menu. No medical, legal, or off-topic advice.`,
-    `- Prices and currency are fixed by the menu; never quote a different price.`,
-    `- Reply in the SAME language the customer used (Arabic or English). Keep replies short and friendly.`,
-    `- The customer still confirms and pays cash on delivery in the cart; you only prepare it.`,
+    `أسلوبك (مهم جداً):`,
+    `- اتكلم باللهجة المصرية الطبيعية الدافئة زي موظف استقبال شاطر (مثال: «أهلاً بيك! تحب تطلب إيه النهاردة؟»).`,
+    `- ردود قصيرة وطبيعية، من غير رسمية زايدة ومن غير قوائم طويلة. سؤال واحد في المرة.`,
+    `- افهم الطلب حتى لو مكتوب بشكل عامي أو فيه أخطاء، ورشّح أقرب صنف من المنيو.`,
     ``,
-    `MENU (currency: ${cur}):`,
-    menu || '(empty)',
-  ].join('\n');
+    `معرفتك بالأكل:`,
+    `- إنت عارف كل أصناف المنيو وأسعارها بالظبط (السعر ثابت زي ما مكتوب — ممنوع تغيّره أو تخترع سعر).`,
+    `- لو الزبون سأل عن مكوّنات صنف وفيه وصف مكتوب، استخدمه.`,
+    `- لو مفيش وصف مكتوب، تقدر تتوقّع المكوّنات الشائعة من اسم الصنف وتقولها كـ«غالباً بيكون فيه…» — ووضّح إنها توقّع، ولو حابب يتأكد من مكوّن معيّن (خصوصاً حساسية) يسأل المطعم. ممنوع تجزم بمكوّن مش متأكد منه أو تخترع معلومة تحسّس.`,
+    ``,
+    `بناء الطلب:`,
+    `- لما الزبون يقرّر أصناف، نادِ أداة add_to_cart بالـids والكميات الصحيحة من المنيو بس.`,
+    `- لو طلب حاجة مش في المنيو، قوله بلطف إنها مش متوفرة ورشّح أقرب بديل موجود.`,
+    hasDrinks ? `- بعد ما يضيف وجبة رئيسية ومفيش مشروب في طلبه، اعرض عليه بشكل طبيعي مشروب ساقع من المنيو («تحب أضيفلك حاجة ساقعة معاها؟»). مرة واحدة بس، ومن غير إلحاح.` : ``,
+    hasDesserts ? `- ممكن كمان تعرض تحلية موجودة في المنيو لو مناسب، بلطف ومن غير تكرار.` : ``,
+    `- لو الزبون قال «كفاية/خلاص/بس كده» متعرضش تاني.`,
+    ``,
+    `إنهاء الطلب:`,
+    `- لما الزبون يقول إنه خلّص أو عايز يأكّد/يطلب، لخّصله الطلب باختصار (الأصناف + الإجمالي التقريبي) ونادِ أداة checkout عشان ننقله لإتمام الطلب (الاسم والعنوان والدفع بيتمّوا في السلة).`,
+    `- الدفع كاش عند الاستلام من خلال السلة — إنت بتجهّز الطلب بس.`,
+    ``,
+    `ممنوعات: ماتتكلمش في أي حاجة برّه الطلب من المطعم ده (لا طب، لا قانون، لا مواضيع تانية). اردّ بنفس لغة الزبون (عربي أو إنجليزي).`,
+    ``,
+    `المنيو (العملة: ${cur}):`,
+    menu || '(المنيو فاضي حالياً)',
+  ].filter(Boolean).join('\n');
 }
 
 const ADD_TO_CART_TOOL = {
@@ -98,6 +132,15 @@ const ADD_TO_CART_TOOL = {
   },
 };
 
+const CHECKOUT_TOOL = {
+  type: 'function',
+  function: {
+    name: 'checkout',
+    description: 'Call this ONLY when the customer has finished choosing and explicitly wants to place/confirm the order. Signals the storefront to open the cart for name/address/payment.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+};
+
 async function callGroq(messages, tools) {
   const res = await fetch(GROQ_URL, {
     method: 'POST',
@@ -110,8 +153,8 @@ async function callGroq(messages, tools) {
       messages,
       tools,
       tool_choice: 'auto',
-      temperature: 0.3,
-      max_tokens: 700,
+      temperature: 0.5,
+      max_tokens: 800,
     }),
   });
   if (!res.ok) {
@@ -124,7 +167,7 @@ async function callGroq(messages, tools) {
 }
 
 // Run one assistant turn. `history` is prior [{role,content}] (user/assistant
-// text only). Returns { reply, cart:[{id,qty,name,price}], tokens }.
+// text only). Returns { reply, cart:[{id,qty,name,price}], checkout, tokens }.
 async function runAssistant({ outlets, history, message, lang, cur, merchantName }) {
   const { list, byId } = buildMenu(outlets);
   const sys = systemPrompt(list, lang, cur || '', merchantName || '');
@@ -140,9 +183,10 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
   const cart = [];
   let tokens = 0;
   let reply = '';
+  let checkout = false;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const data = await callGroq(messages, [ADD_TO_CART_TOOL]);
+    const data = await callGroq(messages, [ADD_TO_CART_TOOL, CHECKOUT_TOOL]);
     tokens += (data.usage && data.usage.total_tokens) || 0;
     const choice = (data.choices && data.choices[0]) || {};
     const msg = choice.message || {};
@@ -156,6 +200,12 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
     // Record the assistant tool-call turn, then answer each call.
     messages.push({ role: 'assistant', content: msg.content || '', tool_calls: toolCalls });
     for (const tc of toolCalls) {
+      const fname = (tc.function && tc.function.name) || '';
+      if (fname === 'checkout') {
+        checkout = true;
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ ok: true, checkout: true }) });
+        continue;
+      }
       let added = [];
       try {
         const args = JSON.parse((tc.function && tc.function.arguments) || '{}');
@@ -169,20 +219,16 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
           added.push({ id: row.id, name: row.name_ar || row.name, qty, price: row.price });
         });
       } catch (e) { /* ignore malformed args */ }
-      messages.push({
-        role: 'tool',
-        tool_call_id: tc.id,
-        content: JSON.stringify({ ok: true, added }),
-      });
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ ok: true, added }) });
     }
   }
 
   if (!reply) {
-    reply = lang === 'en'
-      ? 'I added those to your cart. Anything else?'
-      : 'ضفتهم لسلتك. تحب تضيف حاجة تانية؟';
+    reply = checkout
+      ? (lang === 'en' ? 'Great — opening your cart to finish the order.' : 'تمام — بفتحلك السلة عشان تكمّل الطلب.')
+      : (lang === 'en' ? 'Added to your cart. Anything else?' : 'ضفتهم لسلتك. تحب حاجة تانية؟');
   }
-  return { reply, cart, tokens };
+  return { reply, cart, checkout, tokens };
 }
 
-module.exports = { isEnabled, runAssistant, buildMenu, DEFAULT_MODEL };
+module.exports = { isEnabled, buildMenu, runAssistant };

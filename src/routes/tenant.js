@@ -718,7 +718,7 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
       await pool.query('UPDATE food_ai_subscriptions SET used_this_period = used_this_period + 1 WHERE company_id = $1', [company.id]);
     } catch (e) { console.error('[ai log]', e.message); }
 
-    res.json({ ok: true, reply: out.reply, cart: out.cart });
+    res.json({ ok: true, reply: out.reply, cart: out.cart, checkout: !!out.checkout });
   } catch (e) {
     console.error('[ai assistant]', e.message);
     res.status(502).json({ ok: false, error: say('حصل خطأ مؤقت، جرّب تاني.', 'A temporary error occurred, please try again.') });
