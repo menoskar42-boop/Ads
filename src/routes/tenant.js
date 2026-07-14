@@ -965,4 +965,25 @@ router.get('/api/search', async (req, res) => {
   } catch (e) { console.error('[shop search]', e.message); res.json({ items: [] }); }
 });
 
+// ── Product comparison (Amazon roadmap phase 9) ──────────────────────────────
+router.get('/compare', async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'shop') return res.redirect('/');
+  const ids = String(req.query.ids || '').split(',').map((x) => parseInt(x, 10)).filter(Boolean).slice(0, 4);
+  let products = [];
+  if (ids.length) {
+    try {
+      products = (await pool.query(
+        `SELECT p.*, c.name AS category_name FROM products p
+         LEFT JOIN product_categories c ON c.id = p.category_id
+         WHERE p.company_id=$1 AND p.is_active=true AND p.id = ANY($2::int[])`,
+        [company.id, ids]
+      )).rows;
+      // preserve the requested order
+      products.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+    } catch (e) { console.error('[compare]', e.message); }
+  }
+  res.render('shop/compare', { company, products, noindex: true, showAds: false });
+});
+
 module.exports = router;

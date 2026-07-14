@@ -15,6 +15,8 @@ const FEATURES = [
   { key: 'wishlist',        label: 'قائمة المفضّلة',       desc: 'زر القلب لحفظ المنتجات للشراء لاحقاً.', default: true },
   { key: 'variants',        label: 'خيارات المنتج',        desc: 'اختيار مقاس/لون بمخزون وسعر مختلف.', default: true },
   { key: 'zoom',            label: 'تكبير الصور',          desc: 'فتح صورة المنتج بملء الشاشة مع تكبير.', default: true },
+  { key: 'compare',         label: 'مقارنة المنتجات',      desc: 'اختيار عدة منتجات ومقارنتها جنباً إلى جنب.', default: true },
+  { key: 'deals',           label: 'عروض ينتهي وقتها',      desc: 'عرض اليوم + عدّاد تنازلي على المنتجات المخفّضة.', default: true },
 ];
 
 const KEYS = FEATURES.map((f) => f.key);

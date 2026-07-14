@@ -248,6 +248,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
           </button>
           <% } %>
+          <% if (__on('compare')) { %>
+          <label class="pc-compare" style="position:absolute;top:8px;inset-inline-start:8px;display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.9);border-radius:8px;padding:3px 7px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;z-index:5;">
+            <input type="checkbox" class="cmp-box" data-cmp="<%= p.id %>" data-name="<%= (p.name_ar||p.name) %>" style="width:14px;height:14px;" /> قارن
+          </label>
+          <% } %>
           <div class="pc-info">
             <% if (pCatName) { %><div class="pc-cat"><%= pCatName %></div><% } %>
             <a href="/shop/<%= company.slug %>/product/<%= p.id %>"><div class="pc-name"><%= pName %></div></a>
@@ -469,6 +474,33 @@
   document.addEventListener('click', function (e) { if (!box.contains(e.target) && e.target !== input) hide(); });
 })();
 </script>
+<% if (__on('compare')) { %>
+<a href="#" id="cmpBar" style="display:none;position:fixed;inset-inline:0;bottom:0;z-index:70;background:#111827;color:#fff;text-align:center;padding:12px;font-weight:800;text-decoration:none;">قارن (<span id="cmpN">0</span>) ←</a>
+<script>
+// Product compare (phase 9): persist selection in localStorage, show a bar at 2+.
+(function () {
+  var KEY = 'odv_compare_<%= company.slug %>', slug = window.SHOP_SLUG || '';
+  var bar = document.getElementById('cmpBar'), nEl = document.getElementById('cmpN');
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+  function save(a) { localStorage.setItem(KEY, JSON.stringify(a.slice(0, 4))); }
+  function refresh() {
+    var ids = load();
+    document.querySelectorAll('.cmp-box').forEach(function (b) { b.checked = ids.indexOf(+b.dataset.cmp) >= 0; });
+    if (nEl) nEl.textContent = ids.length;
+    if (bar) { bar.style.display = ids.length >= 2 ? 'block' : 'none'; bar.href = '/compare?ids=' + ids.join(','); }
+  }
+  document.querySelectorAll('.cmp-box').forEach(function (b) {
+    b.addEventListener('change', function () {
+      var ids = load(), id = +b.dataset.cmp, i = ids.indexOf(id);
+      if (b.checked) { if (i < 0) { if (ids.length >= 4) { b.checked = false; alert('أقصى 4 منتجات للمقارنة'); return; } ids.push(id); } }
+      else if (i >= 0) ids.splice(i, 1);
+      save(ids); refresh();
+    });
+  });
+  refresh();
+})();
+</script>
+<% } %>
 <% if (__on('wishlist')) { %>
 <script>
 // Wishlist (phase 6): paint hearts from the customer's saved set, toggle on click.
