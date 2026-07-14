@@ -593,6 +593,10 @@ async function initDb() {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_earned INTEGER NOT NULL DEFAULT 0;
       -- Order status tracking (Amazon roadmap phase 15).
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'cod';
+      -- Marketing pixels + product feed (competitor phase 24).
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS fb_pixel_id TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS tiktok_pixel_id TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS ga4_id TEXT;
       CREATE TABLE IF NOT EXISTS order_status_history (
         id         SERIAL PRIMARY KEY,
         order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

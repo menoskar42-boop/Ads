@@ -967,6 +967,42 @@ router.get('/api/search', async (req, res) => {
   } catch (e) { console.error('[shop search]', e.message); res.json({ items: [] }); }
 });
 
+// ── Product feed for Facebook Catalog / Google Merchant (phase 24) ───────────
+router.get('/feed.xml', async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'shop') return res.status(404).send('Not found');
+  const xesc = (s) => String(s || '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+  const base = 'https://' + company.slug + '.oscardevs.com';
+  try {
+    const rows = (await pool.query(
+      'SELECT id, name, name_ar, description, description_ar, price, image_url, stock FROM products WHERE company_id=$1 AND is_active=true ORDER BY id',
+      [company.id]
+    )).rows;
+    const items = rows.map((p) => {
+      const name = p.name_ar || p.name || '';
+      const desc = (p.description_ar || p.description || name).slice(0, 4000);
+      const img = p.image_url ? (p.image_url.startsWith('http') ? p.image_url : base + p.image_url) : '';
+      return [
+        '  <item>',
+        `    <g:id>${p.id}</g:id>`,
+        `    <g:title>${xesc(name)}</g:title>`,
+        `    <g:description>${xesc(desc)}</g:description>`,
+        `    <g:link>${base}/shop/${company.slug}/product/${p.id}</g:link>`,
+        img ? `    <g:image_link>${xesc(img)}</g:image_link>` : '',
+        `    <g:availability>${p.stock > 0 ? 'in stock' : 'out of stock'}</g:availability>`,
+        `    <g:price>${Number(p.price).toFixed(2)} EGP</g:price>`,
+        '    <g:condition>new</g:condition>',
+        '  </item>',
+      ].filter(Boolean).join('\n');
+    }).join('\n');
+    res.type('application/xml').send(
+      '<?xml version="1.0" encoding="UTF-8"?>\n<rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">\n<channel>\n' +
+      `<title>${xesc(company.company_name)}</title>\n<link>${base}/</link>\n<description>${xesc(company.company_name)} — كتالوج المنتجات</description>\n` +
+      items + '\n</channel>\n</rss>\n'
+    );
+  } catch (e) { console.error('[feed]', e.message); res.status(500).send('error'); }
+});
+
 // ── Product comparison (Amazon roadmap phase 9) ──────────────────────────────
 router.get('/compare', async (req, res) => {
   const company = req.tenant;

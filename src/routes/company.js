@@ -832,6 +832,23 @@ router.post('/coupons/:id/delete', requireLogin, requireShop, async (req, res) =
   res.redirect('/company/coupons');
 });
 
+/* ─── MARKETING: PIXELS + FEED (phase 24) ────────────────── */
+router.get('/marketing', requireLogin, requireShop, async (req, res) => {
+  try {
+    const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
+    res.render('company/marketing', { company: c, session: req.session, saved: req.query.saved === '1' });
+  } catch (e) { console.error('[marketing]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/marketing', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  const clean = (v) => String(v || '').trim().slice(0, 60).replace(/[^\w.\-]/g, '') || null;
+  try {
+    await pool.query('UPDATE companies SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3 WHERE id=$4',
+      [clean(b.fb_pixel_id), clean(b.tiktok_pixel_id), clean(b.ga4_id), req.session.companyId]);
+  } catch (e) { console.error('[marketing save]', e.message); }
+  res.redirect('/company/marketing?saved=1');
+});
+
 /* ─── SALES REPORTS (phase 22) ───────────────────────────── */
 router.get('/reports', requireLogin, requireShop, async (req, res) => {
   const cid = req.session.companyId;
