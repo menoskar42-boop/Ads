@@ -832,6 +832,35 @@ router.post('/coupons/:id/delete', requireLogin, requireShop, async (req, res) =
   res.redirect('/company/coupons');
 });
 
+/* ─── SALES REPORTS (phase 22) ───────────────────────────── */
+router.get('/reports', requireLogin, requireShop, async (req, res) => {
+  const cid = req.session.companyId;
+  try {
+    const [totals, byStatus, daily, topProducts] = await Promise.all([
+      pool.query(
+        `SELECT
+           COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled'),0) AS revenue,
+           COUNT(*) FILTER (WHERE status <> 'cancelled') AS orders,
+           COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled' AND created_at::date = CURRENT_DATE),0) AS today,
+           COALESCE(SUM(total_amount) FILTER (WHERE status <> 'cancelled' AND created_at >= date_trunc('month', CURRENT_DATE)),0) AS month
+         FROM orders WHERE company_id=$1`, [cid]),
+      pool.query("SELECT status, COUNT(*)::int n FROM orders WHERE company_id=$1 GROUP BY status", [cid]),
+      pool.query(
+        `SELECT created_at::date AS d, COALESCE(SUM(total_amount),0) AS total FROM orders
+         WHERE company_id=$1 AND status<>'cancelled' AND created_at >= CURRENT_DATE - INTERVAL '29 days'
+         GROUP BY d ORDER BY d`, [cid]),
+      pool.query(
+        `SELECT oi.product_name, SUM(oi.quantity)::int qty, COALESCE(SUM(oi.unit_price*oi.quantity),0) revenue
+         FROM order_items oi JOIN orders o ON o.id=oi.order_id
+         WHERE o.company_id=$1 AND o.status<>'cancelled'
+         GROUP BY oi.product_name ORDER BY revenue DESC LIMIT 10`, [cid]),
+    ]);
+    res.render('company/reports', {
+      totals: totals.rows[0], byStatus: byStatus.rows, daily: daily.rows, topProducts: topProducts.rows, session: req.session,
+    });
+  } catch (e) { console.error('[reports]', e.message); res.redirect('/company/dashboard'); }
+});
+
 /* ─── PRODUCT Q&A + RETURNS (phases 17, 20) ──────────────── */
 router.get('/questions', requireLogin, requireShop, async (req, res) => {
   try {

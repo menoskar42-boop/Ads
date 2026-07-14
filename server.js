@@ -948,6 +948,12 @@ setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();
 // pharmacy/food chain above completing on a fresh DB.
 neuroPush.ensureSchema().catch((err) => console.error('[neuropilot push schema]', err.message));
 
+// Back-in-stock notifier (phase 18) — check every 15 min for restocked products.
+try {
+  const stockNotifier = require('./src/lib/stock_notifier');
+  setInterval(() => { stockNotifier.checkAndNotify().catch(() => {}); }, 15 * 60 * 1000).unref();
+} catch (e) { /* optional */ }
+
 // Kakeibo daily expense-logging reminders (best-effort; self-gated to evening +
 // once/day per user). Checks hourly so long-running instances remind opted-in users.
 try {

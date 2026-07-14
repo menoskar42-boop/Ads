@@ -246,6 +246,7 @@
               <%= t('public.add_to_cart') %>
             </button>
           </div>
+          <button type="submit" name="buy_now" value="1" class="w-full mt-2 bg-amber-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-amber-600 transition shadow">⚡ اشترِ الآن</button>
         </form>
         <% if (typeof variants !== 'undefined' && variants.length) { %>
         <script>
@@ -276,6 +277,19 @@
         })();
         </script>
         <% } %>
+      <% } else { %>
+        <!-- Out of stock → notify me when back (phase 18) -->
+        <div class="mt-auto bg-gray-50 border border-gray-200 rounded-2xl p-4">
+          <% if (typeof notified !== 'undefined' && notified) { %>
+            <div class="text-emerald-600 text-sm font-bold">تمام! هنبلّغك على الإيميل أول ما المنتج يتوفّر ✅</div>
+          <% } else { %>
+            <div class="text-sm font-semibold text-gray-700 mb-2">المنتج نفد — عايز نبلّغك أول ما يرجع؟</div>
+            <form method="post" action="/shop/<%= company.slug %>/product/<%= product.id %>/notify-stock" class="flex gap-2">
+              <input type="email" name="email" required placeholder="إيميلك" dir="ltr" class="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              <button class="bg-gray-800 text-white font-bold rounded-xl px-4 py-2.5 text-sm whitespace-nowrap">أبلغني</button>
+            </form>
+          <% } %>
+        </div>
       <% } %>
     </div>
   </div>

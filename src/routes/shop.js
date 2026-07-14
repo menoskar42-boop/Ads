@@ -93,8 +93,10 @@ router.post('/:slug/cart/add', async (req, res) => {
     cart[key] = requested;
     if (wantsJson) {
       const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
-      return res.json({ ok: true, cartCount });
+      return res.json({ ok: true, cartCount, buyNow: String(req.body.buy_now) === '1' });
     }
+    // Buy Now (phase 16): skip the cart, go straight to checkout.
+    if (String(req.body.buy_now) === '1') return res.redirect(`/shop/${slug}/checkout`);
     res.redirect(`/shop/${slug}/cart`);
   } catch (err) {
     console.error('[POST /shop/:slug/cart/add] error:', err);
@@ -507,6 +509,7 @@ router.get('/:slug/product/:id', async (req, res) => {
       canReview,
       reviewSent: req.query.reviewed === '1',
       asked: req.query.asked === '1',
+      notified: req.query.notified === '1',
       customerId: req.session.customerId || null,
       recommended,
       noindex: thin,
@@ -566,6 +569,26 @@ router.post('/:slug/product/:id/question', async (req, res) => {
     }
   } catch (e) { console.error('[question]', e.message); }
   res.redirect(back + '?asked=1#qa');
+});
+
+// Notify me when back in stock (phase 18).
+router.post('/:slug/product/:id/notify-stock', async (req, res) => {
+  const { slug, id } = req.params;
+  const productId = parseInt(id, 10);
+  const back = '/shop/' + encodeURIComponent(slug) + '/product/' + productId;
+  const email = String(req.body.email || '').trim().slice(0, 150);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.redirect(back);
+  try {
+    const company = await loadShopCompany(slug);
+    if (company) {
+      const owns = (await pool.query('SELECT 1 FROM products WHERE id=$1 AND company_id=$2', [productId, company.id])).rowCount;
+      if (owns) await pool.query(
+        `INSERT INTO stock_notifications (company_id, product_id, email, notify_on) VALUES ($1,$2,$3,'back_in_stock')`,
+        [company.id, productId, email]
+      );
+    }
+  } catch (e) { console.error('[notify-stock]', e.message); }
+  res.redirect(back + '?notified=1');
 });
 
 router.get('/:slug/order/:id', async (req, res) => {
