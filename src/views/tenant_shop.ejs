@@ -185,6 +185,27 @@
     </div>
   </div>
 
+  <% if (typeof shopFilters !== 'undefined') { var _hasFilter = (shopFilters.sort || shopFilters.min !== '' || shopFilters.max !== '' || shopFilters.instock || currentCategory || currentSearch); %>
+  <form class="shop-filters" method="GET" action="<%= canonicalCompanyUrl(company.slug) %>" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;padding:10px 12px;background:#fff;border:1px solid #eef0f2;border-radius:14px">
+    <% if (currentSearch) { %><input type="hidden" name="q" value="<%= currentSearch %>" /><% } %>
+    <% if (currentCategory) { %><input type="hidden" name="category" value="<%= currentCategory %>" /><% } %>
+    <label style="font-size:13px;font-weight:700;color:#374151">ترتيب</label>
+    <select name="sort" onchange="this.form.submit()" style="border:1px solid #e5e7eb;border-radius:10px;padding:6px 10px;font-size:13px;background:#fff">
+      <option value="">الأحدث</option>
+      <option value="price_asc" <%= shopFilters.sort==='price_asc'?'selected':'' %>>الأرخص</option>
+      <option value="price_desc" <%= shopFilters.sort==='price_desc'?'selected':'' %>>الأغلى</option>
+      <option value="best" <%= shopFilters.sort==='best'?'selected':'' %>>الأكثر مبيعاً</option>
+    </select>
+    <span style="width:1px;height:22px;background:#eef0f2"></span>
+    <label style="font-size:13px;font-weight:700;color:#374151">السعر</label>
+    <input type="number" name="min" value="<%= shopFilters.min %>" placeholder="من<%= shopPriceRange.max ? (' ' + shopPriceRange.min) : '' %>" min="0" inputmode="numeric" style="width:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;font-size:13px" />
+    <input type="number" name="max" value="<%= shopFilters.max %>" placeholder="إلى<%= shopPriceRange.max ? (' ' + shopPriceRange.max) : '' %>" min="0" inputmode="numeric" style="width:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;font-size:13px" />
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:#374151;font-weight:600;cursor:pointer"><input type="checkbox" name="instock" value="1" onchange="this.form.submit()" <%= shopFilters.instock?'checked':'' %> /> متوفر فقط</label>
+    <button type="submit" style="background:var(--brand,#4f46e5);color:#fff;border:none;border-radius:10px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer">تطبيق</button>
+    <% if (_hasFilter) { %><a href="<%= canonicalCompanyUrl(company.slug) %>" style="font-size:13px;color:#6b7280;text-decoration:underline">مسح الكل</a><% } %>
+  </form>
+  <% } %>
+
   <% if (!products.length) { %>
     <div class="empty-state">
       <p style="font-weight:700;font-size:1.05rem;color:var(--ink-2)"><%= t('public.no_products') %></p>

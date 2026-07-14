@@ -100,6 +100,8 @@ router.get('/', async (req, res) => {
   let products = [];
   let categories = [];
   let activeProductCount = 0;
+  let shopPriceRange = { min: 0, max: 0 };
+  let shopFilters = { sort: '', min: '', max: '', instock: false };
   if (company.page_type === 'shop') {
     try {
       categories = (await pool.query(
@@ -108,10 +110,16 @@ router.get('/', async (req, res) => {
       )).rows;
       const filterCat = parseInt(req.query.category, 10);
       const q = (req.query.q || '').trim();
+      const minP = parseFloat(req.query.min);
+      const maxP = parseFloat(req.query.max);
+      const inStockOnly = req.query.instock === '1';
       const params = [company.id];
       let where = 'company_id = $1 AND is_active = true';
       if (Number.isFinite(filterCat)) { where += ' AND category_id = $' + (params.push(filterCat)); }
       if (q) { where += ' AND (name ILIKE $' + (params.push('%' + q + '%')) + ' OR name_ar ILIKE $' + params.length + ' OR description ILIKE $' + params.length + ')'; }
+      if (Number.isFinite(minP)) { where += ' AND price >= $' + params.push(minP); }
+      if (Number.isFinite(maxP)) { where += ' AND price <= $' + params.push(maxP); }
+      if (inStockOnly) { where += ' AND stock > 0'; }
       // Sort options (Amazon roadmap phase 2): price/newest/best-selling.
       const sortMap = {
         price_asc: 'price ASC NULLS LAST', price_desc: 'price DESC NULLS LAST',
@@ -129,6 +137,18 @@ router.get('/', async (req, res) => {
         'SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND is_active = true',
         [company.id]
       )).rows[0].n;
+      // Catalogue price bounds drive the price-filter slider (phase 2).
+      const pr = (await pool.query(
+        'SELECT COALESCE(MIN(price),0) AS mn, COALESCE(MAX(price),0) AS mx FROM products WHERE company_id = $1 AND is_active = true',
+        [company.id]
+      )).rows[0];
+      shopPriceRange = { min: Math.floor(Number(pr.mn) || 0), max: Math.ceil(Number(pr.mx) || 0) };
+      shopFilters = {
+        sort: (req.query.sort || '').toString(),
+        min: Number.isFinite(minP) ? minP : '',
+        max: Number.isFinite(maxP) ? maxP : '',
+        instock: inStockOnly,
+      };
     } catch (err) { console.error('Products query error:', err.message); }
   }
 
@@ -306,6 +326,7 @@ router.get('/', async (req, res) => {
     payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
+    shopPriceRange, shopFilters,
     cartCount,
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
