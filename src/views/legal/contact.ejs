@@ -64,6 +64,10 @@
     <p class="text-sm text-gray-400 mb-5">البيانات اللي بتدخلها بتُستخدم فقط للرد على رسالتك (راجع <a href="/privacy" class="text-indigo-700 underline">سياسة الخصوصية</a>).</p>
 
     <form method="POST" action="/contact" class="space-y-4">
+      <%# Honeypot: hidden from humans, tempting to bots. Leave empty. %>
+      <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;">
+        <label>لا تملأ هذا الحقل<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      </div>
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم *</label>

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const { rateLimit } = require('../middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -37,11 +38,20 @@ router.get('/contact', (req, res) => {
   res.render('legal/contact', { sent: req.query.sent === '1', error: req.query.error || null });
 });
 
-router.post('/contact', async (req, res) => {
+// Public form → abuse-prone. Cap submissions per IP (5 / 15 min).
+const contactLimiter = rateLimit({ name: 'contact', windowMs: 15 * 60000, max: 5 });
+
+router.post('/contact', contactLimiter, async (req, res) => {
   const name = String(req.body.name || '').trim().slice(0, 100);
   const email = String(req.body.email || '').trim().slice(0, 150);
   const phone = String(req.body.phone || '').trim().slice(0, 30);
   const message = String(req.body.message || '').trim().slice(0, 5000);
+  // Honeypot: a hidden field real users never fill. If a bot fills it, pretend
+  // success (so it won't retry) but drop the message silently.
+  if (String(req.body.website || '').trim()) return res.redirect('/contact?sent=1');
+  // Link-flood: legitimate enquiries rarely contain 3+ URLs; spam almost always does.
+  const linkCount = (message.match(/https?:\/\/|www\.|\bmega\.nz\b|t\.me\//gi) || []).length;
+  if (linkCount >= 3) return res.redirect('/contact?sent=1');
   if (!name || !message) return res.redirect('/contact?error=' + encodeURIComponent('الاسم والرسالة مطلوبان'));
   try {
     await pool.query(
