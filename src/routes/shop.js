@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const push = require('../lib/push');
 const reviews = require('../lib/reviews');
+const recommendations = require('../lib/recommendations');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
@@ -378,6 +379,7 @@ router.get('/:slug/product/:id', async (req, res) => {
       const already = await reviews.existingReview(req.session.customerId, productId);
       canReview = !!bought && !already;
     }
+    const recommended = await recommendations.forProduct(productResult.rows[0], 6);
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
@@ -387,6 +389,7 @@ router.get('/:slug/product/:id', async (req, res) => {
       reviewBreakdown: rv.breakdown,
       canReview,
       reviewSent: req.query.reviewed === '1',
+      recommended,
       noindex: thin,
       showAds: !thin, // product detail is content — but no ads on thin/noindex pages
     });

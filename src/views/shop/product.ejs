@@ -291,6 +291,24 @@
       </div>
     <% } %>
   </section>
+
+  <!-- Recommendations (phase 5) -->
+  <% if (typeof recommended !== 'undefined' && recommended.length) { %>
+  <section class="mt-8 border-t border-gray-100 pt-6">
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4">قد يعجبك أيضاً</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      <% recommended.forEach(function(r){ %>
+        <a href="/shop/<%= company.slug %>/product/<%= r.id %>" class="block group">
+          <div class="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-1.5">
+            <% if (r.image) { %><img src="<%= r.image %>" alt="<%= r.name %>" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition" /><% } else { %><div class="w-full h-full flex items-center justify-center text-gray-300 text-xs">صورة</div><% } %>
+          </div>
+          <div class="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug"><%= r.name %></div>
+          <div class="text-xs font-bold text-emerald-600 mt-0.5"><%= Number(r.price).toLocaleString('ar-EG') %> ج</div>
+        </a>
+      <% }); %>
+    </div>
+  </section>
+  <% } %>
 </main>
 
 <div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- include('../partials/ad_unit', { slot: ads.slots.productMid }) %></div></div>
