@@ -309,6 +309,31 @@
     </div>
   </section>
   <% } %>
+
+  <!-- Recently viewed (phase 7) — client-side, last 10 products in this browser -->
+  <section id="recentViewed" class="mt-8 border-t border-gray-100 pt-6" hidden>
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4">شوهدت مؤخراً</h2>
+    <div id="recentGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3"></div>
+  </section>
+  <script>
+  (function () {
+    var KEY = 'odv_recent';
+    var cur = { id: <%= product.id %>, name: <%- JSON.stringify(pName) %>, price: <%= Number(product.price) || 0 %>, image: <%- JSON.stringify(product.image_url || '') %>, url: <%- JSON.stringify('/shop/' + company.slug + '/product/' + product.id) %> };
+    function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    var list = []; try { list = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) {}
+    var others = list.filter(function (x) { return x && x.id !== cur.id; }).slice(0, 10);
+    if (others.length) {
+      document.getElementById('recentGrid').innerHTML = others.map(function (r) {
+        var img = r.image ? '<img src="' + esc(r.image) + '" loading="lazy" class="w-full h-full object-cover">' : '<div class="w-full h-full flex items-center justify-center text-gray-300 text-xs">صورة</div>';
+        return '<a href="' + esc(r.url) + '" class="block group"><div class="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-1.5">' + img + '</div><div class="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug">' + esc(r.name) + '</div><div class="text-xs font-bold text-emerald-600 mt-0.5">' + Number(r.price).toLocaleString('ar-EG') + ' ج</div></a>';
+      }).join('');
+      document.getElementById('recentViewed').hidden = false;
+    }
+    // Record the current product at the front (dedup, cap 10).
+    var next = [cur].concat(list.filter(function (x) { return x && x.id !== cur.id; })).slice(0, 10);
+    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) {}
+  })();
+  </script>
 </main>
 
 <div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- include('../partials/ad_unit', { slot: ads.slots.productMid }) %></div></div>
