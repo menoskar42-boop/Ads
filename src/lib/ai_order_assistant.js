@@ -76,7 +76,12 @@ function menuAsText(list, cur) {
   }).join('\n');
 }
 
-function systemPrompt(list, lang, cur, merchantName) {
+function cartAsText(currentCart) {
+  if (!Array.isArray(currentCart) || !currentCart.length) return '(السلة فاضية)';
+  return currentCart.map((c) => `#${c.id} — ${c.name} × ${c.qty}`).join('\n');
+}
+
+function systemPrompt(list, lang, cur, merchantName, currentCart) {
   const menu = menuAsText(list, cur);
   const hasDrinks = list.some((r) => r.isDrink);
   const hasDesserts = list.some((r) => r.isDessert);
@@ -93,19 +98,29 @@ function systemPrompt(list, lang, cur, merchantName) {
     `- إنت عارف كل أصناف المنيو وأسعارها بالظبط (السعر ثابت زي ما مكتوب — ممنوع تغيّره أو تخترع سعر).`,
     `- لو الزبون سأل عن مكوّنات صنف وفيه وصف مكتوب، استخدمه.`,
     `- لو مفيش وصف مكتوب، تقدر تتوقّع المكوّنات الشائعة من اسم الصنف وتقولها كـ«غالباً بيكون فيه…» — ووضّح إنها توقّع، ولو حابب يتأكد من مكوّن معيّن (خصوصاً حساسية) يسأل المطعم. ممنوع تجزم بمكوّن مش متأكد منه أو تخترع معلومة تحسّس.`,
+    `- **صيامي = خالي تماماً من أي منتج حيواني** (لحوم، فراخ، سمك، جبنة، بيض، لبن، زبدة). أي صنف فيه لحمة **أو** جبنة = **فطاري** (مش صيامي). قول ده بوضوح.`,
     ``,
-    `بناء الطلب:`,
-    `- لما الزبون يقرّر أصناف، نادِ أداة add_to_cart بالـids والكميات الصحيحة من المنيو بس.`,
+    `🛑 قاعدة الإضافة الأهم (التزم بيها حرفياً):`,
+    `- **ماتضيفش أي صنف للسلة إلا لما الزبون يأكّد صراحةً إنه عايزه** (مثلاً: «أيوة»، «ضيفه»، «اطلبه»، «تمام ضيف»، «عايزه»).`,
+    `- **السؤال أو الاستفسار مش تأكيد.** لو الزبون بيسأل («فيه برجر فراخ؟»، «ده صيامي؟»، «بكام؟»، «فيه إيه؟») — **جاوب بس ومتنادِش add_to_cart خالص**. تقدر تسأله في الآخر «تحب أضيفه؟» وتستنى ردّه.`,
+    `- نادِ add_to_cart **مرة واحدة** بالكمية الصحيحة (لو مقالش عدد يبقى واحد). **ممنوع تضيف نفس الصنف مرتين** ولا تضيف صنف موجود بالفعل في السلة (شوف «السلة الحالية» تحت).`,
+    ``,
+    `تعديل / حذف من السلة:`,
+    `- **add_to_cart بتزوّد (مش بتحدّد).** لو الزبون قال «احذف»، «شيل»، «الغي» صنف → نادِ **update_cart** لنفس الصنف بكمية **0**. لو قال «خليها واحدة/اتنين» → update_cart بالكمية النهائية. **ممنوع تستخدم add_to_cart للتصحيح أو الحذف.**`,
+    `- لو الزبون قال «احذف ده وهات ده» — اعمل update_cart بـ0 للقديم، **ومتضيفش الجديد إلا لو أكّد إنه عايزه فعلاً** (مش مجرد بيسأل «فيه؟»).`,
     `- لو طلب حاجة مش في المنيو، قوله بلطف إنها مش متوفرة ورشّح أقرب بديل موجود.`,
-    hasDrinks ? `- بعد ما يضيف وجبة رئيسية ومفيش مشروب في طلبه، اعرض عليه بشكل طبيعي مشروب ساقع من المنيو («تحب أضيفلك حاجة ساقعة معاها؟»). مرة واحدة بس، ومن غير إلحاح.` : ``,
-    hasDesserts ? `- ممكن كمان تعرض تحلية موجودة في المنيو لو مناسب، بلطف ومن غير تكرار.` : ``,
+    hasDrinks ? `- بعد ما يأكّد وجبة رئيسية ومفيش مشروب في طلبه، اعرض عليه مشروب ساقع من المنيو («تحب أضيفلك حاجة ساقعة معاها؟») — مرة واحدة بس ومن غير ما تضيفه إلا بعد ما يوافق.` : ``,
+    hasDesserts ? `- ممكن تعرض تحلية موجودة لو مناسب، بلطف ومن غير تكرار ومن غير ما تضيفها إلا بموافقة.` : ``,
     `- لو الزبون قال «كفاية/خلاص/بس كده» متعرضش تاني.`,
     ``,
     `إنهاء الطلب:`,
-    `- لما الزبون يقول إنه خلّص أو عايز يأكّد/يطلب، لخّصله الطلب باختصار (الأصناف + الإجمالي التقريبي) ونادِ أداة checkout عشان ننقله لإتمام الطلب (الاسم والعنوان والدفع بيتمّوا في السلة).`,
-    `- الدفع كاش عند الاستلام من خلال السلة — إنت بتجهّز الطلب بس.`,
+    `- لما الزبون يقول إنه خلّص أو عايز يأكّد/يطلب، لخّصله الطلب باختصار (الأصناف + الإجمالي التقريبي) ونادِ أداة checkout. الاسم والعنوان والدفع كاش بيتمّوا في السلة — إنت بتجهّز بس.`,
     ``,
-    `ممنوعات: ماتتكلمش في أي حاجة برّه الطلب من المطعم ده (لا طب، لا قانون، لا مواضيع تانية). اردّ بنفس لغة الزبون (عربي أو إنجليزي).`,
+    `⛔ تنسيق الرد: اكتب **بالعربي المصري بس** — ممنوع أي إنجليزي أو أكواد أو وسوم أو أسماء دوال (زي <function=...>) في نص الرد. لو عايز تنفّذ إجراء، نادِ الأداة الحقيقية — متكتبهاش كنص.`,
+    `ممنوعات: ماتتكلمش في أي حاجة برّه الطلب من المطعم ده (لا طب، لا قانون، لا مواضيع تانية).`,
+    ``,
+    `السلة الحالية للزبون (متضيفش صنف موجود فيها تاني — لو عايز تغيّر كميته استخدم update_cart):`,
+    cartAsText(currentCart),
     ``,
     `المنيو (العملة: ${cur}):`,
     menu || '(المنيو فاضي حالياً)',
@@ -128,6 +143,34 @@ const ADD_TO_CART_TOOL = {
             properties: {
               item_id: { type: 'integer', description: 'The #id of the menu item.' },
               quantity: { type: 'integer', description: 'How many, at least 1.' },
+            },
+            required: ['item_id', 'quantity'],
+          },
+        },
+      },
+      required: ['items'],
+    },
+  },
+};
+
+// SET the exact quantity of an item already in the cart (absolute, not additive).
+// Use when the customer corrects a quantity ("لأ واحد بس") or removes an item
+// (quantity 0). This is how the assistant FIXES the order instead of adding more.
+const UPDATE_CART_TOOL = {
+  type: 'function',
+  function: {
+    name: 'update_cart',
+    description: 'Set the EXACT final quantity of menu items in the cart (absolute, overwrites — NOT additive). Use to correct a quantity the customer disputes, or set quantity 0 to remove an item. Never use add_to_cart to fix a quantity.',
+    parameters: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              item_id: { type: 'integer', description: 'The #id of the menu item.' },
+              quantity: { type: 'integer', description: 'The exact final quantity (0 removes it).' },
             },
             required: ['item_id', 'quantity'],
           },
@@ -174,9 +217,9 @@ async function callGroq(messages, tools) {
 
 // Run one assistant turn. `history` is prior [{role,content}] (user/assistant
 // text only). Returns { reply, cart:[{id,qty,name,price}], checkout, tokens }.
-async function runAssistant({ outlets, history, message, lang, cur, merchantName }) {
+async function runAssistant({ outlets, history, message, lang, cur, merchantName, currentCart }) {
   const { list, byId } = buildMenu(outlets);
-  const sys = systemPrompt(list, lang, cur || '', merchantName || '');
+  const sys = systemPrompt(list, lang, cur || '', merchantName || '', currentCart);
 
   const messages = [{ role: 'system', content: sys }];
   (history || []).slice(-8).forEach((m) => {
@@ -186,13 +229,15 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
   });
   messages.push({ role: 'user', content: String(message) });
 
-  const cart = [];
+  const cart = [];        // additive items to merge into the cart
+  const updates = [];     // absolute quantity sets (corrections / removals)
+  const addedIds = new Set(); // items already added THIS turn — never add twice
   let tokens = 0;
   let reply = '';
   let checkout = false;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const data = await callGroq(messages, [ADD_TO_CART_TOOL, CHECKOUT_TOOL]);
+    const data = await callGroq(messages, [ADD_TO_CART_TOOL, UPDATE_CART_TOOL, CHECKOUT_TOOL]);
     tokens += (data.usage && data.usage.total_tokens) || 0;
     const choice = (data.choices && data.choices[0]) || {};
     const msg = choice.message || {};
@@ -212,29 +257,53 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
         messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ ok: true, checkout: true }) });
         continue;
       }
-      let added = [];
+      let result = [];
       try {
         const args = JSON.parse((tc.function && tc.function.arguments) || '{}');
-        (args.items || []).forEach((it) => {
-          const row = byId.get(String(it.item_id));
-          const qty = Math.max(1, Math.min(50, parseInt(it.quantity, 10) || 1));
-          if (!row) return;
-          const existing = cart.find((c) => c.id === row.id);
-          if (existing) existing.qty += qty;
-          else cart.push({ id: row.id, qty, name: row.name_ar || row.name, price: row.price, outlet: row.outlet_id });
-          added.push({ id: row.id, name: row.name_ar || row.name, qty, price: row.price });
-        });
+        if (fname === 'update_cart') {
+          // Absolute set (corrections). 0 = remove.
+          (args.items || []).forEach((it) => {
+            const row = byId.get(String(it.item_id));
+            if (!row) return;
+            const qty = Math.max(0, Math.min(50, parseInt(it.quantity, 10)));
+            const existing = updates.find((u) => u.id === row.id);
+            if (existing) existing.qty = qty; else updates.push({ id: row.id, qty, name: row.name_ar || row.name });
+            result.push({ id: row.id, name: row.name_ar || row.name, quantity: qty });
+          });
+        } else {
+          // add_to_cart — additive, but dedup per turn so a double tool-call in
+          // the same turn can't silently multiply the quantity.
+          (args.items || []).forEach((it) => {
+            const row = byId.get(String(it.item_id));
+            if (!row || addedIds.has(row.id)) return; // already added this turn → ignore repeat
+            const qty = Math.max(1, Math.min(50, parseInt(it.quantity, 10) || 1));
+            addedIds.add(row.id);
+            cart.push({ id: row.id, qty, name: row.name_ar || row.name, price: row.price, outlet: row.outlet_id });
+            result.push({ id: row.id, name: row.name_ar || row.name, qty, price: row.price });
+          });
+        }
       } catch (e) { /* ignore malformed args */ }
-      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ ok: true, added }) });
+      messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ ok: true, items: result }) });
     }
   }
+
+  // Some models (llama tool-use) sometimes emit a tool call as INLINE TEXT like
+  // "<function=checkout></function>" instead of a structured tool_call. Honor an
+  // inline checkout, then strip any such tags so they never leak to the customer.
+  if (/<function\s*=\s*checkout/i.test(reply)) checkout = true;
+  reply = reply
+    .replace(/<function[^>]*>[\s\S]*?<\/function>/gi, '')
+    .replace(/<\/?function[^>]*>/gi, '')
+    .replace(/\{"?name"?\s*:\s*"?(add_to_cart|update_cart|checkout)[\s\S]*?\}/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 
   if (!reply) {
     reply = checkout
       ? (lang === 'en' ? 'Great — opening your cart to finish the order.' : 'تمام — بفتحلك السلة عشان تكمّل الطلب.')
-      : (lang === 'en' ? 'Added to your cart. Anything else?' : 'ضفتهم لسلتك. تحب حاجة تانية؟');
+      : (lang === 'en' ? 'Done. Anything else?' : 'تمام. تحب حاجة تانية؟');
   }
-  return { reply, cart, checkout, tokens };
+  return { reply, cart, updates, checkout, tokens };
 }
 
 module.exports = { isEnabled, buildMenu, runAssistant };

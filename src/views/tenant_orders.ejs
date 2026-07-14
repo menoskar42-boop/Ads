@@ -433,6 +433,23 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
     });
     save(c); renderBar();
   };
+  // SET absolute quantities from the assistant (corrections). qty 0 removes.
+  window.__odvUpdateCart = function (items) {
+    var c = load();
+    (items || []).forEach(function (it) {
+      var id = String(it.id);
+      var q = Math.max(0, Number(it.qty) || 0);
+      if (q === 0) { delete c[id]; }
+      else if (c[id]) { c[id].q = q; }
+      // If the item isn't in the cart yet, a "set" is a no-op (nothing to fix).
+    });
+    save(c); renderBar();
+  };
+  // Snapshot the cart for the assistant so it knows what's already ordered.
+  window.__odvCartItems = function () {
+    var c = load();
+    return Object.keys(c).map(function (id) { return { id: parseInt(id, 10), name: c[id].n, qty: c[id].q }; });
+  };
   window.__odvOpenCart = openD;
 
   renderBar();
@@ -539,9 +556,10 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
     history.push({ role: 'user', content: msg });
     busy = true; sendBtn.disabled = true; sendBtn.style.opacity = '.5';
     var typing = bubble('assistant', '…');
+    var cartSnapshot = window.__odvCartItems ? window.__odvCartItems() : [];
     fetch('/order/food/ai', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg, history: history.slice(-8) })
+      body: JSON.stringify({ message: msg, history: history.slice(-8), cart: cartSnapshot })
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         var d = res.d || {};
@@ -551,6 +569,13 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
           window.__odvAddToCart(d.cart);
           var names = d.cart.map(function (c) { return (c.qty + '× ' + c.name); }).join('، ');
           bubble('assistant', ADDED + ' ' + names);
+          openCartLink();
+        }
+        // Corrections / removals from the assistant (set absolute qty; 0 = remove).
+        if (res.ok && d.updates && d.updates.length && window.__odvUpdateCart) {
+          window.__odvUpdateCart(d.updates);
+          var upNames = d.updates.map(function (u) { return (u.qty === 0 ? (isAr ? 'شِلت ' : 'removed ') + u.name : (u.qty + '× ' + u.name)); }).join('، ');
+          bubble('assistant', (isAr ? 'ظبطت السلة: ' : 'Updated: ') + upNames);
           openCartLink();
         }
         // Receptionist finished the order → hand off to the secure cart/checkout.

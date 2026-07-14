@@ -696,6 +696,18 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
     if (Array.isArray(h)) history = h.slice(-8).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 500) }));
   } catch (e) { history = []; }
 
+  // Current cart from the client so the model knows what's already in it (never
+  // re-add, and can correct/remove). Validated shape only.
+  let currentCart = [];
+  try {
+    const c = req.body && req.body.cart;
+    if (Array.isArray(c)) currentCart = c.slice(0, 60).map((it) => ({
+      id: parseInt(it.id, 10) || 0,
+      name: String(it.name || '').slice(0, 80),
+      qty: Math.max(0, Math.min(99, parseInt(it.qty, 10) || 0)),
+    })).filter((it) => it.id && it.qty > 0);
+  } catch (e) { currentCart = []; }
+
   try {
     // Load the merchant's active menu (same shape the storefront uses).
     const outlets = (await pool.query(
@@ -707,7 +719,7 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
     }
 
     const out = await aiAssistant.runAssistant({
-      outlets, history, message, lang,
+      outlets, history, message, lang, currentCart,
       cur: (res.locals.t ? res.locals.t('pharmacy.currency') : 'ج.م'),
       merchantName: company.company_name || company.slug,
     });
@@ -719,7 +731,7 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
       await pool.query('UPDATE food_ai_subscriptions SET used_this_period = used_this_period + 1 WHERE company_id = $1', [company.id]);
     } catch (e) { console.error('[ai log]', e.message); }
 
-    res.json({ ok: true, reply: out.reply, cart: out.cart, checkout: !!out.checkout });
+    res.json({ ok: true, reply: out.reply, cart: out.cart, updates: out.updates || [], checkout: !!out.checkout });
   } catch (e) {
     console.error('[ai assistant]', e.message);
     res.status(502).json({ ok: false, error: say('حصل خطأ مؤقت، جرّب تاني.', 'A temporary error occurred, please try again.') });
