@@ -6,6 +6,7 @@ const { canonicalCompanyUrl } = require('../lib/urls');
 const push = require('../lib/push');
 const reviews = require('../lib/reviews');
 const recommendations = require('../lib/recommendations');
+const shopFeatures = require('../lib/shop_features');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
@@ -421,11 +422,13 @@ router.get('/:slug/product/:id', async (req, res) => {
       'SELECT id, label, price_delta, stock, image_url, attributes FROM product_variants WHERE product_id=$1 AND is_active=true ORDER BY sort_order, id',
       [productId]
     )).rows;
+    const feat = await shopFeatures.getFeatures(company.id);
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
       gallery: images.rows,
-      variants,
+      variants: feat.variants === false ? [] : variants,
+      feat,
       cartCount,
       reviews: rv.reviews,
       reviewBreakdown: rv.breakdown,

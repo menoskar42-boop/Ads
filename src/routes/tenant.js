@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { getPreset } = require('../lib/portfolio_presets');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
+const shopFeatures = require('../lib/shop_features');
 const aiAssistant = require('../lib/ai_order_assistant');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
@@ -329,6 +330,7 @@ router.get('/', async (req, res) => {
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
     shopPriceRange, shopFilters,
+    feat: company.page_type === 'shop' ? await shopFeatures.getFeatures(company.id) : {},
     cartCount,
     sent: req.query.sent === '1',
     contactError: req.query.error || null,

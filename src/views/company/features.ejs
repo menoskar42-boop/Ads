@@ -1,0 +1,33 @@
+<%
+  pageTitle = 'مميزات المتجر';
+  activePage = 'features';
+%>
+<%- include('_layout_top') %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">مميزات المتجر</h2>
+    <p class="text-gray-500 text-sm mb-5">فعّل أو أوقف أي ميزة على متجرك. الافتراضي إن كل المميزات شغّالة.</p>
+
+    <% if (saved) { %>
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">تم حفظ الإعدادات ✅</div>
+    <% } %>
+
+    <form method="POST" action="/company/features" class="space-y-3">
+      <% features.forEach(function(f){ %>
+      <label class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-50">
+        <span class="flex-1">
+          <span class="block font-bold text-gray-800 text-sm"><%= f.label %></span>
+          <span class="block text-xs text-gray-400"><%= f.desc %></span>
+        </span>
+        <input type="checkbox" name="feat_<%= f.key %>" value="1" <%= flags[f.key] !== false ? 'checked' : '' %>
+          class="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-300" />
+      </label>
+      <% }); %>
+
+      <div class="pt-4">
+        <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow">حفظ</button>
+      </div>
+    </form>
+  </div>
+
+<%- include('_layout_bottom') %>

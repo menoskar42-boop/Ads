@@ -10,6 +10,7 @@ const requireLogin = require('../middleware/auth');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
+const shopFeatures = require('../lib/shop_features');
 const push = require('../lib/push');
 const indexnow = require('../lib/indexnow');
 
@@ -774,6 +775,20 @@ router.get('/products/:id/edit', requireLogin, requireShop, async (req, res) => 
     session: req.session,
     error: null,
   });
+});
+
+/* ─── STORE FEATURE FLAGS (phase 21) ─────────────────────── */
+router.get('/features', requireLogin, requireShop, async (req, res) => {
+  try {
+    const flags = await shopFeatures.getFeatures(req.session.companyId);
+    res.render('company/features', {
+      features: shopFeatures.FEATURES, flags, session: req.session, saved: req.query.saved === '1',
+    });
+  } catch (e) { console.error('[features]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/features', requireLogin, requireShop, async (req, res) => {
+  try { await shopFeatures.setFeatures(req.session.companyId, req.body || {}); } catch (e) { console.error('[features save]', e.message); }
+  res.redirect('/company/features?saved=1');
 });
 
 /* ─── PRODUCT VARIANTS (phase 8) ─────────────────────────── */

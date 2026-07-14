@@ -92,6 +92,7 @@
     </div>
   </div>
 </header>
+<% var __on = function(k){ return typeof feat === 'undefined' || feat[k] !== false; }; %>
 
 <div class="max-w-5xl mx-auto px-4 mt-4"><%- include('../partials/ad_unit', { slot: ads.slots.productTop }) %></div>
 
@@ -104,7 +105,7 @@
       <% if (allImages.length === 0) { %>
         <div class="w-full aspect-square bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300"><%= t('common.image') %></div>
       <% } else { %>
-        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" fetchpriority="high" decoding="async" class="w-full aspect-square object-cover rounded-2xl mb-3 cursor-zoom-in" onclick="odvOpenZoom()" title="اضغط للتكبير" />
+        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" fetchpriority="high" decoding="async" class="w-full aspect-square object-cover rounded-2xl mb-3 <%= __on('zoom') ? 'cursor-zoom-in' : '' %>" <%= __on('zoom') ? 'onclick=odvOpenZoom()' : '' %> <%= __on('zoom') ? 'title=اضغط للتكبير' : '' %> />
         <% if (allImages.length > 1) { %>
           <div class="grid grid-cols-5 gap-2" id="thumbRow">
             <% allImages.forEach((img, i) => { %>
@@ -260,6 +261,7 @@
   </div>
 
   <!-- Reviews (phase 4) -->
+  <% if (__on('reviews')) { %>
   <%
     var __rc = Number(product.review_count) || 0;
     var __avg = Number(product.avg_rating) || 0;
@@ -333,9 +335,10 @@
       </div>
     <% } %>
   </section>
+  <% } %>
 
   <!-- Recommendations (phase 5) -->
-  <% if (typeof recommended !== 'undefined' && recommended.length) { %>
+  <% if (__on('recommendations') && typeof recommended !== 'undefined' && recommended.length) { %>
   <section class="mt-8 border-t border-gray-100 pt-6">
     <h2 class="text-xl font-extrabold text-gray-900 mb-4">قد يعجبك أيضاً</h2>
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
@@ -353,6 +356,7 @@
   <% } %>
 
   <!-- Recently viewed (phase 7) — client-side, last 10 products in this browser -->
+  <% if (__on('recently_viewed')) { %>
   <section id="recentViewed" class="mt-8 border-t border-gray-100 pt-6" hidden>
     <h2 class="text-xl font-extrabold text-gray-900 mb-4">شوهدت مؤخراً</h2>
     <div id="recentGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3"></div>
@@ -376,6 +380,7 @@
     try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) {}
   })();
   </script>
+  <% } %>
 </main>
 
 <div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- include('../partials/ad_unit', { slot: ads.slots.productMid }) %></div></div>

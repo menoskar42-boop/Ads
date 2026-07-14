@@ -574,6 +574,14 @@ async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants (product_id, is_active);
       ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL;
+      -- Per-store feature flags (Amazon roadmap phase 21). Only overrides stored.
+      CREATE TABLE IF NOT EXISTS company_features (
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        feature_key TEXT NOT NULL,
+        enabled     BOOLEAN NOT NULL DEFAULT true,
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (company_id, feature_key)
+      );
       CREATE UNIQUE INDEX IF NOT EXISTS uq_product_review_customer ON product_reviews (product_id, customer_id) WHERE customer_id IS NOT NULL;
       -- Search acceleration (Amazon roadmap phase 1): fast catalogue scans + name lookups.
       CREATE INDEX IF NOT EXISTS idx_products_company_active ON products (company_id, is_active);
