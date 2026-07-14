@@ -24,6 +24,24 @@ self.addEventListener("activate", function (event) {
   );
 });
 
+// Web Push: server-sent notifications that arrive even when the app/browser is
+// fully closed (delivered via the browser's push service). This is what makes
+// NeuroPilot reminders reliable — client timers/geolocation die when closed.
+self.addEventListener("push", function (event) {
+  var data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data ? event.data.text() : "" }; }
+  var title = data.title || "NeuroPilot 🧠";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/favicon.svg",
+      badge: "/favicon.svg",
+      tag: data.tag || "neuropilot-reminder",
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
 // Tapping the arrival notification focuses the open app (or opens it).
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();

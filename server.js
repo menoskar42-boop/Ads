@@ -111,11 +111,31 @@ function sendNeuroIndex(res) {
     res.type('html').set('Cache-Control', 'no-cache').send(out);
   });
 }
+const neuroPush = require('./src/lib/neuropilot_push');
+const neuroJson = express.json({ limit: '16kb' });
 app.use((req, res, next) => {
   const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
   const host = String(rawHost).split(':')[0].toLowerCase();
   if (!host.startsWith('adhd.')) return next();
   const p = req.path;
+  // Web Push API (served on the adhd subdomain, ahead of the static fallback).
+  // This block runs before the global JSON parser, so parse inline where needed.
+  if (p === '/push/key') {
+    return res.json({ enabled: neuroPush.isEnabled(), publicKey: neuroPush.publicKey() });
+  }
+  if (p === '/push/subscribe' && req.method === 'POST') {
+    return neuroJson(req, res, () => {
+      neuroPush.saveSub(req.body && req.body.subscription)
+        .then((ok) => res.json({ ok: !!ok }))
+        .catch(() => res.status(500).json({ ok: false }));
+    });
+  }
+  if (p === '/push/unsubscribe' && req.method === 'POST') {
+    return neuroJson(req, res, () => {
+      neuroPush.removeSub(req.body && req.body.endpoint)
+        .then(() => res.json({ ok: true })).catch(() => res.json({ ok: true }));
+    });
+  }
   if (p === '/' || p === '/index.html') return sendNeuroIndex(res);
   // Serve a matching static asset; otherwise return a real 404. NeuroPilot is a
   // single page (only "/"), so falling back to the shell for made-up URLs made
@@ -142,6 +162,22 @@ app.use(compression());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cookieParser());
+
+// NeuroPilot daily-push external trigger — mounted BEFORE tenant routing so it
+// isn't swallowed as an unknown-tenant 404. Call it every morning from an
+// external scheduler (cron-job.org / UptimeRobot): the reliable way to fire the
+// push on scale-to-zero hosting (Replit Autoscale sleeps → internal cron won't
+// run). Protected by PUSH_CRON_SECRET; disabled (503) until that secret is set.
+app.all('/api/neuropilot/run-daily', async (req, res) => {
+  const secret = process.env.PUSH_CRON_SECRET || '';
+  if (!secret) return res.status(503).json({ ok: false, error: 'PUSH_CRON_SECRET not set' });
+  const provided = req.query.key || req.get('x-cron-key') || '';
+  if (provided !== secret) return res.status(403).json({ ok: false, error: 'bad key' });
+  try {
+    const r = await neuroPush.sendDaily({ force: 'force' in req.query });
+    res.json(r);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 
 // ===== Sokro (sokro.oscardevs.com) — AI Operating System, host-routed =====
 // Its own product (voice-driven task execution). Mounted BEFORE express.static
@@ -739,9 +775,25 @@ initDb()
 
 setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();
 
+// NeuroPilot push schema — run independently so it never depends on the
+// pharmacy/food chain above completing on a fresh DB.
+neuroPush.ensureSchema().catch((err) => console.error('[neuropilot push schema]', err.message));
+
 // Kakeibo daily expense-logging reminders (best-effort; self-gated to evening +
 // once/day per user). Checks hourly so long-running instances remind opted-in users.
 try {
   const kkbPush = require('./src/kakeibo/push');
   setInterval(() => { kkbPush.dailyReminders().catch(() => {}); }, 60 * 60 * 1000).unref();
 } catch (e) { /* push optional */ }
+
+// NeuroPilot daily reminder — INTERNAL cron fallback. Fires at ~08:00 Cairo when
+// the instance happens to be awake (dedup-guarded so it never double-sends). The
+// RELIABLE path is the external trigger below (Replit Autoscale sleeps, so this
+// internal timer won't run while the app is scaled to zero).
+setInterval(() => {
+  try {
+    const h = Number(new Date().toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Africa/Cairo' }));
+    if (h === 8) neuroPush.sendDaily().catch(() => {});
+  } catch (e) { /* ignore */ }
+}, 30 * 60 * 1000).unref();
+

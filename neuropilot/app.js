@@ -337,6 +337,82 @@
     } catch (e) { return Promise.resolve(false); }
   }
 
+  // ── Web Push: reliable DAILY reminder that arrives even when the app/browser
+  // is fully closed (unlike the geofence/timer reminders, which are client-side
+  // and die on close). Opt-in via the 🔔 button. Requires server VAPID keys.
+  function urlBase64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var raw = atob(base64);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  var PUSH_FLAG = "neuropilot-daily-push";
+  function isDailyPushOn() { try { return localStorage.getItem(PUSH_FLAG) === "1"; } catch (e) { return false; } }
+
+  function enableDailyPush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      alert("متصفحك مش بيدعم الإشعارات في الخلفية. على آيفون: ضيف الموقع للشاشة الرئيسية الأول.");
+      return Promise.resolve(false);
+    }
+    return requestNotify().then(function (granted) {
+      if (!granted) { alert("لازم تسمح بالإشعارات الأول عشان يوصلك التذكير."); return false; }
+      return navigator.serviceWorker.ready.then(function (reg) {
+        return fetch("/push/key").then(function (r) { return r.json(); }).then(function (info) {
+          if (!info.enabled || !info.publicKey) { alert("خدمة التذكير مش متاحة حالياً — جرّب لاحقاً."); return false; }
+          return reg.pushManager.getSubscription().then(function (existing) {
+            return existing || reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(info.publicKey),
+            });
+          }).then(function (sub) {
+            return fetch("/push/subscribe", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ subscription: sub }),
+            }).then(function () { try { localStorage.setItem(PUSH_FLAG, "1"); } catch (e) {} return true; });
+          });
+        });
+      });
+    }).catch(function () { alert("حصل خطأ في تفعيل التذكير."); return false; });
+  }
+  function disableDailyPush() {
+    try { localStorage.removeItem(PUSH_FLAG); } catch (e) {}
+    if (!("serviceWorker" in navigator)) return Promise.resolve();
+    return navigator.serviceWorker.ready.then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        if (!sub) return;
+        var ep = sub.endpoint;
+        return sub.unsubscribe().then(function () {
+          return fetch("/push/unsubscribe", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint: ep }),
+          }).catch(function () {});
+        });
+      });
+    }).catch(function () {});
+  }
+  function refreshBell() {
+    var b = document.getElementById("bellBtn");
+    if (!b) return;
+    var on = isDailyPushOn();
+    b.textContent = on ? "🔔" : "🔕";
+    b.style.opacity = on ? "1" : "0.55";
+    b.setAttribute("title", on ? "التذكير اليومي مفعّل — اضغط لإيقافه" : "فعّل تذكير يومي يوصلك حتى والتطبيق مقفول");
+  }
+  function wireBell() {
+    var b = document.getElementById("bellBtn");
+    if (!b) return;
+    refreshBell();
+    b.addEventListener("click", function () {
+      if (isDailyPushOn()) {
+        disableDailyPush().then(function () { refreshBell(); alert("تم إيقاف التذكير اليومي."); });
+      } else {
+        enableDailyPush().then(function (ok) { refreshBell(); if (ok) alert("تمام! هيوصلك تذكير يومي حتى والتطبيق مقفول."); });
+      }
+    });
+  }
+
   // Show a system notification. Prefer the service-worker path (works in an
   // installed PWA, incl. iOS); fall back to the constructor on desktop.
   function notify(body) {
@@ -955,6 +1031,7 @@
     bind();
     acquireWakeLock();
     registerServiceWorker();
+    wireBell();
     // Re-arm arrival reminders saved from a previous session (while app open).
     armGeofence();
 
