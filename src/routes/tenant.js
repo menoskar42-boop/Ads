@@ -111,9 +111,15 @@ router.get('/', async (req, res) => {
       const params = [company.id];
       let where = 'company_id = $1 AND is_active = true';
       if (Number.isFinite(filterCat)) { where += ' AND category_id = $' + (params.push(filterCat)); }
-      if (q) { where += ' AND (name ILIKE $' + (params.push('%' + q + '%')) + ' OR description ILIKE $' + params.length + ')'; }
+      if (q) { where += ' AND (name ILIKE $' + (params.push('%' + q + '%')) + ' OR name_ar ILIKE $' + params.length + ' OR description ILIKE $' + params.length + ')'; }
+      // Sort options (Amazon roadmap phase 2): price/newest/best-selling.
+      const sortMap = {
+        price_asc: 'price ASC NULLS LAST', price_desc: 'price DESC NULLS LAST',
+        newest: 'created_at DESC', best: 'sold_count DESC NULLS LAST, created_at DESC',
+      };
+      const orderBy = sortMap[req.query.sort] || 'created_at DESC';
       const productsResult = await pool.query(
-        `SELECT * FROM products WHERE ${where} ORDER BY created_at DESC`,
+        `SELECT * FROM products WHERE ${where} ORDER BY ${orderBy}`,
         params
       );
       products = productsResult.rows;
@@ -902,6 +908,36 @@ router.post('/order/food/:token/review', foodOrderGuard, async (req, res) => {
     }
     res.redirect('/order/food/' + req.params.token + '?reviewed=1');
   } catch (e) { console.error('food review error:', e.message); res.redirect('/order/food/' + req.params.token); }
+});
+
+// ── Live product search API (Amazon roadmap phase 1) ─────────────────────────
+// JSON autocomplete for the shop storefront. Tenant-scoped (req.tenant), active
+// products only, matches name/name_ar/description. Returns up to 10 with a
+// thumbnail + price so the client can render a suggestions dropdown.
+router.get('/api/search', async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'shop') return res.json({ items: [] });
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  if (q.length < 1) return res.json({ items: [] });
+  try {
+    const like = '%' + q + '%';
+    const rows = (await pool.query(
+      `SELECT id, name, name_ar, price, image_url FROM products
+       WHERE company_id = $1 AND is_active = true
+         AND (name ILIKE $2 OR name_ar ILIKE $2 OR description ILIKE $2)
+       ORDER BY (name ILIKE $3) DESC, sold_count DESC NULLS LAST, created_at DESC
+       LIMIT 10`,
+      [company.id, like, q + '%']
+    )).rows;
+    res.json({
+      items: rows.map((r) => ({
+        id: r.id,
+        name: r.name_ar || r.name,
+        price: Number(r.price) || 0,
+        image: r.image_url || '',
+      })),
+    });
+  } catch (e) { console.error('[shop search]', e.message); res.json({ items: [] }); }
 });
 
 module.exports = router;

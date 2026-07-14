@@ -529,6 +529,11 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS notify_orders BOOLEAN DEFAULT true;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sold_count INTEGER NOT NULL DEFAULT 0;
+      -- Search acceleration (Amazon roadmap phase 1): fast catalogue scans + name lookups.
+      CREATE INDEX IF NOT EXISTS idx_products_company_active ON products (company_id, is_active);
+      CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products (lower(name));
+      CREATE INDEX IF NOT EXISTS idx_products_name_ar_lower ON products (lower(name_ar));
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_ar TEXT;
       ALTER TABLE product_categories ADD COLUMN IF NOT EXISTS name_en TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS promo_text TEXT;
