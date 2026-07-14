@@ -548,6 +548,15 @@ async function initDb() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_product_reviews_product ON product_reviews (product_id, is_approved);
+      -- Wishlist (Amazon roadmap phase 6).
+      CREATE TABLE IF NOT EXISTS wishlist_items (
+        id          SERIAL PRIMARY KEY,
+        customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        added_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (customer_id, product_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wishlist_customer ON wishlist_items (customer_id);
       CREATE UNIQUE INDEX IF NOT EXISTS uq_product_review_customer ON product_reviews (product_id, customer_id) WHERE customer_id IS NOT NULL;
       -- Search acceleration (Amazon roadmap phase 1): fast catalogue scans + name lookups.
       CREATE INDEX IF NOT EXISTS idx_products_company_active ON products (company_id, is_active);

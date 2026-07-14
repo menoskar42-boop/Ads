@@ -81,6 +81,51 @@ router.get('/orders', requireCustomer, async (req, res) => {
   }
 });
 
+/* ─── WISHLIST (phase 6) ─────────────────────────────────── */
+// Toggle a product in the wishlist. JSON: { product_id } → { ok, added, count }.
+router.post('/wishlist/toggle', async (req, res) => {
+  if (!req.session || !req.session.customerId) return res.status(401).json({ ok: false, error: 'login' });
+  const pid = parseInt((req.body && req.body.product_id) || req.query.product_id, 10);
+  if (!pid) return res.status(400).json({ ok: false });
+  const cid = req.session.customerId;
+  try {
+    const exists = (await pool.query('SELECT 1 FROM wishlist_items WHERE customer_id=$1 AND product_id=$2', [cid, pid])).rowCount;
+    let added;
+    if (exists) { await pool.query('DELETE FROM wishlist_items WHERE customer_id=$1 AND product_id=$2', [cid, pid]); added = false; }
+    else { await pool.query('INSERT INTO wishlist_items (customer_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [cid, pid]); added = true; }
+    const count = (await pool.query('SELECT COUNT(*)::int n FROM wishlist_items WHERE customer_id=$1', [cid])).rows[0].n;
+    res.json({ ok: true, added, count });
+  } catch (e) { console.error('[wishlist toggle]', e.message); res.status(500).json({ ok: false }); }
+});
+
+// The customer's wishlist product ids (for painting hearts on the storefront).
+router.get('/wishlist/ids', async (req, res) => {
+  if (!req.session || !req.session.customerId) return res.json({ ids: [], count: 0 });
+  try {
+    const r = await pool.query('SELECT product_id FROM wishlist_items WHERE customer_id=$1', [req.session.customerId]);
+    const ids = r.rows.map((x) => x.product_id);
+    res.json({ ids, count: ids.length });
+  } catch (e) { res.json({ ids: [], count: 0 }); }
+});
+
+router.get('/wishlist', requireCustomer, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT p.id, p.name, p.name_ar, p.price, p.image_url, p.stock, c.slug AS company_slug, c.company_name
+       FROM wishlist_items w
+       JOIN products p ON p.id = w.product_id
+       JOIN companies c ON c.id = p.company_id
+       WHERE w.customer_id = $1 AND p.is_active = true
+       ORDER BY w.added_at DESC`,
+      [req.session.customerId]
+    );
+    res.render('customer/wishlist', { items: r.rows, session: req.session });
+  } catch (err) {
+    console.error('[GET /customer/wishlist] error:', err);
+    res.status(500).send('Error.');
+  }
+});
+
 /* ─── LANGUAGE TOGGLE ────────────────────────────────────── */
 router.post('/lang/:lang', async (req, res) => {
   const lang = req.params.lang === 'en' ? 'en' : 'ar';

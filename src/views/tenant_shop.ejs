@@ -81,6 +81,10 @@
     <div id="searchSuggest" role="listbox" hidden style="position:absolute;top:calc(100% + 6px);inset-inline:0;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.12);z-index:60;overflow:hidden;max-height:70vh;overflow-y:auto;"></div>
   </form>
   <div class="nav-actions">
+    <a href="/customer/wishlist" class="nav-icon" id="wishlistBtn" aria-label="wishlist" style="position:relative">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
+      <span class="badge" id="wishBadge" style="display:none">0</span>
+    </a>
     <a href="/customer/login" class="nav-icon" aria-label="account">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     </a>
@@ -236,7 +240,7 @@
             <% if (p.stock <= 0) { %><div class="pc-badge out"><%= t('public.out_of_stock') %></div>
             <% } else if (isDelta) { %><div class="pc-badge">-<%= disc %>%</div><% } %>
           </a>
-          <button class="pc-fav" type="button" aria-label="favorite">
+          <button class="pc-fav" type="button" aria-label="favorite" data-fav="<%= p.id %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
           </button>
           <div class="pc-info">
@@ -460,6 +464,30 @@
   document.addEventListener('click', function (e) { if (!box.contains(e.target) && e.target !== input) hide(); });
 })();
 </script>
+<script>
+// Wishlist (phase 6): paint hearts from the customer's saved set, toggle on click.
+(function () {
+  var badge = document.getElementById('wishBadge');
+  function setBadge(n) { if (!badge) return; badge.textContent = n; badge.style.display = n > 0 ? '' : 'none'; }
+  function paint(ids) {
+    var set = {}; (ids || []).forEach(function (i) { set[i] = 1; });
+    document.querySelectorAll('.pc-fav[data-fav]').forEach(function (b) { b.classList.toggle('is-fav', !!set[b.dataset.fav]); });
+    setBadge((ids || []).length);
+  }
+  // Load the current wishlist (only returns data when a customer is logged in).
+  fetch('/customer/wishlist/ids').then(function (r) { return r.json(); }).then(function (d) { paint(d.ids || []); }).catch(function () {});
+  document.querySelectorAll('.pc-fav[data-fav]').forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      fetch('/customer/wishlist/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_id: +b.dataset.fav }) })
+        .then(function (r) { if (r.status === 401) { window.location.href = '/customer/login'; return null; } return r.json(); })
+        .then(function (d) { if (!d || !d.ok) return; b.classList.toggle('is-fav', d.added); setBadge(d.count); })
+        .catch(function () {});
+    });
+  });
+})();
+</script>
+<style>.pc-fav.is-fav svg{ fill:#ef4444; stroke:#ef4444; }</style>
 <script src="/js/shop.js" defer></script>
 </body>
 </html>
