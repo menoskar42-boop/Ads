@@ -50,6 +50,31 @@
 
 ---
 
+## 🆕 جولة تدقيق 2026-07-14 (فحص Replit SEO + تدقيق داخلي عميق)
+
+> معظم اللي طلع في فحص Replit كان **إنذارات كاذبة** (اتأكدنا منها في الكود الفعلي).
+> اللي كان **حقيقي** اتصلّح، والدروس اتسجّلت هنا عشان ما تتكرّرش.
+
+### أخطاء حقيقية اتصلّحت
+| # | الغلط | القاعدة الدائمة |
+|---|-------|-----------------|
+| 13 | **`og:` مكرّر ومتعارض في `blog/article.ejs`:** الصفحة كانت بتطبع `og:title`/`og:description`/`og:type` inline **وكمان** `seo_meta` بيطبعهم تاني → تكرار، والعنوانين مختلفين (واحد باسم البراند وواحد لأ). | **مصدر واحد للـ og/twitter = `seo_meta` partial بس.** لو الصفحة بتضمّن `seo_meta`، ممنوع تطبع أي `og:*`/`twitter:*` بنفسها. |
+| 14 | **`<meta description>` ≠ `og:description`:** في `blog/index.ejs` و`legal/contact.ejs` النص اللي في `<meta name="description">` كان مختلف عن اللي متبعوت لـ`seo_meta` (og). | **نفس النص بالحرف** في الـ`<meta description>` وفي `title`/`description` المتبعوتين لـ`seo_meta`. استخدم متغيّر واحد `__title`/`__desc` للاتنين. |
+| 15 | **سكيمة Organization متكرّرة:** `contact.ejs`/`about.ejs` كانوا بيعرّفوا Organization جديد جوّه `ContactPage.mainEntity`/`AboutPage.about` بينما `seo_meta` بيعرّف `#organization` بالفعل. | **رجّع بالـ`@id`**: `{"@id":"<siteOrigin>#organization"}` بدل ما تعيد تعريف الكيان. كيان واحد لكل موقع. |
+| 16 | **صفحة الطبيب (`/doctor/:slug`) ما كانتش بتعمل `showAds=false`** زي فرع العيادة الرئيسي. | **كل الصفحات الطبية (عيادة/طبيب/صيدلية) → `showAds=false`** في الراوت — مش بس الصفحة الرئيسية للتينانت. |
+| 17 | **`privacy`/`terms` كانوا `index,follow` وفي الـsitemap** — مخالف للقاعدة الموثّقة (سطر 31) إنهم `noindex,follow`. | **صفحات قانونية boilerplate → `noindex,follow` + مش في الـsitemap.** noindex وsitemap ما يجتمعوش أبداً. |
+
+### إنذارات كاذبة (اتأكدنا إنها **مش** أخطاء — ماتضيّعش وقت تعيد «إصلاحها»)
+- **`/og-default.png` موجود** (`public/og-default.png` ≈ 337KB PNG). `seo_meta` بيرجع عليه صح. (فيه `.svg` كمان بس الكود مابيستخدمهوش.)
+- **صفحات المتجر/الصيدلية/NeuroPilot:** بتستخدم `seo_meta` بقيم per-entity صح (صورة المنتج/لوجو التاجر per-tenant، canonical per-slug). مفيش hardcode ولا bypass.
+- **sitemap/legal/apply:** مفيش صفحة noindex في السايت‌ماب (بعد إصلاح #17)، ومفيش canonical متعارض، ومفيش روابط داخلية مكسورة.
+
+### درس SQL (نشر/migration) — مش SEO بس مهم
+- **ممنوع `DEFAULT` فيه cast/timezone معقّد** زي `(now() AT TIME ZONE 'Africa/Cairo')::date` — أداة الـmigration في Replit مابتعرفش تعيد تسلسله (بتطلّع SQL مكسور → `syntax error at or near "NOT"`). استخدم **`DEFAULT CURRENT_DATE`** وحدّد قيمة القاهرة صراحةً في الـINSERT.
+- **`CREATE TABLE IF NOT EXISTS` مابيصلّحش جدول موجود** → أضِف `ALTER TABLE ... ALTER COLUMN ... SET DEFAULT ...` idempotent عشان القواعد القديمة تصلّح نفسها على البوت.
+
+---
+
 ## ⚙️ #8 — `GOOGLE_SITE_VERIFICATION` (إعداد، مش كود)
 
 خيارين — أي واحد يكفي:

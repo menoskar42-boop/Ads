@@ -118,8 +118,8 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/apply',    priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/faq',      priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
-    { loc: '/privacy',  priority: '0.4', changefreq: 'yearly',  lastmod: today },
-    { loc: '/terms',    priority: '0.4', changefreq: 'yearly',  lastmod: today },
+    // privacy + terms are noindex,follow (boilerplate legal) → intentionally NOT
+    // listed here: a sitemap must only contain indexable (200, index) URLs.
   ];
   for (const a of ARTICLES) {
     urls.push({ loc: '/blog/' + a.slug, priority: '0.7', changefreq: 'monthly', lastmod: a.date });
