@@ -37,7 +37,22 @@
       "priceCurrency": company.currency || 'EGP',
       "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       "url": productUrl
-    }
+    },
+    "aggregateRating": (Number(product.review_count) > 0) ? {
+      "@type": "AggregateRating",
+      "ratingValue": Number(product.avg_rating).toFixed(1),
+      "reviewCount": Number(product.review_count),
+      "bestRating": 5, "worstRating": 1
+    } : undefined,
+    "review": (typeof reviews !== 'undefined' && reviews.length) ? reviews.slice(0, 5).map(function (r) {
+      return {
+        "@type": "Review",
+        "reviewRating": { "@type": "Rating", "ratingValue": r.rating, "bestRating": 5, "worstRating": 1 },
+        "author": { "@type": "Person", "name": r.author },
+        "reviewBody": r.body || undefined,
+        "name": r.title || undefined
+      };
+    }) : undefined
   }) %>
   </script>
   <%
@@ -201,6 +216,81 @@
       <% } %>
     </div>
   </div>
+
+  <!-- Reviews (phase 4) -->
+  <%
+    var __rc = Number(product.review_count) || 0;
+    var __avg = Number(product.avg_rating) || 0;
+    function starRow(n){ var s=''; for(var i=1;i<=5;i++){ s += (i <= Math.round(n)) ? '★' : '☆'; } return s; }
+  %>
+  <section id="reviews" class="mt-8 border-t border-gray-100 pt-6">
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4">تقييمات العملاء</h2>
+
+    <% if (reviewSent) { %>
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">شكراً! تم نشر تقييمك ✅</div>
+    <% } %>
+
+    <div class="grid sm:grid-cols-3 gap-6 mb-6">
+      <div class="text-center sm:text-start">
+        <div class="text-4xl font-black text-gray-900"><%= __rc ? __avg.toFixed(1) : '—' %></div>
+        <div class="text-amber-400 text-lg leading-none mt-1"><%= starRow(__avg) %></div>
+        <div class="text-xs text-gray-500 mt-1"><%= __rc %> تقييم</div>
+      </div>
+      <div class="sm:col-span-2 space-y-1.5">
+        <% for (var s = 5; s >= 1; s--) { var n = (reviewBreakdown && reviewBreakdown[s]) || 0; var pct = __rc ? Math.round(n / __rc * 100) : 0; %>
+          <div class="flex items-center gap-2 text-xs text-gray-500">
+            <span class="w-8">‏<%= s %> ★</span>
+            <div class="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden"><div class="h-full bg-amber-400" style="width:<%= pct %>%"></div></div>
+            <span class="w-8 text-end"><%= n %></span>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <% if (canReview) { %>
+      <form method="post" action="/shop/<%= company.slug %>/product/<%= product.id %>/review" class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-6">
+        <div class="font-bold text-gray-800 text-sm mb-2">اكتب تقييمك (إنت اشتريت المنتج ده ✓)</div>
+        <div class="mb-2" id="starPick" dir="ltr" style="font-size:26px;color:#f59e0b;cursor:pointer;user-select:none;display:inline-flex;gap:2px">
+          <% for (var i = 1; i <= 5; i++) { %><span data-v="<%= i %>">☆</span><% } %>
+        </div>
+        <input type="hidden" name="rating" id="ratingInput" value="0" required />
+        <input name="title" maxlength="120" placeholder="عنوان (اختياري)" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2" />
+        <textarea name="body" rows="3" maxlength="1500" placeholder="رأيك في المنتج…" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2"></textarea>
+        <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2 text-sm hover:bg-indigo-800">نشر التقييم</button>
+      </form>
+      <script>
+      (function(){
+        var wrap=document.getElementById('starPick'), input=document.getElementById('ratingInput'), cur=0;
+        if(!wrap) return;
+        var stars=wrap.querySelectorAll('[data-v]');
+        function paint(v){ stars.forEach(function(s){ s.textContent = (+s.dataset.v <= v) ? '★' : '☆'; }); }
+        stars.forEach(function(s){
+          s.addEventListener('mouseenter', function(){ paint(+s.dataset.v); });
+          s.addEventListener('click', function(){ cur=+s.dataset.v; input.value=cur; paint(cur); });
+        });
+        wrap.addEventListener('mouseleave', function(){ paint(cur); });
+      })();
+      </script>
+    <% } %>
+
+    <% if (!reviews.length) { %>
+      <p class="text-gray-400 text-sm">لسه مفيش تقييمات — كن أول من يقيّم بعد الشراء.</p>
+    <% } else { %>
+      <div class="space-y-4">
+        <% reviews.forEach(function(r){ %>
+          <div class="border-b border-gray-100 pb-4 last:border-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-amber-400 text-sm leading-none"><%= starRow(r.rating) %></span>
+              <span class="font-bold text-gray-800 text-sm"><%= r.author %></span>
+              <% if (r.verified) { %><span class="text-[10px] bg-emerald-50 text-emerald-600 rounded px-1.5 py-0.5">شراء موثّق</span><% } %>
+            </div>
+            <% if (r.title) { %><div class="font-semibold text-gray-800 text-sm"><%= r.title %></div><% } %>
+            <% if (r.body) { %><div class="text-sm text-gray-600 mt-0.5 whitespace-pre-line"><%= r.body %></div><% } %>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </section>
 </main>
 
 <div class="max-w-5xl mx-auto px-4 mb-6"><div class="bg-white rounded-2xl shadow p-4 text-center overflow-hidden"><%- include('../partials/ad_unit', { slot: ads.slots.productMid }) %></div></div>

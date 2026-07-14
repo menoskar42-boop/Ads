@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const push = require('../lib/push');
+const reviews = require('../lib/reviews');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
@@ -367,11 +368,25 @@ router.get('/:slug/product/:id', async (req, res) => {
     const thin = (await pool.query(
       'SELECT COUNT(*)::int AS n FROM products WHERE company_id = $1 AND is_active = true', [company.id]
     )).rows[0].n < 3;
+    // Reviews (phase 4): list + breakdown, and whether the logged-in customer
+    // bought this product (and hasn't reviewed it yet) → may leave a review.
+    const productId = productResult.rows[0].id;
+    const rv = await reviews.forProduct(productId, 30);
+    let canReview = false;
+    if (req.session.customerId) {
+      const bought = await reviews.hasPurchased(req.session.customerId, productId);
+      const already = await reviews.existingReview(req.session.customerId, productId);
+      canReview = !!bought && !already;
+    }
     res.render('shop/product', {
       company,
       product: productResult.rows[0],
       gallery: images.rows,
       cartCount,
+      reviews: rv.reviews,
+      reviewBreakdown: rv.breakdown,
+      canReview,
+      reviewSent: req.query.reviewed === '1',
       noindex: thin,
       showAds: !thin, // product detail is content — but no ads on thin/noindex pages
     });
@@ -379,6 +394,35 @@ router.get('/:slug/product/:id', async (req, res) => {
     console.error('[GET /shop/:slug/product/:id] error:', err);
     res.status(500).send('Error.');
   }
+});
+
+// Submit a product review (phase 4). Only a logged-in customer who purchased
+// the product, and hasn't reviewed it yet. Verified + recomputes the aggregate.
+router.post('/:slug/product/:id/review', async (req, res) => {
+  const { slug, id } = req.params;
+  const productId = parseInt(id, 10);
+  const back = '/shop/' + encodeURIComponent(slug) + '/product/' + productId;
+  try {
+    if (!req.session.customerId) return res.redirect('/customer/login');
+    const company = await loadShopCompany(slug);
+    if (!company) return res.status(404).render('404', { subdomain: slug });
+    const prod = (await pool.query('SELECT id FROM products WHERE id=$1 AND company_id=$2 AND is_active=true', [productId, company.id])).rows[0];
+    if (!prod) return res.redirect(back);
+    const orderId = await reviews.hasPurchased(req.session.customerId, productId);
+    const already = await reviews.existingReview(req.session.customerId, productId);
+    const rating = Math.max(1, Math.min(5, parseInt(req.body.rating, 10) || 0));
+    if (!orderId || already || !rating) return res.redirect(back);
+    await pool.query(
+      `INSERT INTO product_reviews (product_id, company_id, customer_id, order_id, rating, title, body, is_verified, is_approved)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true,true)
+       ON CONFLICT (product_id, customer_id) WHERE customer_id IS NOT NULL DO NOTHING`,
+      [productId, company.id, req.session.customerId, orderId, rating,
+        String(req.body.title || '').trim().slice(0, 120) || null,
+        String(req.body.body || '').trim().slice(0, 1500) || null]
+    );
+    await reviews.recompute(productId);
+    res.redirect(back + '?reviewed=1#reviews');
+  } catch (e) { console.error('[review submit]', e.message); res.redirect(back); }
 });
 
 router.get('/:slug/order/:id', async (req, res) => {

@@ -120,6 +120,8 @@ router.get('/', async (req, res) => {
       if (Number.isFinite(minP)) { where += ' AND price >= $' + params.push(minP); }
       if (Number.isFinite(maxP)) { where += ' AND price <= $' + params.push(maxP); }
       if (inStockOnly) { where += ' AND stock > 0'; }
+      const minRating = parseInt(req.query.rating, 10);
+      if (minRating >= 1 && minRating <= 5) { where += ' AND avg_rating >= $' + params.push(minRating); }
       // Sort options (Amazon roadmap phase 2): price/newest/best-selling.
       const sortMap = {
         price_asc: 'price ASC NULLS LAST', price_desc: 'price DESC NULLS LAST',

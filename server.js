@@ -530,6 +530,25 @@ async function initDb() {
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_ar TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS description_en TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS sold_count INTEGER NOT NULL DEFAULT 0;
+      -- Reviews (Amazon roadmap phase 4): aggregates cached on the product row.
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS avg_rating NUMERIC(3,2) NOT NULL DEFAULT 0;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE IF NOT EXISTS product_reviews (
+        id          SERIAL PRIMARY KEY,
+        product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        company_id  INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+        rating      SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+        title       TEXT,
+        body        TEXT,
+        author_name TEXT,
+        is_verified BOOLEAN NOT NULL DEFAULT true,
+        is_approved BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_product_reviews_product ON product_reviews (product_id, is_approved);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_product_review_customer ON product_reviews (product_id, customer_id) WHERE customer_id IS NOT NULL;
       -- Search acceleration (Amazon roadmap phase 1): fast catalogue scans + name lookups.
       CREATE INDEX IF NOT EXISTS idx_products_company_active ON products (company_id, is_active);
       CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products (lower(name));
