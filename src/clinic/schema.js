@@ -218,6 +218,132 @@ async function ensureClinicSchema() {
       CREATE INDEX IF NOT EXISTS idx_clinic_pay_company ON clinic_payments (company_id, created_at);
     `);
 
+    // ── Optional (enterprise) modules — toggled per-clinic from super-admin ──
+    await client.query(`
+      -- Per-clinic module on/off switches (controlled by OscarDevs super-admin).
+      CREATE TABLE IF NOT EXISTS clinic_modules (
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        module_key  TEXT NOT NULL,
+        enabled     BOOLEAN NOT NULL DEFAULT false,
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (company_id, module_key)
+      );
+
+      -- Inventory: clinic supplies/items + stock movements.
+      CREATE TABLE IF NOT EXISTS clinic_inventory_items (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        unit          TEXT NOT NULL DEFAULT 'قطعة',
+        quantity      NUMERIC(12,2) NOT NULL DEFAULT 0,
+        reorder_level NUMERIC(12,2) NOT NULL DEFAULT 0,
+        price         NUMERIC(10,2) NOT NULL DEFAULT 0,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_inv_items_company ON clinic_inventory_items (company_id, is_active);
+      CREATE TABLE IF NOT EXISTS clinic_stock_moves (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        item_id     INTEGER NOT NULL REFERENCES clinic_inventory_items(id) ON DELETE CASCADE,
+        change      NUMERIC(12,2) NOT NULL, -- +in / -out
+        reason      TEXT NOT NULL DEFAULT 'adjust', -- in|dispense|adjust
+        note        TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_stock_moves ON clinic_stock_moves (company_id, item_id, created_at);
+
+      -- Insurance: insurers + claims.
+      CREATE TABLE IF NOT EXISTS clinic_insurers (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name         TEXT NOT NULL,
+        coverage_pct NUMERIC(5,2) NOT NULL DEFAULT 0,
+        phone        TEXT,
+        is_active    BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS clinic_claims (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        insurer_id  INTEGER REFERENCES clinic_insurers(id) ON DELETE SET NULL,
+        patient_id  INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        invoice_id  INTEGER REFERENCES clinic_invoices(id) ON DELETE SET NULL,
+        amount      NUMERIC(10,2) NOT NULL DEFAULT 0,
+        status      TEXT NOT NULL DEFAULT 'pending', -- pending|approved|paid|rejected
+        notes       TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_claims_company ON clinic_claims (company_id, status, created_at);
+
+      -- Branches.
+      CREATE TABLE IF NOT EXISTS clinic_branches (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        address     TEXT,
+        phone       TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      -- HR: staff + attendance.
+      CREATE TABLE IF NOT EXISTS clinic_staff (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        role        TEXT,
+        phone       TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS clinic_attendance (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        staff_id    INTEGER NOT NULL REFERENCES clinic_staff(id) ON DELETE CASCADE,
+        work_date   DATE NOT NULL DEFAULT (now() AT TIME ZONE 'Africa/Cairo')::date,
+        check_in    TIMESTAMPTZ,
+        check_out   TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_attendance ON clinic_attendance (company_id, staff_id, work_date);
+
+      -- Call center: call / follow-up log.
+      CREATE TABLE IF NOT EXISTS clinic_calls (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id   INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        phone        TEXT,
+        direction    TEXT NOT NULL DEFAULT 'out', -- in|out
+        purpose      TEXT,
+        outcome      TEXT,
+        follow_up_at DATE,
+        note         TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_calls_company ON clinic_calls (company_id, created_at);
+
+      -- API / webhooks integration config.
+      CREATE TABLE IF NOT EXISTS clinic_api_keys (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        label        TEXT NOT NULL,
+        prefix       TEXT NOT NULL,
+        token_hash   TEXT NOT NULL,
+        last_used_at TIMESTAMPTZ,
+        is_active    BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS clinic_webhooks (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        url         TEXT NOT NULL,
+        event       TEXT NOT NULL DEFAULT 'appointment.created',
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+
     await seedDemoClinic(client);
     console.log('Clinic schema ready.');
   } catch (e) {
@@ -293,6 +419,16 @@ async function seedDemoClinic(client) {
     for (const s of svs) {
       await client.query('INSERT INTO clinic_services (company_id, name, price, doctor_pct) VALUES ($1,$2,$3,$4)', [companyId, s[0], s[1], s[2]]);
     }
+  }
+
+  // Enable every optional module for the demo clinic so all screens are visible.
+  const { MODULE_KEYS } = require('./modules');
+  for (const k of MODULE_KEYS) {
+    await client.query(
+      `INSERT INTO clinic_modules (company_id, module_key, enabled) VALUES ($1,$2,true)
+       ON CONFLICT (company_id, module_key) DO NOTHING`,
+      [companyId, k]
+    );
   }
 
   // Demo login (only if the clinic has no user yet) so the /clinic admin can be tried.

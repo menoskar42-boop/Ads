@@ -1,0 +1,38 @@
+<%
+  pageTitle = 'وحدات العيادة';
+  activePage = 'dashboard';
+%>
+<%- include('../_layout_top') %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <div class="flex items-center justify-between gap-3 mb-1">
+      <h2 class="text-xl font-bold text-gray-800">وحدات العيادة</h2>
+      <a href="/admin/companies/<%= company.id %>/edit" class="text-gray-400 hover:text-gray-600 text-sm">‹ رجوع</a>
+    </div>
+    <p class="text-gray-500 text-sm mb-5"><strong><%= company.company_name %></strong> — فعّل الوحدات المتاحة لهذه العيادة فقط.</p>
+
+    <% if (saved) { %>
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">تم حفظ إعدادات الوحدات ✅</div>
+    <% } %>
+
+    <form method="POST" action="/admin/companies/<%= company.id %>/modules" class="space-y-3">
+      <% modules.forEach(function(m){ %>
+      <label class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-50">
+        <span class="text-2xl"><%= m.icon %></span>
+        <span class="flex-1">
+          <span class="block font-bold text-gray-800 text-sm"><%= m.label %></span>
+          <span class="block text-xs text-gray-400"><%= m.desc %></span>
+        </span>
+        <input type="checkbox" name="mod_<%= m.key %>" value="1" <%= enabled.has(m.key) ? 'checked' : '' %>
+          class="w-5 h-5 rounded text-teal-600 focus:ring-teal-300" />
+      </label>
+      <% }); %>
+
+      <div class="flex items-center gap-3 pt-4">
+        <button type="submit" class="bg-teal-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-teal-700 transition shadow-md">حفظ الوحدات</button>
+        <a href="/admin/companies/<%= company.id %>/edit" class="text-gray-500 hover:text-gray-700 text-sm">إلغاء</a>
+      </div>
+    </form>
+  </div>
+
+<%- include('../_layout_bottom') %>

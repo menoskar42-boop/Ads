@@ -116,7 +116,7 @@ router.get('/companies/add', requireAdmin, (req, res) => {
 
 router.post('/companies/add', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, admin_email, admin_password } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   const form = { company_name, slug, description, theme_color, admin_email, page_type };
 
   const renderError = (error) =>
@@ -195,7 +195,7 @@ router.get('/companies/:id/edit', requireAdmin, async (req, res) => {
 
 router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, is_active } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   try {
     if (!SLUG_REGEX.test(slug) || RESERVED_SLUGS.includes(slug)) {
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
@@ -242,6 +242,41 @@ router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
       activePage: 'dashboard',
     });
   }
+});
+
+/* ─── CLINIC MODULES TOGGLE (super-admin controls per clinic) ─────────────── */
+const { MODULES, MODULE_KEYS } = require('../clinic/modules');
+
+router.get('/companies/:id/modules', requireAdmin, async (req, res) => {
+  try {
+    const c = (await pool.query('SELECT * FROM companies WHERE id=$1', [req.params.id])).rows[0];
+    if (!c || c.page_type !== 'clinic') return res.redirect('/admin/dashboard');
+    const enabled = new Set(
+      (await pool.query('SELECT module_key FROM clinic_modules WHERE company_id=$1 AND enabled=true', [c.id])).rows.map((r) => r.module_key)
+    );
+    res.render('admin/companies/modules', {
+      session: adminSession(req), company: c, modules: MODULES, enabled, activePage: 'dashboard',
+      saved: req.query.saved === '1',
+    });
+  } catch (err) { console.error('[admin modules]', err); res.redirect('/admin/dashboard'); }
+});
+
+router.post('/companies/:id/modules', requireAdmin, async (req, res) => {
+  const cid = parseInt(req.params.id, 10);
+  const body = req.body || {};
+  try {
+    const c = (await pool.query('SELECT id, page_type FROM companies WHERE id=$1', [cid])).rows[0];
+    if (!c || c.page_type !== 'clinic') return res.redirect('/admin/dashboard');
+    for (const k of MODULE_KEYS) {
+      const on = String(body['mod_' + k]) === '1';
+      await pool.query(
+        `INSERT INTO clinic_modules (company_id, module_key, enabled, updated_at) VALUES ($1,$2,$3, now())
+         ON CONFLICT (company_id, module_key) DO UPDATE SET enabled=EXCLUDED.enabled, updated_at=now()`,
+        [cid, k, on]
+      );
+    }
+    res.redirect('/admin/companies/' + cid + '/modules?saved=1');
+  } catch (err) { console.error('[admin modules save]', err); res.redirect('/admin/companies/' + cid + '/edit'); }
 });
 
 /* ─── DELETE COMPANY ────────────────────────────────────── */

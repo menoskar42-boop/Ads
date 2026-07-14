@@ -48,8 +48,19 @@
           <option value="shop" <%= company.page_type === 'shop' ? 'selected' : '' %>><%= t('admin.page_type_shop') %></option>
           <option value="pharmacy" <%= company.page_type === 'pharmacy' ? 'selected' : '' %>><%= t('admin.page_type_pharmacy') %></option>
           <option value="orders" <%= company.page_type === 'orders' ? 'selected' : '' %>><%= t('admin.page_type_orders') %></option>
+          <option value="clinic" <%= company.page_type === 'clinic' ? 'selected' : '' %>>عيادة / إدارة عيادات</option>
         </select>
       </div>
+
+      <% if (company.page_type === 'clinic') { %>
+      <div class="bg-teal-50 border border-teal-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <div class="font-bold text-teal-800 text-sm">وحدات العيادة (Modules)</div>
+          <div class="text-xs text-teal-600">فعّل أو أوقف الوحدات المتقدمة لهذه العيادة (مخزون، تأمين، فروع…).</div>
+        </div>
+        <a href="/admin/companies/<%= company.id %>/modules" class="bg-teal-600 text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-teal-700 whitespace-nowrap">إدارة الوحدات</a>
+      </div>
+      <% } %>
 
       <label class="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="is_active" <%= company.is_active ? 'checked' : '' %>
