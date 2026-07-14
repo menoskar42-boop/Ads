@@ -1,0 +1,59 @@
+<%- include('head', { title: 'الموظفون', tab: 'hr' }) %>
+<%
+  function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+%>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">الموظفون والحضور</h1>
+<p class="text-slate-500 mb-6">بيانات فريق العمل وتسجيل الحضور والانصراف اليومي</p>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <div class="lg:col-span-1">
+    <div class="bg-white border border-slate-200 rounded-2xl p-5 lg:sticky lg:top-4">
+      <h2 class="font-extrabold text-slate-900 mb-3">إضافة موظف</h2>
+      <form method="post" action="/clinic/staff" class="grid gap-2.5">
+        <input name="name" required maxlength="120" placeholder="اسم الموظف" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="role" maxlength="60" placeholder="الوظيفة (استقبال/تمريض…)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="phone" maxlength="30" placeholder="الهاتف" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="lg:col-span-2">
+    <% if (!staff.length) { %>
+      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-400 text-sm">مفيش موظفين مضافين.</div>
+    <% } else { %>
+    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">فريق العمل — الحضور اليوم</div>
+      <% staff.forEach(function(s){ var open = openByStaff[s.id]; %>
+      <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+        <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">👤</div>
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-slate-900"><%= s.name %></div>
+          <div class="text-xs text-slate-500"><%= s.role||'' %><% if(open){ %> · <span class="text-emerald-600">حاضر منذ <%= fmtTime(open.check_in) %></span><% } %></div>
+        </div>
+        <form method="post" action="/clinic/staff/<%= s.id %>/check">
+          <% if (open) { %><button class="text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg px-3 py-1.5 font-bold">انصراف</button>
+          <% } else { %><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-3 py-1.5 font-bold">حضور</button><% } %>
+        </form>
+        <form method="post" action="/clinic/staff/<%= s.id %>/delete" onsubmit="return confirm('حذف الموظف؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+      </div>
+      <% }); %>
+    </div>
+
+    <% if (today.length) { %>
+    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden mt-4">
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">سجل حضور اليوم</div>
+      <% today.forEach(function(a){ %>
+      <div class="flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 text-sm">
+        <div class="min-w-0 flex-1 font-bold text-slate-800"><%= a.staff_name %></div>
+        <div class="text-xs text-slate-500">حضور <%= fmtTime(a.check_in) %> · انصراف <%= fmtTime(a.check_out) %></div>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>

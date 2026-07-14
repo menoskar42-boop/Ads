@@ -32,6 +32,9 @@
       <a href="/clinic/invoices" class="<%= __cls('invoices') %>">الفواتير</a>
       <a href="/clinic/doctors" class="<%= __cls('doctors') %>">الأطباء</a>
       <a href="/clinic/services" class="<%= __cls('services') %>">الخدمات</a>
+      <% if (typeof clinicModules !== 'undefined' && typeof enabledModules !== 'undefined') { clinicModules.forEach(function(m){ if (enabledModules.has(m.key)) { %>
+      <a href="<%= m.path %>" class="<%= __cls(m.key) %>"><%= m.label %></a>
+      <% } }); } %>
       <a href="/clinic/settings" class="<%= __cls('settings') %>">الإعدادات</a>
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15">عرض الصفحة ↗</a>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15">خروج</button></form>

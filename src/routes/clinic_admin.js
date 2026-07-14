@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
+const { MODULES, getEnabledModules } = require('../clinic/modules');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -23,10 +24,23 @@ async function requireClinic(req, res, next) {
       return res.redirect('/company/login');
     }
     req.company = r.rows[0];
+    // Which optional modules are enabled for this clinic (drives nav + guards).
+    const enabled = await getEnabledModules(pool, req.company.id);
+    req.enabledModules = enabled;
+    res.locals.enabledModules = enabled;
+    res.locals.clinicModules = MODULES;
     next();
   } catch (e) { console.error('[clinic admin]', e.message); res.redirect('/company/login'); }
 }
 router.use(requireLogin, requireClinic);
+
+// Guard a route behind an enabled module; 404-style redirect to dashboard if off.
+function requireModule(key) {
+  return (req, res, next) => {
+    if (req.enabledModules && req.enabledModules.has(key)) return next();
+    res.redirect('/clinic');
+  };
+}
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
@@ -563,6 +577,239 @@ router.post('/invoices/:id/cancel', async (req, res) => {
   try { await pool.query("UPDATE clinic_invoices SET status='cancelled' WHERE id=$1 AND company_id=$2 AND status<>'paid'", [parseInt(req.params.id, 10), req.company.id]); }
   catch (e) { console.error(e.message); }
   res.redirect('/clinic/invoices/' + parseInt(req.params.id, 10));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  OPTIONAL MODULES (each gated by requireModule — super-admin controls on/off)
+// ═══════════════════════════════════════════════════════════════════════════
+const crypto = require('crypto');
+const num = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
+
+// ── Module: Inventory ────────────────────────────────────────────────────────
+router.get('/inventory', requireModule('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const items = (await pool.query('SELECT * FROM clinic_inventory_items WHERE company_id=$1 ORDER BY is_active DESC, name', [cid])).rows;
+    const moves = (await pool.query(
+      `SELECT m.*, i.name AS item_name, i.unit FROM clinic_stock_moves m
+       JOIN clinic_inventory_items i ON i.id=m.item_id WHERE m.company_id=$1 ORDER BY m.created_at DESC LIMIT 30`, [cid])).rows;
+    const low = items.filter((i) => i.is_active && Number(i.quantity) <= Number(i.reorder_level) && Number(i.reorder_level) > 0);
+    res.render('clinic_admin/mod_inventory', { company: req.company, tab: 'inventory', items, moves, low });
+  } catch (e) { console.error('[inventory]', e.message); res.status(500).send('error'); }
+});
+router.post('/inventory', requireModule('inventory'), async (req, res) => {
+  const b = req.body || {}; const name = String(b.name || '').trim().slice(0, 120);
+  if (name) {
+    try {
+      await pool.query('INSERT INTO clinic_inventory_items (company_id, name, unit, quantity, reorder_level, price) VALUES ($1,$2,$3,$4,$5,$6)',
+        [req.company.id, name, String(b.unit || 'قطعة').slice(0, 20), num(b.quantity, 0), num(b.reorder_level, 0), num(b.price, 0)]);
+    } catch (e) { console.error(e.message); }
+  }
+  res.redirect('/clinic/inventory');
+});
+router.post('/inventory/:id/move', requireModule('inventory'), async (req, res) => {
+  const cid = req.company.id, id = parseInt(req.params.id, 10);
+  const qty = Number(req.body.qty);
+  const dir = req.body.reason === 'dispense' ? -1 : req.body.reason === 'in' ? 1 : (num(req.body.qty, 0) >= 0 ? 1 : -1);
+  const change = req.body.reason === 'in' ? Math.abs(qty) : req.body.reason === 'dispense' ? -Math.abs(qty) : qty;
+  if (isFinite(qty) && qty !== 0) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const it = (await client.query('SELECT quantity FROM clinic_inventory_items WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid])).rows[0];
+      if (it) {
+        await client.query('INSERT INTO clinic_stock_moves (company_id, item_id, change, reason, note) VALUES ($1,$2,$3,$4,$5)',
+          [cid, id, change, ['in', 'dispense', 'adjust'].includes(req.body.reason) ? req.body.reason : 'adjust', String(req.body.note || '').slice(0, 200) || null]);
+        await client.query('UPDATE clinic_inventory_items SET quantity = quantity + $1 WHERE id=$2 AND company_id=$3', [change, id, cid]);
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK').catch(() => {}); console.error('[stock move]', e.message); }
+    finally { client.release(); }
+  }
+  res.redirect('/clinic/inventory');
+});
+router.post('/inventory/:id/delete', requireModule('inventory'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_inventory_items WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/inventory');
+});
+
+// ── Module: Insurance ────────────────────────────────────────────────────────
+router.get('/insurance', requireModule('insurance'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [insurers, claims, patients] = await Promise.all([
+      pool.query('SELECT * FROM clinic_insurers WHERE company_id=$1 ORDER BY is_active DESC, name', [cid]),
+      pool.query(`SELECT c.*, ins.name AS insurer_name, p.name AS patient_name FROM clinic_claims c
+                  LEFT JOIN clinic_insurers ins ON ins.id=c.insurer_id LEFT JOIN clinic_patients p ON p.id=c.patient_id
+                  WHERE c.company_id=$1 ORDER BY c.created_at DESC LIMIT 100`, [cid]),
+      pool.query('SELECT id, name FROM clinic_patients WHERE company_id=$1 ORDER BY created_at DESC LIMIT 500', [cid]),
+    ]);
+    res.render('clinic_admin/mod_insurance', { company: req.company, tab: 'insurance', insurers: insurers.rows, claims: claims.rows, patients: patients.rows });
+  } catch (e) { console.error('[insurance]', e.message); res.status(500).send('error'); }
+});
+router.post('/insurance/insurers', requireModule('insurance'), async (req, res) => {
+  const b = req.body || {}; const name = String(b.name || '').trim().slice(0, 120);
+  if (name) {
+    try { await pool.query('INSERT INTO clinic_insurers (company_id, name, coverage_pct, phone) VALUES ($1,$2,$3,$4)',
+      [req.company.id, name, num(b.coverage_pct, 0), String(b.phone || '').slice(0, 30) || null]); } catch (e) { console.error(e.message); }
+  }
+  res.redirect('/clinic/insurance');
+});
+router.post('/insurance/insurers/:id/delete', requireModule('insurance'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_insurers WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/insurance');
+});
+router.post('/insurance/claims', requireModule('insurance'), async (req, res) => {
+  const b = req.body || {};
+  try {
+    await pool.query('INSERT INTO clinic_claims (company_id, insurer_id, patient_id, amount, status, notes) VALUES ($1,$2,$3,$4,$5,$6)',
+      [req.company.id, parseInt(b.insurer_id, 10) || null, parseInt(b.patient_id, 10) || null, num(b.amount, 0), 'pending', String(b.notes || '').slice(0, 500) || null]);
+  } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/insurance');
+});
+router.post('/insurance/claims/:id/status', requireModule('insurance'), async (req, res) => {
+  const st = ['pending', 'approved', 'paid', 'rejected'].includes(req.body.status) ? req.body.status : null;
+  if (st) { try { await pool.query('UPDATE clinic_claims SET status=$1 WHERE id=$2 AND company_id=$3', [st, parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); } }
+  res.redirect('/clinic/insurance');
+});
+
+// ── Module: Branches ─────────────────────────────────────────────────────────
+router.get('/branches', requireModule('branches'), async (req, res) => {
+  try {
+    const rows = (await pool.query('SELECT * FROM clinic_branches WHERE company_id=$1 ORDER BY is_active DESC, id', [req.company.id])).rows;
+    res.render('clinic_admin/mod_branches', { company: req.company, tab: 'branches', branches: rows });
+  } catch (e) { console.error('[branches]', e.message); res.status(500).send('error'); }
+});
+router.post('/branches', requireModule('branches'), async (req, res) => {
+  const b = req.body || {}; const name = String(b.name || '').trim().slice(0, 120);
+  if (name) {
+    try { await pool.query('INSERT INTO clinic_branches (company_id, name, address, phone) VALUES ($1,$2,$3,$4)',
+      [req.company.id, name, String(b.address || '').slice(0, 200) || null, String(b.phone || '').slice(0, 30) || null]); } catch (e) { console.error(e.message); }
+  }
+  res.redirect('/clinic/branches');
+});
+router.post('/branches/:id/delete', requireModule('branches'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_branches WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/branches');
+});
+
+// ── Module: HR (staff + attendance) ──────────────────────────────────────────
+router.get('/staff', requireModule('hr'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [staff, today] = await Promise.all([
+      pool.query('SELECT * FROM clinic_staff WHERE company_id=$1 ORDER BY is_active DESC, name', [cid]),
+      pool.query(`SELECT a.*, s.name AS staff_name FROM clinic_attendance a JOIN clinic_staff s ON s.id=a.staff_id
+                  WHERE a.company_id=$1 AND a.work_date=(now() AT TIME ZONE 'Africa/Cairo')::date ORDER BY a.check_in DESC NULLS LAST`, [cid]),
+    ]);
+    // Map staff_id → today's open attendance row (checked in, not out).
+    const openByStaff = {};
+    today.rows.forEach((r) => { if (r.check_in && !r.check_out) openByStaff[r.staff_id] = r; });
+    res.render('clinic_admin/mod_staff', { company: req.company, tab: 'hr', staff: staff.rows, today: today.rows, openByStaff });
+  } catch (e) { console.error('[staff]', e.message); res.status(500).send('error'); }
+});
+router.post('/staff', requireModule('hr'), async (req, res) => {
+  const b = req.body || {}; const name = String(b.name || '').trim().slice(0, 120);
+  if (name) {
+    try { await pool.query('INSERT INTO clinic_staff (company_id, name, role, phone) VALUES ($1,$2,$3,$4)',
+      [req.company.id, name, String(b.role || '').slice(0, 60) || null, String(b.phone || '').slice(0, 30) || null]); } catch (e) { console.error(e.message); }
+  }
+  res.redirect('/clinic/staff');
+});
+router.post('/staff/:id/delete', requireModule('hr'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_staff WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/staff');
+});
+router.post('/staff/:id/check', requireModule('hr'), async (req, res) => {
+  const cid = req.company.id, sid = parseInt(req.params.id, 10);
+  try {
+    const open = (await pool.query(
+      `SELECT id FROM clinic_attendance WHERE company_id=$1 AND staff_id=$2 AND work_date=(now() AT TIME ZONE 'Africa/Cairo')::date AND check_in IS NOT NULL AND check_out IS NULL ORDER BY id DESC LIMIT 1`,
+      [cid, sid])).rows[0];
+    if (open) {
+      await pool.query('UPDATE clinic_attendance SET check_out=now() WHERE id=$1', [open.id]);
+    } else {
+      await pool.query('INSERT INTO clinic_attendance (company_id, staff_id, check_in) VALUES ($1,$2, now())', [cid, sid]);
+    }
+  } catch (e) { console.error('[attendance]', e.message); }
+  res.redirect('/clinic/staff');
+});
+
+// ── Module: Call center ──────────────────────────────────────────────────────
+router.get('/calls', requireModule('callcenter'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [calls, patients, followups] = await Promise.all([
+      pool.query(`SELECT c.*, p.name AS patient_name FROM clinic_calls c LEFT JOIN clinic_patients p ON p.id=c.patient_id
+                  WHERE c.company_id=$1 ORDER BY c.created_at DESC LIMIT 100`, [cid]),
+      pool.query('SELECT id, name, phone FROM clinic_patients WHERE company_id=$1 ORDER BY created_at DESC LIMIT 500', [cid]),
+      pool.query(`SELECT c.*, p.name AS patient_name FROM clinic_calls c LEFT JOIN clinic_patients p ON p.id=c.patient_id
+                  WHERE c.company_id=$1 AND c.follow_up_at >= (now() AT TIME ZONE 'Africa/Cairo')::date ORDER BY c.follow_up_at LIMIT 20`, [cid]),
+    ]);
+    res.render('clinic_admin/mod_calls', { company: req.company, tab: 'callcenter', calls: calls.rows, patients: patients.rows, followups: followups.rows });
+  } catch (e) { console.error('[calls]', e.message); res.status(500).send('error'); }
+});
+router.post('/calls', requireModule('callcenter'), async (req, res) => {
+  const b = req.body || {};
+  try {
+    await pool.query(
+      `INSERT INTO clinic_calls (company_id, patient_id, phone, direction, purpose, outcome, follow_up_at, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [req.company.id, parseInt(b.patient_id, 10) || null, String(b.phone || '').slice(0, 30) || null,
+        b.direction === 'in' ? 'in' : 'out', String(b.purpose || '').slice(0, 120) || null, String(b.outcome || '').slice(0, 120) || null,
+        /^\d{4}-\d{2}-\d{2}$/.test(b.follow_up_at || '') ? b.follow_up_at : null, String(b.note || '').slice(0, 500) || null]
+    );
+  } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/calls');
+});
+router.post('/calls/:id/delete', requireModule('callcenter'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_calls WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/calls');
+});
+
+// ── Module: API / integrations ───────────────────────────────────────────────
+router.get('/integrations', requireModule('api'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [keys, hooks] = await Promise.all([
+      pool.query('SELECT id, label, prefix, last_used_at, is_active, created_at FROM clinic_api_keys WHERE company_id=$1 ORDER BY created_at DESC', [cid]),
+      pool.query('SELECT * FROM clinic_webhooks WHERE company_id=$1 ORDER BY created_at DESC', [cid]),
+    ]);
+    res.render('clinic_admin/mod_integrations', {
+      company: req.company, tab: 'api', keys: keys.rows, hooks: hooks.rows,
+      newToken: req.session.clinicNewToken || null,
+    });
+    req.session.clinicNewToken = null;
+  } catch (e) { console.error('[integrations]', e.message); res.status(500).send('error'); }
+});
+router.post('/integrations/keys', requireModule('api'), async (req, res) => {
+  const label = String(req.body.label || '').trim().slice(0, 60) || 'مفتاح';
+  // Generate a token, store only its hash + a short display prefix; show once.
+  const raw = crypto.randomBytes(24).toString('hex');
+  const prefix = 'osc_' + raw.slice(0, 6);
+  const token = prefix + '_' + raw.slice(6);
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  try {
+    await pool.query('INSERT INTO clinic_api_keys (company_id, label, prefix, token_hash) VALUES ($1,$2,$3,$4)', [req.company.id, label, prefix, hash]);
+    req.session.clinicNewToken = token;
+  } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/integrations');
+});
+router.post('/integrations/keys/:id/delete', requireModule('api'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_api_keys WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/integrations');
+});
+router.post('/integrations/webhooks', requireModule('api'), async (req, res) => {
+  const url = String(req.body.url || '').trim().slice(0, 300);
+  const event = ['appointment.created', 'visit.done', 'invoice.paid'].includes(req.body.event) ? req.body.event : 'appointment.created';
+  if (/^https:\/\//i.test(url)) {
+    try { await pool.query('INSERT INTO clinic_webhooks (company_id, url, event) VALUES ($1,$2,$3)', [req.company.id, url, event]); } catch (e) { console.error(e.message); }
+  }
+  res.redirect('/clinic/integrations');
+});
+router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (req, res) => {
+  try { await pool.query('DELETE FROM clinic_webhooks WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
+  res.redirect('/clinic/integrations');
 });
 
 module.exports = router;
