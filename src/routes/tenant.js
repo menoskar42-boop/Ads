@@ -260,6 +260,12 @@ router.get('/', async (req, res) => {
     payment = await loadPaymentMethods(pool, company, res.locals.t);
   }
 
+  // Store analytics (phase 29): log a storefront visit for shop tenants only.
+  if (company.page_type === 'shop') {
+    try { require('../lib/store_analytics').logVisit(company.id, 'store', req.get('referer'), req.hostname); }
+    catch (e) { /* never block render */ }
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';

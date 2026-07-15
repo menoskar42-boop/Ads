@@ -617,6 +617,17 @@ async function initDb() {
         UNIQUE (company_id, customer_id)
       );
       CREATE INDEX IF NOT EXISTS idx_abandoned_carts ON abandoned_carts (company_id, updated_at DESC);
+      -- Store analytics (competitor phase 29): one row per storefront page view,
+      -- with the referrer host bucketed to a traffic source. Fire-and-forget
+      -- insert; used for visits/conversion/top-source dashboards.
+      CREATE TABLE IF NOT EXISTS store_visits (
+        id          BIGSERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        kind        TEXT NOT NULL DEFAULT 'store',
+        source      TEXT NOT NULL DEFAULT 'direct',
+        visited_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_store_visits ON store_visits (company_id, visited_at DESC);
       CREATE TABLE IF NOT EXISTS gift_cards (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

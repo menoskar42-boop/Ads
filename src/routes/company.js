@@ -943,6 +943,16 @@ router.post('/giftcards/:id/toggle', requireLogin, requireShop, async (req, res)
   res.redirect('/company/giftcards');
 });
 
+/* ─── STORE ANALYTICS (phase 29) ─────────────────────────── */
+router.get('/analytics', requireLogin, requireShop, async (req, res) => {
+  try {
+    const analytics = require('../lib/store_analytics');
+    const days = parseInt(req.query.days, 10) || 30;
+    const data = await analytics.summary(req.session.companyId, days);
+    res.render('company/analytics', { data, days: data.days, session: req.session });
+  } catch (e) { console.error('[analytics]', e.message); res.redirect('/company/dashboard'); }
+});
+
 /* ─── ABANDONED CHECKOUTS (phase 26) ─────────────────────── */
 // Carts that reached checkout but never converted. The merchant sees who + what,
 // and gets a ready WhatsApp reminder link (uses their store whatsapp_number).

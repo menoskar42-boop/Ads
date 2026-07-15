@@ -546,6 +546,9 @@ router.get('/:slug/product/:id', async (req, res) => {
       [parseInt(id, 10), company.id]
     );
     if (!productResult.rows.length) return res.status(404).render('404', { subdomain: slug });
+    // Store analytics (phase 29): log a product view.
+    try { require('../lib/store_analytics').logVisit(company.id, 'product', req.get('referer'), req.hostname); }
+    catch (e) { /* never block render */ }
     const images = await pool.query(
       'SELECT * FROM product_images WHERE product_id = $1 ORDER BY order_index, created_at',
       [productResult.rows[0].id]
