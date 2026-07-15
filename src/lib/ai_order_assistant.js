@@ -108,6 +108,7 @@ function systemPrompt(list, lang, cur, merchantName, currentCart) {
     `تعديل / حذف من السلة:`,
     `- **add_to_cart بتزوّد (مش بتحدّد).** لو الزبون قال «احذف»، «شيل»، «الغي» صنف → نادِ **update_cart** لنفس الصنف بكمية **0**. لو قال «خليها واحدة/اتنين» → update_cart بالكمية النهائية. **ممنوع تستخدم add_to_cart للتصحيح أو الحذف.**`,
     `- لو الزبون قال «احذف ده وهات ده» — اعمل update_cart بـ0 للقديم، **ومتضيفش الجديد إلا لو أكّد إنه عايزه فعلاً** (مش مجرد بيسأل «فيه؟»).`,
+    `- 🚫 **ممنوع منعاً باتاً تقول «شِلت» أو «حذفت» أو «ظبطت» أو «قلّلت» في ردّك من غير ما تكون فعلاً ناديت update_cart في نفس الرسالة.** الكلام لوحده ما بيغيّرش السلة — لو ما نادتش الأداة، الصنف هيفضل في السلة والزبون هيتحاسب عليه غلط. نفّذ الأداة الأول، وبعدها بس قُل إنك عملتها.`,
     `- لو طلب حاجة مش في المنيو، قوله بلطف إنها مش متوفرة ورشّح أقرب بديل موجود.`,
     hasDrinks ? `- بعد ما يأكّد وجبة رئيسية ومفيش مشروب في طلبه، اعرض عليه مشروب ساقع من المنيو («تحب أضيفلك حاجة ساقعة معاها؟») — مرة واحدة بس ومن غير ما تضيفه إلا بعد ما يوافق.` : ``,
     hasDesserts ? `- ممكن تعرض تحلية موجودة لو مناسب، بلطف ومن غير تكرار ومن غير ما تضيفها إلا بموافقة.` : ``,
@@ -189,7 +190,7 @@ const CHECKOUT_TOOL = {
   },
 };
 
-async function callGroq(messages, tools) {
+async function callGroq(messages, tools, toolChoice) {
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
@@ -200,7 +201,7 @@ async function callGroq(messages, tools) {
       model: DEFAULT_MODEL,
       messages,
       tools,
-      tool_choice: 'auto',
+      tool_choice: toolChoice || 'auto',
       temperature: 0.5,
       max_tokens: 800,
     }),
@@ -284,6 +285,41 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
       } catch (e) { /* ignore malformed args */ }
       messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify({ ok: true, items: result }) });
     }
+  }
+
+  // Safety net for the #1 QA bug: the model narrates a removal/quantity change
+  // in prose ("شِلت المشروب") but forgets to actually CALL update_cart, so the
+  // real cart never changes and the customer could be billed for it. If the
+  // customer clearly asked to remove/change something, the cart already has
+  // items, and NO cart mutation was produced this turn, force one corrective
+  // round that REQUIRES an update_cart tool call.
+  const wantsCartEdit = /(?:احذف|امسح|شيل|شِل|الغِ|الغي|ألغِ|ألغي|إلغاء|بدون|من غير|شلت|قلل|زوّد|زود|خليها|خليهم|اجعلها|بس واحد|واحدة بس|remove|delete|cancel|without|make it)/i.test(String(message));
+  const producedMutation = cart.length > 0 || updates.length > 0 || checkout;
+  if (wantsCartEdit && !producedMutation && Array.isArray(currentCart) && currentCart.length) {
+    try {
+      messages.push({
+        role: 'system',
+        content: 'الزبون طلب تعديل أو حذف صنف من السلة وإنت ما نفّذتش الإجراء فعلياً. نفّذ دلوقتي: نادِ update_cart بالـ item_id الصحيح من السلة الحالية واضبط الكمية النهائية (0 = حذف). ممنوع ترد بنص — لازم tool call.',
+      });
+      const forced = await callGroq(messages, [UPDATE_CART_TOOL], {
+        type: 'function', function: { name: 'update_cart' },
+      });
+      tokens += (forced.usage && forced.usage.total_tokens) || 0;
+      const fmsg = (forced.choices && forced.choices[0] && forced.choices[0].message) || {};
+      for (const tc of (fmsg.tool_calls || [])) {
+        if (!tc.function || tc.function.name !== 'update_cart') continue;
+        try {
+          const args = JSON.parse(tc.function.arguments || '{}');
+          (args.items || []).forEach((it) => {
+            const row = byId.get(String(it.item_id));
+            if (!row) return;
+            const qty = Math.max(0, Math.min(50, parseInt(it.quantity, 10)));
+            const existing = updates.find((u) => u.id === row.id);
+            if (existing) existing.qty = qty; else updates.push({ id: row.id, qty, name: row.name_ar || row.name });
+          });
+        } catch (e) { /* ignore malformed args */ }
+      }
+    } catch (e) { /* network/model error → leave reply as-is */ }
   }
 
   // Some models (llama tool-use) sometimes emit a tool call as INLINE TEXT like
