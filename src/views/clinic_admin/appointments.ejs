@@ -28,8 +28,15 @@
     <% if (typeof waReady !== 'undefined' && waReady && a.patient_phone) { %>
     <form method="post" action="/clinic/appointments/<%= a.id %>/whatsapp" class="inline">
       <input type="hidden" name="back" value="<%= status %>" />
-      <button class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="إرسال تأكيد واتساب">💬 واتساب</button>
+      <button class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="إرسال تأكيد واتساب عبر API">💬 واتساب (API)</button>
     </form>
+    <% } else if (a.patient_phone) {
+         var __waPhone = String(a.patient_phone).replace(/[^0-9]/g, '');
+         var __waIntl = __waPhone.length <= 11 ? ('20' + __waPhone.replace(/^0/, '')) : __waPhone;
+         var __waMsg = 'أهلاً ' + (a.patient_name || '') + '، بخصوص موعدك في العيادة' + (a.slot_at ? (' يوم ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '') + '.';
+    %>
+    <a href="https://wa.me/<%= __waIntl %>?text=<%= encodeURIComponent(__waMsg) %>" target="_blank" rel="nofollow noopener"
+       class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="فتح محادثة واتساب">💬 واتساب</a>
     <% } %>
     <form method="post" action="/clinic/appointments/<%= a.id %>/status" class="flex items-center gap-1">
       <input type="hidden" name="back" value="<%= status %>" />
