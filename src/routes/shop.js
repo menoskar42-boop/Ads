@@ -182,6 +182,34 @@ router.get('/:slug/checkout', async (req, res) => {
     const cart = getCart(req, slug);
     if (!Object.keys(cart).length) return res.redirect(`/shop/${slug}/cart`);
 
+    // Order summary so the customer can review the total before confirming.
+    // Applies any active deal to the effective unit price (matches checkout POST).
+    let orderLines = [];
+    let orderSubtotal = 0;
+    {
+      const ids = [...new Set(Object.keys(cart).map(k => parseCartKey(k).id).filter(Number.isFinite))];
+      if (ids.length) {
+        const rows = (await pool.query('SELECT id, name, price FROM products WHERE id = ANY($1::int[]) AND company_id=$2', [ids, company.id])).rows;
+        const byId = Object.fromEntries(rows.map(p => [p.id, p]));
+        for (const k of Object.keys(cart)) {
+          const { id, size, variantId } = parseCartKey(k);
+          const p = byId[id]; if (!p) continue;
+          const qty = cart[k] || 0;
+          let unit = Number(p.price);
+          if (Number.isFinite(variantId)) {
+            const v = (await pool.query('SELECT label, price_delta FROM product_variants WHERE id=$1 AND product_id=$2', [variantId, id])).rows[0];
+            if (v) unit += Number(v.price_delta || 0);
+          }
+          const deal = await deals.dealForProduct(company.id, id);
+          if (deal) unit = deals.applyPct(unit, deal.discount_pct);
+          const lineTotal = +(unit * qty).toFixed(2);
+          orderSubtotal += lineTotal;
+          orderLines.push({ name: p.name, size: size || null, qty, unit: +unit.toFixed(2), lineTotal });
+        }
+      }
+      orderSubtotal = +orderSubtotal.toFixed(2);
+    }
+
     let prefill = {};
     let savedAddresses = [];
     let customerPoints = 0;
@@ -233,6 +261,8 @@ router.get('/:slug/checkout', async (req, res) => {
       customerPoints,
       customerWallet: feat.gift_cards === false ? 0 : customerWallet,
       customerId: req.session.customerId || null,
+      orderLines,
+      orderSubtotal,
       error: req.query.error || null,
     });
   } catch (err) {

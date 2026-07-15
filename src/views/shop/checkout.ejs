@@ -67,10 +67,10 @@
     <% if (typeof shippingZones !== 'undefined' && shippingZones.length) { %>
     <div>
       <label class="block text-sm font-semibold text-gray-600 mb-1.5">المحافظة (للشحن) *</label>
-      <select name="shipping_zone" required class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
+      <select name="shipping_zone" id="shipZoneSel" required class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
         <option value="">اختر المحافظة</option>
         <% shippingZones.forEach(function(z){ %>
-          <option value="<%= z.governorate %>"><%= z.governorate %> — <%= Number(z.cost)===0 ? 'شحن مجاني' : (Number(z.cost)+' ج') %><%= z.free_over ? (' (مجاني فوق '+Number(z.free_over)+' ج)') : '' %><%= z.eta_days ? (' · '+z.eta_days) : '' %></option>
+          <option value="<%= z.governorate %>" data-cost="<%= Number(z.cost)||0 %>" data-free-over="<%= z.free_over ? Number(z.free_over) : '' %>"><%= z.governorate %> — <%= Number(z.cost)===0 ? 'شحن مجاني' : (Number(z.cost)+' ج') %><%= z.free_over ? (' (مجاني فوق '+Number(z.free_over)+' ج)') : '' %><%= z.eta_days ? (' · '+z.eta_days) : '' %></option>
         <% }); %>
       </select>
     </div>
@@ -156,6 +156,49 @@
     <div class="border-t pt-4">
       <%- include('../partials/payment_methods', { payment: payment }) %>
     </div>
+
+    <!-- Order summary — lets the customer review the total before confirming -->
+    <% if (typeof orderLines !== 'undefined' && orderLines.length) { var __cur = (company.currency || 'ج'); %>
+    <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+      <div class="font-bold text-gray-800 text-sm mb-3">ملخص الطلب</div>
+      <div class="space-y-1.5 text-sm">
+        <% orderLines.forEach(function(l){ %>
+        <div class="flex items-center justify-between gap-2 text-gray-600">
+          <span class="truncate"><%= l.name %><%= l.size ? (' (' + l.size + ')') : '' %> × <%= l.qty %></span>
+          <span class="shrink-0 font-semibold"><%= Number(l.lineTotal).toFixed(2) %> <%= __cur %></span>
+        </div>
+        <% }); %>
+      </div>
+      <div class="border-t border-gray-200 mt-3 pt-3 space-y-1.5 text-sm">
+        <div class="flex items-center justify-between text-gray-600"><span>المجموع الفرعي</span><span id="sumSubtotal" class="font-semibold"><%= Number(orderSubtotal).toFixed(2) %> <%= __cur %></span></div>
+        <div class="flex items-center justify-between text-gray-600"><span>الشحن</span><span id="sumShipping">يُحدَّد بعد اختيار المحافظة</span></div>
+        <div class="flex items-center justify-between text-base font-black text-gray-900 pt-1"><span>الإجمالي</span><span id="sumTotal"><%= Number(orderSubtotal).toFixed(2) %> <%= __cur %></span></div>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-2">الكوبون والنقاط ورصيد المحفظة بيتخصموا عند تأكيد الطلب.</p>
+    </div>
+    <script>
+    (function(){
+      var sub = <%= Number(orderSubtotal) %>, cur = <%- JSON.stringify(company.currency || 'ج') %>;
+      var sel = document.getElementById('shipZoneSel');
+      var shipEl = document.getElementById('sumShipping'), totEl = document.getElementById('sumTotal');
+      function fmt(n){ return (Math.round(n*100)/100).toFixed(2) + ' ' + cur; }
+      function recalc(){
+        var ship = 0, known = false;
+        if (sel && sel.value){
+          var o = sel.options[sel.selectedIndex];
+          var cost = parseFloat(o.getAttribute('data-cost')) || 0;
+          var freeOver = parseFloat(o.getAttribute('data-free-over'));
+          ship = (!isNaN(freeOver) && freeOver > 0 && sub >= freeOver) ? 0 : cost;
+          known = true;
+        } else if (!sel) { known = true; }
+        if (shipEl) shipEl.textContent = known ? (ship === 0 ? 'مجاني' : fmt(ship)) : 'يُحدَّد بعد اختيار المحافظة';
+        if (totEl) totEl.textContent = fmt(sub + (known ? ship : 0));
+      }
+      if (sel) sel.addEventListener('change', recalc);
+      recalc();
+    })();
+    </script>
+    <% } %>
 
     <button type="submit" class="brand-btn text-white font-bold w-full py-3 rounded-xl hover:opacity-90 transition shadow">
       <%= t('public.place_order') %>
