@@ -383,10 +383,21 @@ async function ensureClinicSchema() {
 // Seed a demo clinic tenant (slug 'clinic') so clinic.oscardevs.com resolves to
 // a working sample — kept OFF the homepage until the product ships.
 async function seedDemoClinic(client) {
-  const existing = await client.query('SELECT id FROM companies WHERE slug = $1', [DEMO_SLUG]);
+  const existing = await client.query('SELECT id, page_type, is_active FROM companies WHERE slug = $1', [DEMO_SLUG]);
   let companyId;
   if (existing.rows.length) {
     companyId = existing.rows[0].id;
+    // Self-heal: if the demo clinic row was created earlier as another page_type
+    // (e.g. a leftover portfolio), the storefront + admin would render the wrong
+    // module and the clinic screens would be missing. Force it back to a live
+    // clinic so clinic.oscardevs.com (via the wildcard) always serves the clinic.
+    if (existing.rows[0].page_type !== 'clinic' || existing.rows[0].is_active !== true) {
+      await client.query(
+        "UPDATE companies SET page_type = 'clinic', is_active = true WHERE id = $1",
+        [companyId]
+      );
+      console.log('[clinic] self-healed demo company page_type → clinic');
+    }
   } else {
     const ins = await client.query(
       `INSERT INTO companies (slug, company_name, description, page_type, theme_color, is_active)
