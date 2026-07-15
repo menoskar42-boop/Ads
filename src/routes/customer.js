@@ -183,10 +183,51 @@ router.post('/addresses/:id/delete', requireCustomer, async (req, res) => {
 /* ─── LOYALTY POINTS (phase 19) ──────────────────────────── */
 router.get('/points', requireCustomer, async (req, res) => {
   try {
-    const c = (await pool.query('SELECT loyalty_points FROM customers WHERE id=$1', [req.session.customerId])).rows[0] || { loyalty_points: 0 };
+    const c = (await pool.query('SELECT loyalty_points, wallet_balance FROM customers WHERE id=$1', [req.session.customerId])).rows[0] || { loyalty_points: 0, wallet_balance: 0 };
     const orders = (await pool.query('SELECT id, points_earned, points_redeemed, total_amount, created_at FROM orders WHERE customer_id=$1 AND (points_earned>0 OR points_redeemed>0) ORDER BY id DESC LIMIT 50', [req.session.customerId])).rows;
-    res.render('customer/points', { points: c.loyalty_points, orders, session: req.session });
+    res.render('customer/points', {
+      points: c.loyalty_points,
+      wallet: Number(c.wallet_balance || 0),
+      orders,
+      session: req.session,
+      giftSaved: req.query.gift === '1',
+      giftError: req.query.gifterror || null,
+    });
   } catch (e) { console.error('[points]', e.message); res.status(500).send('Error.'); }
+});
+
+/* ─── GIFT-CARD REDEEM → WALLET (phase 31) ───────────────── */
+// A logged-in customer enters a gift-card code; if valid + unredeemed the card's
+// value is credited to their wallet_balance (atomic, one-time). The wallet is
+// then usable as payment at any of that store's checkouts.
+router.post('/wallet/redeem', requireCustomer, async (req, res) => {
+  const code = String(req.body.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 24);
+  if (!code) return res.redirect('/customer/points?gifterror=' + encodeURIComponent('أدخلي كود صحيح'));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Lock the card row; only redeem if active and not already redeemed.
+    const card = (await client.query(
+      `SELECT id, amount FROM gift_cards
+        WHERE code=$1 AND is_active=true AND redeemed_by IS NULL
+        FOR UPDATE`,
+      [code]
+    )).rows[0];
+    if (!card) {
+      await client.query('ROLLBACK');
+      return res.redirect('/customer/points?gifterror=' + encodeURIComponent('الكود غير صالح أو مستخدم بالفعل'));
+    }
+    await client.query('UPDATE gift_cards SET redeemed_by=$1, redeemed_at=now() WHERE id=$2', [req.session.customerId, card.id]);
+    await client.query('UPDATE customers SET wallet_balance = wallet_balance + $1 WHERE id=$2', [card.amount, req.session.customerId]);
+    await client.query('COMMIT');
+    res.redirect('/customer/points?gift=1');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[wallet redeem]', e.message);
+    res.redirect('/customer/points?gifterror=' + encodeURIComponent('تعذّر تفعيل الكرت'));
+  } finally {
+    client.release();
+  }
 });
 
 /* ─── RETURN REQUESTS (phase 20) ─────────────────────────── */

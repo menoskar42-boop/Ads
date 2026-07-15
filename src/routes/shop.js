@@ -185,14 +185,16 @@ router.get('/:slug/checkout', async (req, res) => {
     let prefill = {};
     let savedAddresses = [];
     let customerPoints = 0;
+    let customerWallet = 0;
     if (req.session.customerId) {
-      const c = await pool.query('SELECT email, full_name, phone, address, loyalty_points FROM customers WHERE id = $1', [req.session.customerId]);
-      if (c.rows.length) { prefill = { ...c.rows[0] }; customerPoints = c.rows[0].loyalty_points || 0; }
+      const c = await pool.query('SELECT email, full_name, phone, address, loyalty_points, wallet_balance FROM customers WHERE id = $1', [req.session.customerId]);
+      if (c.rows.length) { prefill = { ...c.rows[0] }; customerPoints = c.rows[0].loyalty_points || 0; customerWallet = Number(c.rows[0].wallet_balance || 0); }
       savedAddresses = (await pool.query('SELECT * FROM customer_addresses WHERE customer_id=$1 ORDER BY is_default DESC, id DESC', [req.session.customerId])).rows;
     }
 
     const payment = await loadPaymentMethods(pool, company, res.locals.t);
     const zones = await shipping.getZones(company.id);
+    const feat = await shopFeatures.getFeatures(company.id);
     res.render('shop/checkout', {
       company,
       prefill,
@@ -200,6 +202,7 @@ router.get('/:slug/checkout', async (req, res) => {
       shippingZones: zones,
       savedAddresses,
       customerPoints,
+      customerWallet: feat.gift_cards === false ? 0 : customerWallet,
       customerId: req.session.customerId || null,
       error: req.query.error || null,
     });
@@ -325,19 +328,34 @@ router.post('/:slug/checkout', async (req, res) => {
       const zone = await shipping.zoneFor(company.id, govr);
       if (zone) { shipCost = shipping.costFor(zone, afterDiscount); shipZoneName = zone.governorate; }
     }
-    const finalTotal = +(afterDiscount + shipCost).toFixed(2);
-    // Loyalty earning (phase 19): 1 point per currency unit of the final total.
+    const orderTotal = +(afterDiscount + shipCost).toFixed(2);
+    // Wallet / gift-card credit (phase 31): apply the customer's balance against
+    // the amount owed. Locked FOR UPDATE so two concurrent orders can't both
+    // spend the same balance. Never goes below zero, never exceeds the total.
+    let walletUsed = 0;
+    if (customerId && String(req.body.use_wallet) === '1') {
+      const w = (await client.query('SELECT wallet_balance FROM customers WHERE id=$1 FOR UPDATE', [customerId])).rows[0];
+      const bal = Number((w && w.wallet_balance) || 0);
+      if (bal > 0) {
+        walletUsed = Math.min(bal, orderTotal);
+        if (walletUsed > 0) {
+          await client.query('UPDATE customers SET wallet_balance = GREATEST(0, wallet_balance - $1) WHERE id=$2', [walletUsed, customerId]);
+        }
+      }
+    }
+    const finalTotal = +(orderTotal - walletUsed).toFixed(2);
+    // Loyalty earning (phase 19): 1 point per currency unit of the amount actually paid.
     const pointsEarned = customerId ? Math.floor(finalTotal) : 0;
     const paymentMethod = ['cod', 'card', 'wallet', 'instapay'].includes(req.body.payment_method) ? req.body.payment_method : 'cod';
 
     const orderInsert = await client.query(
       `INSERT INTO orders (company_id, customer_id, customer_name, customer_phone, customer_email,
                            shipping_address, total_amount, status, notes, coupon_code, discount_amount,
-                           shipping_cost, shipping_zone, points_redeemed, points_earned, payment_method)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+                           shipping_cost, shipping_zone, points_redeemed, points_earned, payment_method, wallet_used)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
       [company.id, customerId, customer_name, customer_phone, customer_email || null,
        shipping_address, finalTotal, notes || null, appliedCode, discountAmount, shipCost, shipZoneName,
-       pointsRedeemed, pointsEarned, paymentMethod]
+       pointsRedeemed, pointsEarned, paymentMethod, walletUsed]
     );
     const orderId = orderInsert.rows[0].id;
     // Apply loyalty delta + initial status history.

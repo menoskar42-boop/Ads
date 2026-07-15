@@ -89,6 +89,15 @@
       </div>
     </div>
     <% } %>
+    <% if (typeof customerWallet !== 'undefined' && customerWallet > 0) { %>
+    <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+      <label class="flex items-center gap-2 text-sm font-semibold text-emerald-700 cursor-pointer">
+        <input type="checkbox" name="use_wallet" value="1" class="w-4 h-4" />
+        استخدم رصيد المحفظة (<%= Number(customerWallet).toFixed(2) %> ج)
+      </label>
+      <p class="text-xs text-gray-500 mt-1">هيتخصم من الإجمالي حسب المتاح في محفظتك.</p>
+    </div>
+    <% } %>
     <div>
       <label class="block text-sm font-semibold text-gray-600 mb-1.5">طريقة الدفع</label>
       <div class="flex flex-wrap gap-2">

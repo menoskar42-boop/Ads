@@ -19,6 +19,11 @@
         <label class="block text-sm font-semibold text-gray-600 mb-1.5">Google Analytics 4 (GA4) ID</label>
         <input name="ga4_id" value="<%= company.ga4_id || '' %>" dir="ltr" placeholder="G-XXXXXXXXXX" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
       </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">رقم واتساب لاستقبال الطلبات</label>
+        <input name="whatsapp_number" value="<%= company.whatsapp_number || '' %>" dir="ltr" placeholder="مثلاً: 201001234567 (كود الدولة + الرقم)" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
+        <p class="text-xs text-gray-400 mt-1">لو اتحط، هيظهر زر «اطلب على واتساب» في صفحات المنتجات والسلة (بكود الدولة بدون + أو أصفار، مثال مصر: 20 ثم الرقم).</p>
+      </div>
       <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow">حفظ</button>
     </form>
 

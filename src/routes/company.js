@@ -877,18 +877,70 @@ router.post('/products/import', requireLogin, requireShop, async (req, res) => {
 /* ─── MARKETING: PIXELS + FEED (phase 24) ────────────────── */
 router.get('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
-    const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
+    const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
     res.render('company/marketing', { company: c, session: req.session, saved: req.query.saved === '1' });
   } catch (e) { console.error('[marketing]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/marketing', requireLogin, requireShop, async (req, res) => {
   const b = req.body || {};
   const clean = (v) => String(v || '').trim().slice(0, 60).replace(/[^\w.\-]/g, '') || null;
+  // WhatsApp order number (phase 27): keep digits only (with optional leading +),
+  // stored in international format so wa.me links work.
+  const cleanPhone = (v) => {
+    const digits = String(v || '').replace(/[^\d]/g, '').slice(0, 18);
+    return digits || null;
+  };
   try {
-    await pool.query('UPDATE companies SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3 WHERE id=$4',
-      [clean(b.fb_pixel_id), clean(b.tiktok_pixel_id), clean(b.ga4_id), req.session.companyId]);
+    await pool.query('UPDATE companies SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3, whatsapp_number=$4 WHERE id=$5',
+      [clean(b.fb_pixel_id), clean(b.tiktok_pixel_id), clean(b.ga4_id), cleanPhone(b.whatsapp_number), req.session.companyId]);
   } catch (e) { console.error('[marketing save]', e.message); }
   res.redirect('/company/marketing?saved=1');
+});
+
+/* ─── GIFT CARDS (phase 31) ──────────────────────────────── */
+// Merchant creates gift-card codes with a set value; a customer redeems a code
+// into their wallet and later pays with the wallet balance at checkout.
+router.get('/giftcards', requireLogin, requireShop, async (req, res) => {
+  try {
+    const cards = (await pool.query(
+      `SELECT g.*, c.full_name AS redeemer_name
+         FROM gift_cards g LEFT JOIN customers c ON c.id = g.redeemed_by
+        WHERE g.company_id=$1 ORDER BY g.created_at DESC LIMIT 200`,
+      [req.session.companyId]
+    )).rows;
+    res.render('company/giftcards', { cards, session: req.session, saved: req.query.saved === '1', error: req.query.error || null });
+  } catch (e) { console.error('[giftcards]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/giftcards', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  const amount = Math.max(1, Math.min(100000, parseFloat(b.amount) || 0));
+  // Code: uppercase alnum, generated if not supplied.
+  let code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 24);
+  if (!code) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    code = 'GIFT';
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  if (!amount) return res.redirect('/company/giftcards?error=' + encodeURIComponent('القيمة غير صحيحة'));
+  try {
+    await pool.query(
+      'INSERT INTO gift_cards (company_id, code, amount) VALUES ($1,$2,$3) ON CONFLICT (company_id, code) DO NOTHING',
+      [req.session.companyId, code, amount]
+    );
+    res.redirect('/company/giftcards?saved=1');
+  } catch (e) {
+    console.error('[giftcard create]', e.message);
+    res.redirect('/company/giftcards?error=' + encodeURIComponent('تعذّر إنشاء الكرت'));
+  }
+});
+router.post('/giftcards/:id/toggle', requireLogin, requireShop, async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE gift_cards SET is_active = NOT is_active WHERE id=$1 AND company_id=$2 AND redeemed_by IS NULL',
+      [parseInt(req.params.id, 10), req.session.companyId]
+    );
+  } catch (e) { console.error('[giftcard toggle]', e.message); }
+  res.redirect('/company/giftcards');
 });
 
 /* ─── SALES REPORTS (phase 22) ───────────────────────────── */

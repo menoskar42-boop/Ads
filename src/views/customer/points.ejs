@@ -24,6 +24,23 @@
     <div class="text-sm opacity-90 mt-1">نقطة = <%= (Number(points)/100).toFixed(2) %> ج خصم</div>
     <div class="text-xs opacity-75 mt-2">كل 1 ج تشتريه = 1 نقطة · كل 100 نقطة = 1 ج خصم في الطلب الجاي</div>
   </div>
+
+  <!-- Wallet / gift-card credit (phase 31) -->
+  <div class="bg-gradient-to-l from-emerald-600 to-emerald-500 text-white rounded-2xl p-6 mb-4 text-center">
+    <div class="text-sm opacity-90">💳 رصيد المحفظة</div>
+    <div class="text-4xl font-black mt-1"><%= Number(typeof wallet !== 'undefined' ? wallet : 0).toFixed(2) %> <span class="text-lg">ج</span></div>
+    <div class="text-xs opacity-75 mt-2">تقدري تدفعي بيه في أي طلب من المتجر عند الدفع</div>
+  </div>
+  <% if (typeof giftSaved !== 'undefined' && giftSaved) { %>
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">تم تفعيل الكرت وإضافته لمحفظتك ✅</div>
+  <% } %>
+  <% if (typeof giftError !== 'undefined' && giftError) { %>
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-4 text-sm"><%= giftError %></div>
+  <% } %>
+  <form method="POST" action="/customer/wallet/redeem" class="bg-white rounded-2xl shadow-sm p-4 mb-6 flex gap-2">
+    <input name="code" required maxlength="24" placeholder="أدخلي كود كرت الهدية" dir="ltr" class="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm uppercase" />
+    <button class="bg-emerald-600 text-white font-bold px-5 rounded-xl hover:bg-emerald-700 transition">تفعيل</button>
+  </form>
   <% if (orders.length) { %>
     <h2 class="font-bold text-gray-700 mb-3">الحركات</h2>
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">

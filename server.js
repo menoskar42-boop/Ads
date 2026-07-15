@@ -597,6 +597,21 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS fb_pixel_id TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS tiktok_pixel_id TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS ga4_id TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS whatsapp_number TEXT;
+      -- Store wallet / gift-card credit per customer (competitor phase 31).
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(10,2) NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS wallet_used NUMERIC(10,2) NOT NULL DEFAULT 0;
+      CREATE TABLE IF NOT EXISTS gift_cards (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        code        TEXT NOT NULL,
+        amount      NUMERIC(10,2) NOT NULL,
+        redeemed_by INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        redeemed_at TIMESTAMPTZ,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, code)
+      );
       CREATE TABLE IF NOT EXISTS order_status_history (
         id         SERIAL PRIMARY KEY,
         order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,

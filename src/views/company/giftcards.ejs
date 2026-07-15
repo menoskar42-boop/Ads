@@ -1,0 +1,37 @@
+<% pageTitle = 'كروت الهدايا'; activePage = 'giftcards'; %>
+<%- include('_layout_top') %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">كروت الهدايا والمحفظة</h2>
+    <p class="text-gray-500 text-sm mb-5">اعمل كود بقيمة معيّنة، العميل يفعّله في محفظته ويدفع بيه عند الشراء.</p>
+
+    <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">تم إنشاء الكرت ✅</div><% } %>
+    <% if (error) { %><div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div><% } %>
+
+    <form method="POST" action="/company/giftcards" class="grid sm:grid-cols-3 gap-2 mb-6">
+      <input name="code" maxlength="24" placeholder="الكود (سيبه فاضي لتوليد تلقائي)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm uppercase" dir="ltr" />
+      <input name="amount" type="number" step="0.01" min="1" required placeholder="القيمة (ج)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <button class="brand-bg text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90">+ إنشاء كرت</button>
+    </form>
+
+    <% if (!cards.length) { %>
+      <p class="text-sm text-gray-400 text-center py-6">مفيش كروت هدايا لحد دلوقتي.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% cards.forEach(function(c){ var used = !!c.redeemed_by; %>
+        <div class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 <%= (!c.is_active||used)?'opacity-60':'' %>">
+          <span class="font-mono font-bold text-gray-800 flex-1" dir="ltr"><%= c.code %></span>
+          <span class="text-emerald-600 font-bold text-sm"><%= Number(c.amount).toFixed(2) %> ج</span>
+          <% if (used) { %>
+            <span class="text-xs text-gray-400">اُستخدم<%= c.redeemer_name ? (' · ' + c.redeemer_name) : '' %></span>
+          <% } else { %>
+            <span class="text-xs <%= c.is_active ? 'text-emerald-500' : 'text-gray-400' %>"><%= c.is_active ? 'متاح' : 'موقوف' %></span>
+            <form method="POST" action="/company/giftcards/<%= c.id %>/toggle">
+              <button class="text-xs border border-gray-200 rounded-lg px-3 py-1 hover:bg-gray-50"><%= c.is_active ? 'إيقاف' : 'تفعيل' %></button>
+            </form>
+          <% } %>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

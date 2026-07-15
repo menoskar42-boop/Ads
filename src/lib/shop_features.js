@@ -19,6 +19,8 @@ const FEATURES = [
   { key: 'deals',           label: 'عروض ينتهي وقتها',      desc: 'عرض اليوم + عدّاد تنازلي على المنتجات المخفّضة.', default: true },
   { key: 'qa',              label: 'أسئلة وأجوبة',          desc: 'الزبائن يسألوا عن المنتج والبائع يرد.', default: true },
   { key: 'loyalty',         label: 'نقاط الولاء',           desc: 'نقاط على كل شراء تُستخدم كخصم لاحقاً.', default: true },
+  { key: 'whatsapp_order',  label: 'الطلب على واتساب',      desc: 'زر «اطلب على واتساب» يفتح محادثة بتفاصيل المنتج/السلة.', default: true },
+  { key: 'gift_cards',      label: 'كروت الهدايا والمحفظة',  desc: 'كروت هدايا يشحنها الزبون في محفظته ويدفع بها.', default: true },
 ];
 
 const KEYS = FEATURES.map((f) => f.key);
