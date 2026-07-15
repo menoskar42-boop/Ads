@@ -101,6 +101,12 @@
   @media (prefers-reduced-motion: reduce) { .crystal::before { transition: none; } .crystal:hover { transform: none; } }
   :focus-visible { outline: 3px solid #1f8a7b; outline-offset: 2px; border-radius: 6px; }
   .ph-grid { background-image: radial-gradient(rgba(24,42,39,.10) 1px, transparent 1px); background-size: 14px 14px; }
+  /* Clickability guard: keep every card an isolated, non-overlapping stacking
+     context, and lift the "add" button above any decorative layer so real mouse
+     clicks always land on it (fixes a reported z-index overlap on the add btn). */
+  .med-card { position: relative; z-index: 0; }
+  .med-card:hover, .med-card:focus-within { z-index: 1; }
+  .ph-add { position: relative; z-index: 2; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
 </style>
 </head>
