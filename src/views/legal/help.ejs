@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>دليل الاستخدام — OscarDevs</title>
+<meta name="description" content="دليل كامل لبدء استخدام OscarDevs: خطوات الاشتراك والتفعيل، وشرح لوحة التحكم لكل نوع صفحة (متجر، صيدلية، مطاعم، بورتفوليو)." />
+<%- include('../partials/seo_meta', { title: 'دليل الاستخدام — OscarDevs', description: 'دليل كامل لبدء استخدام OscarDevs: خطوات الاشتراك والتفعيل، وشرح لوحة التحكم لكل نوع صفحة.' }) %>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"دليل الاستخدام","item":"<%= siteOrigin %>/help"}]}</script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-4">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/faq" class="hover:text-indigo-700">الأسئلة الشائعة</a>
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'دليل الاستخدام' } ] }) %>
+  <header class="text-center mb-10">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">دليل الاستخدام</h1>
+    <p class="text-gray-500 max-w-2xl mx-auto leading-relaxed">من التقديم لأول طلب — دليل خطوة بخطوة لإطلاق صفحتك على OscarDevs وإدارتها بثقة.</p>
+  </header>
+
+  <!-- Getting started steps -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold text-gray-800 mb-5">إزاي تبدأ في 3 خطوات</h2>
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <div class="w-9 h-9 rounded-full bg-indigo-600 text-white grid place-items-center font-bold mb-3">1</div>
+        <h3 class="font-bold text-gray-800 mb-1">قدّم طلبك</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">افتح <a href="/apply" class="text-indigo-700 font-semibold underline">صفحة التقديم</a>، اختر نوع الصفحة (متجر / صيدلية / مطاعم / بورتفوليو)، واملأ بياناتك الأساسية.</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <div class="w-9 h-9 rounded-full bg-indigo-600 text-white grid place-items-center font-bold mb-3">2</div>
+        <h3 class="font-bold text-gray-800 mb-1">المراجعة والتفعيل</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">بنراجع الطلب ونفعّل حسابك على نطاق فرعي مجاني بالشكل <code dir="ltr" class="bg-gray-100 px-1 rounded text-xs">your-store.oscardevs.com</code>، ونبعتلك بيانات الدخول.</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <div class="w-9 h-9 rounded-full bg-indigo-600 text-white grid place-items-center font-bold mb-3">3</div>
+        <h3 class="font-bold text-gray-800 mb-1">جهّز صفحتك</h3>
+        <p class="text-sm text-gray-500 leading-relaxed">ادخل لوحة التحكم من <a href="/company/login" class="text-indigo-700 font-semibold underline" rel="nofollow">صفحة الدخول</a>، ضيف منتجاتك/خدماتك، واظبط الدفع والشحن — وابدأ تستقبل طلبات.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Per-type quick guides -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold text-gray-800 mb-5">دليل سريع لكل نوع صفحة</h2>
+    <div class="space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-gray-800 mb-2">🛍️ المتجر الإلكتروني</h3>
+        <ul class="text-sm text-gray-600 leading-relaxed list-disc pr-5 space-y-1">
+          <li><strong>المنتجات:</strong> ضيف منتجاتك بصور وأسعار ومخزون، ورتّبهم في تصنيفات. تقدر تستورد كتالوج كبير دفعة واحدة عن طريق ملف CSV.</li>
+          <li><strong>العروض والكوبونات:</strong> اعمل عروض بخصم ينتهي وقته، وكوبونات خصم بنسبة أو مبلغ ثابت وحد أدنى للطلب.</li>
+          <li><strong>الشحن:</strong> حدّد تكلفة الشحن لكل محافظة وشحن مجاني فوق مبلغ معيّن.</li>
+          <li><strong>الولاء والمحفظة:</strong> فعّل نقاط الولاء وكروت الهدايا عشان تشجّع العملاء يرجعوا.</li>
+          <li><strong>التسويق:</strong> اربط Facebook/TikTok Pixel وكتالوج المنتجات (Feed) للريتارجتنج، وتابع الأداء من «تحليلات المتجر».</li>
+        </ul>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-gray-800 mb-2">💊 الصيدلية</h3>
+        <p class="text-sm text-gray-600 leading-relaxed">ضيف الأدوية بكمياتها وأسعارها، فعّل التوصيل ورسومه، واستقبل طلبات العملاء وتابعها. العميل يقدر يدوّر على الدواء ويطلبه ويتابع حالته.</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-gray-800 mb-2">🍔 المطاعم والسوبر ماركت</h3>
+        <p class="text-sm text-gray-600 leading-relaxed">جهّز المنيو بالأصناف والأسعار، واستقبل الطلبات أونلاين مع تتبّع حالتها. فيه كمان مساعد ذكاء اصطناعي يشتغل كموظف استقبال يساعد الزبون يطلب من الشات.</p>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-gray-800 mb-2">🎨 البورتفوليو</h3>
+        <p class="text-sm text-gray-600 leading-relaxed">اعرض أعمالك وخدماتك بشكل احترافي مع نموذج تواصل يوصّلك رسائل العملاء المهتمّين مباشرة.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Common tasks -->
+  <section class="mb-12">
+    <h2 class="text-2xl font-bold text-gray-800 mb-5">مهام شائعة</h2>
+    <div class="bg-white rounded-2xl shadow-sm divide-y divide-gray-100">
+      <% var tasks = [
+        ['إزاي أضيف منتج؟', 'من لوحة التحكم → «المنتجات» → «إضافة منتج»، واملأ الاسم والسعر والصورة والمخزون، ثم احفظ.'],
+        ['إزاي أعمل خصم؟', 'من «العروض» تعمل خصم بنسبة على منتجات محددة بمدة تنتهي، أو من «الكوبونات» كود يدخله العميل في السلة.'],
+        ['إزاي أستقبل مدفوعات أونلاين؟', 'من إعدادات الدفع فعّل الدفع عند الاستلام (كاش)، أو اربط بوابة دفع مصرية (Paymob/InstaPay) للدفع بالكارت.'],
+        ['إزاي أعرف أداء متجري؟', 'افتح «تحليلات المتجر» لعدد الزيارات ومصادر الترافيك ومعدّل التحويل وأكثر المنتجات مبيعاً، و«التقارير» للإيرادات.'],
+        ['نسيت كلمة السر؟', 'تواصل معنا من صفحة «اتصل بنا» ونساعدك تسترجع حسابك.'],
+      ]; %>
+      <% tasks.forEach(function(t){ %>
+      <details class="group p-4">
+        <summary class="flex items-center justify-between cursor-pointer font-semibold text-gray-800 text-sm list-none">
+          <span><%= t[0] %></span>
+          <svg class="w-4 h-4 text-gray-400 group-open:rotate-180 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <p class="text-sm text-gray-600 leading-relaxed mt-2"><%= t[1] %></p>
+      </details>
+      <% }); %>
+    </div>
+  </section>
+
+  <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center">
+    <h2 class="text-lg font-bold text-gray-800 mb-1">لسه محتاج مساعدة؟</h2>
+    <p class="text-sm text-gray-500 mb-4">شوف <a href="/faq" class="text-indigo-700 font-semibold underline">الأسئلة الشائعة</a> أو تواصل معنا مباشرة.</p>
+    <a href="/contact" class="inline-block bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-700 transition shadow">اتصل بنا</a>
+  </div>
+</main>
+
+</body>
+</html>
