@@ -915,6 +915,22 @@ async function initDb() {
       }
     }
 
+    // Demo CUSTOMER account for QA of the storefront customer area (wishlist,
+    // points, wallet, addresses, order tracking). Same security stance as the
+    // demo merchants: only created when DEMO_CUSTOMER_PASSWORD is explicitly set
+    // (>=8 chars). Without it, no demo customer exists (customers self-register),
+    // so there is never a hardcoded customer backdoor.
+    const demoCustPwd = process.env.DEMO_CUSTOMER_PASSWORD || '';
+    if (demoCustPwd.length >= 8) {
+      const custHash = await bcrypt.hash(demoCustPwd, 10);
+      await client.query(
+        `INSERT INTO customers (email, password_hash, full_name, phone)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+        ['customer@demo.oscardevs.com', custHash, 'عميل تجريبي', '01000000000']
+      );
+    }
+
     // SECURITY: never bootstrap the super-admin from predictable hardcoded
     // defaults — that turned a missing secret into a full platform backdoor
     // (anyone could log in with the known default email/password). Only create
