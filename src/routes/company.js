@@ -943,6 +943,24 @@ router.post('/giftcards/:id/toggle', requireLogin, requireShop, async (req, res)
   res.redirect('/company/giftcards');
 });
 
+/* ─── ABANDONED CHECKOUTS (phase 26) ─────────────────────── */
+// Carts that reached checkout but never converted. The merchant sees who + what,
+// and gets a ready WhatsApp reminder link (uses their store whatsapp_number).
+router.get('/abandoned', requireLogin, requireShop, async (req, res) => {
+  try {
+    const company = (await pool.query('SELECT slug, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
+    // Only surface carts idle for 30+ minutes (give the buyer time to finish).
+    const rows = (await pool.query(
+      `SELECT a.*, c.email AS customer_email
+         FROM abandoned_carts a LEFT JOIN customers c ON c.id = a.customer_id
+        WHERE a.company_id=$1 AND a.updated_at < now() - interval '30 minutes'
+        ORDER BY a.updated_at DESC LIMIT 100`,
+      [req.session.companyId]
+    )).rows;
+    res.render('company/abandoned', { carts: rows, company, session: req.session });
+  } catch (e) { console.error('[abandoned]', e.message); res.redirect('/company/dashboard'); }
+});
+
 /* ─── SALES REPORTS (phase 22) ───────────────────────────── */
 router.get('/reports', requireLogin, requireShop, async (req, res) => {
   const cid = req.session.companyId;

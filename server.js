@@ -601,6 +601,22 @@ async function initDb() {
       -- Store wallet / gift-card credit per customer (competitor phase 31).
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(10,2) NOT NULL DEFAULT 0;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS wallet_used NUMERIC(10,2) NOT NULL DEFAULT 0;
+      -- Abandoned checkout recovery (competitor phase 26). One live snapshot per
+      -- customer+store; deleted on a completed order, so rows here = carts that
+      -- reached checkout but never converted. Merchant sends a manual reminder.
+      CREATE TABLE IF NOT EXISTS abandoned_carts (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id   INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+        customer_name TEXT,
+        customer_phone TEXT,
+        items_summary TEXT,
+        total         NUMERIC(10,2) NOT NULL DEFAULT 0,
+        item_count    INTEGER NOT NULL DEFAULT 0,
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, customer_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_abandoned_carts ON abandoned_carts (company_id, updated_at DESC);
       CREATE TABLE IF NOT EXISTS gift_cards (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

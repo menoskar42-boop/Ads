@@ -192,6 +192,35 @@ router.get('/:slug/checkout', async (req, res) => {
       savedAddresses = (await pool.query('SELECT * FROM customer_addresses WHERE customer_id=$1 ORDER BY is_default DESC, id DESC', [req.session.customerId])).rows;
     }
 
+    // Abandoned-checkout snapshot (phase 26): a logged-in customer who reached
+    // checkout but hasn't ordered yet. Recomputed each visit; deleted on a
+    // completed order. Best-effort — never blocks the page.
+    if (req.session.customerId) {
+      try {
+        const cartIds = [...new Set(Object.keys(cart).map(k => parseCartKey(k).id).filter(Number.isFinite))];
+        if (cartIds.length) {
+          const rows = (await pool.query('SELECT id, name, price FROM products WHERE id = ANY($1::int[]) AND company_id=$2', [cartIds, company.id])).rows;
+          const byId = Object.fromEntries(rows.map(p => [p.id, p]));
+          let total = 0, count = 0; const names = [];
+          for (const k of Object.keys(cart)) {
+            const p = byId[parseCartKey(k).id]; if (!p) continue;
+            const qty = cart[k] || 0; total += Number(p.price) * qty; count += qty;
+            if (names.length < 5) names.push(`${p.name}×${qty}`);
+          }
+          if (count > 0) {
+            await pool.query(
+              `INSERT INTO abandoned_carts (company_id, customer_id, customer_name, customer_phone, items_summary, total, item_count, updated_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7, now())
+               ON CONFLICT (company_id, customer_id) DO UPDATE SET
+                 customer_name=EXCLUDED.customer_name, customer_phone=EXCLUDED.customer_phone,
+                 items_summary=EXCLUDED.items_summary, total=EXCLUDED.total, item_count=EXCLUDED.item_count, updated_at=now()`,
+              [company.id, req.session.customerId, prefill.full_name || null, prefill.phone || null, names.join('، ').slice(0, 300), +total.toFixed(2), count]
+            );
+          }
+        }
+      } catch (e) { console.error('[abandoned snapshot]', e.message); }
+    }
+
     const payment = await loadPaymentMethods(pool, company, res.locals.t);
     const zones = await shipping.getZones(company.id);
     const feat = await shopFeatures.getFeatures(company.id);
@@ -378,6 +407,12 @@ router.post('/:slug/checkout', async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Order completed → clear any abandoned-checkout snapshot (phase 26).
+    if (customerId) {
+      pool.query('DELETE FROM abandoned_carts WHERE company_id=$1 AND customer_id=$2', [company.id, customerId])
+        .catch((e) => console.error('[abandoned clear]', e.message));
+    }
 
     push.sendToCompany(company.id, {
       title: '🛒 أوردر جديد',
