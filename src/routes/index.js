@@ -236,6 +236,17 @@ router.get('/view/:slug', async (req, res) => {
     const cart = (req.session.carts && req.session.carts[slug]) || {};
     const cartCount = Object.values(cart).reduce((s, q) => s + q, 0);
 
+    // Clinic preview on the main domain (works even if the tenant subdomain
+    // isn't bound yet). noindex — the canonical clinic lives on the subdomain.
+    if (company.page_type === 'clinic') {
+      const clinicDoctors = (await pool.query(
+        'SELECT * FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [company.id]
+      )).rows;
+      const clinicSettings = (await pool.query('SELECT * FROM clinic_settings WHERE company_id=$1', [company.id])).rows[0] || null;
+      res.locals.showAds = false;
+      return res.render('tenant_clinic', { company, clinicDoctors, clinicSettings, noindex: true, sent: false });
+    }
+
     const view = company.page_type === 'shop' ? 'tenant_shop' : 'tenant';
     res.render(view, {
       company,
