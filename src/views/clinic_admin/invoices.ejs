@@ -30,6 +30,12 @@
           <option value="">— المريض (اختياري) —</option>
           <% patients.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %><%= p.phone?(' · '+p.phone):'' %></option><% }); %>
         </select>
+        <% if (typeof doctors !== 'undefined' && doctors.length) { %>
+        <select name="doctor_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="">— الطبيب (لاحتساب نصيبه) —</option>
+          <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
+        </select>
+        <% } %>
         <% if (services.length) { %>
         <div class="text-xs text-slate-500">اختر الخدمات:</div>
         <div class="max-h-44 overflow-y-auto border border-slate-100 rounded-xl p-2 space-y-1">

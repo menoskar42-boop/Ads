@@ -197,6 +197,9 @@ async function ensureClinicSchema() {
         created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_inv_company ON clinic_invoices (company_id, status, created_at);
+      -- Attribute an invoice directly to a doctor so the finance report can
+      -- compute the doctor's share even when the invoice isn't tied to a visit.
+      ALTER TABLE clinic_invoices ADD COLUMN IF NOT EXISTS doctor_id INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL;
       CREATE TABLE IF NOT EXISTS clinic_invoice_items (
         id           SERIAL PRIMARY KEY,
         invoice_id   INTEGER NOT NULL REFERENCES clinic_invoices(id) ON DELETE CASCADE,

@@ -431,7 +431,7 @@ router.get('/invoices', async (req, res) => {
   const params = [cid]; let where = 'i.company_id=$1';
   if (status) where += ' AND i.status=$' + params.push(status);
   try {
-    const [rows, summary, patients, services] = await Promise.all([
+    const [rows, summary, patients, services, doctors] = await Promise.all([
       pool.query(
         `SELECT i.*, p.name AS patient_name FROM clinic_invoices i
          LEFT JOIN clinic_patients p ON p.id=i.patient_id
@@ -445,10 +445,11 @@ router.get('/invoices', async (req, res) => {
          FROM clinic_invoices WHERE company_id=$1`, [cid]),
       pool.query('SELECT id, name, phone FROM clinic_patients WHERE company_id=$1 ORDER BY created_at DESC LIMIT 500', [cid]),
       pool.query('SELECT id, name, price, doctor_pct FROM clinic_services WHERE company_id=$1 AND is_active=true ORDER BY id', [cid]),
+      pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [cid]),
     ]);
     res.render('clinic_admin/invoices', {
       company: req.company, tab: 'invoices', invoices: rows.rows, summary: summary.rows[0],
-      patients: patients.rows, services: services.rows, status,
+      patients: patients.rows, services: services.rows, doctors: doctors.rows, status,
     });
   } catch (e) { console.error('[clinic invoices]', e.message); res.status(500).send('error'); }
 });
@@ -482,9 +483,9 @@ router.post('/invoices', async (req, res) => {
     const subtotal = items.reduce((a, it) => a + it.total_price, 0);
     const total = Math.max(0, subtotal - discount);
     const inv = await client.query(
-      `INSERT INTO clinic_invoices (company_id, patient_id, visit_id, status, discount_amount, subtotal, total_amount)
-       VALUES ($1,$2,$3,'pending',$4,$5,$6) RETURNING id`,
-      [cid, pid, parseInt(b.visit_id, 10) || null, discount, subtotal, total]
+      `INSERT INTO clinic_invoices (company_id, patient_id, visit_id, doctor_id, status, discount_amount, subtotal, total_amount)
+       VALUES ($1,$2,$3,$4,'pending',$5,$6,$7) RETURNING id`,
+      [cid, pid, parseInt(b.visit_id, 10) || null, parseInt(b.doctor_id, 10) || null, discount, subtotal, total]
     );
     const invId = inv.rows[0].id;
     for (const it of items) {
@@ -570,12 +571,14 @@ router.get('/finance', async (req, res) => {
          WHERE company_id=$1 AND created_at >= ${monthExpr} AND created_at < (${monthExpr} + INTERVAL '1 month')
          GROUP BY method ORDER BY total DESC`, params),
       // Doctor earnings = sum of item doctor_share on PAID invoices, attributed
-      // via the invoice's visit → doctor.
+      // to the invoice's own doctor when set, otherwise its visit's doctor. Uses
+      // LEFT JOINs so an invoice billed straight from a service (no visit) still
+      // counts as long as a doctor is attached to the invoice.
       pool.query(
         `SELECT d.id, d.name, COALESCE(SUM(ii.doctor_share),0) AS earnings, COUNT(DISTINCT i.id) AS invoices
          FROM clinic_invoices i
-         JOIN clinic_visits v ON v.id = i.visit_id
-         JOIN clinic_doctors d ON d.id = v.doctor_id
+         LEFT JOIN clinic_visits v ON v.id = i.visit_id
+         JOIN clinic_doctors d ON d.id = COALESCE(i.doctor_id, v.doctor_id)
          JOIN clinic_invoice_items ii ON ii.invoice_id = i.id
          WHERE i.company_id=$1 AND i.status='paid'
            AND i.paid_at >= ${monthExpr} AND i.paid_at < (${monthExpr} + INTERVAL '1 month')
