@@ -467,6 +467,38 @@ router.post('/:slug/checkout', async (req, res) => {
 });
 
 // Initiate an online payment for an existing order via the merchant's gateway.
+// Single-product landing page (phase 30) for ad campaigns. A focused, high-
+// conversion surface with one CTA (buy now → checkout). noindex + canonical to
+// the product page so it never competes for indexing (no duplicate content).
+router.get('/:slug/lp/:productId', async (req, res) => {
+  const { slug } = req.params;
+  const productId = parseInt(req.params.productId, 10);
+  try {
+    const company = await loadShopCompany(slug);
+    if (!company) return res.status(404).render('404', { subdomain: slug });
+    const product = (await pool.query(
+      'SELECT * FROM products WHERE id=$1 AND company_id=$2 AND is_active=true', [productId, company.id]
+    )).rows[0];
+    if (!product) return res.status(404).render('404', { subdomain: slug });
+    const gallery = (await pool.query(
+      'SELECT * FROM product_images WHERE product_id=$1 ORDER BY order_index, created_at', [productId]
+    )).rows;
+    const feat = await shopFeatures.getFeatures(company.id);
+    const deal = feat.deals === false ? null : await deals.dealForProduct(company.id, productId);
+    const rv = await reviews.forProduct(productId, 6);
+    res.render('shop/landing', {
+      company, product, gallery, deal,
+      reviews: rv.reviews, reviewBreakdown: rv.breakdown,
+      canonical: `${canonicalCompanyUrl(company.slug, req)}/shop/${company.slug}/product/${productId}`.replace(/([^:]\/)\/+/g, '$1'),
+      noindex: true,
+      showAds: false,
+    });
+  } catch (err) {
+    console.error('[GET /shop/:slug/lp/:productId] error:', err);
+    res.status(500).send('Error.');
+  }
+});
+
 // Redirects the buyer to the hosted payment page (Paymob iframe).
 router.get('/:slug/pay/:orderId', async (req, res) => {
   const { slug } = req.params;

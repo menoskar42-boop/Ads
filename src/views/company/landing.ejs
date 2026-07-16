@@ -1,0 +1,27 @@
+<% pageTitle = 'صفحات الهبوط'; activePage = 'landing'; %>
+<%- include('_layout_top') %>
+<% var origin = 'https://' + company.slug + '.oscardevs.com'; %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-3xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">صفحات الهبوط (Landing Pages)</h2>
+    <p class="text-gray-500 text-sm mb-5">لكل منتج صفحة هبوط جاهزة بزر واحد «اطلب الآن» — مثالية لحملات فيسبوك/تيك توك. انسخ الرابط واستخدمه في إعلانك.</p>
+
+    <% if (!products.length) { %>
+      <p class="text-sm text-gray-400 text-center py-8">أضف منتجات أولاً عشان تظهر صفحات هبوطها هنا.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% products.forEach(function(p){ var url = origin + '/shop/' + company.slug + '/lp/' + p.id; %>
+        <div class="flex items-center gap-3 border border-gray-200 rounded-xl p-3">
+          <% if (p.image_url) { %><img src="<%= p.image_url %>" alt="" class="w-12 h-12 rounded-lg object-cover shrink-0" /><% } %>
+          <div class="min-w-0 flex-1">
+            <div class="font-bold text-gray-800 text-sm truncate"><%= p.name %></div>
+            <input readonly value="<%= url %>" dir="ltr" class="mt-1 w-full text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 font-mono" onclick="this.select()" />
+          </div>
+          <button type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('<%= url %>').then(()=>{this.textContent='تم النسخ ✓'; var b=this; setTimeout(function(){b.textContent='نسخ';},1500);})"
+            class="text-xs border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 shrink-0">نسخ</button>
+          <a href="<%= url %>" target="_blank" rel="noopener" class="text-xs brand-bg text-white rounded-lg px-3 py-1.5 shrink-0">معاينة</a>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

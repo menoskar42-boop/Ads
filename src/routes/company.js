@@ -953,6 +953,18 @@ router.get('/analytics', requireLogin, requireShop, async (req, res) => {
   } catch (e) { console.error('[analytics]', e.message); res.redirect('/company/dashboard'); }
 });
 
+/* ─── LANDING PAGES (phase 30) ───────────────────────────── */
+router.get('/landing', requireLogin, requireShop, async (req, res) => {
+  try {
+    const company = (await pool.query('SELECT slug FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
+    const products = (await pool.query(
+      'SELECT id, name, price, image_url, is_active FROM products WHERE company_id=$1 AND is_active=true ORDER BY created_at DESC LIMIT 200',
+      [req.session.companyId]
+    )).rows;
+    res.render('company/landing', { company, products, session: req.session });
+  } catch (e) { console.error('[landing list]', e.message); res.redirect('/company/dashboard'); }
+});
+
 /* ─── MULTI-CURRENCY DISPLAY (phase 33) ──────────────────── */
 router.get('/currencies', requireLogin, requireShop, async (req, res) => {
   try {

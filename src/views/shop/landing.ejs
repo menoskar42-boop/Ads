@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,follow" />
+<%
+  var cur = company.currency || 'EGP';
+  var base = Number(product.price);
+  var showPrice = base, oldPrice = 0;
+  if (deal && deal.discount_pct) { oldPrice = base; showPrice = +(base * (1 - deal.discount_pct/100)).toFixed(2); }
+  var pName = product.name_ar || product.name;
+  var imgs = (gallery && gallery.length) ? gallery.map(function(g){ return g.url || g.image_url; }).filter(Boolean) : (product.image_url ? [product.image_url] : []);
+  var title = (pName + ' — ' + company.company_name).slice(0, 60);
+%>
+<title><%= title %></title>
+<meta name="description" content="<%= (product.description || pName).toString().slice(0,155) %>" />
+<link rel="canonical" href="<%= canonical %>" />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<header class="bg-white border-b border-gray-100">
+  <div class="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2">
+    <% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="<%= company.company_name %>" class="w-8 h-8 rounded-lg object-cover" /><% } %>
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="font-extrabold text-gray-900"><%= company.company_name %></a>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <% if (imgs.length) { %>
+    <img src="<%= imgs[0] %>" alt="<%= pName %>" class="w-full aspect-square object-cover" fetchpriority="high" />
+    <% } %>
+    <div class="p-5 sm:p-6">
+      <h1 class="text-2xl font-extrabold text-gray-900 mb-2"><%= pName %></h1>
+      <div class="flex items-baseline gap-3 mb-4">
+        <span class="text-3xl font-black text-emerald-600"><%= showPrice.toFixed(2) %> <span class="text-lg"><%= cur %></span></span>
+        <% if (oldPrice) { %><span class="text-gray-400 line-through text-lg"><%= oldPrice.toFixed(2) %></span><span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">خصم <%= deal.discount_pct %>%</span><% } %>
+      </div>
+      <% if (product.description) { %><p class="text-gray-600 leading-relaxed mb-5 whitespace-pre-line"><%= product.description %></p><% } %>
+
+      <!-- trust badges -->
+      <div class="grid grid-cols-3 gap-2 mb-5 text-center">
+        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">🚚</div><div class="text-xs text-gray-500 mt-1">شحن لكل المحافظات</div></div>
+        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">💵</div><div class="text-xs text-gray-500 mt-1">الدفع عند الاستلام</div></div>
+        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">↩️</div><div class="text-xs text-gray-500 mt-1">استبدال سهل</div></div>
+      </div>
+
+      <% if (product.stock > 0) { %>
+      <form method="POST" action="/shop/<%= company.slug %>/cart/add">
+        <input type="hidden" name="product_id" value="<%= product.id %>" />
+        <input type="hidden" name="quantity" value="1" />
+        <button type="submit" name="buy_now" value="1" class="w-full bg-amber-500 text-white font-black text-lg px-6 py-4 rounded-xl hover:bg-amber-600 transition shadow-lg">⚡ اطلب الآن — الدفع عند الاستلام</button>
+      </form>
+      <% if (company.whatsapp_number) { %>
+      <a href="https://wa.me/<%= company.whatsapp_number %>?text=<%= encodeURIComponent('حابب أطلب: ' + pName + ' — ' + showPrice.toFixed(2) + ' ' + cur) %>" target="_blank" rel="nofollow noopener"
+         class="mt-2 w-full flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2z"/></svg>
+        اطلب على واتساب
+      </a>
+      <% } %>
+      <% } else { %>
+      <div class="w-full bg-gray-100 text-gray-500 font-bold text-center px-6 py-4 rounded-xl">نفد المخزون حالياً</div>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (typeof reviews !== 'undefined' && reviews.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-5 mt-4">
+    <h2 class="font-bold text-gray-800 mb-3">آراء العملاء</h2>
+    <div class="space-y-3">
+      <% reviews.slice(0,4).forEach(function(r){ %>
+      <div class="border-b border-gray-100 pb-3 last:border-0">
+        <div class="text-amber-400 text-sm"><%= '★'.repeat(Math.round(r.rating)) %><span class="text-gray-200"><%= '★'.repeat(5-Math.round(r.rating)) %></span></div>
+        <% if (r.body) { %><p class="text-sm text-gray-600 mt-1"><%= r.body %></p><% } %>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+
+  <p class="text-center text-xs text-gray-400 mt-6">مدعوم بواسطة <a href="https://oscardevs.com" class="text-indigo-600 font-semibold">OscarDevs</a></p>
+</main>
+</body>
+</html>
