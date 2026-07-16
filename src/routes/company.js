@@ -1087,9 +1087,21 @@ router.post('/returns/:id/status', requireLogin, requireShop, async (req, res) =
 /* ─── SHIPPING ZONES (phase 12) ──────────────────────────── */
 router.get('/shipping', requireLogin, requireShop, async (req, res) => {
   try {
+    const couriers = require('../lib/shipping_providers');
     const rows = (await pool.query('SELECT * FROM shipping_zones WHERE company_id=$1 ORDER BY governorate', [req.session.companyId])).rows;
-    res.render('company/shipping', { zones: rows, session: req.session });
+    const integration = await couriers.loadIntegration(req.session.companyId);
+    res.render('company/shipping', {
+      zones: rows, session: req.session,
+      integration, courierProviders: couriers.PROVIDERS,
+      saved: req.query.saved === '1',
+    });
   } catch (e) { console.error('[shipping]', e.message); res.redirect('/company/dashboard'); }
+});
+// Save the merchant's courier integration (provider + their own API key).
+router.post('/shipping/integration', requireLogin, requireShop, async (req, res) => {
+  try { await require('../lib/shipping_providers').saveIntegration(req.session.companyId, req.body || {}); }
+  catch (e) { console.error('[courier save]', e.message); }
+  res.redirect('/company/shipping?saved=1');
 });
 router.post('/shipping/add', requireLogin, requireShop, async (req, res) => {
   const b = req.body || {};
@@ -1307,10 +1319,14 @@ router.get('/orders/:id', requireLogin, requireShop, async (req, res) => {
     'SELECT * FROM order_items WHERE order_id = $1',
     [req.params.id]
   );
+  const courierIntegration = await require('../lib/shipping_providers').loadIntegration(req.session.companyId);
   res.render('company/order_detail', {
     order: orderResult.rows[0],
     items: itemsResult.rows,
     statuses: ORDER_STATUSES,
+    courierIntegration,
+    shipped: req.query.shipped === '1',
+    shipError: req.query.shiperror || null,
     session: req.session,
   });
 });
@@ -1328,6 +1344,37 @@ router.post('/orders/:id/status', requireLogin, requireShop, async (req, res) =>
       [upd.rows[0].id, status, String(req.body.note || '').slice(0, 200) || null]).catch(() => {});
   }
   res.redirect(`/company/orders/${req.params.id}`);
+});
+
+// Create a shipment / assign an AWB for an order (phase 25). For an automatic
+// provider (Bosta) this calls the courier API with the merchant's key; for the
+// manual provider it records the AWB the merchant typed. Marks the order shipped.
+router.post('/orders/:id/ship', requireLogin, requireShop, async (req, res) => {
+  const orderId = parseInt(req.params.id, 10);
+  const back = `/company/orders/${orderId}`;
+  try {
+    const couriers = require('../lib/shipping_providers');
+    const company = { id: req.session.companyId };
+    const o = (await pool.query('SELECT * FROM orders WHERE id=$1 AND company_id=$2', [orderId, req.session.companyId])).rows[0];
+    if (!o) return res.redirect(back);
+    const result = await couriers.createShipment(company, {
+      orderId,
+      name: o.customer_name, phone: o.customer_phone, address: o.shipping_address,
+      city: o.shipping_zone || undefined,
+      total: Number(o.total_amount),
+      codAmount: (o.payment_status === 'paid') ? 0 : Number(o.total_amount),
+    }, { manualAwb: req.body.awb, manualTrackingUrl: req.body.tracking_url });
+    await pool.query(
+      "UPDATE orders SET awb=$1, shipment_provider=$2, shipment_status=$3, shipment_tracking_url=$4, status = CASE WHEN status IN ('pending','confirmed','preparing') THEN 'shipped' ELSE status END WHERE id=$5 AND company_id=$6",
+      [result.awb, result.provider, result.status, result.trackingUrl || null, orderId, req.session.companyId]
+    );
+    await pool.query('INSERT INTO order_status_history (order_id, status, note) VALUES ($1,$2,$3)',
+      [orderId, 'shipped', 'بوليصة شحن: ' + result.awb]).catch(() => {});
+    res.redirect(back + '?shipped=1');
+  } catch (e) {
+    console.error('[order ship]', e.message);
+    res.redirect(back + '?shiperror=' + encodeURIComponent(e.message));
+  }
 });
 
 /* ─── STOCK MOVEMENTS ────────────────────────────────────── */

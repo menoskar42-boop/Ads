@@ -69,6 +69,33 @@
         <button type="submit" class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition">Update</button>
         <a href="/company/orders" class="text-gray-500 hover:text-gray-700 text-sm ml-auto">← Back</a>
       </form>
+
+      <!-- Shipment / AWB (phase 25) -->
+      <% var __integ = (typeof courierIntegration !== 'undefined' && courierIntegration) ? courierIntegration : null;
+         var __shipOn = __integ && __integ.enabled && __integ.provider !== 'none'; %>
+      <div class="mt-6 pt-5 border-t border-gray-100">
+        <h3 class="font-bold text-gray-700 mb-2">الشحن (بوليصة / تتبّع)</h3>
+        <% if (typeof shipped !== 'undefined' && shipped) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-2 mb-3 text-sm">تم إنشاء بوليصة الشحن ✅</div><% } %>
+        <% if (typeof shipError !== 'undefined' && shipError) { %><div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 mb-3 text-sm"><%= shipError %></div><% } %>
+        <% if (order.awb) { %>
+          <div class="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            <div>رقم البوليصة (AWB): <strong dir="ltr"><%= order.awb %></strong> <span class="text-xs text-gray-400"><%= order.shipment_provider || '' %></span></div>
+            <% if (order.shipment_tracking_url) { %><a href="<%= order.shipment_tracking_url %>" target="_blank" rel="nofollow noopener" class="text-indigo-600 underline text-xs">تتبّع الشحنة ←</a><% } %>
+          </div>
+        <% } else if (!__shipOn) { %>
+          <p class="text-sm text-gray-400">فعّل تكامل شركة شحن من صفحة «الشحن» عشان تطلع بوليصة من هنا.</p>
+        <% } else if (__integ.provider === 'manual') { %>
+          <form method="POST" action="/company/orders/<%= order.id %>/ship" class="grid sm:grid-cols-3 gap-2">
+            <input name="awb" required placeholder="رقم البوليصة (AWB)" dir="ltr" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            <input name="tracking_url" placeholder="رابط التتبّع (اختياري)" dir="ltr" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            <button class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90">حفظ البوليصة</button>
+          </form>
+        <% } else { %>
+          <form method="POST" action="/company/orders/<%= order.id %>/ship">
+            <button class="brand-bg text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90">🚚 إنشاء شحنة عبر <%= __integ.provider %></button>
+          </form>
+        <% } %>
+      </div>
     </div>
   </div>
 

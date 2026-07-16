@@ -779,6 +779,22 @@ async function initDb() {
         created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
         UNIQUE (company_id, governorate)
       );
+      -- Courier integration per merchant (competitor phase 25). Each store enters
+      -- its OWN provider + API key; the platform holds no shared courier account.
+      -- 'manual' works with ANY courier today (merchant types the AWB per order).
+      CREATE TABLE IF NOT EXISTS shipping_integrations (
+        company_id  INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        provider    TEXT NOT NULL DEFAULT 'none', -- none|manual|bosta
+        api_key     TEXT,
+        pickup_phone   TEXT,
+        pickup_address TEXT,
+        enabled     BOOLEAN NOT NULL DEFAULT false,
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS awb TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_provider TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_status TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_tracking_url TEXT;
       -- Per-store feature flags (Amazon roadmap phase 21). Only overrides stored.
       CREATE TABLE IF NOT EXISTS company_features (
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

@@ -28,4 +28,32 @@
       </div>
     <% } %>
   </div>
+
+  <!-- Courier integration (phase 25) -->
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl mt-5">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">تكامل شركة الشحن</h2>
+    <p class="text-gray-500 text-sm mb-4">اربط حساب شركة الشحن بتاعتك عشان تطلع بوليصة شحن (AWB) وتتبّع من داخل لوحة الطلبات. كل تاجر بيستخدم حسابه ومفتاحه الخاص.</p>
+    <% if (typeof saved !== 'undefined' && saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+    <% var integ = (typeof integration !== 'undefined' && integration) ? integration : { provider: 'none' }; %>
+    <form method="POST" action="/company/shipping/integration" class="grid gap-3">
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">المزوّد</label>
+        <select name="provider" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white">
+          <% courierProviders.forEach(function(p){ %>
+            <option value="<%= p.key %>" <%= integ.provider===p.key?'selected':'' %>><%= p.label %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">مفتاح الـAPI (لـBosta فقط)</label>
+        <input name="api_key" value="<%= integ.api_key || '' %>" dir="ltr" autocomplete="off" placeholder="Bosta Business API Key" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
+        <p class="text-xs text-gray-400 mt-1">للإدخال اليدوي مش محتاج مفتاح — بتكتب رقم البوليصة على كل طلب بنفسك.</p>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-2">
+        <input name="pickup_phone" value="<%= integ.pickup_phone || '' %>" dir="ltr" placeholder="هاتف الاستلام (اختياري)" class="border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+        <input name="pickup_address" value="<%= integ.pickup_address || '' %>" placeholder="عنوان الاستلام (اختياري)" class="border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+      </div>
+      <button class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow w-max">حفظ</button>
+    </form>
+  </div>
 <%- include('_layout_bottom') %>
