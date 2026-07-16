@@ -109,6 +109,39 @@
   </div>
 </nav>
 
+<% var __curFeatOn = (typeof feat === 'undefined' || feat.multi_currency !== false); %>
+<% if (__curFeatOn && typeof storeCurrencies !== 'undefined' && storeCurrencies.length) { %>
+<!-- Multi-currency display switcher (phase 33) -->
+<div style="display:flex;justify-content:flex-end;max-width:1100px;margin:8px auto 0;padding:0 16px">
+  <select id="odvCurSel" aria-label="العملة" style="border:1px solid #e5e7eb;border-radius:10px;padding:5px 10px;font-size:13px;background:#fff;color:#374151">
+    <option value="__base" data-rate="1" data-sym="<%= cur %>"><%= cur %> (الأساسية)</option>
+    <% storeCurrencies.forEach(function(c){ %>
+      <option value="<%= c.code %>" data-rate="<%= Number(c.rate) %>" data-sym="<%= c.symbol %>"><%= c.code %> (<%= c.symbol %>)</option>
+    <% }); %>
+  </select>
+</div>
+<script>
+(function(){
+  var sel = document.getElementById('odvCurSel'); if (!sel) return;
+  var KEY = 'odv_cur_' + <%- JSON.stringify(company.slug) %>;
+  function apply(){
+    var o = sel.options[sel.selectedIndex];
+    var rate = parseFloat(o.getAttribute('data-rate')) || 1;
+    var sym = o.getAttribute('data-sym') || '';
+    document.querySelectorAll('.odv-price[data-odv-base]').forEach(function(el){
+      var base = parseFloat(el.getAttribute('data-odv-base')); if (isNaN(base)) return;
+      el.textContent = (Math.round(base * rate * 100) / 100).toFixed(2);
+    });
+    document.querySelectorAll('.odv-cur').forEach(function(el){ el.textContent = sym; });
+    try { localStorage.setItem(KEY, sel.value); } catch(e){}
+  }
+  try { var saved = localStorage.getItem(KEY); if (saved){ for (var i=0;i<sel.options.length;i++){ if(sel.options[i].value===saved){ sel.selectedIndex=i; break; } } } } catch(e){}
+  sel.addEventListener('change', apply);
+  apply();
+})();
+</script>
+<% } %>
+
 <!-- Category strip -->
 <% if (categories && categories.length) { %>
 <div class="cat-strip">
@@ -274,7 +307,7 @@
             <a href="/shop/<%= company.slug %>/product/<%= p.id %>"><div class="pc-name"><%= pName %></div></a>
             <% if (isDelta) { %><div class="pc-rating"><span class="pc-stars"><%= stars %></span><span>(<%= reviews.toLocaleString('en-US') %>)</span></div><% } %>
             <div class="pc-price-row">
-              <span class="pc-price"><% if (disc > 0) { %><span class="pc-old"><%= oldPrice.toFixed(2) %></span><% } %><%= showPrice.toFixed(2) %> <%= cur %></span>
+              <span class="pc-price"><% if (disc > 0) { %><span class="pc-old odv-price" data-odv-base="<%= oldPrice.toFixed(2) %>"><%= oldPrice.toFixed(2) %></span><% } %><span class="odv-price" data-odv-base="<%= showPrice.toFixed(2) %>"><%= showPrice.toFixed(2) %></span> <span class="odv-cur"><%= cur %></span></span>
               <% if (p.stock > 0) { %>
                 <button class="pc-add" type="button" data-product="<%= p.id %>" data-name="<%= pName %>" aria-label="<%= t('public.add_to_cart') %>">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>

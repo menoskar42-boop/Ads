@@ -1,0 +1,33 @@
+<% pageTitle = 'تعدّد العملات'; activePage = 'currencies'; %>
+<%- include('_layout_top') %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-2xl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">تعدّد العملات (للعرض)</h2>
+    <p class="text-gray-500 text-sm mb-5">أضف عملات إضافية يشوف بيها الزائر الأسعار في المتجر. العملة الأساسية هي <strong dir="ltr"><%= base %></strong> والدفع بيفضل بيها؛ دي أسعار عرض تقريبية بس.</p>
+
+    <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">تم الحفظ ✅</div><% } %>
+    <% if (error) { %><div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div><% } %>
+
+    <form method="POST" action="/company/currencies" class="grid sm:grid-cols-4 gap-2 mb-6">
+      <input name="code" required maxlength="6" placeholder="الكود (USD)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm uppercase" dir="ltr" />
+      <input name="symbol" required maxlength="8" placeholder="الرمز ($)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" dir="ltr" />
+      <input name="rate" type="number" step="0.000001" min="0" required placeholder="1 <%= base %> = ؟" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" dir="ltr" />
+      <button class="brand-bg text-white text-xs font-bold px-4 py-2 rounded-lg hover:opacity-90">+ إضافة</button>
+    </form>
+    <p class="text-xs text-gray-400 -mt-4 mb-5">«المعدّل» = كام وحدة من العملة دي تساوي <strong dir="ltr">1 <%= base %></strong>. مثال: لو 1 <%= base %> = 0.02 دولار، اكتب <span dir="ltr">0.02</span>.</p>
+
+    <% if (!currencies.length) { %>
+      <p class="text-sm text-gray-400 text-center py-6">مفيش عملات إضافية. المتجر بيعرض بالعملة الأساسية بس.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% currencies.forEach(function(c){ %>
+        <div class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3">
+          <span class="font-mono font-bold text-gray-800" dir="ltr"><%= c.code %></span>
+          <span class="text-gray-500" dir="ltr"><%= c.symbol %></span>
+          <span class="text-xs text-gray-400 flex-1" dir="ltr">1 <%= base %> = <%= Number(c.rate) %> <%= c.code %></span>
+          <form method="POST" action="/company/currencies/<%= c.id %>/delete" onsubmit="return confirm('حذف العملة؟')"><button class="bg-red-500 text-white text-xs rounded-full w-6 h-6">×</button></form>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

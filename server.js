@@ -628,6 +628,19 @@ async function initDb() {
         visited_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_store_visits ON store_visits (company_id, visited_at DESC);
+      -- Multi-currency display (competitor phase 33). Base currency stays
+      -- companies.currency; these are display-only conversions. rate = how many
+      -- units of this currency equal ONE base unit (display = base * rate).
+      CREATE TABLE IF NOT EXISTS store_currencies (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        code        TEXT NOT NULL,
+        symbol      TEXT NOT NULL,
+        rate        NUMERIC(14,6) NOT NULL,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        UNIQUE (company_id, code)
+      );
       CREATE TABLE IF NOT EXISTS gift_cards (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

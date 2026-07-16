@@ -339,6 +339,9 @@ router.get('/', async (req, res) => {
     shopPriceRange, shopFilters,
     feat: company.page_type === 'shop' ? await shopFeatures.getFeatures(company.id) : {},
     deals: company.page_type === 'shop' ? await deals.activeDealsMap(company.id) : {},
+    storeCurrencies: company.page_type === 'shop'
+      ? (await pool.query('SELECT code, symbol, rate FROM store_currencies WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [company.id])).rows
+      : [],
     cartCount,
     sent: req.query.sent === '1',
     contactError: req.query.error || null,

@@ -953,6 +953,35 @@ router.get('/analytics', requireLogin, requireShop, async (req, res) => {
   } catch (e) { console.error('[analytics]', e.message); res.redirect('/company/dashboard'); }
 });
 
+/* ─── MULTI-CURRENCY DISPLAY (phase 33) ──────────────────── */
+router.get('/currencies', requireLogin, requireShop, async (req, res) => {
+  try {
+    const company = (await pool.query('SELECT currency FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
+    const rows = (await pool.query('SELECT * FROM store_currencies WHERE company_id=$1 ORDER BY sort_order, id', [req.session.companyId])).rows;
+    res.render('company/currencies', { base: company.currency || 'EGP', currencies: rows, session: req.session, saved: req.query.saved === '1', error: req.query.error || null });
+  } catch (e) { console.error('[currencies]', e.message); res.redirect('/company/dashboard'); }
+});
+router.post('/currencies', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  const code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
+  const symbol = String(b.symbol || '').trim().slice(0, 8);
+  const rate = parseFloat(b.rate);
+  if (!code || !symbol || !(rate > 0)) return res.redirect('/company/currencies?error=' + encodeURIComponent('بيانات غير صحيحة'));
+  try {
+    await pool.query(
+      `INSERT INTO store_currencies (company_id, code, symbol, rate) VALUES ($1,$2,$3,$4)
+       ON CONFLICT (company_id, code) DO UPDATE SET symbol=EXCLUDED.symbol, rate=EXCLUDED.rate, is_active=true`,
+      [req.session.companyId, code, symbol, rate]
+    );
+    res.redirect('/company/currencies?saved=1');
+  } catch (e) { console.error('[currency add]', e.message); res.redirect('/company/currencies?error=' + encodeURIComponent('تعذّر الحفظ')); }
+});
+router.post('/currencies/:id/delete', requireLogin, requireShop, async (req, res) => {
+  try { await pool.query('DELETE FROM store_currencies WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.session.companyId]); }
+  catch (e) { console.error('[currency del]', e.message); }
+  res.redirect('/company/currencies');
+});
+
 /* ─── ABANDONED CHECKOUTS (phase 26) ─────────────────────── */
 // Carts that reached checkout but never converted. The merchant sees who + what,
 // and gets a ready WhatsApp reminder link (uses their store whatsapp_number).

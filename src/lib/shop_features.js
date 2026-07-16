@@ -21,6 +21,7 @@ const FEATURES = [
   { key: 'loyalty',         label: 'نقاط الولاء',           desc: 'نقاط على كل شراء تُستخدم كخصم لاحقاً.', default: true },
   { key: 'whatsapp_order',  label: 'الطلب على واتساب',      desc: 'زر «اطلب على واتساب» يفتح محادثة بتفاصيل المنتج/السلة.', default: true },
   { key: 'gift_cards',      label: 'كروت الهدايا والمحفظة',  desc: 'كروت هدايا يشحنها الزبون في محفظته ويدفع بها.', default: true },
+  { key: 'multi_currency',  label: 'تعدّد العملات',          desc: 'محوّل عملات للعرض في المتجر (الدفع يفضل بالعملة الأساسية).', default: true },
 ];
 
 const KEYS = FEATURES.map((f) => f.key);
