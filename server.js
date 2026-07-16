@@ -1052,6 +1052,7 @@ const { ensureFoodSchema } = require('./src/food/schema');
 const { ensureAccountingSchema } = require('./src/accounting/schema');
 const { ensureKakeiboSchema } = require('./src/kakeibo/schema');
 const { ensureClinicSchema } = require('./src/clinic/schema');
+const { ensureGymSchema } = require('./src/gym/schema');
 const { ensureSokroSchema } = require('./sokro/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
 initDb()
@@ -1060,6 +1061,7 @@ initDb()
   .then(() => ensureAccountingSchema())
   .then(() => ensureKakeiboSchema())
   .then(() => ensureClinicSchema())
+  .then(() => ensureGymSchema())
   .then(() => ensureSokroSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),

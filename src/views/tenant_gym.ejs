@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%
+  var g = gymSettings || {};
+  var gName = company.company_name;
+  var accent = company.theme_color || '#E4FF1A';
+  var tagline = g.tagline || 'ابنِ جسمك. اكسر حدودك.';
+  var about = g.about || company.description || '';
+  var cTitle = (gName + ' — جيم ولياقة').slice(0, 60);
+  var cDesc = (about || tagline).toString().slice(0, 155);
+  var canon = 'https://' + company.slug + '.oscardevs.com/';
+  var days = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  var wa = (g.whatsapp || '').replace(/[^0-9]/g,'');
+%>
+<% if (noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<title><%= cTitle %></title>
+<meta name="description" content="<%= cDesc %>" />
+<%- include('partials/seo_meta', { title: cTitle, description: cDesc, canonical: canon, siteAppName: gName, ogImage: company.logo_url || '' }) %>
+<% if (!noindex) { %>
+<script type="application/ld+json">
+<%- JSON.stringify(Object.assign({
+  '@context':'https://schema.org','@type':['HealthClub','SportsActivityLocation'],
+  name: gName, url: canon, description: cDesc, areaServed:{'@type':'Country',name:'Egypt'}
+},
+  company.logo_url ? { image: company.logo_url } : {},
+  g.phone ? { telephone: g.phone } : {},
+  g.address ? { address: { '@type':'PostalAddress', streetAddress: g.address, addressCountry:'EG' } } : {},
+  g.hours ? { openingHours: g.hours } : {}
+)) %>
+</script>
+<% } %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  *{font-family:'Cairo',sans-serif}
+  body{background:#0a0a0a;color:#f5f5f5}
+  .accent{color:<%= accent %>}
+  .accent-bg{background:<%= accent %>;color:#0a0a0a}
+  .card{background:#141414;border:1px solid #232323}
+  .hero-overlay{background:linear-gradient(180deg,rgba(10,10,10,.35),rgba(10,10,10,.95))}
+  .reveal{opacity:0;transform:translateY(16px);transition:.6s ease}
+  .reveal.in{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<header class="sticky top-0 z-30 bg-black/80 backdrop-blur border-b border-neutral-800">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2 font-black text-lg">
+      <% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="<%= gName %>" class="w-9 h-9 rounded-lg object-cover" /><% } else { %><span class="accent text-2xl">🏋️</span><% } %>
+      <span><%= gName %></span>
+    </a>
+    <nav class="hidden sm:flex items-center gap-6 text-sm text-neutral-300">
+      <a href="#plans" class="hover:text-white">الباقات</a>
+      <a href="#classes" class="hover:text-white">الكلاسات</a>
+      <a href="#trainers" class="hover:text-white">المدرّبون</a>
+      <a href="#contact" class="hover:text-white">اتصل</a>
+    </nav>
+    <a href="#plans" class="accent-bg font-bold text-sm px-4 py-2 rounded-full hover:opacity-90">اشترك الآن</a>
+  </div>
+</header>
+
+<!-- Hero -->
+<section id="top" class="relative">
+  <div class="relative min-h-[70vh] flex items-center" style="background:linear-gradient(120deg,#0a0a0a 0%,#111 60%,#1a1a1a 100%)">
+    <div class="hero-overlay absolute inset-0"></div>
+    <div class="relative max-w-6xl mx-auto px-4 py-16 w-full">
+      <div class="max-w-2xl">
+        <div class="inline-block accent-bg text-xs font-bold px-3 py-1 rounded-full mb-4">✅ حجز أونلاين + متابعة اشتراك</div>
+        <h1 class="text-4xl sm:text-6xl font-black leading-tight mb-4"><%= tagline %></h1>
+        <p class="text-neutral-300 text-lg mb-6 max-w-lg"><%= about %></p>
+        <div class="flex flex-wrap gap-3">
+          <a href="#plans" class="accent-bg font-bold px-6 py-3 rounded-full">اشترك الآن</a>
+          <% if (g.booking_enabled !== false) { %><a href="#classes" class="border border-neutral-600 font-bold px-6 py-3 rounded-full hover:bg-neutral-900">احجز حصتك</a><% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Stats -->
+  <div class="border-y border-neutral-800 bg-black">
+    <div class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+      <div><div class="text-3xl font-black accent"><%= gymTrainers.length || '+15' %></div><div class="text-xs text-neutral-400 mt-1">مدرّب معتمد</div></div>
+      <div><div class="text-3xl font-black accent"><%= gymClasses.length || '+40' %></div><div class="text-xs text-neutral-400 mt-1">كلاس أسبوعياً</div></div>
+      <div><div class="text-3xl font-black accent">+500</div><div class="text-xs text-neutral-400 mt-1">عضو نشط</div></div>
+      <div><div class="text-3xl font-black accent">24/7</div><div class="text-xs text-neutral-400 mt-1">دعم ومتابعة</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="max-w-6xl mx-auto px-4 py-14">
+  <h2 class="text-3xl font-black text-center mb-8">ليه <%= gName %>؟</h2>
+  <div class="grid sm:grid-cols-3 gap-4">
+    <% [['🏋️','أجهزة حديثة','أحدث أجهزة الحديد والكارديو'],['🥇','مدرّبون معتمدون','متابعة شخصية وخطط تدريب'],['📅','حجز أونلاين','احجز كلاسك من موبايلك'],['💪','أوزان حرة','منطقة كاملة للأوزان الحرة'],['🔥','كلاسات متنوّعة','كروس فيت · بوكس · HIIT · يوجا'],['📈','متابعة تقدّم','قياساتك ونتايجك خطوة بخطوة']].forEach(function(f){ %>
+    <div class="card rounded-2xl p-5 reveal">
+      <div class="text-3xl mb-2"><%= f[0] %></div>
+      <div class="font-bold text-lg"><%= f[1] %></div>
+      <div class="text-sm text-neutral-400 mt-1"><%= f[2] %></div>
+    </div>
+    <% }); %>
+  </div>
+</section>
+
+<!-- Plans -->
+<% if (gymPlans.length) { %>
+<section id="plans" class="max-w-6xl mx-auto px-4 py-14">
+  <h2 class="text-3xl font-black text-center mb-2">باقات الاشتراك</h2>
+  <p class="text-center text-neutral-400 mb-8">اختر الباقة اللي تناسبك وابدأ دلوقتي</p>
+  <div class="grid sm:grid-cols-3 gap-4">
+    <% gymPlans.forEach(function(p){ %>
+    <div class="card rounded-2xl p-6 reveal <%= p.is_popular ? 'ring-2' : '' %>" style="<%= p.is_popular ? ('border-color:'+accent+';box-shadow:0 0 0 2px '+accent) : '' %>">
+      <% if (p.is_popular) { %><div class="inline-block accent-bg text-xs font-bold px-3 py-1 rounded-full mb-3">الأكثر طلباً</div><% } %>
+      <div class="font-bold text-xl mb-1"><%= p.name %></div>
+      <div class="text-4xl font-black accent mb-1"><%= Number(p.price).toFixed(0) %> <span class="text-lg text-neutral-400">ج</span></div>
+      <div class="text-xs text-neutral-500 mb-4"><%= p.duration_days %> يوم</div>
+      <% (p.features||'').split('\n').filter(Boolean).forEach(function(ft){ %>
+        <div class="flex items-center gap-2 text-sm text-neutral-300 mb-1.5"><span class="accent">✓</span> <%= ft %></div>
+      <% }); %>
+      <a href="#contact" class="block text-center mt-5 <%= p.is_popular ? 'accent-bg' : 'border border-neutral-600 hover:bg-neutral-900' %> font-bold py-3 rounded-full">اشترك</a>
+    </div>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+
+<!-- Classes schedule -->
+<% if (gymClasses.length) { %>
+<section id="classes" class="bg-black border-y border-neutral-800 py-14">
+  <div class="max-w-6xl mx-auto px-4">
+    <h2 class="text-3xl font-black text-center mb-8">جدول الكلاسات</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <% gymClasses.forEach(function(c){ %>
+      <div class="card rounded-xl p-4 flex items-center justify-between reveal">
+        <div>
+          <div class="font-bold"><%= c.name %></div>
+          <div class="text-xs text-neutral-400 mt-0.5"><%= days[c.day_of_week] || '' %> · <%= c.start_time || '' %><%= c.trainer_name ? (' · ' + c.trainer_name) : '' %></div>
+        </div>
+        <span class="text-xs text-neutral-500">سعة <%= c.capacity %></span>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<!-- Trainers -->
+<% if (gymTrainers.length) { %>
+<section id="trainers" class="max-w-6xl mx-auto px-4 py-14">
+  <h2 class="text-3xl font-black text-center mb-8">مدرّبونا</h2>
+  <div class="grid sm:grid-cols-3 gap-4">
+    <% gymTrainers.forEach(function(t){ %>
+    <div class="card rounded-2xl overflow-hidden reveal">
+      <div class="aspect-square bg-neutral-900 grid place-items-center">
+        <% if (t.photo_url) { %><img src="<%= t.photo_url %>" alt="<%= t.name %>" class="w-full h-full object-cover" /><% } else { %><span class="text-6xl">💪</span><% } %>
+      </div>
+      <div class="p-4">
+        <div class="font-bold text-lg"><%= t.name %></div>
+        <div class="accent text-sm font-semibold"><%= t.specialty || '' %></div>
+        <% if (t.bio) { %><p class="text-xs text-neutral-400 mt-1 leading-relaxed"><%= t.bio %></p><% } %>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+</section>
+<% } %>
+
+<!-- Final CTA + contact -->
+<section id="contact" class="relative py-16 bg-gradient-to-b from-neutral-900 to-black border-t border-neutral-800">
+  <div class="max-w-3xl mx-auto px-4 text-center">
+    <h2 class="text-4xl font-black mb-3">جاهز تبدأ؟</h2>
+    <p class="text-neutral-400 mb-6">انضم لـ<%= gName %> النهارده وابدأ رحلتك.</p>
+    <div class="flex flex-wrap justify-center gap-3">
+      <% if (wa) { %><a href="https://wa.me/<%= wa %>?text=<%= encodeURIComponent('حابب أعرف عن الاشتراك في ' + gName) %>" target="_blank" rel="nofollow noopener" class="accent-bg font-bold px-6 py-3 rounded-full">تواصل واتساب</a><% } %>
+      <% if (g.phone) { %><a href="tel:<%= g.phone %>" class="border border-neutral-600 font-bold px-6 py-3 rounded-full hover:bg-neutral-900" dir="ltr"><%= g.phone %></a><% } %>
+    </div>
+    <div class="text-sm text-neutral-500 mt-6 space-y-1">
+      <% if (g.address) { %><div>📍 <%= g.address %></div><% } %>
+      <% if (g.hours) { %><div>🕒 <%= g.hours %></div><% } %>
+    </div>
+  </div>
+</section>
+
+<footer class="border-t border-neutral-800 py-6 text-center text-xs text-neutral-500">
+  مدعوم بواسطة <a href="https://oscardevs.com" class="accent font-semibold">OscarDevs</a> — نظام إدارة الجيم
+</footer>
+
+<script>
+  (function(){var els=document.querySelectorAll('.reveal');if(!('IntersectionObserver'in window)){els.forEach(function(e){e.classList.add('in')});return;}
+  var io=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}})},{threshold:.12});
+  els.forEach(function(e){io.observe(e)});})();
+</script>
+</body>
+</html>

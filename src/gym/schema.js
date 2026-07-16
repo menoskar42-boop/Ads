@@ -1,0 +1,170 @@
+// Gym / fitness vertical schema + demo seed (competitor-informed roadmap).
+// Gyms reuse the multi-tenant `companies` table with page_type = 'gym', so each
+// gym gets its own slug.oscardevs.com page + admin + subscription. All statements
+// are additive + idempotent (CREATE TABLE / ADD COLUMN IF NOT EXISTS).
+
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const DEMO_SLUG = 'gym';
+const DEMO_EMAIL = 'gym@demo.oscardevs.com';
+const DEMO_PASSWORD = 'gym123';
+
+async function ensureGymSchema() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      -- Per-gym settings (about, contact, hours, self-booking toggle).
+      CREATE TABLE IF NOT EXISTS gym_settings (
+        company_id      INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        tagline         TEXT,
+        about           TEXT,
+        address         TEXT,
+        phone           TEXT,
+        whatsapp        TEXT,
+        hours           TEXT,
+        map_lat         NUMERIC(9,6),
+        map_lng         NUMERIC(9,6),
+        booking_enabled BOOLEAN NOT NULL DEFAULT true,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      -- Membership plans (monthly / quarterly / yearly …).
+      CREATE TABLE IF NOT EXISTS gym_plans (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        price         NUMERIC(10,2) NOT NULL DEFAULT 0,
+        duration_days INTEGER NOT NULL DEFAULT 30,
+        features      TEXT,
+        is_popular    BOOLEAN NOT NULL DEFAULT false,
+        sort_order    INTEGER NOT NULL DEFAULT 0,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_plans_company ON gym_plans (company_id, is_active, sort_order);
+      -- Trainers (each with an optional public profile).
+      CREATE TABLE IF NOT EXISTS gym_trainers (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        slug        TEXT NOT NULL,
+        name        TEXT NOT NULL,
+        specialty   TEXT,
+        bio         TEXT,
+        photo_url   TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_trainers_slug ON gym_trainers (company_id, slug);
+      -- Weekly class schedule.
+      CREATE TABLE IF NOT EXISTS gym_classes (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name         TEXT NOT NULL,
+        day_of_week  INTEGER NOT NULL DEFAULT 6, -- 0=Sun … 6=Sat
+        start_time   TEXT,                        -- "18:00"
+        duration_min INTEGER NOT NULL DEFAULT 60,
+        trainer_id   INTEGER REFERENCES gym_trainers(id) ON DELETE SET NULL,
+        capacity     INTEGER NOT NULL DEFAULT 20,
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        is_active    BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_classes_company ON gym_classes (company_id, is_active, day_of_week, sort_order);
+    `);
+
+    await seedDemoGym(client);
+  } catch (e) {
+    console.error('[gym schema]', e.message);
+  } finally {
+    client.release();
+  }
+}
+
+async function seedDemoGym(client) {
+  const existing = await client.query('SELECT id, page_type, is_active FROM companies WHERE slug = $1', [DEMO_SLUG]);
+  let companyId;
+  if (existing.rows.length) {
+    companyId = existing.rows[0].id;
+    // Self-heal: keep the demo a live gym even if the row pre-existed otherwise.
+    if (existing.rows[0].page_type !== 'gym' || existing.rows[0].is_active !== true) {
+      await client.query("UPDATE companies SET page_type='gym', is_active=true WHERE id=$1", [companyId]);
+    }
+  } else {
+    const ins = await client.query(
+      `INSERT INTO companies (slug, company_name, description, page_type, theme_color, is_active)
+       VALUES ($1,$2,$3,'gym','#E4FF1A', true) RETURNING id`,
+      [DEMO_SLUG, 'OscarFit — جيم نموذجي',
+       'جيم نموذجي لتجربة نظام إدارة الجيم من OscarDevs: باقات اشتراك، جدول كلاسات، مدرّبون، وحجز أونلاين.']
+    );
+    companyId = ins.rows[0].id;
+  }
+
+  await client.query(
+    `INSERT INTO gym_settings (company_id, tagline, about, address, phone, whatsapp, hours, booking_enabled)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,true) ON CONFLICT (company_id) DO NOTHING`,
+    [companyId, 'ابنِ جسمك. اكسر حدودك.',
+     'جيم مجهّز بأحدث الأجهزة ومنطقة أوزان حرة وكارديو، مع مدرّبين معتمدين وكلاسات يومية متنوّعة.',
+     'أسيوط، مصر', '201552406406', '201552406406', 'يومياً: 8ص–12م']
+  );
+
+  const planCount = await client.query('SELECT COUNT(*)::int AS n FROM gym_plans WHERE company_id=$1', [companyId]);
+  if (!planCount.rows[0].n) {
+    const plans = [
+      ['شهري', 500, 30, 'دخول غير محدود\nكل الأجهزة والأوزان\nكلاسات جماعية', false, 0],
+      ['3 شهور', 1200, 90, 'كل مميزات الشهري\nتوفير 300ج\nتقييم لياقة مجاني', true, 1],
+      ['سنوي', 3600, 365, 'كل المميزات\nحصتين تدريب شخصي\nخطة تغذية', false, 2],
+    ];
+    for (const p of plans) {
+      await client.query(
+        'INSERT INTO gym_plans (company_id, name, price, duration_days, features, is_popular, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [companyId, p[0], p[1], p[2], p[3], p[4], p[5]]
+      );
+    }
+  }
+
+  const trCount = await client.query('SELECT COUNT(*)::int AS n FROM gym_trainers WHERE company_id=$1', [companyId]);
+  if (!trCount.rows[0].n) {
+    const trainers = [
+      ['ahmed-fit', 'كابتن أحمد', 'كمال أجسام وقوة', 'مدرّب معتمد بخبرة 10 سنين في بناء العضلات والتضخيم.'],
+      ['mostafa-hiit', 'كابتن مصطفى', 'HIIT وحرق دهون', 'متخصص في التخسيس وتحسين اللياقة القلبية.'],
+      ['sara-fitness', 'كابتن سارة', 'لياقة السيدات', 'مدرّبة لياقة وتغذية متخصّصة في تدريب السيدات.'],
+    ];
+    for (let i = 0; i < trainers.length; i++) {
+      const t = trainers[i];
+      await client.query(
+        'INSERT INTO gym_trainers (company_id, slug, name, specialty, bio, sort_order) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (company_id, slug) DO NOTHING',
+        [companyId, t[0], t[1], t[2], t[3], i]
+      );
+    }
+  }
+
+  const clCount = await client.query('SELECT COUNT(*)::int AS n FROM gym_classes WHERE company_id=$1', [companyId]);
+  if (!clCount.rows[0].n) {
+    const classes = [
+      ['كروس فيت', 6, '18:00', 60, 20], ['بوكس', 0, '19:00', 60, 15],
+      ['HIIT', 1, '18:30', 45, 25], ['حديد وقوة', 2, '20:00', 90, 30],
+      ['يوجا', 3, '17:00', 60, 15], ['كارديو', 4, '18:00', 45, 25],
+    ];
+    for (let i = 0; i < classes.length; i++) {
+      const c = classes[i];
+      await client.query(
+        'INSERT INTO gym_classes (company_id, name, day_of_week, start_time, duration_min, capacity, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [companyId, c[0], c[1], c[2], c[3], c[4], i]
+      );
+    }
+  }
+
+  const hasUser = await client.query('SELECT 1 FROM company_users WHERE company_id = $1 LIMIT 1', [companyId]);
+  if (!hasUser.rows.length) {
+    const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
+    await client.query(
+      `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING`,
+      [companyId, DEMO_EMAIL, hash]
+    );
+    console.log('Seeded demo gym login:', DEMO_EMAIL);
+  }
+}
+
+module.exports = { ensureGymSchema };

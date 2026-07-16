@@ -243,6 +243,19 @@ router.get('/', async (req, res) => {
     } catch (err) { console.error('Clinic query error:', err.message); }
   }
 
+  let gymSettings = null, gymPlans = [], gymTrainers = [], gymClasses = [];
+  if (company.page_type === 'gym') {
+    try {
+      gymSettings = (await pool.query('SELECT * FROM gym_settings WHERE company_id=$1', [company.id])).rows[0] || null;
+      gymPlans = (await pool.query('SELECT * FROM gym_plans WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [company.id])).rows;
+      gymTrainers = (await pool.query('SELECT * FROM gym_trainers WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [company.id])).rows;
+      gymClasses = (await pool.query(
+        `SELECT c.*, t.name AS trainer_name FROM gym_classes c
+         LEFT JOIN gym_trainers t ON t.id=c.trainer_id
+         WHERE c.company_id=$1 AND c.is_active=true ORDER BY c.day_of_week, c.sort_order, c.id`, [company.id])).rows;
+    } catch (err) { console.error('Gym query error:', err.message); }
+  }
+
   let banners = [];
   try {
     banners = (await pool.query(
@@ -271,6 +284,7 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
   else if (company.page_type === 'orders') view = 'tenant_orders';
   else if (company.page_type === 'clinic') view = 'tenant_clinic';
+  else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
   // Indexing quality gate: keep thin tenant pages out of the index (and away
@@ -289,6 +303,9 @@ router.get('/', async (req, res) => {
   // A clinic indexes once it has a real doctor + a description; the demo clinic
   // (slug 'clinic') stays out of the index like the other demos.
   else if (company.page_type === 'clinic') indexable = clinicDoctors.length >= 1 && descLen >= 40 && company.slug !== 'clinic';
+  // A gym indexes once it has plans + a description; the demo gym (slug 'gym')
+  // stays out of the index like the other demos.
+  else if (company.page_type === 'gym') indexable = gymPlans.length >= 1 && descLen >= 40 && company.slug !== 'gym';
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have
@@ -333,6 +350,10 @@ router.get('/', async (req, res) => {
     foodUpsellOn,
     clinicDoctors,
     clinicSettings,
+    gymSettings,
+    gymPlans,
+    gymTrainers,
+    gymClasses,
     payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
