@@ -72,6 +72,32 @@ async function ensureGymSchema() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_classes_company ON gym_classes (company_id, is_active, day_of_week, sort_order);
+      -- Members + their memberships (the core of the idea: track who's active and
+      -- who's about to expire so the owner never loses a renewal).
+      CREATE TABLE IF NOT EXISTS gym_members (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        phone       TEXT,
+        code        TEXT,
+        notes       TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_members_company ON gym_members (company_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS gym_memberships (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        member_id   INTEGER NOT NULL REFERENCES gym_members(id) ON DELETE CASCADE,
+        plan_id     INTEGER REFERENCES gym_plans(id) ON DELETE SET NULL,
+        plan_name   TEXT,
+        price       NUMERIC(10,2) NOT NULL DEFAULT 0,
+        start_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+        end_date    DATE NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'active', -- active|frozen|cancelled
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_memberships ON gym_memberships (company_id, status, end_date);
+      CREATE INDEX IF NOT EXISTS idx_gym_memberships_member ON gym_memberships (member_id, end_date DESC);
     `);
 
     await seedDemoGym(client);

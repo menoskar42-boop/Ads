@@ -1,0 +1,27 @@
+<% var pageTitle='الباقات'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-4">باقات الاشتراك</h1>
+  <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+  <div class="card rounded-2xl p-4 mb-5">
+    <form method="POST" action="/gym/plans/add" class="grid sm:grid-cols-2 gap-2">
+      <input name="name" required placeholder="اسم الباقة (شهري)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="price" type="number" step="0.01" min="0" required placeholder="السعر (ج)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="duration_days" type="number" min="1" value="30" placeholder="المدة (أيام)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <label class="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" name="is_popular" value="1" /> الأكثر طلباً</label>
+      <textarea name="features" rows="2" placeholder="المميزات (سطر لكل ميزة)" class="fld rounded-xl px-3 py-2 text-sm sm:col-span-2"></textarea>
+      <button class="accent-bg font-bold rounded-xl px-4 py-2 text-sm sm:col-span-2">+ إضافة باقة</button>
+    </form>
+  </div>
+  <% if (!plans.length) { %><p class="text-sm text-neutral-500 text-center py-6">مفيش باقات.</p><% } else { %>
+    <div class="space-y-2">
+      <% plans.forEach(function(p){ %>
+      <div class="card rounded-xl px-4 py-3 flex items-center gap-3">
+        <span class="font-bold text-sm flex-1"><%= p.name %> <% if(p.is_popular){ %><span class="text-xs accent-bg rounded-full px-2 py-0.5">مميّزة</span><% } %></span>
+        <span class="text-sm" style="color:#E4FF1A"><%= Number(p.price).toFixed(0) %> ج</span>
+        <span class="text-xs text-neutral-500"><%= p.duration_days %> يوم</span>
+        <form method="POST" action="/gym/plans/<%= p.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="bg-red-600 text-white text-xs rounded-full w-6 h-6">×</button></form>
+      </div>
+      <% }); %>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>

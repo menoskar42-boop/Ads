@@ -1,0 +1,47 @@
+<% var pageTitle='الأعضاء'; %>
+<%- include('_layout_top') %>
+  <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+    <h1 class="text-2xl font-black">الأعضاء</h1>
+    <form method="GET" class="flex gap-2"><input name="q" value="<%= q %>" placeholder="ابحث بالاسم/الموبايل" class="fld rounded-xl px-3 py-2 text-sm" /><button class="accent-bg font-bold px-3 rounded-xl text-sm">بحث</button></form>
+  </div>
+  <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+
+  <div class="card rounded-2xl p-4 mb-5">
+    <div class="font-bold text-sm mb-2">+ عضو جديد</div>
+    <form method="POST" action="/gym/members/add" class="grid sm:grid-cols-4 gap-2">
+      <input name="name" required placeholder="الاسم" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="phone" placeholder="الموبايل" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="code" placeholder="كود العضوية (اختياري)" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm" />
+      <button class="accent-bg font-bold rounded-xl px-4 text-sm">إضافة</button>
+    </form>
+  </div>
+
+  <% if (!members.length) { %>
+    <p class="text-sm text-neutral-500 text-center py-8">مفيش أعضاء لسه.</p>
+  <% } else { %>
+    <div class="space-y-2">
+      <% members.forEach(function(m){ var L=m.latest; var end=L&&L.end_date?new Date(L.end_date):null; var active=L&&L.status==='active'&&end&&end>=new Date(); var frozen=L&&L.status==='frozen'; %>
+      <div class="card rounded-xl p-3">
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="min-w-0 flex-1">
+            <div class="font-bold text-sm"><%= m.name %> <% if(m.phone){ %><span class="text-xs text-neutral-500" dir="ltr"><%= m.phone %></span><% } %></div>
+            <div class="text-xs <%= frozen?'text-blue-400':active?'text-emerald-400':'text-red-400' %>">
+              <%= !L ? 'بدون اشتراك' : frozen ? 'مجمّد' : active ? ('نشط حتى ' + end.toLocaleDateString('ar-EG')) : ('منتهي' + (end?(' منذ '+end.toLocaleDateString('ar-EG')):'')) %>
+              <% if(L&&L.plan_name){ %> · <%= L.plan_name %><% } %>
+            </div>
+          </div>
+          <% if (plans.length) { %>
+          <form method="POST" action="/gym/members/<%= m.id %>/subscribe" class="flex gap-1 items-center">
+            <select name="plan_id" class="fld rounded-lg px-2 py-1.5 text-xs">
+              <% plans.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %> (<%= Number(p.price).toFixed(0) %>ج)</option><% }); %>
+            </select>
+            <button class="text-xs accent-bg font-bold rounded-lg px-3 py-1.5"><%= active?'تجديد':'اشتراك' %></button>
+          </form>
+          <% } %>
+          <% if (L) { %><form method="POST" action="/gym/members/<%= m.id %>/freeze"><button class="text-xs border border-neutral-700 rounded-lg px-3 py-1.5 text-neutral-300 hover:bg-neutral-900"><%= frozen?'تنشيط':'تجميد' %></button></form><% } %>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>

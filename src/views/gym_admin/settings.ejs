@@ -1,0 +1,17 @@
+<% var pageTitle='الإعدادات'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-4">إعدادات الجيم</h1>
+  <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+  <form method="POST" action="/gym/settings" class="card rounded-2xl p-5 grid gap-3">
+    <label class="text-sm text-neutral-300">شعار/جملة تحفيزية<input name="tagline" value="<%= s.tagline||'' %>" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" /></label>
+    <label class="text-sm text-neutral-300">نبذة عن الجيم<textarea name="about" rows="3" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1"><%= s.about||'' %></textarea></label>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="text-sm text-neutral-300">الهاتف<input name="phone" value="<%= s.phone||'' %>" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" /></label>
+      <label class="text-sm text-neutral-300">واتساب (كود الدولة+الرقم)<input name="whatsapp" value="<%= s.whatsapp||'' %>" dir="ltr" placeholder="201000000000" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" /></label>
+      <label class="text-sm text-neutral-300">العنوان<input name="address" value="<%= s.address||'' %>" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" /></label>
+      <label class="text-sm text-neutral-300">المواعيد<input name="hours" value="<%= s.hours||'' %>" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" /></label>
+    </div>
+    <label class="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" name="booking_enabled" value="1" <%= (s.booking_enabled!==false)?'checked':'' %> /> تفعيل الحجز أونلاين</label>
+    <button class="accent-bg font-bold rounded-xl px-6 py-3 text-sm w-max">حفظ</button>
+  </form>
+<%- include('_layout_bottom') %>

@@ -323,6 +323,7 @@ app.use('/accounting', require('./src/routes/accounting'));
 app.use('/pharmacy', pharmacyAdminRouter);
 app.use('/food', foodAdminRouter);
 app.use('/clinic', clinicAdminRouter);
+app.use('/gym', require('./src/routes/gym_admin'));
 
 // Super admin panel must be before tenant middleware too
 app.use('/admin', adminRouter);
@@ -1096,7 +1097,10 @@ try {
 setInterval(() => {
   try {
     const h = Number(new Date().toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Africa/Cairo' }));
-    if (h === 8) neuroPush.sendDaily().catch(() => {});
+    if (h === 8) {
+      neuroPush.sendDaily().catch(() => {});
+      require('./src/lib/gym_alerts').runExpiryAlerts().catch(() => {}); // gym renewals
+    }
   } catch (e) { /* ignore */ }
 }, 30 * 60 * 1000).unref();
 

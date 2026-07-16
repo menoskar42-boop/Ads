@@ -1,0 +1,30 @@
+<% var pageTitle='لوحة الجيم'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-5">لوحة الجيم</h1>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">أعضاء نشطين</div><div class="text-2xl font-black"><%= stats.active || 0 %></div></div>
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">قرب ينتهي (7 أيام)</div><div class="text-2xl font-black text-amber-400"><%= stats.expiring || 0 %></div></div>
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">منتهي</div><div class="text-2xl font-black text-red-400"><%= stats.expired || 0 %></div></div>
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">إيراد الشهر</div><div class="text-2xl font-black" style="color:#E4FF1A"><%= Number(stats.month_revenue||0).toFixed(0) %> ج</div></div>
+  </div>
+
+  <div class="card rounded-2xl p-5">
+    <h2 class="font-bold mb-1">⏳ اشتراكات قرب تنتهي — ذكّرهم بالتجديد</h2>
+    <p class="text-xs text-neutral-500 mb-3">دي أهم قائمة: أعضاء اشتراكهم بينتهي خلال 7 أيام. تواصل معاهم قبل ما يروحوا.</p>
+    <% if (!expiring.length) { %>
+      <p class="text-sm text-neutral-500 text-center py-6">مفيش اشتراكات قرب تنتهي 👍</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% expiring.forEach(function(m){ var wa=(m.phone||'').replace(/[^0-9]/g,''); var intl = wa.length<=11 ? ('20'+wa.replace(/^0/,'')) : wa; var overdue = new Date(m.end_date) < new Date(); %>
+        <div class="flex items-center gap-3 border border-neutral-800 rounded-xl px-3 py-2.5">
+          <div class="min-w-0 flex-1">
+            <div class="font-bold text-sm truncate"><%= m.name %> <span class="text-xs text-neutral-500"><%= m.plan_name || '' %></span></div>
+            <div class="text-xs <%= overdue?'text-red-400':'text-amber-400' %>"><%= overdue ? 'انتهى' : 'ينتهي' %>: <%= new Date(m.end_date).toLocaleDateString('ar-EG') %></div>
+          </div>
+          <% if (wa) { %><a href="https://wa.me/<%= intl %>?text=<%= encodeURIComponent('أهلاً ' + m.name + '، اشتراكك في الجيم قرب يخلص — تحب تجدّد؟') %>" target="_blank" rel="nofollow noopener" class="text-xs bg-green-600 text-white rounded-lg px-3 py-1.5 font-semibold shrink-0">واتساب</a><% } %>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

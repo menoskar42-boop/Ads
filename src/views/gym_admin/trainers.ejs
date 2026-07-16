@@ -1,0 +1,25 @@
+<% var pageTitle='المدرّبون'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-4">المدرّبون</h1>
+  <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+  <div class="card rounded-2xl p-4 mb-5">
+    <form method="POST" action="/gym/trainers/add" class="grid sm:grid-cols-2 gap-2">
+      <input name="name" required placeholder="اسم المدرّب" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="specialty" placeholder="التخصص (كمال أجسام)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="photo_url" placeholder="رابط صورة (اختياري)" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm sm:col-span-2" />
+      <textarea name="bio" rows="2" placeholder="نبذة" class="fld rounded-xl px-3 py-2 text-sm sm:col-span-2"></textarea>
+      <button class="accent-bg font-bold rounded-xl px-4 py-2 text-sm sm:col-span-2">+ إضافة مدرّب</button>
+    </form>
+  </div>
+  <% if (!trainers.length) { %><p class="text-sm text-neutral-500 text-center py-6">مفيش مدرّبين.</p><% } else { %>
+    <div class="space-y-2">
+      <% trainers.forEach(function(t){ %>
+      <div class="card rounded-xl px-4 py-3 flex items-center gap-3">
+        <span class="font-bold text-sm flex-1"><%= t.name %></span>
+        <span class="text-xs text-neutral-400"><%= t.specialty || '' %></span>
+        <form method="POST" action="/gym/trainers/<%= t.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="bg-red-600 text-white text-xs rounded-full w-6 h-6">×</button></form>
+      </div>
+      <% }); %>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>
