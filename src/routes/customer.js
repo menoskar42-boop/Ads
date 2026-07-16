@@ -230,6 +230,27 @@ router.post('/wallet/redeem', requireCustomer, async (req, res) => {
   }
 });
 
+/* ─── SUBSCRIPTIONS (phase 32) ───────────────────────────── */
+router.get('/subscriptions', requireCustomer, async (req, res) => {
+  try {
+    const subs = (await pool.query(
+      `SELECT s.*, p.name AS product_name, p.image_url, c.company_name, c.slug
+         FROM subscriptions s
+         JOIN products p ON p.id = s.product_id
+         JOIN companies c ON c.id = s.company_id
+        WHERE s.customer_id=$1 ORDER BY (s.status='active') DESC, s.next_renewal`,
+      [req.session.customerId]
+    )).rows;
+    res.render('customer/subscriptions', { subs, session: req.session, created: req.query.created === '1' });
+  } catch (e) { console.error('[subscriptions]', e.message); res.status(500).send('Error.'); }
+});
+router.post('/subscriptions/:id/cancel', requireCustomer, async (req, res) => {
+  try {
+    await pool.query("UPDATE subscriptions SET status='cancelled' WHERE id=$1 AND customer_id=$2", [parseInt(req.params.id, 10), req.session.customerId]);
+  } catch (e) { console.error('[sub cancel]', e.message); }
+  res.redirect('/customer/subscriptions');
+});
+
 /* ─── RETURN REQUESTS (phase 20) ─────────────────────────── */
 router.post('/orders/:id/return', requireCustomer, async (req, res) => {
   const oid = parseInt(req.params.id, 10);

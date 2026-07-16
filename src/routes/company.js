@@ -953,6 +953,21 @@ router.get('/analytics', requireLogin, requireShop, async (req, res) => {
   } catch (e) { console.error('[analytics]', e.message); res.redirect('/company/dashboard'); }
 });
 
+/* ─── SUBSCRIPTIONS (phase 32) ───────────────────────────── */
+router.get('/subscriptions', requireLogin, requireShop, async (req, res) => {
+  try {
+    const subs = (await pool.query(
+      `SELECT s.*, p.name AS product_name, c.full_name AS customer_name, c.phone AS customer_phone
+         FROM subscriptions s
+         JOIN products p ON p.id = s.product_id
+         LEFT JOIN customers c ON c.id = s.customer_id
+        WHERE s.company_id=$1 ORDER BY (s.status='active') DESC, s.next_renewal LIMIT 300`,
+      [req.session.companyId]
+    )).rows;
+    res.render('company/subscriptions', { subs, session: req.session });
+  } catch (e) { console.error('[company subscriptions]', e.message); res.redirect('/company/dashboard'); }
+});
+
 /* ─── LANDING PAGES (phase 30) ───────────────────────────── */
 router.get('/landing', requireLogin, requireShop, async (req, res) => {
   try {
@@ -1198,17 +1213,22 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
       const description_ar = (req.body.description_ar || '').trim() || null;
       const description_en = (req.body.description_en || '').trim() || null;
       const finalName = name || name_ar || name_en || '';
+      // Subscriptions (phase 32): allow marking a product as recurring.
+      const subscribable = String(req.body.subscribable) === '1';
+      const subInterval = Math.max(1, Math.min(365, parseInt(req.body.sub_interval_days, 10) || 30));
+      const subDiscount = Math.max(0, Math.min(90, parseFloat(req.body.sub_discount_pct) || 0));
       await client.query(
         `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6,
          name_ar=$7, name_en=$8, description_ar=$9, description_en=$10,
-         sale_type=$13, sizes=$14, weight_unit=$15, video_url=$16
+         sale_type=$13, sizes=$14, weight_unit=$15, video_url=$16,
+         subscribable=$17, sub_interval_days=$18, sub_discount_pct=$19
          WHERE id=$11 AND company_id=$12`,
         [finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId,
          name_ar, name_en, description_ar, description_en, req.params.id, req.session.companyId,
          (['unit','size','weight'].includes(req.body.sale_type) ? req.body.sale_type : 'unit'),
          (req.body.sale_type === 'size' ? ((req.body.sizes || '').trim() || null) : null),
          (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null),
-         finalVideoUrl]
+         finalVideoUrl, subscribable, subInterval, subDiscount]
       );
       const diff = stockNum - beforeStock;
       if (diff !== 0) {

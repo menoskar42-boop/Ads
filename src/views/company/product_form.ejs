@@ -147,6 +147,22 @@
         <p class="text-xs text-gray-400 mt-1">فيديو واحد لكل منتج (MP4 / MOV / WebM). الحد الأقصى 100 ميجا. يتم ضغطه تلقائياً لتقليل حجمه مع الحفاظ على جودته.</p>
       </div>
 
+      <!-- Subscriptions (phase 32) -->
+      <div class="border border-gray-100 rounded-xl p-3 bg-gray-50/50">
+        <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+          <input type="checkbox" name="subscribable" value="1" <%= (product && product.subscribable) ? 'checked' : '' %> class="w-4 h-4" />
+          🔁 اتاحة الاشتراك المتكرر في المنتج ده
+        </label>
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <label class="text-xs text-gray-500">كل كام يوم؟
+            <input type="number" min="1" max="365" name="sub_interval_days" value="<%= (product && product.sub_interval_days) || 30 %>" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+          </label>
+          <label class="text-xs text-gray-500">خصم الاشتراك %
+            <input type="number" min="0" max="90" step="0.5" name="sub_discount_pct" value="<%= (product && product.sub_discount_pct) || 0 %>" class="mt-1 w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+          </label>
+        </div>
+      </div>
+
       <div class="flex items-center gap-3 pt-4">
         <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow-md"><%= t('common.save') %></button>
         <a href="/company/products" class="text-gray-500 hover:text-gray-700 text-sm"><%= t('common.cancel') %></a>

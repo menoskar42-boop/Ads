@@ -22,6 +22,7 @@ const FEATURES = [
   { key: 'whatsapp_order',  label: 'الطلب على واتساب',      desc: 'زر «اطلب على واتساب» يفتح محادثة بتفاصيل المنتج/السلة.', default: true },
   { key: 'gift_cards',      label: 'كروت الهدايا والمحفظة',  desc: 'كروت هدايا يشحنها الزبون في محفظته ويدفع بها.', default: true },
   { key: 'multi_currency',  label: 'تعدّد العملات',          desc: 'محوّل عملات للعرض في المتجر (الدفع يفضل بالعملة الأساسية).', default: true },
+  { key: 'subscriptions',   label: 'الاشتراكات المتكررة',     desc: 'العميل يشترك في منتج فيتكرّر طلبه تلقائياً كل فترة.', default: true },
 ];
 
 const KEYS = FEATURES.map((f) => f.key);

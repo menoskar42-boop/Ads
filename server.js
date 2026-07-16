@@ -179,6 +179,19 @@ app.all('/api/neuropilot/run-daily', async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// Subscriptions daily renewal — external trigger (reliable on scale-to-zero).
+// Same secret as the push cron. Point cron-job.org at this once a day.
+app.all('/api/subscriptions/run-daily', async (req, res) => {
+  const secret = process.env.PUSH_CRON_SECRET || '';
+  if (!secret) return res.status(503).json({ ok: false, error: 'PUSH_CRON_SECRET not set' });
+  const provided = req.query.key || req.get('x-cron-key') || '';
+  if (provided !== secret) return res.status(403).json({ ok: false, error: 'bad key' });
+  try {
+    const r = await require('./src/lib/subscriptions').runDueRenewals();
+    res.json({ ok: true, ...r });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ===== Sokro (sokro.oscardevs.com) — AI Operating System, host-routed =====
 // Its own product (voice-driven task execution). Mounted BEFORE express.static
 // so the subdomain serves its own robots.txt/sitemap.xml (a physical
@@ -641,6 +654,28 @@ async function initDb() {
         is_active   BOOLEAN NOT NULL DEFAULT true,
         UNIQUE (company_id, code)
       );
+      -- Recurring subscriptions (competitor phase 32). COD-style: a daily job
+      -- creates the next order and advances next_renewal — no gateway needed.
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS subscribable BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sub_interval_days INTEGER NOT NULL DEFAULT 30;
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS sub_discount_pct NUMERIC(5,2) NOT NULL DEFAULT 0;
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id   INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        product_id    INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        quantity      INTEGER NOT NULL DEFAULT 1,
+        unit_price    NUMERIC(10,2) NOT NULL,
+        interval_days INTEGER NOT NULL DEFAULT 30,
+        status        TEXT NOT NULL DEFAULT 'active', -- active|cancelled
+        next_renewal  DATE NOT NULL,
+        ship_name     TEXT,
+        ship_phone    TEXT,
+        ship_address  TEXT,
+        last_order_at TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_due ON subscriptions (status, next_renewal);
       CREATE TABLE IF NOT EXISTS gift_cards (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -1046,4 +1081,12 @@ setInterval(() => {
     if (h === 8) neuroPush.sendDaily().catch(() => {});
   } catch (e) { /* ignore */ }
 }, 30 * 60 * 1000).unref();
+
+// Subscriptions (phase 32): create due recurring orders. Runs hourly and is
+// idempotent per day (each renewal advances next_renewal past today), so it
+// self-heals whenever the instance is awake. Also exposed as an external
+// trigger below for scale-to-zero hosting.
+const subscriptions = require('./src/lib/subscriptions');
+setInterval(() => { subscriptions.runDueRenewals().catch(() => {}); }, 60 * 60 * 1000).unref();
+subscriptions.runDueRenewals().catch(() => {}); // once on boot
 

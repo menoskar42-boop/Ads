@@ -467,6 +467,33 @@ router.post('/:slug/checkout', async (req, res) => {
 });
 
 // Initiate an online payment for an existing order via the merchant's gateway.
+// Subscribe to a product (phase 32). Requires a logged-in customer. Creates an
+// active subscription; the daily job then generates the recurring orders.
+router.post('/:slug/subscribe', async (req, res) => {
+  const { slug } = req.params;
+  const productId = parseInt(req.body.product_id, 10);
+  const back = `/shop/${encodeURIComponent(slug)}/product/${productId}`;
+  try {
+    if (!req.session.customerId) return res.redirect('/customer/login');
+    const company = await loadShopCompany(slug);
+    if (!company) return res.status(404).render('404', { subdomain: slug });
+    const feat = await shopFeatures.getFeatures(company.id);
+    if (feat.subscriptions === false) return res.redirect(back);
+    const product = (await pool.query(
+      'SELECT id, name, price, subscribable, sub_interval_days, sub_discount_pct FROM products WHERE id=$1 AND company_id=$2 AND is_active=true AND subscribable=true',
+      [productId, company.id]
+    )).rows[0];
+    if (!product) return res.redirect(back);
+    const cust = (await pool.query('SELECT full_name, phone, address FROM customers WHERE id=$1', [req.session.customerId])).rows[0] || {};
+    await require('../lib/subscriptions').subscribe({
+      companyId: company.id, customerId: req.session.customerId, product,
+      quantity: req.body.quantity,
+      ship: { name: cust.full_name, phone: cust.phone, address: cust.address },
+    });
+    res.redirect('/customer/subscriptions?created=1');
+  } catch (e) { console.error('[subscribe]', e.message); res.redirect(back); }
+});
+
 // Single-product landing page (phase 30) for ad campaigns. A focused, high-
 // conversion surface with one CTA (buy now → checkout). noindex + canonical to
 // the product page so it never competes for indexing (no duplicate content).

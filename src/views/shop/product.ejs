@@ -256,6 +256,18 @@
           اطلب على واتساب
         </a>
         <% } %>
+        <% if (__on('subscriptions') && product.subscribable) {
+             var __subPct = Number(product.sub_discount_pct || 0);
+             var __subUnit = (Number(product.price) * (1 - __subPct/100)).toFixed(2);
+        %>
+        <form method="POST" action="/shop/<%= company.slug %>/subscribe" class="w-full mt-2">
+          <input type="hidden" name="product_id" value="<%= product.id %>" />
+          <input type="hidden" name="quantity" value="1" />
+          <button type="submit" class="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-700 transition shadow">
+            🔁 اشترك — يوصلك كل <%= Number(product.sub_interval_days) || 30 %> يوم<% if (__subPct > 0) { %> (وفّر <%= __subPct %>% · <%= __subUnit %> <%= company.currency || 'ج' %>)<% } %>
+          </button>
+        </form>
+        <% } %>
         <% if (typeof variants !== 'undefined' && variants.length) { %>
         <script>
         (function () {

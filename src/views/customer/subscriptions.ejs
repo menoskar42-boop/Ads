@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<%- include('../partials/ads_loader') %>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>اشتراكاتي</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script><style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<header class="bg-white shadow-sm"><div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+  <a href="/" class="font-bold text-gray-800">Oscardevs Ads</a>
+  <div class="flex items-center gap-3 text-sm">
+    <a href="/customer/orders" class="text-gray-500 hover:text-indigo-600 font-bold">طلباتي</a>
+    <a href="/customer/points" class="text-gray-500 hover:text-indigo-600 font-bold">نقاطي</a>
+    <form method="POST" action="/customer/logout" class="inline"><button class="text-red-500"><%= t('common.logout') %></button></form>
+  </div>
+</div></header>
+<main class="max-w-3xl mx-auto px-4 py-8">
+  <h1 class="text-2xl font-bold text-gray-800 mb-4">🔁 اشتراكاتي</h1>
+  <% if (created) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">تم تفعيل اشتراكك — هيوصلك الطلب تلقائياً كل فترة.</div><% } %>
+  <% if (!subs.length) { %>
+    <p class="text-sm text-gray-400 text-center py-10">مفيش اشتراكات. تقدري تشتركي في منتج من صفحته.</p>
+  <% } else { %>
+    <div class="space-y-3">
+      <% subs.forEach(function(s){ var active = s.status==='active'; %>
+      <div class="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 <%= active?'':'opacity-60' %>">
+        <% if (s.image_url) { %><img src="<%= s.image_url %>" alt="" class="w-14 h-14 rounded-xl object-cover shrink-0" /><% } %>
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-gray-800 truncate"><%= s.product_name %> <span class="text-xs text-gray-400">×<%= s.quantity %></span></div>
+          <div class="text-xs text-gray-500 mt-0.5"><%= s.company_name %> · كل <%= s.interval_days %> يوم · <%= Number(s.unit_price).toFixed(2) %> ج/وحدة</div>
+          <div class="text-xs mt-0.5 <%= active?'text-emerald-600':'text-gray-400' %>"><%= active ? ('التجديد القادم: ' + new Date(s.next_renewal).toLocaleDateString('ar-EG')) : 'ملغي' %></div>
+        </div>
+        <% if (active) { %>
+        <form method="POST" action="/customer/subscriptions/<%= s.id %>/cancel" onsubmit="return confirm('إلغاء الاشتراك؟')">
+          <button class="text-xs border border-red-200 text-red-600 rounded-lg px-3 py-1.5 hover:bg-red-50 font-semibold">إلغاء</button>
+        </form>
+        <% } %>
+      </div>
+      <% }); %>
+    </div>
+  <% } %>
+</main>
+</body></html>
