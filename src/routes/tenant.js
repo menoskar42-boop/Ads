@@ -354,6 +354,8 @@ router.get('/', async (req, res) => {
     gymPlans,
     gymTrainers,
     gymClasses,
+    gymBookedStatus: req.query.booked || null,
+    gymBookError: req.query.bookerr === '1',
     payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
@@ -413,6 +415,81 @@ router.post('/book', clinicGuard, async (req, res) => {
     const back = ref.includes('/doctor/') ? ref.split('?')[0].split('#')[0] : '/';
     res.redirect(back + '?sent=1#book');
   } catch (e) { console.error('Booking:', e.message); res.redirect('/?error=1#book'); }
+});
+
+// ── Gym tenant public routes (check-in + self class booking) ────────────────
+function gymGuard(req, res, next) {
+  if (!req.tenant || req.tenant.page_type !== 'gym') return res.redirect('/');
+  next();
+}
+
+// Find a member by their membership code OR phone within this gym.
+async function findGymMember(companyId, code, phone) {
+  const c = String(code || '').trim();
+  const p = String(phone || '').replace(/[^0-9]/g, '');
+  if (c) {
+    const r = (await pool.query('SELECT * FROM gym_members WHERE company_id=$1 AND code=$2 LIMIT 1', [companyId, c])).rows[0];
+    if (r) return r;
+  }
+  if (p.length >= 7) {
+    const r = (await pool.query("SELECT * FROM gym_members WHERE company_id=$1 AND regexp_replace(coalesce(phone,''),'[^0-9]','','g')=$2 LIMIT 1", [companyId, p])).rows[0];
+    if (r) return r;
+  }
+  return null;
+}
+
+// Check-in page (member types code/phone → records attendance if active).
+router.get('/checkin', gymGuard, (req, res) => {
+  res.render('tenant_gym_checkin', { company: req.tenant, result: null, noindex: true });
+});
+router.post('/checkin', gymGuard, async (req, res) => {
+  const company = req.tenant;
+  let result;
+  try {
+    const member = await findGymMember(company.id, req.body.code, req.body.phone);
+    if (!member) {
+      result = { ok: false, msg: 'مالقيناش عضو بالبيانات دي. تأكّد من كود العضوية أو الموبايل.' };
+    } else {
+      const m = (await pool.query(
+        "SELECT end_date, status FROM gym_memberships WHERE member_id=$1 AND status='active' AND end_date >= CURRENT_DATE ORDER BY end_date DESC LIMIT 1",
+        [member.id]
+      )).rows[0];
+      if (!m) {
+        result = { ok: false, name: member.name, msg: 'اشتراكك منتهي أو متجمّد — كلّم الاستقبال للتجديد.' };
+      } else {
+        await pool.query('INSERT INTO gym_attendance (company_id, member_id) VALUES ($1,$2)', [company.id, member.id]);
+        result = { ok: true, name: member.name, msg: `أهلاً ${member.name}! تم تسجيل حضورك. اشتراكك نشط حتى ${new Date(m.end_date).toLocaleDateString('ar-EG')}.` };
+      }
+    }
+  } catch (e) { console.error('[gym checkin]', e.message); result = { ok: false, msg: 'حصل خطأ، حاول تاني.' }; }
+  res.render('tenant_gym_checkin', { company, result, noindex: true });
+});
+
+// Self class booking (member books a class for a date; capacity → waitlist).
+router.post('/book-class', gymGuard, async (req, res) => {
+  const company = req.tenant;
+  const classId = parseInt(req.body.class_id, 10);
+  try {
+    const gymClass = (await pool.query('SELECT * FROM gym_classes WHERE id=$1 AND company_id=$2 AND is_active=true', [classId, company.id])).rows[0];
+    if (!gymClass) return res.redirect('/?bookerr=1#classes');
+    const name = String(req.body.name || '').trim().slice(0, 80);
+    const phone = String(req.body.phone || '').trim().slice(0, 20);
+    if (!name || phone.replace(/[^0-9]/g, '').length < 7) return res.redirect('/?bookerr=1#classes');
+    const member = await findGymMember(company.id, req.body.code, phone);
+    // Next occurrence of the class's weekday (today if it matches, else within a week).
+    const bookingDate = (await pool.query(
+      "SELECT (CURRENT_DATE + (((7 + $1 - EXTRACT(DOW FROM CURRENT_DATE)::int) % 7)) )::date AS d", [gymClass.day_of_week]
+    )).rows[0].d;
+    const booked = (await pool.query(
+      "SELECT COUNT(*)::int n FROM gym_bookings WHERE class_id=$1 AND booking_date=$2 AND status='booked'", [classId, bookingDate]
+    )).rows[0].n;
+    const status = booked >= gymClass.capacity ? 'waitlist' : 'booked';
+    await pool.query(
+      'INSERT INTO gym_bookings (company_id, class_id, member_id, member_name, member_phone, booking_date, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [company.id, classId, member ? member.id : null, name, phone, bookingDate, status]
+    );
+    res.redirect('/?booked=' + status + '#classes');
+  } catch (e) { console.error('[gym book-class]', e.message); res.redirect('/?bookerr=1#classes'); }
 });
 
 // Public order form for one medicine (?m=<medicine_id>).

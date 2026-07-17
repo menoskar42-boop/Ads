@@ -98,6 +98,26 @@ async function ensureGymSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_gym_memberships ON gym_memberships (company_id, status, end_date);
       CREATE INDEX IF NOT EXISTS idx_gym_memberships_member ON gym_memberships (member_id, end_date DESC);
+      -- Attendance (self / front-desk check-in) + self-service class bookings.
+      CREATE TABLE IF NOT EXISTS gym_attendance (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        member_id     INTEGER NOT NULL REFERENCES gym_members(id) ON DELETE CASCADE,
+        checked_in_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_attendance ON gym_attendance (company_id, checked_in_at DESC);
+      CREATE TABLE IF NOT EXISTS gym_bookings (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        class_id     INTEGER NOT NULL REFERENCES gym_classes(id) ON DELETE CASCADE,
+        member_id    INTEGER REFERENCES gym_members(id) ON DELETE SET NULL,
+        member_name  TEXT,
+        member_phone TEXT,
+        booking_date DATE NOT NULL,
+        status       TEXT NOT NULL DEFAULT 'booked', -- booked|waitlist|cancelled
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_bookings ON gym_bookings (company_id, class_id, booking_date);
     `);
 
     await seedDemoGym(client);

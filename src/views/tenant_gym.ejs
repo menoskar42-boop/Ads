@@ -132,18 +132,37 @@
 <% if (gymClasses.length) { %>
 <section id="classes" class="bg-black border-y border-neutral-800 py-14">
   <div class="max-w-6xl mx-auto px-4">
-    <h2 class="text-3xl font-black text-center mb-8">جدول الكلاسات</h2>
+    <h2 class="text-3xl font-black text-center mb-2">جدول الكلاسات</h2>
+    <% if (g.booking_enabled !== false) { %><p class="text-center text-neutral-400 mb-6 text-sm">احجز مكانك في الكلاس اللي يناسبك</p><% } %>
+    <% if (typeof gymBookedStatus !== 'undefined' && gymBookedStatus === 'booked') { %><div class="max-w-md mx-auto mb-5 bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 text-sm text-center">✅ تم حجز مكانك — نشوفك في الكلاس!</div><% } %>
+    <% if (typeof gymBookedStatus !== 'undefined' && gymBookedStatus === 'waitlist') { %><div class="max-w-md mx-auto mb-5 bg-amber-900/30 border border-amber-700 text-amber-300 rounded-xl px-4 py-2 text-sm text-center">الكلاس ممتلئ — اتحطّيت في قائمة الانتظار وهنبلّغك لو فضى مكان.</div><% } %>
+    <% if (typeof gymBookError !== 'undefined' && gymBookError) { %><div class="max-w-md mx-auto mb-5 bg-red-900/30 border border-red-800 text-red-300 rounded-xl px-4 py-2 text-sm text-center">تعذّر الحجز — تأكّد من الاسم والموبايل وحاول تاني.</div><% } %>
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       <% gymClasses.forEach(function(c){ %>
-      <div class="card rounded-xl p-4 flex items-center justify-between reveal">
-        <div>
-          <div class="font-bold"><%= c.name %></div>
-          <div class="text-xs text-neutral-400 mt-0.5"><%= days[c.day_of_week] || '' %> · <%= c.start_time || '' %><%= c.trainer_name ? (' · ' + c.trainer_name) : '' %></div>
+      <div class="card rounded-xl p-4 reveal">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold"><%= c.name %></div>
+            <div class="text-xs text-neutral-400 mt-0.5"><%= days[c.day_of_week] || '' %> · <%= c.start_time || '' %><%= c.trainer_name ? (' · ' + c.trainer_name) : '' %></div>
+          </div>
+          <span class="text-xs text-neutral-500">سعة <%= c.capacity %></span>
         </div>
-        <span class="text-xs text-neutral-500">سعة <%= c.capacity %></span>
+        <% if (g.booking_enabled !== false) { %>
+        <details class="mt-3">
+          <summary class="text-xs accent cursor-pointer font-semibold">احجز مكانك ←</summary>
+          <form method="POST" action="/book-class" class="grid gap-2 mt-2">
+            <input type="hidden" name="class_id" value="<%= c.id %>" />
+            <input name="name" required placeholder="الاسم" class="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm" />
+            <input name="phone" required placeholder="الموبايل" dir="ltr" class="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm" />
+            <input name="code" placeholder="كود العضوية (اختياري)" dir="ltr" class="bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-sm" />
+            <button class="accent-bg font-bold rounded-lg py-2 text-sm">تأكيد الحجز</button>
+          </form>
+        </details>
+        <% } %>
       </div>
       <% }); %>
     </div>
+    <div class="text-center mt-6"><a href="/checkin" class="text-sm text-neutral-400 hover:text-white underline">عضو حالي؟ سجّل حضورك ←</a></div>
   </div>
 </section>
 <% } %>

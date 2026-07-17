@@ -213,4 +213,31 @@ router.post('/settings', async (req, res) => {
   res.redirect('/gym/settings?saved=1');
 });
 
+/* ── Attendance (check-in log) ─────────────────────────────────────────────── */
+router.get('/attendance', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [today, recent] = await Promise.all([
+      pool.query("SELECT COUNT(*)::int n FROM gym_attendance WHERE company_id=$1 AND checked_in_at::date = (now() AT TIME ZONE 'Africa/Cairo')::date", [cid]),
+      pool.query(`SELECT a.checked_in_at, m.name, m.phone FROM gym_attendance a
+                  JOIN gym_members m ON m.id=a.member_id WHERE a.company_id=$1
+                  ORDER BY a.checked_in_at DESC LIMIT 100`, [cid]),
+    ]);
+    res.render('gym_admin/attendance', { company: req.company, tab: 'attendance', todayCount: today.rows[0].n, recent: recent.rows });
+  } catch (e) { console.error('[gym attendance]', e.message); res.status(500).send('error'); }
+});
+
+/* ── Class bookings ────────────────────────────────────────────────────────── */
+router.get('/bookings', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const rows = (await pool.query(`
+      SELECT b.*, c.name AS class_name FROM gym_bookings b
+      JOIN gym_classes c ON c.id=b.class_id
+      WHERE b.company_id=$1 AND b.booking_date >= CURRENT_DATE AND b.status <> 'cancelled'
+      ORDER BY b.booking_date, c.name, b.created_at LIMIT 300`, [cid])).rows;
+    res.render('gym_admin/bookings', { company: req.company, tab: 'bookings', bookings: rows });
+  } catch (e) { console.error('[gym bookings]', e.message); res.status(500).send('error'); }
+});
+
 module.exports = router;

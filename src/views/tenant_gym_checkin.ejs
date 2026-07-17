@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>تسجيل حضور — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}body{background:#0a0a0a;color:#e5e5e5}.fld{background:#0f0f0f;border:1px solid #2a2a2a;color:#e5e5e5}.accent-bg{background:#E4FF1A;color:#0a0a0a}</style>
+</head>
+<body class="min-h-screen grid place-items-center p-4">
+  <div class="w-full max-w-sm">
+    <a href="https://<%= company.slug %>.oscardevs.com" class="block text-center font-black text-xl mb-1">🏋️ <%= company.company_name %></a>
+    <h1 class="text-center text-neutral-400 text-sm mb-6">تسجيل الحضور</h1>
+
+    <% if (result) { %>
+      <div class="rounded-2xl p-5 mb-5 text-center <%= result.ok ? 'bg-emerald-900/40 border border-emerald-700' : 'bg-red-900/30 border border-red-800' %>">
+        <div class="text-4xl mb-2"><%= result.ok ? '✅' : '⚠️' %></div>
+        <p class="font-bold <%= result.ok ? 'text-emerald-300' : 'text-red-300' %>"><%= result.msg %></p>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/checkin" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 grid gap-3">
+      <input name="code" placeholder="كود العضوية" dir="ltr" class="fld rounded-xl px-4 py-3 text-sm text-center" autofocus />
+      <div class="text-center text-xs text-neutral-500">أو</div>
+      <input name="phone" placeholder="رقم الموبايل" dir="ltr" class="fld rounded-xl px-4 py-3 text-sm text-center" />
+      <button class="accent-bg font-bold rounded-xl py-3">تسجيل الحضور</button>
+    </form>
+  </div>
+</body>
+</html>

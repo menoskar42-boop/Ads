@@ -1,0 +1,19 @@
+<% var pageTitle='الحجوزات'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-4">حجوزات الكلاسات القادمة</h1>
+  <% if (!bookings.length) { %>
+    <p class="text-sm text-neutral-500 text-center py-8">مفيش حجوزات قادمة.</p>
+  <% } else { %>
+    <div class="space-y-2">
+      <% bookings.forEach(function(b){ %>
+      <div class="card rounded-xl px-4 py-2.5 flex items-center gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="font-bold text-sm"><%= b.member_name %> <% if(b.member_phone){ %><span class="text-xs text-neutral-500" dir="ltr"><%= b.member_phone %></span><% } %></div>
+          <div class="text-xs text-neutral-400"><%= b.class_name %> · <%= new Date(b.booking_date).toLocaleDateString('ar-EG') %></div>
+        </div>
+        <span class="text-xs font-bold px-2 py-1 rounded-full <%= b.status==='waitlist' ? 'bg-amber-900/40 text-amber-300' : 'bg-emerald-900/40 text-emerald-300' %>"><%= b.status==='waitlist' ? 'قائمة انتظار' : 'مؤكّد' %></span>
+      </div>
+      <% }); %>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>

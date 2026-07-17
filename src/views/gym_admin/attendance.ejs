@@ -1,0 +1,21 @@
+<% var pageTitle='الحضور'; %>
+<%- include('_layout_top') %>
+  <div class="flex items-center justify-between mb-5">
+    <h1 class="text-2xl font-black">الحضور</h1>
+    <div class="card rounded-xl px-4 py-2 text-center"><div class="text-xs text-neutral-400">حضور النهاردة</div><div class="text-2xl font-black" style="color:#E4FF1A"><%= todayCount %></div></div>
+  </div>
+  <p class="text-xs text-neutral-500 mb-3">العضو بيسجّل حضوره من صفحة <span dir="ltr">/checkin</span> على موقع الجيم بكود العضوية أو الموبايل.</p>
+  <% if (!recent.length) { %>
+    <p class="text-sm text-neutral-500 text-center py-8">مفيش تسجيلات حضور لسه.</p>
+  <% } else { %>
+    <div class="space-y-2">
+      <% recent.forEach(function(a){ %>
+      <div class="card rounded-xl px-4 py-2.5 flex items-center gap-3">
+        <span class="font-bold text-sm flex-1"><%= a.name %></span>
+        <% if (a.phone) { %><span class="text-xs text-neutral-500" dir="ltr"><%= a.phone %></span><% } %>
+        <span class="text-xs text-neutral-500"><%= new Date(a.checked_in_at).toLocaleString('ar-EG') %></span>
+      </div>
+      <% }); %>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>
