@@ -76,6 +76,29 @@ function menuAsText(list, cur) {
   }).join('\n');
 }
 
+// Hard guard against degenerate model output (QA: corrupted chars + a 40-line
+// repetition loop). Strips control/garbage characters, drops repeated sentences,
+// and caps the length — so a spiralling generation can never reach the customer.
+function tidyReply(s) {
+  if (!s) return s;
+  s = String(s)
+    .replace(/[\u0000-\u001F\u007F\uFFFD]/g, " ") // control + replacement chars
+    .replace(/%[0-9A-Za-z](?![0-9A-Za-z])/g, ' '); // stray "%0"-style artifacts
+  const parts = s.split(/(?<=[.؟!،\n])/).map((x) => x.trim()).filter(Boolean);
+  const out = [];
+  const seen = new Set();
+  for (const p of parts) {
+    const key = p.replace(/[\sـ]/g, '').slice(0, 40); // ignore spaces/tatweel
+    if (key && seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+    if (out.length >= 6) break; // cap to a few sentences — receptionist talk is short
+  }
+  let r = out.join(' ').replace(/\s{2,}/g, ' ').trim();
+  if (r.length > 600) r = r.slice(0, 600).replace(/\s+\S*$/, '') + '…';
+  return r;
+}
+
 function cartAsText(currentCart) {
   if (!Array.isArray(currentCart) || !currentCart.length) return '(السلة فاضية)';
   return currentCart.map((c) => `#${c.id} — ${c.name} × ${c.qty}`).join('\n');
@@ -204,7 +227,11 @@ async function callGroq(messages, tools, toolChoice) {
       tools,
       tool_choice: toolChoice || 'auto',
       temperature: 0.5,
-      max_tokens: 800,
+      max_tokens: 500,
+      // Curb the degenerate repetition loops QA hit (40+ repeated lines) — penalise
+      // repeating the same tokens/phrases so the model can't spiral.
+      frequency_penalty: 0.5,
+      presence_penalty: 0.2,
     }),
   });
   if (!res.ok) {
@@ -327,6 +354,7 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
   // "<function=checkout></function>" instead of a structured tool_call. Honor an
   // inline checkout, then strip any such tags so they never leak to the customer.
   if (/<function\s*=\s*checkout/i.test(reply)) checkout = true;
+  reply = tidyReply(reply); // kill degenerate loops / garbage chars first
   reply = reply
     .replace(/<function[^>]*>[\s\S]*?<\/function>/gi, '')
     .replace(/<\/?function[^>]*>/gi, '')
