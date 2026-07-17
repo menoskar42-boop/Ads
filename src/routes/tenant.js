@@ -875,7 +875,19 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
 
     res.json({ ok: true, reply: out.reply, cart: out.cart, updates: out.updates || [], checkout: !!out.checkout });
   } catch (e) {
-    console.error('[ai assistant]', e.message);
+    const st = e && e.status;
+    // 429 = Groq daily/rate limit reached (common on the free tier under heavy
+    // testing); 401/403 = key problem. Give the customer a clear, graceful
+    // message and let them keep ordering from the menu directly.
+    if (st === 429) {
+      console.error('[ai assistant] Groq RATE/QUOTA (429) — daily limit likely reached:', e.message);
+      return res.status(503).json({ ok: false, error: say('المساعد الذكي وصل للحد اليومي دلوقتي — تقدر تطلب من المنيو مباشرة، أو جرّب المساعد كمان شوية.', 'The assistant hit its daily limit — please order from the menu directly or try again later.') });
+    }
+    if (st === 401 || st === 403) {
+      console.error('[ai assistant] Groq AUTH error (' + st + ') — check GROQ_API_KEY:', e.message);
+      return res.status(503).json({ ok: false, error: say('المساعد مش متاح دلوقتي — تقدر تطلب من المنيو مباشرة.', 'The assistant is unavailable right now — please order from the menu directly.') });
+    }
+    console.error('[ai assistant]', st ? ('Groq ' + st + ': ') : '', e.message);
     res.status(502).json({ ok: false, error: say('حصل خطأ مؤقت، جرّب تاني.', 'A temporary error occurred, please try again.') });
   }
 });
