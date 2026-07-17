@@ -25,7 +25,7 @@
   canonical: canonicalCompanyUrl(company.slug),
   ogImage: company.logo_url || (siteOrigin + '/og-default.png'),
   siteLogo: company.logo_url || '',
-  siteManifest: '/view/' + company.slug + '/manifest.webmanifest',
+  siteManifest: '/manifest.webmanifest',
   siteAppName: displayName
 }) %>
 <%- include('partials/ads_loader') %>

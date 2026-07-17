@@ -24,7 +24,7 @@
 <% if (__noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <title><%= __title %></title>
 <meta name="description" content="<%= __desc %>" />
-<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __name, ogImage: company.logo_url || '' }) %>
+<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __name, ogImage: company.logo_url || '', siteManifest: '/manifest.webmanifest' }) %>
 <% if (!__noindex && __outlets.length) { %>
 <script type="application/ld+json">
 <%- JSON.stringify(Object.assign({

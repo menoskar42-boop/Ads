@@ -28,7 +28,6 @@
 <link rel="shortcut icon" href="<%= __tenantLogo %>" />
 <link rel="apple-touch-icon" href="<%= __tenantLogo %>" />
 <link rel="apple-touch-icon" sizes="180x180" href="<%= __tenantLogo %>" />
-<% if (__tenantManifest) { %><link rel="manifest" href="<%= __tenantManifest %>" /><% } %>
 <% } else { %>
 <%# Google's documented favicon requirement: at least one square icon
     that is a multiple of 48px (48/96/144/192). They also still ask for
@@ -39,7 +38,16 @@
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
 <link rel="shortcut icon" href="/favicon.ico" />
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-<link rel="manifest" href="/site.webmanifest" />
+<% if (!__tenantManifest) { %><link rel="manifest" href="/site.webmanifest" /><% } %>
+<% } %>
+<% if (__tenantManifest) { %>
+<%# Installable PWA for this tenant: its own manifest + iOS web-app meta + a
+    service worker (with a fetch handler) so browsers offer "Add to Home Screen". %>
+<link rel="manifest" href="<%= __tenantManifest %>" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 <% } %>
 <meta name="theme-color" content="#1e3a8a" />
 <meta name="apple-mobile-web-app-title" content="<%= __appName %>" />

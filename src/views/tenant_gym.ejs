@@ -20,7 +20,7 @@
 <% if (noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <title><%= cTitle %></title>
 <meta name="description" content="<%= cDesc %>" />
-<%- include('partials/seo_meta', { title: cTitle, description: cDesc, canonical: canon, siteAppName: gName, ogImage: company.logo_url || '' }) %>
+<%- include('partials/seo_meta', { title: cTitle, description: cDesc, canonical: canon, siteAppName: gName, siteLogo: company.logo_url || '', ogImage: company.logo_url || '', siteManifest: '/manifest.webmanifest' }) %>
 <% if (!noindex) { %>
 <script type="application/ld+json">
 <%- JSON.stringify(Object.assign({

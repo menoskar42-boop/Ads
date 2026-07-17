@@ -84,6 +84,36 @@ async function pharmacyOrderGuard(req, res, next) {
   } catch (e) { console.error('order guard error:', e.message); res.status(500).send('Error.'); }
 }
 
+// Per-tenant PWA manifest served at the subdomain root (slug.oscardevs.com/
+// manifest.webmanifest) so each store/clinic/gym installs as its own app with
+// its own icon + name. Uses the host-resolved tenant (req.tenant).
+router.get('/manifest.webmanifest', (req, res) => {
+  const c = req.tenant;
+  if (!c) return res.status(404).json({ error: 'not found' });
+  const icon = c.logo_url || '/logo.png';
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json({
+    name: c.company_name,
+    short_name: String(c.company_name || 'App').slice(0, 12),
+    description: c.description || c.company_name,
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#ffffff',
+    theme_color: c.theme_color || '#1e3a8a',
+    lang: 'ar',
+    dir: 'rtl',
+    icons: [
+      { src: icon, sizes: 'any',     type: 'image/png', purpose: 'any' },
+      { src: icon, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: icon, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: icon, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  });
+});
+
 router.get('/', async (req, res) => {
   const company = req.tenant;
   const ads = req.tenantAds || [];

@@ -24,7 +24,7 @@
 <% if (__pageNoindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <title><%= __cTitle %></title>
 <meta name="description" content="<%= __cDesc %>" />
-<%- include('partials/seo_meta', { title: __cTitle, description: __cDesc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __cName, ogImage: company.logo_url || '' }) %>
+<%- include('partials/seo_meta', { title: __cTitle, description: __cDesc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __cName, ogImage: company.logo_url || '', siteManifest: '/manifest.webmanifest' }) %>
 <% if (!__pageNoindex) { %>
 <%# GEO / medical structured data — only on indexable pages. %>
 <script type="application/ld+json">
