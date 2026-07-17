@@ -118,6 +118,48 @@ async function ensureGymSchema() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_bookings ON gym_bookings (company_id, class_id, booking_date);
+      -- POS + trainer commissions (phase 5).
+      ALTER TABLE gym_trainers ADD COLUMN IF NOT EXISTS commission_pct NUMERIC(5,2) NOT NULL DEFAULT 0;
+      CREATE TABLE IF NOT EXISTS gym_products (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        price       NUMERIC(10,2) NOT NULL DEFAULT 0,
+        stock       INTEGER NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_products ON gym_products (company_id, is_active);
+      CREATE TABLE IF NOT EXISTS gym_sales (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        product_id     INTEGER REFERENCES gym_products(id) ON DELETE SET NULL,
+        member_id      INTEGER REFERENCES gym_members(id) ON DELETE SET NULL,
+        trainer_id     INTEGER REFERENCES gym_trainers(id) ON DELETE SET NULL,
+        item_name      TEXT NOT NULL,
+        unit_price     NUMERIC(10,2) NOT NULL DEFAULT 0,
+        quantity       INTEGER NOT NULL DEFAULT 1,
+        total          NUMERIC(10,2) NOT NULL DEFAULT 0,
+        commission     NUMERIC(10,2) NOT NULL DEFAULT 0,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_sales ON gym_sales (company_id, created_at DESC);
+      -- Progress tracking / body measurements (phase 6) — key for bodybuilding.
+      CREATE TABLE IF NOT EXISTS gym_measurements (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        member_id   INTEGER NOT NULL REFERENCES gym_members(id) ON DELETE CASCADE,
+        measured_on DATE NOT NULL DEFAULT CURRENT_DATE,
+        weight      NUMERIC(6,2),
+        body_fat    NUMERIC(5,2),
+        chest       NUMERIC(6,2),
+        waist       NUMERIC(6,2),
+        arm         NUMERIC(6,2),
+        notes       TEXT,
+        photo_url   TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_measurements ON gym_measurements (member_id, measured_on);
     `);
 
     await seedDemoGym(client);

@@ -6,7 +6,8 @@
     <form method="POST" action="/gym/trainers/add" class="grid sm:grid-cols-2 gap-2">
       <input name="name" required placeholder="اسم المدرّب" class="fld rounded-xl px-3 py-2 text-sm" />
       <input name="specialty" placeholder="التخصص (كمال أجسام)" class="fld rounded-xl px-3 py-2 text-sm" />
-      <input name="photo_url" placeholder="رابط صورة (اختياري)" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm sm:col-span-2" />
+      <input name="commission_pct" type="number" step="0.5" min="0" max="90" placeholder="عمولة % (على المبيعات)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="photo_url" placeholder="رابط صورة (اختياري)" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm" />
       <textarea name="bio" rows="2" placeholder="نبذة" class="fld rounded-xl px-3 py-2 text-sm sm:col-span-2"></textarea>
       <button class="accent-bg font-bold rounded-xl px-4 py-2 text-sm sm:col-span-2">+ إضافة مدرّب</button>
     </form>
@@ -17,6 +18,7 @@
       <div class="card rounded-xl px-4 py-3 flex items-center gap-3">
         <span class="font-bold text-sm flex-1"><%= t.name %></span>
         <span class="text-xs text-neutral-400"><%= t.specialty || '' %></span>
+        <% if (Number(t.commission_pct) > 0) { %><span class="text-xs" style="color:#E4FF1A">عمولة <%= Number(t.commission_pct) %>%</span><% } %>
         <form method="POST" action="/gym/trainers/<%= t.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="bg-red-600 text-white text-xs rounded-full w-6 h-6">×</button></form>
       </div>
       <% }); %>

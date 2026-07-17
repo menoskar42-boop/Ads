@@ -1,0 +1,83 @@
+<% var pageTitle='نقطة بيع'; %>
+<%- include('_layout_top') %>
+  <div class="flex items-center justify-between mb-5">
+    <h1 class="text-2xl font-black">نقطة البيع</h1>
+    <div class="card rounded-xl px-4 py-2 text-center"><div class="text-xs text-neutral-400">مبيعات النهاردة</div><div class="text-2xl font-black" style="color:#E4FF1A"><%= Number(todayTotal||0).toFixed(0) %> ج</div></div>
+  </div>
+  <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <!-- Sell -->
+    <div class="card rounded-2xl p-5">
+      <h2 class="font-bold text-sm mb-3">تسجيل عملية بيع</h2>
+      <% if (!products.length) { %>
+        <p class="text-sm text-neutral-500">أضف منتجات الأول من تحت.</p>
+      <% } else { %>
+      <form method="POST" action="/gym/pos/sell" class="grid gap-2">
+        <select name="product_id" required class="fld rounded-xl px-3 py-2 text-sm">
+          <% products.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %> — <%= Number(p.price).toFixed(0) %>ج<%= p.stock>0?(' ('+p.stock+' متاح)'):'' %></option><% }); %>
+        </select>
+        <input name="quantity" type="number" min="1" value="1" class="fld rounded-xl px-3 py-2 text-sm" />
+        <select name="member_id" class="fld rounded-xl px-3 py-2 text-sm"><option value="">— العضو (اختياري) —</option><% members.forEach(function(m){ %><option value="<%= m.id %>"><%= m.name %></option><% }); %></select>
+        <select name="trainer_id" class="fld rounded-xl px-3 py-2 text-sm"><option value="">— المدرّب (لحساب العمولة) —</option><% trainers.forEach(function(t){ %><option value="<%= t.id %>"><%= t.name %><%= Number(t.commission_pct)>0?(' ('+Number(t.commission_pct)+'%)'):'' %></option><% }); %></select>
+        <button class="accent-bg font-bold rounded-xl py-2 text-sm">تسجيل البيع</button>
+      </form>
+      <% } %>
+    </div>
+
+    <!-- Commissions -->
+    <div class="card rounded-2xl p-5">
+      <h2 class="font-bold text-sm mb-3">عمولات المدرّبين (هذا الشهر)</h2>
+      <% if (!commissions.length) { %><p class="text-sm text-neutral-500 text-center py-6">مفيش عمولات.</p><% } else { %>
+        <div class="space-y-2">
+          <% commissions.forEach(function(c){ %>
+          <div class="flex items-center justify-between border border-neutral-800 rounded-lg px-3 py-2">
+            <span class="text-sm"><%= c.name %></span>
+            <span class="text-sm font-bold" style="color:#E4FF1A"><%= Number(c.owed).toFixed(2) %> ج</span>
+          </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Products -->
+  <div class="card rounded-2xl p-5 mt-4">
+    <h2 class="font-bold text-sm mb-3">المنتجات (مكمّلات/مشروبات/ملابس)</h2>
+    <form method="POST" action="/gym/pos/product/add" class="grid sm:grid-cols-4 gap-2 mb-4">
+      <input name="name" required placeholder="اسم المنتج" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="price" type="number" step="0.01" min="0" required placeholder="السعر" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="stock" type="number" min="0" placeholder="المخزون (اختياري)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <button class="accent-bg font-bold rounded-xl px-4 text-sm">+ إضافة</button>
+    </form>
+    <% if (products.length) { %>
+      <div class="space-y-2">
+        <% products.forEach(function(p){ %>
+        <div class="flex items-center gap-3 border border-neutral-800 rounded-lg px-3 py-2">
+          <span class="text-sm flex-1"><%= p.name %></span>
+          <span class="text-sm" style="color:#E4FF1A"><%= Number(p.price).toFixed(0) %>ج</span>
+          <% if (p.stock>0) { %><span class="text-xs text-neutral-500"><%= p.stock %> متاح</span><% } %>
+          <form method="POST" action="/gym/pos/product/<%= p.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="bg-red-600 text-white text-xs rounded-full w-6 h-6">×</button></form>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+
+  <!-- Recent sales -->
+  <% if (sales.length) { %>
+  <div class="card rounded-2xl p-5 mt-4">
+    <h2 class="font-bold text-sm mb-3">آخر المبيعات</h2>
+    <div class="space-y-1.5">
+      <% sales.forEach(function(s){ %>
+      <div class="flex items-center gap-3 text-sm border-b border-neutral-800 pb-1.5">
+        <span class="flex-1"><%= s.item_name %> ×<%= s.quantity %></span>
+        <% if (s.trainer_name) { %><span class="text-xs text-neutral-500"><%= s.trainer_name %> (+<%= Number(s.commission).toFixed(0) %>)</span><% } %>
+        <span class="font-bold"><%= Number(s.total).toFixed(0) %>ج</span>
+        <span class="text-xs text-neutral-600"><%= new Date(s.created_at).toLocaleDateString('ar-EG') %></span>
+      </div>
+      <% }); %>
+    </div>
+  </div>
+  <% } %>
+<%- include('_layout_bottom') %>

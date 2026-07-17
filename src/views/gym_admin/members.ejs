@@ -24,7 +24,7 @@
       <div class="card rounded-xl p-3">
         <div class="flex items-center gap-3 flex-wrap">
           <div class="min-w-0 flex-1">
-            <div class="font-bold text-sm"><%= m.name %> <% if(m.phone){ %><span class="text-xs text-neutral-500" dir="ltr"><%= m.phone %></span><% } %></div>
+            <div class="font-bold text-sm"><a href="/gym/members/<%= m.id %>" class="hover:underline"><%= m.name %></a> <% if(m.phone){ %><span class="text-xs text-neutral-500" dir="ltr"><%= m.phone %></span><% } %></div>
             <div class="text-xs <%= frozen?'text-blue-400':active?'text-emerald-400':'text-red-400' %>">
               <%= !L ? 'بدون اشتراك' : frozen ? 'مجمّد' : active ? ('نشط حتى ' + end.toLocaleDateString('ar-EG')) : ('منتهي' + (end?(' منذ '+end.toLocaleDateString('ar-EG')):'')) %>
               <% if(L&&L.plan_name){ %> · <%= L.plan_name %><% } %>

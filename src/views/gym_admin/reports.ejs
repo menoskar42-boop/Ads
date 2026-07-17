@@ -1,0 +1,60 @@
+<% var pageTitle='التقارير'; %>
+<%- include('_layout_top') %>
+<%
+  var maxRev = 1; revenue.forEach(function(r){ if (Number(r.revenue) > maxRev) maxRev = Number(r.revenue); });
+  var maxAtt = 1; attendance.forEach(function(a){ if (a.n > maxAtt) maxAtt = a.n; });
+  var maxCls = 1; topClasses.forEach(function(c){ if (c.n > maxCls) maxCls = c.n; });
+%>
+  <h1 class="text-2xl font-black mb-5">التقارير والاحتفاظ</h1>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">إجمالي الأعضاء</div><div class="text-2xl font-black"><%= retention.total_members %></div></div>
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">أعضاء نشطين</div><div class="text-2xl font-black text-emerald-400"><%= retention.active_members %></div></div>
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">أعضاء متسرّبين</div><div class="text-2xl font-black text-red-400"><%= retention.lapsed_members %></div></div>
+    <div class="card rounded-2xl p-4"><div class="text-xs text-neutral-400">نسبة النشطين</div><div class="text-2xl font-black" style="color:#E4FF1A"><%= renewalRate %>%</div></div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="card rounded-2xl p-5">
+      <h2 class="font-bold text-sm mb-3">الإيراد الشهري (آخر 6 شهور)</h2>
+      <% if (!revenue.length) { %><p class="text-sm text-neutral-500 text-center py-6">مفيش بيانات.</p><% } else { %>
+        <div class="flex items-end gap-2 h-32">
+          <% revenue.forEach(function(r){ var h=Math.round(Number(r.revenue)/maxRev*100); %>
+          <div class="flex-1 flex flex-col items-center justify-end" title="<%= r.month %>: <%= Number(r.revenue).toFixed(0) %> ج">
+            <div class="w-full rounded-t" style="height:<%= Math.max(4,h) %>%;background:#E4FF1A"></div>
+            <div class="text-[10px] text-neutral-500 mt-1"><%= r.month.slice(5) %></div>
+          </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card rounded-2xl p-5">
+      <h2 class="font-bold text-sm mb-3">الحضور اليومي (آخر 14 يوم)</h2>
+      <% if (!attendance.length) { %><p class="text-sm text-neutral-500 text-center py-6">مفيش حضور مسجّل.</p><% } else { %>
+        <div class="flex items-end gap-1 h-32">
+          <% attendance.forEach(function(a){ var h=Math.round(a.n/maxAtt*100); %>
+          <div class="flex-1 flex flex-col items-center justify-end" title="<%= new Date(a.day).toLocaleDateString('ar-EG') %>: <%= a.n %>">
+            <div class="w-full rounded-t bg-emerald-400" style="height:<%= Math.max(4,h) %>%"></div>
+          </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="card rounded-2xl p-5 mt-4">
+    <h2 class="font-bold text-sm mb-3">أكثر الكلاسات حجزاً (آخر 30 يوم)</h2>
+    <% if (!topClasses.length) { %><p class="text-sm text-neutral-500 text-center py-6">مفيش حجوزات.</p><% } else { %>
+      <div class="space-y-2">
+        <% topClasses.forEach(function(c){ var pct=Math.round(c.n/maxCls*100); %>
+        <div class="flex items-center gap-3">
+          <span class="text-sm w-32 shrink-0 truncate"><%= c.name %></span>
+          <div class="flex-1 h-2.5 bg-neutral-800 rounded-full overflow-hidden"><div class="h-full rounded-full" style="width:<%= Math.max(3,pct) %>%;background:#E4FF1A"></div></div>
+          <span class="text-xs text-neutral-400 w-8 text-left"><%= c.n %></span>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>
