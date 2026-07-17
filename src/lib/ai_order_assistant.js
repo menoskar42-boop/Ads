@@ -14,7 +14,10 @@
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 // A strong, tool-capable, Arabic-fluent default. Override with GROQ_MODEL.
 const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-const MAX_TOOL_ROUNDS = 4;
+// Smaller, higher-limit model used automatically when the primary 429s (its free
+// daily budget is separate), so the assistant stays up after the 70B cap is hit.
+const FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || 'llama-3.1-8b-instant';
+const MAX_TOOL_ROUNDS = 3; // fewer round-trips per turn → lighter on the token budget
 
 // Resolve the Groq key tolerantly — accept the common secret names so the
 // feature isn't silently disabled by a naming mismatch (GROQ_API_KEY preferred).
@@ -238,7 +241,7 @@ const CHECKOUT_TOOL = {
   },
 };
 
-async function callGroq(messages, tools, toolChoice) {
+async function callGroqOnce(model, messages, tools, toolChoice) {
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
@@ -246,7 +249,7 @@ async function callGroq(messages, tools, toolChoice) {
       Authorization: `Bearer ${groqKey()}`,
     },
     body: JSON.stringify({
-      model: DEFAULT_MODEL,
+      model,
       messages,
       tools,
       tool_choice: toolChoice || 'auto',
@@ -265,6 +268,21 @@ async function callGroq(messages, tools, toolChoice) {
     throw err;
   }
   return res.json();
+}
+
+// Call the primary model; if it rate-limits (429), fall back to a smaller model
+// with a separate, much higher free-tier limit so the assistant keeps working
+// after the 70B daily budget is exhausted.
+async function callGroq(messages, tools, toolChoice) {
+  try {
+    return await callGroqOnce(DEFAULT_MODEL, messages, tools, toolChoice);
+  } catch (e) {
+    if (e && e.status === 429 && FALLBACK_MODEL && FALLBACK_MODEL !== DEFAULT_MODEL) {
+      console.warn(`[ai] ${DEFAULT_MODEL} rate-limited (429) → falling back to ${FALLBACK_MODEL}`);
+      return await callGroqOnce(FALLBACK_MODEL, messages, tools, toolChoice);
+    }
+    throw e;
+  }
 }
 
 // Run one assistant turn. `history` is prior [{role,content}] (user/assistant
