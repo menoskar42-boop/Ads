@@ -155,6 +155,7 @@ function systemPrompt(list, lang, cur, merchantName, currentCart) {
     `- **add_to_cart بتزوّد (مش بتحدّد).** لو الزبون قال «احذف»، «شيل»، «الغي» صنف → نادِ **update_cart** لنفس الصنف بكمية **0**. لو قال «خليها واحدة/اتنين» → update_cart بالكمية النهائية. **ممنوع تستخدم add_to_cart للتصحيح أو الحذف.**`,
     `- لو الزبون قال «احذف ده وهات ده» — اعمل update_cart بـ0 للقديم، **ومتضيفش الجديد إلا لو أكّد إنه عايزه فعلاً** (مش مجرد بيسأل «فيه؟»).`,
     `- 🚫 **ممنوع منعاً باتاً تقول «شِلت» أو «حذفت» أو «ظبطت» أو «قلّلت» في ردّك من غير ما تكون فعلاً ناديت update_cart في نفس الرسالة.** الكلام لوحده ما بيغيّرش السلة — لو ما نادتش الأداة، الصنف هيفضل في السلة والزبون هيتحاسب عليه غلط. نفّذ الأداة الأول، وبعدها بس قُل إنك عملتها.`,
+    `- 📝 **التعديلات والملاحظات (مهم — متوهمش الزبون):** إنت **مش بتقدر تحفظ** أي تعديل على الصنف (زي «من غير بصل»، «حار»، «مستوي كويس») ولا أي ملاحظة توصيل في السلة — السلة بتسجّل الصنف والكمية بس. فلو الزبون طلب تعديل أو ملاحظة، **ممنوع تقول إنك سجّلتها أو ضفتها**؛ بدل كده قوله بصراحة يكتبها في **خانة «ملاحظات الطلب»** وهو بيكمّل في السلة، وإنها هتوصل للمطعم من هناك. أضف الصنف الأساسي عادي، بس وضّح إن التعديل يتكتب في الملاحظات.`,
     `- لو طلب حاجة مش في المنيو، قوله بلطف إنها مش متوفرة ورشّح أقرب بديل موجود.`,
     hasDrinks ? `- بعد ما يأكّد وجبة رئيسية ومفيش مشروب في طلبه، اعرض عليه مشروب ساقع من المنيو («تحب أضيفلك حاجة ساقعة معاها؟») — مرة واحدة بس ومن غير ما تضيفه إلا بعد ما يوافق.` : ``,
     hasDesserts ? `- ممكن تعرض تحلية موجودة لو مناسب، بلطف ومن غير تكرار ومن غير ما تضيفها إلا بموافقة.` : ``,
@@ -250,11 +251,11 @@ async function callGroq(messages, tools, toolChoice) {
       tools,
       tool_choice: toolChoice || 'auto',
       temperature: 0.5,
+      // Lower cap curbs the degenerate repetition loops QA hit; tidyReply() also
+      // collapses any repetition after the fact. (NOTE: we deliberately DON'T send
+      // frequency_penalty/presence_penalty — some Groq tool-use models 400 on them,
+      // which took the whole chatbot down.)
       max_tokens: 500,
-      // Curb the degenerate repetition loops QA hit (40+ repeated lines) — penalise
-      // repeating the same tokens/phrases so the model can't spiral.
-      frequency_penalty: 0.5,
-      presence_penalty: 0.2,
     }),
   });
   if (!res.ok) {
