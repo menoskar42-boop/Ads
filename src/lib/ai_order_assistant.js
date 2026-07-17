@@ -354,6 +354,34 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
       ? (lang === 'en' ? 'Great — opening your cart to finish the order.' : 'تمام — بفتحلك السلة عشان تكمّل الطلب.')
       : (lang === 'en' ? 'Done. Anything else?' : 'تمام. تحب حاجة تانية؟');
   }
+
+  // Deterministic cold-drink upsell (QA: the model often forgot to offer). When
+  // a MAIN dish was added this turn and there's NO drink anywhere in the order,
+  // append a one-time offer to the reply — we NEVER add the drink; the customer
+  // confirms next turn. Skipped on checkout, when the customer declined, or when
+  // a drink is already offered/mentioned, so it never nags.
+  try {
+    if (!checkout) {
+      const drinks = list.filter((r) => r.isDrink);
+      if (drinks.length) {
+        const addedMainThisTurn = cart.some((c) => { const r = byId.get(String(c.id)); return r && !r.isDrink; });
+        const cartIds = new Set([
+          ...(Array.isArray(currentCart) ? currentCart : []).map((c) => String(c.id)),
+          ...cart.map((c) => String(c.id)),
+        ]);
+        const hasDrink = [...cartIds].some((id) => { const r = byId.get(String(id)); return r && r.isDrink; });
+        const userDeclined = /كفاية|خلاص|بس كده|مش عايز|لا شكرا|لأ\b/.test(String(message));
+        const lastAssistant = (history || []).slice().reverse().find((m) => m && m.role === 'assistant');
+        const alreadyOffered = lastAssistant && /ساقع|مشروب|بيبسي|كولا|عصير/.test(lastAssistant.content || '');
+        const replyMentionsDrink = /ساقع|مشروب|بيبسي|كولا|عصير/.test(reply);
+        if (addedMainThisTurn && !hasDrink && !userDeclined && !alreadyOffered && !replyMentionsDrink) {
+          const dName = drinks[0].name_ar || drinks[0].name;
+          reply = reply.replace(/\s+$/, '') + ` تحب أضيفلك ${dName} ساقعة معاها؟`;
+        }
+      }
+    }
+  } catch (e) { /* upsell is best-effort */ }
+
   return { reply, cart, updates, checkout, tokens };
 }
 
