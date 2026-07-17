@@ -1,0 +1,37 @@
+<% var pageTitle='الصور'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-4">صور الجيم</h1>
+  <p class="text-xs text-neutral-500 mb-5">الصور دي بتظهر في صفحة الجيم العامة بدل الصور المؤقتة. استخدم صور حقيقية عالية الجودة (لاعبين/داخل الجيم).</p>
+  <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+
+  <!-- Hero -->
+  <div class="card rounded-2xl p-5 mb-4">
+    <h2 class="font-bold text-sm mb-3">صورة الغلاف (Hero)</h2>
+    <% if (hero) { %><img src="<%= hero %>" alt="hero" class="w-full max-w-md rounded-xl mb-3 border border-neutral-800" /><% } %>
+    <form method="POST" action="/gym/media/hero" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center">
+      <input type="file" name="hero_file" accept="image/*" required class="text-sm text-neutral-300" />
+      <button class="accent-bg font-bold rounded-xl px-4 py-2 text-sm">رفع الغلاف</button>
+    </form>
+  </div>
+
+  <!-- Gallery -->
+  <div class="card rounded-2xl p-5">
+    <h2 class="font-bold text-sm mb-3">معرض الصور</h2>
+    <form method="POST" action="/gym/media/gallery/add" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center mb-4">
+      <input type="file" name="image_file" accept="image/*" required class="text-sm text-neutral-300" />
+      <button class="accent-bg font-bold rounded-xl px-4 py-2 text-sm">+ إضافة للمعرض</button>
+    </form>
+    <% if (!gallery.length) { %>
+      <p class="text-sm text-neutral-500 text-center py-4">مفيش صور في المعرض. المتجر بيعرض صور مؤقتة لحد ما ترفع صورك.</p>
+    <% } else { %>
+      <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        <% gallery.forEach(function(gi){ %>
+        <div class="relative">
+          <img src="<%= gi.url %>" alt="" class="w-full aspect-square object-cover rounded-lg border border-neutral-800" />
+          <form method="POST" action="/gym/media/gallery/<%= gi.id %>/delete" class="absolute top-1 left-1"><button class="bg-red-600 text-white text-xs rounded-full w-6 h-6">×</button></form>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

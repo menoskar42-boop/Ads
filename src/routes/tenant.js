@@ -243,7 +243,7 @@ router.get('/', async (req, res) => {
     } catch (err) { console.error('Clinic query error:', err.message); }
   }
 
-  let gymSettings = null, gymPlans = [], gymTrainers = [], gymClasses = [];
+  let gymSettings = null, gymPlans = [], gymTrainers = [], gymClasses = [], gymGallery = [];
   if (company.page_type === 'gym') {
     try {
       gymSettings = (await pool.query('SELECT * FROM gym_settings WHERE company_id=$1', [company.id])).rows[0] || null;
@@ -253,6 +253,7 @@ router.get('/', async (req, res) => {
         `SELECT c.*, t.name AS trainer_name FROM gym_classes c
          LEFT JOIN gym_trainers t ON t.id=c.trainer_id
          WHERE c.company_id=$1 AND c.is_active=true ORDER BY c.day_of_week, c.sort_order, c.id`, [company.id])).rows;
+      gymGallery = (await pool.query('SELECT url FROM gym_gallery WHERE company_id=$1 ORDER BY sort_order, id LIMIT 12', [company.id])).rows;
     } catch (err) { console.error('Gym query error:', err.message); }
   }
 
@@ -354,6 +355,7 @@ router.get('/', async (req, res) => {
     gymPlans,
     gymTrainers,
     gymClasses,
+    gymGallery,
     gymBookedStatus: req.query.booked || null,
     gymBookError: req.query.bookerr === '1',
     payment,

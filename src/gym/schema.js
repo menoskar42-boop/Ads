@@ -160,6 +160,16 @@ async function ensureGymSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_measurements ON gym_measurements (member_id, measured_on);
+      -- Gym media: a hero image + a gallery, so the landing shows real photos.
+      ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS hero_url TEXT;
+      CREATE TABLE IF NOT EXISTS gym_gallery (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        url         TEXT NOT NULL,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_gallery ON gym_gallery (company_id, sort_order);
     `);
 
     await seedDemoGym(client);

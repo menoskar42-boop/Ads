@@ -183,8 +183,9 @@
   </nav>
 
   <!-- Hero -->
+  <% var heroImg = g.hero_url || company.logo_url; var gallery = (typeof gymGallery !== 'undefined' && gymGallery.length) ? gymGallery.map(function(x){return x.url;}) : []; %>
   <header class="hero" id="top">
-    <div class="hero__bg"><% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="<%= gName %>" style="width:100%;height:100%;object-fit:cover;filter:grayscale(.3) brightness(.6)" /><% } else { %><div class="imgph"><%- DUMBBELL %></div><% } %></div>
+    <div class="hero__bg"><% if (heroImg) { %><img src="<%= heroImg %>" alt="<%= gName %>" style="width:100%;height:100%;object-fit:cover;<%= g.hero_url ? '' : 'filter:grayscale(.3) brightness(.6)' %>" /><% } else { %><div class="imgph"><%- DUMBBELL %></div><% } %></div>
     <div class="hero__scrim"></div>
     <div class="hero__scrim2"></div>
     <div class="wrap hero__in">
@@ -341,17 +342,19 @@
     <div class="wrap">
       <div class="reveal"><span class="ey">جوّه الجيم</span><h2 class="h2">معرض الصور</h2></div>
       <div class="gal reveal">
-        <% ['g-tall','','g-wide','','','g-wide','g-tall','',''].forEach(function(cls){ %>
-        <div class="<%= cls %>"><div class="imgph"><%- DUMBBELL %></div></div>
-        <% }); %>
+        <% var galShapes = ['g-tall','','g-wide','','','g-wide','g-tall','','']; %>
+        <% for (var gi = 0; gi < 9; gi++) { var cls = galShapes[gi]; var gimg = gallery[gi]; %>
+        <div class="<%= cls %>"><% if (gimg) { %><img src="<%= gimg %>" alt="<%= gName %>" loading="lazy" style="width:100%;height:100%;object-fit:cover" /><% } else { %><div class="imgph"><%- DUMBBELL %></div><% } %></div>
+        <% } %>
       </div>
     </div>
   </section>
 
   <!-- CTA + contact -->
   <section id="contact" style="padding-bottom:0">
+    <% var ctaImg = gallery[0] || g.hero_url; %>
     <div class="cta reveal">
-      <div class="cta__bg"><div class="imgph"><%- DUMBBELL %></div></div>
+      <div class="cta__bg"><% if (ctaImg) { %><img src="<%= ctaImg %>" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover" /><% } else { %><div class="imgph"><%- DUMBBELL %></div><% } %></div>
       <div class="cta__scrim"></div>
       <div class="cta__in">
         <span class="ey">يلا نبدأ</span>

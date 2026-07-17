@@ -3,11 +3,38 @@
 // are behind login → noindex + no ads.
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const push = require('../lib/push');
+const { compressImage } = require('../lib/media');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Image uploads land in the same public/uploads sandbox as the rest of the app.
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const imageMimeRegex = /^image\/(png|jpe?g|gif|webp)$/;
+function gymUploader(prefix) {
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, `gym-${prefix}-${req.session.companyId}-${Date.now()}${path.extname(file.originalname).toLowerCase()}`),
+  });
+  return multer({
+    storage, limits: { fileSize: 6 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => imageMimeRegex.test(file.mimetype) ? cb(null, true) : cb(new Error('صور فقط (PNG/JPEG/WEBP).')),
+  });
+}
+const uploadHero = gymUploader('hero').single('hero_file');
+const uploadGallery = gymUploader('gal').single('image_file');
+const uploadTrainer = gymUploader('trainer').single('photo_file');
+async function compressSafe(file) {
+  if (!file) return null;
+  try { await compressImage(file.path); } catch (e) { /* keep original on failure */ }
+  return '/uploads/' + file.filename;
+}
 
 function slugify(s, fallback) {
   const base = String(s || '').toLowerCase().trim()
@@ -149,17 +176,53 @@ router.get('/trainers', async (req, res) => {
   const trainers = (await pool.query('SELECT * FROM gym_trainers WHERE company_id=$1 ORDER BY sort_order, id', [req.company.id])).rows;
   res.render('gym_admin/trainers', { company: req.company, tab: 'trainers', trainers, saved: req.query.saved === '1' });
 });
-router.post('/trainers/add', async (req, res) => {
-  const b = req.body || {};
-  const name = String(b.name || '').trim().slice(0, 80);
-  if (name) try {
-    await pool.query('INSERT INTO gym_trainers (company_id, slug, name, specialty, bio, photo_url, commission_pct, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (company_id, slug) DO NOTHING',
-      [req.company.id, slugify(b.name, 'trainer-' + Math.abs((name.length * 2654435761) % 1e9).toString(36)), name,
-       String(b.specialty || '').slice(0, 80) || null, String(b.bio || '').slice(0, 500) || null,
-       String(b.photo_url || '').slice(0, 300) || null, Math.max(0, Math.min(90, parseFloat(b.commission_pct) || 0)),
-       parseInt(b.sort_order, 10) || 0]);
-  } catch (e) { console.error('[gym trainer add]', e.message); }
-  res.redirect('/gym/trainers?saved=1');
+router.post('/trainers/add', (req, res) => {
+  uploadTrainer(req, res, async () => {
+    const b = req.body || {};
+    const name = String(b.name || '').trim().slice(0, 80);
+    if (name) try {
+      const photo = (await compressSafe(req.file)) || (String(b.photo_url || '').slice(0, 300) || null);
+      await pool.query('INSERT INTO gym_trainers (company_id, slug, name, specialty, bio, photo_url, commission_pct, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (company_id, slug) DO NOTHING',
+        [req.company.id, slugify(b.name, 'trainer-' + Math.abs((name.length * 2654435761) % 1e9).toString(36)), name,
+         String(b.specialty || '').slice(0, 80) || null, String(b.bio || '').slice(0, 500) || null,
+         photo, Math.max(0, Math.min(90, parseFloat(b.commission_pct) || 0)), parseInt(b.sort_order, 10) || 0]);
+    } catch (e) { console.error('[gym trainer add]', e.message); }
+    res.redirect('/gym/trainers?saved=1');
+  });
+});
+
+/* ── Media: hero image + gallery ───────────────────────────────────────────── */
+router.get('/media', async (req, res) => {
+  try {
+    const s = (await pool.query('SELECT hero_url FROM gym_settings WHERE company_id=$1', [req.company.id])).rows[0] || {};
+    const gallery = (await pool.query('SELECT * FROM gym_gallery WHERE company_id=$1 ORDER BY sort_order, id', [req.company.id])).rows;
+    res.render('gym_admin/media', { company: req.company, tab: 'media', hero: s.hero_url || null, gallery, saved: req.query.saved === '1' });
+  } catch (e) { console.error('[gym media]', e.message); res.redirect('/gym'); }
+});
+router.post('/media/hero', (req, res) => {
+  uploadHero(req, res, async () => {
+    try {
+      const url = await compressSafe(req.file);
+      if (url) await pool.query(
+        `INSERT INTO gym_settings (company_id, hero_url) VALUES ($1,$2)
+         ON CONFLICT (company_id) DO UPDATE SET hero_url=EXCLUDED.hero_url`, [req.company.id, url]);
+    } catch (e) { console.error('[gym hero]', e.message); }
+    res.redirect('/gym/media?saved=1');
+  });
+});
+router.post('/media/gallery/add', (req, res) => {
+  uploadGallery(req, res, async () => {
+    try {
+      const url = await compressSafe(req.file);
+      if (url) await pool.query('INSERT INTO gym_gallery (company_id, url) VALUES ($1,$2)', [req.company.id, url]);
+    } catch (e) { console.error('[gym gallery add]', e.message); }
+    res.redirect('/gym/media?saved=1');
+  });
+});
+router.post('/media/gallery/:id/delete', async (req, res) => {
+  try { await pool.query('DELETE FROM gym_gallery WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); }
+  catch (e) { console.error('[gym gallery del]', e.message); }
+  res.redirect('/gym/media');
 });
 router.post('/trainers/:id/delete', async (req, res) => {
   try { await pool.query('DELETE FROM gym_trainers WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); }
