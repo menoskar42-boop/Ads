@@ -16,7 +16,7 @@ const RESERVED_SLUGS = new Set([
 ]);
 
 router.get('/apply', (req, res) => {
-  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic'].includes(req.query.type) ? req.query.type : '';
+  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym'].includes(req.query.type) ? req.query.type : '';
   res.render('apply/form', {
     error: null,
     values: preType ? { business_type: preType } : {},
@@ -47,7 +47,7 @@ router.post('/apply', async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return render('بريد إلكتروني غير صالح.');
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
-  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic'].includes(values.business_type)) return render('اختر نوع الموقع.');
+  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym'].includes(values.business_type)) return render('اختر نوع الموقع.');
   if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
     return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
   }
@@ -94,7 +94,8 @@ router.post('/apply', async (req, res) => {
     const crmCategory = values.business_type === 'shop' ? 'متجر'
       : values.business_type === 'pharmacy' ? 'صيدلية'
       : values.business_type === 'clinic' ? 'عيادة'
-      : values.business_type === 'orders' ? 'مطاعم/طلبات' : 'بورتفوليو';
+      : values.business_type === 'orders' ? 'مطاعم/طلبات'
+      : values.business_type === 'gym' ? 'جيم/لياقة' : 'بورتفوليو';
     pool.query(
       `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
        SELECT $1, $2, $3, $4, $5, 'طلب تسجيل', 'interested', $6, CURRENT_DATE
