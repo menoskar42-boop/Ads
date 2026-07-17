@@ -30,10 +30,30 @@ function isEnabled() {
 // upsell suggestions ("something cold with that?").
 const DRINK_HINTS = ['مشروب', 'عصير', 'كولا', 'بيبسي', 'مياه', 'ساقع', 'ساقعة', 'صودا', 'شاي', 'قهوة', 'drink', 'juice', 'soda', 'cola', 'water', 'beverage', 'coffee', 'tea'];
 const DESSERT_HINTS = ['حلو', 'تحلية', 'حلويات', 'كيك', 'ايس كريم', 'آيس', 'dessert', 'cake', 'ice cream', 'sweet'];
+// Animal-product keywords → the item is FASTING-BREAKING (فطاري), never صيامي.
+// Used to label each menu item deterministically so the model never guesses.
+const NON_FASTING_HINTS = [
+  'لحم', 'لحمة', 'فراخ', 'فرخة', 'فرخ', 'كبد', 'كبدة', 'سجق', 'كفتة', 'بسطرمة',
+  'شاورما', 'برجر', 'برغر', 'ستيك', 'دجاج', 'بط', 'حمام', 'ديك', 'تونة', 'سمك',
+  'جمبري', 'سي فود', 'بيض', 'جبن', 'جبنة', 'لبن', 'زبد', 'زبدة', 'قشطة', 'كريمة',
+  'beef', 'meat', 'chicken', 'burger', 'steak', 'fish', 'tuna', 'egg', 'cheese', 'milk', 'butter',
+];
+// Clearly-plant staples we can safely call صيامي even without an explicit label.
+const FASTING_HINTS = ['فول', 'طعمية', 'فلافل', 'بطاطس', 'سلطة', 'خضار', 'مخلل', 'رز بالخضار', 'صيامي', 'vegan', 'vegetarian', 'salad', 'falafel'];
 
 function matchesHints(text, hints) {
   const t = String(text || '').toLowerCase();
   return hints.some((h) => t.includes(h));
+}
+
+// Deterministic fasting classification for a menu item:
+//   'صيامي'  = confidently plant/drink (safe for someone fasting)
+//   'فطاري'  = contains an animal product
+//   ''       = unknown → tell the customer to check with the restaurant
+function classifyFasting(nameBlob, isDrink) {
+  if (matchesHints(nameBlob, NON_FASTING_HINTS)) return 'فطاري';
+  if (isDrink || matchesHints(nameBlob, FASTING_HINTS)) return 'صيامي';
+  return '';
 }
 
 // Flatten the merchant's outlets → a lookup of available items the model may use.
@@ -59,6 +79,7 @@ function buildMenu(outlets) {
         category,
         isDrink: matchesHints(nameBlob, DRINK_HINTS),
         isDessert: matchesHints(nameBlob, DESSERT_HINTS),
+        fasting: classifyFasting([it.name, it.name_ar, it.description].join(' '), matchesHints(nameBlob, DRINK_HINTS)),
       };
       list.push(row);
       byId.set(String(it.id), row);
@@ -72,7 +93,8 @@ function menuAsText(list, cur) {
     const names = [r.name_ar, r.name].filter(Boolean).join(' / ');
     const cat = r.category ? ` [${r.category}]` : '';
     const desc = r.description ? ` — ${r.description}` : '';
-    return `#${r.id} — ${names}${cat} — ${r.price} ${cur}${desc}`;
+    const fast = r.fasting ? ` (${r.fasting})` : ' (صيامي غير محدّد)';
+    return `#${r.id} — ${names}${cat} — ${r.price} ${cur}${fast}${desc}`;
   }).join('\n');
 }
 
@@ -121,7 +143,8 @@ function systemPrompt(list, lang, cur, merchantName, currentCart) {
     `- إنت عارف كل أصناف المنيو وأسعارها بالظبط (السعر ثابت زي ما مكتوب — ممنوع تغيّره أو تخترع سعر).`,
     `- لو الزبون سأل عن مكوّنات صنف وفيه وصف مكتوب، استخدمه.`,
     `- لو مفيش وصف مكتوب، تقدر تتوقّع المكوّنات الشائعة من اسم الصنف وتقولها كـ«غالباً بيكون فيه…» — ووضّح إنها توقّع، ولو حابب يتأكد من مكوّن معيّن (خصوصاً حساسية) يسأل المطعم. ممنوع تجزم بمكوّن مش متأكد منه أو تخترع معلومة تحسّس.`,
-    `- 🥗 **الصيامي/الفطاري — قاعدة صارمة (خطأ فيها خطير):** «صيامي» = خالي **تماماً** من أي منتج حيواني (لحمة، فراخ، سمك، تونة، كبدة، سجق، جبنة، بيض، لبن، زبدة). **أي صنف اسمه أو مكوّناته فيها فراخ أو لحمة أو سمك أو تونة = فطاري 100% ومش صيامي أبداً.** مثال: «برجر فراخ» و«برجر لحمة» = **فطاري** (فيهم لحم/فراخ). 🚫 ممنوع منعاً باتاً تقول إن أي صنف فيه لحمة/فراخ/سمك إنه صيامي. لو مش متأكد إن الصنف صيامي، قول «ده فطاري» أو انصح الزبون يتأكد من المطعم — **ولا تجازف أبداً** لأن فيه ناس بتصوم.`,
+    `- 🥗 **الصيامي/الفطاري — استخدم العلامة الجاهزة، متخمّنش:** كل صنف في المنيو جنبه علامة **(صيامي)** أو **(فطاري)** أو **(صيامي غير محدّد)**. دي الحقيقة المعتمدة — التزم بيها حرفياً وممنوع تخالفها أو تخمّن عكسها. صنف مكتوب جنبه (فطاري) = **فطاري 100%، ممنوع تقول إنه صيامي أبداً** (فيه ناس بتصوم فعلاً). «صيامي غير محدّد» = قول للزبون يتأكد من المطعم.`,
+    `- 🥗 **لو الزبون سأل «إيه الصيامي؟»:** رُدّ **إجابة واحدة قصيرة وواضحة من غير تكرار**: اذكر الأصناف اللي عليها (صيامي) بس (غالباً المشروبات). **لو مفيش أي أكل عليه (صيامي)، قول بصراحة ووضوح: «للأسف كل أصناف الأكل عندنا فطاري (فيها لحمة أو فراخ)، المشروبات بس هي الصيامي.»** ممنوع ترشّح صنف فطاري كأنه بديل صيامي، وممنوع تكرّر نفس الجملة أكتر من مرة.`,
     ``,
     `🛑 قاعدة الإضافة الأهم (التزم بيها حرفياً):`,
     `- **ماتضيفش أي صنف للسلة إلا لما الزبون يأكّد صراحةً إنه عايزه** (مثلاً: «أيوة»، «ضيفه»، «اطلبه»، «تمام ضيف»، «عايزه»).`,
