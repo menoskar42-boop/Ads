@@ -4,9 +4,11 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>دليل الاستخدام — OscarDevs</title>
-<meta name="description" content="دليل كامل لبدء استخدام OscarDevs: خطوات الاشتراك والتفعيل، وشرح لوحة التحكم لكل نوع صفحة (متجر، صيدلية، مطاعم، بورتفوليو)." />
-<%- include('../partials/seo_meta', { title: 'دليل الاستخدام — OscarDevs', description: 'دليل كامل لبدء استخدام OscarDevs: خطوات الاشتراك والتفعيل، وشرح لوحة التحكم لكل نوع صفحة.' }) %>
+<% var __helpTitle = 'دليل الاستخدام — OscarDevs';
+   var __helpDesc = 'دليل كامل لبدء استخدام OscarDevs: خطوات الاشتراك والتفعيل، وشرح لوحة التحكم لكل نوع صفحة (متجر، صيدلية، مطاعم، جيم).'; %>
+<title><%= __helpTitle %></title>
+<meta name="description" content="<%= __helpDesc %>" />
+<%- include('../partials/seo_meta', { title: __helpTitle, description: __helpDesc }) %>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"دليل الاستخدام","item":"<%= siteOrigin %>/help"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
