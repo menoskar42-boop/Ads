@@ -1,0 +1,32 @@
+<% var pageTitle = 'رفع دراسة'; %>
+<%- include('_layout_top') %>
+  <h1 class="text-2xl font-black mb-1">رفع دراسة جديدة</h1>
+  <p class="text-slate-400 text-sm mb-5">اختر ملفات DICOM للدراسة (CT/MRI). كل الملفات بتترفع لدراسة واحدة.</p>
+  <% if (error) { %><div class="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl px-4 py-2 mb-4 text-sm"><%= error %></div><% } %>
+
+  <form method="POST" action="/radiology/upload" enctype="multipart/form-data" class="card rounded-2xl p-5 grid gap-4 max-w-2xl">
+    <div>
+      <label class="block text-sm font-semibold text-slate-300 mb-1.5">ملفات DICOM *</label>
+      <input type="file" name="dicom" multiple required accept=".dcm,application/dicom,application/octet-stream,*/*" class="block w-full text-sm text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-sky-600 file:text-white" />
+      <p class="text-[11px] text-slate-500 mt-1">تقدر تختار كل شرائح الدراسة مرة واحدة (لحد 600 ملف).</p>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="text-sm text-slate-300">نوع الفحص
+        <select name="modality" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1"><option value="CT">CT</option><option value="MRI">MRI</option></select>
+      </label>
+      <label class="text-sm text-slate-300">مرجع المريض (كود/رقم — مش اسم)
+        <input name="patient_ref" placeholder="مثلاً MRN-123" dir="ltr" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" />
+      </label>
+    </div>
+    <label class="text-sm text-slate-300">وصف الدراسة
+      <input name="description" placeholder="مثلاً: CT صدر بالصبغة" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" />
+    </label>
+    <label class="text-sm text-slate-300">السياق الإكلينيكي (اختياري)
+      <textarea name="clinical_context" rows="3" placeholder="التاريخ المرضي، الأعراض، سبب الفحص…" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1"></textarea>
+    </label>
+    <div class="text-[11px] text-amber-300/80 bg-amber-500/10 border border-amber-500/25 rounded-lg p-2">
+      🔒 لا ترفع أسماء مرضى في الحقول — استخدم كود/رقم مرجعي فقط. الأداة دعم قرار غير تشخيصي.
+    </div>
+    <button class="accent-bg font-bold rounded-xl py-3 w-max px-8">رفع الدراسة</button>
+  </form>
+<%- include('_layout_bottom') %>

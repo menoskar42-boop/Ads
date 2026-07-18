@@ -1,0 +1,31 @@
+<% var pageTitle = 'دراساتي'; %>
+<%- include('_layout_top') %>
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-black">دراساتي</h1>
+      <p class="text-slate-400 text-sm">أهلاً <%= doctorName %></p>
+    </div>
+    <a href="/radiology/upload" class="accent-bg font-bold px-4 py-2 rounded-xl text-sm">+ رفع دراسة</a>
+  </div>
+  <% if (saved) { %><div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم رفع الدراسة ✅</div><% } %>
+
+  <% if (!studies.length) { %>
+    <div class="card rounded-2xl p-10 text-center text-slate-400">
+      مفيش دراسات لسه. <a href="/radiology/upload" class="text-sky-400 font-bold">ارفع أول دراسة →</a>
+    </div>
+  <% } else { %>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <% studies.forEach(function(s){ %>
+      <a href="/radiology/study/<%= s.id %>" class="card rounded-2xl p-4 hover:border-sky-500/50 transition block">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300"><%= s.modality %></span>
+          <span class="text-xs text-slate-500"><%= new Date(s.created_at).toLocaleDateString('ar-EG') %></span>
+        </div>
+        <div class="font-bold mt-2 truncate"><%= s.description || ('دراسة #' + s.id) %></div>
+        <div class="text-xs text-slate-400 mt-1"><%= s.num_slices %> شريحة<%= s.patient_ref ? (' · ' + s.patient_ref) : '' %></div>
+        <div class="text-xs mt-2 <%= s.report_count ? 'text-emerald-400' : 'text-slate-500' %>"><%= s.report_count ? (s.report_count + ' تقرير AI') : 'مفيش تقرير بعد' %></div>
+      </a>
+      <% }); %>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>

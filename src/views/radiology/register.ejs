@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>حساب جديد — OncoScan</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}body{background:#0b1220;color:#e5edf7}.fld{background:#0b1424;border:1px solid #24324f;color:#e5edf7}.accent-bg{background:#0ea5e9;color:#04121f}</style>
+</head>
+<body class="min-h-screen grid place-items-center p-4">
+  <div class="w-full max-w-sm">
+    <a href="/radiology" class="block text-center font-black text-2xl mb-1">🩻 OncoScan</a>
+    <p class="text-center text-slate-400 text-sm mb-6">حساب طبيب جديد</p>
+    <% if (error) { %><div class="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl px-4 py-2 mb-4 text-sm"><%= error %></div><% } %>
+    <form method="POST" action="/radiology/register" class="bg-[#111a2e] border border-[#1e2a44] rounded-2xl p-5 grid gap-3">
+      <input name="name" placeholder="الاسم (د. ...)" class="fld rounded-xl px-4 py-3 text-sm" />
+      <input name="specialty" placeholder="التخصص (اختياري)" class="fld rounded-xl px-4 py-3 text-sm" />
+      <input name="email" type="email" required placeholder="الإيميل" dir="ltr" class="fld rounded-xl px-4 py-3 text-sm" />
+      <input name="password" type="password" required placeholder="كلمة السر (6 حروف+)" class="fld rounded-xl px-4 py-3 text-sm" />
+      <button class="accent-bg font-bold rounded-xl py-3">إنشاء الحساب</button>
+    </form>
+    <p class="text-center text-sm text-slate-400 mt-4">عندك حساب؟ <a href="/radiology/login" class="text-sky-400 font-bold">سجّل دخول</a></p>
+    <p class="text-center text-[11px] text-slate-500 mt-3">بالتسجيل إنت مسؤول عن سرية بيانات مرضاك واستخدام الأداة كدعم قرار غير تشخيصي.</p>
+  </div>
+</body>
+</html>

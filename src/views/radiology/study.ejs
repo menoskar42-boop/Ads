@@ -1,0 +1,48 @@
+<% var pageTitle = (study.description || ('دراسة #' + study.id)); %>
+<%- include('_layout_top') %>
+  <a href="/radiology/dashboard" class="text-xs text-slate-500 hover:text-white">← كل الدراسات</a>
+  <div class="flex items-start justify-between gap-3 mt-2 mb-5 flex-wrap">
+    <div>
+      <h1 class="text-2xl font-black"><%= study.description || ('دراسة #' + study.id) %></h1>
+      <div class="text-sm text-slate-400 mt-1">
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300"><%= study.modality %></span>
+        · <%= study.num_slices %> شريحة
+        <% if (study.patient_ref) { %> · <span dir="ltr"><%= study.patient_ref %></span><% } %>
+        · <%= new Date(study.created_at).toLocaleDateString('ar-EG') %>
+      </div>
+    </div>
+    <form method="POST" action="/radiology/study/<%= study.id %>/delete" onsubmit="return confirm('حذف الدراسة وكل شرائحها؟')">
+      <button class="text-xs border border-rose-500/40 text-rose-400 rounded-lg px-3 py-1.5 hover:bg-rose-500/10">حذف الدراسة</button>
+    </form>
+  </div>
+
+  <% if (study.clinical_context) { %>
+  <div class="card rounded-2xl p-4 mb-4">
+    <div class="text-xs font-bold text-slate-400 mb-1">السياق الإكلينيكي</div>
+    <p class="text-sm text-slate-200 whitespace-pre-line"><%= study.clinical_context %></p>
+  </div>
+  <% } %>
+
+  <!-- Viewer + AI report land here in the next phases -->
+  <div class="card rounded-2xl p-8 text-center text-slate-400 mb-4">
+    <div class="text-3xl mb-2">🖥️</div>
+    <div class="font-bold text-slate-200">العارض والتحليل قيد الإضافة</div>
+    <p class="text-xs mt-1">الشرائح مرفوعة ومتخزّنة بأمان. عارض الصور في المتصفح وتقرير الـAI جايين في المرحلة الجاية.</p>
+  </div>
+
+  <div class="card rounded-2xl p-5">
+    <h2 class="font-bold text-sm mb-3">تقارير الـAI</h2>
+    <% if (!reports.length) { %>
+      <p class="text-sm text-slate-500 text-center py-4">مفيش تقارير بعد.</p>
+    <% } else { %>
+      <div class="space-y-3">
+        <% reports.forEach(function(r){ %>
+        <div class="border border-[#1e2a44] rounded-xl p-3">
+          <div class="text-xs text-slate-400 mb-1"><%= r.model_name || 'AI' %> · <%= new Date(r.created_at).toLocaleString('ar-EG') %></div>
+          <p class="text-sm text-slate-200 whitespace-pre-line"><%= r.report_text %></p>
+        </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+<%- include('_layout_bottom') %>

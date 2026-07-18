@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= (typeof pageTitle !== 'undefined' ? pageTitle : 'OncoScan') %> — OncoScan</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}body{background:#0b1220;color:#e5edf7}.card{background:#111a2e;border:1px solid #1e2a44}.fld{background:#0b1424;border:1px solid #24324f;color:#e5edf7}.accent{color:#38bdf8}.accent-bg{background:#0ea5e9;color:#04121f}</style>
+</head>
+<body class="min-h-screen">
+<header class="bg-[#0b1220] border-b border-[#1e2a44] sticky top-0 z-30">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="/radiology/dashboard" class="flex items-center gap-2 font-black"><span class="text-xl">🩻</span> <span>OncoScan <span class="text-xs text-slate-400 font-normal">— دعم قرار الأشعة</span></span></a>
+    <nav class="flex items-center gap-3 text-sm">
+      <a href="/radiology/dashboard" class="text-slate-300 hover:text-white font-semibold">دراساتي</a>
+      <a href="/radiology/upload" class="accent-bg font-bold px-3 py-1.5 rounded-lg">+ رفع دراسة</a>
+      <form method="POST" action="/radiology/logout" class="inline"><button class="text-rose-400 text-sm">خروج</button></form>
+    </nav>
+  </div>
+</header>
+<!-- Non-diagnostic disclaimer (must be visible everywhere) -->
+<div class="bg-amber-500/10 border-b border-amber-500/30 text-amber-200 text-xs text-center py-2 px-4">
+  ⚠️ أداة دعم قرار — <strong>غير تشخيصية</strong>. القرار النهائي والمسؤولية للطبيب المعالج. / Decision support only — <strong>not diagnostic</strong>.
+</div>
+<main class="max-w-5xl mx-auto px-4 py-6">
