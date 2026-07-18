@@ -397,6 +397,22 @@ section { padding: 110px 60px; position: relative; }
   background: #10b981; color: #04231a;
   box-shadow: 0 10px 30px rgba(16,185,129,0.4);
 }
+.service-card.gym::before {
+  background: radial-gradient(ellipse at top right, rgba(228,255,26,0.16), transparent 70%);
+}
+.service-card.gym .service-icon { background: rgba(228,255,26,0.16); }
+.service-card.gym .free-badge {
+  background: linear-gradient(90deg, #E4FF1A, #a3b800);
+  color: #1a1a00; box-shadow: 0 8px 24px rgba(228,255,26,0.30);
+}
+.service-card.gym .service-cta {
+  background: rgba(228,255,26,0.12); color: #cfe600;
+  border: 1px solid rgba(228,255,26,0.35);
+}
+.service-card.gym .service-cta:hover {
+  background: #E4FF1A; color: #1a1a00;
+  box-shadow: 0 10px 30px rgba(228,255,26,0.4);
+}
 
 /* Live-demo link on service cards */
 .service-demo {
