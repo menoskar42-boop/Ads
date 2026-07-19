@@ -52,7 +52,48 @@
     <p class="text-[11px] text-slate-500 mt-2">اسحب على الصورة لضبط الإضاءة (يمين/شمال = العرض، فوق/تحت = المركز). العرض والفكّ في متصفحك — مفيش تحميل على السيرفر.</p>
   </div>
   <script src="/js/rad-viewer.js"></script>
-  <script>OncoViewer({ studyId: <%= study.id %>, count: <%= study.num_slices %>, root: document.getElementById('radViewer') });</script>
+  <% } %>
+
+  <!-- AI report (phase 3) -->
+  <div class="card rounded-2xl p-5 mb-4">
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+      <h2 class="font-bold text-sm">🔬 تقرير الذكاء الاصطناعي</h2>
+      <% if (study.num_slices > 0) { %>
+      <div class="flex items-center gap-2">
+        <input id="radFocus" placeholder="تركيز التقرير (اختياري)" class="fld rounded-lg px-3 py-1.5 text-xs" />
+        <button id="radGenBtn" class="accent-bg font-bold text-sm px-4 py-2 rounded-lg">🚀 توليد تقرير</button>
+      </div>
+      <% } %>
+    </div>
+    <div id="radReportOut" class="text-sm text-slate-200 whitespace-pre-line" style="display:none"></div>
+    <div id="radReportMsg" class="text-xs text-slate-400" style="display:none"></div>
+  </div>
+
+  <% if (study.num_slices > 0) { %>
+  <script>
+  (function(){
+    var viewer = OncoViewer({ studyId: <%= study.id %>, count: <%= study.num_slices %>, root: document.getElementById('radViewer') });
+    var btn = document.getElementById('radGenBtn'), out = document.getElementById('radReportOut'), msg = document.getElementById('radReportMsg');
+    btn && btn.addEventListener('click', function(){
+      btn.disabled = true; btn.textContent = 'بجهّز الصور…'; out.style.display='none';
+      msg.style.display=''; msg.textContent = 'بحمّل ورندر الشرائح الممثّلة…';
+      viewer.capture(12).then(function(images){
+        if(!images.length){ throw new Error('مفيش صور صالحة للتحليل (يمكن الدراسة مضغوطة).'); }
+        msg.textContent = 'بحلّل بالذكاء الاصطناعي… (ممكن تاخد لحظات)';
+        btn.textContent = 'بحلّل…';
+        return fetch('/radiology/study/<%= study.id %>/report', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ images: images, focus: (document.getElementById('radFocus').value||'') })
+        }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); });
+      }).then(function(res){
+        if(!res.ok || !res.d.ok){ throw new Error((res.d && res.d.error) || 'تعذّر توليد التقرير.'); }
+        msg.style.display='none'; out.style.display=''; out.textContent = res.d.report;
+      }).catch(function(e){
+        msg.textContent = '⚠️ ' + (e.message || 'حصل خطأ.');
+      }).then(function(){ btn.disabled=false; btn.textContent='🚀 توليد تقرير'; });
+    });
+  })();
+  </script>
   <% } %>
 
   <div class="card rounded-2xl p-5">

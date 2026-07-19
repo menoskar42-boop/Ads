@@ -164,6 +164,42 @@
     window.addEventListener('mouseup', function () { dragging = false; });
     window.addEventListener('mousemove', function (e) { if (!dragging) return; ww = Math.max(1, sw + (e.clientX - sx) * 2); wc = sc + (e.clientY - sy) * 2; draw(); });
 
+    // Load + parse a slice (cached), returning a Promise.
+    function fetchParsed(i) {
+      if (cache[i]) return Promise.resolve(cache[i]);
+      return fetch('/radiology/study/' + studyId + '/slice/' + i).then(function (r) { return r.arrayBuffer(); })
+        .then(function (buf) { var d = parseDicom(buf); cache[i] = d; return d; })
+        .catch(function () { return { error: 'load' }; });
+    }
+    // Render a parsed slice at the current W/L to a downscaled JPEG data URL.
+    function toDataURL(d) {
+      if (!d || d.error) return null;
+      var vals = toValues(d), c = document.createElement('canvas');
+      render(c, d, vals, wc, ww);
+      var maxDim = 640;
+      if (Math.max(c.width, c.height) > maxDim) {
+        var s = maxDim / Math.max(c.width, c.height), c2 = document.createElement('canvas');
+        c2.width = Math.round(c.width * s); c2.height = Math.round(c.height * s);
+        c2.getContext('2d').drawImage(c, 0, 0, c2.width, c2.height); c = c2;
+      }
+      try { return c.toDataURL('image/jpeg', 0.6); } catch (e) { return null; }
+    }
+
     loadSlice(0);
+
+    // Public API: capture N evenly-distributed slices as JPEG data URLs for AI.
+    return {
+      capture: function (max) {
+        max = Math.min(max || 12, count);
+        var indices = [];
+        if (count <= max) { for (var i = 0; i < count; i++) indices.push(i); }
+        else { for (var k = 0; k < max; k++) indices.push(Math.round(k * (count - 1) / (max - 1))); }
+        return indices.reduce(function (p, i) {
+          return p.then(function (acc) {
+            return fetchParsed(i).then(function (d) { var u = toDataURL(d); if (u) acc.push(u); return acc; });
+          });
+        }, Promise.resolve([]));
+      }
+    };
   };
 })();

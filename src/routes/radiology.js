@@ -156,6 +156,41 @@ router.get('/study/:id/slice/:index', requireDoctor, async (req, res) => {
   } catch (e) { console.error('[rad slice]', e.message); res.status(500).end(); }
 });
 
+// Generate an AI report: the browser posts already-rendered slice PNGs; we
+// forward them to the vision model and save the structured report. A dedicated
+// large JSON parser is used because the image payload exceeds the global limit.
+router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }), async (req, res) => {
+  const studyId = parseInt(req.params.id, 10);
+  try {
+    const study = (await pool.query('SELECT * FROM rad_studies WHERE id=$1 AND doctor_id=$2', [studyId, req.session.radDoctorId])).rows[0];
+    if (!study) return res.status(404).json({ ok: false, error: 'الدراسة غير موجودة.' });
+    const { generateReport } = require('../lib/rad_ai');
+    const focus = String((req.body && req.body.focus) || '').slice(0, 300);
+    const out = await generateReport({
+      modality: study.modality,
+      context: study.clinical_context || '',
+      focus,
+      images: (req.body && req.body.images) || [],
+    });
+    if (!out.text) return res.status(502).json({ ok: false, error: 'مرجعش تقرير، حاول تاني.' });
+    // Rough cost estimate (gpt-4o pricing); best-effort only.
+    const u = out.usage || {};
+    const cost = +(((u.prompt_tokens || 0) * 2.5 + (u.completion_tokens || 0) * 10) / 1e6).toFixed(4);
+    await pool.query(
+      'INSERT INTO rad_reports (study_id, model_name, focus, report_text, cost_usd) VALUES ($1,$2,$3,$4,$5)',
+      [studyId, out.model, focus || null, out.text, cost]
+    );
+    await pool.query("UPDATE rad_studies SET status='analyzed' WHERE id=$1", [studyId]).catch(() => {});
+    res.json({ ok: true, report: out.text });
+  } catch (e) {
+    console.error('[rad report]', e.status || '', e.message);
+    if (e.code === 'NO_KEY') return res.status(503).json({ ok: false, error: 'مفتاح الـAI مش متظبّط على السيرفر.' });
+    if (e.code === 'NO_IMAGES') return res.status(400).json({ ok: false, error: 'مفيش صور للتحليل.' });
+    if (e.status === 429) return res.status(503).json({ ok: false, error: 'الخدمة وصلت للحد دلوقتي — جرّب بعد شوية.' });
+    res.status(502).json({ ok: false, error: 'تعذّر توليد التقرير، حاول تاني.' });
+  }
+});
+
 router.post('/study/:id/delete', requireDoctor, async (req, res) => {
   try { await pool.query('DELETE FROM rad_studies WHERE id=$1 AND doctor_id=$2', [parseInt(req.params.id, 10), req.session.radDoctorId]); }
   catch (e) { console.error('[rad study del]', e.message); }
