@@ -11,7 +11,13 @@
     to used weights only (dropped unused Cairo 300 & Syne 400). Mobile LCP is
     gated by render delay of the hero text, not fonts (see PSI), so the proper
     fix is critical-CSS / render-path tuning measured live, not font loading. %>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<%# Speed first paint (helps the crawler's FCP): preconnect to the font origins,
+    and load the font stylesheet non-blocking (display=swap already shows fallback
+    text first). Our own layout CSS stays render-blocking to avoid a flash. %>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Syne:wght@700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Syne:wght@700;800&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="/css/landing.css?v=<%= assetVersion %>">
 </head>
 <body>
