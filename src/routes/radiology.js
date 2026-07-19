@@ -138,6 +138,24 @@ router.get('/study/:id', requireDoctor, async (req, res) => {
     res.render('radiology/study', { study, reports });
   } catch (e) { console.error('[rad study]', e.message); res.redirect('/radiology/dashboard'); }
 });
+// Serve one slice's raw DICOM bytes (scoped to the owning doctor). The browser
+// viewer decodes + windows it — the server never touches pixel data.
+router.get('/study/:id/slice/:index', requireDoctor, async (req, res) => {
+  try {
+    const own = await pool.query('SELECT 1 FROM rad_studies WHERE id=$1 AND doctor_id=$2',
+      [parseInt(req.params.id, 10), req.session.radDoctorId]);
+    if (!own.rows.length) return res.status(404).end();
+    const row = (await pool.query(
+      'SELECT dicom_bytes FROM rad_slices WHERE study_id=$1 AND slice_index=$2 LIMIT 1',
+      [parseInt(req.params.id, 10), parseInt(req.params.index, 10)]
+    )).rows[0];
+    if (!row) return res.status(404).end();
+    res.setHeader('Content-Type', 'application/dicom');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(row.dicom_bytes);
+  } catch (e) { console.error('[rad slice]', e.message); res.status(500).end(); }
+});
+
 router.post('/study/:id/delete', requireDoctor, async (req, res) => {
   try { await pool.query('DELETE FROM rad_studies WHERE id=$1 AND doctor_id=$2', [parseInt(req.params.id, 10), req.session.radDoctorId]); }
   catch (e) { console.error('[rad study del]', e.message); }

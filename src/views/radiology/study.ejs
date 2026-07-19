@@ -23,12 +23,37 @@
   </div>
   <% } %>
 
-  <!-- Viewer + AI report land here in the next phases -->
-  <div class="card rounded-2xl p-8 text-center text-slate-400 mb-4">
-    <div class="text-3xl mb-2">🖥️</div>
-    <div class="font-bold text-slate-200">العارض والتحليل قيد الإضافة</div>
-    <p class="text-xs mt-1">الشرائح مرفوعة ومتخزّنة بأمان. عارض الصور في المتصفح وتقرير الـAI جايين في المرحلة الجاية.</p>
+  <!-- In-browser DICOM viewer (phase 2) -->
+  <% if (study.num_slices > 0) { %>
+  <style>
+    .rad-preset{background:#0b1424;border:1px solid #24324f;color:#cbd5e1;font-size:12px;font-weight:700;border-radius:8px;padding:5px 10px;cursor:pointer}
+    .rad-preset:hover{border-color:#0ea5e9;color:#38bdf8}
+    .rad-ctrl{background:#0b1424;border:1px solid #24324f;color:#cbd5e1;border-radius:8px;width:34px;height:34px;font-weight:800;cursor:pointer}
+    .rad-canvas-wrap{background:#000;border-radius:12px;overflow:hidden;display:grid;place-items:center;aspect-ratio:1/1;position:relative}
+    .rad-canvas-wrap canvas{max-width:100%;max-height:100%;image-rendering:pixelated;transform-origin:center;cursor:crosshair}
+  </style>
+  <div class="card rounded-2xl p-4 mb-4" id="radViewer">
+    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+      <div class="text-sm font-bold">العارض <span class="text-xs text-slate-500" data-label></span></div>
+      <div class="text-xs text-slate-400" data-wl></div>
+    </div>
+    <div class="rad-canvas-wrap mb-3">
+      <canvas data-canvas></canvas>
+      <div class="absolute text-xs text-slate-400 bg-black/60 px-3 py-1 rounded" data-msg style="display:none"></div>
+    </div>
+    <div class="flex items-center gap-2 mb-3">
+      <button class="rad-ctrl" data-prev>‹</button>
+      <input type="range" min="0" value="0" class="flex-1" data-slider />
+      <button class="rad-ctrl" data-next>›</button>
+      <button class="rad-ctrl" data-zout>−</button>
+      <button class="rad-ctrl" data-zin>+</button>
+    </div>
+    <div class="flex flex-wrap gap-1.5" data-presets></div>
+    <p class="text-[11px] text-slate-500 mt-2">اسحب على الصورة لضبط الإضاءة (يمين/شمال = العرض، فوق/تحت = المركز). العرض والفكّ في متصفحك — مفيش تحميل على السيرفر.</p>
   </div>
+  <script src="/js/rad-viewer.js"></script>
+  <script>OncoViewer({ studyId: <%= study.id %>, count: <%= study.num_slices %>, root: document.getElementById('radViewer') });</script>
+  <% } %>
 
   <div class="card rounded-2xl p-5">
     <h2 class="font-bold text-sm mb-3">تقارير الـAI</h2>
