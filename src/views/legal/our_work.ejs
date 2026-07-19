@@ -5,8 +5,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>من أعمالنا — تطبيقات طوّرها فريق OscarDevs</title>
-<meta name="description" content="استعرض أعمال OscarDevs: تطبيقات ويب طوّرناها بالكامل — Sokro مساعد ذكي بالصوت، Kakeibo مدرّب مالي، Safari Kids للأطفال، وNeuroPilot للتركيز." />
-<%- include('../partials/seo_meta', { title: 'من أعمالنا — تطبيقات طوّرها فريق OscarDevs', description: 'استعرض أعمال OscarDevs: تطبيقات ويب طوّرناها بالكامل — Sokro مساعد ذكي بالصوت، Kakeibo مدرّب مالي، Safari Kids للأطفال، وNeuroPilot للتركيز.' }) %>
+<meta name="description" content="استعرض أعمال OscarDevs: تطبيقات ويب طوّرناها بالكامل — OncoScan لدعم قرار الأشعة بالذكاء الاصطناعي، Sokro مساعد ذكي بالصوت، Kakeibo مدرّب مالي، وSafari Kids للأطفال." />
+<%- include('../partials/seo_meta', { title: 'من أعمالنا — تطبيقات طوّرها فريق OscarDevs', description: 'استعرض أعمال OscarDevs: تطبيقات ويب طوّرناها بالكامل — OncoScan لدعم قرار الأشعة بالذكاء الاصطناعي، Sokro مساعد ذكي بالصوت، Kakeibo مدرّب مالي، وSafari Kids للأطفال.' }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
@@ -102,6 +102,23 @@
       <p class="text-gray-600 text-sm leading-7 mb-4">
         نظام ذكاء اصطناعي تكلّمه بصوتك وينفّذ اللي عايزه: يبحث ويعملّك تقرير،
         يولّد صور، ويردّ عليك بالمصري. إنت تقول، وهو يعمل.
+      </p>
+      <span class="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
+        زيارة التطبيق <span aria-hidden="true">←</span>
+      </span>
+    </a>
+
+    <!-- OncoScan -->
+    <a href="/radiology" target="_blank" rel="noopener"
+       class="app-card block bg-white rounded-2xl shadow p-6 border border-gray-100">
+      <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
+           style="background:#E6F3FA;">🩻</div>
+      <h2 class="text-xl font-extrabold text-gray-900 mb-1">OncoScan</h2>
+      <p class="text-sm font-semibold text-sky-700 mb-3">دعم قرار للأشعة (CT/MRI) بالذكاء الاصطناعي</p>
+      <p class="text-gray-600 text-sm leading-7 mb-4">
+        منصّة للأطباء ترفع دراسات DICOM، تعرضها في المتصفح مع أدوات الإضاءة والتنقّل،
+        وتولّد تقرير منظّم ثنائي اللغة بالذكاء الاصطناعي + شات أسئلة على الدراسة —
+        <strong>أداة دعم قرار غير تشخيصية</strong>، لكل طبيب حسابه الآمن.
       </p>
       <span class="inline-flex items-center gap-1 text-indigo-700 font-bold text-sm">
         زيارة التطبيق <span aria-hidden="true">←</span>

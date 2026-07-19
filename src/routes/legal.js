@@ -204,7 +204,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع بورتفوليو أو متجر إلكتروني.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
-  lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (Safari Kids، NeuroPilot، Kakeibo، Sokro).`);
+  lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (OncoScan لدعم قرار الأشعة، Safari Kids، NeuroPilot، Kakeibo، Sokro).`);
   lines.push(`- [تواصل معنا](${SITE_ORIGIN}/contact): طرق التواصل مع الفريق.`);
   lines.push('');
   lines.push('## المدوّنة (أدلة عملية أصلية)');
