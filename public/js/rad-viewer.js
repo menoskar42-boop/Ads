@@ -199,7 +199,9 @@
             return fetchParsed(i).then(function (d) { var u = toDataURL(d); if (u) acc.push(u); return acc; });
           });
         }, Promise.resolve([]));
-      }
+      },
+      // The slice the doctor is currently looking at (for chat context).
+      captureCurrent: function () { var u = cur ? toDataURL(cur) : null; return u ? [u] : []; }
     };
   };
 })();

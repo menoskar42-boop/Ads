@@ -191,6 +191,33 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
   }
 });
 
+// Q&A over a study (phase 4). The browser sends the question + last turns + the
+// current slice image(s); we answer with the prior report as context.
+router.post('/study/:id/chat', requireDoctor, express.json({ limit: '8mb' }), async (req, res) => {
+  const studyId = parseInt(req.params.id, 10);
+  try {
+    const study = (await pool.query('SELECT * FROM rad_studies WHERE id=$1 AND doctor_id=$2', [studyId, req.session.radDoctorId])).rows[0];
+    if (!study) return res.status(404).json({ ok: false, error: 'الدراسة غير موجودة.' });
+    const prior = (await pool.query('SELECT report_text FROM rad_reports WHERE study_id=$1 ORDER BY created_at DESC LIMIT 1', [studyId])).rows[0];
+    const { chatAboutStudy } = require('../lib/rad_ai');
+    const out = await chatAboutStudy({
+      modality: study.modality,
+      context: study.clinical_context || '',
+      priorReport: prior ? prior.report_text : '',
+      history: (req.body && req.body.history) || [],
+      question: (req.body && req.body.question) || '',
+      images: (req.body && req.body.images) || [],
+    });
+    res.json({ ok: true, answer: out.text || 'مفيش إجابة، حاول تاني.' });
+  } catch (e) {
+    console.error('[rad chat]', e.status || '', e.message);
+    if (e.code === 'NO_KEY') return res.status(503).json({ ok: false, error: 'مفتاح الـAI مش متظبّط على السيرفر.' });
+    if (e.code === 'EMPTY') return res.status(400).json({ ok: false, error: 'اكتب سؤال.' });
+    if (e.status === 429) return res.status(503).json({ ok: false, error: 'الخدمة وصلت للحد دلوقتي — جرّب بعد شوية.' });
+    res.status(502).json({ ok: false, error: 'تعذّر الرد، حاول تاني.' });
+  }
+});
+
 router.post('/study/:id/delete', requireDoctor, async (req, res) => {
   try { await pool.query('DELETE FROM rad_studies WHERE id=$1 AND doctor_id=$2', [parseInt(req.params.id, 10), req.session.radDoctorId]); }
   catch (e) { console.error('[rad study del]', e.message); }

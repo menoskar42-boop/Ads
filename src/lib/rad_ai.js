@@ -68,4 +68,43 @@ async function generateReport({ modality, context, focus, images }) {
   return { text, usage, model: MODEL };
 }
 
-module.exports = { generateReport, MODEL };
+// Q&A over a study. `history` is prior [{role:'user'|'assistant', content}] text
+// turns; `images` are 1-2 current slice data URLs so spatial questions work.
+async function chatAboutStudy({ modality, context, priorReport, history, question, images }) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) { const e = new Error('OPENAI_API_KEY not configured'); e.code = 'NO_KEY'; throw e; }
+  const q = String(question || '').trim();
+  if (!q) { const e = new Error('empty'); e.code = 'EMPTY'; throw e; }
+
+  const sys = [
+    `You are a radiology DECISION-SUPPORT assistant answering a physician's question about THIS ${modality} study. You are NOT diagnosing.`,
+    `Answer ONLY from what is visible in the attached slice(s) and the prior report/context. If the question can't be answered from these, say so plainly — do not invent findings.`,
+    `Be concise. Hedge appropriately ("appears", "suggestive of") — no definitive diagnosis. Answer in English then Arabic.`,
+    context ? `Clinical context: ${context}` : ``,
+    priorReport ? `Prior AI report for this study (for reference):\n${String(priorReport).slice(0, 4000)}` : ``,
+  ].filter(Boolean).join('\n');
+
+  const messages = [{ role: 'system', content: sys }];
+  (history || []).slice(-6).forEach((m) => {
+    if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string') {
+      messages.push({ role: m.role, content: m.content });
+    }
+  });
+  const imgs = (images || []).slice(0, 2).filter((u) => typeof u === 'string' && u.startsWith('data:image'));
+  const content = [{ type: 'text', text: q }].concat(imgs.map((url) => ({ type: 'image_url', image_url: { url, detail: 'high' } })));
+  messages.push({ role: 'user', content });
+
+  const res = await fetch(`${BASE}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: MODEL, messages, max_tokens: 900, temperature: 0.2 }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const err = new Error(`OpenAI ${res.status}: ${body.slice(0, 300)}`); err.status = res.status; throw err;
+  }
+  const data = await res.json();
+  return { text: (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim() };
+}
+
+module.exports = { generateReport, chatAboutStudy, MODEL };

@@ -69,6 +69,19 @@
     <div id="radReportMsg" class="text-xs text-slate-400" style="display:none"></div>
   </div>
 
+  <!-- Study chat (phase 4) -->
+  <% if (study.num_slices > 0) { %>
+  <div class="card rounded-2xl p-5 mb-4">
+    <h2 class="font-bold text-sm mb-1">💬 اسأل عن الدراسة</h2>
+    <p class="text-[11px] text-slate-500 mb-3">بيجاوب من الشريحة اللي شايفها دلوقتي + التقرير — إجابة دعم قرار غير تشخيصية.</p>
+    <div id="radChatLog" class="space-y-2 mb-3 max-h-72 overflow-y-auto"></div>
+    <form id="radChatForm" class="flex gap-2">
+      <input id="radChatInput" placeholder="اكتب سؤالك…" class="fld rounded-xl px-3 py-2 text-sm flex-1" autocomplete="off" />
+      <button class="accent-bg font-bold px-4 rounded-xl text-sm">إرسال</button>
+    </form>
+  </div>
+  <% } %>
+
   <% if (study.num_slices > 0) { %>
   <script>
   (function(){
@@ -91,6 +104,30 @@
       }).catch(function(e){
         msg.textContent = '⚠️ ' + (e.message || 'حصل خطأ.');
       }).then(function(){ btn.disabled=false; btn.textContent='🚀 توليد تقرير'; });
+    });
+
+    // --- Study chat ---
+    var chatLog = document.getElementById('radChatLog'), chatForm = document.getElementById('radChatForm'),
+        chatInput = document.getElementById('radChatInput'), history = [];
+    function addMsg(role, text){
+      var d = document.createElement('div');
+      d.className = 'text-sm rounded-xl px-3 py-2 ' + (role==='user' ? 'bg-sky-500/10 border border-sky-500/20 text-sky-100' : 'bg-[#0b1424] border border-[#24324f] text-slate-200 whitespace-pre-line');
+      d.textContent = text; chatLog.appendChild(d); chatLog.scrollTop = chatLog.scrollHeight; return d;
+    }
+    chatForm && chatForm.addEventListener('submit', function(ev){
+      ev.preventDefault();
+      var q = (chatInput.value||'').trim(); if(!q) return;
+      chatInput.value=''; addMsg('user', q); history.push({role:'user', content:q});
+      var thinking = addMsg('assistant', '…');
+      fetch('/radiology/study/<%= study.id %>/chat', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ question:q, history:history.slice(-6), images: viewer.captureCurrent() })
+      }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+        .then(function(res){
+          var a = (res.ok && res.d.ok) ? res.d.answer : ('⚠️ ' + ((res.d && res.d.error) || 'حصل خطأ.'));
+          thinking.textContent = a;
+          if(res.ok && res.d.ok) history.push({role:'assistant', content:a});
+        }).catch(function(){ thinking.textContent = '⚠️ حصل خطأ، حاول تاني.'; });
     });
   })();
   </script>
