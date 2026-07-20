@@ -900,7 +900,7 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
     const cacheable = history.length === 0 && currentCart.length === 0;
     const cacheNs = 'food:' + company.id;
     const cacheKey = cacheable
-      ? [aiAssistant.menuSignature(outlets), lang, aiAssistant.normalizeQuestion(message)]
+      ? [aiAssistant.answerSignature(outlets), lang, aiAssistant.normalizeQuestion(message)]
       : null;
 
     // Log the turn + count it against the merchant's plan. Same for a cached or a

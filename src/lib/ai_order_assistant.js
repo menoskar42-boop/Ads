@@ -93,15 +93,25 @@ function buildMenu(outlets) {
   return { list, byId };
 }
 
-// A stable fingerprint of the VISIBLE menu (ids, names, prices). Any menu edit
-// changes it, so a cached FAQ answer keyed on it auto-invalidates and can never
-// describe a stale/removed dish or an old price.
-function menuSignature(outlets) {
+// A stable fingerprint of EVERYTHING a cached answer could depend on: the menu
+// (ids/names/prices, available items only) AND the outlet settings a customer
+// might ask about — opening/closing hours, delivery fee & time, minimum order,
+// the outlet name, and whether it's active. Any edit to any of these changes the
+// signature, so a cached FAQ answer auto-invalidates and can NEVER describe stale
+// hours, an old delivery fee, an old price, or a removed dish.
+function answerSignature(outlets) {
   const { list } = buildMenu(outlets);
-  const sig = list
+  const items = list
     .map((r) => r.id + ':' + r.price + ':' + (r.name_ar || r.name))
-    .sort()
-    .join('|');
+    .sort();
+  const settings = (outlets || [])
+    .map((o) => [
+      o.id, o.name_ar || o.name, o.is_active,
+      o.opening_time, o.closing_time,
+      o.delivery_fee, o.delivery_time_min, o.min_order,
+    ].join(':'))
+    .sort();
+  const sig = 'items:' + items.join('|') + '||outlets:' + settings.join('|');
   return crypto.createHash('sha1').update(sig).digest('hex').slice(0, 16);
 }
 
@@ -484,4 +494,4 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
   return { reply, cart, updates, checkout, tokens };
 }
 
-module.exports = { isEnabled, buildMenu, runAssistant, menuSignature, normalizeQuestion };
+module.exports = { isEnabled, buildMenu, runAssistant, answerSignature, normalizeQuestion };
