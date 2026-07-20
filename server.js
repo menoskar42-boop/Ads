@@ -75,6 +75,18 @@ app.use(async (req, res, next) => {
     .send('Safari Kids is starting up — please refresh in a moment.');
 });
 
+// ===== Co-hosted apps gateway (e.g. mybible.oscardevs.com) — host-routed =====
+// Reverse-proxies a co-hosted app's subdomain to that app running as its own
+// process on the same Reserved VM (same pattern as mykid above, but the app
+// stays a fully separate process so it runs byte-for-byte unchanged — same DB,
+// same sessions). DISABLED unless its upstream env var (MYBIBLE_UPSTREAM) is
+// set, so this is a complete no-op for the live site until we deliberately
+// enable it. Placed before all OscarDevs middleware so a co-hosted host never
+// touches OscarDevs' session/tenant/AdSense pipeline.
+const { createHostGateway } = require('./src/lib/host_gateway');
+const __hostGateway = createHostGateway();
+if (__hostGateway) app.use(__hostGateway);
+
 // ===== NeuroPilot (adhd.oscardevs.com) — ADHD focus timer, host-routed =====
 // A fully client-side focus-timer (localStorage only — no DB, no API, no
 // account). Rewritten natively for OscarDevs' stack and served as static
