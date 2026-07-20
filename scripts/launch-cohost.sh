@@ -31,7 +31,7 @@ if [ -n "${MYBIBLE_DATABASE_URL:-}" ] && [ -f mybible/dist/index.cjs ]; then
       NODE_ENV=production \
       PORT="${MYBIBLE_PORT}" \
       DATABASE_URL="${MYBIBLE_DATABASE_URL}" \
-      SESSION_SECRET="${MYBIBLE_SESSION_SECRET:?set MYBIBLE_SESSION_SECRET to mybible's own secret}" \
+      SESSION_SECRET="${MYBIBLE_SESSION_SECRET:?set MYBIBLE_SESSION_SECRET to the mybible session secret}" \
       VAPID_PUBLIC_KEY="${MYBIBLE_VAPID_PUBLIC_KEY:-${VAPID_PUBLIC_KEY:-}}" \
       VAPID_PRIVATE_KEY="${MYBIBLE_VAPID_PRIVATE_KEY:-${VAPID_PRIVATE_KEY:-}}" \
       CRON_SECRET="${MYBIBLE_CRON_SECRET:-${CRON_SECRET:-}}" \
