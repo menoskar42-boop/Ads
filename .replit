@@ -44,7 +44,7 @@ externalPort = 3000
 exposeLocalhost = true
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "gce"
 run = ["npm", "start"]
 
 [postMerge]
