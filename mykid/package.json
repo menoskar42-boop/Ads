@@ -2,5 +2,8 @@
   "name": "mykid-safari",
   "private": true,
   "type": "module",
-  "description": "Safari Kids Adventure — merged into OscarDevs, served on mykid.oscardevs.com"
+  "description": "Safari Kids Adventure — merged into OscarDevs, served on mykid.oscardevs.com",
+  "scripts": {
+    "warm-tts": "node --import ./server/_node-shim.mjs server/warm-tts.js"
+  }
 }

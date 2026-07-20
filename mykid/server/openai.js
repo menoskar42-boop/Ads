@@ -23,6 +23,13 @@ try {
   fs.mkdirSync(TTS_CACHE_DIR, { recursive: true });
 } catch (_e) {}
 
+// ملفات صوتية دائمة للجُمَل الثابتة (حروف/أرقام/كلمات/عبارات ميزو — للأولاد وللبنات).
+// تُولَّد مرّة واحدة عبر warm-tts.js وتُحفَظ داخل المستودع (git)، فتُشحَن مع كل نشر
+// ولا يُستدعى الذكاء الاصطناعي لها إطلاقاً — عكس كاش التشغيل المؤقّت (.tts-cache).
+// الوحيد المتغيّر هو اسم الطفل (يُولَّد مرّة ويُخزَّن في كاش التشغيل على الخادم).
+const TTS_PREBUILT_DIR =
+  process.env.TTS_PREBUILT_DIR || path.join(__dirname, "tts-prebuilt");
+
 // طبقة ذاكرة سريعة فوق القرص (L1) — تقلّل قراءة القرص للنصوص الشائعة
 const ttsMem = new Map();
 const TTS_MEM_MAX = 120;
@@ -35,6 +42,11 @@ function ttsCacheKey(text, voice, instructions) {
 function ttsCachePath(hash) {
   return path.join(TTS_CACHE_DIR, `${hash}.mp3`);
 }
+function ttsPrebuiltPath(hash) {
+  return path.join(TTS_PREBUILT_DIR, `${hash}.mp3`);
+}
+// Exposed so warm-tts.js generates files with the EXACT same key the server reads.
+export { ttsCacheKey, ttsPrebuiltPath, TTS_MODEL, TTS_VOICE, TTS_PREBUILT_DIR, OPENAI_BASE };
 function memSet(hash, buf) {
   if (ttsMem.size >= TTS_MEM_MAX) ttsMem.delete(ttsMem.keys().next().value);
   ttsMem.set(hash, buf);
@@ -130,16 +142,19 @@ export function registerOpenAIRoutes(app) {
       res.setHeader("X-Cache", "MEM");
       return res.send(mem);
     }
-    // 2) ملف محفوظ على القرص (دائم، مشترك بين كل الأطفال) — بلا استدعاء AI
-    try {
-      const buf = await fs.promises.readFile(filePath);
-      memSet(hash, buf);
-      res.setHeader("Content-Type", "audio/mpeg");
-      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      res.setHeader("X-Cache", "DISK");
-      return res.send(buf);
-    } catch (_e) {
-      // غير موجود → نولّده بالـ AI لأوّل (وآخر) مرّة
+    // 2) ملف محفوظ على القرص — بلا استدعاء AI. نبدأ بالملفات الدائمة المُخزَّنة في
+    //    المستودع (الجُمَل الثابتة، أولاد وبنات) ثم كاش التشغيل (أسماء الأطفال).
+    for (const p of [ttsPrebuiltPath(hash), filePath]) {
+      try {
+        const buf = await fs.promises.readFile(p);
+        memSet(hash, buf);
+        res.setHeader("Content-Type", "audio/mpeg");
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        res.setHeader("X-Cache", "DISK");
+        return res.send(buf);
+      } catch (_e) {
+        // مش موجود هنا → جرّب الموقع التالي، وإلا نولّده بالـ AI لأوّل (وآخر) مرّة
+      }
     }
 
     // التوليد يحتاج المفتاح؛ إن لم يوجد → بديل Web Speech في المتصفح

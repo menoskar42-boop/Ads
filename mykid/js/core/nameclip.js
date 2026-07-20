@@ -1,14 +1,14 @@
-// ===== مقطع نطق اسم الطفل (يُولّد مرّة ويُخزَّن في localStorage) =====
-// يحافظ على توفير الـ AI: اسم كل طفل يُنطق بمجرّد كتابته مرّة، ويُخزَّن كملف صوتي
-// (data URL) في localStorage، ثم يُستدعى محلياً بلا أي طلب AI لاحق.
+// ===== مقطع نطق اسم الطفل (الجزء الوحيد المتغيّر) =====
+// كل الجُمَل الثابتة صوتها ملفات دائمة على الخادم (tts-prebuilt). الاسم بس هو
+// اللي بيتغيّر: أوّل ما يتكتب، الخادم يولّده مرّة ويحفظه في كاش القرص عنده
+// (مشترك بين كل الأجهزة، جوّه موقعنا — مش كاش متصفّح). هنا بنحتفظ بيه في ذاكرة
+// الجلسة بس (Map) عشان ما نطلبوش تاني نفس الجلسة، بدون أي تخزين في المتصفّح.
 import { Store } from "./storage.js";
 import { isAIReady } from "./ai.js";
 import { MIZO } from "../data/mizo.js";
 
 let nameAudio = null;
-
-// v2: بلا فاصلة في آخر النص لتقليل الصمت الزائد آخر المقطع (تقليل الفجوة)
-const lsKey = (name) => "mizoNameClip:v2:" + name;
+const sessionClips = new Map(); // name -> dataUrl (ذاكرة الجلسة فقط، بلا localStorage)
 
 async function fetchNameClip(name) {
   const r = await fetch("/api/tts", {
@@ -31,21 +31,21 @@ async function fetchNameClip(name) {
 }
 
 /**
- * يشغّل مقطع اسم الطفل (من localStorage أو يولّده مرّة عند توفّر الـ AI).
+ * يشغّل مقطع اسم الطفل (من ذاكرة الجلسة أو يولّده مرّة على الخادم عند توفّر الـ AI).
  * يُرجع Promise بقيمة true إن نُطِق الاسم فعلاً، وإلا false.
  */
 export async function playChildName() {
   const name = Store.childName;
   if (!name) return false;
 
-  let dataUrl = null;
-  try { dataUrl = localStorage.getItem(lsKey(name)); } catch (e) {}
+  let dataUrl = sessionClips.get(name) || null;
 
   if (!dataUrl) {
     if (!isAIReady()) return false; // بلا AI: يُنطق الاسم inline داخل speech (Web Speech)
     try {
+      // الخادم يخدم الاسم من كاش قرصه لو اتولّد قبل كده (بلا AI)، وإلا يولّده مرّة.
       dataUrl = await fetchNameClip(name);
-      try { localStorage.setItem(lsKey(name), dataUrl); } catch (e) {}
+      sessionClips.set(name, dataUrl); // ذاكرة الجلسة فقط — مفيش تخزين في المتصفّح
     } catch (e) {
       return false;
     }
