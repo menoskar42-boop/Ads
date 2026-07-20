@@ -6,10 +6,12 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { Pool } = require('pg');
 const { loginLimiter } = require('../middleware/rateLimit');
+const aiReplyCache = require('../lib/ai_reply_cache');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -164,13 +166,33 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
   try {
     const study = (await pool.query('SELECT * FROM rad_studies WHERE id=$1 AND doctor_id=$2', [studyId, req.session.radDoctorId])).rows[0];
     if (!study) return res.status(404).json({ ok: false, error: 'الدراسة غير موجودة.' });
-    const { generateReport } = require('../lib/rad_ai');
+    const { generateReport, MODEL } = require('../lib/rad_ai');
     const focus = String((req.body && req.body.focus) || '').slice(0, 300);
+    const images = (req.body && req.body.images) || [];
+
+    // "Generate once, reuse free" — but SAFELY for radiology: the report depends
+    // entirely on the slides, so the cache key is a fingerprint of the EXACT
+    // images sent (plus modality/context/focus/model). Change any slice, the
+    // windowing, or the focus → different fingerprint → a fresh report. A cached
+    // report can therefore NEVER describe stale slides; it's reused only when the
+    // request is byte-for-byte identical (e.g. an accidental re-generate).
+    const imgFingerprint = crypto.createHash('sha256')
+      .update((Array.isArray(images) ? images : []).join(' ')).digest('hex');
+    const cacheNs = 'rad:' + studyId;
+    const cacheKey = [MODEL, study.modality, study.clinical_context || '', focus, imgFingerprint];
+
+    const hit = await aiReplyCache.get(pool, cacheNs, cacheKey);
+    if (hit && hit.reply) {
+      // Identical request → return the saved report with no model call and no
+      // duplicate DB row (the same report is already stored from last time).
+      return res.json({ ok: true, report: hit.reply, cached: true });
+    }
+
     const out = await generateReport({
       modality: study.modality,
       context: study.clinical_context || '',
       focus,
-      images: (req.body && req.body.images) || [],
+      images,
     });
     if (!out.text) return res.status(502).json({ ok: false, error: 'مرجعش تقرير، حاول تاني.' });
     // Rough cost estimate (gpt-4o pricing); best-effort only.
@@ -181,6 +203,8 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
       [studyId, out.model, focus || null, out.text, cost]
     );
     await pool.query("UPDATE rad_studies SET status='analyzed' WHERE id=$1", [studyId]).catch(() => {});
+    // Remember this exact slide-set → report so an identical re-generate is free.
+    aiReplyCache.put(pool, cacheNs, cacheKey, { reply: out.text }).catch(() => {});
     res.json({ ok: true, report: out.text });
   } catch (e) {
     console.error('[rad report]', e.status || '', e.message);
