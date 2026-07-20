@@ -7,6 +7,18 @@
 <title>أنشئ موقعك أو متجرك أو صيدليتك أو مطعمك | OscarDevs</title>
 <meta name="description" content="قدّم طلب إنشاء بورتفوليو، متجر إلكتروني، صيدلية أونلاين، أو صفحة مطاعم/طلبات مع OscarDevs — تسجيل ذاتي، تفعيل سريع، وأسعار مناسبة في مصر والعالم العربي." />
 <%- include('../partials/seo_meta', { title: 'أنشئ موقعك أو متجرك أو صيدليتك أو مطعمك | OscarDevs', description: 'قدّم طلب إنشاء بورتفوليو، متجر إلكتروني، صيدلية أونلاين، أو صفحة مطاعم/طلبات مع OscarDevs — تسجيل ذاتي، تفعيل سريع، وأسعار مناسبة في مصر والعالم العربي.', ogImage: siteOrigin + '/og-default.png' }) %>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "هل إنشاء الصفحة مجاني؟", "acceptedAnswer": { "@type": "Answer", "text": "أيوة، إنشاء الصفحة وتقديم الطلب مجاني بالكامل. الجزء المدفوع الوحيد والاختياري هو مميزات المساعد الذكي للمطاعم." } },
+    { "@type": "Question", "name": "إمتى تشتغل صفحتي بعد الطلب؟", "acceptedAnswer": { "@type": "Answer", "text": "بعد مراجعة فريقنا للطلب وتفعيل الحساب، تقدر تدخل لوحة التحكم وتبدأ إضافة محتواك فوراً، وتشتغل صفحتك على رابطك الخاص." } },
+    { "@type": "Question", "name": "أنهي أنواع المواقع اللي أقدر أطلبها؟", "acceptedAnswer": { "@type": "Answer", "text": "بورتفوليو، متجر إلكتروني، صيدلية أونلاين، صفحة مطاعم/سوبر ماركت للطلبات، إدارة عيادات، وإدارة جيم/صالة رياضية." } },
+    { "@type": "Question", "name": "الرابط بتاعي هيكون شكله إيه؟", "acceptedAnswer": { "@type": "Answer", "text": "هيكون على الاسم المختصر اللي تختاره وقت الطلب، بحروف إنجليزية صغيرة وأرقام و«-» فقط (مثال: my-store)." } }
+  ]
+}
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>* { font-family: 'Cairo', sans-serif; }</style>
@@ -126,6 +138,47 @@
       </div>
     </form>
   </div>
+
+  <!-- Unique, indexable content (SEO): the form alone was too thin for Google to index. -->
+  <section class="mt-8 bg-white rounded-2xl shadow p-6 sm:p-10">
+    <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mb-4">أنواع الصفحات اللي تقدر تطلبها</h2>
+    <div class="grid sm:grid-cols-2 gap-4 text-sm text-gray-600 leading-7">
+      <p><strong class="text-gray-900">متجر إلكتروني:</strong> متجر كامل بسلة شراء، إدارة منتجات وأقسام، كوبونات خصم، وتتبّع طلبات — جاهز تبيع بيه أونلاين.</p>
+      <p><strong class="text-gray-900">بورتفوليو:</strong> صفحة أعمال احترافية تعرض خدماتك ومشاريعك ووسائل تواصلك في تصميم نظيف وسريع.</p>
+      <p><strong class="text-gray-900">صيدلية أونلاين:</strong> كتالوج أدوية ومنتجات، سلة طلب، وإدارة مخزون — مع صفحة لتتبّع الطلب.</p>
+      <p><strong class="text-gray-900">مطاعم / سوبر ماركت (طلبات):</strong> منيو رقمي وطلب أونلاين، مع مساعد ذكي اختياري يستقبل الطلب بالمحادثة.</p>
+      <p><strong class="text-gray-900">عيادة / إدارة عيادات:</strong> حجز مواعيد، ملفات المرضى، وإدارة الأطباء والخدمات من لوحة واحدة.</p>
+      <p><strong class="text-gray-900">جيم / صالة رياضية:</strong> اشتراكات، حجز حصص، ومتابعة الأعضاء والحضور.</p>
+    </div>
+
+    <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mt-8 mb-4">إزاي بيشتغل؟</h2>
+    <ol class="list-decimal pr-5 space-y-2 text-sm text-gray-600 leading-7">
+      <li>قدّم الطلب من الفورم فوق، واختَر نوع صفحتك والاسم المختصر للرابط.</li>
+      <li>فريقنا يراجع طلبك ويفعّل حسابك.</li>
+      <li>تدخل لوحة التحكم وتضيف محتواك بنفسك (منتجات، خدمات، أو منيو).</li>
+      <li>صفحتك تشتغل على رابطك الخاص، جاهزة لعملائك.</li>
+    </ol>
+
+    <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mt-8 mb-4">أسئلة شائعة</h2>
+    <div class="space-y-4 text-sm">
+      <div>
+        <h3 class="font-bold text-gray-900 mb-1">هل إنشاء الصفحة مجاني؟</h3>
+        <p class="text-gray-600 leading-7">أيوة، إنشاء الصفحة وتقديم الطلب مجاني بالكامل. الجزء المدفوع الوحيد والاختياري هو مميزات المساعد الذكي للمطاعم.</p>
+      </div>
+      <div>
+        <h3 class="font-bold text-gray-900 mb-1">إمتى تشتغل صفحتي بعد الطلب؟</h3>
+        <p class="text-gray-600 leading-7">بعد مراجعة فريقنا للطلب وتفعيل الحساب، تقدر تدخل لوحة التحكم وتبدأ إضافة محتواك فوراً، وتشتغل صفحتك على رابطك الخاص.</p>
+      </div>
+      <div>
+        <h3 class="font-bold text-gray-900 mb-1">أنهي أنواع المواقع اللي أقدر أطلبها؟</h3>
+        <p class="text-gray-600 leading-7">بورتفوليو، متجر إلكتروني، صيدلية أونلاين، صفحة مطاعم/سوبر ماركت للطلبات، إدارة عيادات، وإدارة جيم/صالة رياضية.</p>
+      </div>
+      <div>
+        <h3 class="font-bold text-gray-900 mb-1">الرابط بتاعي هيكون شكله إيه؟</h3>
+        <p class="text-gray-600 leading-7">هيكون على الاسم المختصر اللي تختاره وقت الطلب، بحروف إنجليزية صغيرة وأرقام و«-» فقط (مثال: my-store).</p>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script>
