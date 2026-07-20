@@ -32,11 +32,10 @@ npm install && (cd mybible && npm install && npm run build)
 (بيبني `mybible/dist/index.cjs` + أصول الواجهة.)
 
 ## أمر التشغيل (Run) على الـVM
-```bash
-bash scripts/launch-cohost.sh
-```
-بيشغّل الكتاب المقدس (5001) في الخلفية ثم أوسكار ديفز (المقدمة). لو `MYBIBLE_DATABASE_URL`
-مش مضبوط → بيشغّل أوسكار ديفز لوحده (آمن).
+**مش محتاج تغيير** — سيبه `node server.js`. السيرفر بيشغّل الكتاب المقدس تلقائياً
+لما `MYBIBLE_UPSTREAM` + `MYBIBLE_DATABASE_URL` يكونوا مضبوطين والبناء موجود، وإلا
+بيشغّل أوسكار ديفز لوحده (آمن). (سكربت `scripts/launch-cohost.sh` متاح كبديل لو
+حبيت تشغّلهم بعمليتين منفصلتين.)
 
 ## ترتيب التحويل الآمن
 1. اضبط المتغيّرات + Build + شغّل بالـlauncher.

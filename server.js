@@ -1058,6 +1058,37 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
 });
 
+// ===== Co-hosted mybible: auto-launch on the same VM =====
+// When MYBIBLE_UPSTREAM + MYBIBLE_DATABASE_URL are set and the built app exists,
+// start mybible as a child process on its internal port, with ITS OWN database
+// and session secret (passed explicitly so they don't collide with OscarDevs').
+// The host gateway then proxies mybible.oscardevs.com to it. INERT otherwise, so
+// the deploy's Run command can stay `node server.js` — no separate launcher.
+if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
+  const mybibleDist = path.join(__dirname, 'mybible', 'dist', 'index.cjs');
+  if (fs.existsSync(mybibleDist)) {
+    const mbPort = process.env.MYBIBLE_PORT || '5001';
+    const child = require('child_process').spawn(process.execPath, [mybibleDist], {
+      cwd: path.join(__dirname, 'mybible'),
+      stdio: 'inherit',
+      env: Object.assign({}, process.env, {
+        NODE_ENV: 'production',
+        PORT: mbPort,
+        // mybible MUST use its own DB + secret (keeps the members logged in):
+        DATABASE_URL: process.env.MYBIBLE_DATABASE_URL,
+        SESSION_SECRET: process.env.MYBIBLE_SESSION_SECRET || process.env.SESSION_SECRET,
+        VAPID_PUBLIC_KEY: process.env.MYBIBLE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || '',
+        VAPID_PRIVATE_KEY: process.env.MYBIBLE_VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY || '',
+        CRON_SECRET: process.env.MYBIBLE_CRON_SECRET || process.env.CRON_SECRET || '',
+      }),
+    });
+    child.on('exit', (code) => console.error('[co-host] mybible process exited, code', code));
+    console.log('🕮 Co-hosted mybible launched on 127.0.0.1:' + mbPort);
+  } else {
+    console.warn('[co-host] MYBIBLE_UPSTREAM set but mybible/dist/index.cjs missing — build mybible first');
+  }
+}
+
 // Run schema migration in background — does not block startup.
 // After the core tables are ready, ensure the pharmacy module's tables and
 // demo pharmacy exist (additive, idempotent — safe on every boot).
