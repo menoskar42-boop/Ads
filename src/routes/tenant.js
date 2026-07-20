@@ -8,6 +8,7 @@ const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
 const deals = require('../lib/deals');
 const aiAssistant = require('../lib/ai_order_assistant');
+const aiReplyCache = require('../lib/ai_reply_cache');
 const { loadPaymentMethods } = require('../lib/payment_methods');
 const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/gateways');
 const paymob = require('../lib/gateways/paymob');
@@ -890,18 +891,51 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
       o.items = (await pool.query('SELECT * FROM food_items WHERE outlet_id = $1 AND is_available = true ORDER BY sort_order, id', [o.id])).rows;
     }
 
+    // "Generate once, reuse for free" — the Safari (mykid) trick, applied here
+    // per-restaurant. We only cache STATELESS opening questions (no cart, no
+    // prior history): the repeated FAQ-type messages many different customers
+    // send fresh ("مواعيدكم إيه؟"، "بتوصلوا فين؟"، "فيه صيامي؟"). Anything that
+    // depends on the cart/conversation always runs live. The menu fingerprint is
+    // part of the key, so a cached answer auto-invalidates when the menu changes.
+    const cacheable = history.length === 0 && currentCart.length === 0;
+    const cacheNs = 'food:' + company.id;
+    const cacheKey = cacheable
+      ? [aiAssistant.menuSignature(outlets), lang, aiAssistant.normalizeQuestion(message)]
+      : null;
+
+    // Log the turn + count it against the merchant's plan. Same for a cached or a
+    // live answer — the customer still got an AI reply; only the Groq cost is saved.
+    const logTurn = async (reply, tokens) => {
+      try {
+        await pool.query('INSERT INTO food_ai_messages (company_id, role, content, tokens) VALUES ($1,$2,$3,$4)', [company.id, 'user', message, 0]);
+        await pool.query('INSERT INTO food_ai_messages (company_id, role, content, tokens) VALUES ($1,$2,$3,$4)', [company.id, 'assistant', reply, tokens || 0]);
+        await pool.query('UPDATE food_ai_subscriptions SET used_this_period = used_this_period + 1 WHERE company_id = $1', [company.id]);
+      } catch (e) { console.error('[ai log]', e.message); }
+    };
+
+    // Cache hit → serve the saved reply with NO model call (the whole saving).
+    if (cacheKey) {
+      const hit = await aiReplyCache.get(pool, cacheNs, cacheKey);
+      if (hit && hit.reply) {
+        await logTurn(hit.reply, 0);
+        return res.json({ ok: true, reply: hit.reply, cart: [], updates: [], checkout: false, cached: true });
+      }
+    }
+
     const out = await aiAssistant.runAssistant({
       outlets, history, message, lang, currentCart,
       cur: (res.locals.t ? res.locals.t('pharmacy.currency') : 'ج.م'),
       merchantName: company.company_name || company.slug,
     });
 
-    // Cost tracking + quota accounting.
-    try {
-      await pool.query('INSERT INTO food_ai_messages (company_id, role, content, tokens) VALUES ($1,$2,$3,$4)', [company.id, 'user', message, 0]);
-      await pool.query('INSERT INTO food_ai_messages (company_id, role, content, tokens) VALUES ($1,$2,$3,$4)', [company.id, 'assistant', out.reply, out.tokens || 0]);
-      await pool.query('UPDATE food_ai_subscriptions SET used_this_period = used_this_period + 1 WHERE company_id = $1', [company.id]);
-    } catch (e) { console.error('[ai log]', e.message); }
+    await logTurn(out.reply, out.tokens || 0);
+
+    // Store only "pure answer" turns — ones that produced NO cart mutation — so a
+    // cached reply is always safe to replay verbatim for the next customer. An
+    // order-building turn (add_to_cart / update_cart / checkout) is never cached.
+    if (cacheKey && out.reply && !out.cart.length && !(out.updates || []).length && !out.checkout) {
+      aiReplyCache.put(pool, cacheNs, cacheKey, { reply: out.reply }).catch(() => {});
+    }
 
     res.json({ ok: true, reply: out.reply, cart: out.cart, updates: out.updates || [], checkout: !!out.checkout });
   } catch (e) {

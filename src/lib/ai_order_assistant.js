@@ -11,6 +11,8 @@
 // Groq speaks the OpenAI chat-completions dialect, so we call it with global
 // fetch (Node 18+) — no SDK dependency.
 
+const crypto = require('crypto');
+
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 // A strong, tool-capable, Arabic-fluent default. Override with GROQ_MODEL.
 const DEFAULT_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
@@ -89,6 +91,33 @@ function buildMenu(outlets) {
     });
   });
   return { list, byId };
+}
+
+// A stable fingerprint of the VISIBLE menu (ids, names, prices). Any menu edit
+// changes it, so a cached FAQ answer keyed on it auto-invalidates and can never
+// describe a stale/removed dish or an old price.
+function menuSignature(outlets) {
+  const { list } = buildMenu(outlets);
+  const sig = list
+    .map((r) => r.id + ':' + r.price + ':' + (r.name_ar || r.name))
+    .sort()
+    .join('|');
+  return crypto.createHash('sha1').update(sig).digest('hex').slice(0, 16);
+}
+
+// Normalize a customer question so trivial variants collapse to one cache entry
+// ("بتوصلوا فين؟" == "بتوصلوا فين" == "بتوصلو فين"): lowercase, strip Arabic
+// diacritics/tatweel, unify alef/ya/ta-marbuta, drop punctuation & emoji.
+function normalizeQuestion(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[ً-ْٰـ]/g, '') // harakat + superscript alef + tatweel
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')           // punctuation / emoji → space
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function menuAsText(list, cur) {
@@ -455,4 +484,4 @@ async function runAssistant({ outlets, history, message, lang, cur, merchantName
   return { reply, cart, updates, checkout, tokens };
 }
 
-module.exports = { isEnabled, buildMenu, runAssistant };
+module.exports = { isEnabled, buildMenu, runAssistant, menuSignature, normalizeQuestion };
