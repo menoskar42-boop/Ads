@@ -25,7 +25,7 @@
 | `MYBIBLE_UPSTREAM` | `http://127.0.0.1:5001` | بيشغّل البوّاب |
 | `MYBIBLE_DATABASE_URL` | رابط Neon بتاع الكتاب المقدس | نفس القاعدة الحالية |
 | `MYBIBLE_SESSION_SECRET` | **سرّ الكتاب المقدس نفسه** (مش بتاع أوسكار ديفز!) | لو غلط → الـ700 يتسجّل خروجهم |
-| `MYBIBLE_VAPID_PUBLIC_KEY`/`_PRIVATE_KEY` | مفاتيح إشعارات الكتاب المقدس | اختياري |
+| `MYBIBLE_VAPID_PUBLIC_KEY`/`_PRIVATE_KEY` | **مفاتيح VAPID بتاعت الكتاب المقدس نفسه** | **مطلوب لو عايز الإشعارات تفضل شغّالة للـ700** — لو غلط/فاضي، اشتراكاتهم القديمة الإشعار ليها يفشل. **متستخدمش مفاتيح أوسكار ديفز.** |
 
 Build command: `npm install && (cd mybible && npm install && npm run build)`
 

@@ -1077,8 +1077,13 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
         // mybible MUST use its own DB + secret (keeps the members logged in):
         DATABASE_URL: process.env.MYBIBLE_DATABASE_URL,
         SESSION_SECRET: process.env.MYBIBLE_SESSION_SECRET || process.env.SESSION_SECRET,
-        VAPID_PUBLIC_KEY: process.env.MYBIBLE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || '',
-        VAPID_PRIVATE_KEY: process.env.MYBIBLE_VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY || '',
+        // mybible MUST use its OWN VAPID keys so the members' existing push
+        // subscriptions keep working. We deliberately do NOT fall back to
+        // OscarDevs' VAPID — empty (push disabled) is safer than wrong keys
+        // (which would silently fail to deliver to the 700 subscribers).
+        VAPID_PUBLIC_KEY: process.env.MYBIBLE_VAPID_PUBLIC_KEY || '',
+        VAPID_PRIVATE_KEY: process.env.MYBIBLE_VAPID_PRIVATE_KEY || '',
+        VAPID_EMAIL: process.env.MYBIBLE_VAPID_EMAIL || '',
         CRON_SECRET: process.env.MYBIBLE_CRON_SECRET || process.env.CRON_SECRET || '',
       }),
     });
