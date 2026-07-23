@@ -19,6 +19,7 @@ router.get('/', (req, res) => {
     contactError: req.query.error || null,
     showAds: true, // marketing homepage is content
     latestArticles: LATEST_ARTICLES,
+    ogImage: res.locals.siteOrigin + '/og-default.png',
   });
 });
 

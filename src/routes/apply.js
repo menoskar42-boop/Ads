@@ -21,6 +21,7 @@ router.get('/apply', (req, res) => {
     error: null,
     values: preType ? { business_type: preType } : {},
     termsVersion: TERMS_VERSION,
+    ogImage: res.locals.siteOrigin + '/og-default.png',
   });
 });
 
