@@ -1068,26 +1068,53 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
   const mybibleDist = path.join(__dirname, 'mybible', 'dist', 'index.cjs');
   if (fs.existsSync(mybibleDist)) {
     const mbPort = process.env.MYBIBLE_PORT || '5001';
-    const child = require('child_process').spawn(process.execPath, [mybibleDist], {
-      cwd: path.join(__dirname, 'mybible'),
-      stdio: 'inherit',
-      env: Object.assign({}, process.env, {
-        NODE_ENV: 'production',
-        PORT: mbPort,
-        // mybible MUST use its own DB + secret (keeps the members logged in):
-        DATABASE_URL: process.env.MYBIBLE_DATABASE_URL,
-        SESSION_SECRET: process.env.MYBIBLE_SESSION_SECRET || process.env.SESSION_SECRET,
-        // mybible MUST use its OWN VAPID keys so the members' existing push
-        // subscriptions keep working. We deliberately do NOT fall back to
-        // OscarDevs' VAPID — empty (push disabled) is safer than wrong keys
-        // (which would silently fail to deliver to the 700 subscribers).
-        VAPID_PUBLIC_KEY: process.env.MYBIBLE_VAPID_PUBLIC_KEY || '',
-        VAPID_PRIVATE_KEY: process.env.MYBIBLE_VAPID_PRIVATE_KEY || '',
-        VAPID_EMAIL: process.env.MYBIBLE_VAPID_EMAIL || '',
-        CRON_SECRET: process.env.MYBIBLE_CRON_SECRET || process.env.CRON_SECRET || '',
-      }),
+    const mybibleEnv = Object.assign({}, process.env, {
+      NODE_ENV: 'production',
+      PORT: mbPort,
+      // mybible MUST use its own DB + secret (keeps the members logged in):
+      DATABASE_URL: process.env.MYBIBLE_DATABASE_URL,
+      SESSION_SECRET: process.env.MYBIBLE_SESSION_SECRET || process.env.SESSION_SECRET,
+      // mybible MUST use its OWN VAPID keys so the members' existing push
+      // subscriptions keep working. We deliberately do NOT fall back to
+      // OscarDevs' VAPID — empty (push disabled) is safer than wrong keys
+      // (which would silently fail to deliver to the 700 subscribers).
+      VAPID_PUBLIC_KEY: process.env.MYBIBLE_VAPID_PUBLIC_KEY || '',
+      VAPID_PRIVATE_KEY: process.env.MYBIBLE_VAPID_PRIVATE_KEY || '',
+      VAPID_EMAIL: process.env.MYBIBLE_VAPID_EMAIL || '',
+      CRON_SECRET: process.env.MYBIBLE_CRON_SECRET || process.env.CRON_SECRET || '',
     });
-    child.on('exit', (code) => console.error('[co-host] mybible process exited, code', code));
+
+    // Keep mybible alive: if the child dies (crash, OOM, VM hiccup) restart it
+    // automatically instead of leaving a 502 for the members. Exponential
+    // backoff (1s→30s max) guards against a tight crash-loop; a child that
+    // stayed up healthy for >60s resets the backoff so transient crashes don't
+    // accumulate delay. `mbShuttingDown` prevents restarts during a clean exit.
+    let mbRestarts = 0;
+    let mbShuttingDown = false;
+    let mbChild = null;
+    const launchMybible = () => {
+      const startedAt = Date.now();
+      mbChild = require('child_process').spawn(process.execPath, [mybibleDist], {
+        cwd: path.join(__dirname, 'mybible'),
+        stdio: 'inherit',
+        env: mybibleEnv,
+      });
+      mbChild.on('exit', (code, signal) => {
+        if (mbShuttingDown) return;
+        if (Date.now() - startedAt > 60000) mbRestarts = 0; // ran healthy → fresh count
+        const delay = Math.min(30000, 1000 * Math.pow(2, mbRestarts));
+        mbRestarts += 1;
+        console.error(`[co-host] mybible exited (code=${code} signal=${signal}) — restarting in ${delay}ms (attempt ${mbRestarts})`);
+        setTimeout(launchMybible, delay);
+      });
+      mbChild.on('error', (err) => console.error('[co-host] mybible spawn error:', err));
+    };
+    // On a clean OscarDevs shutdown, take mybible down with it (no restart).
+    const mbShutdown = () => { mbShuttingDown = true; if (mbChild) { try { mbChild.kill(); } catch (_) {} } };
+    process.once('SIGTERM', mbShutdown);
+    process.once('SIGINT', mbShutdown);
+
+    launchMybible();
     console.log('🕮 Co-hosted mybible launched on 127.0.0.1:' + mbPort);
   } else {
     console.warn('[co-host] MYBIBLE_UPSTREAM set but mybible/dist/index.cjs missing — build mybible first');
