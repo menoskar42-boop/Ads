@@ -49,6 +49,10 @@ exposeLocalhost = true
 
 [deployment]
 deploymentTarget = "autoscale"
+# Build BOTH apps at deploy time. Without this, mybible/dist is never rebuilt and
+# the deploy ships a stale bundle (old lecture data, missing fixes). The mybible
+# build script rm's dist first, so this always produces a fresh frontend+server.
+build = ["sh", "-c", "npm install && (cd mybible && npm install && npm run build)"]
 run = ["npm", "start"]
 
 [postMerge]
