@@ -10,6 +10,8 @@ import {
 import crypto from "crypto";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+// Swallow idle-client errors (Neon auto-suspend) so they don't crash the process.
+pool.on('error', (err) => console.error('[pg] group-routes idle client error (recovered):', err.message));
 const db = drizzle(pool);
 
 function generateCode(): string {

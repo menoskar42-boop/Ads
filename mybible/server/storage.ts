@@ -198,6 +198,11 @@ export class DatabaseStorage implements IStorage {
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
     });
+    // Neon suspends idle compute and kills open connections ("terminating
+    // connection due to administrator command"). pg.Pool emits that as an
+    // 'error' event; with no handler Node treats it as uncaught and crashes
+    // the whole process. Swallow it — the pool re-connects on the next query.
+    pool.on('error', (err) => console.error('[pg] idle client error (recovered):', err.message));
     this.db = drizzle(pool, { schema });
   }
 

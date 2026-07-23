@@ -7,6 +7,8 @@ import {
 } from "@shared/schema";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+// Swallow idle-client errors (Neon auto-suspend) so they don't crash the process.
+pool.on('error', (err) => console.error('[pg] challenge-routes idle client error (recovered):', err.message));
 const db = drizzle(pool);
 
 const ADMIN_PHONE = process.env.ADMIN_PHONE || '01552406406';

@@ -4,6 +4,9 @@ import pg from "pg";
 import { storage } from "./storage";
 
 const pgPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+// A Neon idle-connection kill must not crash the process (unhandled 'error'
+// event) — otherwise the daily 6 AM cron dies with it. Pool re-connects on use.
+pgPool.on('error', (err) => console.error('[pg] push idle client error (recovered):', err.message));
 
 const NOTIF_DATE_KEY = "last_daily_notif_date";
 

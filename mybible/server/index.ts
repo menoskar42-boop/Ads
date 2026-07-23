@@ -34,6 +34,9 @@ const PgSession = connectPgSimple(session);
 const pgPool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
+// Prevent an idle-connection termination (Neon auto-suspend) from crashing the
+// process via an unhandled 'error' event — the pool re-connects on next use.
+pgPool.on('error', (err) => console.error('[pg] session-store idle client error (recovered):', err.message));
 
 app.use(
   session({
