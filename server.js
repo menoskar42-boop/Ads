@@ -1068,6 +1068,14 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
   const mybibleDist = path.join(__dirname, 'mybible', 'dist', 'index.cjs');
   if (fs.existsSync(mybibleDist)) {
     const mbPort = process.env.MYBIBLE_PORT || '5001';
+    // Shared secret for the internal daily-push trigger. mybible's
+    // /api/push/trigger-daily rejects requests without it, so when the owner
+    // hasn't set one we mint a random per-boot secret and hand it to the child —
+    // the endpoint stays closed to the outside, but OscarDevs can always call it
+    // with zero configuration.
+    const mbCronSecret = process.env.MYBIBLE_CRON_SECRET
+      || process.env.CRON_SECRET
+      || require('crypto').randomBytes(24).toString('hex');
     const mybibleEnv = Object.assign({}, process.env, {
       NODE_ENV: 'production',
       PORT: mbPort,
@@ -1081,7 +1089,7 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
       VAPID_PUBLIC_KEY: process.env.MYBIBLE_VAPID_PUBLIC_KEY || '',
       VAPID_PRIVATE_KEY: process.env.MYBIBLE_VAPID_PRIVATE_KEY || '',
       VAPID_EMAIL: process.env.MYBIBLE_VAPID_EMAIL || '',
-      CRON_SECRET: process.env.MYBIBLE_CRON_SECRET || process.env.CRON_SECRET || '',
+      CRON_SECRET: mbCronSecret,
     });
 
     // Keep mybible alive: if the child dies (crash, OOM, VM hiccup) restart it
@@ -1116,6 +1124,33 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
 
     launchMybible();
     console.log('🕮 Co-hosted mybible launched on 127.0.0.1:' + mbPort);
+
+    // ── Daily verse push: drive it from THIS (always-alive) process ──────────
+    // mybible schedules its own 6 AM cron internally, but that timer dies with
+    // the child — a crash/restart anywhere before 06:00 silently skips the day
+    // (exactly what happened when Neon's idle-suspend killed it at 02:48).
+    // NeuroPilot solves this with an external trigger; here the parent plays
+    // that role: every 30 min inside the 06:00–07:59 Cairo window we POST to
+    // mybible's trigger endpoint. Its `last_daily_notif_date` DB guard makes
+    // repeat calls a no-op, so this can only ever add a missed send, never a
+    // duplicate one.
+    setInterval(() => {
+      try {
+        const h = Number(new Date().toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Africa/Cairo' }));
+        if (h !== 6 && h !== 7) return;
+        const url = String(process.env.MYBIBLE_UPSTREAM).replace(/\/+$/, '') + '/api/push/trigger-daily';
+        fetch(url, {
+          method: 'POST',
+          headers: { 'x-cron-secret': mbCronSecret, 'content-type': 'application/json' },
+          body: '{}',
+          signal: AbortSignal.timeout(20000),
+        })
+          .then((r) => r.ok
+            ? console.log('[co-host] mybible daily push trigger ok')
+            : console.error('[co-host] mybible daily push trigger failed, status', r.status))
+          .catch((err) => console.error('[co-host] mybible daily push trigger error:', err.message));
+      } catch (e) { /* never let the timer throw */ }
+    }, 30 * 60 * 1000).unref();
   } else {
     console.warn('[co-host] MYBIBLE_UPSTREAM set but mybible/dist/index.cjs missing — build mybible first');
   }

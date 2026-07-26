@@ -14,7 +14,7 @@ import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
 import { fetchTodaySynaxarium } from "./orthodox-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
-import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification } from "./push-notifications";
+import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification } from "./push-notifications";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1223,7 +1223,11 @@ ${excludedStr}
       return res.status(401).json({ message: 'Unauthorized' });
     }
     try {
+      // Send both dailies, matching the internal 6 AM cron — otherwise a day
+      // driven by the external trigger would silently drop the group reading.
+      // Both are date-guarded in app_settings, so repeat calls are no-ops.
       await sendDailyVerseNotification();
+      await sendDailyGroupReadingNotification();
       res.json({ success: true, time: new Date().toISOString() });
     } catch {
       res.status(500).json({ message: 'Failed to send daily notification' });
