@@ -1235,12 +1235,24 @@ ${excludedStr}
   });
 
   // حالة الإشعارات — تشخيص سريع
+  // يجيب على 3 أسئلة: هل المفاتيح مضبوطة؟ هل المُشغّل اليومي اشتغل النهاردة؟
+  // وهل مفتاح VAPID هنا هو نفسه اللي على النشر القديم (لو مختلف → كل الإرسال يفشل).
   app.get('/api/push/status', async (_req, res) => {
     try {
       const subs = await storage.getAllPushSubscriptions();
+      const pub = (process.env.VAPID_PUBLIC_KEY || '').trim().replace(/\s+/g, '').replace(/=+$/, '');
+      const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+      const lastDailySent = await storage.getAppSetting('last_daily_notif_date').catch(() => null);
+      const lastGroupSent = await storage.getAppSetting('last_group_reading_notif_date').catch(() => null);
       res.json({
         vapidConfigured: !!process.env.VAPID_PUBLIC_KEY,
         activeSubscriptions: subs.length,
+        // بصمة المفتاح العام — قارنها بين الموقعين؛ لازم تتطابق حرفياً
+        vapidKeyFingerprint: pub ? `${pub.slice(0, 6)}…${pub.slice(-6)} (len ${pub.length})` : null,
+        todayCairo,
+        lastDailySent,
+        lastGroupSent,
+        dailyRanToday: lastDailySent === todayCairo,
       });
     } catch {
       res.status(500).json({ message: 'Status check failed' });
