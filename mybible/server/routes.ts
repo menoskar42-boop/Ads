@@ -1244,6 +1244,7 @@ ${excludedStr}
       const todayCairo = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
       const lastDailySent = await storage.getAppSetting('last_daily_notif_date').catch(() => null);
       const lastGroupSent = await storage.getAppSetting('last_group_reading_notif_date').catch(() => null);
+      const lastDailyResult = await storage.getAppSetting('last_daily_notif_result').catch(() => null);
       res.json({
         vapidConfigured: !!process.env.VAPID_PUBLIC_KEY,
         activeSubscriptions: subs.length,
@@ -1253,6 +1254,8 @@ ${excludedStr}
         lastDailySent,
         lastGroupSent,
         dailyRanToday: lastDailySent === todayCairo,
+        // ما حصل فعلاً في آخر إرسال يومي (sent/errors أو سبب التوقف)
+        lastDailyResult,
       });
     } catch {
       res.status(500).json({ message: 'Status check failed' });

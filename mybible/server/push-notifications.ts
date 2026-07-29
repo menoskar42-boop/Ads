@@ -9,6 +9,9 @@ const pgPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 pgPool.on('error', (err) => console.error('[pg] push idle client error (recovered):', err.message));
 
 const NOTIF_DATE_KEY = "last_daily_notif_date";
+// Records what actually happened on the last daily run (sent/expired/errors, or
+// why it bailed). The date guard alone only proves the run started.
+const LAST_RESULT_KEY = "last_daily_notif_result";
 
 // Returns today's date in Cairo timezone as "YYYY-MM-DD"
 function getCairoDateString(): string {
@@ -87,17 +90,21 @@ export async function sendDailyVerseNotification() {
       return;
     }
 
-    // ── Mark as sent in DB BEFORE sending (prevents duplicate on partial failure) ──
-    await storage.setAppSetting(NOTIF_DATE_KEY, today);
-
+    // Resolve the verse BEFORE claiming the day. Marking first meant that a
+    // missing calendar entry burned the guard: the day was recorded as "sent"
+    // and every later retry skipped it, so nothing ever went out.
     const month = new Date().getMonth() + 1;
     const day   = new Date().getDate();
 
     const calVerse = await storage.getCalendarDailyVerse(month, day);
     if (!calVerse) {
-      console.warn(`[push] No calendar verse for ${month}/${day} — notification skipped`);
+      console.warn(`[push] No calendar verse for ${month}/${day} — notification skipped (guard left open for retry)`);
+      await storage.setAppSetting(LAST_RESULT_KEY, `${today} no-calendar-verse ${month}/${day}`).catch(() => {});
       return;
     }
+
+    // ── Claim the day BEFORE sending (prevents duplicate on partial failure) ──
+    await storage.setAppSetting(NOTIF_DATE_KEY, today);
     const refParts = calVerse.verseReference.match(/^(.+?)\s*(\d+):(\d+)$/);
     const bookName = refParts ? refParts[1].trim() : calVerse.verseReference;
     const chapter  = refParts ? parseInt(refParts[2]) : 1;
@@ -109,6 +116,7 @@ export async function sendDailyVerseNotification() {
     const subscriptions = await storage.getAllPushSubscriptions();
     if (subscriptions.length === 0) {
       console.log("[push] No active subscriptions");
+      await storage.setAppSetting(LAST_RESULT_KEY, `${today} no-subscriptions`).catch(() => {});
       return;
     }
 
@@ -129,6 +137,10 @@ export async function sendDailyVerseNotification() {
     }));
 
     console.log(`[push] Daily verse sent=${sent} expired_removed=${expired} errors=${errors} total=${subscriptions.length} date=${today}`);
+    await storage.setAppSetting(
+      LAST_RESULT_KEY,
+      `${today} sent=${sent} expired=${expired} errors=${errors} total=${subscriptions.length}`,
+    ).catch(() => {});
   } catch (err) {
     console.error("[push] Error sending daily verse notification:", err);
   } finally {
