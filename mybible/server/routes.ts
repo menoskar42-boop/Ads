@@ -14,7 +14,7 @@ import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
 import { fetchTodaySynaxarium } from "./orthodox-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
-import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification } from "./push-notifications";
+import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification, getLastSendError } from "./push-notifications";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -1245,6 +1245,14 @@ ${excludedStr}
       const lastDailySent = await storage.getAppSetting('last_daily_notif_date').catch(() => null);
       const lastGroupSent = await storage.getAppSetting('last_group_reading_notif_date').catch(() => null);
       const lastDailyResult = await storage.getAppSetting('last_daily_notif_result').catch(() => null);
+      // توزيع الاشتراكات حسب خدمة الدفع (آبل/جوجل/موزيلا) — لو كل اشتراكات آبل
+      // بتفشل وحدها، المشكلة في قبول آبل للـVAPID مش في المفاتيح نفسها.
+      const byHost: Record<string, number> = {};
+      for (const s of subs) {
+        let h = '?';
+        try { h = new URL(s.endpoint).host; } catch { /* keep '?' */ }
+        byHost[h] = (byHost[h] || 0) + 1;
+      }
       res.json({
         vapidConfigured: !!process.env.VAPID_PUBLIC_KEY,
         activeSubscriptions: subs.length,
@@ -1256,6 +1264,9 @@ ${excludedStr}
         dailyRanToday: lastDailySent === todayCairo,
         // ما حصل فعلاً في آخر إرسال يومي (sent/errors أو سبب التوقف)
         lastDailyResult,
+        subscriptionsByHost: byHost,
+        lastSendError: getLastSendError(),
+        vapidSubject: process.env.VAPID_EMAIL || 'mailto:contact@oscardevs.com',
       });
     } catch {
       res.status(500).json({ message: 'Status check failed' });

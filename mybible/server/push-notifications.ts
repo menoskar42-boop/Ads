@@ -22,6 +22,14 @@ function getCairoDateString(): string {
   return parts;
 }
 
+// Last rejection from a push service, surfaced on /api/push/status. A single
+// failing device (e.g. one Apple endpoint refusing the VAPID JWT) is invisible
+// in the sent/total counts, and hunting for it in deploy logs is slow.
+let lastSendError: string | null = null;
+export function getLastSendError(): string | null {
+  return lastSendError;
+}
+
 // ── helper: send one push notification ───────────────────────────────────────
 async function sendOne(
   sub: { endpoint: string; p256dh: string; auth: string },
@@ -37,7 +45,9 @@ async function sendOne(
     const code = (err as { statusCode?: number })?.statusCode;
     const body = (err as { body?: string })?.body;
     if (code === 410 || code === 404) return 'expired';
+    const host = (() => { try { return new URL(sub.endpoint).host; } catch { return '?'; } })();
     console.error('[push] SEND FAILED — code:', code, '— body:', body, '— endpoint:', sub.endpoint.slice(-40));
+    lastSendError = `code=${code} host=${host} body=${String(body || '').slice(0, 200)}`;
     return 'error';
   }
 }
