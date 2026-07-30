@@ -171,18 +171,52 @@ self.addEventListener('fetch', function(event) {
 
 // ─── Push notifications ──────────────────────────────────────────────────────
 self.addEventListener('push', function(event) {
-  if (!event.data) return;
-  const data = event.data.json();
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
+  // Returning without showing anything (or throwing on a bad payload) makes the
+  // browser fall back to its own generic notice — on iOS that renders as just
+  // the app name with no verse. Always end up calling showNotification.
+  event.waitUntil((async function () {
+    var data = null;
+
+    if (event.data) {
+      try {
+        data = event.data.json();
+      } catch (e) {
+        try {
+          var raw = event.data.text();
+          if (raw) data = { body: raw };
+        } catch (e2) { /* unreadable payload — handled below */ }
+      }
+    }
+
+    // Payload missing or unreadable: fetch today's verse so the member still
+    // gets the actual content instead of a bare app name.
+    if (!data || (!data.title && !data.body)) {
+      try {
+        var res = await fetch('/api/daily-verse', { cache: 'no-store' });
+        var dv = res.ok ? await res.json() : null;
+        if (dv && dv.verse && dv.verse.text) {
+          var ref = (dv.book && dv.book.name ? dv.book.name + ' ' : '') + dv.verse.chapter + ':' + dv.verse.verse;
+          var text = dv.verse.text;
+          data = {
+            title: 'آية اليوم 📖',
+            body: (text.length > 120 ? text.slice(0, 117) + '…' : text) + '\n— ' + ref,
+            url: '/',
+          };
+        }
+      } catch (e) { /* offline — fall through to the generic copy */ }
+    }
+
+    if (!data) data = { title: 'آية اليوم 📖', body: 'افتح لقراءة آية النهاردة', url: '/' };
+
+    return self.registration.showNotification(data.title || 'الكتاب المقدس رفيقي', {
+      body: data.body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       data: { url: data.url || '/' },
       dir: 'rtl',
       lang: 'ar',
-    })
-  );
+    });
+  })());
 });
 
 self.addEventListener('notificationclick', function(event) {
