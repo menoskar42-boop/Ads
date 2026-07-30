@@ -206,7 +206,13 @@ self.addEventListener('push', function(event) {
       } catch (e) { /* offline — fall through to the generic copy */ }
     }
 
-    if (!data) data = { title: 'آية اليوم 📖', body: 'افتح لقراءة آية النهاردة', url: '/' };
+    if (!data) {
+      data = {
+        title: 'الكتاب المقدس رفيقي',
+        body: 'آية اليوم 📖 — افتح لقراءة آية النهاردة',
+        url: '/',
+      };
+    }
 
     return self.registration.showNotification(data.title || 'الكتاب المقدس رفيقي', {
       body: data.body || '',
