@@ -158,7 +158,7 @@
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
   <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">آخر الأيام</div>
   <div class="overflow-x-auto">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm rt">
       <thead class="bg-slate-50 text-slate-600">
         <tr>
           <th class="text-right px-4 py-2 font-semibold">اليوم</th>
@@ -173,11 +173,11 @@
              var dstr = new Date(r.day).toISOString().slice(0,10);
         %>
         <tr>
-          <td class="px-4 py-2"><a href="/clinic/cashbox?day=<%= dstr %>" class="text-indigo-600 hover:underline"><%= fmtD(r.day) %></a></td>
-          <td class="px-4 py-2"><%= money(r.opening) %></td>
-          <td class="px-4 py-2 <%= Number(r.net) < 0 ? 'text-red-600' : 'text-emerald-600' %>"><%= money(r.net) %></td>
-          <td class="px-4 py-2"><%= r.counted_close != null ? money(r.counted_close) : '—' %></td>
-          <td class="px-4 py-2">
+          <td class="px-4 py-2" data-l="اليوم"><a href="/clinic/cashbox?day=<%= dstr %>" class="text-indigo-600 hover:underline"><%= fmtD(r.day) %></a></td>
+          <td class="px-4 py-2" data-l="أول اليوم"><%= money(r.opening) %></td>
+          <td class="px-4 py-2 <%= Number(r.net) < 0 ? 'text-red-600' : 'text-emerald-600' %>" data-l="صافي الحركات"><%= money(r.net) %></td>
+          <td class="px-4 py-2" data-l="المعدود"><%= r.counted_close != null ? money(r.counted_close) : '—' %></td>
+          <td class="px-4 py-2" data-l="الحالة">
             <% if (r.closed_at) { %>
               <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">مقفولة</span>
             <% } else { %>

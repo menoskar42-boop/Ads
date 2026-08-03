@@ -76,12 +76,30 @@
     </button>
   </div>
 
-  <p class="text-xs text-slate-400 mb-3">
+  <p class="text-xs text-slate-400 mb-3 hidden sm:block">
     اكتب العمق بالمليمتر واضغط <kbd class="px-1 bg-slate-100 rounded">Tab</kbd> للانتقال.
     المربع الأحمر = نزيف عند الجس (اضغط عليه للتبديل). القيم ≥ ٥ بتتلوّن أوتوماتيك.
   </p>
 
-  <div class="overflow-x-auto">
+  <!-- On a phone a 32-column sheet is unusable at any zoom, and pinching it is
+       not something to do mid-examination. Same inputs, one tooth at a time,
+       with next/previous — so the chart is genuinely fillable at the chair. -->
+  <div class="sm:hidden mb-3">
+    <div class="flex items-center justify-between gap-2 bg-slate-900 text-white rounded-2xl px-4 py-3">
+      <button type="button" onclick="toothStep(-1)" class="px-3 py-2 rounded-lg bg-white/15 text-lg">‹</button>
+      <div class="text-center">
+        <div class="text-[10px] text-white/60">السن</div>
+        <div class="text-2xl font-extrabold leading-none" id="mTooth" dir="ltr">—</div>
+        <div class="text-[10px] text-white/60 mt-0.5" id="mQuad"></div>
+      </div>
+      <button type="button" onclick="toothStep(1)" class="px-3 py-2 rounded-lg bg-white/15 text-lg">›</button>
+    </div>
+    <p class="text-[11px] text-slate-400 text-center mt-2">
+      اكتب الأعماق الستة وانتقل للسن اللي بعده — كل حاجة بتتحفظ مع بعض في الآخر
+    </p>
+  </div>
+
+  <div class="overflow-x-auto perio-sheet">
     <% function renderJaw(rows, label) { %>
       <div class="mb-5">
         <div class="text-xs font-bold text-slate-500 mb-2"><%= label %></div>
@@ -90,7 +108,7 @@
             <tr>
               <th class="p-1 text-slate-400 font-normal sticky start-0 bg-white"></th>
               <% rows.forEach(function(quad){ quad.forEach(function(t){ %>
-                <th class="p-1 font-bold text-slate-600 w-12" dir="ltr"><%= t %></th>
+                <th class="p-1 font-bold text-slate-600 w-12 tcol" data-t="<%= t %>" dir="ltr"><%= t %></th>
               <% }); }); %>
             </tr>
           </thead>
@@ -101,7 +119,7 @@
               <% rows.forEach(function(quad){ quad.forEach(function(t){
                    var d = cur[t] || {};
               %>
-                <td class="p-0.5 align-top">
+                <td class="p-0.5 align-top tcol" data-t="<%= t %>">
                   <div class="flex gap-px justify-center">
                     <% for (var i = 0; i < 6; i++) { %>
                       <% if (ri === 0) { %>
@@ -126,7 +144,7 @@
             <tr>
               <td class="p-1 text-slate-500 whitespace-nowrap sticky start-0 bg-white">انحسار / حركة</td>
               <% rows.forEach(function(quad){ quad.forEach(function(t){ var d = cur[t] || {}; %>
-                <td class="p-0.5">
+                <td class="p-0.5 tcol" data-t="<%= t %>">
                   <div class="flex gap-px justify-center">
                     <input class="rec w-5 h-6 text-center border border-slate-200 rounded-sm text-[10px] p-0"
                            inputmode="numeric" maxlength="2" data-tooth="<%= t %>" title="انحسار اللثة"
@@ -148,8 +166,46 @@
   </div>
 </form>
 
+<style>
+  /* Phone: show one tooth's column at a time. Same DOM, same inputs, so
+     saving and the running stats work identically on both layouts. */
+  @media (max-width: 639px) {
+    .perio-sheet table { width: 100%; }
+    .perio-sheet th.tcol, .perio-sheet td.tcol { display: none; }
+    .perio-sheet th.tcol.on, .perio-sheet td.tcol.on { display: table-cell; }
+    .perio-sheet .pd { width: 2.1rem !important; height: 2.4rem !important; font-size: 15px !important; }
+    .perio-sheet .bop { width: 1.6rem !important; height: 1.5rem !important; }
+    .perio-sheet .rec, .perio-sheet .mob { width: 2.4rem !important; height: 2.4rem !important; font-size: 15px !important; }
+  }
+</style>
 <script>
   var PREV = <%- JSON.stringify((previous && previous.data) || null) %>;
+
+  /* ── Phone: one tooth at a time ──────────────────────────────────────── */
+  var TEETH = <%- JSON.stringify([].concat.apply([], upper).concat([].concat.apply([], lower))) %>;
+  var QUAD = <%- JSON.stringify({ u0:'علوي يمين', u1:'علوي شمال', l0:'سفلي يمين', l1:'سفلي شمال' }) %>;
+  var tIdx = 0;
+
+  function quadOf(t){
+    var s = String(t)[0];
+    return s === '1' ? QUAD.u0 : s === '2' ? QUAD.u1 : s === '4' ? QUAD.l0 : QUAD.l1;
+  }
+
+  function showTooth(i){
+    if (!TEETH.length) return;
+    tIdx = (i + TEETH.length) % TEETH.length;
+    var t = TEETH[tIdx];
+    document.querySelectorAll('.tcol').forEach(function(el){
+      el.classList.toggle('on', el.getAttribute('data-t') === String(t));
+    });
+    var n = document.getElementById('mTooth'); if (n) n.textContent = t;
+    var q = document.getElementById('mQuad'); if (q) q.textContent = quadOf(t);
+  }
+  function toothStep(d){ showTooth(tIdx + d); }
+
+  // Only drive the single-tooth view on a narrow screen — on desktop the whole
+  // sheet stays visible and nothing is hidden.
+  if (window.matchMedia('(max-width: 639px)').matches) showTooth(0);
 
   function stats(){
     var depths = [], bopOn = 0, bopTotal = 0, deep = 0;

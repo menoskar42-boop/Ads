@@ -105,7 +105,7 @@
     <p class="px-5 py-6 text-sm text-slate-500">مفيش طلبات لسه.</p>
   <% } else { %>
   <div class="overflow-x-auto">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm rt">
       <thead class="bg-slate-50 text-slate-600">
         <tr>
           <th class="text-right px-4 py-2 font-semibold">المريض</th>
@@ -125,20 +125,20 @@
                && (new Date(o.due_at) < new Date(new Date().toDateString()));
         %>
         <tr class="<%= overdue ? 'bg-red-50/50' : '' %>">
-          <td class="px-4 py-2">
+          <td class="px-4 py-2" data-l="المريض">
             <% if (o.patient_id) { %>
               <a href="/clinic/dental/patient/<%= o.patient_id %>" class="text-indigo-600 hover:underline"><%= o.patient_name || '—' %></a>
             <% } else { %><span class="text-slate-400">—</span><% } %>
           </td>
-          <td class="px-4 py-2"><%= o.work_type %></td>
-          <td class="px-4 py-2" dir="ltr"><%= o.tooth_numbers || '—' %></td>
-          <td class="px-4 py-2" dir="ltr"><%= o.shade || '—' %></td>
-          <td class="px-4 py-2 text-slate-600"><%= o.lab_name || '—' %></td>
-          <td class="px-4 py-2 <%= overdue ? 'text-red-700 font-bold' : 'text-slate-600' %>">
+          <td class="px-4 py-2" data-l="الشغل"><%= o.work_type %></td>
+          <td class="px-4 py-2" dir="ltr" data-l="الأسنان"><%= o.tooth_numbers || '—' %></td>
+          <td class="px-4 py-2" dir="ltr" data-l="اللون"><%= o.shade || '—' %></td>
+          <td class="px-4 py-2 text-slate-600" data-l="المعمل"><%= o.lab_name || '—' %></td>
+          <td class="px-4 py-2 <%= overdue ? 'text-red-700 font-bold' : 'text-slate-600' %>" data-l="التسليم">
             <%= fmtD(o.due_at) %><%= overdue ? ' ⚠️' : '' %>
           </td>
-          <td class="px-4 py-2"><%= money(o.cost) %> ج</td>
-          <td class="px-4 py-2">
+          <td class="px-4 py-2" data-l="التكلفة"><%= money(o.cost) %> ج</td>
+          <td class="px-4 py-2" data-l="الحالة">
             <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SBADGE[o.status] || 'bg-slate-100 text-slate-700' %>">
               <%= SLABEL[o.status] || o.status %>
             </span>

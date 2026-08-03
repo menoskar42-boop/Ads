@@ -14,17 +14,68 @@
     colors: { brand: { 50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#0891b2',600:'#0e7490',700:'#155e75',800:'#164e63',900:'#0c4a5e' } }
   } } };
 </script>
-<style>body{font-family:'Cairo',sans-serif}</style>
+<style>
+  body{font-family:'Cairo',sans-serif}
+
+  /* ── Wide tables become cards on a phone ──────────────────────────────────
+     Horizontal scrolling inside a page is the worst pattern on mobile: the
+     columns that matter are off-screen and the gesture fights page scroll.
+     Add class="rt" to a <table> and give each <td> a data-l="العنوان"; below
+     640px each row stacks into a labelled card and nothing is hidden. */
+  @media (max-width: 639px) {
+    table.rt, table.rt tbody, table.rt tr, table.rt td { display: block; width: 100%; }
+    table.rt thead { display: none; }
+    table.rt tr {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem;
+      padding: .5rem .75rem; margin-bottom: .6rem;
+    }
+    table.rt td {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .35rem 0 !important; border: 0 !important; text-align: start !important;
+    }
+    table.rt td::before {
+      content: attr(data-l); flex: 0 0 40%;
+      color: #64748b; font-size: .7rem; font-weight: 700;
+    }
+    /* A cell with no label is an actions row — let it use the full width. */
+    table.rt td:not([data-l])::before { content: none; }
+    table.rt td:not([data-l]) { justify-content: flex-end; }
+  }
+
+  /* Comfortable tap targets: iOS also stops zooming on focus at >=16px. */
+  @media (max-width: 639px) {
+    input, select, textarea { font-size: 16px !important; }
+    button, .btn { min-height: 40px; }
+  }
+</style>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body class="bg-slate-50 text-slate-800 pb-16 sm:pb-0">
 <%
   var __tab = typeof tab !== 'undefined' ? tab : '';
   function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__tab===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
+
+  // Enabled optional modules, used by both the desktop nav and the mobile sheet.
+  var __mods = [];
+  if (typeof clinicModules !== 'undefined' && typeof enabledModules !== 'undefined') {
+    __mods = clinicModules.filter(function(m){ return enabledModules.has(m.key); });
+  }
+  // Everything that is not one of the five bottom-bar tabs lives in "المزيد".
+  var __more = [{ path:'/clinic/invoices', label:'الفواتير', icon:'🧾', key:'invoices' },
+                { path:'/clinic/doctors',  label:'الأطباء',  icon:'👨‍⚕️', key:'doctors' },
+                { path:'/clinic/services', label:'الخدمات',  icon:'💠', key:'services' }]
+    .concat(__mods.map(function(m){ return { path:m.path, label:m.label, icon:m.icon, key:m.key }; }))
+    .concat([{ path:'/clinic/modules', label:'المميزات', icon:'🧩', key:'modules' },
+             { path:'/clinic/addons',  label:'الإضافات', icon:'✨', key:'addons' },
+             { path:'/clinic/settings',label:'الإعدادات',icon:'⚙️', key:'settings' }]);
 %>
-<header class="bg-brand-700 text-white">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
-    <a href="/clinic" class="font-extrabold text-lg flex items-center gap-1">🩺 <%= company.company_name %></a>
-    <nav class="flex items-center gap-1 text-sm ms-auto flex-wrap">
+<header class="bg-brand-700 text-white sticky top-0 z-30">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+    <a href="/clinic" class="font-extrabold text-base sm:text-lg flex items-center gap-1 truncate">
+      🩺 <span class="truncate"><%= company.company_name %></span>
+    </a>
+
+    <!-- Desktop: the full nav, unchanged. -->
+    <nav class="hidden sm:flex items-center gap-1 text-sm ms-auto flex-wrap">
       <a href="/clinic" class="<%= __cls('dashboard') %>">لوحة التحكم</a>
       <a href="/clinic/queue" class="<%= __cls('queue') %>">الطابور</a>
       <a href="/clinic/appointments" class="<%= __cls('appointments') %>">المواعيد</a>
@@ -32,15 +83,78 @@
       <a href="/clinic/invoices" class="<%= __cls('invoices') %>">الفواتير</a>
       <a href="/clinic/doctors" class="<%= __cls('doctors') %>">الأطباء</a>
       <a href="/clinic/services" class="<%= __cls('services') %>">الخدمات</a>
-      <% if (typeof clinicModules !== 'undefined' && typeof enabledModules !== 'undefined') { clinicModules.forEach(function(m){ if (enabledModules.has(m.key)) { %>
+      <% __mods.forEach(function(m){ %>
       <a href="<%= m.path %>" class="<%= __cls(m.key) %>"><%= m.label %></a>
-      <% } }); } %>
+      <% }); %>
       <a href="/clinic/modules" class="<%= __cls('modules') %>">المميزات</a>
       <a href="/clinic/addons" class="<%= __cls('addons') %>">الإضافات</a>
       <a href="/clinic/settings" class="<%= __cls('settings') %>">الإعدادات</a>
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15">عرض الصفحة ↗</a>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15">خروج</button></form>
     </nav>
+
+    <!-- Mobile: the header only carries the two rarely-tapped actions; the
+         real navigation is the thumb-reachable bar at the bottom. -->
+    <div class="sm:hidden ms-auto flex items-center gap-1">
+      <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener"
+         title="عرض صفحة العيادة" class="px-2 py-1.5 rounded-lg hover:bg-white/15">↗</a>
+      <form method="post" action="/company/logout"><button class="px-2 py-1.5 rounded-lg hover:bg-white/15 text-sm">خروج</button></form>
+    </div>
   </div>
 </header>
+
+<!-- ── Bottom tab bar (mobile only) ─────────────────────────────────────────
+     Five tabs for what a clinic actually opens all day, plus a sheet for the
+     rest. It is fixed, so it can be declared here even though each page closes
+     its own </main> — there is no shared footer partial to hook into. -->
+<%
+  function __btab(k){ return __tab === k
+    ? 'text-brand-700 font-bold'
+    : 'text-slate-400'; }
+%>
+<nav class="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
+  <div class="grid grid-cols-5">
+    <a href="/clinic" class="flex flex-col items-center justify-center py-2 <%= __btab('dashboard') %>">
+      <span class="text-lg leading-none">🏠</span><span class="text-[10px] mt-0.5">الرئيسية</span>
+    </a>
+    <a href="/clinic/queue" class="flex flex-col items-center justify-center py-2 <%= __btab('queue') %>">
+      <span class="text-lg leading-none">🚶</span><span class="text-[10px] mt-0.5">الطابور</span>
+    </a>
+    <a href="/clinic/appointments" class="flex flex-col items-center justify-center py-2 <%= __btab('appointments') %>">
+      <span class="text-lg leading-none">📅</span><span class="text-[10px] mt-0.5">المواعيد</span>
+    </a>
+    <a href="/clinic/patients" class="flex flex-col items-center justify-center py-2 <%= __btab('patients') %>">
+      <span class="text-lg leading-none">👥</span><span class="text-[10px] mt-0.5">المرضى</span>
+    </a>
+    <button type="button" onclick="__openMore()" id="__moreBtn"
+            class="flex flex-col items-center justify-center py-2 text-slate-400">
+      <span class="text-lg leading-none">⋯</span><span class="text-[10px] mt-0.5">المزيد</span>
+    </button>
+  </div>
+</nav>
+
+<!-- The rest of the sections, as a sheet rather than a hidden menu: a phone
+     has room to show them all at once, so nothing needs hunting for. -->
+<div id="__moreSheet" class="sm:hidden fixed inset-0 z-50 hidden" onclick="if(event.target===this)__closeMore()">
+  <div class="absolute inset-0 bg-black/40"></div>
+  <div class="absolute bottom-0 inset-x-0 bg-white rounded-t-3xl p-4 pb-6 max-h-[75vh] overflow-y-auto">
+    <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-4"></div>
+    <div class="grid grid-cols-3 gap-2">
+      <% __more.forEach(function(m){ %>
+      <a href="<%= m.path %>"
+         class="flex flex-col items-center gap-1 p-3 rounded-2xl <%= __tab === m.key ? 'bg-brand-50 text-brand-700 font-bold' : 'bg-slate-50 text-slate-700' %>">
+        <span class="text-xl"><%= m.icon || '•' %></span>
+        <span class="text-[11px] text-center leading-tight"><%= m.label %></span>
+      </a>
+      <% }); %>
+    </div>
+    <button type="button" onclick="__closeMore()" class="w-full mt-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold">إغلاق</button>
+  </div>
+</div>
+<script>
+  function __openMore(){ document.getElementById('__moreSheet').classList.remove('hidden'); }
+  function __closeMore(){ document.getElementById('__moreSheet').classList.add('hidden'); }
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') __closeMore(); });
+</script>
+
 <main class="max-w-5xl mx-auto px-4 py-6">
