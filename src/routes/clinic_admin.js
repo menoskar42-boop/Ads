@@ -957,6 +957,146 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Paid add-ons ─────────────────────────────────────────────────────────────
+const addons = require('../clinic/addons');
+
+router.get('/addons', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const states = {};
+    for (const a of addons.ADDONS) states[a.key] = await addons.addonState(pool, cid, a.key);
+    res.render('clinic_admin/addons', {
+      company: req.company, tab: 'addons',
+      addons: addons.ADDONS, states,
+      need: req.query.need || null, why: req.query.why || null,
+      voiceReady: require('../clinic/voice_booking').isEnabled(),
+    });
+  } catch (e) { console.error('[addons]', e.message); res.status(500).send('error'); }
+});
+
+// Voice booking inbox — what was heard, what was understood, and what to do
+// about the ones the model was not sure of.
+router.get('/voice-bookings', addons.requireAddon(pool, 'voice_booking'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [rows, doctors] = await Promise.all([
+      pool.query(
+        `SELECT vb.*, a.status AS appt_status
+           FROM clinic_voice_bookings vb
+           LEFT JOIN clinic_appointments a ON a.id = vb.appointment_id
+          WHERE vb.company_id=$1 ORDER BY vb.created_at DESC LIMIT 100`, [cid]),
+      pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, name', [cid]),
+    ]);
+    res.render('clinic_admin/voice_bookings', {
+      company: req.company, tab: 'addons',
+      rows: rows.rows, doctors: doctors.rows, state: req.addonState,
+    });
+  } catch (e) { console.error('[voice bookings]', e.message); res.status(500).send('error'); }
+});
+
+const voiceUpload = (() => {
+  const multer = require('multer');
+  return multer({
+    storage: multer.memoryStorage(),   // audio goes straight to the API, never to disk
+    limits: { fileSize: 12 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => cb(null, /^(audio|video)\//.test(file.mimetype)),
+  }).single('audio');
+})();
+
+// Accept a voice note and turn it into a booking request.
+router.post('/voice-bookings', addons.requireAddon(pool, 'voice_booking'), (req, res) => {
+  const cid = req.company.id;
+  voiceUpload(req, res, async (err) => {
+    if (err || !req.file) return res.redirect('/clinic/voice-bookings?err=upload');
+    const vb = require('../clinic/voice_booking');
+
+    // Charge the quota BEFORE calling the API. If this returns false the clinic
+    // is out of entitlement and we must not spend money on the request.
+    if (!(await addons.consume(pool, cid, 'voice_booking'))) {
+      return res.redirect('/clinic/addons?need=voice_booking&why=quota_exhausted');
+    }
+
+    let row;
+    try {
+      row = (await pool.query(
+        `INSERT INTO clinic_voice_bookings (company_id, status) VALUES ($1,'pending') RETURNING id`, [cid]
+      )).rows[0];
+    } catch (e) { return res.redirect('/clinic/voice-bookings?err=db'); }
+
+    const fail = async (msg) => {
+      await pool.query(`UPDATE clinic_voice_bookings SET status='failed', error=$1 WHERE id=$2`,
+        [String(msg).slice(0, 300), row.id]).catch(() => {});
+      res.redirect('/clinic/voice-bookings');
+    };
+
+    const t = await vb.transcribe(req.file.buffer, req.file.originalname || 'note.m4a');
+    if (!t.ok) return fail(t.error);
+
+    const p = await vb.parseIntent(t.text);
+    if (!p.ok) {
+      // The transcript is still useful to a human even when parsing failed —
+      // keep it and let the receptionist read it rather than discarding.
+      await pool.query(
+        `UPDATE clinic_voice_bookings SET transcript=$1, status='needs_review', error=$2 WHERE id=$3`,
+        [t.text, String(p.error).slice(0, 300), row.id]
+      ).catch(() => {});
+      return res.redirect('/clinic/voice-bookings');
+    }
+
+    if (vb.canAutoBook(p.data)) {
+      try {
+        const appt = (await pool.query(
+          `INSERT INTO clinic_appointments (company_id, patient_name, patient_phone, reason, status, notes)
+           VALUES ($1,$2,$3,$4,'pending',$5) RETURNING id`,
+          [cid, p.data.patient_name, p.data.phone, p.data.reason,
+           'حجز صوتي — الوقت المطلوب: ' + (p.data.when_text || 'غير محدّد')]
+        )).rows[0];
+        await pool.query(
+          `UPDATE clinic_voice_bookings SET transcript=$1, parsed=$2, appointment_id=$3, status='booked' WHERE id=$4`,
+          [t.text, JSON.stringify(p.data), appt.id, row.id]
+        );
+      } catch (e) { return fail(e.message); }
+    } else {
+      await pool.query(
+        `UPDATE clinic_voice_bookings SET transcript=$1, parsed=$2, status='needs_review' WHERE id=$3`,
+        [t.text, JSON.stringify(p.data), row.id]
+      ).catch(() => {});
+    }
+    res.redirect('/clinic/voice-bookings');
+  });
+});
+
+// Confirm a reviewed request into a real appointment.
+router.post('/voice-bookings/:id/book', addons.requireAddon(pool, 'voice_booking'), async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const name = String(b.patient_name || '').trim().slice(0, 120);
+  const phone = String(b.phone || '').trim().slice(0, 30);
+  if (!name || !phone) return res.redirect('/clinic/voice-bookings');
+  try {
+    const appt = (await pool.query(
+      `INSERT INTO clinic_appointments (company_id, doctor_id, patient_name, patient_phone, slot_at, reason, status, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,'confirmed','من حجز صوتي') RETURNING id`,
+      [cid, parseInt(b.doctor_id, 10) || null, name, phone,
+       b.slot_at ? new Date(b.slot_at) : null, String(b.reason || '').slice(0, 300) || null]
+    )).rows[0];
+    await pool.query(
+      `UPDATE clinic_voice_bookings SET appointment_id=$1, status='booked' WHERE id=$2 AND company_id=$3`,
+      [appt.id, id, cid]
+    );
+  } catch (e) { console.error('[voice book]', e.message); }
+  res.redirect('/clinic/voice-bookings');
+});
+
+router.post('/voice-bookings/:id/dismiss', addons.requireAddon(pool, 'voice_booking'), async (req, res) => {
+  try {
+    await pool.query(`UPDATE clinic_voice_bookings SET status='failed', error='مرفوض يدوياً' WHERE id=$1 AND company_id=$2`,
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[voice dismiss]', e.message); }
+  res.redirect('/clinic/voice-bookings');
+});
+
 // ── Module: Growth (bring lapsed patients back) ──────────────────────────────
 // The cheapest patient to win is one who already came. This finds the people
 // who stopped coming and gives the clinic a working list — not a report.

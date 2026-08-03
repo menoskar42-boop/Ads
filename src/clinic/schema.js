@@ -319,6 +319,40 @@ async function ensureClinicSchema() {
         PRIMARY KEY (company_id, module_key)
       );
 
+      -- Paid add-ons. Modules are capability switches the platform gives away;
+      -- add-ons cost real money on every use (AI inference), so they are billed
+      -- separately, expire, and carry a monthly quota. Keeping them out of
+      -- clinic_modules means a free module can never accidentally hand a clinic
+      -- something we pay per call for.
+      CREATE TABLE IF NOT EXISTS clinic_addons (
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        addon_key      TEXT NOT NULL,
+        enabled        BOOLEAN NOT NULL DEFAULT false,
+        expires_at     DATE,                    -- NULL = no expiry
+        monthly_quota  INTEGER NOT NULL DEFAULT 200,
+        used_this_month INTEGER NOT NULL DEFAULT 0,
+        quota_month    TEXT,                    -- 'YYYY-MM' the counter belongs to
+        updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (company_id, addon_key)
+      );
+
+      -- Every AI voice booking attempt: what was heard, what was understood,
+      -- and whether an appointment came out of it. A misheard booking is a
+      -- missed patient, so this has to be reviewable rather than invisible.
+      CREATE TABLE IF NOT EXISTS clinic_voice_bookings (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        audio_url      TEXT,
+        transcript     TEXT,
+        parsed         JSONB NOT NULL DEFAULT '{}'::jsonb,
+        appointment_id INTEGER REFERENCES clinic_appointments(id) ON DELETE SET NULL,
+        status         TEXT NOT NULL DEFAULT 'pending', -- pending|booked|needs_review|failed
+        error          TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_voice_bookings
+        ON clinic_voice_bookings (company_id, created_at DESC);
+
       -- Inventory: clinic supplies/items + stock movements.
       CREATE TABLE IF NOT EXISTS clinic_inventory_items (
         id            SERIAL PRIMARY KEY,

@@ -1,0 +1,105 @@
+<%- include('head', { title: 'الحجوزات الصوتية', tab: 'addons' }) %>
+<%
+  function fmtDT(t){ try { return new Date(t).toLocaleString('ar-EG',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  var SB = {
+    booked:       'bg-emerald-100 text-emerald-800',
+    needs_review: 'bg-amber-100 text-amber-800',
+    pending:      'bg-slate-100 text-slate-600',
+    failed:       'bg-red-100 text-red-700'
+  };
+  var SL = { booked:'اتحجز', needs_review:'محتاج مراجعة', pending:'قيد المعالجة', failed:'فشل' };
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/clinic/addons" class="text-slate-400 hover:text-slate-600 text-sm">← الإضافات</a>
+  <h1 class="text-2xl font-black text-slate-900">🎙️ الحجوزات الصوتية</h1>
+</div>
+<p class="text-slate-500 mb-2">المريض بيبعت رسالة صوتية — النظام يفهمها ويجهّز الحجز</p>
+<p class="text-xs text-slate-400 mb-6">
+  رصيد الشهر: <strong class="text-slate-700"><%= state.used %></strong> من <%= state.quota %> ·
+  النظام <strong>مابيحجزش لوحده</strong> إلا لما يكون واثق ومعاه الاسم والرقم — أي حاجة غير كده بتيجي هنا للمراجعة.
+</p>
+
+<!-- ── رفع رسالة صوتية ──────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3">رفع رسالة صوتية</h2>
+  <form method="post" action="/clinic/voice-bookings" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-end">
+    <div class="flex-1 min-w-[220px]">
+      <label class="block text-xs font-semibold text-slate-600 mb-1">ملف صوتي (من واتساب أو تسجيل)</label>
+      <input type="file" name="audio" accept="audio/*,video/mp4" required
+             class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <button class="bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-emerald-700">
+      حوّلها لحجز
+    </button>
+  </form>
+  <p class="text-xs text-slate-400 mt-2">كل رفعة بتخصم من رصيد الشهر — حتى لو الرسالة مش طلب حجز.</p>
+</div>
+
+<!-- ── الصندوق ──────────────────────────────────────────────────── -->
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500">
+    مفيش رسايل صوتية لسه.
+  </div>
+<% } else { %>
+<div class="space-y-3">
+  <% rows.forEach(function(r){
+       var p = r.parsed || {};
+       var conf = Math.round((Number(p.confidence) || 0) * 100);
+  %>
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <div class="flex flex-wrap items-center gap-2 mb-2">
+      <span class="text-xs font-bold px-2 py-1 rounded-full <%= SB[r.status] || SB.pending %>"><%= SL[r.status] || r.status %></span>
+      <% if (r.status !== 'failed' && p.confidence != null) { %>
+        <span class="text-xs px-2 py-1 rounded-full <%= conf >= 75 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' %>">
+          ثقة <%= conf %>%
+        </span>
+      <% } %>
+      <span class="text-xs text-slate-400 ms-auto"><%= fmtDT(r.created_at) %></span>
+    </div>
+
+    <% if (r.transcript) { %>
+      <div class="bg-slate-50 rounded-xl px-4 py-3 mb-3">
+        <div class="text-xs font-semibold text-slate-500 mb-1">النص المسموع</div>
+        <p class="text-sm text-slate-800 leading-relaxed">"<%= r.transcript %>"</p>
+      </div>
+    <% } %>
+
+    <% if (r.error) { %>
+      <p class="text-xs text-red-600 mb-2">خطأ: <%= r.error %></p>
+    <% } %>
+
+    <% if (r.status === 'booked') { %>
+      <p class="text-sm text-emerald-700">
+        ✅ اتعمل حجز <%= p.patient_name ? ('لـ' + p.patient_name) : '' %>
+        <% if (p.when_text) { %><span class="text-slate-500">— الوقت المطلوب: <%= p.when_text %></span><% } %>
+      </p>
+    <% } else if (r.status === 'needs_review') { %>
+      <form method="post" action="/clinic/voice-bookings/<%= r.id %>/book" class="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
+        <input name="patient_name" required placeholder="اسم المريض *" value="<%= p.patient_name || '' %>"
+               class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="phone" required placeholder="التليفون *" dir="ltr" value="<%= p.phone || '' %>"
+               class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <select name="doctor_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+          <option value="">— الطبيب —</option>
+          <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
+        </select>
+        <input type="datetime-local" name="slot_at" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="reason" placeholder="السبب" value="<%= p.reason || '' %>"
+               class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <div class="sm:col-span-2 lg:col-span-5 flex gap-2">
+          <button class="bg-emerald-600 text-white text-sm font-bold px-5 py-2 rounded-xl hover:bg-emerald-700">تأكيد الحجز</button>
+          <button type="submit" formaction="/clinic/voice-bookings/<%= r.id %>/dismiss" formnovalidate
+                  class="bg-slate-100 text-slate-600 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-slate-200">تجاهل</button>
+        </div>
+      </form>
+      <% if (p.when_text) { %>
+        <p class="text-xs text-slate-400 mt-2">المريض قال: «<%= p.when_text %>»<%= p.doctor_hint ? ' — وذكر: ' + p.doctor_hint : '' %></p>
+      <% } %>
+    <% } %>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+</main></body></html>
