@@ -526,12 +526,6 @@ async function ensureClinicSchema() {
       CREATE INDEX IF NOT EXISTS idx_perio_patient
         ON clinic_perio_exams (company_id, patient_id, exam_date DESC);
 
-      -- Annotations drawn over an uploaded image (x-ray or clinical photo).
-      -- Kept as shapes rather than burned into the file so the original stays
-      -- diagnostic and a mark can be corrected or removed later.
-      ALTER TABLE clinic_patient_photos
-        ADD COLUMN IF NOT EXISTS annotations JSONB NOT NULL DEFAULT '[]'::jsonb;
-
       -- Lab orders: crowns, bridges, dentures… tracked from sent to delivered,
       -- because a case stuck at the lab is the most common reason a dental
       -- appointment gets wasted.
@@ -570,6 +564,11 @@ async function ensureClinicSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_patient_photos
         ON clinic_patient_photos (company_id, patient_id, created_at);
+      -- Annotations drawn over an image (x-ray or clinical photo). Kept as
+      -- shapes rather than burned into the file so the original stays
+      -- diagnostic and a mark can be corrected or removed later.
+      ALTER TABLE clinic_patient_photos
+        ADD COLUMN IF NOT EXISTS annotations JSONB NOT NULL DEFAULT '[]'::jsonb;
 
       -- Call center: call / follow-up log.
       CREATE TABLE IF NOT EXISTS clinic_calls (

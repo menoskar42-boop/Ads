@@ -152,10 +152,7 @@ async function ensurePharmacySchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_pharm_order_events_order ON pharmacy_order_events (order_id);
 
-      -- Staff extras: contact phone + sales commission percent.
-      ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS phone TEXT;
-      ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2) DEFAULT 0;
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_staff_username ON pharmacy_staff (lower(username));
+      -- (pharmacy_staff extras moved below its CREATE — see note there.)
       -- Optional per-order assignment to a delivery driver (used by GPS phase).
       ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS assigned_staff INTEGER;
       -- Live delivery-driver location for an out-for-delivery order (GPS phase),
@@ -204,6 +201,13 @@ async function ensurePharmacySchema() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_pharm_staff_company ON pharmacy_staff (company_id);
+      -- Staff extras: contact phone + sales commission percent. These must come
+      -- AFTER the CREATE above: the whole block is one statement string, so an
+      -- ALTER on a table that does not exist yet aborts everything after it —
+      -- on a fresh database that silently skips the rest of the schema.
+      ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS phone TEXT;
+      ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2) DEFAULT 0;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_staff_username ON pharmacy_staff (lower(username));
 
       -- Per-pharmacy settings (online store toggle, delivery, hours…).
       CREATE TABLE IF NOT EXISTS pharmacy_settings (
