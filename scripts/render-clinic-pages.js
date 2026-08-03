@@ -61,6 +61,40 @@ const FIXTURES = {
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
 
+  services: () => ({
+    tab: 'services',
+    services: [{ id: 1, name: 'Radiograph', price: 200, doctor_pct: 60, is_active: true }],
+    visitTypes: [{ id: 1, name: 'Consultation', price: 150, duration_min: 20 }],
+  }),
+
+  settings: (lang) => ({
+    tab: 'settings',
+    s: { specialty: 'dentistry', about: '', address: '', phone: '', whatsapp: '', hours: '', booking_enabled: true },
+    customSpecialty: null,
+    specialties: require('../src/clinic/specialties').SPECIALTIES.map((sp) => ({
+      key: sp.key,
+      label: require('../src/clinic/specialties').labelFor(sp.key, (k) => t(k, lang)),
+    })),
+  }),
+
+  dashboard: () => ({
+    tab: 'dashboard',
+    stats: { waiting: 3, pending: 2, revenue: 4500, doctors: 2, patients: 120 },
+    upcoming: [
+      { patient_name: patient.name, patient_phone: '01000000000', doctor_name: doctor.name, slot_at: NOW, status: 'confirmed' },
+      { patient_name: 'Mona Adel', patient_phone: '', doctor_name: null, slot_at: null, status: 'pending' },
+    ],
+  }),
+
+  doctors: () => ({
+    tab: 'doctors',
+    edit: null,
+    doctors: [
+      Object.assign({}, doctor, { title: 'Consultant', fee: 300, photo_url: '', is_active: true }),
+      { id: 2, name: 'Dr. Omar', title: '', specialty: '', fee: null, photo_url: '', is_active: false },
+    ],
+  }),
+
   patient_file: (lang) => ({
     tab: 'patients',
     patient,

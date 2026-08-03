@@ -963,6 +963,42 @@ const strings = {
     'xr.t.pan':'✋ تحريك','xr.t.arrow':'↗ سهم','xr.t.circle':'⭕ دائرة',
     'xr.t.rect':'▭ مستطيل','xr.t.text':'A نص',
     'xr.kind.before':'قبل','xr.kind.after':'بعد','xr.kind.xray':'أشعة',
+    // الخدمات والأسعار
+    'sv.title':'الخدمات والأسعار',
+    'sv.sub':'الخدمات اللي بتتحاسب عليها العيادة، وأنواع الزيارات وأسعارها',
+    'sv.add':'إضافة خدمة','sv.name':'اسم الخدمة (مثلاً: أشعة، تحليل، جلسة)',
+    'sv.price':'السعر','sv.doctor_pct':'نسبة الطبيب %','sv.doctor_share':'نسبة الطبيب',
+    'sv.active':'مُفعّلة','sv.list':'الخدمات','sv.empty':'مفيش خدمات مضافة.',
+    'sv.vt_add':'إضافة نوع زيارة','sv.vt_name':'نوع الزيارة (كشف / استشارة / متابعة)',
+    'sv.duration':'المدة (دقيقة)','sv.minutes':'دقيقة',
+    'sv.vt_list':'أنواع الزيارات','sv.vt_empty':'مفيش أنواع زيارات.',
+
+    // إعدادات العيادة
+    'cs.title':'إعدادات العيادة','cs.sub':'البيانات دي بتظهر على صفحة العيادة العامة',
+    'cs.specialty':'التخصص العام للعيادة','cs.pick_specialty':'— اختر التخصص —',
+    'cs.saved_now':'(المحفوظ حالياً)',
+    'cs.specialty_hint':'التخصص مش مجرد اسم — بيحدّد حقول الزيارة اللي هتظهر للطبيب، وبيفعّل الأدوات المناسبة تلقائياً (اختيار «أسنان» بيشغّل وحدة الأسنان لوحدها).',
+    'cs.about':'نبذة عن العيادة','cs.address':'العنوان','cs.phone':'الهاتف','cs.whatsapp':'واتساب',
+    'cs.hours':'مواعيد العمل','cs.hours_ph':'مثال: السبت–الخميس 4م–10م',
+    'cs.booking':'تفعيل الحجز الإلكتروني على الصفحة','cs.save':'حفظ الإعدادات',
+
+    // لوحة تحكم العيادة
+    'cd.hi':'مرحبًا 👋','cd.sub':'نظرة سريعة على عيادتك اليوم',
+    'cd.in_queue':'في الطابور الآن','cd.pending':'حجوزات بانتظار التأكيد',
+    'cd.today_revenue':'تحصيل اليوم','cd.doctors':'الأطباء','cd.patients':'المرضى',
+    'cd.checkin':'➕ تسجيل وصول مريض','cd.new_invoice':'🧾 فاتورة جديدة','cd.add_patient':'🧑 إضافة مريض',
+    'cd.upcoming':'المواعيد القادمة','cd.all_appointments':'كل المواعيد ←',
+    'cd.no_upcoming':'مفيش مواعيد قادمة حاليًا.','cd.no_doctor':'بدون طبيب محدد',
+    'cd.confirmed':'مؤكّد','cd.awaiting':'بانتظار',
+
+    // الأطباء
+    'dr.title':'الأطباء','dr.sub':'كل طبيب له صفحته الخاصة على موقع العيادة',
+    'dr.edit_one':'تعديل طبيب','dr.add_one':'إضافة طبيب',
+    'dr.name':'اسم الطبيب','dr.rank':'اللقب (استشاري/أخصائي)','dr.specialty':'التخصص',
+    'dr.fee':'سعر الكشف (جنيه)','dr.schedule':'مواعيد العمل','dr.photo':'رابط صورة (اختياري)',
+    'dr.bio':'نبذة عن الطبيب (تظهر في صفحته)','dr.active':'نشط (يظهر للجمهور)',
+    'dr.add':'إضافة','dr.empty':'أضف أول طبيب من النموذج.','dr.hidden':'مخفي','dr.edit':'تعديل',
+
     // ملف المريض
     'pf.title':'ملف','pf.back':'المرضى','pf.born':'مواليد',
     'pf.trends':'مؤشرات المريض','pf.trends_sub':'منحنى لكل قياس عبر الزيارات — والمقارنة باللي قبله',
@@ -2074,6 +2110,42 @@ const strings = {
     'xr.t.pan':'✋ Pan','xr.t.arrow':'↗ Arrow','xr.t.circle':'⭕ Circle',
     'xr.t.rect':'▭ Rectangle','xr.t.text':'A Text',
     'xr.kind.before':'Before','xr.kind.after':'After','xr.kind.xray':'Radiograph',
+    // Services and pricing
+    'sv.title':'Services and pricing',
+    'sv.sub':'The services the clinic charges for, plus visit types and their prices',
+    'sv.add':'Add a service','sv.name':'Service name (e.g. radiograph, lab test, session)',
+    'sv.price':'Price','sv.doctor_pct':'Doctor share %','sv.doctor_share':'Doctor share',
+    'sv.active':'Active','sv.list':'Services','sv.empty':'No services added.',
+    'sv.vt_add':'Add a visit type','sv.vt_name':'Visit type (consultation / review / follow-up)',
+    'sv.duration':'Duration (minutes)','sv.minutes':'min',
+    'sv.vt_list':'Visit types','sv.vt_empty':'No visit types.',
+
+    // Clinic settings
+    'cs.title':'Clinic settings','cs.sub':'These details appear on the clinic\'s public page',
+    'cs.specialty':'Clinic specialty','cs.pick_specialty':'— choose a specialty —',
+    'cs.saved_now':'(currently saved)',
+    'cs.specialty_hint':'The specialty is not just a label — it decides which visit fields the doctor sees and switches on the matching tools automatically (choosing Dentistry enables the dental module on its own).',
+    'cs.about':'About the clinic','cs.address':'Address','cs.phone':'Phone','cs.whatsapp':'WhatsApp',
+    'cs.hours':'Opening hours','cs.hours_ph':'e.g. Sat–Thu 4pm–10pm',
+    'cs.booking':'Enable online booking on the page','cs.save':'Save settings',
+
+    // Clinic dashboard
+    'cd.hi':'Welcome 👋','cd.sub':'A quick look at your clinic today',
+    'cd.in_queue':'In the queue now','cd.pending':'Bookings awaiting confirmation',
+    'cd.today_revenue':'Collected today','cd.doctors':'Doctors','cd.patients':'Patients',
+    'cd.checkin':'➕ Check a patient in','cd.new_invoice':'🧾 New invoice','cd.add_patient':'🧑 Add a patient',
+    'cd.upcoming':'Upcoming appointments','cd.all_appointments':'All appointments →',
+    'cd.no_upcoming':'No upcoming appointments right now.','cd.no_doctor':'No doctor assigned',
+    'cd.confirmed':'Confirmed','cd.awaiting':'Awaiting',
+
+    // Doctors
+    'dr.title':'Doctors','dr.sub':'Every doctor gets their own page on the clinic site',
+    'dr.edit_one':'Edit doctor','dr.add_one':'Add a doctor',
+    'dr.name':'Doctor name','dr.rank':'Title (consultant / specialist)','dr.specialty':'Specialty',
+    'dr.fee':'Consultation fee (EGP)','dr.schedule':'Working hours','dr.photo':'Photo URL (optional)',
+    'dr.bio':'About the doctor (shown on their page)','dr.active':'Active (visible to the public)',
+    'dr.add':'Add','dr.empty':'Add your first doctor using the form.','dr.hidden':'Hidden','dr.edit':'Edit',
+
     // Patient file
     'pf.title':'File','pf.back':'Patients','pf.born':'born',
     'pf.trends':'Patient trends','pf.trends_sub':'A curve for each reading across visits — and how it compares with the last',

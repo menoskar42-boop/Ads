@@ -1,44 +1,44 @@
-<%- include('head', { title: 'لوحة التحكم', tab: 'dashboard' }) %>
+<%- include('head', { title: t('clinic.nav.dashboard'), tab: 'dashboard' }) %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">مرحبًا 👋</h1>
-<p class="text-slate-500 mb-6">نظرة سريعة على عيادتك اليوم</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('cd.hi') %></h1>
+<p class="text-slate-500 mb-6"><%= t('cd.sub') %></p>
 
 <div class="grid gap-4 grid-cols-2 lg:grid-cols-5 mb-6">
   <a href="/clinic/queue" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-amber-600"><%= stats.waiting %></div>
-    <div class="text-sm text-slate-500 mt-1">في الطابور الآن</div>
+    <div class="text-sm text-slate-500 mt-1"><%= t('cd.in_queue') %></div>
   </a>
   <a href="/clinic/appointments" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-brand-600"><%= stats.pending %></div>
-    <div class="text-sm text-slate-500 mt-1">حجوزات بانتظار التأكيد</div>
+    <div class="text-sm text-slate-500 mt-1"><%= t('cd.pending') %></div>
   </a>
   <a href="/clinic/finance" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-emerald-600"><%= stats.revenue.toLocaleString(LOC) %></div>
-    <div class="text-sm text-slate-500 mt-1">تحصيل اليوم (ج)</div>
+    <div class="text-sm text-slate-500 mt-1"><%= t('cd.today_revenue') %> (<%= t('cur.egp') %>)</div>
   </a>
   <a href="/clinic/doctors" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-slate-900"><%= stats.doctors %></div>
-    <div class="text-sm text-slate-500 mt-1">الأطباء</div>
+    <div class="text-sm text-slate-500 mt-1"><%= t('cd.doctors') %></div>
   </a>
   <a href="/clinic/patients" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
     <div class="text-3xl font-black text-slate-900"><%= stats.patients %></div>
-    <div class="text-sm text-slate-500 mt-1">المرضى</div>
+    <div class="text-sm text-slate-500 mt-1"><%= t('cd.patients') %></div>
   </a>
 </div>
 
 <div class="flex flex-wrap gap-2 mb-8">
-  <a href="/clinic/queue" class="bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-xl px-4 py-2">➕ تسجيل وصول مريض</a>
-  <a href="/clinic/invoices" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2">🧾 فاتورة جديدة</a>
-  <a href="/clinic/patients" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2">🧑 إضافة مريض</a>
+  <a href="/clinic/queue" class="bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('cd.checkin') %></a>
+  <a href="/clinic/invoices" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2"><%= t('cd.new_invoice') %></a>
+  <a href="/clinic/patients" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2"><%= t('cd.add_patient') %></a>
 </div>
 
 <div class="flex items-center justify-between mb-3">
-  <h2 class="text-lg font-extrabold text-slate-900">المواعيد القادمة</h2>
-  <a href="/clinic/appointments" class="text-brand-600 font-bold text-sm">كل المواعيد ←</a>
+  <h2 class="text-lg font-extrabold text-slate-900"><%= t('cd.upcoming') %></h2>
+  <a href="/clinic/appointments" class="text-brand-600 font-bold text-sm"><%= t('cd.all_appointments') %></a>
 </div>
 
 <% if (!upcoming.length) { %>
-  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">مفيش مواعيد قادمة حاليًا.</div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('cd.no_upcoming') %></div>
 <% } else { %>
 <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
   <% upcoming.forEach(function(a){ %>
@@ -46,9 +46,9 @@
     <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center">🗓️</div>
     <div class="min-w-0 flex-1">
       <div class="font-bold text-slate-900 truncate"><%= a.patient_name %> <span class="text-slate-400 font-normal text-sm" dir="ltr"><%= a.patient_phone %></span></div>
-      <div class="text-xs text-slate-500"><%= a.doctor_name || 'بدون طبيب محدد' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString(LOC)) : '' %></div>
+      <div class="text-xs text-slate-500"><%= a.doctor_name || t('cd.no_doctor') %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString(LOC)) : '' %></div>
     </div>
-    <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status==='confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>"><%= a.status==='confirmed' ? 'مؤكّد' : 'بانتظار' %></span>
+    <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status==='confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>"><%= a.status==='confirmed' ? t('cd.confirmed') : t('cd.awaiting') %></span>
   </div>
   <% }); %>
 </div>

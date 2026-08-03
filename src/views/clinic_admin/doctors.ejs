@@ -1,26 +1,26 @@
-<%- include('head', { title: 'الأطباء', tab: 'doctors' }) %>
+<%- include('head', { title: t('dr.title'), tab: 'doctors' }) %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">الأطباء</h1>
-<p class="text-slate-500 mb-6">كل طبيب له صفحته الخاصة على موقع العيادة</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('dr.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('dr.sub') %></p>
 
 <div class="grid gap-6 lg:grid-cols-3">
   <!-- Form -->
   <div class="lg:col-span-1">
     <div class="bg-white border border-slate-200 rounded-2xl p-5 lg:sticky lg:top-4">
-      <h2 class="font-extrabold text-slate-900 mb-3"><%= edit ? 'تعديل طبيب' : 'إضافة طبيب' %></h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= edit ? t('dr.edit_one') : t('dr.add_one') %></h2>
       <form method="post" action="/clinic/doctors" class="grid gap-2.5">
         <% if (edit) { %><input type="hidden" name="id" value="<%= edit.id %>" /><% } %>
-        <input name="name" required maxlength="80" value="<%= edit ? edit.name : '' %>" placeholder="اسم الطبيب" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="title" maxlength="60" value="<%= edit ? (edit.title||'') : '' %>" placeholder="اللقب (استشاري/أخصائي)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="specialty" maxlength="80" value="<%= edit ? (edit.specialty||'') : '' %>" placeholder="التخصص" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="fee" type="number" min="0" value="<%= edit && edit.fee!=null ? edit.fee : '' %>" placeholder="سعر الكشف (جنيه)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="schedule" maxlength="200" value="<%= edit ? (edit.schedule||'') : '' %>" placeholder="مواعيد العمل" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="photo_url" maxlength="300" value="<%= edit ? (edit.photo_url||'') : '' %>" placeholder="رابط صورة (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" dir="ltr" />
-        <textarea name="bio" maxlength="2000" rows="4" placeholder="نبذة عن الطبيب (تظهر في صفحته)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= edit ? (edit.bio||'') : '' %></textarea>
-        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="is_active" value="1" <%= (!edit || edit.is_active) ? 'checked' : '' %> /> نشط (يظهر للجمهور)</label>
+        <input name="name" required maxlength="80" value="<%= edit ? edit.name : '' %>" placeholder="<%= t('dr.name') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="title" maxlength="60" value="<%= edit ? (edit.title||'') : '' %>" placeholder="<%= t('dr.rank') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="specialty" maxlength="80" value="<%= edit ? (edit.specialty||'') : '' %>" placeholder="<%= t('dr.specialty') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="fee" type="number" min="0" value="<%= edit && edit.fee!=null ? edit.fee : '' %>" placeholder="<%= t('dr.fee') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="schedule" maxlength="200" value="<%= edit ? (edit.schedule||'') : '' %>" placeholder="<%= t('dr.schedule') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="photo_url" maxlength="300" value="<%= edit ? (edit.photo_url||'') : '' %>" placeholder="<%= t('dr.photo') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" dir="ltr" />
+        <textarea name="bio" maxlength="2000" rows="4" placeholder="<%= t('dr.bio') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= edit ? (edit.bio||'') : '' %></textarea>
+        <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" name="is_active" value="1" <%= (!edit || edit.is_active) ? 'checked' : '' %> /> <%= t('dr.active') %></label>
         <div class="flex gap-2">
-          <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm flex-1"><%= edit ? 'حفظ' : 'إضافة' %></button>
-          <% if (edit) { %><a href="/clinic/doctors" class="border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-600 grid place-items-center">إلغاء</a><% } %>
+          <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm flex-1"><%= edit ? t('common.save') : t('dr.add') %></button>
+          <% if (edit) { %><a href="/clinic/doctors" class="border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-600 grid place-items-center"><%= t('common.cancel') %></a><% } %>
         </div>
       </form>
     </div>
@@ -28,17 +28,17 @@
   <!-- List -->
   <div class="lg:col-span-2 space-y-3">
     <% if (!doctors.length) { %>
-      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">أضف أول طبيب من النموذج.</div>
+      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('dr.empty') %></div>
     <% } %>
     <% doctors.forEach(function(d){ %>
     <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3">
       <% if (d.photo_url) { %><img src="<%= d.photo_url %>" class="w-12 h-12 rounded-xl object-cover border border-slate-200" /><% } else { %><div class="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 grid place-items-center text-xl">👨‍⚕️</div><% } %>
       <div class="min-w-0 flex-1">
-        <div class="font-bold text-slate-900 truncate"><%= d.name %> <% if (!d.is_active) { %><span class="text-xs bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">مخفي</span><% } %></div>
-        <div class="text-xs text-slate-500"><%= d.title||'' %><%= d.specialty?(' · '+d.specialty):'' %><%= d.fee!=null?(' · '+d.fee+' ج'):'' %></div>
+        <div class="font-bold text-slate-900 truncate"><%= d.name %> <% if (!d.is_active) { %><span class="text-xs bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded"><%= t('dr.hidden') %></span><% } %></div>
+        <div class="text-xs text-slate-500"><%= d.title||'' %><%= d.specialty?(' · '+d.specialty):'' %><%= d.fee!=null?(' · '+d.fee+' '+t('cur.egp')):'' %></div>
       </div>
-      <a href="/clinic/doctors/<%= d.id %>/edit" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 font-semibold">تعديل</a>
-      <form method="post" action="/clinic/doctors/<%= d.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-xs px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold">حذف</button></form>
+      <a href="/clinic/doctors/<%= d.id %>/edit" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 font-semibold"><%= t('dr.edit') %></a>
+      <form method="post" action="/clinic/doctors/<%= d.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-xs px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold"><%= t('common.delete') %></button></form>
     </div>
     <% }); %>
   </div>
