@@ -11,6 +11,8 @@
   <a href="/clinic/dental" class="text-slate-400 hover:text-slate-600 text-sm">← الأسنان</a>
   <h1 class="text-2xl font-black text-slate-900"><%= patient.name %></h1>
   <% if (patient.phone) { %><span class="text-sm text-slate-500" dir="ltr"><%= patient.phone %></span><% } %>
+  <a href="/clinic/dental/patient/<%= patient.id %>/perio"
+     class="ms-auto text-sm font-semibold text-rose-600 hover:text-rose-700">🩸 خريطة اللثة ←</a>
 </div>
 <p class="text-slate-500 mb-6">خريطة الأسنان بنظام FDI — اضغط على أي سن لتحديد حالته</p>
 

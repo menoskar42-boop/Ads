@@ -1788,6 +1788,116 @@ router.get('/dental/patient/:id', requireModule('dental'), async (req, res) => {
   } catch (e) { console.error('[dental patient]', e.message); res.status(500).send('error'); }
 });
 
+// ── Periodontal chart ────────────────────────────────────────────────────────
+// Six probing depths per tooth (three buccal, three lingual) plus bleeding,
+// recession and mobility. Saved as one exam so today's can be compared with the
+// last — which is the only reason the numbers are taken at all.
+router.get('/dental/patient/:id/perio', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  if (!Number.isInteger(pid)) return res.redirect('/clinic/dental');
+  try {
+    const p = (await pool.query('SELECT * FROM clinic_patients WHERE id=$1 AND company_id=$2', [pid, cid])).rows[0];
+    if (!p) return res.redirect('/clinic/dental');
+
+    const examId = parseInt(req.query.exam, 10);
+    const [exams, doctors] = await Promise.all([
+      pool.query(
+        `SELECT e.id, e.exam_date, e.note, e.data, d.name AS doctor_name
+           FROM clinic_perio_exams e LEFT JOIN clinic_doctors d ON d.id = e.doctor_id
+          WHERE e.company_id=$1 AND e.patient_id=$2
+          ORDER BY e.exam_date DESC, e.id DESC LIMIT 30`, [cid, pid]),
+      pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, name', [cid]),
+    ]);
+
+    const current = Number.isInteger(examId)
+      ? exams.rows.find((e) => e.id === examId) || null
+      : exams.rows[0] || null;
+    // The exam before the one on screen — that is what "improved or worsened"
+    // is measured against.
+    const idx = current ? exams.rows.findIndex((e) => e.id === current.id) : -1;
+    const previous = idx >= 0 && exams.rows[idx + 1] ? exams.rows[idx + 1] : null;
+
+    res.render('clinic_admin/dental_perio', {
+      company: req.company, tab: 'dental',
+      patient: p, exams: exams.rows, current, previous, doctors: doctors.rows,
+      upper: FDI_UPPER, lower: FDI_LOWER,
+    });
+  } catch (e) { console.error('[perio]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/dental/patient/:id/perio', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  const body = req.body || {};
+  const raw = body.data && typeof body.data === 'object' ? body.data : {};
+
+  // Only real FDI teeth, and depths clamped to a plausible probe range —
+  // a typo of 55mm must not enter a clinical record.
+  const data = {};
+  for (const key of Object.keys(raw).slice(0, 40)) {
+    const tooth = parseInt(key, 10);
+    if (!ALL_TEETH.has(tooth)) continue;
+    const t = raw[key] || {};
+    const pd = Array.isArray(t.pd) ? t.pd.slice(0, 6).map((v) => {
+      const n = parseInt(v, 10);
+      return Number.isInteger(n) && n >= 0 && n <= 15 ? n : null;
+    }) : [];
+    const bop = Array.isArray(t.bop) ? t.bop.slice(0, 6).map((v) => (v ? 1 : 0)) : [];
+    const rec = parseInt(t.rec, 10);
+    const mob = parseInt(t.mob, 10);
+    if (pd.some((v) => v != null) || bop.some(Boolean) || Number.isInteger(rec) || Number.isInteger(mob)) {
+      data[tooth] = {
+        pd, bop,
+        rec: Number.isInteger(rec) && rec >= 0 && rec <= 15 ? rec : null,
+        mob: Number.isInteger(mob) && mob >= 0 && mob <= 3 ? mob : null,
+      };
+    }
+  }
+  if (!Object.keys(data).length) return res.json({ ok: false, reason: 'empty' });
+
+  try {
+    const r = await pool.query(
+      `INSERT INTO clinic_perio_exams (company_id, patient_id, doctor_id, exam_date, data, note)
+       VALUES ($1,$2,$3, COALESCE($4::date, CURRENT_DATE), $5, $6) RETURNING id`,
+      [cid, pid, parseInt(body.doctor_id, 10) || null,
+       /^\d{4}-\d{2}-\d{2}$/.test(body.exam_date || '') ? body.exam_date : null,
+       JSON.stringify(data), String(body.note || '').slice(0, 500) || null]
+    );
+    res.json({ ok: true, id: r.rows[0].id, teeth: Object.keys(data).length });
+  } catch (e) {
+    console.error('[perio save]', e.message);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Save annotations drawn over an image. Shapes are stored, not burned in, so
+// the original x-ray stays diagnostic and a mark can be corrected later.
+router.post('/dental/photo/:id/annotations', requireModule('dental'), async (req, res) => {
+  const shapes = Array.isArray(req.body && req.body.shapes) ? req.body.shapes.slice(0, 100) : [];
+  // Coordinates are stored as 0..1 fractions of the image, so a mark stays on
+  // the same tooth whatever size the image is displayed at.
+  const clean = shapes.map((s) => ({
+    type: ['arrow', 'circle', 'rect', 'text', 'line'].includes(s && s.type) ? s.type : 'circle',
+    x: Math.max(0, Math.min(1, Number(s.x) || 0)),
+    y: Math.max(0, Math.min(1, Number(s.y) || 0)),
+    x2: Math.max(0, Math.min(1, Number(s.x2) || 0)),
+    y2: Math.max(0, Math.min(1, Number(s.y2) || 0)),
+    text: String((s && s.text) || '').slice(0, 60),
+    color: /^#[0-9a-f]{6}$/i.test(s && s.color) ? s.color : '#ef4444',
+  }));
+  try {
+    await pool.query(
+      'UPDATE clinic_patient_photos SET annotations=$1 WHERE id=$2 AND company_id=$3',
+      [JSON.stringify(clean), parseInt(req.params.id, 10), req.company.id]
+    );
+    res.json({ ok: true, count: clean.length });
+  } catch (e) {
+    console.error('[annotations]', e.message);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Bulk chart save. The chairside flow is "mark eight teeth, then save" — one
 // request per tooth would mean eight page reloads with a patient in the chair.
 // Everything lands in a single transaction so the chart is never half-written.

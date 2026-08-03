@@ -1,0 +1,259 @@
+<%- include('head', { title: 'خريطة اللثة', tab: 'dental' }) %>
+<%
+  function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return ''; } }
+  var cur = (current && current.data) || {};
+  // Six sites per tooth in the order they are probed: buccal mesial→distal,
+  // then lingual mesial→distal.
+  var SITES = ['MB','B','DB','ML','L','DL'];
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/clinic/dental/patient/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← خريطة الأسنان</a>
+  <h1 class="text-2xl font-black text-slate-900">🩸 خريطة اللثة</h1>
+  <span class="text-slate-500"><%= patient.name %></span>
+</div>
+<p class="text-slate-500 mb-5">٦ قياسات لكل سن (٣ خارجي + ٣ داخلي) — القيمة الحقيقية في المقارنة مع الفحص اللي قبله</p>
+
+<!-- ── الفحوصات السابقة ─────────────────────────────────────────── -->
+<% if (exams.length) { %>
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+  <div class="flex items-center gap-2 flex-wrap">
+    <span class="text-xs font-bold text-slate-600">الفحوصات:</span>
+    <% exams.forEach(function(e){ %>
+      <a href="?exam=<%= e.id %>"
+         class="text-xs px-3 py-1.5 rounded-lg border <%= current && current.id === e.id ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50' %>">
+        <%= fmtD(e.exam_date) %>
+      </a>
+    <% }); %>
+    <a href="?exam=new" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 ms-auto">
+      + فحص جديد
+    </a>
+  </div>
+</div>
+<% } %>
+
+<!-- ── الملخص ───────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4" id="summary">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">متوسط عمق الجيب</div>
+    <div class="text-2xl font-extrabold text-slate-900"><span id="sMean">—</span> <span class="text-sm font-normal">مم</span></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">نسبة النزيف (BOP)</div>
+    <div class="text-2xl font-extrabold" id="sBopWrap"><span id="sBop">—</span>%</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">جيوب ≥ ٥ مم</div>
+    <div class="text-2xl font-extrabold text-red-600"><span id="sDeep">—</span></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">مقارنة بالفحص السابق</div>
+    <div class="text-lg font-extrabold" id="sTrend">—</div>
+  </div>
+</div>
+
+<!-- ── الشيت ────────────────────────────────────────────────────── -->
+<form id="perioForm" class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+  <div class="flex flex-wrap items-end gap-3 mb-4 pb-3 border-b border-slate-100">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">تاريخ الفحص</label>
+      <input type="date" id="examDate" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">الطبيب</label>
+      <select id="examDoctor" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <option value="">—</option>
+        <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
+      </select>
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs font-semibold text-slate-600 mb-1">ملاحظة</label>
+      <input id="examNote" maxlength="500" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <button type="button" onclick="savePerio()" id="perioSave"
+            class="bg-slate-900 text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800">
+      حفظ الفحص
+    </button>
+  </div>
+
+  <p class="text-xs text-slate-400 mb-3">
+    اكتب العمق بالمليمتر واضغط <kbd class="px-1 bg-slate-100 rounded">Tab</kbd> للانتقال.
+    المربع الأحمر = نزيف عند الجس (اضغط عليه للتبديل). القيم ≥ ٥ بتتلوّن أوتوماتيك.
+  </p>
+
+  <div class="overflow-x-auto">
+    <% function renderJaw(rows, label) { %>
+      <div class="mb-5">
+        <div class="text-xs font-bold text-slate-500 mb-2"><%= label %></div>
+        <table class="text-xs border-collapse">
+          <thead>
+            <tr>
+              <th class="p-1 text-slate-400 font-normal sticky start-0 bg-white"></th>
+              <% rows.forEach(function(quad){ quad.forEach(function(t){ %>
+                <th class="p-1 font-bold text-slate-600 w-12" dir="ltr"><%= t %></th>
+              <% }); }); %>
+            </tr>
+          </thead>
+          <tbody>
+            <% ['نزيف','عمق الجيب'].forEach(function(rowLabel, ri){ %>
+            <tr>
+              <td class="p-1 text-slate-500 whitespace-nowrap sticky start-0 bg-white"><%= rowLabel %></td>
+              <% rows.forEach(function(quad){ quad.forEach(function(t){
+                   var d = cur[t] || {};
+              %>
+                <td class="p-0.5 align-top">
+                  <div class="flex gap-px justify-center">
+                    <% for (var i = 0; i < 6; i++) { %>
+                      <% if (ri === 0) { %>
+                        <button type="button" class="bop w-3 h-4 rounded-sm border border-slate-200"
+                                data-tooth="<%= t %>" data-i="<%= i %>"
+                                data-on="<%= (d.bop && d.bop[i]) ? '1' : '0' %>"
+                                title="<%= SITES[i] %>"></button>
+                      <% } else { %>
+                        <input class="pd w-3.5 h-6 text-center border border-slate-200 rounded-sm text-[10px] p-0"
+                               inputmode="numeric" maxlength="2"
+                               data-tooth="<%= t %>" data-i="<%= i %>"
+                               title="<%= SITES[i] %>"
+                               value="<%= (d.pd && d.pd[i] != null) ? d.pd[i] : '' %>" />
+                      <% } %>
+                      <% if (i === 2) { %><span class="w-1"></span><% } %>
+                    <% } %>
+                  </div>
+                </td>
+              <% }); }); %>
+            </tr>
+            <% }); %>
+            <tr>
+              <td class="p-1 text-slate-500 whitespace-nowrap sticky start-0 bg-white">انحسار / حركة</td>
+              <% rows.forEach(function(quad){ quad.forEach(function(t){ var d = cur[t] || {}; %>
+                <td class="p-0.5">
+                  <div class="flex gap-px justify-center">
+                    <input class="rec w-5 h-6 text-center border border-slate-200 rounded-sm text-[10px] p-0"
+                           inputmode="numeric" maxlength="2" data-tooth="<%= t %>" title="انحسار اللثة"
+                           value="<%= d.rec != null ? d.rec : '' %>" />
+                    <input class="mob w-5 h-6 text-center border border-slate-200 rounded-sm text-[10px] p-0 bg-slate-50"
+                           inputmode="numeric" maxlength="1" data-tooth="<%= t %>" title="درجة الحركة 0-3"
+                           value="<%= d.mob != null ? d.mob : '' %>" />
+                  </div>
+                </td>
+              <% }); }); %>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
+    <% renderJaw(upper, 'الفك العلوي') %>
+    <% renderJaw(lower, 'الفك السفلي') %>
+  </div>
+</form>
+
+<script>
+  var PREV = <%- JSON.stringify((previous && previous.data) || null) %>;
+
+  function stats(){
+    var depths = [], bopOn = 0, bopTotal = 0, deep = 0;
+    document.querySelectorAll('.pd').forEach(function(inp){
+      var v = parseInt(inp.value, 10);
+      if (Number.isInteger(v)) { depths.push(v); if (v >= 5) deep++; }
+    });
+    document.querySelectorAll('.bop').forEach(function(b){
+      bopTotal++; if (b.getAttribute('data-on') === '1') bopOn++;
+    });
+    var mean = depths.length ? (depths.reduce(function(a,b){return a+b;},0) / depths.length) : null;
+    return { mean: mean, bop: bopTotal ? Math.round((bopOn / bopTotal) * 100) : 0, deep: deep, n: depths.length };
+  }
+
+  function prevMean(){
+    if (!PREV) return null;
+    var all = [];
+    Object.keys(PREV).forEach(function(t){
+      (PREV[t].pd || []).forEach(function(v){ if (v != null) all.push(Number(v)); });
+    });
+    return all.length ? all.reduce(function(a,b){return a+b;},0) / all.length : null;
+  }
+
+  function refresh(){
+    var s = stats();
+    document.getElementById('sMean').textContent = s.mean == null ? '—' : s.mean.toFixed(1);
+    document.getElementById('sBop').textContent = s.n ? s.bop : '—';
+    document.getElementById('sDeep').textContent = s.n ? s.deep : '—';
+    // Above ~10% bleeding is the line where a case stops being "stable" — worth
+    // colouring rather than leaving the clinician to compute it.
+    document.getElementById('sBopWrap').className = 'text-2xl font-extrabold ' +
+      (s.bop >= 10 ? 'text-red-600' : 'text-emerald-600');
+
+    var pm = prevMean(), el = document.getElementById('sTrend');
+    if (pm == null || s.mean == null) { el.textContent = '—'; el.className = 'text-lg font-extrabold text-slate-400'; return; }
+    var diff = s.mean - pm;
+    if (Math.abs(diff) < 0.05) { el.textContent = 'زي ما هي'; el.className = 'text-lg font-extrabold text-slate-500'; }
+    else if (diff < 0) { el.textContent = 'تحسّن ' + Math.abs(diff).toFixed(1) + ' مم'; el.className = 'text-lg font-extrabold text-emerald-600'; }
+    else { el.textContent = 'ساءت ' + diff.toFixed(1) + ' مم'; el.className = 'text-lg font-extrabold text-red-600'; }
+  }
+
+  function paintPd(inp){
+    var v = parseInt(inp.value, 10);
+    inp.classList.remove('bg-red-100','text-red-700','font-bold','bg-amber-50');
+    if (v >= 5) inp.classList.add('bg-red-100','text-red-700','font-bold');
+    else if (v === 4) inp.classList.add('bg-amber-50');
+  }
+
+  document.querySelectorAll('.pd').forEach(function(inp){
+    paintPd(inp);
+    inp.addEventListener('input', function(){
+      // Two digits max and auto-advance: the probe is in one hand, so every
+      // saved keystroke matters when entering ~200 numbers.
+      if (inp.value.length >= 2) {
+        var all = Array.prototype.slice.call(document.querySelectorAll('.pd'));
+        var next = all[all.indexOf(inp) + 1];
+        if (next) next.focus();
+      }
+      paintPd(inp); refresh();
+    });
+  });
+
+  document.querySelectorAll('.bop').forEach(function(b){
+    function paint(){ b.style.background = b.getAttribute('data-on') === '1' ? '#ef4444' : '#ffffff'; }
+    paint();
+    b.addEventListener('click', function(){
+      b.setAttribute('data-on', b.getAttribute('data-on') === '1' ? '0' : '1');
+      paint(); refresh();
+    });
+  });
+
+  function savePerio(){
+    var data = {};
+    function slot(t){ if (!data[t]) data[t] = { pd: [null,null,null,null,null,null], bop: [0,0,0,0,0,0], rec: null, mob: null }; return data[t]; }
+    document.querySelectorAll('.pd').forEach(function(i){
+      var v = parseInt(i.value, 10);
+      if (Number.isInteger(v)) slot(i.getAttribute('data-tooth')).pd[Number(i.getAttribute('data-i'))] = v;
+    });
+    document.querySelectorAll('.bop').forEach(function(b){
+      if (b.getAttribute('data-on') === '1') slot(b.getAttribute('data-tooth')).bop[Number(b.getAttribute('data-i'))] = 1;
+    });
+    document.querySelectorAll('.rec').forEach(function(i){ var v = parseInt(i.value,10); if (Number.isInteger(v)) slot(i.getAttribute('data-tooth')).rec = v; });
+    document.querySelectorAll('.mob').forEach(function(i){ var v = parseInt(i.value,10); if (Number.isInteger(v)) slot(i.getAttribute('data-tooth')).mob = v; });
+
+    if (!Object.keys(data).length) { alert('مفيش قياسات مدخّلة'); return; }
+    var btn = document.getElementById('perioSave');
+    btn.disabled = true; btn.textContent = 'بيحفظ…';
+    fetch('/clinic/dental/patient/<%= patient.id %>/perio', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: data,
+        exam_date: document.getElementById('examDate').value || null,
+        doctor_id: document.getElementById('examDoctor').value || null,
+        note: document.getElementById('examNote').value || null,
+      }),
+    }).then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.ok) location.href = '?exam=' + j.id;
+        else { alert('الحفظ فشل'); btn.disabled = false; btn.textContent = 'حفظ الفحص'; }
+      })
+      .catch(function(){ alert('الحفظ فشل'); btn.disabled = false; btn.textContent = 'حفظ الفحص'; });
+  }
+
+  refresh();
+</script>
+
+</main></body></html>

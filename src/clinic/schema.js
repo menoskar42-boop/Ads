@@ -472,6 +472,31 @@ async function ensureClinicSchema() {
       CREATE INDEX IF NOT EXISTS idx_dental_plan_patient
         ON clinic_dental_plan (company_id, patient_id, status);
 
+      -- Periodontal chart. A perio exam is a snapshot: six probing depths per
+      -- tooth plus bleeding and mobility, ~400 numbers, and its whole clinical
+      -- value is comparing today's against the last one. Storing each exam as a
+      -- single JSON document keeps that comparison trivial and avoids ~400 rows
+      -- per examination.
+      CREATE TABLE IF NOT EXISTS clinic_perio_exams (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id  INTEGER NOT NULL REFERENCES clinic_patients(id) ON DELETE CASCADE,
+        doctor_id   INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        exam_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+        -- { "16": { "pd": [3,2,3,2,2,3], "bop": [1,0,0,0,0,0], "rec": 1, "mob": 0 } }
+        data        JSONB NOT NULL DEFAULT '{}'::jsonb,
+        note        TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_perio_patient
+        ON clinic_perio_exams (company_id, patient_id, exam_date DESC);
+
+      -- Annotations drawn over an uploaded image (x-ray or clinical photo).
+      -- Kept as shapes rather than burned into the file so the original stays
+      -- diagnostic and a mark can be corrected or removed later.
+      ALTER TABLE clinic_patient_photos
+        ADD COLUMN IF NOT EXISTS annotations JSONB NOT NULL DEFAULT '[]'::jsonb;
+
       -- Lab orders: crowns, bridges, dentures… tracked from sent to delivered,
       -- because a case stuck at the lab is the most common reason a dental
       -- appointment gets wasted.
