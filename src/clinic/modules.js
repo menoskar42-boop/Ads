@@ -14,6 +14,7 @@ const MODULES = [
   { key: 'callcenter', label: 'مركز الاتصال',   icon: '📞', path: '/clinic/calls',      desc: 'سجل المكالمات والمتابعات مع المرضى وحجز المكالمات القادمة.' },
   { key: 'whatsapp',   label: 'واتساب',         icon: '💬', path: '/clinic/whatsapp',   desc: 'ربط رقم واتساب العيادة (Cloud API أو مزوّد خارجي) لإرسال تأكيدات وتذكير المواعيد. كل عيادة تضع مفتاحها الخاص.' },
   { key: 'api',        label: 'API والمكاملات', icon: '🔌', path: '/clinic/integrations', desc: 'مفاتيح API وويب-هوكس لربط العيادة بأنظمة خارجية.' },
+  { key: 'dental',     label: 'الأسنان',        icon: '🦷', path: '/clinic/dental',     desc: 'خريطة الأسنان (FDI)، خطة علاج لكل سن، طلبات المعمل، وصور قبل/بعد. لعيادات الأسنان فقط.' },
 ];
 
 const MODULE_KEYS = MODULES.map((m) => m.key);

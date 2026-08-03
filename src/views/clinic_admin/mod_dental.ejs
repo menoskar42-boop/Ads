@@ -1,0 +1,190 @@
+<%- include('head', { title: 'الأسنان', tab: 'dental' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG'); }
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var SBADGE = {
+    sent:      'bg-slate-100 text-slate-700',
+    in_lab:    'bg-amber-100 text-amber-800',
+    received:  'bg-blue-100 text-blue-800',
+    delivered: 'bg-emerald-100 text-emerald-800',
+    redo:      'bg-red-100 text-red-800'
+  };
+  var SLABEL = {}; labStatuses.forEach(function(s){ SLABEL[s.key] = s.label; });
+%>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">🦷 الأسنان</h1>
+<p class="text-slate-500 mb-6">طلبات المعمل وخطط العلاج — وخريطة أسنان لكل مريض</p>
+
+<% if (late.length) { %>
+<div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
+  ⚠️ فيه <strong><%= late.length %></strong> طلب معمل عدّى موعد تسليمه ولسه ما وصلش:
+  <%= late.slice(0,4).map(function(o){ return (o.patient_name||'—') + ' (' + o.work_type + ')'; }).join('، ') %><%= late.length > 4 ? '…' : '' %>
+</div>
+<% } %>
+
+<!-- ── فتح خريطة أسنان مريض ─────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3">خريطة أسنان مريض</h2>
+  <% if (!patients.length) { %>
+    <p class="text-sm text-slate-500">مفيش مرضى مسجّلين لسه — ضيف مريض من صفحة المرضى الأول.</p>
+  <% } else { %>
+  <form onsubmit="var v=document.getElementById('dpat').value; if(v){location.href='/clinic/dental/patient/'+v;} return false;"
+        class="flex flex-wrap gap-2 items-center">
+    <select id="dpat" class="flex-1 min-w-[220px] border border-slate-200 rounded-xl px-3 py-2 text-sm">
+      <% patients.forEach(function(p){ %>
+        <option value="<%= p.id %>"><%= p.name %><%= p.phone ? ' — ' + p.phone : '' %></option>
+      <% }); %>
+    </select>
+    <button class="bg-slate-900 text-white text-sm font-bold px-5 py-2 rounded-xl hover:bg-slate-800">افتح الخريطة</button>
+  </form>
+  <% } %>
+</div>
+
+<!-- ── طلب معمل جديد ────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3">طلب معمل جديد</h2>
+  <form method="post" action="/clinic/dental/lab" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">المريض</label>
+      <select name="patient_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <option value="">— بدون —</option>
+        <% patients.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">الطبيب</label>
+      <select name="doctor_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <option value="">— بدون —</option>
+        <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">نوع الشغل *</label>
+      <select name="work_type" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <% workTypes.forEach(function(w){ %><option value="<%= w %>"><%= w %></option><% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">المعمل</label>
+      <input name="lab_name" maxlength="120" placeholder="اسم المعمل" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">أرقام الأسنان</label>
+      <input name="tooth_numbers" maxlength="100" dir="ltr" placeholder="11,12,21" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">درجة اللون</label>
+      <input name="shade" maxlength="20" dir="ltr" placeholder="A2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">تاريخ الإرسال</label>
+      <input type="date" name="sent_at" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">موعد التسليم</label>
+      <input type="date" name="due_at" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">التكلفة</label>
+      <input type="number" name="cost" min="0" step="0.01" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-semibold text-slate-600 mb-1">ملاحظات</label>
+      <input name="note" maxlength="500" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div class="flex items-end">
+      <button class="w-full bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-emerald-700">إضافة الطلب</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── طلبات المعمل ─────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">طلبات المعمل</div>
+  <% if (!orders.length) { %>
+    <p class="px-5 py-6 text-sm text-slate-500">مفيش طلبات لسه.</p>
+  <% } else { %>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="text-right px-4 py-2 font-semibold">المريض</th>
+          <th class="text-right px-4 py-2 font-semibold">الشغل</th>
+          <th class="text-right px-4 py-2 font-semibold">الأسنان</th>
+          <th class="text-right px-4 py-2 font-semibold">اللون</th>
+          <th class="text-right px-4 py-2 font-semibold">المعمل</th>
+          <th class="text-right px-4 py-2 font-semibold">التسليم</th>
+          <th class="text-right px-4 py-2 font-semibold">التكلفة</th>
+          <th class="text-right px-4 py-2 font-semibold">الحالة</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% orders.forEach(function(o){
+             var overdue = o.due_at && ['sent','in_lab','redo'].indexOf(o.status) >= 0
+               && (new Date(o.due_at) < new Date(new Date().toDateString()));
+        %>
+        <tr class="<%= overdue ? 'bg-red-50/50' : '' %>">
+          <td class="px-4 py-2">
+            <% if (o.patient_id) { %>
+              <a href="/clinic/dental/patient/<%= o.patient_id %>" class="text-indigo-600 hover:underline"><%= o.patient_name || '—' %></a>
+            <% } else { %><span class="text-slate-400">—</span><% } %>
+          </td>
+          <td class="px-4 py-2"><%= o.work_type %></td>
+          <td class="px-4 py-2" dir="ltr"><%= o.tooth_numbers || '—' %></td>
+          <td class="px-4 py-2" dir="ltr"><%= o.shade || '—' %></td>
+          <td class="px-4 py-2 text-slate-600"><%= o.lab_name || '—' %></td>
+          <td class="px-4 py-2 <%= overdue ? 'text-red-700 font-bold' : 'text-slate-600' %>">
+            <%= fmtD(o.due_at) %><%= overdue ? ' ⚠️' : '' %>
+          </td>
+          <td class="px-4 py-2"><%= money(o.cost) %> ج</td>
+          <td class="px-4 py-2">
+            <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SBADGE[o.status] || 'bg-slate-100 text-slate-700' %>">
+              <%= SLABEL[o.status] || o.status %>
+            </span>
+          </td>
+          <td class="px-4 py-2">
+            <div class="flex items-center gap-1 justify-end">
+              <form method="post" action="/clinic/dental/lab/<%= o.id %>/status" class="flex items-center gap-1">
+                <select name="status" onchange="this.form.submit()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                  <% labStatuses.forEach(function(s){ %>
+                    <option value="<%= s.key %>" <%= o.status === s.key ? 'selected' : '' %>><%= s.label %></option>
+                  <% }); %>
+                </select>
+              </form>
+              <form method="post" action="/clinic/dental/lab/<%= o.id %>/delete"
+                    onsubmit="return confirm('تأكيد حذف الطلب؟')">
+                <button class="text-red-500 hover:text-red-700 text-xs px-2">حذف</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+<!-- ── خطط علاج جارية ───────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">خطط علاج جارية</div>
+  <% if (!planned.length) { %>
+    <p class="px-5 py-6 text-sm text-slate-500">مفيش خطط علاج مفتوحة.</p>
+  <% } else { %>
+  <div class="divide-y divide-slate-100">
+    <% planned.forEach(function(p){ %>
+    <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
+      <a href="/clinic/dental/patient/<%= p.patient_id %>" class="font-semibold text-indigo-600 hover:underline"><%= p.patient_name %></a>
+      <span class="text-slate-700"><%= p.procedure %></span>
+      <% if (p.tooth) { %><span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" dir="ltr">سن <%= p.tooth %></span><% } %>
+      <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">مرحلة <%= p.phase %></span>
+      <span class="text-slate-500 ms-auto"><%= money(p.cost) %> ج</span>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+</div>
+
+
+</main></body></html>

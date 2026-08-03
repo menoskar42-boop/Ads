@@ -892,4 +892,282 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Dental module ────────────────────────────────────────────────────────────
+// FDI quadrants, in the order a dentist reads a chart: upper right → upper
+// left, then lower left → lower right. The view renders these directly, so the
+// order here IS the on-screen layout.
+const FDI_UPPER = [
+  [18, 17, 16, 15, 14, 13, 12, 11],
+  [21, 22, 23, 24, 25, 26, 27, 28],
+];
+const FDI_LOWER = [
+  [48, 47, 46, 45, 44, 43, 42, 41],
+  [31, 32, 33, 34, 35, 36, 37, 38],
+];
+const ALL_TEETH = new Set([...FDI_UPPER.flat(), ...FDI_LOWER.flat()]);
+
+const TOOTH_STATUSES = [
+  { key: 'sound',     label: 'سليم',        color: '#ffffff' },
+  { key: 'caries',    label: 'تسوس',        color: '#ef4444' },
+  { key: 'filled',    label: 'حشو',         color: '#3b82f6' },
+  { key: 'root_canal', label: 'حشو عصب',    color: '#8b5cf6' },
+  { key: 'crown',     label: 'تاج',         color: '#f59e0b' },
+  { key: 'bridge',    label: 'جسر',         color: '#d97706' },
+  { key: 'veneer',    label: 'فينير',       color: '#14b8a6' },
+  { key: 'implant',   label: 'زرعة',        color: '#10b981' },
+  { key: 'denture',   label: 'طقم',         color: '#64748b' },
+  { key: 'missing',   label: 'مخلوع/مفقود', color: '#111827' },
+];
+const STATUS_KEYS = new Set(TOOTH_STATUSES.map((s) => s.key));
+
+const LAB_WORK_TYPES = ['تاج (Crown)', 'جسر (Bridge)', 'فينير (Veneer)', 'طقم كامل', 'طقم جزئي', 'مثبت (Retainer)', 'حشو معملي (Inlay/Onlay)', 'أخرى'];
+const LAB_STATUSES = [
+  { key: 'sent',      label: 'اتبعت للمعمل' },
+  { key: 'in_lab',    label: 'تحت التنفيذ' },
+  { key: 'received',  label: 'وصلت العيادة' },
+  { key: 'delivered', label: 'اتركّبت للمريض' },
+  { key: 'redo',      label: 'مرتجعة/إعادة' },
+];
+const LAB_STATUS_KEYS = new Set(LAB_STATUSES.map((s) => s.key));
+
+const dentalPhotoUpload = (() => {
+  const multer = require('multer');
+  const path = require('path');
+  const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, '..', '..', 'public', 'uploads')),
+    filename: (req, file, cb) => cb(null, `dental-${req.session.companyId}-${Date.now()}${path.extname(file.originalname).toLowerCase()}`),
+  });
+  return multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    // Raster only — SVG is active content and these are served from /uploads.
+    fileFilter: (req, file, cb) => cb(null, /^image\/(png|jpeg|jpg|gif|webp)$/.test(file.mimetype)),
+  }).single('photo');
+})();
+
+// Overview: lab orders that need attention + today's dental activity.
+router.get('/dental', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [orders, patients, doctors, planned] = await Promise.all([
+      pool.query(
+        `SELECT l.*, p.name AS patient_name, d.name AS doctor_name
+           FROM clinic_lab_orders l
+           LEFT JOIN clinic_patients p ON p.id = l.patient_id
+           LEFT JOIN clinic_doctors  d ON d.id = l.doctor_id
+          WHERE l.company_id = $1
+          ORDER BY (l.status IN ('delivered')) ASC, l.due_at NULLS LAST, l.created_at DESC
+          LIMIT 100`, [cid]),
+      pool.query('SELECT id, name, phone FROM clinic_patients WHERE company_id=$1 ORDER BY name LIMIT 500', [cid]),
+      pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, name', [cid]),
+      pool.query(
+        `SELECT pl.*, p.name AS patient_name
+           FROM clinic_dental_plan pl
+           JOIN clinic_patients p ON p.id = pl.patient_id
+          WHERE pl.company_id=$1 AND pl.status IN ('planned','in_progress')
+          ORDER BY pl.phase, pl.created_at DESC LIMIT 50`, [cid]),
+    ]);
+    // "Late" = past its due date and not yet back from the lab. This is the one
+    // number that actually costs the clinic a wasted appointment.
+    const today = new Date().toISOString().slice(0, 10);
+    const late = orders.rows.filter((o) => o.due_at && !['received', 'delivered'].includes(o.status)
+      && new Date(o.due_at).toISOString().slice(0, 10) < today);
+    res.render('clinic_admin/mod_dental', {
+      company: req.company, tab: 'dental',
+      orders: orders.rows, patients: patients.rows, doctors: doctors.rows,
+      planned: planned.rows, late,
+      workTypes: LAB_WORK_TYPES, labStatuses: LAB_STATUSES,
+    });
+  } catch (e) { console.error('[dental]', e.message); res.status(500).send('error'); }
+});
+
+// Per-patient odontogram + treatment plan + photos.
+router.get('/dental/patient/:id', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  if (!Number.isInteger(pid)) return res.redirect('/clinic/dental');
+  try {
+    const pr = await pool.query('SELECT * FROM clinic_patients WHERE id=$1 AND company_id=$2', [pid, cid]);
+    if (!pr.rows.length) return res.redirect('/clinic/dental');
+
+    const [chart, plan, photos, doctors] = await Promise.all([
+      pool.query('SELECT * FROM clinic_dental_chart WHERE company_id=$1 AND patient_id=$2', [cid, pid]),
+      pool.query(
+        `SELECT pl.*, d.name AS doctor_name FROM clinic_dental_plan pl
+           LEFT JOIN clinic_doctors d ON d.id = pl.doctor_id
+          WHERE pl.company_id=$1 AND pl.patient_id=$2
+          ORDER BY pl.phase, pl.created_at`, [cid, pid]),
+      pool.query('SELECT * FROM clinic_patient_photos WHERE company_id=$1 AND patient_id=$2 ORDER BY created_at DESC', [cid, pid]),
+      pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, name', [cid]),
+    ]);
+    const chartMap = {};
+    chart.rows.forEach((c) => { chartMap[c.tooth] = c; });
+
+    const totals = plan.rows.reduce((acc, p) => {
+      acc.all += Number(p.cost || 0);
+      if (p.status === 'done') acc.done += Number(p.cost || 0);
+      return acc;
+    }, { all: 0, done: 0 });
+
+    res.render('clinic_admin/dental_patient', {
+      company: req.company, tab: 'dental',
+      patient: pr.rows[0], chartMap, plan: plan.rows, photos: photos.rows, doctors: doctors.rows,
+      upper: FDI_UPPER, lower: FDI_LOWER, statuses: TOOTH_STATUSES, totals,
+    });
+  } catch (e) { console.error('[dental patient]', e.message); res.status(500).send('error'); }
+});
+
+// Set a tooth's state. Upsert so clicking the same tooth twice just updates it.
+router.post('/dental/patient/:id/tooth', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  const tooth = parseInt(req.body.tooth, 10);
+  const status = String(req.body.status || '').trim();
+  if (!Number.isInteger(pid) || !ALL_TEETH.has(tooth) || !STATUS_KEYS.has(status)) {
+    return res.redirect('/clinic/dental/patient/' + pid);
+  }
+  try {
+    await pool.query(
+      `INSERT INTO clinic_dental_chart (company_id, patient_id, tooth, status, surfaces, note)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (company_id, patient_id, tooth)
+       DO UPDATE SET status=EXCLUDED.status, surfaces=EXCLUDED.surfaces,
+                     note=EXCLUDED.note, updated_at=now()`,
+      [cid, pid, tooth, status,
+       String(req.body.surfaces || '').trim().slice(0, 20) || null,
+       String(req.body.note || '').trim().slice(0, 500) || null]
+    );
+  } catch (e) { console.error('[dental tooth]', e.message); }
+  res.redirect('/clinic/dental/patient/' + pid);
+});
+
+// Add a planned procedure (tooth optional — whole-mouth work has no number).
+router.post('/dental/patient/:id/plan', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  const procedure = String(req.body.procedure || '').trim().slice(0, 200);
+  const toothRaw = parseInt(req.body.tooth, 10);
+  const tooth = ALL_TEETH.has(toothRaw) ? toothRaw : null;
+  if (!Number.isInteger(pid) || !procedure) return res.redirect('/clinic/dental/patient/' + pid);
+  const phase = Math.min(9, Math.max(1, parseInt(req.body.phase, 10) || 1));
+  const cost = Math.max(0, parseFloat(req.body.cost) || 0);
+  const doctorId = parseInt(req.body.doctor_id, 10);
+  try {
+    await pool.query(
+      `INSERT INTO clinic_dental_plan (company_id, patient_id, tooth, procedure, phase, cost, doctor_id, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [cid, pid, tooth, procedure, phase, cost,
+       Number.isInteger(doctorId) ? doctorId : null,
+       String(req.body.note || '').trim().slice(0, 500) || null]
+    );
+  } catch (e) { console.error('[dental plan]', e.message); }
+  res.redirect('/clinic/dental/patient/' + pid);
+});
+
+router.post('/dental/plan/:planId/status', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const planId = parseInt(req.params.planId, 10);
+  const status = ['planned', 'in_progress', 'done', 'cancelled'].includes(req.body.status) ? req.body.status : null;
+  const back = '/clinic/dental/patient/' + parseInt(req.body.patient_id, 10);
+  if (!Number.isInteger(planId) || !status) return res.redirect(back);
+  try {
+    await pool.query(
+      `UPDATE clinic_dental_plan
+          SET status=$1, done_at = CASE WHEN $1='done' THEN now() ELSE NULL END
+        WHERE id=$2 AND company_id=$3`,
+      [status, planId, cid]
+    );
+  } catch (e) { console.error('[dental plan status]', e.message); }
+  res.redirect(back);
+});
+
+router.post('/dental/plan/:planId/delete', requireModule('dental'), async (req, res) => {
+  const back = '/clinic/dental/patient/' + parseInt(req.body.patient_id, 10);
+  try {
+    await pool.query('DELETE FROM clinic_dental_plan WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.planId, 10), req.company.id]);
+  } catch (e) { console.error('[dental plan delete]', e.message); }
+  res.redirect(back);
+});
+
+// Lab orders.
+router.post('/dental/lab', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const b = req.body || {};
+  const workType = String(b.work_type || '').trim().slice(0, 100);
+  if (!workType) return res.redirect('/clinic/dental');
+  const num = (v) => { const n = parseInt(v, 10); return Number.isInteger(n) ? n : null; };
+  const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
+  try {
+    await pool.query(
+      `INSERT INTO clinic_lab_orders
+         (company_id, patient_id, doctor_id, lab_name, work_type, tooth_numbers, shade,
+          status, cost, sent_at, due_at, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8,$9,$10,$11)`,
+      [cid, num(b.patient_id), num(b.doctor_id),
+       String(b.lab_name || '').trim().slice(0, 120) || null,
+       workType,
+       String(b.tooth_numbers || '').trim().slice(0, 100) || null,
+       String(b.shade || '').trim().slice(0, 20) || null,
+       Math.max(0, parseFloat(b.cost) || 0),
+       date(b.sent_at), date(b.due_at),
+       String(b.note || '').trim().slice(0, 500) || null]
+    );
+  } catch (e) { console.error('[lab order]', e.message); }
+  res.redirect('/clinic/dental');
+});
+
+// Move an order along its track. Stamps the matching date so the timeline is
+// recoverable later, not just the current status.
+router.post('/dental/lab/:id/status', requireModule('dental'), async (req, res) => {
+  const status = String(req.body.status || '');
+  if (!LAB_STATUS_KEYS.has(status)) return res.redirect('/clinic/dental');
+  const stamp = status === 'received' ? 'received_at = CURRENT_DATE'
+    : status === 'delivered' ? 'delivered_at = CURRENT_DATE'
+    : null;
+  try {
+    await pool.query(
+      `UPDATE clinic_lab_orders SET status=$1${stamp ? ', ' + stamp : ''} WHERE id=$2 AND company_id=$3`,
+      [status, parseInt(req.params.id, 10), req.company.id]
+    );
+  } catch (e) { console.error('[lab status]', e.message); }
+  res.redirect('/clinic/dental');
+});
+
+router.post('/dental/lab/:id/delete', requireModule('dental'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM clinic_lab_orders WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[lab delete]', e.message); }
+  res.redirect('/clinic/dental');
+});
+
+// Before/after (and x-ray) photos.
+router.post('/dental/patient/:id/photo', requireModule('dental'), (req, res) => {
+  const pid = parseInt(req.params.id, 10);
+  const back = '/clinic/dental/patient/' + pid;
+  dentalPhotoUpload(req, res, async (err) => {
+    if (err || !req.file) return res.redirect(back + '?err=upload');
+    const kind = ['before', 'after', 'xray'].includes(req.body.kind) ? req.body.kind : 'before';
+    try {
+      await pool.query(
+        `INSERT INTO clinic_patient_photos (company_id, patient_id, kind, image_url, caption)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [req.company.id, pid, kind, '/uploads/' + req.file.filename,
+         String(req.body.caption || '').trim().slice(0, 200) || null]
+      );
+    } catch (e) { console.error('[dental photo]', e.message); }
+    res.redirect(back);
+  });
+});
+
+router.post('/dental/photo/:photoId/delete', requireModule('dental'), async (req, res) => {
+  const back = '/clinic/dental/patient/' + parseInt(req.body.patient_id, 10);
+  try {
+    await pool.query('DELETE FROM clinic_patient_photos WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.photoId, 10), req.company.id]);
+  } catch (e) { console.error('[dental photo delete]', e.message); }
+  res.redirect(back);
+});
+
 module.exports = router;

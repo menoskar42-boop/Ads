@@ -311,6 +311,85 @@ async function ensureClinicSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_attendance ON clinic_attendance (company_id, staff_id, work_date);
 
+      -- ── Dental module ────────────────────────────────────────────────────
+      -- Only used by clinics with the 'dental' module on. Teeth are keyed by
+      -- FDI number (11-18, 21-28, 31-38, 41-48 permanent; 51-85 primary), which
+      -- is what Egyptian dentists write on paper charts, so the stored value
+      -- matches what the doctor already says out loud.
+      CREATE TABLE IF NOT EXISTS clinic_dental_chart (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id   INTEGER NOT NULL REFERENCES clinic_patients(id) ON DELETE CASCADE,
+        tooth        SMALLINT NOT NULL,        -- FDI number
+        status       TEXT NOT NULL DEFAULT 'sound',
+                     -- sound|caries|filled|crown|bridge|implant|root_canal|missing|veneer|denture
+        surfaces     TEXT,                     -- affected surfaces, e.g. "MOD"
+        note         TEXT,
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      -- One row per tooth per patient; the chart upserts on this.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_dental_chart_tooth
+        ON clinic_dental_chart (company_id, patient_id, tooth);
+
+      -- Treatment planned for a single tooth. Kept separate from the chart so
+      -- history survives: the chart shows the tooth now, this shows what was
+      -- planned, what it cost, and whether it was actually done.
+      CREATE TABLE IF NOT EXISTS clinic_dental_plan (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id   INTEGER NOT NULL REFERENCES clinic_patients(id) ON DELETE CASCADE,
+        tooth        SMALLINT,                 -- NULL = whole-mouth work (e.g. scaling)
+        procedure    TEXT NOT NULL,
+        status       TEXT NOT NULL DEFAULT 'planned', -- planned|in_progress|done|cancelled
+        phase        SMALLINT NOT NULL DEFAULT 1,     -- treatment phases
+        cost         NUMERIC(12,2) NOT NULL DEFAULT 0,
+        note         TEXT,
+        doctor_id    INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        done_at      TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_dental_plan_patient
+        ON clinic_dental_plan (company_id, patient_id, status);
+
+      -- Lab orders: crowns, bridges, dentures… tracked from sent to delivered,
+      -- because a case stuck at the lab is the most common reason a dental
+      -- appointment gets wasted.
+      CREATE TABLE IF NOT EXISTS clinic_lab_orders (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id    INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        doctor_id     INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        lab_name      TEXT,
+        work_type     TEXT NOT NULL,           -- تاج / جسر / فينير / طقم …
+        tooth_numbers TEXT,                    -- free text: "11,12,21"
+        shade         TEXT,                    -- e.g. A2
+        status        TEXT NOT NULL DEFAULT 'sent', -- sent|in_lab|received|delivered|redo
+        cost          NUMERIC(12,2) NOT NULL DEFAULT 0,
+        sent_at       DATE,
+        due_at        DATE,
+        received_at   DATE,
+        delivered_at  DATE,
+        note          TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_lab_orders_company
+        ON clinic_lab_orders (company_id, status, due_at);
+
+      -- Before/after photos. Stored as uploaded file paths, same as other
+      -- uploads in the platform.
+      CREATE TABLE IF NOT EXISTS clinic_patient_photos (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id   INTEGER NOT NULL REFERENCES clinic_patients(id) ON DELETE CASCADE,
+        visit_id     INTEGER REFERENCES clinic_visits(id) ON DELETE SET NULL,
+        kind         TEXT NOT NULL DEFAULT 'before', -- before|after|xray
+        image_url    TEXT NOT NULL,
+        caption      TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_patient_photos
+        ON clinic_patient_photos (company_id, patient_id, created_at);
+
       -- Call center: call / follow-up log.
       CREATE TABLE IF NOT EXISTS clinic_calls (
         id           SERIAL PRIMARY KEY,
