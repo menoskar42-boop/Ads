@@ -219,6 +219,39 @@ async function ensureClinicSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_pay_company ON clinic_payments (company_id, created_at);
+
+      -- Cash box / petty cash. Patient payments are already in clinic_payments;
+      -- what no clinic could record was everything else that moves cash — the
+      -- opening float, buying gloves, the receptionist's advance, the owner
+      -- taking money out. Without those the drawer never reconciles.
+      CREATE TABLE IF NOT EXISTS clinic_cash_entries (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        entry_date  DATE NOT NULL,          -- Cairo date, set by the app
+        direction   TEXT NOT NULL,          -- in|out
+        amount      NUMERIC(12,2) NOT NULL,
+        category    TEXT,                   -- مستلزمات، صيانة، سلفة، إيجار…
+        note        TEXT,
+        created_by  TEXT,                   -- free-text: who recorded it
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_clinic_cash_day
+        ON clinic_cash_entries (company_id, entry_date);
+
+      -- One opening float per clinic per day; the close is what the drawer was
+      -- actually counted at, so the difference against the computed figure is
+      -- the shortage/surplus the owner cares about.
+      CREATE TABLE IF NOT EXISTS clinic_cash_days (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        day           DATE NOT NULL,
+        opening       NUMERIC(12,2) NOT NULL DEFAULT 0,
+        counted_close NUMERIC(12,2),        -- NULL until the day is closed
+        closed_at     TIMESTAMPTZ,
+        note          TEXT
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_clinic_cash_day_once
+        ON clinic_cash_days (company_id, day);
     `);
 
     // ── Optional (enterprise) modules — toggled per-clinic from super-admin ──

@@ -906,6 +906,124 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Module: Cash box ─────────────────────────────────────────────────────────
+// The drawer only reconciles if three things are in one place: what it started
+// with, what patients paid (already in clinic_payments), and every other cash
+// movement. This module supplies the first and third.
+const CASH_CATEGORIES = ['مستلزمات', 'صيانة', 'إيجار', 'كهرباء ومياه', 'رواتب', 'سلفة', 'مواصلات', 'دعاية', 'أخرى'];
+
+// Cairo, not the server's timezone — a clinic closing at 11pm must not have
+// its takings land on tomorrow's sheet.
+const CAIRO_TODAY = "(now() AT TIME ZONE 'Africa/Cairo')::date";
+
+router.get('/cashbox', requireModule('cashbox'), async (req, res) => {
+  const cid = req.company.id;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(req.query.day || '') ? req.query.day : null;
+  const dayExpr = day ? '$2::date' : CAIRO_TODAY;
+  const params = day ? [cid, day] : [cid];
+  try {
+    const [dayRow, entries, cashPaid, recent] = await Promise.all([
+      pool.query(`SELECT * FROM clinic_cash_days WHERE company_id=$1 AND day=${dayExpr}`, params),
+      pool.query(
+        `SELECT * FROM clinic_cash_entries
+          WHERE company_id=$1 AND entry_date=${dayExpr}
+          ORDER BY created_at DESC`, params),
+      // Only cash counts toward the drawer — card/transfer never touches it.
+      pool.query(
+        `SELECT COALESCE(SUM(amount),0) AS t FROM clinic_payments
+          WHERE company_id=$1 AND method='cash'
+            AND (created_at AT TIME ZONE 'Africa/Cairo')::date = ${dayExpr}`, params),
+      pool.query(
+        `SELECT d.day, d.opening, d.counted_close, d.closed_at,
+                COALESCE((SELECT SUM(CASE WHEN direction='in' THEN amount ELSE -amount END)
+                            FROM clinic_cash_entries e
+                           WHERE e.company_id=d.company_id AND e.entry_date=d.day),0) AS net
+           FROM clinic_cash_days d
+          WHERE d.company_id=$1
+          ORDER BY d.day DESC LIMIT 14`, [cid]),
+    ]);
+
+    const rows = entries.rows;
+    const cashIn = rows.filter((r) => r.direction === 'in').reduce((s, r) => s + Number(r.amount), 0);
+    const cashOut = rows.filter((r) => r.direction === 'out').reduce((s, r) => s + Number(r.amount), 0);
+    const opening = Number((dayRow.rows[0] || {}).opening || 0);
+    const patientsCash = Number(cashPaid.rows[0].t || 0);
+    const expected = opening + patientsCash + cashIn - cashOut;
+    const counted = dayRow.rows[0] && dayRow.rows[0].counted_close != null
+      ? Number(dayRow.rows[0].counted_close) : null;
+
+    res.render('clinic_admin/mod_cashbox', {
+      company: req.company, tab: 'cashbox',
+      day: day || null, dayRow: dayRow.rows[0] || null, entries: rows,
+      opening, patientsCash, cashIn, cashOut, expected, counted,
+      diff: counted == null ? null : counted - expected,
+      categories: CASH_CATEGORIES, recent: recent.rows,
+    });
+  } catch (e) { console.error('[cashbox]', e.message); res.status(500).send('error'); }
+});
+
+// Set (or correct) the opening float for a day.
+router.post('/cashbox/opening', requireModule('cashbox'), async (req, res) => {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(req.body.day || '') ? req.body.day : null;
+  const opening = Math.max(0, parseFloat(req.body.opening) || 0);
+  try {
+    await pool.query(
+      `INSERT INTO clinic_cash_days (company_id, day, opening)
+       VALUES ($1, COALESCE($2::date, ${CAIRO_TODAY}), $3)
+       ON CONFLICT (company_id, day) DO UPDATE SET opening = EXCLUDED.opening`,
+      [req.company.id, day, opening]
+    );
+  } catch (e) { console.error('[cashbox opening]', e.message); }
+  res.redirect('/clinic/cashbox' + (day ? '?day=' + day : ''));
+});
+
+router.post('/cashbox/entry', requireModule('cashbox'), async (req, res) => {
+  const b = req.body || {};
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(b.day || '') ? b.day : null;
+  const amount = Math.abs(parseFloat(b.amount) || 0);
+  const direction = b.direction === 'in' ? 'in' : 'out';
+  if (amount > 0) {
+    try {
+      await pool.query(
+        `INSERT INTO clinic_cash_entries (company_id, entry_date, direction, amount, category, note, created_by)
+         VALUES ($1, COALESCE($2::date, ${CAIRO_TODAY}), $3, $4, $5, $6, $7)`,
+        [req.company.id, day, direction, amount,
+         String(b.category || '').slice(0, 60) || null,
+         String(b.note || '').trim().slice(0, 300) || null,
+         String(b.created_by || '').trim().slice(0, 60) || null]
+      );
+    } catch (e) { console.error('[cashbox entry]', e.message); }
+  }
+  res.redirect('/clinic/cashbox' + (day ? '?day=' + day : ''));
+});
+
+router.post('/cashbox/entry/:id/delete', requireModule('cashbox'), async (req, res) => {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(req.body.day || '') ? req.body.day : null;
+  try {
+    await pool.query('DELETE FROM clinic_cash_entries WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[cashbox delete]', e.message); }
+  res.redirect('/clinic/cashbox' + (day ? '?day=' + day : ''));
+});
+
+// Close the day with the counted total. The gap against the computed figure is
+// recorded rather than hidden — that difference is the whole point.
+router.post('/cashbox/close', requireModule('cashbox'), async (req, res) => {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(req.body.day || '') ? req.body.day : null;
+  const counted = parseFloat(req.body.counted_close);
+  try {
+    await pool.query(
+      `INSERT INTO clinic_cash_days (company_id, day, counted_close, closed_at, note)
+       VALUES ($1, COALESCE($2::date, ${CAIRO_TODAY}), $3, now(), $4)
+       ON CONFLICT (company_id, day)
+       DO UPDATE SET counted_close = EXCLUDED.counted_close, closed_at = now(), note = EXCLUDED.note`,
+      [req.company.id, day, isFinite(counted) ? counted : null,
+       String(req.body.note || '').trim().slice(0, 300) || null]
+    );
+  } catch (e) { console.error('[cashbox close]', e.message); }
+  res.redirect('/clinic/cashbox' + (day ? '?day=' + day : ''));
+});
+
 // ── Dental module ────────────────────────────────────────────────────────────
 // FDI quadrants, in the order a dentist reads a chart: upper right → upper
 // left, then lower left → lower right. The view renders these directly, so the
