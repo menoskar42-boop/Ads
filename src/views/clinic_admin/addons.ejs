@@ -1,20 +1,20 @@
-<%- include('head', { title: 'الإضافات المدفوعة', tab: 'addons' }) %>
+<%- include('head', { title: t('clinic.page.addons'), tab: 'addons' }) %>
 <%
   var WHY = {
-    not_subscribed:   'الإضافة دي مش مفعّلة لعيادتك.',
-    expired:          'اشتراك الإضافة انتهى — جدّده عشان تكمّل.',
-    quota_exhausted:  'خلّصت رصيد الشهر ده. الرصيد بيتجدّد أول الشهر الجاي.',
-    unknown:          'إضافة غير معروفة.',
-    error:            'حصل خطأ في قراءة حالة الإضافة.'
+    not_subscribed:   t('ad.why.not_subscribed'),
+    expired:          t('ad.why.expired'),
+    quota_exhausted:  t('ad.why.quota_exhausted'),
+    unknown:          t('ad.why.unknown'),
+    error:            t('ad.why.error')
   };
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">✨ الإضافات المدفوعة</h1>
-<p class="text-slate-500 mb-6">مميزات الذكاء الاصطناعي ليها تكلفة تشغيل على كل استخدام، فبتيجي باشتراك منفصل عن الباقة</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('ad.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('ad.sub') %></p>
 
 <% if (need && WHY[why]) { %>
 <div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-5 text-sm text-amber-800">
-  ⚠️ <%= WHY[why] %> كلّم OscarDevs لتفعيلها.
+  ⚠️ <%= WHY[why] %> <%= t('ad.contact') %>
 </div>
 <% } %>
 
@@ -28,24 +28,24 @@
       <span class="text-3xl"><%= a.icon %></span>
       <div class="flex-1">
         <div class="flex items-center gap-2 flex-wrap">
-          <h2 class="font-bold text-slate-900"><%= a.label %></h2>
+          <h2 class="font-bold text-slate-900"><% var nk = 'ad.n.' + a.key, ntr = t(nk); %><%= (ntr && ntr !== nk) ? ntr : a.label %></h2>
           <% if (st.active) { %>
-            <span class="text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">مفعّلة</span>
+            <span class="text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full"><%= t('ad.active') %></span>
           <% } else { %>
             <span class="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded-full">
-              <%= st.reason === 'quota_exhausted' ? 'خلص الرصيد' : (st.reason === 'expired' ? 'منتهية' : 'غير مفعّلة') %>
+              <%= st.reason === 'quota_exhausted' ? t('ad.st.quota') : (st.reason === 'expired' ? t('ad.st.expired') : t('ad.st.off')) %>
             </span>
           <% } %>
         </div>
-        <p class="text-sm text-slate-500 leading-relaxed mt-1"><%= a.desc %></p>
+        <p class="text-sm text-slate-500 leading-relaxed mt-1"><% var adk = 'ad.d.' + a.key, adtr = t(adk); %><%= (adtr && adtr !== adk) ? adtr : a.desc %></p>
       </div>
     </div>
 
     <% if (st.active || st.reason === 'quota_exhausted') { %>
       <div class="mb-3">
         <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
-          <span>استهلاك الشهر</span>
-          <span><strong class="text-slate-800"><%= st.used %></strong> من <%= st.quota %></span>
+          <span><%= t('ad.usage') %></span>
+          <span><strong class="text-slate-800"><%= st.used %></strong> <%= t('ad.of') %> <%= st.quota %></span>
         </div>
         <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div class="h-full <%= pct >= 100 ? 'bg-red-500' : (pct >= 80 ? 'bg-amber-400' : 'bg-emerald-500') %>"
@@ -53,7 +53,7 @@
         </div>
         <% if (st.expiresAt) { %>
           <p class="text-xs text-slate-400 mt-1">
-            الاشتراك لغاية <%= new Date(st.expiresAt).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %>
+            <%= t('ad.until') %> <%= new Date(st.expiresAt).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %>
           </p>
         <% } %>
       </div>
@@ -63,11 +63,11 @@
       <% if (st.active) { %>
         <a href="/clinic/voice-bookings"
            class="inline-block bg-slate-900 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-slate-800">
-          افتح صندوق الحجوزات الصوتية
+          <%= t('ad.open_voice') %>
         </a>
       <% } %>
       <% if (!voiceReady) { %>
-        <p class="text-xs text-red-600 mt-2">⚠️ مفتاح الذكاء الاصطناعي مش متظبّط على السيرفر — الإضافة مش هتشتغل حتى لو مفعّلة.</p>
+        <p class="text-xs text-red-600 mt-2"><%= t('ad.no_key') %></p>
       <% } %>
     <% } %>
   </div>
@@ -75,11 +75,9 @@
 </div>
 
 <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mt-5 text-sm text-slate-600">
-  <strong class="text-slate-800">ليه دي مدفوعة والباقي مجاني؟</strong>
+  <strong class="text-slate-800"><%= t('ad.why_paid') %></strong>
   <p class="mt-1 leading-relaxed">
-    كل الوحدات التانية (الخزنة، التقسيط، الأسنان، الزيارات المنزلية…) بتشتغل على السيرفر بتاعنا
-    من غير تكلفة إضافية، فهي ضمن باقتك. أما مميزات الذكاء الاصطناعي فبتستهلك خدمة خارجية
-    مدفوعة مع <strong>كل رسالة صوتية</strong> — عشان كده ليها رصيد شهري واشتراك مستقل.
+    <%= t('ad.paid_note') %> <strong><%= t('ad.each_voice') %></strong> <%= t('ad.paid_note2') %>
   </p>
 </div>
 

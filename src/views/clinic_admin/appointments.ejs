@@ -1,11 +1,11 @@
-<%- include('head', { title: 'المواعيد', tab: 'appointments' }) %>
+<%- include('head', { title: t('clinic.page.appointments'), tab: 'appointments' }) %>
 <%
   var __statuses = { '':'الكل', pending:'بانتظار', confirmed:'مؤكّد', done:'تمّت', cancelled:'ملغاة' };
   function __badge(s){ return s==='confirmed'?'bg-emerald-100 text-emerald-700':(s==='done'?'bg-slate-200 text-slate-600':(s==='cancelled'?'bg-rose-100 text-rose-600':'bg-amber-100 text-amber-700')); }
   function __label(s){ return {pending:'بانتظار',confirmed:'مؤكّد',done:'تمّت',cancelled:'ملغاة'}[s]||s; }
 %>
-<h1 class="text-2xl font-black text-slate-900 mb-1">المواعيد</h1>
-<p class="text-slate-500 mb-4">أكّد أو ألغِ الحجوزات وتابع طابور اليوم</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('ap.title') %></h1>
+<p class="text-slate-500 mb-4"><%= t('ap.sub') %></p>
 
 <div class="flex items-center gap-2 mb-4 flex-wrap">
   <% Object.keys(__statuses).forEach(function(k){ %>
@@ -14,7 +14,7 @@
 </div>
 
 <% if (!appts.length) { %>
-  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">مفيش حجوزات هنا.</div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('ap.empty') %></div>
 <% } else { %>
 <div class="space-y-3">
   <% appts.forEach(function(a){ %>
@@ -28,7 +28,7 @@
     <% if (typeof waReady !== 'undefined' && waReady && a.patient_phone) { %>
     <form method="post" action="/clinic/appointments/<%= a.id %>/whatsapp" class="inline">
       <input type="hidden" name="back" value="<%= status %>" />
-      <button class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="إرسال تأكيد واتساب عبر API">💬 واتساب (API)</button>
+      <button class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="<%= t('ap.wa_api_t') %>"><%= t('ap.wa_api') %></button>
     </form>
     <% } else if (a.patient_phone) {
          var __waPhone = String(a.patient_phone).replace(/[^0-9]/g, '');
@@ -36,7 +36,7 @@
          var __waMsg = 'أهلاً ' + (a.patient_name || '') + '، بخصوص موعدك في العيادة' + (a.slot_at ? (' يوم ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '') + '.';
     %>
     <a href="https://wa.me/<%= __waIntl %>?text=<%= encodeURIComponent(__waMsg) %>" target="_blank" rel="nofollow noopener"
-       class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="فتح محادثة واتساب">💬 واتساب</a>
+       class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="<%= t('ap.wa_open') %>"><%= t('ap.wa') %></a>
     <% } %>
     <form method="post" action="/clinic/appointments/<%= a.id %>/status" class="flex items-center gap-1">
       <input type="hidden" name="back" value="<%= status %>" />

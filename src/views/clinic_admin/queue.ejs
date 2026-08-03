@@ -1,4 +1,4 @@
-<%- include('head', { title: 'طابور المرضى', tab: 'queue' }) %>
+<%- include('head', { title: t('clinic.page.queue'), tab: 'queue' }) %>
 <%
   function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   var STLABEL = { waiting:'في الانتظار', in_room:'في الكشف', done:'تمّت', cancelled:'ملغى' };
@@ -9,50 +9,50 @@
 %>
 
 <div class="flex items-center justify-between gap-3 flex-wrap mb-1">
-  <h1 class="text-2xl font-black text-slate-900">طابور المرضى</h1>
+  <h1 class="text-2xl font-black text-slate-900"><%= t('q.title') %></h1>
   <form method="get" class="flex items-center gap-2">
     <input type="date" name="date" value="<%= date %>" class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
-    <button class="bg-slate-100 hover:bg-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold">عرض</button>
+    <button class="bg-slate-100 hover:bg-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold"><%= t('q.show') %></button>
   </form>
 </div>
-<p class="text-slate-500 mb-5">الترتيب حسب وقت الوصول — الحالات العاجلة أولاً</p>
+<p class="text-slate-500 mb-5"><%= t('q.sorted') %></p>
 
 <div class="grid grid-cols-3 gap-3 mb-6">
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center"><div class="text-2xl font-black text-amber-600"><%= waiting %></div><div class="text-xs text-slate-500 mt-1">في الانتظار</div></div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center"><div class="text-2xl font-black text-blue-600"><%= inroom %></div><div class="text-xs text-slate-500 mt-1">في الكشف</div></div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center"><div class="text-2xl font-black text-emerald-600"><%= done %></div><div class="text-xs text-slate-500 mt-1">تمّت اليوم</div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center"><div class="text-2xl font-black text-amber-600"><%= waiting %></div><div class="text-xs text-slate-500 mt-1"><%= t('q.waiting') %></div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center"><div class="text-2xl font-black text-blue-600"><%= inroom %></div><div class="text-xs text-slate-500 mt-1"><%= t('q.in_room') %></div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 text-center"><div class="text-2xl font-black text-emerald-600"><%= done %></div><div class="text-xs text-slate-500 mt-1"><%= t('q.done_today') %></div></div>
 </div>
 
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="lg:col-span-1">
     <div class="bg-white border border-slate-200 rounded-2xl p-5 lg:sticky lg:top-4">
-      <h2 class="font-extrabold text-slate-900 mb-3">إضافة للطابور</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('q.add') %></h2>
       <form method="post" action="/clinic/visits" class="grid gap-2.5">
-        <label class="text-xs text-slate-500">مريض مسجّل</label>
+        <label class="text-xs text-slate-500"><%= t('q.existing') %></label>
         <select name="patient_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
-          <option value="">— اختر مريض —</option>
+          <option value=""><%= t('q.pick') %></option>
           <% patients.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %><%= p.phone?(' · '+p.phone):'' %></option><% }); %>
         </select>
-        <div class="text-center text-xs text-slate-400">— أو مريض جديد —</div>
-        <input name="patient_name" maxlength="80" placeholder="اسم مريض جديد" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="patient_phone" maxlength="20" placeholder="موبايل (اختياري)" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <div class="text-center text-xs text-slate-400"><%= t('q.or_new') %></div>
+        <input name="patient_name" maxlength="80" placeholder="<%= t('q.new_name') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="patient_phone" maxlength="20" placeholder="<%= t('q.mobile_opt') %>" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <select name="doctor_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
-          <option value="">الطبيب</option>
+          <option value=""><%= t('q.doctor') %></option>
           <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
         </select>
         <select name="visit_type_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
-          <option value="">نوع الزيارة</option>
+          <option value=""><%= t('q.visit_type') %></option>
           <% visitTypes.forEach(function(t){ %><option value="<%= t.id %>"><%= t.name %><%= Number(t.price)?(' · '+t.price+' ج'):'' %></option><% }); %>
         </select>
-        <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="is_urgent" value="1" /> حالة عاجلة</label>
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">تسجيل الوصول</button>
+        <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="is_urgent" value="1" /> <%= t('q.urgent_case') %></label>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('q.check_in') %></button>
       </form>
     </div>
   </div>
 
   <div class="lg:col-span-2">
     <% if (!visits.length) { %>
-      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">لا يوجد مرضى في الطابور <%= date ? 'في هذا اليوم' : 'اليوم' %>.</div>
+      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('q.empty') %> <%= date ? 'في هذا اليوم' : 'اليوم' %>.</div>
     <% } else { %>
     <div class="space-y-2.5">
       <% visits.forEach(function(v, i){ %>
@@ -61,7 +61,7 @@
         <div class="min-w-0 flex-1">
           <div class="font-bold text-slate-900 flex items-center gap-2">
             <% if (v.patient_id) { %><a href="/clinic/patients/<%= v.patient_id %>" class="hover:text-brand-600"><%= v.patient_name || 'مريض' %></a><% } else { %><%= v.patient_name || 'مريض' %><% } %>
-            <% if (v.is_urgent) { %><span class="text-[10px] bg-red-100 text-red-600 rounded px-1.5 py-0.5 font-bold">عاجل</span><% } %>
+            <% if (v.is_urgent) { %><span class="text-[10px] bg-red-100 text-red-600 rounded px-1.5 py-0.5 font-bold"><%= t('q.urgent') %></span><% } %>
           </div>
           <div class="text-xs text-slate-500">
             <%= fmtTime(v.arrival_at) %><%= v.doctor_name?(' · '+v.doctor_name):'' %><%= v.visit_type_name?(' · '+v.visit_type_name):'' %>
@@ -70,12 +70,12 @@
         <span class="text-xs rounded-full px-2.5 py-1 font-bold <%= STCLS[v.status] %>"><%= STLABEL[v.status] %></span>
         <div class="flex items-center gap-1.5">
           <% if (v.status==='waiting') { %>
-            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="in_room" /><button class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 font-bold">دخول الكشف</button></form>
+            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="in_room" /><button class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.call_in') %></button></form>
           <% } else if (v.status==='in_room') { %>
-            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="done" /><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-2.5 py-1.5 font-bold">إنهاء</button></form>
+            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="done" /><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.complete') %></button></form>
           <% } %>
           <% if (v.status!=='cancelled' && v.status!=='done') { %>
-            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="cancelled" /><button class="text-xs text-slate-400 hover:text-red-600 px-2 py-1.5">إلغاء</button></form>
+            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="cancelled" /><button class="text-xs text-slate-400 hover:text-red-600 px-2 py-1.5"><%= t('q.cancel') %></button></form>
           <% } %>
         </div>
       </div>

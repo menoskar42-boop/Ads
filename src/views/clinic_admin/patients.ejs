@@ -1,28 +1,28 @@
-<%- include('head', { title: 'المرضى', tab: 'patients' }) %>
+<%- include('head', { title: t('clinic.page.patients'), tab: 'patients' }) %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">المرضى</h1>
-<p class="text-slate-500 mb-6">سجلّ مرضى العيادة (بيانات خاصة — لا تظهر للجمهور)</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('pt.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('pt.sub') %></p>
 
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="lg:col-span-1">
     <div class="bg-white border border-slate-200 rounded-2xl p-5 lg:sticky lg:top-4">
-      <h2 class="font-extrabold text-slate-900 mb-3">إضافة مريض</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pt.add') %></h2>
       <form method="post" action="/clinic/patients" class="grid gap-2.5">
-        <input name="name" required maxlength="80" placeholder="اسم المريض" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="phone" maxlength="20" placeholder="رقم الموبايل" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="name" required maxlength="80" placeholder="<%= t('pt.name') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="phone" maxlength="20" placeholder="<%= t('pt.mobile') %>" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <div class="flex gap-2">
-          <select name="gender" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1 bg-white"><option value="">النوع</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option></select>
-          <input name="birth_year" type="number" min="1900" max="2025" placeholder="سنة الميلاد" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <select name="gender" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1 bg-white"><option value=""><%= t('pt.gender') %></option><option value="ذكر"><%= t('pt.male') %></option><option value="أنثى"><%= t('pt.female') %></option></select>
+          <input name="birth_year" type="number" min="1900" max="2025" placeholder="<%= t('pt.birth_year') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
         </div>
-        <textarea name="notes" maxlength="1000" rows="3" placeholder="ملاحظات (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+        <textarea name="notes" maxlength="1000" rows="3" placeholder="<%= t('pt.notes_opt') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('pt.add_btn') %></button>
       </form>
     </div>
   </div>
   <div class="lg:col-span-2">
-    <form method="get" class="mb-3"><input name="q" value="<%= q %>" placeholder="بحث بالاسم أو الموبايل…" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm" /></form>
+    <form method="get" class="mb-3"><input name="q" value="<%= q %>" placeholder="<%= t('pt.search') %>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm" /></form>
     <% if (!patients.length) { %>
-      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">مفيش مرضى مسجّلين لسه.</div>
+      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('pt.empty') %></div>
     <% } else { %>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <% patients.forEach(function(p){ %>
