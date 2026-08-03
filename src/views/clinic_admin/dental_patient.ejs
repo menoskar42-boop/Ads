@@ -26,41 +26,96 @@
     <% }); %>
   </div>
 
-  <% function renderRow(row){ %>
-    <div class="flex gap-1 justify-center">
-      <% row.forEach(function(t){
-           var c = chartMap[t];
-           var st = c ? (SMAP[c.status] || SMAP.sound) : SMAP.sound;
-           var dark = c && (c.status === 'missing');
-      %>
-        <button type="button"
-                onclick="openTooth(<%= t %>, '<%= c ? c.status : 'sound' %>', <%= JSON.stringify(c && c.surfaces || '') %>, <%= JSON.stringify(c && c.note || '') %>)"
-                title="سن <%= t %><%= c && c.note ? ' — ' + c.note : '' %>"
-                class="w-9 h-11 sm:w-10 sm:h-12 rounded-lg border-2 border-slate-300 hover:border-indigo-500 hover:scale-105 transition flex flex-col items-center justify-center"
-                style="background: <%= st.color %>">
-          <span class="text-[10px] font-bold <%= dark ? 'text-white' : 'text-slate-700' %>" dir="ltr"><%= t %></span>
-          <% if (c && c.surfaces) { %>
-            <span class="text-[8px] <%= dark ? 'text-white/80' : 'text-slate-500' %>" dir="ltr"><%= c.surfaces %></span>
-          <% } %>
+  <!-- شريط الأدوات: اختار حالة مرة واحدة وبعدين دوس على الأسنان -->
+  <div class="bg-slate-50 rounded-xl p-3 mb-4">
+    <div class="flex items-center gap-2 flex-wrap mb-2">
+      <span class="text-xs font-bold text-slate-600">الفرشاة:</span>
+      <% statuses.forEach(function(s){ %>
+        <button type="button" onclick="setBrush('<%= s.key %>')" data-brush="<%= s.key %>"
+                class="brush-btn inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border-2 border-transparent hover:border-slate-300 transition">
+          <span class="w-3.5 h-3.5 rounded border border-slate-300 shrink-0" style="background: <%= s.color %>"></span>
+          <%= s.label %>
         </button>
       <% }); %>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button type="button" onclick="setMode('tooth')" data-mode="tooth"
+              class="mode-btn text-xs px-3 py-1.5 rounded-lg border-2 font-semibold">السن كله</button>
+      <button type="button" onclick="setMode('surface')" data-mode="surface"
+              class="mode-btn text-xs px-3 py-1.5 rounded-lg border-2 font-semibold">سطح بعينه</button>
+      <span id="modeHint" class="text-xs text-slate-500"></span>
+      <span class="ms-auto flex items-center gap-2">
+        <span id="dirty" class="text-xs text-amber-700 font-semibold hidden">فيه تعديلات مش متحفوظة</span>
+        <button type="button" id="saveBtn" onclick="saveChart()" disabled
+                class="text-xs font-bold px-4 py-1.5 rounded-lg bg-slate-900 text-white disabled:opacity-30 disabled:cursor-not-allowed">
+          حفظ الخريطة
+        </button>
+      </span>
+    </div>
+  </div>
+
+  <%
+    // A tooth is drawn as five clickable regions — the four axial surfaces plus
+    // the occlusal centre — so the dentist marks exactly what they see instead
+    // of typing "MOD" into a box. Mesial is toward the midline, which flips
+    // between the left and right quadrants; `flip` carries that.
+    function renderTooth(t, flip) {
+      var c = chartMap[t];
+      var status = c ? c.status : 'sound';
+      var surf = (c && c.surfaces) || '';
+  %>
+    <div class="tooth-wrap flex flex-col items-center gap-0.5" data-tooth="<%= t %>">
+      <svg viewBox="0 0 40 40" class="tooth w-10 h-10 sm:w-11 sm:h-11 cursor-pointer select-none"
+           data-tooth="<%= t %>" data-status="<%= status %>" data-surfaces="<%= surf %>"
+           onclick="onToothClick(event, <%= t %>)">
+        <!-- buccal (top) / lingual (bottom) / mesial+distal (sides) / occlusal (centre) -->
+        <polygon class="sf" data-s="B" points="0,0 40,0 28,12 12,12" />
+        <polygon class="sf" data-s="L" points="0,40 12,28 28,28 40,40" />
+        <polygon class="sf" data-s="<%= flip ? 'D' : 'M' %>" points="0,0 12,12 12,28 0,40" />
+        <polygon class="sf" data-s="<%= flip ? 'M' : 'D' %>" points="40,0 40,40 28,28 28,12" />
+        <rect     class="sf" data-s="O" x="12" y="12" width="16" height="16" rx="2" />
+        <rect class="outline" x="0.5" y="0.5" width="39" height="39" rx="4"
+              fill="none" stroke="#cbd5e1" stroke-width="1.5" pointer-events="none" />
+      </svg>
+      <span class="text-[10px] font-bold text-slate-500 leading-none" dir="ltr"><%= t %></span>
+      <span class="srf-label text-[8px] text-slate-400 leading-none h-2" dir="ltr"><%= surf %></span>
     </div>
   <% } %>
 
   <div class="overflow-x-auto">
-    <div class="min-w-[640px] space-y-1">
-      <!-- الفك العلوي: يمين ← يسار -->
-      <div class="flex gap-3 justify-center">
-        <% upper.forEach(function(quad){ %><div><% renderRow(quad) %></div><% }); %>
+    <div class="min-w-[680px]">
+      <!-- الفك العلوي -->
+      <div class="flex gap-4 justify-center items-end">
+        <div>
+          <div class="text-[10px] text-slate-400 text-center mb-1">علوي يمين</div>
+          <div class="flex gap-1"><% upper[0].forEach(function(t){ renderTooth(t, false); }); %></div>
+        </div>
+        <div class="w-px bg-slate-200 self-stretch"></div>
+        <div>
+          <div class="text-[10px] text-slate-400 text-center mb-1">علوي شمال</div>
+          <div class="flex gap-1"><% upper[1].forEach(function(t){ renderTooth(t, true); }); %></div>
+        </div>
       </div>
-      <div class="h-px bg-slate-200 my-3"></div>
+
+      <div class="h-px bg-slate-300 my-4"></div>
+
       <!-- الفك السفلي -->
-      <div class="flex gap-3 justify-center">
-        <% lower.forEach(function(quad){ %><div><% renderRow(quad) %></div><% }); %>
+      <div class="flex gap-4 justify-center items-start">
+        <div>
+          <div class="flex gap-1"><% lower[0].forEach(function(t){ renderTooth(t, false); }); %></div>
+          <div class="text-[10px] text-slate-400 text-center mt-1">سفلي يمين</div>
+        </div>
+        <div class="w-px bg-slate-200 self-stretch"></div>
+        <div>
+          <div class="flex gap-1"><% lower[1].forEach(function(t){ renderTooth(t, true); }); %></div>
+          <div class="text-[10px] text-slate-400 text-center mt-1">سفلي شمال</div>
+        </div>
       </div>
     </div>
   </div>
-  <p class="text-xs text-slate-400 text-center mt-3">الفك العلوي فوق، السفلي تحت — بنفس ترتيب الكشف (يمين المريض على شمالك)</p>
+  <p class="text-xs text-slate-400 text-center mt-3">
+    ضغطة على السن = تطبيق الفرشاة · ضغطة مطوّلة (أو زرار التفاصيل) = ملاحظة وتفاصيل
+  </p>
 </div>
 
 <!-- نافذة تحديد حالة السن -->
@@ -210,6 +265,139 @@
 </div>
 
 <script>
+  /* ── Odontogram ────────────────────────────────────────────────────────────
+     Chairside flow: pick a status once, then tap teeth. Changes are held
+     locally and written in one request, because a page reload per tooth is
+     unusable with a patient in the chair. */
+  var STATUS_COLORS = <%- JSON.stringify(statuses.reduce(function(a,s){ a[s.key]=s.color; return a; }, {})) %>;
+  var STATUS_LABELS = <%- JSON.stringify(statuses.reduce(function(a,s){ a[s.key]=s.label; return a; }, {})) %>;
+  var brush = 'caries';          // the status a tap applies
+  var mode = 'tooth';            // 'tooth' = whole tooth, 'surface' = one surface
+  var pending = {};              // tooth -> {status, surfaces} not yet saved
+  var pressTimer = null;
+
+  function paintTooth(el) {
+    var status = el.getAttribute('data-status') || 'sound';
+    var surf = el.getAttribute('data-surfaces') || '';
+    var base = STATUS_COLORS[status] || '#ffffff';
+    el.querySelectorAll('.sf').forEach(function (p) {
+      var s = p.getAttribute('data-s');
+      // With no surfaces recorded the whole tooth carries the status colour.
+      // Once surfaces exist, only those are filled — that is the entire point
+      // of marking them.
+      var on = !surf || surf.indexOf(s) >= 0;
+      p.setAttribute('fill', on ? base : '#ffffff');
+      p.setAttribute('stroke', '#e2e8f0');
+      p.setAttribute('stroke-width', '0.75');
+      p.style.cursor = 'pointer';
+    });
+    var lbl = el.parentNode.querySelector('.srf-label');
+    if (lbl) lbl.textContent = surf;
+  }
+
+  function markDirty() {
+    var n = Object.keys(pending).length;
+    document.getElementById('dirty').classList.toggle('hidden', n === 0);
+    document.getElementById('saveBtn').disabled = n === 0;
+    if (n) document.getElementById('dirty').textContent = n + ' سن مش متحفوظ';
+  }
+
+  function stage(el) {
+    var t = el.getAttribute('data-tooth');
+    pending[t] = { tooth: Number(t), status: el.getAttribute('data-status'), surfaces: el.getAttribute('data-surfaces') };
+    markDirty();
+  }
+
+  function onToothClick(ev, tooth) {
+    var el = ev.currentTarget;
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    if (mode === 'surface') {
+      var target = ev.target.closest ? ev.target.closest('.sf') : null;
+      if (target) {
+        var s = target.getAttribute('data-s');
+        var surf = el.getAttribute('data-surfaces') || '';
+        // Toggle the surface, keeping a stable M-D-B-L-O order so "MOD" always
+        // reads the same regardless of the order it was clicked in.
+        surf = surf.indexOf(s) >= 0 ? surf.split(s).join('') : (surf + s);
+        surf = 'MDBLO'.split('').filter(function (x) { return surf.indexOf(x) >= 0; }).join('');
+        el.setAttribute('data-surfaces', surf);
+        if (surf && el.getAttribute('data-status') === 'sound') el.setAttribute('data-status', brush);
+        if (!surf) el.setAttribute('data-status', 'sound');
+      }
+    } else {
+      var cur = el.getAttribute('data-status');
+      // Tapping a tooth that already has this status clears it — the same
+      // gesture undoes a mistake instead of needing a separate eraser.
+      el.setAttribute('data-status', cur === brush ? 'sound' : brush);
+      if (cur === brush) el.setAttribute('data-surfaces', '');
+    }
+    paintTooth(el);
+    stage(el);
+  }
+
+  function setBrush(k) {
+    brush = k;
+    document.querySelectorAll('.brush-btn').forEach(function (b) {
+      var on = b.getAttribute('data-brush') === k;
+      b.classList.toggle('border-slate-900', on);
+      b.classList.toggle('bg-white', on);
+      b.classList.toggle('border-transparent', !on);
+    });
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.mode-btn').forEach(function (b) {
+      var on = b.getAttribute('data-mode') === m;
+      b.classList.toggle('border-slate-900', on);
+      b.classList.toggle('bg-white', on);
+      b.classList.toggle('border-transparent', !on);
+      b.classList.toggle('text-slate-400', !on);
+    });
+    document.getElementById('modeHint').textContent = m === 'surface'
+      ? 'دوس على الجزء المصاب من السن'
+      : 'دوس على السن يتلوّن كله';
+  }
+
+  function saveChart() {
+    var changes = Object.keys(pending).map(function (k) { return pending[k]; });
+    if (!changes.length) return;
+    var btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'بيحفظ…';
+    fetch('/clinic/dental/patient/<%= patient.id %>/chart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes: changes }),
+    }).then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.textContent = 'حفظ الخريطة';
+        if (j && j.ok) { pending = {}; markDirty(); btn.textContent = 'اتحفظ ✓';
+          setTimeout(function () { btn.textContent = 'حفظ الخريطة'; }, 1500); }
+        else { alert('الحفظ فشل — جرّب تاني'); btn.disabled = false; }
+      })
+      .catch(function () { btn.textContent = 'حفظ الخريطة'; btn.disabled = false; alert('الحفظ فشل — جرّب تاني'); });
+  }
+
+  // Long-press opens the detail modal (note, exact surfaces) without stealing
+  // the quick tap that does the common thing.
+  document.querySelectorAll('.tooth').forEach(function (el) {
+    paintTooth(el);
+    el.addEventListener('pointerdown', function () {
+      pressTimer = setTimeout(function () {
+        pressTimer = null;
+        openTooth(Number(el.getAttribute('data-tooth')), el.getAttribute('data-status'), el.getAttribute('data-surfaces'), '');
+      }, 550);
+    });
+    el.addEventListener('pointerup', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+    el.addEventListener('pointerleave', function () { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+  });
+  setBrush('caries');
+  setMode('tooth');
+  // Leaving with unsaved marks would lose the examination that was just done.
+  window.addEventListener('beforeunload', function (e) {
+    if (Object.keys(pending).length) { e.preventDefault(); e.returnValue = ''; }
+  });
+
   // The modal is prefilled from the tooth's current row so an edit never
   // silently blanks the surfaces/note the dentist already recorded.
   function openTooth(num, status, surfaces, note) {

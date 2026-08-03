@@ -1788,6 +1788,48 @@ router.get('/dental/patient/:id', requireModule('dental'), async (req, res) => {
   } catch (e) { console.error('[dental patient]', e.message); res.status(500).send('error'); }
 });
 
+// Bulk chart save. The chairside flow is "mark eight teeth, then save" — one
+// request per tooth would mean eight page reloads with a patient in the chair.
+// Everything lands in a single transaction so the chart is never half-written.
+router.post('/dental/patient/:id/chart', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  const changes = Array.isArray(req.body && req.body.changes) ? req.body.changes.slice(0, 64) : [];
+  if (!Number.isInteger(pid) || !changes.length) return res.json({ ok: false, saved: 0 });
+
+  const client = await pool.connect();
+  let saved = 0;
+  try {
+    await client.query('BEGIN');
+    const owns = await client.query('SELECT 1 FROM clinic_patients WHERE id=$1 AND company_id=$2', [pid, cid]);
+    if (!owns.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ ok: false }); }
+
+    for (const ch of changes) {
+      const tooth = parseInt(ch && ch.tooth, 10);
+      const status = String((ch && ch.status) || '');
+      if (!ALL_TEETH.has(tooth) || !STATUS_KEYS.has(status)) continue;
+      // Surfaces are a free-form string in the UI but only the five real tooth
+      // surfaces are accepted, so the chart cannot be filled with junk.
+      const surfaces = String((ch && ch.surfaces) || '').toUpperCase()
+        .split('').filter((s) => 'MDBLO'.includes(s)).join('').slice(0, 5) || null;
+      await client.query(
+        `INSERT INTO clinic_dental_chart (company_id, patient_id, tooth, status, surfaces)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (company_id, patient_id, tooth)
+         DO UPDATE SET status=EXCLUDED.status, surfaces=EXCLUDED.surfaces, updated_at=now()`,
+        [cid, pid, tooth, status, surfaces]
+      );
+      saved += 1;
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[dental chart]', e.message);
+    return res.status(500).json({ ok: false, saved: 0 });
+  } finally { client.release(); }
+  res.json({ ok: true, saved });
+});
+
 // Set a tooth's state. Upsert so clicking the same tooth twice just updates it.
 router.post('/dental/patient/:id/tooth', requireModule('dental'), async (req, res) => {
   const cid = req.company.id;
