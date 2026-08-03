@@ -37,6 +37,18 @@ async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
+    // The columns are normally created by schema.js at server boot, but this
+    // script is run from a shell where that hasn't happened yet — so create
+    // them here too rather than failing on a missing column. Same statements,
+    // all IF NOT EXISTS, so running both ways is harmless.
+    await pool.query(`
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS free_until DATE;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS referral_code TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES companies(id);
+      CREATE UNIQUE INDEX IF NOT EXISTS companies_referral_code_idx
+        ON companies (referral_code) WHERE referral_code IS NOT NULL;
+    `);
+
     // 1) Free period — date it from when the company was actually created, so a
     //    client onboarded four months ago keeps two months, not a fresh six.
     const missingFree = await pool.query(
