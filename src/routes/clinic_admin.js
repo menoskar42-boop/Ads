@@ -957,6 +957,126 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Module: Growth (bring lapsed patients back) ──────────────────────────────
+// The cheapest patient to win is one who already came. This finds the people
+// who stopped coming and gives the clinic a working list — not a report.
+const DEFAULT_LAPSE_DAYS = 180;   // dental recall is ~6 months; a sane default
+const RECONTACT_COOLDOWN = 60;    // never chase the same person twice in 2 months
+const DEFAULT_FOLLOWUP_TPL =
+  'أ/{name}، تحية من {clinic}. عدّى وقت على آخر زيارة ليك — لو حابب تحجز متابعة إحنا في خدمتك.';
+
+router.get('/growth', requireModule('growth'), async (req, res) => {
+  const cid = req.company.id;
+  const days = Math.min(1095, Math.max(30, parseInt(req.query.days, 10) || DEFAULT_LAPSE_DAYS));
+  try {
+    const [lapsed, stats, recent] = await Promise.all([
+      // Patients whose most recent visit is older than the window, excluding
+      // anyone already contacted inside the cooldown — chasing the same person
+      // repeatedly is how a clinic turns a follow-up into spam.
+      pool.query(
+        `SELECT p.id, p.name, p.phone,
+                MAX(v.visit_date) AS last_visit,
+                ((now() AT TIME ZONE 'Africa/Cairo')::date - MAX(v.visit_date)) AS days_since,
+                COUNT(v.id)::int AS visits
+           FROM clinic_patients p
+           JOIN clinic_visits v ON v.patient_id = p.id AND v.company_id = p.company_id
+                                AND v.status = 'done'
+          WHERE p.company_id = $1
+            AND NOT EXISTS (
+              SELECT 1 FROM clinic_appointments a
+               WHERE a.company_id = p.company_id
+                 AND a.patient_phone = p.phone
+                 AND a.status IN ('pending','confirmed')
+                 AND a.slot_at >= now())
+            AND NOT EXISTS (
+              SELECT 1 FROM clinic_whatsapp_log l
+               WHERE l.company_id = p.company_id AND l.patient_id = p.id
+                 AND l.kind = 'followup'
+                 AND l.sent_at > now() - ($2 || ' days')::interval)
+          GROUP BY p.id, p.name, p.phone
+         HAVING MAX(v.visit_date) < (now() AT TIME ZONE 'Africa/Cairo')::date - $3::int
+          ORDER BY MAX(v.visit_date) DESC
+          LIMIT 200`,
+        [cid, String(RECONTACT_COOLDOWN), days]
+      ),
+      pool.query(
+        `SELECT
+           COUNT(DISTINCT p.id)::int AS total_patients,
+           COUNT(DISTINCT p.id) FILTER (
+             WHERE v.visit_date >= (now() AT TIME ZONE 'Africa/Cairo')::date - 90)::int AS active_90
+         FROM clinic_patients p
+         LEFT JOIN clinic_visits v ON v.patient_id = p.id AND v.company_id = p.company_id AND v.status='done'
+        WHERE p.company_id = $1`, [cid]),
+      pool.query(
+        `SELECT l.sent_at, l.ok, p.name
+           FROM clinic_whatsapp_log l
+           LEFT JOIN clinic_patients p ON p.id = l.patient_id
+          WHERE l.company_id=$1 AND l.kind='followup'
+          ORDER BY l.sent_at DESC LIMIT 20`, [cid]),
+    ]);
+
+    const waOn = (await pool.query(
+      'SELECT active FROM clinic_whatsapp WHERE company_id=$1', [cid]
+    )).rows[0];
+
+    res.render('clinic_admin/mod_growth', {
+      company: req.company, tab: 'growth',
+      lapsed: lapsed.rows, days, stats: stats.rows[0] || {}, recent: recent.rows,
+      cooldown: RECONTACT_COOLDOWN,
+      autoSendAvailable: !!(waOn && waOn.active),
+      template: DEFAULT_FOLLOWUP_TPL,
+    });
+  } catch (e) { console.error('[growth]', e.message); res.status(500).send('error'); }
+});
+
+// Record that a patient was chased. Called both by the manual "تم التواصل"
+// button and after an automatic send, so the cooldown applies either way.
+async function logFollowup(cid, patientId, phone, ok, error) {
+  await pool.query(
+    `INSERT INTO clinic_whatsapp_log (company_id, patient_id, kind, phone, ok, error)
+     VALUES ($1,$2,'followup',$3,$4,$5)`,
+    [cid, patientId, phone || null, !!ok, error ? String(error).slice(0, 300) : null]
+  ).catch((e) => console.error('[growth log]', e.message));
+}
+
+router.post('/growth/:id/contacted', requireModule('growth'), async (req, res) => {
+  await logFollowup(req.company.id, parseInt(req.params.id, 10), req.body.phone, true, null);
+  res.redirect('/clinic/growth' + (req.body.days ? '?days=' + encodeURIComponent(req.body.days) : ''));
+});
+
+// Send follow-ups over the clinic's own WhatsApp, in one pass. Capped per run:
+// a clinic with 800 lapsed patients should not fire 800 messages from a single
+// click, and the cooldown means the rest surface again tomorrow.
+router.post('/growth/send', requireModule('growth'), async (req, res) => {
+  const cid = req.company.id;
+  const days = Math.min(1095, Math.max(30, parseInt(req.body.days, 10) || DEFAULT_LAPSE_DAYS));
+  const MAX_PER_RUN = 50;
+  let sent = 0, failed = 0;
+  try {
+    const w = (await pool.query('SELECT * FROM clinic_whatsapp WHERE company_id=$1 AND active=true', [cid])).rows[0];
+    if (!w) return res.redirect('/clinic/growth?days=' + days);
+
+    const ids = String(req.body.ids || '').split(',').map((x) => parseInt(x, 10)).filter(Number.isInteger).slice(0, MAX_PER_RUN);
+    if (!ids.length) return res.redirect('/clinic/growth?days=' + days);
+
+    const rows = (await pool.query(
+      'SELECT id, name, phone FROM clinic_patients WHERE company_id=$1 AND id = ANY($2::int[])', [cid, ids]
+    )).rows;
+
+    const { sendWhatsApp: send, renderTemplate: render } = require('../lib/whatsapp');
+    for (const p of rows) {
+      if (!p.phone) continue;
+      const msg = render(String(req.body.template || DEFAULT_FOLLOWUP_TPL).slice(0, 1000), {
+        name: p.name || '', clinic: req.company.company_name || '',
+      });
+      const r = await send(w, p.phone, msg);
+      if (r.ok) sent += 1; else failed += 1;
+      await logFollowup(cid, p.id, p.phone, r.ok, r.error);
+    }
+  } catch (e) { console.error('[growth send]', e.message); }
+  res.redirect('/clinic/growth?days=' + days + '&sent=' + sent + '&failed=' + failed);
+});
+
 // ── Medicine lookup for prescriptions ────────────────────────────────────────
 // The platform already imports the full Egyptian drug catalogue (~25k rows,
 // refreshed daily) for the pharmacy side, but the clinic's prescription form

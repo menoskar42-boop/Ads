@@ -1,0 +1,172 @@
+<%- include('head', { title: 'عودة المرضى', tab: 'growth' }) %>
+<%
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function fmtDT(t){ try { return new Date(t).toLocaleString('ar-EG',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function wa(p){ return String(p||'').replace(/[^0-9]/g,'').replace(/^0/,'20'); }
+  var q = (typeof locals !== 'undefined' && locals.query) ? locals.query : {};
+%>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">📈 عودة المرضى</h1>
+<p class="text-slate-500 mb-6">أرخص مريض تكسبه هو اللي جالك قبل كده — دي قايمة اللي وقفوا عن الحضور</p>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">إجمالي المرضى</div>
+    <div class="text-2xl font-extrabold text-slate-900"><%= stats.total_patients || 0 %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">نشطين (٩٠ يوم)</div>
+    <div class="text-2xl font-extrabold text-emerald-600"><%= stats.active_90 || 0 %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">محتاجين متابعة</div>
+    <div class="text-2xl font-extrabold text-amber-600"><%= lapsed.length %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">نسبة العودة</div>
+    <div class="text-2xl font-extrabold text-indigo-600">
+      <%= stats.total_patients ? Math.round((stats.active_90 / stats.total_patients) * 100) : 0 %>%
+    </div>
+  </div>
+</div>
+
+<!-- ── الفترة ───────────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <form method="get" class="flex flex-wrap items-end gap-3">
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">اعتبر المريض «وقف» بعد</label>
+      <select name="days" onchange="this.form.submit()" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <% [90,120,180,270,365,540].forEach(function(d){ %>
+          <option value="<%= d %>" <%= days === d ? 'selected' : '' %>>
+            <%= d %> يوم<%= d === 180 ? ' (المعتاد لتنظيف الأسنان)' : '' %>
+          </option>
+        <% }); %>
+      </select>
+    </div>
+    <p class="text-xs text-slate-400 flex-1 min-w-[220px]">
+      اللي عندهم حجز قادم أو اتواصلنا معاهم خلال <strong><%= cooldown %></strong> يوم
+      مش بيظهروا هنا — عشان ما نلاحقش حد مرتين.
+    </p>
+  </form>
+</div>
+
+<!-- ── القائمة ──────────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
+    <span class="font-bold text-slate-800">مرضى محتاجين متابعة (<%= lapsed.length %>)</span>
+    <% if (lapsed.length && autoSendAvailable) { %>
+      <form method="post" action="/clinic/growth/send" id="bulkForm" class="flex items-center gap-2"
+            onsubmit="return prepBulk()">
+        <input type="hidden" name="days" value="<%= days %>" />
+        <input type="hidden" name="ids" id="bulkIds" />
+        <input type="hidden" name="template" id="bulkTpl" />
+        <button class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-700">
+          إرسال واتساب للمحدّدين
+        </button>
+      </form>
+    <% } else if (lapsed.length) { %>
+      <span class="text-xs text-slate-400">فعّل واتساب العيادة عشان الإرسال الجماعي</span>
+    <% } %>
+  </div>
+
+  <% if (!lapsed.length) { %>
+    <p class="px-5 py-6 text-sm text-slate-500">مفيش مرضى محتاجين متابعة في الفترة دي — كله تمام.</p>
+  <% } else { %>
+    <% if (autoSendAvailable) { %>
+    <div class="px-5 py-3 border-b border-slate-100 bg-slate-50">
+      <label class="block text-xs font-semibold text-slate-600 mb-1">نص الرسالة</label>
+      <input id="tplInput" value="<%= template %>" maxlength="1000"
+             class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <p class="text-xs text-slate-400 mt-1">{name} = اسم المريض · {clinic} = اسم العيادة · أقصى ٥٠ رسالة في المرة</p>
+    </div>
+    <% } %>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-600">
+          <tr>
+            <% if (autoSendAvailable) { %>
+            <th class="px-4 py-2 w-8"><input type="checkbox" onchange="toggleAll(this)" /></th>
+            <% } %>
+            <th class="text-right px-4 py-2 font-semibold">المريض</th>
+            <th class="text-right px-4 py-2 font-semibold">آخر زيارة</th>
+            <th class="text-right px-4 py-2 font-semibold">من كام يوم</th>
+            <th class="text-right px-4 py-2 font-semibold">عدد الزيارات</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% lapsed.forEach(function(p){ %>
+          <tr>
+            <% if (autoSendAvailable) { %>
+            <td class="px-4 py-2">
+              <input type="checkbox" class="pick" value="<%= p.id %>" <%= p.phone ? '' : 'disabled title="مفيش رقم"' %> />
+            </td>
+            <% } %>
+            <td class="px-4 py-2">
+              <a href="/clinic/patients/<%= p.id %>" class="font-semibold text-indigo-600 hover:underline"><%= p.name %></a>
+              <% if (!p.phone) { %><span class="text-xs text-slate-300 me-1">(مفيش رقم)</span><% } %>
+            </td>
+            <td class="px-4 py-2 text-slate-600"><%= fmtD(p.last_visit) %></td>
+            <td class="px-4 py-2">
+              <span class="text-xs font-semibold px-2 py-1 rounded-full <%= p.days_since > 365 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+                <%= p.days_since %> يوم
+              </span>
+            </td>
+            <td class="px-4 py-2 text-slate-500"><%= p.visits %></td>
+            <td class="px-4 py-2">
+              <div class="flex items-center gap-2 justify-end">
+                <% if (p.phone) { %>
+                  <a href="https://wa.me/<%= wa(p.phone) %>?text=<%= encodeURIComponent('تحية من ' + company.company_name + '. عدّى وقت على آخر زيارة ليك — لو حابب تحجز متابعة إحنا في خدمتك.') %>"
+                     target="_blank" rel="noopener"
+                     class="text-xs text-emerald-600 hover:underline">واتساب</a>
+                  <a href="tel:<%= p.phone %>" class="text-xs text-indigo-600 hover:underline">اتصال</a>
+                <% } %>
+                <form method="post" action="/clinic/growth/<%= p.id %>/contacted">
+                  <input type="hidden" name="phone" value="<%= p.phone || '' %>" />
+                  <input type="hidden" name="days" value="<%= days %>" />
+                  <button class="text-xs text-slate-500 hover:text-slate-800">تم التواصل</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<!-- ── آخر المتابعات ────────────────────────────────────────────── -->
+<% if (recent.length) { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">آخر المتابعات</div>
+  <div class="divide-y divide-slate-100">
+    <% recent.forEach(function(r){ %>
+    <div class="px-5 py-2.5 flex items-center gap-3 text-sm">
+      <span class="text-slate-800"><%= r.name || '—' %></span>
+      <span class="text-xs <%= r.ok ? 'text-emerald-600' : 'text-red-500' %>"><%= r.ok ? 'تم' : 'فشل' %></span>
+      <span class="text-xs text-slate-400 ms-auto"><%= fmtDT(r.sent_at) %></span>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<script>
+  function toggleAll(master){
+    document.querySelectorAll('.pick:not([disabled])').forEach(function(c){ c.checked = master.checked; });
+  }
+  function prepBulk(){
+    var ids = Array.prototype.slice.call(document.querySelectorAll('.pick:checked')).map(function(c){ return c.value; });
+    if (!ids.length) { alert('اختار مريض واحد على الأقل'); return false; }
+    if (ids.length > 50) { alert('أقصى ٥٠ رسالة في المرة — الباقي هيظهرلك تاني بعد الإرسال'); return false; }
+    if (!confirm('إرسال ' + ids.length + ' رسالة واتساب؟')) return false;
+    document.getElementById('bulkIds').value = ids.join(',');
+    var t = document.getElementById('tplInput');
+    document.getElementById('bulkTpl').value = t ? t.value : '';
+    return true;
+  }
+</script>
+
+</main></body></html>

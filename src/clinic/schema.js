@@ -533,6 +533,13 @@ async function ensureClinicSchema() {
         error          TEXT,
         sent_at        TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      -- Follow-ups target a patient, not an appointment, so the log has to be
+      -- able to record who was contacted when no booking is involved.
+      ALTER TABLE clinic_whatsapp_log
+        ADD COLUMN IF NOT EXISTS patient_id INTEGER REFERENCES clinic_patients(id) ON DELETE CASCADE;
+      CREATE INDEX IF NOT EXISTS idx_wa_log_patient
+        ON clinic_whatsapp_log (company_id, patient_id, kind, sent_at);
+
       -- The dedupe guard: one successful message of a given kind per appointment.
       CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_log_once
         ON clinic_whatsapp_log (appointment_id, kind) WHERE appointment_id IS NOT NULL AND ok;
