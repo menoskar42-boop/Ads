@@ -73,6 +73,9 @@ router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
 // flag away from their own home page in a loop.
 router.use('/hr', requireFlag('hr'), require('./furniture_hr'));
 
+router.use('/canteen', requireFlag('canteen'), require('./furniture_canteen'));
+router.use('/expenses', requireFlag('expenses'), require('./furniture_expenses'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {

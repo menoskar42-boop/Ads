@@ -1,0 +1,118 @@
+<%- include('head', { title: t('fn2.flag.canteen'), tab: 'canteen' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+%>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">🍵 <%= t('fn2.flag.canteen') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.ct.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <div class="lg:col-span-1 space-y-5">
+    <div class="bg-white rounded-2xl shadow-sm p-5">
+      <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.ct.add') %></h2>
+      <% if (!workers.length) { %>
+        <p class="text-sm text-stone-500"><%= t('fn2.hr.no_workers') %></p>
+      <% } else { %>
+      <form method="post" action="/furniture/canteen" class="grid gap-2.5">
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.worker') %>
+          <select name="worker_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% workers.forEach(function(w){ %><option value="<%= w.id %>"><%= w.name %></option><% }); %>
+          </select>
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.ct.item') %>
+          <input name="item" maxlength="120" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_amount') %>
+            <input name="amount" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+          <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_date') %>
+            <input name="buy_date" type="date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+        </div>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.ct.how') %>
+          <select name="paid_cash" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <option value="0"><%= t('fn2.ct.on_account') %></option>
+            <option value="1"><%= t('fn2.ct.cash') %></option>
+          </select>
+        </label>
+        <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('fn2.m.add') %></button>
+        <p class="text-[11px] text-stone-400"><%= t('fn2.ct.how_hint') %></p>
+      </form>
+      <% } %>
+    </div>
+
+    <%# What is waiting to come off a payslip — money owed that the worker has
+        not felt yet, and the number a workshop most often loses track of. %>
+    <% if (pending.length) { %>
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.ct.pending') %></div>
+      <p class="px-5 pt-2 text-xs text-stone-400"><%= t('fn2.ct.pending_hint') %></p>
+      <div class="divide-y divide-stone-100">
+        <% pending.forEach(function(p){ %>
+        <div class="px-5 py-2.5 flex items-center gap-2 text-sm">
+          <span class="text-stone-800"><%= p.name %></span>
+          <span class="ms-auto font-bold text-amber-700"><%= money(p.owed) %> <%= t('cur.egp') %></span>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="lg:col-span-2">
+    <% if (!rows.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.ct.empty') %></div>
+    <% } else { %>
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm rt">
+          <thead class="bg-stone-50 text-stone-600">
+            <tr>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.hr.worker') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.ct.item') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.pay_amount') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.ct.how') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.pay_date') %></th>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            <% rows.forEach(function(r){ %>
+            <tr class="<%= r.payroll_id ? 'opacity-60' : '' %>">
+              <td class="px-4 py-2 font-semibold text-stone-800" data-l="<%= t('fn2.hr.worker') %>"><%= r.worker_name || '—' %></td>
+              <td class="px-4 py-2 text-stone-600" data-l="<%= t('fn2.ct.item') %>"><%= r.item || '—' %></td>
+              <td class="px-4 py-2" data-l="<%= t('fn2.po.pay_amount') %>"><%= money(r.amount) %></td>
+              <td class="px-4 py-2" data-l="<%= t('fn2.ct.how') %>">
+                <% if (r.paid_cash) { %>
+                  <span class="text-xs font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full"><%= t('fn2.ct.cash') %></span>
+                <% } else if (r.payroll_id) { %>
+                  <span class="text-xs font-semibold bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full"><%= t('fn2.ct.deducted') %></span>
+                <% } else { %>
+                  <span class="text-xs font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full"><%= t('fn2.ct.on_account') %></span>
+                <% } %>
+              </td>
+              <td class="px-4 py-2 text-stone-500" data-l="<%= t('fn2.po.pay_date') %>"><%= fmtD(r.buy_date) %></td>
+              <td class="px-4 py-2">
+                <% if (!r.payroll_id) { %>
+                <form method="post" action="/furniture/canteen/<%= r.id %>/delete">
+                  <button class="text-xs text-red-500 hover:text-red-700 px-2"><%= t('common.delete') %></button>
+                </form>
+                <% } else { %>
+                  <span class="text-[10px] text-stone-400"><%= t('fn2.ct.locked') %></span>
+                <% } %>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>

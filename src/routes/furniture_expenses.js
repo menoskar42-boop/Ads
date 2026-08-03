@@ -1,0 +1,78 @@
+// Expenses (phase 6): what the workshop and showroom spend outside purchasing.
+'use strict';
+
+const express = require('express');
+const { Pool } = require('pg');
+
+const router = express.Router();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Stored by key so a line reads correctly in either language. A category typed
+// by hand before this existed still displays: the view falls back to the raw
+// stored string when the key is unknown.
+const CATEGORIES = [
+  { key: 'rent',        label: 'إيجار' },
+  { key: 'utilities',   label: 'كهرباء ومياه' },
+  { key: 'transport',   label: 'نقل ومواصلات' },
+  { key: 'tools',       label: 'عدد وأدوات' },
+  { key: 'maintenance', label: 'صيانة' },
+  { key: 'marketing',   label: 'دعاية' },
+  { key: 'fees',        label: 'رسوم وضرائب' },
+  { key: 'other',       label: 'أخرى' },
+];
+const KEYS = CATEGORIES.map((c) => c.key);
+
+const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
+
+router.get('/', async (req, res) => {
+  const cid = req.company.id;
+  // Default to the current month — the window a workshop actually reviews.
+  const now = new Date();
+  const from = date(req.query.from) || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const to = date(req.query.to) || now.toISOString().slice(0, 10);
+  try {
+    const [rows, byCat] = await Promise.all([
+      pool.query(
+        `SELECT * FROM furniture_expenses WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3
+          ORDER BY spend_date DESC, id DESC LIMIT 300`, [cid, from, to]),
+      pool.query(
+        `SELECT category, SUM(amount) AS total, COUNT(*)::int AS n
+           FROM furniture_expenses WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3
+          GROUP BY category ORDER BY 2 DESC`, [cid, from, to]),
+    ]);
+    const total = byCat.rows.reduce((s, r) => s + Number(r.total), 0);
+    res.render('furniture_admin/expenses', {
+      company: req.company, tab: 'expenses',
+      rows: rows.rows, byCat: byCat.rows, total, from, to,
+      categories: CATEGORIES, saved: req.query.saved === '1',
+    });
+  } catch (e) { console.error('[furniture expenses]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/', async (req, res) => {
+  const b = req.body || {};
+  const amount = num(b.amount);
+  if (amount > 0) {
+    try {
+      await pool.query(
+        `INSERT INTO furniture_expenses (company_id, category, amount, spend_date, note)
+         VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5)`,
+        [req.company.id, KEYS.includes(b.category) ? b.category : 'other',
+          amount, date(b.spend_date), String(b.note || '').trim().slice(0, 300) || null]
+      );
+    } catch (e) { console.error('[furniture expense add]', e.message); }
+  }
+  res.redirect('/furniture/expenses?saved=1');
+});
+
+router.post('/:id(\\d+)/delete', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM furniture_expenses WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[furniture expense del]', e.message); }
+  res.redirect('/furniture/expenses');
+});
+
+module.exports = router;
+module.exports.CATEGORIES = CATEGORIES;

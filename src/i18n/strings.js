@@ -1299,6 +1299,22 @@ const strings = {
     'fn2.hr.err.nobody':'ماخترتش حد في الكشف.',
     'fn2.hr.err.run':'الاعتماد فشل — جرّب تاني.',
 
+    // الكانتين والمصروفات (المرحلة ٦)
+    'fn2.ct.sub':'مشتريات العمالة — الكاش بيتسدّد في الحال، واللي على الحساب بيتخصم في أول كشف مرتّبات.',
+    'fn2.ct.add':'تسجيل مشترى','fn2.ct.item':'الصنف','fn2.ct.how':'الدفع',
+    'fn2.ct.cash':'كاش','fn2.ct.on_account':'على الحساب','fn2.ct.deducted':'اتخصم',
+    'fn2.ct.how_hint':'«على الحساب» بيتخصم تلقائي في المرتّب. «كاش» اتسدّد خلاص ومابيتخصمش.',
+    'fn2.ct.pending':'لسه هيتخصم',
+    'fn2.ct.pending_hint':'اللي على الحساب ولسه ماعدّاش في كشف — ده فلوس ليك عند العمالة.',
+    'fn2.ct.empty':'مفيش مشتريات لسه.','fn2.ct.locked':'اتخصم في كشف — مينفعش يتمسح',
+
+    'fn2.ex.sub':'مصروفات الورشة والمعرض بره المشتريات.',
+    'fn2.ex.add':'تسجيل مصروف','fn2.ex.category':'التصنيف','fn2.ex.total':'إجمالي الفترة:',
+    'fn2.ex.by_cat':'حسب التصنيف','fn2.ex.empty':'مفيش مصروفات في الفترة دي.',
+    'fn2.ex.cat.rent':'إيجار','fn2.ex.cat.utilities':'كهرباء ومياه','fn2.ex.cat.transport':'نقل ومواصلات',
+    'fn2.ex.cat.tools':'عدد وأدوات','fn2.ex.cat.maintenance':'صيانة','fn2.ex.cat.marketing':'دعاية',
+    'fn2.ex.cat.fees':'رسوم وضرائب','fn2.ex.cat.other':'أخرى',
+
     // منحنيات النمو
     'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
     'gc.m.weight':'الوزن حسب السن','gc.m.height':'الطول حسب السن',
@@ -2738,6 +2754,22 @@ const strings = {
     'fn2.hr.err.period':'Choose the period first.',
     'fn2.hr.err.nobody':'Nobody was selected for the run.',
     'fn2.hr.err.run':'The run failed — please try again.',
+
+    // Canteen and expenses (phase 6)
+    'fn2.ct.sub':'What workers take — cash settles on the spot, on account comes off the next payroll run.',
+    'fn2.ct.add':'Record a purchase','fn2.ct.item':'Item','fn2.ct.how':'Payment',
+    'fn2.ct.cash':'Cash','fn2.ct.on_account':'On account','fn2.ct.deducted':'Deducted',
+    'fn2.ct.how_hint':'On account is deducted automatically at payroll. Cash is already settled and is never deducted.',
+    'fn2.ct.pending':'Still to be deducted',
+    'fn2.ct.pending_hint':'On account and not yet through a payroll run — money the workers still owe you.',
+    'fn2.ct.empty':'No purchases yet.','fn2.ct.locked':'deducted in a run — cannot be deleted',
+
+    'fn2.ex.sub':'Workshop and showroom spending outside purchasing.',
+    'fn2.ex.add':'Record an expense','fn2.ex.category':'Category','fn2.ex.total':'Period total:',
+    'fn2.ex.by_cat':'By category','fn2.ex.empty':'No expenses in this period.',
+    'fn2.ex.cat.rent':'Rent','fn2.ex.cat.utilities':'Utilities','fn2.ex.cat.transport':'Transport',
+    'fn2.ex.cat.tools':'Tools','fn2.ex.cat.maintenance':'Maintenance','fn2.ex.cat.marketing':'Marketing',
+    'fn2.ex.cat.fees':'Fees and taxes','fn2.ex.cat.other':'Other',
 
     // Growth curves
     'gc.title':'📈 Growth chart','gc.age_months':'months',

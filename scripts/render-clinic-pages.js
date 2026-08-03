@@ -344,6 +344,45 @@ const FIXTURES = {
     };
   },
 
+  furniture_canteen: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'canteen']);
+    return {
+      __file: 'furniture_admin/canteen.ejs', tab: 'canteen',
+      workers: [{ id: 1, name: 'Sayed' }, { id: 2, name: 'Ramadan' }],
+      // One of each state, so cash / on account / already-deducted all render.
+      rows: [
+        { id: 1, worker_name: 'Sayed', item: 'Tea', amount: 15, paid_cash: true, payroll_id: null, buy_date: '2026-08-01' },
+        { id: 2, worker_name: 'Sayed', item: 'Lunch', amount: 60, paid_cash: false, payroll_id: null, buy_date: '2026-08-02' },
+        { id: 3, worker_name: 'Ramadan', item: 'Lunch', amount: 60, paid_cash: false, payroll_id: 5, buy_date: '2026-07-20' },
+      ],
+      pending: [{ id: 1, name: 'Sayed', owed: 60 }],
+      saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_expenses: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/expenses.ejs', tab: 'expenses',
+      rows: [
+        { id: 1, category: 'rent', amount: 8000, spend_date: '2026-08-01', note: 'August' },
+        // A category typed before the keys existed. Kept in Latin only so the
+        // Arabic-leak check stays meaningful — real legacy data will be Arabic
+        // and SHOULD render as Arabic on an English page, since it is the
+        // workshop's own text and there is nothing to translate it from.
+        { id: 2, category: 'sandpaper', amount: 250, spend_date: '2026-08-02', note: null },
+      ],
+      byCat: [{ category: 'rent', total: 8000, n: 1 }, { category: 'sandpaper', total: 250, n: 1 }],
+      total: 8250, from: '2026-08-01', to: '2026-08-31',
+      categories: require('../src/routes/furniture_expenses').CATEGORIES,
+      saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{

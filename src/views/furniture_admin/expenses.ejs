@@ -1,0 +1,111 @@
+<%- include('head', { title: t('fn2.flag.expenses'), tab: 'expenses' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  // Stored key -> label in the current language, falling back to the shipped
+  // label and then to the raw stored value, so a category typed before the keys
+  // existed still reads correctly.
+  var CAT = {};
+  categories.forEach(function(c){ var k='fn2.ex.cat.'+c.key, tr=t(k); CAT[c.key] = (tr && tr!==k) ? tr : c.label; });
+%>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">💸 <%= t('fn2.flag.expenses') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.ex.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+
+<form method="get" class="flex items-end gap-2 mb-4 flex-wrap">
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.from') %>
+    <input type="date" name="from" value="<%= from %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.to') %>
+    <input type="date" name="to" value="<%= to %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <button class="bg-stone-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('fn2.hr.show') %></button>
+  <span class="ms-auto text-sm text-stone-600"><%= t('fn2.ex.total') %> <strong class="text-stone-900"><%= money(total) %> <%= t('cur.egp') %></strong></span>
+</form>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <div class="lg:col-span-1 space-y-5">
+    <div class="bg-white rounded-2xl shadow-sm p-5">
+      <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.ex.add') %></h2>
+      <form method="post" action="/furniture/expenses" class="grid gap-2.5">
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.ex.category') %>
+          <select name="category" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% categories.forEach(function(c){ %><option value="<%= c.key %>"><%= CAT[c.key] %></option><% }); %>
+          </select>
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_amount') %>
+            <input name="amount" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+          <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_date') %>
+            <input name="spend_date" type="date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+        </div>
+        <label class="text-xs font-bold text-stone-600"><%= t('common.notes') %>
+          <input name="note" maxlength="300" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('fn2.m.add') %></button>
+      </form>
+    </div>
+
+    <% if (byCat.length) { %>
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.ex.by_cat') %></div>
+      <div class="p-4 space-y-2">
+        <% var max = Math.max.apply(null, byCat.map(function(c){ return Number(c.total); })); %>
+        <% byCat.forEach(function(c){ %>
+        <div class="flex items-center gap-3 text-sm">
+          <span class="w-28 truncate text-stone-700"><%= CAT[c.category] || c.category %></span>
+          <div class="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+            <div class="h-full bg-brand-400" style="width: <%= Math.round((Number(c.total)/max)*100) %>%"></div>
+          </div>
+          <span class="text-xs text-stone-700 w-24 text-end"><%= money(c.total) %></span>
+        </div>
+        <% }); %>
+      </div>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="lg:col-span-2">
+    <% if (!rows.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.ex.empty') %></div>
+    <% } else { %>
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm rt">
+          <thead class="bg-stone-50 text-stone-600">
+            <tr>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.ex.category') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.pay_amount') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.pay_date') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('common.notes') %></th>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            <% rows.forEach(function(r){ %>
+            <tr>
+              <td class="px-4 py-2 font-semibold text-stone-800" data-l="<%= t('fn2.ex.category') %>"><%= CAT[r.category] || r.category || '—' %></td>
+              <td class="px-4 py-2" data-l="<%= t('fn2.po.pay_amount') %>"><%= money(r.amount) %></td>
+              <td class="px-4 py-2 text-stone-500" data-l="<%= t('fn2.po.pay_date') %>"><%= fmtD(r.spend_date) %></td>
+              <td class="px-4 py-2 text-stone-500" data-l="<%= t('common.notes') %>"><%= r.note || '—' %></td>
+              <td class="px-4 py-2">
+                <form method="post" action="/furniture/expenses/<%= r.id %>/delete"
+                      onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
+                  <button class="text-xs text-red-500 hover:text-red-700 px-2"><%= t('common.delete') %></button>
+                </form>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>
