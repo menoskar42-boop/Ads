@@ -1,0 +1,148 @@
+<%- include('head', { title: t('fn2.flag.sales'), tab: 'sales' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var SB = { open:'bg-amber-100 text-amber-800', paid:'bg-emerald-100 text-emerald-800', cancelled:'bg-red-50 text-red-600 line-through' };
+%>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">🛒 <%= t('fn2.flag.sales') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.sa.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.sa.err.' + err) %></div><% } %>
+
+<!-- فاتورة جديدة -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.sa.new') %></h2>
+  <% if (!products.length) { %>
+    <p class="text-sm text-stone-500"><%= t('fn2.sa.no_products') %></p>
+  <% } else { %>
+  <form method="post" action="/furniture/sales" class="grid gap-3">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.customer') %>
+        <select name="customer_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('dn.none') %></option>
+          <% customers.forEach(function(c){ %><option value="<%= c.id %>"><%= c.name %></option><% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.date') %>
+        <input type="date" name="sale_date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.deposit') %>
+        <input name="deposit" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.method') %>
+        <select name="deposit_method" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="cash"><%= t('pm.cash') %></option>
+          <option value="card"><%= t('pm.card') %></option>
+          <option value="transfer"><%= t('pm.transfer') %></option>
+        </select>
+      </label>
+    </div>
+
+    <div id="lines" class="grid gap-2">
+      <div class="grid grid-cols-12 gap-2 items-end line">
+        <label class="col-span-12 sm:col-span-6 text-xs font-bold text-stone-600"><%= t('fn2.sa.product') %>
+          <select name="product_id" onchange="fillPrice(this)" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% products.forEach(function(p){ %><option value="<%= p.id %>" data-price="<%= p.selling_price %>"><%= p.name %></option><% }); %>
+          </select>
+        </label>
+        <label class="col-span-6 sm:col-span-3 text-xs font-bold text-stone-600"><%= t('fn2.po.qty') %>
+          <input name="qty" type="number" min="1" value="1" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="col-span-6 sm:col-span-3 text-xs font-bold text-stone-600"><%= t('fn2.sa.unit_price') %>
+          <input name="unit_price" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+      </div>
+    </div>
+
+    <div class="flex gap-2 flex-wrap items-center">
+      <button type="button" onclick="addLine()" class="text-xs text-brand-700 font-bold px-3 py-2 rounded-xl bg-brand-50 hover:bg-brand-100"><%= t('fn2.po.add_line') %></button>
+      <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.sa.create') %></button>
+      <span class="text-xs text-stone-400"><%= taxPercent > 0 ? t('fn2.sa.tax_on') + ' ' + taxPercent + '%' : t('fn2.sa.tax_off') %></span>
+    </div>
+  </form>
+  <% } %>
+</div>
+
+<!-- أرصدة العملاء -->
+<% if (balances.length) { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.sa.balances') %></div>
+  <div class="divide-y divide-stone-100">
+    <% balances.forEach(function(c){ var bal = Number(c.balance); %>
+    <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
+      <a href="/furniture/sales/statement/<%= c.id %>" class="font-semibold text-brand-700 hover:underline"><%= c.name %></a>
+      <span class="text-xs text-stone-400"><%= t('fn2.sa.invoiced') %> <%= money(c.invoiced) %> · <%= t('fn2.po.paid') %> <%= money(c.paid) %></span>
+      <span class="ms-auto font-bold <%= bal > 0 ? 'text-amber-700' : 'text-emerald-700' %>">
+        <%= bal < 0 ? t('fn2.sa.credit') + ' ' + money(-bal) : money(bal) %> <%= t('cur.egp') %>
+      </span>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- الفواتير -->
+<div class="flex gap-1.5 mb-3 text-xs flex-wrap">
+  <a href="/furniture/sales" class="px-3 py-1.5 rounded-lg <%= !status ? 'bg-stone-800 text-white font-bold' : 'bg-white border border-stone-200' %>"><%= t('iv.all') %></a>
+  <% ['open','paid','cancelled'].forEach(function(s){ %>
+    <a href="/furniture/sales?status=<%= s %>" class="px-3 py-1.5 rounded-lg <%= status === s ? 'bg-stone-800 text-white font-bold' : 'bg-white border border-stone-200' %>"><%= t('fn2.sa.st.' + s) %></a>
+  <% }); %>
+</div>
+
+<% if (!sales.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.sa.empty') %></div>
+<% } else { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-stone-50 text-stone-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold">#</th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.sa.customer') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.sa.date') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('iv.grand_total') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('iv.paid') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('iv.due') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('common.status') %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        <% sales.forEach(function(s){ var due = Math.max(0, Number(s.total) - Number(s.paid)); %>
+        <tr>
+          <td class="px-4 py-2" data-l="#"><a href="/furniture/sales/<%= s.id %>" class="text-brand-700 font-bold hover:underline">#<%= s.id %></a></td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.sa.customer') %>"><%= s.customer_name || '—' %></td>
+          <td class="px-4 py-2 text-stone-600" data-l="<%= t('fn2.sa.date') %>"><%= fmtD(s.sale_date) %></td>
+          <td class="px-4 py-2 font-semibold" data-l="<%= t('iv.grand_total') %>"><%= money(s.total) %></td>
+          <td class="px-4 py-2 text-emerald-700" data-l="<%= t('iv.paid') %>"><%= money(s.paid) %></td>
+          <td class="px-4 py-2 <%= due > 0 ? 'text-amber-700 font-bold' : 'text-stone-400' %>" data-l="<%= t('iv.due') %>"><%= money(due) %></td>
+          <td class="px-4 py-2" data-l="<%= t('common.status') %>">
+            <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SB[s.status] %>"><%= t('fn2.sa.st.' + s.status) %></span>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<script>
+  function addLine(){
+    var wrap = document.getElementById('lines');
+    var copy = wrap.querySelector('.line').cloneNode(true);
+    copy.querySelectorAll('input').forEach(function(i){ i.value = i.name === 'qty' ? '1' : ''; });
+    wrap.appendChild(copy);
+  }
+  // Prefill from the product's list price — it is the usual figure, and the
+  // showroom can still discount by typing over it.
+  function fillPrice(sel){
+    var price = sel.options[sel.selectedIndex].getAttribute('data-price');
+    var input = sel.closest('.line').querySelector('[name=unit_price]');
+    if (input && !input.value) input.value = price;
+  }
+  document.querySelectorAll('#lines .line select').forEach(fillPrice);
+</script>
+
+</main></body></html>

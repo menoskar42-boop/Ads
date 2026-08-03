@@ -62,6 +62,8 @@ router.use('/master', require('./furniture_master'));
 // pieces it does not make has no purchase orders to raise.
 router.use('/purchases', requireFlag('purchases'), require('./furniture_purchases'));
 
+router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {

@@ -204,6 +204,60 @@ const FIXTURES = {
     };
   },
 
+  furniture_sales: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/sales.ejs', tab: 'sales',
+      sales: [
+        { id: 1, customer_name: 'Mohamed A.', sale_date: '2026-07-20', total: 51300, paid: 10000, status: 'open' },
+        { id: 2, customer_name: null, sale_date: '2026-06-01', total: 9000, paid: 9000, status: 'paid' },
+      ],
+      customers: [{ id: 1, name: 'Mohamed A.' }],
+      products: [{ id: 1, name: 'Classic bedroom', selling_price: 42000 }],
+      // One customer in credit, so the credit wording is exercised too.
+      balances: [
+        { id: 1, name: 'Mohamed A.', invoiced: 51300, paid: 10000, balance: 41300 },
+        { id: 2, name: 'Nile Furnishings', invoiced: 0, paid: 5000, balance: -5000 },
+      ],
+      taxPercent: 14, status: null, err: 'no_lines', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_sale_detail: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const S = require('../src/furniture/sales');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    const sale = { id: 1, customer_id: 1, customer_name: 'Mohamed A.', sale_date: '2026-07-20',
+      subtotal: 45000, tax: 6300, total: 51300, paid: 10000, status: 'open' };
+    return {
+      __file: 'furniture_admin/sale_detail.ejs', tab: 'sales',
+      sale,
+      items: [{ id: 1, product_name: 'Classic bedroom', qty: 1, unit_price: 42000, total: 42000 }],
+      payments: [{ pay_date: '2026-07-20', amount: 10000, method: 'cash', note: 'deposit' }],
+      due: S.dueOf(sale), err: 'has_paid', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_statement: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/statement.ejs', tab: 'sales',
+      customer: { id: 1, name: 'Mohamed A.', phone: '01000000010' },
+      invoices: [{ id: 1, sale_date: '2026-07-20', total: 51300, paid: 10000, status: 'open' }],
+      // One payment on account (no invoice), which the statement labels distinctly.
+      payments: [
+        { id: 1, sale_id: 1, amount: 10000, pay_date: '2026-07-20', method: 'cash' },
+        { id: 2, sale_id: null, amount: 2000, pay_date: '2026-08-01', method: 'transfer' },
+      ],
+      totals: { invoiced: 51300, paid: 12000, balance: 39300 },
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{

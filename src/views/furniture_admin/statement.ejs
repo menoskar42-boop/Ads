@@ -1,0 +1,109 @@
+<%- include('head', { title: t('fn2.sa.statement') + ' — ' + customer.name, tab: 'sales' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var ML = { cash:t('pm.cash'), card:t('pm.card'), transfer:t('pm.transfer') };
+  var SB = { open:'bg-amber-100 text-amber-800', paid:'bg-emerald-100 text-emerald-800', cancelled:'bg-red-50 text-red-600 line-through' };
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/furniture/sales" class="text-stone-400 hover:text-stone-600 text-sm">← <%= t('fn2.flag.sales') %></a>
+  <h1 class="text-2xl font-black text-stone-900"><%= t('fn2.sa.statement') %></h1>
+  <span class="text-stone-500"><%= customer.name %></span>
+  <% if (customer.phone) { %><span class="text-sm text-stone-400" dir="ltr"><%= customer.phone %></span><% } %>
+  <button onclick="window.print()" class="no-print ms-auto text-xs bg-stone-100 hover:bg-stone-200 rounded-xl px-4 py-2 font-bold"><%= t('iv.print') %></button>
+</div>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.sa.statement_sub') %></p>
+
+<style>
+  @media print {
+    header, nav, .no-print { display: none !important; }
+    body { background: #fff !important; }
+    main { max-width: 100% !important; padding: 0 !important; }
+  }
+</style>
+
+<div class="grid grid-cols-3 gap-3 mb-5">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.sa.invoiced') %></div>
+    <div class="text-xl font-extrabold text-stone-900"><%= money(totals.invoiced) %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('iv.paid') %></div>
+    <div class="text-xl font-extrabold text-emerald-700"><%= money(totals.paid) %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <%# A negative balance is not a debt of a strange sign — it is money the
+        showroom holds. Naming it credit stops it being read as an error. %>
+    <div class="text-xs text-stone-500 mb-1"><%= totals.balance < 0 ? t('fn2.sa.credit') : t('iv.due') %></div>
+    <div class="text-xl font-extrabold <%= totals.balance > 0 ? 'text-amber-700' : 'text-emerald-700' %>">
+      <%= money(Math.abs(totals.balance)) %>
+    </div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-5">
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.sa.invoices') %></div>
+    <% if (!invoices.length) { %>
+      <p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.sa.empty') %></p>
+    <% } else { %>
+    <div class="divide-y divide-stone-100">
+      <% invoices.forEach(function(s){ var due = Math.max(0, Number(s.total) - Number(s.paid)); %>
+      <div class="px-5 py-3 flex flex-wrap items-center gap-2 text-sm">
+        <a href="/furniture/sales/<%= s.id %>" class="font-bold text-brand-700 hover:underline">#<%= s.id %></a>
+        <span class="text-xs text-stone-400"><%= fmtD(s.sale_date) %></span>
+        <span class="text-xs font-semibold px-2 py-0.5 rounded-full <%= SB[s.status] %>"><%= t('fn2.sa.st.' + s.status) %></span>
+        <span class="ms-auto text-stone-800 font-semibold"><%= money(s.total) %></span>
+        <% if (due > 0) { %><span class="text-xs text-amber-700"><%= t('iv.due') %> <%= money(due) %></span><% } %>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('iv.payments_log') %></div>
+    <% if (!payments.length) { %>
+      <p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.po.no_payments') %></p>
+    <% } else { %>
+    <div class="divide-y divide-stone-100">
+      <% payments.forEach(function(p){ %>
+      <div class="px-5 py-3 flex flex-wrap items-center gap-2 text-sm">
+        <span class="text-xs text-stone-400"><%= fmtD(p.pay_date) %></span>
+        <span class="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full"><%= ML[p.method] || p.method %></span>
+        <% if (p.sale_id) { %>
+          <a href="/furniture/sales/<%= p.sale_id %>" class="text-xs text-brand-700 hover:underline">#<%= p.sale_id %></a>
+        <% } else { %>
+          <span class="text-xs text-stone-400"><%= t('fn2.sa.on_account') %></span>
+        <% } %>
+        <span class="ms-auto font-bold text-emerald-700"><%= money(p.amount) %></span>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- A payment with no invoice attached: a deposit taken before the order is
+     written up, which is how a showroom actually takes money. -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mt-5 no-print">
+  <h2 class="font-bold text-stone-800 mb-1"><%= t('fn2.sa.on_account_pay') %></h2>
+  <p class="text-xs text-stone-500 mb-3"><%= t('fn2.sa.on_account_hint') %></p>
+  <form method="post" action="/furniture/sales/pay" class="flex flex-wrap gap-2 items-end">
+    <input type="hidden" name="customer_id" value="<%= customer.id %>" />
+    <label class="text-xs font-bold text-stone-600 flex-1 min-w-[110px]"><%= t('fn2.po.pay_amount') %>
+      <input name="amount" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.method') %>
+      <select name="method" class="mt-1 border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value="cash"><%= t('pm.cash') %></option>
+        <option value="card"><%= t('pm.card') %></option>
+        <option value="transfer"><%= t('pm.transfer') %></option>
+      </select>
+    </label>
+    <button class="bg-stone-800 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('fn2.po.pay') %></button>
+  </form>
+</div>
+
+</main></body></html>
