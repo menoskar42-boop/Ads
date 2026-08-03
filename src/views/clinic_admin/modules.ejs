@@ -1,0 +1,57 @@
+<%- include('head', { title: 'مميزات العيادة', tab: 'modules' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">🧩 مميزات العيادة</h1>
+<p class="text-slate-500 mb-6">شغّل اللي تحتاجه بس — المميزات المقفولة مش بتظهر في القائمة عشان الشاشة تفضل بسيطة</p>
+
+<% if (saved) { %>
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-5 text-sm text-emerald-800">
+  ✅ اتحفظ. المميزات المفعّلة ظهرت في القائمة على الشمال.
+</div>
+<% } %>
+
+<% if (specialtyLabel && bySpecialty.size) { %>
+<div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 mb-5 text-sm text-blue-800">
+  تخصص عيادتك <strong><%= specialtyLabel %></strong> — فالمميزات المناسبة ليه اتفعّلت لوحدها.
+</div>
+<% } %>
+
+<form method="post" action="/clinic/modules">
+  <div class="grid lg:grid-cols-2 gap-3 mb-5">
+    <% modules.forEach(function(m){
+         var on = enabled.has(m.key);
+         var auto = bySpecialty.has(m.key);
+    %>
+    <label class="bg-white rounded-2xl shadow-sm p-4 flex items-start gap-3 cursor-pointer border-2 transition
+                  <%= on ? 'border-emerald-200' : 'border-transparent hover:border-slate-200' %>">
+      <input type="checkbox" name="modules" value="<%= m.key %>" <%= on ? 'checked' : '' %>
+             class="mt-1 w-5 h-5 shrink-0" />
+      <span class="text-2xl shrink-0"><%= m.icon %></span>
+      <span class="flex-1 min-w-0">
+        <span class="flex items-center gap-2 flex-wrap">
+          <strong class="text-slate-900"><%= m.label %></strong>
+          <% if (auto) { %>
+            <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">مقترح لتخصصك</span>
+          <% } %>
+        </span>
+        <span class="block text-sm text-slate-500 leading-relaxed mt-0.5"><%= m.desc %></span>
+      </span>
+    </label>
+    <% }); %>
+  </div>
+
+  <button class="bg-slate-900 text-white text-sm font-bold px-6 py-3 rounded-xl hover:bg-slate-800">
+    حفظ المميزات
+  </button>
+</form>
+
+<div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mt-6 text-sm text-slate-600">
+  <strong class="text-slate-800">فين مميزات الذكاء الاصطناعي؟</strong>
+  <p class="mt-1 leading-relaxed">
+    المميزات اللي فوق كلها ضمن باقتك ومش بتكلّف حاجة إضافية، عشان كده تقدر تشغّلها وتقفلها براحتك.
+    أما مميزات الذكاء الاصطناعي (زي الحجز الصوتي) فبتستهلك خدمة خارجية مدفوعة مع كل استخدام،
+    فبتتفعّل بالاتفاق مع OscarDevs — تلاقيها في
+    <a href="/clinic/addons" class="text-indigo-600 underline font-semibold">صفحة الإضافات</a>.
+  </p>
+</div>
+
+</main></body></html>

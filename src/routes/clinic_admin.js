@@ -957,6 +957,49 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Self-service modules ─────────────────────────────────────────────────────
+// The clinic switches its own features on. These are capability toggles that
+// cost us nothing to run, so requiring a support request to enable one just
+// meant they stayed off and unused. Paid add-ons are deliberately NOT here —
+// those carry per-use cost and stay with OscarDevs.
+router.get('/modules', async (req, res) => {
+  try {
+    const enabled = new Set(
+      (await pool.query('SELECT module_key FROM clinic_modules WHERE company_id=$1 AND enabled=true', [req.company.id]))
+        .rows.map((r) => r.module_key)
+    );
+    const spec = require('../clinic/specialties');
+    const settings = (await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [req.company.id])).rows[0] || {};
+    res.render('clinic_admin/modules', {
+      company: req.company, tab: 'modules',
+      modules: MODULES, enabled,
+      // Modules the chosen specialty turns on by itself — shown so the owner
+      // understands why one is already on rather than thinking it is a bug.
+      bySpecialty: new Set(spec.modulesFor(settings.specialty)),
+      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty) : null,
+      saved: req.query.saved === '1',
+    });
+  } catch (e) { console.error('[clinic modules]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/modules', async (req, res) => {
+  const cid = req.company.id;
+  const wanted = new Set([].concat(req.body.modules || []).map(String));
+  try {
+    const { MODULE_KEYS } = require('../clinic/modules');
+    for (const key of MODULE_KEYS) {
+      await pool.query(
+        `INSERT INTO clinic_modules (company_id, module_key, enabled, updated_at)
+         VALUES ($1,$2,$3, now())
+         ON CONFLICT (company_id, module_key)
+         DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
+        [cid, key, wanted.has(key)]
+      );
+    }
+  } catch (e) { console.error('[clinic modules save]', e.message); }
+  res.redirect('/clinic/modules?saved=1');
+});
+
 // ── Paid add-ons ─────────────────────────────────────────────────────────────
 const addons = require('../clinic/addons');
 
