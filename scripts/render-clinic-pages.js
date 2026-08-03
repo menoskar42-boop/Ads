@@ -61,6 +61,39 @@ const FIXTURES = {
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
 
+  patient_file: (lang) => ({
+    tab: 'patients',
+    patient,
+    doctors: [doctor],
+    visits: [{
+      id: 1, visit_date: '2026-07-01', doctor_name: doctor.name, visit_type_name: 'Consultation',
+      status: 'done', diagnosis: 'URTI', notes: 'rest',
+    }],
+    vitals: [{ recorded_at: NOW, systolic: 120, diastolic: 80, heart_rate: 72, temperature: 37.1, weight: 72, spo2: 98 }],
+    notes: [{ created_at: NOW, doctor_name: doctor.name, category: 'exam', title: '', content: 'chest clear' }],
+    prescriptions: [{
+      created_at: NOW, doctor_name: doctor.name, notes: 'after meals',
+      meds: [{ name: 'Augmentin', dose: '1g', freq: 'bd', duration: '7 days' }],
+    }],
+    specVitals: require('../src/clinic/specialties').vitalsFor('general'),
+    specExtra: [{ key: 'pain', label: lang === 'en' ? 'Pain score' : 'درجة الألم', type: 'scale' }],
+    vitalsLabels: require('../src/clinic/specialties').vitalsLabels((k) => t(k, lang)),
+    specialtyLabel: lang === 'en' ? 'General practice' : 'ممارسة عامة',
+  }),
+
+  patient_trends: (lang) => ({
+    tab: 'patients',
+    patient,
+    specialtyLabel: lang === 'en' ? 'Obstetrics' : 'نساء وتوليد',
+    pregnancy: { weeks: 24, days: 3, trimester: 2, edd: '2026-11-20', lmp: '2026-02-13' },
+    series: [{
+      key: 'weight', label: lang === 'en' ? 'Weight' : 'الوزن', unit: 'kg',
+      latest: 72, delta: -1.2, band: [60, 80],
+      points: [{ t: '2026-05-01', v: 74 }, { t: '2026-06-01', v: 73 }, { t: '2026-07-01', v: 72 }],
+    }],
+    verdictOf: (s) => (s.delta < 0 ? 'better' : s.delta > 0 ? 'worse' : 'flat'),
+  }),
+
   patient_vaccines: () => ({
     tab: 'patients',
     patient: Object.assign({}, patient, { birth_date: '2025-01-15' }),

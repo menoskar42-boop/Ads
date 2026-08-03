@@ -1,36 +1,36 @@
-<%- include('head', { title: 'مؤشرات المريض', tab: 'patients' }) %>
+<%- include('head', { title: t('tr.title'), tab: 'patients' }) %>
 <%
   function fmtD(t){ try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var VBADGE = { better:'bg-emerald-100 text-emerald-800', worse:'bg-red-100 text-red-700', flat:'bg-slate-100 text-slate-600' };
-  var VLABEL = { better:'تحسّن', worse:'تراجع', flat:'زي ما هو' };
+  var VLABEL = { better:t('tr.better'), worse:t('tr.worse'), flat:t('tr.flat') };
 %>
 
 <div class="flex items-center gap-3 mb-1 flex-wrap">
-  <a href="/clinic/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← ملف المريض</a>
-  <h1 class="text-2xl font-black text-slate-900">📊 مؤشرات <%= patient.name %></h1>
+  <a href="/clinic/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('tr.back_file') %></a>
+  <h1 class="text-2xl font-black text-slate-900"><%= t('tr.title') %> <%= patient.name %></h1>
   <% if (specialtyLabel) { %><span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full"><%= specialtyLabel %></span><% } %>
 </div>
-<p class="text-slate-500 mb-5">القياسة الواحدة مابتقولش حاجة — المهم مقارنتها باللي قبلها</p>
+<p class="text-slate-500 mb-5"><%= t('tr.sub') %></p>
 
 <!-- ── متابعة الحمل ─────────────────────────────────────────────── -->
 <% if (pregnancy) { %>
 <div class="bg-gradient-to-l from-pink-50 to-rose-50 border border-pink-200 rounded-2xl p-5 mb-5">
-  <h2 class="font-bold text-slate-800 mb-3">🤰 متابعة الحمل</h2>
+  <h2 class="font-bold text-slate-800 mb-3"><%= t('tr.preg') %></h2>
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
     <div>
-      <div class="text-xs text-slate-500 mb-1">عمر الحمل</div>
-      <div class="text-2xl font-extrabold text-rose-700"><%= pregnancy.weeks %><span class="text-sm font-normal"> أسبوع</span> <%= pregnancy.days %><span class="text-sm font-normal"> يوم</span></div>
+      <div class="text-xs text-slate-500 mb-1"><%= t('tr.ga') %></div>
+      <div class="text-2xl font-extrabold text-rose-700"><%= pregnancy.weeks %><span class="text-sm font-normal"> <%= t('tr.week') %></span> <%= pregnancy.days %><span class="text-sm font-normal"> <%= t('tr.day') %></span></div>
     </div>
     <div>
-      <div class="text-xs text-slate-500 mb-1">الثلث</div>
-      <div class="text-2xl font-extrabold text-rose-700">الـ<%= ['أول','تاني','تالت'][pregnancy.trimester - 1] %></div>
+      <div class="text-xs text-slate-500 mb-1"><%= t('tr.trimester') %></div>
+      <div class="text-2xl font-extrabold text-rose-700"><%= [t('tr.tri1'), t('tr.tri2'), t('tr.tri3')][pregnancy.trimester - 1] %></div>
     </div>
     <div>
-      <div class="text-xs text-slate-500 mb-1">موعد الولادة المتوقّع</div>
+      <div class="text-xs text-slate-500 mb-1"><%= t('tr.edd') %></div>
       <div class="text-lg font-extrabold text-slate-900"><%= new Date(pregnancy.edd).toLocaleDateString(LOC,{year:'numeric',month:'long',day:'numeric'}) %></div>
     </div>
     <div>
-      <div class="text-xs text-slate-500 mb-1">آخر دورة</div>
+      <div class="text-xs text-slate-500 mb-1"><%= t('tr.lmp') %></div>
       <div class="text-lg font-semibold text-slate-700"><%= new Date(pregnancy.lmp).toLocaleDateString(LOC,{year:'numeric',month:'long',day:'numeric'}) %></div>
     </div>
   </div>
@@ -38,7 +38,7 @@
     <div class="h-2 bg-white rounded-full overflow-hidden">
       <div class="h-full bg-rose-400" style="width: <%= Math.min(100, Math.round((pregnancy.weeks / 40) * 100)) %>%"></div>
     </div>
-    <p class="text-xs text-slate-500 mt-1">من ٤٠ أسبوع · محسوبة من آخر دورة مسجّلة في الزيارات</p>
+    <p class="text-xs text-slate-500 mt-1"><%= t('tr.of_40') %></p>
   </div>
 </div>
 <% } %>
@@ -46,7 +46,7 @@
 <!-- ── المؤشرات ─────────────────────────────────────────────────── -->
 <% if (!series.length) { %>
   <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500">
-    مفيش قياسات مسجّلة لسه — سجّل قياسات من ملف المريض وهتظهر هنا كمنحنى.
+    <%= t('tr.empty') %>
   </div>
 <% } else { %>
 <div class="grid lg:grid-cols-2 gap-4">
@@ -68,7 +68,7 @@
     <div class="flex items-start justify-between gap-2 mb-3 flex-wrap">
       <div>
         <h3 class="font-bold text-slate-800"><%= s.label %></h3>
-        <p class="text-xs text-slate-400"><%= pts.length %> قياس · من <%= fmtD(pts[0].t) %> لـ<%= fmtD(pts[pts.length-1].t) %></p>
+        <p class="text-xs text-slate-400"><%= pts.length %> <%= t('tr.readings') %> · <%= t('tr.from') %> <%= fmtD(pts[0].t) %> <%= t('tr.to') %> <%= fmtD(pts[pts.length-1].t) %></p>
       </div>
       <div class="text-left">
         <div class="text-2xl font-extrabold <%= inBand === false ? 'text-red-600' : 'text-slate-900' %>">
@@ -101,7 +101,7 @@
     <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1">
       <span><%= lo.toFixed(1) %></span>
       <% if (s.band) { %>
-        <span class="text-emerald-600">الطبيعي <%= s.band[0] %>–<%= s.band[1] %> <%= s.unit %></span>
+        <span class="text-emerald-600"><%= t('tr.normal') %> <%= s.band[0] %>–<%= s.band[1] %> <%= s.unit %></span>
       <% } %>
       <span><%= hi.toFixed(1) %></span>
     </div>
@@ -109,9 +109,7 @@
   <% }); %>
 </div>
 
-<p class="text-xs text-slate-400 mt-4">
-  النطاق الأخضر مرجع استرشادي عام للفت النظر بس — التشخيص قرار الطبيب، والقيمة خارج النطاق معناها «بُصّ» مش «تشخيص».
-</p>
+<p class="text-xs text-slate-400 mt-4"><%= t('tr.band_note') %></p>
 <% } %>
 
 </main></body></html>
