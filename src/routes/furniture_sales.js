@@ -88,6 +88,7 @@ router.post('/', async (req, res) => {
         });
       } catch (e) { console.error('[furniture deposit]', e.message); }
     }
+    req.flog('sale.create', 'sale', sale.id, `#${sale.id} · ${S.round2(t.total)}`);
     res.redirect('/furniture/sales/' + sale.id + '?saved=1');
   } catch (e) {
     await client.query('ROLLBACK');
@@ -142,6 +143,7 @@ router.post('/pay', async (req, res) => {
     console.error('[furniture pay]', e.message);
     return res.redirect(saleId ? '/furniture/sales/' + saleId + '?err=pay' : '/furniture/sales?err=pay');
   }
+  req.flog('payment.add', 'payment', saleId, saleId ? `#${saleId} · ${num(b.amount)}` : `${num(b.amount)}`);
   res.redirect(saleId ? '/furniture/sales/' + saleId + '?saved=1' : '/furniture/sales?saved=1');
 });
 
@@ -157,6 +159,7 @@ router.post('/:id(\\d+)/cancel', async (req, res) => {
     )).rows[0];
     if (Number(p.t) > 0) return res.redirect('/furniture/sales/' + id + '?err=has_paid');
     await pool.query("UPDATE furniture_sales SET status='cancelled' WHERE id=$1 AND company_id=$2", [id, cid]);
+    req.flog('sale.cancel', 'sale', id, '#' + id);
   } catch (e) { console.error('[furniture sale cancel]', e.message); }
   res.redirect('/furniture/sales/' + id);
 });

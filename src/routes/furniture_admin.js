@@ -38,7 +38,10 @@ async function requireFurniture(req, res, next) {
     res.redirect('/company/login');
   }
 }
-router.use(requireLogin, requireFurniture);
+// Attached AFTER the guards so it knows the company, and BEFORE every feature
+// router so `req.flog` exists everywhere without each one wiring it up. Writing
+// is never gated by a flag — see src/furniture/activity.js.
+router.use(requireLogin, requireFurniture, require('../furniture/activity').attach(pool));
 
 /** Gate a route behind its flag. Hiding the tab must also close the URL. */
 function requireFlag(key) {
@@ -69,6 +72,9 @@ router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
 router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
 
 router.use('/delivery', requireFlag('delivery'), require('./furniture_delivery'));
+
+// The log page is gated; the writing behind it is not.
+router.use('/activity', requireFlag('activity'), require('./furniture_activity'));
 
 router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
 
@@ -136,6 +142,9 @@ router.post('/settings', async (req, res) => {
 
     const wanted = new Set([].concat(b.flags || []).map(String).filter((k) => OPTIONAL_KEYS.includes(k)));
     await saveFlags(pool, cid, wanted);
+    // Which sections are on changes what the rest of the team can even see, so
+    // the set is logged in full rather than as "settings changed".
+    req.flog('settings.save', 'settings', null, OPTIONAL_KEYS.filter((k) => wanted.has(k)).join(', ') || '—');
   } catch (e) { console.error('[furniture settings save]', e.message); }
   res.redirect('/furniture/settings?saved=1');
 });

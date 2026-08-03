@@ -89,6 +89,8 @@ router.post('/:entity', async (req, res) => {
         [cid, ...cols.map((c) => values[c])]
       );
     }
+    req.flog(isEdit ? 'master.edit' : 'master.add', 'master', isEdit ? id : null,
+      `${req.entity} · ${values.name || ''}`);
   } catch (e) { console.error('[furniture master save]', e.message); }
   res.redirect(back(req.entity, '?saved=1'));
 });
@@ -101,6 +103,8 @@ router.post('/:entity/:id/archive', async (req, res) => {
       `UPDATE ${req.spec.table} SET is_active=$1 WHERE id=$2 AND company_id=$3`,
       [on, parseInt(req.params.id, 10), req.company.id]
     );
+    req.flog(on ? 'master.restore' : 'master.archive', 'master',
+      parseInt(req.params.id, 10), req.entity);
   } catch (e) { console.error('[furniture archive]', e.message); }
   res.redirect(back(req.entity, on ? '' : '?archived=1'));
 });
@@ -114,7 +118,12 @@ router.post('/:entity/:id/delete', async (req, res) => {
     // The archive already covers that case, so refuse and say why.
     const refs = await referenceCount(pool, req.entity, cid, id);
     if (refs > 0) return res.redirect(back(req.entity, '?err=in_use'));
+    // Read the name before the row goes: after the DELETE the log line is the
+    // only place it still exists.
+    const gone = (await pool.query(
+      `SELECT name FROM ${req.spec.table} WHERE id=$1 AND company_id=$2`, [id, cid])).rows[0];
     await pool.query(`DELETE FROM ${req.spec.table} WHERE id=$1 AND company_id=$2`, [id, cid]);
+    req.flog('master.delete', 'master', id, `${req.entity} · ${(gone && gone.name) || ''}`);
   } catch (e) { console.error('[furniture delete]', e.message); }
   res.redirect(back(req.entity));
 });

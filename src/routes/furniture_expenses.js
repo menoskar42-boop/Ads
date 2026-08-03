@@ -61,6 +61,8 @@ router.post('/', async (req, res) => {
         [req.company.id, KEYS.includes(b.category) ? b.category : 'other',
           amount, date(b.spend_date), String(b.note || '').trim().slice(0, 300) || null]
       );
+      req.flog('expense.add', 'expense', null,
+        `${KEYS.includes(b.category) ? b.category : 'other'} · ${amount}`);
     } catch (e) { console.error('[furniture expense add]', e.message); }
   }
   res.redirect('/furniture/expenses?saved=1');
@@ -68,8 +70,14 @@ router.post('/', async (req, res) => {
 
 router.post('/:id(\\d+)/delete', async (req, res) => {
   try {
-    await pool.query('DELETE FROM furniture_expenses WHERE id=$1 AND company_id=$2',
-      [parseInt(req.params.id, 10), req.company.id]);
+    const id = parseInt(req.params.id, 10);
+    // Read before deleting: once the row is gone the log entry is the only
+    // place the amount still exists, so it has to carry it.
+    const gone = (await pool.query(
+      'SELECT category, amount FROM furniture_expenses WHERE id=$1 AND company_id=$2',
+      [id, req.company.id])).rows[0];
+    await pool.query('DELETE FROM furniture_expenses WHERE id=$1 AND company_id=$2', [id, req.company.id]);
+    if (gone) req.flog('expense.delete', 'expense', id, `${gone.category || 'other'} · ${gone.amount}`);
   } catch (e) { console.error('[furniture expense del]', e.message); }
   res.redirect('/furniture/expenses');
 });

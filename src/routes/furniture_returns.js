@@ -75,6 +75,7 @@ router.post('/', async (req, res) => {
       refundNow: num(b.refund_now),
       lines,
     });
+    req.flog('return.create', 'return', r.id, `#${r.id} · ${r.total}` + (r.refunded ? ` · ${r.refunded}` : ''));
     res.redirect('/furniture/returns/' + r.id + '?saved=1');
   } catch (e) {
     console.error('[furniture return create]', e.message);
@@ -101,7 +102,8 @@ router.get('/:id(\\d+)', async (req, res) => {
 router.post('/:id(\\d+)/refund', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   try {
-    await RT.addRefund(pool, req.company.id, id, num((req.body || {}).amount));
+    const done = await RT.addRefund(pool, req.company.id, id, num((req.body || {}).amount));
+    req.flog('refund.pay', 'refund', id, `#${id} · ${done.added}`);
     res.redirect('/furniture/returns/' + id + '?saved=1');
   } catch (e) {
     console.error('[furniture refund]', e.message);

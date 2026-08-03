@@ -38,11 +38,12 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const b = req.body || {};
   try {
-    await D.schedule(pool, req.company.id, {
+    const job = await D.schedule(pool, req.company.id, {
       saleId: b.sale_id, customerId: b.customer_id, kind: b.kind,
       scheduledDate: date(b.scheduled_date), slot: b.slot, crew: b.crew,
       address: b.address, phone: b.phone, note: b.note,
     });
+    req.flog('delivery.book', 'delivery', job.id, `#${job.id} · ${b.kind === 'install' ? 'install' : 'delivery'}`);
     res.redirect('/furniture/delivery?saved=1');
   } catch (e) {
     console.error('[furniture delivery create]', e.message);
@@ -54,7 +55,9 @@ router.post('/', async (req, res) => {
 router.post('/:id(\\d+)/status', async (req, res) => {
   const b = req.body || {};
   try {
-    await D.setStatus(pool, req.company.id, parseInt(req.params.id, 10), b.status, b.note);
+    const id = parseInt(req.params.id, 10);
+    const done = await D.setStatus(pool, req.company.id, id, b.status, b.note);
+    req.flog('delivery.status', 'delivery', id, `#${id} → ${done.status}`);
   } catch (e) { console.error('[furniture delivery status]', e.message); }
   res.redirect('/furniture/delivery?view=' + (VIEWS.includes(b.view) ? b.view : 'open'));
 });
@@ -62,7 +65,9 @@ router.post('/:id(\\d+)/status', async (req, res) => {
 router.post('/:id(\\d+)/move', async (req, res) => {
   const b = req.body || {};
   try {
-    await D.reschedule(pool, req.company.id, parseInt(req.params.id, 10), date(b.scheduled_date), b.slot);
+    const id = parseInt(req.params.id, 10);
+    await D.reschedule(pool, req.company.id, id, date(b.scheduled_date), b.slot);
+    req.flog('delivery.move', 'delivery', id, `#${id} → ${date(b.scheduled_date)}`);
   } catch (e) {
     console.error('[furniture delivery move]', e.message);
     return res.redirect('/furniture/delivery?err=bad_date');

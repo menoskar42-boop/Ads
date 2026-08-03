@@ -121,6 +121,8 @@ router.post('/payroll', async (req, res) => {
       });
     if (!rows.length) return res.redirect('/furniture/hr/payroll?err=nobody&start=' + start + '&end=' + end);
     await P.runPayroll(pool, cid, { start, end, rows, markPaid: b.mark_paid === '1' });
+    req.flog('payroll.run', 'payroll', null,
+      `${start} → ${end} · ${rows.length} · ${P.round2(rows.reduce((s, r) => s + r.net, 0))}`);
   } catch (e) {
     console.error('[furniture payroll run]', e.message);
     return res.redirect('/furniture/hr/payroll?err=run&start=' + start + '&end=' + end);
@@ -130,8 +132,10 @@ router.post('/payroll', async (req, res) => {
 
 router.post('/payroll/:id(\\d+)/paid', async (req, res) => {
   try {
+    const id = parseInt(req.params.id, 10);
     await pool.query('UPDATE furniture_payroll_runs SET paid=true WHERE id=$1 AND company_id=$2',
-      [parseInt(req.params.id, 10), req.company.id]);
+      [id, req.company.id]);
+    req.flog('payroll.paid', 'payroll', id, '#' + id);
   } catch (e) { console.error('[furniture payroll paid]', e.message); }
   res.redirect('/furniture/hr/payroll');
 });

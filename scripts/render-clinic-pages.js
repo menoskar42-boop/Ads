@@ -331,6 +331,24 @@ const FIXTURES = {
     };
   },
 
+  furniture_activity: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const A = require('../src/furniture/activity');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/activity.ejs', tab: 'activity',
+      entity: null, entities: A.ENTITIES,
+      rows: [
+        { id: 3, created_at: '2026-08-03T09:12:00Z', actor: 'Sayed', action: 'sale.cancel', entity: 'sale', entity_id: 12, detail: '#12' },
+        { id: 2, created_at: '2026-08-03T08:40:00Z', actor: 'owner', action: 'payroll.run', entity: 'payroll', entity_id: null, detail: '2026-08-01 → 2026-08-07 · 3 · 2565' },
+        // An action with no translation yet, so the raw-key fallback is exercised.
+        { id: 1, created_at: '2026-08-02T17:05:00Z', actor: 'owner', action: 'something.new', entity: null, entity_id: null, detail: null },
+      ],
+      more: true, limit: 100, offset: 100,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   furniture_bom: (lang) => {
     const fl = require('../src/furniture/flags');
     const B = require('../src/furniture/bom');

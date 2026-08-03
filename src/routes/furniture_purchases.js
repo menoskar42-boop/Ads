@@ -81,6 +81,7 @@ router.post('/', async (req, res) => {
       );
     }
     await client.query('COMMIT');
+    req.flog('purchase.create', 'purchase', po.id, '#' + po.id);
     res.redirect('/furniture/purchases/' + po.id + '?saved=1');
   } catch (e) {
     await client.query('ROLLBACK');
@@ -128,6 +129,7 @@ router.post('/:id/receive', async (req, res) => {
   }
   try {
     const out = await receive(pool, req.company.id, id, deltas);
+    if (out.lines) req.flog('purchase.receive', 'purchase', id, `#${id} · ${out.lines}`);
     res.redirect('/furniture/purchases/' + id + (out.lines ? '?saved=1' : '?err=nothing'));
   } catch (e) {
     console.error('[furniture receive]', e.message);
@@ -150,6 +152,7 @@ router.post('/:id/cancel', async (req, res) => {
     await pool.query(
       "UPDATE furniture_purchase_orders SET status='cancelled' WHERE id=$1 AND company_id=$2", [id, cid]
     );
+    req.flog('purchase.cancel', 'purchase', id, '#' + id);
   } catch (e) { console.error('[furniture cancel]', e.message); }
   res.redirect('/furniture/purchases/' + id);
 });
@@ -166,6 +169,7 @@ router.post('/pay', async (req, res) => {
          VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5)`,
         [req.company.id, supplierId, amount, date(b.pay_date), String(b.note || '').trim().slice(0, 300) || null]
       );
+      req.flog('supplier_payment.add', 'supplier_payment', supplierId, String(amount));
     } catch (e) { console.error('[furniture supplier pay]', e.message); }
   }
   res.redirect(b.back === 'order' && b.po_id ? '/furniture/purchases/' + parseInt(b.po_id, 10) + '?saved=1'
