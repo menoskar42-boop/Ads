@@ -906,6 +906,164 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Module: Installments ─────────────────────────────────────────────────────
+// A plan never becomes a second ledger: paying an instalment writes a normal
+// clinic_payments row and advances the invoice, so finance and the cash box
+// stay right without knowing installments exist.
+router.get('/installments', requireModule('installments'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [plans, unpaidInvoices, due] = await Promise.all([
+      pool.query(
+        `SELECT i.invoice_id,
+                MIN(p.name)                       AS patient_name,
+                MIN(i.patient_id)                 AS patient_id,
+                COUNT(*)::int                     AS n,
+                COUNT(*) FILTER (WHERE i.paid_at IS NOT NULL)::int AS n_paid,
+                SUM(i.amount)                     AS total,
+                SUM(i.paid_amount)                AS paid,
+                MIN(i.due_date) FILTER (WHERE i.paid_at IS NULL) AS next_due
+           FROM clinic_installments i
+           LEFT JOIN clinic_patients p ON p.id = i.patient_id
+          WHERE i.company_id = $1
+          GROUP BY i.invoice_id
+          ORDER BY (COUNT(*) FILTER (WHERE i.paid_at IS NULL) = 0) ASC,
+                   MIN(i.due_date) FILTER (WHERE i.paid_at IS NULL) NULLS LAST`, [cid]),
+      // Only invoices with money left AND no plan yet can be split.
+      pool.query(
+        `SELECT inv.id, inv.total_amount, inv.paid_amount, p.name AS patient_name, inv.patient_id
+           FROM clinic_invoices inv
+           LEFT JOIN clinic_patients p ON p.id = inv.patient_id
+          WHERE inv.company_id = $1
+            AND inv.status IN ('pending','partial')
+            AND inv.total_amount > inv.paid_amount
+            AND NOT EXISTS (SELECT 1 FROM clinic_installments i WHERE i.invoice_id = inv.id)
+          ORDER BY inv.created_at DESC LIMIT 100`, [cid]),
+      pool.query(
+        `SELECT i.*, p.name AS patient_name, p.phone
+           FROM clinic_installments i
+           LEFT JOIN clinic_patients p ON p.id = i.patient_id
+          WHERE i.company_id=$1 AND i.paid_at IS NULL
+            AND i.due_date <= (now() AT TIME ZONE 'Africa/Cairo')::date + 7
+          ORDER BY i.due_date LIMIT 50`, [cid]),
+    ]);
+    const today = new Date().toISOString().slice(0, 10);
+    res.render('clinic_admin/mod_installments', {
+      company: req.company, tab: 'installments',
+      plans: plans.rows, invoices: unpaidInvoices.rows, due: due.rows, today,
+    });
+  } catch (e) { console.error('[installments]', e.message); res.status(500).send('error'); }
+});
+
+// Split an invoice into n monthly instalments. The remainder from rounding is
+// folded into the FIRST one, so the parts always add up to the exact balance.
+router.post('/installments/create', requireModule('installments'), async (req, res) => {
+  const cid = req.company.id;
+  const invoiceId = parseInt(req.body.invoice_id, 10);
+  const count = Math.min(36, Math.max(2, parseInt(req.body.count, 10) || 0));
+  const firstDue = /^\d{4}-\d{2}-\d{2}$/.test(req.body.first_due || '') ? req.body.first_due : null;
+  const downPayment = Math.max(0, parseFloat(req.body.down_payment) || 0);
+  if (!Number.isInteger(invoiceId) || !firstDue) return res.redirect('/clinic/installments');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      'SELECT * FROM clinic_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE', [invoiceId, cid]
+    )).rows[0];
+    if (!inv) { await client.query('ROLLBACK'); return res.redirect('/clinic/installments'); }
+
+    const balance = Number(inv.total_amount) - Number(inv.paid_amount) - downPayment;
+    if (balance <= 0) { await client.query('ROLLBACK'); return res.redirect('/clinic/installments'); }
+
+    // A down payment is money taken now — record it as a real payment.
+    if (downPayment > 0) {
+      await client.query(
+        'INSERT INTO clinic_payments (company_id, invoice_id, amount, method) VALUES ($1,$2,$3,$4)',
+        [cid, invoiceId, downPayment, String(req.body.down_method || 'cash').slice(0, 20)]
+      );
+      await client.query(
+        `UPDATE clinic_invoices
+            SET paid_amount = paid_amount + $1,
+                status = CASE WHEN paid_amount + $1 >= total_amount THEN 'paid' ELSE 'partial' END
+          WHERE id=$2`, [downPayment, invoiceId]
+      );
+    }
+
+    const per = Math.floor((balance / count) * 100) / 100;
+    const first = Math.round((balance - per * (count - 1)) * 100) / 100;
+    const base = new Date(firstDue + 'T00:00:00Z');
+    for (let i = 0; i < count; i += 1) {
+      const d = new Date(base);
+      d.setUTCMonth(d.getUTCMonth() + i);
+      await client.query(
+        `INSERT INTO clinic_installments (company_id, invoice_id, patient_id, seq, due_date, amount)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [cid, invoiceId, inv.patient_id, i + 1, d.toISOString().slice(0, 10), i === 0 ? first : per]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[installments create]', e.message);
+  } finally { client.release(); }
+  res.redirect('/clinic/installments');
+});
+
+// Pay one instalment. Writes a real payment row and moves the invoice along.
+router.post('/installments/:id/pay', requireModule('installments'), async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const ins = (await client.query(
+      'SELECT * FROM clinic_installments WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid]
+    )).rows[0];
+    if (!ins || ins.paid_at) { await client.query('ROLLBACK'); return res.redirect('/clinic/installments'); }
+
+    const amount = Math.max(0, parseFloat(req.body.amount) || Number(ins.amount));
+    const method = String(req.body.method || 'cash').slice(0, 20);
+    await client.query(
+      'INSERT INTO clinic_payments (company_id, invoice_id, amount, method) VALUES ($1,$2,$3,$4)',
+      [cid, ins.invoice_id, amount, method]
+    );
+    await client.query(
+      'UPDATE clinic_installments SET paid_amount=$1, paid_at=now() WHERE id=$2', [amount, id]
+    );
+    await client.query(
+      `UPDATE clinic_invoices
+          SET paid_amount = paid_amount + $1,
+              status = CASE WHEN paid_amount + $1 >= total_amount THEN 'paid' ELSE 'partial' END,
+              paid_at = CASE WHEN paid_amount + $1 >= total_amount THEN now() ELSE paid_at END
+        WHERE id=$2 AND company_id=$3`,
+      [amount, ins.invoice_id, cid]
+    );
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[installment pay]', e.message);
+  } finally { client.release(); }
+  res.redirect('/clinic/installments');
+});
+
+// Cancel a whole plan. Only allowed while nothing has been paid against it —
+// deleting instalments that already generated payments would leave the invoice
+// showing money it cannot account for.
+router.post('/installments/plan/:invoiceId/delete', requireModule('installments'), async (req, res) => {
+  const invoiceId = parseInt(req.params.invoiceId, 10);
+  try {
+    await pool.query(
+      `DELETE FROM clinic_installments
+        WHERE invoice_id=$1 AND company_id=$2
+          AND NOT EXISTS (SELECT 1 FROM clinic_installments x
+                           WHERE x.invoice_id=$1 AND x.paid_at IS NOT NULL)`,
+      [invoiceId, req.company.id]
+    );
+  } catch (e) { console.error('[installments delete]', e.message); }
+  res.redirect('/clinic/installments');
+});
+
 // ── Module: Cash box ─────────────────────────────────────────────────────────
 // The drawer only reconciles if three things are in one place: what it started
 // with, what patients paid (already in clinic_payments), and every other cash

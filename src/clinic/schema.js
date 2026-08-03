@@ -220,6 +220,29 @@ async function ensureClinicSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_pay_company ON clinic_payments (company_id, created_at);
 
+      -- Installments. Dental and cosmetic work runs into thousands, so patients
+      -- pay it over months — today that lives in a notebook. A plan splits one
+      -- invoice into dated instalments; paying one writes a normal row into
+      -- clinic_payments so the invoice, the finance report and the cash box all
+      -- stay correct without a second source of truth.
+      CREATE TABLE IF NOT EXISTS clinic_installments (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        invoice_id   INTEGER NOT NULL REFERENCES clinic_invoices(id) ON DELETE CASCADE,
+        patient_id   INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        seq          SMALLINT NOT NULL,      -- 1..n, the order shown to the patient
+        due_date     DATE NOT NULL,
+        amount       NUMERIC(12,2) NOT NULL,
+        paid_amount  NUMERIC(12,2) NOT NULL DEFAULT 0,
+        paid_at      TIMESTAMPTZ,
+        note         TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_installments_due
+        ON clinic_installments (company_id, due_date) WHERE paid_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_installments_invoice
+        ON clinic_installments (invoice_id, seq);
+
       -- Cash box / petty cash. Patient payments are already in clinic_payments;
       -- what no clinic could record was everything else that moves cash — the
       -- opening float, buying gloves, the receptionist's advance, the owner

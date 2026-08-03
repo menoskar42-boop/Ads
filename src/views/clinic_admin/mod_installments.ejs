@@ -1,0 +1,164 @@
+<%- include('head', { title: 'التقسيط', tab: 'installments' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG', {minimumFractionDigits:0, maximumFractionDigits:2}); }
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function iso(t){ try { return new Date(t).toISOString().slice(0,10); } catch(e){ return ''; } }
+%>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">🧾 التقسيط</h1>
+<p class="text-slate-500 mb-6">قسّط الفاتورة على دفعات بمواعيد — وكل دفعة بتتسجّل تحصيل عادي في الحسابات والخزنة</p>
+
+<!-- ── مستحق قريباً / متأخر ─────────────────────────────────────── -->
+<% var overdue = due.filter(function(d){ return iso(d.due_date) < today; }); %>
+<% if (overdue.length) { %>
+<div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
+  ⚠️ فيه <strong><%= overdue.length %></strong> قسط متأخر —
+  إجمالي <strong><%= money(overdue.reduce(function(s,d){return s+Number(d.amount);},0)) %></strong> ج
+</div>
+<% } %>
+
+<!-- ── إنشاء خطة تقسيط ──────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3">تقسيط فاتورة</h2>
+  <% if (!invoices.length) { %>
+    <p class="text-sm text-slate-500">مفيش فواتير عليها متبقّي وتصلح للتقسيط. (الفواتير المدفوعة أو اللي عليها خطة بالفعل مش بتظهر هنا.)</p>
+  <% } else { %>
+  <form method="post" action="/clinic/installments/create" class="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
+    <div class="lg:col-span-2">
+      <label class="block text-xs font-semibold text-slate-600 mb-1">الفاتورة *</label>
+      <select name="invoice_id" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <% invoices.forEach(function(inv){
+             var bal = Number(inv.total_amount) - Number(inv.paid_amount); %>
+          <option value="<%= inv.id %>">
+            #<%= inv.id %> — <%= inv.patient_name || 'بدون اسم' %> — متبقّي <%= money(bal) %> ج
+          </option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">عدد الأقساط *</label>
+      <input type="number" name="count" min="2" max="36" value="3" required
+             class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">أول قسط *</label>
+      <input type="date" name="first_due" required value="<%= today %>"
+             class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">مقدّم (اختياري)</label>
+      <input type="number" name="down_payment" min="0" step="0.01" placeholder="0"
+             class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-600 mb-1">طريقة المقدّم</label>
+      <select name="down_method" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+        <option value="cash">نقدي</option>
+        <option value="card">فيزا</option>
+        <option value="transfer">تحويل</option>
+      </select>
+    </div>
+    <div class="sm:col-span-2 lg:col-span-6">
+      <button class="w-full bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-emerald-700">
+        إنشاء خطة التقسيط
+      </button>
+      <p class="text-xs text-slate-400 mt-1 text-center">الأقساط شهرية من التاريخ اللي تختاره. الكسور بتتضاف للقسط الأول عشان المجموع يطابق المتبقّي بالضبط.</p>
+    </div>
+  </form>
+  <% } %>
+</div>
+
+<!-- ── أقساط مستحقة خلال أسبوع ──────────────────────────────────── -->
+<% if (due.length) { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">مستحق خلال أسبوع</div>
+  <div class="divide-y divide-slate-100">
+    <% due.forEach(function(d){ var isLate = iso(d.due_date) < today; %>
+    <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm <%= isLate ? 'bg-red-50/40' : '' %>">
+      <span class="font-semibold text-slate-800"><%= d.patient_name || '—' %></span>
+      <% if (d.phone) { %>
+        <a href="https://wa.me/<%= String(d.phone).replace(/[^0-9]/g,'').replace(/^0/,'20') %>?text=<%= encodeURIComponent('تذكير: قسط بمبلغ ' + money(d.amount) + ' ج مستحق بتاريخ ' + fmtD(d.due_date)) %>"
+           target="_blank" rel="noopener" class="text-xs text-emerald-600 hover:underline">تذكير واتساب</a>
+      <% } %>
+      <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">قسط <%= d.seq %></span>
+      <span class="<%= isLate ? 'text-red-700 font-bold' : 'text-slate-600' %>">
+        <%= fmtD(d.due_date) %><%= isLate ? ' (متأخر)' : '' %>
+      </span>
+      <span class="font-bold text-slate-900 ms-auto"><%= money(d.amount) %> ج</span>
+      <form method="post" action="/clinic/installments/<%= d.id %>/pay" class="flex items-center gap-1">
+        <input type="number" name="amount" value="<%= d.amount %>" step="0.01" min="0"
+               class="w-24 border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+        <select name="method" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
+          <option value="cash">نقدي</option>
+          <option value="card">فيزا</option>
+          <option value="transfer">تحويل</option>
+        </select>
+        <button class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700">تحصيل</button>
+      </form>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- ── كل خطط التقسيط ───────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">خطط التقسيط</div>
+  <% if (!plans.length) { %>
+    <p class="px-5 py-6 text-sm text-slate-500">مفيش خطط تقسيط لسه.</p>
+  <% } else { %>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="text-right px-4 py-2 font-semibold">المريض</th>
+          <th class="text-right px-4 py-2 font-semibold">فاتورة</th>
+          <th class="text-right px-4 py-2 font-semibold">التقدّم</th>
+          <th class="text-right px-4 py-2 font-semibold">الإجمالي</th>
+          <th class="text-right px-4 py-2 font-semibold">المحصّل</th>
+          <th class="text-right px-4 py-2 font-semibold">القسط الجاي</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% plans.forEach(function(p){
+             var done = p.n_paid >= p.n;
+             var pct = p.n ? Math.round((p.n_paid / p.n) * 100) : 0;
+             var lateNext = p.next_due && iso(p.next_due) < today;
+        %>
+        <tr class="<%= done ? 'opacity-60' : '' %>">
+          <td class="px-4 py-2 font-semibold text-slate-800"><%= p.patient_name || '—' %></td>
+          <td class="px-4 py-2 text-slate-500">#<%= p.invoice_id %></td>
+          <td class="px-4 py-2">
+            <div class="flex items-center gap-2">
+              <div class="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full <%= done ? 'bg-emerald-500' : 'bg-amber-400' %>" style="width: <%= pct %>%"></div>
+              </div>
+              <span class="text-xs text-slate-500"><%= p.n_paid %>/<%= p.n %></span>
+            </div>
+          </td>
+          <td class="px-4 py-2"><%= money(p.total) %> ج</td>
+          <td class="px-4 py-2 text-emerald-700"><%= money(p.paid) %> ج</td>
+          <td class="px-4 py-2 <%= lateNext ? 'text-red-700 font-bold' : 'text-slate-600' %>">
+            <% if (done) { %><span class="text-emerald-700 font-semibold">مكتملة ✅</span>
+            <% } else { %><%= fmtD(p.next_due) %><%= lateNext ? ' ⚠️' : '' %><% } %>
+          </td>
+          <td class="px-4 py-2 text-left">
+            <% if (p.n_paid === 0) { %>
+              <form method="post" action="/clinic/installments/plan/<%= p.invoice_id %>/delete"
+                    onsubmit="return confirm('إلغاء خطة التقسيط دي؟')">
+                <button class="text-red-500 hover:text-red-700 text-xs">إلغاء الخطة</button>
+              </form>
+            <% } else { %>
+              <span class="text-xs text-slate-300" title="اتحصّل منها أقساط — مينفعش تتلغي">—</span>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</div>
+
+</main></body></html>
