@@ -46,6 +46,16 @@ async function requireFurniture(req, res, next) {
     req.flags = flags;
     res.locals.flags = flags;
     res.locals.furnitureNav = localized(FLAGS.filter((f) => flags.has(f.key)), res.locals.t);
+
+    // The bell number, on every page. Computed rather than stored — see
+    // src/furniture/alerts.js. A failure here must not cost the user the page,
+    // so it degrades to no badge rather than an error.
+    if (flags.has('alerts')) {
+      try {
+        const AL = require('../furniture/alerts');
+        res.locals.alertCount = AL.badge(await AL.collect(pool, c.id, flags));
+      } catch (e) { res.locals.alertCount = 0; }
+    }
     next();
   } catch (e) {
     console.error('[furniture admin]', e.message);
@@ -88,6 +98,7 @@ router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
 router.use('/delivery', requireFlag('delivery'), require('./furniture_delivery'));
 
 router.use('/warranty', requireFlag('warranty'), require('./furniture_warranty'));
+router.use('/alerts', requireFlag('alerts'), require('./furniture_alerts'));
 router.use('/branches', requireFlag('branches'), require('./furniture_branches'));
 router.use('/labels', requireFlag('labels'), require('./furniture_labels'));
 router.use('/backup', requireFlag('backup'), require('./furniture_backup'));

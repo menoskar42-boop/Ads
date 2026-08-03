@@ -1,0 +1,32 @@
+<%- include('head', { title: t('fn2.flag.alerts'), tab: 'alerts' }) %>
+<% var TONE = {
+     red:   'border-red-200 bg-red-50 text-red-800',
+     amber: 'border-amber-200 bg-amber-50 text-amber-800',
+     blue:  'border-blue-200 bg-blue-50 text-blue-800'
+   }; %>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">🔔 <%= t('fn2.flag.alerts') %></h1>
+<p class="text-stone-500 mb-3 text-sm"><%= t('fn2.al.sub') %></p>
+
+<%# Worth saying, because every other system trains people to expect a dismiss
+    button. There isn't one, and that is the feature. %>
+<p class="text-xs text-stone-500 bg-stone-100 border border-stone-200 rounded-2xl px-4 py-2.5 mb-5"><%= t('fn2.al.live') %></p>
+
+<% if (!alerts.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center">
+    <div class="text-3xl mb-2">✅</div>
+    <p class="text-sm text-stone-600 font-bold"><%= t('fn2.al.clear') %></p>
+  </div>
+<% } else { %>
+<div class="grid gap-3">
+  <% alerts.forEach(function(a){ %>
+  <a href="<%= a.href %>" class="flex items-center gap-3 border rounded-2xl p-4 hover:opacity-90 transition <%= TONE[a.tone] %>">
+    <span class="text-2xl font-black"><%= a.count %></span>
+    <span class="text-sm font-semibold"><%= t('fn2.al.k.' + a.key) %></span>
+    <span class="ms-auto text-lg">←</span>
+  </a>
+  <% }); %>
+</div>
+<% } %>
+
+</main></body></html>

@@ -66,6 +66,12 @@
       <a href="/furniture/settings" class="<%= __cls('settings') %>"><%= t('fn2.nav.settings') %></a>
     </nav>
 
+    <% var __alerts = (typeof alertCount !== 'undefined' ? Number(alertCount) || 0 : 0); %>
+    <% if (__alerts) { %>
+      <a href="/furniture/alerts" class="relative text-lg leading-none px-1" title="<%= t('fn2.flag.alerts') %>">🔔<span
+        class="absolute -top-1 -end-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 leading-4"><%= __alerts > 99 ? '99+' : __alerts %></span></a>
+    <% } %>
+
     <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
       <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5"><%= t('common.logout') %></button>
     </form>

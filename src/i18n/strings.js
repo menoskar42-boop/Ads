@@ -1169,6 +1169,8 @@ const strings = {
     'fn2.flagdesc.activity':'مين عمل إيه وامتى. التسجيل شغّال دايماً — القسم بيخفي الصفحة بس.',
     'fn2.flag.warranty':'الضمان',
     'fn2.flagdesc.warranty':'ضمان كل قطعة، وبيبدأ يوم التسليم مش يوم الفاتورة، وتنبيه قبل ما يخلص.',
+    'fn2.flag.alerts':'التنبيهات',
+    'fn2.flagdesc.alerts':'اللي محتاج انتباهك دلوقتي — بيتحسب لحظياً، مفيش تنبيه بايت ولا زرار تجاهل.',
     'fn2.flag.branches':'الفروع',
     'fn2.flagdesc.branches':'معرض وورشة ومخزن — الفلوس والمواعيد لكل فرع، والخامات والكتالوج مشتركين.',
     'fn2.flag.labels':'الباركود والملصقات',
@@ -1369,6 +1371,19 @@ const strings = {
     'fn2.br.by_branch':'الأرقام لكل فرع',
     'fn2.act.a.branch.add':'ضاف فرع','fn2.act.a.branch.edit':'عدّل فرع',
     'fn2.act.a.branch.archive':'أرشف فرع','fn2.act.a.branch.restore':'رجّع فرع',
+
+    // التنبيهات (المرحلة ٨)
+    'fn2.al.sub':'اللي محتاج انتباهك دلوقتي.',
+    'fn2.al.live':'ℹ️ مفيش زرار «تجاهل»، وده مقصود. كل تنبيه هنا سؤال بيتسأل على البيانات الحيّة كل مرة — يعني ماينفعش يبوظ ولا يتقفل على مشكلة لسه موجودة. لو ظاهر، يبقى صح دلوقتي. ولو القسم بتاعه مقفول، مش هيزعّجك بيه.',
+    'fn2.al.clear':'مفيش حاجة محتاجة انتباهك.',
+    'fn2.al.k.late_delivery':'تسليمات فات ميعادها',
+    'fn2.al.k.failed_delivery':'رحلات فشلت ولسه ماتحجزتش تاني',
+    'fn2.al.k.low_stock':'خامات تحت الحد الأدنى',
+    'fn2.al.k.warranty_ending':'ضمانات هتخلص خلال ٣٠ يوم',
+    'fn2.al.k.unrefunded':'مرتجعات لسه ماترّدتش فلوسها',
+    'fn2.al.k.unpaid_fees':'رسوم توصيل لسه ماتحصّلتش',
+    'fn2.al.k.open_orders':'أوامر شراء فات ميعاد وصولها',
+    'fn2.al.k.unpaid_payroll':'مرتّبات معتمدة وماتصرفتش',
 
     // سجل النشاط (المرحلة ٨)
     'fn2.act.sub':'كل حركة بتغيّر فلوس أو بيانات، بالاسم والوقت.',
@@ -2773,6 +2788,8 @@ const strings = {
     'fn2.flagdesc.activity':'Who did what, and when. Writing is always on — the section only hides the page.',
     'fn2.flag.warranty':'Warranty',
     'fn2.flagdesc.warranty':'A guarantee per piece, running from the delivery date rather than the invoice date, with a warning before it ends.',
+    'fn2.flag.alerts':'Alerts',
+    'fn2.flagdesc.alerts':'What needs attention right now — computed live, with no stale notices and no dismiss button.',
     'fn2.flag.branches':'Branches',
     'fn2.flagdesc.branches':'Showroom, workshop, store — money and jobs per branch, stock and catalogue shared.',
     'fn2.flag.labels':'Barcodes & labels',
@@ -2973,6 +2990,19 @@ const strings = {
     'fn2.br.by_branch':'By branch',
     'fn2.act.a.branch.add':'added a branch','fn2.act.a.branch.edit':'edited a branch',
     'fn2.act.a.branch.archive':'archived a branch','fn2.act.a.branch.restore':'restored a branch',
+
+    // Alerts (phase 8)
+    'fn2.al.sub':'What needs your attention right now.',
+    'fn2.al.live':'ℹ️ There is no dismiss button, and that is deliberate. Every alert here is a question asked against live data each time — so it cannot go stale, and it cannot be closed on a problem that is still there. If it is showing, it is true right now. And if its section is switched off, it will not nag you about it.',
+    'fn2.al.clear':'Nothing needs your attention.',
+    'fn2.al.k.late_delivery':'deliveries past their date',
+    'fn2.al.k.failed_delivery':'failed trips not yet rebooked',
+    'fn2.al.k.low_stock':'materials below their minimum',
+    'fn2.al.k.warranty_ending':'warranties ending within 30 days',
+    'fn2.al.k.unrefunded':'returns not yet refunded',
+    'fn2.al.k.unpaid_fees':'delivery fees not yet collected',
+    'fn2.al.k.open_orders':'purchase orders past their expected date',
+    'fn2.al.k.unpaid_payroll':'payslips approved but not paid',
 
     // Activity log (phase 8)
     'fn2.act.sub':'Every action that moved money or changed data, with a name and a time on it.',

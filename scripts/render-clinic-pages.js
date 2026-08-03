@@ -370,6 +370,22 @@ const FIXTURES = {
     };
   },
 
+  furniture_alerts: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/alerts.ejs', tab: 'alerts',
+      alerts: [
+        { key: 'late_delivery', tone: 'red', href: '/furniture/delivery?view=late', count: 2 },
+        { key: 'low_stock', tone: 'amber', href: '/furniture/master/materials', count: 1 },
+        { key: 'warranty_ending', tone: 'amber', href: '/furniture/warranty?view=expiring', count: 1 },
+        { key: 'open_orders', tone: 'blue', href: '/furniture/purchases', count: 3 },
+      ],
+      alertCount: 7,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   furniture_branches: (lang) => {
     const fl = require('../src/furniture/flags');
     const B = require('../src/furniture/branches');
