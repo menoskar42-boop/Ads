@@ -258,6 +258,48 @@ const FIXTURES = {
     };
   },
 
+  furniture_bom: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const B = require('../src/furniture/bom');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'bom']);
+    const raw = [
+      { id: 1, name: 'Classic bedroom', category: 'Bedrooms', selling_price: 42000,
+        estimated_cost: 26000, component_count: 3, material_cost: 5010, unknown_count: 0 },
+      // Costed but with a missing material, and one with no components at all —
+      // both wordings ("incomplete", "typed estimate") get rendered.
+      { id: 2, name: 'Dining table', category: null, selling_price: 9000,
+        estimated_cost: 12000, component_count: 2, material_cost: 4000, unknown_count: 1 },
+      { id: 3, name: 'Console', category: null, selling_price: 3000,
+        estimated_cost: 1000, component_count: 0, material_cost: 0, unknown_count: 0 },
+    ];
+    return {
+      __file: 'furniture_admin/bom.ejs', tab: 'bom',
+      products: raw.map((p) => ({ ...p,
+        ...B.marginOf(p.selling_price, p.component_count ? p.material_cost : p.estimated_cost, p.component_count > 0) })),
+      err: null, saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_bom_product: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const B = require('../src/furniture/bom');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'bom']);
+    const components = [
+      { id: 1, material_id: 1, material_name: 'Oak 18mm', unit: 'metre', qty_required: 12, avg_cost: 337.5, stock_qty: 100 },
+      { id: 2, material_id: null, material_name: null, unit: null, qty_required: 4, avg_cost: null, stock_qty: null },
+    ];
+    const costed = B.costOf(components);
+    const product = { id: 1, name: 'Classic bedroom', category: 'Bedrooms', selling_price: 42000, estimated_cost: 26000 };
+    return {
+      __file: 'furniture_admin/bom_product.ejs', tab: 'bom',
+      product, materials: [{ id: 1, name: 'Oak 18mm', unit: 'metre', avg_cost: 337.5 }],
+      costed, margin: B.marginOf(product.selling_price, costed.cost, true),
+      err: 'unknown_material', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{

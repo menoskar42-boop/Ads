@@ -1255,6 +1255,26 @@ const strings = {
     'fn2.sa.err.pay':'الدفعة ماتسجّلتش — تأكّد من المبلغ، والفاتورة الملغية مابتقبلش دفعات.',
     'fn2.sa.err.has_paid':'مينفعش الإلغاء — فيه دفعات اتحصّلت. ده بقى استرجاع مش إلغاء.',
 
+    // مكوّنات المنتج (المرحلة ٤)
+    'fn2.bom.sub':'خامات كل قطعة — والتكلفة بتتحسب من متوسط تكلفة الخامة في مخزنك.',
+    'fn2.bom.not_profit':'⚠️ ده هامش الخامات مش الربح. الشغل والتشطيب والمصاريف مش داخلين فيه — القطعة ممكن تبقى خسرانة وهامش خاماتها كبير.',
+    'fn2.bom.product_sub':'زوّد الخامات اللي بتدخل في القطعة الواحدة، والتكلفة بتتحدّث لوحدها.',
+    'fn2.bom.components':'المكوّنات','fn2.bom.none':'مفيش','fn2.bom.empty':'مفيش مكوّنات للقطعة دي لسه.',
+    'fn2.bom.material_cost':'تكلفة الخامات','fn2.bom.margin':'هامش الخامات',
+    'fn2.bom.computed':'محسوبة','fn2.bom.estimated':'تقديرية بالإيد',
+    'fn2.bom.add':'إضافة خامة','fn2.bom.qty_required':'الكمية للقطعة',
+    'fn2.bom.add_hint':'لو الخامة موجودة قبل كده، الكمية بتتعدّل بدل ما يتزوّد سطر تاني.',
+    'fn2.bom.unit_cost':'متوسط تكلفة الوحدة','fn2.bom.line_cost':'تكلفة السطر','fn2.bom.in_stock':'المتاح',
+    'fn2.bom.buildable':'أقصى عدد قطع من المخزون',
+    'fn2.bom.edit':'المكوّنات',
+    'fn2.bom.material_gone':'خامة اتمسحت','fn2.bom.unknown_badge':'ناقص',
+    'fn2.bom.unknown_hint':'فيه مكوّن خامته اتمسحت — تكلفته مش داخلة في الحساب، فالرقم أقل من الحقيقة. اربطه بخامة موجودة أو امسحه.',
+    'fn2.bom.apply':'انقل التكلفة للمنتج',
+    'fn2.bom.apply_hint':'بيحفظ التكلفة المحسوبة في خانة «التكلفة المتوقّعة» بتاعة المنتج.',
+    'fn2.bom.err.invalid':'اختار خامة وكمية أكبر من صفر.',
+    'fn2.bom.err.no_components':'مفيش مكوّنات تتحسب منها تكلفة.',
+    'fn2.bom.err.unknown_material':'مينفعش — فيه مكوّن خامته اتمسحت، والتكلفة هتبقى ناقصة.',
+
     // منحنيات النمو
     'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
     'gc.m.weight':'الوزن حسب السن','gc.m.height':'الطول حسب السن',
@@ -2650,6 +2670,26 @@ const strings = {
     'fn2.sa.err.save':'Save failed — please try again.',
     'fn2.sa.err.pay':'The payment was not recorded — check the amount; a cancelled invoice takes no payments.',
     'fn2.sa.err.has_paid':'Cannot cancel — payments have been taken. That is a refund, not a cancellation.',
+
+    // Bill of materials (phase 4)
+    'fn2.bom.sub':'What each piece is made of — costed from the moving average of the materials in your store.',
+    'fn2.bom.not_profit':'⚠️ This is the MATERIAL margin, not profit. Labour, finishing and overhead are not in it — a piece can be losing money while its material margin looks healthy.',
+    'fn2.bom.product_sub':'Add the materials that go into one piece; the cost updates on its own.',
+    'fn2.bom.components':'Components','fn2.bom.none':'none','fn2.bom.empty':'No components for this piece yet.',
+    'fn2.bom.material_cost':'Material cost','fn2.bom.margin':'Material margin',
+    'fn2.bom.computed':'computed','fn2.bom.estimated':'typed estimate',
+    'fn2.bom.add':'Add a material','fn2.bom.qty_required':'Quantity per piece',
+    'fn2.bom.add_hint':'If the material is already listed, its quantity is corrected rather than a second line added.',
+    'fn2.bom.unit_cost':'Average unit cost','fn2.bom.line_cost':'Line cost','fn2.bom.in_stock':'In stock',
+    'fn2.bom.buildable':'Pieces stock allows',
+    'fn2.bom.edit':'Components',
+    'fn2.bom.material_gone':'material removed','fn2.bom.unknown_badge':'incomplete',
+    'fn2.bom.unknown_hint':'A component\'s material has been removed — its cost is missing from the total, so the figure is lower than the truth. Point it at an existing material or delete the line.',
+    'fn2.bom.apply':'Copy cost to the product',
+    'fn2.bom.apply_hint':'Saves the computed cost into the product\'s expected-cost field.',
+    'fn2.bom.err.invalid':'Choose a material and a quantity above zero.',
+    'fn2.bom.err.no_components':'There are no components to cost from.',
+    'fn2.bom.err.unknown_material':'Not possible — a component\'s material has been removed, so the cost would be short.',
 
     // Growth curves
     'gc.title':'📈 Growth chart','gc.age_months':'months',

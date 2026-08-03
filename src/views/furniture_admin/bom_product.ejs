@@ -1,0 +1,125 @@
+<%- include('head', { title: product.name, tab: 'bom' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function qtyF(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:3}); }
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/furniture/bom" class="text-stone-400 hover:text-stone-600 text-sm">← <%= t('fn2.flag.bom') %></a>
+  <h1 class="text-2xl font-black text-stone-900">🪚 <%= product.name %></h1>
+  <% if (product.category) { %><span class="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-full"><%= product.category %></span><% } %>
+</div>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.bom.product_sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.bom.err.' + err) %></div><% } %>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.bom.material_cost') %></div>
+    <div class="text-xl font-extrabold text-stone-900"><%= money(costed.cost) %></div>
+    <div class="text-[10px] text-stone-400"><%= margin.costed ? t('fn2.bom.computed') : t('fn2.bom.estimated') %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.f.selling_price') %></div>
+    <div class="text-xl font-extrabold text-stone-900"><%= money(margin.price) %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.bom.margin') %></div>
+    <div class="text-xl font-extrabold <%= margin.margin < 0 ? 'text-red-700' : 'text-emerald-700' %>">
+      <%= money(margin.margin) %><% if (margin.percent != null) { %> <span class="text-xs font-normal">(<%= margin.percent %>%)</span><% } %>
+    </div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <%# Genuinely useful on a workshop floor: how many complete pieces the
+        timber already in the yard will make. %>
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.bom.buildable') %></div>
+    <div class="text-xl font-extrabold text-brand-700">
+      <%= costed.buildable == null ? '—' : costed.buildable %>
+    </div>
+  </div>
+</div>
+
+<p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 mb-5"><%= t('fn2.bom.not_profit') %></p>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <!-- ── Add a component ──────────────────────────────────────────────────── -->
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl shadow-sm p-5 lg:sticky lg:top-4">
+      <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.bom.add') %></h2>
+      <% if (!materials.length) { %>
+        <p class="text-sm text-stone-500"><%= t('fn2.po.no_materials') %></p>
+      <% } else { %>
+      <form method="post" action="/furniture/bom/<%= product.id %>/components" class="grid gap-2.5">
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.material') %>
+          <select name="material_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% materials.forEach(function(m){ %>
+              <option value="<%= m.id %>"><%= m.name %><%= m.unit ? ' — ' + m.unit : '' %></option>
+            <% }); %>
+          </select>
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.bom.qty_required') %>
+          <input name="qty_required" type="number" min="0" <%- 'step="0.001"' %>
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('fn2.m.add') %></button>
+        <p class="text-[11px] text-stone-400"><%= t('fn2.bom.add_hint') %></p>
+      </form>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── Components ───────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-2">
+    <% if (!costed.lines.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.bom.empty') %></div>
+    <% } else { %>
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm rt">
+          <thead class="bg-stone-50 text-stone-600">
+            <tr>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.material') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.bom.qty_required') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.bom.unit_cost') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.bom.line_cost') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.bom.in_stock') %></th>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            <% costed.lines.forEach(function(l){ %>
+            <tr class="<%= l.known ? '' : 'bg-red-50/50' %>">
+              <td class="px-4 py-2 font-semibold text-stone-800" data-l="<%= t('fn2.po.material') %>">
+                <% if (l.known) { %><%= l.material_name %><% } else { %>
+                  <span class="text-red-700"><%= t('fn2.bom.material_gone') %></span>
+                <% } %>
+              </td>
+              <td class="px-4 py-2" data-l="<%= t('fn2.bom.qty_required') %>"><%= qtyF(l.qty_required) %> <span class="text-xs text-stone-400"><%= l.unit || '' %></span></td>
+              <td class="px-4 py-2" data-l="<%= t('fn2.bom.unit_cost') %>"><%= l.known ? money(l.unit_cost) : '—' %></td>
+              <td class="px-4 py-2 font-semibold" data-l="<%= t('fn2.bom.line_cost') %>"><%= l.known ? money(l.line_cost) : '—' %></td>
+              <td class="px-4 py-2 text-stone-500" data-l="<%= t('fn2.bom.in_stock') %>"><%= l.known ? qtyF(l.stock_qty) : '—' %></td>
+              <td class="px-4 py-2">
+                <form method="post" action="/furniture/bom/<%= product.id %>/components/<%= l.id %>/delete">
+                  <button class="text-xs text-red-500 hover:text-red-700 px-2"><%= t('common.delete') %></button>
+                </form>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <% if (costed.unknown) { %>
+        <p class="px-5 py-3 text-xs text-red-700 bg-red-50 border-t border-red-100"><%= t('fn2.bom.unknown_hint') %></p>
+      <% } %>
+    </div>
+
+    <form method="post" action="/furniture/bom/<%= product.id %>/apply-cost" class="mt-3">
+      <button class="text-sm bg-stone-800 text-white font-bold rounded-xl px-5 py-2"><%= t('fn2.bom.apply') %></button>
+      <span class="text-xs text-stone-400 ms-2"><%= t('fn2.bom.apply_hint') %></span>
+    </form>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>

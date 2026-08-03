@@ -64,6 +64,8 @@ router.use('/purchases', requireFlag('purchases'), require('./furniture_purchase
 
 router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
 
+router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
