@@ -1,20 +1,25 @@
-<%- include('head', { title: 'خريطة الأسنان', tab: 'dental' }) %>
+<%- include('head', { title: t('dp.title'), tab: 'dental' }) %>
 <%
   function money(v){ return Number(v||0).toLocaleString(LOC); }
   function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var SMAP = {}; statuses.forEach(function(s){ SMAP[s.key] = s; });
-  var PLABEL = { planned:'مخطّط', in_progress:'جارٍ', done:'تم', cancelled:'ملغي' };
+  // The tooth loops bind `t` to a tooth number, so anything the loops need is
+  // resolved here while the i18n helper is still in scope.
+  function slabel(s){ var k = 'dent.' + s.key, tr = t(k); return (tr && tr !== k) ? tr : s.label; }
+  var SLABELS = {}; statuses.forEach(function(s){ SLABELS[s.key] = slabel(s); });
+  var PLABEL = { planned:t('dp.st.planned'), in_progress:t('dp.st.in_progress'), done:t('dp.st.done'), cancelled:t('dp.st.cancelled') };
+  var KL = { before:t('xr.kind.before'), after:t('xr.kind.after'), xray:t('xr.kind.xray') };
   var PBADGE = { planned:'bg-slate-100 text-slate-700', in_progress:'bg-amber-100 text-amber-800', done:'bg-emerald-100 text-emerald-800', cancelled:'bg-red-50 text-red-600 line-through' };
 %>
 
 <div class="flex items-center gap-3 mb-1 flex-wrap">
-  <a href="/clinic/dental" class="text-slate-400 hover:text-slate-600 text-sm">← الأسنان</a>
+  <a href="/clinic/dental" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('clinic.mod.dental') %></a>
   <h1 class="text-2xl font-black text-slate-900"><%= patient.name %></h1>
   <% if (patient.phone) { %><span class="text-sm text-slate-500" dir="ltr"><%= patient.phone %></span><% } %>
   <a href="/clinic/dental/patient/<%= patient.id %>/perio"
-     class="ms-auto text-sm font-semibold text-rose-600 hover:text-rose-700">🩸 خريطة اللثة ←</a>
+     class="ms-auto text-sm font-semibold text-rose-600 hover:text-rose-700">🩸 <%= t('perio.title') %> ←</a>
 </div>
-<p class="text-slate-500 mb-6">خريطة الأسنان بنظام FDI — اضغط على أي سن لتحديد حالته</p>
+<p class="text-slate-500 mb-6"><%= t('dp.sub') %></p>
 
 <!-- ── الخريطة ──────────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
@@ -23,7 +28,7 @@
     <% statuses.forEach(function(s){ %>
       <span class="inline-flex items-center gap-1.5 text-xs text-slate-600">
         <span class="w-3.5 h-3.5 rounded border border-slate-300" style="background: <%= s.color %>"></span>
-        <%= s.label %>
+        <%= SLABELS[s.key] %>
       </span>
     <% }); %>
   </div>
@@ -31,26 +36,26 @@
   <!-- شريط الأدوات: اختار حالة مرة واحدة وبعدين دوس على الأسنان -->
   <div class="bg-slate-50 rounded-xl p-3 mb-4">
     <div class="flex items-center gap-2 flex-wrap mb-2">
-      <span class="text-xs font-bold text-slate-600">الفرشاة:</span>
+      <span class="text-xs font-bold text-slate-600"><%= t('dp.brush') %></span>
       <% statuses.forEach(function(s){ %>
         <button type="button" onclick="setBrush('<%= s.key %>')" data-brush="<%= s.key %>"
                 class="brush-btn inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border-2 border-transparent hover:border-slate-300 transition">
           <span class="w-3.5 h-3.5 rounded border border-slate-300 shrink-0" style="background: <%= s.color %>"></span>
-          <%= s.label %>
+          <%= SLABELS[s.key] %>
         </button>
       <% }); %>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
       <button type="button" onclick="setMode('tooth')" data-mode="tooth"
-              class="mode-btn text-xs px-3 py-1.5 rounded-lg border-2 font-semibold">السن كله</button>
+              class="mode-btn text-xs px-3 py-1.5 rounded-lg border-2 font-semibold"><%= t('dp.mode_tooth') %></button>
       <button type="button" onclick="setMode('surface')" data-mode="surface"
-              class="mode-btn text-xs px-3 py-1.5 rounded-lg border-2 font-semibold">سطح بعينه</button>
+              class="mode-btn text-xs px-3 py-1.5 rounded-lg border-2 font-semibold"><%= t('dp.mode_surface') %></button>
       <span id="modeHint" class="text-xs text-slate-500"></span>
       <span class="ms-auto flex items-center gap-2">
-        <span id="dirty" class="text-xs text-amber-700 font-semibold hidden">فيه تعديلات مش متحفوظة</span>
+        <span id="dirty" class="text-xs text-amber-700 font-semibold hidden"><%= t('dp.dirty') %></span>
         <button type="button" id="saveBtn" onclick="saveChart()" disabled
                 class="text-xs font-bold px-4 py-1.5 rounded-lg bg-slate-900 text-white disabled:opacity-30 disabled:cursor-not-allowed">
-          حفظ الخريطة
+          <%= t('dp.save_chart') %>
         </button>
       </span>
     </div>
@@ -89,12 +94,12 @@
       <!-- الفك العلوي -->
       <div class="flex gap-4 justify-center items-end">
         <div>
-          <div class="text-[10px] text-slate-400 text-center mb-1">علوي يمين</div>
+          <div class="text-[10px] text-slate-400 text-center mb-1"><%= t('perio.quad.u_right') %></div>
           <div class="flex gap-1"><% upper[0].forEach(function(t){ renderTooth(t, false); }); %></div>
         </div>
         <div class="w-px bg-slate-200 self-stretch"></div>
         <div>
-          <div class="text-[10px] text-slate-400 text-center mb-1">علوي شمال</div>
+          <div class="text-[10px] text-slate-400 text-center mb-1"><%= t('perio.quad.u_left') %></div>
           <div class="flex gap-1"><% upper[1].forEach(function(t){ renderTooth(t, true); }); %></div>
         </div>
       </div>
@@ -105,39 +110,39 @@
       <div class="flex gap-4 justify-center items-start">
         <div>
           <div class="flex gap-1"><% lower[0].forEach(function(t){ renderTooth(t, false); }); %></div>
-          <div class="text-[10px] text-slate-400 text-center mt-1">سفلي يمين</div>
+          <div class="text-[10px] text-slate-400 text-center mt-1"><%= t('perio.quad.l_right') %></div>
         </div>
         <div class="w-px bg-slate-200 self-stretch"></div>
         <div>
           <div class="flex gap-1"><% lower[1].forEach(function(t){ renderTooth(t, true); }); %></div>
-          <div class="text-[10px] text-slate-400 text-center mt-1">سفلي شمال</div>
+          <div class="text-[10px] text-slate-400 text-center mt-1"><%= t('perio.quad.l_left') %></div>
         </div>
       </div>
     </div>
   </div>
   <p class="text-xs text-slate-400 text-center mt-3">
-    ضغطة على السن = تطبيق الفرشاة · ضغطة مطوّلة (أو زرار التفاصيل) = ملاحظة وتفاصيل
+    <%= t('dp.hint') %>
   </p>
 </div>
 
 <!-- نافذة تحديد حالة السن -->
 <div id="toothModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4" onclick="if(event.target===this)closeTooth()">
   <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-5">
-    <h3 class="font-bold text-slate-900 mb-4">سن رقم <span id="tNum" dir="ltr"></span></h3>
+    <h3 class="font-bold text-slate-900 mb-4"><%= t('dp.tooth_no') %> <span id="tNum" dir="ltr"></span></h3>
     <form method="post" action="/clinic/dental/patient/<%= patient.id %>/tooth">
       <input type="hidden" name="tooth" id="tField" />
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الحالة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('common.status') %></label>
       <select name="status" id="tStatus" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-3">
-        <% statuses.forEach(function(s){ %><option value="<%= s.key %>"><%= s.label %></option><% }); %>
+        <% statuses.forEach(function(s){ %><option value="<%= s.key %>"><%= SLABELS[s.key] %></option><% }); %>
       </select>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الأسطح <span class="font-normal text-slate-400">(اختياري)</span></label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dp.surfaces') %> <span class="font-normal text-slate-400">(<%= t('common.optional') %>)</span></label>
       <input name="surfaces" id="tSurf" maxlength="20" dir="ltr" placeholder="MOD"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-3" />
-      <label class="block text-xs font-semibold text-slate-600 mb-1">ملاحظة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('perio.note') %></label>
       <input name="note" id="tNote" maxlength="500" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-4" />
       <div class="flex gap-2">
-        <button class="flex-1 bg-slate-900 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-slate-800">حفظ</button>
-        <button type="button" onclick="closeTooth()" class="px-5 bg-slate-100 text-slate-700 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-200">إلغاء</button>
+        <button class="flex-1 bg-slate-900 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-slate-800"><%= t('common.save') %></button>
+        <button type="button" onclick="closeTooth()" class="px-5 bg-slate-100 text-slate-700 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-200"><%= t('common.cancel') %></button>
       </div>
     </form>
   </div>
@@ -146,44 +151,44 @@
 <!-- ── خطة العلاج ───────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
   <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
-    <h2 class="font-bold text-slate-800">خطة العلاج</h2>
+    <h2 class="font-bold text-slate-800"><%= t('dp.plan') %></h2>
     <div class="text-sm text-slate-600">
-      الإجمالي: <strong class="text-slate-900"><%= money(totals.all) %> <%= t('cur.egp') %></strong>
-      · تم: <strong class="text-emerald-700"><%= money(totals.done) %> <%= t('cur.egp') %></strong>
-      · متبقي: <strong class="text-amber-700"><%= money(totals.all - totals.done) %> <%= t('cur.egp') %></strong>
+      <%= t('dp.total') %> <strong class="text-slate-900"><%= money(totals.all) %> <%= t('cur.egp') %></strong>
+      · <%= t('dp.done') %> <strong class="text-emerald-700"><%= money(totals.done) %> <%= t('cur.egp') %></strong>
+      · <%= t('dp.remaining') %> <strong class="text-amber-700"><%= money(totals.all - totals.done) %> <%= t('cur.egp') %></strong>
     </div>
   </div>
 
   <form method="post" action="/clinic/dental/patient/<%= patient.id %>/plan" class="grid sm:grid-cols-2 lg:grid-cols-6 gap-2 mb-4 pb-4 border-b border-slate-100">
-    <input name="procedure" required maxlength="200" placeholder="الإجراء (حشو، عصب، تاج…)"
+    <input name="procedure" required maxlength="200" placeholder="<%= t('dp.ph_procedure') %>"
            class="lg:col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="tooth" type="number" min="11" max="48" dir="ltr" placeholder="رقم السن"
+    <input name="tooth" type="number" min="11" max="48" dir="ltr" placeholder="<%= t('dp.ph_tooth') %>"
            class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="phase" type="number" min="1" max="9" value="1" title="المرحلة"
+    <input name="phase" type="number" min="1" max="9" value="1" title="<%= t('dp.phase') %>"
            class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="cost" type="number" min="0" step="0.01" placeholder="التكلفة"
+    <input name="cost" type="number" min="0" step="0.01" placeholder="<%= t('tb.cost') %>"
            class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     <select name="doctor_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
-      <option value="">— الطبيب —</option>
+      <option value=""><%= t('vb.doctor_none') %></option>
       <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
     </select>
-    <button class="lg:col-span-6 sm:col-span-2 bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-emerald-700">إضافة للخطة</button>
+    <button class="lg:col-span-6 sm:col-span-2 bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-emerald-700"><%= t('dp.add_plan') %></button>
   </form>
 
   <% if (!plan.length) { %>
-    <p class="text-sm text-slate-500">مفيش خطة علاج لسه.</p>
+    <p class="text-sm text-slate-500"><%= t('dp.plan_empty') %></p>
   <% } else { %>
     <% var phases = {}; plan.forEach(function(p){ (phases[p.phase] = phases[p.phase] || []).push(p); }); %>
     <% Object.keys(phases).sort(function(a,b){return a-b;}).forEach(function(ph){ %>
       <div class="mb-4">
-        <div class="text-xs font-bold text-slate-500 mb-2">المرحلة <%= ph %></div>
+        <div class="text-xs font-bold text-slate-500 mb-2"><%= t('dp.phase') %> <%= ph %></div>
         <div class="space-y-2">
           <% phases[ph].forEach(function(p){ %>
           <div class="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
             <% if (p.tooth) { %>
               <span class="text-xs font-bold bg-white border border-slate-200 px-2 py-1 rounded-lg" dir="ltr"><%= p.tooth %></span>
             <% } else { %>
-              <span class="text-xs text-slate-400 px-2">الفم</span>
+              <span class="text-xs text-slate-400 px-2"><%= t('dp.whole_mouth') %></span>
             <% } %>
             <span class="text-sm text-slate-800 font-medium"><%= p.procedure %></span>
             <% if (p.doctor_name) { %><span class="text-xs text-slate-500"><%= p.doctor_name %></span><% } %>
@@ -200,7 +205,7 @@
             </form>
             <form method="post" action="/clinic/dental/plan/<%= p.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
               <input type="hidden" name="patient_id" value="<%= patient.id %>" />
-              <button class="text-red-500 hover:text-red-700 text-xs px-1">حذف</button>
+              <button class="text-red-500 hover:text-red-700 text-xs px-1"><%= t('common.delete') %></button>
             </form>
           </div>
           <% }); %>
@@ -212,40 +217,39 @@
 
 <!-- ── صور قبل / بعد ────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5">
-  <h2 class="font-bold text-slate-800 mb-3">صور قبل / بعد والأشعة</h2>
+  <h2 class="font-bold text-slate-800 mb-3"><%= t('dp.photos') %></h2>
 
   <form method="post" action="/clinic/dental/patient/<%= patient.id %>/photo" enctype="multipart/form-data"
         class="flex flex-wrap gap-2 items-end mb-4 pb-4 border-b border-slate-100">
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">النوع</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dp.kind') %></label>
       <select name="kind" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
-        <option value="before">قبل</option>
-        <option value="after">بعد</option>
-        <option value="xray">أشعة</option>
+        <option value="before"><%= KL.before %></option>
+        <option value="after"><%= KL.after %></option>
+        <option value="xray"><%= KL.xray %></option>
       </select>
     </div>
     <div class="flex-1 min-w-[180px]">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الصورة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dp.image') %></label>
       <input type="file" name="photo" accept="image/png,image/jpeg,image/gif,image/webp" required
              class="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
     </div>
     <div class="flex-1 min-w-[160px]">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">وصف</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dp.caption') %></label>
       <input name="caption" maxlength="200" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
-    <button class="bg-slate-900 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-slate-800">رفع</button>
+    <button class="bg-slate-900 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-slate-800"><%= t('dp.upload') %></button>
   </form>
 
   <% if (!photos.length) { %>
-    <p class="text-sm text-slate-500">مفيش صور لسه.</p>
+    <p class="text-sm text-slate-500"><%= t('dp.photos_empty') %></p>
   <% } else { %>
   <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
     <% photos.forEach(function(ph){
-         var KL = { before:'قبل', after:'بعد', xray:'أشعة' };
          var KC = { before:'bg-amber-100 text-amber-800', after:'bg-emerald-100 text-emerald-800', xray:'bg-slate-200 text-slate-700' };
     %>
     <figure class="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-      <a href="/clinic/dental/photo/<%= ph.id %>" title="افتح في العارض — تكبير وتباين وتعليق">
+      <a href="/clinic/dental/photo/<%= ph.id %>" title="<%= t('dp.open_viewer') %>">
         <img src="<%= ph.image_url %>" alt="<%= ph.caption || KL[ph.kind] %>" loading="lazy"
              class="w-full h-32 object-cover hover:opacity-90 transition" />
       </a>
@@ -257,7 +261,7 @@
         <% if (ph.caption) { %><p class="text-xs text-slate-600 leading-snug"><%= ph.caption %></p><% } %>
         <form method="post" action="/clinic/dental/photo/<%= ph.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
           <input type="hidden" name="patient_id" value="<%= patient.id %>" />
-          <button class="text-red-500 hover:text-red-700 text-[10px] mt-1">حذف</button>
+          <button class="text-red-500 hover:text-red-700 text-[10px] mt-1"><%= t('common.delete') %></button>
         </form>
       </figcaption>
     </figure>
@@ -272,7 +276,16 @@
      locally and written in one request, because a page reload per tooth is
      unusable with a patient in the chair. */
   var STATUS_COLORS = <%- JSON.stringify(statuses.reduce(function(a,s){ a[s.key]=s.color; return a; }, {})) %>;
-  var STATUS_LABELS = <%- JSON.stringify(statuses.reduce(function(a,s){ a[s.key]=s.label; return a; }, {})) %>;
+  var STATUS_LABELS = <%- JSON.stringify(SLABELS) %>;
+  var L = <%- JSON.stringify({
+    unsaved: t('dp.unsaved_teeth'),
+    save:    t('dp.save_chart'),
+    saving:  t('common.saving'),
+    saved:   t('xr.saved'),
+    failed:  t('dp.save_failed'),
+    hintSurface: t('dp.hint_surface'),
+    hintTooth:   t('dp.hint_tooth'),
+  }) %>;
   var brush = 'caries';          // the status a tap applies
   var mode = 'tooth';            // 'tooth' = whole tooth, 'surface' = one surface
   var pending = {};              // tooth -> {status, surfaces} not yet saved
@@ -301,7 +314,7 @@
     var n = Object.keys(pending).length;
     document.getElementById('dirty').classList.toggle('hidden', n === 0);
     document.getElementById('saveBtn').disabled = n === 0;
-    if (n) document.getElementById('dirty').textContent = n + ' سن مش متحفوظ';
+    if (n) document.getElementById('dirty').textContent = n + ' ' + L.unsaved;
   }
 
   function stage(el) {
@@ -356,28 +369,26 @@
       b.classList.toggle('border-transparent', !on);
       b.classList.toggle('text-slate-400', !on);
     });
-    document.getElementById('modeHint').textContent = m === 'surface'
-      ? 'دوس على الجزء المصاب من السن'
-      : 'دوس على السن يتلوّن كله';
+    document.getElementById('modeHint').textContent = m === 'surface' ? L.hintSurface : L.hintTooth;
   }
 
   function saveChart() {
     var changes = Object.keys(pending).map(function (k) { return pending[k]; });
     if (!changes.length) return;
     var btn = document.getElementById('saveBtn');
-    btn.disabled = true; btn.textContent = 'بيحفظ…';
+    btn.disabled = true; btn.textContent = L.saving;
     fetch('/clinic/dental/patient/<%= patient.id %>/chart', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ changes: changes }),
     }).then(function (r) { return r.json(); })
       .then(function (j) {
-        btn.textContent = 'حفظ الخريطة';
-        if (j && j.ok) { pending = {}; markDirty(); btn.textContent = 'اتحفظ ✓';
-          setTimeout(function () { btn.textContent = 'حفظ الخريطة'; }, 1500); }
-        else { alert('الحفظ فشل — جرّب تاني'); btn.disabled = false; }
+        btn.textContent = L.save;
+        if (j && j.ok) { pending = {}; markDirty(); btn.textContent = L.saved;
+          setTimeout(function () { btn.textContent = L.save; }, 1500); }
+        else { alert(L.failed); btn.disabled = false; }
       })
-      .catch(function () { btn.textContent = 'حفظ الخريطة'; btn.disabled = false; alert('الحفظ فشل — جرّب تاني'); });
+      .catch(function () { btn.textContent = L.save; btn.disabled = false; alert(L.failed); });
   }
 
   // Long-press opens the detail modal (note, exact surfaces) without stealing

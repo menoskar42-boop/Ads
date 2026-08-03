@@ -61,6 +61,37 @@ const FIXTURES = {
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
 
+  dental_patient: () => ({
+    tab: 'dental',
+    patient,
+    doctors: [doctor],
+    statuses: [
+      { key: 'sound', label: 'سليم', color: '#ffffff' },
+      { key: 'caries', label: 'تسوس', color: '#ef4444' },
+      { key: 'missing', label: 'مخلوع/مفقود', color: '#111827' },
+    ],
+    chartMap: { 11: { status: 'caries', surfaces: 'MO' } },
+    plan: [{
+      id: 1, phase: 1, tooth: '16', procedure: 'RCT', doctor_name: doctor.name,
+      status: 'planned', done_at: null, cost: 900,
+    }],
+    totals: { all: 900, done: 0 },
+    photos: [{ id: 1, kind: 'xray', image_url: '/uploads/x.jpg', caption: '', created_at: NOW }],
+    upper: [[18, 17, 16, 15, 14, 13, 12, 11], [21, 22, 23, 24, 25, 26, 27, 28]],
+    lower: [[48, 47, 46, 45, 44, 43, 42, 41], [31, 32, 33, 34, 35, 36, 37, 38]],
+  }),
+
+  dental_perio: () => ({
+    tab: 'dental',
+    patient,
+    doctors: [doctor],
+    exams: [{ id: 1, exam_date: '2026-06-01' }, { id: 2, exam_date: '2026-08-01' }],
+    current: { id: 2, data: { 11: { pd: [3, 2, 3, 4, 5, 3], bop: [0, 1, 0, 0, 1, 0], rec: 1, mob: 0 } } },
+    previous: { id: 1, data: { 11: { pd: [4, 3, 4, 4, 5, 4] } } },
+    upper: [[18, 17, 16, 15, 14, 13, 12, 11], [21, 22, 23, 24, 25, 26, 27, 28]],
+    lower: [[48, 47, 46, 45, 44, 43, 42, 41], [31, 32, 33, 34, 35, 36, 37, 38]],
+  }),
+
   mod_dental: () => ({
     tab: 'dental',
     orders: [{

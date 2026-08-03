@@ -1,24 +1,32 @@
-<%- include('head', { title: 'خريطة اللثة', tab: 'dental' }) %>
+<%- include('head', { title: t('perio.title'), tab: 'dental' }) %>
 <%
   function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var cur = (current && current.data) || {};
   // Six sites per tooth in the order they are probed: buccal mesial→distal,
   // then lingual mesial→distal.
   var SITES = ['MB','B','DB','ML','L','DL'];
+  // The tooth loops below bind `t` to the tooth number, which shadows the i18n
+  // helper — so the labels used inside them are resolved once, up here.
+  var LB = {
+    bleeding:  t('perio.bleeding'),
+    pd:        t('perio.pocket_depth'),
+    recession: t('perio.recession'),
+    mobility:  t('perio.mobility_range'),
+  };
 %>
 
 <div class="flex items-center gap-3 mb-1 flex-wrap">
-  <a href="/clinic/dental/patient/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← خريطة الأسنان</a>
-  <h1 class="text-2xl font-black text-slate-900">🩸 خريطة اللثة</h1>
+  <a href="/clinic/dental/patient/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('perio.back_chart') %></a>
+  <h1 class="text-2xl font-black text-slate-900">🩸 <%= t('perio.title') %></h1>
   <span class="text-slate-500"><%= patient.name %></span>
 </div>
-<p class="text-slate-500 mb-5">٦ قياسات لكل سن (٣ خارجي + ٣ داخلي) — القيمة الحقيقية في المقارنة مع الفحص اللي قبله</p>
+<p class="text-slate-500 mb-5"><%= t('perio.sub') %></p>
 
 <!-- ── الفحوصات السابقة ─────────────────────────────────────────── -->
 <% if (exams.length) { %>
 <div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
   <div class="flex items-center gap-2 flex-wrap">
-    <span class="text-xs font-bold text-slate-600">الفحوصات:</span>
+    <span class="text-xs font-bold text-slate-600"><%= t('perio.exams') %></span>
     <% exams.forEach(function(e){ %>
       <a href="?exam=<%= e.id %>"
          class="text-xs px-3 py-1.5 rounded-lg border <%= current && current.id === e.id ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-200 text-slate-600 hover:bg-slate-50' %>">
@@ -26,7 +34,7 @@
       </a>
     <% }); %>
     <a href="?exam=new" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 ms-auto">
-      + فحص جديد
+      <%= t('perio.new_exam') %>
     </a>
   </div>
 </div>
@@ -35,19 +43,19 @@
 <!-- ── الملخص ───────────────────────────────────────────────────── -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4" id="summary">
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">متوسط عمق الجيب</div>
-    <div class="text-2xl font-extrabold text-slate-900"><span id="sMean">—</span> <span class="text-sm font-normal">مم</span></div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('perio.mean_pd') %></div>
+    <div class="text-2xl font-extrabold text-slate-900"><span id="sMean">—</span> <span class="text-sm font-normal"><%= t('perio.mm') %></span></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">نسبة النزيف (BOP)</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('perio.bop_pct') %> (BOP)</div>
     <div class="text-2xl font-extrabold" id="sBopWrap"><span id="sBop">—</span>%</div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">جيوب ≥ ٥ مم</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('perio.deep_pockets') %></div>
     <div class="text-2xl font-extrabold text-red-600"><span id="sDeep">—</span></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">مقارنة بالفحص السابق</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('perio.vs_prev') %></div>
     <div class="text-lg font-extrabold" id="sTrend">—</div>
   </div>
 </div>
@@ -56,29 +64,28 @@
 <form id="perioForm" class="bg-white rounded-2xl shadow-sm p-4 mb-4">
   <div class="flex flex-wrap items-end gap-3 mb-4 pb-3 border-b border-slate-100">
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">تاريخ الفحص</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('perio.exam_date') %></label>
       <input type="date" id="examDate" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الطبيب</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.doctor') %></label>
       <select id="examDoctor" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
         <option value="">—</option>
         <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
       </select>
     </div>
     <div class="flex-1 min-w-[180px]">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">ملاحظة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('perio.note') %></label>
       <input id="examNote" maxlength="500" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <button type="button" onclick="savePerio()" id="perioSave"
             class="bg-slate-900 text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-slate-800">
-      حفظ الفحص
+      <%= t('perio.save') %>
     </button>
   </div>
 
   <p class="text-xs text-slate-400 mb-3 hidden sm:block">
-    اكتب العمق بالمليمتر واضغط <kbd class="px-1 bg-slate-100 rounded">Tab</kbd> للانتقال.
-    المربع الأحمر = نزيف عند الجس (اضغط عليه للتبديل). القيم ≥ ٥ بتتلوّن أوتوماتيك.
+    <%= t('perio.hint_desktop_1') %> <kbd class="px-1 bg-slate-100 rounded">Tab</kbd> <%= t('perio.hint_desktop_2') %>
   </p>
 
   <!-- On a phone a 32-column sheet is unusable at any zoom, and pinching it is
@@ -88,14 +95,14 @@
     <div class="flex items-center justify-between gap-2 bg-slate-900 text-white rounded-2xl px-4 py-3">
       <button type="button" onclick="toothStep(-1)" class="px-3 py-2 rounded-lg bg-white/15 text-lg">‹</button>
       <div class="text-center">
-        <div class="text-[10px] text-white/60">السن</div>
+        <div class="text-[10px] text-white/60"><%= t('perio.tooth') %></div>
         <div class="text-2xl font-extrabold leading-none" id="mTooth" dir="ltr">—</div>
         <div class="text-[10px] text-white/60 mt-0.5" id="mQuad"></div>
       </div>
       <button type="button" onclick="toothStep(1)" class="px-3 py-2 rounded-lg bg-white/15 text-lg">›</button>
     </div>
     <p class="text-[11px] text-slate-400 text-center mt-2">
-      اكتب الأعماق الستة وانتقل للسن اللي بعده — كل حاجة بتتحفظ مع بعض في الآخر
+      <%= t('perio.hint_phone') %>
     </p>
   </div>
 
@@ -113,7 +120,7 @@
             </tr>
           </thead>
           <tbody>
-            <% ['نزيف','عمق الجيب'].forEach(function(rowLabel, ri){ %>
+            <% [LB.bleeding, LB.pd].forEach(function(rowLabel, ri){ %>
             <tr>
               <td class="p-1 text-slate-500 whitespace-nowrap sticky start-0 bg-white"><%= rowLabel %></td>
               <% rows.forEach(function(quad){ quad.forEach(function(t){
@@ -142,15 +149,15 @@
             </tr>
             <% }); %>
             <tr>
-              <td class="p-1 text-slate-500 whitespace-nowrap sticky start-0 bg-white">انحسار / حركة</td>
+              <td class="p-1 text-slate-500 whitespace-nowrap sticky start-0 bg-white"><%= t('perio.rec_mob') %></td>
               <% rows.forEach(function(quad){ quad.forEach(function(t){ var d = cur[t] || {}; %>
                 <td class="p-0.5 tcol" data-t="<%= t %>">
                   <div class="flex gap-px justify-center">
                     <input class="rec w-5 h-6 text-center border border-slate-200 rounded-sm text-[10px] p-0"
-                           inputmode="numeric" maxlength="2" data-tooth="<%= t %>" title="انحسار اللثة"
+                           inputmode="numeric" maxlength="2" data-tooth="<%= t %>" title="<%= LB.recession %>"
                            value="<%= d.rec != null ? d.rec : '' %>" />
                     <input class="mob w-5 h-6 text-center border border-slate-200 rounded-sm text-[10px] p-0 bg-slate-50"
-                           inputmode="numeric" maxlength="1" data-tooth="<%= t %>" title="درجة الحركة 0-3"
+                           inputmode="numeric" maxlength="1" data-tooth="<%= t %>" title="<%= LB.mobility %>"
                            value="<%= d.mob != null ? d.mob : '' %>" />
                   </div>
                 </td>
@@ -161,8 +168,8 @@
       </div>
     <% } %>
 
-    <% renderJaw(upper, 'الفك العلوي') %>
-    <% renderJaw(lower, 'الفك السفلي') %>
+    <% renderJaw(upper, t('perio.upper')) %>
+    <% renderJaw(lower, t('perio.lower')) %>
   </div>
 </form>
 
@@ -183,7 +190,20 @@
 
   /* ── Phone: one tooth at a time ──────────────────────────────────────── */
   var TEETH = <%- JSON.stringify([].concat.apply([], upper).concat([].concat.apply([], lower))) %>;
-  var QUAD = <%- JSON.stringify({ u0:'علوي يمين', u1:'علوي شمال', l0:'سفلي يمين', l1:'سفلي شمال' }) %>;
+  var QUAD = <%- JSON.stringify({
+    u0: t('perio.quad.u_right'), u1: t('perio.quad.u_left'),
+    l0: t('perio.quad.l_right'), l1: t('perio.quad.l_left'),
+  }) %>;
+  var L = <%- JSON.stringify({
+    mm:        t('perio.mm'),
+    unchanged: t('perio.unchanged'),
+    improved:  t('perio.improved'),
+    worsened:  t('perio.worsened'),
+    empty:     t('perio.nothing_entered'),
+    saving:    t('common.saving'),
+    save:      t('perio.save'),
+    failed:    t('xr.save_failed'),
+  }) %>;
   var tIdx = 0;
 
   function quadOf(t){
@@ -242,9 +262,9 @@
     var pm = prevMean(), el = document.getElementById('sTrend');
     if (pm == null || s.mean == null) { el.textContent = '—'; el.className = 'text-lg font-extrabold text-slate-400'; return; }
     var diff = s.mean - pm;
-    if (Math.abs(diff) < 0.05) { el.textContent = 'زي ما هي'; el.className = 'text-lg font-extrabold text-slate-500'; }
-    else if (diff < 0) { el.textContent = 'تحسّن ' + Math.abs(diff).toFixed(1) + ' مم'; el.className = 'text-lg font-extrabold text-emerald-600'; }
-    else { el.textContent = 'ساءت ' + diff.toFixed(1) + ' مم'; el.className = 'text-lg font-extrabold text-red-600'; }
+    if (Math.abs(diff) < 0.05) { el.textContent = L.unchanged; el.className = 'text-lg font-extrabold text-slate-500'; }
+    else if (diff < 0) { el.textContent = L.improved + ' ' + Math.abs(diff).toFixed(1) + ' ' + L.mm; el.className = 'text-lg font-extrabold text-emerald-600'; }
+    else { el.textContent = L.worsened + ' ' + diff.toFixed(1) + ' ' + L.mm; el.className = 'text-lg font-extrabold text-red-600'; }
   }
 
   function paintPd(inp){
@@ -290,9 +310,9 @@
     document.querySelectorAll('.rec').forEach(function(i){ var v = parseInt(i.value,10); if (Number.isInteger(v)) slot(i.getAttribute('data-tooth')).rec = v; });
     document.querySelectorAll('.mob').forEach(function(i){ var v = parseInt(i.value,10); if (Number.isInteger(v)) slot(i.getAttribute('data-tooth')).mob = v; });
 
-    if (!Object.keys(data).length) { alert('مفيش قياسات مدخّلة'); return; }
+    if (!Object.keys(data).length) { alert(L.empty); return; }
     var btn = document.getElementById('perioSave');
-    btn.disabled = true; btn.textContent = 'بيحفظ…';
+    btn.disabled = true; btn.textContent = L.saving;
     fetch('/clinic/dental/patient/<%= patient.id %>/perio', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -304,9 +324,9 @@
     }).then(function(r){ return r.json(); })
       .then(function(j){
         if (j && j.ok) location.href = '?exam=' + j.id;
-        else { alert('الحفظ فشل'); btn.disabled = false; btn.textContent = 'حفظ الفحص'; }
+        else { alert(L.failed); btn.disabled = false; btn.textContent = L.save; }
       })
-      .catch(function(){ alert('الحفظ فشل'); btn.disabled = false; btn.textContent = 'حفظ الفحص'; });
+      .catch(function(){ alert(L.failed); btn.disabled = false; btn.textContent = L.save; });
   }
 
   refresh();
