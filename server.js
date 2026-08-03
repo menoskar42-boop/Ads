@@ -1220,6 +1220,14 @@ setInterval(() => {
   } catch (e) { /* ignore */ }
 }, 30 * 60 * 1000).unref();
 
+// Clinic WhatsApp reminders. Hourly; the job itself only acts during the Cairo
+// evening hour it sends in, and every send is deduped against
+// clinic_whatsapp_log — so an extra tick can never double-message a patient.
+const clinicReminders = require('./src/clinic/reminders');
+setInterval(() => {
+  clinicReminders.sendDueReminders(pool).catch((e) => console.error('[reminders]', e.message));
+}, 60 * 60 * 1000).unref();
+
 // Subscriptions (phase 32): create due recurring orders. Runs hourly and is
 // idempotent per day (each renewal advances next_renewal past today), so it
 // self-heals whenever the instance is awake. Also exposed as an external

@@ -665,6 +665,20 @@ router.post('/whatsapp/test', requireModule('whatsapp'), async (req, res) => {
   } catch (e) { res.redirect('/clinic/whatsapp?test=' + encodeURIComponent('خطأ: ' + e.message)); }
 });
 
+// Send tomorrow's reminders now, without waiting for the evening job. Lets a
+// clinic prove the setup works the moment they finish configuring it.
+router.post('/whatsapp/reminders/run', requireModule('whatsapp'), async (req, res) => {
+  try {
+    const { sendDueReminders } = require('../clinic/reminders');
+    const s = await sendDueReminders(pool, { force: true });
+    res.redirect('/clinic/whatsapp?test=' + encodeURIComponent(
+      `تذكيرات الغد: تم إرسال ${s.sent}${s.failed ? ` — وفشل ${s.failed}` : ''}${s.sent + s.failed === 0 ? ' (مفيش مواعيد بكرة محتاجة تذكير)' : ''}`
+    ));
+  } catch (e) {
+    res.redirect('/clinic/whatsapp?test=' + encodeURIComponent('خطأ: ' + e.message));
+  }
+});
+
 // ── Module: Inventory ────────────────────────────────────────────────────────
 router.get('/inventory', requireModule('inventory'), async (req, res) => {
   const cid = req.company.id;

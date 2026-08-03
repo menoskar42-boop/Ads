@@ -433,6 +433,25 @@ async function ensureClinicSchema() {
         updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
+      -- Every WhatsApp we send, so a reminder goes out once per appointment no
+      -- matter how often the job runs, and a clinic can see what was actually
+      -- delivered when a patient says "ماوصلنيش".
+      CREATE TABLE IF NOT EXISTS clinic_whatsapp_log (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        appointment_id INTEGER REFERENCES clinic_appointments(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL,          -- reminder|confirm|followup|manual
+        phone          TEXT,
+        ok             BOOLEAN NOT NULL DEFAULT false,
+        error          TEXT,
+        sent_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      -- The dedupe guard: one successful message of a given kind per appointment.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_log_once
+        ON clinic_whatsapp_log (appointment_id, kind) WHERE appointment_id IS NOT NULL AND ok;
+      CREATE INDEX IF NOT EXISTS idx_wa_log_company
+        ON clinic_whatsapp_log (company_id, sent_at);
+
       CREATE TABLE IF NOT EXISTS clinic_webhooks (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
