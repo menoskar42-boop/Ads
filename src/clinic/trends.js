@@ -40,7 +40,45 @@ const REFERENCE = {
   gcs:         { good: 'high', band: [15, 15],   unit: '/15' },
   head_circumference: { good: null, band: null,  unit: 'سم' },
   fundal_height:      { good: null, band: null,  unit: 'سم' },
+  // BMI has no single normal band: the adult 18.5-25 range does NOT apply to a
+  // child, who is read against BMI-for-age percentiles instead. The band is
+  // therefore attached per-patient in buildSeries, not here.
+  bmi:         { good: null,   band: null,       unit: 'kg/m²' },
 };
+
+// The adult range. Deliberately not applied to anyone under 19 — using it on a
+// child would call a perfectly normal ten-year-old underweight.
+const ADULT_BMI_BAND = [18.5, 24.9];
+
+const UNIT_KEYS = {
+  'كجم': 'unit.kg', 'سم': 'unit.cm', 'نبضة/د': 'unit.bpm',
+  '°م': 'unit.celsius', 'درجة': 'unit.points',
+};
+const ADULT_FROM_YEARS = 19;
+
+/** BMI from weight in kg and height in cm, or null if either is unusable. */
+function bmiOf(weightKg, heightCm) {
+  const w = Number(weightKg), h = Number(heightCm) / 100;
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0.3 || h > 2.6) return null;
+  return Math.round((w / (h * h)) * 10) / 10;
+}
+
+/** Whole years old at a given moment, from birth_date or the coarser birth_year. */
+function ageYears(patient, when) {
+  if (!patient) return null;
+  const at = new Date(when || Date.now());
+  if (patient.birth_date) {
+    const b = new Date(patient.birth_date);
+    if (!isNaN(b)) {
+      let y = at.getFullYear() - b.getFullYear();
+      const m = at.getMonth() - b.getMonth();
+      if (m < 0 || (m === 0 && at.getDate() < b.getDate())) y -= 1;
+      return y;
+    }
+  }
+  if (patient.birth_year) return at.getFullYear() - Number(patient.birth_year);
+  return null;
+}
 
 /**
  * Build one series per measurable field that actually has data.
@@ -49,8 +87,21 @@ const REFERENCE = {
  * @param {string} specialtyKey
  * @returns {Array<{key,label,unit,points:Array<{t,v}>,band,good,latest,delta}>}
  */
-function buildSeries(vitals, visits, specialtyKey) {
+function buildSeries(vitals, visits, specialtyKey, patient, t) {
   const buckets = new Map();
+  const tr = (key, fallback) => {
+    if (typeof t !== 'function') return fallback;
+    const v = t(key);
+    return v && v !== key ? v : fallback;
+  };
+  const bmiLabel = tr('vit.bmi', 'مؤشر كتلة الجسم');
+  // Units written as Arabic words need translating; symbols (%, mmHg, mg/dL,
+  // kg/m²) read the same in both languages and stay as they are.
+  const unitOf = (u) => (UNIT_KEYS[u] ? tr(UNIT_KEYS[u], u) : u);
+  // Series labels come from constants in specialties.js and trends' own
+  // REFERENCE, both authored in Arabic. Resolve each through the translator so
+  // an English clinic does not read "الوزن (كجم)" on its chart.
+  const labelOf = (key, fallback) => tr('vit.' + key, tr('fld.' + key, fallback));
 
   const push = (key, label, when, value) => {
     const v = Number(value);
@@ -61,8 +112,12 @@ function buildSeries(vitals, visits, specialtyKey) {
 
   for (const row of vitals || []) {
     for (const col of Object.keys(VITALS_LABELS)) {
-      if (row[col] != null) push(col, VITALS_LABELS[col], row.recorded_at, row[col]);
+      if (row[col] != null) push(col, labelOf(col, VITALS_LABELS[col]), row.recorded_at, row[col]);
     }
+    // BMI is derived, never entered. Asking a nutritionist to type it means
+    // doing arithmetic the system can do and lets the three numbers disagree.
+    const bmi = bmiOf(row.weight, row.height);
+    if (bmi != null) push('bmi', bmiLabel, row.recorded_at, bmi);
   }
 
   // Specialty fields are stored as strings; only the ones that parse as numbers
@@ -73,7 +128,7 @@ function buildSeries(vitals, visits, specialtyKey) {
     if (!data) continue;
     for (const k of Object.keys(data)) {
       if (!extraLabels.has(k)) continue;
-      push(k, extraLabels.get(k), v.visit_date || v.created_at, data[k]);
+      push(k, labelOf(k, extraLabels.get(k)), v.visit_date || v.created_at, data[k]);
     }
   }
 
@@ -82,13 +137,21 @@ function buildSeries(vitals, visits, specialtyKey) {
     if (s.points.length < 1) continue;
     s.points.sort((a, b) => a.t - b.t);          // oldest → newest, as a chart reads
     const ref = REFERENCE[s.key] || {};
+    // BMI is the one series whose reference depends on who the patient is.
+    let band = ref.band || null, note = null;
+    if (s.key === 'bmi') {
+      const years = ageYears(patient, s.points[s.points.length - 1].t);
+      if (years != null && years >= ADULT_FROM_YEARS) band = ADULT_BMI_BAND;
+      else note = years == null ? 'bmi_no_age' : 'bmi_child';
+    }
     const latest = s.points[s.points.length - 1];
     const prev = s.points.length > 1 ? s.points[s.points.length - 2] : null;
     out.push({
       key: s.key,
       label: s.label,
-      unit: ref.unit || '',
-      band: ref.band || null,
+      unit: unitOf(ref.unit || ''),
+      band,
+      note,
       good: ref.good || null,
       points: s.points,
       latest: latest.v,
@@ -111,4 +174,4 @@ function verdict(series) {
   return (series.good === 'high') === rising ? 'better' : 'worse';
 }
 
-module.exports = { buildSeries, verdict, REFERENCE };
+module.exports = { buildSeries, verdict, REFERENCE, bmiOf, ageYears, ADULT_BMI_BAND };

@@ -302,11 +302,14 @@ const FIXTURES = {
     patient,
     specialtyLabel: lang === 'en' ? 'Obstetrics' : 'نساء وتوليد',
     pregnancy: { weeks: 24, days: 3, trimester: 2, edd: '2026-11-20', lmp: '2026-02-13' },
-    series: [{
-      key: 'weight', label: lang === 'en' ? 'Weight' : 'الوزن', unit: 'kg',
-      latest: 72, delta: -1.2, band: [60, 80],
-      points: [{ t: '2026-05-01', v: 74 }, { t: '2026-06-01', v: 73 }, { t: '2026-07-01', v: 72 }],
-    }],
+    // A real buildSeries run, so BMI derivation and its per-patient band are
+    // exercised by the render check rather than hand-written into the fixture.
+    series: require('../src/clinic/trends').buildSeries(
+      [{ recorded_at: '2026-05-01', weight: 74, height: 168 },
+       { recorded_at: '2026-06-01', weight: 73, height: 168 },
+       { recorded_at: '2026-07-01', weight: 72, height: 168 }],
+      [], 'nutrition', { birth_year: 1990 }, (k) => t(k, lang)
+    ),
     verdictOf: (s) => (s.delta < 0 ? 'better' : s.delta > 0 ? 'worse' : 'flat'),
     // A boy with weight and height recorded: weight charts (table loaded),
     // height does not (his stature table only starts at 24 months and he is 18).

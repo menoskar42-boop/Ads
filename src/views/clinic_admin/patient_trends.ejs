@@ -200,6 +200,9 @@
       <% } %>
       <span><%= hi.toFixed(1) %></span>
     </div>
+    <% if (s.note) { %>
+      <p class="text-[11px] text-amber-700 mt-1.5 leading-snug"><%= t('tr.note.' + s.note) %></p>
+    <% } %>
   </div>
   <% }); %>
 </div>

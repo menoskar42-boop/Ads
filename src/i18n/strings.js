@@ -1151,6 +1151,11 @@ const strings = {
     'md.filtered_2':'وحدة إكلينيكية مخصوصة لتخصص تاني مش ظاهرة هنا.',
     'md.filtered_link':'غيّر التخصص',
 
+    'vit.bmi':'مؤشر كتلة الجسم',
+    'unit.kg':'كجم','unit.cm':'سم','unit.bpm':'نبضة/د','unit.celsius':'°م','unit.points':'درجة',
+    'tr.note.bmi_child':'النطاق الطبيعي للبالغين مابينطبقش على الأطفال — القراءة دي محتاجة مرجع BMI حسب السن.',
+    'tr.note.bmi_no_age':'محتاجين تاريخ ميلاد المريض عشان نعرف نطبّق نطاق البالغين ولا لأ.',
+
     // منحنيات النمو
     'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
     'gc.m.weight':'الوزن حسب السن','gc.m.height':'الطول حسب السن',
@@ -2442,6 +2447,11 @@ const strings = {
     'md.filtered_1':'Showing the modules that belong to',
     'md.filtered_2':'clinical module(s) belonging to another specialty are not listed here.',
     'md.filtered_link':'Change specialty',
+
+    'vit.bmi':'Body mass index (BMI)',
+    'unit.kg':'kg','unit.cm':'cm','unit.bpm':'bpm','unit.celsius':'°C','unit.points':'points',
+    'tr.note.bmi_child':'The adult normal range does not apply to a child — this reading needs a BMI-for-age reference.',
+    'tr.note.bmi_no_age':'A date of birth is needed before the adult range can be applied.',
 
     // Growth curves
     'gc.title':'📈 Growth chart','gc.age_months':'months',

@@ -438,7 +438,7 @@ router.get('/patients/:id/trends', async (req, res) => {
     ]);
     const specialty = (settings.rows[0] || {}).specialty || '';
     const trends = require('../clinic/trends');
-    const series = trends.buildSeries(vitals.rows, visits.rows, specialty);
+    const series = trends.buildSeries(vitals.rows, visits.rows, specialty, p, res.locals.t);
 
     // Obstetrics: gestational age and due date follow from the LMP the clinic
     // already records, so there is nothing extra to enter.
