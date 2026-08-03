@@ -107,7 +107,7 @@ router.get('/:id(\\d+)', async (req, res) => {
         WHERE s.id=$1 AND s.company_id=$2`, [id, cid]
     )).rows[0];
     if (!sale) return res.redirect('/furniture/sales');
-    const [items, payments] = await Promise.all([
+    const [items, payments, deliveries] = await Promise.all([
       pool.query(
         `SELECT i.*, p.name AS product_name FROM furniture_sale_items i
            LEFT JOIN furniture_products p ON p.id = i.product_id
@@ -115,10 +115,14 @@ router.get('/:id(\\d+)', async (req, res) => {
       pool.query(
         'SELECT * FROM furniture_customer_payments WHERE sale_id=$1 AND company_id=$2 ORDER BY pay_date DESC, id DESC',
         [id, cid]),
+      // Only when the section is on. Reading it regardless would put a delivery
+      // block on the invoice of a showroom that deliberately turned it off.
+      req.flags && req.flags.has('delivery')
+        ? require('../furniture/delivery').forSale(pool, cid, id) : [],
     ]);
     res.render('furniture_admin/sale_detail', {
       company: req.company, tab: 'sales',
-      sale, items: items.rows, payments: payments.rows, due: S.dueOf(sale),
+      sale, items: items.rows, payments: payments.rows, deliveries, due: S.dueOf(sale),
       err: req.query.err || null, saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture sale]', e.message); res.status(500).send('error'); }

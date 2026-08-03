@@ -1,0 +1,134 @@
+<%- include('head', { title: t('fn2.flag.delivery'), tab: 'delivery' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{weekday:'short',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var KIND = { delivery: t('fn2.dl.k.delivery'), install: t('fn2.dl.k.install') };
+  var SLOT = { morning: t('fn2.dl.s.morning'), afternoon: t('fn2.dl.s.afternoon'), evening: t('fn2.dl.s.evening') };
+  var ST = {
+    scheduled: 'bg-stone-100 text-stone-700', out: 'bg-blue-100 text-blue-800',
+    done: 'bg-emerald-100 text-emerald-800', failed: 'bg-red-100 text-red-800'
+  };
+%>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">🚚 <%= t('fn2.flag.delivery') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.dl.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.dl.err.' + err) %></div><% } %>
+
+<!-- موعد جديد -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.dl.new') %></h2>
+  <form method="post" action="/furniture/delivery" class="grid gap-3">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.rt.invoice') %>
+        <select name="sale_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('dn.none') %></option>
+          <% sales.forEach(function(s){ %>
+            <option value="<%= s.id %>">#<%= s.id %> · <%= s.customer_name || '—' %> · <%= money(s.total) %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.customer') %>
+        <select name="customer_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('dn.none') %></option>
+          <% customers.forEach(function(c){ %><option value="<%= c.id %>"><%= c.name %></option><% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.kind') %>
+        <select name="kind" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="delivery"><%= KIND.delivery %></option>
+          <option value="install"><%= KIND.install %></option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.date') %>
+        <input type="date" name="scheduled_date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.slot') %>
+        <select name="slot" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('dn.none') %></option>
+          <option value="morning"><%= SLOT.morning %></option>
+          <option value="afternoon"><%= SLOT.afternoon %></option>
+          <option value="evening"><%= SLOT.evening %></option>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.crew') %>
+        <input name="crew" maxlength="120" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600 sm:col-span-2"><%= t('fn2.f.address') %>
+        <input name="address" maxlength="300" placeholder="<%= t('fn2.dl.addr_hint') %>"
+               class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm justify-self-start"><%= t('fn2.dl.book') %></button>
+  </form>
+</div>
+
+<!-- التبويبات -->
+<div class="flex gap-1.5 mb-3 text-xs flex-wrap">
+  <% [['open', t('fn2.dl.v.open'), tally.open], ['today', t('fn2.dl.v.today'), tally.today],
+      ['late', t('fn2.dl.v.late'), tally.late], ['done', t('fn2.dl.v.done'), null]].forEach(function(v){ %>
+    <a href="/furniture/delivery?view=<%= v[0] %>"
+       class="px-3 py-1.5 rounded-lg <%= view === v[0] ? 'bg-stone-800 text-white font-bold' : 'bg-white border border-stone-200' %>">
+      <%= v[1] %><% if (v[2]) { %> <span class="<%= v[0] === 'late' ? 'text-red-500' : 'opacity-60' %>"><%= v[2] %></span><% } %>
+    </a>
+  <% }); %>
+</div>
+
+<% if (!jobs.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.dl.empty') %></div>
+<% } else { %>
+<div class="grid gap-3">
+  <% jobs.forEach(function(j){
+       var late = j.status !== 'done' && String(j.scheduled_date).slice(0,10) < today; %>
+  <div class="bg-white rounded-2xl shadow-sm p-4 <%= late ? 'border border-red-200' : '' %>">
+    <div class="flex flex-wrap items-center gap-2 mb-2">
+      <span class="text-lg"><%= j.kind === 'install' ? '🔧' : '🚚' %></span>
+      <span class="font-bold text-stone-900"><%= j.customer_name || t('iv.no_patient') %></span>
+      <% if (j.sale_id) { %>
+        <a href="/furniture/sales/<%= j.sale_id %>" class="text-xs text-brand-700 hover:underline">#<%= j.sale_id %></a>
+      <% } %>
+      <span class="text-xs font-semibold px-2 py-0.5 rounded-full <%= ST[j.status] %>"><%= t('fn2.dl.st.' + j.status) %></span>
+      <% if (late) { %><span class="text-xs font-bold text-red-600"><%= t('fn2.dl.is_late') %></span><% } %>
+      <span class="ms-auto text-xs text-stone-500">
+        <%= fmtD(j.scheduled_date) %><% if (j.slot) { %> · <%= SLOT[j.slot] %><% } %>
+      </span>
+    </div>
+
+    <div class="text-xs text-stone-500 grid gap-0.5 mb-3">
+      <% if (j.address) { %><span>📍 <%= j.address %></span><% } %>
+      <% if (j.phone) { %><span dir="ltr">📞 <%= j.phone %></span><% } %>
+      <% if (j.crew) { %><span>👷 <%= j.crew %></span><% } %>
+      <% if (j.note) { %><span class="text-stone-400"><%= j.note %></span><% } %>
+      <%# The one figure the crew needs at the door: what is still to collect.
+          Sending a van without it is how a balance goes uncollected for months. %>
+      <% if (j.sale_total != null) { var due = Math.max(0, Number(j.sale_total) - Number(j.sale_paid)); %>
+        <% if (due > 0) { %>
+          <span class="text-amber-700 font-bold">💰 <%= t('fn2.dl.collect') %> <%= money(due) %> <%= t('cur.egp') %></span>
+        <% } %>
+      <% } %>
+    </div>
+
+    <% if (j.status !== 'done') { %>
+    <div class="flex flex-wrap gap-2 items-center no-print">
+      <% ['out','done','failed'].filter(function(s){ return s !== j.status; }).forEach(function(s){ %>
+      <form method="post" action="/furniture/delivery/<%= j.id %>/status">
+        <input type="hidden" name="status" value="<%= s %>" />
+        <input type="hidden" name="view" value="<%= view %>" />
+        <button class="text-xs font-bold px-3 py-1.5 rounded-xl <%= s === 'done' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : (s === 'failed' ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-stone-100 text-stone-700 hover:bg-stone-200') %>">
+          <%= t('fn2.dl.to.' + s) %>
+        </button>
+      </form>
+      <% }); %>
+      <form method="post" action="/furniture/delivery/<%= j.id %>/move" class="flex gap-1 items-center ms-auto">
+        <input type="date" name="scheduled_date" required class="border border-stone-200 rounded-xl px-2 py-1 text-xs" />
+        <button class="text-xs font-bold px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 hover:bg-brand-100"><%= t('fn2.dl.move') %></button>
+      </form>
+    </div>
+    <% } %>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+</main></body></html>

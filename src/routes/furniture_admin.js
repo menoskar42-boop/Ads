@@ -68,6 +68,8 @@ router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
 // always count return rows that exist — see src/furniture/returns.js.
 router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
 
+router.use('/delivery', requireFlag('delivery'), require('./furniture_delivery'));
+
 router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
 
 // Attendance and payroll share one router — a payslip is meaningless without

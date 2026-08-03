@@ -121,6 +121,26 @@
   </div>
 </div>
 
+<% if (deliveries && deliveries.length) { %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mt-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.flag.delivery') %></h2>
+  <div class="divide-y divide-stone-100 text-sm">
+    <% deliveries.forEach(function(j){ %>
+    <div class="flex flex-wrap items-center gap-2 py-2">
+      <span><%= j.kind === 'install' ? '🔧' : '🚚' %></span>
+      <span class="text-stone-800"><%= t('fn2.dl.k.' + j.kind) %></span>
+      <span class="text-xs text-stone-400"><%= fmtD(j.scheduled_date) %></span>
+      <% if (j.crew) { %><span class="text-xs text-stone-400">👷 <%= j.crew %></span><% } %>
+      <span class="ms-auto text-xs font-semibold px-2 py-0.5 rounded-full
+        <%= j.status === 'done' ? 'bg-emerald-100 text-emerald-800' : (j.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-stone-100 text-stone-700') %>">
+        <%= t('fn2.dl.st.' + j.status) %>
+      </span>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
 <% if (live) { %>
 <form method="post" action="/furniture/sales/<%= sale.id %>/cancel" class="mt-5 no-print"
       onsubmit="return confirm(<%= JSON.stringify(t('fn2.sa.cancel_confirm')) %>)">

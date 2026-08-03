@@ -338,6 +338,35 @@ async function ensureFurnitureSchema() {
       CREATE INDEX IF NOT EXISTS idx_furn_return_items ON furniture_return_items (return_id);
     `);
 
+    // ── Delivery + installation (phase 8) ────────────────────────────────────
+    await client.query(`
+      -- A job the workshop owes someone on a date: deliver the piece, or go
+      -- and install it. Kept apart from the invoice because the two have
+      -- different lives — an invoice can be fully paid weeks before the wardrobe
+      -- is fitted, and a delivery can be re-arranged three times without the
+      -- money changing at all.
+      CREATE TABLE IF NOT EXISTS furniture_deliveries (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        sale_id        INTEGER REFERENCES furniture_sales(id) ON DELETE SET NULL,
+        customer_id    INTEGER REFERENCES furniture_customers(id) ON DELETE SET NULL,
+        kind           TEXT NOT NULL DEFAULT 'delivery',   -- delivery | install
+        scheduled_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        slot           TEXT,                               -- morning | afternoon | evening
+        status         TEXT NOT NULL DEFAULT 'scheduled',  -- scheduled | out | done | failed
+        crew           TEXT,
+        -- Copied, not joined: the customer's address on file may change, and a
+        -- van sent last month went to the address written that day.
+        address        TEXT,
+        phone          TEXT,
+        note           TEXT,
+        done_at        TIMESTAMPTZ,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_deliveries ON furniture_deliveries (company_id, scheduled_date);
+      CREATE INDEX IF NOT EXISTS idx_furn_deliveries_open ON furniture_deliveries (company_id, status);
+    `);
+
     // ── Expenses + audit ─────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS furniture_expenses (

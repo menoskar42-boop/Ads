@@ -92,7 +92,7 @@ async function dashboard(pool, cid) {
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const to = now.toISOString().slice(0, 10);
-  const [period, cash, stock, owedByCustomers, owedToSuppliers, openOrders] = await Promise.all([
+  const [period, cash, stock, owedByCustomers, owedToSuppliers, openOrders, lateDeliveries] = await Promise.all([
     periodSummary(pool, cid, from, to),
     cashBalance(pool, cid),
     inventory(pool, cid),
@@ -107,9 +107,13 @@ async function dashboard(pool, cid) {
                           WHERE company_id=$1) AS paid) s`, [cid]),
     one(pool, `SELECT COUNT(*) v FROM furniture_purchase_orders
                 WHERE company_id=$1 AND status IN ('pending','partial')`, [cid]),
+    // Overdue deliveries, not open ones: a job booked for next week is not a
+    // problem, and a card that counts it teaches the owner to ignore the card.
+    one(pool, `SELECT COUNT(*) v FROM furniture_deliveries
+                WHERE company_id=$1 AND status <> 'done' AND scheduled_date < CURRENT_DATE`, [cid]),
   ]);
   return { from, to, period, cash, stock, owedByCustomers: round2(owedByCustomers),
-    owedToSuppliers: round2(owedToSuppliers), openOrders };
+    owedToSuppliers: round2(owedToSuppliers), openOrders, lateDeliveries };
 }
 
 module.exports = { round2, periodSummary, cashBalance, inventory, dashboard };

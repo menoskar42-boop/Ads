@@ -114,7 +114,7 @@ const FIXTURES = {
         period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250, difference: 34640 },
         cash: { in: 12000, out: 11650, balance: 350 },
         stock: { value: 41200, lowCount: 1, low: [] },
-        owedByCustomers: 41300, owedToSuppliers: 1200, openOrders: 2,
+        owedByCustomers: 41300, owedToSuppliers: 1200, openOrders: 2, lateDeliveries: 1,
       },
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
@@ -243,6 +243,10 @@ const FIXTURES = {
       sale,
       items: [{ id: 1, product_name: 'Classic bedroom', qty: 1, unit_price: 42000, total: 42000 }],
       payments: [{ pay_date: '2026-07-20', amount: 10000, method: 'cash', note: 'deposit' }],
+      deliveries: [
+        { id: 1, kind: 'delivery', status: 'done', scheduled_date: '2026-07-25', crew: 'Sayed + van 2' },
+        { id: 2, kind: 'install', status: 'failed', scheduled_date: '2026-07-26', crew: null },
+      ],
       due: S.dueOf(sale), err: 'has_paid', saved: false,
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
@@ -295,6 +299,34 @@ const FIXTURES = {
       items: [{ id: 1, product_name: 'Classic bedroom', qty: 1, unit_price: 4000, total: 4000 }],
       outstanding: RT.outstandingRefund(ret),
       err: 'refund', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_delivery: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const D = require('../src/furniture/delivery');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/delivery.ejs', tab: 'delivery',
+      view: 'open', today: D.today(),
+      tally: { open: 3, today: 1, late: 1 },
+      jobs: [
+        // One overdue with money still to collect, one failed trip, one clean
+        // install — the three states whose wording is easiest to get wrong.
+        { id: 1, kind: 'delivery', status: 'scheduled', scheduled_date: '2020-01-01', slot: 'morning',
+          customer_name: 'Mohamed A.', sale_id: 1, sale_total: 51300, sale_paid: 10000,
+          address: '12 Gomhoria St', phone: '01000000010', crew: 'Sayed + van 2', note: null },
+        { id: 2, kind: 'install', status: 'failed', scheduled_date: '2026-08-02', slot: 'evening',
+          customer_name: 'Nile Furnishings', sale_id: null, sale_total: null, sale_paid: null,
+          address: null, phone: null, crew: null, note: 'Lift too small' },
+        { id: 3, kind: 'install', status: 'out', scheduled_date: '2030-01-01', slot: null,
+          customer_name: null, sale_id: null, sale_total: null, sale_paid: null,
+          address: null, phone: null, crew: null, note: null },
+      ],
+      sales: [{ id: 1, sale_date: '2026-07-20', total: 51300, customer_name: 'Mohamed A.' }],
+      customers: [{ id: 1, name: 'Mohamed A.' }],
+      err: 'no_customer', saved: false,
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },

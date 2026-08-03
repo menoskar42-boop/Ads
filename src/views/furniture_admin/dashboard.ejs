@@ -12,6 +12,7 @@
     { key:'sales',     icon:'⏳', label:'fn2.card.due',       value: d.owedByCustomers,        tone:'text-amber-700' },
     { key:'inventory', icon:'📦', label:'fn2.card.low_stock', value: d.stock.lowCount, plain:true, tone: d.stock.lowCount ? 'text-amber-700' : 'text-stone-900' },
     { key:'purchases', icon:'🧾', label:'fn2.card.suppliers', value: d.owedToSuppliers,        tone:'text-amber-700' },
+    { key:'delivery',  icon:'🚚', label:'fn2.card.late_delivery', value: d.lateDeliveries, plain:true, tone: d.lateDeliveries ? 'text-red-700' : 'text-stone-900' },
   ].filter(function(c){ return flags.has(c.key); });
 %>
 
