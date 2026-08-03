@@ -19,8 +19,48 @@ const STATUSES = ['scheduled', 'out', 'done', 'failed'];
 // a customer ends up waiting for a van nobody rebooked.
 const OPEN = ['scheduled', 'out', 'failed'];
 
+// How the showroom sells. 'prepaid': nothing leaves the workshop until the
+// invoice and the trip fee are both settled. 'cod': the crew collects at the
+// door. The default is prepaid — while the piece is still in the building the
+// showroom has leverage, and after it is on the van it has none.
+const POLICIES = ['prepaid', 'cod'];
+
 const oneOf = (list, v, fallback) => (list.includes(String(v)) ? String(v) : fallback);
 const today = () => new Date().toISOString().slice(0, 10);
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+/**
+ * What is still to be collected before, or at, this trip.
+ *
+ * Two separate debts that a showroom keeps confusing for each other:
+ *  - the invoice balance, which belongs to the SALE and is shared by every
+ *    trip against it;
+ *  - the trip fee, which belongs to THIS job and is charged again for the
+ *    second visit.
+ *
+ * They are returned apart, and only summed for display, because a second
+ * delivery on a fully-paid invoice still owes a fee, and adding them earlier
+ * would make that read as an unpaid invoice.
+ */
+function moneyOf(job) {
+  const invoiceDue = job.sale_total == null
+    ? 0 : Math.max(0, round2(Number(job.sale_total) - Number(job.sale_paid)));
+  const feeDue = Math.max(0, round2(Number(job.fee || 0) - Number(job.fee_paid || 0)));
+  return { invoiceDue, feeDue, total: round2(invoiceDue + feeDue) };
+}
+
+/**
+ * May this job go out?
+ * Under 'cod' always — the money is collected at the door by design. Under
+ * 'prepaid' only once nothing is outstanding. Returns the reason rather than
+ * a bare false, because "you cannot dispatch this" without a figure is an
+ * instruction to work around the system.
+ */
+function dispatchCheck(job, policy) {
+  const m = moneyOf(job);
+  if (oneOf(POLICIES, policy, 'prepaid') === 'cod') return { ok: true, ...m };
+  return { ok: m.total <= 0, ...m };
+}
 
 /** Late means: still open, and its date has passed. */
 function isLate(job, ref) {
@@ -56,22 +96,76 @@ async function schedule(pool, companyId, o) {
 
   const r = await pool.query(
     `INSERT INTO furniture_deliveries
-       (company_id, sale_id, customer_id, kind, scheduled_date, slot, status, crew, address, phone, note)
-     VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6,'scheduled',$7,$8,$9,$10) RETURNING id`,
+       (company_id, sale_id, customer_id, kind, scheduled_date, slot, status, crew, address, phone, note, fee)
+     VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6,'scheduled',$7,$8,$9,$10,$11) RETURNING id`,
     [companyId, saleId, customerId, oneOf(KINDS, o.kind, 'delivery'), o.scheduledDate || null,
       o.slot ? oneOf(SLOTS, o.slot, null) : null,
       String(o.crew || '').trim().slice(0, 120) || null,
-      address, phone, String(o.note || '').trim().slice(0, 300) || null]);
+      address, phone, String(o.note || '').trim().slice(0, 300) || null,
+      Math.max(0, round2(o.fee))]);
   return r.rows[0];
+}
+
+/**
+ * Collect the trip fee. Capped at what is outstanding on THIS trip: paying
+ * more than the fee is not a fee payment, it is money on the customer's
+ * account, and it has to go through the invoice ledger to be found again.
+ */
+async function collectFee(pool, companyId, id, amount) {
+  const amt = round2(amount);
+  if (!(amt > 0)) throw new Error('amount');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const j = (await client.query(
+      'SELECT fee, fee_paid FROM furniture_deliveries WHERE id=$1 AND company_id=$2 FOR UPDATE',
+      [id, companyId])).rows[0];
+    if (!j) throw new Error('not_found');
+    const room = Math.max(0, round2(Number(j.fee) - Number(j.fee_paid)));
+    if (room <= 0) throw new Error('nothing_due');
+    const add = Math.min(amt, room);
+    await client.query(
+      'UPDATE furniture_deliveries SET fee_paid = fee_paid + $1 WHERE id=$2 AND company_id=$3',
+      [add, id, companyId]);
+    await client.query('COMMIT');
+    return { added: add };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally { client.release(); }
+}
+
+/** The showroom's dispatch policy. Never throws — a missing settings row is a
+ *  new showroom, and a new showroom gets the safe default. */
+async function policyOf(pool, companyId) {
+  try {
+    const r = await pool.query('SELECT delivery_policy FROM furniture_settings WHERE company_id=$1', [companyId]);
+    return oneOf(POLICIES, r.rows[0] && r.rows[0].delivery_policy, 'prepaid');
+  } catch (e) { return 'prepaid'; }
 }
 
 /**
  * Move a job along. `done_at` is stamped when it lands on done and cleared if
  * it is reopened, so "when was this actually delivered" always has one answer.
  */
-async function setStatus(pool, companyId, id, status, note) {
+async function setStatus(pool, companyId, id, status, note, opts = {}) {
   const st = oneOf(STATUSES, status, null);
   if (!st) throw new Error('bad_status');
+
+  // The gate. Only 'out' and 'done' are blocked: marking a trip FAILED must
+  // always be possible, or a van that came back with the piece still on it has
+  // nowhere to be recorded.
+  if ((st === 'out' || st === 'done') && !opts.override) {
+    const job = (await pool.query(
+      `SELECT d.fee, d.fee_paid, s.total AS sale_total, s.paid AS sale_paid
+         FROM furniture_deliveries d
+         LEFT JOIN furniture_sales s ON s.id = d.sale_id
+        WHERE d.id=$1 AND d.company_id=$2`, [id, companyId])).rows[0];
+    if (!job) throw new Error('not_found');
+    const check = dispatchCheck(job, opts.policy || await policyOf(pool, companyId));
+    if (!check.ok) { const e = new Error('unpaid'); e.money = check; throw e; }
+  }
+
   const r = await pool.query(
     `UPDATE furniture_deliveries
         SET status=$1,
@@ -128,7 +222,8 @@ async function counts(pool, companyId) {
     `SELECT
        COUNT(*) FILTER (WHERE status <> 'done')::int AS open,
        COUNT(*) FILTER (WHERE status <> 'done' AND scheduled_date = $2)::int AS today,
-       COUNT(*) FILTER (WHERE status <> 'done' AND scheduled_date < $2)::int AS late
+       COUNT(*) FILTER (WHERE status <> 'done' AND scheduled_date < $2)::int AS late,
+       COALESCE(SUM(fee - fee_paid) FILTER (WHERE fee > fee_paid), 0)::float AS fees_due
      FROM furniture_deliveries WHERE company_id=$1`, [companyId, day]);
   return r.rows[0];
 }
@@ -141,4 +236,8 @@ async function forSale(pool, companyId, saleId) {
   return r.rows;
 }
 
-module.exports = { KINDS, SLOTS, STATUSES, OPEN, isLate, today, schedule, setStatus, reschedule, board, counts, forSale };
+module.exports = {
+  KINDS, SLOTS, STATUSES, POLICIES, OPEN, isLate, today, round2,
+  moneyOf, dispatchCheck, policyOf,
+  schedule, setStatus, reschedule, collectFee, board, counts, forSale,
+};

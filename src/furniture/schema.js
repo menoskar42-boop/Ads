@@ -365,6 +365,18 @@ async function ensureFurnitureSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_furn_deliveries ON furniture_deliveries (company_id, scheduled_date);
       CREATE INDEX IF NOT EXISTS idx_furn_deliveries_open ON furniture_deliveries (company_id, status);
+
+      -- The trip is charged for. Two columns for the same reason returns have
+      -- two: fee is what the customer owes for this trip, fee_paid is what has
+      -- actually been handed over, and the gap between them is the point.
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS fee      NUMERIC(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS fee_paid NUMERIC(12,2) NOT NULL DEFAULT 0;
+
+      -- How this showroom sells: 'prepaid' means nothing leaves the workshop
+      -- until the invoice AND the delivery fee are settled; 'cod' means the
+      -- crew collects at the door. Default is prepaid — it is the safer of the
+      -- two to be wrong about, because the piece is still in the building.
+      ALTER TABLE furniture_settings ADD COLUMN IF NOT EXISTS delivery_policy TEXT NOT NULL DEFAULT 'prepaid';
     `);
 
     // ── Expenses + audit ─────────────────────────────────────────────────────

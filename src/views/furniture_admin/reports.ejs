@@ -43,8 +43,9 @@
     ];
     // Returns only earn a card once there are any. A permanent zero would read
     // as a metric the showroom is being judged on rather than a fact.
-    if (Number(period.returned) > 0) {
-      TOP.push(['fn2.rt.credit', period.returned, 'text-red-700']);
+    if (Number(period.returned) > 0) TOP.push(['fn2.rt.credit', period.returned, 'text-red-700']);
+    if (Number(period.fees) > 0) TOP.push(['fn2.dl.fees_earned', period.fees, 'text-stone-900']);
+    if (Number(period.returned) > 0 || Number(period.fees) > 0) {
       TOP.push(['fn2.rp.net_invoiced', period.netInvoiced, 'text-stone-900']);
     }
   %>

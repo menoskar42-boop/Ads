@@ -11,7 +11,11 @@
 %>
 
 <h1 class="text-2xl font-black text-stone-900 mb-1">🚚 <%= t('fn2.flag.delivery') %></h1>
-<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.dl.sub') %></p>
+<p class="text-stone-500 mb-3 text-sm"><%= t('fn2.dl.sub') %></p>
+<p class="text-xs <%= policy === 'prepaid' ? 'text-stone-600 bg-stone-100 border-stone-200' : 'text-amber-800 bg-amber-50 border-amber-200' %> border rounded-2xl px-4 py-2.5 mb-5">
+  <%= t('fn2.dl.policy.' + policy) %>
+  <a href="/furniture/settings" class="font-semibold underline"><%= t('fn2.nav.settings') %></a>
+</p>
 
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
 <% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.dl.err.' + err) %></div><% } %>
@@ -54,6 +58,9 @@
       </label>
       <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.crew') %>
         <input name="crew" maxlength="120" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.fee') %>
+        <input name="fee" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
       </label>
       <label class="text-xs font-bold text-stone-600 sm:col-span-2"><%= t('fn2.f.address') %>
         <input name="address" maxlength="300" placeholder="<%= t('fn2.dl.addr_hint') %>"
@@ -100,26 +107,52 @@
       <% if (j.phone) { %><span dir="ltr">📞 <%= j.phone %></span><% } %>
       <% if (j.crew) { %><span>👷 <%= j.crew %></span><% } %>
       <% if (j.note) { %><span class="text-stone-400"><%= j.note %></span><% } %>
-      <%# The one figure the crew needs at the door: what is still to collect.
-          Sending a van without it is how a balance goes uncollected for months. %>
-      <% if (j.sale_total != null) { var due = Math.max(0, Number(j.sale_total) - Number(j.sale_paid)); %>
-        <% if (due > 0) { %>
-          <span class="text-amber-700 font-bold">💰 <%= t('fn2.dl.collect') %> <%= money(due) %> <%= t('cur.egp') %></span>
+      <%# The money, split the way it actually behaves: the invoice balance
+          belongs to the SALE and is shared by every trip against it, while the
+          fee belongs to THIS trip and is charged again for a second visit.
+          Summing them earlier would make a second delivery on a fully-paid
+          invoice read as an unpaid invoice. %>
+      <% var m = dispatch[j.id] || { invoiceDue: 0, feeDue: 0, total: 0, ok: true }; %>
+      <% if (Number(j.fee) > 0) { %>
+        <span class="text-stone-600">🚚 <%= t('fn2.dl.fee') %> <%= money(j.fee) %><% if (m.feeDue > 0) { %> · <span class="text-amber-700 font-bold"><%= t('fn2.dl.fee_due') %> <%= money(m.feeDue) %></span><% } else { %> · <span class="text-emerald-700"><%= t('fn2.dl.fee_settled') %></span><% } %></span>
+      <% } %>
+      <% if (m.invoiceDue > 0) { %>
+        <span class="text-amber-700">🧾 <%= t('fn2.dl.invoice_due') %> <%= money(m.invoiceDue) %></span>
+      <% } %>
+      <% if (j.status !== 'done') { %>
+        <% if (!m.ok) { %>
+          <span class="text-red-700 font-bold">⛔ <%= t('fn2.dl.blocked') %> <%= money(m.total) %> <%= t('cur.egp') %></span>
+        <% } else if (policy === 'cod' && m.total > 0) { %>
+          <span class="text-amber-700 font-bold">💰 <%= t('fn2.dl.collect') %> <%= money(m.total) %> <%= t('cur.egp') %></span>
+        <% } else { %>
+          <span class="text-emerald-700 font-bold">✅ <%= t('fn2.dl.cleared') %></span>
         <% } %>
       <% } %>
     </div>
 
     <% if (j.status !== 'done') { %>
     <div class="flex flex-wrap gap-2 items-center no-print">
-      <% ['out','done','failed'].filter(function(s){ return s !== j.status; }).forEach(function(s){ %>
-      <form method="post" action="/furniture/delivery/<%= j.id %>/status">
+      <% ['out','done','failed'].filter(function(s){ return s !== j.status; }).forEach(function(s){
+           // 'failed' is never gated: a van that came back with the piece still
+           // on it has to have somewhere to be recorded.
+           var gated = (s === 'out' || s === 'done') && !m.ok; %>
+      <form method="post" action="/furniture/delivery/<%= j.id %>/status"
+            <% if (gated) { %>onsubmit="return confirm(<%= JSON.stringify(t('fn2.dl.override_confirm')) %>)"<% } %>>
         <input type="hidden" name="status" value="<%= s %>" />
         <input type="hidden" name="view" value="<%= view %>" />
-        <button class="text-xs font-bold px-3 py-1.5 rounded-xl <%= s === 'done' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : (s === 'failed' ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-stone-100 text-stone-700 hover:bg-stone-200') %>">
-          <%= t('fn2.dl.to.' + s) %>
+        <% if (gated) { %><input type="hidden" name="override" value="1" /><% } %>
+        <button class="text-xs font-bold px-3 py-1.5 rounded-xl <%= gated ? 'bg-white border border-red-300 text-red-700 hover:bg-red-50' : (s === 'done' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : (s === 'failed' ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-stone-100 text-stone-700 hover:bg-stone-200')) %>">
+          <%= gated ? t('fn2.dl.override') + ' · ' + t('fn2.dl.to.' + s) : t('fn2.dl.to.' + s) %>
         </button>
       </form>
       <% }); %>
+      <% if (m.feeDue > 0) { %>
+      <form method="post" action="/furniture/delivery/<%= j.id %>/fee" class="flex gap-1 items-center">
+        <input name="amount" type="number" min="0" <%- 'step="0.01"' %> value="<%= m.feeDue %>"
+               class="w-24 border border-stone-200 rounded-xl px-2 py-1 text-xs" />
+        <button class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><%= t('fn2.dl.take_fee') %></button>
+      </form>
+      <% } %>
       <form method="post" action="/furniture/delivery/<%= j.id %>/move" class="flex gap-1 items-center ms-auto">
         <input type="date" name="scheduled_date" required class="border border-stone-200 rounded-xl px-2 py-1 text-xs" />
         <button class="text-xs font-bold px-3 py-1.5 rounded-xl bg-brand-50 text-brand-700 hover:bg-brand-100"><%= t('fn2.dl.move') %></button>

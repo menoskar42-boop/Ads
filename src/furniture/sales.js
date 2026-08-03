@@ -107,6 +107,11 @@ async function addPayment(pool, companyId, { saleId, customerId, amount, payDate
  * (what was handed to them in cash), and that net is subtracted. Note this runs
  * regardless of the returns feature toggle: a flag hides a page, it must never
  * quietly rewrite balances that existing documents already justify.
+ *
+ * Delivery fees are charged on top. A trip costs money the invoice never
+ * mentioned, so the unpaid part of every fee is added to what the customer
+ * owes — otherwise a showroom on prepaid terms reads "settled" while the van
+ * fare is still outstanding, and dispatches on the strength of it.
  */
 async function customerBalances(pool, companyId) {
   const r = await pool.query(
@@ -115,8 +120,10 @@ async function customerBalances(pool, companyId) {
             COALESCE(pay.total, 0) AS paid,
             COALESCE(ret.credited, 0) AS credited,
             COALESCE(ret.refunded, 0) AS refunded,
+            COALESCE(dlv.fees_due, 0) AS fees_due,
             COALESCE(inv.total, 0) - COALESCE(pay.total, 0)
-              - COALESCE(ret.credited, 0) + COALESCE(ret.refunded, 0) AS balance
+              - COALESCE(ret.credited, 0) + COALESCE(ret.refunded, 0)
+              + COALESCE(dlv.fees_due, 0) AS balance
        FROM furniture_customers c
        LEFT JOIN (
          SELECT customer_id, SUM(total) AS total FROM furniture_sales
@@ -130,8 +137,13 @@ async function customerBalances(pool, companyId) {
          SELECT customer_id, SUM(total) AS credited, SUM(refunded) AS refunded
            FROM furniture_returns WHERE company_id=$1 GROUP BY customer_id
        ) ret ON ret.customer_id = c.id
+       LEFT JOIN (
+         SELECT customer_id, SUM(fee - fee_paid) AS fees_due FROM furniture_deliveries
+          WHERE company_id=$1 AND fee > fee_paid GROUP BY customer_id
+       ) dlv ON dlv.customer_id = c.id
       WHERE c.company_id=$1 AND c.is_active
-        AND (inv.total IS NOT NULL OR pay.total IS NOT NULL OR ret.credited IS NOT NULL)
+        AND (inv.total IS NOT NULL OR pay.total IS NOT NULL
+             OR ret.credited IS NOT NULL OR dlv.fees_due IS NOT NULL)
       ORDER BY balance DESC, c.name`,
     [companyId]
   );
@@ -140,7 +152,7 @@ async function customerBalances(pool, companyId) {
 
 /** One customer's invoices and payments, for the statement page. */
 async function statement(pool, companyId, customerId) {
-  const [customer, invoices, payments, returns] = await Promise.all([
+  const [customer, invoices, payments, returns, fees] = await Promise.all([
     pool.query('SELECT * FROM furniture_customers WHERE id=$1 AND company_id=$2', [customerId, companyId]),
     pool.query(
       `SELECT id, sale_date, subtotal, tax, total, paid, status
@@ -154,6 +166,9 @@ async function statement(pool, companyId, customerId) {
       `SELECT id, sale_id, return_date, total, refunded, reason
          FROM furniture_returns WHERE company_id=$1 AND customer_id=$2
         ORDER BY return_date DESC, id DESC LIMIT 200`, [companyId, customerId]),
+    pool.query(
+      `SELECT COALESCE(SUM(fee),0)::float AS fees, COALESCE(SUM(fee_paid),0)::float AS fees_paid
+         FROM furniture_deliveries WHERE company_id=$1 AND customer_id=$2`, [companyId, customerId]),
   ]);
   const invoiced = invoices.rows
     .filter((i) => i.status !== 'cancelled')
@@ -169,7 +184,9 @@ async function statement(pool, companyId, customerId) {
     totals: {
       invoiced: round2(invoiced), paid: round2(paid),
       credited: round2(credited), refunded: round2(refunded),
-      balance: round2(invoiced - paid - credited + refunded),
+      fees: round2(fees.rows[0].fees), feesPaid: round2(fees.rows[0].fees_paid),
+      balance: round2(invoiced - paid - credited + refunded
+        + (fees.rows[0].fees - fees.rows[0].fees_paid)),
     },
   };
 }

@@ -48,8 +48,15 @@
             <option value="dark" <%= settings.theme === 'dark' ? 'selected' : '' %>><%= t('fn2.set.dark') %></option>
           </select>
         </label>
+        <label class="text-sm font-bold text-stone-700 sm:col-span-2"><%= t('fn2.set.delivery_policy') %>
+          <select name="delivery_policy" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <option value="prepaid" <%= settings.delivery_policy !== 'cod' ? 'selected' : '' %>><%= t('fn2.dl.policy.prepaid') %></option>
+            <option value="cod" <%= settings.delivery_policy === 'cod' ? 'selected' : '' %>><%= t('fn2.dl.policy.cod') %></option>
+          </select>
+        </label>
       </div>
       <p class="text-xs text-stone-400"><%= t('fn2.set.tax_hint') %></p>
+      <p class="text-xs text-stone-400"><%= t('fn2.set.delivery_policy_hint') %></p>
     </div>
   </div>
 

@@ -122,12 +122,13 @@ router.post('/settings', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO furniture_settings
-         (company_id, business_name, address, phone, whatsapp, currency, tax_percent, theme, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+         (company_id, business_name, address, phone, whatsapp, currency, tax_percent, theme,
+          delivery_policy, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
        ON CONFLICT (company_id) DO UPDATE SET
          business_name=EXCLUDED.business_name, address=EXCLUDED.address, phone=EXCLUDED.phone,
          whatsapp=EXCLUDED.whatsapp, currency=EXCLUDED.currency, tax_percent=EXCLUDED.tax_percent,
-         theme=EXCLUDED.theme, updated_at=now()`,
+         theme=EXCLUDED.theme, delivery_policy=EXCLUDED.delivery_policy, updated_at=now()`,
       [cid,
         String(b.business_name || '').slice(0, 120) || null,
         String(b.address || '').slice(0, 200) || null,
@@ -137,7 +138,10 @@ router.post('/settings', async (req, res) => {
         // A tax percent outside 0-100 is a typo, not a rate — clamp rather than
         // store a figure that would silently corrupt every future invoice.
         Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0,
-        b.theme === 'dark' ? 'dark' : 'light']
+        b.theme === 'dark' ? 'dark' : 'light',
+        // Anything but an explicit 'cod' means prepaid: a typo must not put the
+        // showroom's stock on a van it has not been paid for.
+        b.delivery_policy === 'cod' ? 'cod' : 'prepaid']
     );
 
     const wanted = new Set([].concat(b.flags || []).map(String).filter((k) => OPTIONAL_KEYS.includes(k)));

@@ -108,10 +108,11 @@ const FIXTURES = {
     return {
       __file: 'furniture_admin/dashboard.ejs',
       tab: 'dashboard',
-      settings: { currency: 'EGP', tax_percent: 0, theme: 'light' },
+      settings: { currency: 'EGP', tax_percent: 0, theme: 'light', delivery_policy: 'prepaid' },
       d: {
         from: '2026-08-01', to: '2026-08-03',
-        period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250, difference: 34640 },
+        period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250,
+          returned: 0, refunded: 0, fees: 350, feesPaid: 350, netInvoiced: 51650, difference: 34990 },
         cash: { in: 12000, out: 11650, balance: 350 },
         stock: { value: 41200, lowCount: 1, low: [] },
         owedByCustomers: 41300, owedToSuppliers: 1200, openOrders: 2, lateDeliveries: 1,
@@ -265,7 +266,8 @@ const FIXTURES = {
         { id: 2, sale_id: null, amount: 2000, pay_date: '2026-08-01', method: 'transfer' },
       ],
       returns: [{ id: 1, sale_id: 1, return_date: '2026-08-05', total: 4000, refunded: 1500, reason: null }],
-      totals: { invoiced: 51300, paid: 12000, credited: 4000, refunded: 1500, balance: 36800 },
+      totals: { invoiced: 51300, paid: 12000, credited: 4000, refunded: 1500,
+        fees: 350, feesPaid: 0, balance: 37150 },
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },
@@ -307,26 +309,34 @@ const FIXTURES = {
     const fl = require('../src/furniture/flags');
     const D = require('../src/furniture/delivery');
     const flags = new Set([...fl.DEFAULT_ON, 'master']);
-    return {
-      __file: 'furniture_admin/delivery.ejs', tab: 'delivery',
-      view: 'open', today: D.today(),
-      tally: { open: 3, today: 1, late: 1 },
-      jobs: [
+    const policy = 'prepaid';
+    const jobs = [
         // One overdue with money still to collect, one failed trip, one clean
         // install — the three states whose wording is easiest to get wrong.
+        // Overdue, unpaid and charged a fee: the blocked-dispatch wording.
         { id: 1, kind: 'delivery', status: 'scheduled', scheduled_date: '2020-01-01', slot: 'morning',
           customer_name: 'Mohamed A.', sale_id: 1, sale_total: 51300, sale_paid: 10000,
-          address: '12 Gomhoria St', phone: '01000000010', crew: 'Sayed + van 2', note: null },
+          address: '12 Gomhoria St', phone: '01000000010', crew: 'Sayed + van 2', note: null,
+          fee: 350, fee_paid: 0 },
         { id: 2, kind: 'install', status: 'failed', scheduled_date: '2026-08-02', slot: 'evening',
           customer_name: 'Nile Furnishings', sale_id: null, sale_total: null, sale_paid: null,
-          address: null, phone: null, crew: null, note: 'Lift too small' },
+          address: null, phone: null, crew: null, note: 'Lift too small', fee: 0, fee_paid: 0 },
+        // Fee charged and settled, invoice settled: the "cleared to go" wording.
         { id: 3, kind: 'install', status: 'out', scheduled_date: '2030-01-01', slot: null,
           customer_name: null, sale_id: null, sale_total: null, sale_paid: null,
-          address: null, phone: null, crew: null, note: null },
-      ],
+          address: null, phone: null, crew: null, note: null, fee: 200, fee_paid: 200 },
+    ];
+    return {
+      __file: 'furniture_admin/delivery.ejs', tab: 'delivery',
+      view: 'open', today: D.today(), policy,
+      tally: { open: 3, today: 1, late: 1, fees_due: 350 },
+      jobs,
+      // Built by the same engine the route uses, so the fixture cannot drift
+      // from the rule it is there to exercise.
+      dispatch: Object.fromEntries(jobs.map((j) => [j.id, D.dispatchCheck(j, policy)])),
       sales: [{ id: 1, sale_date: '2026-07-20', total: 51300, customer_name: 'Mohamed A.' }],
       customers: [{ id: 1, name: 'Mohamed A.' }],
-      err: 'no_customer', saved: false,
+      err: 'unpaid', saved: false,
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },
@@ -482,7 +492,7 @@ const FIXTURES = {
       from: '2026-08-01', to: '2026-08-31',
       // A negative difference too, so the loss styling and wording render.
       period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250,
-        returned: 4000, refunded: 1500, netInvoiced: 47300, difference: -1000 },
+        returned: 4000, refunded: 1500, fees: 350, feesPaid: 0, netInvoiced: 47650, difference: -1000 },
       cash: { in: 12000, out: 11650, balance: 350 },
       stock: { value: 41200, lowCount: 1, low: [{ name: 'Oak 18mm', unit: 'metre', qty: 4, min_qty: 10 }] },
       customers: [{ id: 1, name: 'Mohamed A.', invoiced: 51300, paid: 10000, balance: 41300 }],
