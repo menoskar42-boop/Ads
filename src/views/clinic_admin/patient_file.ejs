@@ -58,7 +58,12 @@
         </select>
         <div id="rx-rows" class="grid gap-2">
           <div class="grid grid-cols-2 gap-2">
-            <input name="med_name" placeholder="الدواء" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />
+            <div class="col-span-2 relative">
+              <input name="med_name" placeholder="الدواء — اكتب حرفين للبحث" autocomplete="off"
+                     oninput="medLookup(this)" onblur="medHide(this)"
+                     class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+              <div class="med-sug hidden absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto"></div>
+            </div>
             <input name="med_dose" placeholder="الجرعة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
             <input name="med_freq" placeholder="التكرار" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
             <input name="med_duration" placeholder="المدة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />
@@ -172,11 +177,59 @@ function addRxRow(){
   var wrap = document.getElementById('rx-rows');
   var div = document.createElement('div');
   div.className = 'grid grid-cols-2 gap-2 border-t border-slate-100 pt-2';
-  div.innerHTML = '<input name="med_name" placeholder="الدواء" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />'
+  div.innerHTML = '<div class="col-span-2 relative">'
+    +   '<input name="med_name" placeholder="الدواء — اكتب حرفين للبحث" autocomplete="off"'
+    +   ' oninput="medLookup(this)" onblur="medHide(this)"'
+    +   ' class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />'
+    +   '<div class="med-sug hidden absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto"></div>'
+    + '</div>'
     + '<input name="med_dose" placeholder="الجرعة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />'
     + '<input name="med_freq" placeholder="التكرار" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />'
     + '<input name="med_duration" placeholder="المدة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />';
   wrap.appendChild(div);
+}
+
+/* Medicine lookup against the shared Egyptian catalogue.
+   Deliberately non-blocking: the field stays a normal text input, so a drug
+   that is not in the catalogue can still be written by hand. Suggestions
+   assist, they never gate. */
+var medTimer = null, medSeq = 0;
+function medBox(input){ return input.parentNode.querySelector('.med-sug'); }
+function medHide(input){ setTimeout(function(){ medBox(input).classList.add('hidden'); }, 150); }
+
+function medLookup(input){
+  var box = medBox(input);
+  var q = input.value.trim();
+  clearTimeout(medTimer);
+  if (q.length < 2) { box.classList.add('hidden'); return; }
+  // Debounced so typing a drug name is one request, not one per keystroke.
+  medTimer = setTimeout(function(){
+    var seq = ++medSeq;
+    fetch('/clinic/api/medicines?q=' + encodeURIComponent(q))
+      .then(function(r){ return r.json(); })
+      .then(function(rows){
+        if (seq !== medSeq) return;            // a newer query already answered
+        if (!rows.length) { box.classList.add('hidden'); return; }
+        box.innerHTML = '';
+        rows.forEach(function(m){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'w-full text-right px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0';
+          var sub = [m.form, m.manufacturer].filter(Boolean).join(' · ');
+          b.innerHTML = '<div class="font-semibold text-slate-800">' + (m.name_ar || m.name_en) + '</div>'
+            + (sub ? '<div class="text-xs text-slate-400">' + sub + '</div>' : '');
+          b.onclick = function(){
+            input.value = m.name_ar || m.name_en;
+            box.classList.add('hidden');
+            var dose = input.parentNode.parentNode.querySelector('[name=med_dose]');
+            if (dose) dose.focus();
+          };
+          box.appendChild(b);
+        });
+        box.classList.remove('hidden');
+      })
+      .catch(function(){ box.classList.add('hidden'); });
+  }, 220);
 }
 </script>
 

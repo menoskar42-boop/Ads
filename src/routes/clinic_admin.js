@@ -906,6 +906,36 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Medicine lookup for prescriptions ────────────────────────────────────────
+// The platform already imports the full Egyptian drug catalogue (~25k rows,
+// refreshed daily) for the pharmacy side, but the clinic's prescription form
+// was free typing — so the same drug got written five ways and nothing could be
+// matched later. This exposes that existing catalogue to the doctor as a lookup.
+// No new data, no per-clinic table: one shared, already-maintained source.
+router.get('/api/medicines', async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 60);
+  if (q.length < 2) return res.json([]);
+  try {
+    const r = await pool.query(
+      `SELECT name_ar, name_en, form, unit, manufacturer
+         FROM medicines
+        WHERE is_active AND (name_ar ILIKE $1 OR name_en ILIKE $1)
+        ORDER BY
+          -- Prefix matches first: a doctor typing "أوجم" wants أوجمنتين at the
+          -- top, not a drug that merely contains those letters mid-word.
+          (CASE WHEN name_ar ILIKE $2 OR name_en ILIKE $2 THEN 0 ELSE 1 END),
+          length(name_ar)
+        LIMIT 12`,
+      ['%' + q + '%', q + '%']
+    );
+    res.json(r.rows);
+  } catch (e) {
+    // The catalogue is optional infrastructure — if it is missing or the import
+    // has not run, the doctor should just keep typing freely, not see an error.
+    res.json([]);
+  }
+});
+
 // ── Module: Home visits ──────────────────────────────────────────────────────
 const HV_STATUSES = [
   { key: 'requested', label: 'طلب جديد' },
