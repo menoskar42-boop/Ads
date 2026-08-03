@@ -1,4 +1,4 @@
-<%- include('head', { title: 'الأسنان', tab: 'dental' }) %>
+<%- include('head', { title: t('clinic.mod.dental'), tab: 'dental' }) %>
 <%
   function money(v){ return Number(v||0).toLocaleString(LOC); }
   function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return '—'; } }
@@ -9,24 +9,29 @@
     delivered: 'bg-emerald-100 text-emerald-800',
     redo:      'bg-red-100 text-red-800'
   };
-  var SLABEL = {}; labStatuses.forEach(function(s){ SLABEL[s.key] = s.label; });
+  // Stored key -> label in the current language, falling back to the label the
+  // route ships and then to the raw stored value, so rows written before the
+  // keys existed still read correctly.
+  function lbl(prefix, key, fallback){ var k = prefix + key, tr = t(k); return (tr && tr !== k) ? tr : (fallback || key); }
+  var SLABEL = {}; labStatuses.forEach(function(s){ SLABEL[s.key] = lbl('lab.st.', s.key, s.label); });
+  var WLABEL = {}; workTypes.forEach(function(w){ WLABEL[w.key] = lbl('lab.wt.', w.key, w.label); });
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">🦷 الأسنان</h1>
-<p class="text-slate-500 mb-6">طلبات المعمل وخطط العلاج — وخريطة أسنان لكل مريض</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1">🦷 <%= t('clinic.mod.dental') %></h1>
+<p class="text-slate-500 mb-6"><%= t('dn.sub') %></p>
 
 <% if (late.length) { %>
 <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
-  ⚠️ فيه <strong><%= late.length %></strong> طلب معمل عدّى موعد تسليمه ولسه ما وصلش:
-  <%= late.slice(0,4).map(function(o){ return (o.patient_name||'—') + ' (' + o.work_type + ')'; }).join('، ') %><%= late.length > 4 ? '…' : '' %>
+  ⚠️ <%= t('dn.late_pre') %> <strong><%= late.length %></strong> <%= t('dn.late_post') %>
+  <%= late.slice(0,4).map(function(o){ return (o.patient_name||'—') + ' (' + (WLABEL[o.work_type] || o.work_type) + ')'; }).join(t('common.list_sep')) %><%= late.length > 4 ? '…' : '' %>
 </div>
 <% } %>
 
 <!-- ── فتح خريطة أسنان مريض ─────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-  <h2 class="font-bold text-slate-800 mb-3">خريطة أسنان مريض</h2>
+  <h2 class="font-bold text-slate-800 mb-3"><%= t('dn.map_title') %></h2>
   <% if (!patients.length) { %>
-    <p class="text-sm text-slate-500">مفيش مرضى مسجّلين لسه — ضيف مريض من صفحة المرضى الأول.</p>
+    <p class="text-sm text-slate-500"><%= t('dn.no_patients') %></p>
   <% } else { %>
   <form onsubmit="var v=document.getElementById('dpat').value; if(v){location.href='/clinic/dental/patient/'+v;} return false;"
         class="flex flex-wrap gap-2 items-center">
@@ -35,87 +40,87 @@
         <option value="<%= p.id %>"><%= p.name %><%= p.phone ? ' — ' + p.phone : '' %></option>
       <% }); %>
     </select>
-    <button class="bg-slate-900 text-white text-sm font-bold px-5 py-2 rounded-xl hover:bg-slate-800">افتح الخريطة</button>
+    <button class="bg-slate-900 text-white text-sm font-bold px-5 py-2 rounded-xl hover:bg-slate-800"><%= t('dn.map_open') %></button>
   </form>
   <% } %>
 </div>
 
 <!-- ── طلب معمل جديد ────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-  <h2 class="font-bold text-slate-800 mb-3">طلب معمل جديد</h2>
+  <h2 class="font-bold text-slate-800 mb-3"><%= t('dn.new_order') %></h2>
   <form method="post" action="/clinic/dental/lab" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">المريض</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('tb.patient') %></label>
       <select name="patient_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-        <option value="">— بدون —</option>
+        <option value=""><%= t('dn.none') %></option>
         <% patients.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }); %>
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الطبيب</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.doctor') %></label>
       <select name="doctor_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-        <option value="">— بدون —</option>
+        <option value=""><%= t('dn.none') %></option>
         <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">نوع الشغل *</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dn.work_type') %></label>
       <select name="work_type" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-        <% workTypes.forEach(function(w){ %><option value="<%= w %>"><%= w %></option><% }); %>
+        <% workTypes.forEach(function(w){ %><option value="<%= w.key %>"><%= WLABEL[w.key] %></option><% }); %>
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">المعمل</label>
-      <input name="lab_name" maxlength="120" placeholder="اسم المعمل" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('tb.lab') %></label>
+      <input name="lab_name" maxlength="120" placeholder="<%= t('dn.lab_name') %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">أرقام الأسنان</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dn.tooth_numbers') %></label>
       <input name="tooth_numbers" maxlength="100" dir="ltr" placeholder="11,12,21" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">درجة اللون</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dn.shade') %></label>
       <input name="shade" maxlength="20" dir="ltr" placeholder="A2" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">تاريخ الإرسال</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dn.sent_at') %></label>
       <input type="date" name="sent_at" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">موعد التسليم</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('dn.due_at') %></label>
       <input type="date" name="due_at" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">التكلفة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('tb.cost') %></label>
       <input type="number" name="cost" min="0" step="0.01" placeholder="0" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div class="sm:col-span-2">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">ملاحظات</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('common.notes') %></label>
       <input name="note" maxlength="500" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div class="flex items-end">
-      <button class="w-full bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-emerald-700">إضافة الطلب</button>
+      <button class="w-full bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-emerald-700"><%= t('dn.add_order') %></button>
     </div>
   </form>
 </div>
 
 <!-- ── طلبات المعمل ─────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">طلبات المعمل</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('dn.orders') %></div>
   <% if (!orders.length) { %>
-    <p class="px-5 py-6 text-sm text-slate-500">مفيش طلبات لسه.</p>
+    <p class="px-5 py-6 text-sm text-slate-500"><%= t('dn.orders_empty') %></p>
   <% } else { %>
   <div class="overflow-x-auto">
     <table class="w-full text-sm rt">
       <thead class="bg-slate-50 text-slate-600">
         <tr>
-          <th class="text-right px-4 py-2 font-semibold">المريض</th>
-          <th class="text-right px-4 py-2 font-semibold">الشغل</th>
-          <th class="text-right px-4 py-2 font-semibold">الأسنان</th>
-          <th class="text-right px-4 py-2 font-semibold">اللون</th>
-          <th class="text-right px-4 py-2 font-semibold">المعمل</th>
-          <th class="text-right px-4 py-2 font-semibold">التسليم</th>
-          <th class="text-right px-4 py-2 font-semibold">التكلفة</th>
-          <th class="text-right px-4 py-2 font-semibold">الحالة</th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.patient') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.work') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('dn.tooth_numbers') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.shade') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.lab') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.delivery') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.cost') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('common.status') %></th>
           <th class="px-4 py-2"></th>
         </tr>
       </thead>
@@ -130,8 +135,8 @@
               <a href="/clinic/dental/patient/<%= o.patient_id %>" class="text-indigo-600 hover:underline"><%= o.patient_name || '—' %></a>
             <% } else { %><span class="text-slate-400">—</span><% } %>
           </td>
-          <td class="px-4 py-2" data-l="<%= t('tb.work') %>"><%= o.work_type %></td>
-          <td class="px-4 py-2" dir="ltr" data-l="<%= t('clinic.mod.dental') %>"><%= o.tooth_numbers || '—' %></td>
+          <td class="px-4 py-2" data-l="<%= t('tb.work') %>"><%= WLABEL[o.work_type] || o.work_type %></td>
+          <td class="px-4 py-2" dir="ltr" data-l="<%= t('dn.tooth_numbers') %>"><%= o.tooth_numbers || '—' %></td>
           <td class="px-4 py-2" dir="ltr" data-l="<%= t('tb.shade') %>"><%= o.shade || '—' %></td>
           <td class="px-4 py-2 text-slate-600" data-l="<%= t('tb.lab') %>"><%= o.lab_name || '—' %></td>
           <td class="px-4 py-2 <%= overdue ? 'text-red-700 font-bold' : 'text-slate-600' %>" data-l="<%= t('tb.delivery') %>">
@@ -148,13 +153,13 @@
               <form method="post" action="/clinic/dental/lab/<%= o.id %>/status" class="flex items-center gap-1">
                 <select name="status" onchange="this.form.submit()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
                   <% labStatuses.forEach(function(s){ %>
-                    <option value="<%= s.key %>" <%= o.status === s.key ? 'selected' : '' %>><%= s.label %></option>
+                    <option value="<%= s.key %>" <%= o.status === s.key ? 'selected' : '' %>><%= SLABEL[s.key] %></option>
                   <% }); %>
                 </select>
               </form>
               <form method="post" action="/clinic/dental/lab/<%= o.id %>/delete"
                     onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
-                <button class="text-red-500 hover:text-red-700 text-xs px-2">حذف</button>
+                <button class="text-red-500 hover:text-red-700 text-xs px-2"><%= t('hv.delete') %></button>
               </form>
             </div>
           </td>
@@ -168,17 +173,17 @@
 
 <!-- ── خطط علاج جارية ───────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">خطط علاج جارية</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('dn.plans') %></div>
   <% if (!planned.length) { %>
-    <p class="px-5 py-6 text-sm text-slate-500">مفيش خطط علاج مفتوحة.</p>
+    <p class="px-5 py-6 text-sm text-slate-500"><%= t('dn.plans_empty') %></p>
   <% } else { %>
   <div class="divide-y divide-slate-100">
     <% planned.forEach(function(p){ %>
     <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
       <a href="/clinic/dental/patient/<%= p.patient_id %>" class="font-semibold text-indigo-600 hover:underline"><%= p.patient_name %></a>
       <span class="text-slate-700"><%= p.procedure %></span>
-      <% if (p.tooth) { %><span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" dir="ltr">سن <%= p.tooth %></span><% } %>
-      <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">مرحلة <%= p.phase %></span>
+      <% if (p.tooth) { %><span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full"><%= t('dn.tooth') %> <span dir="ltr"><%= p.tooth %></span></span><% } %>
+      <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"><%= t('dn.phase') %> <%= p.phase %></span>
       <span class="text-slate-500 ms-auto"><%= money(p.cost) %> <%= t('cur.egp') %></span>
     </div>
     <% }); %>

@@ -1816,7 +1816,20 @@ const TOOTH_STATUSES = [
 ];
 const STATUS_KEYS = new Set(TOOTH_STATUSES.map((s) => s.key));
 
-const LAB_WORK_TYPES = ['تاج (Crown)', 'جسر (Bridge)', 'فينير (Veneer)', 'طقم كامل', 'طقم جزئي', 'مثبت (Retainer)', 'حشو معملي (Inlay/Onlay)', 'أخرى'];
+// Work types are stored by key so the same order reads correctly in Arabic and
+// in English. Rows written before this (which hold the Arabic label as free
+// text) still display: the view falls back to the stored string when the key
+// is unknown.
+const LAB_WORK_TYPES = [
+  { key: 'crown',           label: 'تاج (Crown)' },
+  { key: 'bridge',          label: 'جسر (Bridge)' },
+  { key: 'veneer',          label: 'فينير (Veneer)' },
+  { key: 'full_denture',    label: 'طقم كامل' },
+  { key: 'partial_denture', label: 'طقم جزئي' },
+  { key: 'retainer',        label: 'مثبت (Retainer)' },
+  { key: 'inlay_onlay',     label: 'حشو معملي (Inlay/Onlay)' },
+  { key: 'other',           label: 'أخرى' },
+];
 const LAB_STATUSES = [
   { key: 'sent',      label: 'اتبعت للمعمل' },
   { key: 'in_lab',    label: 'تحت التنفيذ' },
