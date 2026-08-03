@@ -275,8 +275,18 @@ router.get('/companies/:id/modules', requireAdmin, async (req, res) => {
     const enabled = new Set(
       (await pool.query('SELECT module_key FROM clinic_modules WHERE company_id=$1 AND enabled=true', [c.id])).rows.map((r) => r.module_key)
     );
+    // The clinic's specialty hides clinical modules that do not belong to it,
+    // so ticking one here would save a row the clinic never sees. Pass the
+    // specialty through and let the page say which ones those are, rather than
+    // leaving support to wonder why a switch did nothing.
+    const spec = (await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [c.id])).rows[0] || {};
+    const specialty = spec.specialty || '';
+    const { fitsSpecialty } = require('../clinic/modules');
     res.render('admin/companies/modules', {
       session: adminSession(req), company: c, modules: MODULES, enabled, activePage: 'dashboard',
+      specialty,
+      specialtyLabel: specialty ? require('../clinic/specialties').labelFor(specialty) : null,
+      fits: (m) => fitsSpecialty(m, specialty),
       saved: req.query.saved === '1',
     });
   } catch (err) { console.error('[admin modules]', err); res.redirect('/admin/dashboard'); }

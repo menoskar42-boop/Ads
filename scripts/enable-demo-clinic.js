@@ -68,7 +68,16 @@ async function main() {
         [c.id, key]
       );
     }
-    console.log(`  → ${MODULE_KEYS.length} modules on`);
+    // Enabling every module is not the same as the clinic seeing every module:
+    // a clinical module outside the chosen specialty stays hidden. Say which
+    // ones, so a tester counting tabs is not left hunting for a bug.
+    const { modulesForSpecialty } = require('../src/clinic/modules');
+    const visible = modulesForSpecialty(specialty).map((m) => m.key);
+    const hidden = MODULE_KEYS.filter((k) => !visible.includes(k));
+    console.log(`  → ${MODULE_KEYS.length} modules on, ${visible.length} visible for "${specialty}"`);
+    if (hidden.length) {
+      console.log(`  → hidden by specialty (enabled but not shown): ${hidden.join(', ')}`);
+    }
 
     for (const a of ADDONS) {
       await pool.query(

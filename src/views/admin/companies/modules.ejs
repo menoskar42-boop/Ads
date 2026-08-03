@@ -11,16 +11,30 @@
     </div>
     <p class="text-gray-500 text-sm mb-5"><strong><%= company.company_name %></strong> — فعّل الوحدات المتاحة لهذه العيادة فقط.</p>
 
+    <%# The clinic's specialty hides clinical modules that do not belong to it.
+        Say so here, otherwise ticking one looks like it worked and nothing
+        appears on the clinic's side. %>
+    <% if (specialtyLabel) { %>
+    <p class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 mb-4">
+      تخصص العيادة: <strong class="text-gray-700"><%= specialtyLabel %></strong> —
+      الوحدات الإكلينيكية اللي مش بتخصّه مش هتظهر للعيادة حتى لو اتفعّلت من هنا.
+    </p>
+    <% } %>
+
     <% if (saved) { %>
     <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">تم حفظ إعدادات الوحدات ✅</div>
     <% } %>
 
     <form method="POST" action="/admin/companies/<%= company.id %>/modules" class="space-y-3">
-      <% modules.forEach(function(m){ %>
-      <label class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-50">
-        <span class="text-2xl"><%= m.icon %></span>
+      <% modules.forEach(function(m){ var ok = typeof fits === 'function' ? fits(m) : true; %>
+      <label class="flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer hover:bg-gray-50
+                    <%= ok ? 'border-gray-200' : 'border-amber-200 bg-amber-50/40' %>">
+        <span class="text-2xl <%= ok ? '' : 'opacity-40' %>"><%= m.icon %></span>
         <span class="flex-1">
-          <span class="block font-bold text-gray-800 text-sm"><%= m.label %></span>
+          <span class="block font-bold text-gray-800 text-sm">
+            <%= m.label %>
+            <% if (!ok) { %><span class="text-[10px] font-semibold bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 ms-1">مش ضمن تخصص العيادة</span><% } %>
+          </span>
           <span class="block text-xs text-gray-400"><%= m.desc %></span>
         </span>
         <input type="checkbox" name="mod_<%= m.key %>" value="1" <%= enabled.has(m.key) ? 'checked' : '' %>
