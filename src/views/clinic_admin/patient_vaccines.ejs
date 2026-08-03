@@ -1,6 +1,6 @@
 <%- include('head', { title: 'التطعيمات', tab: 'patients' }) %>
 <%
-  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
   function ageLabel(m){
     if (m == null) return '';
     if (m < 24) return m + ' شهر';
@@ -89,17 +89,17 @@
       <tbody class="divide-y divide-slate-100">
         <% card.forEach(function(r){ %>
         <tr class="<%= r.status === 'overdue' ? 'bg-red-50/40' : (r.status === 'due' ? 'bg-amber-50/40' : '') %>">
-          <td class="px-4 py-2 font-semibold text-slate-800" data-l="التطعيم"><%= r.name %></td>
-          <td class="px-4 py-2 text-slate-500" data-l="الجرعة"><%= r.dose_label || '—' %></td>
-          <td class="px-4 py-2 text-slate-500" data-l="السن"><%= ageAt(r.age_months) %></td>
-          <td class="px-4 py-2 text-slate-600" data-l="الميعاد"><%= r.status === 'given' ? fmtD(r.given_at) : fmtD(r.due_on) %></td>
-          <td class="px-4 py-2" data-l="الحالة">
+          <td class="px-4 py-2 font-semibold text-slate-800" data-l="<%= t('tb.vaccine') %>"><%= r.name %></td>
+          <td class="px-4 py-2 text-slate-500" data-l="<%= t('tb.dose') %>"><%= r.dose_label || '—' %></td>
+          <td class="px-4 py-2 text-slate-500" data-l="<%= t('tb.age') %>"><%= ageAt(r.age_months) %></td>
+          <td class="px-4 py-2 text-slate-600" data-l="<%= t('tb.due') %>"><%= r.status === 'given' ? fmtD(r.given_at) : fmtD(r.due_on) %></td>
+          <td class="px-4 py-2" data-l="<%= t('common.status') %>">
             <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SB[r.status] %>"><%= SL[r.status] %></span>
           </td>
           <td class="px-4 py-2 text-left">
             <% if (r.status === 'given') { %>
               <form method="post" action="/clinic/patients/<%= patient.id %>/vaccines/<%= r.given_id %>/delete"
-                    onsubmit="return confirm('إلغاء تسجيل التطعيم؟')">
+                    onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
                 <button class="text-red-500 hover:text-red-700 text-xs">تراجع</button>
               </form>
             <% } else { %>

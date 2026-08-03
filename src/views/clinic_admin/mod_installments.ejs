@@ -1,7 +1,7 @@
 <%- include('head', { title: 'التقسيط', tab: 'installments' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG', {minimumFractionDigits:0, maximumFractionDigits:2}); }
-  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function money(v){ return Number(v||0).toLocaleString(LOC, {minimumFractionDigits:0, maximumFractionDigits:2}); }
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
   function iso(t){ try { return new Date(t).toISOString().slice(0,10); } catch(e){ return ''; } }
 %>
 
@@ -13,7 +13,7 @@
 <% if (overdue.length) { %>
 <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
   ⚠️ فيه <strong><%= overdue.length %></strong> قسط متأخر —
-  إجمالي <strong><%= money(overdue.reduce(function(s,d){return s+Number(d.amount);},0)) %></strong> ج
+  إجمالي <strong><%= money(overdue.reduce(function(s,d){return s+Number(d.amount);},0)) %></strong> <%= t('cur.egp') %>
 </div>
 <% } %>
 
@@ -30,7 +30,7 @@
         <% invoices.forEach(function(inv){
              var bal = Number(inv.total_amount) - Number(inv.paid_amount); %>
           <option value="<%= inv.id %>">
-            #<%= inv.id %> — <%= inv.patient_name || 'بدون اسم' %> — متبقّي <%= money(bal) %> ج
+            #<%= inv.id %> — <%= inv.patient_name || 'بدون اسم' %> — متبقّي <%= money(bal) %> <%= t('cur.egp') %>
           </option>
         <% }); %>
       </select>
@@ -84,7 +84,7 @@
       <span class="<%= isLate ? 'text-red-700 font-bold' : 'text-slate-600' %>">
         <%= fmtD(d.due_date) %><%= isLate ? ' (متأخر)' : '' %>
       </span>
-      <span class="font-bold text-slate-900 ms-auto"><%= money(d.amount) %> ج</span>
+      <span class="font-bold text-slate-900 ms-auto"><%= money(d.amount) %> <%= t('cur.egp') %></span>
       <form method="post" action="/clinic/installments/<%= d.id %>/pay" class="flex items-center gap-1">
         <input type="number" name="amount" value="<%= d.amount %>" step="0.01" min="0"
                class="w-24 border border-slate-200 rounded-lg px-2 py-1 text-xs" />
@@ -127,9 +127,9 @@
              var lateNext = p.next_due && iso(p.next_due) < today;
         %>
         <tr class="<%= done ? 'opacity-60' : '' %>">
-          <td class="px-4 py-2 font-semibold text-slate-800" data-l="المريض"><%= p.patient_name || '—' %></td>
-          <td class="px-4 py-2 text-slate-500" data-l="فاتورة">#<%= p.invoice_id %></td>
-          <td class="px-4 py-2" data-l="التقدّم">
+          <td class="px-4 py-2 font-semibold text-slate-800" data-l="<%= t('tb.patient') %>"><%= p.patient_name || '—' %></td>
+          <td class="px-4 py-2 text-slate-500" data-l="<%= t('tb.invoice') %>">#<%= p.invoice_id %></td>
+          <td class="px-4 py-2" data-l="<%= t('tb.progress') %>">
             <div class="flex items-center gap-2">
               <div class="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div class="h-full <%= done ? 'bg-emerald-500' : 'bg-amber-400' %>" style="width: <%= pct %>%"></div>
@@ -137,16 +137,16 @@
               <span class="text-xs text-slate-500"><%= p.n_paid %>/<%= p.n %></span>
             </div>
           </td>
-          <td class="px-4 py-2" data-l="الإجمالي"><%= money(p.total) %> ج</td>
-          <td class="px-4 py-2 text-emerald-700" data-l="المحصّل"><%= money(p.paid) %> ج</td>
-          <td class="px-4 py-2 <%= lateNext ? 'text-red-700 font-bold' : 'text-slate-600' %>" data-l="القسط الجاي">
+          <td class="px-4 py-2" data-l="<%= t('public.total') %>"><%= money(p.total) %> <%= t('cur.egp') %></td>
+          <td class="px-4 py-2 text-emerald-700" data-l="<%= t('tb.collected') %>"><%= money(p.paid) %> <%= t('cur.egp') %></td>
+          <td class="px-4 py-2 <%= lateNext ? 'text-red-700 font-bold' : 'text-slate-600' %>" data-l="<%= t('tb.next_due') %>">
             <% if (done) { %><span class="text-emerald-700 font-semibold">مكتملة ✅</span>
             <% } else { %><%= fmtD(p.next_due) %><%= lateNext ? ' ⚠️' : '' %><% } %>
           </td>
           <td class="px-4 py-2 text-left">
             <% if (p.n_paid === 0) { %>
               <form method="post" action="/clinic/installments/plan/<%= p.invoice_id %>/delete"
-                    onsubmit="return confirm('إلغاء خطة التقسيط دي؟')">
+                    onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
                 <button class="text-red-500 hover:text-red-700 text-xs">إلغاء الخطة</button>
               </form>
             <% } else { %>

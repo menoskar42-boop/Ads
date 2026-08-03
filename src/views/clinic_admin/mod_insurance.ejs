@@ -1,6 +1,6 @@
 <%- include('head', { title: 'التأمين', tab: 'insurance' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG'); }
+  function money(v){ return Number(v||0).toLocaleString(LOC); }
   var STLABEL = { pending:'قيد المراجعة', approved:'معتمدة', paid:'مدفوعة', rejected:'مرفوضة' };
   var STCLS = { pending:'bg-amber-100 text-amber-700', approved:'bg-blue-100 text-blue-700', paid:'bg-emerald-100 text-emerald-700', rejected:'bg-red-100 text-red-600' };
 %>
@@ -28,7 +28,7 @@
       <% insurers.forEach(function(x){ %>
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1"><div class="font-bold text-slate-900"><%= x.name %></div><div class="text-xs text-slate-500">تغطية <%= Number(x.coverage_pct) %>٪<%= x.phone?(' · '+x.phone):'' %></div></div>
-        <form method="post" action="/clinic/insurance/insurers/<%= x.id %>/delete" onsubmit="return confirm('حذف الشركة؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/insurance/insurers/<%= x.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
       </div>
       <% }); %>
     </div>
@@ -52,7 +52,7 @@
       <% claims.forEach(function(c){ %>
       <div class="p-4 border-b border-slate-100 last:border-0">
         <div class="flex items-center gap-2">
-          <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 text-sm"><%= c.patient_name||'—' %> <span class="text-slate-400 font-normal"><%= c.insurer_name||'' %></span></div><div class="text-xs text-slate-500"><%= money(c.amount) %> ج</div></div>
+          <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 text-sm"><%= c.patient_name||'—' %> <span class="text-slate-400 font-normal"><%= c.insurer_name||'' %></span></div><div class="text-xs text-slate-500"><%= money(c.amount) %> <%= t('cur.egp') %></div></div>
           <span class="text-xs rounded-full px-2.5 py-1 font-bold <%= STCLS[c.status] %>"><%= STLABEL[c.status] %></span>
         </div>
         <form method="post" action="/clinic/insurance/claims/<%= c.id %>/status" class="flex gap-1 mt-2">

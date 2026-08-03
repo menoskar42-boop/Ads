@@ -1,6 +1,6 @@
 <%- include('head', { title: 'خريطة اللثة', tab: 'dental' }) %>
 <%
-  function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return ''; } }
+  function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var cur = (current && current.data) || {};
   // Six sites per tooth in the order they are probed: buccal mesial→distal,
   // then lingual mesial→distal.

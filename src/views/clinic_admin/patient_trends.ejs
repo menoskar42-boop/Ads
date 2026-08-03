@@ -1,6 +1,6 @@
 <%- include('head', { title: 'مؤشرات المريض', tab: 'patients' }) %>
 <%
-  function fmtD(t){ try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+  function fmtD(t){ try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var VBADGE = { better:'bg-emerald-100 text-emerald-800', worse:'bg-red-100 text-red-700', flat:'bg-slate-100 text-slate-600' };
   var VLABEL = { better:'تحسّن', worse:'تراجع', flat:'زي ما هو' };
 %>
@@ -27,11 +27,11 @@
     </div>
     <div>
       <div class="text-xs text-slate-500 mb-1">موعد الولادة المتوقّع</div>
-      <div class="text-lg font-extrabold text-slate-900"><%= new Date(pregnancy.edd).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %></div>
+      <div class="text-lg font-extrabold text-slate-900"><%= new Date(pregnancy.edd).toLocaleDateString(LOC,{year:'numeric',month:'long',day:'numeric'}) %></div>
     </div>
     <div>
       <div class="text-xs text-slate-500 mb-1">آخر دورة</div>
-      <div class="text-lg font-semibold text-slate-700"><%= new Date(pregnancy.lmp).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %></div>
+      <div class="text-lg font-semibold text-slate-700"><%= new Date(pregnancy.lmp).toLocaleDateString(LOC,{year:'numeric',month:'long',day:'numeric'}) %></div>
     </div>
   </div>
   <div class="mt-4">

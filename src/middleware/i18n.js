@@ -44,6 +44,12 @@ module.exports = function i18nMiddleware(req, res, next) {
 
   res.locals.lang = lang;
   res.locals.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  // Locale for toLocaleString/toLocaleDateString. Numbers and dates have to
+  // follow the chosen language too — an English page showing ٥٠٠ ج and
+  // «الاثنين ٣ أغسطس» is still an Arabic page. It lives here rather than in a
+  // template because EJS compiles each include separately, so a `var` in the
+  // header partial is not visible to the page that includes it.
+  res.locals.LOC = lang === 'en' ? 'en-GB' : 'ar-EG';
   res.locals.t = (key) => t(key, lang);
   res.locals.pickContent = (row, field, companyContentI18n) =>
     pickContent(row, field, lang, companyContentI18n);

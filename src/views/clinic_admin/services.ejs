@@ -26,9 +26,9 @@
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1">
           <div class="font-bold text-slate-900 <%= s.is_active?'':'opacity-50 line-through' %>"><%= s.name %></div>
-          <div class="text-xs text-slate-500"><%= Number(s.price).toLocaleString('ar-EG') %> ج · نسبة الطبيب <%= Number(s.doctor_pct) %>٪</div>
+          <div class="text-xs text-slate-500"><%= Number(s.price).toLocaleString(LOC) %> <%= t('cur.egp') %> · نسبة الطبيب <%= Number(s.doctor_pct) %>٪</div>
         </div>
-        <form method="post" action="/clinic/services/<%= s.id %>/delete" onsubmit="return confirm('حذف الخدمة؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/services/<%= s.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
       </div>
       <% }); } %>
     </div>
@@ -55,9 +55,9 @@
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1">
           <div class="font-bold text-slate-900"><%= t.name %></div>
-          <div class="text-xs text-slate-500"><%= Number(t.price).toLocaleString('ar-EG') %> ج · <%= t.duration_min %> دقيقة</div>
+          <div class="text-xs text-slate-500"><%= Number(t.price).toLocaleString(LOC) %> <%= t('cur.egp') %> · <%= t.duration_min %> دقيقة</div>
         </div>
-        <form method="post" action="/clinic/visit-types/<%= t.id %>/delete" onsubmit="return confirm('حذف نوع الزيارة؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/visit-types/<%= t.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
       </div>
       <% }); } %>
     </div>

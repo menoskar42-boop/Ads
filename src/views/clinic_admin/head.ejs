@@ -20,7 +20,7 @@
   /* ── Wide tables become cards on a phone ──────────────────────────────────
      Horizontal scrolling inside a page is the worst pattern on mobile: the
      columns that matter are off-screen and the gesture fights page scroll.
-     Add class="rt" to a <table> and give each <td> a data-l="العنوان"; below
+     Add class="rt" to a <table> and give each <td> a data-l="<%= t('common.address') %>"; below
      640px each row stacks into a labelled card and nothing is hidden. */
   @media (max-width: 639px) {
     table.rt, table.rt tbody, table.rt tr, table.rt td { display: block; width: 100%; }

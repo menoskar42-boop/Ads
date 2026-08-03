@@ -1,7 +1,7 @@
 <%- include('head', { title: 'ملف ' + patient.name, tab: 'patients' }) %>
 <%
-  function fmtDate(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
-  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString('ar-EG',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtDate(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString(LOC,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   var STLABEL = { waiting:'في الانتظار', in_room:'في الكشف', done:'تمّت', cancelled:'ملغى' };
 %>
 

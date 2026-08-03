@@ -1,6 +1,6 @@
 <%- include('head', { title: t('clinic.page.queue'), tab: 'queue' }) %>
 <%
-  function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   var STLABEL = { waiting:'في الانتظار', in_room:'في الكشف', done:'تمّت', cancelled:'ملغى' };
   var STCLS = { waiting:'bg-amber-100 text-amber-700', in_room:'bg-blue-100 text-blue-700', done:'bg-emerald-100 text-emerald-700', cancelled:'bg-slate-100 text-slate-500' };
   var waiting = visits.filter(function(v){return v.status==='waiting';}).length;
@@ -52,7 +52,7 @@
 
   <div class="lg:col-span-2">
     <% if (!visits.length) { %>
-      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('q.empty') %> <%= date ? 'في هذا اليوم' : 'اليوم' %>.</div>
+      <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('q.empty') %> <%= date ? t('q.on_day') : t('q.on_today') %>.</div>
     <% } else { %>
     <div class="space-y-2.5">
       <% visits.forEach(function(v, i){ %>

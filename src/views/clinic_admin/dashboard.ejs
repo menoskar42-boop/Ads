@@ -13,7 +13,7 @@
     <div class="text-sm text-slate-500 mt-1">حجوزات بانتظار التأكيد</div>
   </a>
   <a href="/clinic/finance" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
-    <div class="text-3xl font-black text-emerald-600"><%= stats.revenue.toLocaleString('ar-EG') %></div>
+    <div class="text-3xl font-black text-emerald-600"><%= stats.revenue.toLocaleString(LOC) %></div>
     <div class="text-sm text-slate-500 mt-1">تحصيل اليوم (ج)</div>
   </a>
   <a href="/clinic/doctors" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
@@ -46,7 +46,7 @@
     <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center">🗓️</div>
     <div class="min-w-0 flex-1">
       <div class="font-bold text-slate-900 truncate"><%= a.patient_name %> <span class="text-slate-400 font-normal text-sm" dir="ltr"><%= a.patient_phone %></span></div>
-      <div class="text-xs text-slate-500"><%= a.doctor_name || 'بدون طبيب محدد' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '' %></div>
+      <div class="text-xs text-slate-500"><%= a.doctor_name || 'بدون طبيب محدد' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString(LOC)) : '' %></div>
     </div>
     <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status==='confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>"><%= a.status==='confirmed' ? 'مؤكّد' : 'بانتظار' %></span>
   </div>

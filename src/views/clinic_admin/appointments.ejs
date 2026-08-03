@@ -21,7 +21,7 @@
   <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3 flex-wrap">
     <div class="min-w-0 flex-1">
       <div class="font-bold text-slate-900"><%= a.patient_name %> <a href="tel:<%= a.patient_phone %>" class="text-brand-600 text-sm font-semibold" dir="ltr"><%= a.patient_phone %></a></div>
-      <div class="text-xs text-slate-500 mt-0.5"><%= a.doctor_name || 'بدون طبيب' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '' %></div>
+      <div class="text-xs text-slate-500 mt-0.5"><%= a.doctor_name || 'بدون طبيب' %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString(LOC)) : '' %></div>
       <% if (a.reason) { %><div class="text-xs text-slate-400 mt-0.5">📝 <%= a.reason %></div><% } %>
     </div>
     <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= __badge(a.status) %>"><%= __label(a.status) %></span>
@@ -33,7 +33,7 @@
     <% } else if (a.patient_phone) {
          var __waPhone = String(a.patient_phone).replace(/[^0-9]/g, '');
          var __waIntl = __waPhone.length <= 11 ? ('20' + __waPhone.replace(/^0/, '')) : __waPhone;
-         var __waMsg = 'أهلاً ' + (a.patient_name || '') + '، بخصوص موعدك في العيادة' + (a.slot_at ? (' يوم ' + new Date(a.slot_at).toLocaleString('ar-EG')) : '') + '.';
+         var __waMsg = 'أهلاً ' + (a.patient_name || '') + '، بخصوص موعدك في العيادة' + (a.slot_at ? (' يوم ' + new Date(a.slot_at).toLocaleString(LOC)) : '') + '.';
     %>
     <a href="https://wa.me/<%= __waIntl %>?text=<%= encodeURIComponent(__waMsg) %>" target="_blank" rel="nofollow noopener"
        class="text-xs px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-semibold" title="<%= t('ap.wa_open') %>"><%= t('ap.wa') %></a>

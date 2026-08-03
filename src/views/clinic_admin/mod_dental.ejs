@@ -1,7 +1,7 @@
 <%- include('head', { title: 'الأسنان', tab: 'dental' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG'); }
-  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function money(v){ return Number(v||0).toLocaleString(LOC); }
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return '—'; } }
   var SBADGE = {
     sent:      'bg-slate-100 text-slate-700',
     in_lab:    'bg-amber-100 text-amber-800',
@@ -125,20 +125,20 @@
                && (new Date(o.due_at) < new Date(new Date().toDateString()));
         %>
         <tr class="<%= overdue ? 'bg-red-50/50' : '' %>">
-          <td class="px-4 py-2" data-l="المريض">
+          <td class="px-4 py-2" data-l="<%= t('tb.patient') %>">
             <% if (o.patient_id) { %>
               <a href="/clinic/dental/patient/<%= o.patient_id %>" class="text-indigo-600 hover:underline"><%= o.patient_name || '—' %></a>
             <% } else { %><span class="text-slate-400">—</span><% } %>
           </td>
-          <td class="px-4 py-2" data-l="الشغل"><%= o.work_type %></td>
-          <td class="px-4 py-2" dir="ltr" data-l="الأسنان"><%= o.tooth_numbers || '—' %></td>
-          <td class="px-4 py-2" dir="ltr" data-l="اللون"><%= o.shade || '—' %></td>
-          <td class="px-4 py-2 text-slate-600" data-l="المعمل"><%= o.lab_name || '—' %></td>
-          <td class="px-4 py-2 <%= overdue ? 'text-red-700 font-bold' : 'text-slate-600' %>" data-l="التسليم">
+          <td class="px-4 py-2" data-l="<%= t('tb.work') %>"><%= o.work_type %></td>
+          <td class="px-4 py-2" dir="ltr" data-l="<%= t('clinic.mod.dental') %>"><%= o.tooth_numbers || '—' %></td>
+          <td class="px-4 py-2" dir="ltr" data-l="<%= t('tb.shade') %>"><%= o.shade || '—' %></td>
+          <td class="px-4 py-2 text-slate-600" data-l="<%= t('tb.lab') %>"><%= o.lab_name || '—' %></td>
+          <td class="px-4 py-2 <%= overdue ? 'text-red-700 font-bold' : 'text-slate-600' %>" data-l="<%= t('tb.delivery') %>">
             <%= fmtD(o.due_at) %><%= overdue ? ' ⚠️' : '' %>
           </td>
-          <td class="px-4 py-2" data-l="التكلفة"><%= money(o.cost) %> ج</td>
-          <td class="px-4 py-2" data-l="الحالة">
+          <td class="px-4 py-2" data-l="<%= t('tb.cost') %>"><%= money(o.cost) %> <%= t('cur.egp') %></td>
+          <td class="px-4 py-2" data-l="<%= t('common.status') %>">
             <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SBADGE[o.status] || 'bg-slate-100 text-slate-700' %>">
               <%= SLABEL[o.status] || o.status %>
             </span>
@@ -153,7 +153,7 @@
                 </select>
               </form>
               <form method="post" action="/clinic/dental/lab/<%= o.id %>/delete"
-                    onsubmit="return confirm('تأكيد حذف الطلب؟')">
+                    onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
                 <button class="text-red-500 hover:text-red-700 text-xs px-2">حذف</button>
               </form>
             </div>
@@ -179,7 +179,7 @@
       <span class="text-slate-700"><%= p.procedure %></span>
       <% if (p.tooth) { %><span class="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full" dir="ltr">سن <%= p.tooth %></span><% } %>
       <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">مرحلة <%= p.phase %></span>
-      <span class="text-slate-500 ms-auto"><%= money(p.cost) %> ج</span>
+      <span class="text-slate-500 ms-auto"><%= money(p.cost) %> <%= t('cur.egp') %></span>
     </div>
     <% }); %>
   </div>

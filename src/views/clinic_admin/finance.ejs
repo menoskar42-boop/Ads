@@ -1,9 +1,9 @@
 <%- include('head', { title: 'التقارير المالية', tab: 'invoices' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG'); }
+  function money(v){ return Number(v||0).toLocaleString(LOC); }
   var MLABEL = { cash:'نقدي', card:'بطاقة', wallet:'محفظة', transfer:'تحويل' };
   var maxDaily = daily.reduce(function(m,x){ return Math.max(m, Number(x.total)); }, 0) || 1;
-  function fmtDay(d){ try { return new Date(d).toLocaleDateString('ar-EG',{day:'numeric',month:'short',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtDay(d){ try { return new Date(d).toLocaleDateString(LOC,{day:'numeric',month:'short',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
 %>
 
 <div class="flex items-center justify-between gap-3 flex-wrap mb-1">
@@ -19,9 +19,9 @@
 <p class="text-slate-500 mb-6 text-sm"><%= month ? ('شهر ' + month) : 'الشهر الحالي' %></p>
 
 <div class="grid grid-cols-3 gap-3 mb-6">
-  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">المحصّل</div><div class="text-xl font-black text-emerald-600 mt-1"><%= money(totals.collected) %> ج</div></div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">إجمالي الفواتير</div><div class="text-xl font-black text-slate-900 mt-1"><%= money(totals.billed) %> ج</div></div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">مبالغ مستحقة</div><div class="text-xl font-black text-amber-600 mt-1"><%= money(totals.outstanding) %> ج</div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">المحصّل</div><div class="text-xl font-black text-emerald-600 mt-1"><%= money(totals.collected) %> <%= t('cur.egp') %></div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">إجمالي الفواتير</div><div class="text-xl font-black text-slate-900 mt-1"><%= money(totals.billed) %> <%= t('cur.egp') %></div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">مبالغ مستحقة</div><div class="text-xl font-black text-amber-600 mt-1"><%= money(totals.outstanding) %> <%= t('cur.egp') %></div></div>
 </div>
 
 <!-- Daily revenue bars -->
@@ -52,7 +52,7 @@
     <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
       <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">🩺</div>
       <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 truncate"><%= d.name %></div><div class="text-xs text-slate-500"><%= d.invoices %> فاتورة</div></div>
-      <div class="font-black text-emerald-600"><%= money(d.earnings) %> ج</div>
+      <div class="font-black text-emerald-600"><%= money(d.earnings) %> <%= t('cur.egp') %></div>
     </div>
     <% }); } %>
   </div>
@@ -65,7 +65,7 @@
     <% } else { byMethod.forEach(function(m){ %>
     <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
       <div class="min-w-0 flex-1"><div class="font-bold text-slate-900"><%= MLABEL[m.method]||m.method %></div><div class="text-xs text-slate-500"><%= m.n %> عملية</div></div>
-      <div class="font-black text-slate-800"><%= money(m.total) %> ج</div>
+      <div class="font-black text-slate-800"><%= money(m.total) %> <%= t('cur.egp') %></div>
     </div>
     <% }); } %>
   </div>
@@ -79,7 +79,7 @@
   <% } else { byService.forEach(function(s){ %>
   <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
     <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 truncate"><%= s.name %></div><div class="text-xs text-slate-500"><%= s.n %> مرة</div></div>
-    <div class="font-black text-slate-800"><%= money(s.revenue) %> ج</div>
+    <div class="font-black text-slate-800"><%= money(s.revenue) %> <%= t('cur.egp') %></div>
   </div>
   <% }); } %>
 </div>

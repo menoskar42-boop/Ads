@@ -1,6 +1,6 @@
 <%- include('head', { title: 'API والمكاملات', tab: 'api' }) %>
 <%
-  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString('ar-EG',{month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString(LOC,{month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   var EVLABEL = { 'appointment.created':'حجز موعد جديد', 'visit.done':'انتهاء زيارة', 'invoice.paid':'دفع فاتورة' };
 %>
 
@@ -30,7 +30,7 @@
       <% keys.forEach(function(k){ %>
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 text-sm"><%= k.label %></div><div class="text-xs text-slate-400 font-mono" dir="ltr"><%= k.prefix %>••• · <%= fmtDT(k.created_at) %></div></div>
-        <form method="post" action="/clinic/integrations/keys/<%= k.id %>/delete" onsubmit="return confirm('حذف المفتاح؟')"><button class="text-slate-300 hover:text-red-600 text-sm">إلغاء</button></form>
+        <form method="post" action="/clinic/integrations/keys/<%= k.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">إلغاء</button></form>
       </div>
       <% }); %>
     </div>
@@ -56,7 +56,7 @@
       <% hooks.forEach(function(h){ %>
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 text-xs font-mono truncate" dir="ltr"><%= h.url %></div><div class="text-xs text-slate-400"><%= EVLABEL[h.event]||h.event %></div></div>
-        <form method="post" action="/clinic/integrations/webhooks/<%= h.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/integrations/webhooks/<%= h.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
       </div>
       <% }); %>
     </div>

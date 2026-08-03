@@ -1,7 +1,7 @@
 <%- include('head', { title: 'الفواتير والحسابات', tab: 'invoices' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG'); }
-  function fmtDate(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function money(v){ return Number(v||0).toLocaleString(LOC); }
+  function fmtDate(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   var STLABEL = { pending:'غير مدفوعة', partial:'مدفوعة جزئياً', paid:'مدفوعة', cancelled:'ملغاة' };
   var STCLS = { pending:'bg-amber-100 text-amber-700', partial:'bg-blue-100 text-blue-700', paid:'bg-emerald-100 text-emerald-700', cancelled:'bg-slate-100 text-slate-400' };
 %>
@@ -14,9 +14,9 @@
 
 <!-- Finance summary -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">محصّل اليوم</div><div class="text-xl font-black text-emerald-600 mt-1"><%= money(summary.today_collected) %> ج</div></div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">إجمالي المحصّل</div><div class="text-xl font-black text-slate-900 mt-1"><%= money(summary.collected) %> ج</div></div>
-  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">مبالغ مستحقة</div><div class="text-xl font-black text-amber-600 mt-1"><%= money(summary.outstanding) %> ج</div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">محصّل اليوم</div><div class="text-xl font-black text-emerald-600 mt-1"><%= money(summary.today_collected) %> <%= t('cur.egp') %></div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">إجمالي المحصّل</div><div class="text-xl font-black text-slate-900 mt-1"><%= money(summary.collected) %> <%= t('cur.egp') %></div></div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">مبالغ مستحقة</div><div class="text-xl font-black text-amber-600 mt-1"><%= money(summary.outstanding) %> <%= t('cur.egp') %></div></div>
   <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xs text-slate-500">فواتير مفتوحة</div><div class="text-xl font-black text-slate-900 mt-1"><%= summary.open_count %></div></div>
 </div>
 
@@ -40,7 +40,7 @@
         <div class="text-xs text-slate-500">اختر الخدمات:</div>
         <div class="max-h-44 overflow-y-auto border border-slate-100 rounded-xl p-2 space-y-1">
           <% services.forEach(function(s){ %>
-          <label class="flex items-center gap-2 text-sm text-slate-700 py-0.5"><input type="checkbox" name="service_id" value="<%= s.id %>" /> <span class="flex-1"><%= s.name %></span><span class="text-slate-400 text-xs"><%= money(s.price) %> ج</span></label>
+          <label class="flex items-center gap-2 text-sm text-slate-700 py-0.5"><input type="checkbox" name="service_id" value="<%= s.id %>" /> <span class="flex-1"><%= s.name %></span><span class="text-slate-400 text-xs"><%= money(s.price) %> <%= t('cur.egp') %></span></label>
           <% }); %>
         </div>
         <% } else { %>
@@ -72,7 +72,7 @@
       <a href="/clinic/invoices/<%= inv.id %>" class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0 hover:bg-brand-50/40">
         <div class="min-w-0 flex-1">
           <div class="font-bold text-slate-900 truncate"><%= inv.patient_name || 'بدون مريض' %> <span class="text-xs text-slate-400">#<%= inv.id %></span></div>
-          <div class="text-xs text-slate-500"><%= fmtDate(inv.created_at) %> · <%= money(inv.total_amount) %> ج<% if(Number(inv.paid_amount)>0 && inv.status!=='paid'){ %> · مدفوع <%= money(inv.paid_amount) %><% } %></div>
+          <div class="text-xs text-slate-500"><%= fmtDate(inv.created_at) %> · <%= money(inv.total_amount) %> <%= t('cur.egp') %><% if(Number(inv.paid_amount)>0 && inv.status!=='paid'){ %> · مدفوع <%= money(inv.paid_amount) %><% } %></div>
         </div>
         <span class="text-xs rounded-full px-2.5 py-1 font-bold <%= STCLS[inv.status] %>"><%= STLABEL[inv.status] %></span>
       </a>

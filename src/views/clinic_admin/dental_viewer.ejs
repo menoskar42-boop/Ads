@@ -171,7 +171,7 @@
   }, { passive: false });
 
   function undoShape(){ shapes.pop(); render(); }
-  function clearShapes(){ if (confirm('مسح كل التعليقات؟')) { shapes = []; render(); } }
+  function clearShapes(){ if (confirm(<%= JSON.stringify(t('confirm.delete')) %>)) { shapes = []; render(); } }
 
   function saveShapes(){
     var btn = document.getElementById('saveBtn');

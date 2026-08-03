@@ -1,7 +1,7 @@
 <%- include('head', { title: 'خريطة الأسنان', tab: 'dental' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG'); }
-  function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+  function money(v){ return Number(v||0).toLocaleString(LOC); }
+  function fmtD(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var SMAP = {}; statuses.forEach(function(s){ SMAP[s.key] = s; });
   var PLABEL = { planned:'مخطّط', in_progress:'جارٍ', done:'تم', cancelled:'ملغي' };
   var PBADGE = { planned:'bg-slate-100 text-slate-700', in_progress:'bg-amber-100 text-amber-800', done:'bg-emerald-100 text-emerald-800', cancelled:'bg-red-50 text-red-600 line-through' };
@@ -148,9 +148,9 @@
   <div class="flex items-center justify-between flex-wrap gap-2 mb-4">
     <h2 class="font-bold text-slate-800">خطة العلاج</h2>
     <div class="text-sm text-slate-600">
-      الإجمالي: <strong class="text-slate-900"><%= money(totals.all) %> ج</strong>
-      · تم: <strong class="text-emerald-700"><%= money(totals.done) %> ج</strong>
-      · متبقي: <strong class="text-amber-700"><%= money(totals.all - totals.done) %> ج</strong>
+      الإجمالي: <strong class="text-slate-900"><%= money(totals.all) %> <%= t('cur.egp') %></strong>
+      · تم: <strong class="text-emerald-700"><%= money(totals.done) %> <%= t('cur.egp') %></strong>
+      · متبقي: <strong class="text-amber-700"><%= money(totals.all - totals.done) %> <%= t('cur.egp') %></strong>
     </div>
   </div>
 
@@ -189,7 +189,7 @@
             <% if (p.doctor_name) { %><span class="text-xs text-slate-500"><%= p.doctor_name %></span><% } %>
             <span class="text-xs font-semibold px-2 py-1 rounded-full <%= PBADGE[p.status] %>"><%= PLABEL[p.status] %></span>
             <% if (p.done_at) { %><span class="text-xs text-slate-400"><%= fmtD(p.done_at) %></span><% } %>
-            <span class="text-sm text-slate-700 ms-auto"><%= money(p.cost) %> ج</span>
+            <span class="text-sm text-slate-700 ms-auto"><%= money(p.cost) %> <%= t('cur.egp') %></span>
             <form method="post" action="/clinic/dental/plan/<%= p.id %>/status" class="flex items-center">
               <input type="hidden" name="patient_id" value="<%= patient.id %>" />
               <select name="status" onchange="this.form.submit()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
@@ -198,7 +198,7 @@
                 <% }); %>
               </select>
             </form>
-            <form method="post" action="/clinic/dental/plan/<%= p.id %>/delete" onsubmit="return confirm('حذف البند؟')">
+            <form method="post" action="/clinic/dental/plan/<%= p.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
               <input type="hidden" name="patient_id" value="<%= patient.id %>" />
               <button class="text-red-500 hover:text-red-700 text-xs px-1">حذف</button>
             </form>
@@ -255,7 +255,7 @@
           <span class="text-[10px] text-slate-400 ms-auto"><%= fmtD(ph.created_at) %></span>
         </div>
         <% if (ph.caption) { %><p class="text-xs text-slate-600 leading-snug"><%= ph.caption %></p><% } %>
-        <form method="post" action="/clinic/dental/photo/<%= ph.id %>/delete" onsubmit="return confirm('حذف الصورة؟')">
+        <form method="post" action="/clinic/dental/photo/<%= ph.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
           <input type="hidden" name="patient_id" value="<%= patient.id %>" />
           <button class="text-red-500 hover:text-red-700 text-[10px] mt-1">حذف</button>
         </form>

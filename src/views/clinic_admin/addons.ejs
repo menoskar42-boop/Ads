@@ -53,7 +53,7 @@
         </div>
         <% if (st.expiresAt) { %>
           <p class="text-xs text-slate-400 mt-1">
-            <%= t('ad.until') %> <%= new Date(st.expiresAt).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %>
+            <%= t('ad.until') %> <%= new Date(st.expiresAt).toLocaleDateString(LOC,{year:'numeric',month:'long',day:'numeric'}) %>
           </p>
         <% } %>
       </div>

@@ -1,6 +1,6 @@
 <%- include('head', { title: 'الموظفون', tab: 'hr' }) %>
 <%
-  function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
 %>
 
 <h1 class="text-2xl font-black text-slate-900 mb-1">الموظفون والحضور</h1>
@@ -36,7 +36,7 @@
           <% if (open) { %><button class="text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg px-3 py-1.5 font-bold">انصراف</button>
           <% } else { %><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-3 py-1.5 font-bold">حضور</button><% } %>
         </form>
-        <form method="post" action="/clinic/staff/<%= s.id %>/delete" onsubmit="return confirm('حذف الموظف؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/staff/<%= s.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
       </div>
       <% }); %>
     </div>

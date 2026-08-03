@@ -30,7 +30,7 @@
         <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">🧑</div>
         <div class="min-w-0 flex-1">
           <div class="font-bold text-slate-900 truncate"><%= p.name %> <span class="text-brand-600 text-sm" dir="ltr"><%= p.phone||'' %></span></div>
-          <div class="text-xs text-slate-500"><%= p.gender||'' %><%= p.birth_year?(' · '+p.birth_year):'' %><%= p.notes?(' · '+String(p.notes).slice(0,40)):'' %></div>
+          <div class="text-xs text-slate-500"><%= p.gender === 'ذكر' ? t('pt.male') : (p.gender === 'أنثى' ? t('pt.female') : (p.gender || '')) %><%= p.birth_year?(' · '+p.birth_year):'' %><%= p.notes?(' · '+String(p.notes).slice(0,40)):'' %></div>
         </div>
         <div class="text-slate-300">‹</div>
       </a>

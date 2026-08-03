@@ -1,7 +1,7 @@
-<%- include('head', { title: 'زيارات منزلية', tab: 'homevisits' }) %>
+<%- include('head', { title: t('clinic.mod.homevisits'), tab: 'homevisits' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG', {minimumFractionDigits:0, maximumFractionDigits:2}); }
-  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString('ar-EG',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return '—'; } }
+  function money(v){ return Number(v||0).toLocaleString(LOC, {minimumFractionDigits:0, maximumFractionDigits:2}); }
+  function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString(LOC,{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return '—'; } }
   function wa(p){ return String(p||'').replace(/[^0-9]/g,'').replace(/^0/,'20'); }
   var SB = {
     requested: 'bg-amber-100 text-amber-800',
@@ -10,44 +10,44 @@
     done:      'bg-emerald-100 text-emerald-800',
     cancelled: 'bg-slate-100 text-slate-500'
   };
-  var SL = {}; statuses.forEach(function(s){ SL[s.key] = s.label; });
+  var SL = {}; statuses.forEach(function(s){ var k='hv.st.'+s.key, tr=t(k); SL[s.key] = (tr&&tr!==k)?tr:s.label; });
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">🏠 الزيارات المنزلية</h1>
-<p class="text-slate-500 mb-6">الكشف في بيت المريض — بالعنوان والمنطقة ورسوم الانتقال</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('hv.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('hv.sub') %></p>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">مفتوحة</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('hv.open') %></div>
     <div class="text-2xl font-extrabold text-amber-600"><%= open.length %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">طلبات جديدة</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('hv.requested') %></div>
     <div class="text-2xl font-extrabold text-slate-900"><%= open.filter(function(v){return v.status==='requested';}).length %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">في الطريق</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('hv.on_way') %></div>
     <div class="text-2xl font-extrabold text-indigo-600"><%= open.filter(function(v){return v.status==='on_way';}).length %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">تمّت (الكل)</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('hv.done_all') %></div>
     <div class="text-2xl font-extrabold text-emerald-600"><%= visits.filter(function(v){return v.status==='done';}).length %></div>
   </div>
 </div>
 
 <!-- ── طلب زيارة ────────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-  <h2 class="font-bold text-slate-800 mb-3">تسجيل طلب زيارة</h2>
+  <h2 class="font-bold text-slate-800 mb-3"><%= t('hv.add') %></h2>
   <form method="post" action="/clinic/home-visits" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
     <div class="lg:col-span-2">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">اسم المريض *</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.name') %></label>
       <input name="patient_name" id="hvName" required maxlength="120"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">من المرضى المسجّلين</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.from_reg') %></label>
       <select id="hvPick" onchange="pickPatient(this)" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-        <option value="">— اختياري —</option>
+        <option value=""><%= t('hv.optional') %></option>
         <% patients.forEach(function(p){ %>
           <option value="<%= p.id %>" data-name="<%= p.name %>" data-phone="<%= p.phone || '' %>" data-address="<%= p.address || '' %>"><%= p.name %></option>
         <% }); %>
@@ -55,58 +55,58 @@
       <input type="hidden" name="patient_id" id="hvPid" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">التليفون</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.phone') %></label>
       <input name="phone" id="hvPhone" maxlength="30" dir="ltr"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div class="lg:col-span-3">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">العنوان *</label>
-      <input name="address" id="hvAddr" required maxlength="400" placeholder="الشارع، المبنى، الدور، الشقة"
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.address') %></label>
+      <input name="address" id="hvAddr" required maxlength="400" placeholder="<%= t('hv.ph_addr') %>"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">المنطقة</label>
-      <input name="area" maxlength="80" placeholder="مثال: الوليدية"
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.area') %></label>
+      <input name="area" maxlength="80" placeholder="<%= t('hv.ph_area') %>"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الطبيب</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.doctor') %></label>
       <select name="doctor_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-        <option value="">— لسه —</option>
+        <option value=""><%= t('hv.none_yet') %></option>
         <% doctors.forEach(function(d){ %><option value="<%= d.id %>"><%= d.name %></option><% }); %>
       </select>
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">الموعد</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.when') %></label>
       <input type="datetime-local" name="scheduled_at"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">رسوم الكشف</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.visit_fee') %></label>
       <input type="number" name="visit_fee" min="0" step="0.01" placeholder="0"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">رسوم الانتقال</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.transport_fee') %></label>
       <input type="number" name="transport_fee" min="0" step="0.01" placeholder="0"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div class="sm:col-span-2 lg:col-span-4">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">سبب الزيارة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('hv.reason') %></label>
       <input name="reason" maxlength="300" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </div>
     <div class="sm:col-span-2 lg:col-span-4">
-      <button class="w-full bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-emerald-700">تسجيل الطلب</button>
-      <p class="text-xs text-slate-400 mt-1 text-center">لو حدّدت موعد الحالة تبقى «محدّد موعد» — وإلا تفضل «طلب جديد».</p>
+      <button class="w-full bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-emerald-700"><%= t('hv.submit') %></button>
+      <p class="text-xs text-slate-400 mt-1 text-center"><%= t('hv.hint') %></p>
     </div>
   </form>
 </div>
 
 <!-- ── الزيارات ─────────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">الزيارات</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('hv.list') %></div>
   <% if (!visits.length) { %>
-    <p class="px-5 py-6 text-sm text-slate-500">مفيش زيارات مسجّلة.</p>
+    <p class="px-5 py-6 text-sm text-slate-500"><%= t('hv.empty') %></p>
   <% } else { %>
   <div class="divide-y divide-slate-100">
     <% visits.forEach(function(v){ var closed = ['done','cancelled'].indexOf(v.status) >= 0; %>
@@ -124,35 +124,35 @@
       </div>
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <span class="text-slate-700">
-          كشف <strong><%= money(v.visit_fee) %></strong>
-          + انتقال <strong><%= money(v.transport_fee) %></strong>
-          = <strong class="text-slate-900"><%= money(Number(v.visit_fee) + Number(v.transport_fee)) %> ج</strong>
+          <%= t('hv.fee_visit') %> <strong><%= money(v.visit_fee) %></strong>
+          <%= t('hv.fee_travel') %> <strong><%= money(v.transport_fee) %></strong>
+          = <strong class="text-slate-900"><%= money(Number(v.visit_fee) + Number(v.transport_fee)) %> <%= t('cur.egp') %></strong>
         </span>
         <% if (v.status === 'done') { %>
-          <span class="text-emerald-700">محصّل: <strong><%= money(v.collected) %> ج</strong></span>
+          <span class="text-emerald-700"><%= t('hv.collected') %> <strong><%= money(v.collected) %> <%= t('cur.egp') %></strong></span>
         <% } %>
         <% if (v.phone) { %>
-          <a href="tel:<%= v.phone %>" class="text-xs text-indigo-600 hover:underline">اتصال</a>
-          <a href="https://wa.me/<%= wa(v.phone) %>" target="_blank" rel="noopener" class="text-xs text-emerald-600 hover:underline">واتساب</a>
+          <a href="tel:<%= v.phone %>" class="text-xs text-indigo-600 hover:underline"><%= t('hv.call') %></a>
+          <a href="https://wa.me/<%= wa(v.phone) %>" target="_blank" rel="noopener" class="text-xs text-emerald-600 hover:underline"><%= t('hv.wa') %></a>
         <% } %>
         <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(v.address) %>"
-           target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">فتح الخريطة</a>
+           target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline"><%= t('hv.map') %></a>
 
         <form method="post" action="/clinic/home-visits/<%= v.id %>/status" class="flex items-center gap-1 ms-auto">
           <% if (v.status !== 'done') { %>
             <input type="number" name="collected" min="0" step="0.01"
                    placeholder="<%= money(Number(v.visit_fee) + Number(v.transport_fee)) %>"
-                   title="المبلغ المحصّل عند الإتمام"
+                   title="<%= t('hv.ph_collected') %>"
                    class="w-24 border border-slate-200 rounded-lg px-2 py-1 text-xs" />
           <% } %>
           <select name="status" onchange="this.form.submit()" class="border border-slate-200 rounded-lg px-2 py-1 text-xs">
             <% statuses.forEach(function(s){ %>
-              <option value="<%= s.key %>" <%= v.status === s.key ? 'selected' : '' %>><%= s.label %></option>
+              <option value="<%= s.key %>" <%= v.status === s.key ? 'selected' : '' %>><%= SL[s.key] || s.label %></option>
             <% }); %>
           </select>
         </form>
-        <form method="post" action="/clinic/home-visits/<%= v.id %>/delete" onsubmit="return confirm('حذف الزيارة؟')">
-          <button class="text-red-500 hover:text-red-700 text-xs">حذف</button>
+        <form method="post" action="/clinic/home-visits/<%= v.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
+          <button class="text-red-500 hover:text-red-700 text-xs"><%= t('hv.delete') %></button>
         </form>
       </div>
     </div>
@@ -164,8 +164,8 @@
 <!-- ── المناطق ──────────────────────────────────────────────────── -->
 <% if (byArea.length) { %>
 <div class="bg-white rounded-2xl shadow-sm p-5">
-  <h2 class="font-bold text-slate-800 mb-1">الزيارات حسب المنطقة</h2>
-  <p class="text-xs text-slate-500 mb-3">الزيارات المكتملة — يفيدك تجمّع أكتر من زيارة في نفس النواحي وتسعّر الانتقال صح</p>
+  <h2 class="font-bold text-slate-800 mb-1"><%= t('hv.by_area') %></h2>
+  <p class="text-xs text-slate-500 mb-3"><%= t('hv.by_area_hint') %></p>
   <div class="space-y-2">
     <% var max = Math.max.apply(null, byArea.map(function(a){ return a.n; })); %>
     <% byArea.forEach(function(a){ %>
@@ -175,7 +175,7 @@
         <div class="h-full bg-indigo-400" style="width: <%= Math.round((a.n / max) * 100) %>%"></div>
       </div>
       <span class="text-xs text-slate-500 w-10 text-left"><%= a.n %></span>
-      <span class="text-xs text-slate-700 w-24 text-left"><%= money(a.revenue) %> ج</span>
+      <span class="text-xs text-slate-700 w-24 text-left"><%= money(a.revenue) %> <%= t('cur.egp') %></span>
     </div>
     <% }); %>
   </div>

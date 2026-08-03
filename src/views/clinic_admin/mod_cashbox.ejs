@@ -1,42 +1,42 @@
-<%- include('head', { title: 'الخزنة', tab: 'cashbox' }) %>
+<%- include('head', { title: t('clinic.mod.cashbox'), tab: 'cashbox' }) %>
 <%
-  function money(v){ return Number(v||0).toLocaleString('ar-EG', {minimumFractionDigits:0, maximumFractionDigits:2}); }
-  function fmtT(t){ try { return new Date(t).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
-  function fmtD(t){ try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+  function money(v){ return Number(v||0).toLocaleString(LOC, {minimumFractionDigits:0, maximumFractionDigits:2}); }
+  function fmtT(t){ try { return new Date(t).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtD(t){ try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var dayParam = day ? ('?day=' + day) : '';
 %>
 
 <div class="flex items-center justify-between flex-wrap gap-3 mb-1">
-  <h1 class="text-2xl font-black text-slate-900">💰 الخزنة</h1>
+  <h1 class="text-2xl font-black text-slate-900"><%= t('cb.title') %></h1>
   <form method="get" class="flex items-center gap-2">
-    <label class="text-sm text-slate-500">اليوم</label>
+    <label class="text-sm text-slate-500"><%= t('cb.day') %></label>
     <input type="date" name="day" value="<%= day || '' %>" onchange="this.form.submit()"
            class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
-    <% if (day) { %><a href="/clinic/cashbox" class="text-xs text-indigo-600 hover:underline">النهارده</a><% } %>
+    <% if (day) { %><a href="/clinic/cashbox" class="text-xs text-indigo-600 hover:underline"><%= t('cb.today') %></a><% } %>
   </form>
 </div>
-<p class="text-slate-500 mb-6">رصيد أول اليوم + مقبوضات المرضى النقدية + الحركات النثرية = المفروض في الدرج</p>
+<p class="text-slate-500 mb-6"><%= t('cb.sub') %></p>
 
 <!-- ── الملخص ───────────────────────────────────────────────────── -->
 <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">رصيد أول اليوم</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('cb.opening') %></div>
     <div class="text-xl font-extrabold text-slate-900"><%= money(opening) %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">مقبوضات المرضى (نقدي)</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('cb.patients_cash') %></div>
     <div class="text-xl font-extrabold text-emerald-600"><%= money(patientsCash) %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">وارد آخر</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('cb.other_in') %></div>
     <div class="text-xl font-extrabold text-emerald-600">+<%= money(cashIn) %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">مصروفات</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('cb.out') %></div>
     <div class="text-xl font-extrabold text-red-600">−<%= money(cashOut) %></div>
   </div>
   <div class="bg-slate-900 rounded-2xl shadow-sm p-4 text-white">
-    <div class="text-xs text-white/70 mb-1">المفروض في الدرج</div>
+    <div class="text-xs text-white/70 mb-1"><%= t('cb.expected') %></div>
     <div class="text-xl font-extrabold"><%= money(expected) %></div>
   </div>
 </div>
@@ -45,50 +45,50 @@
   <div class="rounded-2xl px-4 py-3 mb-5 text-sm border
     <%= diff === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
         : (diff > 0 ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-red-50 border-red-200 text-red-800') %>">
-    <strong>اتقفلت</strong> — المعدود <strong><%= money(counted) %></strong> ج
-    مقابل المحسوب <strong><%= money(expected) %></strong> ج
-    <% if (diff === 0) { %>— مطابق تماماً ✅
-    <% } else if (diff > 0) { %>— <strong>زيادة <%= money(diff) %> ج</strong>
-    <% } else { %>— <strong>عجز <%= money(Math.abs(diff)) %> ج</strong><% } %>
+    <strong><%= t('cb.closed') %></strong> <%= t('cb.counted_dash') %> <strong><%= money(counted) %></strong> <%= t('cur.egp') %>
+    <%= t('cb.vs') %> <strong><%= money(expected) %></strong> <%= t('cur.egp') %>
+    <% if (diff === 0) { %><%= t('cb.exact') %>
+    <% } else if (diff > 0) { %>— <strong><%= t('cb.over') %> <%= money(diff) %> <%= t('cur.egp') %></strong>
+    <% } else { %>— <strong><%= t('cb.short') %> <%= money(Math.abs(diff)) %> <%= t('cur.egp') %></strong><% } %>
   </div>
 <% } %>
 
 <div class="grid lg:grid-cols-3 gap-4 mb-5">
   <!-- ── تسجيل حركة ─────────────────────────────────────────────── -->
   <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm p-5">
-    <h2 class="font-bold text-slate-800 mb-3">تسجيل حركة</h2>
+    <h2 class="font-bold text-slate-800 mb-3"><%= t('cb.entry') %></h2>
     <form method="post" action="/clinic/cashbox/entry" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       <input type="hidden" name="day" value="<%= day || '' %>" />
       <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">النوع</label>
+        <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('cb.kind') %></label>
         <select name="direction" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-          <option value="out">مصروف (خارج)</option>
-          <option value="in">وارد (داخل)</option>
+          <option value="out"><%= t('cb.money_out') %></option>
+          <option value="in"><%= t('cb.money_in') %></option>
         </select>
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">المبلغ *</label>
+        <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('cb.amount') %></label>
         <input type="number" name="amount" min="0.01" step="0.01" required
                class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">البند</label>
+        <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('cb.category') %></label>
         <select name="category" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
           <% categories.forEach(function(c){ %><option value="<%= c %>"><%= c %></option><% }); %>
         </select>
       </div>
       <div class="sm:col-span-2">
-        <label class="block text-xs font-semibold text-slate-600 mb-1">البيان</label>
-        <input name="note" maxlength="300" placeholder="مثال: شراء قفازات"
+        <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('cb.desc') %></label>
+        <input name="note" maxlength="300" placeholder="<%= t('cb.ph_desc') %>"
                class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
       </div>
       <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">باسم</label>
-        <input name="created_by" maxlength="60" placeholder="اسم الموظف"
+        <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('cb.by') %></label>
+        <input name="created_by" maxlength="60" placeholder="<%= t('cb.ph_by') %>"
                class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
       </div>
       <div class="sm:col-span-2 lg:col-span-3">
-        <button class="w-full bg-slate-900 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-slate-800">تسجيل</button>
+        <button class="w-full bg-slate-900 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-slate-800"><%= t('cb.record') %></button>
       </div>
     </form>
   </div>
@@ -96,28 +96,28 @@
   <!-- ── فتح وتقفيل ─────────────────────────────────────────────── -->
   <div class="space-y-4">
     <div class="bg-white rounded-2xl shadow-sm p-5">
-      <h2 class="font-bold text-slate-800 mb-3">رصيد أول اليوم</h2>
+      <h2 class="font-bold text-slate-800 mb-3"><%= t('cb.opening') %></h2>
       <form method="post" action="/clinic/cashbox/opening" class="flex gap-2">
         <input type="hidden" name="day" value="<%= day || '' %>" />
         <input type="number" name="opening" min="0" step="0.01" value="<%= opening %>"
                class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <button class="bg-slate-100 text-slate-700 text-sm font-bold px-4 rounded-xl hover:bg-slate-200">حفظ</button>
+        <button class="bg-slate-100 text-slate-700 text-sm font-bold px-4 rounded-xl hover:bg-slate-200"><%= t('cb.save') %></button>
       </form>
     </div>
 
     <div class="bg-white rounded-2xl shadow-sm p-5">
-      <h2 class="font-bold text-slate-800 mb-1">تقفيل الخزنة</h2>
-      <p class="text-xs text-slate-500 mb-3">اكتب المبلغ اللي عدّيته فعلاً في الدرج</p>
+      <h2 class="font-bold text-slate-800 mb-1"><%= t('cb.close') %></h2>
+      <p class="text-xs text-slate-500 mb-3"><%= t('cb.close_hint') %></p>
       <form method="post" action="/clinic/cashbox/close">
         <input type="hidden" name="day" value="<%= day || '' %>" />
         <input type="number" name="counted_close" min="0" step="0.01"
                value="<%= counted !== null ? counted : '' %>" placeholder="<%= money(expected) %>"
                class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-2" />
-        <input name="note" maxlength="300" placeholder="ملاحظة (اختياري)"
+        <input name="note" maxlength="300" placeholder="<%= t('cb.ph_note') %>"
                value="<%= dayRow && dayRow.note ? dayRow.note : '' %>"
                class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm mb-2" />
         <button class="w-full bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-xl hover:bg-emerald-700">
-          <%= counted !== null ? 'تحديث التقفيل' : 'تقفيل اليوم' %>
+          <%= counted !== null ? t('cb.close_update') : t('cb.close_day') %>
         </button>
       </form>
     </div>
@@ -126,26 +126,26 @@
 
 <!-- ── حركات اليوم ──────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">حركات اليوم</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('cb.today_entries') %></div>
   <% if (!entries.length) { %>
-    <p class="px-5 py-6 text-sm text-slate-500">مفيش حركات مسجّلة لليوم ده.</p>
+    <p class="px-5 py-6 text-sm text-slate-500"><%= t('cb.no_entries') %></p>
   <% } else { %>
   <div class="divide-y divide-slate-100">
     <% entries.forEach(function(e){ %>
     <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
       <span class="text-xs font-bold px-2 py-1 rounded-full <%= e.direction === 'in' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800' %>">
-        <%= e.direction === 'in' ? 'وارد' : 'مصروف' %>
+        <%= e.direction === 'in' ? t('cb.in') : t('cb.out_badge') %>
       </span>
       <span class="font-bold <%= e.direction === 'in' ? 'text-emerald-700' : 'text-red-700' %>">
-        <%= e.direction === 'in' ? '+' : '−' %><%= money(e.amount) %> ج
+        <%= e.direction === 'in' ? '+' : '−' %><%= money(e.amount) %> <%= t('cur.egp') %>
       </span>
       <% if (e.category) { %><span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"><%= e.category %></span><% } %>
       <% if (e.note) { %><span class="text-slate-700"><%= e.note %></span><% } %>
       <% if (e.created_by) { %><span class="text-xs text-slate-400"><%= e.created_by %></span><% } %>
       <span class="text-xs text-slate-400 ms-auto"><%= fmtT(e.created_at) %></span>
-      <form method="post" action="/clinic/cashbox/entry/<%= e.id %>/delete" onsubmit="return confirm('حذف الحركة؟')">
+      <form method="post" action="/clinic/cashbox/entry/<%= e.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
         <input type="hidden" name="day" value="<%= day || '' %>" />
-        <button class="text-red-500 hover:text-red-700 text-xs">حذف</button>
+        <button class="text-red-500 hover:text-red-700 text-xs"><%= t('cb.delete') %></button>
       </form>
     </div>
     <% }); %>
@@ -156,16 +156,16 @@
 <!-- ── آخر الأيام ───────────────────────────────────────────────── -->
 <% if (recent.length) { %>
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">آخر الأيام</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('cb.recent_days') %></div>
   <div class="overflow-x-auto">
     <table class="w-full text-sm rt">
       <thead class="bg-slate-50 text-slate-600">
         <tr>
-          <th class="text-right px-4 py-2 font-semibold">اليوم</th>
-          <th class="text-right px-4 py-2 font-semibold">أول اليوم</th>
-          <th class="text-right px-4 py-2 font-semibold">صافي الحركات</th>
-          <th class="text-right px-4 py-2 font-semibold">المعدود</th>
-          <th class="text-right px-4 py-2 font-semibold">الحالة</th>
+          <th class="text-right px-4 py-2 font-semibold"><%= t('cb.day') %></th>
+          <th class="text-right px-4 py-2 font-semibold"><%= t('cb.opening_short') %></th>
+          <th class="text-right px-4 py-2 font-semibold"><%= t('cb.net') %></th>
+          <th class="text-right px-4 py-2 font-semibold"><%= t('cb.counted') %></th>
+          <th class="text-right px-4 py-2 font-semibold"><%= t('cb.status') %></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100">
@@ -173,15 +173,15 @@
              var dstr = new Date(r.day).toISOString().slice(0,10);
         %>
         <tr>
-          <td class="px-4 py-2" data-l="اليوم"><a href="/clinic/cashbox?day=<%= dstr %>" class="text-indigo-600 hover:underline"><%= fmtD(r.day) %></a></td>
-          <td class="px-4 py-2" data-l="أول اليوم"><%= money(r.opening) %></td>
-          <td class="px-4 py-2 <%= Number(r.net) < 0 ? 'text-red-600' : 'text-emerald-600' %>" data-l="صافي الحركات"><%= money(r.net) %></td>
-          <td class="px-4 py-2" data-l="المعدود"><%= r.counted_close != null ? money(r.counted_close) : '—' %></td>
-          <td class="px-4 py-2" data-l="الحالة">
+          <td class="px-4 py-2" data-l="<%= t('cb.day') %>"><a href="/clinic/cashbox?day=<%= dstr %>" class="text-indigo-600 hover:underline"><%= fmtD(r.day) %></a></td>
+          <td class="px-4 py-2" data-l="<%= t('cb.opening_short') %>"><%= money(r.opening) %></td>
+          <td class="px-4 py-2 <%= Number(r.net) < 0 ? 'text-red-600' : 'text-emerald-600' %>" data-l="<%= t('cb.net') %>"><%= money(r.net) %></td>
+          <td class="px-4 py-2" data-l="<%= t('cb.counted') %>"><%= r.counted_close != null ? money(r.counted_close) : '—' %></td>
+          <td class="px-4 py-2" data-l="<%= t('common.status') %>">
             <% if (r.closed_at) { %>
-              <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">مقفولة</span>
+              <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full"><%= t('cb.st_closed') %></span>
             <% } else { %>
-              <span class="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">مفتوحة</span>
+              <span class="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full"><%= t('cb.st_open') %></span>
             <% } %>
           </td>
         </tr>

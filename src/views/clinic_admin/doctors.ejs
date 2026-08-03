@@ -38,7 +38,7 @@
         <div class="text-xs text-slate-500"><%= d.title||'' %><%= d.specialty?(' · '+d.specialty):'' %><%= d.fee!=null?(' · '+d.fee+' ج'):'' %></div>
       </div>
       <a href="/clinic/doctors/<%= d.id %>/edit" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 font-semibold">تعديل</a>
-      <form method="post" action="/clinic/doctors/<%= d.id %>/delete" onsubmit="return confirm('حذف الطبيب؟')"><button class="text-xs px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold">حذف</button></form>
+      <form method="post" action="/clinic/doctors/<%= d.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-xs px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold">حذف</button></form>
     </div>
     <% }); %>
   </div>

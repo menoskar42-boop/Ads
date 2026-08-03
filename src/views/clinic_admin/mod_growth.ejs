@@ -1,7 +1,7 @@
 <%- include('head', { title: 'عودة المرضى', tab: 'growth' }) %>
 <%
-  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
-  function fmtDT(t){ try { return new Date(t).toLocaleString('ar-EG',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function fmtDT(t){ try { return new Date(t).toLocaleString(LOC,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   function wa(p){ return String(p||'').replace(/[^0-9]/g,'').replace(/^0/,'20'); }
   var q = (typeof locals !== 'undefined' && locals.query) ? locals.query : {};
 %>
@@ -103,17 +103,17 @@
               <input type="checkbox" class="pick" value="<%= p.id %>" <%= p.phone ? '' : 'disabled title="مفيش رقم"' %> />
             </td>
             <% } %>
-            <td class="px-4 py-2" data-l="المريض">
+            <td class="px-4 py-2" data-l="<%= t('tb.patient') %>">
               <a href="/clinic/patients/<%= p.id %>" class="font-semibold text-indigo-600 hover:underline"><%= p.name %></a>
               <% if (!p.phone) { %><span class="text-xs text-slate-300 me-1">(مفيش رقم)</span><% } %>
             </td>
-            <td class="px-4 py-2 text-slate-600" data-l="آخر زيارة"><%= fmtD(p.last_visit) %></td>
-            <td class="px-4 py-2" data-l="من كام يوم">
+            <td class="px-4 py-2 text-slate-600" data-l="<%= t('tb.last_visit') %>"><%= fmtD(p.last_visit) %></td>
+            <td class="px-4 py-2" data-l="<%= t('tb.days_since') %>">
               <span class="text-xs font-semibold px-2 py-1 rounded-full <%= p.days_since > 365 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
                 <%= p.days_since %> يوم
               </span>
             </td>
-            <td class="px-4 py-2 text-slate-500" data-l="عدد الزيارات"><%= p.visits %></td>
+            <td class="px-4 py-2 text-slate-500" data-l="<%= t('tb.visits') %>"><%= p.visits %></td>
             <td class="px-4 py-2">
               <div class="flex items-center gap-2 justify-end">
                 <% if (p.phone) { %>

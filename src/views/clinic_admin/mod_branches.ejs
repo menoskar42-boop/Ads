@@ -24,7 +24,7 @@
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">🏢</div>
         <div class="min-w-0 flex-1"><div class="font-bold text-slate-900"><%= b.name %></div><div class="text-xs text-slate-500"><%= b.address||'' %><%= b.phone?(' · '+b.phone):'' %></div></div>
-        <form method="post" action="/clinic/branches/<%= b.id %>/delete" onsubmit="return confirm('حذف الفرع؟')"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/branches/<%= b.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
       </div>
       <% }); %>
     </div>
