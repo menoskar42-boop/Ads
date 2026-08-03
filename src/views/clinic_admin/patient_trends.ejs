@@ -43,6 +43,101 @@
 </div>
 <% } %>
 
+<!-- ── منحنيات النمو ────────────────────────────────────────────── -->
+<% if (typeof growthCharts !== 'undefined' && growthCharts.length) { %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <div class="flex items-baseline gap-2 flex-wrap mb-1">
+    <h2 class="font-bold text-slate-800"><%= t('gc.title') %></h2>
+    <% if (growthAge != null) { %>
+      <span class="text-xs text-slate-400"><%= growthAge %> <%= t('gc.age_months') %></span>
+    <% } %>
+  </div>
+  <p class="text-xs text-slate-400 mb-4"><%= t('gc.source') %></p>
+
+  <div class="grid lg:grid-cols-2 gap-5">
+  <% growthCharts.forEach(function(g){ %>
+    <div class="border border-slate-100 rounded-2xl p-4">
+      <h3 class="font-bold text-slate-800 text-sm mb-2"><%= t('gc.m.' + g.measure) %></h3>
+
+      <% if (g.status !== 'ok') { %>
+        <p class="text-sm text-slate-500 bg-slate-50 rounded-xl px-4 py-3">
+          <%= g.status === 'no_readings' ? t('gc.no_readings') : t('gc.no_table') %>
+        </p>
+      <% } else {
+           // Plot in the curves' own units and map to a 0..100 x 0..60 viewBox.
+           // The y range comes from the reference band, not just the child's
+           // points, so a child sitting outside the band still reads as outside.
+           var xs = g.curves.map(function(c){ return c.month; });
+           var lows  = g.curves.map(function(c){ return c.p3; });
+           var highs = g.curves.map(function(c){ return c.p97; });
+           var vals  = g.points.map(function(p){ return p.value; });
+           var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+           var y0 = Math.min.apply(null, lows.concat(vals));
+           var y1 = Math.max.apply(null, highs.concat(vals));
+           if (x1 - x0 < 1) x1 = x0 + 1;
+           var pad = (y1 - y0) * 0.06 || 1; y0 -= pad; y1 += pad;
+           var W = 100, H = 60;
+           function px(m){ return ((m - x0) / (x1 - x0)) * W; }
+           function py(v){ return H - ((v - y0) / (y1 - y0)) * H; }
+           function path(key){
+             return g.curves.map(function(c, i){
+               return (i ? 'L' : 'M') + px(c.month).toFixed(2) + ' ' + py(c[key]).toFixed(2);
+             }).join(' ');
+           }
+           var pct = Math.round(g.latest.percentile);
+           var flag = pct < 3 ? 'low' : (pct > 97 ? 'high' : null);
+      %>
+        <svg viewBox="0 0 100 60" preserveAspectRatio="none" class="w-full h-44 overflow-visible" role="img"
+             aria-label="<%= t('gc.m.' + g.measure) %>">
+          <!-- The 3rd–97th band: inside it is the ordinary range. -->
+          <path d="<%= path('p3') %> L<%= px(x1).toFixed(2) %> <%= py(g.curves[g.curves.length-1].p97).toFixed(2) %> <%= g.curves.slice().reverse().map(function(c,i){ return (i?'L':'L') + px(c.month).toFixed(2) + ' ' + py(c.p97).toFixed(2); }).join(' ') %> Z"
+                fill="#0891b2" opacity="0.06" />
+          <% ['p3','p15','p50','p85','p97'].forEach(function(k){ %>
+            <path d="<%= path(k) %>" fill="none" stroke="<%= k === 'p50' ? '#0891b2' : '#cbd5e1' %>"
+                  stroke-width="<%= k === 'p50' ? 1.4 : 1 %>" vector-effect="non-scaling-stroke"
+                  <%= k === 'p50' ? '' : 'stroke-dasharray="3 3"' %> />
+          <% }); %>
+          <!-- The child. -->
+          <path d="<%= g.points.map(function(p,i){ return (i?'L':'M') + px(p.month).toFixed(2) + ' ' + py(p.value).toFixed(2); }).join(' ') %>"
+                fill="none" stroke="#0f172a" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" />
+          <% g.points.forEach(function(p, i){ %>
+            <circle cx="<%= px(p.month).toFixed(2) %>" cy="<%= py(p.value).toFixed(2) %>"
+                    r="<%= i === g.points.length - 1 ? 2.4 : 1.6 %>"
+                    fill="<%= i === g.points.length - 1 ? '#0f172a' : '#64748b' %>"
+                    vector-effect="non-scaling-stroke" />
+          <% }); %>
+        </svg>
+
+        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+          <span><%= x0 %> <%= t('gc.age_months') %></span>
+          <% ['3','15','50','85','97'].forEach(function(lbl){ %><span><%= lbl %></span><% }); %>
+          <span><%= x1 %> <%= t('gc.age_months') %></span>
+        </div>
+
+        <div class="mt-3 flex items-baseline gap-2 flex-wrap">
+          <span class="text-2xl font-extrabold text-slate-900"><%= g.latest.value %></span>
+          <span class="text-xs text-slate-400"><%= g.unit %></span>
+          <span class="text-sm font-bold px-2 py-0.5 rounded-full
+            <%= flag ? 'bg-red-100 text-red-700' : 'bg-emerald-50 text-emerald-700' %>">
+            <%= t('gc.about') %> <%= pct %> <%= t('gc.approx') %>
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">
+          <%= t('gc.latest_at') %> <%= g.latest.month %> <%= t('gc.age_months') %>
+        </p>
+        <% if (flag) { %>
+          <p class="text-xs text-red-600 font-semibold mt-1"><%= flag === 'low' ? t('gc.reading_low') : t('gc.reading_high') %></p>
+        <% } %>
+        <% if (g.unscored) { %>
+          <p class="text-xs text-amber-700 mt-1"><%= g.unscored %> <%= t('gc.unscored') %></p>
+        <% } %>
+      <% } %>
+    </div>
+  <% }); %>
+  </div>
+</div>
+<% } %>
+
 <!-- ── المؤشرات ─────────────────────────────────────────────────── -->
 <% if (!series.length) { %>
   <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500">

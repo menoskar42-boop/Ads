@@ -1144,6 +1144,22 @@ const strings = {
     'pf.notes_log':'الملاحظات الإكلينيكية','pf.rx_log':'الروشتات',
     'pf.st.waiting':'في الانتظار','pf.st.in_room':'في الكشف','pf.st.done':'تمّت','pf.st.cancelled':'ملغى',
 
+    'cp.d_book':'احجز','cp.d_fee':'سعر الكشف:','cp.d_about':'نبذة عن الطبيب',
+    'cp.d_book_with':'احجز مع','cp.d_or_wa':'أو احجز عبر واتساب 💬','cp.d_in':'في',
+
+    // منحنيات النمو
+    'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
+    'gc.m.weight':'الوزن حسب السن','gc.m.height':'الطول حسب السن',
+    'gc.m.head_circumference':'محيط الرأس حسب السن',
+    'gc.percentile':'البيرسنتيل','gc.about':'على البيرسنتيل','gc.approx':'تقريباً',
+    'gc.median':'الوسيط','gc.latest_at':'آخر قياس عند',
+    'gc.no_table':'الجدول ده لسه مش متحمّل — القياس محفوظ، لكن مش هنرسم منحنى من غير مرجع.',
+    'gc.no_readings':'مفيش قياسات مسجّلة للفئة دي لسه.',
+    'gc.unscored':'قياس مش متحسِب لإن جدوله لسه ناقص',
+    'gc.source':'المرجع: معايير نمو الأطفال — منظمة الصحة العالمية. المنحنى مرجع استرشادي، والتقييم قرار الطبيب.',
+    'gc.reading_low':'تحت البيرسنتيل ٣ — يستدعي تقييم',
+    'gc.reading_high':'فوق البيرسنتيل ٩٧ — يستدعي تقييم',
+
     // مؤشرات المريض
     'tr.title':'📊 مؤشرات','tr.back_file':'ملف المريض',
     'tr.sub':'القياسة الواحدة مابتقولش حاجة — المهم مقارنتها باللي قبلها',
@@ -2415,6 +2431,22 @@ const strings = {
     'pf.c.date':'Date','pf.c.bp':'BP','pf.c.hr':'HR','pf.c.temp':'Temp','pf.c.weight':'Weight',
     'pf.notes_log':'Clinical notes','pf.rx_log':'Prescriptions',
     'pf.st.waiting':'Waiting','pf.st.in_room':'In consultation','pf.st.done':'Completed','pf.st.cancelled':'Cancelled',
+
+    'cp.d_book':'Book','cp.d_fee':'Consultation fee:','cp.d_about':'About the doctor',
+    'cp.d_book_with':'Book with','cp.d_or_wa':'Or book on WhatsApp 💬','cp.d_in':'at',
+
+    // Growth curves
+    'gc.title':'📈 Growth chart','gc.age_months':'months',
+    'gc.m.weight':'Weight-for-age','gc.m.height':'Height-for-age',
+    'gc.m.head_circumference':'Head circumference-for-age',
+    'gc.percentile':'Percentile','gc.about':'on percentile','gc.approx':'approx.',
+    'gc.median':'Median','gc.latest_at':'Latest reading at',
+    'gc.no_table':'This reference table is not loaded yet — the reading is saved, but no curve is drawn without a standard behind it.',
+    'gc.no_readings':'No readings recorded for this measure yet.',
+    'gc.unscored':'reading(s) not scored because their table is still missing',
+    'gc.source':'Reference: WHO Child Growth Standards. The curve is a guide; the assessment is the clinician\'s.',
+    'gc.reading_low':'below the 3rd percentile — warrants assessment',
+    'gc.reading_high':'above the 97th percentile — warrants assessment',
 
     // Patient trends
     'tr.title':'📊 Trends for','tr.back_file':'Patient file',

@@ -85,6 +85,21 @@ const FIXTURES = {
     siteOrigin: 'https://demo.oscardevs.com',
   }),
 
+  tenant_clinic_doctor: () => ({
+    __file: 'tenant_clinic_doctor.ejs',
+    company: { id: 1, slug: 'demo', company_name: 'Demo Clinic', logo_url: null, description: '' },
+    doctor: {
+      id: 1, slug: 'sara', name: 'Dr. Sara', title: 'Consultant', specialty: 'Orthodontics',
+      bio: 'Ten years of practice in orthodontics, with a focus on paediatric cases.',
+      photo_url: '', fee: 300, schedule: 'Sat-Thu 4pm-10pm',
+    },
+    clinicSettings: { whatsapp: '201000000000', booking_enabled: true },
+    clinicDoctors: [{ id: 1, slug: 'sara', name: 'Dr. Sara', specialty: 'Orthodontics' }],
+    canonicalCompanyUrl: (slug) => 'https://' + slug + '.oscardevs.com/',
+    noindex: false, sent: false, showAds: false,
+    siteOrigin: 'https://demo.oscardevs.com',
+  }),
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{
@@ -289,6 +304,21 @@ const FIXTURES = {
       points: [{ t: '2026-05-01', v: 74 }, { t: '2026-06-01', v: 73 }, { t: '2026-07-01', v: 72 }],
     }],
     verdictOf: (s) => (s.delta < 0 ? 'better' : s.delta > 0 ? 'worse' : 'flat'),
+    // A boy with weight and height recorded: weight charts (table loaded),
+    // height does not (his stature table only starts at 24 months and he is 18).
+    growthAge: 18,
+    growthCharts: (() => {
+      const growth = require('../src/clinic/growth');
+      const child = { gender: 'ذكر', birth_date: '2025-02-03' };
+      const readings = [
+        { recorded_at: '2025-08-03', weight: 8.6, height: 68 },
+        { recorded_at: '2026-02-03', weight: 10.2, height: 76 },
+        { recorded_at: '2026-08-03', weight: 11.1, height: 81 },
+      ];
+      return ['weight', 'height', 'head_circumference']
+        .map((m) => growth.buildChart(m, child, readings))
+        .filter(Boolean);
+    })(),
   }),
 
   patient_vaccines: () => ({

@@ -4,10 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <%
-  var __cName = company.company_name || 'عيادة';
+  var __cName = company.company_name || t('cp.clinic');
   var __dName = doctor.name;
   var __dTitle = (__dName + (doctor.specialty ? (' — ' + doctor.specialty) : '') + ' | ' + __cName).slice(0, 60);
-  var __dDesc = (doctor.bio || (__dName + ' - ' + (doctor.specialty || '') + ' في ' + __cName)).trim().slice(0, 155);
+  var __dDesc = (doctor.bio || (__dName + ' - ' + (doctor.specialty || '') + ' ' + t('cp.d_in') + ' ' + __cName)).trim().slice(0, 155);
   var __base = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com/');
   var __canon = __base + 'doctor/' + doctor.slug;
   var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
@@ -56,7 +56,7 @@
 <header class="bg-white border-b border-slate-200">
   <div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
     <a href="/" class="flex items-center gap-2 font-extrabold text-slate-900">← <%= __cName %></a>
-    <% if (__booking) { %><a href="#book" class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-full px-4 py-2 text-sm">احجز</a><% } %>
+    <% if (__booking) { %><a href="#book" class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-full px-4 py-2 text-sm"><%= t('cp.d_book') %></a><% } %>
   </div>
 </header>
 
@@ -70,35 +70,35 @@
       <div class="min-w-0">
         <h1 class="text-2xl font-black text-slate-900 leading-tight"><%= __dName %></h1>
         <p class="text-brand-600 font-bold mt-0.5"><%= doctor.title || '' %><%= doctor.specialty ? (' · ' + doctor.specialty) : '' %></p>
-        <% if (doctor.fee != null) { %><p class="mt-2 text-sm text-slate-600">سعر الكشف: <b class="text-slate-900"><%= __money(doctor.fee) %> جنيه</b></p><% } %>
+        <% if (doctor.fee != null) { %><p class="mt-2 text-sm text-slate-600"><%= t('cp.d_fee') %> <b class="text-slate-900"><%= __money(doctor.fee) %> <%= t('cur.egp') %></b></p><% } %>
         <% if (doctor.schedule) { %><p class="mt-1 text-sm text-slate-500">🕒 <%= doctor.schedule %></p><% } %>
       </div>
     </div>
-    <% if (doctor.bio) { %><div class="mt-5 pt-5 border-t border-slate-100"><h2 class="font-bold text-slate-900 mb-2">نبذة عن الطبيب</h2><p class="text-slate-600 leading-relaxed"><%= doctor.bio %></p></div><% } %>
+    <% if (doctor.bio) { %><div class="mt-5 pt-5 border-t border-slate-100"><h2 class="font-bold text-slate-900 mb-2"><%= t('cp.d_about') %></h2><p class="text-slate-600 leading-relaxed"><%= doctor.bio %></p></div><% } %>
   </div>
 
   <% if (__booking) { %>
   <div id="book" class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 mt-6">
-    <h2 class="text-xl font-extrabold text-slate-900 mb-1">احجز مع <%= __dName %></h2>
-    <p class="text-slate-500 text-sm mb-5">املأ البيانات وسنتواصل معك لتأكيد الموعد.</p>
+    <h2 class="text-xl font-extrabold text-slate-900 mb-1"><%= t('cp.d_book_with') %> <%= __dName %></h2>
+    <p class="text-slate-500 text-sm mb-5"><%= t('cp.form_sub') %></p>
     <% if (typeof sent !== 'undefined' && sent) { %>
-      <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-sm font-semibold mb-3">✅ تم استلام طلب الحجز — هنتواصل معك لتأكيد الموعد قريبًا.</div>
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-sm font-semibold mb-3"><%= t('cp.sent') %></div>
     <% } %>
     <form method="POST" action="/book" class="grid gap-3">
       <input type="hidden" name="doctor_id" value="<%= doctor.id %>" />
-      <input type="text" name="patient_name" required maxlength="80" placeholder="الاسم" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-      <input type="tel" name="patient_phone" required maxlength="20" placeholder="رقم الموبايل" dir="ltr" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+      <input type="text" name="patient_name" required maxlength="80" placeholder="<%= t('cp.name') %>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+      <input type="tel" name="patient_phone" required maxlength="20" placeholder="<%= t('cp.mobile') %>" dir="ltr" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
       <input type="datetime-local" name="slot_at" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-      <textarea name="reason" maxlength="300" rows="2" placeholder="سبب الزيارة (اختياري)" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"></textarea>
-      <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl py-3">تأكيد الحجز</button>
+      <textarea name="reason" maxlength="300" rows="2" placeholder="<%= t('cp.reason') %>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"></textarea>
+      <button type="submit" class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl py-3"><%= t('cp.confirm') %></button>
     </form>
-    <% if (__wa) { %><a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="mt-3 block text-center text-brand-600 font-bold text-sm">أو احجز عبر واتساب 💬</a><% } %>
+    <% if (__wa) { %><a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener" class="mt-3 block text-center text-brand-600 font-bold text-sm"><%= t('cp.d_or_wa') %></a><% } %>
   </div>
   <% } %>
 </main>
 
 <footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-  مدعوم بواسطة <a href="https://oscardevs.com" class="text-brand-600 font-semibold">OscarDevs</a> — نظام إدارة العيادات
+  <%= t('cp.powered') %> <a href="https://oscardevs.com" class="text-brand-600 font-semibold">OscarDevs</a> — <%= t('cp.system') %>
 </footer>
 </body>
 </html>

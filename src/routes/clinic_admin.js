@@ -453,9 +453,34 @@ router.get('/patients/:id/trends', async (req, res) => {
       }
     }
 
+    // Growth percentiles. Built for any child with a birth date and a sex,
+    // regardless of the clinic's specialty — a GP weighing a toddler wants the
+    // same reading a paediatrician does. Each measure reports its own status so
+    // the page can say "table not loaded yet" instead of drawing a curve that
+    // has nothing behind it.
+    const growth = require('../clinic/growth');
+    const growthAge = growth.ageMonthsAt(p.birth_date, new Date());
+    let growthCharts = [];
+    if (growthAge != null && growthAge <= 60 && growth.sexKey(p.gender)) {
+      // Weight and height live on clinic_vitals; head circumference is a
+      // specialty field on the visit. Normalise both into one list so the chart
+      // builder does not need to know where a number was stored.
+      const readings = vitals.rows.map((v) => ({
+        recorded_at: v.recorded_at, weight: v.weight, height: v.height,
+      }));
+      for (const v of visits.rows) {
+        const hc = v.specialty_data && v.specialty_data.head_circumference;
+        if (hc) readings.push({ recorded_at: v.visit_date || v.created_at, head_circumference: hc });
+      }
+      growthCharts = ['weight', 'height', 'head_circumference']
+        .map((m) => growth.buildChart(m, p, readings))
+        .filter((c) => c && c.status !== 'out_of_range');
+    }
+
     res.render('clinic_admin/patient_trends', {
       company: req.company, tab: 'patients',
       patient: p, series, pregnancy,
+      growthCharts, growthAge,
       specialtyLabel: specialty ? require('../clinic/specialties').labelFor(specialty, res.locals.t) : null,
       verdictOf: trends.verdict,
     });
