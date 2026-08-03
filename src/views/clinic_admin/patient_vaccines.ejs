@@ -1,0 +1,133 @@
+<%- include('head', { title: 'التطعيمات', tab: 'patients' }) %>
+<%
+  function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString('ar-EG',{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  function ageLabel(m){
+    if (m == null) return '';
+    if (m < 24) return m + ' شهر';
+    var y = Math.floor(m / 12), r = m % 12;
+    return y + ' سنة' + (r ? ' و' + r + ' شهر' : '');
+  }
+  function ageAt(m){
+    m = Number(m);
+    if (m === 0) return 'عند الميلاد';
+    if (m < 12) return m + ' شهور';
+    return (m / 12) + ' سنة';
+  }
+  var SB = {
+    given:    'bg-emerald-100 text-emerald-800',
+    due:      'bg-amber-100 text-amber-800',
+    overdue:  'bg-red-100 text-red-700',
+    upcoming: 'bg-slate-100 text-slate-500'
+  };
+  var SL = { given:'اتاخد ✓', due:'مستحق دلوقتي', overdue:'متأخر', upcoming:'قدّام' };
+  var counts = card.reduce(function(a,r){ a[r.status] = (a[r.status]||0)+1; return a; }, {});
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/clinic/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← ملف المريض</a>
+  <h1 class="text-2xl font-black text-slate-900">💉 كارت التطعيمات</h1>
+  <span class="text-slate-500"><%= patient.name %></span>
+  <% if (ageMonths != null) { %>
+    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">العمر: <%= ageLabel(ageMonths) %></span>
+  <% } %>
+</div>
+
+<% if (!patient.birth_date) { %>
+  <!-- Everything here is computed from the birth date; without it the card
+       cannot say what is due, so ask for it before showing an empty table. -->
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+    <h2 class="font-bold text-amber-900 mb-1">محتاجين تاريخ الميلاد</h2>
+    <p class="text-sm text-amber-800 mb-3">
+      مواعيد التطعيم كلها بتتحسب من تاريخ الميلاد بالظبط — سنة الميلاد لوحدها فرقها ممكن يوصل ١٢ شهر، وده مالوش معنى مع رضيع.
+    </p>
+    <form method="post" action="/clinic/patients/<%= patient.id %>/birth-date" class="flex flex-wrap gap-2 items-end">
+      <input type="date" name="birth_date" required class="border border-amber-300 rounded-xl px-3 py-2 text-sm" />
+      <button class="bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-amber-700">حفظ</button>
+    </form>
+  </div>
+<% } else { %>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">اتاخد</div>
+    <div class="text-2xl font-extrabold text-emerald-600"><%= counts.given || 0 %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">مستحق دلوقتي</div>
+    <div class="text-2xl font-extrabold text-amber-600"><%= counts.due || 0 %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">متأخر</div>
+    <div class="text-2xl font-extrabold text-red-600"><%= counts.overdue || 0 %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1">قدّام</div>
+    <div class="text-2xl font-extrabold text-slate-400"><%= counts.upcoming || 0 %></div>
+  </div>
+</div>
+
+<% if (counts.overdue) { %>
+<div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
+  ⚠️ فيه <strong><%= counts.overdue %></strong> تطعيم متأخر — راجعهم مع الأهل.
+</div>
+<% } %>
+
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">جدول التطعيمات</div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="text-right px-4 py-2 font-semibold">التطعيم</th>
+          <th class="text-right px-4 py-2 font-semibold">الجرعة</th>
+          <th class="text-right px-4 py-2 font-semibold">السن</th>
+          <th class="text-right px-4 py-2 font-semibold">الميعاد</th>
+          <th class="text-right px-4 py-2 font-semibold">الحالة</th>
+          <th class="px-4 py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% card.forEach(function(r){ %>
+        <tr class="<%= r.status === 'overdue' ? 'bg-red-50/40' : (r.status === 'due' ? 'bg-amber-50/40' : '') %>">
+          <td class="px-4 py-2 font-semibold text-slate-800"><%= r.name %></td>
+          <td class="px-4 py-2 text-slate-500"><%= r.dose_label || '—' %></td>
+          <td class="px-4 py-2 text-slate-500"><%= ageAt(r.age_months) %></td>
+          <td class="px-4 py-2 text-slate-600"><%= r.status === 'given' ? fmtD(r.given_at) : fmtD(r.due_on) %></td>
+          <td class="px-4 py-2">
+            <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SB[r.status] %>"><%= SL[r.status] %></span>
+          </td>
+          <td class="px-4 py-2 text-left">
+            <% if (r.status === 'given') { %>
+              <form method="post" action="/clinic/patients/<%= patient.id %>/vaccines/<%= r.given_id %>/delete"
+                    onsubmit="return confirm('إلغاء تسجيل التطعيم؟')">
+                <button class="text-red-500 hover:text-red-700 text-xs">تراجع</button>
+              </form>
+            <% } else { %>
+              <form method="post" action="/clinic/patients/<%= patient.id %>/vaccines" class="flex items-center gap-1 justify-end">
+                <input type="hidden" name="schedule_id" value="<%= r.id %>" />
+                <input type="hidden" name="name" value="<%= r.name %>" />
+                <input type="date" name="given_at" required value="<%= new Date().toISOString().slice(0,10) %>"
+                       class="border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                <input name="batch" placeholder="التشغيلة" class="w-20 border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                <button class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700">سجّل</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-sm text-slate-600">
+  <strong class="text-slate-800">⚠️ راجع الجدول قبل الاعتماد عليه</strong>
+  <p class="mt-1 leading-relaxed">
+    الجدول اللي فوق متحطّ كنقطة بداية حسب الجدول المنشور للأطفال في مصر — <strong>مش مرجع رسمي</strong>،
+    والجداول بتتغيّر. راجعه مع المصدر الرسمي وعدّله لو محتاج؛ الفايدة الحقيقية هنا هي
+    <strong>المتابعة</strong> (إيه اتاخد، إيه مستحق، إيه متأخر) وهي صح مهما كان الجدول اللي بتستخدمه.
+  </p>
+</div>
+
+</main></body></html>

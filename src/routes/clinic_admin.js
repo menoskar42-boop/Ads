@@ -337,6 +337,74 @@ router.get('/patients/:id', async (req, res) => {
   } catch (e) { console.error('[clinic patient file]', e.message); res.status(500).send('error'); }
 });
 
+// ── Vaccination card ─────────────────────────────────────────────────────────
+router.get('/patients/:id/vaccines', async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  if (!Number.isInteger(pid)) return res.redirect('/clinic/patients');
+  try {
+    const p = (await pool.query('SELECT * FROM clinic_patients WHERE id=$1 AND company_id=$2', [pid, cid])).rows[0];
+    if (!p) return res.redirect('/clinic/patients');
+
+    const vax = require('../clinic/vaccines');
+    await vax.ensureSchedule(pool, cid);
+
+    const [schedule, given] = await Promise.all([
+      pool.query('SELECT * FROM clinic_vaccine_schedule WHERE company_id=$1 AND is_active ORDER BY age_months, sort_order', [cid]),
+      pool.query('SELECT * FROM clinic_patient_vaccines WHERE company_id=$1 AND patient_id=$2 ORDER BY given_at', [cid, pid]),
+    ]);
+
+    // birth_date is what makes any of this computable; birth_year alone gives a
+    // 12-month error, which is meaningless for an infant schedule.
+    const card = vax.buildCard(schedule.rows, given.rows, p.birth_date);
+    res.render('clinic_admin/patient_vaccines', {
+      company: req.company, tab: 'patients',
+      patient: p, card, schedule: schedule.rows,
+      ageMonths: p.birth_date ? vax.monthsBetween(p.birth_date, new Date()) : null,
+    });
+  } catch (e) { console.error('[vaccines]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/patients/:id/birth-date', async (req, res) => {
+  const pid = parseInt(req.params.id, 10);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(req.body.birth_date || '') ? req.body.birth_date : null;
+  try {
+    await pool.query(
+      // Keep birth_year in step so anything still reading it stays correct.
+      'UPDATE clinic_patients SET birth_date=$1, birth_year=COALESCE(EXTRACT(YEAR FROM $1::date)::int, birth_year) WHERE id=$2 AND company_id=$3',
+      [d, pid, req.company.id]
+    );
+  } catch (e) { console.error('[birth date]', e.message); }
+  res.redirect('/clinic/patients/' + pid + '/vaccines');
+});
+
+router.post('/patients/:id/vaccines', async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 120);
+  const givenAt = /^\d{4}-\d{2}-\d{2}$/.test(b.given_at || '') ? b.given_at : null;
+  if (!name || !givenAt) return res.redirect('/clinic/patients/' + pid + '/vaccines');
+  try {
+    await pool.query(
+      `INSERT INTO clinic_patient_vaccines (company_id, patient_id, schedule_id, name, given_at, batch, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [cid, pid, parseInt(b.schedule_id, 10) || null, name, givenAt,
+       String(b.batch || '').trim().slice(0, 60) || null,
+       String(b.note || '').trim().slice(0, 300) || null]
+    );
+  } catch (e) { console.error('[vaccine give]', e.message); }
+  res.redirect('/clinic/patients/' + pid + '/vaccines');
+});
+
+router.post('/patients/:pid/vaccines/:id/delete', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM clinic_patient_vaccines WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[vaccine delete]', e.message); }
+  res.redirect('/clinic/patients/' + parseInt(req.params.pid, 10) + '/vaccines');
+});
+
 // Clinical trends for one patient. A single reading answers almost nothing —
 // the question is always "compared to last time", and until now that meant
 // scrolling a list of visits.

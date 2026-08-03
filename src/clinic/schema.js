@@ -83,6 +83,41 @@ async function ensureClinicSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_patients_company ON clinic_patients (company_id, name);
+      -- birth_year is too coarse for anything age-driven: an infant's 2-month
+      -- vaccine cannot be scheduled from a year. Additive — birth_year stays.
+      ALTER TABLE clinic_patients ADD COLUMN IF NOT EXISTS birth_date DATE;
+
+      -- Vaccination schedule, per clinic and EDITABLE. Seeded with the commonly
+      -- published Egyptian childhood schedule, but the clinic confirms and
+      -- adjusts it: a schedule shipped as authoritative and silently wrong is
+      -- worse than one the doctor was asked to check.
+      CREATE TABLE IF NOT EXISTS clinic_vaccine_schedule (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        age_months  NUMERIC(5,2) NOT NULL,   -- 0 = at birth; 1.5 = 6 weeks
+        dose_label  TEXT,                    -- الجرعة الأولى / منشّطة …
+        note        TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT true
+      );
+      CREATE INDEX IF NOT EXISTS idx_vax_schedule
+        ON clinic_vaccine_schedule (company_id, age_months);
+
+      -- What a specific child actually received.
+      CREATE TABLE IF NOT EXISTS clinic_patient_vaccines (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id  INTEGER NOT NULL REFERENCES clinic_patients(id) ON DELETE CASCADE,
+        schedule_id INTEGER REFERENCES clinic_vaccine_schedule(id) ON DELETE SET NULL,
+        name        TEXT NOT NULL,           -- copied, so history survives a schedule edit
+        given_at    DATE NOT NULL,
+        batch       TEXT,
+        note        TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_patient_vaccines
+        ON clinic_patient_vaccines (company_id, patient_id, given_at);
     `);
 
     // ── Clinical + billing layer (visits, records, invoices) ─────────────────
