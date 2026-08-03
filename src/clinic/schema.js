@@ -220,6 +220,32 @@ async function ensureClinicSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_pay_company ON clinic_payments (company_id, created_at);
 
+      -- Home visits. A visit at the patient's address is not an appointment in
+      -- a room: it has an address, travel time and a separate transport fee, and
+      -- it occupies the doctor for a block the clinic schedule knows nothing
+      -- about. Keeping it in its own table stops it from corrupting the queue.
+      CREATE TABLE IF NOT EXISTS clinic_home_visits (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id    INTEGER REFERENCES clinic_patients(id) ON DELETE SET NULL,
+        doctor_id     INTEGER REFERENCES clinic_doctors(id) ON DELETE SET NULL,
+        patient_name  TEXT NOT NULL,
+        phone         TEXT,
+        address       TEXT NOT NULL,
+        area          TEXT,                    -- الحي/المنطقة — للتجميع والتسعير
+        scheduled_at  TIMESTAMPTZ,
+        status        TEXT NOT NULL DEFAULT 'requested',
+                      -- requested|scheduled|on_way|done|cancelled
+        visit_fee     NUMERIC(12,2) NOT NULL DEFAULT 0,
+        transport_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
+        collected     NUMERIC(12,2) NOT NULL DEFAULT 0,
+        reason        TEXT,
+        note          TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_home_visits
+        ON clinic_home_visits (company_id, status, scheduled_at);
+
       -- Installments. Dental and cosmetic work runs into thousands, so patients
       -- pay it over months — today that lives in a notebook. A plan splits one
       -- invoice into dated instalments; paying one writes a normal row into

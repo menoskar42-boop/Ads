@@ -17,6 +17,7 @@ const MODULES = [
   { key: 'dental',     label: 'الأسنان',        icon: '🦷', path: '/clinic/dental',     desc: 'خريطة الأسنان (FDI)، خطة علاج لكل سن، طلبات المعمل، وصور قبل/بعد. لعيادات الأسنان فقط.' },
   { key: 'cashbox',    label: 'الخزنة',         icon: '💰', path: '/clinic/cashbox',    desc: 'رصيد أول اليوم، المقبوضات والمصروفات النثرية، وتقفيل الخزنة بالفرق بين المحسوب والمعدود.' },
   { key: 'installments', label: 'التقسيط',      icon: '🧾', path: '/clinic/installments', desc: 'تقسيط الفاتورة على دفعات بمواعيد، ومتابعة المستحق والمتأخر — وكل دفعة بتتسجّل كتحصيل عادي.' },
+  { key: 'homevisits', label: 'زيارات منزلية',  icon: '🏠', path: '/clinic/home-visits', desc: 'طلبات الكشف في المنزل: العنوان والمنطقة، الطبيب، رسوم الكشف والانتقال، ومتابعة الحالة حتى التحصيل.' },
 ];
 
 const MODULE_KEYS = MODULES.map((m) => m.key);

@@ -906,6 +906,103 @@ router.post('/integrations/webhooks/:id/delete', requireModule('api'), async (re
   res.redirect('/clinic/integrations');
 });
 
+// ── Module: Home visits ──────────────────────────────────────────────────────
+const HV_STATUSES = [
+  { key: 'requested', label: 'طلب جديد' },
+  { key: 'scheduled', label: 'محدّد موعد' },
+  { key: 'on_way',    label: 'في الطريق' },
+  { key: 'done',      label: 'تمّت' },
+  { key: 'cancelled', label: 'ملغاة' },
+];
+const HV_KEYS = new Set(HV_STATUSES.map((s) => s.key));
+
+router.get('/home-visits', requireModule('homevisits'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [visits, doctors, patients, byArea] = await Promise.all([
+      pool.query(
+        `SELECT v.*, d.name AS doctor_name
+           FROM clinic_home_visits v
+           LEFT JOIN clinic_doctors d ON d.id = v.doctor_id
+          WHERE v.company_id = $1
+          ORDER BY (v.status IN ('done','cancelled')) ASC,
+                   v.scheduled_at NULLS FIRST, v.created_at DESC
+          LIMIT 200`, [cid]),
+      pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, name', [cid]),
+      pool.query('SELECT id, name, phone, address FROM clinic_patients WHERE company_id=$1 ORDER BY name LIMIT 500', [cid]),
+      // Grouping by area tells the clinic where the demand actually is — the
+      // basis for both routing two visits into one trip and pricing transport.
+      pool.query(
+        `SELECT COALESCE(NULLIF(area,''),'غير محدّد') AS area,
+                COUNT(*)::int AS n,
+                COALESCE(SUM(visit_fee + transport_fee),0) AS revenue
+           FROM clinic_home_visits
+          WHERE company_id=$1 AND status='done'
+          GROUP BY 1 ORDER BY n DESC LIMIT 12`, [cid]),
+    ]);
+    const open = visits.rows.filter((v) => !['done', 'cancelled'].includes(v.status));
+    res.render('clinic_admin/mod_homevisits', {
+      company: req.company, tab: 'homevisits',
+      visits: visits.rows, open, doctors: doctors.rows, patients: patients.rows,
+      statuses: HV_STATUSES, byArea: byArea.rows,
+    });
+  } catch (e) { console.error('[home visits]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/home-visits', requireModule('homevisits'), async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.patient_name || '').trim().slice(0, 120);
+  const address = String(b.address || '').trim().slice(0, 400);
+  if (!name || !address) return res.redirect('/clinic/home-visits');
+  const num = (v) => { const n = parseInt(v, 10); return Number.isInteger(n) ? n : null; };
+  try {
+    await pool.query(
+      `INSERT INTO clinic_home_visits
+         (company_id, patient_id, doctor_id, patient_name, phone, address, area,
+          scheduled_at, visit_fee, transport_fee, reason, note, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [req.company.id, num(b.patient_id), num(b.doctor_id), name,
+       String(b.phone || '').trim().slice(0, 30) || null,
+       address,
+       String(b.area || '').trim().slice(0, 80) || null,
+       b.scheduled_at ? new Date(b.scheduled_at) : null,
+       Math.max(0, parseFloat(b.visit_fee) || 0),
+       Math.max(0, parseFloat(b.transport_fee) || 0),
+       String(b.reason || '').trim().slice(0, 300) || null,
+       String(b.note || '').trim().slice(0, 500) || null,
+       b.scheduled_at ? 'scheduled' : 'requested']
+    );
+  } catch (e) { console.error('[home visit add]', e.message); }
+  res.redirect('/clinic/home-visits');
+});
+
+router.post('/home-visits/:id/status', requireModule('homevisits'), async (req, res) => {
+  const status = String(req.body.status || '');
+  if (!HV_KEYS.has(status)) return res.redirect('/clinic/home-visits');
+  try {
+    // Completing a visit records what was actually collected; leaving it at 0
+    // would quietly understate home-visit revenue in the area report.
+    const collected = status === 'done'
+      ? Math.max(0, parseFloat(req.body.collected) || 0)
+      : null;
+    await pool.query(
+      `UPDATE clinic_home_visits
+          SET status=$1, collected = COALESCE($2, collected)
+        WHERE id=$3 AND company_id=$4`,
+      [status, collected, parseInt(req.params.id, 10), req.company.id]
+    );
+  } catch (e) { console.error('[home visit status]', e.message); }
+  res.redirect('/clinic/home-visits');
+});
+
+router.post('/home-visits/:id/delete', requireModule('homevisits'), async (req, res) => {
+  try {
+    await pool.query('DELETE FROM clinic_home_visits WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[home visit delete]', e.message); }
+  res.redirect('/clinic/home-visits');
+});
+
 // ── Module: Installments ─────────────────────────────────────────────────────
 // A plan never becomes a second ledger: paying an instalment writes a normal
 // clinic_payments row and advances the invoice, so finance and the cash box
