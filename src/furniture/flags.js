@@ -20,7 +20,7 @@ const FLAGS = [
     desc: 'فواتير بمقدّم ودفعات، والمتبقّي وكشف حساب العميل.' },
   { key: 'bom',        label: 'مكوّنات المنتج',    icon: '🪚', path: '/furniture/bom',
     desc: 'خامات كل قطعة، تكلفتها المحسوبة تلقائياً، والربح المتوقّع.' },
-  { key: 'hr',         label: 'الحضور والمرتّبات', icon: '👷', path: '/furniture/attendance',
+  { key: 'hr',         label: 'الحضور والمرتّبات', icon: '👷', path: '/furniture/hr/attendance',
     desc: 'حضور وانصراف، ومرتّبات بالخصومات والمكافآت والجزاءات والسلف.' },
   { key: 'canteen',    label: 'الكانتين',         icon: '🍵', path: '/furniture/canteen',
     desc: 'مشتريات العمالة نقداً أو على الحساب — واللي على الحساب بيتخصم في المرتّب.' },

@@ -300,6 +300,50 @@ const FIXTURES = {
     };
   },
 
+  furniture_attendance: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const P = require('../src/furniture/payroll');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'hr']);
+    return {
+      __file: 'furniture_admin/attendance.ejs', tab: 'hr',
+      workers: [
+        { id: 1, name: 'Sayed', job_title: 'Carpenter', pay_type: 'piece' },
+        { id: 2, name: 'Ramadan', job_title: 'Finisher', pay_type: 'daily' },
+      ],
+      marks: { 2: { worker_id: 2, status: 'half', permission_hours: 2 } },
+      day: '2026-08-03', statuses: P.STATUSES, saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_payroll: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const P = require('../src/furniture/payroll');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'hr']);
+    const att = [
+      { status: 'present', permission_hours: 0 }, { status: 'present', permission_hours: 2 },
+      { status: 'half', permission_hours: 0 }, { status: 'absent', permission_hours: 0 },
+      { status: 'vacation', permission_hours: 0 },
+    ];
+    const rows = [
+      P.computeRow({ id: 1, name: 'Ramadan', pay_type: 'daily', pay_rate: 300 }, att,
+        [{ id: 1, adj_type: 'bonus', amount: 200 }, { id: 2, adj_type: 'advance', amount: 500 }],
+        [{ id: 9, amount: 120, paid_cash: false }]),
+      // A piece worker: the "enter the base yourself" wording must render.
+      P.computeRow({ id: 2, name: 'Sayed', pay_type: 'piece', pay_rate: 250 }, att, [], []),
+    ];
+    return {
+      __file: 'furniture_admin/payroll.ejs', tab: 'hr',
+      rows, workers: [{ id: 1, name: 'Ramadan' }, { id: 2, name: 'Sayed' }],
+      history: [{ id: 1, worker_name: 'Ramadan', period_start: '2026-07-01', period_end: '2026-07-07',
+        base: 1275, bonuses: 200, deductions: 620, net: 855, paid: false }],
+      start: '2026-07-28', end: '2026-08-03',
+      weekDays: P.WEEK_DAYS, dayHours: P.DAY_HOURS,
+      err: 'nobody', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{

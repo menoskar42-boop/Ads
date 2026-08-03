@@ -1,0 +1,164 @@
+<%- include('head', { title: t('fn2.hr.payroll'), tab: 'hr' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <h1 class="text-2xl font-black text-stone-900">💰 <%= t('fn2.hr.payroll') %></h1>
+  <a href="/furniture/hr/attendance" class="ms-auto text-sm font-semibold text-brand-700 hover:underline">← <%= t('fn2.hr.attendance') %></a>
+</div>
+<p class="text-stone-500 mb-4 text-sm"><%= t('fn2.hr.payroll_sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.hr.run_saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.hr.err.' + err) %></div><% } %>
+
+<form method="get" class="flex items-end gap-2 mb-4 flex-wrap">
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.from') %>
+    <input type="date" name="start" value="<%= start %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.to') %>
+    <input type="date" name="end" value="<%= end %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <button class="bg-stone-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('fn2.hr.show') %></button>
+</form>
+
+<!-- ── مكافأة / جزاء / سلفة ─────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-stone-800 mb-1"><%= t('fn2.hr.adjustment') %></h2>
+  <p class="text-xs text-stone-500 mb-3"><%= t('fn2.hr.adjustment_hint') %></p>
+  <form method="post" action="/furniture/hr/adjustments" class="flex flex-wrap gap-2 items-end">
+    <input type="hidden" name="start" value="<%= start %>" />
+    <input type="hidden" name="end" value="<%= end %>" />
+    <label class="text-xs font-bold text-stone-600 flex-1 min-w-[140px]"><%= t('fn2.hr.worker') %>
+      <select name="worker_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% workers.forEach(function(w){ %><option value="<%= w.id %>"><%= w.name %></option><% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-stone-600"><%= t('common.type') || t('fn2.hr.adj_type') %>
+      <select name="adj_type" class="mt-1 border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value="bonus"><%= t('fn2.hr.adj.bonus') %></option>
+        <option value="penalty"><%= t('fn2.hr.adj.penalty') %></option>
+        <option value="advance"><%= t('fn2.hr.adj.advance') %></option>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_amount') %>
+      <input name="amount" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-28 border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_date') %>
+      <input name="adj_date" type="date" class="mt-1 border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="bg-stone-800 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('fn2.m.add') %></button>
+  </form>
+</div>
+
+<!-- ── كشف المرتّبات للفترة ──────────────────────────────────────── -->
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.hr.no_workers') %></div>
+<% } else { %>
+<form method="post" action="/furniture/hr/payroll" class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <input type="hidden" name="start" value="<%= start %>" />
+  <input type="hidden" name="end" value="<%= end %>" />
+  <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800">
+    <%= t('fn2.hr.period') %> <%= fmtD(start) %> — <%= fmtD(end) %>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-stone-50 text-stone-600">
+        <tr>
+          <th class="px-3 py-2"></th>
+          <th class="text-start px-3 py-2 font-semibold"><%= t('fn2.hr.worker') %></th>
+          <th class="text-start px-3 py-2 font-semibold"><%= t('fn2.hr.days') %></th>
+          <th class="text-start px-3 py-2 font-semibold"><%= t('fn2.hr.base') %></th>
+          <th class="text-start px-3 py-2 font-semibold"><%= t('fn2.hr.adj.bonus') %></th>
+          <th class="text-start px-3 py-2 font-semibold"><%= t('fn2.hr.deductions') %></th>
+          <th class="text-start px-3 py-2 font-semibold"><%= t('fn2.hr.net') %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        <% rows.forEach(function(r){ %>
+        <tr>
+          <td class="px-3 py-2"><input type="checkbox" name="include" value="<%= r.worker_id %>" checked class="w-5 h-5" /></td>
+          <td class="px-3 py-2" data-l="<%= t('fn2.hr.worker') %>">
+            <div class="font-bold text-stone-900"><%= r.worker_name %></div>
+            <div class="text-xs text-stone-500">
+              <%= t('fn2.pay.' + r.pay_type) %>
+              <%# Piece work has no day rate to derive a wage from, so say so
+                  rather than let a zero look like a calculation. %>
+              <% if (r.day_rate == null) { %>
+                <span class="text-amber-700 font-semibold"><%= t('fn2.hr.piece_manual') %></span>
+              <% } else { %>· <%= money(r.day_rate) %>/<%= t('fn2.hr.day') %><% } %>
+            </div>
+          </td>
+          <td class="px-3 py-2 text-xs text-stone-600" data-l="<%= t('fn2.hr.days') %>">
+            <%= t('fn2.hr.st.present') %> <%= r.days.present %> ·
+            <%= t('fn2.hr.st.absent') %> <%= r.days.absent %> ·
+            <%= t('fn2.hr.st.half') %> <%= r.days.half %> ·
+            <%= t('fn2.hr.st.vacation') %> <%= r.days.vacation %>
+            <% if (r.days.permissionHours) { %><br /><%= t('fn2.hr.permission') %> <%= r.days.permissionHours %><% } %>
+          </td>
+          <td class="px-3 py-2" data-l="<%= t('fn2.hr.base') %>">
+            <input name="base_<%= r.worker_id %>" type="number" min="0" <%- 'step="0.01"' %> value="<%= r.base %>"
+                   class="w-24 border border-stone-200 rounded-lg px-2 py-1 text-sm" />
+          </td>
+          <td class="px-3 py-2" data-l="<%= t('fn2.hr.adj.bonus') %>">
+            <input name="bonus_<%= r.worker_id %>" type="number" min="0" <%- 'step="0.01"' %> value="<%= r.bonuses %>"
+                   class="w-20 border border-stone-200 rounded-lg px-2 py-1 text-sm" />
+          </td>
+          <td class="px-3 py-2 text-xs text-red-700" data-l="<%= t('fn2.hr.deductions') %>">
+            <%= money(r.deductions) %>
+            <div class="text-[10px] text-stone-500">
+              <%= t('fn2.hr.adj.penalty') %> <%= money(r.penalties) %> ·
+              <%= t('fn2.hr.adj.advance') %> <%= money(r.advances) %> ·
+              <%= t('fn2.flag.canteen') %> <%= money(r.canteen) %>
+            </div>
+          </td>
+          <td class="px-3 py-2 font-black text-stone-900" data-l="<%= t('fn2.hr.net') %>"><%= money(r.net) %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <div class="px-5 py-3 border-t border-stone-100 flex flex-wrap items-center gap-3">
+    <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.hr.run') %></button>
+    <label class="text-sm text-stone-700 flex items-center gap-2">
+      <input type="checkbox" name="mark_paid" value="1" class="w-4 h-4" /> <%= t('fn2.hr.mark_paid') %>
+    </label>
+    <p class="text-xs text-stone-400 flex-1 min-w-[240px]"><%= t('fn2.hr.run_hint') %></p>
+  </div>
+</form>
+
+<p class="text-xs text-stone-400 mb-5">
+  <%= t('fn2.hr.assumptions_1') %> <strong><%= weekDays %></strong> <%= t('fn2.hr.assumptions_2') %> <strong><%= dayHours %></strong> <%= t('fn2.hr.assumptions_3') %>
+</p>
+<% } %>
+
+<!-- ── السجل ────────────────────────────────────────────────────── -->
+<% if (history.length) { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.hr.history') %></div>
+  <div class="divide-y divide-stone-100">
+    <% history.forEach(function(h){ %>
+    <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
+      <span class="font-semibold text-stone-800"><%= h.worker_name || '—' %></span>
+      <span class="text-xs text-stone-400"><%= fmtD(h.period_start) %> — <%= fmtD(h.period_end) %></span>
+      <span class="text-xs text-stone-500">
+        <%= t('fn2.hr.base') %> <%= money(h.base) %> ·
+        <%= t('fn2.hr.adj.bonus') %> <%= money(h.bonuses) %> ·
+        <%= t('fn2.hr.deductions') %> <%= money(h.deductions) %>
+      </span>
+      <span class="font-black text-stone-900 ms-auto"><%= money(h.net) %> <%= t('cur.egp') %></span>
+      <% if (h.paid) { %>
+        <span class="text-xs font-semibold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full"><%= t('fn2.hr.paid') %></span>
+      <% } else { %>
+        <form method="post" action="/furniture/hr/payroll/<%= h.id %>/paid">
+          <button class="text-xs bg-stone-800 text-white font-bold px-3 py-1.5 rounded-lg"><%= t('fn2.hr.mark_paid') %></button>
+        </form>
+      <% } %>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+</main></body></html>

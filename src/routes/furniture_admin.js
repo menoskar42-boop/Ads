@@ -66,6 +66,13 @@ router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
 
 router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
 
+// Attendance and payroll share one router — a payslip is meaningless without
+// the attendance it was calculated from, so they cannot be toggled apart.
+// Mounted on its own prefix, NOT on '/': a sub-router at the root would run its
+// flag guard on the dashboard and settings too, redirecting anyone without the
+// flag away from their own home page in a loop.
+router.use('/hr', requireFlag('hr'), require('./furniture_hr'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {

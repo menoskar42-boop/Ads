@@ -1,0 +1,62 @@
+<%- include('head', { title: t('fn2.hr.attendance'), tab: 'hr' }) %>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <h1 class="text-2xl font-black text-stone-900">👷 <%= t('fn2.hr.attendance') %></h1>
+  <a href="/furniture/hr/payroll" class="ms-auto text-sm font-semibold text-brand-700 hover:underline"><%= t('fn2.hr.payroll') %> →</a>
+</div>
+<p class="text-stone-500 mb-4 text-sm"><%= t('fn2.hr.attendance_sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+
+<form method="get" class="flex items-center gap-2 mb-4 flex-wrap">
+  <label class="text-sm text-stone-600"><%= t('cb.day') %></label>
+  <input type="date" name="day" value="<%= day %>" onchange="this.form.submit()"
+         class="border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+</form>
+
+<% if (!workers.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.hr.no_workers') %></div>
+<% } else { %>
+<form method="post" action="/furniture/hr/attendance" class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <input type="hidden" name="day" value="<%= day %>" />
+  <div class="divide-y divide-stone-100">
+    <% workers.forEach(function(w){ var m = marks[w.id]; %>
+    <div class="px-4 py-3 flex flex-wrap items-center gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="font-bold text-stone-900"><%= w.name %></div>
+        <div class="text-xs text-stone-500"><%= w.job_title || '' %> · <%= t('fn2.pay.' + w.pay_type) %></div>
+      </div>
+
+      <%# Radio rather than a dropdown: marking a whole workshop is faster by
+          tapping than by opening a select for every person. Nothing is
+          preselected when the day was never marked — a blank is not "present". %>
+      <div class="flex gap-1 flex-wrap">
+        <% statuses.forEach(function(s){ %>
+        <label class="cursor-pointer">
+          <input type="radio" name="st_<%= w.id %>" value="<%= s %>" class="peer sr-only"
+                 <%= m && m.status === s ? 'checked' : '' %> />
+          <span class="block text-xs px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50
+                       peer-checked:bg-brand-600 peer-checked:text-white peer-checked:border-brand-600 peer-checked:font-bold">
+            <%= t('fn2.hr.st.' + s) %>
+          </span>
+        </label>
+        <% }); %>
+      </div>
+
+      <label class="text-xs text-stone-500 flex items-center gap-1">
+        <%= t('fn2.hr.permission') %>
+        <input name="ph_<%= w.id %>" type="number" min="0" max="24" <%- 'step="0.5"' %>
+               value="<%= m && Number(m.permission_hours) ? m.permission_hours : '' %>"
+               class="w-16 border border-stone-200 rounded-lg px-2 py-1 text-sm" />
+      </label>
+    </div>
+    <% }); %>
+  </div>
+  <div class="px-4 py-3 border-t border-stone-100 flex items-center gap-3 flex-wrap">
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.hr.save_day') %></button>
+    <p class="text-xs text-stone-400 flex-1 min-w-[200px]"><%= t('fn2.hr.day_hint') %></p>
+  </div>
+</form>
+<% } %>
+
+</main></body></html>
