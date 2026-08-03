@@ -58,6 +58,10 @@ async function settingsOf(companyId) {
 // broken one. Mounted after the guards so it inherits req.company and req.flags.
 router.use('/master', require('./furniture_master'));
 
+// Purchasing sits behind its own flag: a showroom that only sells finished
+// pieces it does not make has no purchase orders to raise.
+router.use('/purchases', requireFlag('purchases'), require('./furniture_purchases'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {

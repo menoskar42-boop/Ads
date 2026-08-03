@@ -163,6 +163,47 @@ const FIXTURES = {
     };
   },
 
+  furniture_purchases: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/purchases.ejs',
+      tab: 'purchases',
+      orders: [
+        { id: 1, supplier_name: 'Nile Timber', order_date: '2026-07-01', expected_delivery: '2026-07-10',
+          status: 'partial', ordered_value: 3500, received_value: 1700 },
+        { id: 2, supplier_name: null, order_date: '2026-08-01', expected_delivery: null,
+          status: 'cancelled', ordered_value: 900, received_value: 0 },
+      ],
+      suppliers: [{ id: 1, name: 'Nile Timber' }],
+      materials: [{ id: 1, name: 'Oak 18mm', unit: 'metre' }],
+      balances: [{ id: 1, name: 'Nile Timber', received: 1700, paid: 500, balance: 1200 }],
+      status: null, statuses: require('../src/furniture/purchasing').STATUSES,
+      err: 'no_lines', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_purchase_detail: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const pu = require('../src/furniture/purchasing');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    const items = [
+      { id: 11, material_name: 'Oak 18mm', unit: 'metre', qty: 10, qty_received: 4, unit_cost: 300 },
+      { id: 12, material_name: 'Lacquer', unit: 'litre', qty: 5, qty_received: 5, unit_cost: 100 },
+    ];
+    return {
+      __file: 'furniture_admin/purchase_detail.ejs',
+      tab: 'purchases',
+      po: { id: 1, supplier_id: 1, supplier_name: 'Nile Timber', order_date: '2026-07-01',
+        expected_delivery: '2026-07-10', status: 'partial' },
+      items, payments: [{ pay_date: '2026-07-15', amount: 500, note: 'deposit' }],
+      totals: pu.orderTotals(items),
+      err: 'has_received', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{

@@ -1,0 +1,150 @@
+<%- include('head', { title: t('fn2.flag.purchases'), tab: 'purchases' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var SB = { pending:'bg-stone-100 text-stone-700', partial:'bg-amber-100 text-amber-800',
+             delivered:'bg-emerald-100 text-emerald-800', cancelled:'bg-red-50 text-red-600 line-through' };
+%>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">🧾 <%= t('fn2.flag.purchases') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.po.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.po.err.' + err) %></div><% } %>
+
+<!-- ── أمر شراء جديد ────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.po.new') %></h2>
+  <% if (!materials.length) { %>
+    <p class="text-sm text-stone-500"><%= t('fn2.po.no_materials') %></p>
+  <% } else { %>
+  <form method="post" action="/furniture/purchases" class="grid gap-3">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.supplier') %>
+        <select name="supplier_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('dn.none') %></option>
+          <% suppliers.forEach(function(s){ %><option value="<%= s.id %>"><%= s.name %></option><% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.order_date') %>
+        <input type="date" name="order_date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.expected') %>
+        <input type="date" name="expected_delivery" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('common.notes') %>
+        <input name="note" maxlength="300" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+
+    <div id="lines" class="grid gap-2">
+      <div class="grid grid-cols-12 gap-2 items-end line">
+        <label class="col-span-12 sm:col-span-6 text-xs font-bold text-stone-600"><%= t('fn2.po.material') %>
+          <select name="material_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% materials.forEach(function(m){ %><option value="<%= m.id %>"><%= m.name %><%= m.unit ? ' — ' + m.unit : '' %></option><% }); %>
+          </select>
+        </label>
+        <label class="col-span-6 sm:col-span-3 text-xs font-bold text-stone-600"><%= t('fn2.po.qty') %>
+          <input name="qty" type="number" min="0" <%- 'step="0.001"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="col-span-6 sm:col-span-3 text-xs font-bold text-stone-600"><%= t('fn2.po.unit_cost') %>
+          <input name="unit_cost" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+      </div>
+    </div>
+
+    <div class="flex gap-2 flex-wrap">
+      <button type="button" onclick="addLine()" class="text-xs text-brand-700 font-bold px-3 py-2 rounded-xl bg-brand-50 hover:bg-brand-100"><%= t('fn2.po.add_line') %></button>
+      <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.po.create') %></button>
+    </div>
+  </form>
+  <% } %>
+</div>
+
+<!-- ── أرصدة الموردين ───────────────────────────────────────────── -->
+<% if (balances.length) { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.po.balances') %></div>
+  <p class="px-5 pt-2 text-xs text-stone-400"><%= t('fn2.po.balances_hint') %></p>
+  <div class="divide-y divide-stone-100">
+    <% balances.forEach(function(s){ var owed = Number(s.balance); %>
+    <div class="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
+      <span class="font-semibold text-stone-800"><%= s.name %></span>
+      <span class="text-xs text-stone-400"><%= t('fn2.po.received_value') %> <%= money(s.received) %> · <%= t('fn2.po.paid') %> <%= money(s.paid) %></span>
+      <span class="ms-auto font-bold <%= owed > 0 ? 'text-amber-700' : 'text-emerald-700' %>">
+        <%= money(owed) %> <%= t('cur.egp') %>
+      </span>
+      <form method="post" action="/furniture/purchases/pay" class="flex items-center gap-1">
+        <input type="hidden" name="supplier_id" value="<%= s.id %>" />
+        <input name="amount" type="number" min="0" <%- 'step="0.01"' %> placeholder="<%= t('fn2.po.pay_amount') %>"
+               class="w-28 border border-stone-200 rounded-lg px-2 py-1 text-xs" />
+        <button class="text-xs bg-stone-800 text-white font-bold px-3 py-1.5 rounded-lg"><%= t('fn2.po.pay') %></button>
+      </form>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<!-- ── الأوامر ──────────────────────────────────────────────────── -->
+<div class="flex gap-1.5 mb-3 text-xs flex-wrap">
+  <a href="/furniture/purchases" class="px-3 py-1.5 rounded-lg <%= !status ? 'bg-stone-800 text-white font-bold' : 'bg-white border border-stone-200' %>"><%= t('iv.all') %></a>
+  <% statuses.forEach(function(s){ %>
+    <a href="/furniture/purchases?status=<%= s %>" class="px-3 py-1.5 rounded-lg <%= status === s ? 'bg-stone-800 text-white font-bold' : 'bg-white border border-stone-200' %>"><%= t('fn2.po.st.' + s) %></a>
+  <% }); %>
+</div>
+
+<% if (!orders.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.po.empty') %></div>
+<% } else { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-stone-50 text-stone-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold">#</th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.supplier') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.order_date') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.expected') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.ordered_value') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.received_value') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('common.status') %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        <% orders.forEach(function(o){
+             var late = o.expected_delivery && ['pending','partial'].indexOf(o.status) >= 0
+               && new Date(o.expected_delivery) < new Date(new Date().toDateString());
+        %>
+        <tr class="<%= late ? 'bg-red-50/40' : '' %>">
+          <td class="px-4 py-2" data-l="#"><a href="/furniture/purchases/<%= o.id %>" class="text-brand-700 font-bold hover:underline">#<%= o.id %></a></td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.po.supplier') %>"><%= o.supplier_name || '—' %></td>
+          <td class="px-4 py-2 text-stone-600" data-l="<%= t('fn2.po.order_date') %>"><%= fmtD(o.order_date) %></td>
+          <td class="px-4 py-2 <%= late ? 'text-red-700 font-bold' : 'text-stone-600' %>" data-l="<%= t('fn2.po.expected') %>">
+            <%= fmtD(o.expected_delivery) %><%= late ? ' ⚠️' : '' %>
+          </td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.po.ordered_value') %>"><%= money(o.ordered_value) %></td>
+          <td class="px-4 py-2 text-emerald-700" data-l="<%= t('fn2.po.received_value') %>"><%= money(o.received_value) %></td>
+          <td class="px-4 py-2" data-l="<%= t('common.status') %>">
+            <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SB[o.status] %>"><%= t('fn2.po.st.' + o.status) %></span>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<script>
+  // Clone the first line rather than building markup in JS, so the fields and
+  // their translated labels stay defined in one place — the template above.
+  function addLine(){
+    var wrap = document.getElementById('lines');
+    var copy = wrap.querySelector('.line').cloneNode(true);
+    copy.querySelectorAll('input').forEach(function(i){ i.value = ''; });
+    wrap.appendChild(copy);
+  }
+</script>
+
+</main></body></html>

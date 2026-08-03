@@ -1,0 +1,135 @@
+<%- include('head', { title: t('fn2.po.one') + ' #' + po.id, tab: 'purchases' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function qty(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:3}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var SB = { pending:'bg-stone-100 text-stone-700', partial:'bg-amber-100 text-amber-800',
+             delivered:'bg-emerald-100 text-emerald-800', cancelled:'bg-red-50 text-red-600' };
+  var open = po.status !== 'delivered' && po.status !== 'cancelled';
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/furniture/purchases" class="text-stone-400 hover:text-stone-600 text-sm">← <%= t('fn2.flag.purchases') %></a>
+  <h1 class="text-2xl font-black text-stone-900"><%= t('fn2.po.one') %> #<%= po.id %></h1>
+  <span class="text-xs font-semibold px-2 py-1 rounded-full <%= SB[po.status] %>"><%= t('fn2.po.st.' + po.status) %></span>
+</div>
+<p class="text-stone-500 mb-5 text-sm">
+  <%= po.supplier_name || '—' %> · <%= t('fn2.po.order_date') %> <%= fmtD(po.order_date) %>
+  <% if (po.expected_delivery) { %> · <%= t('fn2.po.expected') %> <%= fmtD(po.expected_delivery) %><% } %>
+</p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.po.err.' + err) %></div><% } %>
+
+<div class="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.po.ordered_value') %></div>
+    <div class="text-xl font-extrabold text-stone-900"><%= money(totals.ordered) %> <%= t('cur.egp') %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.po.received_value') %></div>
+    <div class="text-xl font-extrabold text-emerald-700"><%= money(totals.received) %> <%= t('cur.egp') %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4 col-span-2 lg:col-span-1">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.po.outstanding_value') %></div>
+    <div class="text-xl font-extrabold text-amber-700"><%= money(totals.ordered - totals.received) %> <%= t('cur.egp') %></div>
+  </div>
+</div>
+
+<!-- ── البنود والاستلام ─────────────────────────────────────────── -->
+<form method="post" action="/furniture/purchases/<%= po.id %>/receive" class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
+  <div class="px-5 py-3 border-b border-stone-100 font-bold text-stone-800"><%= t('fn2.po.lines') %></div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-stone-50 text-stone-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.material') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.qty') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.received') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.remaining') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.unit_cost') %></th>
+          <% if (open) { %><th class="text-start px-4 py-2 font-semibold"><%= t('fn2.po.receive_now') %></th><% } %>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        <% items.forEach(function(it){ var rem = Number(it.qty) - Number(it.qty_received); %>
+        <tr>
+          <td class="px-4 py-2 font-semibold text-stone-800" data-l="<%= t('fn2.po.material') %>">
+            <%= it.material_name || '—' %><% if (it.unit) { %> <span class="text-xs text-stone-400"><%= it.unit %></span><% } %>
+          </td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.po.qty') %>"><%= qty(it.qty) %></td>
+          <td class="px-4 py-2 text-emerald-700" data-l="<%= t('fn2.po.received') %>"><%= qty(it.qty_received) %></td>
+          <td class="px-4 py-2 <%= rem > 0 ? 'text-amber-700 font-bold' : 'text-stone-400' %>" data-l="<%= t('fn2.po.remaining') %>"><%= qty(rem) %></td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.po.unit_cost') %>"><%= money(it.unit_cost) %></td>
+          <% if (open) { %>
+          <td class="px-4 py-2" data-l="<%= t('fn2.po.receive_now') %>">
+            <%# Defaults to what is still outstanding — the common case is the
+                whole remainder arriving, and typing it again invites a typo. %>
+            <input name="recv_<%= it.id %>" type="number" min="0" max="<%= rem %>" <%- 'step="0.001"' %>
+                   value="<%= rem > 0 ? rem : '' %>" <%= rem > 0 ? '' : 'disabled' %>
+                   class="w-24 border border-stone-200 rounded-lg px-2 py-1 text-sm" />
+          </td>
+          <% } %>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% if (open) { %>
+  <div class="px-5 py-3 border-t border-stone-100 flex flex-wrap items-center gap-3">
+    <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.po.receive') %></button>
+    <p class="text-xs text-stone-400 flex-1 min-w-[220px]"><%= t('fn2.po.receive_hint') %></p>
+  </div>
+  <% } %>
+</form>
+
+<div class="grid lg:grid-cols-2 gap-5">
+  <!-- ── دفعة للمورد ────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-stone-800 mb-1"><%= t('fn2.po.pay_supplier') %></h2>
+    <p class="text-xs text-stone-500 mb-3"><%= t('fn2.po.pay_hint') %></p>
+    <% if (!po.supplier_id) { %>
+      <p class="text-sm text-stone-500"><%= t('fn2.po.no_supplier') %></p>
+    <% } else { %>
+    <form method="post" action="/furniture/purchases/pay" class="flex flex-wrap gap-2 items-end">
+      <input type="hidden" name="supplier_id" value="<%= po.supplier_id %>" />
+      <input type="hidden" name="po_id" value="<%= po.id %>" />
+      <input type="hidden" name="back" value="order" />
+      <label class="text-xs font-bold text-stone-600 flex-1 min-w-[110px]"><%= t('fn2.po.pay_amount') %>
+        <input name="amount" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.pay_date') %>
+        <input name="pay_date" type="date" class="mt-1 border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <button class="bg-stone-800 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('fn2.po.pay') %></button>
+    </form>
+    <% } %>
+  </div>
+
+  <!-- ── سجل مدفوعات المورد ─────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.po.payments') %></h2>
+    <% if (!payments.length) { %>
+      <p class="text-sm text-stone-500"><%= t('fn2.po.no_payments') %></p>
+    <% } else { %>
+    <div class="divide-y divide-stone-100 text-sm">
+      <% payments.forEach(function(p){ %>
+      <div class="flex items-center gap-2 py-2">
+        <span class="text-stone-500 text-xs"><%= fmtD(p.pay_date) %></span>
+        <% if (p.note) { %><span class="text-stone-400 text-xs truncate"><%= p.note %></span><% } %>
+        <span class="font-bold text-stone-800 ms-auto"><%= money(p.amount) %> <%= t('cur.egp') %></span>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<% if (po.status !== 'cancelled') { %>
+<form method="post" action="/furniture/purchases/<%= po.id %>/cancel" class="mt-5"
+      onsubmit="return confirm(<%= JSON.stringify(t('fn2.po.cancel_confirm')) %>)">
+  <button class="text-sm text-red-600 hover:text-red-700 font-semibold"><%= t('fn2.po.cancel') %></button>
+</form>
+<% } %>
+
+</main></body></html>
