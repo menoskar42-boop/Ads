@@ -61,6 +61,30 @@ const FIXTURES = {
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
 
+  // The public clinic page — the only one visitors see, so it is checked in
+  // both languages too, and its <title> is length-checked below.
+  tenant_clinic: (lang) => ({
+    __file: 'tenant_clinic.ejs',
+    company: {
+      id: 1, slug: 'demo', company_name: 'Demo Clinic', logo_url: null,
+      description: 'A demo clinic used to check the public page renders.',
+    },
+    clinicSettings: {
+      specialty: 'dentistry', about: 'About the clinic.', address: 'Street 5, Assiut',
+      phone: '0882000000', whatsapp: '201000000000', hours: 'Sat–Thu 4pm–10pm',
+      booking_enabled: true, map_lat: null, map_lng: null,
+    },
+    clinicSpecialtyLabel: require('../src/clinic/specialties').labelFor('dentistry', (k) => t(k, lang)),
+    clinicDoctors: [{
+      id: 1, slug: 'sara', name: 'Dr. Sara', title: 'Consultant',
+      specialty: 'Orthodontics', bio: 'Ten years of practice.', photo_url: '', fee: 300,
+    }],
+    canonicalCompanyUrl: (slug) => 'https://' + slug + '.oscardevs.com/',
+    noindex: false, sent: false, contactError: false,
+    showAds: false,
+    siteOrigin: 'https://demo.oscardevs.com',
+  }),
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{
@@ -389,9 +413,34 @@ const FIXTURES = {
 };
 
 // ── Runner ───────────────────────────────────────────────────────────────────
+// SEO limits the project records: a title Google/Bing will not truncate, a
+// description in the range they actually show, and one h1 per page.
+const TITLE_MAX = 60;
+const DESC_MIN = 70;
+const DESC_MAX = 160;
+
+function seoProblems(html) {
+  const out = [];
+  const title = (html.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+  if (!title) out.push('لا يوجد <title>');
+  else if (title.length > TITLE_MAX) out.push(`العنوان ${title.length} حرف (الحد ${TITLE_MAX}): ${title}`);
+
+  const desc = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1];
+  if (!desc) out.push('لا يوجد meta description');
+  else if (desc.length > DESC_MAX) out.push(`الوصف ${desc.length} حرف (الحد ${DESC_MAX})`);
+  else if (desc.length < DESC_MIN) out.push(`الوصف ${desc.length} حرف — قصير جداً (الحد الأدنى ${DESC_MIN})`);
+
+  const h1 = (html.match(/<h1[\s>]/g) || []).length;
+  if (h1 !== 1) out.push(`عدد <h1> = ${h1} (المفروض 1)`);
+  return out;
+}
+
 function renderPage(name, lang) {
   const page = FIXTURES[name](lang);
-  const file = path.join(CLINIC, name + '.ejs');
+  // Most pages live under clinic_admin/; the public clinic page sits in views/.
+  const file = page.__file
+    ? path.join(VIEWS, page.__file)
+    : path.join(CLINIC, name + '.ejs');
   return ejs.render(
     require('fs').readFileSync(file, 'utf8'),
     Object.assign(base(lang, page.tab), page),
@@ -422,6 +471,17 @@ for (const name of names) {
     console.log(`❌ ${name} — الصفحة العربية بلا نص عربي`);
     continue;
   }
+  // Public pages are indexed, so they also carry the SEO rules the project
+  // records: a title that is not truncated in results, a description in the
+  // range search engines show, and exactly one h1.
+  const seo = FIXTURES[name]().__file ? [ar, en].flatMap(seoProblems) : [];
+  if (seo.length) {
+    failed++;
+    console.log(`❌ ${name} — ${seo.length} مخالفة SEO:`);
+    seo.forEach((s) => console.log('   · ' + s));
+    continue;
+  }
+
   const leaks = visibleArabic(en);
   if (leaks.length) {
     failed++;

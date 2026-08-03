@@ -262,6 +262,7 @@ router.get('/', async (req, res) => {
   // page (no shared directory); its doctors each get a public /doctor/<slug> page.
   let clinicDoctors = [];
   let clinicSettings = null;
+  let clinicSpecialtyLabel = '';
   if (company.page_type === 'clinic') {
     try {
       clinicDoctors = (await pool.query(
@@ -271,6 +272,14 @@ router.get('/', async (req, res) => {
       clinicSettings = (await pool.query(
         'SELECT * FROM clinic_settings WHERE company_id = $1', [company.id]
       )).rows[0] || null;
+      // specialty is stored as a key. Printing it raw put "dentistry" in the
+      // page title, the visible text and the MedicalClinic schema — resolve it
+      // to a readable name in the visitor's language. Clinics that typed their
+      // own specialty keep the text they typed.
+      if (clinicSettings && clinicSettings.specialty) {
+        clinicSpecialtyLabel = require('../clinic/specialties')
+          .labelFor(clinicSettings.specialty, res.locals.t);
+      }
     } catch (err) { console.error('Clinic query error:', err.message); }
   }
 
@@ -382,6 +391,7 @@ router.get('/', async (req, res) => {
     foodUpsellOn,
     clinicDoctors,
     clinicSettings,
+    clinicSpecialtyLabel,
     gymSettings,
     gymPlans,
     gymTrainers,
