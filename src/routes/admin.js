@@ -13,6 +13,27 @@ const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://oscardevs.com';
 const RESERVED_SLUGS = ['admin', 'company', 'view', 'api', 'public', 'static', 'shop', 'customer', 'contact', 'uploads'];
 const SLUG_REGEX = /^[a-z0-9-]+$/;
 
+// Free trial + referral reward, in months. Both sides of a referral get the
+// bonus, so a client who brings one other client doubles their own free time.
+const FREE_TRIAL_MONTHS = 6;
+const REFERRAL_BONUS_MONTHS = 2;
+
+// Codes get typed by hand and read over the phone, so drop the characters that
+// get confused: O/0, I/1, S/5. Retries on the unique index rather than trusting
+// randomness alone.
+const REF_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXYZ23456789';
+async function makeReferralCode(client) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    let code = '';
+    for (let i = 0; i < 6; i += 1) {
+      code += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+    }
+    const hit = await client.query('SELECT 1 FROM companies WHERE referral_code = $1', [code]);
+    if (!hit.rows.length) return code;
+  }
+  return null; // vanishingly unlikely; the column stays null rather than blocking approval
+}
+
 function adminSession(req) {
   return { adminEmail: req.session.adminEmail, adminId: req.session.adminId };
 }
@@ -434,12 +455,41 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
       return res.redirect('/admin/applications/' + req.params.id);
     }
 
+    // Referral: a valid code earns BOTH sides two extra free months. Resolved
+    // inside the approval transaction so a bad code can never half-apply.
+    let referrer = null;
+    if (app.referral_code) {
+      const rq = await client.query(
+        'SELECT id, company_name, free_until FROM companies WHERE referral_code = $1',
+        [app.referral_code]
+      );
+      referrer = rq.rows[0] || null;
+    }
+    const freeMonths = FREE_TRIAL_MONTHS + (referrer ? REFERRAL_BONUS_MONTHS : 0);
+
     const ins = await client.query(
-      `INSERT INTO companies (slug, company_name, description, theme_color, page_type)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [app.preferred_slug, app.business_name, app.description || null, '#2563eb', app.business_type]
+      `INSERT INTO companies (slug, company_name, description, theme_color, page_type,
+                              free_until, referral_code, referred_by)
+       VALUES ($1, $2, $3, $4, $5,
+               (CURRENT_DATE + ($6 || ' months')::interval)::date, $7, $8) RETURNING id`,
+      [
+        app.preferred_slug, app.business_name, app.description || null, '#2563eb', app.business_type,
+        String(freeMonths), await makeReferralCode(client), referrer ? referrer.id : null,
+      ]
     );
     const newCompanyId = ins.rows[0].id;
+
+    if (referrer) {
+      // Extend from whichever is later — never shorten a referrer who still has
+      // months left, and never award from a date already in the past.
+      await client.query(
+        `UPDATE companies
+            SET free_until = (GREATEST(COALESCE(free_until, CURRENT_DATE), CURRENT_DATE)
+                              + ($1 || ' months')::interval)::date
+          WHERE id = $2`,
+        [String(REFERRAL_BONUS_MONTHS), referrer.id]
+      );
+    }
     await client.query(
       `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1, $2, $3)`,
       [newCompanyId, app.email, app.password_hash]
@@ -656,11 +706,20 @@ router.get('/crm', requireAdmin, async (req, res) => {
         COUNT(*) FILTER (WHERE next_followup = CURRENT_DATE)::int AS due_today,
         COUNT(*) FILTER (WHERE next_followup < CURRENT_DATE)::int AS overdue,
         COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE - INTERVAL '7 days')::int AS new_week,
-        COUNT(*) FILTER (WHERE priority='high')::int AS high_pri
+        COUNT(*) FILTER (WHERE priority='high')::int AS high_pri,
+        COUNT(*) FILTER (WHERE last_contacted_at >= CURRENT_DATE)::int AS contacted_today,
+        COUNT(*) FILTER (WHERE last_contacted_at >= CURRENT_DATE - INTERVAL '7 days')::int AS contacted_week,
+        COUNT(*) FILTER (WHERE last_contacted_at IS NULL)::int AS never_contacted
       FROM crm_leads
     `);
     const kpi = kq.rows[0];
     kpi.conversion = kpi.total ? Math.round((kpi.converted / kpi.total) * 100) : 0;
+    // Outbound is the fastest channel here and its bottleneck is volume, not
+    // wording — so show today's outreach against a target instead of leaving it
+    // to memory. 20/day at the current conversion rate is roughly a client
+    // every other day.
+    kpi.daily_target = 20;
+    kpi.target_pct = Math.min(100, Math.round((kpi.contacted_today / kpi.daily_target) * 100));
 
     res.render('admin/crm/index', {
       leads,

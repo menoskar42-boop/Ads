@@ -91,6 +91,37 @@
   </div>
 </div>
 
+<!-- ===== عدّاد التواصل اليومي =====
+     البيع المباشر أسرع قناة، والعائق فيه العدد مش الصياغة. العدّاد ده بيخلّي
+     الرقم قدام عينك بدل ما يفضل تقدير. -->
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-5">
+  <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+    <div class="font-bold text-gray-900">
+      📞 تواصلت النهارده مع
+      <span class="text-2xl font-extrabold <%= kpi.contacted_today >= kpi.daily_target ? 'text-green-600' : 'text-amber-600' %>"><%= kpi.contacted_today %></span>
+      <span class="text-gray-500 text-sm">من هدف <%= kpi.daily_target %></span>
+    </div>
+    <div class="text-xs text-gray-500">
+      آخر ٧ أيام: <strong class="text-gray-800"><%= kpi.contacted_week %></strong>
+      · لسه متواصلتش مع <strong class="text-gray-800"><%= kpi.never_contacted %></strong>
+    </div>
+  </div>
+  <div class="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+    <div class="h-full rounded-full transition-all <%= kpi.contacted_today >= kpi.daily_target ? 'bg-green-500' : 'bg-amber-400' %>"
+         style="width: <%= kpi.target_pct %>%"></div>
+  </div>
+  <% if (kpi.contacted_today < kpi.daily_target) { %>
+    <div class="text-xs text-gray-500 mt-2">
+      فاضل <strong class="text-amber-700"><%= kpi.daily_target - kpi.contacted_today %></strong> عشان توصل هدف النهارده
+      <% if (kpi.never_contacted > 0) { %>
+        — <a href="<%= qs({sort:'contacted',status:'',category:'',priority:'',due:''}) %>" class="text-indigo-600 underline">ابدأ باللي لسه متواصلتش معاهم</a>
+      <% } %>
+    </div>
+  <% } else { %>
+    <div class="text-xs text-green-700 mt-2 font-semibold">✅ وصلت هدف النهارده — كمّل كده.</div>
+  <% } %>
+</div>
+
 <!-- ===== Pipeline (شريط المراحل) ===== -->
 <div class="bg-white rounded-2xl shadow-sm p-4 mb-5">
   <div class="flex items-center gap-1.5 flex-wrap text-xs">

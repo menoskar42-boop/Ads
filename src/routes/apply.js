@@ -15,11 +15,23 @@ const RESERVED_SLUGS = new Set([
   'dashboard', 'settings', 'www', 'mail', 'root', 'static', 'assets',
 ]);
 
+// Referral codes are short, uppercase and unambiguous — they get typed and read
+// aloud, so keep the accepted shape narrow.
+const REF_RE = /^[A-Z0-9]{4,12}$/;
+const cleanRef = (s) => {
+  const v = String(s || '').trim().toUpperCase().slice(0, 12);
+  return REF_RE.test(v) ? v : '';
+};
+
 router.get('/apply', (req, res) => {
   const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym'].includes(req.query.type) ? req.query.type : '';
+  const ref = cleanRef(req.query.ref);
+  const values = {};
+  if (preType) values.business_type = preType;
+  if (ref) values.referral_code = ref;
   res.render('apply/form', {
     error: null,
-    values: preType ? { business_type: preType } : {},
+    values,
     termsVersion: TERMS_VERSION,
     ogImage: res.locals.siteOrigin + '/og-default.png',
   });
@@ -36,6 +48,7 @@ router.post('/apply', async (req, res) => {
     business_type: v('business_type', 20),
     preferred_slug: v('preferred_slug', 40).toLowerCase(),
     description: v('description', 1000),
+    referral_code: cleanRef(req.body.referral_code),
   };
   const password = String(req.body.password || '');
   const acceptedTerms = req.body.accept_terms === 'on';
@@ -73,12 +86,13 @@ router.post('/apply', async (req, res) => {
     await pool.query(
       `INSERT INTO signup_applications
          (full_name, email, phone, country, business_name, business_type, preferred_slug,
-          description, password_hash, accepted_terms_version, accepted_ip, user_agent)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          description, password_hash, accepted_terms_version, accepted_ip, user_agent, referral_code)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         values.full_name, values.email, values.phone, values.country || null,
         values.business_name, values.business_type, values.preferred_slug,
         values.description || null, passwordHash, TERMS_VERSION, ip, ua,
+        values.referral_code || null,
       ]
     );
     // Notification emails (fire-and-forget, fail-open).

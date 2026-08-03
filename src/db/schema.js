@@ -101,6 +101,18 @@ async function createSchema() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS page_type TEXT DEFAULT 'portfolio';
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
 
+      -- Referral loop. The free period was only ever marketing copy; free_until
+      -- makes it a real date so it can be extended. Each client gets a code;
+      -- a signup that arrives with one earns BOTH sides two extra free months,
+      -- which turns existing clients into a channel at the cost of server time.
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS free_until DATE;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS referral_code TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES companies(id);
+      CREATE UNIQUE INDEX IF NOT EXISTS companies_referral_code_idx
+        ON companies (referral_code) WHERE referral_code IS NOT NULL;
+      -- The matching signup_applications.referral_code lives next to that
+      -- table's CREATE in server.js, which runs separately from this file.
+
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id),

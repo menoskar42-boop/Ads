@@ -40,6 +40,18 @@ export function Footer() {
           <p className="text-xs text-muted-foreground text-center">
             الكتاب المقدس رفيقي — منصة مجانية للقراءة اليومية والتفسير والتعزية الروحية
           </p>
+          <p className="text-xs text-muted-foreground/70 text-center">
+            تم التطوير بواسطة{' '}
+            <a
+              href="https://oscardevs.com"
+              target="_blank"
+              rel="noopener"
+              className="text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+              data-testid="link-developer"
+            >
+              OscarDevs
+            </a>
+          </p>
         </div>
       </div>
     </footer>

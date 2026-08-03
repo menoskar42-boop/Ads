@@ -524,6 +524,9 @@ async function initDb() {
         approved_company_id INTEGER REFERENCES companies(id),
         created_at TIMESTAMPTZ DEFAULT now()
       );
+      -- Carries a referrer's code from /apply?ref=… through review, so the
+      -- bonus months can be granted at approval time.
+      ALTER TABLE signup_applications ADD COLUMN IF NOT EXISTS referral_code TEXT;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id);
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;

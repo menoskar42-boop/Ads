@@ -78,6 +78,66 @@
     </div>
     <% } %>
 
+    <!-- ===== ادعُ صاحبك = شهرين مجاناً للطرفين ===== -->
+    <% if (typeof referralUrl !== 'undefined' && referralUrl) { %>
+    <div class="bg-gradient-to-l from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl shadow-sm p-6">
+      <div class="flex items-start gap-3 mb-3">
+        <span class="text-2xl">🎁</span>
+        <div class="flex-1">
+          <h3 class="font-bold text-gray-800 mb-1">ادعُ صاحبك — وخُد شهرين مجاناً</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            ابعت اللينك ده لأي صاحب نشاط. أول ما يسجّل ويتفعّل حسابه،
+            <strong class="text-emerald-700">إنت تاخد شهرين مجاناً زيادة وهو كمان ياخد شهرين</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <input id="refLink" type="text" readonly value="<%= referralUrl %>" dir="ltr"
+          class="flex-1 min-w-[240px] bg-white border border-emerald-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 font-mono" />
+        <button type="button" onclick="copyRef()"
+          class="inline-flex items-center gap-2 bg-emerald-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition">
+          <span id="refCopyLabel">نسخ اللينك</span>
+        </button>
+        <a href="https://wa.me/?text=<%= encodeURIComponent('جرّب OscarDevs — عملولي موقع/متجر احترافي، وفيه ٦ شهور مجاناً. استخدم اللينك ده وهتاخد شهرين زيادة: ' + referralUrl) %>"
+           target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 bg-white border border-emerald-200 text-emerald-700 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-emerald-50 transition">
+          مشاركة على واتساب
+        </a>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-4 text-sm">
+        <span class="text-gray-600">كودك: <strong class="font-mono text-emerald-700 tracking-widest"><%= company.referral_code %></strong></span>
+        <span class="text-gray-600">
+          دعوت: <strong class="text-emerald-700"><%= referralCount %></strong>
+          <%= referralCount === 1 ? 'عميل' : 'عملاء' %>
+          <% if (referralCount > 0) { %>
+            <span class="text-emerald-600">(= <%= referralCount * 2 %> شهر مجاني كسبتهم)</span>
+          <% } %>
+        </span>
+        <% if (company.free_until) { %>
+          <span class="text-gray-600">مجانيتك لحد:
+            <strong class="text-emerald-700"><%= new Date(company.free_until).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }) %></strong>
+          </span>
+        <% } %>
+      </div>
+    </div>
+    <script>
+      function copyRef() {
+        var el = document.getElementById('refLink');
+        var label = document.getElementById('refCopyLabel');
+        function done() { label.textContent = 'تم النسخ ✓'; setTimeout(function () { label.textContent = 'نسخ اللينك'; }, 2000); }
+        // navigator.clipboard needs HTTPS and can be blocked; select+execCommand
+        // still works everywhere, so fall back rather than failing silently.
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(el.value).then(done, function () { el.select(); document.execCommand('copy'); done(); });
+        } else {
+          el.select(); document.execCommand('copy'); done();
+        }
+      }
+    </script>
+    <% } %>
+
     <!-- Quick actions -->
     <div class="grid sm:grid-cols-2 gap-4">
       <a href="/company/profile" class="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4 hover:shadow-md transition group">

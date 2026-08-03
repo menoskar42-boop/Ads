@@ -58,6 +58,23 @@ router.post('/contact', contactLimiter, async (req, res) => {
   if (linkCount >= 3) return res.redirect('/contact?sent=1');
   if (!name || !message) return res.redirect('/contact?error=' + encodeURIComponent('الاسم والرسالة مطلوبان'));
   try {
+    // Repeat-sender spam: a bot walks past the honeypot and the link filter by
+    // sending short, link-free "what's your price" notes from one address every
+    // few days — spaced far enough apart that the 15-minute IP cap never fires.
+    // Cap any single address at 2 messages per 30 days. A real prospect who
+    // needs a third follow-up has our phone and WhatsApp on the same page;
+    // burying their enquiry under bot noise costs us far more than this does.
+    if (email) {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM contact_messages
+          WHERE lower(sender_email) = lower($1) AND created_at > NOW() - INTERVAL '30 days'`,
+        [email]
+      );
+      if (rows[0] && rows[0].n >= 2) {
+        console.warn('[POST /contact] repeat sender throttled:', email);
+        return res.redirect('/contact?sent=1'); // look successful so the bot stops retrying
+      }
+    }
     await pool.query(
       `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
        VALUES (NULL, $1, $2, $3, $4)`,

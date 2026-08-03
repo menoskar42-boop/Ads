@@ -283,12 +283,26 @@ router.get('/dashboard', requireLogin, async (req, res) => {
     } catch (e) {
       console.error('[dashboard] QR generation failed:', e.message);
     }
+    // Referral: the client's own invite link plus how many signups it has
+    // already brought in — the count is what makes sharing it feel worthwhile.
+    const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
+    const referralUrl = company.referral_code ? `${origin}/apply?ref=${company.referral_code}` : null;
+    let referralCount = 0;
+    try {
+      const rc = await pool.query('SELECT COUNT(*)::int AS n FROM companies WHERE referred_by = $1', [company.id]);
+      referralCount = rc.rows[0].n;
+    } catch (e) {
+      console.error('[dashboard] referral count failed:', e.message);
+    }
+
     res.render('company/dashboard', {
       company,
       portfolioCount: parseInt(portfolioCount.rows[0].count),
       session: req.session,
       publicUrl,
       qrDataUrl,
+      referralUrl,
+      referralCount,
     });
   } catch (err) {
     console.error(err);

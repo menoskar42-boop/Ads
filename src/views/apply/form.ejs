@@ -107,6 +107,16 @@
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"><%= values.description || '' %></textarea>
       </div>
 
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+          كود دعوة من صديق <span class="font-normal text-gray-400">(اختياري)</span>
+        </label>
+        <input type="text" name="referral_code" maxlength="12" dir="ltr" placeholder="ABC123"
+          value="<%= values.referral_code || '' %>"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <p class="text-xs text-emerald-600 mt-1">لو حد من عملائنا دعاك، اكتب كوده وتاخد <strong>شهرين مجاناً إضافيين</strong> — وهو كمان.</p>
+      </div>
+
       <hr class="border-gray-100" />
 
       <div>
