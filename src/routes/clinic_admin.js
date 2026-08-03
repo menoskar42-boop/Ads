@@ -337,6 +337,59 @@ router.get('/patients/:id', async (req, res) => {
   } catch (e) { console.error('[clinic patient file]', e.message); res.status(500).send('error'); }
 });
 
+// Clinical trends for one patient. A single reading answers almost nothing —
+// the question is always "compared to last time", and until now that meant
+// scrolling a list of visits.
+router.get('/patients/:id/trends', async (req, res) => {
+  const cid = req.company.id;
+  const pid = parseInt(req.params.id, 10);
+  if (!Number.isInteger(pid)) return res.redirect('/clinic/patients');
+  try {
+    const p = (await pool.query('SELECT * FROM clinic_patients WHERE id=$1 AND company_id=$2', [pid, cid])).rows[0];
+    if (!p) return res.redirect('/clinic/patients');
+
+    const [vitals, visits, settings] = await Promise.all([
+      pool.query('SELECT * FROM clinic_vitals WHERE company_id=$1 AND patient_id=$2 ORDER BY recorded_at LIMIT 300', [cid, pid]),
+      pool.query(`SELECT visit_date, created_at, specialty_data FROM clinic_visits
+                   WHERE company_id=$1 AND patient_id=$2 ORDER BY visit_date LIMIT 300`, [cid, pid]),
+      pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [cid]),
+    ]);
+    const specialty = (settings.rows[0] || {}).specialty || '';
+    const trends = require('../clinic/trends');
+    const series = trends.buildSeries(vitals.rows, visits.rows, specialty);
+
+    // Obstetrics: gestational age and due date follow from the LMP the clinic
+    // already records, so there is nothing extra to enter.
+    let pregnancy = null;
+    if (specialty === 'obgyn') {
+      const withLmp = visits.rows
+        .filter((v) => v.specialty_data && v.specialty_data.lmp)
+        .sort((a, b) => new Date(b.visit_date) - new Date(a.visit_date))[0];
+      const lmp = withLmp && Date.parse(withLmp.specialty_data.lmp);
+      if (lmp && !Number.isNaN(lmp)) {
+        const days = Math.floor((Date.now() - lmp) / 86400000);
+        if (days >= 0 && days <= 320) {           // beyond that it is a stale LMP, not a pregnancy
+          pregnancy = {
+            lmp: new Date(lmp).toISOString().slice(0, 10),
+            weeks: Math.floor(days / 7),
+            days: days % 7,
+            // Naegele's rule: LMP + 280 days.
+            edd: new Date(lmp + 280 * 86400000).toISOString().slice(0, 10),
+            trimester: days < 98 ? 1 : (days < 196 ? 2 : 3),
+          };
+        }
+      }
+    }
+
+    res.render('clinic_admin/patient_trends', {
+      company: req.company, tab: 'patients',
+      patient: p, series, pregnancy,
+      specialtyLabel: specialty ? require('../clinic/specialties').labelFor(specialty) : null,
+      verdictOf: trends.verdict,
+    });
+  } catch (e) { console.error('[trends]', e.message); res.status(500).send('error'); }
+});
+
 router.post('/patients/:id/vitals', async (req, res) => {
   const cid = req.company.id, pid = parseInt(req.params.id, 10);
   const b = req.body || {};

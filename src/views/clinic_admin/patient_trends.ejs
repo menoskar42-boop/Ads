@@ -1,0 +1,117 @@
+<%- include('head', { title: 'مؤشرات المريض', tab: 'patients' }) %>
+<%
+  function fmtD(t){ try { return new Date(t).toLocaleDateString('ar-EG',{month:'short',day:'numeric'}); } catch(e){ return ''; } }
+  var VBADGE = { better:'bg-emerald-100 text-emerald-800', worse:'bg-red-100 text-red-700', flat:'bg-slate-100 text-slate-600' };
+  var VLABEL = { better:'تحسّن', worse:'تراجع', flat:'زي ما هو' };
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/clinic/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← ملف المريض</a>
+  <h1 class="text-2xl font-black text-slate-900">📊 مؤشرات <%= patient.name %></h1>
+  <% if (specialtyLabel) { %><span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full"><%= specialtyLabel %></span><% } %>
+</div>
+<p class="text-slate-500 mb-5">القياسة الواحدة مابتقولش حاجة — المهم مقارنتها باللي قبلها</p>
+
+<!-- ── متابعة الحمل ─────────────────────────────────────────────── -->
+<% if (pregnancy) { %>
+<div class="bg-gradient-to-l from-pink-50 to-rose-50 border border-pink-200 rounded-2xl p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3">🤰 متابعة الحمل</h2>
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div>
+      <div class="text-xs text-slate-500 mb-1">عمر الحمل</div>
+      <div class="text-2xl font-extrabold text-rose-700"><%= pregnancy.weeks %><span class="text-sm font-normal"> أسبوع</span> <%= pregnancy.days %><span class="text-sm font-normal"> يوم</span></div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-500 mb-1">الثلث</div>
+      <div class="text-2xl font-extrabold text-rose-700">الـ<%= ['أول','تاني','تالت'][pregnancy.trimester - 1] %></div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-500 mb-1">موعد الولادة المتوقّع</div>
+      <div class="text-lg font-extrabold text-slate-900"><%= new Date(pregnancy.edd).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %></div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-500 mb-1">آخر دورة</div>
+      <div class="text-lg font-semibold text-slate-700"><%= new Date(pregnancy.lmp).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}) %></div>
+    </div>
+  </div>
+  <div class="mt-4">
+    <div class="h-2 bg-white rounded-full overflow-hidden">
+      <div class="h-full bg-rose-400" style="width: <%= Math.min(100, Math.round((pregnancy.weeks / 40) * 100)) %>%"></div>
+    </div>
+    <p class="text-xs text-slate-500 mt-1">من ٤٠ أسبوع · محسوبة من آخر دورة مسجّلة في الزيارات</p>
+  </div>
+</div>
+<% } %>
+
+<!-- ── المؤشرات ─────────────────────────────────────────────────── -->
+<% if (!series.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500">
+    مفيش قياسات مسجّلة لسه — سجّل قياسات من ملف المريض وهتظهر هنا كمنحنى.
+  </div>
+<% } else { %>
+<div class="grid lg:grid-cols-2 gap-4">
+  <% series.forEach(function(s){
+       var v = verdictOf(s);
+       var pts = s.points;
+       var vals = pts.map(function(p){ return p.v; });
+       var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+       // A flat series would collapse to a zero-height chart; pad it so the line
+       // still renders in the middle instead of vanishing.
+       if (hi - lo < 0.001) { lo -= 1; hi += 1; }
+       var W = 100, H = 34;
+       function px(i){ return pts.length === 1 ? W / 2 : (i / (pts.length - 1)) * W; }
+       function py(val){ return H - ((val - lo) / (hi - lo)) * H; }
+       var d = pts.map(function(p, i){ return (i ? 'L' : 'M') + px(i).toFixed(2) + ' ' + py(p.v).toFixed(2); }).join(' ');
+       var inBand = s.band ? (s.latest >= s.band[0] && s.latest <= s.band[1]) : null;
+  %>
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <div class="flex items-start justify-between gap-2 mb-3 flex-wrap">
+      <div>
+        <h3 class="font-bold text-slate-800"><%= s.label %></h3>
+        <p class="text-xs text-slate-400"><%= pts.length %> قياس · من <%= fmtD(pts[0].t) %> لـ<%= fmtD(pts[pts.length-1].t) %></p>
+      </div>
+      <div class="text-left">
+        <div class="text-2xl font-extrabold <%= inBand === false ? 'text-red-600' : 'text-slate-900' %>">
+          <%= s.latest %><span class="text-xs font-normal text-slate-400"> <%= s.unit %></span>
+        </div>
+        <% if (v) { %>
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full <%= VBADGE[v] %>">
+            <%= VLABEL[v] %><%= s.delta ? ' ' + (s.delta > 0 ? '+' : '') + s.delta : '' %>
+          </span>
+        <% } %>
+      </div>
+    </div>
+
+    <svg viewBox="0 0 100 34" preserveAspectRatio="none" class="w-full h-20 overflow-visible">
+      <% if (s.band) {
+           var b0 = Math.max(0, Math.min(34, 34 - ((s.band[1] - lo) / (hi - lo)) * 34));
+           var b1 = Math.max(0, Math.min(34, 34 - ((s.band[0] - lo) / (hi - lo)) * 34));
+      %>
+        <rect x="0" y="<%= b0.toFixed(2) %>" width="100" height="<%= Math.max(0.5, b1 - b0).toFixed(2) %>"
+              fill="#10b981" opacity="0.08" />
+      <% } %>
+      <path d="<%= d %>" fill="none" stroke="<%= v === 'worse' ? '#ef4444' : '#0891b2' %>"
+            stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" />
+      <% pts.forEach(function(p, i){ %>
+        <circle cx="<%= px(i).toFixed(2) %>" cy="<%= py(p.v).toFixed(2) %>" r="1.6"
+                fill="<%= i === pts.length - 1 ? '#0f172a' : '#94a3b8' %>" vector-effect="non-scaling-stroke" />
+      <% }); %>
+    </svg>
+
+    <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+      <span><%= lo.toFixed(1) %></span>
+      <% if (s.band) { %>
+        <span class="text-emerald-600">الطبيعي <%= s.band[0] %>–<%= s.band[1] %> <%= s.unit %></span>
+      <% } %>
+      <span><%= hi.toFixed(1) %></span>
+    </div>
+  </div>
+  <% }); %>
+</div>
+
+<p class="text-xs text-slate-400 mt-4">
+  النطاق الأخضر مرجع استرشادي عام للفت النظر بس — التشخيص قرار الطبيب، والقيمة خارج النطاق معناها «بُصّ» مش «تشخيص».
+</p>
+<% } %>
+
+</main></body></html>

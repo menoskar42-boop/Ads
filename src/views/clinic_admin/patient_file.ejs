@@ -17,6 +17,18 @@
   <!-- Left: forms -->
   <div class="lg:col-span-1 space-y-4">
     <!-- Vitals -->
+    <a href="/clinic/patients/<%= patient.id %>/trends"
+       class="block bg-gradient-to-l from-cyan-50 to-teal-50 border border-cyan-200 rounded-2xl p-4 hover:shadow transition">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📊</span>
+        <div class="flex-1">
+          <div class="font-bold text-slate-800">مؤشرات المريض</div>
+          <div class="text-xs text-slate-500">منحنى لكل قياس عبر الزيارات — والمقارنة باللي قبله</div>
+        </div>
+        <span class="text-cyan-600">←</span>
+      </div>
+    </a>
+
     <div id="vitals" class="bg-white border border-slate-200 rounded-2xl p-5">
       <h2 class="font-extrabold text-slate-900 mb-3">تسجيل العلامات الحيوية</h2>
       <%
