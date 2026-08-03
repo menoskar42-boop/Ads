@@ -41,6 +41,7 @@ const ENTITIES = {
       ['furniture_product_components', 'material_id']],
     fields: [
       { key: 'name',    type: 'text', max: 120, required: true },
+      { key: 'code',    type: 'text', max: 40 },
       { key: 'unit',    type: 'text', max: 20, placeholder: 'fn2.f.unit_ph' },
       // The opening balance. From phase 2 onward quantity moves only through
       // stock movements, so this is editable now and read-only later — typing
@@ -69,6 +70,7 @@ const ENTITIES = {
     refs: [['furniture_sale_items', 'product_id'], ['furniture_product_components', 'product_id']],
     fields: [
       { key: 'name',           type: 'text', max: 120, required: true },
+      { key: 'code',           type: 'text', max: 40 },
       { key: 'category',       type: 'text', max: 60 },
       { key: 'selling_price',  type: 'num' },
       // Replaced by the bill of materials in phase 4; until then the workshop

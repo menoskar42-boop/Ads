@@ -74,6 +74,8 @@ router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
 router.use('/delivery', requireFlag('delivery'), require('./furniture_delivery'));
 
 router.use('/warranty', requireFlag('warranty'), require('./furniture_warranty'));
+router.use('/labels', requireFlag('labels'), require('./furniture_labels'));
+router.use('/backup', requireFlag('backup'), require('./furniture_backup'));
 
 // The log page is gated; the writing behind it is not.
 router.use('/activity', requireFlag('activity'), require('./furniture_activity'));

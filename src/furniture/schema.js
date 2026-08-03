@@ -379,6 +379,17 @@ async function ensureFurnitureSchema() {
       ALTER TABLE furniture_settings ADD COLUMN IF NOT EXISTS delivery_policy TEXT NOT NULL DEFAULT 'prepaid';
     `);
 
+    // ── Codes for labels (phase 8) ───────────────────────────────────────────
+    await client.query(`
+      -- The showroom's own code for a piece or a material. Free text, not a
+      -- generated number: workshops already have codes written on the shelves,
+      -- and a system that insists on its own makes them keep two.
+      ALTER TABLE furniture_products  ADD COLUMN IF NOT EXISTS code TEXT;
+      ALTER TABLE furniture_materials ADD COLUMN IF NOT EXISTS code TEXT;
+      CREATE INDEX IF NOT EXISTS idx_furn_prod_code ON furniture_products (company_id, code);
+      CREATE INDEX IF NOT EXISTS idx_furn_mat_code ON furniture_materials (company_id, code);
+    `);
+
     // ── Warranty (phase 8) ───────────────────────────────────────────────────
     await client.query(`
       -- How long each piece is guaranteed for. Zero means no warranty, which

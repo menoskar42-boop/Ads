@@ -370,6 +370,35 @@ const FIXTURES = {
     };
   },
 
+  furniture_labels: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const C = require('../src/lib/code128');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'labels']);
+    const rows = [
+      { id: 1, name: 'Classic bedroom', code: 'MOB-1024' },
+      { id: 2, name: 'Dining set', code: 'MOB-2048' },
+    ];
+    return {
+      __file: 'furniture_admin/labels.ejs', tab: 'labels',
+      kind: 'products', copies: 2, kinds: ['products', 'materials'],
+      labels: rows.flatMap((r) => [0, 1].map(() => ({ ...r, svg: C.svg(r.code, { module: 2, height: 48 }) }))),
+      // Both refusal cases: no code at all, and a code the symbology cannot
+      // carry — the second is the one that would otherwise print blank.
+      missing: [{ id: 3, name: 'Side table' }, { id: 4, name: 'Wardrobe', bad: true }],
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_backup: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/backup.ejs', tab: 'backup',
+      tables: require('../src/routes/furniture_backup').TABLES.map((x) => x[0]),
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   furniture_activity: (lang) => {
     const fl = require('../src/furniture/flags');
     const A = require('../src/furniture/activity');

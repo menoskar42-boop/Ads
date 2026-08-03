@@ -1,0 +1,31 @@
+<%- include('head', { title: t('fn2.flag.backup'), tab: 'backup' }) %>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">💾 <%= t('fn2.flag.backup') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.bk.sub') %></p>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <a href="/furniture/backup/download"
+     class="inline-block bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-3 text-sm">
+    ⬇️ <%= t('fn2.bk.download') %>
+  </a>
+  <p class="text-xs text-stone-400 mt-3"><%= t('fn2.bk.hint') %></p>
+</div>
+
+<%# Stated plainly rather than left to be discovered: a "backup" button that
+    implies a one-click restore it does not have is the kind of promise that
+    only fails on the worst day. %>
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+  <h2 class="font-bold text-amber-900 mb-1 text-sm"><%= t('fn2.bk.restore_title') %></h2>
+  <p class="text-xs text-amber-800 leading-relaxed"><%= t('fn2.bk.restore_body') %></p>
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm p-5">
+  <h2 class="font-bold text-stone-800 mb-3 text-sm"><%= t('fn2.bk.contents') %></h2>
+  <div class="flex flex-wrap gap-1.5 text-xs">
+    <% tables.forEach(function(n){ %>
+      <span class="bg-stone-100 text-stone-600 rounded-lg px-2 py-1 font-mono"><%= n %></span>
+    <% }); %>
+  </div>
+</div>
+
+</main></body></html>

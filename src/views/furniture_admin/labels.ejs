@@ -1,0 +1,63 @@
+<%- include('head', { title: t('fn2.flag.labels'), tab: 'labels' }) %>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap no-print">
+  <h1 class="text-2xl font-black text-stone-900">🏷️ <%= t('fn2.flag.labels') %></h1>
+  <button onclick="window.print()" class="ms-auto text-xs bg-stone-100 hover:bg-stone-200 rounded-xl px-4 py-2 font-bold"><%= t('iv.print') %></button>
+</div>
+<p class="text-stone-500 mb-3 text-sm no-print"><%= t('fn2.lb.sub') %></p>
+
+<%# Said once, on the page, where it cannot be missed. A barcode that does not
+    scan is worse than no barcode, and one test scan settles it. %>
+<p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 mb-5 no-print"><%= t('fn2.lb.test_first') %></p>
+
+<form method="get" class="no-print flex items-end gap-2 mb-5 flex-wrap">
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.lb.what') %>
+    <select name="kind" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm bg-white">
+      <% kinds.forEach(function(k){ %>
+        <option value="<%= k %>" <%= kind === k ? 'selected' : '' %>><%= t('fn2.e.' + k) %></option>
+      <% }); %>
+    </select>
+  </label>
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.lb.copies') %>
+    <input type="number" name="copies" min="1" max="20" value="<%= copies %>"
+           class="mt-1 block w-24 border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <button class="bg-stone-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('fn2.hr.show') %></button>
+</form>
+
+<style>
+  @media print {
+    header, nav, .no-print { display: none !important; }
+    body { background: #fff !important; }
+    main { max-width: 100% !important; padding: 0 !important; }
+    .label { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+
+<% if (missing.length) { %>
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 no-print">
+  <p class="text-sm font-bold text-amber-900 mb-2"><%= t('fn2.lb.missing') %></p>
+  <div class="flex flex-wrap gap-2 text-xs">
+    <% missing.forEach(function(m){ %>
+      <span class="bg-white border border-amber-200 rounded-lg px-2 py-1">
+        <%= m.name %><% if (m.bad) { %> · <span class="text-red-700"><%= t('fn2.lb.bad_code') %></span><% } %>
+      </span>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+<% if (!labels.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500 no-print"><%= t('fn2.lb.empty') %></div>
+<% } else { %>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+  <% labels.forEach(function(l){ %>
+  <div class="label bg-white border border-stone-200 rounded-xl p-3 text-center">
+    <div class="text-xs font-bold text-stone-800 truncate mb-1"><%= l.name %></div>
+    <div class="flex justify-center"><%- l.svg %></div>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+</main></body></html>
