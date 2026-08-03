@@ -15,6 +15,17 @@
 </div>
 <% } %>
 
+<%# The list is filtered by specialty, so say so. A dentist who switches to
+    internal medicine would otherwise think the dental module broke rather
+    than that it belongs to a specialty they no longer practise. %>
+<% if (specialtyLabel && hiddenCount) { %>
+<div class="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-5 text-sm text-slate-600">
+  <%= t('md.filtered_1') %> <strong><%= specialtyLabel %></strong>.
+  <%= hiddenCount %> <%= t('md.filtered_2') %>
+  <a href="/clinic/settings" class="text-indigo-600 font-semibold hover:underline"><%= t('md.filtered_link') %></a>
+</div>
+<% } %>
+
 <form method="post" action="/clinic/modules">
   <div class="grid lg:grid-cols-2 gap-3 mb-5">
     <% modules.forEach(function(m){

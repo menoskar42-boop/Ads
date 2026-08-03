@@ -110,15 +110,19 @@ const FIXTURES = {
     status: null, waReady: true,
   }),
 
+  // An internal-medicine clinic: the dental module must not appear in the list
+  // at all, and the page must say the list is filtered.
   modules: (lang) => {
     const spec = require('../src/clinic/specialties');
     const mods = require('../src/clinic/modules');
+    const specialty = 'internal';
     return {
       tab: 'modules',
-      modules: mods.MODULES,
-      enabled: new Set(['dental']),
-      bySpecialty: new Set(spec.modulesFor('dentistry')),
-      specialtyLabel: spec.labelFor('dentistry', (k) => t(k, lang)),
+      modules: mods.modulesForSpecialty(specialty),
+      enabled: mods.visibleModules(new Set(mods.MODULE_KEYS), specialty),
+      bySpecialty: new Set(spec.modulesFor(specialty)),
+      specialtyLabel: spec.labelFor(specialty, (k) => t(k, lang)),
+      hiddenCount: mods.MODULES.length - mods.modulesForSpecialty(specialty).length,
       saved: false,
     };
   },

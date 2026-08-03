@@ -1147,6 +1147,10 @@ const strings = {
     'cp.d_book':'احجز','cp.d_fee':'سعر الكشف:','cp.d_about':'نبذة عن الطبيب',
     'cp.d_book_with':'احجز مع','cp.d_or_wa':'أو احجز عبر واتساب 💬','cp.d_in':'في',
 
+    'md.filtered_1':'بنعرض الوحدات اللي تخصّ',
+    'md.filtered_2':'وحدة إكلينيكية مخصوصة لتخصص تاني مش ظاهرة هنا.',
+    'md.filtered_link':'غيّر التخصص',
+
     // منحنيات النمو
     'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
     'gc.m.weight':'الوزن حسب السن','gc.m.height':'الطول حسب السن',
@@ -2434,6 +2438,10 @@ const strings = {
 
     'cp.d_book':'Book','cp.d_fee':'Consultation fee:','cp.d_about':'About the doctor',
     'cp.d_book_with':'Book with','cp.d_or_wa':'Or book on WhatsApp 💬','cp.d_in':'at',
+
+    'md.filtered_1':'Showing the modules that belong to',
+    'md.filtered_2':'clinical module(s) belonging to another specialty are not listed here.',
+    'md.filtered_link':'Change specialty',
 
     // Growth curves
     'gc.title':'📈 Growth chart','gc.age_months':'months',

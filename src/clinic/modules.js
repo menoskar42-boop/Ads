@@ -14,7 +14,12 @@ const MODULES = [
   { key: 'callcenter', label: 'مركز الاتصال',   icon: '📞', path: '/clinic/calls',      desc: 'سجل المكالمات والمتابعات مع المرضى وحجز المكالمات القادمة.' },
   { key: 'whatsapp',   label: 'واتساب',         icon: '💬', path: '/clinic/whatsapp',   desc: 'ربط رقم واتساب العيادة (Cloud API أو مزوّد خارجي) لإرسال تأكيدات وتذكير المواعيد. كل عيادة تضع مفتاحها الخاص.' },
   { key: 'api',        label: 'API والمكاملات', icon: '🔌', path: '/clinic/integrations', desc: 'مفاتيح API وويب-هوكس لربط العيادة بأنظمة خارجية.' },
-  { key: 'dental',     label: 'الأسنان',        icon: '🦷', path: '/clinic/dental',     desc: 'خريطة الأسنان (FDI)، خطة علاج لكل سن، طلبات المعمل، وصور قبل/بعد. لعيادات الأسنان فقط.' },
+  // `specialties` marks a module as CLINICAL — it belongs to those specialties
+  // and is invisible everywhere else. A module without the field is a business
+  // tool (a cash box, a staff register) that any clinic can use, so it stays
+  // available to all of them.
+  { key: 'dental',     label: 'الأسنان',        icon: '🦷', path: '/clinic/dental',     desc: 'خريطة الأسنان (FDI)، خطة علاج لكل سن، طلبات المعمل، وصور قبل/بعد. لعيادات الأسنان فقط.',
+    specialties: ['dentistry', 'orthodontics'] },
   { key: 'cashbox',    label: 'الخزنة',         icon: '💰', path: '/clinic/cashbox',    desc: 'رصيد أول اليوم، المقبوضات والمصروفات النثرية، وتقفيل الخزنة بالفرق بين المحسوب والمعدود.' },
   { key: 'installments', label: 'التقسيط',      icon: '🧾', path: '/clinic/installments', desc: 'تقسيط الفاتورة على دفعات بمواعيد، ومتابعة المستحق والمتأخر — وكل دفعة بتتسجّل كتحصيل عادي.' },
   { key: 'homevisits', label: 'زيارات منزلية',  icon: '🏠', path: '/clinic/home-visits', desc: 'طلبات الكشف في المنزل: العنوان والمنطقة، الطبيب، رسوم الكشف والانتقال، ومتابعة الحالة حتى التحصيل.' },
@@ -22,6 +27,43 @@ const MODULES = [
 ];
 
 const MODULE_KEYS = MODULES.map((m) => m.key);
+
+// A multi-specialty clinic really does do everything, so it sees everything.
+// So does a clinic that has not chosen a specialty yet — hiding tools from
+// someone still setting up would look like the tools are missing.
+const SEES_EVERYTHING = new Set(['multi', '']);
+
+/**
+ * Is this module part of the given specialty's practice?
+ *
+ * An internist has no use for a tooth chart, and showing it is not a harmless
+ * extra tab: it is a switch they can flip by mistake and a screen full of
+ * fields that mean nothing to them. Clinical modules therefore belong to their
+ * specialties and are hidden from the rest.
+ */
+function fitsSpecialty(module, specialty) {
+  if (!module.specialties) return true;                     // business tool, universal
+  const s = String(specialty || '');
+  if (SEES_EVERYTHING.has(s)) return true;
+  return module.specialties.includes(s);
+}
+
+/** The modules a clinic of this specialty is allowed to see at all. */
+function modulesForSpecialty(specialty) {
+  return MODULES.filter((m) => fitsSpecialty(m, specialty));
+}
+
+/**
+ * Enabled AND fitting. A clinic that once was a dental practice, or had the
+ * module switched on before this rule existed, keeps the stale row in
+ * clinic_modules — intersecting here means the tab disappears from the nav and
+ * the route without anyone having to clean the table up.
+ */
+function visibleModules(enabledSet, specialty) {
+  return new Set(MODULES
+    .filter((m) => enabledSet.has(m.key) && fitsSpecialty(m, specialty))
+    .map((m) => m.key));
+}
 
 // Returns a Set of enabled module keys for a clinic. Never throws — on any
 // error returns an empty set (all optional modules simply hidden).
@@ -37,4 +79,7 @@ async function getEnabledModules(pool, companyId) {
   }
 }
 
-module.exports = { MODULES, MODULE_KEYS, getEnabledModules };
+module.exports = {
+  MODULES, MODULE_KEYS, getEnabledModules,
+  fitsSpecialty, modulesForSpecialty, visibleModules,
+};

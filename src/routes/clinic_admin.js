@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
-const { MODULES, getEnabledModules } = require('../clinic/modules');
+const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = require('../clinic/modules');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -24,11 +24,21 @@ async function requireClinic(req, res, next) {
       return res.redirect('/company/login');
     }
     req.company = r.rows[0];
-    // Which optional modules are enabled for this clinic (drives nav + guards).
+    // The clinic's specialty decides which modules exist for it at all, so it
+    // is loaded once here rather than re-queried by every page that cares.
+    const st = await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [req.company.id]);
+    const specialty = (st.rows[0] || {}).specialty || '';
+    req.clinicSpecialty = specialty;
+    res.locals.clinicSpecialty = specialty;
+
+    // Enabled ∩ fits-the-specialty. A dental module left enabled on a clinic
+    // that is now internal medicine drops out here, so the nav and the route
+    // guard agree without anyone cleaning up clinic_modules.
     const enabled = await getEnabledModules(pool, req.company.id);
-    req.enabledModules = enabled;
-    res.locals.enabledModules = enabled;
-    res.locals.clinicModules = MODULES;
+    const visible = visibleModules(enabled, specialty);
+    req.enabledModules = visible;
+    res.locals.enabledModules = visible;
+    res.locals.clinicModules = modulesForSpecialty(specialty);
     next();
   } catch (e) { console.error('[clinic admin]', e.message); res.redirect('/company/login'); }
 }
@@ -1122,14 +1132,19 @@ router.get('/modules', async (req, res) => {
         .rows.map((r) => r.module_key)
     );
     const spec = require('../clinic/specialties');
-    const settings = (await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [req.company.id])).rows[0] || {};
+    const specialty = req.clinicSpecialty;
     res.render('clinic_admin/modules', {
       company: req.company, tab: 'modules',
-      modules: MODULES, enabled,
+      // Only the modules this specialty practises. An internist is not offered
+      // a tooth chart to switch on, so they cannot switch it on by mistake.
+      modules: modulesForSpecialty(specialty), enabled,
+      // How many clinical modules belong to other specialties, so the page can
+      // say the list is filtered rather than leave a gap the admin puzzles over.
+      hiddenCount: MODULES.length - modulesForSpecialty(specialty).length,
       // Modules the chosen specialty turns on by itself — shown so the owner
       // understands why one is already on rather than thinking it is a bug.
-      bySpecialty: new Set(spec.modulesFor(settings.specialty)),
-      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty, res.locals.t) : null,
+      bySpecialty: new Set(spec.modulesFor(specialty)),
+      specialtyLabel: specialty ? spec.labelFor(specialty, res.locals.t) : null,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[clinic modules]', e.message); res.status(500).send('error'); }
@@ -1139,8 +1154,12 @@ router.post('/modules', async (req, res) => {
   const cid = req.company.id;
   const wanted = new Set([].concat(req.body.modules || []).map(String));
   try {
-    const { MODULE_KEYS } = require('../clinic/modules');
-    for (const key of MODULE_KEYS) {
+    // Only modules this specialty practises are written. A posted key the form
+    // never offered is ignored rather than saved, and a module hidden by the
+    // specialty keeps whatever row it already had — so a practice that returns
+    // to dentistry finds its dental module still on rather than reset.
+    const keys = modulesForSpecialty(req.clinicSpecialty).map((m) => m.key);
+    for (const key of keys) {
       await pool.query(
         `INSERT INTO clinic_modules (company_id, module_key, enabled, updated_at)
          VALUES ($1,$2,$3, now())
