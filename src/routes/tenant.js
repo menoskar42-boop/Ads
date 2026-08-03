@@ -347,6 +347,11 @@ router.get('/', async (req, res) => {
   // A gym indexes once it has plans + a description; the demo gym (slug 'gym')
   // stays out of the index like the other demos.
   else if (company.page_type === 'gym') indexable = gymPlans.length >= 1 && descLen >= 40 && company.slug !== 'gym';
+  // A furniture showroom has no public page yet — the back-office is phase 1 and
+  // the storefront is not built. Without this it falls through to the generic
+  // portfolio view below and, with a long enough description, indexes as a page
+  // that shows none of what it claims: a thin/doorway page by any reading.
+  else if (company.page_type === 'furniture') indexable = false;
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have
