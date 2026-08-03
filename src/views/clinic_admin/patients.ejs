@@ -14,6 +14,7 @@
           <select name="gender" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1 bg-white"><option value=""><%= t('pt.gender') %></option><option value="ذكر"><%= t('pt.male') %></option><option value="أنثى"><%= t('pt.female') %></option></select>
           <input name="birth_year" type="number" min="1900" max="2025" placeholder="<%= t('pt.birth_year') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
         </div>
+        <input name="address" maxlength="400" placeholder="<%= t('pt.address') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <textarea name="notes" maxlength="1000" rows="3" placeholder="<%= t('pt.notes_opt') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
         <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('pt.add_btn') %></button>
       </form>

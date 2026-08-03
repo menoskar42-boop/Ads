@@ -86,6 +86,9 @@ async function ensureClinicSchema() {
       -- birth_year is too coarse for anything age-driven: an infant's 2-month
       -- vaccine cannot be scheduled from a year. Additive — birth_year stays.
       ALTER TABLE clinic_patients ADD COLUMN IF NOT EXISTS birth_date DATE;
+      -- Home visits read the patient's saved address to prefill the request; a
+      -- mistyped address sends the doctor to the wrong door.
+      ALTER TABLE clinic_patients ADD COLUMN IF NOT EXISTS address TEXT;
 
       -- Vaccination schedule, per clinic and EDITABLE. Seeded with the commonly
       -- published Egyptian childhood schedule, but the clinic confirms and

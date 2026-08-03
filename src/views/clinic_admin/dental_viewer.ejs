@@ -107,7 +107,10 @@
   function render(){
     var out = '';
     shapes.forEach(function(s){
-      var st = 'stroke="' + s.color + '" stroke-width="0.004" fill="none" vector-effect="non-scaling-stroke"';
+      // With non-scaling-stroke the width is read in screen pixels, so a value
+      // expressed in the 0..1 viewBox units (0.004) drew a line 0.004px wide —
+      // saved but invisible. 2px stays legible and constant at any zoom.
+      var st = 'stroke="' + s.color + '" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"';
       if (s.type === 'circle') {
         var r = Math.hypot(s.x2 - s.x, s.y2 - s.y);
         out += '<ellipse cx="' + s.x + '" cy="' + s.y + '" rx="' + r + '" ry="' + r + '" ' + st + ' />';

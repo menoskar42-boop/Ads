@@ -170,6 +170,35 @@
   function __openMore(){ document.getElementById('__moreSheet').classList.remove('hidden'); }
   function __closeMore(){ document.getElementById('__moreSheet').classList.add('hidden'); }
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') __closeMore(); });
+
+  // Every save here is a full page POST, so between the click and the reload the
+  // page looks frozen and staff click twice — which posts the payment, the visit
+  // or the vitals row twice. Disabling the button on submit says "it's working"
+  // and makes the double-click harmless.
+  var __SAVING = <%- JSON.stringify(t('common.saving')) %>;
+  document.addEventListener('submit', function(ev){
+    var f = ev.target;
+    if (!f || f.method === 'get' || f.hasAttribute('data-noload')) return;
+    var b = f.querySelector('button:not([type=button]):not([formnovalidate])');
+    if (!b || b.disabled) return;
+    // Let the browser finish native validation first, otherwise a blocked
+    // submit leaves the button dead.
+    setTimeout(function(){
+      // A `onsubmit="return confirm(...)"` that the user cancelled, or a failed
+      // native validation, means nothing was sent — leave the button alive.
+      if (ev.defaultPrevented) return;
+      if (f.checkValidity && !f.checkValidity()) return;
+      b.disabled = true;
+      b.dataset.label = b.textContent;
+      b.textContent = __SAVING;
+    }, 0);
+  }, true);
+  // Back/forward cache can restore the page with the button still disabled.
+  window.addEventListener('pageshow', function(){
+    document.querySelectorAll('button[data-label]').forEach(function(b){
+      b.disabled = false; b.textContent = b.dataset.label; b.removeAttribute('data-label');
+    });
+  });
 </script>
 
 <main class="max-w-5xl mx-auto px-4 py-6">

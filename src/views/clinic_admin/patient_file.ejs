@@ -52,7 +52,9 @@
       %>
       <form method="post" action="/clinic/patients/<%= patient.id %>/vitals" class="grid grid-cols-2 gap-2">
         <% (specVitals || []).forEach(function(k){ %>
-          <input name="<%= k %>" type="number" <%= VSTEP[k] ? 'step="' + VSTEP[k] + '"' : '' %>
+          <% // Unescaped output: escaping the quotes turns the step attribute into
+             // an invalid value, and the browser then silently rejects 37.2 °C. %>
+          <input name="<%= k %>" type="number" <%- VSTEP[k] ? 'step="' + VSTEP[k] + '"' : '' %>
                  placeholder="<%= vitalsLabels[k] %>"
                  class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <% }); %>
@@ -68,7 +70,7 @@
             <% } else { %>
               <input name="sx_<%= f.key %>"
                      type="<%= f.type === 'num' ? 'number' : (f.type === 'date' ? 'date' : 'text') %>"
-                     <%= f.type === 'num' ? 'step="any"' : '' %>
+                     <%- f.type === 'num' ? 'step="any"' : '' %>
                      class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
             <% } %>
           </div>

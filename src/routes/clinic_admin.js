@@ -179,9 +179,11 @@ router.post('/patients', async (req, res) => {
   const name = String(b.name || '').trim().slice(0, 80);
   if (name) {
     try {
-      await pool.query('INSERT INTO clinic_patients (company_id, name, phone, gender, birth_year, notes) VALUES ($1,$2,$3,$4,$5,$6)',
+      await pool.query(
+        'INSERT INTO clinic_patients (company_id, name, phone, gender, birth_year, address, notes) VALUES ($1,$2,$3,$4,$5,$6,$7)',
         [req.company.id, name, String(b.phone || '').slice(0, 20), String(b.gender || '').slice(0, 10) || null,
-          parseInt(b.birth_year, 10) || null, String(b.notes || '').slice(0, 1000) || null]);
+          parseInt(b.birth_year, 10) || null, String(b.address || '').trim().slice(0, 400) || null,
+          String(b.notes || '').slice(0, 1000) || null]);
     } catch (e) { console.error(e.message); }
   }
   res.redirect('/clinic/patients');
