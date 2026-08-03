@@ -20,9 +20,14 @@ module.exports = function i18nMiddleware(req, res, next) {
     res.cookie('lang', lang, { maxAge: 365 * 24 * 60 * 60 * 1000, httpOnly: false, sameSite: 'lax' });
   }
 
-  // 2. Admin / company session lang (set when admin signs in or toggles)
+  // 2. Admin / company session lang (set when admin signs in or toggles).
+  // The tenant back-offices (/clinic, /pharmacy, /food) are the same logged-in
+  // owner as /company, so they follow the same stored preference — otherwise a
+  // clinic that chose English would drop back to Arabic the moment it opened
+  // its own admin.
   if (!lang && req.session) {
-    if (req.session.adminLang && (req.path.startsWith('/admin') || req.path.startsWith('/company'))) {
+    const OWNER_AREAS = ['/admin', '/company', '/clinic', '/pharmacy', '/food'];
+    if (req.session.adminLang && OWNER_AREAS.some((p) => req.path.startsWith(p))) {
       lang = normalizeLang(req.session.adminLang);
     } else if (req.session.customerLang && req.path.startsWith('/customer')) {
       lang = normalizeLang(req.session.customerLang);

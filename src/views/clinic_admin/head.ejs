@@ -57,16 +57,23 @@
   // Enabled optional modules, used by both the desktop nav and the mobile sheet.
   var __mods = [];
   if (typeof clinicModules !== 'undefined' && typeof enabledModules !== 'undefined') {
-    __mods = clinicModules.filter(function(m){ return enabledModules.has(m.key); });
+    __mods = clinicModules.filter(function(m){ return enabledModules.has(m.key); })
+      // Module labels live in modules.js as Arabic defaults; look each one up so
+      // an English clinic gets an English nav. Falls back to the default if a
+      // key is ever missing, rather than rendering the key itself.
+      .map(function(m){
+        var k = 'clinic.mod.' + m.key, tr = t(k);
+        return { key: m.key, path: m.path, icon: m.icon, label: (tr && tr !== k) ? tr : m.label };
+      });
   }
   // Everything that is not one of the five bottom-bar tabs lives in "المزيد".
-  var __more = [{ path:'/clinic/invoices', label:'الفواتير', icon:'🧾', key:'invoices' },
-                { path:'/clinic/doctors',  label:'الأطباء',  icon:'👨‍⚕️', key:'doctors' },
-                { path:'/clinic/services', label:'الخدمات',  icon:'💠', key:'services' }]
+  var __more = [{ path:'/clinic/invoices', label:t('clinic.nav.invoices'), icon:'🧾', key:'invoices' },
+                { path:'/clinic/doctors',  label:t('clinic.nav.doctors'),  icon:'👨‍⚕️', key:'doctors' },
+                { path:'/clinic/services', label:t('clinic.nav.services'),  icon:'💠', key:'services' }]
     .concat(__mods.map(function(m){ return { path:m.path, label:m.label, icon:m.icon, key:m.key }; }))
-    .concat([{ path:'/clinic/modules', label:'المميزات', icon:'🧩', key:'modules' },
-             { path:'/clinic/addons',  label:'الإضافات', icon:'✨', key:'addons' },
-             { path:'/clinic/settings',label:'الإعدادات',icon:'⚙️', key:'settings' }]);
+    .concat([{ path:'/clinic/modules', label:t('clinic.nav.modules'), icon:'🧩', key:'modules' },
+             { path:'/clinic/addons',  label:t('clinic.nav.addons'), icon:'✨', key:'addons' },
+             { path:'/clinic/settings',label:t('clinic.nav.settings'),icon:'⚙️', key:'settings' }]);
 %>
 <header class="bg-brand-700 text-white sticky top-0 z-30">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -76,29 +83,37 @@
 
     <!-- Desktop: the full nav, unchanged. -->
     <nav class="hidden sm:flex items-center gap-1 text-sm ms-auto flex-wrap">
-      <a href="/clinic" class="<%= __cls('dashboard') %>">لوحة التحكم</a>
-      <a href="/clinic/queue" class="<%= __cls('queue') %>">الطابور</a>
-      <a href="/clinic/appointments" class="<%= __cls('appointments') %>">المواعيد</a>
-      <a href="/clinic/patients" class="<%= __cls('patients') %>">المرضى</a>
-      <a href="/clinic/invoices" class="<%= __cls('invoices') %>">الفواتير</a>
-      <a href="/clinic/doctors" class="<%= __cls('doctors') %>">الأطباء</a>
-      <a href="/clinic/services" class="<%= __cls('services') %>">الخدمات</a>
+      <a href="/clinic" class="<%= __cls('dashboard') %>"><%= t('clinic.nav.dashboard') %></a>
+      <a href="/clinic/queue" class="<%= __cls('queue') %>"><%= t('clinic.nav.queue') %></a>
+      <a href="/clinic/appointments" class="<%= __cls('appointments') %>"><%= t('clinic.nav.appointments') %></a>
+      <a href="/clinic/patients" class="<%= __cls('patients') %>"><%= t('clinic.nav.patients') %></a>
+      <a href="/clinic/invoices" class="<%= __cls('invoices') %>"><%= t('clinic.nav.invoices') %></a>
+      <a href="/clinic/doctors" class="<%= __cls('doctors') %>"><%= t('clinic.nav.doctors') %></a>
+      <a href="/clinic/services" class="<%= __cls('services') %>"><%= t('clinic.nav.services') %></a>
       <% __mods.forEach(function(m){ %>
       <a href="<%= m.path %>" class="<%= __cls(m.key) %>"><%= m.label %></a>
       <% }); %>
-      <a href="/clinic/modules" class="<%= __cls('modules') %>">المميزات</a>
-      <a href="/clinic/addons" class="<%= __cls('addons') %>">الإضافات</a>
-      <a href="/clinic/settings" class="<%= __cls('settings') %>">الإعدادات</a>
-      <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15">عرض الصفحة ↗</a>
-      <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15">خروج</button></form>
+      <a href="/clinic/modules" class="<%= __cls('modules') %>"><%= t('clinic.nav.modules') %></a>
+      <a href="/clinic/addons" class="<%= __cls('addons') %>"><%= t('clinic.nav.addons') %></a>
+      <a href="/clinic/settings" class="<%= __cls('settings') %>"><%= t('clinic.nav.settings') %></a>
+      <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('clinic.nav.view_page') %> ↗</a>
+      <!-- Posts to the existing company toggle, which stores the choice on the
+           user record — so it survives logout, not just this browser. -->
+      <form method="post" action="/company/lang/<%= lang === 'ar' ? 'en' : 'ar' %>" class="inline">
+        <button class="px-3 py-1.5 rounded-lg hover:bg-white/15 font-semibold"><%= t('clinic.lang.switch') %></button>
+      </form>
+      <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('clinic.nav.logout') %></button></form>
     </nav>
 
     <!-- Mobile: the header only carries the two rarely-tapped actions; the
          real navigation is the thumb-reachable bar at the bottom. -->
     <div class="sm:hidden ms-auto flex items-center gap-1">
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener"
-         title="عرض صفحة العيادة" class="px-2 py-1.5 rounded-lg hover:bg-white/15">↗</a>
-      <form method="post" action="/company/logout"><button class="px-2 py-1.5 rounded-lg hover:bg-white/15 text-sm">خروج</button></form>
+         title="<%= t('clinic.nav.view_page') %>" class="px-2 py-1.5 rounded-lg hover:bg-white/15">↗</a>
+      <form method="post" action="/company/lang/<%= lang === 'ar' ? 'en' : 'ar' %>">
+        <button class="px-2 py-1.5 rounded-lg hover:bg-white/15 text-xs font-bold"><%= t('clinic.lang.switch') %></button>
+      </form>
+      <form method="post" action="/company/logout"><button class="px-2 py-1.5 rounded-lg hover:bg-white/15 text-sm"><%= t('clinic.nav.logout') %></button></form>
     </div>
   </div>
 </header>
@@ -115,20 +130,20 @@
 <nav class="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
   <div class="grid grid-cols-5">
     <a href="/clinic" class="flex flex-col items-center justify-center py-2 <%= __btab('dashboard') %>">
-      <span class="text-lg leading-none">🏠</span><span class="text-[10px] mt-0.5">الرئيسية</span>
+      <span class="text-lg leading-none">🏠</span><span class="text-[10px] mt-0.5"><%= t('clinic.nav.home') %></span>
     </a>
     <a href="/clinic/queue" class="flex flex-col items-center justify-center py-2 <%= __btab('queue') %>">
-      <span class="text-lg leading-none">🚶</span><span class="text-[10px] mt-0.5">الطابور</span>
+      <span class="text-lg leading-none">🚶</span><span class="text-[10px] mt-0.5"><%= t('clinic.nav.queue') %></span>
     </a>
     <a href="/clinic/appointments" class="flex flex-col items-center justify-center py-2 <%= __btab('appointments') %>">
-      <span class="text-lg leading-none">📅</span><span class="text-[10px] mt-0.5">المواعيد</span>
+      <span class="text-lg leading-none">📅</span><span class="text-[10px] mt-0.5"><%= t('clinic.nav.appointments') %></span>
     </a>
     <a href="/clinic/patients" class="flex flex-col items-center justify-center py-2 <%= __btab('patients') %>">
-      <span class="text-lg leading-none">👥</span><span class="text-[10px] mt-0.5">المرضى</span>
+      <span class="text-lg leading-none">👥</span><span class="text-[10px] mt-0.5"><%= t('clinic.nav.patients') %></span>
     </a>
     <button type="button" onclick="__openMore()" id="__moreBtn"
             class="flex flex-col items-center justify-center py-2 text-slate-400">
-      <span class="text-lg leading-none">⋯</span><span class="text-[10px] mt-0.5">المزيد</span>
+      <span class="text-lg leading-none">⋯</span><span class="text-[10px] mt-0.5"><%= t('clinic.nav.more') %></span>
     </button>
   </div>
 </nav>
@@ -148,7 +163,7 @@
       </a>
       <% }); %>
     </div>
-    <button type="button" onclick="__closeMore()" class="w-full mt-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold">إغلاق</button>
+    <button type="button" onclick="__closeMore()" class="w-full mt-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold"><%= t('clinic.nav.close') %></button>
   </div>
 </div>
 <script>
