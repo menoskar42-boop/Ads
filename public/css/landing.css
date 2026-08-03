@@ -423,6 +423,24 @@ section { padding: 110px 60px; position: relative; }
   box-shadow: 0 10px 30px rgba(228,255,26,0.4);
 }
 
+/* Furniture: warm wood tones, so the card reads as its trade at a glance. */
+.service-card.furniture::before {
+  background: radial-gradient(ellipse at top right, rgba(193,127,63,0.18), transparent 70%);
+}
+.service-card.furniture .service-icon { background: rgba(193,127,63,0.18); }
+.service-card.furniture .free-badge {
+  background: linear-gradient(90deg, #C17F3F, #8a5524);
+  color: #fff8f0; box-shadow: 0 8px 24px rgba(193,127,63,0.30);
+}
+.service-card.furniture .service-cta {
+  background: rgba(193,127,63,0.12); color: #d9a06a;
+  border: 1px solid rgba(193,127,63,0.35);
+}
+.service-card.furniture .service-cta:hover {
+  background: #C17F3F; color: #fff8f0;
+  box-shadow: 0 10px 30px rgba(193,127,63,0.4);
+}
+
 /* Live-demo link on service cards */
 .service-demo {
   display: block; margin-top: 14px; text-align: center;
