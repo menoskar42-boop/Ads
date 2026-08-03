@@ -34,6 +34,8 @@ const FLAGS = [
     desc: 'مبيعات ومشتريات ومخزون وأرصدة وأرباح، بطباعة وتصدير.' },
   { key: 'warranty',   label: 'الضمان',           icon: '🛡️', path: '/furniture/warranty',
     desc: 'ضمان كل قطعة، وبيبدأ يوم التسليم مش يوم الفاتورة، وتنبيه قبل ما يخلص.' },
+  { key: 'branches',   label: 'الفروع',            icon: '🏬', path: '/furniture/branches',
+    desc: 'معرض وورشة ومخزن — الفلوس والمواعيد لكل فرع، والخامات والكتالوج مشتركين.' },
   { key: 'labels',     label: 'الباركود والملصقات', icon: '🏷️', path: '/furniture/labels',
     desc: 'كود لكل قطعة وخامة، وورقة ملصقات بباركود جاهزة للطباعة.' },
   { key: 'backup',     label: 'نسخة احتياطية',     icon: '💾', path: '/furniture/backup',

@@ -28,6 +28,20 @@ async function requireFurniture(req, res, next) {
       return res.redirect('/company/login');
     }
     req.company = c;
+
+    // The branch filter is resolved once, here, for every page. Leaving each
+    // route to read the session itself is how half the pages end up filtered
+    // and half do not, and then two reports disagree with no way to tell which
+    // one is lying.
+    const B = require('../furniture/branches');
+    const branches = await B.list(pool, c.id);
+    req.branches = branches;
+    req.branch = B.filterFrom(req.session.furnitureBranch, branches);
+    res.locals.branches = branches;
+    res.locals.branch = req.branch;
+    res.locals.currentPath = req.originalUrl && req.originalUrl.startsWith('/furniture')
+      ? req.originalUrl.split('?')[0] : '/furniture';
+
     const flags = await getFlags(pool, c.id);
     req.flags = flags;
     res.locals.flags = flags;
@@ -74,6 +88,7 @@ router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
 router.use('/delivery', requireFlag('delivery'), require('./furniture_delivery'));
 
 router.use('/warranty', requireFlag('warranty'), require('./furniture_warranty'));
+router.use('/branches', requireFlag('branches'), require('./furniture_branches'));
 router.use('/labels', requireFlag('labels'), require('./furniture_labels'));
 router.use('/backup', requireFlag('backup'), require('./furniture_backup'));
 

@@ -32,14 +32,18 @@ router.get('/', async (req, res) => {
   const from = date(req.query.from) || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const to = date(req.query.to) || now.toISOString().slice(0, 10);
   try {
+    // One params array, one branch fragment, used by both queries — writing
+    // the condition twice is how the list and the totals start disagreeing.
+    const params = [cid, from, to];
+    const scope = require('../furniture/branches').sqlFor(req.branch, params);
     const [rows, byCat] = await Promise.all([
       pool.query(
-        `SELECT * FROM furniture_expenses WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3
-          ORDER BY spend_date DESC, id DESC LIMIT 300`, [cid, from, to]),
+        `SELECT * FROM furniture_expenses WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3${scope}
+          ORDER BY spend_date DESC, id DESC LIMIT 300`, params),
       pool.query(
         `SELECT category, SUM(amount) AS total, COUNT(*)::int AS n
-           FROM furniture_expenses WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3
-          GROUP BY category ORDER BY 2 DESC`, [cid, from, to]),
+           FROM furniture_expenses WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3${scope}
+          GROUP BY category ORDER BY 2 DESC`, params),
     ]);
     const total = byCat.rows.reduce((s, r) => s + Number(r.total), 0);
     res.render('furniture_admin/expenses', {
@@ -56,10 +60,11 @@ router.post('/', async (req, res) => {
   if (amount > 0) {
     try {
       await pool.query(
-        `INSERT INTO furniture_expenses (company_id, category, amount, spend_date, note)
-         VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5)`,
+        `INSERT INTO furniture_expenses (company_id, category, amount, spend_date, note, branch_id)
+         VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5,$6)`,
         [req.company.id, KEYS.includes(b.category) ? b.category : 'other',
-          amount, date(b.spend_date), String(b.note || '').trim().slice(0, 300) || null]
+          amount, date(b.spend_date), String(b.note || '').trim().slice(0, 300) || null,
+          require('../furniture/branches').idToStamp(req.branch, b.branch_id, req.branches || [])]
       );
       req.flog('expense.add', 'expense', null,
         `${KEYS.includes(b.category) ? b.category : 'other'} · ${amount}`);

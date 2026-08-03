@@ -370,6 +370,22 @@ const FIXTURES = {
     };
   },
 
+  furniture_branches: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const B = require('../src/furniture/branches');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'branches']);
+    return {
+      __file: 'furniture_admin/branches.ejs', tab: 'branches',
+      branches: [
+        { id: 1, name: 'Main showroom', kind: 'showroom', address: '5 Adly St', phone: '0882000000', is_active: true },
+        { id: 2, name: 'Workshop', kind: 'workshop', address: null, phone: null, is_active: true },
+        { id: 3, name: 'Old store', kind: 'store', address: null, phone: null, is_active: false },
+      ],
+      kinds: B.KINDS, scoped: B.SCOPED, saved: true, err: null,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   furniture_labels: (lang) => {
     const fl = require('../src/furniture/flags');
     const C = require('../src/lib/code128');
@@ -558,6 +574,10 @@ const FIXTURES = {
       payroll: [{ id: 1, worker_name: 'Ramadan', period_start: '2026-08-01', period_end: '2026-08-07',
         base: 1275, bonuses: 200, deductions: 620, net: 855, paid: true }],
       expenses: [{ category: 'rent', total: 8000, n: 1 }, { category: 'sandpaper', total: 250, n: 1 }],
+      byBranch: [
+        { id: 1, name: 'Main showroom', invoiced: 44300, expenses: 6200 },
+        { id: 2, name: 'Workshop', invoiced: 7000, expenses: 2050 },
+      ],
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },

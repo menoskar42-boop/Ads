@@ -1169,6 +1169,8 @@ const strings = {
     'fn2.flagdesc.activity':'مين عمل إيه وامتى. التسجيل شغّال دايماً — القسم بيخفي الصفحة بس.',
     'fn2.flag.warranty':'الضمان',
     'fn2.flagdesc.warranty':'ضمان كل قطعة، وبيبدأ يوم التسليم مش يوم الفاتورة، وتنبيه قبل ما يخلص.',
+    'fn2.flag.branches':'الفروع',
+    'fn2.flagdesc.branches':'معرض وورشة ومخزن — الفلوس والمواعيد لكل فرع، والخامات والكتالوج مشتركين.',
     'fn2.flag.labels':'الباركود والملصقات',
     'fn2.flagdesc.labels':'كود لكل قطعة وخامة، وورقة ملصقات بباركود جاهزة للطباعة.',
     'fn2.flag.backup':'نسخة احتياطية',
@@ -1353,6 +1355,20 @@ const strings = {
     'fn2.bk.restore_body':'رجوع البيانات لقاعدة شغّالة معناه إعادة ربط كل المفاتيح والتصرّف في الأرقام اللي موجودة أصلاً — لو اتعمل غلط بيخرّب نفس البيانات اللي المفروض بيحميها. فالملف ده نسخة كاملة ومقروءة تحتفظ بيها، والاسترجاع عملية بتتعمل بمعرفتنا وبحد واقف عليها. كلّمنا لو احتجتها.',
     'fn2.bk.contents':'اللي جوه الملف',
     'fn2.act.a.backup.download':'نزّل نسخة احتياطية',
+
+    // الفروع (المرحلة ٨)
+    'fn2.br.sub':'معرض وورشة ومخزن، وكل واحد بأرقامه.',
+    'fn2.br.rule':'ℹ️ **الفلوس والمواعيد لكل فرع** (فواتير · مصروفات · تسليم · عمالة) — معرضين ليهم درجين ومصروفات وعربيات وطواقم مختلفة، وجمعهم بيخلّي الرقمين مالهمش لازمة. **الخامات والكتالوج والموردين والعملاء مشتركين** — ورشة بمعرضين عندها **مخزن خشب واحد**، وفصله كان هيخترع مشكلة تحويلات بين الفروع مش موجودة أصلاً، وكل تحويل فرصة إن خشب يضيع على الورق.',
+    'fn2.br.new':'فرع جديد','fn2.br.kind':'النوع',
+    'fn2.br.k.showroom':'معرض','fn2.br.k.workshop':'ورشة','fn2.br.k.store':'مخزن',
+    'fn2.br.empty':'مفيش فروع — النظام شغّال عادي من غيرها.',
+    'fn2.br.viewing':'بتشوف','fn2.br.all':'كل الفروع',
+    'fn2.br.unassigned':'من غير فرع (قبل ما الفروع تتعمل)',
+    'fn2.br.scoped_title':'الجداول اللي المفتاح ده بيفلترها',
+    'fn2.br.shared_note':'أي حاجة تانية (الخامات، المنتجات، الموردين، العملاء، المشتريات) مشتركة بين كل الفروع — بقرار، مش بالسهو.',
+    'fn2.br.by_branch':'الأرقام لكل فرع',
+    'fn2.act.a.branch.add':'ضاف فرع','fn2.act.a.branch.edit':'عدّل فرع',
+    'fn2.act.a.branch.archive':'أرشف فرع','fn2.act.a.branch.restore':'رجّع فرع',
 
     // سجل النشاط (المرحلة ٨)
     'fn2.act.sub':'كل حركة بتغيّر فلوس أو بيانات، بالاسم والوقت.',
@@ -2757,6 +2773,8 @@ const strings = {
     'fn2.flagdesc.activity':'Who did what, and when. Writing is always on — the section only hides the page.',
     'fn2.flag.warranty':'Warranty',
     'fn2.flagdesc.warranty':'A guarantee per piece, running from the delivery date rather than the invoice date, with a warning before it ends.',
+    'fn2.flag.branches':'Branches',
+    'fn2.flagdesc.branches':'Showroom, workshop, store — money and jobs per branch, stock and catalogue shared.',
     'fn2.flag.labels':'Barcodes & labels',
     'fn2.flagdesc.labels':'A code for every piece and material, and a printable sheet of barcode labels.',
     'fn2.flag.backup':'Backup',
@@ -2941,6 +2959,20 @@ const strings = {
     'fn2.bk.restore_body':'Reading rows back into a live database means re-pointing every foreign key and deciding what to do about ids that already exist. Done wrong it corrupts the very data it was meant to protect. So this file is a complete, readable copy you keep, and restoring is a deliberate operation with a person in the loop. Contact us if you need it.',
     'fn2.bk.contents':'What is in the file',
     'fn2.act.a.backup.download':'downloaded a backup',
+
+    // Branches (phase 8)
+    'fn2.br.sub':'Showroom, workshop and store, each with its own numbers.',
+    'fn2.br.rule':'ℹ️ **Money and jobs are per branch** (invoices, expenses, delivery, workers) — two showrooms have two tills, two sets of expenses, two vans and two teams, and adding them together makes both figures useless. **Stock, catalogue, suppliers and customers are shared** — a workshop with two showrooms has ONE timber store. Splitting it would invent an inter-branch transfer problem the business does not have, and every transfer is a chance for stock to go missing on paper.',
+    'fn2.br.new':'New branch','fn2.br.kind':'Type',
+    'fn2.br.k.showroom':'Showroom','fn2.br.k.workshop':'Workshop','fn2.br.k.store':'Store',
+    'fn2.br.empty':'No branches — the system runs perfectly well without them.',
+    'fn2.br.viewing':'Viewing','fn2.br.all':'All branches',
+    'fn2.br.unassigned':'No branch (recorded before branches existed)',
+    'fn2.br.scoped_title':'Tables this switch filters',
+    'fn2.br.shared_note':'Everything else (materials, products, suppliers, customers, purchasing) is shared across branches — by decision, not by oversight.',
+    'fn2.br.by_branch':'By branch',
+    'fn2.act.a.branch.add':'added a branch','fn2.act.a.branch.edit':'edited a branch',
+    'fn2.act.a.branch.archive':'archived a branch','fn2.act.a.branch.restore':'restored a branch',
 
     // Activity log (phase 8)
     'fn2.act.sub':'Every action that moved money or changed data, with a name and a time on it.',

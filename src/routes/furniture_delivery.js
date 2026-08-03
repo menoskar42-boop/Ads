@@ -16,8 +16,8 @@ router.get('/', async (req, res) => {
   const view = VIEWS.includes(req.query.view) ? req.query.view : 'open';
   try {
     const [jobs, tally, policy, sales, customers] = await Promise.all([
-      D.board(pool, cid, view),
-      D.counts(pool, cid),
+      D.board(pool, cid, view, req.branch),
+      D.counts(pool, cid, req.branch),
       D.policyOf(pool, cid),
       // Open invoices first: those are the ones with something still to hand over.
       pool.query(

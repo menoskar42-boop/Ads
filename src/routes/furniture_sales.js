@@ -4,6 +4,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const S = require('../furniture/sales');
+const B = require('../furniture/branches');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -24,6 +25,7 @@ router.get('/', async (req, res) => {
     const params = [cid];
     let where = 's.company_id=$1';
     if (status) where += ' AND s.status=$' + params.push(status);
+    where += B.sqlFor(req.branch, params, 's.branch_id');
     const [sales, customers, products, balances, taxPercent] = await Promise.all([
       pool.query(
         `SELECT s.*, c.name AS customer_name FROM furniture_sales s
@@ -62,10 +64,13 @@ router.post('/', async (req, res) => {
     const t = S.invoiceTotals(lines, await taxPercentOf(cid));
     const sale = (await client.query(
       `INSERT INTO furniture_sales
-         (company_id, customer_id, sale_date, subtotal, tax, total, paid, status, note)
-       VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,$5,$6,0,'open',$7) RETURNING id`,
+         (company_id, customer_id, sale_date, subtotal, tax, total, paid, status, note, branch_id)
+       VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,$5,$6,0,'open',$7,$8) RETURNING id`,
       [cid, parseInt(b.customer_id, 10) || null, date(b.sale_date),
-        t.subtotal, t.tax, t.total, String(b.note || '').trim().slice(0, 300) || null]
+        t.subtotal, t.tax, t.total, String(b.note || '').trim().slice(0, 300) || null,
+        // Stamped from the active filter when the form does not say: raising an
+        // invoice while looking at one branch means it belongs to that branch.
+        B.idToStamp(req.branch, b.branch_id, req.branches || [])]
     )).rows[0];
 
     for (const l of lines) {

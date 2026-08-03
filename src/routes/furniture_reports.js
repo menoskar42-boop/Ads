@@ -23,7 +23,7 @@ function periodOf(q) {
 
 /** Everything the page and the exports read, gathered once. */
 async function gather(pool, cid, from, to) {
-  const [period, cash, stock, customers, suppliers, payroll, expenses] = await Promise.all([
+  const [period, cash, stock, customers, suppliers, payroll, expenses, byBranch] = await Promise.all([
     R.periodSummary(pool, cid, from, to),
     R.cashBalance(pool, cid),
     R.inventory(pool, cid),
@@ -38,8 +38,9 @@ async function gather(pool, cid, from, to) {
       `SELECT category, SUM(amount) AS total, COUNT(*)::int AS n FROM furniture_expenses
         WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3 GROUP BY category ORDER BY 2 DESC`,
       [cid, from, to]),
+    require('../furniture/branches').segment(pool, cid, from, to),
   ]);
-  return { period, cash, stock, customers, suppliers,
+  return { period, cash, stock, customers, suppliers, byBranch,
     payroll: payroll.rows, expenses: expenses.rows };
 }
 

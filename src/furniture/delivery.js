@@ -200,10 +200,10 @@ const SELECT = `
  * The board. `view` is one of open | today | late | done — the four questions
  * a workshop actually asks, rather than a free-form filter nobody fills in.
  */
-async function board(pool, companyId, view) {
+async function board(pool, companyId, view, branch) {
   const day = today();
   const params = [companyId];
-  let where = 'd.company_id=$1';
+  let where = 'd.company_id=$1' + require('./branches').sqlFor(branch, params, 'd.branch_id');
   if (view === 'today') where += ` AND d.scheduled_date = $${params.push(day)} AND d.status <> 'done'`;
   else if (view === 'late') where += ` AND d.scheduled_date < $${params.push(day)} AND d.status <> 'done'`;
   else if (view === 'done') where += " AND d.status = 'done'";
@@ -216,15 +216,17 @@ async function board(pool, companyId, view) {
 }
 
 /** Counts for the tabs and the dashboard card. */
-async function counts(pool, companyId) {
+async function counts(pool, companyId, branch) {
   const day = today();
+  const params = [companyId, today()];
+  const scope = require('./branches').sqlFor(branch, params);
   const r = await pool.query(
     `SELECT
        COUNT(*) FILTER (WHERE status <> 'done')::int AS open,
        COUNT(*) FILTER (WHERE status <> 'done' AND scheduled_date = $2)::int AS today,
        COUNT(*) FILTER (WHERE status <> 'done' AND scheduled_date < $2)::int AS late,
        COALESCE(SUM(fee - fee_paid) FILTER (WHERE fee > fee_paid), 0)::float AS fees_due
-     FROM furniture_deliveries WHERE company_id=$1`, [companyId, day]);
+     FROM furniture_deliveries WHERE company_id=$1${scope}`, params);
   return r.rows[0];
 }
 

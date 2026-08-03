@@ -447,6 +447,41 @@ async function ensureFurnitureSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_furn_activity ON furniture_activity_log (company_id, created_at DESC);
     `);
+
+    // ── Branches (phase 8) ───────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS furniture_branches (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        kind       TEXT NOT NULL DEFAULT 'showroom',   -- showroom | workshop | store
+        address    TEXT,
+        phone      TEXT,
+        is_active  BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_branches ON furniture_branches (company_id, is_active);
+
+      -- Which tables carry a branch, and which deliberately do not.
+      --
+      -- MONEY AND JOBS are per branch: two showrooms have two tills, two sets
+      -- of expenses, two vans and two teams, and mixing them makes both sets of
+      -- numbers useless.
+      --
+      -- STOCK AND MASTER DATA stay company-wide: a workshop with two showrooms
+      -- has ONE timber store and one product catalogue. Splitting those would
+      -- invent a transfer problem the business does not have.
+      --
+      -- NULL means "recorded before branches existed", and is shown as its own
+      -- filter rather than folded into any branch — assigning old rows to a
+      -- branch nobody chose would be a guess presented as a fact.
+      ALTER TABLE furniture_sales      ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL;
+      ALTER TABLE furniture_expenses   ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL;
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL;
+      ALTER TABLE furniture_workers    ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_furn_sales_branch ON furniture_sales (company_id, branch_id);
+      CREATE INDEX IF NOT EXISTS idx_furn_exp_branch ON furniture_expenses (company_id, branch_id);
+    `);
   } finally {
     client.release();
   }
