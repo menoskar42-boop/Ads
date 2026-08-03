@@ -1,15 +1,15 @@
-<%- include('head', { title: 'API والمكاملات', tab: 'api' }) %>
+<%- include('head', { title: t('ap.title'), tab: 'api' }) %>
 <%
   function fmtDT(t){ if(!t) return '—'; try { return new Date(t).toLocaleString(LOC,{month:'short',day:'numeric',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
-  var EVLABEL = { 'appointment.created':'حجز موعد جديد', 'visit.done':'انتهاء زيارة', 'invoice.paid':'دفع فاتورة' };
+  var EVLABEL = { 'appointment.created':t('ap.ev.appointment_created'), 'visit.done':t('ap.ev.visit_done'), 'invoice.paid':t('ap.ev.invoice_paid') };
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">API والمكاملات</h1>
-<p class="text-slate-500 mb-6">مفاتيح API وويب-هوكس لربط العيادة بأنظمة خارجية</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('ap.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('ap.sub') %></p>
 
 <% if (newToken) { %>
 <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5">
-  <div class="font-bold text-emerald-800 text-sm mb-1">تم إنشاء المفتاح — انسخه الآن (لن يظهر مرة أخرى):</div>
+  <div class="font-bold text-emerald-800 text-sm mb-1"><%= t('ap.new_token') %></div>
   <code class="block bg-white border border-emerald-200 rounded-lg px-3 py-2 text-xs font-mono break-all" dir="ltr"><%= newToken %></code>
 </div>
 <% } %>
@@ -18,19 +18,19 @@
   <!-- API keys -->
   <div class="space-y-4">
     <div class="bg-white border border-slate-200 rounded-2xl p-5">
-      <h2 class="font-extrabold text-slate-900 mb-3">إنشاء مفتاح API</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('ap.create_key') %></h2>
       <form method="post" action="/clinic/integrations/keys" class="flex gap-2">
-        <input name="label" maxlength="60" placeholder="اسم المفتاح (مثلاً: تكامل واتساب)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm whitespace-nowrap">إنشاء</button>
+        <input name="label" maxlength="60" placeholder="<%= t('ap.key_label') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm whitespace-nowrap"><%= t('ap.create') %></button>
       </form>
     </div>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">المفاتيح (<%= keys.length %>)</div>
-      <% if (!keys.length) { %><div class="p-6 text-center text-slate-400 text-sm">مفيش مفاتيح.</div><% } %>
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm"><%= t('ap.keys') %> (<%= keys.length %>)</div>
+      <% if (!keys.length) { %><div class="p-6 text-center text-slate-400 text-sm"><%= t('ap.no_keys') %></div><% } %>
       <% keys.forEach(function(k){ %>
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 text-sm"><%= k.label %></div><div class="text-xs text-slate-400 font-mono" dir="ltr"><%= k.prefix %>••• · <%= fmtDT(k.created_at) %></div></div>
-        <form method="post" action="/clinic/integrations/keys/<%= k.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">إلغاء</button></form>
+        <form method="post" action="/clinic/integrations/keys/<%= k.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm"><%= t('ap.revoke') %></button></form>
       </div>
       <% }); %>
     </div>
@@ -39,24 +39,24 @@
   <!-- Webhooks -->
   <div class="space-y-4">
     <div class="bg-white border border-slate-200 rounded-2xl p-5">
-      <h2 class="font-extrabold text-slate-900 mb-3">إضافة Webhook</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('ap.add_hook') %></h2>
       <form method="post" action="/clinic/integrations/webhooks" class="grid gap-2.5">
         <input name="url" required maxlength="300" placeholder="https://example.com/webhook" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <select name="event" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
-          <option value="appointment.created">حجز موعد جديد</option>
-          <option value="visit.done">انتهاء زيارة</option>
-          <option value="invoice.paid">دفع فاتورة</option>
+          <option value="appointment.created"><%= EVLABEL['appointment.created'] %></option>
+          <option value="visit.done"><%= EVLABEL['visit.done'] %></option>
+          <option value="invoice.paid"><%= EVLABEL['invoice.paid'] %></option>
         </select>
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('dr.add') %></button>
       </form>
     </div>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">Webhooks (<%= hooks.length %>)</div>
-      <% if (!hooks.length) { %><div class="p-6 text-center text-slate-400 text-sm">مفيش webhooks.</div><% } %>
+      <% if (!hooks.length) { %><div class="p-6 text-center text-slate-400 text-sm"><%= t('ap.no_hooks') %></div><% } %>
       <% hooks.forEach(function(h){ %>
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
         <div class="min-w-0 flex-1"><div class="font-bold text-slate-900 text-xs font-mono truncate" dir="ltr"><%= h.url %></div><div class="text-xs text-slate-400"><%= EVLABEL[h.event]||h.event %></div></div>
-        <form method="post" action="/clinic/integrations/webhooks/<%= h.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <form method="post" action="/clinic/integrations/webhooks/<%= h.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm"><%= t('common.delete') %></button></form>
       </div>
       <% }); %>
     </div>

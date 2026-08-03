@@ -42,7 +42,7 @@
         </select>
         <select name="visit_type_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
           <option value=""><%= t('q.visit_type') %></option>
-          <% visitTypes.forEach(function(t){ %><option value="<%= t.id %>"><%= t.name %><%= Number(t.price)?(' · '+t.price+' ج'):'' %></option><% }); %>
+          <% visitTypes.forEach(function(vt){ %><option value="<%= vt.id %>"><%= vt.name %><%= Number(vt.price)?(' · '+vt.price+' '+t('cur.egp')):'' %></option><% }); %>
         </select>
         <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="is_urgent" value="1" /> <%= t('q.urgent_case') %></label>
         <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('q.check_in') %></button>

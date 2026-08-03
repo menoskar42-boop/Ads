@@ -801,7 +801,10 @@ router.get('/whatsapp', requireModule('whatsapp'), async (req, res) => {
     const w = (await pool.query('SELECT * FROM clinic_whatsapp WHERE company_id=$1', [req.company.id])).rows[0] || {};
     res.render('clinic_admin/mod_whatsapp', {
       company: req.company, tab: 'whatsapp', w,
-      defConfirm: DEFAULT_CONFIRM_TPL, defReminder: DEFAULT_REMINDER_TPL,
+      // Shown as the starting point the clinic edits, so it follows the
+      // language the clinic runs its back-office in.
+      defConfirm: res.locals.t('wa.tpl.confirm_default'),
+      defReminder: res.locals.t('wa.tpl.reminder_default'),
       saved: req.query.saved === '1', test: req.query.test || null,
     });
   } catch (e) { console.error('[whatsapp]', e.message); res.status(500).send('error'); }
@@ -1675,7 +1678,20 @@ router.post('/installments/plan/:invoiceId/delete', requireModule('installments'
 // The drawer only reconciles if three things are in one place: what it started
 // with, what patients paid (already in clinic_payments), and every other cash
 // movement. This module supplies the first and third.
-const CASH_CATEGORIES = ['مستلزمات', 'صيانة', 'إيجار', 'كهرباء ومياه', 'رواتب', 'سلفة', 'مواصلات', 'دعاية', 'أخرى'];
+// Stored by key so a petty-cash line reads correctly in either language.
+// Entries written before this hold the Arabic label as free text; the view
+// falls back to the stored string when the key is unknown.
+const CASH_CATEGORIES = [
+  { key: 'supplies',  label: 'مستلزمات' },
+  { key: 'repairs',   label: 'صيانة' },
+  { key: 'rent',      label: 'إيجار' },
+  { key: 'utilities', label: 'كهرباء ومياه' },
+  { key: 'salaries',  label: 'رواتب' },
+  { key: 'advance',   label: 'سلفة' },
+  { key: 'transport', label: 'مواصلات' },
+  { key: 'marketing', label: 'دعاية' },
+  { key: 'other',     label: 'أخرى' },
+];
 
 // Cairo, not the server's timezone — a clinic closing at 11pm must not have
 // its takings land on tomorrow's sheet.

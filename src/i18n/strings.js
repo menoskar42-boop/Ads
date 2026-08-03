@@ -963,6 +963,106 @@ const strings = {
     'xr.t.pan':'✋ تحريك','xr.t.arrow':'↗ سهم','xr.t.circle':'⭕ دائرة',
     'xr.t.rect':'▭ مستطيل','xr.t.text':'A نص',
     'xr.kind.before':'قبل','xr.kind.after':'بعد','xr.kind.xray':'أشعة',
+    // المواعيد — حالات الحجز
+    'ap2.all':'الكل','ap2.pending':'بانتظار','ap2.confirmed':'مؤكّد',
+    'ap2.done':'تمّت','ap2.cancelled':'ملغاة',
+
+    // الفروع
+    'br.title':'فروع العيادة','br.sub':'أضف فروع العيادة المتعددة لو عندك أكثر من مقر',
+    'br.add':'إضافة فرع','br.name':'اسم الفرع','br.empty':'مفيش فروع مضافة.',
+
+    // مركز الاتصال
+    'cl.title':'مركز الاتصال','cl.sub':'سجل المكالمات والمتابعات مع المرضى',
+    'cl.followups':'📌 متابعات قادمة','cl.add':'تسجيل مكالمة',
+    'cl.patient_opt':'مريض (اختياري)','cl.phone':'رقم الهاتف',
+    'cl.out':'صادرة','cl.in':'واردة',
+    'cl.purpose':'سبب المكالمة (تذكير موعد…)','cl.outcome':'النتيجة',
+    'cl.followup_on':'متابعة في','cl.followup':'متابعة','cl.empty':'مفيش مكالمات مسجّلة.',
+
+    // التأمين
+    'ins.title':'التأمين الطبي','ins.sub':'شركات التأمين ونسب التغطية ومطالبات المرضى',
+    'ins.add_insurer':'إضافة شركة تأمين','ins.company':'اسم الشركة','ins.coverage_pct':'نسبة التغطية %',
+    'ins.insurers':'شركات التأمين','ins.no_insurers':'مفيش شركات.','ins.coverage':'تغطية',
+    'ins.new_claim':'مطالبة تأمين جديدة','ins.pick_company':'الشركة','ins.pick_patient':'المريض',
+    'ins.notes_opt':'ملاحظات (اختياري)','ins.record_claim':'تسجيل المطالبة',
+    'ins.claims':'المطالبات','ins.no_claims':'مفيش مطالبات.','ins.update':'تحديث',
+    'ins.st.pending':'قيد المراجعة','ins.st.approved':'معتمدة','ins.st.paid':'مدفوعة','ins.st.rejected':'مرفوضة',
+
+    // API والمكاملات
+    'ap.title':'API والمكاملات','ap.sub':'مفاتيح API وويب-هوكس لربط العيادة بأنظمة خارجية',
+    'ap.new_token':'تم إنشاء المفتاح — انسخه الآن (لن يظهر مرة أخرى):',
+    'ap.create_key':'إنشاء مفتاح API','ap.key_label':'اسم المفتاح (مثلاً: تكامل واتساب)',
+    'ap.create':'إنشاء','ap.keys':'المفاتيح','ap.no_keys':'مفيش مفاتيح.','ap.revoke':'إلغاء',
+    'ap.add_hook':'إضافة Webhook','ap.no_hooks':'مفيش webhooks.',
+    'ap.ev.appointment_created':'حجز موعد جديد','ap.ev.visit_done':'انتهاء زيارة','ap.ev.invoice_paid':'دفع فاتورة',
+
+    // المخزون
+    'in2.title':'المخزون','in2.sub':'أصناف ومستلزمات العيادة وحركة الصرف والإضافة',
+    'in2.low_1':'صنف وصل حد إعادة الطلب:',
+    'in2.add':'إضافة صنف','in2.name':'اسم الصنف','in2.qty':'الكمية','in2.unit':'الوحدة',
+    'in2.unit_default':'قطعة','in2.reorder':'حد الطلب','in2.price':'السعر',
+    'in2.items':'الأصناف','in2.no_items':'مفيش أصناف.','in2.low_badge':'منخفض',
+    'in2.qty_short':'كمية','in2.apply':'تنفيذ','in2.moves':'آخر الحركات',
+    'in2.r.in':'إضافة','in2.r.dispense':'صرف','in2.r.adjust':'تسوية',
+
+    // الموظفون
+    'hr.title':'الموظفون والحضور','hr.sub':'بيانات فريق العمل وتسجيل الحضور والانصراف اليومي',
+    'hr.add':'إضافة موظف','hr.name':'اسم الموظف','hr.role':'الوظيفة (استقبال/تمريض…)',
+    'hr.empty':'مفيش موظفين مضافين.','hr.team_today':'فريق العمل — الحضور اليوم',
+    'hr.present_since':'حاضر منذ','hr.check_out':'انصراف','hr.check_in':'حضور',
+    'hr.today_log':'سجل حضور اليوم',
+
+    // واتساب
+    'wa.title':'ربط واتساب العيادة',
+    'wa.sub':'كل عيادة تضع مفتاح الـWhatsApp API الخاص بها — عشان الرسائل تطلع من رقم العيادة نفسها.',
+    'wa.saved':'تم حفظ الإعدادات ✅','wa.provider':'مزوّد الخدمة',
+    'wa.p_cloud':'WhatsApp Cloud API (Meta الرسمي)','wa.p_generic':'مزوّد خارجي (رابط API + توكِن)',
+    'wa.token_perm':'Access Token (توكِن دائم)','wa.api_url':'رابط الـAPI','wa.api_token':'التوكِن / المفتاح',
+    'wa.generic_note_1':'يُرسَل طلب POST بصيغة JSON:','wa.generic_note_2':'مع الهيدر',
+    'wa.sender':'رقم العيادة على واتساب (للعرض)',
+    'wa.tpl_confirm':'قالب رسالة تأكيد الحجز','wa.tpl_reminder':'قالب رسالة التذكير',
+    'wa.vars':'المتغيّرات المتاحة:','wa.v_name':'اسم المريض','wa.v_clinic':'اسم العيادة',
+    'wa.v_doctor':'الطبيب','wa.v_time':'الموعد',
+    'wa.enable':'تفعيل إرسال الرسائل','wa.auto_confirm':'إرسال رسالة تأكيد تلقائياً عند كل حجز جديد',
+    'wa.save':'حفظ الإعدادات','wa.test':'اختبار الإرسال',
+    'wa.test_hint':'احفظ الإعدادات أولاً، ثم أرسل رسالة تجريبية لرقمك للتأكد.',
+    'wa.send_test':'إرسال رسالة اختبار','wa.where_title':'من فين أجيب البيانات؟',
+    'wa.where_1':'لـ Cloud API الرسمي: من لوحة','wa.where_2':'تلاقي','wa.where_3':'وتعمل',
+    'wa.where_4':'لو بتستخدم مزوّد خارجي (جيتواي)، حط رابط الإرسال والتوكِن اللي بعتهولك المزوّد.',
+    'wa.tpl.confirm_default':'مرحباً {name}، تم استلام حجزك في {clinic}{doctor}. سنؤكّد الموعد قريباً. شكراً لك.',
+    'wa.tpl.reminder_default':'تذكير: لديك موعد في {clinic}{doctor} يوم {time}. برجاء الحضور قبل الموعد بـ10 دقائق.',
+
+    // الفواتير
+    'iv.title':'الفواتير والحسابات','iv.reports':'📊 التقارير المالية',
+    'iv.sub':'إنشاء الفواتير، تحصيل المدفوعات، ومتابعة الإيرادات',
+    'iv.today_collected':'محصّل اليوم','iv.total_collected':'إجمالي المحصّل',
+    'iv.outstanding':'مبالغ مستحقة','iv.open_count':'فواتير مفتوحة',
+    'iv.new':'فاتورة جديدة','iv.pick_patient':'— المريض (اختياري) —',
+    'iv.pick_doctor':'— الطبيب (لاحتساب نصيبه) —','iv.pick_services':'اختر الخدمات:',
+    'iv.no_services':'أضف خدمات من صفحة «الخدمات» أولاً، أو استخدم بند يدوي.',
+    'iv.manual_item':'بند يدوي (اختياري)','iv.manual_price':'سعر','iv.discount':'خصم',
+    'iv.create':'إنشاء الفاتورة',
+    'iv.all':'الكل','iv.empty':'لا توجد فواتير.','iv.no_patient':'بدون مريض','iv.paid_of':'مدفوع',
+    'iv.st.pending':'غير مدفوعة','iv.st.partial':'مدفوعة جزئياً','iv.st.paid':'مدفوعة','iv.st.cancelled':'ملغاة',
+    'iv.f.pending':'غير مدفوعة','iv.f.partial':'جزئية','iv.f.paid':'مدفوعة',
+
+    'iv.one':'فاتورة','iv.back':'الفواتير','iv.print':'🖨️ طباعة',
+    'iv.c.item':'البند','iv.c.qty':'الكمية','iv.c.price':'السعر','iv.c.total':'الإجمالي',
+    'iv.subtotal':'المجموع','iv.discount_line':'الخصم','iv.grand_total':'الإجمالي',
+    'iv.paid':'المدفوع','iv.due':'المتبقّي',
+    'iv.payments_log':'سجل المدفوعات','iv.collect':'تحصيل دفعة','iv.amount':'المبلغ',
+    'iv.record_payment':'تسجيل الدفعة','iv.cancel_invoice':'إلغاء الفاتورة',
+
+    // التقارير المالية
+    'fn.title':'التقارير المالية','fn.show':'عرض',
+    'fn.month_of':'شهر','fn.this_month':'الشهر الحالي',
+    'fn.collected':'المحصّل','fn.billed':'إجمالي الفواتير',
+    'fn.daily':'التحصيل اليومي','fn.no_payments_period':'لا توجد مدفوعات في هذه الفترة.',
+    'fn.by_doctor':'حسابات الأطباء (نصيب الطبيب من الفواتير المدفوعة)',
+    'fn.no_earnings':'لا توجد أرباح محتسبة بعد.','fn.invoices_n':'فاتورة',
+    'fn.by_method':'طرق الدفع','fn.no_payments':'لا توجد مدفوعات.','fn.txn_n':'عملية',
+    'fn.top_services':'أكثر الخدمات دخلاً','fn.no_items':'لا توجد بنود فواتير.','fn.times_n':'مرة',
+
     // الخدمات والأسعار
     'sv.title':'الخدمات والأسعار',
     'sv.sub':'الخدمات اللي بتتحاسب عليها العيادة، وأنواع الزيارات وأسعارها',
@@ -1146,6 +1246,9 @@ const strings = {
     'cur.egp':'ج',
     'q.on_day':'في هذا اليوم','q.on_today':'اليوم',
     'confirm.delete':'تأكيد الحذف؟',
+    'cb.cat.supplies':'مستلزمات','cb.cat.repairs':'صيانة','cb.cat.rent':'إيجار',
+    'cb.cat.utilities':'كهرباء ومياه','cb.cat.salaries':'رواتب','cb.cat.advance':'سلفة',
+    'cb.cat.transport':'مواصلات','cb.cat.marketing':'دعاية','cb.cat.other':'أخرى',
     'cb.vs':'مقابل المحسوب','cb.close_update':'تحديث التقفيل','cb.close_day':'تقفيل اليوم',
     // Column labels reused by the mobile card layout (data-l).
     'tb.progress':'التقدّم','tb.dose':'الجرعة','tb.delivery':'التسليم','tb.lab':'المعمل',
@@ -2110,6 +2213,106 @@ const strings = {
     'xr.t.pan':'✋ Pan','xr.t.arrow':'↗ Arrow','xr.t.circle':'⭕ Circle',
     'xr.t.rect':'▭ Rectangle','xr.t.text':'A Text',
     'xr.kind.before':'Before','xr.kind.after':'After','xr.kind.xray':'Radiograph',
+    // Appointments — booking statuses
+    'ap2.all':'All','ap2.pending':'Awaiting','ap2.confirmed':'Confirmed',
+    'ap2.done':'Completed','ap2.cancelled':'Cancelled',
+
+    // Branches
+    'br.title':'Clinic branches','br.sub':'Add your other locations if the clinic runs more than one',
+    'br.add':'Add a branch','br.name':'Branch name','br.empty':'No branches added.',
+
+    // Call centre
+    'cl.title':'Call centre','cl.sub':'A log of calls and follow-ups with patients',
+    'cl.followups':'📌 Upcoming follow-ups','cl.add':'Log a call',
+    'cl.patient_opt':'Patient (optional)','cl.phone':'Phone number',
+    'cl.out':'Outgoing','cl.in':'Incoming',
+    'cl.purpose':'Reason for the call (appointment reminder…)','cl.outcome':'Outcome',
+    'cl.followup_on':'Follow up on','cl.followup':'follow-up','cl.empty':'No calls logged.',
+
+    // Insurance
+    'ins.title':'Medical insurance','ins.sub':'Insurers, coverage rates and patient claims',
+    'ins.add_insurer':'Add an insurer','ins.company':'Company name','ins.coverage_pct':'Coverage %',
+    'ins.insurers':'Insurers','ins.no_insurers':'No insurers.','ins.coverage':'Coverage',
+    'ins.new_claim':'New insurance claim','ins.pick_company':'Insurer','ins.pick_patient':'Patient',
+    'ins.notes_opt':'Notes (optional)','ins.record_claim':'Record the claim',
+    'ins.claims':'Claims','ins.no_claims':'No claims.','ins.update':'Update',
+    'ins.st.pending':'Under review','ins.st.approved':'Approved','ins.st.paid':'Paid','ins.st.rejected':'Rejected',
+
+    // API and integrations
+    'ap.title':'API and integrations','ap.sub':'API keys and webhooks to connect the clinic to outside systems',
+    'ap.new_token':'Key created — copy it now (it will not be shown again):',
+    'ap.create_key':'Create an API key','ap.key_label':'Key name (e.g. WhatsApp integration)',
+    'ap.create':'Create','ap.keys':'Keys','ap.no_keys':'No keys.','ap.revoke':'Revoke',
+    'ap.add_hook':'Add a webhook','ap.no_hooks':'No webhooks.',
+    'ap.ev.appointment_created':'New appointment booked','ap.ev.visit_done':'Visit completed','ap.ev.invoice_paid':'Invoice paid',
+
+    // Inventory
+    'in2.title':'Inventory','in2.sub':'Clinic items and consumables, and every issue and receipt',
+    'in2.low_1':'items have reached their reorder level:',
+    'in2.add':'Add an item','in2.name':'Item name','in2.qty':'Quantity','in2.unit':'Unit',
+    'in2.unit_default':'piece','in2.reorder':'Reorder level','in2.price':'Price',
+    'in2.items':'Items','in2.no_items':'No items.','in2.low_badge':'Low',
+    'in2.qty_short':'Qty','in2.apply':'Apply','in2.moves':'Recent movements',
+    'in2.r.in':'Received','in2.r.dispense':'Issued','in2.r.adjust':'Adjustment',
+
+    // Staff
+    'hr.title':'Staff and attendance','hr.sub':'Team details and daily check-in / check-out',
+    'hr.add':'Add a staff member','hr.name':'Staff name','hr.role':'Role (reception / nursing…)',
+    'hr.empty':'No staff added.','hr.team_today':'The team — attendance today',
+    'hr.present_since':'Present since','hr.check_out':'Check out','hr.check_in':'Check in',
+    'hr.today_log':'Today\'s attendance log',
+
+    // WhatsApp
+    'wa.title':'Connect the clinic\'s WhatsApp',
+    'wa.sub':'Each clinic supplies its own WhatsApp API key, so messages go out from the clinic\'s own number.',
+    'wa.saved':'Settings saved ✅','wa.provider':'Provider',
+    'wa.p_cloud':'WhatsApp Cloud API (official Meta)','wa.p_generic':'External provider (API URL + token)',
+    'wa.token_perm':'Access token (permanent)','wa.api_url':'API URL','wa.api_token':'Token / key',
+    'wa.generic_note_1':'A POST request is sent as JSON:','wa.generic_note_2':'with the header',
+    'wa.sender':'Clinic WhatsApp number (for display)',
+    'wa.tpl_confirm':'Booking confirmation template','wa.tpl_reminder':'Reminder template',
+    'wa.vars':'Available variables:','wa.v_name':'patient name','wa.v_clinic':'clinic name',
+    'wa.v_doctor':'doctor','wa.v_time':'appointment time',
+    'wa.enable':'Enable message sending','wa.auto_confirm':'Send a confirmation automatically on every new booking',
+    'wa.save':'Save settings','wa.test':'Test sending',
+    'wa.test_hint':'Save the settings first, then send a test message to your own number to check.',
+    'wa.send_test':'Send a test message','wa.where_title':'Where do I get these details?',
+    'wa.where_1':'For the official Cloud API: in','wa.where_2':'you will find','wa.where_3':'and can create a',
+    'wa.where_4':'If you use an external gateway, paste the send URL and the token the provider gave you.',
+    'wa.tpl.confirm_default':'Hello {name}, we have received your booking at {clinic}{doctor}. We will confirm the appointment shortly. Thank you.',
+    'wa.tpl.reminder_default':'Reminder: you have an appointment at {clinic}{doctor} on {time}. Please arrive 10 minutes early.',
+
+    // Invoices
+    'iv.title':'Invoices and accounts','iv.reports':'📊 Financial reports',
+    'iv.sub':'Create invoices, collect payments and track revenue',
+    'iv.today_collected':'Collected today','iv.total_collected':'Total collected',
+    'iv.outstanding':'Outstanding','iv.open_count':'Open invoices',
+    'iv.new':'New invoice','iv.pick_patient':'— Patient (optional) —',
+    'iv.pick_doctor':'— Doctor (for their share) —','iv.pick_services':'Choose services:',
+    'iv.no_services':'Add services on the Services page first, or use a manual line.',
+    'iv.manual_item':'Manual line (optional)','iv.manual_price':'Price','iv.discount':'Discount',
+    'iv.create':'Create invoice',
+    'iv.all':'All','iv.empty':'No invoices.','iv.no_patient':'No patient','iv.paid_of':'paid',
+    'iv.st.pending':'Unpaid','iv.st.partial':'Partly paid','iv.st.paid':'Paid','iv.st.cancelled':'Cancelled',
+    'iv.f.pending':'Unpaid','iv.f.partial':'Partial','iv.f.paid':'Paid',
+
+    'iv.one':'Invoice','iv.back':'Invoices','iv.print':'🖨️ Print',
+    'iv.c.item':'Item','iv.c.qty':'Qty','iv.c.price':'Unit price','iv.c.total':'Total',
+    'iv.subtotal':'Subtotal','iv.discount_line':'Discount','iv.grand_total':'Total',
+    'iv.paid':'Paid','iv.due':'Outstanding',
+    'iv.payments_log':'Payment history','iv.collect':'Collect a payment','iv.amount':'Amount',
+    'iv.record_payment':'Record payment','iv.cancel_invoice':'Cancel invoice',
+
+    // Financial reports
+    'fn.title':'Financial reports','fn.show':'Show',
+    'fn.month_of':'Month','fn.this_month':'This month',
+    'fn.collected':'Collected','fn.billed':'Total invoiced',
+    'fn.daily':'Daily collections','fn.no_payments_period':'No payments in this period.',
+    'fn.by_doctor':'Doctor accounts (each doctor\'s share of paid invoices)',
+    'fn.no_earnings':'No earnings calculated yet.','fn.invoices_n':'invoices',
+    'fn.by_method':'Payment methods','fn.no_payments':'No payments.','fn.txn_n':'transactions',
+    'fn.top_services':'Highest-earning services','fn.no_items':'No invoice lines.','fn.times_n':'times',
+
     // Services and pricing
     'sv.title':'Services and pricing',
     'sv.sub':'The services the clinic charges for, plus visit types and their prices',
@@ -2293,6 +2496,9 @@ const strings = {
     'cur.egp':'EGP',
     'q.on_day':'on this day','q.on_today':'today',
     'confirm.delete':'Delete this?',
+    'cb.cat.supplies':'Supplies','cb.cat.repairs':'Repairs','cb.cat.rent':'Rent',
+    'cb.cat.utilities':'Utilities','cb.cat.salaries':'Salaries','cb.cat.advance':'Staff advance',
+    'cb.cat.transport':'Transport','cb.cat.marketing':'Marketing','cb.cat.other':'Other',
     'cb.vs':'against expected','cb.close_update':'Update close','cb.close_day':'Close the day',
     // Column labels reused by the mobile card layout (data-l).
     'tb.progress':'Progress','tb.dose':'Dose','tb.delivery':'Due','tb.lab':'Lab',

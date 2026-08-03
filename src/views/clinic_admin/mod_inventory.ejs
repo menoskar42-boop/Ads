@@ -1,55 +1,55 @@
-<%- include('head', { title: 'المخزون', tab: 'inventory' }) %>
+<%- include('head', { title: t('in2.title'), tab: 'inventory' }) %>
 <%
   function money(v){ return Number(v||0).toLocaleString(LOC); }
   function fmtDT(t){ try { return new Date(t).toLocaleString(LOC,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
-  var RLABEL = { in:'إضافة', dispense:'صرف', adjust:'تسوية' };
+  var RLABEL = { in:t('in2.r.in'), dispense:t('in2.r.dispense'), adjust:t('in2.r.adjust') };
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">المخزون</h1>
-<p class="text-slate-500 mb-6">أصناف ومستلزمات العيادة وحركة الصرف والإضافة</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('in2.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('in2.sub') %></p>
 
 <% if (low.length) { %>
 <div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-5 text-sm text-amber-800">
-  ⚠️ <strong><%= low.length %></strong> صنف وصل حد إعادة الطلب: <%= low.map(function(i){return i.name;}).join('، ') %>
+  ⚠️ <strong><%= low.length %></strong> <%= t('in2.low_1') %> <%= low.map(function(i){return i.name;}).join(t('common.list_sep')) %>
 </div>
 <% } %>
 
 <div class="grid gap-6 lg:grid-cols-3">
   <div class="lg:col-span-1">
     <div class="bg-white border border-slate-200 rounded-2xl p-5 lg:sticky lg:top-4">
-      <h2 class="font-extrabold text-slate-900 mb-3">إضافة صنف</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('in2.add') %></h2>
       <form method="post" action="/clinic/inventory" class="grid gap-2.5">
-        <input name="name" required maxlength="120" placeholder="اسم الصنف" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="name" required maxlength="120" placeholder="<%= t('in2.name') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <div class="flex gap-2">
-          <input name="quantity" type="number" step="0.01" placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
-          <input name="unit" maxlength="20" placeholder="الوحدة" value="قطعة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm w-24" />
+          <input name="quantity" type="number" step="0.01" placeholder="<%= t('in2.qty') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="unit" maxlength="20" placeholder="<%= t('in2.unit') %>" value="<%= t('in2.unit_default') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm w-24" />
         </div>
         <div class="flex gap-2">
-          <input name="reorder_level" type="number" step="0.01" placeholder="حد الطلب" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
-          <input name="price" type="number" step="0.01" placeholder="السعر" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="reorder_level" type="number" step="0.01" placeholder="<%= t('in2.reorder') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="price" type="number" step="0.01" placeholder="<%= t('in2.price') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
         </div>
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('dr.add') %></button>
       </form>
     </div>
   </div>
 
   <div class="lg:col-span-2 space-y-6">
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">الأصناف (<%= items.length %>)</div>
-      <% if (!items.length) { %><div class="p-6 text-center text-slate-400 text-sm">مفيش أصناف.</div><% } %>
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm"><%= t('in2.items') %> (<%= items.length %>)</div>
+      <% if (!items.length) { %><div class="p-6 text-center text-slate-400 text-sm"><%= t('in2.no_items') %></div><% } %>
       <% items.forEach(function(it){ var lowItem = it.is_active && Number(it.quantity)<=Number(it.reorder_level) && Number(it.reorder_level)>0; %>
       <div class="p-4 border-b border-slate-100 last:border-0">
         <div class="flex items-center gap-3">
           <div class="min-w-0 flex-1">
-            <div class="font-bold text-slate-900 <%= it.is_active?'':'opacity-50' %>"><%= it.name %> <% if(lowItem){ %><span class="text-[10px] bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">منخفض</span><% } %></div>
-            <div class="text-xs text-slate-500"><%= money(it.quantity) %> <%= it.unit %><%= Number(it.price)?(' · '+money(it.price)+' ج'):'' %><%= Number(it.reorder_level)?(' · حد الطلب '+money(it.reorder_level)):'' %></div>
+            <div class="font-bold text-slate-900 <%= it.is_active?'':'opacity-50' %>"><%= it.name %> <% if(lowItem){ %><span class="text-[10px] bg-amber-100 text-amber-700 rounded px-1.5 py-0.5"><%= t('in2.low_badge') %></span><% } %></div>
+            <div class="text-xs text-slate-500"><%= money(it.quantity) %> <%= it.unit %><%= Number(it.price)?(' · '+money(it.price)+' '+t('cur.egp')):'' %><%= Number(it.reorder_level)?(' · '+t('in2.reorder')+' '+money(it.reorder_level)):'' %></div>
           </div>
-          <form method="post" action="/clinic/inventory/<%= it.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+          <form method="post" action="/clinic/inventory/<%= it.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm"><%= t('common.delete') %></button></form>
         </div>
         <form method="post" action="/clinic/inventory/<%= it.id %>/move" class="flex items-center gap-1.5 mt-2">
-          <input name="qty" type="number" step="0.01" min="0.01" placeholder="كمية" class="border border-slate-200 rounded-lg px-2 py-1 text-xs w-20" />
-          <select name="reason" class="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white"><option value="in">إضافة</option><option value="dispense">صرف</option><option value="adjust">تسوية</option></select>
-          <button class="text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg px-2.5 py-1 font-bold">تنفيذ</button>
+          <input name="qty" type="number" step="0.01" min="0.01" placeholder="<%= t('in2.qty_short') %>" class="border border-slate-200 rounded-lg px-2 py-1 text-xs w-20" />
+          <select name="reason" class="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white"><option value="in"><%= RLABEL.in %></option><option value="dispense"><%= RLABEL.dispense %></option><option value="adjust"><%= RLABEL.adjust %></option></select>
+          <button class="text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg px-2.5 py-1 font-bold"><%= t('in2.apply') %></button>
         </form>
       </div>
       <% }); %>
@@ -57,7 +57,7 @@
 
     <% if (moves.length) { %>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">آخر الحركات</div>
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm"><%= t('in2.moves') %></div>
       <% moves.forEach(function(m){ %>
       <div class="flex items-center gap-3 p-3 border-b border-slate-100 last:border-0 text-sm">
         <div class="min-w-0 flex-1"><span class="font-bold text-slate-800"><%= m.item_name %></span> <span class="text-xs text-slate-400"><%= RLABEL[m.reason]||m.reason %> · <%= fmtDT(m.created_at) %></span></div>

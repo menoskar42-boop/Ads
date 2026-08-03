@@ -61,6 +61,145 @@ const FIXTURES = {
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
 
+  appointments: () => ({
+    tab: 'appointments',
+    appts: [{
+      id: 1, patient_name: patient.name, patient_phone: '01000000000',
+      doctor_name: doctor.name, slot_at: NOW, status: 'pending', note: '',
+      created_at: NOW,
+    }],
+    status: null, waReady: true,
+  }),
+
+  modules: (lang) => {
+    const spec = require('../src/clinic/specialties');
+    const mods = require('../src/clinic/modules');
+    return {
+      tab: 'modules',
+      modules: mods.MODULES,
+      enabled: new Set(['dental']),
+      bySpecialty: new Set(spec.modulesFor('dentistry')),
+      specialtyLabel: spec.labelFor('dentistry', (k) => t(k, lang)),
+      saved: false,
+    };
+  },
+
+  addons: () => {
+    const addons = require('../src/clinic/addons');
+    const states = {};
+    addons.ADDONS.forEach((a) => { states[a.key] = { enabled: false, used: 0, quota: a.quota || 0 }; });
+    return { tab: 'addons', addons: addons.ADDONS, states, need: null, why: null, voiceReady: true };
+  },
+
+  mod_cashbox: () => ({
+    tab: 'cashbox',
+    day: null,
+    dayRow: { note: '' },
+    entries: [{ id: 1, direction: 'out', amount: 150, category: 'supplies', note: 'gloves', created_by: 'Nour', created_at: NOW }],
+    opening: 500, patientsCash: 1200, cashIn: 100, cashOut: 150, expected: 1650, counted: 1650,
+    diff: 0,
+    categories: [
+      { key: 'supplies', label: 'مستلزمات' }, { key: 'rent', label: 'إيجار' },
+      { key: 'other', label: 'أخرى' },
+    ],
+    recent: [{ day: '2026-08-02', counted_close: 1400, expected: 1400 }],
+  }),
+
+  mod_branches: () => ({
+    tab: 'branches',
+    branches: [{ id: 1, name: 'Main branch', address: 'Street 5', phone: '0882000000' }],
+  }),
+
+  mod_calls: () => ({
+    tab: 'callcenter',
+    patients: [patient],
+    calls: [{
+      id: 1, patient_name: patient.name, phone: '01000000000', direction: 'out',
+      purpose: 'reminder', outcome: 'answered', follow_up_at: '2026-08-10',
+      note: 'call back', created_at: NOW,
+    }],
+    followups: [{ follow_up_at: '2026-08-10', patient_name: patient.name, phone: '', purpose: 'review' }],
+  }),
+
+  mod_insurance: () => ({
+    tab: 'insurance',
+    insurers: [{ id: 1, name: 'MedNet', coverage_pct: 80, phone: '0221000000' }],
+    patients: [patient],
+    claims: [{ id: 1, patient_name: patient.name, insurer_name: 'MedNet', amount: 500, status: 'pending' }],
+  }),
+
+  mod_integrations: () => ({
+    tab: 'api',
+    newToken: null,
+    keys: [{ id: 1, label: 'WhatsApp integration', prefix: 'ocd_abc', created_at: NOW }],
+    hooks: [{ id: 1, url: 'https://example.com/hook', event: 'invoice.paid' }],
+  }),
+
+  mod_inventory: () => ({
+    tab: 'inventory',
+    items: [{
+      id: 1, name: 'Gloves', quantity: 20, unit: 'box', reorder_level: 25,
+      price: 120, is_active: true,
+    }],
+    low: [{ name: 'Gloves' }],
+    moves: [{ item_name: 'Gloves', reason: 'dispense', change: -2, unit: 'box', created_at: NOW }],
+  }),
+
+  mod_staff: () => ({
+    tab: 'hr',
+    staff: [{ id: 1, name: 'Nour', role: 'Reception' }],
+    openByStaff: { 1: { check_in: NOW } },
+    today: [{ staff_name: 'Nour', check_in: NOW, check_out: null }],
+  }),
+
+  mod_whatsapp: (lang) => ({
+    tab: 'whatsapp',
+    w: { provider: 'cloud', phone_number_id: '', access_token: '', api_url: '', api_token: '', sender_number: '', active: true, auto_confirm: true },
+    defConfirm: t('wa.tpl.confirm_default', lang),
+    defReminder: t('wa.tpl.reminder_default', lang),
+    saved: true, test: null,
+  }),
+
+  queue: () => ({
+    tab: 'queue',
+    visits: [], doctors: [doctor], patients: [patient],
+    visitTypes: [{ id: 1, name: 'Consultation', price: 150, duration_min: 20 }],
+    date: '2026-08-03', saved: false,
+  }),
+
+  invoices: () => ({
+    tab: 'invoices',
+    summary: { today_collected: 1200, collected: 45000, outstanding: 3000, open_count: 4 },
+    patients: [patient], doctors: [doctor],
+    services: [{ id: 1, name: 'Radiograph', price: 200 }],
+    invoices: [
+      { id: 1, patient_name: patient.name, created_at: NOW, total_amount: 500, paid_amount: 200, status: 'partial' },
+      { id: 2, patient_name: null, created_at: NOW, total_amount: 150, paid_amount: 150, status: 'paid' },
+    ],
+    status: null,
+  }),
+
+  invoice_detail: () => ({
+    tab: 'invoices',
+    company: { id: 1, company_name: 'Demo Clinic', name: 'Demo Clinic' },
+    inv: {
+      id: 1, patient_name: patient.name, patient_phone: '01000000000', created_at: NOW,
+      subtotal: 600, discount_amount: 100, total_amount: 500, paid_amount: 200, status: 'partial',
+    },
+    items: [{ name: 'Radiograph', quantity: 1, unit_price: 200, total_price: 200 }],
+    payments: [{ created_at: NOW, method: 'cash', amount: 200 }],
+  }),
+
+  finance: () => ({
+    tab: 'invoices',
+    month: '2026-08',
+    totals: { collected: 45000, billed: 48000, outstanding: 3000 },
+    daily: [{ d: '2026-08-01', total: 1200 }, { d: '2026-08-02', total: 800 }],
+    byDoctor: [{ name: doctor.name, invoices: 12, earnings: 9000 }],
+    byMethod: [{ method: 'cash', n: 20, total: 30000 }, { method: 'card', n: 5, total: 15000 }],
+    byService: [{ name: 'Radiograph', n: 18, revenue: 3600 }],
+  }),
+
   services: () => ({
     tab: 'services',
     services: [{ id: 1, name: 'Radiograph', price: 200, doctor_pct: 60, is_active: true }],

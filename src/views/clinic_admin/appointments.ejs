@@ -1,8 +1,8 @@
 <%- include('head', { title: t('clinic.page.appointments'), tab: 'appointments' }) %>
 <%
-  var __statuses = { '':'الكل', pending:'بانتظار', confirmed:'مؤكّد', done:'تمّت', cancelled:'ملغاة' };
+  var __statuses = { '':t('ap2.all'), pending:t('ap2.pending'), confirmed:t('ap2.confirmed'), done:t('ap2.done'), cancelled:t('ap2.cancelled') };
   function __badge(s){ return s==='confirmed'?'bg-emerald-100 text-emerald-700':(s==='done'?'bg-slate-200 text-slate-600':(s==='cancelled'?'bg-rose-100 text-rose-600':'bg-amber-100 text-amber-700')); }
-  function __label(s){ return {pending:'بانتظار',confirmed:'مؤكّد',done:'تمّت',cancelled:'ملغاة'}[s]||s; }
+  function __label(s){ return __statuses[s] || s; }
 %>
 <h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('ap.title') %></h1>
 <p class="text-slate-500 mb-4"><%= t('ap.sub') %></p>

@@ -4,6 +4,11 @@
   function fmtT(t){ try { return new Date(t).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
   function fmtD(t){ try { return new Date(t).toLocaleDateString(LOC,{month:'short',day:'numeric'}); } catch(e){ return ''; } }
   var dayParam = day ? ('?day=' + day) : '';
+  // Stored key -> label in the current language, falling back to the label the
+  // route ships and then to the raw stored value, so entries written before the
+  // keys existed still read correctly.
+  var CAT = {};
+  categories.forEach(function(c){ var k = 'cb.cat.' + c.key, tr = t(k); CAT[c.key] = (tr && tr !== k) ? tr : c.label; });
 %>
 
 <div class="flex items-center justify-between flex-wrap gap-3 mb-1">
@@ -74,7 +79,7 @@
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('cb.category') %></label>
         <select name="category" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
-          <% categories.forEach(function(c){ %><option value="<%= c %>"><%= c %></option><% }); %>
+          <% categories.forEach(function(c){ %><option value="<%= c.key %>"><%= CAT[c.key] %></option><% }); %>
         </select>
       </div>
       <div class="sm:col-span-2">
@@ -139,7 +144,7 @@
       <span class="font-bold <%= e.direction === 'in' ? 'text-emerald-700' : 'text-red-700' %>">
         <%= e.direction === 'in' ? '+' : '−' %><%= money(e.amount) %> <%= t('cur.egp') %>
       </span>
-      <% if (e.category) { %><span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"><%= e.category %></span><% } %>
+      <% if (e.category) { %><span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"><%= CAT[e.category] || e.category %></span><% } %>
       <% if (e.note) { %><span class="text-slate-700"><%= e.note %></span><% } %>
       <% if (e.created_by) { %><span class="text-xs text-slate-400"><%= e.created_by %></span><% } %>
       <span class="text-xs text-slate-400 ms-auto"><%= fmtT(e.created_at) %></span>

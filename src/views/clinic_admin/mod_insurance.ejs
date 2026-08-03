@@ -1,34 +1,34 @@
-<%- include('head', { title: 'التأمين', tab: 'insurance' }) %>
+<%- include('head', { title: t('ins.title'), tab: 'insurance' }) %>
 <%
   function money(v){ return Number(v||0).toLocaleString(LOC); }
-  var STLABEL = { pending:'قيد المراجعة', approved:'معتمدة', paid:'مدفوعة', rejected:'مرفوضة' };
+  var STLABEL = { pending:t('ins.st.pending'), approved:t('ins.st.approved'), paid:t('ins.st.paid'), rejected:t('ins.st.rejected') };
   var STCLS = { pending:'bg-amber-100 text-amber-700', approved:'bg-blue-100 text-blue-700', paid:'bg-emerald-100 text-emerald-700', rejected:'bg-red-100 text-red-600' };
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">التأمين الطبي</h1>
-<p class="text-slate-500 mb-6">شركات التأمين ونسب التغطية ومطالبات المرضى</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('ins.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('ins.sub') %></p>
 
 <div class="grid gap-6 lg:grid-cols-2">
   <!-- Insurers -->
   <div class="space-y-4">
     <div class="bg-white border border-slate-200 rounded-2xl p-5">
-      <h2 class="font-extrabold text-slate-900 mb-3">إضافة شركة تأمين</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('ins.add_insurer') %></h2>
       <form method="post" action="/clinic/insurance/insurers" class="grid gap-2.5">
-        <input name="name" required maxlength="120" placeholder="اسم الشركة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="name" required maxlength="120" placeholder="<%= t('ins.company') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <div class="flex gap-2">
-          <input name="coverage_pct" type="number" step="0.01" min="0" max="100" placeholder="نسبة التغطية %" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
-          <input name="phone" maxlength="30" placeholder="هاتف" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="coverage_pct" type="number" step="0.01" min="0" max="100" placeholder="<%= t('ins.coverage_pct') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
+          <input name="phone" maxlength="30" placeholder="<%= t('cs.phone') %>" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1" />
         </div>
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('dr.add') %></button>
       </form>
     </div>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">شركات التأمين (<%= insurers.length %>)</div>
-      <% if (!insurers.length) { %><div class="p-6 text-center text-slate-400 text-sm">مفيش شركات.</div><% } %>
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm"><%= t('ins.insurers') %> (<%= insurers.length %>)</div>
+      <% if (!insurers.length) { %><div class="p-6 text-center text-slate-400 text-sm"><%= t('ins.no_insurers') %></div><% } %>
       <% insurers.forEach(function(x){ %>
       <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
-        <div class="min-w-0 flex-1"><div class="font-bold text-slate-900"><%= x.name %></div><div class="text-xs text-slate-500">تغطية <%= Number(x.coverage_pct) %>٪<%= x.phone?(' · '+x.phone):'' %></div></div>
-        <form method="post" action="/clinic/insurance/insurers/<%= x.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm">حذف</button></form>
+        <div class="min-w-0 flex-1"><div class="font-bold text-slate-900"><%= x.name %></div><div class="text-xs text-slate-500"><%= t('ins.coverage') %> <%= Number(x.coverage_pct) %>%<%= x.phone?(' · '+x.phone):'' %></div></div>
+        <form method="post" action="/clinic/insurance/insurers/<%= x.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm"><%= t('common.delete') %></button></form>
       </div>
       <% }); %>
     </div>
@@ -37,18 +37,18 @@
   <!-- Claims -->
   <div class="space-y-4">
     <div class="bg-white border border-slate-200 rounded-2xl p-5">
-      <h2 class="font-extrabold text-slate-900 mb-3">مطالبة تأمين جديدة</h2>
+      <h2 class="font-extrabold text-slate-900 mb-3"><%= t('ins.new_claim') %></h2>
       <form method="post" action="/clinic/insurance/claims" class="grid gap-2.5">
-        <select name="insurer_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"><option value="">الشركة</option><% insurers.forEach(function(x){ %><option value="<%= x.id %>"><%= x.name %></option><% }); %></select>
-        <select name="patient_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"><option value="">المريض</option><% patients.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }); %></select>
-        <input name="amount" type="number" step="0.01" min="0" placeholder="المبلغ (ج)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="notes" maxlength="500" placeholder="ملاحظات (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">تسجيل المطالبة</button>
+        <select name="insurer_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"><option value=""><%= t('ins.pick_company') %></option><% insurers.forEach(function(x){ %><option value="<%= x.id %>"><%= x.name %></option><% }); %></select>
+        <select name="patient_id" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"><option value=""><%= t('ins.pick_patient') %></option><% patients.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }); %></select>
+        <input name="amount" type="number" step="0.01" min="0" placeholder="<%= t('iv.amount') %> (<%= t('cur.egp') %>)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="notes" maxlength="500" placeholder="<%= t('ins.notes_opt') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('ins.record_claim') %></button>
       </form>
     </div>
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm">المطالبات (<%= claims.length %>)</div>
-      <% if (!claims.length) { %><div class="p-6 text-center text-slate-400 text-sm">مفيش مطالبات.</div><% } %>
+      <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm"><%= t('ins.claims') %> (<%= claims.length %>)</div>
+      <% if (!claims.length) { %><div class="p-6 text-center text-slate-400 text-sm"><%= t('ins.no_claims') %></div><% } %>
       <% claims.forEach(function(c){ %>
       <div class="p-4 border-b border-slate-100 last:border-0">
         <div class="flex items-center gap-2">
@@ -59,7 +59,7 @@
           <select name="status" class="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white flex-1">
             <% ['pending','approved','paid','rejected'].forEach(function(s){ %><option value="<%= s %>" <%= c.status===s?'selected':'' %>><%= STLABEL[s] %></option><% }); %>
           </select>
-          <button class="text-xs bg-slate-100 hover:bg-slate-200 rounded-lg px-2.5 py-1 font-bold">تحديث</button>
+          <button class="text-xs bg-slate-100 hover:bg-slate-200 rounded-lg px-2.5 py-1 font-bold"><%= t('ins.update') %></button>
         </form>
       </div>
       <% }); %>
