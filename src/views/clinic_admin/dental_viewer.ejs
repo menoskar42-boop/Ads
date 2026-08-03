@@ -1,0 +1,206 @@
+<%- include('head', { title: 'عارض الأشعة', tab: 'dental' }) %>
+<%
+  var KL = { before:'قبل', after:'بعد', xray:'أشعة' };
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/clinic/dental/patient/<%= photo.patient_id %>" class="text-slate-400 hover:text-slate-600 text-sm">← ملف المريض</a>
+  <h1 class="text-2xl font-black text-slate-900">🔬 عارض الصور والأشعة</h1>
+  <span class="text-slate-500"><%= photo.patient_name || '' %></span>
+  <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full"><%= KL[photo.kind] || photo.kind %></span>
+</div>
+<p class="text-slate-500 mb-4"><%= photo.caption || 'من غير وصف' %></p>
+
+<!-- ── شريط الأدوات ─────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-3 mb-3">
+  <div class="flex flex-wrap items-center gap-4">
+    <div class="flex items-center gap-1">
+      <span class="text-xs font-bold text-slate-600 me-1">أداة:</span>
+      <% [['pan','✋ تحريك'],['arrow','↗ سهم'],['circle','⭕ دائرة'],['rect','▭ مستطيل'],['text','A نص']].forEach(function(t){ %>
+        <button type="button" onclick="setTool('<%= t[0] %>')" data-tool="<%= t[0] %>"
+                class="tool-btn text-xs px-2.5 py-1.5 rounded-lg border-2 border-transparent hover:border-slate-300"><%= t[1] %></button>
+      <% }); %>
+      <input type="color" id="penColor" value="#ef4444" title="اللون"
+             class="w-8 h-8 rounded-lg border border-slate-200 cursor-pointer p-0.5" />
+    </div>
+
+    <div class="flex items-center gap-2">
+      <span class="text-xs font-bold text-slate-600">تكبير</span>
+      <button type="button" onclick="zoomBy(-0.2)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm">−</button>
+      <span id="zoomLbl" class="text-xs text-slate-500 w-10 text-center">100%</span>
+      <button type="button" onclick="zoomBy(0.2)" class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm">+</button>
+      <button type="button" onclick="resetView()" class="text-xs px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200">ضبط</button>
+    </div>
+
+    <!-- Radiographs are frequently under- or over-exposed; without these a dark
+         periapical simply cannot be read on screen. -->
+    <div class="flex items-center gap-2">
+      <label class="text-xs text-slate-600">سطوع <input type="range" id="bright" min="50" max="200" value="100" class="w-20 align-middle" /></label>
+      <label class="text-xs text-slate-600">تباين <input type="range" id="contrast" min="50" max="250" value="100" class="w-20 align-middle" /></label>
+      <button type="button" onclick="toggleInvert()" id="invBtn" class="text-xs px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200">عكس الألوان</button>
+    </div>
+
+    <div class="flex items-center gap-2 ms-auto">
+      <button type="button" onclick="undoShape()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200">تراجع</button>
+      <button type="button" onclick="clearShapes()" class="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100">مسح الكل</button>
+      <button type="button" onclick="saveShapes()" id="saveBtn"
+              class="text-xs font-bold px-4 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800">حفظ التعليقات</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── الصورة ───────────────────────────────────────────────────── -->
+<div class="bg-slate-900 rounded-2xl overflow-hidden mb-4" style="height: 68vh;">
+  <div id="stage" class="w-full h-full relative overflow-hidden touch-none select-none">
+    <div id="canvasWrap" class="absolute origin-top-left" style="transform: translate(0px,0px) scale(1);">
+      <img id="img" src="<%= photo.image_url %>" alt="<%= photo.caption || 'أشعة' %>" draggable="false" class="block max-w-none" />
+      <!-- Shapes live in an SVG using a 0..1 viewBox, so a mark stays on the
+           same tooth at any zoom or display size. -->
+      <svg id="overlay" viewBox="0 0 1 1" preserveAspectRatio="none"
+           class="absolute inset-0 w-full h-full pointer-events-none"></svg>
+    </div>
+  </div>
+</div>
+
+<p class="text-xs text-slate-400">
+  عجلة الماوس = تكبير · السحب بأداة «تحريك» = تحريك الصورة · التعليقات محفوظة كأشكال فوق الصورة،
+  والأصل مابيتغيّرش عشان يفضل صالح للتشخيص.
+</p>
+
+<script>
+  var shapes = <%- JSON.stringify(shapes) %>;
+  var tool = 'pan', scale = 1, tx = 0, ty = 0, inverted = false;
+  var drawing = null;
+  var stage = document.getElementById('stage');
+  var wrap = document.getElementById('canvasWrap');
+  var img = document.getElementById('img');
+  var svg = document.getElementById('overlay');
+
+  function applyTransform(){
+    wrap.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    document.getElementById('zoomLbl').textContent = Math.round(scale * 100) + '%';
+  }
+  function applyFilter(){
+    var b = document.getElementById('bright').value, c = document.getElementById('contrast').value;
+    img.style.filter = 'brightness(' + b + '%) contrast(' + c + '%)' + (inverted ? ' invert(1)' : '');
+  }
+  function toggleInvert(){
+    inverted = !inverted;
+    document.getElementById('invBtn').classList.toggle('bg-slate-900', inverted);
+    document.getElementById('invBtn').classList.toggle('text-white', inverted);
+    applyFilter();
+  }
+  function zoomBy(d){ scale = Math.max(0.2, Math.min(8, scale + d)); applyTransform(); }
+  function resetView(){ scale = 1; tx = 0; ty = 0; applyTransform(); }
+
+  function setTool(t){
+    tool = t;
+    document.querySelectorAll('.tool-btn').forEach(function(b){
+      var on = b.getAttribute('data-tool') === t;
+      b.classList.toggle('border-slate-900', on);
+      b.classList.toggle('bg-white', on);
+      b.classList.toggle('border-transparent', !on);
+    });
+    stage.style.cursor = t === 'pan' ? 'grab' : 'crosshair';
+  }
+
+  function render(){
+    var out = '';
+    shapes.forEach(function(s){
+      var st = 'stroke="' + s.color + '" stroke-width="0.004" fill="none" vector-effect="non-scaling-stroke"';
+      if (s.type === 'circle') {
+        var r = Math.hypot(s.x2 - s.x, s.y2 - s.y);
+        out += '<ellipse cx="' + s.x + '" cy="' + s.y + '" rx="' + r + '" ry="' + r + '" ' + st + ' />';
+      } else if (s.type === 'rect') {
+        out += '<rect x="' + Math.min(s.x,s.x2) + '" y="' + Math.min(s.y,s.y2) + '" width="' + Math.abs(s.x2-s.x) + '" height="' + Math.abs(s.y2-s.y) + '" ' + st + ' />';
+      } else if (s.type === 'arrow' || s.type === 'line') {
+        out += '<line x1="' + s.x + '" y1="' + s.y + '" x2="' + s.x2 + '" y2="' + s.y2 + '" ' + st + ' />';
+        if (s.type === 'arrow') {
+          var a = Math.atan2(s.y2 - s.y, s.x2 - s.x), h = 0.025;
+          out += '<line x1="' + s.x2 + '" y1="' + s.y2 + '" x2="' + (s.x2 - h*Math.cos(a-0.4)) + '" y2="' + (s.y2 - h*Math.sin(a-0.4)) + '" ' + st + ' />';
+          out += '<line x1="' + s.x2 + '" y1="' + s.y2 + '" x2="' + (s.x2 - h*Math.cos(a+0.4)) + '" y2="' + (s.y2 - h*Math.sin(a+0.4)) + '" ' + st + ' />';
+        }
+      } else if (s.type === 'text') {
+        out += '<text x="' + s.x + '" y="' + s.y + '" fill="' + s.color + '" font-size="0.035" style="paint-order:stroke" stroke="#000" stroke-width="0.006">'
+             + String(s.text).replace(/[<&>]/g, '') + '</text>';
+      }
+    });
+    svg.innerHTML = out;
+  }
+
+  // Pointer position as a 0..1 fraction of the image — the coordinate space the
+  // shapes are stored in, so zoom and pan never move a saved mark.
+  function frac(ev){
+    var r = img.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) / r.width, y: (ev.clientY - r.top) / r.height };
+  }
+
+  stage.addEventListener('pointerdown', function(ev){
+    if (tool === 'pan') { drawing = { pan: true, sx: ev.clientX - tx, sy: ev.clientY - ty }; stage.style.cursor = 'grabbing'; return; }
+    var f = frac(ev);
+    if (tool === 'text') {
+      var t = prompt('النص:');
+      if (t) { shapes.push({ type:'text', x:f.x, y:f.y, x2:f.x, y2:f.y, text:t.slice(0,60), color:document.getElementById('penColor').value }); render(); }
+      return;
+    }
+    drawing = { type: tool, x: f.x, y: f.y, x2: f.x, y2: f.y, color: document.getElementById('penColor').value };
+    shapes.push(drawing);
+  });
+
+  stage.addEventListener('pointermove', function(ev){
+    if (!drawing) return;
+    if (drawing.pan) { tx = ev.clientX - drawing.sx; ty = ev.clientY - drawing.sy; applyTransform(); return; }
+    var f = frac(ev); drawing.x2 = f.x; drawing.y2 = f.y; render();
+  });
+
+  function endDraw(){
+    if (drawing && !drawing.pan) {
+      // Drop accidental taps rather than leaving invisible dots on the image.
+      if (Math.hypot(drawing.x2 - drawing.x, drawing.y2 - drawing.y) < 0.005) shapes.pop();
+      render();
+    }
+    drawing = null;
+    stage.style.cursor = tool === 'pan' ? 'grab' : 'crosshair';
+  }
+  stage.addEventListener('pointerup', endDraw);
+  stage.addEventListener('pointerleave', endDraw);
+
+  stage.addEventListener('wheel', function(ev){
+    ev.preventDefault();
+    zoomBy(ev.deltaY < 0 ? 0.15 : -0.15);
+  }, { passive: false });
+
+  function undoShape(){ shapes.pop(); render(); }
+  function clearShapes(){ if (confirm('مسح كل التعليقات؟')) { shapes = []; render(); } }
+
+  function saveShapes(){
+    var btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'بيحفظ…';
+    fetch('/clinic/dental/photo/<%= photo.id %>/annotations', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shapes: shapes }),
+    }).then(function(r){ return r.json(); })
+      .then(function(j){
+        btn.disabled = false;
+        btn.textContent = (j && j.ok) ? 'اتحفظ ✓' : 'حفظ التعليقات';
+        if (j && j.ok) setTimeout(function(){ btn.textContent = 'حفظ التعليقات'; }, 1500);
+        else alert('الحفظ فشل');
+      })
+      .catch(function(){ btn.disabled = false; btn.textContent = 'حفظ التعليقات'; alert('الحفظ فشل'); });
+  }
+
+  document.getElementById('bright').addEventListener('input', applyFilter);
+  document.getElementById('contrast').addEventListener('input', applyFilter);
+  // Fit the image to the stage on load — a 3000px panoramic opening at native
+  // size shows a corner of a tooth and nothing else.
+  img.addEventListener('load', function(){
+    var s = Math.min(stage.clientWidth / img.naturalWidth, stage.clientHeight / img.naturalHeight);
+    scale = Math.min(1, s || 1);
+    tx = (stage.clientWidth - img.naturalWidth * scale) / 2;
+    ty = (stage.clientHeight - img.naturalHeight * scale) / 2;
+    applyTransform();
+  });
+  setTool('pan'); applyFilter(); render();
+</script>
+
+</main></body></html>

@@ -1871,6 +1871,27 @@ router.post('/dental/patient/:id/perio', requireModule('dental'), async (req, re
   }
 });
 
+// Image viewer: zoom, pan, window/contrast and annotation over one x-ray.
+// Opening a panoramic in a browser tab gives none of that, and a dark
+// periapical is unreadable without adjusting it.
+router.get('/dental/photo/:id', requireModule('dental'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const ph = (await pool.query(
+      `SELECT ph.*, p.name AS patient_name
+         FROM clinic_patient_photos ph
+         LEFT JOIN clinic_patients p ON p.id = ph.patient_id
+        WHERE ph.id=$1 AND ph.company_id=$2`,
+      [parseInt(req.params.id, 10), cid]
+    )).rows[0];
+    if (!ph) return res.redirect('/clinic/dental');
+    res.render('clinic_admin/dental_viewer', {
+      company: req.company, tab: 'dental', photo: ph,
+      shapes: Array.isArray(ph.annotations) ? ph.annotations : [],
+    });
+  } catch (e) { console.error('[viewer]', e.message); res.status(500).send('error'); }
+});
+
 // Save annotations drawn over an image. Shapes are stored, not burned in, so
 // the original x-ray stays diagnostic and a mark can be corrected later.
 router.post('/dental/photo/:id/annotations', requireModule('dental'), async (req, res) => {

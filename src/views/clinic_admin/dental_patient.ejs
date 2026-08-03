@@ -245,7 +245,7 @@
          var KC = { before:'bg-amber-100 text-amber-800', after:'bg-emerald-100 text-emerald-800', xray:'bg-slate-200 text-slate-700' };
     %>
     <figure class="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-      <a href="<%= ph.image_url %>" target="_blank" rel="noopener">
+      <a href="/clinic/dental/photo/<%= ph.id %>" title="افتح في العارض — تكبير وتباين وتعليق">
         <img src="<%= ph.image_url %>" alt="<%= ph.caption || KL[ph.kind] %>" loading="lazy"
              class="w-full h-32 object-cover hover:opacity-90 transition" />
       </a>
