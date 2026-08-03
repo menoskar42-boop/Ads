@@ -64,7 +64,7 @@ const FIXTURES = {
   // The public clinic page — the only one visitors see, so it is checked in
   // both languages too, and its <title> is length-checked below.
   tenant_clinic: (lang) => ({
-    __file: 'tenant_clinic.ejs',
+    __file: 'tenant_clinic.ejs', __public: true,
     company: {
       id: 1, slug: 'demo', company_name: 'Demo Clinic', logo_url: null,
       description: 'A demo clinic used to check the public page renders.',
@@ -86,7 +86,7 @@ const FIXTURES = {
   }),
 
   tenant_clinic_doctor: () => ({
-    __file: 'tenant_clinic_doctor.ejs',
+    __file: 'tenant_clinic_doctor.ejs', __public: true,
     company: { id: 1, slug: 'demo', company_name: 'Demo Clinic', logo_url: null, description: '' },
     doctor: {
       id: 1, slug: 'sara', name: 'Dr. Sara', title: 'Consultant', specialty: 'Orthodontics',
@@ -99,6 +99,32 @@ const FIXTURES = {
     noindex: false, sent: false, showAds: false,
     siteOrigin: 'https://demo.oscardevs.com',
   }),
+
+  // Furniture system shell. Included here so the new vertical is held to the
+  // same bilingual standard from its first commit rather than retro-fitted.
+  furniture_dashboard: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/dashboard.ejs',
+      tab: 'dashboard',
+      settings: { currency: 'EGP', tax_percent: 0, theme: 'light' },
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_settings: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    const L = fl.localized(fl.FLAGS, (k) => t(k, lang));
+    return {
+      __file: 'furniture_admin/settings.ejs',
+      tab: 'settings',
+      settings: { business_name: 'Demo Furniture', currency: 'EGP', tax_percent: 14, theme: 'light' },
+      allFlags: L, flags, furnitureNav: L.filter((f) => flags.has(f.key)),
+      saved: true,
+    };
+  },
 
   appointments: () => ({
     tab: 'appointments',
@@ -510,8 +536,10 @@ for (const name of names) {
   }
   // Public pages are indexed, so they also carry the SEO rules the project
   // records: a title that is not truncated in results, a description in the
-  // range search engines show, and exactly one h1.
-  const seo = FIXTURES[name]().__file ? [ar, en].flatMap(seoProblems) : [];
+  // range search engines show, and exactly one h1. Back-office pages are
+  // noindex and have no business carrying a meta description, so the audit is
+  // keyed on __public rather than on merely living outside clinic_admin/.
+  const seo = FIXTURES[name]().__public ? [ar, en].flatMap(seoProblems) : [];
   if (seo.length) {
     failed++;
     console.log(`❌ ${name} — ${seo.length} مخالفة SEO:`);

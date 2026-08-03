@@ -1,0 +1,55 @@
+<%- include('head', { title: t('fn2.nav.dashboard'), tab: 'dashboard' }) %>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1"><%= t('fn2.dash.hi') %></h1>
+<p class="text-stone-500 mb-6"><%= t('fn2.dash.sub') %></p>
+
+<%# Phase 0 deliberately shows placeholders rather than zeros. A real "0 ج"
+    reads as "you sold nothing", which is a different and alarming message from
+    "this is not wired up yet". %>
+<div class="bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3 mb-5 text-sm text-brand-800">
+  <%= t('fn2.dash.phase0') %>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+  <% [
+       ['fn2.card.sales',      '🛒', 'sales'],
+       ['fn2.card.due',        '⏳', 'sales'],
+       ['fn2.card.low_stock',  '📦', 'inventory'],
+       ['fn2.card.suppliers',  '🧾', 'purchases']
+     ].forEach(function(c){
+        var on = flags.has(c[2]);
+  %>
+  <div class="bg-white rounded-2xl shadow-sm p-4 <%= on ? '' : 'opacity-50' %>">
+    <div class="text-xs text-stone-500 mb-1"><%= c[1] %> <%= t(c[0]) %></div>
+    <div class="text-2xl font-extrabold text-stone-300">—</div>
+    <% if (!on) { %>
+      <div class="text-[10px] text-stone-400 mt-1"><%= t('fn2.dash.flag_off') %></div>
+    <% } %>
+  </div>
+  <% }); %>
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm p-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.dash.enabled') %></h2>
+  <% if (!furnitureNav.length) { %>
+    <p class="text-sm text-stone-500"><%= t('fn2.dash.none_on') %></p>
+  <% } else { %>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <% furnitureNav.forEach(function(f){ %>
+    <a href="<%= f.path %>" class="flex items-start gap-3 border border-stone-200 rounded-2xl p-4 hover:border-brand-300 transition">
+      <span class="text-2xl shrink-0"><%= f.icon %></span>
+      <span class="min-w-0">
+        <span class="block font-bold text-stone-900 text-sm"><%= f.label %></span>
+        <span class="block text-xs text-stone-500 leading-snug"><%= f.desc %></span>
+      </span>
+    </a>
+    <% }); %>
+  </div>
+  <% } %>
+  <p class="text-xs text-stone-400 mt-4">
+    <%= t('fn2.dash.toggle_hint') %>
+    <a href="/furniture/settings" class="text-brand-600 font-semibold hover:underline"><%= t('fn2.nav.settings') %></a>
+  </p>
+</div>
+
+</main></body></html>

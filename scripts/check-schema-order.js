@@ -28,6 +28,7 @@ const FILES = [
   'src/kakeibo/schema.js',
   'src/accounting/schema.js',
   'src/radiology/schema.js',
+  'src/furniture/schema.js',
 ];
 
 let problems = 0;

@@ -1,0 +1,95 @@
+<%- include('head', { title: t('fn2.nav.settings'), tab: 'settings' }) %>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1"><%= t('fn2.set.title') %></h1>
+<p class="text-stone-500 mb-6"><%= t('fn2.set.sub') %></p>
+
+<% if (saved) { %>
+<div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-5 text-sm text-emerald-800">
+  <%= t('fn2.set.saved') %>
+</div>
+<% } %>
+
+<form method="post" action="/furniture/settings" class="grid lg:grid-cols-2 gap-5">
+  <!-- ── Business details ─────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.set.business') %></h2>
+    <div class="grid gap-3">
+      <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.name') %>
+        <input name="business_name" maxlength="120" value="<%= settings.business_name || '' %>"
+               class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.address') %>
+        <input name="address" maxlength="200" value="<%= settings.address || '' %>"
+               class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.phone') %>
+          <input name="phone" maxlength="30" dir="ltr" value="<%= settings.phone || '' %>"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.whatsapp') %>
+          <input name="whatsapp" maxlength="30" dir="ltr" placeholder="201xxxxxxxxx" value="<%= settings.whatsapp || '' %>"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.currency') %>
+          <input name="currency" maxlength="8" value="<%= settings.currency || 'EGP' %>"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.tax') %>
+          <input name="tax_percent" type="number" min="0" max="100" <%- 'step="0.01"' %>
+                 value="<%= settings.tax_percent != null ? settings.tax_percent : 0 %>"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-sm font-bold text-stone-700"><%= t('fn2.set.theme') %>
+          <select name="theme" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <option value="light" <%= settings.theme !== 'dark' ? 'selected' : '' %>><%= t('fn2.set.light') %></option>
+            <option value="dark" <%= settings.theme === 'dark' ? 'selected' : '' %>><%= t('fn2.set.dark') %></option>
+          </select>
+        </label>
+      </div>
+      <p class="text-xs text-stone-400"><%= t('fn2.set.tax_hint') %></p>
+    </div>
+  </div>
+
+  <!-- ── Feature toggles ──────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-stone-800 mb-1"><%= t('fn2.set.features') %></h2>
+    <p class="text-xs text-stone-500 mb-3"><%= t('fn2.set.features_hint') %></p>
+    <div class="grid gap-2">
+      <% allFlags.forEach(function(f){ var on = flags.has(f.key); %>
+      <label class="flex items-start gap-3 border-2 rounded-2xl p-3 transition
+                    <%= f.core ? 'border-stone-100 bg-stone-50' : (on ? 'border-brand-200 cursor-pointer' : 'border-transparent bg-stone-50/60 hover:border-stone-200 cursor-pointer') %>">
+        <% if (f.core) { %>
+          <%# Core features are shown so the list is the whole system, but they
+              are not switchable — a workshop with no suppliers or products is
+              not a lighter install, it is a broken one. %>
+          <input type="checkbox" checked disabled class="mt-1 w-5 h-5 shrink-0 opacity-50" />
+        <% } else { %>
+          <input type="checkbox" name="flags" value="<%= f.key %>" <%= on ? 'checked' : '' %>
+                 class="mt-1 w-5 h-5 shrink-0" />
+        <% } %>
+        <span class="text-2xl shrink-0"><%= f.icon %></span>
+        <span class="flex-1 min-w-0">
+          <span class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-stone-900 text-sm"><%= f.label %></span>
+            <% if (f.core) { %>
+              <span class="text-[10px] font-semibold bg-stone-200 text-stone-600 rounded px-1.5 py-0.5"><%= t('fn2.set.core') %></span>
+            <% } %>
+          </span>
+          <span class="block text-xs text-stone-500 leading-snug mt-0.5"><%= f.desc %></span>
+        </span>
+      </label>
+      <% }); %>
+    </div>
+  </div>
+
+  <div class="lg:col-span-2">
+    <button class="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-8 py-3 text-sm">
+      <%= t('fn2.set.save') %>
+    </button>
+  </div>
+</form>
+
+</main></body></html>

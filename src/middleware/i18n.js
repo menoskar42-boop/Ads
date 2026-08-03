@@ -26,7 +26,7 @@ module.exports = function i18nMiddleware(req, res, next) {
   // clinic that chose English would drop back to Arabic the moment it opened
   // its own admin.
   if (!lang && req.session) {
-    const OWNER_AREAS = ['/admin', '/company', '/clinic', '/pharmacy', '/food'];
+    const OWNER_AREAS = ['/admin', '/company', '/clinic', '/pharmacy', '/food', '/gym', '/furniture'];
     if (req.session.adminLang && OWNER_AREAS.some((p) => req.path.startsWith(p))) {
       lang = normalizeLang(req.session.adminLang);
     } else if (req.session.customerLang && req.path.startsWith('/customer')) {

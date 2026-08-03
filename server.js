@@ -336,6 +336,7 @@ app.use('/pharmacy', pharmacyAdminRouter);
 app.use('/food', foodAdminRouter);
 app.use('/clinic', clinicAdminRouter);
 app.use('/gym', require('./src/routes/gym_admin'));
+app.use('/furniture', require('./src/routes/furniture_admin'));
 app.use('/radiology', require('./src/routes/radiology'));
 
 // Super admin panel must be before tenant middleware too
@@ -1169,6 +1170,7 @@ const { ensureKakeiboSchema } = require('./src/kakeibo/schema');
 const { ensureClinicSchema } = require('./src/clinic/schema');
 const { ensureGymSchema } = require('./src/gym/schema');
 const { ensureRadiologySchema } = require('./src/radiology/schema');
+const { ensureFurnitureSchema } = require('./src/furniture/schema');
 const { ensureSokroSchema } = require('./sokro/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
 initDb()
@@ -1179,6 +1181,7 @@ initDb()
   .then(() => ensureClinicSchema())
   .then(() => ensureGymSchema())
   .then(() => ensureRadiologySchema())
+  .then(() => ensureFurnitureSchema())
   .then(() => ensureSokroSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.
   // Runs in the background, is staleness-gated (won't re-download if fresh),

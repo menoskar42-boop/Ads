@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= title %> — <%= company.company_name %></title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { darkMode: 'class', theme: { extend: {
+    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
+    // Warm wood tones, so the workshop's system does not look like the clinic's.
+    colors: { brand: { 50:'#fbf6f0',100:'#f4e6d6',200:'#e8ccae',300:'#d9a06a',400:'#c17f3f',500:'#a86a32',600:'#8a5524',700:'#6d431d',800:'#523216',900:'#3a230f' } }
+  } } };
+</script>
+<style>
+  body{font-family:'Cairo',sans-serif}
+
+  /* Wide tables become labelled cards on a phone — a workshop owner checks
+     stock from the floor, not from a desk, and sideways scrolling hides the
+     column that matters. Add class="rt" and give each <td> a data-l. */
+  @media (max-width: 639px) {
+    table.rt, table.rt tbody, table.rt tr, table.rt td { display: block; width: 100%; }
+    table.rt thead { display: none; }
+    table.rt tr {
+      background: #fff; border: 1px solid #e7e0d8; border-radius: 1rem;
+      padding: .5rem .75rem; margin-bottom: .6rem;
+    }
+    table.rt td {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .35rem 0 !important; border: 0 !important; text-align: start !important;
+    }
+    table.rt td::before {
+      content: attr(data-l); flex: 0 0 40%;
+      color: #6d5c4a; font-size: .7rem; font-weight: 700;
+    }
+    table.rt td:not([data-l])::before { content: none; }
+    table.rt td:not([data-l]) { justify-content: flex-end; }
+    input, select, textarea { font-size: 16px !important; }
+    button, .btn { min-height: 40px; }
+  }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-800 pb-16 sm:pb-0">
+<%
+  var __tab = typeof tab !== 'undefined' ? tab : '';
+  function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__tab===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
+  // Only features whose flag is on. The route guard reads the same set, so a
+  // hidden tab is also a closed URL rather than one you can still type.
+  var __nav = (typeof furnitureNav !== 'undefined' ? furnitureNav : []);
+%>
+
+<header class="bg-brand-600 text-white">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <a href="/furniture" class="font-black text-lg flex items-center gap-2">
+      🪑 <span class="truncate max-w-[45vw] sm:max-w-none"><%= company.company_name %></span>
+    </a>
+
+    <nav class="hidden sm:flex items-center gap-1 text-sm ms-auto">
+      <a href="/furniture" class="<%= __cls('dashboard') %>"><%= t('fn2.nav.dashboard') %></a>
+      <% __nav.forEach(function(f){ %>
+        <a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.label %></a>
+      <% }); %>
+      <a href="/furniture/settings" class="<%= __cls('settings') %>"><%= t('fn2.nav.settings') %></a>
+    </nav>
+
+    <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
+      <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5"><%= t('common.logout') %></button>
+    </form>
+  </div>
+</header>
+
+<!-- Phone: the sections as a scrolling strip rather than a hidden menu, so
+     nothing needs hunting for one-handed on a workshop floor. -->
+<nav class="sm:hidden bg-brand-700 text-white/90 overflow-x-auto">
+  <div class="flex gap-1 px-3 py-2 text-xs whitespace-nowrap">
+    <a href="/furniture" class="<%= __cls('dashboard') %>"><%= t('fn2.nav.dashboard') %></a>
+    <% __nav.forEach(function(f){ %>
+      <a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.icon %> <%= f.label %></a>
+    <% }); %>
+    <a href="/furniture/settings" class="<%= __cls('settings') %>"><%= t('fn2.nav.settings') %></a>
+  </div>
+</nav>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
