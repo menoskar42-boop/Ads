@@ -1322,7 +1322,7 @@ const strings = {
     'fn2.rp.cash':'رصيد الكاش','fn2.rp.stock_value':'قيمة المخزون',
     'fn2.rp.open_orders':'أوامر شراء مفتوحة','fn2.rp.this_month':'الشهر ده',
     'fn2.rp.low_stock':'خامات تحت الحد','fn2.rp.stock_ok':'مفيش خامة تحت الحد.',
-    'fn2.rp.none':'مفيش أرصدة.','fn2.rp.export':'تصدير','fn2.rp.line':'البند',
+    'fn2.rp.none':'مفيش أرصدة.','fn2.rp.export':'تصدير Excel','fn2.rp.line':'البند',
 
     // منحنيات النمو
     'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
@@ -2787,7 +2787,7 @@ const strings = {
     'fn2.rp.cash':'Cash balance','fn2.rp.stock_value':'Stock value',
     'fn2.rp.open_orders':'Open purchase orders','fn2.rp.this_month':'this month',
     'fn2.rp.low_stock':'Materials below minimum','fn2.rp.stock_ok':'Nothing below its minimum.',
-    'fn2.rp.none':'No balances.','fn2.rp.export':'Export','fn2.rp.line':'Line',
+    'fn2.rp.none':'No balances.','fn2.rp.export':'Export to Excel','fn2.rp.line':'Line',
 
     // Growth curves
     'gc.title':'📈 Growth chart','gc.age_months':'months',

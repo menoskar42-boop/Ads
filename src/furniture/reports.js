@@ -102,23 +102,4 @@ async function dashboard(pool, cid) {
     owedToSuppliers: round2(owedToSuppliers), openOrders };
 }
 
-// ── CSV ──────────────────────────────────────────────────────────────────────
-
-/**
- * Serialise rows to CSV.
- *
- * The leading BOM is not decoration: without it Excel on Windows reads a UTF-8
- * file as the system codepage and every Arabic name in the export turns to
- * mojibake. A report the workshop cannot read is not an export.
- */
-function toCsv(headers, rows) {
-  const esc = (v) => {
-    const s = v == null ? '' : String(v);
-    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  };
-  const lines = [headers.map(esc).join(',')];
-  for (const r of rows) lines.push(r.map(esc).join(','));
-  return '﻿' + lines.join('\r\n');
-}
-
-module.exports = { round2, periodSummary, cashBalance, inventory, dashboard, toCsv };
+module.exports = { round2, periodSummary, cashBalance, inventory, dashboard };

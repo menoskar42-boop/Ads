@@ -1,4 +1,4 @@
-// Reports (phase 7): one period view, printable, with CSV export.
+// Reports (phase 7): one period view, printable, exported as one workbook.
 'use strict';
 
 const express = require('express');
@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const R = require('../furniture/reports');
 const S = require('../furniture/sales');
 const PU = require('../furniture/purchasing');
+const XL = require('../lib/xlsx_write');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -52,38 +53,21 @@ router.get('/', async (req, res) => {
   } catch (e) { console.error('[furniture reports]', e.message); res.status(500).send('error'); }
 });
 
-// ── CSV export ───────────────────────────────────────────────────────────────
-const EXPORTS = ['customers', 'suppliers', 'payroll', 'expenses', 'inventory', 'summary'];
-
+// ── Excel export ─────────────────────────────────────────────────────────────
+//
+// One workbook with every section as its own sheet, rather than six separate
+// downloads. That is the actual gain over CSV: the workshop opens one file and
+// has the whole period in front of it, with numbers Excel can still add up.
 router.get('/export', async (req, res) => {
-  const type = EXPORTS.includes(req.query.type) ? req.query.type : 'summary';
   const { from, to } = periodOf(req.query);
   const t = res.locals.t;
+  const cat = (k) => { const key = 'fn2.ex.cat.' + k; const v = t(key); return v !== key ? v : k; };
   try {
     const d = await gather(pool, req.company.id, from, to);
-    let headers = [], rows = [];
 
-    if (type === 'customers') {
-      headers = [t('fn2.sa.customer'), t('fn2.sa.invoiced'), t('iv.paid'), t('iv.due')];
-      rows = d.customers.map((c) => [c.name, c.invoiced, c.paid, c.balance]);
-    } else if (type === 'suppliers') {
-      headers = [t('fn2.po.supplier'), t('fn2.po.received_value'), t('fn2.po.paid'), t('iv.due')];
-      rows = d.suppliers.map((s) => [s.name, s.received, s.paid, s.balance]);
-    } else if (type === 'payroll') {
-      headers = [t('fn2.hr.worker'), t('fn2.hr.from'), t('fn2.hr.to'), t('fn2.hr.base'),
-        t('fn2.hr.adj.bonus'), t('fn2.hr.deductions'), t('fn2.hr.net'), t('fn2.hr.paid')];
-      rows = d.payroll.map((p) => [p.worker_name, p.period_start, p.period_end, p.base,
-        p.bonuses, p.deductions, p.net, p.paid ? '1' : '0']);
-    } else if (type === 'expenses') {
-      headers = [t('fn2.ex.category'), t('fn2.po.pay_amount'), t('fn2.bom.components')];
-      rows = d.expenses.map((e) => [t('fn2.ex.cat.' + e.category) !== 'fn2.ex.cat.' + e.category
-        ? t('fn2.ex.cat.' + e.category) : e.category, e.total, e.n]);
-    } else if (type === 'inventory') {
-      headers = [t('fn2.po.material'), t('fn2.f.unit'), t('fn2.bom.in_stock'), t('fn2.f.min_qty')];
-      rows = d.stock.low.map((m) => [m.name, m.unit, m.qty, m.min_qty]);
-    } else {
-      headers = [t('fn2.rp.line'), t('fn2.po.pay_amount')];
-      rows = [
+    const sheets = [
+      { name: t('fn2.rp.line'), widths: [30, 16], rows: [
+        [t('fn2.rp.line'), t('fn2.po.pay_amount')],
         [t('fn2.rp.invoiced'), d.period.invoiced],
         [t('fn2.rp.collected'), d.period.collected],
         [t('fn2.rp.received'), d.period.received],
@@ -92,16 +76,42 @@ router.get('/export', async (req, res) => {
         [t('fn2.rp.difference'), d.period.difference],
         [t('fn2.rp.cash'), d.cash.balance],
         [t('fn2.rp.stock_value'), d.stock.value],
-      ];
-    }
+        // The caveat travels with the number. A spreadsheet gets forwarded and
+        // re-read long after the page that explained it is closed.
+        [t('fn2.rp.difference_hint'), null],
+      ] },
+      { name: t('fn2.sa.balances'), widths: [30, 16, 16, 16], rows: [
+        [t('fn2.sa.customer'), t('fn2.sa.invoiced'), t('iv.paid'), t('iv.due')],
+        ...d.customers.map((c) => [c.name, Number(c.invoiced), Number(c.paid), Number(c.balance)]),
+      ] },
+      { name: t('fn2.po.balances'), widths: [30, 16, 16, 16], rows: [
+        [t('fn2.po.supplier'), t('fn2.po.received_value'), t('fn2.po.paid'), t('iv.due')],
+        ...d.suppliers.map((x) => [x.name, Number(x.received), Number(x.paid), Number(x.balance)]),
+      ] },
+      { name: t('fn2.hr.payroll'), widths: [24, 14, 14, 14, 12, 14, 14, 10], rows: [
+        [t('fn2.hr.worker'), t('fn2.hr.from'), t('fn2.hr.to'), t('fn2.hr.base'),
+          t('fn2.hr.adj.bonus'), t('fn2.hr.deductions'), t('fn2.hr.net'), t('fn2.hr.paid')],
+        ...d.payroll.map((p) => [p.worker_name, String(p.period_start).slice(0, 10),
+          String(p.period_end).slice(0, 10), Number(p.base), Number(p.bonuses),
+          Number(p.deductions), Number(p.net), p.paid ? 1 : 0]),
+      ] },
+      { name: t('fn2.flag.expenses'), widths: [26, 16, 10], rows: [
+        [t('fn2.ex.category'), t('fn2.po.pay_amount'), t('fn2.bom.components')],
+        ...d.expenses.map((e) => [cat(e.category), Number(e.total), e.n]),
+      ] },
+      { name: t('fn2.rp.low_stock'), widths: [30, 12, 14, 14], rows: [
+        [t('fn2.po.material'), t('fn2.f.unit'), t('fn2.bom.in_stock'), t('fn2.f.min_qty')],
+        ...d.stock.low.map((m) => [m.name, m.unit, Number(m.qty), Number(m.min_qty)]),
+      ] },
+    ];
 
-    const name = `${type}-${from}-${to}.csv`;
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    // The filename can carry Arabic once a report is named after a business, so
-    // it goes out RFC 5987 encoded as well as in the plain form old clients read.
+    const buf = XL.workbook(sheets, { rtl: res.locals.lang !== 'en' });
+    const name = `${(req.company.slug || 'furniture')}-${from}-${to}.xlsx`;
+    res.setHeader('Content-Type', XL.MIME);
+    res.setHeader('Content-Length', buf.length);
     res.setHeader('Content-Disposition',
       `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`);
-    res.send(R.toCsv(headers, rows));
+    res.end(buf);
   } catch (e) { console.error('[furniture export]', e.message); res.redirect('/furniture/reports'); }
 });
 

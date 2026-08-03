@@ -29,7 +29,7 @@
     <input type="date" name="to" value="<%= to %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
   </label>
   <button class="bg-stone-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('fn2.hr.show') %></button>
-  <a href="/furniture/reports/export<%= q %>&type=summary" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2 font-bold"><%= t('fn2.rp.export') %> CSV</a>
+  <a href="/furniture/reports/export<%= q %>" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2 font-bold">📊 <%= t('fn2.rp.export') %></a>
 </form>
 
 <!-- ── ملخّص الفترة ─────────────────────────────────────────────── -->
@@ -71,9 +71,8 @@
 <div class="grid lg:grid-cols-2 gap-5">
   <!-- أرصدة العملاء -->
   <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+    <div class="px-5 py-3 border-b border-stone-100">
       <span class="font-bold text-stone-800"><%= t('fn2.sa.balances') %></span>
-      <a href="/furniture/reports/export<%= q %>&type=customers" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
     </div>
     <% if (!customers.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.rp.none') %></p><% } else { %>
     <div class="divide-y divide-stone-100">
@@ -89,9 +88,8 @@
 
   <!-- أرصدة الموردين -->
   <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+    <div class="px-5 py-3 border-b border-stone-100">
       <span class="font-bold text-stone-800"><%= t('fn2.po.balances') %></span>
-      <a href="/furniture/reports/export<%= q %>&type=suppliers" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
     </div>
     <% if (!suppliers.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.rp.none') %></p><% } else { %>
     <div class="divide-y divide-stone-100">
@@ -107,9 +105,8 @@
 
   <!-- المصروفات -->
   <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+    <div class="px-5 py-3 border-b border-stone-100">
       <span class="font-bold text-stone-800"><%= t('fn2.ex.by_cat') %></span>
-      <a href="/furniture/reports/export<%= q %>&type=expenses" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
     </div>
     <% if (!expenses.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.ex.empty') %></p><% } else { %>
     <div class="divide-y divide-stone-100">
@@ -126,9 +123,8 @@
 
   <!-- خامات تحت الحد -->
   <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+    <div class="px-5 py-3 border-b border-stone-100">
       <span class="font-bold text-stone-800"><%= t('fn2.rp.low_stock') %></span>
-      <a href="/furniture/reports/export<%= q %>&type=inventory" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
     </div>
     <% if (!stock.low.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.rp.stock_ok') %></p><% } else { %>
     <div class="divide-y divide-stone-100">
@@ -146,9 +142,8 @@
 <!-- المرتّبات -->
 <% if (payroll.length) { %>
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden mt-5">
-  <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+  <div class="px-5 py-3 border-b border-stone-100">
     <span class="font-bold text-stone-800"><%= t('fn2.hr.history') %></span>
-    <a href="/furniture/reports/export<%= q %>&type=payroll" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
   </div>
   <div class="overflow-x-auto">
     <table class="w-full text-sm rt">

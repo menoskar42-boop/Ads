@@ -3,7 +3,8 @@
 // The admin downloads a template in their own language, edits prices/data, and
 // uploads it back. Images are NEVER touched here (added from the website); an
 // existing image is preserved and only the row's price/data are updated.
-const XLSX = require('xlsx');
+const XLSX = require('xlsx');            // still used for READING an upload
+const XW = require('./xlsx_write');       // writing: see the note in that file
 
 // Column sets per vertical. `key` is internal; `ar`/`en` are the header labels.
 const COLUMNS = {
@@ -50,11 +51,13 @@ function buildTemplateXlsx(pageType, lang) {
   const header = cols.map((c) => (lang === 'en' ? c.en : c.ar));
   const ex = EXAMPLES[pageType] || {};
   const example = cols.map((c) => (ex[c.key] != null ? ex[c.key] : ''));
-  const ws = XLSX.utils.aoa_to_sheet([header, example]);
-  ws['!cols'] = cols.map(() => ({ wch: 18 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'template');
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  // Written by src/lib/xlsx_write.js, not SheetJS: the npm `xlsx` package is a
+  // stub whose write() returns undefined, so this download produced an empty
+  // response for every merchant until it was moved across.
+  return XW.workbook(
+    [{ name: 'template', rows: [header, example], widths: header.map(() => 22) }],
+    { rtl: lang !== 'en' }
+  );
 }
 
 // Parse an uploaded Excel buffer into row objects keyed by internal column key.
