@@ -64,6 +64,10 @@ router.use('/purchases', requireFlag('purchases'), require('./furniture_purchase
 
 router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
 
+// Returns has its own flag, but only the PAGES are gated. Balances and reports
+// always count return rows that exist — see src/furniture/returns.js.
+router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
+
 router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
 
 // Attendance and payroll share one router — a payslip is meaningless without

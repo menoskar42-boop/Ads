@@ -304,6 +304,40 @@ async function ensureFurnitureSchema() {
       CREATE INDEX IF NOT EXISTS idx_furn_payroll ON furniture_payroll_runs (company_id, worker_id, period_start);
     `);
 
+    // ── Returns (phase 8) ────────────────────────────────────────────────────
+    await client.query(`
+      -- A return is a CREDIT NOTE, not a deleted invoice. The original sale
+      -- happened, the money moved, and the piece came back — erasing any of
+      -- that would leave the customer's statement unable to explain itself.
+      CREATE TABLE IF NOT EXISTS furniture_returns (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        sale_id     INTEGER REFERENCES furniture_sales(id) ON DELETE SET NULL,
+        customer_id INTEGER REFERENCES furniture_customers(id) ON DELETE SET NULL,
+        return_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        total       NUMERIC(14,2) NOT NULL DEFAULT 0,
+        -- Cash actually handed back. Kept apart from the total because
+        -- crediting an account and paying money out are two different events,
+        -- often days apart, and a workshop needs to see which have happened.
+        refunded    NUMERIC(14,2) NOT NULL DEFAULT 0,
+        reason      TEXT,
+        note        TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_returns ON furniture_returns (company_id, return_date);
+
+      CREATE TABLE IF NOT EXISTS furniture_return_items (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        return_id  INTEGER NOT NULL REFERENCES furniture_returns(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES furniture_products(id) ON DELETE SET NULL,
+        qty        NUMERIC(14,3) NOT NULL DEFAULT 1,
+        unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+        total      NUMERIC(14,2) NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_return_items ON furniture_return_items (return_id);
+    `);
+
     // ── Expenses + audit ─────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS furniture_expenses (

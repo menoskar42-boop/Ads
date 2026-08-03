@@ -260,7 +260,41 @@ const FIXTURES = {
         { id: 1, sale_id: 1, amount: 10000, pay_date: '2026-07-20', method: 'cash' },
         { id: 2, sale_id: null, amount: 2000, pay_date: '2026-08-01', method: 'transfer' },
       ],
-      totals: { invoiced: 51300, paid: 12000, balance: 39300 },
+      returns: [{ id: 1, sale_id: 1, return_date: '2026-08-05', total: 4000, refunded: 1500, reason: null }],
+      totals: { invoiced: 51300, paid: 12000, credited: 4000, refunded: 1500, balance: 36800 },
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_returns: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/returns.ejs', tab: 'returns',
+      returns: [
+        { id: 1, customer_name: 'Mohamed A.', return_date: '2026-08-05', total: 4000, refunded: 1500 },
+        { id: 2, customer_name: null, return_date: '2026-07-02', total: 900, refunded: 900 },
+      ],
+      sales: [{ id: 1, sale_date: '2026-07-20', total: 51300, customer_name: 'Mohamed A.' }],
+      customers: [{ id: 1, name: 'Mohamed A.' }],
+      products: [{ id: 1, name: 'Classic bedroom', selling_price: 42000 }],
+      err: 'over_return', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_return_detail: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const RT = require('../src/furniture/returns');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    const ret = { id: 1, sale_id: 1, customer_id: 1, customer_name: 'Mohamed A.',
+      return_date: '2026-08-05', total: 4000, refunded: 1500, reason: 'Damaged in transit', note: null };
+    return {
+      __file: 'furniture_admin/return_detail.ejs', tab: 'returns',
+      ret,
+      items: [{ id: 1, product_name: 'Classic bedroom', qty: 1, unit_price: 4000, total: 4000 }],
+      outstanding: RT.outstandingRefund(ret),
+      err: 'refund', saved: false,
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },
@@ -397,7 +431,8 @@ const FIXTURES = {
       __file: 'furniture_admin/reports.ejs', tab: 'reports',
       from: '2026-08-01', to: '2026-08-31',
       // A negative difference too, so the loss styling and wording render.
-      period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250, difference: -1000 },
+      period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250,
+        returned: 4000, refunded: 1500, netInvoiced: 47300, difference: -1000 },
       cash: { in: 12000, out: 11650, balance: 350 },
       stock: { value: 41200, lowCount: 1, low: [{ name: 'Oak 18mm', unit: 'metre', qty: 4, min_qty: 10 }] },
       customers: [{ id: 1, name: 'Mohamed A.', invoiced: 51300, paid: 10000, balance: 41300 }],

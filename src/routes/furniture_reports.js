@@ -69,7 +69,10 @@ router.get('/export', async (req, res) => {
       { name: t('fn2.rp.line'), widths: [30, 16], rows: [
         [t('fn2.rp.line'), t('fn2.po.pay_amount')],
         [t('fn2.rp.invoiced'), d.period.invoiced],
+        [t('fn2.rt.credit'), d.period.returned],
+        [t('fn2.rp.net_invoiced'), d.period.netInvoiced],
         [t('fn2.rp.collected'), d.period.collected],
+        [t('fn2.rt.refunded'), d.period.refunded],
         [t('fn2.rp.received'), d.period.received],
         [t('fn2.hr.payroll'), d.period.payroll],
         [t('fn2.flag.expenses'), d.period.expenses],

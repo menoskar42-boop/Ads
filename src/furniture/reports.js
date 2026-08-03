@@ -16,7 +16,7 @@ const one = async (pool, sql, params) => Number((await pool.query(sql, params)).
  * decisions not to trade, and counting them would inflate both sides.
  */
 async function periodSummary(pool, cid, from, to) {
-  const [invoiced, collected, received, payroll, expenses, canteenCash] = await Promise.all([
+  const [invoiced, collected, received, payroll, expenses, canteenCash, returned, refunded] = await Promise.all([
     one(pool, `SELECT COALESCE(SUM(total),0) v FROM furniture_sales
                 WHERE company_id=$1 AND status <> 'cancelled' AND sale_date BETWEEN $2 AND $3`, [cid, from, to]),
     one(pool, `SELECT COALESCE(SUM(amount),0) v FROM furniture_customer_payments
@@ -32,15 +32,24 @@ async function periodSummary(pool, cid, from, to) {
                 WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3`, [cid, from, to]),
     one(pool, `SELECT COALESCE(SUM(amount),0) v FROM furniture_canteen_purchases
                 WHERE company_id=$1 AND paid_cash = true AND buy_date BETWEEN $2 AND $3`, [cid, from, to]),
+    // Credit given back on returned pieces, and the cash actually handed over.
+    // The credit reduces what was really sold whether or not the money has
+    // moved yet; the refund is a separate, later fact about the drawer.
+    one(pool, `SELECT COALESCE(SUM(total),0) v FROM furniture_returns
+                WHERE company_id=$1 AND return_date BETWEEN $2 AND $3`, [cid, from, to]),
+    one(pool, `SELECT COALESCE(SUM(refunded),0) v FROM furniture_returns
+                WHERE company_id=$1 AND return_date BETWEEN $2 AND $3`, [cid, from, to]),
   ]);
   const outgoings = round2(received + payroll + expenses);
+  const netInvoiced = round2(invoiced - returned);
   return {
     invoiced: round2(invoiced), collected: round2(collected),
     received: round2(received), payroll: round2(payroll), expenses: round2(expenses),
     canteenCash: round2(canteenCash),
+    returned: round2(returned), refunded: round2(refunded), netInvoiced,
     outgoings,
     // Named `difference`, never `profit`. See the file header.
-    difference: round2(invoiced - outgoings),
+    difference: round2(netInvoiced - outgoings),
   };
 }
 
@@ -51,17 +60,18 @@ async function periodSummary(pool, cid, from, to) {
  * not yet handed over has not left the drawer, so it is not subtracted.
  */
 async function cashBalance(pool, cid) {
-  const [inCust, inCanteen, outSupp, outExp, outPay] = await Promise.all([
+  const [inCust, inCanteen, outSupp, outExp, outPay, outRefund] = await Promise.all([
     one(pool, 'SELECT COALESCE(SUM(amount),0) v FROM furniture_customer_payments WHERE company_id=$1', [cid]),
     one(pool, 'SELECT COALESCE(SUM(amount),0) v FROM furniture_canteen_purchases WHERE company_id=$1 AND paid_cash = true', [cid]),
     one(pool, 'SELECT COALESCE(SUM(amount),0) v FROM furniture_supplier_payments WHERE company_id=$1', [cid]),
     one(pool, 'SELECT COALESCE(SUM(amount),0) v FROM furniture_expenses WHERE company_id=$1', [cid]),
     one(pool, 'SELECT COALESCE(SUM(net),0) v FROM furniture_payroll_runs WHERE company_id=$1 AND paid = true', [cid]),
+    // Only `refunded` — a credit note that has not been paid out has not taken
+    // anything out of the drawer, and counting it would show cash that is there.
+    one(pool, 'SELECT COALESCE(SUM(refunded),0) v FROM furniture_returns WHERE company_id=$1', [cid]),
   ]);
-  return {
-    in: round2(inCust + inCanteen), out: round2(outSupp + outExp + outPay),
-    balance: round2(inCust + inCanteen - outSupp - outExp - outPay),
-  };
+  const out = round2(outSupp + outExp + outPay + outRefund);
+  return { in: round2(inCust + inCanteen), out, balance: round2(inCust + inCanteen - out) };
 }
 
 /** Stock valued at its moving average, plus what has fallen below its minimum. */

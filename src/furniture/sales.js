@@ -102,13 +102,21 @@ async function addPayment(pool, companyId, { saleId, customerId, amount, payDate
  * Cancelled invoices are excluded from what was billed but their payments are
  * NOT excluded — money actually handed over stays on the account as credit
  * rather than vanishing because the order was later called off.
+ *
+ * Returns enter as `credited` (what the customer earned back) minus `refunded`
+ * (what was handed to them in cash), and that net is subtracted. Note this runs
+ * regardless of the returns feature toggle: a flag hides a page, it must never
+ * quietly rewrite balances that existing documents already justify.
  */
 async function customerBalances(pool, companyId) {
   const r = await pool.query(
     `SELECT c.id, c.name, c.phone,
             COALESCE(inv.total, 0) AS invoiced,
             COALESCE(pay.total, 0) AS paid,
-            COALESCE(inv.total, 0) - COALESCE(pay.total, 0) AS balance
+            COALESCE(ret.credited, 0) AS credited,
+            COALESCE(ret.refunded, 0) AS refunded,
+            COALESCE(inv.total, 0) - COALESCE(pay.total, 0)
+              - COALESCE(ret.credited, 0) + COALESCE(ret.refunded, 0) AS balance
        FROM furniture_customers c
        LEFT JOIN (
          SELECT customer_id, SUM(total) AS total FROM furniture_sales
@@ -118,8 +126,12 @@ async function customerBalances(pool, companyId) {
          SELECT customer_id, SUM(amount) AS total FROM furniture_customer_payments
           WHERE company_id=$1 GROUP BY customer_id
        ) pay ON pay.customer_id = c.id
+       LEFT JOIN (
+         SELECT customer_id, SUM(total) AS credited, SUM(refunded) AS refunded
+           FROM furniture_returns WHERE company_id=$1 GROUP BY customer_id
+       ) ret ON ret.customer_id = c.id
       WHERE c.company_id=$1 AND c.is_active
-        AND (inv.total IS NOT NULL OR pay.total IS NOT NULL)
+        AND (inv.total IS NOT NULL OR pay.total IS NOT NULL OR ret.credited IS NOT NULL)
       ORDER BY balance DESC, c.name`,
     [companyId]
   );
@@ -128,7 +140,7 @@ async function customerBalances(pool, companyId) {
 
 /** One customer's invoices and payments, for the statement page. */
 async function statement(pool, companyId, customerId) {
-  const [customer, invoices, payments] = await Promise.all([
+  const [customer, invoices, payments, returns] = await Promise.all([
     pool.query('SELECT * FROM furniture_customers WHERE id=$1 AND company_id=$2', [customerId, companyId]),
     pool.query(
       `SELECT id, sale_date, subtotal, tax, total, paid, status
@@ -138,16 +150,27 @@ async function statement(pool, companyId, customerId) {
       `SELECT id, sale_id, amount, pay_date, method, note
          FROM furniture_customer_payments WHERE company_id=$1 AND customer_id=$2
         ORDER BY pay_date DESC, id DESC LIMIT 200`, [companyId, customerId]),
+    pool.query(
+      `SELECT id, sale_id, return_date, total, refunded, reason
+         FROM furniture_returns WHERE company_id=$1 AND customer_id=$2
+        ORDER BY return_date DESC, id DESC LIMIT 200`, [companyId, customerId]),
   ]);
   const invoiced = invoices.rows
     .filter((i) => i.status !== 'cancelled')
     .reduce((s, i) => s + Number(i.total), 0);
   const paid = payments.rows.reduce((s, p) => s + Number(p.amount), 0);
+  const credited = returns.rows.reduce((s, r) => s + Number(r.total), 0);
+  const refunded = returns.rows.reduce((s, r) => s + Number(r.refunded), 0);
   return {
     customer: customer.rows[0] || null,
     invoices: invoices.rows,
     payments: payments.rows,
-    totals: { invoiced: round2(invoiced), paid: round2(paid), balance: round2(invoiced - paid) },
+    returns: returns.rows,
+    totals: {
+      invoiced: round2(invoiced), paid: round2(paid),
+      credited: round2(credited), refunded: round2(refunded),
+      balance: round2(invoiced - paid - credited + refunded),
+    },
   };
 }
 

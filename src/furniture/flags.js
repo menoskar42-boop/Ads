@@ -18,6 +18,8 @@ const FLAGS = [
     desc: 'أرصدة الخامات، الحد الأدنى، وحركة الصرف والوارد.' },
   { key: 'sales',      label: 'المبيعات',         icon: '🛒', path: '/furniture/sales',
     desc: 'فواتير بمقدّم ودفعات، والمتبقّي وكشف حساب العميل.' },
+  { key: 'returns',    label: 'المرتجعات',        icon: '↩️', path: '/furniture/returns',
+    desc: 'إشعار خصم للقطعة الراجعة، ورد الفلوس كله أو جزء منه.' },
   { key: 'bom',        label: 'مكوّنات المنتج',    icon: '🪚', path: '/furniture/bom',
     desc: 'خامات كل قطعة، تكلفتها المحسوبة تلقائياً، والربح المتوقّع.' },
   { key: 'hr',         label: 'الحضور والمرتّبات', icon: '👷', path: '/furniture/hr/attendance',
@@ -49,7 +51,7 @@ const OPTIONAL_KEYS = FLAGS.filter((f) => !f.core).map((f) => f.key);
 
 // Features a new showroom starts with. Everything a furniture business does on
 // day one is on; the rest it turns on when it needs it.
-const DEFAULT_ON = new Set(['purchases', 'inventory', 'sales', 'expenses', 'reports']);
+const DEFAULT_ON = new Set(['purchases', 'inventory', 'sales', 'returns', 'expenses', 'reports']);
 
 /**
  * Enabled flags for one showroom. Core features are always in the set.

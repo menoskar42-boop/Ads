@@ -1,0 +1,152 @@
+<%- include('head', { title: t('fn2.flag.returns'), tab: 'returns' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+%>
+
+<h1 class="text-2xl font-black text-stone-900 mb-1">↩️ <%= t('fn2.flag.returns') %></h1>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.rt.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.rt.err.' + err) %></div><% } %>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.rt.new') %></h2>
+  <form method="post" action="/furniture/returns" class="grid gap-3">
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.rt.invoice') %>
+        <select name="sale_id" id="saleSel" onchange="loadLines()" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('fn2.rt.no_invoice') %></option>
+          <% sales.forEach(function(s){ %>
+            <option value="<%= s.id %>">#<%= s.id %> · <%= s.customer_name || '—' %> · <%= money(s.total) %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.customer') %>
+        <select name="customer_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value=""><%= t('dn.none') %></option>
+          <% customers.forEach(function(c){ %><option value="<%= c.id %>"><%= c.name %></option><% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.rt.date') %>
+        <input type="date" name="return_date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-stone-600"><%= t('fn2.rt.refund_now') %>
+        <input name="refund_now" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+
+    <label class="text-xs font-bold text-stone-600"><%= t('fn2.rt.reason') %>
+      <input name="reason" maxlength="120" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+
+    <!-- Lines: filled from the chosen invoice, so a showroom cannot take back
+         more than it sold, or credit a price it never charged. -->
+    <div id="lines" class="grid gap-2 border border-stone-100 rounded-xl p-3"></div>
+
+    <!-- No invoice: a piece sold before the system existed. Nothing can be
+         checked against, so the price is typed and the note says why. -->
+    <div id="manual" class="grid gap-2 border border-stone-100 rounded-xl p-3">
+      <% if (!products.length) { %>
+        <p class="text-sm text-stone-500"><%= t('fn2.sa.no_products') %></p>
+      <% } else { %>
+      <div class="grid grid-cols-12 gap-2 items-end">
+        <label class="col-span-12 sm:col-span-6 text-xs font-bold text-stone-600"><%= t('fn2.sa.product') %>
+          <select name="product_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% products.forEach(function(p){ %><option value="<%= p.id %>" data-price="<%= p.selling_price %>"><%= p.name %></option><% }); %>
+          </select>
+        </label>
+        <label class="col-span-6 sm:col-span-3 text-xs font-bold text-stone-600"><%= t('fn2.po.qty') %>
+          <input name="qty" type="number" min="0" value="1" <%- 'step="0.001"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="col-span-6 sm:col-span-3 text-xs font-bold text-stone-600"><%= t('fn2.sa.unit_price') %>
+          <input name="unit_price" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+      </div>
+      <% } %>
+    </div>
+
+    <div class="flex gap-2 flex-wrap items-center">
+      <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.rt.create') %></button>
+      <span class="text-xs text-stone-400"><%= t('fn2.rt.hint') %></span>
+    </div>
+  </form>
+</div>
+
+<% if (!returns.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.rt.empty') %></div>
+<% } else { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-stone-50 text-stone-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold">#</th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.sa.customer') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.rt.date') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.rt.credit') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.rt.refunded') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.rt.outstanding') %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        <% returns.forEach(function(r){ var left = Math.max(0, Number(r.total) - Number(r.refunded)); %>
+        <tr>
+          <td class="px-4 py-2" data-l="#"><a href="/furniture/returns/<%= r.id %>" class="text-brand-700 font-bold hover:underline">#<%= r.id %></a></td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.sa.customer') %>"><%= r.customer_name || '—' %></td>
+          <td class="px-4 py-2 text-stone-600" data-l="<%= t('fn2.rt.date') %>"><%= fmtD(r.return_date) %></td>
+          <td class="px-4 py-2 font-semibold" data-l="<%= t('fn2.rt.credit') %>"><%= money(r.total) %></td>
+          <td class="px-4 py-2 text-emerald-700" data-l="<%= t('fn2.rt.refunded') %>"><%= money(r.refunded) %></td>
+          <td class="px-4 py-2 <%= left > 0 ? 'text-amber-700 font-bold' : 'text-stone-400' %>" data-l="<%= t('fn2.rt.outstanding') %>"><%= money(left) %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+<script>
+  var L = {
+    hint: <%- JSON.stringify(t('fn2.rt.pick_invoice')) %>,
+    none: <%- JSON.stringify(t('fn2.rt.nothing_left')) %>,
+    qty:  <%- JSON.stringify(t('fn2.po.qty')) %>,
+    max:  <%- JSON.stringify(t('fn2.rt.max')) %>,
+    fail: <%- JSON.stringify(t('fn2.rt.load_failed')) %>
+  };
+  // Only one of the two blocks may submit. Hiding is not enough — a hidden
+  // field still posts, and its product_id would land in the same array as the
+  // invoice lines, crediting a piece nobody chose. Disabled fields post nothing.
+  function setMode(fromInvoice){
+    var lines = document.getElementById('lines'), manual = document.getElementById('manual');
+    lines.style.display = fromInvoice ? '' : 'none';
+    manual.style.display = fromInvoice ? 'none' : '';
+    manual.querySelectorAll('input,select').forEach(function(el){ el.disabled = fromInvoice; });
+  }
+  function loadLines(){
+    var id = document.getElementById('saleSel').value;
+    var wrap = document.getElementById('lines');
+    setMode(!!id);
+    if (!id) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = '<p class="text-sm text-stone-500">' + L.hint + '</p>';
+    fetch('/furniture/returns/lines/' + id).then(function(r){ return r.json(); }).then(function(rows){
+      if (!rows.length) { wrap.innerHTML = '<p class="text-sm text-stone-500">' + L.none + '</p>'; return; }
+      wrap.innerHTML = rows.map(function(x){
+        // Quantity defaults to zero: taking a piece back is a deliberate act,
+        // and a prefilled form would credit the whole invoice on one click.
+        return '<div class="grid grid-cols-12 gap-2 items-end">'
+          + '<input type="hidden" name="product_id" value="' + x.product_id + '">'
+          + '<input type="hidden" name="unit_price" value="' + x.unit_price + '">'
+          + '<div class="col-span-7 sm:col-span-8 text-sm font-semibold text-stone-800">' + esc(x.name)
+          + ' <span class="text-xs text-stone-400 font-normal">' + L.max + ' ' + x.qty + '</span></div>'
+          + '<label class="col-span-5 sm:col-span-4 text-xs font-bold text-stone-600">' + L.qty
+          + '<input name="qty" type="number" min="0" max="' + x.qty + '" step="0.001" value="0"'
+          + ' class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm"></label></div>';
+      }).join('');
+    }).catch(function(){ wrap.innerHTML = '<p class="text-sm text-red-700">' + L.fail + '</p>'; });
+  }
+  function esc(s){ var d = document.createElement('span'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+  loadLines();
+</script>
+
+</main></body></html>
