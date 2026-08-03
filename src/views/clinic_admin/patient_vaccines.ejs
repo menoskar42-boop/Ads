@@ -1,17 +1,17 @@
-<%- include('head', { title: 'التطعيمات', tab: 'patients' }) %>
+<%- include('head', { title: t('vx.title'), tab: 'patients' }) %>
 <%
   function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
   function ageLabel(m){
     if (m == null) return '';
-    if (m < 24) return m + ' شهر';
+    if (m < 24) return m + ' ' + t('vx.month');
     var y = Math.floor(m / 12), r = m % 12;
-    return y + ' سنة' + (r ? ' و' + r + ' شهر' : '');
+    return y + ' ' + t('vx.year') + (r ? ' ' + t('vx.and') + ' ' + r + ' ' + t('vx.month') : '');
   }
   function ageAt(m){
     m = Number(m);
-    if (m === 0) return 'عند الميلاد';
-    if (m < 12) return m + ' شهور';
-    return (m / 12) + ' سنة';
+    if (m === 0) return t('vx.at_birth');
+    if (m < 12) return m + ' ' + t('vx.months');
+    return (m / 12) + ' ' + t('vx.year');
   }
   var SB = {
     given:    'bg-emerald-100 text-emerald-800',
@@ -19,16 +19,16 @@
     overdue:  'bg-red-100 text-red-700',
     upcoming: 'bg-slate-100 text-slate-500'
   };
-  var SL = { given:'اتاخد ✓', due:'مستحق دلوقتي', overdue:'متأخر', upcoming:'قدّام' };
+  var SL = { given:t('vx.st.given'), due:t('vx.st.due'), overdue:t('vx.st.overdue'), upcoming:t('vx.st.upcoming') };
   var counts = card.reduce(function(a,r){ a[r.status] = (a[r.status]||0)+1; return a; }, {});
 %>
 
 <div class="flex items-center gap-3 mb-1 flex-wrap">
-  <a href="/clinic/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← ملف المريض</a>
-  <h1 class="text-2xl font-black text-slate-900">💉 كارت التطعيمات</h1>
+  <a href="/clinic/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('vx.back_file') %></a>
+  <h1 class="text-2xl font-black text-slate-900"><%= t('vx.title') %></h1>
   <span class="text-slate-500"><%= patient.name %></span>
   <% if (ageMonths != null) { %>
-    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">العمر: <%= ageLabel(ageMonths) %></span>
+    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full"><%= t('vx.age') %> <%= ageLabel(ageMonths) %></span>
   <% } %>
 </div>
 
@@ -36,53 +36,53 @@
   <!-- Everything here is computed from the birth date; without it the card
        cannot say what is due, so ask for it before showing an empty table. -->
   <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
-    <h2 class="font-bold text-amber-900 mb-1">محتاجين تاريخ الميلاد</h2>
+    <h2 class="font-bold text-amber-900 mb-1"><%= t('vx.need_dob') %></h2>
     <p class="text-sm text-amber-800 mb-3">
-      مواعيد التطعيم كلها بتتحسب من تاريخ الميلاد بالظبط — سنة الميلاد لوحدها فرقها ممكن يوصل ١٢ شهر، وده مالوش معنى مع رضيع.
+      <%= t('vx.need_dob_why') %>
     </p>
     <form method="post" action="/clinic/patients/<%= patient.id %>/birth-date" class="flex flex-wrap gap-2 items-end">
       <input type="date" name="birth_date" required class="border border-amber-300 rounded-xl px-3 py-2 text-sm" />
-      <button class="bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-amber-700">حفظ</button>
+      <button class="bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-amber-700"><%= t('common.save') %></button>
     </form>
   </div>
 <% } else { %>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">اتاخد</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('vx.given') %></div>
     <div class="text-2xl font-extrabold text-emerald-600"><%= counts.given || 0 %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">مستحق دلوقتي</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('vx.due_now') %></div>
     <div class="text-2xl font-extrabold text-amber-600"><%= counts.due || 0 %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">متأخر</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('vx.overdue') %></div>
     <div class="text-2xl font-extrabold text-red-600"><%= counts.overdue || 0 %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">قدّام</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('vx.upcoming') %></div>
     <div class="text-2xl font-extrabold text-slate-400"><%= counts.upcoming || 0 %></div>
   </div>
 </div>
 
 <% if (counts.overdue) { %>
 <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
-  ⚠️ فيه <strong><%= counts.overdue %></strong> تطعيم متأخر — راجعهم مع الأهل.
+  ⚠️ <%= t('vx.overdue_pre') %> <strong><%= counts.overdue %></strong> <%= t('vx.overdue_post') %>
 </div>
 <% } %>
 
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">جدول التطعيمات</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('vx.table') %></div>
   <div class="overflow-x-auto">
     <table class="w-full text-sm rt">
       <thead class="bg-slate-50 text-slate-600">
         <tr>
-          <th class="text-right px-4 py-2 font-semibold">التطعيم</th>
-          <th class="text-right px-4 py-2 font-semibold">الجرعة</th>
-          <th class="text-right px-4 py-2 font-semibold">السن</th>
-          <th class="text-right px-4 py-2 font-semibold">الميعاد</th>
-          <th class="text-right px-4 py-2 font-semibold">الحالة</th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.vaccine') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.dose') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.age') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('tb.due') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('common.status') %></th>
           <th class="px-4 py-2"></th>
         </tr>
       </thead>
@@ -100,7 +100,7 @@
             <% if (r.status === 'given') { %>
               <form method="post" action="/clinic/patients/<%= patient.id %>/vaccines/<%= r.given_id %>/delete"
                     onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
-                <button class="text-red-500 hover:text-red-700 text-xs">تراجع</button>
+                <button class="text-red-500 hover:text-red-700 text-xs"><%= t('vx.undo') %></button>
               </form>
             <% } else { %>
               <form method="post" action="/clinic/patients/<%= patient.id %>/vaccines" class="flex items-center gap-1 justify-end">
@@ -108,8 +108,8 @@
                 <input type="hidden" name="name" value="<%= r.name %>" />
                 <input type="date" name="given_at" required value="<%= new Date().toISOString().slice(0,10) %>"
                        class="border border-slate-200 rounded-lg px-2 py-1 text-xs" />
-                <input name="batch" placeholder="التشغيلة" class="w-20 border border-slate-200 rounded-lg px-2 py-1 text-xs" />
-                <button class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700">سجّل</button>
+                <input name="batch" placeholder="<%= t('vx.batch') %>" class="w-20 border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                <button class="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-emerald-700"><%= t('vx.record') %></button>
               </form>
             <% } %>
           </td>
@@ -122,11 +122,11 @@
 <% } %>
 
 <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-sm text-slate-600">
-  <strong class="text-slate-800">⚠️ راجع الجدول قبل الاعتماد عليه</strong>
+  <strong class="text-slate-800"><%= t('vx.disclaimer_title') %></strong>
   <p class="mt-1 leading-relaxed">
-    الجدول اللي فوق متحطّ كنقطة بداية حسب الجدول المنشور للأطفال في مصر — <strong>مش مرجع رسمي</strong>،
-    والجداول بتتغيّر. راجعه مع المصدر الرسمي وعدّله لو محتاج؛ الفايدة الحقيقية هنا هي
-    <strong>المتابعة</strong> (إيه اتاخد، إيه مستحق، إيه متأخر) وهي صح مهما كان الجدول اللي بتستخدمه.
+    <%= t('vx.disclaimer_1') %> <strong><%= t('vx.disclaimer_strong') %></strong>
+    <%= t('vx.disclaimer_2') %>
+    <strong><%= t('vx.disclaimer_strong2') %></strong> <%= t('vx.disclaimer_3') %>
   </p>
 </div>
 

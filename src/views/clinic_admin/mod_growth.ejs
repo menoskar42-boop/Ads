@@ -1,4 +1,4 @@
-<%- include('head', { title: 'عودة المرضى', tab: 'growth' }) %>
+<%- include('head', { title: t('clinic.mod.growth'), tab: 'growth' }) %>
 <%
   function fmtD(t){ if(!t) return '—'; try { return new Date(t).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
   function fmtDT(t){ try { return new Date(t).toLocaleString(LOC,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
@@ -6,24 +6,24 @@
   var q = (typeof locals !== 'undefined' && locals.query) ? locals.query : {};
 %>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1">📈 عودة المرضى</h1>
-<p class="text-slate-500 mb-6">أرخص مريض تكسبه هو اللي جالك قبل كده — دي قايمة اللي وقفوا عن الحضور</p>
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('gr.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('gr.sub') %></p>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">إجمالي المرضى</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('gr.total') %></div>
     <div class="text-2xl font-extrabold text-slate-900"><%= stats.total_patients || 0 %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">نشطين (٩٠ يوم)</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('gr.active90') %></div>
     <div class="text-2xl font-extrabold text-emerald-600"><%= stats.active_90 || 0 %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">محتاجين متابعة</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('gr.need_followup') %></div>
     <div class="text-2xl font-extrabold text-amber-600"><%= lapsed.length %></div>
   </div>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-slate-500 mb-1">نسبة العودة</div>
+    <div class="text-xs text-slate-500 mb-1"><%= t('gr.return_rate') %></div>
     <div class="text-2xl font-extrabold text-indigo-600">
       <%= stats.total_patients ? Math.round((stats.active_90 / stats.total_patients) * 100) : 0 %>%
     </div>
@@ -34,18 +34,17 @@
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
   <form method="get" class="flex flex-wrap items-end gap-3">
     <div>
-      <label class="block text-xs font-semibold text-slate-600 mb-1">اعتبر المريض «وقف» بعد</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('gr.lapse_after') %></label>
       <select name="days" onchange="this.form.submit()" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
         <% [90,120,180,270,365,540].forEach(function(d){ %>
           <option value="<%= d %>" <%= days === d ? 'selected' : '' %>>
-            <%= d %> يوم<%= d === 180 ? ' (المعتاد لتنظيف الأسنان)' : '' %>
+            <%= d %> <%= t('gr.days') %><%= d === 180 ? t('gr.usual_recall') : '' %>
           </option>
         <% }); %>
       </select>
     </div>
     <p class="text-xs text-slate-400 flex-1 min-w-[220px]">
-      اللي عندهم حجز قادم أو اتواصلنا معاهم خلال <strong><%= cooldown %></strong> يوم
-      مش بيظهروا هنا — عشان ما نلاحقش حد مرتين.
+      <%= t('gr.cooldown_1') %> <strong><%= cooldown %></strong> <%= t('gr.cooldown_2') %>
     </p>
   </form>
 </div>
@@ -53,7 +52,7 @@
 <!-- ── القائمة ──────────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden mb-5">
   <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-2">
-    <span class="font-bold text-slate-800">مرضى محتاجين متابعة (<%= lapsed.length %>)</span>
+    <span class="font-bold text-slate-800"><%= t('gr.list') %> (<%= lapsed.length %>)</span>
     <% if (lapsed.length && autoSendAvailable) { %>
       <form method="post" action="/clinic/growth/send" id="bulkForm" class="flex items-center gap-2"
             onsubmit="return prepBulk()">
@@ -61,23 +60,23 @@
         <input type="hidden" name="ids" id="bulkIds" />
         <input type="hidden" name="template" id="bulkTpl" />
         <button class="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-700">
-          إرسال واتساب للمحدّدين
+          <%= t('gr.send_selected') %>
         </button>
       </form>
     <% } else if (lapsed.length) { %>
-      <span class="text-xs text-slate-400">فعّل واتساب العيادة عشان الإرسال الجماعي</span>
+      <span class="text-xs text-slate-400"><%= t('gr.need_whatsapp') %></span>
     <% } %>
   </div>
 
   <% if (!lapsed.length) { %>
-    <p class="px-5 py-6 text-sm text-slate-500">مفيش مرضى محتاجين متابعة في الفترة دي — كله تمام.</p>
+    <p class="px-5 py-6 text-sm text-slate-500"><%= t('gr.empty') %></p>
   <% } else { %>
     <% if (autoSendAvailable) { %>
     <div class="px-5 py-3 border-b border-slate-100 bg-slate-50">
-      <label class="block text-xs font-semibold text-slate-600 mb-1">نص الرسالة</label>
+      <label class="block text-xs font-semibold text-slate-600 mb-1"><%= t('gr.msg_text') %></label>
       <input id="tplInput" value="<%= template %>" maxlength="1000"
              class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-      <p class="text-xs text-slate-400 mt-1">{name} = اسم المريض · {clinic} = اسم العيادة · أقصى ٥٠ رسالة في المرة</p>
+      <p class="text-xs text-slate-400 mt-1"><%= t('gr.msg_hint') %></p>
     </div>
     <% } %>
 
@@ -88,10 +87,10 @@
             <% if (autoSendAvailable) { %>
             <th class="px-4 py-2 w-8"><input type="checkbox" onchange="toggleAll(this)" /></th>
             <% } %>
-            <th class="text-right px-4 py-2 font-semibold">المريض</th>
-            <th class="text-right px-4 py-2 font-semibold">آخر زيارة</th>
-            <th class="text-right px-4 py-2 font-semibold">من كام يوم</th>
-            <th class="text-right px-4 py-2 font-semibold">عدد الزيارات</th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('tb.patient') %></th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('tb.last_visit') %></th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('tb.days_since') %></th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('tb.visits') %></th>
             <th class="px-4 py-2"></th>
           </tr>
         </thead>
@@ -100,32 +99,32 @@
           <tr>
             <% if (autoSendAvailable) { %>
             <td class="px-4 py-2">
-              <input type="checkbox" class="pick" value="<%= p.id %>" <%= p.phone ? '' : 'disabled title="مفيش رقم"' %> />
+              <input type="checkbox" class="pick" value="<%= p.id %>" <%- p.phone ? '' : 'disabled title="' + t('gr.no_phone') + '"' %> />
             </td>
             <% } %>
             <td class="px-4 py-2" data-l="<%= t('tb.patient') %>">
               <a href="/clinic/patients/<%= p.id %>" class="font-semibold text-indigo-600 hover:underline"><%= p.name %></a>
-              <% if (!p.phone) { %><span class="text-xs text-slate-300 me-1">(مفيش رقم)</span><% } %>
+              <% if (!p.phone) { %><span class="text-xs text-slate-300 me-1">(<%= t('gr.no_phone') %>)</span><% } %>
             </td>
             <td class="px-4 py-2 text-slate-600" data-l="<%= t('tb.last_visit') %>"><%= fmtD(p.last_visit) %></td>
             <td class="px-4 py-2" data-l="<%= t('tb.days_since') %>">
               <span class="text-xs font-semibold px-2 py-1 rounded-full <%= p.days_since > 365 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
-                <%= p.days_since %> يوم
+                <%= p.days_since %> <%= t('gr.days') %>
               </span>
             </td>
             <td class="px-4 py-2 text-slate-500" data-l="<%= t('tb.visits') %>"><%= p.visits %></td>
             <td class="px-4 py-2">
               <div class="flex items-center gap-2 justify-end">
                 <% if (p.phone) { %>
-                  <a href="https://wa.me/<%= wa(p.phone) %>?text=<%= encodeURIComponent('تحية من ' + company.company_name + '. عدّى وقت على آخر زيارة ليك — لو حابب تحجز متابعة إحنا في خدمتك.') %>"
+                  <a href="https://wa.me/<%= wa(p.phone) %>?text=<%= encodeURIComponent(t('gr.wa_one').replace('{clinic}', company.company_name || company.name || '')) %>"
                      target="_blank" rel="noopener"
-                     class="text-xs text-emerald-600 hover:underline">واتساب</a>
-                  <a href="tel:<%= p.phone %>" class="text-xs text-indigo-600 hover:underline">اتصال</a>
+                     class="text-xs text-emerald-600 hover:underline"><%= t('hv.wa') %></a>
+                  <a href="tel:<%= p.phone %>" class="text-xs text-indigo-600 hover:underline"><%= t('hv.call') %></a>
                 <% } %>
                 <form method="post" action="/clinic/growth/<%= p.id %>/contacted">
                   <input type="hidden" name="phone" value="<%= p.phone || '' %>" />
                   <input type="hidden" name="days" value="<%= days %>" />
-                  <button class="text-xs text-slate-500 hover:text-slate-800">تم التواصل</button>
+                  <button class="text-xs text-slate-500 hover:text-slate-800"><%= t('gr.contacted') %></button>
                 </form>
               </div>
             </td>
@@ -140,12 +139,12 @@
 <!-- ── آخر المتابعات ────────────────────────────────────────────── -->
 <% if (recent.length) { %>
 <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800">آخر المتابعات</div>
+  <div class="px-5 py-3 border-b border-slate-100 font-bold text-slate-800"><%= t('gr.recent') %></div>
   <div class="divide-y divide-slate-100">
     <% recent.forEach(function(r){ %>
     <div class="px-5 py-2.5 flex items-center gap-3 text-sm">
       <span class="text-slate-800"><%= r.name || '—' %></span>
-      <span class="text-xs <%= r.ok ? 'text-emerald-600' : 'text-red-500' %>"><%= r.ok ? 'تم' : 'فشل' %></span>
+      <span class="text-xs <%= r.ok ? 'text-emerald-600' : 'text-red-500' %>"><%= r.ok ? t('gr.ok') : t('gr.failed') %></span>
       <span class="text-xs text-slate-400 ms-auto"><%= fmtDT(r.sent_at) %></span>
     </div>
     <% }); %>
@@ -154,14 +153,20 @@
 <% } %>
 
 <script>
+  var L = <%- JSON.stringify({
+    pickOne: t('gr.pick_one'),
+    max50:   t('gr.max_50'),
+    send1:   t('gr.confirm_send_1'),
+    send2:   t('gr.confirm_send_2'),
+  }) %>;
   function toggleAll(master){
     document.querySelectorAll('.pick:not([disabled])').forEach(function(c){ c.checked = master.checked; });
   }
   function prepBulk(){
     var ids = Array.prototype.slice.call(document.querySelectorAll('.pick:checked')).map(function(c){ return c.value; });
-    if (!ids.length) { alert('اختار مريض واحد على الأقل'); return false; }
-    if (ids.length > 50) { alert('أقصى ٥٠ رسالة في المرة — الباقي هيظهرلك تاني بعد الإرسال'); return false; }
-    if (!confirm('إرسال ' + ids.length + ' رسالة واتساب؟')) return false;
+    if (!ids.length) { alert(L.pickOne); return false; }
+    if (ids.length > 50) { alert(L.max50); return false; }
+    if (!confirm(L.send1 + ' ' + ids.length + ' ' + L.send2)) return false;
     document.getElementById('bulkIds').value = ids.join(',');
     var t = document.getElementById('tplInput');
     document.getElementById('bulkTpl').value = t ? t.value : '';

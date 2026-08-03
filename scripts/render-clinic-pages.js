@@ -61,6 +61,46 @@ const FIXTURES = {
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
 
+  patient_vaccines: () => ({
+    tab: 'patients',
+    patient: Object.assign({}, patient, { birth_date: '2025-01-15' }),
+    ageMonths: 18,
+    schedule: [],
+    card: [
+      { id: 1, name: 'BCG', dose_label: 'At birth', age_months: 0, status: 'given', given_at: '2025-01-16', given_id: 9 },
+      { id: 2, name: 'IPV', dose_label: 'Single dose', age_months: 4, status: 'overdue', due_on: '2025-05-15' },
+      { id: 3, name: 'MMR', dose_label: '2nd dose', age_months: 18, status: 'due', due_on: '2026-07-15' },
+      { id: 4, name: 'DTP', dose_label: 'Booster', age_months: 24, status: 'upcoming', due_on: '2027-01-15' },
+    ],
+  }),
+
+  mod_growth: (lang) => ({
+    tab: 'growth',
+    company: { id: 1, company_name: 'Demo Clinic', name: 'Demo Clinic' },
+    stats: { total_patients: 120, active_90: 45 },
+    lapsed: [
+      { id: 1, name: patient.name, phone: '01000000000', last_visit: '2025-09-01', days_since: 336, visits: 4 },
+      { id: 2, name: 'Mona Adel', phone: '', last_visit: '2026-01-01', days_since: 214, visits: 1 },
+    ],
+    recent: [{ name: patient.name, ok: true, sent_at: NOW }, { name: 'Mona Adel', ok: false, sent_at: NOW }],
+    days: 180, cooldown: 60, autoSendAvailable: true,
+    template: t('gr.tpl_default', lang),
+  }),
+
+  mod_installments: () => ({
+    tab: 'installments',
+    today: '2026-08-03',
+    invoices: [{ id: 7, patient_name: patient.name, total_amount: 3000, paid_amount: 500 }],
+    due: [
+      { id: 1, patient_name: patient.name, phone: '01000000000', seq: 2, amount: 500, due_date: '2026-07-20' },
+      { id: 2, patient_name: patient.name, phone: '', seq: 3, amount: 500, due_date: '2026-08-06' },
+    ],
+    plans: [
+      { invoice_id: 7, patient_name: patient.name, n: 5, n_paid: 2, total: 2500, paid: 1000, next_due: '2026-08-06' },
+      { invoice_id: 8, patient_name: patient.name, n: 3, n_paid: 0, total: 900, paid: 0, next_due: '2026-09-01' },
+    ],
+  }),
+
   dental_patient: () => ({
     tab: 'dental',
     patient,
@@ -144,7 +184,7 @@ const FIXTURES = {
 
 // ── Runner ───────────────────────────────────────────────────────────────────
 function renderPage(name, lang) {
-  const page = FIXTURES[name]();
+  const page = FIXTURES[name](lang);
   const file = path.join(CLINIC, name + '.ejs');
   return ejs.render(
     require('fs').readFileSync(file, 'utf8'),

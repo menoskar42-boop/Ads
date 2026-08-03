@@ -351,7 +351,7 @@ router.get('/patients/:id/vaccines', async (req, res) => {
     if (!p) return res.redirect('/clinic/patients');
 
     const vax = require('../clinic/vaccines');
-    await vax.ensureSchedule(pool, cid);
+    await vax.ensureSchedule(pool, cid, res.locals.t);
 
     const [schedule, given] = await Promise.all([
       pool.query('SELECT * FROM clinic_vaccine_schedule WHERE company_id=$1 AND is_active ORDER BY age_months, sort_order', [cid]),
@@ -1270,8 +1270,9 @@ router.post('/voice-bookings/:id/dismiss', addons.requireAddon(pool, 'voice_book
 // who stopped coming and gives the clinic a working list — not a report.
 const DEFAULT_LAPSE_DAYS = 180;   // dental recall is ~6 months; a sane default
 const RECONTACT_COOLDOWN = 60;    // never chase the same person twice in 2 months
-const DEFAULT_FOLLOWUP_TPL =
-  'أ/{name}، تحية من {clinic}. عدّى وقت على آخر زيارة ليك — لو حابب تحجز متابعة إحنا في خدمتك.';
+// The clinic edits this before sending, so it starts in whichever language the
+// clinic runs its back-office in rather than always in Arabic.
+const followupTpl = (res) => res.locals.t('gr.tpl_default');
 
 router.get('/growth', requireModule('growth'), async (req, res) => {
   const cid = req.company.id;
@@ -1332,7 +1333,7 @@ router.get('/growth', requireModule('growth'), async (req, res) => {
       lapsed: lapsed.rows, days, stats: stats.rows[0] || {}, recent: recent.rows,
       cooldown: RECONTACT_COOLDOWN,
       autoSendAvailable: !!(waOn && waOn.active),
-      template: DEFAULT_FOLLOWUP_TPL,
+      template: followupTpl(res),
     });
   } catch (e) { console.error('[growth]', e.message); res.status(500).send('error'); }
 });
@@ -1374,7 +1375,7 @@ router.post('/growth/send', requireModule('growth'), async (req, res) => {
     const { sendWhatsApp: send, renderTemplate: render } = require('../lib/whatsapp');
     for (const p of rows) {
       if (!p.phone) continue;
-      const msg = render(String(req.body.template || DEFAULT_FOLLOWUP_TPL).slice(0, 1000), {
+      const msg = render(String(req.body.template || followupTpl(res)).slice(0, 1000), {
         name: p.name || '', clinic: req.company.company_name || '',
       });
       const r = await send(w, p.phone, msg);
