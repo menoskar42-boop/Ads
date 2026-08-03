@@ -1,0 +1,180 @@
+<%- include('head', { title: t('fn2.flag.reports'), tab: 'reports' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  var q = '?from=' + from + '&to=' + to;
+  var CAT = {};
+  ['rent','utilities','transport','tools','maintenance','marketing','fees','other'].forEach(function(k){ CAT[k] = t('fn2.ex.cat.' + k); });
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <h1 class="text-2xl font-black text-stone-900">📊 <%= t('fn2.flag.reports') %></h1>
+  <button onclick="window.print()" class="no-print ms-auto text-xs bg-stone-100 hover:bg-stone-200 rounded-xl px-4 py-2 font-bold"><%= t('iv.print') %></button>
+</div>
+<p class="text-stone-500 mb-4 text-sm"><%= fmtD(from) %> — <%= fmtD(to) %></p>
+
+<style>
+  @media print {
+    header, nav, .no-print { display: none !important; }
+    body { background: #fff !important; }
+    main { max-width: 100% !important; padding: 0 !important; }
+  }
+</style>
+
+<form method="get" class="no-print flex items-end gap-2 mb-5 flex-wrap">
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.from') %>
+    <input type="date" name="from" value="<%= from %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <label class="text-xs font-bold text-stone-600"><%= t('fn2.hr.to') %>
+    <input type="date" name="to" value="<%= to %>" class="mt-1 block border border-stone-200 rounded-xl px-3 py-1.5 text-sm" />
+  </label>
+  <button class="bg-stone-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('fn2.hr.show') %></button>
+  <a href="/furniture/reports/export<%= q %>&type=summary" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2 font-bold"><%= t('fn2.rp.export') %> CSV</a>
+</form>
+
+<!-- ── ملخّص الفترة ─────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+  <% [
+       ['fn2.rp.invoiced', period.invoiced, 'text-stone-900'],
+       ['fn2.rp.collected', period.collected, 'text-emerald-700'],
+       ['fn2.rp.received', period.received, 'text-stone-900'],
+       ['fn2.hr.payroll', period.payroll, 'text-stone-900']
+     ].forEach(function(c){ %>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t(c[0]) %></div>
+    <div class="text-xl font-extrabold <%= c[2] %>"><%= money(c[1]) %></div>
+  </div>
+  <% }); %>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.flag.expenses') %></div>
+    <div class="text-xl font-extrabold text-stone-900"><%= money(period.expenses) %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.rp.cash') %></div>
+    <div class="text-xl font-extrabold <%= cash.balance < 0 ? 'text-red-700' : 'text-emerald-700' %>"><%= money(cash.balance) %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= t('fn2.rp.stock_value') %></div>
+    <div class="text-xl font-extrabold text-stone-900"><%= money(stock.value) %></div>
+  </div>
+  <div class="bg-stone-900 rounded-2xl shadow-sm p-4 text-white">
+    <div class="text-xs text-white/70 mb-1"><%= t('fn2.rp.difference') %></div>
+    <div class="text-xl font-extrabold <%= period.difference < 0 ? 'text-red-300' : '' %>"><%= money(period.difference) %></div>
+  </div>
+</div>
+<%# The one label that would mislead if it were shorter. %>
+<p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 mb-5"><%= t('fn2.rp.difference_hint') %></p>
+
+<div class="grid lg:grid-cols-2 gap-5">
+  <!-- أرصدة العملاء -->
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+      <span class="font-bold text-stone-800"><%= t('fn2.sa.balances') %></span>
+      <a href="/furniture/reports/export<%= q %>&type=customers" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
+    </div>
+    <% if (!customers.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.rp.none') %></p><% } else { %>
+    <div class="divide-y divide-stone-100">
+      <% customers.slice(0,15).forEach(function(c){ %>
+      <div class="px-5 py-2.5 flex items-center gap-2 text-sm">
+        <span class="text-stone-800 truncate"><%= c.name %></span>
+        <span class="ms-auto font-bold <%= Number(c.balance) > 0 ? 'text-amber-700' : 'text-emerald-700' %>"><%= money(c.balance) %></span>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- أرصدة الموردين -->
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+      <span class="font-bold text-stone-800"><%= t('fn2.po.balances') %></span>
+      <a href="/furniture/reports/export<%= q %>&type=suppliers" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
+    </div>
+    <% if (!suppliers.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.rp.none') %></p><% } else { %>
+    <div class="divide-y divide-stone-100">
+      <% suppliers.slice(0,15).forEach(function(s){ %>
+      <div class="px-5 py-2.5 flex items-center gap-2 text-sm">
+        <span class="text-stone-800 truncate"><%= s.name %></span>
+        <span class="ms-auto font-bold <%= Number(s.balance) > 0 ? 'text-amber-700' : 'text-emerald-700' %>"><%= money(s.balance) %></span>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- المصروفات -->
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+      <span class="font-bold text-stone-800"><%= t('fn2.ex.by_cat') %></span>
+      <a href="/furniture/reports/export<%= q %>&type=expenses" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
+    </div>
+    <% if (!expenses.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.ex.empty') %></p><% } else { %>
+    <div class="divide-y divide-stone-100">
+      <% expenses.forEach(function(e){ %>
+      <div class="px-5 py-2.5 flex items-center gap-2 text-sm">
+        <span class="text-stone-800"><%= CAT[e.category] || e.category %></span>
+        <span class="text-xs text-stone-400"><%= e.n %></span>
+        <span class="ms-auto font-bold text-stone-800"><%= money(e.total) %></span>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- خامات تحت الحد -->
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+      <span class="font-bold text-stone-800"><%= t('fn2.rp.low_stock') %></span>
+      <a href="/furniture/reports/export<%= q %>&type=inventory" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
+    </div>
+    <% if (!stock.low.length) { %><p class="px-5 py-6 text-sm text-stone-500"><%= t('fn2.rp.stock_ok') %></p><% } else { %>
+    <div class="divide-y divide-stone-100">
+      <% stock.low.forEach(function(m){ %>
+      <div class="px-5 py-2.5 flex items-center gap-2 text-sm">
+        <span class="text-stone-800 truncate"><%= m.name %></span>
+        <span class="ms-auto text-amber-700 font-bold"><%= money(m.qty) %> / <%= money(m.min_qty) %> <span class="text-xs font-normal text-stone-400"><%= m.unit || '' %></span></span>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- المرتّبات -->
+<% if (payroll.length) { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden mt-5">
+  <div class="px-5 py-3 border-b border-stone-100 flex items-center gap-2">
+    <span class="font-bold text-stone-800"><%= t('fn2.hr.history') %></span>
+    <a href="/furniture/reports/export<%= q %>&type=payroll" class="no-print ms-auto text-xs text-brand-700 font-bold">CSV</a>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-stone-50 text-stone-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.hr.worker') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.hr.period') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.hr.base') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.hr.deductions') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.hr.net') %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-stone-100">
+        <% payroll.forEach(function(p){ %>
+        <tr>
+          <td class="px-4 py-2 font-semibold text-stone-800" data-l="<%= t('fn2.hr.worker') %>"><%= p.worker_name || '—' %></td>
+          <td class="px-4 py-2 text-xs text-stone-500" data-l="<%= t('fn2.hr.period') %>"><%= fmtD(p.period_start) %> — <%= fmtD(p.period_end) %></td>
+          <td class="px-4 py-2" data-l="<%= t('fn2.hr.base') %>"><%= money(p.base) %></td>
+          <td class="px-4 py-2 text-red-700" data-l="<%= t('fn2.hr.deductions') %>"><%= money(p.deductions) %></td>
+          <td class="px-4 py-2 font-black" data-l="<%= t('fn2.hr.net') %>"><%= money(p.net) %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+</main></body></html>

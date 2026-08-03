@@ -1315,6 +1315,15 @@ const strings = {
     'fn2.ex.cat.tools':'عدد وأدوات','fn2.ex.cat.maintenance':'صيانة','fn2.ex.cat.marketing':'دعاية',
     'fn2.ex.cat.fees':'رسوم وضرائب','fn2.ex.cat.other':'أخرى',
 
+    // التقارير (المرحلة ٧)
+    'fn2.rp.invoiced':'المبيعات (فواتير)','fn2.rp.collected':'المحصّل',
+    'fn2.rp.received':'خامات وصلت','fn2.rp.difference':'الفرق',
+    'fn2.rp.difference_hint':'⚠️ ده فرق الفترة (فواتير − خامات ومرتّبات ومصروفات)، مش ربح محاسبي: الخامة اللي اشتريتها الشهر ده ممكن تتصرف الشهر الجاي، والمرتّب بيغطّي شغل اتباع بعدين.',
+    'fn2.rp.cash':'رصيد الكاش','fn2.rp.stock_value':'قيمة المخزون',
+    'fn2.rp.open_orders':'أوامر شراء مفتوحة','fn2.rp.this_month':'الشهر ده',
+    'fn2.rp.low_stock':'خامات تحت الحد','fn2.rp.stock_ok':'مفيش خامة تحت الحد.',
+    'fn2.rp.none':'مفيش أرصدة.','fn2.rp.export':'تصدير','fn2.rp.line':'البند',
+
     // منحنيات النمو
     'gc.title':'📈 منحنى النمو','gc.age_months':'شهر',
     'gc.m.weight':'الوزن حسب السن','gc.m.height':'الطول حسب السن',
@@ -2770,6 +2779,15 @@ const strings = {
     'fn2.ex.cat.rent':'Rent','fn2.ex.cat.utilities':'Utilities','fn2.ex.cat.transport':'Transport',
     'fn2.ex.cat.tools':'Tools','fn2.ex.cat.maintenance':'Maintenance','fn2.ex.cat.marketing':'Marketing',
     'fn2.ex.cat.fees':'Fees and taxes','fn2.ex.cat.other':'Other',
+
+    // Reports (phase 7)
+    'fn2.rp.invoiced':'Sales (invoiced)','fn2.rp.collected':'Collected',
+    'fn2.rp.received':'Materials received','fn2.rp.difference':'Difference',
+    'fn2.rp.difference_hint':'⚠️ This is the period difference (invoiced − materials, payroll and expenses), not accounting profit: timber bought this month may be used next, and payroll covers work sold later.',
+    'fn2.rp.cash':'Cash balance','fn2.rp.stock_value':'Stock value',
+    'fn2.rp.open_orders':'Open purchase orders','fn2.rp.this_month':'this month',
+    'fn2.rp.low_stock':'Materials below minimum','fn2.rp.stock_ok':'Nothing below its minimum.',
+    'fn2.rp.none':'No balances.','fn2.rp.export':'Export','fn2.rp.line':'Line',
 
     // Growth curves
     'gc.title':'📈 Growth chart','gc.age_months':'months',

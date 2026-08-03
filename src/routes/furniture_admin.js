@@ -75,16 +75,18 @@ router.use('/hr', requireFlag('hr'), require('./furniture_hr'));
 
 router.use('/canteen', requireFlag('canteen'), require('./furniture_canteen'));
 router.use('/expenses', requireFlag('expenses'), require('./furniture_expenses'));
+router.use('/reports', requireFlag('reports'), require('./furniture_reports'));
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    // Phase 0 shows the shape of the dashboard, not real figures. The cards are
-    // deliberately marked as placeholders rather than showing zeros, which would
-    // read as "you have no sales" instead of "this is not wired up yet".
+    // Real figures from phase 7 on. Cards whose section is switched off are
+    // dropped in the template rather than shown as zero.
+    const R = require('../furniture/reports');
     res.render('furniture_admin/dashboard', {
       company: req.company, tab: 'dashboard',
       settings: await settingsOf(req.company.id),
+      d: await R.dashboard(pool, req.company.id),
     });
   } catch (e) { console.error('[furniture dashboard]', e.message); res.status(500).send('error'); }
 });

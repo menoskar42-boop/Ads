@@ -109,6 +109,13 @@ const FIXTURES = {
       __file: 'furniture_admin/dashboard.ejs',
       tab: 'dashboard',
       settings: { currency: 'EGP', tax_percent: 0, theme: 'light' },
+      d: {
+        from: '2026-08-01', to: '2026-08-03',
+        period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250, difference: 34640 },
+        cash: { in: 12000, out: 11650, balance: 350 },
+        stock: { value: 41200, lowCount: 1, low: [] },
+        owedByCustomers: 41300, owedToSuppliers: 1200, openOrders: 2,
+      },
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },
@@ -379,6 +386,25 @@ const FIXTURES = {
       total: 8250, from: '2026-08-01', to: '2026-08-31',
       categories: require('../src/routes/furniture_expenses').CATEGORIES,
       saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_reports: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'hr']);
+    return {
+      __file: 'furniture_admin/reports.ejs', tab: 'reports',
+      from: '2026-08-01', to: '2026-08-31',
+      // A negative difference too, so the loss styling and wording render.
+      period: { invoiced: 51300, collected: 12000, received: 5010, payroll: 3400, expenses: 8250, difference: -1000 },
+      cash: { in: 12000, out: 11650, balance: 350 },
+      stock: { value: 41200, lowCount: 1, low: [{ name: 'Oak 18mm', unit: 'metre', qty: 4, min_qty: 10 }] },
+      customers: [{ id: 1, name: 'Mohamed A.', invoiced: 51300, paid: 10000, balance: 41300 }],
+      suppliers: [{ id: 1, name: 'Nile Timber', received: 1700, paid: 500, balance: 1200 }],
+      payroll: [{ id: 1, worker_name: 'Ramadan', period_start: '2026-08-01', period_end: '2026-08-07',
+        base: 1275, bonuses: 200, deductions: 620, net: 855, paid: true }],
+      expenses: [{ category: 'rent', total: 8000, n: 1 }, { category: 'sandpaper', total: 250, n: 1 }],
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },

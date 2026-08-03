@@ -3,30 +3,48 @@
 <h1 class="text-2xl font-black text-stone-900 mb-1"><%= t('fn2.dash.hi') %></h1>
 <p class="text-stone-500 mb-6"><%= t('fn2.dash.sub') %></p>
 
-<%# Phase 0 deliberately shows placeholders rather than zeros. A real "0 ج"
-    reads as "you sold nothing", which is a different and alarming message from
-    "this is not wired up yet". %>
-<div class="bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3 mb-5 text-sm text-brand-800">
-  <%= t('fn2.dash.phase0') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  // A card whose section is switched off would report a figure the showroom
+  // cannot open, so it is simply not drawn.
+  var CARDS = [
+    { key:'sales',     icon:'🛒', label:'fn2.card.sales',     value: d.period.invoiced,        tone:'text-stone-900' },
+    { key:'sales',     icon:'⏳', label:'fn2.card.due',       value: d.owedByCustomers,        tone:'text-amber-700' },
+    { key:'inventory', icon:'📦', label:'fn2.card.low_stock', value: d.stock.lowCount, plain:true, tone: d.stock.lowCount ? 'text-amber-700' : 'text-stone-900' },
+    { key:'purchases', icon:'🧾', label:'fn2.card.suppliers', value: d.owedToSuppliers,        tone:'text-amber-700' },
+  ].filter(function(c){ return flags.has(c.key); });
+%>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+  <% CARDS.forEach(function(c){ %>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1"><%= c.icon %> <%= t(c.label) %></div>
+    <div class="text-2xl font-extrabold <%= c.tone %>"><%= c.plain ? c.value : money(c.value) %></div>
+  </div>
+  <% }); %>
 </div>
 
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-  <% [
-       ['fn2.card.sales',      '🛒', 'sales'],
-       ['fn2.card.due',        '⏳', 'sales'],
-       ['fn2.card.low_stock',  '📦', 'inventory'],
-       ['fn2.card.suppliers',  '🧾', 'purchases']
-     ].forEach(function(c){
-        var on = flags.has(c[2]);
-  %>
-  <div class="bg-white rounded-2xl shadow-sm p-4 <%= on ? '' : 'opacity-50' %>">
-    <div class="text-xs text-stone-500 mb-1"><%= c[1] %> <%= t(c[0]) %></div>
-    <div class="text-2xl font-extrabold text-stone-300">—</div>
-    <% if (!on) { %>
-      <div class="text-[10px] text-stone-400 mt-1"><%= t('fn2.dash.flag_off') %></div>
-    <% } %>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1">💵 <%= t('fn2.rp.cash') %></div>
+    <div class="text-2xl font-extrabold <%= d.cash.balance < 0 ? 'text-red-700' : 'text-emerald-700' %>"><%= money(d.cash.balance) %></div>
   </div>
-  <% }); %>
+  <% if (flags.has('inventory')) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1">🪵 <%= t('fn2.rp.stock_value') %></div>
+    <div class="text-2xl font-extrabold text-stone-900"><%= money(d.stock.value) %></div>
+  </div>
+  <% } %>
+  <% if (flags.has('purchases')) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-stone-500 mb-1">📬 <%= t('fn2.rp.open_orders') %></div>
+    <div class="text-2xl font-extrabold text-stone-900"><%= d.openOrders %></div>
+  </div>
+  <% } %>
+  <div class="bg-stone-900 rounded-2xl shadow-sm p-4 text-white">
+    <div class="text-xs text-white/70 mb-1"><%= t('fn2.rp.difference') %> · <%= t('fn2.rp.this_month') %></div>
+    <div class="text-2xl font-extrabold <%= d.period.difference < 0 ? 'text-red-300' : '' %>"><%= money(d.period.difference) %></div>
+  </div>
 </div>
 
 <div class="bg-white rounded-2xl shadow-sm p-5">
