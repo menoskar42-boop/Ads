@@ -171,7 +171,7 @@ async function setStatus(pool, companyId, id, status, note, opts = {}) {
         SET status=$1,
             done_at = CASE WHEN $1='done' THEN COALESCE(done_at, now()) ELSE NULL END,
             note = COALESCE(NULLIF($2,''), note)
-      WHERE id=$3 AND company_id=$4 RETURNING id, status`,
+      WHERE id=$3 AND company_id=$4 RETURNING id, status, sale_id`,
     [st, String(note || '').trim().slice(0, 300), id, companyId]);
   if (!r.rows[0]) throw new Error('not_found');
   return r.rows[0];

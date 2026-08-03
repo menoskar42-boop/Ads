@@ -69,6 +69,14 @@ router.post('/:id(\\d+)/status', async (req, res) => {
     const done = await D.setStatus(pool, req.company.id, id, b.status, b.note, { override });
     req.flog(override ? 'delivery.dispatch_override' : 'delivery.status', 'delivery', id,
       `#${id} → ${done.status}`);
+    // Delivered is the moment a guarantee starts running — see
+    // src/furniture/warranty.js. Only on 'done', and only for rows that have
+    // not started, so a second trip cannot reset the first one's clock.
+    if (done.status === 'done' && done.sale_id) {
+      const started = await require('../furniture/warranty')
+        .startForSale(pool, req.company.id, done.sale_id, null);
+      if (started) req.flog('warranty.start', 'warranty', done.sale_id, `#${done.sale_id} · ${started}`);
+    }
   } catch (e) {
     console.error('[furniture delivery status]', e.message);
     if (e.message === 'unpaid') {

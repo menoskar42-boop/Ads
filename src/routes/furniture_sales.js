@@ -75,6 +75,12 @@ router.post('/', async (req, res) => {
         [cid, sale.id, l.product_id, l.qty, l.unit_price, S.round2(l.qty * l.unit_price)]
       );
     }
+    // In the same transaction as the invoice: a guarantee that exists without
+    // the sale that granted it, or a sale whose guarantee silently failed to
+    // record, are both worse than the write failing outright.
+    await require('../furniture/warranty')
+      .createForSale(client, cid, sale.id, parseInt(b.customer_id, 10) || null, lines);
+
     await client.query('COMMIT');
 
     // The deposit is a payment like any other, taken after the invoice exists so
@@ -108,7 +114,7 @@ router.get('/:id(\\d+)', async (req, res) => {
         WHERE s.id=$1 AND s.company_id=$2`, [id, cid]
     )).rows[0];
     if (!sale) return res.redirect('/furniture/sales');
-    const [items, payments, deliveries] = await Promise.all([
+    const [items, payments, deliveries, warranties] = await Promise.all([
       pool.query(
         `SELECT i.*, p.name AS product_name FROM furniture_sale_items i
            LEFT JOIN furniture_products p ON p.id = i.product_id
@@ -120,10 +126,13 @@ router.get('/:id(\\d+)', async (req, res) => {
       // block on the invoice of a showroom that deliberately turned it off.
       req.flags && req.flags.has('delivery')
         ? require('../furniture/delivery').forSale(pool, cid, id) : [],
+      req.flags && req.flags.has('warranty')
+        ? require('../furniture/warranty').forSale(pool, cid, id) : [],
     ]);
     res.render('furniture_admin/sale_detail', {
       company: req.company, tab: 'sales',
-      sale, items: items.rows, payments: payments.rows, deliveries, due: S.dueOf(sale),
+      sale, items: items.rows, payments: payments.rows, deliveries, warranties,
+      due: S.dueOf(sale),
       err: req.query.err || null, saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture sale]', e.message); res.status(500).send('error'); }

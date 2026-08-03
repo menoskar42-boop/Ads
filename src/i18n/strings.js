@@ -1167,6 +1167,8 @@ const strings = {
     'fn2.flagdesc.delivery':'مواعيد التسليم والتركيب، الطاقم، والمتأخّر — والرحلة اللي فشلت متسجّلة.',
     'fn2.flag.activity':'سجل النشاط',
     'fn2.flagdesc.activity':'مين عمل إيه وامتى. التسجيل شغّال دايماً — القسم بيخفي الصفحة بس.',
+    'fn2.flag.warranty':'الضمان',
+    'fn2.flagdesc.warranty':'ضمان كل قطعة، وبيبدأ يوم التسليم مش يوم الفاتورة، وتنبيه قبل ما يخلص.',
     'fn2.flagdesc.master':'الموردين والعملاء والخامات والعمالة والمنتجات.',
     'fn2.flagdesc.purchases':'أوامر شراء للموردين، استلام كلي أو جزئي، وحساب كل مورد.',
     'fn2.flagdesc.inventory':'أرصدة الخامات، الحد الأدنى، وحركة الصرف والوارد.',
@@ -1318,6 +1320,19 @@ const strings = {
     'fn2.act.a.delivery.dispatch_override':'خرّج بضاعة برغم المتبقّي',
     'fn2.set.delivery_policy':'الدفع والتوصيل',
     'fn2.set.delivery_policy_hint':'«الدفع قبل التوصيل» بيمنع أي ميعاد من إنه يخرج طول ما فيه متبقّي — وتقدر تتخطّاه بضغطة واحدة صريحة بتتسجّل في سجل النشاط.',
+
+    // الضمان (المرحلة ٨)
+    'fn2.wr.sub':'ضمان كل قطعة اتباعت، وإمتى بيخلص.',
+    'fn2.wr.rule':'ℹ️ الضمان بيبدأ يوم **التسليم** مش يوم الفاتورة. الدولاب اللي قعد ٦ أسابيع في الورشة ماكانش عند العميل — وحسابه من تاريخ الفاتورة بياخد الوقت ده من حقه من غير ما حد ياخد باله.',
+    'fn2.wr.months':'مدة الضمان (شهور)','fn2.wr.starts':'بدأ في','fn2.wr.expires':'بيخلص في',
+    'fn2.wr.days_left':'يوم متبقّي','fn2.wr.start_now':'ابدأ الضمان',
+    'fn2.wr.empty':'مفيش ضمانات لسه — حط «مدة الضمان» على المنتج الأول من البيانات الأساسية.',
+    'fn2.wr.none_in_view':'مفيش حاجة في العرض ده.',
+    'fn2.wr.st.all':'الكل','fn2.wr.st.active':'ساري','fn2.wr.st.expiring':'قرب يخلص',
+    'fn2.wr.st.expired':'خلص','fn2.wr.st.not_started':'لسه ماتسلّمش','fn2.wr.st.none':'بدون ضمان',
+    'fn2.f.warranty_months':'مدة الضمان (شهور)',
+    'fn2.act.a.warranty.start':'بدأ ضمانات بالتسليم',
+    'fn2.act.a.warranty.start_manual':'بدأ ضمان بالإيد',
 
     // سجل النشاط (المرحلة ٨)
     'fn2.act.sub':'كل حركة بتغيّر فلوس أو بيانات، بالاسم والوقت.',
@@ -2720,6 +2735,8 @@ const strings = {
     'fn2.flagdesc.delivery':'Delivery and fitting dates, the crew, and what is overdue — including the trip that failed.',
     'fn2.flag.activity':'Activity log',
     'fn2.flagdesc.activity':'Who did what, and when. Writing is always on — the section only hides the page.',
+    'fn2.flag.warranty':'Warranty',
+    'fn2.flagdesc.warranty':'A guarantee per piece, running from the delivery date rather than the invoice date, with a warning before it ends.',
     'fn2.flagdesc.master':'Suppliers, customers, materials, workers and products.',
     'fn2.flagdesc.purchases':'Purchase orders, full or partial receiving, and each supplier\'s balance.',
     'fn2.flagdesc.inventory':'Material stock, minimum levels, and every issue and receipt.',
@@ -2871,6 +2888,19 @@ const strings = {
     'fn2.act.a.delivery.dispatch_override':'dispatched despite an unpaid balance',
     'fn2.set.delivery_policy':'Payment and delivery',
     'fn2.set.delivery_policy_hint':'"Paid before delivery" stops any job leaving while money is outstanding — and can be overridden with one explicit click, which is written to the activity log.',
+
+    // Warranty (phase 8)
+    'fn2.wr.sub':'The guarantee on every piece sold, and when it runs out.',
+    'fn2.wr.rule':'ℹ️ A guarantee starts on the DELIVERY date, not the invoice date. A wardrobe that sat six weeks in the workshop was not in the customer\'s home for six weeks, and dating it from the invoice quietly takes that time off them.',
+    'fn2.wr.months':'Warranty (months)','fn2.wr.starts':'Started','fn2.wr.expires':'Expires',
+    'fn2.wr.days_left':'days left','fn2.wr.start_now':'Start it',
+    'fn2.wr.empty':'No warranties yet — set a warranty length on the product in master data first.',
+    'fn2.wr.none_in_view':'Nothing in this view.',
+    'fn2.wr.st.all':'All','fn2.wr.st.active':'Active','fn2.wr.st.expiring':'Expiring soon',
+    'fn2.wr.st.expired':'Expired','fn2.wr.st.not_started':'Not delivered yet','fn2.wr.st.none':'No warranty',
+    'fn2.f.warranty_months':'Warranty (months)',
+    'fn2.act.a.warranty.start':'started warranties on delivery',
+    'fn2.act.a.warranty.start_manual':'started a warranty by hand',
 
     // Activity log (phase 8)
     'fn2.act.sub':'Every action that moved money or changed data, with a name and a time on it.',

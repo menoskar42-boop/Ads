@@ -74,6 +74,10 @@ const ENTITIES = {
       // Replaced by the bill of materials in phase 4; until then the workshop
       // types its own estimate rather than seeing a zero it cannot explain.
       { key: 'estimated_cost', type: 'num' },
+      // Zero means no guarantee — which is a fact about the piece, not a gap in
+      // the data. The system must never invent a promise the workshop did not
+      // make, so there is no default other than none.
+      { key: 'warranty_months', type: 'num' },
       { key: 'notes',          type: 'text', max: 300 },
     ],
   },

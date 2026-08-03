@@ -248,6 +248,10 @@ const FIXTURES = {
         { id: 1, kind: 'delivery', status: 'done', scheduled_date: '2026-07-25', crew: 'Sayed + van 2' },
         { id: 2, kind: 'install', status: 'failed', scheduled_date: '2026-07-26', crew: null },
       ],
+      warranties: [
+        { id: 1, product_name: 'Classic bedroom', months: 24, state: 'active', expiresOn: '2028-07-25' },
+        { id: 2, product_name: 'Side table', months: 12, state: 'not_started', expiresOn: null },
+      ],
       due: S.dueOf(sale), err: 'has_paid', saved: false,
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
@@ -337,6 +341,31 @@ const FIXTURES = {
       sales: [{ id: 1, sale_date: '2026-07-20', total: 51300, customer_name: 'Mohamed A.' }],
       customers: [{ id: 1, name: 'Mohamed A.' }],
       err: 'unpaid', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_warranty: (lang) => {
+    const fl = require('../src/furniture/flags');
+    const W = require('../src/furniture/warranty');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    const TODAY = '2026-08-03';
+    const raw = [
+      { id: 1, sale_id: 1, customer_name: 'Mohamed A.', product_name: 'Classic bedroom', months: 24, starts_on: '2026-05-01' },
+      // Inside the 30-day window, so the "expiring soon" wording renders.
+      { id: 2, sale_id: 2, customer_name: 'Nile Furnishings', product_name: 'Dining set', months: 12, starts_on: '2025-08-20' },
+      { id: 3, sale_id: 3, customer_name: null, product_name: 'Side table', months: 6, starts_on: '2025-01-01' },
+      // Sold but not delivered: the inline start form renders instead of a date.
+      { id: 4, sale_id: 4, customer_name: 'Mohamed A.', product_name: 'Wardrobe', months: 24, starts_on: null },
+    ];
+    // Decorated by the same function the route uses, so the fixture cannot
+    // drift from the rule it exists to exercise.
+    const rows = raw.map((r) => ({ ...r, ...W.statusOf(r, TODAY) }));
+    return {
+      __file: 'furniture_admin/warranty.ejs', tab: 'warranty',
+      view: 'all', views: ['all', 'active', 'expiring', 'expired', 'not_started'],
+      rows, total: rows.length,
+      tally: rows.reduce((a, x) => { a[x.state] = (a[x.state] || 0) + 1; return a; }, {}),
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },

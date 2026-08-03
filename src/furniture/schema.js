@@ -379,6 +379,38 @@ async function ensureFurnitureSchema() {
       ALTER TABLE furniture_settings ADD COLUMN IF NOT EXISTS delivery_policy TEXT NOT NULL DEFAULT 'prepaid';
     `);
 
+    // ── Warranty (phase 8) ───────────────────────────────────────────────────
+    await client.query(`
+      -- How long each piece is guaranteed for. Zero means no warranty, which
+      -- is different from an unknown warranty and is the honest default: the
+      -- system must not invent a guarantee the workshop never gave.
+      ALTER TABLE furniture_products ADD COLUMN IF NOT EXISTS warranty_months INTEGER NOT NULL DEFAULT 0;
+
+      -- One row per guaranteed piece sold.
+      --
+      -- starts_on is NULL until the piece is actually DELIVERED. A wardrobe
+      -- that sat in the workshop for six weeks has not been in use for six
+      -- weeks, and starting its guarantee at the invoice date quietly robs the
+      -- customer of that time. The delivery marks it started.
+      CREATE TABLE IF NOT EXISTS furniture_warranties (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        sale_id     INTEGER REFERENCES furniture_sales(id) ON DELETE CASCADE,
+        customer_id INTEGER REFERENCES furniture_customers(id) ON DELETE SET NULL,
+        product_id  INTEGER REFERENCES furniture_products(id) ON DELETE SET NULL,
+        -- Copied at the time of sale: the product's warranty may be changed
+        -- later, but this customer was promised the figure printed that day.
+        months      INTEGER NOT NULL DEFAULT 0,
+        product_name TEXT,
+        qty         NUMERIC(14,3) NOT NULL DEFAULT 1,
+        starts_on   DATE,
+        note        TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_warranty ON furniture_warranties (company_id, starts_on);
+      CREATE INDEX IF NOT EXISTS idx_furn_warranty_sale ON furniture_warranties (sale_id);
+    `);
+
     // ── Expenses + audit ─────────────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS furniture_expenses (

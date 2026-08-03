@@ -141,6 +141,24 @@
 </div>
 <% } %>
 
+<% if (warranties && warranties.length) { %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mt-5">
+  <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.flag.warranty') %></h2>
+  <div class="divide-y divide-stone-100 text-sm">
+    <% warranties.forEach(function(w){ %>
+    <div class="flex flex-wrap items-center gap-2 py-2">
+      <span>🛡️</span>
+      <span class="text-stone-800"><%= w.product_name || '—' %></span>
+      <span class="text-xs text-stone-400"><%= w.months %> <%= t('fn2.wr.months') %></span>
+      <span class="ms-auto text-xs text-stone-500">
+        <%= w.expiresOn ? t('fn2.wr.expires') + ' ' + fmtD(w.expiresOn) : t('fn2.wr.st.' + w.state) %>
+      </span>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
 <% if (live) { %>
 <form method="post" action="/furniture/sales/<%= sale.id %>/cancel" class="mt-5 no-print"
       onsubmit="return confirm(<%= JSON.stringify(t('fn2.sa.cancel_confirm')) %>)">
