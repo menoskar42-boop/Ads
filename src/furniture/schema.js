@@ -64,6 +64,7 @@ async function ensureFurnitureSchema() {
         phone      TEXT,
         address    TEXT,
         note       TEXT,
+        is_active  BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_furn_customers ON furniture_customers (company_id, name);
@@ -113,6 +114,12 @@ async function ensureFurnitureSchema() {
         created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_furn_products ON furniture_products (company_id, name);
+
+      -- Master data is archived, never deleted, once it has history: a supplier
+      -- with past orders must still name itself on those orders. Added by ALTER
+      -- as well as in the CREATE above so a database made before this change
+      -- picks the column up too.
+      ALTER TABLE furniture_customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
     `);
 
     // ── Purchasing + stock ───────────────────────────────────────────────────

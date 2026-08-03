@@ -126,6 +126,43 @@ const FIXTURES = {
     };
   },
 
+  // One master-data screen per entity: materials exercises the numeric fields,
+  // the low-stock badge and the opening-balance hint; workers exercises the
+  // pick field, which is where an untranslated choice would show up.
+  furniture_materials: (lang) => {
+    const m = require('../src/furniture/master');
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/master.ejs',
+      tab: 'master', entity: 'materials', spec: m.ENTITIES.materials,
+      rows: [
+        { id: 1, name: 'Oak 18mm', unit: 'metre', qty: 4, min_qty: 10, last_purchase_price: 320 },
+        { id: 2, name: 'Lacquer', unit: 'litre', qty: 40, min_qty: 5, last_purchase_price: 180 },
+      ],
+      edit: null, q: '', showArchived: false, counts: { active: 2, archived: 1 },
+      err: null, saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  furniture_workers: (lang) => {
+    const m = require('../src/furniture/master');
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/master.ejs',
+      tab: 'master', entity: 'workers', spec: m.ENTITIES.workers,
+      rows: [{ id: 1, name: 'Sayed', job_title: 'Carpenter', phone: '01000000000', pay_type: 'piece', pay_rate: 250 }],
+      // The edit form is rendered too, so its labels and the pick options are
+      // checked in both languages rather than only the table.
+      edit: { id: 1, name: 'Sayed', job_title: 'Carpenter', phone: '01000000000', pay_type: 'piece', pay_rate: 250 },
+      q: '', showArchived: true, counts: { active: 1, archived: 0 },
+      err: 'in_use', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   appointments: () => ({
     tab: 'appointments',
     appts: [{

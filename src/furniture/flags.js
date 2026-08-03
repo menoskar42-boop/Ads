@@ -10,7 +10,7 @@
 'use strict';
 
 const FLAGS = [
-  { key: 'master',     label: 'البيانات الأساسية', icon: '📇', path: '/furniture/suppliers', core: true,
+  { key: 'master',     label: 'البيانات الأساسية', icon: '📇', path: '/furniture/master/suppliers', core: true,
     desc: 'الموردين والعملاء والخامات والعمالة والمنتجات.' },
   { key: 'purchases',  label: 'المشتريات',        icon: '🧾', path: '/furniture/purchases',
     desc: 'أوامر شراء للموردين، استلام كلي أو جزئي، وحساب كل مورد.' },

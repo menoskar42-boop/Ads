@@ -1,0 +1,146 @@
+<%- include('head', { title: t('fn2.e.' + entity), tab: 'master' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function fld(f){ return t('fn2.f.' + f.key); }
+  var editing = edit && edit.id;
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <h1 class="text-2xl font-black text-stone-900"><%= spec.icon %> <%= t('fn2.e.' + entity) %></h1>
+  <nav class="flex gap-1 text-xs ms-auto flex-wrap">
+    <% ['suppliers','customers','materials','workers','products'].forEach(function(k){ %>
+      <a href="/furniture/master/<%= k %>"
+         class="px-3 py-1.5 rounded-lg <%= k === entity ? 'bg-brand-600 text-white font-bold' : 'bg-white border border-stone-200 text-stone-600 hover:border-brand-300' %>">
+        <%= t('fn2.e.' + k) %>
+      </a>
+    <% }); %>
+  </nav>
+</div>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.e.sub.' + entity) %></p>
+
+<% if (saved) { %>
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div>
+<% } %>
+<% if (err) { %>
+  <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800">
+    <%= err === 'in_use' ? t('fn2.m.in_use') : t('fn2.m.required') %>
+  </div>
+<% } %>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <!-- ── Add / edit ───────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl shadow-sm p-5 lg:sticky lg:top-4">
+      <h2 class="font-bold text-stone-800 mb-3"><%= editing ? t('fn2.m.edit') : t('fn2.m.add') %></h2>
+      <form method="post" action="/furniture/master/<%= entity %>" class="grid gap-2.5">
+        <% if (editing) { %><input type="hidden" name="id" value="<%= edit.id %>" /><% } %>
+        <% spec.fields.forEach(function(f){
+             // The opening balance is set once, when the material is first
+             // counted. Editing it later would restate stock without a movement.
+             if (f.opening && editing) return;
+             var val = editing ? (edit[f.key] == null ? '' : edit[f.key]) : '';
+        %>
+          <label class="text-xs font-bold text-stone-600">
+            <%= fld(f) %><% if (f.required) { %> *<% } %>
+            <% if (f.type === 'pick') { %>
+              <select name="<%= f.key %>" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+                <% f.choices.forEach(function(c){ %>
+                  <option value="<%= c %>" <%= String(val) === c ? 'selected' : '' %>><%= t('fn2.pay.' + c) %></option>
+                <% }); %>
+              </select>
+            <% } else if (f.type === 'num') { %>
+              <input name="<%= f.key %>" type="number" min="0" <%- 'step="0.01"' %> value="<%= val %>"
+                     class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+            <% } else { %>
+              <input name="<%= f.key %>" maxlength="<%= f.max %>" value="<%= val %>"
+                     <%- f.dir ? 'dir="' + f.dir + '"' : '' %>
+                     <%- f.placeholder ? 'placeholder="' + t(f.placeholder) + '"' : '' %>
+                     class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+            <% } %>
+          </label>
+          <% if (f.opening) { %><p class="text-[11px] text-stone-400 -mt-1"><%= t('fn2.m.opening_hint') %></p><% } %>
+        <% }); %>
+        <div class="flex gap-2 mt-1">
+          <button class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm">
+            <%= editing ? t('common.save') : t('fn2.m.add') %>
+          </button>
+          <% if (editing) { %>
+            <a href="/furniture/master/<%= entity %>" class="border border-stone-200 rounded-xl px-4 py-2 text-sm text-stone-600 grid place-items-center"><%= t('common.cancel') %></a>
+          <% } %>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── List ─────────────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-2">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <a href="/furniture/master/<%= entity %>" class="text-xs px-3 py-1.5 rounded-lg <%= showArchived ? 'bg-white border border-stone-200 text-stone-600' : 'bg-stone-800 text-white font-bold' %>">
+        <%= t('fn2.m.active') %> (<%= counts.active %>)
+      </a>
+      <a href="/furniture/master/<%= entity %>?archived=1" class="text-xs px-3 py-1.5 rounded-lg <%= showArchived ? 'bg-stone-800 text-white font-bold' : 'bg-white border border-stone-200 text-stone-600' %>">
+        <%= t('fn2.m.archived') %> (<%= counts.archived %>)
+      </a>
+      <form method="get" class="ms-auto flex gap-1">
+        <% if (showArchived) { %><input type="hidden" name="archived" value="1" /><% } %>
+        <input name="q" value="<%= q %>" placeholder="<%= t('fn2.m.search') %>"
+               class="border border-stone-200 rounded-xl px-3 py-1.5 text-sm w-40" />
+      </form>
+    </div>
+
+    <% if (!rows.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-stone-500"><%= t('fn2.m.empty') %></div>
+    <% } else { %>
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm rt">
+          <thead class="bg-stone-50 text-stone-600">
+            <tr>
+              <% spec.fields.forEach(function(f){ %><th class="text-start px-4 py-2 font-semibold"><%= fld(f) %></th><% }); %>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-stone-100">
+            <% rows.forEach(function(r){
+                 var low = entity === 'materials' && Number(r.min_qty) > 0 && Number(r.qty) <= Number(r.min_qty);
+            %>
+            <tr class="<%= low ? 'bg-amber-50/50' : '' %>">
+              <% spec.fields.forEach(function(f){ %>
+                <td class="px-4 py-2" data-l="<%= fld(f) %>" <%- f.dir ? 'dir="' + f.dir + '"' : '' %>>
+                  <% if (f.type === 'num') { %><%= money(r[f.key]) %>
+                  <% } else if (f.type === 'pick') { %><%= t('fn2.pay.' + r[f.key]) %>
+                  <% } else { %><%= r[f.key] || '—' %><% } %>
+                  <% if (f.key === 'qty' && low) { %>
+                    <span class="text-[10px] font-bold bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 ms-1"><%= t('fn2.m.low') %></span>
+                  <% } %>
+                </td>
+              <% }); %>
+              <td class="px-4 py-2">
+                <div class="flex items-center gap-1 justify-end">
+                  <a href="/furniture/master/<%= entity %>?edit=<%= r.id %>" class="text-xs px-2.5 py-1 rounded-lg border border-stone-200 hover:bg-stone-50"><%= t('dr.edit') %></a>
+                  <form method="post" action="/furniture/master/<%= entity %>/<%= r.id %>/archive">
+                    <% if (showArchived) { %><input type="hidden" name="restore" value="1" /><% } %>
+                    <button class="text-xs px-2.5 py-1 rounded-lg border border-stone-200 hover:bg-stone-50">
+                      <%= showArchived ? t('fn2.m.restore') : t('fn2.m.archive') %>
+                    </button>
+                  </form>
+                  <% if (showArchived) { %>
+                    <form method="post" action="/furniture/master/<%= entity %>/<%= r.id %>/delete"
+                          onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
+                      <button class="text-xs px-2 py-1 text-red-500 hover:text-red-700"><%= t('common.delete') %></button>
+                    </form>
+                  <% } %>
+                </div>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="text-[11px] text-stone-400 mt-2"><%= t('fn2.m.archive_hint') %></p>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>

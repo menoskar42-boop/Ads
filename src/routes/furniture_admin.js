@@ -53,6 +53,11 @@ async function settingsOf(companyId) {
   return r.rows[0] || {};
 }
 
+// Master data lives behind the core `master` flag, so it is always available —
+// a showroom with no suppliers or products is not a lighter install, it is a
+// broken one. Mounted after the guards so it inherits req.company and req.flags.
+router.use('/master', require('./furniture_master'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
