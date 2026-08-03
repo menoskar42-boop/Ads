@@ -194,7 +194,9 @@ router.get('/settings', async (req, res) => {
     const { SPECIALTIES, getSpecialty } = require('../clinic/specialties');
     res.render('clinic_admin/settings', {
       company: req.company, tab: 'settings', s,
-      specialties: SPECIALTIES,
+      // Localise the picker too — an English clinic choosing its specialty
+      // should not have to read the Arabic list.
+      specialties: SPECIALTIES.map((s) => ({ ...s, label: getSpecialty(s.key) ? require('../clinic/specialties').labelFor(s.key, res.locals.t) : s.label })),
       // Clinics saved free text before this list existed — keep whatever they
       // have as a selectable option so opening settings never silently
       // rewrites their specialty.
@@ -330,9 +332,9 @@ router.get('/patients/:id', async (req, res) => {
       prescriptions: rx.rows.map((r) => ({ ...r, meds: Array.isArray(r.medications) ? r.medications : [] })),
       doctors: docs.rows, visitTypes: vtypes.rows,
       specVitals: spec.vitalsFor(settings.specialty),
-      specExtra: spec.extraFor(settings.specialty),
-      vitalsLabels: spec.VITALS_LABELS,
-      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty) : null,
+      specExtra: spec.localizeFields(spec.extraFor(settings.specialty), res.locals.t),
+      vitalsLabels: spec.vitalsLabels(res.locals.t),
+      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty, res.locals.t) : null,
     });
   } catch (e) { console.error('[clinic patient file]', e.message); res.status(500).send('error'); }
 });
@@ -452,7 +454,7 @@ router.get('/patients/:id/trends', async (req, res) => {
     res.render('clinic_admin/patient_trends', {
       company: req.company, tab: 'patients',
       patient: p, series, pregnancy,
-      specialtyLabel: specialty ? require('../clinic/specialties').labelFor(specialty) : null,
+      specialtyLabel: specialty ? require('../clinic/specialties').labelFor(specialty, res.locals.t) : null,
       verdictOf: trends.verdict,
     });
   } catch (e) { console.error('[trends]', e.message); res.status(500).send('error'); }
@@ -1097,7 +1099,7 @@ router.get('/modules', async (req, res) => {
       // Modules the chosen specialty turns on by itself — shown so the owner
       // understands why one is already on rather than thinking it is a bug.
       bySpecialty: new Set(spec.modulesFor(settings.specialty)),
-      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty) : null,
+      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty, res.locals.t) : null,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[clinic modules]', e.message); res.status(500).send('error'); }

@@ -213,12 +213,41 @@ function modulesFor(key) {
 }
 
 // Human label for display — falls back to whatever text the clinic had saved.
-function labelFor(key) {
+// `t` is res.locals.t when the caller has it; without it the Arabic default is
+// used, so nothing ever renders a raw key.
+function labelFor(key, t) {
   const s = getSpecialty(key);
-  return s ? s.label : (key || '');
+  if (!s) return key || '';
+  if (typeof t === 'function') {
+    const k = 'spec.' + s.key, tr = t(k);
+    if (tr && tr !== k) return tr;
+  }
+  return s.label;
+}
+
+// Same idea for the extra visit fields, so an English clinic sees "LMP (last
+// menstrual period)" rather than the Arabic default.
+function localizeFields(fields, t) {
+  if (typeof t !== 'function') return fields;
+  return (fields || []).map((f) => {
+    const k = 'fld.' + f.key, tr = t(k);
+    return (tr && tr !== k) ? { ...f, label: tr } : f;
+  });
+}
+
+// Vitals labels in the requested language, keyed the same way.
+function vitalsLabels(t) {
+  if (typeof t !== 'function') return VITALS_LABELS;
+  const out = {};
+  for (const k of Object.keys(VITALS_LABELS)) {
+    const key = 'vit.' + k, tr = t(key);
+    out[k] = (tr && tr !== key) ? tr : VITALS_LABELS[k];
+  }
+  return out;
 }
 
 module.exports = {
   SPECIALTIES, VITALS_LABELS,
   getSpecialty, vitalsFor, extraFor, modulesFor, labelFor,
+  localizeFields, vitalsLabels,
 };
