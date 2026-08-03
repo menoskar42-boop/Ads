@@ -141,6 +141,11 @@ async function ensureClinicSchema() {
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_visits_company ON clinic_visits (company_id, visit_date, status);
+      -- Specialty-specific readings that have no vitals column of their own
+      -- (LMP, blood sugar, pain scale, visual acuity…). Kept as JSON so adding
+      -- a field for a new specialty is one line in specialties.js rather than a
+      -- migration and a mostly-empty column on every clinic's visits.
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS specialty_data JSONB NOT NULL DEFAULT '{}'::jsonb;
       CREATE INDEX IF NOT EXISTS idx_clinic_visits_patient ON clinic_visits (company_id, patient_id);
 
       -- Vital signs per visit.

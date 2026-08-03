@@ -10,7 +10,19 @@
   <div class="bg-white border border-slate-200 rounded-2xl p-6">
     <form method="post" action="/clinic/settings" class="grid gap-3">
       <label class="text-sm font-bold text-slate-700">التخصص العام للعيادة
-        <input name="specialty" maxlength="80" value="<%= s.specialty||'' %>" placeholder="مثال: أسنان / جلدية / متعددة التخصصات" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <select name="specialty" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <option value="">— اختر التخصص —</option>
+          <% if (customSpecialty) { %>
+            <option value="<%= customSpecialty %>" selected><%= customSpecialty %> (المحفوظ حالياً)</option>
+          <% } %>
+          <% specialties.forEach(function(sp){ %>
+            <option value="<%= sp.key %>" <%= s.specialty === sp.key ? 'selected' : '' %>><%= sp.label %></option>
+          <% }); %>
+        </select>
+        <span class="block text-xs font-normal text-slate-400 mt-1">
+          التخصص مش مجرد اسم — بيحدّد حقول الزيارة اللي هتظهر للطبيب، وبيفعّل الأدوات المناسبة تلقائياً
+          (اختيار «أسنان» بيشغّل وحدة الأسنان لوحدها).
+        </span>
       </label>
       <label class="text-sm font-bold text-slate-700">نبذة عن العيادة
         <textarea name="about" maxlength="2000" rows="3" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= s.about||'' %></textarea>

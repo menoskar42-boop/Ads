@@ -19,16 +19,50 @@
     <!-- Vitals -->
     <div id="vitals" class="bg-white border border-slate-200 rounded-2xl p-5">
       <h2 class="font-extrabold text-slate-900 mb-3">تسجيل العلامات الحيوية</h2>
+      <%
+        // Fields follow the clinic's specialty: a dentist is not asked for SpO2
+        // and a chest clinic is not missing it. Unknown/blank specialty falls
+        // back to the full set, so nothing is lost for clinics that have not
+        // chosen one yet.
+        var VSTEP = { temperature: '0.1', weight: '0.1', height: '0.1' };
+      %>
       <form method="post" action="/clinic/patients/<%= patient.id %>/vitals" class="grid grid-cols-2 gap-2">
-        <input name="systolic" type="number" placeholder="الانقباضي" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="diastolic" type="number" placeholder="الانبساطي" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="heart_rate" type="number" placeholder="النبض" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="temperature" type="number" step="0.1" placeholder="الحرارة °م" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="weight" type="number" step="0.1" placeholder="الوزن كجم" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="height" type="number" step="0.1" placeholder="الطول سم" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
-        <input name="spo2" type="number" placeholder="SpO₂ %" class="border border-slate-200 rounded-xl px-3 py-2 text-sm col-span-2" />
+        <% (specVitals || []).forEach(function(k){ %>
+          <input name="<%= k %>" type="number" <%= VSTEP[k] ? 'step="' + VSTEP[k] + '"' : '' %>
+                 placeholder="<%= vitalsLabels[k] %>"
+                 class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <% }); %>
+
+        <% (specExtra || []).forEach(function(f){ %>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 mb-1"><%= f.label %></label>
+            <% if (f.type === 'scale') { %>
+              <select name="sx_<%= f.key %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm">
+                <option value="">—</option>
+                <% for (var i = 1; i <= 10; i++) { %><option value="<%= i %>"><%= i %></option><% } %>
+              </select>
+            <% } else { %>
+              <input name="sx_<%= f.key %>"
+                     type="<%= f.type === 'num' ? 'number' : (f.type === 'date' ? 'date' : 'text') %>"
+                     <%= f.type === 'num' ? 'step="any"' : '' %>
+                     class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+            <% } %>
+          </div>
+        <% }); %>
+
+        <% if (!(specVitals || []).length && !(specExtra || []).length) { %>
+          <p class="col-span-2 text-xs text-slate-400">
+            التخصص ده مالوش قياسات دورية — تقدر تستخدم الملاحظة الإكلينيكية تحت.
+          </p>
+        <% } %>
+
+        <textarea name="notes" rows="2" maxlength="500" placeholder="ملاحظة على القياس (اختياري)"
+                  class="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm"></textarea>
         <button class="col-span-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">حفظ القياسات</button>
       </form>
+      <% if (specialtyLabel) { %>
+        <p class="text-xs text-slate-400 mt-2">الحقول معروضة حسب تخصص العيادة: <strong><%= specialtyLabel %></strong></p>
+      <% } %>
     </div>
 
     <!-- Clinical note -->

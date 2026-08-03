@@ -191,7 +191,15 @@ router.post('/patients', async (req, res) => {
 router.get('/settings', async (req, res) => {
   try {
     const s = (await pool.query('SELECT * FROM clinic_settings WHERE company_id=$1', [req.company.id])).rows[0] || {};
-    res.render('clinic_admin/settings', { company: req.company, tab: 'settings', s });
+    const { SPECIALTIES, getSpecialty } = require('../clinic/specialties');
+    res.render('clinic_admin/settings', {
+      company: req.company, tab: 'settings', s,
+      specialties: SPECIALTIES,
+      // Clinics saved free text before this list existed — keep whatever they
+      // have as a selectable option so opening settings never silently
+      // rewrites their specialty.
+      customSpecialty: s.specialty && !getSpecialty(s.specialty) ? s.specialty : null,
+    });
   } catch (e) { console.error(e.message); res.status(500).send('error'); }
 });
 router.post('/settings', async (req, res) => {
@@ -205,6 +213,19 @@ router.post('/settings', async (req, res) => {
       [req.company.id, String(b.specialty || '').slice(0, 80), String(b.about || '').slice(0, 2000), String(b.address || '').slice(0, 200),
         String(b.phone || '').slice(0, 30), String(b.whatsapp || '').slice(0, 30), String(b.hours || '').slice(0, 200), String(b.booking_enabled) === '1']
     );
+    // A specialty that implies a module switches it on by itself. Choosing
+    // "أسنان" is the whole reason the dental module exists — making the owner
+    // hunt for a separate toggle is how it stays off and unused. Additive only:
+    // nothing is ever disabled here, so a clinic that turned something on for
+    // its own reasons keeps it.
+    const { modulesFor } = require('../clinic/specialties');
+    for (const key of modulesFor(b.specialty)) {
+      await pool.query(
+        `INSERT INTO clinic_modules (company_id, module_key, enabled) VALUES ($1,$2,true)
+         ON CONFLICT (company_id, module_key) DO UPDATE SET enabled = true`,
+        [req.company.id, key]
+      ).catch((e) => console.error('[specialty module]', key, e.message));
+    }
   } catch (e) { console.error('[clinic settings]', e.message); }
   res.redirect('/clinic/settings?saved=1');
 });
@@ -300,11 +321,18 @@ router.get('/patients/:id', async (req, res) => {
       pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [cid]),
       pool.query('SELECT id, name FROM clinic_visit_types WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [cid]),
     ]);
+    // Which readings this clinic's specialty actually takes.
+    const spec = require('../clinic/specialties');
+    const settings = (await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [cid])).rows[0] || {};
     res.render('clinic_admin/patient_file', {
       company: req.company, tab: 'patients',
       patient: pRes.rows[0], visits: visits.rows, vitals: vitals.rows, notes: notes.rows,
       prescriptions: rx.rows.map((r) => ({ ...r, meds: Array.isArray(r.medications) ? r.medications : [] })),
       doctors: docs.rows, visitTypes: vtypes.rows,
+      specVitals: spec.vitalsFor(settings.specialty),
+      specExtra: spec.extraFor(settings.specialty),
+      vitalsLabels: spec.VITALS_LABELS,
+      specialtyLabel: settings.specialty ? spec.labelFor(settings.specialty) : null,
     });
   } catch (e) { console.error('[clinic patient file]', e.message); res.status(500).send('error'); }
 });
@@ -320,6 +348,29 @@ router.post('/patients/:id/vitals', async (req, res) => {
       [cid, pid, parseInt(b.visit_id, 10) || null, num(b.systolic), num(b.diastolic), num(b.heart_rate),
         num(b.temperature), num(b.weight), num(b.height), num(b.spo2), String(b.notes || '').slice(0, 500) || null]
     );
+
+    // Specialty-specific readings arrive as sx_<key> and are stored on the
+    // visit. Only keys this specialty actually declares are accepted, so a
+    // crafted form cannot stuff arbitrary JSON into the record.
+    const visitId = parseInt(b.visit_id, 10) || null;
+    if (visitId) {
+      const spec = require('../clinic/specialties');
+      const settings = (await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [cid])).rows[0] || {};
+      const allowed = spec.extraFor(settings.specialty);
+      const data = {};
+      for (const f of allowed) {
+        const v = String(b['sx_' + f.key] || '').trim();
+        if (v) data[f.key] = v.slice(0, 200);
+      }
+      if (Object.keys(data).length) {
+        // Merge, so recording a second reading mid-visit does not wipe the first.
+        await pool.query(
+          `UPDATE clinic_visits SET specialty_data = COALESCE(specialty_data,'{}'::jsonb) || $1::jsonb
+            WHERE id=$2 AND company_id=$3`,
+          [JSON.stringify(data), visitId, cid]
+        );
+      }
+    }
   } catch (e) { console.error('[clinic vitals]', e.message); }
   res.redirect('/clinic/patients/' + pid + '#vitals');
 });
