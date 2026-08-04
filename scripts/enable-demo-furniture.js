@@ -8,7 +8,7 @@
  * business settings, and seeds a little master data so the screens show what
  * they look like in use rather than five empty tables.
  *
- *   node scripts/enable-demo-furniture.js                  # slug "mobilia"
+ *   node scripts/enable-demo-furniture.js                  # slug "furniture"
  *   node scripts/enable-demo-furniture.js --slug=demo-furn
  *   node scripts/enable-demo-furniture.js --password=...   # set the login
  *   node scripts/enable-demo-furniture.js --dry-run
@@ -25,10 +25,13 @@ const arg = (name, fallback) => {
 };
 const dryRun = process.argv.includes('--dry-run');
 const noSeed = process.argv.includes('--no-seed');
-const slug = arg('slug', 'mobilia');
+// Matches the convention every other back-office demo follows (slug ===
+// page_type), because that is the URL the home page's "live demo" link points
+// at, and both tenant.js and the sitemap skip exactly that slug.
+const slug = arg('slug', 'furniture');
 const email = arg('email', `${slug}@demo.oscardevs.com`);
 // Public demo credentials by design — never put real customer data in here.
-const password = arg('password', 'mobilia123');
+const password = arg('password', 'furniture123');
 
 const SEED = {
   suppliers: [

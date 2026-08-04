@@ -1494,6 +1494,13 @@ const strings = {
     'ntp.portal':'دخول المرضى','ntp.portal_hint':'شوف خطتك الغذائية وسجّل وزنك.',
     'ntp.seo_tail':'متابعة تغذية علاجية وخطط غذائية مبنية على القياس.',
     'ntp.disclaimer':'المحتوى هنا تعريفي بالعيادة ولا يُغني عن الاستشارة الطبية. القرارات الغذائية تُتخذ مع أخصائي مؤهَّل بعد تقييم كل حالة.',
+    // الصفحة العامة لمعرض الموبيليا
+    'fnp.showroom':'معرض موبيليا','fnp.tagline':'موبيليا بتتعمل في ورشتنا',
+    'fnp.about':'عن المعرض','fnp.catalogue':'القطع اللي بنعملها',
+    'fnp.ask_price':'اسأل عن السعر','fnp.contact':'التواصل والعنوان',
+    'fnp.whatsapp':'كلّمنا على واتساب','fnp.no_contact':'بيانات التواصل هتتضاف قريب.',
+    'fnp.ask':'اسأل عن قطعة','fnp.ask_msg':'السلام عليكم، حابب أسأل عن قطعة عندكم.',
+    'fnp.seo_tail':'تصنيع وتشطيب موبيليا بالمقاس، وتسليم وتركيب.',
 
     // التنبيهات (المرحلة ٨)
     'fn2.al.sub':'اللي محتاج انتباهك دلوقتي.',
@@ -3236,6 +3243,13 @@ const strings = {
     'ntp.portal':'Patient sign in','ntp.portal_hint':'See your meal plan and log your weight.',
     'ntp.seo_tail':'Clinical nutrition follow-up and meal plans built on measurement.',
     'ntp.disclaimer':'This page introduces the practice and is not a substitute for medical advice. Dietary decisions are made with a qualified practitioner after assessing each case.',
+    // Public furniture showroom page
+    'fnp.showroom':'Furniture showroom','fnp.tagline':'Furniture made in our own workshop',
+    'fnp.about':'About the showroom','fnp.catalogue':'What we make',
+    'fnp.ask_price':'Ask for a price','fnp.contact':'Contact and address',
+    'fnp.whatsapp':'Message us on WhatsApp','fnp.no_contact':'Contact details coming soon.',
+    'fnp.ask':'Ask about a piece','fnp.ask_msg':'Hello, I would like to ask about a piece.',
+    'fnp.seo_tail':'Made-to-measure furniture, finished, delivered and fitted.',
 
     // Alerts (phase 8)
     'fn2.al.sub':'What needs your attention right now.',

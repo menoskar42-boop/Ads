@@ -370,6 +370,28 @@ const FIXTURES = {
     };
   },
 
+  // The public showroom page — the only furniture page visitors see, so it is
+  // held to the SEO rules (title <= 60, description 70-160, one h1).
+  tenant_furniture: () => ({
+    __file: 'tenant_furniture.ejs', __public: true,
+    company: { id: 1, slug: 'demo-furniture', company_name: 'Mobilia Assiut', logo_url: null,
+      description: 'A demo furniture showroom and workshop used to check the public page renders.' },
+    furnitureSettings: {
+      business_name: 'Mobilia Assiut', address: '5 Adly St, Assiut',
+      phone: '0882000000', whatsapp: '201000000000', currency: 'EGP',
+    },
+    // One priced, one unpriced, one with no photo: the three states the
+    // catalogue has to render without inventing a number.
+    furnitureProducts: [
+      { id: 1, name: 'Classic bedroom', category: 'Bedrooms', selling_price: 42000, notes: 'Solid beech, hand-finished.', image_path: '/uploads/a.jpg' },
+      { id: 2, name: 'Dining set for eight', category: 'Dining', selling_price: 0, notes: null, image_path: '/uploads/b.jpg' },
+      { id: 3, name: 'Wardrobe, made to measure', category: null, selling_price: 18500, notes: null, image_path: null },
+    ],
+    canonicalCompanyUrl: (slug) => 'https://' + slug + '.oscardevs.com/',
+    noindex: false, showAds: false,
+    siteOrigin: 'https://demo-furniture.oscardevs.com',
+  }),
+
   // ── Nutrition practice ─────────────────────────────────────────────────────
   nutrition_dashboard: () => ({
     __file: 'nutrition_admin/dashboard.ejs', tab: 'dashboard',

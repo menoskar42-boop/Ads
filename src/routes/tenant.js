@@ -320,6 +320,25 @@ router.get('/', async (req, res) => {
     catch (e) { /* never block render */ }
   }
 
+  // A furniture showroom's public page: who they are and what they make. The
+  // catalogue is the point — a showroom page with no pieces on it is a business
+  // card, and nobody drives across town for a business card.
+  let furnitureSettings = null;
+  let furnitureProducts = [];
+  if (company.page_type === 'furniture') {
+    try {
+      furnitureSettings = (await pool.query(
+        'SELECT * FROM furniture_settings WHERE company_id = $1', [company.id]
+      )).rows[0] || null;
+      furnitureProducts = (await pool.query(
+        `SELECT id, name, category, selling_price, notes, image_path
+           FROM furniture_products
+          WHERE company_id = $1 AND is_active
+          ORDER BY category NULLS LAST, name LIMIT 60`, [company.id]
+      )).rows;
+    } catch (e) { /* never block render */ }
+  }
+
   // A nutrition practice's own public page: who they are, how to reach them,
   // and a booking request. Loaded the same way the clinic's is.
   let nutritionSettings = null;
@@ -337,6 +356,7 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'orders') view = 'tenant_orders';
   else if (company.page_type === 'clinic') view = 'tenant_clinic';
   else if (company.page_type === 'nutrition') view = 'tenant_nutrition';
+  else if (company.page_type === 'furniture') view = 'tenant_furniture';
   else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
@@ -363,7 +383,13 @@ router.get('/', async (req, res) => {
   // the storefront is not built. Without this it falls through to the generic
   // portfolio view below and, with a long enough description, indexes as a page
   // that shows none of what it claims: a thin/doorway page by any reading.
-  else if (company.page_type === 'furniture') indexable = false;
+  // Was hard-coded false while there was no furniture view at all and the page
+  // fell through to the generic portfolio template — a page showing none of
+  // what it claimed. Now there is a real showroom page, so it earns the same
+  // kind of gate as the others: enough pieces to be worth landing on.
+  else if (company.page_type === 'furniture') {
+    indexable = furnitureProducts.length >= 3 && company.slug !== 'furniture';
+  }
   // Same gate as the clinic's: a practice page with no description and nothing
   // written about the practice shows a visitor nothing, and indexing it would
   // put a page in front of people that cannot answer why they clicked.
@@ -420,6 +446,8 @@ router.get('/', async (req, res) => {
     clinicSettings,
     clinicSpecialtyLabel,
     nutritionSettings,
+    furnitureSettings,
+    furnitureProducts,
     gymSettings,
     gymPlans,
     gymTrainers,

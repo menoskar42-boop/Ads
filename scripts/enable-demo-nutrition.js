@@ -2,7 +2,7 @@
 /**
  * Stand up a demo nutrition practice.
  *
- *   node scripts/enable-demo-nutrition.js            # slug "nutrio"
+ *   node scripts/enable-demo-nutrition.js            # slug "nutrition"
  *   node scripts/enable-demo-nutrition.js --dry-run  # show, write nothing
  *   node scripts/enable-demo-nutrition.js --no-seed  # company only
  *
@@ -17,9 +17,9 @@ const bcrypt = require('bcryptjs');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const DRY = process.argv.includes('--dry-run');
 const NO_SEED = process.argv.includes('--no-seed');
-const SLUG = 'nutrio';
-const EMAIL = 'nutrio@demo.oscardevs.com';
-const PASSWORD = 'nutrio123';
+const SLUG = 'nutrition';
+const EMAIL = 'nutrition@demo.oscardevs.com';
+const PASSWORD = 'nutrition123';
 
 const say = (m) => console.log((DRY ? '[dry] ' : '') + m);
 

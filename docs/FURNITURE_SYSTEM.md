@@ -236,7 +236,7 @@ src/views/furniture_admin/   head.ejs · dashboard.ejs · settings.ejs
 ## التجربة
 
 ```
-node scripts/enable-demo-furniture.js            # slug "mobilia"
+node scripts/enable-demo-furniture.js            # slug "furniture"
 node scripts/enable-demo-furniture.js --dry-run  # يعرض من غير ما يكتب
 node scripts/enable-demo-furniture.js --no-seed  # شركة + أقسام بس
 ```
@@ -245,8 +245,14 @@ node scripts/enable-demo-furniture.js --no-seed  # شركة + أقسام بس
 `/apply`)، ويعمل الدخول، ويفتح كل الأقسام، ويزرع بيانات أساسية مختصرة. **مكرّر
 آمن**: الصف اللي بنفس الاسم بيتساب زي ما هو.
 
-الدخول الافتراضي: `mobilia@demo.oscardevs.com` / `mobilia123` — **بيانات تجريبية
-معلنة، ممنوع تحط فيها داتا عميل حقيقي.**
+الدخول الافتراضي: `furniture@demo.oscardevs.com` / `furniture123` — **بيانات
+تجريبية معلنة، ممنوع تحط فيها داتا عميل حقيقي.**
+
+⚠️ **الـslug لازم يفضل `furniture`**: ده اللي رابط «شاهد نموذج حي» في الصفحة
+الرئيسية بيوصّل ليه، وهو اللي `tenant.js` والـsitemap **بيستثنوه من الفهرسة**
+عشان تجريبي. أي slug تاني معناه رابط مكسور أو صفحة تجريبية بتتفهرس على إنها
+معرض حقيقي. (كان `mobilia` قبل كده — لو الشركة دي اتعملت فعلاً، شغّل السكربت
+بالـslug الجديد أو غيّر الـslug من لوحة الأدمن.)
 
 بعد الدخول من `/company/login` → `/furniture`.
 
