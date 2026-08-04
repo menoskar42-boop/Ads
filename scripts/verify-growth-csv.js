@@ -42,6 +42,37 @@ function parse(file) {
   });
 }
 
+// Tables already in the repo, extracted and verified previously. Re-sending one
+// of these is the only check that can catch a WRONG-ROW extraction: the
+// percentile cross-check compares LMS against percentiles in the SAME row, so
+// a row picked from the wrong day is internally consistent and passes it. Only
+// comparing against a known-good table exposes that.
+let KNOWN = {};
+try { KNOWN = require('../src/clinic/growth_data').TABLES || {}; } catch (e) { /* optional */ }
+
+function crossCheck(key, rows) {
+  const want = KNOWN[key];
+  if (!want) return null;
+  const byMonth = new Map(want.map((r) => [r[0], r]));
+  const out = [];
+  let compared = 0;
+  let worst = 0;
+  for (const r of rows) {
+    const w = byMonth.get(r.month);
+    if (!w) continue;
+    compared += 1;
+    // Relative, not absolute: M is ~3 for a newborn's weight and ~110 for a
+    // five-year-old's height, so one absolute threshold cannot serve both.
+    for (const [i, name] of [[1, 'L'], [2, 'M'], [3, 'S']]) {
+      const diff = Math.abs(r[name] - w[i]);
+      const rel = Math.abs(w[i]) > 1e-9 ? diff / Math.abs(w[i]) : diff;
+      if (rel > worst) worst = rel;
+      if (rel > 0.001) out.push(`month ${r.month} ${name}: ${r[name]} vs known ${w[i]}`);
+    }
+  }
+  return { compared, worst, problems: out };
+}
+
 function check(file) {
   const rows = parse(file);
   const problems = [];
@@ -76,6 +107,16 @@ function check(file) {
   }
 
   const name = file.split('/').pop();
+  const key0 = name.replace(/\.csv$/i, '');
+  const cross = crossCheck(key0, rows);
+  if (cross && cross.compared) {
+    const bad = cross.problems.length;
+    console.log(`${bad ? '❌' : '🔁'} ${name}: cross-checked ${cross.compared} months against the copy `
+      + `already in the repo, largest relative difference ${(cross.worst * 100).toFixed(4)}%`);
+    cross.problems.slice(0, 5).forEach((p) => console.log('   ' + p));
+    problems.push(...cross.problems);
+  }
+
   if (!compared) {
     console.log(`⚠️  ${name}: ${rows.length} rows, months ${rows[0].month}–${rows[rows.length - 1].month} — `
       + 'NO percentile columns, so the LMS could not be verified. Re-export with P3/P50/P97.');
