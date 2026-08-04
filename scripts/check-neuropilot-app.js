@@ -13,7 +13,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const A = (p) => path.join(ROOT, 'neuropilot-app', p);
+// The native sources live in overlay/ — they are applied ON TOP of the
+// scaffold `cap add` generates, and the generated folders do not exist in git.
+const A = (p) => path.join(ROOT, 'neuropilot-app', 'overlay', p);
 const W = (p) => path.join(ROOT, 'neuropilot', p);
 const read = (p) => fs.readFileSync(p, 'utf8');
 
@@ -104,6 +106,14 @@ check('No duplicated app logic in the native project',
   !fs.existsSync(A('android/app/src/main/assets/app.js'))
   && !/DEFAULT_MINUTES|FIB\s*=/.test(plugin),
   'The timer, ladder, thought dump and stats must live in exactly one place.');
+
+// The overlay is applied after the scaffold is generated. If it shipped the
+// root build.gradle or settings.gradle it would clobber the wiring `cap add`
+// writes for the Capacitor modules, and the build would fail on a missing
+// project reference.
+check('Overlay does not clobber the generated Gradle wiring',
+  !fs.existsSync(A('android/settings.gradle')) && !fs.existsSync(A('android/build.gradle')),
+  'settings.gradle and the root build.gradle belong to the scaffold.');
 
 console.log(failed ? `\n⚠️  ${failed} مشكلة — راجعها قبل البناء.` : '\nمشروع التطبيق سليم.');
 process.exit(failed ? 1 : 0);
