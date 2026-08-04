@@ -7,7 +7,8 @@
 <div class="flex items-center gap-3 mb-1 flex-wrap">
   <a href="/nutrition/patients" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('nt.nav.patients') %></a>
   <h1 class="text-2xl font-black text-slate-900"><%= patient.name %></h1>
-  <button onclick="window.print()" class="no-print ms-auto text-xs bg-slate-100 hover:bg-slate-200 rounded-xl px-4 py-2 font-bold"><%= t('nt.m.print') %></button>
+  <a href="/nutrition/patients/<%= patient.id %>/report"
+     class="no-print ms-auto text-xs bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">📄 <%= t('nt.rep.title') %></a>
 </div>
 <p class="text-slate-500 mb-5 text-sm">
   <%= patient.gender ? t('nt.g.' + patient.gender) : '—' %>

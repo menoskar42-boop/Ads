@@ -1,0 +1,169 @@
+<%- include('head', { title: t('nt.rep.title') + ' — ' + patient.name, tab: 'patients' }) %>
+<%
+  function n(v, d){ return v == null ? '—' : Number(v).toLocaleString(LOC, {maximumFractionDigits: d == null ? 0 : d}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+%>
+
+<div class="flex items-center gap-3 mb-4 no-print">
+  <a href="/nutrition/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← <%= patient.name %></a>
+  <button onclick="window.print()" class="ms-auto text-xs bg-brand-600 text-white rounded-xl px-5 py-2 font-bold"><%= t('nt.m.print') %></button>
+</div>
+<%# "Save as PDF" is in every print dialogue on every platform. A server-side
+    renderer would be a large dependency producing a worse result: no
+    selectable Arabic text, no reflow, one more thing to break. %>
+<p class="text-xs text-slate-400 mb-5 no-print"><%= t('nt.rep.pdf_hint') %></p>
+
+<style>
+  @media print {
+    header, nav, .no-print { display: none !important; }
+    body { background: #fff !important; }
+    main { max-width: 100% !important; padding: 0 !important; }
+    .sheet { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+    .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+
+<div class="sheet bg-white rounded-2xl shadow-sm p-6">
+
+  <!-- ترويسة -->
+  <div class="flex items-start gap-3 pb-4 border-b border-slate-200 mb-5">
+    <div class="min-w-0">
+      <div class="font-black text-lg text-slate-900"><%= settings.practice_name || company.company_name %></div>
+      <div class="text-xs text-slate-500">
+        <% if (settings.phone) { %><span dir="ltr"><%= settings.phone %></span><% } %>
+        <% if (settings.address) { %> · <%= settings.address %><% } %>
+      </div>
+    </div>
+    <div class="ms-auto text-end text-xs text-slate-400 shrink-0">
+      <div><%= t('nt.rep.printed') %></div>
+      <div class="font-semibold text-slate-600"><%= fmtD(printedOn) %></div>
+    </div>
+  </div>
+
+  <!-- بيانات المريض -->
+  <div class="mb-5 avoid-break">
+    <h1 class="text-xl font-black text-slate-900 mb-1"><%= patient.name %></h1>
+    <div class="text-sm text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
+      <span><%= patient.gender ? t('nt.g.' + patient.gender) : '—' %></span>
+      <% if (calc.ok) { %><span><%= calc.age %> <%= t('nt.u.years') %></span><% } %>
+      <% if (patient.height_cm) { %><span><%= t('nt.f.height_cm') %>: <%= patient.height_cm %></span><% } %>
+      <% if (latest && latest.weight_kg != null) { %><span><%= t('nt.f.weight') %>: <%= latest.weight_kg %></span><% } %>
+      <span><%= t('nt.f.goal') %>: <%= t('nt.goal.' + patient.goal) %></span>
+      <% if (patient.target_weight_kg) { %><span><%= t('nt.f.target_weight') %>: <%= patient.target_weight_kg %></span><% } %>
+    </div>
+  </div>
+
+  <!-- الأهداف -->
+  <% if (calc.ok && calc.macros && !calc.macros.conflict) { %>
+  <div class="mb-5 avoid-break">
+    <h2 class="text-sm font-bold text-slate-800 mb-2 pb-1 border-b border-slate-100"><%= t('nt.rep.targets') %></h2>
+    <div class="grid grid-cols-4 gap-3 text-center">
+      <% [[t('nt.calc.target'), n(calc.target), t('nt.u.kcal')],
+          [t('nt.macro.protein'), n(calc.macros.protein), t('nt.u.g')],
+          [t('nt.macro.carbs'), n(calc.macros.carbs), t('nt.u.g')],
+          [t('nt.macro.fat'), n(calc.macros.fat), t('nt.u.g')]].forEach(function(c){ %>
+      <div class="border border-slate-200 rounded-xl p-2">
+        <div class="text-[10px] text-slate-500"><%= c[0] %></div>
+        <div class="text-base font-extrabold text-slate-900"><%= c[1] %></div>
+        <div class="text-[10px] text-slate-400"><%= c[2] %></div>
+      </div>
+      <% }); %>
+    </div>
+    <%# The floor warning travels onto the printed sheet. A caveat that only
+        exists on the screen is not a caveat once the paper is handed over. %>
+    <% if (calc.belowFloor) { %>
+      <p class="text-[11px] text-red-700 mt-2"><%= t('nt.calc.below_floor') %> <%= calc.floor %> <%= t('nt.u.kcal') %></p>
+    <% } %>
+  </div>
+  <% } %>
+
+  <!-- التقدّم -->
+  <% if (progress && series.length > 1) { %>
+  <div class="mb-5 avoid-break">
+    <h2 class="text-sm font-bold text-slate-800 mb-2 pb-1 border-b border-slate-100"><%= t('nt.prog.title') %></h2>
+    <div class="flex flex-wrap gap-4 text-sm mb-2">
+      <span><%= t('nt.prog.total') %> <b><%= progress.total > 0 ? '+' : '' %><%= progress.total %> <%= t('nt.u.kg') %></b></span>
+      <span><%= t('nt.prog.since') %> <b><%= progress.since > 0 ? '+' : '' %><%= progress.since %> <%= t('nt.u.kg') %></b></span>
+      <% if (progress.remaining != null) { %>
+        <span><%= t('nt.prog.remaining') %> <b><%= Math.abs(progress.remaining) %> <%= t('nt.u.kg') %></b></span>
+      <% } %>
+      <span class="text-xs text-slate-400 ms-auto"><%= fmtD(progress.from) %> — <%= fmtD(progress.to) %></span>
+    </div>
+    <%# Plain black on the print sheet: a green line on a mono office printer
+        comes out as pale grey and the patient sees an empty box. %>
+    <% var W = 640, H = 120, PAD = 6;
+       var kgs = series.map(function(s){ return s.kg; });
+       var lo = Math.min.apply(null, kgs), hi = Math.max.apply(null, kgs);
+       var span = (hi - lo) || 1;
+       var pts = series.map(function(s, i){
+         var x = PAD + (i / (series.length - 1)) * (W - PAD * 2);
+         var y = PAD + (1 - (s.kg - lo) / span) * (H - PAD * 2);
+         return x.toFixed(1) + ',' + y.toFixed(1);
+       }).join(' ');
+    %>
+    <svg viewBox="0 0 <%= W %> <%= H %>" class="w-full h-24 border border-slate-100 rounded-lg" preserveAspectRatio="none" role="img" aria-label="<%= t('nt.prog.title') %>">
+      <polyline points="<%= pts %>" fill="none" stroke="#0f172a" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+    </svg>
+    <div class="flex justify-between text-[10px] text-slate-400">
+      <span><%= lo %> <%= t('nt.u.kg') %></span><span><%= hi %> <%= t('nt.u.kg') %></span>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- الخطة -->
+  <% if (plan && items.length) { %>
+  <div class="mb-5">
+    <h2 class="text-sm font-bold text-slate-800 mb-2 pb-1 border-b border-slate-100">
+      <%= plan.title || t('nt.pl.one') %>
+      <span class="font-normal text-slate-400 text-xs">· <%= n(dayTotals.kcal) %> <%= t('nt.u.kcal') %> · <%= n(dayTotals.protein) %>/<%= n(dayTotals.carbs) %>/<%= n(dayTotals.fat) %> <%= t('nt.u.g') %></span>
+    </h2>
+    <% meals.forEach(function(meal){ var list = byMeal[meal]; if (!list.length) return; %>
+    <div class="mb-3 avoid-break">
+      <div class="flex items-baseline gap-2 mb-1">
+        <span class="text-xs font-bold text-slate-700"><%= t('nt.meal.' + meal) %></span>
+        <span class="text-[10px] text-slate-400 ms-auto"><%= n(mealTotals[meal].kcal) %> <%= t('nt.u.kcal') %></span>
+      </div>
+      <table class="w-full text-sm">
+        <tbody>
+          <% list.forEach(function(i){ %>
+          <tr class="border-b border-slate-50">
+            <td class="py-1"><%= i.food_name %><% if (i.note) { %> <span class="text-xs text-slate-400">· <%= i.note %></span><% } %></td>
+            <td class="py-1 text-slate-500 text-xs w-20 text-end"><%= n(i.grams) %> <%= t('nt.u.g') %></td>
+            <td class="py-1 text-slate-700 text-xs w-16 text-end"><%= n(i.kcal) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% }); %>
+    <% if (plan.notes) { %><p class="text-xs text-slate-600 mt-2"><%= plan.notes %></p><% } %>
+  </div>
+  <% } else { %>
+    <p class="text-sm text-slate-500 mb-5"><%= t('nt.rep.no_plan') %></p>
+  <% } %>
+
+  <!-- التحاليل -->
+  <% if (labs.length) { %>
+  <div class="mb-5 avoid-break">
+    <h2 class="text-sm font-bold text-slate-800 mb-2 pb-1 border-b border-slate-100"><%= t('nt.lab.title') %></h2>
+    <table class="w-full text-sm">
+      <tbody>
+        <% labs.slice(0, 12).forEach(function(l){ %>
+        <tr class="border-b border-slate-50">
+          <td class="py-1 text-xs text-slate-400 w-24"><%= fmtD(l.taken_on) %></td>
+          <td class="py-1"><%= l.title %></td>
+          <td class="py-1 font-semibold text-end"><%= l.value || '' %> <span class="text-xs font-normal text-slate-400"><%= l.unit || '' %></span></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+
+  <%# The disclaimer is on the sheet, not only on the screen. This page leaves
+      the building. %>
+  <p class="text-[10px] text-slate-400 pt-3 border-t border-slate-200"><%= t('nt.calc.disclaimer') %></p>
+</div>
+
+</main></body></html>

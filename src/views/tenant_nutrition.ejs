@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%
+  var S = (typeof nutritionSettings !== 'undefined' && nutritionSettings) || {};
+  var __name = S.practice_name || company.company_name || t('ntp.practice');
+  var __brand = ' | OscarDevs';
+  // Held under 60 characters, the limit the project records after the Bing
+  // audit: a title that gets truncated in results is a title nobody chose.
+  var __base = __name + ' — ' + t('ntp.tagline');
+  var __title = (__base.length + __brand.length) <= 60 ? (__base + __brand)
+    : (__base.length <= 60 ? __base : __base.slice(0, 60));
+
+  // A practice that wrote two words about itself would otherwise ship a thin
+  // description. Below ~70 characters we compose one from facts they actually
+  // entered rather than shipping the stub.
+  var __about = String(S.about || company.description || '').trim();
+  var __bits = [__name + ' — ' + t('ntp.tagline')];
+  if (S.address) __bits.push(S.address);
+  var __desc = __about.length >= 70 ? __about : (__bits.join(' · ') + '. ' + t('ntp.seo_tail'));
+  if (__desc.length > 155) {
+    __desc = __desc.slice(0, 155);
+    var __cut = __desc.lastIndexOf(' ');
+    if (__cut > 120) __desc = __desc.slice(0, __cut);
+  }
+
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug)
+    : ('https://' + company.slug + '.oscardevs.com/');
+  var __noindex = (typeof noindex !== 'undefined' && noindex);
+  var __wa = S.whatsapp ? String(S.whatsapp).replace(/[^0-9]/g, '') : '';
+  var __phone = S.phone ? String(S.phone).replace(/[^0-9+]/g, '') : '';
+  var __map = S.address ? ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(S.address)) : null;
+  var __booking = S.booking_enabled !== false;
+%>
+<% if (__noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __name, ogImage: company.logo_url || '', siteManifest: '/manifest.webmanifest' }) %>
+
+<% if (!__noindex) { %>
+<%# Structured data only on pages that are actually indexed. Describing a page
+    to a search engine that has been told not to index it is noise. %>
+<script type="application/ld+json">
+<%- JSON.stringify(Object.assign({
+  '@context': 'https://schema.org',
+  '@type': 'Dietitian',
+  name: __name,
+  description: __desc,
+  url: __canon,
+}, __phone ? { telephone: __phone } : {},
+   S.address ? { address: { '@type': 'PostalAddress', streetAddress: S.address, addressCountry: 'EG' } } : {},
+   S.hours ? { openingHours: S.hours } : {},
+   company.logo_url ? { image: company.logo_url } : {})) %>
+</script>
+<% } %>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
+    colors: { brand: { 50:'#f0fdf4',100:'#dcfce7',200:'#bbf7d0',500:'#22c55e',600:'#16a34a',700:'#15803d',900:'#14532d' } }
+  } } };
+</script>
+<style>body{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<header class="bg-gradient-to-b from-brand-600 to-brand-700 text-white">
+  <div class="max-w-3xl mx-auto px-4 py-12 text-center">
+    <% if (company.logo_url) { %>
+      <img src="<%= company.logo_url %>" alt="<%= __name %>" class="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 bg-white" />
+    <% } else { %>
+      <div class="text-5xl mb-3">🥗</div>
+    <% } %>
+    <%# One h1 per page — the rule the project records after the Bing audit. %>
+    <h1 class="text-2xl sm:text-3xl font-black mb-2"><%= __name %></h1>
+    <p class="text-white/80 text-sm"><%= t('ntp.tagline') %></p>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-8">
+
+  <% if (__about) { %>
+  <section class="bg-white rounded-2xl shadow-sm p-6 mb-5">
+    <h2 class="font-bold text-slate-900 mb-2"><%= t('ntp.about') %></h2>
+    <p class="text-slate-600 text-sm leading-7 whitespace-pre-line"><%= __about %></p>
+  </section>
+  <% } %>
+
+  <section class="bg-white rounded-2xl shadow-sm p-6 mb-5">
+    <h2 class="font-bold text-slate-900 mb-3"><%= t('ntp.contact') %></h2>
+    <div class="grid gap-3 text-sm">
+      <% if (S.phone) { %>
+        <a href="tel:<%= __phone %>" class="flex items-center gap-2 text-slate-700 hover:text-brand-700">
+          <span>📞</span><span dir="ltr"><%= S.phone %></span>
+        </a>
+      <% } %>
+      <% if (__wa) { %>
+        <a href="https://wa.me/<%= __wa %>" target="_blank" rel="noopener"
+           class="flex items-center gap-2 text-slate-700 hover:text-brand-700">
+          <span>💬</span><span><%= t('ntp.whatsapp') %></span>
+        </a>
+      <% } %>
+      <% if (S.address) { %>
+        <a href="<%= __map %>" target="_blank" rel="noopener"
+           class="flex items-center gap-2 text-slate-700 hover:text-brand-700">
+          <span>📍</span><span><%= S.address %></span>
+        </a>
+      <% } %>
+      <% if (S.hours) { %>
+        <div class="flex items-center gap-2 text-slate-700"><span>🕒</span><span><%= S.hours %></span></div>
+      <% } %>
+      <% if (!S.phone && !__wa && !S.address && !S.hours) { %>
+        <p class="text-slate-400"><%= t('ntp.no_contact') %></p>
+      <% } %>
+    </div>
+  </section>
+
+  <% if (__booking && __wa) { %>
+  <a href="https://wa.me/<%= __wa %>?text=<%= encodeURIComponent(t('ntp.book_msg')) %>"
+     target="_blank" rel="noopener"
+     class="block bg-brand-600 hover:bg-brand-700 text-white text-center font-bold rounded-2xl px-6 py-4 mb-5">
+    <%= t('ntp.book') %>
+  </a>
+  <% } %>
+
+  <%# The patient portal link. A practice's own patients arrive here looking for
+      it, and hiding it behind a URL they have to be told twice is how a login
+      page goes unused. %>
+  <a href="/portal" class="block bg-white rounded-2xl shadow-sm p-5 text-center hover:bg-brand-50 mb-5">
+    <div class="text-2xl mb-1">🔐</div>
+    <div class="font-bold text-slate-900 text-sm"><%= t('ntp.portal') %></div>
+    <div class="text-xs text-slate-500 mt-1"><%= t('ntp.portal_hint') %></div>
+  </a>
+
+  <p class="text-[11px] text-slate-400 text-center leading-6"><%= t('ntp.disclaimer') %></p>
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-6">
+  <a href="https://oscardevs.com" target="_blank" rel="noopener" class="hover:text-slate-600">OscarDevs</a>
+</footer>
+
+</body>
+</html>

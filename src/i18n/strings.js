@@ -1483,6 +1483,17 @@ const strings = {
     'np.u.kg':'كجم','np.u.g':'جم','np.u.kcal':'سعرة',
     'np.m.saved':'اتسجّل ✅','np.err.weight':'الوزن ده مش منطقي — اكتبه بالكيلو (مثلاً 78.5).',
     'nt.err.login_taken':'اسم الدخول ده مستخدم مع مريض تاني عندك.',
+    'nt.rep.title':'تقرير المريض','nt.rep.printed':'اتطبع في',
+    'nt.rep.targets':'الأهداف اليومية','nt.rep.no_plan':'مفيش خطة نشطة للمريض ده.',
+    'nt.rep.pdf_hint':'اطبع الصفحة واختار «حفظ كـ PDF» من نافذة الطباعة — النص هيفضل عربي قابل للتحديد والنسخ.',
+    // الصفحة العامة لعيادة التغذية
+    'ntp.practice':'عيادة تغذية','ntp.tagline':'تغذية علاجية ومتابعة وزن',
+    'ntp.about':'عن العيادة','ntp.contact':'التواصل والحجز',
+    'ntp.whatsapp':'كلّمنا على واتساب','ntp.no_contact':'بيانات التواصل هتتضاف قريب.',
+    'ntp.book':'احجز موعد','ntp.book_msg':'السلام عليكم، حابب أحجز موعد استشارة تغذية.',
+    'ntp.portal':'دخول المرضى','ntp.portal_hint':'شوف خطتك الغذائية وسجّل وزنك.',
+    'ntp.seo_tail':'متابعة تغذية علاجية وخطط غذائية مبنية على القياس.',
+    'ntp.disclaimer':'المحتوى هنا تعريفي بالعيادة ولا يُغني عن الاستشارة الطبية. القرارات الغذائية تُتخذ مع أخصائي مؤهَّل بعد تقييم كل حالة.',
 
     // التنبيهات (المرحلة ٨)
     'fn2.al.sub':'اللي محتاج انتباهك دلوقتي.',
@@ -3214,6 +3225,17 @@ const strings = {
     'np.u.kg':'kg','np.u.g':'g','np.u.kcal':'kcal',
     'np.m.saved':'Logged ✅','np.err.weight':'That weight does not look right — enter it in kilograms (e.g. 78.5).',
     'nt.err.login_taken':'That username is already used by another of your patients.',
+    'nt.rep.title':'Patient report','nt.rep.printed':'Printed on',
+    'nt.rep.targets':'Daily targets','nt.rep.no_plan':'This patient has no active plan.',
+    'nt.rep.pdf_hint':'Print the page and choose "Save as PDF" in the print dialogue — the Arabic text stays selectable and copyable.',
+    // Public nutrition practice page
+    'ntp.practice':'Nutrition practice','ntp.tagline':'Clinical nutrition and weight follow-up',
+    'ntp.about':'About the practice','ntp.contact':'Contact and booking',
+    'ntp.whatsapp':'Message us on WhatsApp','ntp.no_contact':'Contact details coming soon.',
+    'ntp.book':'Book an appointment','ntp.book_msg':'Hello, I would like to book a nutrition consultation.',
+    'ntp.portal':'Patient sign in','ntp.portal_hint':'See your meal plan and log your weight.',
+    'ntp.seo_tail':'Clinical nutrition follow-up and meal plans built on measurement.',
+    'ntp.disclaimer':'This page introduces the practice and is not a substitute for medical advice. Dietary decisions are made with a qualified practitioner after assessing each case.',
 
     // Alerts (phase 8)
     'fn2.al.sub':'What needs your attention right now.',

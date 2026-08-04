@@ -485,6 +485,58 @@ const FIXTURES = {
     };
   },
 
+  // The public practice page — the only nutrition page visitors see, so it is
+  // held to the SEO rules (title <= 60, description 70-160, one h1).
+  tenant_nutrition: () => ({
+    __file: 'tenant_nutrition.ejs', __public: true,
+    company: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic', logo_url: null,
+      description: 'A demo nutrition practice used to check the public page renders.' },
+    nutritionSettings: {
+      practice_name: 'Nutrio Clinic', about: 'Clinical nutrition follow-up for adults, with plans built on measurement rather than guesswork.',
+      address: '5 Adly St, Assiut', phone: '0882000000', whatsapp: '201000000000',
+      hours: 'Sat-Thu 4pm-10pm', booking_enabled: true,
+    },
+    canonicalCompanyUrl: (slug) => 'https://' + slug + '.oscardevs.com/',
+    noindex: false, showAds: false,
+    siteOrigin: 'https://nutrio.oscardevs.com',
+  }),
+
+  nutrition_report: () => {
+    const E = require('../src/nutrition/engine');
+    const P = require('../src/nutrition/practice');
+    const patient = {
+      id: 1, name: 'Mona S.', phone: '01000000010', gender: 'female',
+      birth_date: '1992-03-15', height_cm: 165, activity: 'moderate', goal: 'loss',
+      protein_per_kg: null, fat_percent: null, target_weight_kg: 72, notes: '',
+    };
+    const measurements = [
+      { id: 3, taken_on: '2026-07-20', weight_kg: 84.2 },
+      { id: 2, taken_on: '2026-06-20', weight_kg: 86.0 },
+      { id: 1, taken_on: '2026-05-20', weight_kg: 88.5 },
+    ];
+    const series = measurements.slice().reverse()
+      .map((m) => ({ on: String(m.taken_on), kg: Number(m.weight_kg) }));
+    const items = [
+      { id: 1, meal: 'breakfast', food_name: 'Boiled egg', grams: 100, kcal: 155, protein_g: 13, carbs_g: 1.1, fat_g: 11, note: null },
+      { id: 2, meal: 'lunch', food_name: 'Grilled chicken breast', grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7.2, note: 'no skin' },
+    ];
+    const byMeal = {};
+    E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
+    return {
+      __file: 'nutrition_admin/report.ejs', tab: 'patients',
+      patient, measurements, series, labs: [{ id: 1, taken_on: '2026-07-01', title: 'Vitamin D', value: '18', unit: 'ng/mL' }],
+      plans: [], login: null, latest: measurements[0],
+      settings: { practice_name: 'Nutrio Clinic', phone: '0882000000', address: '5 Adly St' },
+      calc: E.compute(patient, measurements[0], { protein_per_kg: 1.8, fat_percent: 25 }),
+      progress: P.progress(series, patient.target_weight_kg),
+      plan: { id: 1, title: 'August plan', notes: 'Water 2L a day.', is_active: true },
+      items, meals: E.MEALS, byMeal,
+      dayTotals: E.totals(items),
+      mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
+      printedOn: '2026-08-04',
+    };
+  },
+
   // ── Patient portal ─────────────────────────────────────────────────────────
   // Rendered with `practice` rather than `company`, because the portal shell is
   // the only one served on the tenant's own subdomain.

@@ -320,11 +320,23 @@ router.get('/', async (req, res) => {
     catch (e) { /* never block render */ }
   }
 
+  // A nutrition practice's own public page: who they are, how to reach them,
+  // and a booking request. Loaded the same way the clinic's is.
+  let nutritionSettings = null;
+  if (company.page_type === 'nutrition') {
+    try {
+      nutritionSettings = (await pool.query(
+        'SELECT * FROM nutrition_settings WHERE company_id = $1', [company.id]
+      )).rows[0] || null;
+    } catch (e) { /* never block render */ }
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
   else if (company.page_type === 'orders') view = 'tenant_orders';
   else if (company.page_type === 'clinic') view = 'tenant_clinic';
+  else if (company.page_type === 'nutrition') view = 'tenant_nutrition';
   else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
@@ -352,6 +364,13 @@ router.get('/', async (req, res) => {
   // portfolio view below and, with a long enough description, indexes as a page
   // that shows none of what it claims: a thin/doorway page by any reading.
   else if (company.page_type === 'furniture') indexable = false;
+  // Same gate as the clinic's: a practice page with no description and nothing
+  // written about the practice shows a visitor nothing, and indexing it would
+  // put a page in front of people that cannot answer why they clicked.
+  else if (company.page_type === 'nutrition') {
+    const about = nutritionSettings && nutritionSettings.about ? nutritionSettings.about.trim().length : 0;
+    indexable = (descLen >= 40 || about >= 60) && company.slug !== 'nutrition';
+  }
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have
@@ -363,6 +382,9 @@ router.get('/', async (req, res) => {
   // Medical (clinic) pages likewise carry NO ads — health content is sensitive
   // and we keep the clinic vertical clear of AdSense (owner's decision).
   if (company.page_type === 'clinic') res.locals.showAds = false;
+  // A nutrition practice page carries none either: it is health-adjacent and
+  // the whole vertical is deliberately ad-free.
+  if (company.page_type === 'nutrition') res.locals.showAds = false;
 
   const preset = getPreset(company.profession);
   const pc = company.page_content || {};
@@ -397,6 +419,7 @@ router.get('/', async (req, res) => {
     clinicDoctors,
     clinicSettings,
     clinicSpecialtyLabel,
+    nutritionSettings,
     gymSettings,
     gymPlans,
     gymTrainers,

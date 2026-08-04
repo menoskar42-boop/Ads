@@ -157,6 +157,8 @@ router.get('/sitemap.xml', async (req, res) => {
         (SELECT COUNT(*) FROM pharmacy_inventory piv WHERE piv.company_id = c.id) AS stock_count,
         (SELECT COUNT(*) FROM clinic_doctors cd WHERE cd.company_id = c.id AND cd.is_active = true) AS doc_count,
         (SELECT COUNT(*) FROM gym_plans gp WHERE gp.company_id = c.id AND gp.is_active = true) AS plan_count,
+        (SELECT COALESCE(char_length(trim(ns.about)), 0) FROM nutrition_settings ns
+          WHERE ns.company_id = c.id) AS nutri_about_len,
         COALESCE(char_length(trim(c.description)), 0) AS desc_len
        FROM companies c WHERE c.is_active = true ORDER BY c.slug`
     );
@@ -169,6 +171,12 @@ router.get('/sitemap.xml', async (req, res) => {
       if (row.page_type === 'clinic' && row.slug === 'clinic') continue;
       if (row.page_type === 'orders' && row.slug === 'orders') continue;
       if (row.page_type === 'gym' && row.slug === 'gym') continue;
+      if (row.page_type === 'nutrition' && row.slug === 'nutrition') continue;
+      // A furniture showroom has no public page yet, so tenant.js renders it
+      // noindex unconditionally. Without this line the sitemap listed any
+      // furniture tenant with a long enough description — pointing crawlers
+      // straight at a page that tells them not to index it.
+      if (row.page_type === 'furniture') continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
@@ -177,6 +185,10 @@ router.get('/sitemap.xml', async (req, res) => {
         ? (Number(row.doc_count) >= 1 && Number(row.desc_len) >= 40)
         : row.page_type === 'gym'
         ? (Number(row.plan_count) >= 1 && Number(row.desc_len) >= 40)
+        // Must mirror tenant.js exactly, or the sitemap and the page disagree
+        // about whether the page should be in the index.
+        : row.page_type === 'nutrition'
+        ? (Number(row.desc_len) >= 40 || Number(row.nutri_about_len) >= 60)
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
       urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
@@ -218,7 +230,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push('## صفحات أساسية');
   lines.push(`- [الرئيسية](${SITE_ORIGIN}/): نظرة عامة على خدمات تصميم المواقع والمتاجر.`);
   lines.push(`- [من نحن](${SITE_ORIGIN}/about): قصة OscarDevs ورؤيتها.`);
-  lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع بورتفوليو أو متجر إلكتروني.`);
+  lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع أو نظام إدارة — بورتفوليو، متجر إلكتروني، صيدلية، مطعم/طلبات، عيادة، جيم، معرض وورشة موبيليا، أو عيادة تغذية.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (OncoScan لدعم قرار الأشعة، Safari Kids، NeuroPilot، Kakeibo، Sokro).`);

@@ -199,6 +199,35 @@ router.post('/patients/:id(\\d+)/lab/:lid(\\d+)/delete', async (req, res) => {
   res.redirect('/nutrition/patients/' + id);
 });
 
+// ── Printable report ─────────────────────────────────────────────────────────
+//
+// The sheet the patient walks out with. Browser print is the whole PDF story
+// here: "Save as PDF" is in every print dialogue on every platform, and a
+// server-side PDF renderer would be a large dependency producing a worse
+// result — no selectable Arabic text, no reflow, one more thing to break.
+router.get('/patients/:id(\\d+)/report', async (req, res) => {
+  try {
+    const data = await P.file(pool, req.company.id, parseInt(req.params.id, 10));
+    if (!data) return res.redirect('/nutrition/patients');
+    const active = data.plans.find((x) => x.is_active) || null;
+    const items = active ? (await pool.query(
+      'SELECT * FROM nutrition_plan_items WHERE plan_id=$1 AND company_id=$2 ORDER BY sort_order, id',
+      [active.id, req.company.id])).rows : [];
+    const byMeal = {};
+    E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
+
+    res.render('nutrition_admin/report', {
+      tab: 'patients', ...data,
+      settings: await P.settings(pool, req.company.id),
+      progress: P.progress(data.series, data.patient.target_weight_kg),
+      plan: active, items, meals: E.MEALS, byMeal,
+      dayTotals: E.totals(items),
+      mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
+      printedOn: new Date().toISOString().slice(0, 10),
+    });
+  } catch (e) { console.error('[nutrition report]', e.message); res.status(500).send('error'); }
+});
+
 // ── The patient's login ──────────────────────────────────────────────────────
 //
 // The dietitian sets it, and the password is shown ONCE, right after it is
