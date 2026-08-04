@@ -37,6 +37,11 @@ async function requirePractice(req, res, next) {
 }
 router.use(requireLogin, requirePractice);
 
+// Mounted after the guards so both inherit req.company — a food or a plan
+// router that ran before the practice check would be reachable by any login.
+router.use('/foods', require('./nutrition_foods'));
+router.use('/', require('./nutrition_plans'));
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {

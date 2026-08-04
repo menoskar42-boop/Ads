@@ -210,6 +210,45 @@
   </div>
 </div>
 
+<!-- ── الخطط الغذائية ────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mt-5">
+  <div class="flex items-center gap-2 mb-3">
+    <h2 class="font-bold text-slate-800 text-sm"><%= t('nt.pl.title') %></h2>
+  </div>
+
+  <% if (!plans.length) { %>
+    <p class="text-sm text-slate-500 mb-3"><%= t('nt.pl.empty') %></p>
+  <% } else { %>
+  <div class="divide-y divide-slate-100 text-sm mb-3">
+    <% plans.forEach(function(pl){ %>
+    <div class="flex flex-wrap items-center gap-2 py-2">
+      <a href="/nutrition/plans/<%= pl.id %>" class="font-semibold text-brand-700 hover:underline"><%= pl.title || t('nt.pl.one') %></a>
+      <span class="text-xs text-slate-400"><%= String(pl.start_date).slice(0,10) %></span>
+      <span class="text-xs text-slate-400"><%= pl.lines %> <%= t('nt.pl.lines') %></span>
+      <% if (pl.target_kcal) { %><span class="text-xs text-slate-500"><%= pl.target_kcal %> <%= t('nt.u.kcal') %></span><% } %>
+      <% if (pl.is_active) { %>
+        <span class="ms-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800"><%= t('nt.pl.active') %></span>
+      <% } %>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+  <%# The targets are taken from the engine as it stands TODAY and then frozen
+      onto the plan. That is why the button says what it will copy. %>
+  <form method="post" action="/nutrition/patients/<%= patient.id %>/plans" class="flex flex-wrap gap-2 items-end no-print">
+    <label class="text-xs font-bold text-slate-600 flex-1 min-w-[160px]"><%= t('nt.pl.new_title') %>
+      <input name="title" maxlength="120" placeholder="<%= t('nt.pl.title_ph') %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('nt.pl.create') %></button>
+  </form>
+  <% if (calc.ok) { %>
+    <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.pl.freeze_hint') %> <%= calc.target %> <%= t('nt.u.kcal') %></p>
+  <% } else { %>
+    <p class="text-[11px] text-amber-700 mt-2"><%= t('nt.pl.no_calc') %></p>
+  <% } %>
+</div>
+
 <!-- ── بيانات المريض ─────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mt-5 no-print">
   <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.pt.edit') %></h2>

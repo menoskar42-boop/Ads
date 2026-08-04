@@ -1,0 +1,116 @@
+<%- include('head', { title: t('nt.nav.foods'), tab: 'foods' }) %>
+<% function n(v,d){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits: d==null?1:d}); } %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">🍎 <%= t('nt.nav.foods') %></h1>
+<p class="text-slate-500 mb-3 text-sm"><%= t('nt.fd.sub') %></p>
+
+<%# The single most important thing on this page. Everything is per 100g, and a
+    dietitian who types per-serving figures will produce plans that are wrong by
+    whatever the serving happens to be. %>
+<p class="text-xs text-slate-600 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2.5 mb-5"><%= t('nt.fd.per100') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('nt.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('nt.err.' + err) %></div><% } %>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3"><%= edit ? t('nt.fd.edit') : t('nt.fd.new') %></h2>
+  <form method="post" action="/nutrition/foods" class="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <% if (edit) { %><input type="hidden" name="id" value="<%= edit.id %>" /><% } %>
+    <label class="text-xs font-bold text-slate-600 sm:col-span-2"><%= t('nt.fd.name') %>
+      <input name="name" maxlength="120" required value="<%= edit ? edit.name : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.kcal') %>
+      <input name="kcal" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.kcal : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.macro.protein') %>
+      <input name="protein_g" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.protein_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.macro.carbs') %>
+      <input name="carbs_g" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.carbs_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.macro.fat') %>
+      <input name="fat_g" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.fat_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.category') %>
+      <input name="category" maxlength="60" value="<%= edit ? (edit.category || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600 sm:col-span-2"><%= t('nt.fd.serving') %>
+      <input name="serving_desc" maxlength="60" placeholder="<%= t('nt.fd.serving_ph') %>" value="<%= edit ? (edit.serving_desc || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.serving_g') %>
+      <input name="serving_g" type="number" min="0" <%- 'step="1"' %> value="<%= edit ? (edit.serving_g || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <div class="sm:col-span-3 lg:col-span-6 flex gap-2">
+      <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= edit ? t('nt.m.save') : t('nt.m.add') %></button>
+      <% if (edit) { %><a href="/nutrition/foods" class="text-sm text-slate-500 px-4 py-2"><%= t('nt.m.cancel') %></a><% } %>
+    </div>
+  </form>
+</div>
+
+<%# Offered only into an empty database. A plan builder with no foods is
+    unusable on day one, and every dietitian would otherwise type the same
+    twenty staples by hand. %>
+<% if (!tally.active && !tally.archived) { %>
+<div class="bg-brand-50 border border-brand-200 rounded-2xl p-5 mb-5">
+  <p class="text-sm font-bold text-brand-900 mb-1"><%= t('nt.fd.starter_title') %></p>
+  <p class="text-xs text-brand-800 mb-3"><%= t('nt.fd.starter_body') %></p>
+  <form method="post" action="/nutrition/foods/starter">
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('nt.fd.starter_btn') %></button>
+  </form>
+</div>
+<% } %>
+
+<form method="get" class="flex gap-2 mb-4 flex-wrap items-center">
+  <input name="q" value="<%= q %>" placeholder="<%= t('nt.fd.search') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1 min-w-[180px]" />
+  <% if (archived) { %><input type="hidden" name="archived" value="1" /><% } %>
+  <button class="bg-slate-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('nt.m.search') %></button>
+  <a href="/nutrition/foods<%= archived ? '' : '?archived=1' %>"
+     class="text-xs px-3 py-2 rounded-xl <%= archived ? 'bg-slate-800 text-white font-bold' : 'bg-white border border-slate-200' %>">
+    <%= archived ? t('nt.m.active') + ' (' + tally.active + ')' : t('nt.m.archived') + ' (' + tally.archived + ')' %>
+  </a>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500"><%= t('nt.fd.empty') %></div>
+<% } else { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.fd.name') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.fd.kcal') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.macro.protein') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.macro.carbs') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.macro.fat') %></th>
+          <th class="text-start px-4 py-2 font-semibold"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% rows.forEach(function(f){ %>
+        <tr>
+          <td class="px-4 py-2" data-l="<%= t('nt.fd.name') %>">
+            <a href="/nutrition/foods?edit=<%= f.id %>" class="font-semibold text-brand-700 hover:underline"><%= f.name %></a>
+            <% if (f.category) { %><span class="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5 ms-1"><%= f.category %></span><% } %>
+          </td>
+          <td class="px-4 py-2 font-bold" data-l="<%= t('nt.fd.kcal') %>"><%= n(f.kcal, 0) %></td>
+          <td class="px-4 py-2 text-rose-700" data-l="<%= t('nt.macro.protein') %>"><%= n(f.protein_g) %></td>
+          <td class="px-4 py-2 text-amber-700" data-l="<%= t('nt.macro.carbs') %>"><%= n(f.carbs_g) %></td>
+          <td class="px-4 py-2 text-sky-700" data-l="<%= t('nt.macro.fat') %>"><%= n(f.fat_g) %></td>
+          <td class="px-4 py-2">
+            <form method="post" action="/nutrition/foods/<%= f.id %>/archive">
+              <input type="hidden" name="restore" value="<%= archived ? '1' : '0' %>" />
+              <button class="text-xs font-semibold <%= archived ? 'text-emerald-700' : 'text-slate-400 hover:text-red-600' %>">
+                <%= archived ? t('nt.m.restore') : t('nt.m.archive') %>
+              </button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+</main></body></html>

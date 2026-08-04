@@ -438,6 +438,51 @@ const FIXTURES = {
     };
   },
 
+  nutrition_foods: () => ({
+    __file: 'nutrition_admin/foods.ejs', tab: 'foods',
+    rows: [
+      { id: 1, name: 'Cooked white rice', kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3, category: 'grain', serving_g: 100, serving_desc: null },
+      { id: 2, name: 'Grilled chicken breast', kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6, category: 'protein', serving_g: 150, serving_desc: null },
+    ],
+    tally: { active: 22, archived: 1 }, edit: null, q: '', archived: false,
+    saved: true, err: 'not_empty',
+  }),
+
+  // The empty state, which is the only place the starter-list offer renders.
+  nutrition_foods_empty: () => ({
+    __file: 'nutrition_admin/foods.ejs', tab: 'foods',
+    rows: [], tally: { active: 0, archived: 0 }, edit: null, q: '', archived: false,
+    saved: false, err: null,
+  }),
+
+  nutrition_plan: () => {
+    const E = require('../src/nutrition/engine');
+    const items = [
+      { id: 1, meal: 'breakfast', food_name: 'Boiled egg', grams: 100, kcal: 155, protein_g: 13, carbs_g: 1.1, fat_g: 11, note: null },
+      { id: 2, meal: 'breakfast', food_name: 'Baladi bread', grams: 60, kcal: 165, protein_g: 5.7, carbs_g: 33, fat_g: 1, note: null },
+      { id: 3, meal: 'lunch', food_name: 'Grilled chicken breast', grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7.2, note: null },
+      { id: 4, meal: 'lunch', food_name: 'Cooked white rice', grams: 150, kcal: 195, protein_g: 4.1, carbs_g: 42, fat_g: 0.5, note: null },
+    ];
+    const byMeal = {};
+    E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
+    return {
+      __file: 'nutrition_admin/plan.ejs', tab: 'patients',
+      plan: { id: 1, pid: 1, patient_name: 'Mona S.', title: 'August plan',
+        target_kcal: 1650, target_protein: 152, target_carbs: 132, target_fat: 46,
+        start_date: '2026-08-01', is_active: true, notes: 'Water 2L a day.' },
+      items, foods: [
+        { id: 1, name: 'Cooked white rice', kcal: 130, serving_g: 150 },
+        { id: 2, name: 'Grilled chicken breast', kcal: 165, serving_g: 200 },
+      ],
+      meals: E.MEALS, byMeal,
+      // Real engine totals, so a change to the arithmetic cannot pass this
+      // check against a hand-written figure that no longer matches.
+      mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
+      dayTotals: E.totals(items),
+      saved: false, err: 'line',
+    };
+  },
+
   nutrition_settings: () => ({
     __file: 'nutrition_admin/settings.ejs', tab: 'settings',
     settings: { practice_name: 'Demo Nutrition', phone: '0882000000', whatsapp: '201000000000',

@@ -1,0 +1,134 @@
+<%- include('head', { title: (plan.title || t('nt.pl.one')) + ' — ' + plan.patient_name, tab: 'patients' }) %>
+<%
+  function n(v, d){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits: d==null?0:d}); }
+  // How far a total sits from its frozen target, as a percentage. Only shown
+  // when the plan actually HAS a target — a bar measured against nothing is a
+  // decoration.
+  function pct(actual, target){
+    if (!target) return null;
+    return Math.round((Number(actual) / Number(target)) * 100);
+  }
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/nutrition/patients/<%= plan.pid %>" class="text-slate-400 hover:text-slate-600 text-sm">← <%= plan.patient_name %></a>
+  <h1 class="text-2xl font-black text-slate-900"><%= plan.title || t('nt.pl.one') %></h1>
+  <% if (plan.is_active) { %>
+    <span class="text-xs font-semibold px-2 py-1 rounded-full bg-emerald-100 text-emerald-800"><%= t('nt.pl.active') %></span>
+  <% } else { %>
+    <form method="post" action="/nutrition/plans/<%= plan.id %>/activate" class="no-print">
+      <button class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"><%= t('nt.pl.make_active') %></button>
+    </form>
+  <% } %>
+  <button onclick="window.print()" class="no-print ms-auto text-xs bg-slate-100 hover:bg-slate-200 rounded-xl px-4 py-2 font-bold"><%= t('nt.m.print') %></button>
+</div>
+<p class="text-slate-500 mb-5 text-sm"><%= String(plan.start_date).slice(0,10) %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800 no-print"><%= t('nt.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800 no-print"><%= t('nt.err.' + err) %></div><% } %>
+
+<style>@media print { header, nav, .no-print, form { display:none !important; } body{background:#fff !important;} main{max-width:100% !important;padding:0 !important;} }</style>
+
+<!-- ── الإجمالي مقابل الهدف ──────────────────────────────────────── -->
+<%# The targets on this plan are the ones frozen when it was written, NOT
+    today's engine output. A plan whose target moves underneath it cannot be
+    reviewed: "you were 200 over" means nothing if the target has since changed. %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.pl.day_total') %></h2>
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <% [
+        ['nt.fd.kcal',      dayTotals.kcal,    plan.target_kcal,    'text-slate-900', 'bg-slate-700'],
+        ['nt.macro.protein',dayTotals.protein, plan.target_protein, 'text-rose-700',  'bg-rose-500'],
+        ['nt.macro.carbs',  dayTotals.carbs,   plan.target_carbs,   'text-amber-700', 'bg-amber-500'],
+        ['nt.macro.fat',    dayTotals.fat,     plan.target_fat,     'text-sky-700',   'bg-sky-500']
+       ].forEach(function(c){ var p = pct(c[1], c[2]); %>
+    <div class="border border-slate-100 rounded-xl p-3">
+      <div class="text-xs text-slate-500 mb-1"><%= t(c[0]) %></div>
+      <div class="text-lg font-extrabold <%= c[3] %>">
+        <%= n(c[1]) %><% if (c[2]) { %><span class="text-xs font-normal text-slate-400"> / <%= n(c[2]) %></span><% } %>
+      </div>
+      <% if (p != null) { %>
+        <div class="h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden">
+          <div class="h-full <%= p > 110 ? 'bg-red-500' : c[4] %>" style="width: <%= Math.min(100, p) %>%"></div>
+        </div>
+        <div class="text-[10px] mt-1 <%= p > 110 ? 'text-red-600 font-bold' : 'text-slate-400' %>"><%= p %>%</div>
+      <% } %>
+    </div>
+    <% }); %>
+  </div>
+  <% if (!plan.target_kcal) { %>
+    <p class="text-[11px] text-slate-400 mt-3"><%= t('nt.pl.no_target') %></p>
+  <% } %>
+</div>
+
+<!-- ── الوجبات ───────────────────────────────────────────────────── -->
+<% meals.forEach(function(meal){ var items = byMeal[meal]; var mt = mealTotals[meal]; %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-4">
+  <div class="flex items-center gap-2 mb-3">
+    <h2 class="font-bold text-slate-800 text-sm"><%= t('nt.meal.' + meal) %></h2>
+    <% if (items.length) { %>
+      <span class="ms-auto text-xs text-slate-500">
+        <b class="text-slate-800"><%= n(mt.kcal) %></b> <%= t('nt.u.kcal') %> ·
+        <%= n(mt.protein) %>/<%= n(mt.carbs) %>/<%= n(mt.fat) %> <%= t('nt.u.g') %>
+      </span>
+    <% } %>
+  </div>
+
+  <% if (!items.length) { %>
+    <p class="text-sm text-slate-400 mb-3"><%= t('nt.pl.meal_empty') %></p>
+  <% } else { %>
+  <div class="divide-y divide-slate-100 text-sm mb-3">
+    <% items.forEach(function(i){ %>
+    <div class="flex flex-wrap items-center gap-2 py-2">
+      <span class="text-slate-800 font-semibold"><%= i.food_name %></span>
+      <span class="text-xs text-slate-400"><%= n(i.grams) %> <%= t('nt.u.g') %></span>
+      <% if (i.note) { %><span class="text-xs text-slate-400">· <%= i.note %></span><% } %>
+      <span class="ms-auto text-xs text-slate-500">
+        <b class="text-slate-800"><%= n(i.kcal) %></b> ·
+        <span class="text-rose-700"><%= n(i.protein_g) %></span>/<span class="text-amber-700"><%= n(i.carbs_g) %></span>/<span class="text-sky-700"><%= n(i.fat_g) %></span>
+      </span>
+      <form method="post" action="/nutrition/plans/<%= plan.id %>/items/<%= i.id %>/delete" class="no-print">
+        <button class="text-xs text-slate-300 hover:text-red-600">✕</button>
+      </form>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+  <% if (foods.length) { %>
+  <form method="post" action="/nutrition/plans/<%= plan.id %>/items" class="flex flex-wrap gap-2 items-end no-print">
+    <input type="hidden" name="meal" value="<%= meal %>" />
+    <label class="text-xs font-bold text-slate-600 flex-1 min-w-[160px]"><%= t('nt.pl.food') %>
+      <select name="food_id" onchange="fill(this)" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% foods.forEach(function(f){ %>
+          <option value="<%= f.id %>" data-g="<%= f.serving_g || 100 %>"><%= f.name %> — <%= n(f.kcal) %> <%= t('nt.u.kcal') %>/100<%= t('nt.u.g') %></option>
+        <% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pl.grams') %>
+      <input name="grams" type="number" min="1" <%- 'step="1"' %> value="100" class="mt-1 w-24 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('nt.m.add') %></button>
+  </form>
+  <% } else { %>
+    <p class="text-sm text-slate-500 no-print"><%= t('nt.pl.no_foods') %>
+      <a href="/nutrition/foods" class="text-brand-700 font-semibold hover:underline"><%= t('nt.nav.foods') %></a></p>
+  <% } %>
+</div>
+<% }); %>
+
+<% if (plan.notes) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-5"><p class="text-sm text-slate-600"><%= plan.notes %></p></div>
+<% } %>
+
+<script>
+  // Prefill the grams box from the food's own serving size, so the common case
+  // is one click. The dietitian types over it whenever the portion differs.
+  function fill(sel){
+    var g = sel.options[sel.selectedIndex].getAttribute('data-g');
+    var box = sel.closest('form').querySelector('[name=grams]');
+    if (box && g) box.value = g;
+  }
+</script>
+
+</main></body></html>
