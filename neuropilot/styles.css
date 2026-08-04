@@ -419,3 +419,18 @@ html.dark .place-del { background: #3A2624; color: #E88B7F; }
   color: #7A5A1E;
   margin: 0 0 10px;
 }
+
+/* Android download promo. Quiet by design — it sits under the timer and must
+   never compete with the one button that matters on this screen. */
+.apk-promo {
+  margin: 28px auto 0;
+  max-width: 460px;
+  padding: 16px 18px;
+  border: 1px solid rgba(63, 182, 139, .28);
+  border-radius: 18px;
+  background: rgba(63, 182, 139, .06);
+  text-align: center;
+}
+.apk-promo-text { font-size: .88rem; line-height: 1.9; margin: 0 0 12px; opacity: .92; }
+.apk-promo-note { font-size: .72rem; line-height: 1.7; margin: 10px 0 0; opacity: .55; }
+.apk-promo.hidden { display: none; }

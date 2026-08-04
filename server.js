@@ -119,10 +119,33 @@ function sendNeuroIndex(res) {
     if (err) return res.status(500).type('text/plain').send('NeuroPilot failed to load.');
     const out = html
       .replace('/styles.css', '/styles.css?v=' + NEURO_VERSION)
+      .replace('/native.js', '/native.js?v=' + NEURO_VERSION)
       .replace('/app.js', '/app.js?v=' + NEURO_VERSION);
     res.type('html').set('Cache-Control', 'no-cache').send(out);
   });
 }
+// Shown when the APK has not been published yet. A dead download button that
+// 404s teaches people the app does not exist; saying "not yet, here is the web
+// version" keeps them.
+function sendNeuroApkPending(res) {
+  res.status(503).type('html').set('Cache-Control', 'no-store').send(`<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,follow">
+<title>النسخة المحمولة لسه بتتجهّز — NeuroPilot</title>
+<style>body{font-family:system-ui,'Segoe UI',sans-serif;background:#0F1720;color:#E8EEF4;
+display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:24px}
+.box{max-width:420px;text-align:center}h1{font-size:1.3rem;margin:0 0 12px}
+p{line-height:1.9;color:#A8B6C4;margin:0 0 20px}
+a{display:inline-block;background:#3FB68B;color:#0F1720;font-weight:800;
+text-decoration:none;padding:12px 24px;border-radius:14px}</style></head>
+<body><div class="box"><div style="font-size:2.5rem">📦</div>
+<h1>نسخة الأندرويد لسه بتتجهّز</h1>
+<p>التطبيق شغّال دلوقتي من المتصفح بكل مميزاته — عدا التذكير المكاني وانت قافل
+التطبيق، ودي الحاجة الوحيدة اللي مستنيين نسخة الأندرويد عشانها.</p>
+<a href="/">افتح NeuroPilot من المتصفح</a></div></body></html>`);
+}
+
 const neuroPush = require('./src/lib/neuropilot_push');
 const neuroJson = express.json({ limit: '16kb' });
 app.use((req, res, next) => {
@@ -132,6 +155,27 @@ app.use((req, res, next) => {
   const p = req.path;
   // Web Push API (served on the adhd subdomain, ahead of the static fallback).
   // This block runs before the global JSON parser, so parse inline where needed.
+  // ── APK download ───────────────────────────────────────────────────────────
+  //
+  // Our own stable URL in front of GitHub's, for two reasons: the page never
+  // has to know where the file is hosted, and a build that has not been
+  // published yet gets an explanation instead of GitHub's 404.
+  if (p === '/download/apk') {
+    const url = process.env.NEUROPILOT_APK_URL
+      || 'https://github.com/menoskar42-boop/Ads/releases/latest/download/neuropilot.apk';
+    // A HEAD first: a 302 straight to a release that does not exist yet drops
+    // the user on a GitHub error page with no idea what went wrong.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 4000);
+    return fetch(url, { method: 'HEAD', redirect: 'follow', signal: ac.signal })
+      .then((r) => {
+        clearTimeout(timer);
+        if (r.ok) return res.redirect(302, url);
+        return sendNeuroApkPending(res);
+      })
+      .catch(() => { clearTimeout(timer); return sendNeuroApkPending(res); });
+  }
+
   if (p === '/push/key') {
     return res.json({ enabled: neuroPush.isEnabled(), publicKey: neuroPush.publicKey() });
   }

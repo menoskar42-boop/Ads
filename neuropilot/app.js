@@ -1068,6 +1068,15 @@
     };
   }
 
+  // Inside the phone app there is nothing to download. Offering it there would
+  // be the app advertising itself to the person already using it.
+  function hideApkPromoInApp() {
+    var box = $("apkPromo");
+    if (!box) return;
+    var N = window.NeuroPilotNative;
+    if (N && N.available()) hide(box);
+  }
+
   // ─────────────────────────── init ───────────────────────────
   function init() {
     applyTheme(storedTheme());
@@ -1075,6 +1084,7 @@
     acquireWakeLock();
     registerServiceWorker();
     wireBell();
+    hideApkPromoInApp();
     // Re-arm arrival reminders saved from a previous session (while app open).
     armGeofence();
 

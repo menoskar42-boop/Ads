@@ -125,6 +125,18 @@
         <button id="bumpBtn" class="link-btn"></button>
       </div>
     </div>
+
+    <!-- Android download. Hidden inside the app itself — offering someone a
+         download of the thing they are already running is noise. app.js
+         removes it when the native bridge is present. -->
+    <div id="apkPromo" class="apk-promo" dir="rtl">
+      <p class="apk-promo-text">
+        📱 <strong>نسخة الأندرويد</strong> بتضيف حاجة واحدة المتصفح مش بيقدر عليها:
+        التذكير بيوصلك أول ما توصل المكان <strong>والتطبيق مقفول</strong>.
+      </p>
+      <a href="/download/apk" class="btn btn-accent" id="apkBtn" download>حمّل APK</a>
+      <p class="apk-promo-note">التثبيت من برّه جوجل بلاي محتاج تسمح بـ«تثبيت تطبيقات غير معروفة» مرة واحدة.</p>
+    </div>
   </main>
 
   <!-- ══════════ THOUGHTS VIEW ══════════ -->

@@ -4,9 +4,11 @@
   "private": true,
   "description": "NeuroPilot native shell — background geofencing for the ADHD focus app",
   "scripts": {
-    "sync": "node scripts/copy-web.js && npx cap sync",
-    "android": "npm run sync && npx cap open android",
-    "ios": "npm run sync && npx cap open ios",
+    "web": "node scripts/copy-web.js",
+    "overlay": "node scripts/apply-overlay.js",
+    "add:android": "npx cap add android",
+    "add:ios": "npx cap add ios",
+    "sync": "npm run web && npx cap sync && npm run overlay",
     "apk:debug": "npm run sync && cd android && ./gradlew assembleDebug",
     "apk:release": "npm run sync && cd android && ./gradlew assembleRelease"
   },

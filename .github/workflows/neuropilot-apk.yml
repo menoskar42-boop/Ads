@@ -1,0 +1,139 @@
+# Build the NeuroPilot APK on GitHub's runners.
+#
+# This exists because neither machine that has the source can build it:
+#   - the dev container blocks dl.google.com, so the Android SDK cannot install
+#   - Replit's package firewall blocks tar@6.2.1 (a real CVE, and the only 6.x
+#     that exists), which @capacitor/cli depends on
+#
+# GitHub's ubuntu runners ship the Android SDK and reach the real npm registry,
+# so both problems disappear rather than being worked around.
+#
+# The APK lands in the run's Artifacts. Actions → this workflow → newest run.
+name: NeuroPilot APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "debug (installable now) or release (needs signing secrets)"
+        type: choice
+        options: [debug, release]
+        default: debug
+  push:
+    branches: [claude/build-oscardevs-ads-mvp-8krfN]
+    # Only when the app or the web source it bundles actually changed. Building
+    # an APK on every unrelated commit wastes minutes and buries the run that
+    # matters.
+    paths:
+      - 'neuropilot/**'
+      - 'neuropilot-app/**'
+      - '.github/workflows/neuropilot-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      # Fails the build before anything is compiled if a mistake landed that
+      # would produce an app which installs, runs, and silently has no
+      # geofence. Cheaper to catch here than on a phone.
+      - name: Check the native project
+        run: node scripts/check-neuropilot-app.js
+
+      - name: Install
+        working-directory: neuropilot-app
+        run: npm install
+
+      - name: Scaffold the Android project
+        working-directory: neuropilot-app
+        run: npx cap add android
+
+      - name: Bundle the web app, sync, apply the overlay
+        working-directory: neuropilot-app
+        run: npm run sync
+
+      # Release signing only if the secrets are configured. Without them the
+      # job builds debug rather than producing an unsigned "release" APK that
+      # cannot be installed and looks like a success.
+      - name: Decode the keystore
+        if: ${{ inputs.variant == 'release' && env.KEYSTORE_B64 != '' }}
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        working-directory: neuropilot-app/android
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > neuropilot.keystore
+          cat > keystore.properties <<EOF
+          storeFile=$(pwd)/neuropilot.keystore
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build
+        working-directory: neuropilot-app/android
+        run: |
+          chmod +x ./gradlew
+          if [ "${{ inputs.variant }}" = "release" ] && [ -f keystore.properties ]; then
+            ./gradlew assembleRelease --no-daemon
+          else
+            ./gradlew assembleDebug --no-daemon
+          fi
+
+      # Never leave a signing key on the runner's disk for a later step to pick
+      # up, even though the runner is destroyed after the job.
+      - name: Shred the keystore
+        if: always()
+        working-directory: neuropilot-app/android
+        run: rm -f neuropilot.keystore keystore.properties
+
+      - name: Upload the APK to the run's artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: neuropilot-apk
+          path: neuropilot-app/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Artifacts need a GitHub login to download, so the site's button cannot
+      # point at one. A release asset on a public repo is a plain URL anybody
+      # can fetch — which is what /download/apk redirects to.
+      - name: Name the file for the download link
+        id: apk
+        run: |
+          SRC=$(find neuropilot-app/android/app/build/outputs/apk -name '*.apk' | head -1)
+          cp "$SRC" neuropilot.apk
+          echo "sha256=$(sha256sum neuropilot.apk | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          # A moving tag: /releases/latest/download/neuropilot.apk must keep
+          # resolving without the site ever being edited.
+          tag_name: neuropilot-latest
+          name: NeuroPilot APK
+          files: neuropilot.apk
+          body: |
+            نسخة أندرويد من NeuroPilot.
+
+            بتضيف حاجة واحدة المتصفح مش بيقدر عليها: التذكير المكاني بيشتغل
+            **والتطبيق مقفول**، وبيرجع لوحده بعد إعادة تشغيل الموبايل.
+
+            التثبيت من برّه جوجل بلاي محتاج تسمح بـ«تثبيت تطبيقات غير معروفة»
+            مرة واحدة.
+
+            `SHA-256: ${{ steps.apk.outputs.sha256 }}`
+
+            > نسخة `debug` مش موقّعة بمفتاح نشر — للتجربة. نسخة `release`
+            > بتتبني لما أسرار التوقيع تتظبط في إعدادات الريبو.
