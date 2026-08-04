@@ -37,29 +37,41 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div>
-        <label class="lbl"><%= t('add.method') %></label>
-        <select name="payment_method" class="fld">
-          <% PAYMENT_METHODS.forEach(function(m){ %><option value="<%= m %>" <%= ed && ed.payment_method===m ? 'selected':'' %>><%= t('pm.'+m) %></option><% }) %>
-        </select>
-      </div>
-      <div>
-        <label class="lbl"><%= t('add.date') %></label>
-        <input name="spent_on" type="date" value="<%= ed ? __eymd(ed.spent_on) : today %>" class="fld" dir="ltr" />
-      </div>
-    </div>
-
     <div>
       <label class="lbl"><%= t('add.desc') %></label>
       <input name="description" id="descInput" maxlength="200" class="fld" autocomplete="off" value="<%= ed && ed.description ? ed.description : '' %>" />
       <p id="aiSug" class="muted" style="font-size:.72rem;margin:5px 2px 0;display:none"></p>
     </div>
 
-    <div>
-      <label class="lbl">🧾 <%= t('add.receipt') %><% if (ed && ed.receipt_url) { %> · <a href="<%= ed.receipt_url %>" target="_blank">🧾</a><% } %></label>
-      <input name="receipt" id="receiptInput" type="file" accept="image/*" capture="environment" class="fld" style="padding:9px" />
-    </div>
+    <%# Payment method, date and receipt are already right on almost every
+        entry — cash, today, no photo. Leaving them open made logging a coffee
+        a six-field form, so they fold away. Opened automatically while editing
+        an older expense, which is exactly when they are likely to be wrong.
+        The file input still lives here: the 📷 button above clicks it. %>
+    <details <%= ed ? 'open' : '' %> style="border:1px solid var(--line);border-radius:14px;padding:0 14px">
+      <summary style="cursor:pointer;padding:12px 0;font-weight:700;font-size:.85rem;color:var(--muted)">
+        <%= t('add.more') %>
+      </summary>
+      <p class="muted" style="font-size:.74rem;margin:0 0 12px"><%= t('add.more_hint') %></p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="lbl"><%= t('add.method') %></label>
+          <select name="payment_method" class="fld">
+            <% PAYMENT_METHODS.forEach(function(m){ %><option value="<%= m %>" <%= ed && ed.payment_method===m ? 'selected':'' %>><%= t('pm.'+m) %></option><% }) %>
+          </select>
+        </div>
+        <div>
+          <label class="lbl"><%= t('add.date') %></label>
+          <input name="spent_on" type="date" value="<%= ed ? __eymd(ed.spent_on) : today %>" class="fld" dir="ltr" />
+        </div>
+      </div>
+
+      <div style="margin-top:12px;padding-bottom:14px">
+        <label class="lbl">🧾 <%= t('add.receipt') %><% if (ed && ed.receipt_url) { %> · <a href="<%= ed.receipt_url %>" target="_blank">🧾</a><% } %></label>
+        <input name="receipt" id="receiptInput" type="file" accept="image/*" capture="environment" class="fld" style="padding:9px" />
+      </div>
+    </details>
 
     <button class="btn btn-primary">💾 <%= ed ? t('add.update') : t('add.save') %></button>
   </form>

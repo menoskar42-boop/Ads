@@ -41,16 +41,45 @@
     </form>
   </section>
 
-  <section style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
-    <a href="/family" class="btn btn-ghost">👨‍👩‍👧 <%= t('fam.title') %></a>
-    <a href="/goals" class="btn btn-ghost">🎯 <%= t('goals.title') %></a>
-    <a href="/budgets" class="btn btn-ghost">🎛️ <%= t('bud.title') %></a>
-    <a href="/investments" class="btn btn-ghost">📈 <%= t('inv.title') %></a>
-    <a href="/twin" class="btn btn-ghost">🧬 <%= t('twin.title') %></a>
-    <a href="/simulator" class="btn btn-ghost">🧪 <%= t('sim.title') %></a>
-    <a href="/onboarding" class="btn btn-ghost">📅 <%= t('prof.edit_salary') %></a>
-    <a href="/holidays" class="btn btn-ghost">🎌 <%= t('hol.title') %></a>
+  <%# These were eight identical ghost buttons in a stack. Eight equal-weight
+      options with nothing but a name on each is a menu you have to open one by
+      one to understand. Same eight destinations, now grouped by what you came
+      here to do, with one line each saying what it is for. %>
+  <%
+    var __groups = [
+      ['prof.grp_money', [
+        ['/budgets',     '🎛️', 'bud.title',   'prof.d_budgets'],
+        ['/investments', '📈', 'inv.title',   'prof.d_investments'],
+        ['/family',      '👨‍👩‍👧', 'fam.title', 'prof.d_family'],
+      ]],
+      ['prof.grp_plan', [
+        ['/goals',     '🎯', 'goals.title', 'prof.d_goals'],
+        ['/twin',      '🧬', 'twin.title',  'prof.d_twin'],
+        ['/simulator', '🧪', 'sim.title',   'prof.d_simulator'],
+      ]],
+      ['prof.grp_setup', [
+        ['/onboarding', '📅', 'prof.edit_salary', 'prof.d_salary'],
+        ['/holidays',   '🎌', 'hol.title',        'prof.d_holidays'],
+      ]],
+    ];
+  %>
+  <% __groups.forEach(function(g){ %>
+  <section style="margin-top:16px">
+    <div class="muted" style="font-size:.72rem;font-weight:800;margin:0 4px 8px;letter-spacing:.5px"><%= t(g[0]) %></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <% g[1].forEach(function(it){ %>
+      <a href="<%= it[0] %>" class="card" style="padding:13px 15px;display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
+        <span style="font-size:1.2rem;flex:none"><%= it[1] %></span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:.92rem"><%= t(it[2]) %></div>
+          <div class="muted" style="font-size:.74rem;margin-top:1px"><%= t(it[3]) %></div>
+        </div>
+        <span class="muted" style="font-size:1.05rem;flex:none">‹</span>
+      </a>
+      <% }) %>
+    </div>
   </section>
+  <% }) %>
 
   <section class="card" style="padding:16px;margin-top:14px">
     <div style="font-weight:700;margin-bottom:2px">⬇︎ <%= t('exp.title') %></div>

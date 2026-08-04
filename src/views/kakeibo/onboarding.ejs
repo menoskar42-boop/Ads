@@ -18,21 +18,43 @@
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.income_hint') %></p>
       </div>
 
+      <%# One question, not two. The schedule and the day number are a single
+          thing a person knows ("I get paid on the 25th" / "at month end"), and
+          splitting them into two labelled fields made it read as two decisions.
+          The day box only appears for the schedule that uses it. %>
       <div>
         <label class="lbl">📅 <%= t('onb.salary_type') %></label>
         <% var pst = p.salary_type || 'fixed'; %>
-        <select name="salary_type" id="salaryType" class="fld">
-          <option value="fixed" <%= pst==='fixed'?'selected':'' %>><%= t('onb.stype.fixed') %></option>
-          <option value="last" <%= pst==='last'?'selected':'' %>><%= t('onb.stype.last') %></option>
-          <option value="before_last" <%= pst==='before_last'?'selected':'' %>><%= t('onb.stype.before_last') %></option>
-        </select>
-      </div>
-
-      <div id="salaryDayRow">
-        <label class="lbl"># <%= t('onb.salary_day') %></label>
-        <input name="salary_day" type="number" inputmode="numeric" min="1" max="31" value="<%= p.salary_day || 1 %>" class="fld" dir="ltr" />
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+          <select name="salary_type" id="salaryType" class="fld">
+            <option value="fixed" <%= pst==='fixed'?'selected':'' %>><%= t('onb.stype.fixed') %></option>
+            <option value="last" <%= pst==='last'?'selected':'' %>><%= t('onb.stype.last') %></option>
+            <option value="before_last" <%= pst==='before_last'?'selected':'' %>><%= t('onb.stype.before_last') %></option>
+          </select>
+          <input id="salaryDayRow" name="salary_day" type="number" inputmode="numeric" min="1" max="31"
+            value="<%= p.salary_day || 1 %>" class="fld" dir="ltr" aria-label="<%= t('onb.salary_day') %>"
+            style="width:80px;text-align:center" />
+        </div>
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.salary_day_hint') %></p>
       </div>
+
+      <div>
+        <label class="lbl">🎯 <%= t('onb.goal') %></label>
+        <input name="saving_goal" id="goalInput" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" value="<%= (p.saving_goal && Number(p.saving_goal)>0) ? Number(p.saving_goal) : '' %>" />
+        <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.goal_hint') %></p>
+        <p id="goalSuggest" class="muted" style="font-size:.74rem;margin:4px 2px 0;display:none"><%= t('onb.goal_suggest') %></p>
+      </div>
+
+      <%# Country, weekend and currency are already on the answer most people
+          would pick, and none of them stops the app working. Asking for them up
+          front turned a three-field start into a seven-field form, so they fold
+          away — visible to anyone whose situation differs, invisible to
+          everyone else. %>
+      <details style="border:1px solid var(--line);border-radius:14px;padding:0 14px">
+        <summary style="cursor:pointer;padding:13px 0;font-weight:700;font-size:.88rem;color:var(--muted)">
+          <%= t('onb.advanced') %>
+        </summary>
+        <p class="muted" style="font-size:.76rem;margin:0 0 14px"><%= t('onb.advanced_hint') %></p>
 
       <%
         var __cn = {
@@ -66,13 +88,8 @@
           </select>
         </div>
       </div>
-      <p class="muted" style="font-size:.76rem;margin:-6px 2px 0"><%= t('onb.weekend_hint') %></p>
-
-      <div>
-        <label class="lbl">🎯 <%= t('onb.goal') %></label>
-        <input name="saving_goal" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" value="<%= (p.saving_goal && Number(p.saving_goal)>0) ? Number(p.saving_goal) : '' %>" />
-        <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.goal_hint') %></p>
-      </div>
+      <p class="muted" style="font-size:.76rem;margin:-6px 2px 14px"><%= t('onb.weekend_hint') %></p>
+      </details>
 
       <button class="btn btn-primary" style="margin-top:4px">✨ <%= t('onb.finish') %></button>
     </form>
@@ -83,6 +100,25 @@
   var sel=document.getElementById('salaryType'), row=document.getElementById('salaryDayRow');
   function sync(){ row.style.display = sel.value==='fixed' ? '' : 'none'; }
   if(sel&&row){ sel.addEventListener('change',sync); sync(); }
+})();
+
+// "How much should I save?" is the question that stalls people on this screen.
+// Offer 10% of income as a starting point once they type it — only into an
+// empty field, and only until they type their own number, so a suggestion
+// never overwrites a decision.
+(function(){
+  var inc=document.querySelector('input[name="monthly_income"]');
+  var goal=document.getElementById('goalInput'), note=document.getElementById('goalSuggest');
+  if(!inc||!goal) return;
+  var touched = goal.value !== '';
+  goal.addEventListener('input',function(){ touched=true; if(note) note.style.display='none'; });
+  inc.addEventListener('input',function(){
+    if(touched) return;
+    var v=parseFloat(inc.value);
+    if(!isFinite(v)||v<=0){ goal.value=''; if(note) note.style.display='none'; return; }
+    goal.value=Math.round(v*0.10);
+    if(note) note.style.display='';
+  });
 })();
 </script>
 <%- include('foot') %>
