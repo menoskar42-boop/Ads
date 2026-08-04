@@ -1,0 +1,218 @@
+#!/usr/bin/env node
+/**
+ * Audit the public marketing pages against the rules the project records in
+ * docs/SEO_GUIDE.md, docs/GOOGLE_SEARCH_CENTRAL.md, docs/BING_WEBMASTER_HELP.md
+ * and docs/ADSENSE_POLICIES.md.
+ *
+ * scripts/render-clinic-pages.js already holds the tenant (subdomain) pages to
+ * these limits. Nothing held the main site to them, so a long <title> or a
+ * second h1 on /about or /blog could ship unnoticed — which is exactly the
+ * class of problem Bing flagged. This renders each public page with a fixture
+ * and fails on any violation.
+ *
+ * Usage:
+ *   node scripts/seo-audit.js          # every page
+ *   node scripts/seo-audit.js home about
+ */
+'use strict';
+const ejs = require('ejs');
+const fs = require('fs');
+const path = require('path');
+
+const VIEWS = path.join(__dirname, '..', 'src', 'views');
+const SITE = 'https://oscardevs.com';
+
+// ── Limits ───────────────────────────────────────────────────────────────────
+// Bing truncated our titles, so 60 is a hard ceiling, not a preference. The
+// description range is the one search engines actually render.
+const TITLE_MAX = 60;
+const DESC_MIN = 70;
+const DESC_MAX = 160;
+// AdSense treats a page with ads and almost no content as low-value. 250 words
+// is well under any page we intend to monetise and well over a bare form.
+const MIN_WORDS_WITH_ADS = 250;
+
+// ── Fixtures ─────────────────────────────────────────────────────────────────
+const { ARTICLES } = require('../src/routes/blog_articles');
+const latest = ARTICLES.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+
+// Locals every main-site page gets from server.js / the route.
+function base(extra) {
+  return Object.assign({
+    siteOrigin: SITE,
+    canonicalUrl: SITE + '/',
+    assetVersion: '1',
+    ads: { enabled: true, publisherId: 'ca-pub-3132188303904900', slots: {
+      homeTop: '1', homeMid: '2', homeBottom: '3',
+      blogTop: '4', blogBottom: '5', pageBottom: '6',
+    } },
+    showAds: true,
+    lang: 'ar',
+    dir: 'rtl',
+    t: (k) => k,
+    canonicalCompanyUrl: (slug) => `https://${slug}.oscardevs.com`,
+    termsVersion: '1.3',
+  }, extra || {});
+}
+
+const PAGES = {
+  home: {
+    file: 'home.ejs',
+    locals: { sent: false, contactError: null, latestArticles: latest,
+      ogImage: SITE + '/og-default.png' },
+  },
+  about:   { file: 'legal/about.ejs',   locals: {} },
+  faq:     { file: 'legal/faq.ejs',     locals: {} },
+  terms:   { file: 'legal/terms.ejs',   locals: {} },
+  privacy: { file: 'legal/privacy.ejs', locals: {} },
+  // A form and a phone number — real, useful, but under the word count AdSense
+  // expects on a monetised page, so it must stay ad-free.
+  contact: { file: 'legal/contact.ejs', locals: { sent: false, error: null, showAds: false }, noAds: true, thin: true },
+  our_work:{ file: 'legal/our_work.ejs',locals: {} },
+  help:    { file: 'legal/help.ejs',    locals: {} },
+  blog_index: {
+    file: 'blog/index.ejs',
+    locals: { articles: ARTICLES, canonicalUrl: SITE + '/blog' },
+  },
+  // Every article shares one template, so rendering the newest one proves the
+  // template; the per-article metadata is length-checked separately below.
+  blog_article: {
+    file: 'blog/article.ejs',
+    locals: {
+      article: latest[0],
+      bodyView: 'articles/' + latest[0].slug,
+      articles: ARTICLES,
+      canonicalUrl: SITE + '/blog/' + latest[0].slug,
+    },
+  },
+  // Utility pages: indexed or not, they must never carry ads.
+  apply_form:    { file: 'apply/form.ejs',    locals: { showAds: false, error: null, values: {} }, noAds: true },
+  apply_success: { file: 'apply/success.ejs', locals: { showAds: false, ref: 'ABC123' }, noAds: true, thin: true },
+  not_found:     { file: '404.ejs',           locals: { showAds: false }, noAds: true, thin: true },
+};
+
+// ── Checks ───────────────────────────────────────────────────────────────────
+function textOf(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function audit(name, html, spec) {
+  const out = [];
+
+  const title = (html.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+  if (!title) out.push('لا يوجد <title>');
+  else if (title.length > TITLE_MAX) out.push(`العنوان ${title.length} حرف (الحد ${TITLE_MAX}): ${title}`);
+
+  // A noindex page's description is never rendered in a result, so the lower
+  // bound only applies to pages we actually want indexed.
+  const noindex = /<meta name="robots" content="[^"]*noindex/.test(html);
+  const desc = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1];
+  if (!desc) out.push('لا يوجد meta description');
+  else if (desc.length > DESC_MAX) out.push(`الوصف ${desc.length} حرف (الحد ${DESC_MAX})`);
+  else if (!noindex && desc.length < DESC_MIN) out.push(`الوصف ${desc.length} حرف — قصير (الحد الأدنى ${DESC_MIN})`);
+
+  const h1 = (html.match(/<h1[\s>]/g) || []).length;
+  if (h1 !== 1) out.push(`عدد <h1> = ${h1} (المفروض 1)`);
+
+  // Headings must not skip a level (h2 before any h1, h4 straight after h2…).
+  const levels = (html.match(/<h([1-4])[\s>]/g) || []).map((m) => Number(m[2]));
+  let prev = 0;
+  for (const lv of levels) {
+    if (prev && lv > prev + 1) { out.push(`قفزة في الهيدنجز: h${prev} ثم h${lv}`); break; }
+    prev = lv;
+  }
+
+  if (!/<link rel="canonical"/.test(html)) out.push('لا يوجد canonical');
+
+  // Every image needs alt text — Bing flagged this and it is an accessibility
+  // requirement, not only an SEO one. Decorative images may use alt="".
+  const imgs = html.match(/<img\b[^>]*>/gi) || [];
+  const noAlt = imgs.filter((tag) => !/\balt\s*=/.test(tag));
+  if (noAlt.length) out.push(`${noAlt.length} صورة بلا alt`);
+
+  const hasAds = /adsbygoogle/.test(html);
+  const words = textOf(html).split(' ').filter(Boolean).length;
+  if (spec.noAds && hasAds) out.push('صفحة خدمية/بلا محتوى وعليها إعلانات — مخالفة AdSense');
+  if (hasAds && words < MIN_WORDS_WITH_ADS) {
+    out.push(`إعلانات على صفحة بـ ${words} كلمة فقط (الحد ${MIN_WORDS_WITH_ADS}) — محتوى قليل القيمة`);
+  }
+  if (!spec.thin && words < 120) out.push(`محتوى قليل جداً: ${words} كلمة`);
+
+  return { problems: out, words, hasAds, title: title || '' };
+}
+
+// The blog metadata lives in data, not in a template, so it is checked once
+// over every article rather than per render.
+function auditArticles() {
+  const out = [];
+  const seen = new Set();
+  for (const a of ARTICLES) {
+    // Mirrors blog/article.ejs, which drops the brand suffix rather than let
+    // the title run past 60 — so only the bare title can actually overflow.
+    const brand = ' | OscarDevs';
+    const full = (a.title.length + brand.length <= TITLE_MAX) ? a.title + brand : a.title;
+    if (full.length > TITLE_MAX) out.push(`[${a.slug}] العنوان ${full.length} حرف: ${a.title}`);
+    const d = a.metaDescription || '';
+    if (!d) out.push(`[${a.slug}] بلا metaDescription`);
+    else if (d.length > DESC_MAX) out.push(`[${a.slug}] الوصف ${d.length} حرف`);
+    else if (d.length < DESC_MIN) out.push(`[${a.slug}] الوصف ${d.length} حرف — قصير`);
+    if (seen.has(a.title)) out.push(`[${a.slug}] عنوان مكرر`);
+    seen.add(a.title);
+    const body = path.join(VIEWS, 'blog', 'articles', a.slug + '.ejs');
+    if (!fs.existsSync(body)) out.push(`[${a.slug}] لا يوجد ملف نص للمقال`);
+    else {
+      const words = textOf(fs.readFileSync(body, 'utf8')).split(' ').filter(Boolean).length;
+      // AdSense's "thin content" line. Our shortest real article is well above.
+      if (words < 300) out.push(`[${a.slug}] المقال ${words} كلمة — قصير للإعلانات`);
+    }
+  }
+  return out;
+}
+
+// ── Runner ───────────────────────────────────────────────────────────────────
+const asked = process.argv.slice(2);
+const names = asked.length ? asked : Object.keys(PAGES);
+let failed = 0;
+
+for (const name of names) {
+  const spec = PAGES[name];
+  if (!spec) { console.log(`⏭️  ${name} — لا يوجد fixture`); continue; }
+  const file = path.join(VIEWS, spec.file);
+  let html;
+  try {
+    html = ejs.render(fs.readFileSync(file, 'utf8'), base(spec.locals),
+      { filename: file, root: VIEWS });
+  } catch (e) {
+    failed++;
+    console.log(`❌ ${name} — فشل العرض: ${e.message}`);
+    continue;
+  }
+  const r = audit(name, html, spec);
+  if (r.problems.length) {
+    failed++;
+    console.log(`❌ ${name} — ${r.problems.length} مخالفة:`);
+    r.problems.forEach((p) => console.log('   · ' + p));
+  } else {
+    console.log(`✅ ${name} (${r.words} كلمة${r.hasAds ? '، عليها إعلانات' : ''})`);
+  }
+}
+
+if (!asked.length) {
+  const art = auditArticles();
+  if (art.length) {
+    failed++;
+    console.log(`❌ المقالات — ${art.length} مخالفة:`);
+    art.forEach((p) => console.log('   · ' + p));
+  } else {
+    console.log(`✅ المقالات (${ARTICLES.length} مقال)`);
+  }
+}
+
+console.log(failed ? `\n${failed} صفحة فيها مخالفة.` : '\nكل الصفحات العامة مطابقة لشروط SEO و AdSense.');
+process.exit(failed ? 1 : 0);

@@ -98,7 +98,7 @@
       "url": "<%= siteOrigin %>",
       "logo": "<%= siteOrigin %>/logo.png",
       "image": "<%= siteOrigin %>/logo.png",
-      "description": "منصّة عربية متخصّصة في تصميم مواقع البورتفوليو والمتاجر الإلكترونية الاحترافية للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي.",
+      "description": "منصّة حلول رقمية متكاملة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وأنظمة إدارة جاهزة للعيادات والصيدليات والمطاعم والجيم وعيادات التغذية ومعارض الموبيليا، وتطبيقات ويب وموبايل.",
       "email": "contact@oscardevs.com",
       "telephone": "+201552406406",
       "areaServed": ["مصر", "العالم العربي"],
@@ -120,7 +120,24 @@
       "sameAs": [
         "https://www.facebook.com/OscarDevsEG",
         "https://www.instagram.com/oscardevseg"
-      ]
+      ],
+      <%# The eight systems we actually ship. Kept in sync with the service
+          cards on the homepage — an LLM or a crawler reading this graph gets
+          the same list a visitor sees, never a longer one. %>
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "حلول OscarDevs الرقمية",
+        "itemListElement": [
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "موقع بورتفوليو احترافي" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "متجر إلكتروني" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة الصيدليات" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة العيادات" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام المطاعم والطلبات" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة الجيم" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة عيادة التغذية" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة معرض ومصنع الموبيليا" } }
+        ]
+      }
     },
     {
       "@type": "WebSite",

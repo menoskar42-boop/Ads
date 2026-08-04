@@ -91,7 +91,10 @@
       </button>
     </form>
   </div>
-  <%- include('../partials/ad_unit', { slot: ads.slots.pageBottom }) %>
+  <%# No ad unit here on purpose. /contact is a form and a phone number — under
+      250 words of real content — and AdSense counts ads on a page like that as
+      low-value inventory. The page stays indexable; it just isn't monetised.
+      scripts/seo-audit.js fails the build if an ad unit comes back. %>
 </main>
 
 </body>
