@@ -133,5 +133,47 @@ check('The Gradle patcher rejects a duplicated minifyEnabled',
   'Two minifyEnabled lines means the later wins, the ProGuard rules never apply, '
   + 'and the release build silently loses the geofence.');
 
+// ── Every R.* the overlay's Java references must actually exist ──────────────
+//
+// The second CI run died on `R.drawable.ic_stat_neuropilot` — an icon that was
+// referenced and never created. javac catches it, but only after ~45 seconds of
+// Gradle, on a runner, in a log nobody is watching. It is a filesystem check.
+{
+  const javaDir = A('android/app/src/main/java/com/oscardevs/neuropilot');
+  const resDir = A('android/app/src/main/res');
+
+  // Types the scaffold provides (launcher icons, the app theme). Ours are the
+  // ones that have to be in the overlay.
+  const FROM_SCAFFOLD = new Set(['mipmap', 'style', 'layout', 'id', 'color']);
+
+  const has = (type, name) => {
+    // values/*.xml declare strings by name rather than by filename.
+    if (type === 'string') {
+      const values = path.join(resDir, 'values');
+      if (!fs.existsSync(values)) return false;
+      return fs.readdirSync(values).some((f) =>
+        new RegExp(`name="${name}"`).test(fs.readFileSync(path.join(values, f), 'utf8')));
+    }
+    const dir = path.join(resDir, type);
+    if (!fs.existsSync(dir)) return false;
+    return fs.readdirSync(dir).some((f) => f.replace(/\.[^.]+$/, '') === name);
+  };
+
+  const missing = [];
+  for (const file of fs.readdirSync(javaDir)) {
+    if (!file.endsWith('.java')) continue;
+    const src = fs.readFileSync(path.join(javaDir, file), 'utf8');
+    for (const m of src.matchAll(/\bR\.([a-z]+)\.([A-Za-z0-9_]+)/g)) {
+      const [, type, name] = m;
+      if (FROM_SCAFFOLD.has(type)) continue;
+      if (!has(type, name)) missing.push(`${file}: R.${type}.${name}`);
+    }
+  }
+  check('Every resource the Java references exists in the overlay',
+    missing.length === 0,
+    'javac would catch these, but only after a full Gradle run on CI:\n   '
+    + missing.join('\n   '));
+}
+
 console.log(failed ? `\n⚠️  ${failed} مشكلة — راجعها قبل البناء.` : '\nمشروع التطبيق سليم.');
 process.exit(failed ? 1 : 0);
