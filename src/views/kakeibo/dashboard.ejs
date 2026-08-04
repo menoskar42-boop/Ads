@@ -3,157 +3,84 @@
 <%
   var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
   function __d(v){ try { return new Date(v).toLocaleDateString(lang==='en'?'en-US':'ar-EG',{day:'numeric',month:'short'}); } catch(e){ return ''; } }
-  var spentPct = data.income>0 ? Math.min(100, Math.round(data.spentPeriod/data.income*100)) : 0;
+
+  // This page has ONE job: answer "can I spend right now, and how much?" — the
+  // question kakeibo is a method for asking, at the till, in two seconds.
+  // Everything that does not answer it moved below into a section the reader
+  // opens on purpose.
+  //
+  // Three states with different copy each, because the right thing to do
+  // differs: today's money is still there / today is spent / the whole period
+  // is overspent.
+  var __state = data.overBudget ? 'over' : (data.leftToday < 0 ? 'today_done' : 'ok');
+  var __tone  = __state === 'ok' ? 'var(--accent-2)' : 'var(--warn)';
+  var __hero  = __state === 'ok' ? data.leftToday : Math.abs(data.leftToday);
+  var __usedPct = data.perDay > 0 ? Math.min(100, Math.round(data.spentToday / data.perDay * 100)) : 100;
 %>
 <main class="wrap" style="max-width:520px;padding-top:6px">
 
-  <!-- Smart notice -->
-  <% if (typeof smart !== 'undefined' && smart) { %>
-  <div style="display:flex;align-items:center;gap:9px;background:<%= smart.up?'color-mix(in srgb,var(--warn) 12%,var(--surface))':'color-mix(in srgb,var(--accent-2) 12%,var(--surface))' %>;border:1px solid var(--line);border-radius:14px;padding:11px 14px;margin-bottom:12px;font-size:.86rem;font-weight:600">
-    <span style="font-size:1.1rem"><%= smart.up?'📈':'📉' %></span>
-    <span><%= smart.up ? t('smart.up') : t('smart.down') %> <b class="<%= smart.up?'':'accent' %>" style="<%= smart.up?'color:var(--warn)':'' %>"><%= smart.pct %>%</b></span>
+  <!-- ══════════ THE ANSWER ══════════ -->
+  <section class="card" style="padding:26px 22px 22px;text-align:center;background:linear-gradient(135deg,var(--surface),var(--paper))">
+    <div class="muted" style="font-size:.84rem;font-weight:600">
+      <%= __state === 'over' ? t('dash.over_label') : (__state === 'today_done' ? t('dash.today_over_label') : t('dash.can_spend')) %>
+    </div>
+
+    <div class="kkb-display" style="font-size:2.9rem;font-weight:800;line-height:1.1;margin:6px 0 2px;color:<%= __tone %>">
+      <bdi><%= money(__hero) %></bdi>
+    </div>
+
+    <%# A number with no sentence is a dashboard. A number with a sentence is
+        advice — and advice is what somebody standing in a shop needs. %>
+    <div class="muted" style="font-size:.8rem;line-height:1.7;max-width:34ch;margin:0 auto">
+      <% if (__state === 'over') { %><%= t('dash.over_help') %>
+      <% } else if (__state === 'today_done') { %><%= t('dash.today_over_help') %>
+      <% } else { %><%= t('dash.can_spend_help') %><% } %>
+    </div>
+
+    <% if (!data.overBudget) { %>
+    <div style="height:8px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:16px 0 8px">
+      <div style="height:100%;width:<%= __usedPct %>%;background:<%= __usedPct>=100?'var(--warn)':'var(--accent-2)' %>"></div>
+    </div>
+    <div class="muted" style="font-size:.74rem;display:flex;justify-content:space-between">
+      <span><%= t('dash.spent_today') %> <b><%= money(data.spentToday) %></b></span>
+      <span><%= t('dash.per_day') %> <b><%= money(data.perDay) %></b></span>
+    </div>
+    <% } %>
+
+    <a href="/add" class="btn btn-primary" style="margin-top:18px;display:flex;align-items:center;justify-content:center;gap:8px">
+      ➕ <%= t('dash.log_expense') %>
+    </a>
+  </section>
+
+  <!-- ══════════ THE PERIOD, IN ONE LINE ══════════ -->
+  <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:12px">
+    <div style="flex:1">
+      <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.remaining') %></div>
+      <div style="font-weight:800;font-size:1.08rem;color:<%= data.remaining>=0?'var(--ink)':'var(--warn)' %>"><bdi><%= money(data.remaining) %></bdi></div>
+    </div>
+    <div style="width:1px;height:30px;background:var(--line)"></div>
+    <div style="flex:1;text-align:center">
+      <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.days_left') %></div>
+      <div style="font-weight:800;font-size:1.08rem"><%= num(data.daysLeft) %></div>
+    </div>
+    <div style="width:1px;height:30px;background:var(--line)"></div>
+    <div style="flex:1;text-align:end">
+      <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.next_pay') %></div>
+      <div style="font-weight:700;font-size:.86rem"><%= __d(data.nextPay) %></div>
+    </div>
+  </section>
+
+  <!-- ══════════ A WARNING, ONLY WHEN THERE IS ONE ══════════ -->
+  <%# Shown only when the projection says the period actually ends short. A
+      forecast that is permanently on screen stops being read. %>
+  <% if (data.willOverspend && !data.overBudget) { %>
+  <div style="display:flex;align-items:center;gap:9px;background:color-mix(in srgb,var(--warn) 12%,var(--surface));border:1px solid var(--line);border-radius:14px;padding:11px 14px;margin-top:12px;font-size:.84rem;line-height:1.6">
+    <span style="font-size:1.1rem">⚠️</span>
+    <span><%= t('dash.pace_warning') %> <b><%= money(data.projectedSpend) %></b></span>
   </div>
   <% } %>
 
-  <!-- Remaining card -->
-  <section class="card" style="padding:20px 22px;background:linear-gradient(135deg,var(--surface),var(--paper))">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <div class="muted" style="font-size:.82rem;font-weight:600"><%= t('dash.remaining') %></div>
-        <div class="kkb-display" style="font-size:2rem;font-weight:700;margin-top:2px;color:<%= data.remaining>=0?'var(--ink)':'var(--accent)' %>"><bdi><%= money(data.remaining) %></bdi></div>
-        <div class="muted" style="font-size:.76rem"><%= t('dash.of_income') %> <%= money(data.income) %></div>
-      </div>
-      <div style="text-align:center;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:8px 12px">
-        <div class="accent" style="font-size:1.3rem;font-weight:800"><%= num(data.daysLeft) %></div>
-        <div class="muted" style="font-size:.66rem"><%= t('dash.days_left') %></div>
-        <div class="muted" style="font-size:.62rem;margin-top:2px"><%= t('dash.next_pay') %>: <%= __d(data.nextPay) %></div>
-      </div>
-    </div>
-    <div style="height:9px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:14px">
-      <div style="height:100%;width:<%= spentPct %>%;background:<%= spentPct>85?'var(--warn)':'var(--accent-2)' %>"></div>
-    </div>
-    <div class="muted" style="font-size:.72rem;margin-top:6px;display:flex;justify-content:space-between"><span><%= t('dash.saving_rate') %>: <b class="accent"><%= data.savingRate %>%</b></span><span><%= money(data.spentPeriod) %></span></div>
-    <!-- Forecast (local projection) -->
-    <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:.78rem">
-      <div style="display:flex;justify-content:space-between"><span class="muted">🔮 <%= t('ai.forecast') %> · <%= t('ai.forecast_spend') %></span><b><%= money(data.projectedSpend) %></b></div>
-      <div style="display:flex;justify-content:space-between;margin-top:3px"><span class="muted"><%= t('ai.forecast_left') %></span><b style="color:<%= data.projectedRemaining>=0?'var(--accent-2)':'var(--accent)' %>"><%= money(data.projectedRemaining) %></b></div>
-      <% if (data.willOverspend) { %><div style="margin-top:6px;color:var(--accent);font-weight:700">⚠️ <%= t('ai.overspend') %></div><% } %>
-    </div>
-  </section>
-
-  <!-- Daily challenge -->
-  <% if (typeof challenge !== 'undefined' && challenge) { %>
-  <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;gap:11px;align-items:center;background:color-mix(in srgb,var(--accent-2) 8%,var(--surface))">
-    <span style="font-size:1.3rem">🎯</span>
-    <div><div class="muted" style="font-size:.68rem;font-weight:700"><%= t('ai.challenge') %></div><div style="font-weight:700;font-size:.92rem;margin-top:1px"><%= challenge %></div></div>
-  </section>
-  <% } %>
-
-  <!-- AI insight -->
-  <% if (typeof insight !== 'undefined' && insight) { %>
-  <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;gap:11px;align-items:flex-start;border-inline-start:3px solid var(--accent)">
-    <span style="font-size:1.2rem">🤖</span>
-    <div>
-      <div class="muted" style="font-size:.68rem;font-weight:700;letter-spacing:.04em"><%= t('ai.insight') %> · <%= t('ai.badge') %></div>
-      <div style="font-size:.92rem;margin-top:2px;line-height:1.55"><%= insight %></div>
-    </div>
-  </section>
-  <% } %>
-
-  <!-- Goal + tiles -->
-  <section style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
-    <div class="card" style="padding:14px 16px">
-      <div class="muted" style="font-size:.76rem;font-weight:600">🎯 <%= t('dash.goal') %></div>
-      <div style="font-weight:800;margin-top:2px"><%= money(data.goal) %></div>
-      <div style="height:7px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:8px"><div style="height:100%;width:<%= data.goalProgress %>%;background:var(--accent)"></div></div>
-      <div class="muted" style="font-size:.68rem;margin-top:4px"><%= t('dash.goal_progress') %>: <%= data.goalProgress %>%</div>
-    </div>
-    <div class="card" style="padding:14px 16px;display:grid;gap:8px">
-      <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.today') %></span><b><%= money(data.spentToday) %></b></div>
-      <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.week') %></span><b><%= money(data.spentWeek) %></b></div>
-      <div style="display:flex;justify-content:space-between;font-size:.82rem"><span class="muted"><%= t('dash.month') %></span><b><%= money(data.spentMonth) %></b></div>
-    </div>
-  </section>
-
-  <!-- Financial Twin: predicted recurring -->
-  <% if (typeof twin !== 'undefined' && twin && twin.predictedTotal > 0) { %>
-  <a href="/twin" class="card" style="padding:14px 16px;margin-top:12px;display:flex;gap:11px;align-items:center;text-decoration:none;color:inherit;border-inline-start:3px solid var(--accent-2)">
-    <span style="font-size:1.3rem">🧬</span>
-    <div style="flex:1"><div class="muted" style="font-size:.68rem;font-weight:700"><%= t('twin.title') %> · <%= t('twin.predicted') %></div><div style="font-weight:800;font-size:1.02rem"><bdi><%= money(twin.predictedTotal) %></bdi></div></div>
-    <span class="muted" style="font-size:1.1rem">‹</span>
-  </a>
-  <% } %>
-
-  <!-- Gamification -->
-  <% if (typeof gam !== 'undefined' && gam) { %>
-  <section class="card" style="padding:16px;margin-top:12px">
-    <div style="display:flex;align-items:center;gap:12px">
-      <div style="display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:color-mix(in srgb,var(--accent) 14%,transparent);flex:none">
-        <b class="kkb-display accent" style="font-size:1.2rem"><%= gam.level %></b>
-      </div>
-      <div style="flex:1">
-        <div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:700"><span><%= t('gam.level') %> <%= gam.level %></span><span class="muted"><%= gam.xp %> <%= t('gam.xp') %> · <%= gam.streak %> <%= t('gam.streak') %></span></div>
-        <div style="height:8px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:6px"><div style="height:100%;width:<%= gam.levelPct %>%;background:var(--accent)"></div></div>
-      </div>
-    </div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px">
-      <% gam.badges.forEach(function(b){ %>
-        <span title="<%= t('badge.'+b.key) %>" style="display:grid;place-items:center;width:34px;height:34px;border-radius:10px;font-size:1.05rem;<%= b.unlocked ? 'background:color-mix(in srgb,var(--accent-2) 16%,transparent)' : 'background:var(--paper);filter:grayscale(1);opacity:.4' %>">
-          <%= ({first_expense:'🌱',logger30:'📒',streak7:'🔥',streak30:'🏆',first_goal:'🎯',goal_done:'✅',saver:'🐷',diversified:'⚖️'})[b.key] %>
-        </span>
-      <% }) %>
-    </div>
-  </section>
-  <% } %>
-
-  <!-- Financial health score -->
-  <% if (typeof hs !== 'undefined' && hs) {
-       var hcolor = hs.grade==='excellent'?'var(--accent-2)':hs.grade==='good'?'#3fa392':hs.grade==='fair'?'var(--warn)':'var(--accent)';
-  %>
-  <section class="card" style="padding:16px;margin-top:12px">
-    <div style="display:flex;align-items:center;gap:16px">
-      <div style="width:76px;height:76px;border-radius:50%;background:conic-gradient(<%= hcolor %> <%= hs.score %>%, var(--paper) 0);display:grid;place-items:center;flex:none">
-        <div style="width:56px;height:56px;border-radius:50%;background:var(--surface);display:grid;place-items:center">
-          <b class="kkb-display" style="font-size:1.3rem;color:<%= hcolor %>"><%= hs.score %></b>
-        </div>
-      </div>
-      <div style="flex:1">
-        <div class="muted" style="font-size:.72rem;font-weight:700"><%= t('hs.title') %></div>
-        <div style="font-weight:800;font-size:1.05rem;color:<%= hcolor %>"><%= t('hs.'+hs.grade) %></div>
-        <div style="display:flex;gap:4px;margin-top:7px">
-          <% hs.parts.forEach(function(p){ var w=Math.round(p.value/p.max*100); %>
-            <div style="flex:1" title="<%= t('hs.'+p.key) %>">
-              <div style="height:5px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden"><div style="height:100%;width:<%= w %>%;background:<%= hcolor %>"></div></div>
-              <div class="muted" style="font-size:.56rem;text-align:center;margin-top:2px"><%= t('hs.'+p.key) %></div>
-            </div>
-          <% }) %>
-        </div>
-      </div>
-    </div>
-  </section>
-  <% } %>
-
-  <!-- Goals strip -->
-  <% if (typeof goals !== 'undefined' && goals && goals.length) { %>
-  <section style="margin-top:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 8px">
-      <h2 class="kkb-display" style="font-size:1.05rem;margin:0">🎯 <%= t('goals.title') %></h2>
-      <a href="/goals" style="font-size:.8rem"><%= lang==='en'?'All':'الكل' %></a>
-    </div>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px" class="no-scrollbar">
-      <% goals.forEach(function(g){ var tg=Number(g.target_amount)||0, sv=Number(g.saved_amount)||0; var pc=tg>0?Math.min(100,Math.round(sv/tg*100)):0; %>
-        <a href="/goals" class="card" style="padding:12px 14px;min-width:150px;text-decoration:none;color:inherit">
-          <div style="font-size:1.3rem"><%= g.icon %></div>
-          <div style="font-weight:700;font-size:.85rem;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><%= g.title %></div>
-          <div style="height:6px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:7px"><div style="height:100%;width:<%= pc %>%;background:var(--accent)"></div></div>
-          <div class="muted" style="font-size:.68rem;margin-top:4px"><%= pc %>%</div>
-        </a>
-      <% }) %>
-    </div>
-  </section>
-  <% } %>
-
-  <!-- Recent -->
+  <!-- ══════════ RECENT ══════════ -->
   <section style="margin-top:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 8px">
       <h2 class="kkb-display" style="font-size:1.05rem;margin:0"><%= t('dash.recent') %></h2>
@@ -161,6 +88,7 @@
     </div>
     <% if (!data.recent.length) { %>
       <div class="card" style="padding:26px;text-align:center">
+        <div style="font-size:1.8rem;margin-bottom:8px">🧾</div>
         <p class="muted" style="margin:0 0 12px"><%= t('dash.no_expenses') %></p>
         <a href="/add" class="btn btn-primary" style="width:auto;display:inline-flex;padding:11px 20px">➕ <%= t('dash.add_first') %></a>
       </div>
@@ -179,9 +107,98 @@
       </div>
     <% } %>
   </section>
+
+  <!-- ══════════ EVERYTHING ELSE, FOLDED AWAY ══════════ -->
+  <%# The level, the streak, the twin, the challenge, the insight and the goal
+      all still exist and still work. They are simply not the first thing
+      somebody sees when they opened the app to find out whether they can buy a
+      coffee. Nothing was deleted — the front door was cleared. %>
+  <details id="kkbMore" style="margin-top:16px">
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:center;gap:7px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:.84rem;font-weight:700;color:var(--muted)">
+      <span><%= t('dash.more') %></span><span style="font-size:.7rem">▾</span>
+    </summary>
+
+    <div style="margin-top:12px;display:grid;gap:12px">
+
+      <% if (typeof insight !== 'undefined' && insight) { %>
+      <section class="card" style="padding:14px 16px;display:flex;gap:11px;align-items:flex-start;border-inline-start:3px solid var(--accent)">
+        <span style="font-size:1.2rem">💡</span>
+        <div>
+          <div class="muted" style="font-size:.68rem;font-weight:700"><%= t('ai.insight') %></div>
+          <div style="font-size:.9rem;margin-top:2px;line-height:1.55"><%= insight %></div>
+        </div>
+      </section>
+      <% } %>
+
+      <% if (typeof challenge !== 'undefined' && challenge) { %>
+      <section class="card" style="padding:14px 16px;display:flex;gap:11px;align-items:center">
+        <span style="font-size:1.25rem">🎯</span>
+        <div><div class="muted" style="font-size:.68rem;font-weight:700"><%= t('ai.challenge') %></div><div style="font-weight:700;font-size:.9rem;margin-top:1px"><%= challenge %></div></div>
+      </section>
+      <% } %>
+
+      <section style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="card" style="padding:14px 16px">
+          <div class="muted" style="font-size:.74rem;font-weight:600">🎯 <%= t('dash.goal') %></div>
+          <div style="font-weight:800;margin-top:2px"><%= money(data.goal) %></div>
+          <div style="height:7px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-top:8px"><div style="height:100%;width:<%= data.goalProgress %>%;background:var(--accent)"></div></div>
+          <div class="muted" style="font-size:.68rem;margin-top:4px"><%= t('dash.goal_progress') %>: <%= data.goalProgress %>%</div>
+        </div>
+        <div class="card" style="padding:14px 16px;display:grid;gap:8px;align-content:start">
+          <div style="display:flex;justify-content:space-between;font-size:.8rem"><span class="muted"><%= t('dash.week') %></span><b><%= money(data.spentWeek) %></b></div>
+          <div style="display:flex;justify-content:space-between;font-size:.8rem"><span class="muted"><%= t('dash.month') %></span><b><%= money(data.spentMonth) %></b></div>
+          <div style="display:flex;justify-content:space-between;font-size:.8rem"><span class="muted"><%= t('dash.saving_rate') %></span><b class="accent"><%= data.savingRate %>%</b></div>
+        </div>
+      </section>
+
+      <% if (typeof gam !== 'undefined' && gam) { %>
+      <section class="card" style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <div style="display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:color-mix(in srgb,var(--accent) 14%,transparent);flex:none">
+          <b class="kkb-display accent" style="font-size:1.1rem"><%= gam.level %></b>
+        </div>
+        <div style="flex:1;font-size:.8rem;font-weight:700;display:flex;justify-content:space-between">
+          <span><%= t('gam.level') %> <%= gam.level %></span>
+          <span class="muted"><%= gam.xp %> <%= t('gam.xp') %> · <%= gam.streak %> <%= t('gam.streak') %></span>
+        </div>
+      </section>
+      <% } %>
+
+      <% if (typeof twin !== 'undefined' && twin && twin.predictedTotal > 0) { %>
+      <a href="/twin" class="card" style="padding:14px 16px;display:flex;gap:11px;align-items:center;text-decoration:none;color:inherit">
+        <span style="font-size:1.25rem">🧬</span>
+        <div style="flex:1"><div class="muted" style="font-size:.68rem;font-weight:700"><%= t('twin.title') %> · <%= t('twin.predicted') %></div><div style="font-weight:800;font-size:1rem"><bdi><%= money(twin.predictedTotal) %></bdi></div></div>
+        <span class="muted" style="font-size:1.1rem">‹</span>
+      </a>
+      <% } %>
+
+      <%# The coach lives here now rather than as a floating button. Two robots
+          on one screen — a 🤖 insight card and a 🤖 bubble — read as two
+          different assistants, and the reader has to work out which is which. %>
+      <% if (typeof aiEnabled !== 'undefined' && aiEnabled) { %>
+      <a href="/coach" class="card" style="padding:14px 16px;display:flex;gap:11px;align-items:center;text-decoration:none;color:inherit">
+        <span style="font-size:1.25rem">🤖</span>
+        <div style="flex:1;font-weight:700;font-size:.9rem"><%= t('coach.open') %></div>
+        <span class="muted" style="font-size:1.1rem">‹</span>
+      </a>
+      <% } %>
+
+    </div>
+  </details>
 </main>
-<% if (typeof aiEnabled !== 'undefined' && aiEnabled) { %>
-<a href="/coach" aria-label="<%= t('coach.open') %>" style="position:fixed;bottom:92px;inset-inline-end:16px;z-index:35;display:grid;place-items:center;width:54px;height:54px;border-radius:18px;background:var(--accent);color:#fff;font-size:1.5rem;box-shadow:var(--shadow);text-decoration:none">🤖</a>
-<% } %>
+
+<script>
+  // Remember whether the extras were open. Somebody who wants them should not
+  // re-open them on every visit, and somebody who does not should never have to
+  // scroll past them again.
+  (function () {
+    var d = document.getElementById('kkbMore');
+    if (!d) return;
+    try { if (localStorage.getItem('kkb-more') === '1') d.open = true; } catch (e) {}
+    d.addEventListener('toggle', function () {
+      try { localStorage.setItem('kkb-more', d.open ? '1' : '0'); } catch (e) {}
+    });
+  })();
+</script>
+
 <%- include('app_nav', { active: 'home' }) %>
 <%- include('foot') %>

@@ -58,7 +58,27 @@ async function dashboard(pool, userId, profile) {
     [userId]
   )).rows;
 
-  return { periodStart, nextPay, daysLeft, income, goal, spentPeriod, remaining, savingRate, goalProgress, spentToday, spentWeek, spentMonth, recent, projectedSpend, projectedRemaining, willOverspend };
+  // ── The one number the app exists for ──────────────────────────────────────
+  //
+  // Kakeibo's whole method is a question asked at the till: "do I actually need
+  // this?" The figure that answers it is not the balance — it is what is left
+  // to spend TODAY. Both halves of it (remaining, daysLeft) were already being
+  // computed and never divided.
+  //
+  // daysLeft is 0 on payday itself, so the period is treated as having at least
+  // one day rather than dividing by zero and printing Infinity at somebody.
+  const spendableDays = Math.max(1, daysLeft);
+  // Never negative: "you may spend -300 a day" is not an instruction anyone can
+  // follow. Overspending is a STATE the page names, not a negative allowance.
+  const perDay = Math.max(0, Math.round(remaining / spendableDays));
+  // What is genuinely left for the rest of today, after what has already gone.
+  const leftToday = Math.round(perDay - spentToday);
+  const overBudget = remaining < 0;
+
+  return { periodStart, nextPay, daysLeft, income, goal, spentPeriod, remaining,
+    savingRate, goalProgress, spentToday, spentWeek, spentMonth, recent,
+    projectedSpend, projectedRemaining, willOverspend,
+    perDay, leftToday, overBudget, spendableDays };
 }
 
 async function categoryBreakdown(pool, userId, fromYmd, toYmdExcl) {
