@@ -1,0 +1,267 @@
+<%- include('head', { title: patient.name, tab: 'patients' }) %>
+<%
+  function n(v, d){ return v == null ? '—' : Number(v).toLocaleString(LOC, {maximumFractionDigits: d == null ? 0 : d}); }
+  function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <a href="/nutrition/patients" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('nt.nav.patients') %></a>
+  <h1 class="text-2xl font-black text-slate-900"><%= patient.name %></h1>
+  <button onclick="window.print()" class="no-print ms-auto text-xs bg-slate-100 hover:bg-slate-200 rounded-xl px-4 py-2 font-bold"><%= t('nt.m.print') %></button>
+</div>
+<p class="text-slate-500 mb-5 text-sm">
+  <%= patient.gender ? t('nt.g.' + patient.gender) : '—' %>
+  <% if (calc.ok) { %> · <%= calc.age %> <%= t('nt.u.years') %><% } %>
+  <% if (patient.height_cm) { %> · <%= patient.height_cm %> <%= t('nt.u.cm') %><% } %>
+  · <%= t('nt.goal.' + patient.goal) %>
+  <% if (patient.phone) { %> · <span dir="ltr"><%= patient.phone %></span><% } %>
+</p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800 no-print"><%= t('nt.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800 no-print"><%= t('nt.err.' + err) %></div><% } %>
+
+<style>@media print { header, nav, .no-print, form { display:none !important; } body{background:#fff !important;} main{max-width:100% !important;padding:0 !important;} }</style>
+
+<!-- ── الحساب ──────────────────────────────────────────────────────── -->
+<%# When the engine cannot honestly produce a number it says which inputs are
+    missing. "Add a date of birth and a weight" is actionable; a dash is not. %>
+<% if (!calc.ok) { %>
+<div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5">
+  <p class="text-sm font-bold text-amber-900 mb-2"><%= t('nt.calc.cannot') %></p>
+  <div class="flex flex-wrap gap-2 text-xs">
+    <% calc.missing.forEach(function(m){ %>
+      <span class="bg-white border border-amber-200 rounded-lg px-2 py-1 font-semibold text-amber-800"><%= t('nt.missing.' + m) %></span>
+    <% }); %>
+  </div>
+</div>
+<% } else { %>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1"><%= t('nt.calc.bmr') %></div>
+    <div class="text-xl font-extrabold text-slate-900"><%= n(calc.bmr) %></div>
+    <div class="text-[10px] text-slate-400"><%= t('nt.calc.bmr_hint') %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1"><%= t('nt.calc.tdee') %></div>
+    <div class="text-xl font-extrabold text-slate-900"><%= n(calc.tdee) %></div>
+    <div class="text-[10px] text-slate-400"><%= t('nt.act.' + calc.activity) %></div>
+  </div>
+  <div class="bg-brand-600 rounded-2xl shadow-sm p-4 text-white">
+    <div class="text-xs text-white/80 mb-1"><%= t('nt.calc.target') %></div>
+    <div class="text-xl font-extrabold"><%= n(calc.target) %></div>
+    <div class="text-[10px] text-white/70"><%= calc.adjustPct > 0 ? '+' : '' %><%= calc.adjustPct %>% · <%= t('nt.goal.' + calc.goal) %></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-sm p-4">
+    <div class="text-xs text-slate-500 mb-1"><%= t('nt.calc.bmi') %></div>
+    <div class="text-xl font-extrabold text-slate-900"><%= n(calc.bmi, 1) %></div>
+    <div class="text-[10px] text-slate-400"><%= calc.bmiBand ? t('nt.bmi.' + calc.bmiBand) : t('nt.bmi.na') %></div>
+  </div>
+</div>
+
+<%# Flagged, never clamped. Quietly raising a clinician's target would be
+    overruling them without telling them. %>
+<% if (calc.belowFloor) { %>
+<p class="text-xs text-red-800 bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-3"><%= t('nt.calc.below_floor') %> <%= calc.floor %> <%= t('nt.u.kcal') %></p>
+<% } %>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-3">
+  <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.calc.macros') %></h2>
+  <% if (calc.macros && calc.macros.conflict) { %>
+    <p class="text-xs text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2"><%= t('nt.calc.conflict') %></p>
+  <% } else if (calc.macros) { %>
+  <div class="grid grid-cols-3 gap-3 text-center">
+    <% [['protein', calc.macros.protein, 'text-rose-700'], ['carbs', calc.macros.carbs, 'text-amber-700'], ['fat', calc.macros.fat, 'text-sky-700']].forEach(function(m){ %>
+    <div class="border border-slate-100 rounded-xl p-3">
+      <div class="text-xs text-slate-500 mb-1"><%= t('nt.macro.' + m[0]) %></div>
+      <div class="text-lg font-extrabold <%= m[2] %>"><%= n(m[1]) %><span class="text-xs font-normal"> <%= t('nt.u.g') %></span></div>
+    </div>
+    <% }); %>
+  </div>
+  <p class="text-[11px] text-slate-400 mt-3"><%= t('nt.calc.split_hint') %> <%= calc.proteinPerKg %> <%= t('nt.u.g_per_kg') %> · <%= t('nt.macro.fat') %> <%= calc.fatPercent %>%</p>
+  <% } %>
+</div>
+
+<p class="text-[11px] text-slate-400 mb-5"><%= t('nt.calc.disclaimer') %></p>
+<% } %>
+
+<!-- ── التقدّم ─────────────────────────────────────────────────────── -->
+<% if (progress) { %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.prog.title') %></h2>
+  <div class="flex flex-wrap gap-4 text-sm mb-4">
+    <span><%= t('nt.prog.total') %>
+      <b class="<%= progress.total < 0 ? 'text-emerald-700' : 'text-slate-900' %>"><%= progress.total > 0 ? '+' : '' %><%= progress.total %> <%= t('nt.u.kg') %></b>
+    </span>
+    <span><%= t('nt.prog.since') %>
+      <b class="<%= progress.since < 0 ? 'text-emerald-700' : 'text-slate-900' %>"><%= progress.since > 0 ? '+' : '' %><%= progress.since %> <%= t('nt.u.kg') %></b>
+    </span>
+    <% if (progress.remaining != null) { %>
+      <span><%= t('nt.prog.remaining') %> <b><%= Math.abs(progress.remaining) %> <%= t('nt.u.kg') %></b></span>
+    <% } %>
+    <span class="text-xs text-slate-400 ms-auto"><%= fmtD(progress.from) %> — <%= fmtD(progress.to) %></span>
+  </div>
+
+  <%# Inline SVG, no chart library: this page has to open on a phone in a
+      consulting room, and a CDN that is slow or blocked would leave the
+      dietitian with an empty box during an appointment. %>
+  <% if (series.length > 1) {
+       var W = 640, H = 140, PAD = 8;
+       var kgs = series.map(function(s){ return s.kg; });
+       var lo = Math.min.apply(null, kgs), hi = Math.max.apply(null, kgs);
+       var span = (hi - lo) || 1;
+       var pts = series.map(function(s, i){
+         var x = PAD + (i / (series.length - 1)) * (W - PAD * 2);
+         var y = PAD + (1 - (s.kg - lo) / span) * (H - PAD * 2);
+         return x.toFixed(1) + ',' + y.toFixed(1);
+       }).join(' ');
+  %>
+  <div class="overflow-x-auto">
+    <svg viewBox="0 0 <%= W %> <%= H %>" class="w-full h-32" preserveAspectRatio="none" role="img"
+         aria-label="<%= t('nt.prog.title') %>">
+      <polyline points="<%= pts %>" fill="none" stroke="#16a34a" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+    </svg>
+  </div>
+  <div class="flex justify-between text-[10px] text-slate-400">
+    <span><%= lo %> <%= t('nt.u.kg') %></span><span><%= hi %> <%= t('nt.u.kg') %></span>
+  </div>
+  <% } %>
+</div>
+<% } %>
+
+<div class="grid lg:grid-cols-2 gap-5">
+  <!-- ── القياسات ──────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.meas.title') %></h2>
+    <form method="post" action="/nutrition/patients/<%= patient.id %>/measure" class="grid grid-cols-2 gap-2 mb-4 no-print">
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.date') %>
+        <input name="taken_on" type="date" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.weight') %>
+        <input name="weight_kg" type="number" min="0" <%- 'step="0.1"' %> class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.body_fat') %>
+        <input name="body_fat_pct" type="number" min="0" <%- 'step="0.1"' %> class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.waist') %>
+        <input name="waist_cm" type="number" min="0" <%- 'step="0.1"' %> class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <button class="col-span-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('nt.meas.add') %></button>
+    </form>
+
+    <% if (!measurements.length) { %>
+      <p class="text-sm text-slate-500"><%= t('nt.meas.empty') %></p>
+    <% } else { %>
+    <div class="divide-y divide-slate-100 text-sm max-h-72 overflow-y-auto">
+      <% measurements.forEach(function(m){ %>
+      <div class="flex items-center gap-2 py-2">
+        <span class="text-xs text-slate-400 w-24 shrink-0"><%= fmtD(m.taken_on) %></span>
+        <span class="font-bold text-slate-800"><%= m.weight_kg != null ? m.weight_kg + ' ' + t('nt.u.kg') : '—' %></span>
+        <% if (m.body_fat_pct != null) { %><span class="text-xs text-slate-500"><%= m.body_fat_pct %>% <%= t('nt.f.body_fat_short') %></span><% } %>
+        <% if (m.source === 'patient') { %><span class="text-[10px] bg-sky-50 text-sky-700 rounded-full px-2 py-0.5"><%= t('nt.meas.by_patient') %></span><% } %>
+        <form method="post" action="/nutrition/patients/<%= patient.id %>/measure/<%= m.id %>/delete" class="ms-auto no-print"
+              onsubmit="return confirm(<%= JSON.stringify(t('nt.meas.del_confirm')) %>)">
+          <button class="text-xs text-slate-300 hover:text-red-600">✕</button>
+        </form>
+      </div>
+      <% }); %>
+    </div>
+    <%# Stated because it is unusual and deliberate: readings are removed and
+        re-entered, never edited, or the curve becomes a claim not a record. %>
+    <p class="text-[11px] text-slate-400 mt-3 no-print"><%= t('nt.meas.no_edit') %></p>
+    <% } %>
+  </div>
+
+  <!-- ── التحاليل ──────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.lab.title') %></h2>
+    <form method="post" action="/nutrition/patients/<%= patient.id %>/lab" class="grid grid-cols-2 gap-2 mb-4 no-print">
+      <label class="text-xs font-bold text-slate-600 col-span-2"><%= t('nt.lab.name') %>
+        <input name="title" maxlength="120" required class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.lab.value') %>
+        <input name="value" maxlength="60" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.lab.unit') %>
+        <input name="unit" maxlength="20" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600 col-span-2"><%= t('nt.f.date') %>
+        <input name="taken_on" type="date" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <button class="col-span-2 bg-slate-800 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('nt.lab.add') %></button>
+    </form>
+
+    <% if (!labs.length) { %>
+      <p class="text-sm text-slate-500"><%= t('nt.lab.empty') %></p>
+    <% } else { %>
+    <div class="divide-y divide-slate-100 text-sm max-h-72 overflow-y-auto">
+      <% labs.forEach(function(l){ %>
+      <div class="flex items-center gap-2 py-2">
+        <span class="text-xs text-slate-400 w-24 shrink-0"><%= fmtD(l.taken_on) %></span>
+        <span class="text-slate-800"><%= l.title %></span>
+        <span class="font-bold text-slate-900"><%= l.value || '' %> <span class="text-xs font-normal text-slate-400"><%= l.unit || '' %></span></span>
+        <form method="post" action="/nutrition/patients/<%= patient.id %>/lab/<%= l.id %>/delete" class="ms-auto no-print">
+          <button class="text-xs text-slate-300 hover:text-red-600">✕</button>
+        </form>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<!-- ── بيانات المريض ─────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mt-5 no-print">
+  <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.pt.edit') %></h2>
+  <form method="post" action="/nutrition/patients" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <input type="hidden" name="id" value="<%= patient.id %>" />
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.name') %>
+      <input name="name" value="<%= patient.name %>" maxlength="120" required class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.phone') %>
+      <input name="phone" value="<%= patient.phone || '' %>" maxlength="30" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.gender') %>
+      <select name="gender" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value=""><%= t('dn.none') %></option>
+        <option value="male" <%= patient.gender === 'male' ? 'selected' : '' %>><%= t('nt.g.male') %></option>
+        <option value="female" <%= patient.gender === 'female' ? 'selected' : '' %>><%= t('nt.g.female') %></option>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.birth_date') %>
+      <input name="birth_date" type="date" value="<%= patient.birth_date ? String(patient.birth_date).slice(0,10) : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.height_cm') %>
+      <input name="height_cm" type="number" min="0" <%- 'step="0.1"' %> value="<%= patient.height_cm || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.activity') %>
+      <select name="activity" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% activities.forEach(function(a){ %><option value="<%= a %>" <%= patient.activity === a ? 'selected' : '' %>><%= t('nt.act.' + a) %></option><% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.goal') %>
+      <select name="goal" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% goals.forEach(function(g){ %><option value="<%= g %>" <%= patient.goal === g ? 'selected' : '' %>><%= t('nt.goal.' + g) %></option><% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.target_weight') %>
+      <input name="target_weight_kg" type="number" min="0" <%- 'step="0.1"' %> value="<%= patient.target_weight_kg || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <%# Left blank on purpose follows the practice default. Filling it in is a
+        clinical decision for THIS patient, so it is stored, not defaulted. %>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.protein_per_kg') %>
+      <input name="protein_per_kg" type="number" min="0" <%- 'step="0.1"' %> value="<%= patient.protein_per_kg || '' %>"
+             placeholder="<%= t('nt.f.follow_default') %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.fat_percent') %>
+      <input name="fat_percent" type="number" min="0" max="60" <%- 'step="1"' %> value="<%= patient.fat_percent || '' %>"
+             placeholder="<%= t('nt.f.follow_default') %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600 sm:col-span-2 lg:col-span-4"><%= t('nt.f.notes') %>
+      <textarea name="notes" rows="2" maxlength="1000" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= patient.notes || '' %></textarea>
+    </label>
+    <button class="bg-slate-800 text-white font-bold rounded-xl px-6 py-2 text-sm justify-self-start"><%= t('nt.m.save') %></button>
+  </form>
+</div>
+
+</main></body></html>

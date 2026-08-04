@@ -370,6 +370,82 @@ const FIXTURES = {
     };
   },
 
+  // ── Nutrition practice ─────────────────────────────────────────────────────
+  nutrition_dashboard: () => ({
+    __file: 'nutrition_admin/dashboard.ejs', tab: 'dashboard',
+    tally: { active: 12, archived: 3 },
+    lapsed: [{ id: 1, name: 'Mona S.', last_seen: '2026-05-01' }],
+    never: [{ id: 2, name: 'Karim H.' }],
+    total: 12,
+  }),
+
+  nutrition_patients: () => {
+    const E = require('../src/nutrition/engine');
+    return {
+      __file: 'nutrition_admin/patients.ejs', tab: 'patients',
+      rows: [
+        { id: 1, name: 'Mona S.', phone: '01000000010', goal: 'loss', last_weight: 84.2, last_seen: '2026-07-20' },
+        { id: 2, name: 'Karim H.', phone: null, goal: 'gain', last_weight: null, last_seen: null },
+      ],
+      tally: { active: 12, archived: 3 }, archived: false, q: '',
+      activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      saved: true, err: 'required',
+    };
+  },
+
+  nutrition_patient: () => {
+    const E = require('../src/nutrition/engine');
+    const P = require('../src/nutrition/practice');
+    const patient = {
+      id: 1, name: 'Mona S.', phone: '01000000010', gender: 'female',
+      birth_date: '1992-03-15', height_cm: 165, activity: 'moderate', goal: 'loss',
+      protein_per_kg: null, fat_percent: null, target_weight_kg: 72, notes: '',
+    };
+    const measurements = [
+      { id: 3, taken_on: '2026-07-20', weight_kg: 84.2, body_fat_pct: 33.1, waist_cm: 92, source: 'clinic' },
+      { id: 2, taken_on: '2026-06-20', weight_kg: 86.0, body_fat_pct: null, waist_cm: null, source: 'patient' },
+      { id: 1, taken_on: '2026-05-20', weight_kg: 88.5, body_fat_pct: 35.0, waist_cm: 96, source: 'clinic' },
+    ];
+    const series = measurements.slice().reverse()
+      .map((m) => ({ on: String(m.taken_on), kg: Number(m.weight_kg) }));
+    return {
+      __file: 'nutrition_admin/patient.ejs', tab: 'patients',
+      patient, measurements, series,
+      labs: [{ id: 1, taken_on: '2026-07-01', title: 'Vitamin D', value: '18', unit: 'ng/mL' }],
+      plans: [], login: null,
+      // The real engine, so a change to the calculation cannot silently pass
+      // this check with a hand-written result that no longer matches.
+      calc: E.compute(patient, measurements[0], { protein_per_kg: 1.8, fat_percent: 25 }),
+      latest: measurements[0],
+      progress: P.progress(series, patient.target_weight_kg),
+      activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      saved: false, err: 'empty',
+    };
+  },
+
+  // The same patient with almost nothing on file: the branch that has to say
+  // WHICH inputs are missing rather than printing a dash.
+  nutrition_patient_incomplete: () => {
+    const E = require('../src/nutrition/engine');
+    const patient = { id: 2, name: 'Karim H.', gender: null, birth_date: null,
+      height_cm: null, activity: 'light', goal: 'gain', notes: '' };
+    return {
+      __file: 'nutrition_admin/patient.ejs', tab: 'patients',
+      patient, measurements: [], series: [], labs: [], plans: [], login: null,
+      calc: E.compute(patient, null, {}), latest: null, progress: null,
+      activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      saved: false, err: null,
+    };
+  },
+
+  nutrition_settings: () => ({
+    __file: 'nutrition_admin/settings.ejs', tab: 'settings',
+    settings: { practice_name: 'Demo Nutrition', phone: '0882000000', whatsapp: '201000000000',
+      hours: 'Sat-Thu 4pm-10pm', address: '5 Adly St', about: 'A demo practice.',
+      booking_enabled: true, protein_per_kg: 1.8, fat_percent: 25 },
+    saved: true,
+  }),
+
   furniture_alerts: (lang) => {
     const fl = require('../src/furniture/flags');
     const flags = new Set([...fl.DEFAULT_ON, 'master']);

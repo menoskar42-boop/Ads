@@ -1,0 +1,60 @@
+<%- include('head', { title: t('nt.nav.settings'), tab: 'settings' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">⚙️ <%= t('nt.nav.settings') %></h1>
+<p class="text-slate-500 mb-5 text-sm"><%= t('nt.set.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('nt.m.saved') %></div><% } %>
+
+<form method="post" action="/nutrition/settings" class="grid gap-5">
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.set.practice') %></h2>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.set.name') %>
+        <input name="practice_name" maxlength="120" value="<%= settings.practice_name || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.phone') %>
+        <input name="phone" maxlength="30" value="<%= settings.phone || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.set.whatsapp') %>
+        <input name="whatsapp" maxlength="30" value="<%= settings.whatsapp || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.set.hours') %>
+        <input name="hours" maxlength="200" value="<%= settings.hours || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600 sm:col-span-2"><%= t('nt.set.address') %>
+        <input name="address" maxlength="200" value="<%= settings.address || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600 sm:col-span-2"><%= t('nt.set.about') %>
+        <textarea name="about" rows="4" maxlength="1500" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= settings.about || '' %></textarea>
+      </label>
+      <label class="text-xs font-bold text-slate-600 flex items-center gap-2 sm:col-span-2">
+        <input type="checkbox" name="booking_enabled" value="1" <%= settings.booking_enabled !== false ? 'checked' : '' %> class="rounded" />
+        <%= t('nt.set.booking') %>
+      </label>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm p-5">
+    <h2 class="font-bold text-slate-800 mb-1 text-sm"><%= t('nt.set.defaults') %></h2>
+    <p class="text-xs text-slate-500 mb-3"><%= t('nt.set.defaults_hint') %></p>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.protein_per_kg') %>
+        <input name="protein_per_kg" type="number" min="0.5" max="4" <%- 'step="0.1"' %>
+               value="<%= settings.protein_per_kg != null ? settings.protein_per_kg : 1.8 %>"
+               class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.f.fat_percent') %>
+        <input name="fat_percent" type="number" min="10" max="60" <%- 'step="1"' %>
+               value="<%= settings.fat_percent != null ? settings.fat_percent : 25 %>"
+               class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <%# Said out loud, because the clamp is silent otherwise and a clinician who
+        typed 18 by mistake deserves to know why it came back as 4. %>
+    <p class="text-[11px] text-slate-400 mt-3"><%= t('nt.set.clamp_hint') %></p>
+  </div>
+
+  <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-8 py-2.5 text-sm justify-self-start"><%= t('nt.m.save') %></button>
+</form>
+
+</main></body></html>

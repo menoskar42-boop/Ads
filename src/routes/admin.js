@@ -137,7 +137,7 @@ router.get('/companies/add', requireAdmin, (req, res) => {
 
 router.post('/companies/add', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, admin_email, admin_password } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   const form = { company_name, slug, description, theme_color, admin_email, page_type };
 
   const renderError = (error) =>
@@ -216,7 +216,7 @@ router.get('/companies/:id/edit', requireAdmin, async (req, res) => {
 
 router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, is_active } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   try {
     if (!SLUG_REGEX.test(slug) || RESERVED_SLUGS.includes(slug)) {
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);

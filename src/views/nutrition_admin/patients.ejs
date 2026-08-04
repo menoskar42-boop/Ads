@@ -1,0 +1,100 @@
+<%- include('head', { title: t('nt.nav.patients'), tab: 'patients' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">👥 <%= t('nt.nav.patients') %></h1>
+<p class="text-slate-500 mb-5 text-sm"><%= t('nt.pt.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('nt.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('nt.err.' + err) %></div><% } %>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3"><%= t('nt.pt.new') %></h2>
+  <form method="post" action="/nutrition/patients" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.name') %>
+      <input name="name" maxlength="120" required class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.phone') %>
+      <input name="phone" maxlength="30" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.gender') %>
+      <select name="gender" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value=""><%= t('dn.none') %></option>
+        <option value="male"><%= t('nt.g.male') %></option>
+        <option value="female"><%= t('nt.g.female') %></option>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.birth_date') %>
+      <input name="birth_date" type="date" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.height_cm') %>
+      <input name="height_cm" type="number" min="0" <%- 'step="0.1"' %> class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.activity') %>
+      <select name="activity" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% activities.forEach(function(a){ %><option value="<%= a %>" <%= a === 'light' ? 'selected' : '' %>><%= t('nt.act.' + a) %></option><% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.goal') %>
+      <select name="goal" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% goals.forEach(function(g){ %><option value="<%= g %>" <%= g === 'maintain' ? 'selected' : '' %>><%= t('nt.goal.' + g) %></option><% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.f.target_weight') %>
+      <input name="target_weight_kg" type="number" min="0" <%- 'step="0.1"' %> class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm justify-self-start"><%= t('nt.m.add') %></button>
+  </form>
+</div>
+
+<form method="get" class="flex gap-2 mb-4 flex-wrap items-center">
+  <input name="q" value="<%= q %>" placeholder="<%= t('nt.pt.search') %>"
+         class="border border-slate-200 rounded-xl px-3 py-2 text-sm flex-1 min-w-[180px]" />
+  <% if (archived) { %><input type="hidden" name="archived" value="1" /><% } %>
+  <button class="bg-slate-800 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('nt.m.search') %></button>
+  <a href="/nutrition/patients<%= archived ? '' : '?archived=1' %>"
+     class="text-xs px-3 py-2 rounded-xl <%= archived ? 'bg-slate-800 text-white font-bold' : 'bg-white border border-slate-200' %>">
+    <%= archived ? t('nt.m.active') + ' (' + tally.active + ')' : t('nt.m.archived') + ' (' + tally.archived + ')' %>
+  </a>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500"><%= t('nt.pt.empty') %></div>
+<% } else { %>
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm rt">
+      <thead class="bg-slate-50 text-slate-600">
+        <tr>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.f.name') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.f.goal') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.pt.last_weight') %></th>
+          <th class="text-start px-4 py-2 font-semibold"><%= t('nt.pt.last_seen') %></th>
+          <th class="text-start px-4 py-2 font-semibold"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% rows.forEach(function(p){ %>
+        <tr>
+          <td class="px-4 py-2" data-l="<%= t('nt.f.name') %>">
+            <a href="/nutrition/patients/<%= p.id %>" class="font-bold text-brand-700 hover:underline"><%= p.name %></a>
+            <% if (p.phone) { %><span class="text-xs text-slate-400 ms-1" dir="ltr"><%= p.phone %></span><% } %>
+          </td>
+          <td class="px-4 py-2 text-slate-600" data-l="<%= t('nt.f.goal') %>"><%= t('nt.goal.' + p.goal) %></td>
+          <td class="px-4 py-2 font-semibold" data-l="<%= t('nt.pt.last_weight') %>"><%= p.last_weight != null ? p.last_weight + ' ' + t('nt.u.kg') : '—' %></td>
+          <td class="px-4 py-2 text-xs text-slate-500" data-l="<%= t('nt.pt.last_seen') %>"><%= p.last_seen ? String(p.last_seen).slice(0,10) : '—' %></td>
+          <td class="px-4 py-2">
+            <form method="post" action="/nutrition/patients/<%= p.id %>/archive">
+              <input type="hidden" name="restore" value="<%= archived ? '1' : '0' %>" />
+              <button class="text-xs font-semibold <%= archived ? 'text-emerald-700' : 'text-slate-400 hover:text-red-600' %>">
+                <%= archived ? t('nt.m.restore') : t('nt.m.archive') %>
+              </button>
+            </form>
+          </td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<% } %>
+
+</main></body></html>

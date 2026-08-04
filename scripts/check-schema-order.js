@@ -29,6 +29,7 @@ const FILES = [
   'src/accounting/schema.js',
   'src/radiology/schema.js',
   'src/furniture/schema.js',
+  'src/nutrition/schema.js',
 ];
 
 let problems = 0;
