@@ -32,6 +32,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # The default GITHUB_TOKEN is read-only, so publishing the release returned
+    # 403 "Resource not accessible by integration" — after a perfectly good APK
+    # had already been built. Granted at the JOB level and nowhere wider: the
+    # only write this workflow needs is creating a release.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
