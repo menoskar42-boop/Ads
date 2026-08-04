@@ -111,9 +111,27 @@ check('No duplicated app logic in the native project',
 // root build.gradle or settings.gradle it would clobber the wiring `cap add`
 // writes for the Capacitor modules, and the build would fail on a missing
 // project reference.
-check('Overlay does not clobber the generated Gradle wiring',
-  !fs.existsSync(A('android/settings.gradle')) && !fs.existsSync(A('android/build.gradle')),
-  'settings.gradle and the root build.gradle belong to the scaffold.');
+// The first CI run died here. The overlay shipped its own app/build.gradle,
+// which dropped androidx.core:core-splashscreen — and AAPT then failed with
+// "style/Theme.SplashScreen not found", an error that names the style and says
+// nothing about the missing dependency.
+check('Overlay does not replace any generated Gradle file',
+  !fs.existsSync(A('android/settings.gradle'))
+  && !fs.existsSync(A('android/build.gradle'))
+  && !fs.existsSync(A('android/app/build.gradle'))
+  && !fs.existsSync(A('android/variables.gradle')),
+  'Gradle files are PATCHED by scripts/patch-gradle.js, never replaced: a replacement '
+  + 'is correct the day it is written and wrong the next time Capacitor changes.');
+
+const patcher = read(A('../scripts/patch-gradle.js'));
+check('The Gradle patcher guards the splash-screen dependency',
+  /core-splashscreen/.test(patcher),
+  'It must fail with the real reason rather than letting AAPT report a missing style.');
+
+check('The Gradle patcher rejects a duplicated minifyEnabled',
+  /minifyEnabled/.test(patcher) && /last one wins/.test(patcher),
+  'Two minifyEnabled lines means the later wins, the ProGuard rules never apply, '
+  + 'and the release build silently loses the geofence.');
 
 console.log(failed ? `\n⚠️  ${failed} مشكلة — راجعها قبل البناء.` : '\nمشروع التطبيق سليم.');
 process.exit(failed ? 1 : 0);

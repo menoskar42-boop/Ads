@@ -8,9 +8,10 @@
     "overlay": "node scripts/apply-overlay.js",
     "add:android": "npx cap add android",
     "add:ios": "npx cap add ios",
-    "sync": "npm run web && npx cap sync && npm run overlay",
+    "sync": "npm run web && npx cap sync && npm run overlay && npm run gradle",
     "apk:debug": "npm run sync && cd android && ./gradlew assembleDebug",
-    "apk:release": "npm run sync && cd android && ./gradlew assembleRelease"
+    "apk:release": "npm run sync && cd android && ./gradlew assembleRelease",
+    "gradle": "node scripts/patch-gradle.js"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
