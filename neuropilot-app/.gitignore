@@ -1,0 +1,6 @@
+# Generated on every build from ../neuropilot — never edited by hand, and
+# tracking it would create a second copy that can drift from the source.
+www/
+
+node_modules/
+.DS_Store

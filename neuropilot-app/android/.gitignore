@@ -1,0 +1,12 @@
+# Never in git: it signs every release, and a leaked one lets anyone publish an
+# update to this app.
+keystore.properties
+*.keystore
+*.jks
+
+build/
+.gradle/
+local.properties
+app/build/
+capacitor-cordova-android-plugins/
+capacitor.settings.gradle

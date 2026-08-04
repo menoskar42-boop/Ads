@@ -1,0 +1,21 @@
+{
+  "name": "neuropilot-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NeuroPilot native shell — background geofencing for the ADHD focus app",
+  "scripts": {
+    "sync": "node scripts/copy-web.js && npx cap sync",
+    "android": "npm run sync && npx cap open android",
+    "ios": "npm run sync && npx cap open ios",
+    "apk:debug": "npm run sync && cd android && ./gradlew assembleDebug",
+    "apk:release": "npm run sync && cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

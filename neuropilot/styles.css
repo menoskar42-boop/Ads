@@ -402,3 +402,20 @@ html.dark .place-del { background: #3A2624; color: #E88B7F; }
   font-family: inherit;
   cursor: pointer;
 }
+
+/* Native-only notice: the app can do something the website cannot, and this is
+   where it says so. Amber rather than red — it is a capability to unlock, not
+   an error the user caused. */
+.geo-notice {
+  background: #FEF6E7;
+  border: 1px solid #F5D9A0;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.geo-notice-text {
+  font-size: .9rem;
+  line-height: 1.8;
+  color: #7A5A1E;
+  margin: 0 0 10px;
+}

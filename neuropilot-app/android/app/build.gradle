@@ -1,0 +1,74 @@
+apply plugin: 'com.android.application'
+
+// Signing config is read from a file that is NOT in git. A keystore password in
+// a tracked build file is a keystore password in every clone of the repo.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace "com.oscardevs.neuropilot"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.oscardevs.neuropilot"
+        // 26 (Oreo): notification channels, which the arrival alert depends on.
+        // Below that the high-importance alert cannot be guaranteed, and a
+        // reminder that might not make a sound is not worth shipping.
+        minSdkVersion 26
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions { ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~' }
+    }
+
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories { flatDir { dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs' } }
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.core:core:1.13.1"
+    implementation project(':capacitor-android')
+    // The geofencing API itself. Everything this app adds over the website
+    // comes from this one dependency.
+    implementation "com.google.android.gms:play-services-location:21.3.0"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) { apply plugin: 'com.google.gms.google-services' }
+} catch (Exception e) {
+    logger.info("google-services.json not found — push via FCM is not configured (Web Push still works).")
+}

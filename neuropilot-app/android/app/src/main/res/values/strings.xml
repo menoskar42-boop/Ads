@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NeuroPilot</string>
+    <string name="title_activity_main">NeuroPilot</string>
+    <string name="package_name">com.oscardevs.neuropilot</string>
+    <string name="custom_url_scheme">com.oscardevs.neuropilot</string>
+
+    <string name="channel_arrival">تذكير المكان</string>
+    <string name="channel_arrival_desc">ينبّهك أول ما توصل مكان حاططله مهمة — حتى والتطبيق مقفول.</string>
+
+    <string name="arrival_title">وصلت 📍</string>
+    <string name="arrival_body">وصلت %1$s — فيه حاجة مستنياك هنا.</string>
+    <string name="arrival_body_generic">وصلت مكان حاططله مهمة.</string>
+</resources>

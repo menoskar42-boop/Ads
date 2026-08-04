@@ -191,8 +191,19 @@
       var p = getPlaceById(r.placeId);
       if (!p) return;
       seen[r.placeId] = 1;
-      list.push({ placeId: p.id, latitude: p.latitude, longitude: p.longitude });
+      list.push({ placeId: p.id, id: p.id, name: p.name,
+        latitude: p.latitude, longitude: p.longitude });
     });
+
+    // Inside the phone app the OS holds the fence, so it fires with the app
+    // closed — the whole reason the native build exists. The foreground watcher
+    // is then NOT started: running both would double every arrival alert.
+    var N = window.NeuroPilotNative;
+    if (N && N.available()) {
+      stopGeofence();
+      N.watch(list);
+      return;
+    }
     setGeofenceTargets(list);
   }
 
@@ -620,9 +631,41 @@
   }
 
   // ─────────────────────────── places view ───────────────────────────
+  //
+  // Inside the phone app, this is where the "allow all the time" ask belongs —
+  // AFTER the user has saved a place, so the prompt arrives with the feature
+  // visible in front of them. Both platforms treat an early ask harshly:
+  // Android 11+ hides the always-allow option entirely if it is requested
+  // alongside foreground, and iOS quietly answers "keep only while using" with
+  // no second prompt. Asking on first launch loses the permission permanently.
+  function renderNativeGeoNotice() {
+    var box = $("nativeGeoNotice");
+    if (!box) return;
+    var N = window.NeuroPilotNative;
+    if (!N || !N.available() || !getPlaces().length) { hide(box); return; }
+
+    N.status().then(function (st) {
+      if (st.background) { hide(box); return; }
+      show(box);
+      var btn = $("nativeGeoBtn");
+      if (!btn) return;
+      btn.onclick = function () {
+        btn.disabled = true;
+        N.requestBackground().then(function (r) {
+          btn.disabled = false;
+          if (r && r.granted) { hide(box); armGeofence(); }
+          // Denied: the notice stays, because the honest state is "location
+          // reminders only work while the app is open" and hiding that would
+          // let somebody rely on a reminder that will not arrive.
+        });
+      };
+    });
+  }
+
   function renderPlacesView() {
     hide($("app"));
     show($("placesView"));
+    renderNativeGeoNotice();
     var places = getPlaces(), ul = $("placesList");
     ul.innerHTML = "";
     if (!places.length) { show($("placesEmpty")); }

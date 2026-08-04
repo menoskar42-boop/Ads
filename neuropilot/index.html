@@ -159,6 +159,17 @@
                placeholder="اسم المكان (مثلاً: البيت، الشغل)" autocomplete="off" />
         <button id="savePlaceBtn" class="btn btn-primary">📍 احفظ موقعي الحالي</button>
       </div>
+      <!-- Shown only inside the phone app, only once a place exists, and only
+           while "allow all the time" has not been granted. On the website it
+           never renders — the browser cannot do this and pretending otherwise
+           would be a promise the page cannot keep. -->
+      <div id="nativeGeoNotice" class="hidden geo-notice">
+        <p class="geo-notice-text">
+          🔒 التذكير المكاني دلوقتي بيشتغل <strong>بس والتطبيق مفتوح</strong>.
+          عشان يوصلك والتطبيق مقفول، التطبيق محتاج إذن الموقع «طول الوقت».
+        </p>
+        <button id="nativeGeoBtn" class="btn btn-primary">فعّل التذكير والتطبيق مقفول</button>
+      </div>
       <p id="placesEmpty" class="empty hidden">محدش محفوظ لسه. احفظ أماكنك المهمة عشان تربطها بمهامك.</p>
       <ul id="placesList" class="places-list"></ul>
     </div>
@@ -210,6 +221,10 @@
   <!-- toast -->
   <div id="toast" class="toast hidden"></div>
 
-  <script src="/app.js"></script>
+  <!-- The native bridge loads first so app.js can ask whether it is running
+     inside the phone app before it arms any geofence. On the website it
+     defines an object whose every method answers "not available". -->
+<script src="/native.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>
