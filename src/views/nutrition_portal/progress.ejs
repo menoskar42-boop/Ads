@@ -1,0 +1,63 @@
+<%- include('head', { title: t('np.nav.progress') }) %>
+<% function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } } %>
+
+<div class="flex items-center gap-3 mb-4">
+  <a href="/portal" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('np.today.title') %></a>
+  <h1 class="text-xl font-black text-slate-900"><%= t('np.nav.progress') %></h1>
+</div>
+
+<% if (!series.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-sm text-slate-500"><%= t('np.prog.empty') %></div>
+<% } else { %>
+
+<% if (progress) { %>
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+  <div class="flex flex-wrap gap-4 text-sm mb-3">
+    <span><%= t('np.prog.total') %>
+      <b class="<%= progress.total < 0 ? 'text-emerald-700' : 'text-slate-900' %>"><%= progress.total > 0 ? '+' : '' %><%= progress.total %> <%= t('np.u.kg') %></b>
+    </span>
+    <% if (progress.remaining != null) { %>
+      <span><%= t('np.prog.remaining') %> <b><%= Math.abs(progress.remaining) %> <%= t('np.u.kg') %></b></span>
+    <% } %>
+  </div>
+
+  <%# Inline SVG, no chart library. This opens on a phone on mobile data and a
+      blocked CDN would leave an empty box where the reason to keep going is. %>
+  <% if (series.length > 1) {
+       var W = 600, H = 130, PAD = 8;
+       var kgs = series.map(function(s){ return s.kg; });
+       var lo = Math.min.apply(null, kgs), hi = Math.max.apply(null, kgs);
+       var span = (hi - lo) || 1;
+       var pts = series.map(function(s, i){
+         var x = PAD + (i / (series.length - 1)) * (W - PAD * 2);
+         var y = PAD + (1 - (s.kg - lo) / span) * (H - PAD * 2);
+         return x.toFixed(1) + ',' + y.toFixed(1);
+       }).join(' ');
+  %>
+  <svg viewBox="0 0 <%= W %> <%= H %>" class="w-full h-28" preserveAspectRatio="none" role="img" aria-label="<%= t('np.nav.progress') %>">
+    <polyline points="<%= pts %>" fill="none" stroke="#16a34a" stroke-width="2"
+              stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+  </svg>
+  <div class="flex justify-between text-[10px] text-slate-400">
+    <span><%= lo %> <%= t('np.u.kg') %></span><span><%= hi %> <%= t('np.u.kg') %></span>
+  </div>
+  <% } %>
+</div>
+<% } %>
+
+<div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+  <div class="divide-y divide-slate-100 text-sm">
+    <% rows.forEach(function(r){ %>
+    <div class="px-4 py-2.5 flex items-center gap-2">
+      <span class="text-xs text-slate-400"><%= fmtD(r.taken_on) %></span>
+      <span class="ms-auto font-bold text-slate-800"><%= r.weight_kg %> <%= t('np.u.kg') %></span>
+      <% if (r.source === 'clinic') { %>
+        <span class="text-[10px] bg-slate-100 text-slate-500 rounded-full px-2 py-0.5"><%= t('np.prog.at_clinic') %></span>
+      <% } %>
+    </div>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
+</main></body></html>

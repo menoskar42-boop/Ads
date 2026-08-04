@@ -1,0 +1,28 @@
+<%- include('head', { title: t('np.login.title'), showNav: false }) %>
+
+<div class="bg-white rounded-2xl shadow-sm p-6 mt-6">
+  <h1 class="text-xl font-black text-slate-900 mb-1"><%= t('np.login.title') %></h1>
+  <p class="text-slate-500 text-sm mb-5"><%= t('np.login.sub') %></p>
+
+  <%# One message for every failure. Saying "no such login" would tell anyone
+      who asks which of this practice's patients exist. %>
+  <% if (err) { %>
+    <div class="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('np.login.bad') %></div>
+  <% } %>
+
+  <form method="post" action="/portal/login" class="grid gap-3">
+    <label class="text-xs font-bold text-slate-600"><%= t('np.login.login') %>
+      <input name="login" required autocomplete="username"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('np.login.password') %>
+      <input name="password" type="password" required autocomplete="current-password"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+    </label>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2.5 text-sm mt-1"><%= t('np.login.go') %></button>
+  </form>
+
+  <p class="text-xs text-slate-400 mt-5"><%= t('np.login.ask') %></p>
+</div>
+
+</main></body></html>

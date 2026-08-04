@@ -136,6 +136,9 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
       tab: 'patients', ...data,
       progress: P.progress(data.series, data.patient.target_weight_kg),
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      // Shown once and never again — it exists only as a hash from here on.
+      newPassword: typeof req.query.pw === 'string' ? req.query.pw.slice(0, 32) : null,
+      portalUrl: 'https://' + req.company.slug + '.oscardevs.com/portal',
       saved: req.query.saved === '1', err: req.query.err || null,
     });
   } catch (e) { console.error('[nutrition patient]', e.message); res.status(500).send('error'); }
@@ -193,6 +196,49 @@ router.post('/patients/:id(\\d+)/lab/:lid(\\d+)/delete', async (req, res) => {
     await pool.query('DELETE FROM nutrition_labs WHERE id=$1 AND patient_id=$2 AND company_id=$3',
       [parseInt(req.params.lid, 10), id, req.company.id]);
   } catch (e) { console.error('[nutrition lab del]', e.message); }
+  res.redirect('/nutrition/patients/' + id);
+});
+
+// ── The patient's login ──────────────────────────────────────────────────────
+//
+// The dietitian sets it, and the password is shown ONCE, right after it is
+// created. It is stored only as a bcrypt hash, so there is no screen anywhere
+// that can show it again — which is the point. Resetting issues a new one.
+router.post('/patients/:id(\\d+)/login', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const login = text(b.login, 120);
+  if (!login) return res.redirect('/nutrition/patients/' + id + '?err=required');
+  try {
+    const patient = (await pool.query(
+      'SELECT id FROM nutrition_patients WHERE id=$1 AND company_id=$2', [id, req.company.id])).rows[0];
+    if (!patient) return res.redirect('/nutrition/patients');
+
+    // Generated, not typed. A dietitian choosing passwords for forty patients
+    // picks the clinic's phone number forty times.
+    const password = require('crypto').randomBytes(6).toString('base64url').slice(0, 8);
+    const hash = await require('bcryptjs').hash(password, 10);
+    await pool.query(
+      `INSERT INTO nutrition_patient_users (company_id, patient_id, login, password_hash)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (patient_id) DO UPDATE SET login=EXCLUDED.login,
+              password_hash=EXCLUDED.password_hash, is_active=true`,
+      [req.company.id, id, login, hash]);
+    // Carried in the URL for one render. Never stored, never shown twice.
+    res.redirect(`/nutrition/patients/${id}?pw=${encodeURIComponent(password)}`);
+  } catch (e) {
+    console.error('[nutrition patient login]', e.message);
+    res.redirect('/nutrition/patients/' + id + '?err=login_taken');
+  }
+});
+
+router.post('/patients/:id(\\d+)/login/disable', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    await pool.query(
+      'UPDATE nutrition_patient_users SET is_active=false WHERE patient_id=$1 AND company_id=$2',
+      [id, req.company.id]);
+  } catch (e) { console.error('[nutrition login disable]', e.message); }
   res.redirect('/nutrition/patients/' + id);
 });
 

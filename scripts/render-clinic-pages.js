@@ -412,7 +412,8 @@ const FIXTURES = {
       __file: 'nutrition_admin/patient.ejs', tab: 'patients',
       patient, measurements, series,
       labs: [{ id: 1, taken_on: '2026-07-01', title: 'Vitamin D', value: '18', unit: 'ng/mL' }],
-      plans: [], login: null,
+      plans: [], login: { id: 1, login: '01000000010', is_active: true, last_login_at: '2026-08-01T09:00:00Z' },
+      newPassword: 'Kd8fQ2xR', portalUrl: 'https://nutrio.oscardevs.com/portal',
       // The real engine, so a change to the calculation cannot silently pass
       // this check with a hand-written result that no longer matches.
       calc: E.compute(patient, measurements[0], { protein_per_kg: 1.8, fat_percent: 25 }),
@@ -432,6 +433,7 @@ const FIXTURES = {
     return {
       __file: 'nutrition_admin/patient.ejs', tab: 'patients',
       patient, measurements: [], series: [], labs: [], plans: [], login: null,
+      newPassword: null, portalUrl: 'https://nutrio.oscardevs.com/portal',
       calc: E.compute(patient, null, {}), latest: null, progress: null,
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
       saved: false, err: null,
@@ -480,6 +482,75 @@ const FIXTURES = {
       mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
       dayTotals: E.totals(items),
       saved: false, err: 'line',
+    };
+  },
+
+  // ── Patient portal ─────────────────────────────────────────────────────────
+  // Rendered with `practice` rather than `company`, because the portal shell is
+  // the only one served on the tenant's own subdomain.
+  nutrition_portal_login: () => ({
+    __file: 'nutrition_portal/login.ejs',
+    practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+    err: 'bad',
+  }),
+
+  nutrition_portal_today: () => {
+    const E = require('../src/nutrition/engine');
+    const items = [
+      { id: 1, meal: 'breakfast', food_name: 'Boiled egg', grams: 100, kcal: 155, protein_g: 13, carbs_g: 1.1, fat_g: 11, note: null },
+      { id: 2, meal: 'breakfast', food_name: 'Baladi bread', grams: 60, kcal: 165, protein_g: 5.7, carbs_g: 33, fat_g: 1, note: 'half a loaf' },
+      { id: 3, meal: 'lunch', food_name: 'Grilled chicken breast', grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7.2, note: null },
+    ];
+    const byMeal = {};
+    E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
+    // One item ticked, so both the ticked and unticked rows render.
+    const done = new Set([1]);
+    return {
+      __file: 'nutrition_portal/today.ejs',
+      practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+      patient: { id: 1, name: 'Mona S.' },
+      plan: { id: 1, title: 'August plan', target_kcal: 1650 },
+      items, meals: E.MEALS, byMeal, done,
+      planTotals: E.totals(items),
+      eatenTotals: E.totals(items.filter((i) => done.has(i.id))),
+      lastWeight: { weight_kg: 84.2, taken_on: '2026-07-20' },
+      loggedToday: false, day: '2026-08-03',
+      saved: false, err: 'weight',
+    };
+  },
+
+  // The empty state: signed in, but the dietitian has not written a plan yet.
+  nutrition_portal_no_plan: () => {
+    const E = require('../src/nutrition/engine');
+    const byMeal = {};
+    E.MEALS.forEach((m) => { byMeal[m] = []; });
+    return {
+      __file: 'nutrition_portal/today.ejs',
+      practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+      patient: { id: 2, name: 'Karim H.' },
+      plan: null, items: [], meals: E.MEALS, byMeal, done: new Set(),
+      planTotals: E.totals([]), eatenTotals: E.totals([]),
+      lastWeight: null, loggedToday: false, day: '2026-08-03',
+      saved: true, err: null,
+    };
+  },
+
+  nutrition_portal_progress: () => {
+    const P = require('../src/nutrition/practice');
+    const series = [
+      { on: '2026-05-20', kg: 88.5 }, { on: '2026-06-20', kg: 86 }, { on: '2026-07-20', kg: 84.2 },
+    ];
+    return {
+      __file: 'nutrition_portal/progress.ejs',
+      practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+      patient: { id: 1, name: 'Mona S.', target_weight_kg: 72 },
+      series,
+      rows: [
+        { taken_on: '2026-07-20', weight_kg: 84.2, source: 'clinic' },
+        { taken_on: '2026-06-20', weight_kg: 86, source: 'patient' },
+        { taken_on: '2026-05-20', weight_kg: 88.5, source: 'clinic' },
+      ],
+      progress: P.progress(series, 72),
     };
   },
 

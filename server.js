@@ -355,6 +355,12 @@ app.use('/', blogRouter);
 // Tenant detection: runs on every non-company request
 app.use(tenantMiddleware);
 
+// The nutrition patient portal lives on the practice's own subdomain, and has
+// to run BEFORE the tenant router — otherwise /portal falls through to the
+// public practice page and 404s. It calls next('router') when the subdomain is
+// not a nutrition practice, so every other tenant is unaffected.
+app.use('/portal', require('./src/routes/nutrition_portal'));
+
 // If req.tenant is set, render the tenant page
 app.use((req, res, next) => {
   if (req.tenant) {

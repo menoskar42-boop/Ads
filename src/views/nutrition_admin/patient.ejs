@@ -210,6 +210,54 @@
   </div>
 </div>
 
+<!-- ── دخول المريض ──────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-5 mt-5 no-print">
+  <h2 class="font-bold text-slate-800 mb-1 text-sm"><%= t('nt.pu.title') %></h2>
+  <p class="text-xs text-slate-500 mb-3"><%= t('nt.pu.sub') %></p>
+
+  <%# Shown once, right after it is created, and never again — the password
+      exists only as a bcrypt hash from here on. That is the point, and the
+      page says so rather than leaving the dietitian hunting for it later. %>
+  <% if (newPassword) { %>
+  <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-3">
+    <p class="text-xs font-bold text-emerald-900 mb-2"><%= t('nt.pu.once') %></p>
+    <div class="bg-white border border-emerald-200 rounded-lg px-3 py-2 font-mono text-base text-center mb-2" dir="ltr"><%= newPassword %></div>
+    <p class="text-xs text-emerald-800" dir="ltr"><%= portalUrl %></p>
+  </div>
+  <% } %>
+
+  <% if (login) { %>
+    <div class="flex flex-wrap items-center gap-2 text-sm mb-3">
+      <span class="text-slate-500 text-xs"><%= t('nt.pu.login') %></span>
+      <span class="font-bold text-slate-800" dir="ltr"><%= login.login %></span>
+      <% if (!login.is_active) { %>
+        <span class="text-xs bg-slate-100 text-slate-500 rounded-full px-2 py-0.5"><%= t('nt.pu.disabled') %></span>
+      <% } else if (login.last_login_at) { %>
+        <span class="text-xs text-slate-400"><%= t('nt.pu.last') %> <%= fmtD(login.last_login_at) %></span>
+      <% } else { %>
+        <span class="text-xs text-amber-700"><%= t('nt.pu.never') %></span>
+      <% } %>
+      <% if (login.is_active) { %>
+      <form method="post" action="/nutrition/patients/<%= patient.id %>/login/disable" class="ms-auto">
+        <button class="text-xs text-slate-400 hover:text-red-600 font-semibold"><%= t('nt.pu.disable') %></button>
+      </form>
+      <% } %>
+    </div>
+  <% } %>
+
+  <form method="post" action="/nutrition/patients/<%= patient.id %>/login" class="flex flex-wrap gap-2 items-end">
+    <label class="text-xs font-bold text-slate-600 flex-1 min-w-[160px]"><%= t('nt.pu.login') %>
+      <input name="login" maxlength="120" required value="<%= login ? login.login : (patient.phone || '') %>"
+             placeholder="<%= t('nt.pu.login_ph') %>" dir="ltr"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="bg-slate-800 text-white font-bold rounded-xl px-5 py-2 text-sm">
+      <%= login ? t('nt.pu.reset') : t('nt.pu.create') %>
+    </button>
+  </form>
+  <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.pu.reset_hint') %></p>
+</div>
+
 <!-- ── الخطط الغذائية ────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mt-5">
   <div class="flex items-center gap-2 mb-3">

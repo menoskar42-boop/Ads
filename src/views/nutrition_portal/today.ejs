@@ -1,0 +1,79 @@
+<%- include('head', { title: t('np.today.title') }) %>
+<% function n(v,d){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits:d==null?0:d}); } %>
+
+<h1 class="text-xl font-black text-slate-900 mb-1"><%= t('np.today.hi') %> <%= patient.name %></h1>
+<p class="text-slate-500 text-sm mb-4"><%= t('np.today.title') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('np.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('np.err.' + err) %></div><% } %>
+
+<% if (!plan) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center">
+    <div class="text-3xl mb-2">🍽️</div>
+    <p class="text-sm text-slate-600 font-bold mb-1"><%= t('np.today.no_plan') %></p>
+    <p class="text-xs text-slate-400"><%= t('np.today.no_plan_hint') %></p>
+  </div>
+<% } else { %>
+
+<%# Eaten against planned, not eaten against a target. The patient follows the
+    plan they were given; the target lives on the dietitian's page. %>
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+  <div class="flex items-baseline gap-2 mb-2">
+    <span class="text-2xl font-black text-brand-700"><%= n(eatenTotals.kcal) %></span>
+    <span class="text-sm text-slate-400">/ <%= n(planTotals.kcal) %> <%= t('np.u.kcal') %></span>
+    <span class="ms-auto text-xs text-slate-400"><%= t('np.today.ticked') %></span>
+  </div>
+  <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+    <div class="h-full bg-brand-500" style="width: <%= planTotals.kcal ? Math.min(100, Math.round(eatenTotals.kcal / planTotals.kcal * 100)) : 0 %>%"></div>
+  </div>
+</div>
+
+<% meals.forEach(function(meal){ var items = byMeal[meal]; if (!items.length) return; %>
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-3">
+  <h2 class="font-bold text-slate-800 text-sm mb-2"><%= t('np.meal.' + meal) %></h2>
+  <div class="grid gap-2">
+    <% items.forEach(function(i){ var ticked = done.has(i.id); %>
+    <form method="post" action="/portal/tick">
+      <input type="hidden" name="item_id" value="<%= i.id %>" />
+      <input type="hidden" name="meal" value="<%= meal %>" />
+      <%# The whole row is the button. This is used one-handed on a phone,
+          usually while eating, and a small checkbox is the wrong target. %>
+      <button class="w-full flex items-center gap-3 text-start border rounded-xl px-3 py-2.5 transition
+                     <%= ticked ? 'border-brand-200 bg-brand-50' : 'border-slate-200 hover:border-brand-200' %>">
+        <span class="text-lg shrink-0"><%= ticked ? '✅' : '⬜' %></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold <%= ticked ? 'text-brand-900' : 'text-slate-800' %>"><%= i.food_name %></span>
+          <span class="block text-xs text-slate-400"><%= n(i.grams) %> <%= t('np.u.g') %><% if (i.note) { %> · <%= i.note %><% } %></span>
+        </span>
+        <span class="text-xs text-slate-500 shrink-0"><%= n(i.kcal) %></span>
+      </button>
+    </form>
+    <% }); %>
+  </div>
+</div>
+<% }); %>
+<% } %>
+
+<!-- ── الوزن ──────────────────────────────────────────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-3">
+  <h2 class="font-bold text-slate-800 text-sm mb-1"><%= t('np.weigh.title') %></h2>
+  <% if (loggedToday) { %>
+    <p class="text-xs text-emerald-700 mb-3">✅ <%= t('np.weigh.done') %> <%= lastWeight.weight_kg %> <%= t('np.u.kg') %></p>
+  <% } else { %>
+    <p class="text-xs text-slate-400 mb-3"><%= t('np.weigh.hint') %></p>
+  <% } %>
+  <form method="post" action="/portal/weigh" class="flex gap-2 items-end">
+    <label class="text-xs font-bold text-slate-600 flex-1">
+      <input name="weight_kg" type="number" min="2" max="400" <%- 'step="0.1"' %> required
+             placeholder="<%= lastWeight ? lastWeight.weight_kg : '' %>"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
+    </label>
+    <button class="bg-slate-800 text-white font-bold rounded-xl px-5 py-2.5 text-sm"><%= t('np.weigh.save') %></button>
+  </form>
+</div>
+
+<a href="/portal/progress" class="block bg-white rounded-2xl shadow-sm p-4 text-center text-sm font-bold text-brand-700 hover:bg-brand-50">
+  📈 <%= t('np.nav.progress') %>
+</a>
+
+</main></body></html>
