@@ -72,8 +72,11 @@ async function tenantMiddleware(req, res, next) {
     req.tenantAds = adsResult.rows;
     next();
   } catch (err) {
-    console.error('Tenant lookup error:', err);
-    res.status(500).send('Internal Server Error');
+    // Hand it to the app's error handler instead of writing the response here.
+    // This used to send a bare plain-text "Internal Server Error": on a DB blip
+    // every merchant subdomain showed a white page with no branding, no way
+    // back to the site, and no reference the owner could match to a log line.
+    next(err);
   }
 }
 

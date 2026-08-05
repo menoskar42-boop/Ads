@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%# No ads_loader and no ad unit — an error page has no content, and AdSense
+    counts ads on one as invalid inventory. Same rule the 404 page follows. %>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>حصل خطأ مؤقّت | OscarDevs</title>
+  <meta name="description" content="حصل خطأ مؤقّت عندنا. جرّب تاني بعد شوية أو ارجع للصفحة الرئيسية." />
+  <meta name="robots" content="noindex,nofollow" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center px-4">
+  <div class="max-w-lg w-full text-center">
+    <div class="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-8">
+      <svg class="w-12 h-12 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      </svg>
+    </div>
+
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">حصل خطأ مؤقّت</h1>
+    <p class="text-gray-600 leading-relaxed mb-2">
+      المشكلة عندنا مش عندك. الصفحة مقدرتش تتحمّل دلوقتي — جرّب تاني بعد شوية.
+    </p>
+    <%# The reference is the only thing that turns "it broke" into something the
+        owner can actually find in the logs when a customer reports it. %>
+    <p class="text-gray-400 text-xs mb-8">رقم مرجعي: <span dir="ltr" class="font-mono"><%= ref %></span></p>
+
+    <div class="flex flex-col sm:flex-row gap-3 justify-center">
+      <a href="/" class="bg-indigo-700 text-white font-bold px-7 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
+        الصفحة الرئيسية
+      </a>
+      <a href="/contact" class="bg-white text-indigo-700 font-bold px-7 py-3 rounded-xl border border-indigo-200 hover:bg-indigo-50 transition">
+        بلّغنا بالمشكلة
+      </a>
+    </div>
+  </div>
+</body>
+</html>

@@ -23,6 +23,13 @@ try {
   compression = () => (req, res, next) => next();
 }
 const express = require('express');
+// Express 4 does not understand promises: when an async handler rejects, res is
+// never written and the request hangs with no response at all (the visitor gets
+// a spinner until the browser gives up). About 120 handlers in this app await
+// something outside a try block. This patches the Router prototype so a
+// rejected handler calls next(err) like a thrown one, and must run BEFORE the
+// route modules below are required — they register their routes at load time.
+require('./src/lib/async_routes')(express);
 const path = require('path');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
@@ -420,6 +427,33 @@ app.use('/', indexRouter);
 // 404 fallback
 app.use((req, res) => {
   res.status(404).render('404', { subdomain: null });
+});
+
+// Error handler. Must be last and must take four arguments — that arity is how
+// Express tells an error handler from ordinary middleware.
+//
+// Without this, an error reached Express' built-in final handler, which sends a
+// bare stack trace to the visitor. With the async patch above feeding it every
+// rejected handler too, that would have meant leaking internals on any DB
+// hiccup. A reference id is logged and shown so a reported "it broke" can be
+// found in the logs.
+app.use((err, req, res, next) => {
+  const ref = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+  console.error('[500] ref=' + ref, req.method, req.originalUrl, '\n', (err && err.stack) || err);
+  if (res.headersSent) return next(err);
+  res.status(500);
+  // An API/fetch caller wants JSON, not a page; and a template failure here
+  // must not become a second error inside the error handler.
+  if (req.xhr || (req.get('accept') || '').includes('application/json')) {
+    return res.json({ ok: false, error: 'internal', ref });
+  }
+  res.render('500', { ref, showAds: false }, (renderErr, html) => {
+    if (renderErr) {
+      console.error('[500] error page failed to render', renderErr.message);
+      return res.type('text/plain').send('حصل خطأ مؤقّت. رقم مرجعي: ' + ref);
+    }
+    res.send(html);
+  });
 });
 
 async function initDb() {

@@ -170,7 +170,7 @@ router.get('/view/:slug/manifest.webmanifest', async (req, res) => {
 
 // Direct tenant preview: /view/:slug works on any host (Replit, localhost, etc.)
 // On a production host (e.g. oscardevs.com) we 301 to the canonical subdomain URL.
-router.get('/view/:slug', async (req, res) => {
+router.get('/view/:slug', async (req, res, next) => {
   const { slug } = req.params;
   if (isProductionHost(req) && !('noredirect' in req.query)) {
     const qs = Object.keys(req.query).length
@@ -254,8 +254,10 @@ router.get('/view/:slug', async (req, res) => {
       contactError: req.query.error || null,
     });
   } catch (err) {
-    console.error('View route error:', err);
-    res.status(500).send('Internal Server Error');
+    // Same reason as the tenant middleware: the shared error handler renders a
+    // real page with a reference id rather than a bare string.
+    err.__where = 'view route';
+    next(err);
   }
 });
 
