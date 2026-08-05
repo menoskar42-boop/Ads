@@ -10,14 +10,23 @@
 
 const STATUSES = ['pending', 'partial', 'delivered', 'cancelled'];
 
-/** Order value, and the value of what has actually arrived. */
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+/**
+ * Order value, and the value of what has actually arrived.
+ *
+ * Rounded like every other money function in this folder. Three metres at 0.10
+ * summed to 0.30000000000000004 here; the views hide it because they format to
+ * two decimals, but the raw number was leaving this module and any future
+ * caller that compares it to zero or stores it would inherit the noise.
+ */
 function orderTotals(items) {
   let ordered = 0, received = 0;
   for (const it of items || []) {
     ordered += Number(it.qty) * Number(it.unit_cost);
     received += Number(it.qty_received) * Number(it.unit_cost);
   }
-  return { ordered, received };
+  return { ordered: round2(ordered), received: round2(received) };
 }
 
 /** Status implied by the lines. Cancelled is a decision, not a calculation. */
