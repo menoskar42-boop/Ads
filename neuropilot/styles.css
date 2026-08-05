@@ -423,8 +423,10 @@ html.dark .place-del { background: #3A2624; color: #E88B7F; }
 /* Android download promo. Quiet by design — it sits under the timer and must
    never compete with the one button that matters on this screen. */
 .apk-promo {
-  margin: 28px auto 0;
-  max-width: 460px;
+  /* .wrap already puts a 20px gap above this, so only the difference is added
+     here — the promo should read as separate from the timer, not detached. */
+  margin: 8px auto 0;
+  max-width: 100%;
   padding: 16px 18px;
   border: 1px solid rgba(63, 182, 139, .28);
   border-radius: 18px;

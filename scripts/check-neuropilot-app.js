@@ -175,5 +175,77 @@ check('The Gradle patcher rejects a duplicated minifyEnabled',
     + missing.join('\n   '));
 }
 
+// ── The website's own layout ────────────────────────────────────────────────
+// <main class="screen"> is a ROW flexbox that centres one child. Putting a
+// second element directly inside it splits the row: the timer column collapsed
+// to a sliver and "NeuroPilot" wrapped one letter per line on a phone. Nothing
+// in the build catches that — the page is valid HTML and the CSS is valid CSS —
+// so the structural rule is asserted here.
+//
+// This walks tag depth rather than matching a regex. The first version of this
+// check used `<div class="wrap">[\s\S]*</div>` to cut the wrap out; being
+// greedy, it swallowed the stray element too and passed on the very markup it
+// was written to catch. Depth counting cannot be fooled that way.
+{
+  const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img',
+    'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+
+  // Direct element children of the first <main class="screen">.
+  function childrenOfMain(src) {
+    const open = src.search(/<main[^>]*class="screen"[^>]*>/);
+    if (open === -1) return null;
+    const after = src.indexOf('>', open) + 1;
+    const kids = [];
+    let depth = 0;
+    const tag = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>|<!--[\s\S]*?-->/g;
+    tag.lastIndex = after;
+    let m;
+    while ((m = tag.exec(src))) {
+      if (m[0].startsWith('<!--')) continue;
+      const [, closing, name, attrs] = m;
+      const self = VOID.has(name.toLowerCase()) || /\/\s*$/.test(attrs || '');
+      if (!closing) {
+        // Keep the whole attribute string: matching only the first class-or-id
+        // dropped the class on <div id="timerView" class="wrap hidden"> and the
+        // check then reported a legitimate screen as a stray.
+        if (depth === 0) kids.push('<' + name + (attrs || '') + '>');
+        if (!self) depth += 1;
+      } else {
+        if (name.toLowerCase() === 'main' && depth === 0) break;
+        depth -= 1;
+      }
+    }
+    return kids;
+  }
+
+  // main legitimately holds two .wrap children — the setup screen and the timer
+  // screen — because exactly one is ever un-hidden, so the flex row only ever
+  // has one item in it. The rule is therefore not "one child": it is that every
+  // direct child must be a .wrap, because anything else is visible at the same
+  // time as one of them and splits the row.
+  const kids = childrenOfMain(html);
+  const strays = (kids || []).filter((k) => !/\bwrap\b/.test(k));
+  check('Every direct child of <main class="screen"> is a .wrap',
+    kids && kids.length > 0 && strays.length === 0,
+    'main is a centring ROW flexbox. The two .wrap screens are fine because\n   '
+    + 'only one is un-hidden at a time; anything else is a permanent second\n   '
+    + 'item that splits the row and collapses the timer column. Put it inside\n   '
+    + 'a .wrap. Offenders:\n   '
+    + (kids ? strays.join('\n   ') : '<main class="screen"> not found'));
+
+  check('The APK download button is on the page',
+    /id="apkPromo"/.test(html) && /href="\/download\/apk"/.test(html),
+    'The owner asked for an in-site download; it must survive layout fixes.');
+
+  // A hidden screen is the other way to make it disappear without deleting it.
+  {
+    const setup = (html.match(/<div class="wrap">[\s\S]*?\n    <\/div>/) || [''])[0];
+    check('The APK promo is on the visible setup screen, not the hidden timer one',
+      setup.includes('id="apkPromo"'),
+      'Inside #timerView it renders only while a session is running — and that\n   '
+      + 'screen starts hidden, so the download button would never be seen.');
+  }
+}
+
 console.log(failed ? `\n⚠️  ${failed} مشكلة — راجعها قبل البناء.` : '\nمشروع التطبيق سليم.');
 process.exit(failed ? 1 : 0);
