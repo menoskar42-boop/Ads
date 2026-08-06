@@ -15,17 +15,21 @@
 **اللي كوديكس لقاه:** ٤ حسابات (صيدلية، عيادة، مطاعم، جيم).
 **اللي طلع فعلاً: ٩.**
 
-| المكان | كانت |
+> الكلمات نفسها **مش مكتوبة هنا عن قصد** — إعادة كتابتها في ملف توثيق هي نفس
+> المشكلة في مكان تاني. (وفحص `check-no-secrets.js` فشل على النسخة الأولى من
+> الملف ده لما كتبتها، وكان محق.) الأماكن بس:
+
+| المكان | النوع |
 |---|---|
-| `src/pharmacy/schema.js` | `pharmacy123` |
-| `src/clinic/schema.js` | `clinic123` |
-| `src/gym/schema.js` | `gym123` |
-| `src/food/schema.js` | `orders123` |
-| `src/db/seed.js` | **`admin123` — الأدمن الأعلى** |
-| `src/db/seed.js` | `petra123` |
-| `scripts/enable-demo-furniture.js` | `furniture123` |
-| `scripts/enable-demo-nutrition.js` | `nutrition123` |
-| `scripts/enable-demo-workshop.js` | `Workshop#2026` |
+| `src/pharmacy/schema.js` | حساب ديمو الصيدلية |
+| `src/clinic/schema.js` | حساب ديمو العيادة |
+| `src/gym/schema.js` | حساب ديمو الجيم |
+| `src/food/schema.js` | حساب ديمو المطاعم |
+| `src/db/seed.js` | **الأدمن الأعلى** ⚠️ |
+| `src/db/seed.js` | حساب تجريبي قديم |
+| `scripts/enable-demo-furniture.js` | حساب ديمو الموبيليا |
+| `scripts/enable-demo-nutrition.js` | حساب ديمو التغذية |
+| `scripts/enable-demo-workshop.js` | حساب ديمو الورشة |
 
 الأربعة الأولانيين كانوا بيتزرعوا **تلقائياً عند التشغيل**، واتنين من الباقي
 كلود ضافهم في آخر كام يوم. وكمان ٣ ملفات توثيق و`replit.md` كانوا مكرّرينهم.
@@ -42,7 +46,7 @@
 > معاه. لازم:
 > 1. تحطّ `DEMO_PASSWORD` (أو المتغيّرات لكل نظام) بقيم جديدة.
 > 2. تغيّر كلمات سر مستخدمي الديمو الموجودين في قاعدة البيانات.
-> 3. تتأكد إن `ADMIN_PASSWORD` على الإنتاج **مش** `admin123`.
+> 3. تتأكد إن `ADMIN_PASSWORD` على الإنتاج **مش** القيمة القديمة اللي كانت في `src/db/seed.js`.
 
 ### 2. `P0` — طلب ورش السيارات مستحيل يتم
 
