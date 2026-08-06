@@ -1,0 +1,27 @@
+<%- include('head') %>
+<% function money(v){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}); } %>
+<h1 class="font-black text-xl mb-4"><%= t('wsh.inv.title') %></h1>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.inv.total') %></div>
+    <div class="text-lg font-black mt-1"><bdi><%= money(sum.total) %></bdi></div></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.inv.paid') %></div>
+    <div class="text-lg font-black text-emerald-700 mt-1"><bdi><%= money(sum.paid) %></bdi></div></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.inv.due') %></div>
+    <div class="text-lg font-black text-rose-600 mt-1"><bdi><%= money(sum.due) %></bdi></div></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-4">
+    <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.inv.labour_revenue') %></div>
+    <div class="text-lg font-black mt-1"><bdi><%= money(sum.labour) %></bdi></div></div>
+</div>
+<%- include('_table', { empty: t('wsh.inv.empty'), rows: rows, cols: [
+  { label: t('wsh.job.code'), get: function(r){ return J.jobCode(r.id); }, link: function(r){ return '/workshop/jobs/' + r.id; } },
+  { label: t('wsh.veh.plate'), key: 'plate', cls: 'font-semibold' },
+  { label: t('wsh.job.customer'), key: 'customer_name' },
+  { label: t('wsh.inv.total'), get: function(r){ return r.totals.total; }, money: true },
+  { label: t('wsh.inv.paid'), get: function(r){ return r.totals.paid; }, money: true },
+  { label: t('wsh.inv.due'), get: function(r){ return r.totals.due; }, money: true }
+] }) %>
+<p class="text-xs text-slate-400 mt-3"><%= t('wsh.inv.margin_note') %></p>
+<%- include('foot') %>

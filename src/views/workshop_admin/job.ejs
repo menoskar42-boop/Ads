@@ -1,0 +1,220 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function dt(v){ try { return v ? new Date(v).toLocaleString(LOC, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; } catch(e){ return '—'; } }
+  function forInput(v){ try { var d=new Date(v); return isNaN(d)?'':d.toISOString().slice(0,16); } catch(e){ return ''; } }
+  var nextSt = J.nextStatus(job.status);
+%>
+<a href="/workshop/jobs" class="text-sm text-slate-500 no-print">← <%= t('wsh.common.back') %></a>
+
+<div class="bg-white rounded-2xl border border-slate-200 p-5 mt-3 mb-5">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div>
+      <div class="text-xs text-slate-500 font-bold"><%= t('wsh.job.code') %></div>
+      <h1 class="font-black text-2xl"><%= J.jobCode(job.id) %></h1>
+      <p class="mt-2 text-sm">
+        <a href="/workshop/vehicles/<%= job.vehicle_id %>" class="font-bold text-brand-700"><%= job.plate || '—' %></a>
+        <span class="text-slate-500"><%= [job.make, job.model, job.model_year].filter(Boolean).join(' ') %></span>
+      </p>
+      <p class="text-sm text-slate-600"><%= job.customer_name || '—' %>
+        <% if (job.customer_phone) { %> · <span dir="ltr"><%= job.customer_phone %></span><% } %></p>
+    </div>
+    <div class="text-end">
+      <span class="text-xs font-bold px-3 py-1 rounded-full bg-brand-100 text-brand-800"><%= t('wsh.st.' + job.status) %></span>
+      <div class="text-xs text-slate-500 mt-2"><%= t('wsh.job.received') %>: <%= dt(job.received_at) %></div>
+      <% if (job.odometer_in != null) { %>
+        <div class="text-xs text-slate-500"><%= t('wsh.job.odometer_in') %>: <%= Number(job.odometer_in).toLocaleString(LOC) %></div>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (job.complaint) { %>
+    <div class="mt-4 pt-4 border-t border-slate-100">
+      <div class="text-xs font-bold text-slate-500"><%= t('wsh.job.complaint') %></div>
+      <p class="text-sm mt-1 whitespace-pre-line"><%= job.complaint %></p>
+    </div>
+  <% } %>
+
+  <%# The approval line. A quote the customer accepted, with the time on it,
+      is what ends "I never agreed to that" — the most common argument in a
+      workshop. It is shown at the top, not buried in a tab. %>
+  <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-3 text-sm">
+    <% if (job.approved_at) { %>
+      <span class="text-emerald-700 font-bold">✓ <%= t('wsh.job.approve') %></span>
+      <span class="text-slate-500"><%= t('wsh.job.approved_at') %> <%= dt(job.approved_at) %>
+        <% if (job.approved_by) { %> — <%= job.approved_by %><% } %></span>
+      <% if (job.quote_total != null) { %>
+        <span class="text-slate-500"><%= t('wsh.job.quote') %>: <b><bdi><%= money(job.quote_total) %></bdi></b></span>
+      <% } %>
+    <% } else { %>
+      <form method="post" action="/workshop/jobs/<%= job.id %>/approve" class="flex items-center gap-2 no-print">
+        <input name="approved_by" placeholder="<%= t('wsh.job.approved_by') %>"
+          class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
+        <button class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-1.5 text-sm">✓ <%= t('wsh.job.approve') %></button>
+      </form>
+      <span class="text-xs text-slate-400"><%= t('wsh.inv.total') %>: <bdi><%= money(totals.total) %></bdi></span>
+    <% } %>
+  </div>
+</div>
+
+<% if (typeof query !== 'undefined' && query.due) { %>
+  <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 mb-5 text-sm no-print">
+    <%= t('wsh.inv.due') %>: <b><bdi><%= money(totals.due) %></bdi></b>
+  </div>
+<% } %>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <div class="lg:col-span-2 space-y-5">
+
+    <!-- Parts -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black mb-3">🔩 <%= t('wsh.job.parts') %></h2>
+      <% if (!parts.length) { %><p class="text-slate-400 text-sm"><%= t('wsh.common.none') %></p><% } else { %>
+        <table class="w-full text-sm">
+          <tbody>
+            <% parts.forEach(function(p){ %>
+              <tr class="border-b border-slate-50">
+                <td class="py-1.5"><%= p.name %></td>
+                <td class="py-1.5 text-slate-500 text-center"><%= Number(p.qty) %>×</td>
+                <td class="py-1.5 text-end font-semibold"><bdi><%= money(Number(p.qty)*Number(p.unit_price)) %></bdi></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+      <% if (flags.has('parts')) { %>
+      <form method="post" action="/workshop/jobs/<%= job.id %>/parts" class="mt-4 grid sm:grid-cols-4 gap-2 text-sm no-print">
+        <select name="part_id" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
+          <option value=""><%= t('wsh.part.name') %>…</option>
+          <% stock.forEach(function(s){ %>
+            <option value="<%= s.id %>"><%= s.name %><%= s.part_number ? ' — ' + s.part_number : '' %> (<%= Number(s.qty) %>)</option>
+          <% }) %>
+        </select>
+        <input name="qty" type="number" step="0.001" min="0" value="1" dir="ltr"
+          class="border border-slate-200 rounded-xl px-3 py-2" placeholder="<%= t('wsh.part.qty') %>" />
+        <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.job.add_part') %></button>
+      </form>
+      <% } %>
+    </section>
+
+    <!-- Labour -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black mb-3">👨‍🔧 <%= t('wsh.job.labour') %></h2>
+      <% if (!labour.length) { %><p class="text-slate-400 text-sm"><%= t('wsh.common.none') %></p><% } else { %>
+        <table class="w-full text-sm">
+          <tbody>
+            <% labour.forEach(function(l){ %>
+              <tr class="border-b border-slate-50">
+                <td class="py-1.5"><%= l.description %></td>
+                <td class="py-1.5 text-slate-500 text-center"><%= Number(l.hours) ? Number(l.hours) + ' h' : '' %></td>
+                <td class="py-1.5 text-end font-semibold"><bdi><%= money(l.amount) %></bdi></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+      <form method="post" action="/workshop/jobs/<%= job.id %>/labour" class="mt-4 grid sm:grid-cols-4 gap-2 text-sm no-print">
+        <input name="description" required placeholder="<%= t('wsh.job.labour') %>"
+          class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
+        <input name="hours" type="number" step="0.25" min="0" dir="ltr" placeholder="<%= t('wsh.job.hours') %>"
+          class="border border-slate-200 rounded-xl px-3 py-2" />
+        <input name="amount" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.exp.amount') %>"
+          class="border border-slate-200 rounded-xl px-3 py-2" />
+        <input type="hidden" name="rate" value="<%= labourRate %>" />
+        <div class="sm:col-span-4">
+          <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.job.add_labour') %></button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Diagnosis + settings for this job -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
+      <h2 class="font-black mb-3">📝 <%= t('wsh.job.diagnosis') %></h2>
+      <form method="post" action="/workshop/jobs/<%= job.id %>/update" class="space-y-3 text-sm">
+        <textarea name="diagnosis" rows="3" class="w-full border border-slate-200 rounded-xl px-3 py-2"><%= job.diagnosis || '' %></textarea>
+        <div class="grid sm:grid-cols-4 gap-2">
+          <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.technician') %></span>
+            <select name="technician_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+              <option value=""><%= t('wsh.common.none') %></option>
+              <% technicians.forEach(function(tc){ %>
+                <option value="<%= tc.id %>" <%= job.technician_id === tc.id ? 'selected' : '' %>><%= tc.name %></option>
+              <% }) %>
+            </select></label>
+          <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.inv.discount') %></span>
+            <input name="discount" type="number" step="0.01" min="0" dir="ltr" value="<%= Number(job.discount) %>"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+          <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.inv.tax') %> %</span>
+            <input name="tax_percent" type="number" step="0.01" min="0" max="100" dir="ltr" value="<%= Number(job.tax_percent) %>"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+          <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.warranty_months') %></span>
+            <input name="warranty_months" type="number" min="0" dir="ltr" value="<%= Number(job.warranty_months) %>"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+        </div>
+        <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.promised') %></span>
+          <input name="promised_at" type="datetime-local" dir="ltr" value="<%= forInput(job.promised_at) %>"
+            class="w-full sm:w-64 border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <textarea name="note" rows="2" placeholder="<%= t('wsh.job.note') %>"
+          class="w-full border border-slate-200 rounded-xl px-3 py-2"><%= job.note || '' %></textarea>
+        <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2"><%= t('wsh.common.save') %></button>
+      </form>
+    </section>
+  </div>
+
+  <!-- Money + status -->
+  <aside class="space-y-5">
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 text-sm">
+      <h2 class="font-black mb-3">💵 <%= t('wsh.inv.title') %></h2>
+      <dl class="space-y-1.5">
+        <div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.parts_revenue') %></dt><dd><bdi><%= money(totals.partsRevenue) %></bdi></dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.labour_revenue') %></dt><dd><bdi><%= money(totals.labourRevenue) %></bdi></dd></div>
+        <div class="flex justify-between border-t border-slate-100 pt-1.5"><dt class="text-slate-500"><%= t('wsh.inv.subtotal') %></dt><dd><bdi><%= money(totals.subtotal) %></bdi></dd></div>
+        <% if (totals.discount) { %><div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.discount') %></dt><dd class="text-rose-600">−<bdi><%= money(totals.discount) %></bdi></dd></div><% } %>
+        <% if (totals.tax) { %><div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.tax') %> <%= totals.taxPercent %>%</dt><dd><bdi><%= money(totals.tax) %></bdi></dd></div><% } %>
+        <div class="flex justify-between border-t border-slate-200 pt-2 font-black text-base"><dt><%= t('wsh.inv.total') %></dt><dd><bdi><%= money(totals.total) %></bdi></dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.paid') %></dt><dd class="text-emerald-700"><bdi><%= money(totals.paid) %></bdi></dd></div>
+        <div class="flex justify-between font-bold"><dt><%= t('wsh.inv.due') %></dt><dd class="<%= totals.due > 0 ? 'text-rose-600' : 'text-emerald-700' %>"><bdi><%= money(totals.due) %></bdi></dd></div>
+      </dl>
+
+      <%# Parts margin is shown to the owner, and labelled for what it is. The
+          technician's wage, the rent and the power are not in it, so calling it
+          profit would tell a workshop it is earning on a job it may be losing on. %>
+      <div class="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
+        <div class="flex justify-between"><span><%= t('wsh.inv.parts_cost') %></span><span><bdi><%= money(totals.partsCost) %></bdi></span></div>
+        <div class="flex justify-between font-bold text-slate-700"><span><%= t('wsh.inv.parts_margin') %></span><span><bdi><%= money(totals.partsMargin) %></bdi></span></div>
+        <p class="mt-1.5 leading-relaxed"><%= t('wsh.inv.margin_note') %></p>
+      </div>
+
+      <form method="post" action="/workshop/jobs/<%= job.id %>/pay" class="mt-4 flex gap-2 no-print">
+        <input name="amount" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.exp.amount') %>"
+          class="flex-1 border border-slate-200 rounded-xl px-3 py-2 min-w-0" />
+        <button class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-2 whitespace-nowrap"><%= t('wsh.inv.pay') %></button>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
+      <h2 class="font-black mb-3">➡️ <%= t('wsh.job.status') %></h2>
+      <% if (nextSt) { %>
+        <form method="post" action="/workshop/jobs/<%= job.id %>/status" class="mb-3">
+          <input type="hidden" name="status" value="<%= nextSt %>" />
+          <% if (nextSt === 'delivered' && totals.due > 0) { %>
+            <%# Handing the car over with money outstanding stays possible — a
+                regular customer pays next week — but it has to be a decision. %>
+            <label class="flex items-center gap-2 text-xs text-slate-600 mb-2">
+              <input type="checkbox" name="allow_credit" value="1" /> <%= t('wsh.inv.due') %>: <bdi><%= money(totals.due) %></bdi>
+            </label>
+          <% } %>
+          <button class="w-full bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5"><%= t('wsh.st.' + nextSt) %> →</button>
+        </form>
+      <% } %>
+      <form method="post" action="/workshop/jobs/<%= job.id %>/status" class="flex gap-2">
+        <select name="status" class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm">
+          <% J.STATUSES.forEach(function(s){ %>
+            <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= t('wsh.st.' + s) %></option>
+          <% }) %>
+        </select>
+        <button class="bg-slate-200 font-bold rounded-xl px-4 py-2 text-sm"><%= t('wsh.common.save') %></button>
+      </form>
+    </section>
+  </aside>
+</div>
+<%- include('foot') %>

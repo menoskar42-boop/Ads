@@ -1,0 +1,42 @@
+<%- include('head') %>
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <h1 class="font-black text-xl"><%= t('wsh.job.title') %></h1>
+  <div class="flex gap-1 text-xs overflow-x-auto">
+    <a href="/workshop/jobs" class="px-3 py-1.5 rounded-lg <%= !status ? 'bg-brand-600 text-white font-bold' : 'bg-white border border-slate-200' %>"><%= t('wsh.common.all') %></a>
+    <% J.STATUSES.forEach(function(s){ %>
+      <a href="/workshop/jobs?status=<%= s %>" class="px-3 py-1.5 rounded-lg whitespace-nowrap <%= status===s ? 'bg-brand-600 text-white font-bold' : 'bg-white border border-slate-200' %>"><%= t('wsh.st.'+s) %></a>
+    <% }) %>
+  </div>
+</div>
+<%- include('_table', { empty: t('wsh.job.empty'), rows: jobs, cols: [
+  { label: t('wsh.job.code'), get: function(r){ return J.jobCode(r.id); }, link: function(r){ return '/workshop/jobs/' + r.id; } },
+  { label: t('wsh.veh.plate'), key: 'plate', cls: 'font-semibold' },
+  { label: t('wsh.job.customer'), key: 'customer_name' },
+  { label: t('wsh.job.complaint'), key: 'complaint' },
+  { label: t('wsh.job.technician'), key: 'technician_name' },
+  { label: t('wsh.job.status'), get: function(r){ return t('wsh.st.' + r.status); }, badge: true }
+] }) %>
+
+<h2 class="font-black text-lg mt-8 mb-3"><%= t('wsh.job.new') %></h2>
+<form method="post" action="/workshop/jobs" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-2 gap-3 text-sm">
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.vehicle') %> *</span>
+    <select name="vehicle_id" required class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+      <option value=""><%= t('wsh.common.none') %></option>
+      <% vehicles.forEach(function(v){ %>
+        <option value="<%= v.id %>"><%= v.plate %> — <%= [v.make,v.model].filter(Boolean).join(' ') %><%= v.customer_name ? ' · ' + v.customer_name : '' %></option>
+      <% }) %>
+    </select></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.odometer_in') %></span>
+    <input name="odometer_in" type="number" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.complaint') %></span>
+    <textarea name="complaint" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.technician') %></span>
+    <select name="technician_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+      <option value=""><%= t('wsh.common.none') %></option>
+      <% technicians.forEach(function(tc){ %><option value="<%= tc.id %>"><%= tc.name %></option><% }) %>
+    </select></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.promised') %></span>
+    <input name="promised_at" type="datetime-local" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <div class="sm:col-span-2"><button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.job.new') %></button></div>
+</form>
+<%- include('foot') %>

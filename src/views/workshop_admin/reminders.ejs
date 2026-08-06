@@ -1,0 +1,55 @@
+<%- include('head') %>
+<%
+  function d(v){ try { return v ? new Date(v).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}) : '—'; } catch(e){ return '—'; } }
+  function wa(r){
+    var n = String(r.customer_whatsapp || r.customer_phone || '').replace(/[^0-9]/g,'');
+    if (!n) return null;
+    return 'https://wa.me/' + n;
+  }
+%>
+<h1 class="font-black text-xl mb-1"><%= t('wsh.rem.title') %></h1>
+<p class="text-slate-500 text-sm mb-5"><%= t('wsh.rem.explain') %></p>
+
+<% function block(title, list, tone) { %>
+  <h2 class="font-black text-lg mb-3 <%= tone %>"><%= title %> (<%= list.length %>)</h2>
+  <% if (!list.length) { %>
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 text-center text-slate-400 text-sm mb-6"><%= t('wsh.rem.empty') %></div>
+  <% } else { %>
+    <div class="space-y-2 mb-8">
+      <% list.forEach(function(r){ %>
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center gap-3 text-sm">
+          <div class="flex-1 min-w-[10rem]">
+            <a href="/workshop/vehicles/<%= r.vehicle_id %>" class="font-bold text-brand-700"><%= r.plate %></a>
+            <span class="text-slate-500"><%= [r.make, r.model].filter(Boolean).join(' ') %></span>
+            <div class="text-slate-500 text-xs mt-0.5"><%= r.customer_name || '—' %>
+              <% if (r.customer_phone) { %> · <span dir="ltr"><%= r.customer_phone %></span><% } %></div>
+          </div>
+          <div class="text-xs text-slate-500">
+            <div><%= t('wsh.rem.due_on') %>: <b><%= d(r.due_on) %></b></div>
+            <% if (r.due_odometer != null) { %><div><%= t('wsh.rem.due_km') %>: <b><%= Number(r.due_odometer).toLocaleString(LOC) %></b></div><% } %>
+          </div>
+          <div class="text-xs">
+            <% if (r.state.overdueDays != null && r.state.overdueDays >= 0) { %>
+              <span class="bg-rose-50 text-rose-700 font-bold px-2 py-0.5 rounded-full"><%= t('wsh.rem.overdue_days') %>: <%= r.state.overdueDays %></span>
+            <% } %>
+            <% if (r.state.overdueKm != null && r.state.overdueKm >= 0) { %>
+              <span class="bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full"><%= t('wsh.rem.overdue_km') %>: <%= r.state.overdueKm.toLocaleString(LOC) %></span>
+            <% } %>
+          </div>
+          <div class="flex gap-2 no-print">
+            <% var link = wa(r); if (link) { %>
+              <a href="<%= link %>" target="_blank" rel="noopener"
+                class="bg-emerald-600 text-white font-bold rounded-lg px-3 py-1.5 text-xs"><%= t('wsh.rem.whatsapp') %></a>
+            <% } %>
+            <form method="post" action="/workshop/reminders/<%= r.id %>/contacted"><button class="bg-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold"><%= t('wsh.rem.contacted') %></button></form>
+            <form method="post" action="/workshop/reminders/<%= r.id %>/close"><button class="bg-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold"><%= t('wsh.rem.close') %></button></form>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+<% } %>
+
+<%- block(t('wsh.rem.due'), due, 'text-rose-700') %>
+<%- block(t('wsh.rem.upcoming'), upcoming, 'text-slate-700') %>
+<%- include('foot') %>

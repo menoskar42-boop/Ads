@@ -350,6 +350,24 @@ router.get('/', async (req, res) => {
     } catch (e) { /* never block render */ }
   }
 
+  // A workshop's public page: who they are, what they fix, and the one thing a
+  // customer actually wants before driving over — can you take my car today.
+  let workshopSettings = null;
+  let workshopStats = null;
+  if (company.page_type === 'workshop') {
+    try {
+      workshopSettings = (await pool.query(
+        'SELECT * FROM workshop_settings WHERE company_id = $1', [company.id]
+      )).rows[0] || null;
+      const st = await pool.query(
+        `SELECT (SELECT COUNT(*)::int FROM workshop_jobs WHERE company_id=$1 AND status='delivered') AS jobs_done,
+                (SELECT COUNT(*)::int FROM workshop_vehicles WHERE company_id=$1) AS vehicles,
+                (SELECT COUNT(*)::int FROM workshop_technicians WHERE company_id=$1 AND is_active) AS technicians`,
+        [company.id]);
+      workshopStats = st.rows[0] || null;
+    } catch (e) { /* never block render */ }
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
@@ -357,6 +375,7 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'clinic') view = 'tenant_clinic';
   else if (company.page_type === 'nutrition') view = 'tenant_nutrition';
   else if (company.page_type === 'furniture') view = 'tenant_furniture';
+  else if (company.page_type === 'workshop') view = 'tenant_workshop';
   else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
@@ -389,6 +408,13 @@ router.get('/', async (req, res) => {
   // kind of gate as the others: enough pieces to be worth landing on.
   else if (company.page_type === 'furniture') {
     indexable = furnitureProducts.length >= 3 && company.slug !== 'furniture';
+  }
+  // A workshop has no catalogue to count, so the gate is the same as the
+  // clinic's: does the page actually say anything? A page that cannot answer
+  // why somebody clicked it has no business in the index.
+  else if (company.page_type === 'workshop') {
+    const wAbout = workshopSettings && workshopSettings.about ? workshopSettings.about.trim().length : 0;
+    indexable = (descLen >= 40 || wAbout >= 60) && company.slug !== 'workshop';
   }
   // Same gate as the clinic's: a practice page with no description and nothing
   // written about the practice shows a visitor nothing, and indexing it would
@@ -447,6 +473,8 @@ router.get('/', async (req, res) => {
     clinicSpecialtyLabel,
     nutritionSettings,
     furnitureSettings,
+    workshopSettings,
+    workshopStats,
     furnitureProducts,
     gymSettings,
     gymPlans,

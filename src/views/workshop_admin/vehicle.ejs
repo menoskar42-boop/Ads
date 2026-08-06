@@ -1,0 +1,38 @@
+<%- include('head') %>
+<% function d(v){ try { return v ? new Date(v).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}) : '—'; } catch(e){ return '—'; } } %>
+<a href="/workshop/vehicles" class="text-sm text-slate-500">← <%= t('wsh.common.back') %></a>
+<div class="bg-white rounded-2xl border border-slate-200 p-5 mt-3 mb-5">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div>
+      <h1 class="font-black text-2xl"><%= vehicle.plate %></h1>
+      <p class="text-slate-500 text-sm mt-0.5">
+        <%= [vehicle.make, vehicle.model, vehicle.model_year].filter(Boolean).join(' ') || '—' %>
+        <% if (vehicle.colour) { %> · <%= vehicle.colour %><% } %>
+      </p>
+      <p class="text-sm mt-2"><%= t('wsh.veh.owner') %>: <b><%= vehicle.customer_name || '—' %></b>
+        <% if (vehicle.customer_phone) { %> · <span dir="ltr"><%= vehicle.customer_phone %></span><% } %></p>
+    </div>
+    <div class="text-end">
+      <div class="text-xs text-slate-500"><%= t('wsh.veh.odometer') %></div>
+      <div class="text-xl font-black"><%= vehicle.odometer == null ? '—' : Number(vehicle.odometer).toLocaleString(LOC) %></div>
+    </div>
+  </div>
+
+  <%# The next-visit line is the whole point of the vehicle file: it is the
+      answer the workshop gives the customer at the counter. %>
+  <div class="mt-4 pt-4 border-t border-slate-100 text-sm flex flex-wrap gap-x-6 gap-y-1">
+    <span><%= t('wsh.rem.due_on') %>: <b><%= next.dueOn ? d(next.dueOn) : '—' %></b></span>
+    <span><%= t('wsh.rem.due_km') %>: <b><%= next.dueOdometer == null ? '—' : Number(next.dueOdometer).toLocaleString(LOC) %></b></span>
+    <span class="text-slate-400 text-xs"><%= t('wsh.rem.explain') %></span>
+  </div>
+</div>
+
+<h2 class="font-black text-lg mb-3"><%= t('wsh.job.history') %></h2>
+<%- include('_table', { empty: t('wsh.job.empty'), rows: jobs, cols: [
+  { label: t('wsh.job.code'), get: function(r){ return J.jobCode(r.id); }, link: function(r){ return '/workshop/jobs/' + r.id; } },
+  { label: t('wsh.job.received'), get: function(r){ try { return new Date(r.received_at).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; } } },
+  { label: t('wsh.job.complaint'), key: 'complaint' },
+  { label: t('wsh.job.technician'), key: 'technician_name' },
+  { label: t('wsh.job.status'), get: function(r){ return t('wsh.st.' + r.status); }, badge: true }
+] }) %>
+<%- include('foot') %>

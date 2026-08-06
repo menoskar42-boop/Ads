@@ -1,0 +1,44 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-4"><%= t('wsh.set.title') %></h1>
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4"><%= t('wsh.set.saved') %></div><% } %>
+<form method="post" action="/workshop/settings" class="space-y-5">
+  <section class="bg-white rounded-2xl border border-slate-200 p-5">
+    <h2 class="font-black mb-3"><%= t('wsh.set.business') %></h2>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <input name="business_name" value="<%= settings.business_name || '' %>" placeholder="<%= t('wsh.set.business') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="phone" dir="ltr" value="<%= settings.phone || '' %>" placeholder="<%= t('wsh.cust.phone') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="whatsapp" dir="ltr" value="<%= settings.whatsapp || '' %>" placeholder="WhatsApp" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="hours" value="<%= settings.hours || '' %>" placeholder="<%= t('wsh.set.hours') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="address" value="<%= settings.address || '' %>" placeholder="<%= t('wsh.exp.category') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
+      <textarea name="about" rows="3" placeholder="<%= t('wsh.set.about') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2"><%= settings.about || '' %></textarea>
+      <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.labour_rate') %></span>
+        <input name="labour_rate" type="number" step="0.01" min="0" dir="ltr" value="<%= Number(settings.labour_rate || 0) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.tax') %></span>
+        <input name="tax_percent" type="number" step="0.01" min="0" max="100" dir="ltr" value="<%= Number(settings.tax_percent || 0) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.service_km') %></span>
+        <input name="service_km" type="number" min="0" dir="ltr" value="<%= Number(settings.service_km || 5000) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.service_months') %></span>
+        <input name="service_months" type="number" min="0" dir="ltr" value="<%= Number(settings.service_months || 6) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-5">
+    <h2 class="font-black mb-3"><%= t('wsh.set.features') %></h2>
+    <div class="grid sm:grid-cols-2 gap-2 text-sm">
+      <% FLAGS.forEach(function(f){ %>
+        <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-100 <%= f.core ? 'bg-slate-50' : '' %>">
+          <input type="checkbox" name="flags" value="<%= f.key %>" class="mt-1"
+            <%= flags.has(f.key) ? 'checked' : '' %> <%= f.core ? 'disabled checked' : '' %> />
+          <span>
+            <span class="font-bold"><%= f.icon %> <%= t('wsh.nav.' + f.key) !== 'wsh.nav.' + f.key ? t('wsh.nav.' + f.key) : f.label %></span>
+            <span class="block text-xs text-slate-500 mt-0.5"><%= f.desc %></span>
+            <% if (f.core) { %><span class="block text-[10px] text-slate-400 mt-0.5"><%= t('wsh.set.core') %></span><% } %>
+          </span>
+        </label>
+      <% }) %>
+    </div>
+  </section>
+
+  <button class="bg-brand-600 text-white font-bold rounded-xl px-8 py-3"><%= t('wsh.common.save') %></button>
+</form>
+<%- include('foot') %>

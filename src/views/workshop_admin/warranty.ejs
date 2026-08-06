@@ -1,0 +1,12 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-1"><%= t('wsh.wr.title') %></h1>
+<p class="text-slate-500 text-sm mb-5"><%= t('wsh.wr.note') %></p>
+<%- include('_table', { empty: t('wsh.wr.empty'), rows: rows, cols: [
+  { label: t('wsh.job.code'), get: function(r){ return J.jobCode(r.id); }, link: function(r){ return '/workshop/jobs/' + r.id; } },
+  { label: t('wsh.veh.plate'), key: 'plate', cls: 'font-semibold' },
+  { label: t('wsh.job.customer'), key: 'customer_name' },
+  { label: t('wsh.wr.starts'), get: function(r){ try { return new Date(r.delivered_at).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return '—'; } } },
+  { label: t('wsh.wr.ends'), get: function(r){ try { return r.ends ? new Date(r.ends).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}) : '—'; } catch(e){ return '—'; } } },
+  { label: t('wsh.job.status'), get: function(r){ return t('wsh.wr.' + (r.state === 'unknown' ? 'expired' : r.state)); }, badge: true }
+] }) %>
+<%- include('foot') %>

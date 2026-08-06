@@ -1,0 +1,44 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-4"><%= t('wsh.part.title') %></h1>
+<%- include('_table', { empty: t('wsh.part.empty'), rows: parts, cols: [
+  { label: t('wsh.part.name'), key: 'name', cls: 'font-semibold' },
+  { label: t('wsh.part.number'), key: 'part_number' },
+  { label: t('wsh.part.fits'), key: 'fits' },
+  { label: t('wsh.part.qty'), get: function(r){ return Number(r.qty) + (Number(r.min_qty) > 0 && Number(r.qty) <= Number(r.min_qty) ? ' ⚠️' : ''); } },
+  { label: t('wsh.part.cost'), key: 'avg_cost', money: true },
+  { label: t('wsh.part.price'), key: 'sell_price', money: true }
+] }) %>
+
+<div class="grid lg:grid-cols-2 gap-5 mt-8">
+  <div>
+    <h2 class="font-black text-lg mb-3"><%= t('wsh.part.new') %></h2>
+    <form method="post" action="/workshop/parts" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-2 gap-3 text-sm">
+      <input name="name" required placeholder="<%= t('wsh.part.name') %> *" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
+      <input name="part_number" placeholder="<%= t('wsh.part.number') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="brand" placeholder="<%= t('wsh.part.brand') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="fits" placeholder="<%= t('wsh.part.fits') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
+      <input name="qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.qty') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="min_qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.min') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="avg_cost" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.part.cost') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="sell_price" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.part.price') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <div class="sm:col-span-2"><button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button></div>
+    </form>
+  </div>
+  <div>
+    <h2 class="font-black text-lg mb-3"><%= t('wsh.part.receive') %></h2>
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 text-sm">
+      <% parts.slice(0,12).forEach(function(p){ %>
+        <form method="post" action="/workshop/parts/<%= p.id %>/receive" class="flex gap-2 items-center">
+          <span class="flex-1 truncate"><%= p.name %></span>
+          <input name="qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.qty') %>"
+            class="w-20 border border-slate-200 rounded-lg px-2 py-1.5" />
+          <input name="unit_cost" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.part.cost') %>"
+            class="w-24 border border-slate-200 rounded-lg px-2 py-1.5" />
+          <button class="bg-slate-200 font-bold rounded-lg px-3 py-1.5">+</button>
+        </form>
+      <% }) %>
+      <% if (!parts.length) { %><p class="text-slate-400"><%= t('wsh.part.empty') %></p><% } %>
+    </div>
+  </div>
+</div>
+<%- include('foot') %>

@@ -1,0 +1,20 @@
+<%- include('head') %>
+<div class="flex items-center justify-between mb-4">
+  <h1 class="font-black text-xl"><%= t('wsh.exp.title') %></h1>
+  <div class="text-lg font-black"><bdi><%= Number(total).toLocaleString(LOC,{maximumFractionDigits:2}) %></bdi></div>
+</div>
+<%- include('_table', { empty: t('wsh.exp.empty'), rows: rows, cols: [
+  { label: t('wsh.exp.date'), get: function(r){ try { return new Date(r.spent_on).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; } } },
+  { label: t('wsh.exp.category'), key: 'category' },
+  { label: t('wsh.job.note'), key: 'description' },
+  { label: t('wsh.exp.amount'), key: 'amount', money: true }
+] }) %>
+<h2 class="font-black text-lg mt-8 mb-3"><%= t('wsh.exp.new') %></h2>
+<form method="post" action="/workshop/expenses" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-4 gap-3 text-sm">
+  <input name="category" placeholder="<%= t('wsh.exp.category') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <input name="description" placeholder="<%= t('wsh.job.note') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
+  <input name="amount" type="number" step="0.01" min="0" required dir="ltr" placeholder="<%= t('wsh.exp.amount') %> *" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <input name="spent_on" type="date" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <div class="sm:col-span-4"><button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button></div>
+</form>
+<%- include('foot') %>

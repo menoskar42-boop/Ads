@@ -1,0 +1,147 @@
+<%
+  // Public page for a car workshop. The visitor's question is short and always
+  // the same: can these people fix my car, and can I reach them now. So the
+  // phone and the WhatsApp button are above everything, and the prose is below.
+  var ws = (typeof workshopSettings !== 'undefined' && workshopSettings) ? workshopSettings : {};
+  var stats = (typeof workshopStats !== 'undefined' && workshopStats) ? workshopStats : null;
+  var displayName = ws.business_name || company.company_name;
+  var about = (ws.about || company.description || '').trim();
+  var phone = (ws.phone || '').trim();
+  var wa = String(ws.whatsapp || ws.phone || '').replace(/[^0-9]/g, '');
+
+  var __title = (displayName + ' — ورشة صيانة سيارات').slice(0, 60);
+  var __descBase = about || ('ورشة ' + displayName + ' لصيانة وإصلاح السيارات'
+    + (ws.address ? ' في ' + ws.address : '') + '. تشخيص، قطع غيار، وضمان على الشغل.');
+  var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<%- include('partials/seo_meta', { title: __title, description: __desc,
+      siteLogo: company.logo_url || null, siteAppName: displayName }) %>
+<% if (!(typeof noindex !== 'undefined' && noindex)) { %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "AutoRepair",
+  "name": displayName,
+  "description": __desc,
+  "url": canonicalUrl,
+  "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
+  "telephone": phone || undefined,
+  "address": ws.address ? { "@type": "PostalAddress", "streetAddress": ws.address, "addressCountry": "EG" } : undefined,
+  "openingHours": ws.hours || undefined,
+  "areaServed": "EG"
+}) %>
+</script>
+<% } %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<header class="bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+  <div class="max-w-4xl mx-auto px-4 py-12 text-center">
+    <% if (company.logo_url) { %>
+      <img src="<%= company.logo_url %>" alt="شعار <%= displayName %>"
+        class="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 bg-white/10" />
+    <% } else { %>
+      <div class="text-4xl mb-3">🔧</div>
+    <% } %>
+    <h1 class="text-3xl sm:text-4xl font-black mb-2"><%= displayName %></h1>
+    <p class="text-slate-300 text-sm sm:text-base">ورشة صيانة وإصلاح سيارات<% if (ws.address) { %> · <%= ws.address %><% } %></p>
+
+    <%# The two buttons a visitor came for. Nothing above them. %>
+    <div class="flex flex-wrap gap-3 justify-center mt-6">
+      <% if (phone) { %>
+        <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>"
+          class="bg-white text-slate-900 font-bold rounded-xl px-6 py-3">📞 اتصل بنا</a>
+      <% } %>
+      <% if (wa) { %>
+        <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+          class="bg-emerald-500 text-white font-bold rounded-xl px-6 py-3">واتساب</a>
+      <% } %>
+    </div>
+    <% if (ws.hours) { %><p class="text-slate-400 text-xs mt-4">🕐 <%= ws.hours %></p><% } %>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+
+  <% if (about) { %>
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+      <h2 class="font-black text-lg mb-3">عن الورشة</h2>
+      <p class="text-slate-600 leading-relaxed whitespace-pre-line"><%= about %></p>
+    </section>
+  <% } %>
+
+  <%# Numbers only when they are real. A workshop with three jobs on file does
+      not want "3 cars serviced" on its front page, and a made-up number is
+      worse than none — so the whole block is hidden below a floor. %>
+  <% if (stats && stats.jobs_done >= 20) { %>
+    <section class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 text-center">
+        <div class="text-2xl font-black text-slate-800"><%= stats.jobs_done.toLocaleString('ar-EG') %>+</div>
+        <div class="text-xs text-slate-500 font-semibold mt-1">عربية اتصلّحت</div>
+      </div>
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 text-center">
+        <div class="text-2xl font-black text-slate-800"><%= stats.vehicles.toLocaleString('ar-EG') %></div>
+        <div class="text-xs text-slate-500 font-semibold mt-1">عربية في ملفاتنا</div>
+      </div>
+      <% if (stats.technicians > 0) { %>
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 text-center">
+          <div class="text-2xl font-black text-slate-800"><%= stats.technicians %></div>
+          <div class="text-xs text-slate-500 font-semibold mt-1">فنّي متخصّص</div>
+        </div>
+      <% } %>
+    </section>
+  <% } %>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+    <h2 class="font-black text-lg mb-4">إزاي بنشتغل</h2>
+    <ol class="space-y-4 text-sm text-slate-600">
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-slate-100 grid place-items-center font-bold text-slate-700">١</span>
+        <span><b class="text-slate-800">بنستلم العربية بأمر شغل.</b> شكواك متسجّلة بالحرف، والعدّاد متسجّل، وصور للعربية وهي داخلة.</span>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-slate-100 grid place-items-center font-bold text-slate-700">٢</span>
+        <span><b class="text-slate-800">بنقولك التكلفة قبل ما نبدأ.</b> عرض سعر بالقطع والمصنعية — الشغل مابيبدأش غير لما توافق.</span>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-slate-100 grid place-items-center font-bold text-slate-700">٣</span>
+        <span><b class="text-slate-800">بنسلّمك بضمان.</b> والضمان بيبدأ يوم ما تستلم العربية، مش يوم الفاتورة.</span>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-slate-100 grid place-items-center font-bold text-slate-700">٤</span>
+        <span><b class="text-slate-800">بنفكّرك بميعاد الصيانة الجاية.</b> بالكيلومترات وبالشهور — واللي يجي الأول.</span>
+      </li>
+    </ol>
+  </section>
+
+  <div class="bg-slate-800 text-white rounded-2xl p-6 text-center">
+    <h2 class="font-black text-lg mb-2">عربيتك محتاجة إيه؟</h2>
+    <p class="text-slate-300 text-sm mb-5">كلّمنا واحكيلنا، ونقولك التكلفة قبل ما تيجي.</p>
+    <div class="flex flex-wrap gap-3 justify-center">
+      <% if (phone) { %>
+        <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>" class="bg-white text-slate-900 font-bold rounded-xl px-6 py-3">📞 <span dir="ltr"><%= phone %></span></a>
+      <% } %>
+      <% if (wa) { %>
+        <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener" class="bg-emerald-500 font-bold rounded-xl px-6 py-3">واتساب</a>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<footer class="text-center py-8 text-xs text-slate-400">
+  <a href="https://oscardevs.com" target="_blank" rel="noopener" class="hover:text-slate-600">مقدَّم من OscarDevs</a>
+</footer>
+</body>
+</html>

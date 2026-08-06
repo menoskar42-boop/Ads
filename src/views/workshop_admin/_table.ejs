@@ -1,0 +1,27 @@
+<%# A labelled table that becomes cards on a phone.
+    cols:  [{label, key, cls, money, badge, link}]
+    rows:  the data
+    empty: text shown when there is nothing %>
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500"><%= empty %></div>
+<% } else { %>
+<table class="rt w-full bg-white sm:rounded-2xl sm:border border-slate-200 text-sm">
+  <thead class="bg-slate-50 text-slate-500 text-xs"><tr>
+    <% cols.forEach(function(c){ %><th class="text-start px-4 py-2 font-semibold"><%= c.label %></th><% }) %>
+  </tr></thead>
+  <tbody>
+    <% rows.forEach(function(r){ %>
+      <tr class="border-t border-slate-100">
+        <% cols.forEach(function(c){ var v = typeof c.get==='function' ? c.get(r) : r[c.key]; %>
+          <td class="px-4 py-2 <%= c.cls || '' %>" data-l="<%= c.label %>">
+            <% if (c.link) { %><a href="<%= c.link(r) %>" class="font-bold text-brand-700"><%= v %></a>
+            <% } else if (c.badge) { %><span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100"><%= v %></span>
+            <% } else if (c.money) { %><bdi><%= Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}) %></bdi>
+            <% } else { %><%= (v === null || v === undefined || v === '') ? '—' : v %><% } %>
+          </td>
+        <% }) %>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<% } %>

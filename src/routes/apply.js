@@ -24,7 +24,7 @@ const cleanRef = (s) => {
 };
 
 router.get('/apply', (req, res) => {
-  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition'].includes(req.query.type) ? req.query.type : '';
+  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop'].includes(req.query.type) ? req.query.type : '';
   const ref = cleanRef(req.query.ref);
   const values = {};
   if (preType) values.business_type = preType;
@@ -61,7 +61,7 @@ router.post('/apply', async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return render('بريد إلكتروني غير صالح.');
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
-  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition'].includes(values.business_type)) return render('اختر نوع الموقع.');
+  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop'].includes(values.business_type)) return render('اختر نوع الموقع.');
   if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
     return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
   }

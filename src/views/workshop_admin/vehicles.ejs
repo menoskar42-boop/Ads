@@ -1,0 +1,48 @@
+<%- include('head') %>
+<div class="flex items-center justify-between mb-4">
+  <h1 class="font-black text-xl"><%= t('wsh.veh.title') %></h1>
+  <a href="#new" class="text-sm bg-brand-600 text-white font-bold rounded-xl px-4 py-2">+ <%= t('wsh.veh.new') %></a>
+</div>
+<%- include('_table', { empty: t('wsh.veh.empty'), rows: vehicles, cols: [
+  { label: t('wsh.veh.plate'), key: 'plate', cls: 'font-bold', link: function(r){ return '/workshop/vehicles/' + r.id; } },
+  { label: t('wsh.veh.make'),  get: function(r){ return [r.make, r.model, r.model_year].filter(Boolean).join(' '); } },
+  { label: t('wsh.veh.owner'), key: 'customer_name' },
+  { label: t('wsh.cust.phone'), key: 'customer_phone' },
+  { label: t('wsh.veh.odometer'), key: 'odometer' },
+  { label: t('wsh.veh.jobs_count'), key: 'jobs_count' }
+] }) %>
+
+<h2 id="new" class="font-black text-lg mt-8 mb-3"><%= t('wsh.veh.new') %></h2>
+<form method="post" action="/workshop/vehicles" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-3 gap-3 text-sm">
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.plate') %> *</span>
+    <input name="plate" required class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.make') %></span>
+    <input name="make" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.model') %></span>
+    <input name="model" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.year') %></span>
+    <input name="model_year" type="number" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.colour') %></span>
+    <input name="colour" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.odometer') %></span>
+    <input name="odometer" type="number" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.vin') %></span>
+    <input name="vin" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+  <%# The owner is typed on the same screen as the car. A car arrives with its
+      owner standing there; sending the user to a second form to create the
+      customer first is how half the vehicles end up with no owner at all. %>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.owner') %></span>
+    <select name="customer_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+      <option value=""><%= t('wsh.common.none') %></option>
+      <% customers.forEach(function(c){ %><option value="<%= c.id %>"><%= c.name %><%= c.phone ? ' — ' + c.phone : '' %></option><% }) %>
+    </select></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.cust.new') %></span>
+    <input name="new_customer" placeholder="<%= t('wsh.cust.name') %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.cust.phone') %></span>
+    <input name="new_phone" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <div class="sm:col-span-3">
+    <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button>
+  </div>
+</form>
+<%- include('foot') %>

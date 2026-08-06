@@ -1,0 +1,90 @@
+// Optional features of the workshop system, one independent toggle each.
+//
+// Same contract as src/furniture/flags.js: the sidebar reads this list and so
+// does the route guard, so a feature can never be reachable by URL after it has
+// been hidden. `core: true` marks what a workshop cannot run without — shown on
+// the settings page, but not switchable.
+'use strict';
+
+const FLAGS = [
+  { key: 'jobs', label: 'أوامر الشغل', icon: '🧾', path: '/workshop/jobs', core: true,
+    desc: 'استلام العربية، الشكوى، التشخيص، الشغل اللي اتعمل، والتسليم.' },
+  { key: 'vehicles', label: 'العربيات والعملاء', icon: '🚗', path: '/workshop/vehicles', core: true,
+    desc: 'ملف كل عربية بتاريخها الكامل — تدوّر بالرقم وتلاقي كل حاجة اتعملت فيها.' },
+  { key: 'parts', label: 'قطع الغيار', icon: '🔩', path: '/workshop/parts',
+    desc: 'مخزون القطع بمتوسط تكلفة متحرّك، والحد الأدنى، وحركة الصرف.' },
+  { key: 'reminders', label: 'تذكير الصيانة', icon: '⏰', path: '/workshop/reminders',
+    desc: 'العربيات اللي جه معادها — بالكيلومترات وبالشهور. دي اللي بترجّع العميل.' },
+  { key: 'technicians', label: 'الفنّيين', icon: '👨‍🔧', path: '/workshop/technicians',
+    desc: 'الفنّيين وتخصّصاتهم، ومستحقاتهم باليومية أو بنسبة من المصنعية.' },
+  { key: 'photos', label: 'صور قبل وبعد', icon: '📷', path: '/workshop/jobs',
+    desc: 'صور العربية وهي داخلة وخارجة — بتقفل أي خلاف على خربوشة.' },
+  { key: 'invoices', label: 'الفواتير والتحصيل', icon: '💵', path: '/workshop/invoices',
+    desc: 'إجمالي كل أمر شغل، المدفوع والمتبقّي، وكشف حساب العميل.' },
+  { key: 'expenses', label: 'المصروفات', icon: '💸', path: '/workshop/expenses',
+    desc: 'مصروفات الورشة بالتصنيف.' },
+  { key: 'reports', label: 'التقارير', icon: '📊', path: '/workshop/reports',
+    desc: 'الإيراد والمصنعية وقطع الغيار والربح، وأكتر الأعطال تكراراً.' },
+  { key: 'warranty', label: 'الضمان', icon: '🛡️', path: '/workshop/warranty',
+    desc: 'ضمان الشغل، وبيبدأ يوم تسليم العربية مش يوم الفاتورة.' },
+];
+
+const FLAG_KEYS = FLAGS.map((f) => f.key);
+// Everything the owner can switch off. The core pair stays on always.
+const OPTIONAL_KEYS = FLAGS.filter((f) => !f.core).map((f) => f.key);
+// A new workshop starts with the parts that make the product obviously useful
+// on day one; the rest are opt-in so the sidebar is not a wall.
+const DEFAULT_ON = ['parts', 'reminders', 'invoices'];
+
+/** Feature keys enabled for a company, as a Set. Core keys are always in it. */
+async function getFlags(pool, companyId) {
+  const on = new Set(FLAGS.filter((f) => f.core).map((f) => f.key));
+  try {
+    const r = await pool.query(
+      'SELECT flag_key, enabled FROM workshop_flags WHERE company_id = $1', [companyId]
+    );
+    if (!r.rows.length) {
+      DEFAULT_ON.forEach((k) => on.add(k));
+      return on;
+    }
+    for (const row of r.rows) {
+      if (row.enabled && FLAG_KEYS.includes(row.flag_key)) on.add(row.flag_key);
+    }
+  } catch (e) {
+    // A flags read that fails must not lock the owner out of their own
+    // workshop: fall back to the defaults rather than an empty sidebar.
+    DEFAULT_ON.forEach((k) => on.add(k));
+  }
+  return on;
+}
+
+/** Persist the toggles. Core keys are ignored — they cannot be switched off. */
+async function saveFlags(pool, companyId, wanted) {
+  const set = new Set(Array.isArray(wanted) ? wanted : []);
+  for (const key of OPTIONAL_KEYS) {
+    await pool.query(
+      `INSERT INTO workshop_flags (company_id, flag_key, enabled) VALUES ($1,$2,$3)
+       ON CONFLICT (company_id, flag_key) DO UPDATE SET enabled = EXCLUDED.enabled`,
+      [companyId, key, set.has(key)]
+    );
+  }
+}
+
+/**
+ * Sidebar entries for the enabled features, translated.
+ * `photos` is deliberately excluded: it has no page of its own — it lives
+ * inside the job card — so listing it would give the sidebar a dead link.
+ */
+function localized(flags, t) {
+  return flags
+    .filter((f) => f.key !== 'photos')
+    .map((f) => ({
+      key: f.key,
+      path: f.path,
+      icon: f.icon,
+      label: (typeof t === 'function' && t('wsh.nav.' + f.key) !== 'wsh.nav.' + f.key)
+        ? t('wsh.nav.' + f.key) : f.label,
+    }));
+}
+
+module.exports = { FLAGS, FLAG_KEYS, OPTIONAL_KEYS, DEFAULT_ON, getFlags, saveFlags, localized };

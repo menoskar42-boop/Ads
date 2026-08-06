@@ -1,0 +1,38 @@
+<%- include('head') %>
+<% function money(v){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}); } %>
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <h1 class="font-black text-xl"><%= t('wsh.rep.title') %></h1>
+  <div class="flex gap-1 text-xs">
+    <% [7,30,90,365].forEach(function(n){ %>
+      <a href="/workshop/reports?days=<%= n %>" class="px-3 py-1.5 rounded-lg <%= days===n ? 'bg-brand-600 text-white font-bold' : 'bg-white border border-slate-200' %>"><%= n %></a>
+    <% }) %>
+  </div>
+</div>
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+  <% [[t('wsh.rep.jobs'), summary.jobs, ''],
+      [t('wsh.rep.revenue'), money(summary.revenue), 'text-emerald-700'],
+      [t('wsh.inv.labour_revenue'), money(summary.labourRevenue), ''],
+      [t('wsh.inv.parts_revenue'), money(summary.partsRevenue), ''],
+      [t('wsh.inv.parts_margin'), money(summary.partsMargin), 'text-brand-700']].forEach(function(c){ %>
+    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+      <div class="text-xs text-slate-500 font-semibold"><%= c[0] %></div>
+      <div class="text-lg font-black mt-1 <%= c[2] %>"><bdi><%= c[1] %></bdi></div>
+    </div>
+  <% }) %>
+</div>
+<p class="text-xs text-slate-400 mb-6"><%= t('wsh.inv.margin_note') %></p>
+
+<div class="grid lg:grid-cols-2 gap-5">
+  <div>
+    <h2 class="font-black text-lg mb-3"><%= t('wsh.rep.top_faults') %></h2>
+    <%- include('_table', { empty: t('wsh.job.empty'), rows: faults, cols: [
+      { label: t('wsh.job.complaint'), key: 'fault' }, { label: '#', key: 'n' } ] }) %>
+  </div>
+  <div>
+    <h2 class="font-black text-lg mb-3"><%= t('wsh.rep.top_parts') %></h2>
+    <%- include('_table', { empty: t('wsh.part.empty'), rows: topParts, cols: [
+      { label: t('wsh.part.name'), key: 'name' }, { label: t('wsh.part.qty'), key: 'qty' },
+      { label: t('wsh.rep.revenue'), key: 'revenue', money: true } ] }) %>
+  </div>
+</div>
+<%- include('foot') %>
