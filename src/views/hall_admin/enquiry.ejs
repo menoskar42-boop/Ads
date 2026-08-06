@@ -1,0 +1,138 @@
+<%- include('head') %>
+<%
+  var SL={new:'جديد',contacted:'اتكلّمنا',viewing_booked:'معاينة محجوزة',viewed:'شاف القاعة',quoted:'اتعمله عرض',won:'حجز',lost:'ضاع'};
+  function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  function dt(v){ try{ return v? new Date(v).toLocaleString('ar-EG',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; }catch(e){ return '—'; } }
+  function forInput(v){ try{ var x=new Date(v); return isNaN(x)?'':x.toISOString().slice(0,16); }catch(e){ return ''; } }
+  var wa = String(enq.whatsapp || enq.phone || '').replace(/[^0-9]/g,'');
+%>
+<a href="/hall/enquiries" class="text-sm text-slate-500">← رجوع</a>
+
+<div class="bg-white rounded-2xl border border-rose-100 p-5 mt-3 mb-5">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div>
+      <h1 class="font-black text-2xl"><%= enq.name %></h1>
+      <p class="text-slate-500 text-sm mt-1">
+        <%= d(enq.event_date) %><% if (enq.event_type) { %> · <%= enq.event_type %><% } %>
+        <% if (enq.guests) { %> · <%= enq.guests %> فرد<% } %>
+        <% if (enq.budget) { %> · ميزانية <%= Number(enq.budget).toLocaleString('ar-EG') %><% } %>
+      </p>
+      <% if (enq.phone) { %><p class="text-sm mt-1" dir="ltr"><%= enq.phone %></p><% } %>
+    </div>
+    <div class="text-end">
+      <span class="text-xs font-bold px-3 py-1 rounded-full bg-rose-50 text-brand-700"><%= SL[enq.status] %></span>
+      <% if (wa) { %>
+        <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+          class="block mt-2 bg-emerald-600 text-white font-bold rounded-lg px-4 py-1.5 text-xs">واتساب</a>
+      <% } %>
+    </div>
+  </div>
+
+  <%# The first thing anybody asks on the phone: is that date still free?
+      So it is answered here, not two clicks away. %>
+  <% if (enq.event_date) { %>
+    <div class="mt-4 pt-4 border-t border-rose-50">
+      <% if (!taken.length) { %>
+        <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold">
+          ✓ <%= d(enq.event_date) %> لسه فاضي
+        </div>
+      <% } else { %>
+        <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm">
+          <b>⚠️ <%= d(enq.event_date) %> محجوز:</b>
+          <% taken.forEach(function(t){ %>
+            <div class="text-xs mt-1">— <%= t.customer_name %> (<%= t.slot==='full'?'اليوم كله':(t.slot==='afternoon'?'بعد الضهر':'المسا') %>)</div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+  <% if (enq.note) { %><p class="mt-4 text-sm text-slate-600 whitespace-pre-line"><%= enq.note %></p><% } %>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-5">
+  <section class="bg-white rounded-2xl border border-rose-100 p-5">
+    <h2 class="font-black mb-3">المتابعة</h2>
+    <form method="post" action="/hall/enquiries/<%= enq.id %>/update" class="space-y-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">الحالة</span>
+        <select name="status" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+          <% B.ENQUIRY_STATUSES.forEach(function(s){ %>
+            <option value="<%= s %>" <%= enq.status===s?'selected':'' %>><%= SL[s] %></option>
+          <% }) %>
+        </select></label>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="block"><span class="text-xs font-bold text-slate-500">المتابعة الجاية</span>
+          <input name="next_action_on" type="date" dir="ltr" value="<%= enq.next_action_on ? String(enq.next_action_on).slice(0,10) : '' %>"
+            class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">ميعاد المعاينة</span>
+          <input name="viewing_at" type="datetime-local" dir="ltr" value="<%= forInput(enq.viewing_at) %>"
+            class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">المدعوين</span>
+          <input name="guests" type="number" min="0" dir="ltr" value="<%= enq.guests || '' %>"
+            class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الميزانية</span>
+          <input name="budget" type="number" min="0" step="0.01" dir="ltr" value="<%= enq.budget ? Number(enq.budget) : '' %>"
+            class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+      </div>
+      <input name="lost_reason" placeholder="لو ضاع — السبب" value="<%= enq.lost_reason || '' %>"
+        class="w-full border border-rose-100 rounded-xl px-3 py-2" />
+      <button class="bg-brand-700 text-white font-bold rounded-xl px-6 py-2">حفظ</button>
+    </form>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-rose-100 p-5">
+    <h2 class="font-black mb-3">حوّله لحجز</h2>
+    <form method="post" action="/hall/bookings" class="space-y-3 text-sm">
+      <input type="hidden" name="enquiry_id" value="<%= enq.id %>" />
+      <input type="hidden" name="customer_name" value="<%= enq.name %>" />
+      <input type="hidden" name="phone" value="<%= enq.phone || '' %>" />
+      <input type="hidden" name="whatsapp" value="<%= enq.whatsapp || '' %>" />
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="block"><span class="text-xs font-bold text-slate-500">التاريخ *</span>
+          <input name="event_date" type="date" dir="ltr" required value="<%= enq.event_date ? String(enq.event_date).slice(0,10) : '' %>"
+            class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الفترة</span>
+          <select name="slot" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+            <option value="evening">المسا</option><option value="afternoon">بعد الضهر</option><option value="full">اليوم كله</option>
+          </select></label>
+        <% if (venues.length) { %>
+        <label class="block"><span class="text-xs font-bold text-slate-500">القاعة</span>
+          <select name="venue_id" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+            <option value="">—</option>
+            <% venues.forEach(function(v){ %><option value="<%= v.id %>"><%= v.name %></option><% }) %>
+          </select></label>
+        <% } %>
+        <% if (packages.length) { %>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الباقة</span>
+          <select name="package_id" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+            <option value="">—</option>
+            <% packages.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
+          </select></label>
+        <% } %>
+        <label class="block"><span class="text-xs font-bold text-slate-500">المدعوين</span>
+          <input name="guests" type="number" min="0" dir="ltr" value="<%= enq.guests || '' %>"
+            class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+      </div>
+      <button class="bg-emerald-600 text-white font-bold rounded-xl px-6 py-2">احجز الميعاد</button>
+      <p class="text-xs text-slate-400">الحجز بيتسجّل «مؤقت» ويقفل اليوم فوراً لحد ما العربون يتدفع.</p>
+    </form>
+  </section>
+</div>
+
+<section class="bg-white rounded-2xl border border-rose-100 p-5 mt-5">
+  <h2 class="font-black mb-3">الملاحظات</h2>
+  <form method="post" action="/hall/enquiries/<%= enq.id %>/note" class="flex gap-2 mb-4">
+    <input name="body" required placeholder="اكتب اللي حصل في المكالمة…" class="flex-1 border border-rose-100 rounded-xl px-3 py-2 text-sm min-w-0" />
+    <button class="bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm">إضافة</button>
+  </form>
+  <% if (!notes.length) { %><p class="text-slate-400 text-sm">مفيش ملاحظات.</p><% } else { %>
+    <div class="space-y-2">
+      <% notes.forEach(function(n){ %>
+        <div class="text-sm border-b border-rose-50 pb-2">
+          <div class="text-xs text-slate-400"><%= dt(n.created_at) %></div>
+          <div class="mt-0.5"><%= n.body %></div>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+<%- include('foot') %>

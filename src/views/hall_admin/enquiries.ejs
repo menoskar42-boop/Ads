@@ -1,0 +1,54 @@
+<%- include('head') %>
+<%
+  var SL={new:'جديد',contacted:'اتكلّمنا',viewing_booked:'معاينة محجوزة',viewed:'شاف القاعة',quoted:'اتعمله عرض',won:'حجز',lost:'ضاع'};
+  function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+%>
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <h1 class="font-black text-xl">الاستفسارات</h1>
+  <div class="flex gap-1 text-xs overflow-x-auto">
+    <a href="/hall/enquiries" class="px-3 py-1.5 rounded-lg <%= !status ? 'bg-brand-700 text-white font-bold' : 'bg-white border border-rose-100' %>">المفتوحة</a>
+    <% B.ENQUIRY_STATUSES.forEach(function(s){ %>
+      <a href="/hall/enquiries?status=<%= s %>" class="px-3 py-1.5 rounded-lg whitespace-nowrap <%= status===s ? 'bg-brand-700 text-white font-bold' : 'bg-white border border-rose-100' %>"><%= SL[s] %></a>
+    <% }) %>
+  </div>
+</div>
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-rose-100 p-8 text-center text-slate-500">مفيش استفسارات هنا.</div>
+<% } else { %>
+<table class="rt w-full bg-white sm:rounded-2xl sm:border border-rose-100 text-sm">
+  <thead class="bg-rose-50/60 text-slate-500 text-xs"><tr>
+    <th class="text-start px-4 py-2">الاسم</th><th class="text-start px-4 py-2">التاريخ</th>
+    <th class="text-start px-4 py-2">المدعوين</th><th class="text-start px-4 py-2">الميزانية</th>
+    <th class="text-start px-4 py-2">التليفون</th><th class="text-start px-4 py-2">الحالة</th>
+    <th class="text-start px-4 py-2">المتابعة</th>
+  </tr></thead>
+  <tbody>
+  <% rows.forEach(function(r){ %>
+    <tr class="border-t border-rose-50">
+      <td class="px-4 py-2" data-l="الاسم"><a href="/hall/enquiries/<%= r.id %>" class="font-bold text-brand-700"><%= r.name %></a></td>
+      <td class="px-4 py-2" data-l="التاريخ"><%= d(r.event_date) %></td>
+      <td class="px-4 py-2" data-l="المدعوين"><%= r.guests || '—' %></td>
+      <td class="px-4 py-2" data-l="الميزانية"><%= r.budget ? Number(r.budget).toLocaleString('ar-EG') : '—' %></td>
+      <td class="px-4 py-2" data-l="التليفون" dir="ltr"><%= r.phone || '—' %></td>
+      <td class="px-4 py-2" data-l="الحالة"><span class="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-brand-700"><%= SL[r.status] %></span></td>
+      <td class="px-4 py-2 <%= (!r.next_action_on || new Date(r.next_action_on) <= new Date()) ? 'text-rose-600 font-bold' : 'text-slate-500' %>" data-l="المتابعة"><%= d(r.next_action_on) %></td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+<% } %>
+
+<h2 class="font-black text-lg mt-8 mb-3">استفسار جديد</h2>
+<form method="post" action="/hall/enquiries" class="bg-white rounded-2xl border border-rose-100 p-5 grid sm:grid-cols-3 gap-3 text-sm">
+  <input name="name" required placeholder="الاسم *" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="phone" dir="ltr" placeholder="التليفون" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="whatsapp" dir="ltr" placeholder="واتساب" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="event_date" type="date" dir="ltr" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="guests" type="number" min="0" dir="ltr" placeholder="عدد المدعوين" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="budget" type="number" min="0" step="0.01" dir="ltr" placeholder="الميزانية" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="event_type" placeholder="نوع المناسبة" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="city" placeholder="المدينة" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="note" placeholder="ملاحظات" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <div class="sm:col-span-3"><button class="bg-brand-700 text-white font-bold rounded-xl px-6 py-2.5">حفظ</button></div>
+</form>
+<%- include('foot') %>

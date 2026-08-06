@@ -1,0 +1,89 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{weekday:'short',day:'numeric',month:'short'}) : '—'; }catch(e){ return '—'; } }
+  var SL = { new:'جديد', contacted:'اتكلّمنا', viewing_booked:'معاينة محجوزة', viewed:'شاف القاعة', quoted:'اتعمله عرض', won:'حجز', lost:'ضاع' };
+%>
+<%# The hall's money is lost in the silence between "they asked" and "they
+    came to see it", so the first thing on the screen is who is waiting. %>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+  <a href="/hall/enquiries" class="bg-white rounded-2xl border border-rose-100 p-4 hover:border-brand-300 transition">
+    <div class="text-xl">📥</div>
+    <div class="text-2xl font-black text-brand-700 mt-1"><%= stats.dueEnq %></div>
+    <div class="text-xs text-slate-500 font-semibold mt-0.5">محتاج متابعة النهاردة</div>
+  </a>
+  <a href="/hall/enquiries?status=new" class="bg-white rounded-2xl border border-rose-100 p-4 hover:border-brand-300 transition">
+    <div class="text-xl">✨</div>
+    <div class="text-2xl font-black mt-1"><%= stats.newEnq %></div>
+    <div class="text-xs text-slate-500 font-semibold mt-0.5">استفسار جديد</div>
+  </a>
+  <a href="/hall/bookings" class="bg-white rounded-2xl border border-rose-100 p-4 hover:border-brand-300 transition">
+    <div class="text-xl">📅</div>
+    <div class="text-2xl font-black mt-1"><%= stats.upcoming %></div>
+    <div class="text-xs text-slate-500 font-semibold mt-0.5">مناسبة جاية</div>
+  </a>
+  <a href="/hall/bookings" class="bg-white rounded-2xl border border-rose-100 p-4 hover:border-brand-300 transition">
+    <div class="text-xl">⏳</div>
+    <div class="text-2xl font-black text-amber-600 mt-1"><%= stats.held %></div>
+    <div class="text-xs text-slate-500 font-semibold mt-0.5">محجوز مؤقتاً (مستني عربون)</div>
+  </a>
+</div>
+
+<div class="grid sm:grid-cols-2 gap-3 mb-6">
+  <div class="bg-white rounded-2xl border border-rose-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">تحصيل الشهر</div>
+    <div class="text-xl font-black text-emerald-700 mt-1"><bdi><%= money(stats.monthPaid) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-rose-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">متبقّي على العملاء</div>
+    <div class="text-xl font-black text-rose-600 mt-1"><bdi><%= money(stats.outstanding) %></bdi></div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div>
+    <h2 class="font-black text-lg mb-3">مستنيين ردّك</h2>
+    <% if (!waiting.length) { %>
+      <div class="bg-white rounded-2xl border border-rose-100 p-6 text-center text-slate-400 text-sm">مفيش استفسارات مفتوحة.</div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% waiting.forEach(function(e){ %>
+          <a href="/hall/enquiries/<%= e.id %>" class="block bg-white rounded-2xl border border-rose-100 p-4 text-sm hover:border-brand-300">
+            <div class="flex justify-between gap-2 flex-wrap">
+              <span class="font-bold"><%= e.name %></span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-brand-700"><%= SL[e.status] || e.status %></span>
+            </div>
+            <div class="text-slate-500 text-xs mt-1">
+              <%= d(e.event_date) %><% if (e.guests) { %> · <%= e.guests %> فرد<% } %>
+              <% if (e.phone) { %> · <span dir="ltr"><%= e.phone %></span><% } %>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+  <div>
+    <h2 class="font-black text-lg mb-3">أقرب المناسبات</h2>
+    <% if (!soon.length) { %>
+      <div class="bg-white rounded-2xl border border-rose-100 p-6 text-center text-slate-400 text-sm">مفيش مناسبات محجوزة.</div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% soon.forEach(function(b){ %>
+          <a href="/hall/bookings/<%= b.id %>" class="block bg-white rounded-2xl border border-rose-100 p-4 text-sm hover:border-brand-300">
+            <div class="flex justify-between gap-2 flex-wrap">
+              <span class="font-bold"><%= b.customer_name %></span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= b.status==='held' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700' %>">
+                <%= b.status==='held' ? 'مؤقت' : 'مؤكّد' %></span>
+            </div>
+            <div class="text-slate-500 text-xs mt-1">
+              <%= d(b.event_date) %> · <%= b.slot==='full'?'اليوم كله':(b.slot==='afternoon'?'بعد الضهر':'المسا') %>
+              <% if (b.venue_name) { %> · <%= b.venue_name %><% } %>
+              <% if (b.guests) { %> · <%= b.guests %> فرد<% } %>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>
+<%- include('foot') %>

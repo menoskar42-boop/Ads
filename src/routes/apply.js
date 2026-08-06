@@ -48,6 +48,14 @@ router.get('/apply', (req, res) => {
 });
 
 router.post('/apply', applyLimiter, async (req, res) => {
+  // Honeypot + timing, matching /contact. A bot that fills the hidden field or
+  // submits in under two and a half seconds gets a success page and no record:
+  // answering "ok" stops it retrying, and answering "rejected" teaches it what
+  // to avoid next time.
+  const bot = String((req.body || {}).website || '').trim()
+    || (Number((req.body || {}).ft) && Date.now() - Number(req.body.ft) < 2500);
+  if (bot) return res.redirect('/apply/success');
+
   const v = (k, max = 200) => String(req.body[k] || '').trim().slice(0, max);
   const values = {
     full_name: v('full_name', 100),

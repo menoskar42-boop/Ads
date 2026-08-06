@@ -44,6 +44,14 @@
     <% } %>
 
     <form method="POST" action="/apply" class="space-y-5">
+      <%# Honeypot: hidden from people, irresistible to bots. A filled value or a
+          submission faster than a human can type means the request is dropped —
+          silently, so the bot never learns to avoid it. The same pair /contact
+          already uses. %>
+      <div style="position:absolute;left:-9999px;top:-9999px" aria-hidden="true">
+        <label>لا تملأ هذا الحقل<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      </div>
+      <input type="hidden" name="ft" value="<%= Date.now() %>" />
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
