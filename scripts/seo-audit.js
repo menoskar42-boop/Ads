@@ -69,6 +69,7 @@ const PAGES = {
   // expects on a monetised page, so it must stay ad-free.
   contact: { file: 'legal/contact.ejs', locals: { sent: false, error: null, showAds: false }, noAds: true, thin: true },
   our_work:{ file: 'legal/our_work.ejs',locals: {} },
+  dental:  { file: 'landing/dental.ejs',locals: {} },
   help:    { file: 'legal/help.ejs',    locals: {} },
   blog_index: {
     file: 'blog/index.ejs',

@@ -38,6 +38,15 @@ router.get('/our-work', (req, res) => {
   res.render('legal/our_work');
 });
 
+// ── Sector landing pages ─────────────────────────────────────────────────────
+//
+// One page per vertical instead of a card on a crowded home page. The dental
+// one is first because it needed no development at all: the module has been
+// shipped for months and simply had nowhere to be sold from.
+router.get('/dental', (req, res) => {
+  res.render('landing/dental');
+});
+
 router.get('/contact', (req, res) => {
   // Ads off on /contact. It is a form and a phone number — under the word count
   // AdSense expects on a monetised page — and leaving the loader in would let
@@ -145,6 +154,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/faq',      priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/help',     priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
+    { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     // privacy + terms are noindex,follow (boilerplate legal) → intentionally NOT
     // listed here: a sitemap must only contain indexable (200, index) URLs.
   ];
@@ -278,6 +288,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع أو نظام إدارة — بورتفوليو، متجر إلكتروني، صيدلية، مطعم/طلبات، عيادة، جيم، معرض وورشة موبيليا، عيادة تغذية، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، أو بيع بالتقسيط.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
+  lines.push(`- [نظام عيادات الأسنان](${SITE_ORIGIN}/dental): صفحة النظام المتخصّص لعيادات الأسنان — خريطة أسنان FDI، خطط علاج لكل سن، مخطط لثة، تعليق على الأشعة، تقسيط وتذكير واتساب.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (OncoScan لدعم قرار الأشعة، Safari Kids، NeuroPilot، Kakeibo، Sokro).`);
   lines.push(`- [تواصل معنا](${SITE_ORIGIN}/contact): طرق التواصل مع الفريق.`);
   lines.push('');

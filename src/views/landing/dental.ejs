@@ -1,0 +1,251 @@
+<%
+  // Sector landing page: dental clinics.
+  //
+  // Zero new development behind it — the dental module has been built and
+  // shipped for months (tooth chart, perio chart, x-ray annotation, panoramic
+  // viewer, treatment plans, lab orders). What it never had was a page that
+  // says so. This is that page.
+  //
+  // Every claim below maps to something that exists in src/clinic/. Nothing
+  // here is aspirational: a landing page that promises a feature the product
+  // does not have is the fastest way to lose the first customer it wins.
+  // 56 characters — under the 60 cap with no truncation, so it never ends
+  // mid-word in the results. The brand name is dropped on purpose: at this
+  // length the keywords are worth more than the suffix.
+  var __title = 'نظام إدارة عيادات الأسنان — خريطة أسنان وخطط علاج لكل سن';
+  var __desc = 'نظام إدارة عيادات الأسنان: خريطة أسنان FDI بصرية، خطة علاج لكل سن، مخطط لثة، تعليق على الأشعة، طلبات المعمل، مواعيد وتذكير واتساب، وتقسيط.';
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('../partials/seo_meta', { title: __title, description: __desc }) %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "نظام إدارة عيادات الأسنان — OscarDevs",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": __desc,
+  "url": siteOrigin + "/dental",
+  "offers": {
+    "@type": "Offer",
+    "price": "199",
+    "priceCurrency": "EGP",
+    "description": "اشتراك شهري بعد انتهاء العرض المجاني"
+  },
+  "provider": { "@id": siteOrigin + "#organization" }
+}) %>
+</script>
+<%# No BreadcrumbList here on purpose: partials/breadcrumbs.ejs emits one from
+    the same crumbs further down the page, and two BreadcrumbLists on one page
+    is a conflict for a crawler to resolve rather than extra coverage. %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "خريطة الأسنان دي بصرية ولا مجرد جدول؟",
+      "acceptedAnswer": { "@type": "Answer", "text": "بصرية بترقيم FDI: بتضغط على السن نفسه فتفتح حالته وخطة علاجه. الجدول بيخلّي الطبيب يحفظ الأرقام، والرسمة بتخلّيه يشوف الفم." } },
+    { "@type": "Question", "name": "أقدر أعلّق على صور الأشعة جوّه النظام؟",
+      "acceptedAnswer": { "@type": "Answer", "text": "أيوه. فيه عارض للأشعة مع تعليق عليها وعارض بانورامي، فالصورة بتفضل مع ملف المريض بدل ما تتبعت في واتساب وتضيع." } },
+    { "@type": "Question", "name": "التذكير بالواتساب بيتبعت من رقم مين؟",
+      "acceptedAnswer": { "@type": "Answer", "text": "من رقم العيادة نفسها — كل عيادة بتحط مفتاحها الخاص (WhatsApp Cloud API أو مزوّد خارجي). ده مهم عشان المريض يرد على رقم يعرفه." } },
+    { "@type": "Question", "name": "لو العيادة تقويم أسنان مش أسنان عامة؟",
+      "acceptedAnswer": { "@type": "Answer", "text": "نفس الوحدة بتشتغل مع التقويم — التخصص بيتحدّد من الإعدادات، والوحدات اللي مالهاش علاقة بالأسنان بتختفي لوحدها." } },
+    { "@type": "Question", "name": "أقدر أقسّط تكلفة العلاج على المريض؟",
+      "acceptedAnswer": { "@type": "Answer", "text": "أيوه، فيه وحدة تقسيط: بتقسّم الفاتورة على دفعات بمواعيد، وبتتابع المستحق والمتأخر، وكل دفعة بتتسجّل كتحصيل عادي في الخزنة." } }
+  ]
+}) %>
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  *{font-family:'Cairo',sans-serif}
+  .lead p{line-height:1.95;color:#374151;margin-bottom:1rem}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-cyan-700">OscarDevs</a>
+    <nav class="text-sm text-slate-500 flex gap-3 flex-wrap">
+      <a href="/" class="hover:text-cyan-700">الرئيسية</a>
+      <a href="/blog" class="hover:text-cyan-700">المدوّنة</a>
+      <a href="/faq" class="hover:text-cyan-700">الأسئلة الشائعة</a>
+      <a href="/contact" class="hover:text-cyan-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<section class="bg-gradient-to-br from-cyan-900 to-cyan-700 text-white">
+  <div class="max-w-4xl mx-auto px-4 py-14 text-center">
+    <div class="text-4xl mb-3">🦷</div>
+    <h1 class="text-3xl sm:text-4xl font-black mb-4">نظام إدارة عيادات الأسنان</h1>
+    <p class="text-cyan-100 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto">
+      عيادة الأسنان مش زي أي عيادة: العلاج بيتقاس <strong>بالسن</strong> مش بالزيارة،
+      والخطة بتاخد شهور، والمريض بيسيبها في النص. النظام ده مبني على التلات حاجات دول.
+    </p>
+    <div class="flex flex-wrap gap-3 justify-center mt-8">
+      <a href="/apply?type=clinic" class="bg-white text-cyan-900 font-bold rounded-xl px-8 py-3">اطلب النظام</a>
+      <a href="#features" class="bg-white/15 font-bold rounded-xl px-6 py-3">شوف اللي جوّاه</a>
+    </div>
+    <p class="text-cyan-200 text-xs mt-5">
+      النظام ده جاهز وشغّال — مش تحت التطوير. اختار «عيادة» في التقديم وحدّد التخصص «أسنان».
+    </p>
+  </div>
+</section>
+
+<main class="max-w-4xl mx-auto px-4 py-12">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'نظام عيادات الأسنان' } ] }) %>
+
+  <article class="lead">
+    <section class="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8">
+      <h2 class="text-2xl font-black mb-4">التلات مشاكل اللي بتكلّف عيادة الأسنان فلوس</h2>
+      <p><strong>الأولى: الملف مش بيعرف يجاوب «عملنا إيه في السن ده؟».</strong>
+      الملف الورقي أو حتى الإلكتروني العادي بيتسجّل بالزيارة: «حشو»، «علاج عصب». بعد سنة،
+      المريض بيرجع بألم في نفس الناحية ومحدش عارف بالظبط أنهي سن اتعمله إيه وإمتى.</p>
+
+      <p><strong>التانية: خطة العلاج بتموت في النص.</strong> المريض بيوافق على خطة من ٦ جلسات،
+      بيعمل تلاتة، وبعدين بيختفي. والعيادة مش بتعرف — لأن مفيش حاجة بتقول «فيه ٤ خطط واقفة
+      من شهرين». دي مش مرضى جداد محتاجين تسويق، دي <strong>شغل متفق عليه ومدفوع نصّه</strong>.</p>
+
+      <p><strong>التالتة: صور الأشعة بتضيع في واتساب.</strong> الصورة بتتبعت للمريض أو بين
+      الأطباء، وبعد شهرين محدش لاقيها. وأي مقارنة «قبل وبعد» بتبقى مستحيلة.</p>
+    </section>
+
+    <section id="features" class="mb-8">
+      <h2 class="text-2xl font-black mb-5">اللي جوّه النظام</h2>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">🦷 خريطة أسنان بصرية بترقيم FDI</h3>
+        <p>مش جدول أسنان — <strong>رسمة للفم</strong> بترقيم FDI العالمي. بتضغط على السن نفسه
+        فتفتح حالته وتاريخه وخطة علاجه. الفرق مش شكلي: الجدول بيخلّي الطبيب يفتكر الأرقام،
+        والرسمة بتخلّيه يشوف الحالة كلها في لمحة — وده بيوفّر دقايق في كل كشف.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">📋 خطة علاج لكل سن</h3>
+        <p>كل سن ليه خطته: إيه المطلوب، اتعمل منه إيه، وفاضل إيه. وده اللي بيخلّي سؤال
+        «فاضل إيه للمريض ده؟» ليه إجابة على الشاشة بدل ما يبقى محتاج تفتيش في ملف.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">🩸 مخطط اللثة (Periodontal chart)</h3>
+        <p>قياسات الجيوب اللثوية بتتسجّل كأرقام في خانات، مش كملاحظة مكتوبة. والأرقام دي
+        <strong>بتتقارن على الزمن</strong> — وده الفرق بين إنك تلاحظ التحسّن أو التدهور
+        وبين إنك تخمّنه.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">🖼️ الأشعة: عارض بانورامي وتعليق على الصور</h3>
+        <p>الأشعة بتتحفظ مع ملف المريض، مش في واتساب. وفيه عارض بانورامي وتعليق على الصورة
+        نفسها، فالملاحظة بتفضل ملزوقة بالصورة اللي اتقالت عليها.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">🧪 طلبات المعمل وصور قبل/بعد</h3>
+        <p>طلبات المعمل بتتسجّل مع الحالة، وصور قبل وبعد بتتحفظ مع المريض — وهي أقوى حاجة
+        بتبيع علاج تجميلي لمريض تاني.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">📅 مواعيد وحجز أونلاين وتذكير واتساب</h3>
+        <p>صفحة عامة للعيادة وصفحة لكل طبيب، وحجز أونلاين ٢٤ ساعة. والتذكير بيتبعت
+        <strong>من رقم واتساب العيادة نفسها</strong> — كل عيادة بتحط مفتاحها الخاص، عشان
+        المريض يرد على رقم يعرفه مش على رقم غريب.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">🧾 تقسيط وخزنة</h3>
+        <p>علاج الأسنان بيتقسّط في مصر، فالتقسيط جزء من النظام مش إضافة: الفاتورة بتتقسّم على
+        دفعات بمواعيد، والمستحق والمتأخر بيتتابعوا، وكل دفعة بتتسجّل كتحصيل عادي في الخزنة —
+        اللي بتتقفل آخر اليوم بالفرق بين المحسوب والمعدود.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+        <h3 class="font-black text-lg mb-2">📈 المرضى اللي ما رجعوش</h3>
+        <p>قائمة بالمرضى اللي زاروا العيادة وما رجعوش، بضغطة واتساب لكل واحد — ومع تسجيل مين
+        اتواصلنا معاه عشان محدش يتكلّم مرتين. دي أرخص مبيعة في العيادة كلها: مريض عارفك
+        وواثق فيك بالفعل.</p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h3 class="font-black text-lg mb-2">➕ وكمان، لو محتاجهم</h3>
+        <p>مخزون مستلزمات، تأمين ومطالبات، فروع متعددة، موظفين وحضور، مركز اتصال، زيارات
+        منزلية، وAPI للربط الخارجي. كل واحدة فيهم <strong>بتتفتح لما تحتاجها</strong> —
+        العيادة الصغيرة مابتشوفش شاشات مالهاش لازمة.</p>
+      </div>
+    </section>
+
+    <section class="bg-cyan-50 border border-cyan-100 rounded-2xl p-6 sm:p-8 mb-8">
+      <h2 class="text-2xl font-black mb-4">حاجة مهمة: الوحدات اللي مالهاش علاقة بالأسنان بتختفي</h2>
+      <p>ده مش تفصيل شكلي. لما تختار التخصص «أسنان»، وحدة الأسنان بتتفتح لوحدها، والوحدات
+      الإكلينيكية بتاعة تخصصات تانية بتختفي خالص من القوايم ومن الروابط.</p>
+      <p>السبب: الشاشة اللي فيها خانات مالهاش معنى لطبيب الأسنان مش «ميزة زيادة» — دي حاجة
+      ممكن يدوس عليها بالغلط، ووقت بيضيع في تجاهلها كل يوم. النظام اللي بيوري كل حاجة لكل
+      حد بيبقى صعب على الكل.</p>
+    </section>
+
+    <section class="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8">
+      <h2 class="text-2xl font-black mb-4">أسئلة بتتسأل كتير</h2>
+
+      <h3 class="font-black text-lg mt-5 mb-1">خريطة الأسنان بصرية ولا مجرد جدول؟</h3>
+      <p>بصرية بترقيم FDI — بتضغط على السن نفسه فتفتح حالته وخطة علاجه.</p>
+
+      <h3 class="font-black text-lg mt-5 mb-1">أقدر أعلّق على صور الأشعة جوّه النظام؟</h3>
+      <p>أيوه — فيه عارض للأشعة مع تعليق عليها وعارض بانورامي، والصورة بتفضل مع ملف المريض.</p>
+
+      <h3 class="font-black text-lg mt-5 mb-1">التذكير بالواتساب بيتبعت من رقم مين؟</h3>
+      <p>من رقم العيادة نفسها. كل عيادة بتحط مفتاحها الخاص (WhatsApp Cloud API أو مزوّد
+      خارجي)، عشان المريض يرد على رقم يعرفه.</p>
+
+      <h3 class="font-black text-lg mt-5 mb-1">لو العيادة تقويم أسنان مش أسنان عامة؟</h3>
+      <p>نفس الوحدة بتشتغل مع التقويم — التخصص بيتحدّد من الإعدادات.</p>
+
+      <h3 class="font-black text-lg mt-5 mb-1">أقدر أقسّط تكلفة العلاج؟</h3>
+      <p>أيوه — الفاتورة بتتقسّم على دفعات بمواعيد، وبتتابع المستحق والمتأخر، وكل دفعة
+      بتتسجّل كتحصيل عادي.</p>
+    </section>
+
+    <section class="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8">
+      <h2 class="text-2xl font-black mb-4">السعر</h2>
+      <p>نفس سعر نظام العيادات: <strong>مجاناً لمدة ٦ شهور</strong> (عرض لفترة محدودة)، وبعدها
+      اشتراك شهري أو شراء كامل من غير صيانة سنوية. التفاصيل والمقارنة بأسعار السوق موجودة
+      على <a href="/#services" class="text-cyan-700 underline font-bold">الصفحة الرئيسية</a>.</p>
+      <p class="text-sm text-slate-500">
+        الباقة المدفوعة بدون إعلانات نهائياً على صفحة عيادتك.
+      </p>
+    </section>
+
+    <div class="bg-cyan-900 text-white rounded-2xl p-8 text-center">
+      <h2 class="text-2xl font-black mb-3">شوف النظام قبل ما تقرّر</h2>
+      <p class="text-cyan-200 text-sm mb-6">
+        اطلب النظام واختار التخصص «أسنان»، أو كلّمنا وقولنا عيادتك شغّالة إزاي.
+      </p>
+      <div class="flex flex-wrap gap-3 justify-center">
+        <a href="/apply?type=clinic" class="bg-white text-cyan-900 font-bold rounded-xl px-8 py-3">اطلب النظام</a>
+        <a href="/contact" class="bg-cyan-700 font-bold rounded-xl px-6 py-3">اتصل بنا</a>
+      </div>
+    </div>
+
+    <p class="text-center text-sm text-slate-500 mt-8">
+      تقرا كمان: <a href="/blog/clinic-management-system" class="text-cyan-700 underline">نظام إدارة العيادات</a>
+      · <a href="/blog/online-booking-for-clinics" class="text-cyan-700 underline">الحجز الإلكتروني للعيادات</a>
+    </p>
+  </article>
+</main>
+
+<footer class="bg-white border-t border-slate-200 py-8 text-center text-sm text-slate-500">
+  <a href="/" class="hover:text-cyan-700">OscarDevs</a> ·
+  <a href="/privacy" class="hover:text-cyan-700">الخصوصية</a> ·
+  <a href="/terms" class="hover:text-cyan-700">الشروط</a>
+</footer>
+</body>
+</html>
