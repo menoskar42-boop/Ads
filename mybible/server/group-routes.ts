@@ -454,7 +454,13 @@ export function registerGroupRoutes(app: Express) {
   app.post('/api/groups/seed-once', async (req, res) => {
     try {
       const { secret, groupCode, name, churchName, admins } = req.body;
-      if (secret !== 'MYBIBLE_SEED_2026') {
+      // This endpoint can mint a group with admins of the caller's choosing, so
+      // its secret was a committed literal anyone could read and use. Gate it on
+      // an env secret with no default, and refuse entirely when unset — the
+      // seeding is a one-time operation, so a disabled endpoint is the safe
+      // resting state.
+      const seedSecret = process.env.MYBIBLE_SEED_SECRET || '';
+      if (!seedSecret || secret !== seedSecret) {
         return res.status(403).json({ error: 'غير مسموح' });
       }
       if (!groupCode || !name || !admins?.length) {
@@ -599,11 +605,22 @@ export function registerGroupRoutes(app: Express) {
       const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
       if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
 
+      // Pending requests carry applicants' names and phone numbers. Only an
+      // admin may read them — the approve/reject endpoints below already
+      // require an admin key, and listing must be gated the same way.
+      const leaderKey = String((req.query.leaderKey || req.query.memberKey || '') as string);
+      if (!leaderKey || !(await isAdminByLeaderKey(group, leaderKey))) {
+        return res.status(403).json({ error: 'غير مصرّح' });
+      }
+
       const requests = await db.select().from(groupJoinRequests)
         .where(and(eq(groupJoinRequests.groupId, group.id), eq(groupJoinRequests.status, 'pending')))
         .orderBy(desc(groupJoinRequests.createdAt));
 
-      res.json({ requests });
+      // Field name matches what the client reads (joinRequests); it previously
+      // returned `requests`, so the admin's pending-requests panel was always
+      // empty.
+      res.json({ joinRequests: requests, requests });
     } catch (err) {
       console.error('[groups] join-requests error:', err);
       res.status(500).json({ error: 'فشل جلب الطلبات' });
@@ -686,11 +703,23 @@ export function registerGroupRoutes(app: Express) {
       );
       const readTodayNames = new Set<string>(readTodayResult.rows.map((r: any) => r.user_name));
 
-      const membersWithStatus = members.map((m: any) => ({
-        ...m,
-        readToday: readTodayNames.has(m.userName),
-        log: null,
-      }));
+      // memberKey is the admin capability token and phone is PII. This endpoint
+      // has no auth (the group code is enough to reach it), so returning either
+      // for OTHER members let anyone with the code read every admin's key —
+      // full group takeover — and harvest all members' phone numbers. Return
+      // memberKey only on the caller's own row (they prove it by sending the key
+      // they already hold), and never anyone's phone. The caller's own row keeps
+      // its key so the client can still recognise itself as a member/admin.
+      const callerKey = String((req.query.me || req.query.memberKey || '') as string);
+      const membersWithStatus = members.map((m: any) => {
+        const { phone, memberKey, ...safe } = m;
+        return {
+          ...safe,
+          memberKey: (callerKey && memberKey === callerKey) ? memberKey : undefined,
+          readToday: readTodayNames.has(m.userName),
+          log: null,
+        };
+      });
 
       const readTodayCount = membersWithStatus.filter((m: any) => m.readToday).length;
 

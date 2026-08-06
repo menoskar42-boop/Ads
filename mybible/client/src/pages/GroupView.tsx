@@ -1302,7 +1302,11 @@ export default function GroupView() {
     const CACHE_KEY = `group_arc_${groupCode}`;
     const DATA_CACHE_KEY = `group_data_${groupCode}`;
     try {
-      const res = await fetch(`/api/groups/${groupCode}`);
+      // Pass our own memberKey so the server returns it on OUR row only (it now
+      // hides every other member's key and phone). Self-identification below
+      // still matches on m.memberKey === memberKey because our row keeps it.
+      const _meParam = memberKey ? `?me=${encodeURIComponent(memberKey)}` : '';
+      const res = await fetch(`/api/groups/${groupCode}${_meParam}`);
       if (!res.ok) throw new Error();
       const d = await res.json();
       setData(d);
@@ -1359,7 +1363,7 @@ export default function GroupView() {
     } finally {
       setLoading(false);
     }
-  }, [groupCode]);
+  }, [groupCode, memberKey]);
 
   useEffect(() => { fetchGroup(); }, [fetchGroup]);
 
@@ -1626,13 +1630,14 @@ export default function GroupView() {
   const queryClient = useQueryClient();
 
   const { data: joinRequestsData, refetch: refetchJoinRequests } = useQuery({
-    queryKey: ['join-requests', groupCode],
+    queryKey: ['join-requests', groupCode, memberKey],
     queryFn: async () => {
-      const res = await fetch(`/api/groups/${groupCode}/join-requests`);
+      // The listing endpoint now requires an admin key, like approve/reject.
+      const res = await fetch(`/api/groups/${groupCode}/join-requests?leaderKey=${encodeURIComponent(memberKey)}`);
       if (!res.ok) throw new Error();
       return res.json();
     },
-    enabled: !!groupCode && isAdminConfirmed,
+    enabled: !!groupCode && isAdminConfirmed && !!memberKey,
   });
 
   const joinRequests = joinRequestsData?.joinRequests || [];

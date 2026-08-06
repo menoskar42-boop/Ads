@@ -1337,10 +1337,17 @@ ${excludedStr}
 
   app.put('/api/user/progress/:id', async (req, res) => {
     try {
+      // The id is a plain serial, so without an owner check any session could
+      // overwrite anyone else's reading progress by walking the id space. The
+      // sibling GET/POST both scope by getCurrentUser — this one didn't. Scope
+      // the update to the caller's own row.
+      const user = await getCurrentUser(req);
+      if (!user) return res.status(404).json({ message: 'User not found' });
       const id = parseInt(req.params.id);
       const { currentDay, completedDays } = req.body;
 
-      const progress = await storage.updateUserProgress(id, currentDay, completedDays);
+      const progress = await storage.updateUserProgress(id, user.id, currentDay, completedDays);
+      if (!progress) return res.status(404).json({ message: 'Progress not found' });
       res.json(progress);
     } catch (error) {
       res.status(400).json({ message: 'Failed to update progress' });

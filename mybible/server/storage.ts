@@ -492,13 +492,15 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async updateUserProgress(id: number, currentDay: number, completedDays: number[]): Promise<UserReadingProgress> {
+  async updateUserProgress(id: number, userId: string, currentDay: number, completedDays: number[]): Promise<UserReadingProgress | undefined> {
+    // Scoped by userId as well as id: the row must belong to the caller, or the
+    // update matches nothing and returns undefined (the route then 404s).
     const result = await this.db
       .update(schema.userReadingProgress)
       .set({ currentDay, completedDays, lastReadAt: new Date() })
-      .where(eq(schema.userReadingProgress.id, id))
+      .where(and(eq(schema.userReadingProgress.id, id), eq(schema.userReadingProgress.userId, userId)))
       .returning();
-    
+
     return result[0];
   }
 
@@ -1013,8 +1015,14 @@ export class DatabaseStorage implements IStorage {
       // Use only terms ≥4 chars so we get "توبة","تائب","التوبة" but skip bare "توب".
       const arabicChars = term.replace(/[^؀-ۿ]/g, '').length;
       if (arabicChars < 4) continue;
-      likePatterns.push(term);
-      const withDiacritics = term.split('').join('[\\u064B-\\u0652]*');
+      // These patterns are interpolated into a POSIX regex (text ~* '...'), so
+      // any regex metacharacter in the user's term is live: a stray '(' throws
+      // "parentheses not balanced" (500) and a crafted term can cause
+      // catastrophic backtracking (ReDoS) over 31k verses. Escape every literal
+      // char; the diacritics class below is the only regex we add on purpose.
+      const escRe = (s: string) => s.replace(/[.^$*+?()[\]{}|\\]/g, '\\$&');
+      likePatterns.push(escRe(term));
+      const withDiacritics = term.split('').map(escRe).join('[\\u064B-\\u0652]*');
       likePatterns.push(withDiacritics);
     }
     
