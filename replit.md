@@ -26,7 +26,7 @@ Multi-tenant SaaS advertising platform — each company gets a subdomain-based b
 - `src/db/seed.js` — sample data seeder
 
 ## Login credentials (after `npm run db:seed`)
-- **Super Admin** — `/admin/login` → `admin@oscardevs.com` / `admin123` (manage all companies)
+- **Super Admin** — `/admin/login` → `admin@oscardevs.com` / «اطلب البيانات من المالك» (manage all companies)
 - **Company Admin (Petra)** — `/company/login` → `petra@test.com` / `petra123`
 
 ## Architecture decisions

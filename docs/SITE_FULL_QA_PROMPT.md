@@ -35,7 +35,7 @@
 
 ## 5) العيادة
 - من الرئيسية «شاهد نموذج حي» للعيادة → صفحة العيادة (أطباء + حجز). جرّب الحجز.
-- لوحة الإدارة: `oscardevs.com/company/login` (`clinic@demo.oscardevs.com`/`clinic123`).
+- لوحة الإدارة: `oscardevs.com/company/login` (`clinic@demo.oscardevs.com` / «اطلب بيانات الدخول من المالك — مش مكتوبة في المستودع»).
   (كل التفاصيل في `CLINIC_QA_PROMPT.md`: طابور، ملف مريض، فواتير، تقارير.)
 
 ## 6) الصيدلية

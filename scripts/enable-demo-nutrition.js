@@ -19,7 +19,8 @@ const DRY = process.argv.includes('--dry-run');
 const NO_SEED = process.argv.includes('--no-seed');
 const SLUG = 'nutrition';
 const EMAIL = 'nutrition@demo.oscardevs.com';
-const PASSWORD = 'nutrition123';
+// Read from the environment; no default, so nothing is published.
+const PASSWORD = process.env.DEMO_NUTRITION_PASSWORD || process.env.DEMO_PASSWORD || '';
 
 const say = (m) => console.log((DRY ? '[dry] ' : '') + m);
 

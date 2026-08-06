@@ -12,7 +12,12 @@ const bcrypt = require('bcryptjs');
 
 const DEMO_SLUG = 'orders';
 const DEMO_EMAIL = 'orders@demo.oscardevs.com';
-const DEMO_PASSWORD = 'orders123';
+// The demo password comes from the environment, never from this file.
+// It used to be a literal here, which meant a public repository published a
+// working login for a live demo tenant — anybody could sign in and edit it.
+// With no variable set, no demo user is created at all: a demo nobody can log
+// into is a small loss, a demo everybody can log into is not.
+const DEMO_PASSWORD = process.env.DEMO_ORDERS_PASSWORD || process.env.DEMO_PASSWORD || null;
 
 async function ensureFoodSchema() {
   const pool = new Pool({
@@ -241,7 +246,7 @@ async function seedDemoOrders(client) {
 
   // Demo login for the /company area (owner).
   const hasUser = await client.query('SELECT 1 FROM company_users WHERE company_id = $1 LIMIT 1', [companyId]);
-  if (!hasUser.rows.length) {
+  if (!hasUser.rows.length && DEMO_PASSWORD) {
     const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
     await client.query(
       `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3)

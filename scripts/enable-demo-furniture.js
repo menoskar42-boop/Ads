@@ -31,7 +31,10 @@ const noSeed = process.argv.includes('--no-seed');
 const slug = arg('slug', 'furniture');
 const email = arg('email', `${slug}@demo.oscardevs.com`);
 // Public demo credentials by design — never put real customer data in here.
-const password = arg('password', 'furniture123');
+// No default. A literal here would be a working login published in a public
+// repository — exactly how the four vertical demos ended up with admin
+// panels anybody could sign into.
+const password = arg('password', process.env.DEMO_PASSWORD || '');
 
 const SEED = {
   suppliers: [
@@ -94,12 +97,16 @@ async function main() {
     }
 
     const hasUser = await pool.query('SELECT 1 FROM company_users WHERE company_id=$1 LIMIT 1', [c.id]);
-    if (!hasUser.rows.length) {
+    if (!hasUser.rows.length && !password) {
+      console.log('  → no password given; skipping the login (pass --password=… or set DEMO_PASSWORD)');
+    } else if (!hasUser.rows.length) {
       await pool.query(
         'INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING',
         [c.id, email, await bcrypt.hash(password, 10)]
       );
-      console.log(`  → login created: ${email} / ${password}`);
+      // The password is never echoed. Printing it puts a working credential in
+      // a terminal scrollback, a CI log and a screenshot.
+      console.log(`  → login created: ${email}`);
     } else {
       console.log('  → login already exists, left alone');
     }

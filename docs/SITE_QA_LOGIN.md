@@ -8,9 +8,9 @@
 **بيانات الدخول (المالك يدخل بيها بإيده):**
 - تاجر متجر Delta: `oscardevs.com/company/login` → `delta@test.com` / (كلمة DEMO_DELTA_PASSWORD)
 - عميل: `oscardevs.com/customer/login` → `customer@demo.oscardevs.com` / (كلمة DEMO_CUSTOMER_PASSWORD)
-- عيادة: `oscardevs.com/company/login` → `clinic@demo.oscardevs.com` / `clinic123`
-- جيم: `oscardevs.com/company/login` → `gym@demo.oscardevs.com` / `gym123`
-- مطاعم: `orders@demo.oscardevs.com` / `orders123` · صيدلية: `pharmacy@demo.oscardevs.com` / `pharmacy123`
+- عيادة: `oscardevs.com/company/login` → `clinic@demo.oscardevs.com`  / «اطلب بيانات الدخول من المالك — مش مكتوبة في المستودع»
+- جيم: `oscardevs.com/company/login` → `gym@demo.oscardevs.com`  / «اطلب بيانات الدخول من المالك — مش مكتوبة في المستودع»
+- مطاعم: `orders@demo.oscardevs.com`  / «اطلب بيانات الدخول من المالك — مش مكتوبة في المستودع» · صيدلية: `pharmacy@demo.oscardevs.com`  / «اطلب بيانات الدخول من المالك — مش مكتوبة في المستودع»
 
 ---
 

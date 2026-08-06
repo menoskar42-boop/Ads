@@ -14,7 +14,12 @@ const bcrypt = require('bcryptjs');
 
 const DEMO_SLUG = 'clinic';
 const DEMO_EMAIL = 'clinic@demo.oscardevs.com';
-const DEMO_PASSWORD = 'clinic123';
+// The demo password comes from the environment, never from this file.
+// It used to be a literal here, which meant a public repository published a
+// working login for a live demo tenant — anybody could sign in and edit it.
+// With no variable set, no demo user is created at all: a demo nobody can log
+// into is a small loss, a demo everybody can log into is not.
+const DEMO_PASSWORD = process.env.DEMO_CLINIC_PASSWORD || process.env.DEMO_PASSWORD || null;
 
 async function ensureClinicSchema() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 5000 });
@@ -761,7 +766,7 @@ async function seedDemoClinic(client) {
 
   // Demo login (only if the clinic has no user yet) so the /clinic admin can be tried.
   const hasUser = await client.query('SELECT 1 FROM company_users WHERE company_id = $1 LIMIT 1', [companyId]);
-  if (!hasUser.rows.length) {
+  if (!hasUser.rows.length && DEMO_PASSWORD) {
     const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
     await client.query(
       `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3)

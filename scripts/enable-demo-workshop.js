@@ -29,7 +29,10 @@ const noSeed = process.argv.includes('--no-seed');
 // sitemap skip exactly that slug so a demo never reaches the index.
 const slug = arg('slug', 'workshop');
 const email = arg('email', 'workshop@demo.oscardevs.com');
-const password = arg('password', 'Workshop#2026');
+// No default. A literal here would be a working login published in a
+// public repository — exactly how the four vertical demos ended up with
+// admin panels anybody could sign into.
+const password = arg('password', process.env.DEMO_PASSWORD || '');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -69,8 +72,11 @@ async function main() {
     const cid = c.id;
     if (dryRun) { console.log('dry run — nothing else written'); return; }
 
-    const hash = await bcrypt.hash(password, 10);
-    await client.query(
+    // With no password supplied, the demo tenant is still created — it just
+    // has no login. A demo nobody can sign into is a small loss; a demo
+    // everybody can sign into is not.
+    const hash = password ? await bcrypt.hash(password, 10) : null;
+    if (hash) await client.query(
       `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3)
        ON CONFLICT (email) DO UPDATE SET password_hash=EXCLUDED.password_hash`,
       [cid, email, hash]
