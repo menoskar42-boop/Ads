@@ -400,6 +400,16 @@ router.get('/', async (req, res) => {
     } catch (e) { /* never block render */ }
   }
 
+  // A قسّطلي shop's page is a plain explainer — its real product is the
+  // statement link each customer already has, not this page.
+  let instSettings = null;
+  if (company.page_type === 'installments') {
+    try {
+      instSettings = (await pool.query(
+        'SELECT * FROM inst_settings WHERE company_id = $1', [company.id])).rows[0] || null;
+    } catch (e) { /* never block render */ }
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
@@ -410,6 +420,7 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'workshop') view = 'tenant_workshop';
   else if (company.page_type === 'hall') view = 'tenant_hall';
   else if (company.page_type === 'nursery') view = 'tenant_nursery';
+  else if (company.page_type === 'installments') view = 'tenant_installments';
   else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
@@ -455,6 +466,12 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'nursery') {
     const nAbout = nurserySettings && nurserySettings.about ? nurserySettings.about.trim().length : 0;
     indexable = (descLen >= 40 || nAbout >= 60) && company.slug !== 'nursery';
+  }
+  // Same gate again. The instalments page is thin by design, so it only earns
+  // the index once the shop has actually said who it is and what it sells.
+  else if (company.page_type === 'installments') {
+    const iAbout = instSettings && instSettings.about ? instSettings.about.trim().length : 0;
+    indexable = (descLen >= 40 || iAbout >= 60) && company.slug !== 'installments';
   }
   // A workshop has no catalogue to count, so the gate is the same as the
   // clinic's: does the page actually say anything? A page that cannot answer
@@ -525,6 +542,7 @@ router.get('/', async (req, res) => {
     hallPackages,
     nurserySettings,
     nurseryGroups,
+    instSettings,
     enquirySent: req.query.enquired === '1',
     workshopStats,
     furnitureProducts,

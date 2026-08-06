@@ -1,0 +1,57 @@
+<%- include('head') %>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">العملاء</h1>
+  <form class="ms-auto flex gap-2 text-sm">
+    <input name="q" value="<%= q || '' %>" placeholder="ابحث بالاسم أو الرقم"
+      class="border border-teal-200 rounded-xl px-3 py-2" />
+    <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-4 py-2">بحث</button>
+  </form>
+  <a href="#add" class="bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm">+ عميل</a>
+</div>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-teal-100 p-8 text-center text-slate-400 text-sm mb-6">مفيش عملاء.</div>
+<% } else { %>
+  <table class="rt w-full bg-white rounded-2xl border border-teal-100 text-sm overflow-hidden mb-6">
+    <thead class="bg-teal-50 text-brand-800 text-xs">
+      <tr>
+        <th class="text-start p-3">الاسم</th>
+        <th class="text-start p-3">التليفون</th>
+        <th class="text-start p-3">الضامن</th>
+        <th class="text-start p-3">عمليات شغّالة</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function(c){ %>
+        <tr class="border-t border-teal-50">
+          <td class="p-3" data-l="الاسم">
+            <a href="/qastly/customers/<%= c.id %>" class="font-bold text-brand-800"><%= c.name %></a>
+            <% if (c.job) { %><span class="text-xs text-slate-400 block"><%= c.job %></span><% } %>
+          </td>
+          <td class="p-3 text-slate-600" data-l="التليفون"><span dir="ltr"><%= c.phone || '—' %></span></td>
+          <td class="p-3 text-slate-600" data-l="الضامن">
+            <%= c.guarantor_name || '—' %>
+            <% if (c.guarantor_phone) { %><span class="text-xs text-slate-400 block" dir="ltr"><%= c.guarantor_phone %></span><% } %>
+          </td>
+          <td class="p-3" data-l="عمليات شغّالة"><b><%= c.active_plans %></b></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+
+<section id="add" class="bg-white rounded-2xl border border-teal-100 p-5">
+  <h2 class="font-black text-lg mb-3">إضافة عميل</h2>
+  <form method="post" action="/qastly/customers" class="grid sm:grid-cols-3 gap-3 text-sm">
+    <input name="name" required placeholder="الاسم *" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="phone" dir="ltr" placeholder="التليفون / واتساب" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="national_id" dir="ltr" placeholder="الرقم القومي" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="job" placeholder="الوظيفة" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="guarantor_name" placeholder="اسم الضامن" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="guarantor_phone" dir="ltr" placeholder="رقم الضامن" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="address" placeholder="العنوان" class="sm:col-span-2 border border-teal-200 rounded-xl px-3 py-2" />
+    <input name="note" placeholder="ملاحظات" class="border border-teal-200 rounded-xl px-3 py-2" />
+    <div class="sm:col-span-3"><button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3">حفظ</button></div>
+  </form>
+</section>
+<%- include('foot') %>

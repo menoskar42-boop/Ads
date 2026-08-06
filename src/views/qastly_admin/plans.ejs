@@ -1,0 +1,110 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  var SL = { active:'شغّالة', completed:'خلصت', defaulted:'متعثّرة', cancelled:'ملغاة' };
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">الأقساط</h1>
+  <form class="ms-auto text-sm">
+    <select name="status" onchange="this.form.submit()" class="border border-teal-200 rounded-xl px-3 py-2">
+      <% Object.keys(SL).forEach(function(s){ %>
+        <option value="<%= s %>" <%= status===s?'selected':'' %>><%= SL[s] %></option>
+      <% }) %>
+    </select>
+  </form>
+  <a href="#new" class="bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm">+ عملية جديدة</a>
+</div>
+
+<% if (error) { %><div class="bg-rose-50 text-rose-800 rounded-xl px-4 py-2 text-sm mb-4"><%= error %></div><% } %>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-teal-100 p-8 text-center text-slate-400 text-sm mb-6">مفيش عمليات هنا.</div>
+<% } else { %>
+  <table class="rt w-full bg-white rounded-2xl border border-teal-100 text-sm overflow-hidden mb-6">
+    <thead class="bg-teal-50 text-brand-800 text-xs">
+      <tr>
+        <th class="text-start p-3">العميل</th>
+        <th class="text-start p-3">الحاجة</th>
+        <th class="text-start p-3">الإجمالي</th>
+        <th class="text-start p-3">المتبقّي</th>
+        <th class="text-start p-3">التقدّم</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function(p){ %>
+        <tr class="border-t border-teal-50">
+          <td class="p-3" data-l="العميل">
+            <a href="/qastly/plans/<%= p.id %>" class="font-bold text-brand-800"><%= p.customer_name %></a>
+            <span class="text-xs text-slate-400 block"><%= P.planCode(p.id) %></span>
+          </td>
+          <td class="p-3 text-slate-600" data-l="الحاجة"><%= p.item || '—' %></td>
+          <td class="p-3" data-l="الإجمالي"><bdi><%= money(p.total) %></bdi></td>
+          <td class="p-3" data-l="المتبقّي">
+            <b class="<%= p.a.lateCount ? 'text-rose-600' : '' %>"><bdi><%= money(p.a.remaining) %></bdi></b>
+            <% if (p.a.lateCount) { %><span class="text-xs text-rose-500 block"><%= p.a.lateCount %> قسط متأخر</span><% } %>
+          </td>
+          <td class="p-3" data-l="التقدّم">
+            <div class="flex items-center gap-2">
+              <div class="flex-1 h-2 bg-teal-100 rounded-full overflow-hidden min-w-[60px]">
+                <div class="h-full bg-brand-500" style="width:<%= p.a.progress %>%"></div>
+              </div>
+              <span class="text-xs font-bold"><%= p.a.progress %>%</span>
+            </div>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+
+<section id="new" class="bg-white rounded-2xl border border-teal-100 p-5">
+  <h2 class="font-black text-lg mb-1">عملية جديدة</h2>
+  <p class="text-xs text-slate-500 mb-4">
+    اكتب الإجمالي والمقدّم وعدد الأقساط، والنظام هيعمل الجدول بتواريخه — وآخر قسط بياخد فرق الكسور
+    عشان مجموع الأقساط يساوي المبلغ بالظبط.
+  </p>
+  <form method="post" action="/qastly/plans" class="grid sm:grid-cols-3 gap-3 text-sm">
+    <label class="block"><span class="text-xs font-bold text-slate-500">عميل مسجّل</span>
+      <select name="customer_id" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1">
+        <option value="">— عميل جديد —</option>
+        <% customers.forEach(function(c){ %>
+          <option value="<%= c.id %>"><%= c.name %><%= c.phone ? ' — ' + c.phone : '' %></option>
+        <% }) %>
+      </select></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">أو اسم عميل جديد</span>
+      <input name="customer_name" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">رقمه</span>
+      <input name="customer_phone" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <label class="block"><span class="text-xs font-bold text-slate-500">اسم الضامن</span>
+      <input name="guarantor_name" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">رقم الضامن</span>
+      <input name="guarantor_phone" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">الرقم القومي</span>
+      <input name="national_id" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <label class="block sm:col-span-3"><span class="text-xs font-bold text-slate-500">اشترى إيه؟</span>
+      <input name="item" placeholder="تلاجة ١٦ قدم، موبايل، أوضة نوم…" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <label class="block"><span class="text-xs font-bold text-slate-500">الإجمالي *</span>
+      <input name="total" type="number" min="0" step="0.01" required dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">المقدّم</span>
+      <input name="down_payment" type="number" min="0" step="0.01" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">عدد الأقساط</span>
+      <input name="count" type="number" min="1" max="60" value="6" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <label class="block"><span class="text-xs font-bold text-slate-500">أول قسط يوم</span>
+      <input name="start_on" type="date" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">كل قد إيه</span>
+      <select name="interval" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1">
+        <option value="monthly">شهرياً</option>
+        <option value="biweekly">كل أسبوعين</option>
+        <option value="weekly">أسبوعياً</option>
+      </select></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">ملاحظة</span>
+      <input name="note" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <div class="sm:col-span-3"><button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3">اعمل الجدول</button></div>
+  </form>
+</section>
+<%- include('foot') %>

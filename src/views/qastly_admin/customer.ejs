@@ -1,0 +1,83 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  var SL = { active:'شغّالة', completed:'خلصت', defaulted:'متعثّرة', cancelled:'ملغاة' };
+  var totalOut = plans.reduce(function(s,p){ return s + p.a.remaining; }, 0);
+  var totalLate = plans.reduce(function(s,p){ return s + p.a.lateAmount; }, 0);
+%>
+<% if (saved) { %><div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-2 text-sm mb-4">اتحفظ.</div><% } %>
+
+<div class="flex items-start gap-3 flex-wrap mb-5">
+  <div>
+    <h1 class="font-black text-2xl"><%= customer.name %></h1>
+    <div class="text-slate-500 text-sm mt-1">
+      <% if (customer.phone) { %><span dir="ltr"><%= customer.phone %></span><% } %>
+      <% if (customer.job) { %> · <%= customer.job %><% } %>
+    </div>
+  </div>
+  <a href="/qastly/customers" class="ms-auto text-sm text-brand-700 font-bold">← العملاء</a>
+</div>
+
+<div class="grid sm:grid-cols-2 gap-3 mb-6">
+  <div class="bg-white rounded-2xl border border-teal-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">إجمالي المتبقّي عليه</div>
+    <div class="text-xl font-black mt-1"><bdi><%= money(totalOut) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border <%= totalLate > 0 ? 'border-rose-200' : 'border-teal-100' %> p-4">
+    <div class="text-xs text-slate-500 font-semibold">منها متأخر</div>
+    <div class="text-xl font-black <%= totalLate > 0 ? 'text-rose-600' : 'text-emerald-700' %> mt-1"><bdi><%= money(totalLate) %></bdi></div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <section>
+    <h2 class="font-black text-lg mb-3">عمليّاته</h2>
+    <% if (!plans.length) { %>
+      <div class="bg-white rounded-2xl border border-teal-100 p-6 text-center text-slate-400 text-sm">مفيش عمليات.</div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% plans.forEach(function(p){ %>
+          <a href="/qastly/plans/<%= p.id %>" class="block bg-white rounded-2xl border border-teal-100 p-4 text-sm hover:border-brand-300">
+            <div class="flex justify-between gap-2 flex-wrap items-center">
+              <span class="font-bold"><%= p.item || P.planCode(p.id) %></span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-teal-50 text-brand-700"><%= SL[p.status] || p.status %></span>
+            </div>
+            <div class="text-slate-500 text-xs mt-1">
+              <bdi><%= money(p.a.paid) %></bdi> من <bdi><%= money(p.a.totalDue) %></bdi>
+              <% if (p.a.lateCount) { %><span class="text-rose-600 font-bold"> · <%= p.a.lateCount %> قسط متأخر</span><% } %>
+            </div>
+            <div class="h-1.5 bg-teal-100 rounded-full overflow-hidden mt-2">
+              <div class="h-full bg-brand-500" style="width:<%= p.a.progress %>%"></div>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-teal-100 p-5">
+    <h2 class="font-black text-lg mb-3">بياناته</h2>
+    <form method="post" action="/qastly/customers/<%= customer.id %>" class="grid sm:grid-cols-2 gap-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">الاسم</span>
+        <input name="name" value="<%= customer.name %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">التليفون</span>
+        <input name="phone" dir="ltr" value="<%= customer.phone || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">واتساب</span>
+        <input name="whatsapp" dir="ltr" value="<%= customer.whatsapp || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">الرقم القومي</span>
+        <input name="national_id" dir="ltr" value="<%= customer.national_id || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">الوظيفة</span>
+        <input name="job" value="<%= customer.job || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">العنوان</span>
+        <input name="address" value="<%= customer.address || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">اسم الضامن</span>
+        <input name="guarantor_name" value="<%= customer.guarantor_name || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">رقم الضامن</span>
+        <input name="guarantor_phone" dir="ltr" value="<%= customer.guarantor_phone || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">ملاحظات</span>
+        <input name="note" value="<%= customer.note || '' %>" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <div class="sm:col-span-2"><button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-2.5">حفظ</button></div>
+    </form>
+  </section>
+</div>
+<%- include('foot') %>

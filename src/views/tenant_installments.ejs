@@ -1,0 +1,134 @@
+<%
+  // Public page for a shop that sells on instalments.
+  //
+  // Deliberately plain. Somebody landing here wants two things answered before
+  // they walk in: do you do instalments on what I want, and what do you need
+  // from me. Everything else is the shop's job to say in person.
+  var qs = (typeof instSettings !== 'undefined' && instSettings) ? instSettings : {};
+  var displayName = qs.business_name || company.company_name;
+  var about = (qs.about || company.description || '').trim();
+  var phone = (qs.phone || '').trim();
+  var wa = String(qs.whatsapp || qs.phone || '').replace(/[^0-9]/g, '');
+  var activity = (qs.activity || '').trim();
+
+  // Trimmed at a word boundary, not at character 60. A shop that describes
+  // itself at any length otherwise gets a title ending mid-word in the search
+  // results — which passes the 60-character rule and still reads as broken.
+  var __titleFull = displayName + (activity ? ' — ' + activity + ' بالتقسيط' : ' — بيع بالتقسيط');
+  var __title = __titleFull;
+  if (__title.length > 60) {
+    var cut = __title.slice(0, 60);
+    var sp = cut.lastIndexOf(' ');
+    __title = (sp > 20 ? cut.slice(0, sp) : cut).trim();
+  }
+  var __descBase = about || (displayName + (activity ? ' — ' + activity : '') + ' بالتقسيط'
+    + (qs.address ? ' في ' + qs.address : '')
+    + '. أقساط بمواعيد واضحة وكشف حساب لكل عميل.');
+  var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<%- include('partials/seo_meta', { title: __title, description: __desc,
+      siteLogo: company.logo_url || null, siteAppName: displayName }) %>
+<% if (!(typeof noindex !== 'undefined' && noindex)) { %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "name": displayName,
+  "description": __desc,
+  "url": canonicalUrl,
+  "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
+  "telephone": phone || undefined,
+  "address": qs.address ? { "@type": "PostalAddress", "streetAddress": qs.address, "addressCountry": "EG" } : undefined,
+  "areaServed": "EG"
+}) %>
+</script>
+<% } %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-teal-50/40 text-slate-800">
+
+<header class="bg-gradient-to-br from-teal-900 to-teal-700 text-white">
+  <div class="max-w-3xl mx-auto px-4 py-12 text-center">
+    <% if (company.logo_url) { %>
+      <img src="<%= company.logo_url %>" alt="شعار <%= displayName %>"
+        class="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 bg-white/10" />
+    <% } else { %><div class="text-4xl mb-3">🧾</div><% } %>
+    <h1 class="text-3xl sm:text-4xl font-black mb-2"><%= displayName %></h1>
+    <p class="text-teal-100 text-sm sm:text-base">
+      <%= activity ? activity + ' بالتقسيط' : 'بيع بالتقسيط' %><% if (qs.address) { %> · <%= qs.address %><% } %>
+    </p>
+    <div class="flex flex-wrap gap-3 justify-center mt-6">
+      <% if (wa) { %>
+        <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+          class="bg-emerald-500 text-white font-bold rounded-xl px-6 py-3">اسأل على واتساب</a>
+      <% } %>
+      <% if (phone) { %>
+        <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>" class="bg-white/15 font-bold rounded-xl px-6 py-3">📞 <span dir="ltr"><%= phone %></span></a>
+      <% } %>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-10">
+  <% if (about) { %>
+    <section class="bg-white rounded-2xl border border-teal-100 p-6 mb-6">
+      <h2 class="font-black text-lg mb-3">عننا</h2>
+      <p class="text-slate-600 leading-relaxed whitespace-pre-line"><%= about %></p>
+    </section>
+  <% } %>
+
+  <section class="bg-white rounded-2xl border border-teal-100 p-6 mb-6">
+    <h2 class="font-black text-lg mb-4">التقسيط عندنا شغّال إزاي</h2>
+    <ol class="space-y-4 text-sm text-slate-700">
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-teal-100 text-teal-800 font-black grid place-items-center">1</span>
+        <span>تختار اللي إنت عايزه، ونتفق على الإجمالي والمقدّم وعدد الأقساط.</span>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-teal-100 text-teal-800 font-black grid place-items-center">2</span>
+        <span>بنطلع لك <b>جدول مكتوب فيه كل قسط بتاريخه ومبلغه</b> — مفيش مفاجآت ولا حساب في الآخر.</span>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-teal-100 text-teal-800 font-black grid place-items-center">3</span>
+        <span>بيوصلك <b>لينك كشف حسابك</b> — تفتحه أي وقت تشوف دفعت كام وباقي عليك كام وميعادك الجاي، من غير ما تسأل حد.</span>
+      </li>
+      <li class="flex gap-3">
+        <span class="flex-none w-7 h-7 rounded-full bg-teal-100 text-teal-800 font-black grid place-items-center">4</span>
+        <span>بنفكّرك قبل كل قسط بمدة، عشان الميعاد ما يعديش وإنت مش واخد بالك.</span>
+      </li>
+    </ol>
+  </section>
+
+  <% if (qs.map_url) { %>
+    <a href="<%= qs.map_url %>" target="_blank" rel="noopener"
+      class="inline-block bg-white border border-teal-100 rounded-xl px-5 py-3 text-sm font-bold mb-6">📍 موقعنا على الخريطة</a>
+  <% } %>
+
+  <div class="bg-teal-900 text-white rounded-2xl p-6 text-center">
+    <h2 class="font-black text-lg mb-2">اسأل قبل ما تيجي</h2>
+    <p class="text-teal-200 text-sm mb-5">قولنا عايز إيه، ونقولك المقدّم والقسط على طول.</p>
+    <% if (wa) { %>
+      <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+        class="inline-block bg-emerald-500 text-white font-bold rounded-xl px-8 py-3">كلّمنا على واتساب</a>
+    <% } else if (phone) { %>
+      <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>" class="inline-block bg-white text-teal-900 font-bold rounded-xl px-8 py-3">📞 <span dir="ltr"><%= phone %></span></a>
+    <% } %>
+  </div>
+</main>
+
+<footer class="text-center py-8 text-xs text-slate-400">
+  <a href="https://oscardevs.com" target="_blank" rel="noopener" class="hover:text-slate-600">مقدَّم من OscarDevs</a>
+</footer>
+</body>
+</html>

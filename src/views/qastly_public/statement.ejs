@@ -1,0 +1,120 @@
+<%
+  // The customer's own statement. Opened from a WhatsApp link, on a phone, by
+  // somebody who wants one number: how much is left.
+  //
+  // It shows the debt and nothing else — no phone number, no national id, no
+  // guarantor, no other purchase. The link gets forwarded to family groups, and
+  // it must not carry anything the customer would not have sent themselves.
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v ? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  var wa = String(plan.whatsapp || plan.phone || '').replace(/[^0-9]/g,'');
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%# A statement in a search index is a catastrophe. Never indexable, whatever
+    any other rule on the site says. %>
+<meta name="robots" content="noindex,nofollow,noarchive" />
+<title>كشف حساب — <%= shopName %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}@media print{.no-print{display:none}}</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+<div class="max-w-lg mx-auto px-4 py-8">
+
+  <div class="bg-white rounded-3xl shadow-sm overflow-hidden">
+    <div class="bg-gradient-to-br from-teal-800 to-teal-600 text-white p-6 text-center">
+      <% if (plan.logo_url) { %>
+        <img src="<%= plan.logo_url %>" alt="شعار <%= shopName %>" class="w-14 h-14 rounded-2xl object-cover mx-auto mb-3 bg-white/10" />
+      <% } %>
+      <div class="text-xs text-teal-200 font-bold"><%= shopName %></div>
+      <h1 class="text-xl font-black mt-1">كشف حساب <%= plan.customer_name %></h1>
+      <% if (plan.item) { %><p class="text-teal-100 text-sm mt-1"><%= plan.item %></p><% } %>
+    </div>
+
+    <%# The one number they opened the link for, before anything else. %>
+    <div class="p-6 text-center border-b border-slate-100">
+      <div class="text-xs text-slate-500 font-bold">الباقي عليك</div>
+      <div class="text-4xl font-black text-teal-800 mt-1"><bdi><%= money(a.remaining) %></bdi> <span class="text-lg text-slate-400">جنيه</span></div>
+      <% if (a.settled) { %>
+        <div class="inline-block mt-3 bg-emerald-100 text-emerald-800 font-bold rounded-full px-4 py-1.5 text-sm">خلصت الأقساط ✓</div>
+      <% } else if (a.lateCount) { %>
+        <div class="inline-block mt-3 bg-rose-100 text-rose-800 font-bold rounded-full px-4 py-1.5 text-sm">
+          <%= a.lateCount %> قسط فات ميعاده — <bdi><%= money(a.lateAmount) %></bdi> جنيه
+        </div>
+      <% } else if (a.nextUnpaid) { %>
+        <div class="inline-block mt-3 bg-teal-50 text-teal-800 font-bold rounded-full px-4 py-1.5 text-sm">
+          القسط الجاي <bdi><%= money(a.nextUnpaid.remaining) %></bdi> يوم <%= d(a.nextUnpaid.due_on) %>
+        </div>
+      <% } %>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden mt-5">
+        <div class="h-full bg-teal-500" style="width:<%= a.progress %>%"></div>
+      </div>
+      <div class="text-xs text-slate-500 mt-2">
+        دفعت <b><bdi><%= money(a.paid) %></bdi></b> من <b><bdi><%= money(a.totalDue) %></bdi></b> (<%= a.progress %>%)
+      </div>
+    </div>
+
+    <div class="p-6">
+      <h2 class="font-black mb-3">الأقساط</h2>
+      <table class="w-full text-sm">
+        <tbody>
+          <% a.rows.forEach(function(r){ %>
+            <tr class="border-b border-slate-100">
+              <td class="py-2.5 w-8 text-slate-300 font-bold"><%= r.seq %></td>
+              <td class="py-2.5">
+                <%= d(r.due_on) %>
+                <% if (r.late) { %><span class="text-xs text-rose-600 font-bold block">فات ميعاده</span><% } %>
+              </td>
+              <td class="py-2.5 text-end font-bold"><bdi><%= money(r.amount) %></bdi></td>
+              <td class="py-2.5 text-end w-24">
+                <% if (r.settled) { %><span class="text-xs text-emerald-600 font-bold">مدفوع</span>
+                <% } else if (r.paid > 0) { %><span class="text-xs text-amber-600 font-bold">باقي <bdi><%= money(r.remaining) %></bdi></span>
+                <% } else { %><span class="text-xs text-slate-400">لسه</span><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+
+      <% if (payments.length) { %>
+        <h2 class="font-black mt-6 mb-3">اللي دفعته</h2>
+        <ul class="text-sm space-y-1">
+          <% payments.slice().reverse().forEach(function(p){ %>
+            <li class="flex justify-between border-b border-slate-100 py-1.5">
+              <span class="text-slate-500 text-xs"><%= d(p.paid_at) %></span>
+              <b class="text-emerald-700"><bdi><%= money(p.amount) %></bdi></b>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+
+    <div class="bg-slate-50 p-6 text-center no-print">
+      <p class="text-xs text-slate-500 mb-3">لو فيه أي حاجة مش مظبوطة في الكشف ده، كلّمنا.</p>
+      <div class="flex flex-wrap gap-2 justify-center">
+        <% if (wa) { %>
+          <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+            class="bg-emerald-500 text-white font-bold rounded-xl px-5 py-2.5 text-sm">واتساب <%= shopName %></a>
+        <% } %>
+        <% if (plan.phone) { %>
+          <a href="tel:<%= String(plan.phone).replace(/[^0-9+]/g,'') %>"
+            class="bg-teal-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm">📞 اتصل</a>
+        <% } %>
+        <button onclick="window.print()" class="bg-white border border-slate-200 font-bold rounded-xl px-5 py-2.5 text-sm">طباعة</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-center text-xs text-slate-400 mt-6">
+    الكشف ده خاص بيك — متبعتوش لحد غيرك.
+  </p>
+  <p class="text-center text-xs text-slate-300 mt-2">
+    <a href="https://oscardevs.com" target="_blank" rel="noopener nofollow">قسّطلي من OscarDevs</a>
+  </p>
+</div>
+</body>
+</html>

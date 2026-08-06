@@ -404,6 +404,11 @@ app.use('/workshop', require('./src/routes/workshop_admin'));
 app.use('/einvoice', require('./src/routes/einvoice_admin'));
 app.use('/hall', require('./src/routes/hall_admin'));
 app.use('/nursery', require('./src/routes/nursery_admin'));
+// The customer statement is public and is mounted FIRST on purpose: /qastly
+// below is behind a login guard, and the only thing keeping the statement out
+// from behind it is this ordering. Do not move it.
+app.use('/qastly/s', require('./src/routes/installments_public'));
+app.use('/qastly', require('./src/routes/installments_admin'));
 app.use('/nutrition', require('./src/routes/nutrition_admin'));
 app.use('/radiology', require('./src/routes/radiology'));
 
@@ -1321,6 +1326,7 @@ const { ensureWorkshopSchema } = require('./src/workshop/schema');
 const { ensureEinvoiceSchema } = require('./src/einvoice/schema');
 const { ensureHallSchema } = require('./src/hall/schema');
 const { ensureNurserySchema } = require('./src/nursery/schema');
+const { ensureInstallmentsSchema } = require('./src/installments/schema');
 const { ensureNutritionSchema } = require('./src/nutrition/schema');
 const { ensureSokroSchema } = require('./sokro/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
@@ -1337,6 +1343,7 @@ initDb()
   .then(() => ensureEinvoiceSchema())
   .then(() => ensureHallSchema())
   .then(() => ensureNurserySchema())
+  .then(() => ensureInstallmentsSchema())
   .then(() => ensureNutritionSchema())
   .then(() => ensureSokroSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.

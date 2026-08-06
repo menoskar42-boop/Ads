@@ -1,0 +1,66 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:0}); }
+  var AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  function ml(m){ var p = String(m||'').split('-'); return p.length===2 ? AR[Number(p[1])-1] + ' ' + p[0] : m; }
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">الملخّص</h1>
+  <form class="ms-auto text-sm">
+    <select name="months" onchange="this.form.submit()" class="border border-teal-200 rounded-xl px-3 py-2">
+      <% [3,6,12].forEach(function(m){ %>
+        <option value="<%= m %>" <%= months===m?'selected':'' %>>آخر <%= m %> شهور</option>
+      <% }) %>
+    </select>
+  </form>
+</div>
+
+<div class="grid sm:grid-cols-2 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-teal-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">فلوسك اللي بره دلوقتي</div>
+    <div class="text-2xl font-black text-brand-800 mt-1"><bdi><%= money(outstanding) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border <%= lateAmount > 0 ? 'border-rose-200' : 'border-teal-100' %> p-4">
+    <div class="text-xs text-slate-500 font-semibold">منها فات ميعاده</div>
+    <div class="text-2xl font-black <%= lateAmount > 0 ? 'text-rose-600' : 'text-emerald-700' %> mt-1"><bdi><%= money(lateAmount) %></bdi></div>
+  </div>
+</div>
+
+<p class="text-slate-500 text-sm mb-4">
+  المستحق هو اللي المفروض يتحصّل في الشهر حسب الجداول، والمحصّل هو اللي دخل فعلاً.
+  الفرق بينهم شهر ورا شهر هو اللي بيقولك إذا كانت التذكيرات بتشتغل ولا لأ.
+</p>
+
+<table class="rt w-full bg-white rounded-2xl border border-teal-100 text-sm overflow-hidden">
+  <thead class="bg-teal-50 text-brand-800 text-xs">
+    <tr>
+      <th class="text-start p-3">الشهر</th>
+      <th class="text-start p-3">المستحق</th>
+      <th class="text-start p-3">المحصّل</th>
+      <th class="text-start p-3">نسبة التحصيل</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% list.forEach(function(r){
+         var rate = r.due > 0 ? Math.round((r.paid / r.due) * 100) : null; %>
+      <tr class="border-t border-teal-50">
+        <td class="p-3 font-bold" data-l="الشهر"><%= ml(r.m) %></td>
+        <td class="p-3" data-l="المستحق"><bdi><%= money(r.due) %></bdi></td>
+        <td class="p-3 text-emerald-700" data-l="المحصّل"><bdi><%= money(r.paid) %></bdi></td>
+        <td class="p-3" data-l="نسبة التحصيل">
+          <% if (rate === null) { %><span class="text-slate-400 text-xs">مفيش أقساط</span>
+          <% } else { %>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 h-2 bg-teal-100 rounded-full overflow-hidden min-w-[60px]">
+                <div class="h-full <%= rate >= 80 ? 'bg-emerald-500' : rate >= 50 ? 'bg-amber-500' : 'bg-rose-500' %>"
+                  style="width:<%= Math.min(100, rate) %>%"></div>
+              </div>
+              <b class="text-xs"><%= rate %>%</b>
+            </div>
+          <% } %>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('foot') %>

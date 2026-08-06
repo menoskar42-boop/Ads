@@ -1,0 +1,83 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+%>
+<%# The two numbers a shop that sells on instalments cannot produce: what is
+    still out there, and what should already have arrived. %>
+<div class="grid sm:grid-cols-2 gap-3 mb-4">
+  <div class="bg-white rounded-2xl border border-teal-100 p-5">
+    <div class="text-xs text-slate-500 font-bold">فلوسك اللي بره</div>
+    <div class="text-3xl font-black text-brand-800 mt-1"><bdi><%= money(stats.outstanding) %></bdi> <span class="text-base text-slate-400">جنيه</span></div>
+    <div class="text-xs text-slate-500 mt-1"><%= stats.activePlans %> عملية شغّالة</div>
+  </div>
+  <a href="/qastly/late" class="bg-gradient-to-br from-rose-700 to-rose-900 text-white rounded-2xl p-5 block">
+    <div class="text-xs font-bold text-rose-200">فات ميعاده ولسه مادفعش</div>
+    <div class="text-3xl font-black mt-1"><bdi><%= money(stats.lateAmount) %></bdi> <span class="text-base text-rose-200">جنيه</span></div>
+    <div class="text-xs text-rose-100 mt-1">
+      <% if (stats.lateCustomers) { %>عند <b><%= stats.lateCustomers %></b> عميل — اضغط تشوف الرسائل الجاهزة<% } else { %>محدش متأخر. تمام كده.<% } %>
+    </div>
+  </a>
+</div>
+
+<div class="grid sm:grid-cols-3 gap-3 mb-6 text-sm">
+  <div class="bg-white rounded-2xl border border-teal-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">محصّل الشهر ده</div>
+    <div class="text-xl font-black text-emerald-700 mt-1"><bdi><%= money(stats.collected) %></bdi></div>
+  </div>
+  <a href="/qastly/due" class="bg-white rounded-2xl border border-teal-100 p-4 hover:border-brand-300">
+    <span class="text-lg">📅</span>
+    <div class="font-black mt-1">المستحق قريّب</div>
+    <div class="text-xs text-slate-500 mt-0.5">كلّمهم قبل الميعاد مش بعده</div>
+  </a>
+  <a href="/qastly/plans" class="bg-white rounded-2xl border border-teal-100 p-4 hover:border-brand-300">
+    <span class="text-lg">➕</span>
+    <div class="font-black mt-1">عملية جديدة</div>
+    <div class="text-xs text-slate-500 mt-0.5">المبلغ والمقدّم وعدد الأقساط</div>
+  </a>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div>
+    <h2 class="font-black text-lg mb-3">متأخرين</h2>
+    <% if (!late.length) { %>
+      <div class="bg-white rounded-2xl border border-teal-100 p-6 text-center text-slate-400 text-sm">محدش متأخر.</div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% late.forEach(function(p){ %>
+          <a href="/qastly/plans/<%= p.id %>" class="block bg-white rounded-2xl border border-teal-100 p-4 text-sm hover:border-brand-300">
+            <div class="flex justify-between gap-2 flex-wrap items-center">
+              <span class="font-bold"><%= p.customer_name %></span>
+              <span class="font-black text-rose-600"><bdi><%= money(p.a.lateAmount) %></bdi></span>
+            </div>
+            <div class="text-slate-500 text-xs mt-1">
+              <%= p.a.lateCount %> قسط متأخر<% if (p.item) { %> · <%= p.item %><% } %>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+      <a href="/qastly/late" class="block text-center mt-3 bg-brand-700 text-white font-bold rounded-xl py-3 text-sm">📲 ابعت التذكيرات</a>
+    <% } %>
+  </div>
+
+  <div>
+    <h2 class="font-black text-lg mb-3">مستحق قريّب</h2>
+    <% if (!soon.length) { %>
+      <div class="bg-white rounded-2xl border border-teal-100 p-6 text-center text-slate-400 text-sm">مفيش أقساط قريّبة.</div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% soon.forEach(function(x){ %>
+          <a href="/qastly/plans/<%= x.p.id %>" class="block bg-white rounded-2xl border border-teal-100 p-4 text-sm hover:border-brand-300">
+            <div class="flex justify-between gap-2 flex-wrap items-center">
+              <span class="font-bold"><%= x.p.customer_name %></span>
+              <span class="font-black"><bdi><%= money(x.r.remaining) %></bdi></span>
+            </div>
+            <div class="text-slate-500 text-xs mt-1">
+              القسط <%= x.r.seq %> · <%= P.dateLabel(x.r.due_on) %>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>
+<%- include('foot') %>

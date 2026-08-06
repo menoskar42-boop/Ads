@@ -1,0 +1,190 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v ? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  var SL = { active:'شغّالة', completed:'خلصت', defaulted:'متعثّرة', cancelled:'ملغاة' };
+%>
+<div class="flex items-start gap-3 flex-wrap mb-5">
+  <div>
+    <h1 class="font-black text-2xl"><%= plan.customer_name %></h1>
+    <div class="text-slate-500 text-sm mt-1">
+      <%= P.planCode(plan.id) %><% if (plan.item) { %> · <%= plan.item %><% } %> · <%= SL[plan.status] || plan.status %>
+    </div>
+  </div>
+  <a href="/qastly/plans" class="ms-auto text-sm text-brand-700 font-bold">← الأقساط</a>
+</div>
+
+<div class="grid sm:grid-cols-4 gap-3 mb-6">
+  <div class="bg-white rounded-2xl border border-teal-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">إجمالي العملية</div>
+    <div class="text-lg font-black mt-1"><bdi><%= money(plan.total) %></bdi></div>
+    <% if (Number(plan.down_payment) > 0) { %><div class="text-xs text-slate-400 mt-0.5">مقدّم <bdi><%= money(plan.down_payment) %></bdi></div><% } %>
+  </div>
+  <div class="bg-white rounded-2xl border border-teal-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">اللي دفعه</div>
+    <div class="text-lg font-black text-emerald-700 mt-1"><bdi><%= money(a.paid) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border <%= a.remaining > 0 ? 'border-teal-100' : 'border-emerald-200' %> p-4">
+    <div class="text-xs text-slate-500 font-semibold">المتبقّي</div>
+    <div class="text-lg font-black mt-1"><bdi><%= money(a.remaining) %></bdi></div>
+    <% if (a.credit > 0) { %><div class="text-xs text-emerald-600 mt-0.5">دفع زيادة <bdi><%= money(a.credit) %></bdi></div><% } %>
+  </div>
+  <div class="bg-white rounded-2xl border <%= a.lateCount ? 'border-rose-200' : 'border-teal-100' %> p-4">
+    <div class="text-xs text-slate-500 font-semibold">متأخر</div>
+    <div class="text-lg font-black <%= a.lateCount ? 'text-rose-600' : 'text-emerald-700' %> mt-1"><bdi><%= money(a.lateAmount) %></bdi></div>
+    <% if (a.lateCount) { %><div class="text-xs text-rose-500 mt-0.5"><%= a.lateCount %> قسط</div><% } %>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div class="space-y-6">
+    <section class="bg-white rounded-2xl border border-teal-100 p-5">
+      <h2 class="font-black text-lg mb-3">تسجيل دفعة</h2>
+      <form method="post" action="/qastly/plans/<%= plan.id %>/pay" class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label class="block"><span class="text-xs font-bold text-slate-500">المبلغ *</span>
+          <input name="amount" type="number" min="0" step="0.01" required dir="ltr"
+            value="<%= a.dueNow > 0 ? a.dueNow : (a.nextUnpaid ? a.nextUnpaid.remaining : '') %>"
+            class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">يوم الدفع</span>
+          <input name="paid_on" type="date" dir="ltr" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الطريقة</span>
+          <select name="method" class="w-full border border-teal-200 rounded-xl px-3 py-2 mt-1">
+            <option value="cash">كاش</option>
+            <option value="instapay">إنستاباي</option>
+            <option value="wallet">محفظة</option>
+            <option value="bank">تحويل بنكي</option>
+          </select></label>
+        <input name="note" placeholder="ملاحظة" class="border border-teal-200 rounded-xl px-3 py-2 mt-auto" />
+        <div class="sm:col-span-2">
+          <button class="bg-emerald-600 text-white font-bold rounded-xl px-6 py-2.5">سجّل الدفعة</button>
+          <span class="text-xs text-slate-400 ms-2">لما الأقساط تخلص، العملية بتتقفل لوحدها.</span>
+        </div>
+      </form>
+    </section>
+
+    <%# The schedule. Each row is editable on its own — a shop moves one date
+        when a salary is late, and shifting the whole plan would be wrong. %>
+    <section class="bg-white rounded-2xl border border-teal-100 p-5">
+      <h2 class="font-black text-lg mb-3">جدول الأقساط</h2>
+      <table class="w-full text-sm">
+        <tbody>
+          <% a.rows.forEach(function(r, i){ %>
+            <tr class="border-b border-teal-50">
+              <td class="py-2 w-8 text-slate-400"><%= r.seq %></td>
+              <td class="py-2">
+                <%= d(r.due_on) %>
+                <% if (r.late) { %><span class="text-xs text-rose-600 font-bold block">فات الميعاد</span><% } %>
+              </td>
+              <td class="py-2 text-end"><bdi><%= money(r.amount) %></bdi></td>
+              <td class="py-2 text-end w-28">
+                <% if (r.settled) { %><span class="text-xs text-emerald-600 font-bold">مسدّد</span>
+                <% } else if (r.paid > 0) { %><span class="text-xs text-amber-600 font-bold">باقي <bdi><%= money(r.remaining) %></bdi></span>
+                <% } else { %><span class="text-xs text-slate-400">لسه</span><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+
+      <details class="mt-4">
+        <summary class="text-sm font-bold text-brand-700 cursor-pointer">تأجيل قسط أو تعديل مبلغه</summary>
+        <p class="text-xs text-slate-500 mt-2">
+          التعديل بيمسّ القسط ده لوحده — باقي الجدول مابيتحركش.
+        </p>
+        <div class="space-y-2 mt-3">
+          <% a.rows.forEach(function(r){ %>
+            <form method="post" action="/qastly/plans/<%= plan.id %>/item/<%= r.id %>" class="flex flex-wrap gap-2 items-end text-xs">
+              <span class="text-slate-500 w-16">قسط <%= r.seq %></span>
+              <input name="due_on" type="date" dir="ltr" value="<%= P.ymd(r.due_on) || '' %>" class="border border-teal-200 rounded-lg px-2 py-1.5" />
+              <input name="amount" type="number" min="0" step="0.01" dir="ltr" value="<%= r.amount %>" class="w-24 border border-teal-200 rounded-lg px-2 py-1.5" />
+              <button class="bg-brand-100 text-brand-800 font-bold rounded-lg px-3 py-1.5">حفظ</button>
+            </form>
+          <% }) %>
+        </div>
+      </details>
+    </section>
+
+    <% if (payments.length) { %>
+      <section class="bg-white rounded-2xl border border-teal-100 p-5">
+        <h2 class="font-black text-lg mb-3">الدفعات</h2>
+        <ul class="text-sm space-y-1">
+          <% payments.forEach(function(p){ %>
+            <li class="flex justify-between border-b border-teal-50 py-1.5">
+              <span class="text-slate-500 text-xs"><%= d(p.paid_at) %> · <%= p.method %><% if (p.note) { %> · <%= p.note %><% } %></span>
+              <b class="text-emerald-700"><bdi><%= money(p.amount) %></bdi></b>
+            </li>
+          <% }) %>
+        </ul>
+      </section>
+    <% } %>
+  </div>
+
+  <div class="space-y-6">
+    <%# The differentiator: a link the customer opens themselves. %>
+    <section class="bg-white rounded-2xl border border-teal-100 p-5">
+      <h2 class="font-black text-lg mb-1">كشف حساب العميل</h2>
+      <p class="text-xs text-slate-500 mb-3">
+        لينك خاص بالعملية دي بس. العميل بيفتحه ويشوف اللي دفعه واللي باقي عليه ومواعيده —
+        وده اللي بيوقّف مكالمة «أنا فاضلي كام؟».
+      </p>
+      <% if (statement) { %>
+        <input readonly value="<%= statement %>" dir="ltr" onclick="this.select()"
+          class="w-full border border-teal-200 rounded-xl px-3 py-2 text-xs bg-teal-50/50" />
+        <div class="flex flex-wrap gap-2 mt-3">
+          <a href="<%= statement %>" target="_blank" rel="noopener"
+            class="bg-brand-100 text-brand-800 font-bold rounded-xl px-5 py-2.5 text-sm">افتح الكشف</a>
+          <form method="post" action="/qastly/plans/<%= plan.id %>/relink"
+            onsubmit="return confirm('اللينك القديم هيبطّل يشتغل. تمام؟')">
+            <button class="text-xs text-slate-400 hover:text-rose-600 py-2.5">غيّر اللينك</button>
+          </form>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2">
+          الكشف بيوري الحساب بس — مفيش رقم قومي ولا بيانات الضامن ولا عمليات تانية.
+        </p>
+      <% } %>
+    </section>
+
+    <% if (a.remaining > 0) { %>
+      <section class="bg-white rounded-2xl border border-teal-100 p-5">
+        <h2 class="font-black text-lg mb-2">رسالة التذكير</h2>
+        <pre class="bg-teal-50 rounded-xl p-3 text-xs whitespace-pre-wrap leading-relaxed"><%= msg %></pre>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <% if (wa) { %>
+            <a href="<%= wa %>" target="_blank" rel="noopener"
+              class="bg-emerald-500 text-white font-bold rounded-xl px-5 py-2.5 text-sm">واتساب العميل</a>
+          <% } %>
+          <% if (waGuarantor && a.lateCount > 1) { %>
+            <a href="<%= waGuarantor %>" target="_blank" rel="noopener"
+              class="bg-amber-500 text-white font-bold rounded-xl px-5 py-2.5 text-sm">واتساب الضامن</a>
+          <% } %>
+          <form method="post" action="/qastly/plans/<%= plan.id %>/reminded">
+            <input type="hidden" name="amount" value="<%= a.lateCount ? a.lateAmount : a.remaining %>" />
+            <input type="hidden" name="body" value="<%= msg %>" />
+            <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-5 py-2.5 text-sm">سجّل إني بعتّها</button>
+          </form>
+        </div>
+        <% if (reminders.length) { %>
+          <p class="text-xs text-slate-400 mt-3">آخر تذكير: <%= d(reminders[0].sent_at) %></p>
+        <% } %>
+      </section>
+    <% } %>
+
+    <section class="bg-white rounded-2xl border border-teal-100 p-5">
+      <h2 class="font-black text-lg mb-3">بيانات العميل</h2>
+      <ul class="text-sm space-y-1.5 text-slate-600">
+        <li><a href="/qastly/customers/<%= plan.customer_id %>" class="text-brand-700 font-bold"><%= plan.customer_name %></a></li>
+        <% if (plan.customer_phone) { %><li>📞 <span dir="ltr"><%= plan.customer_phone %></span></li><% } %>
+        <% if (plan.guarantor_name) { %><li>الضامن: <%= plan.guarantor_name %><% if (plan.guarantor_phone) { %> — <span dir="ltr"><%= plan.guarantor_phone %></span><% } %></li><% } %>
+      </ul>
+      <form method="post" action="/qastly/plans/<%= plan.id %>/status" class="flex gap-2 mt-4 text-sm">
+        <select name="status" class="border border-teal-200 rounded-xl px-3 py-2">
+          <% Object.keys(SL).forEach(function(s){ %>
+            <option value="<%= s %>" <%= plan.status===s?'selected':'' %>><%= SL[s] %></option>
+          <% }) %>
+        </select>
+        <button class="bg-brand-700 text-white font-bold rounded-xl px-5">حفظ الحالة</button>
+      </form>
+    </section>
+  </div>
+</div>
+<%- include('foot') %>

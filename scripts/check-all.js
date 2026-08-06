@@ -15,6 +15,7 @@ const CHECKS = [
   ['check-schema-columns',  'أعمدة الـINSERT موجودة في المخطط'],
   ['check-async-routes',    'أخطاء الـasync لا تعلّق الطلب'],
   ['check-page-types',      'أنواع النشاط مكتملة في كل الأماكن'],
+  ['check-route-order',     'ترتيب الـroutes (الصفحات العامة قبل المحميّة)'],
   ['check-no-secrets',      'مفيش بيانات دخول في الكود'],
   ['check-neuropilot-app',  'تطبيق NeuroPilot وصفحته'],
   ['render-clinic-pages',   'صفحات العيادة بالعربي والإنجليزي'],

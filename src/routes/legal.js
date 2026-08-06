@@ -169,6 +169,8 @@ router.get('/sitemap.xml', async (req, res) => {
           WHERE hs.company_id = c.id) AS hall_about_len,
         (SELECT COALESCE(char_length(trim(nu.about)), 0) FROM nursery_settings nu
           WHERE nu.company_id = c.id) AS nursery_about_len,
+        (SELECT COALESCE(char_length(trim(iq.about)), 0) FROM inst_settings iq
+          WHERE iq.company_id = c.id) AS inst_about_len,
         (SELECT COUNT(*) FROM furniture_products fp
           WHERE fp.company_id = c.id AND fp.is_active) AS furn_count,
         COALESCE(char_length(trim(c.description)), 0) AS desc_len
@@ -188,6 +190,7 @@ router.get('/sitemap.xml', async (req, res) => {
       if (row.page_type === 'workshop' && row.slug === 'workshop') continue;
       if (row.page_type === 'hall' && row.slug === 'hall') continue;
       if (row.page_type === 'nursery' && row.slug === 'nursery') continue;
+      if (row.page_type === 'installments' && row.slug === 'installments') continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
@@ -214,6 +217,9 @@ router.get('/sitemap.xml', async (req, res) => {
         // Mirrors tenant.js.
         : row.page_type === 'nursery'
         ? (Number(row.desc_len) >= 40 || Number(row.nursery_about_len) >= 60)
+        // Mirrors tenant.js.
+        : row.page_type === 'installments'
+        ? (Number(row.desc_len) >= 40 || Number(row.inst_about_len) >= 60)
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
       urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
@@ -264,11 +270,12 @@ router.get('/llms.txt', (req, res) => {
   lines.push('- **نظام إدارة ورش السيارات**: ملف لكل عربية، أمر شغل بعرض سعر موافَق عليه، قطع غيار، وتذكير صيانة بالكيلومترات وبالشهور.');
   lines.push('- **نظام قاعات الأفراح والمناسبات**: تقويم بقفل حقيقي يمنع حجز اليوم مرتين، متابعة استفسارات بميعاد، باقات وسعر للفرد، وعرابين وأقساط.');
   lines.push('- **نظام الحضانات ومراكز الدروس**: فاتورة شهرية لكل طفل، كشف متأخرات بالشهور، تذكيرات واتساب مهذّبة، حضور وغياب، ومصرّح لهم الاستلام.');
+  lines.push('- **قسّطلي — تحصيل الأقساط**: جدول أقساط بتواريخ مضبوطة، سداد الأقدم أولاً، لينك كشف حساب خاص لكل عميل، وتذكير قبل الميعاد.');
   lines.push('');
   lines.push('## صفحات أساسية');
   lines.push(`- [الرئيسية](${SITE_ORIGIN}/): نظرة عامة على حلول OscarDevs الرقمية وأنظمة الإدارة الجاهزة.`);
   lines.push(`- [من نحن](${SITE_ORIGIN}/about): قصة OscarDevs ورؤيتها.`);
-  lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع أو نظام إدارة — بورتفوليو، متجر إلكتروني، صيدلية، مطعم/طلبات، عيادة، جيم، معرض وورشة موبيليا، عيادة تغذية، ورشة سيارات، قاعة أفراح، أو حضانة ومركز دروس.`);
+  lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع أو نظام إدارة — بورتفوليو، متجر إلكتروني، صيدلية، مطعم/طلبات، عيادة، جيم، معرض وورشة موبيليا، عيادة تغذية، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، أو بيع بالتقسيط.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (OncoScan لدعم قرار الأشعة، Safari Kids، NeuroPilot، Kakeibo، Sokro).`);
