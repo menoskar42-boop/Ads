@@ -76,9 +76,15 @@ for (const f of ['src/views/admin/companies/add.ejs', 'src/views/admin/companies
   check('every /apply?type= link on the home page is a real type', bogus.length === 0,
     'These would silently fall back to portfolio: ' + bogus.join(', '));
   // And the reverse: a system with a card but no link is a card nobody can act on.
-  check('the home page links at least as many types as it shows cards',
-    [...new Set(linked)].length >= (home.match(/class="service-name"/g) || []).length,
-    'Some service card has no /apply?type= link.');
+  // Count cards inside the services section only. The trust cards further down
+  // reuse the same styling classes, and counting those made the check fail on a
+  // page that was actually complete — while still, correctly, catching the
+  // missing hall card underneath.
+  const svc = (home.match(/<section class="services"[\s\S]*?\n<\/section>/) || [''])[0];
+  const cards = (svc.match(/class="service-name"/g) || []).length;
+  check(`every service card has an /apply?type= link (${[...new Set(linked)].length}/${cards})`,
+    cards > 0 && [...new Set(linked)].length >= cards,
+    'A card a visitor can read but not act on. Types linked: ' + [...new Set(linked)].join(', '));
 }
 
 // ── 5. A type the tenant router cannot render is a 500 waiting to happen ────
