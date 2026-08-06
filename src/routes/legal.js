@@ -163,6 +163,8 @@ router.get('/sitemap.xml', async (req, res) => {
         (SELECT COUNT(*) FROM gym_plans gp WHERE gp.company_id = c.id AND gp.is_active = true) AS plan_count,
         (SELECT COALESCE(char_length(trim(ns.about)), 0) FROM nutrition_settings ns
           WHERE ns.company_id = c.id) AS nutri_about_len,
+        (SELECT COALESCE(char_length(trim(ws.about)), 0) FROM workshop_settings ws
+          WHERE ws.company_id = c.id) AS wsh_about_len,
         (SELECT COUNT(*) FROM furniture_products fp
           WHERE fp.company_id = c.id AND fp.is_active) AS furn_count,
         COALESCE(char_length(trim(c.description)), 0) AS desc_len
@@ -179,6 +181,7 @@ router.get('/sitemap.xml', async (req, res) => {
       if (row.page_type === 'gym' && row.slug === 'gym') continue;
       if (row.page_type === 'nutrition' && row.slug === 'nutrition') continue;
       if (row.page_type === 'furniture' && row.slug === 'furniture') continue;
+      if (row.page_type === 'workshop' && row.slug === 'workshop') continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
@@ -195,6 +198,10 @@ router.get('/sitemap.xml', async (req, res) => {
         // there was no furniture page at all; there is one now.
         : row.page_type === 'furniture'
         ? Number(row.furn_count) >= 3
+        // Mirrors tenant.js: a workshop has no catalogue to count, so the gate
+        // is whether the page says anything at all.
+        : row.page_type === 'workshop'
+        ? (Number(row.desc_len) >= 40 || Number(row.wsh_about_len) >= 60)
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
       urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
@@ -231,7 +238,7 @@ router.get('/llms.txt', (req, res) => {
   const lines = [];
   lines.push('# OscarDevs');
   lines.push('');
-  lines.push('> منصّة حلول رقمية متكاملة للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وثمانية أنظمة إدارة جاهزة (صيدلية، عيادة، مطاعم وطلبات، جيم، عيادة تغذية، معرض ومصنع موبيليا، متجر، بورتفوليو)، وتطبيقات ويب وموبايل — تسليم سريع، أسعار مناسبة، وSEO جاهز.');
+  lines.push('> منصّة حلول رقمية متكاملة للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وتسعة أنظمة إدارة جاهزة (صيدلية، عيادة، مطاعم وطلبات، جيم، عيادة تغذية، معرض ومصنع موبيليا، ورشة سيارات، متجر، بورتفوليو)، وتطبيقات ويب وموبايل — تسليم سريع، أسعار مناسبة، وSEO جاهز.');
   lines.push('');
   lines.push('## الأنظمة الجاهزة');
   lines.push('- **موقع بورتفوليو**: هوية رقمية لأصحاب المهن والحرف مع معرض أعمال ونموذج تواصل.');
@@ -242,6 +249,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push('- **نظام إدارة الجيم**: اشتراكات ومدرّبين وحضور وخطط تمرين.');
   lines.push('- **نظام إدارة عيادة التغذية**: قياسات وتحاليل وحساب سعرات وماكروز وخطط غذائية وحساب لكل مريض.');
   lines.push('- **نظام إدارة معرض ومصنع الموبيليا**: كتالوج ومخزون وفواتير وتوصيل وتركيب وضمان ومرتجعات وفروع.');
+  lines.push('- **نظام إدارة ورش السيارات**: ملف لكل عربية، أمر شغل بعرض سعر موافَق عليه، قطع غيار، وتذكير صيانة بالكيلومترات وبالشهور.');
   lines.push('');
   lines.push('## صفحات أساسية');
   lines.push(`- [الرئيسية](${SITE_ORIGIN}/): نظرة عامة على حلول OscarDevs الرقمية وأنظمة الإدارة الجاهزة.`);
