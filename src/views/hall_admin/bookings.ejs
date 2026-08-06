@@ -1,0 +1,75 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  var SLOT={evening:'المسا',afternoon:'بعد الضهر',full:'اليوم كله'};
+  var ST={held:'مؤقت',confirmed:'مؤكّد',done:'تمّت',cancelled:'ملغي'};
+%>
+<h1 class="font-black text-xl mb-4">الحجوزات</h1>
+<% if (error) { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-3 text-sm font-bold mb-4"><%= error %></div>
+<% } %>
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-rose-100 p-8 text-center text-slate-500">مفيش حجوزات لسه.</div>
+<% } else { %>
+<table class="rt w-full bg-white sm:rounded-2xl sm:border border-rose-100 text-sm">
+  <thead class="bg-rose-50/60 text-slate-500 text-xs"><tr>
+    <th class="text-start px-4 py-2">الرقم</th><th class="text-start px-4 py-2">العميل</th>
+    <th class="text-start px-4 py-2">التاريخ</th><th class="text-start px-4 py-2">الفترة</th>
+    <th class="text-start px-4 py-2">المدعوين</th><th class="text-start px-4 py-2">الإجمالي</th>
+    <th class="text-start px-4 py-2">المتبقّي</th><th class="text-start px-4 py-2">الحالة</th>
+  </tr></thead>
+  <tbody>
+  <% rows.forEach(function(r){ %>
+    <tr class="border-t border-rose-50">
+      <td class="px-4 py-2" data-l="الرقم"><a href="/hall/bookings/<%= r.id %>" class="font-bold text-brand-700"><%= B.bookingCode(r.id) %></a></td>
+      <td class="px-4 py-2 font-semibold" data-l="العميل"><%= r.customer_name %></td>
+      <td class="px-4 py-2" data-l="التاريخ"><%= d(r.event_date) %></td>
+      <td class="px-4 py-2" data-l="الفترة"><%= SLOT[r.slot] || r.slot %><% if (r.venue_name) { %> · <%= r.venue_name %><% } %></td>
+      <td class="px-4 py-2" data-l="المدعوين"><%= r.guests || '—' %></td>
+      <td class="px-4 py-2" data-l="الإجمالي"><bdi><%= money(r.t.total) %></bdi></td>
+      <td class="px-4 py-2 <%= r.t.due>0?'text-rose-600 font-bold':'text-emerald-700' %>" data-l="المتبقّي"><bdi><%= money(r.t.due) %></bdi></td>
+      <td class="px-4 py-2" data-l="الحالة"><span class="text-xs font-bold px-2 py-0.5 rounded-full <%= r.status==='held'?'bg-amber-50 text-amber-700':(r.status==='cancelled'?'bg-slate-100 text-slate-500':'bg-emerald-50 text-emerald-700') %>"><%= ST[r.status] %></span></td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+<% } %>
+
+<h2 class="font-black text-lg mt-8 mb-3">حجز جديد</h2>
+<form method="post" action="/hall/bookings" class="bg-white rounded-2xl border border-rose-100 p-5 grid sm:grid-cols-3 gap-3 text-sm">
+  <input name="customer_name" required placeholder="اسم العميل *" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="phone" dir="ltr" placeholder="التليفون" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="whatsapp" dir="ltr" placeholder="واتساب" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <label class="block"><span class="text-xs font-bold text-slate-500">التاريخ *</span>
+    <input name="event_date" type="date" dir="ltr" required class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500">الفترة</span>
+    <select name="slot" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+      <option value="evening">المسا</option><option value="afternoon">بعد الضهر</option><option value="full">اليوم كله</option>
+    </select></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500">المدعوين</span>
+    <input name="guests" type="number" min="0" dir="ltr" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1" /></label>
+  <% if (venues.length) { %>
+  <label class="block"><span class="text-xs font-bold text-slate-500">القاعة</span>
+    <select name="venue_id" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+      <option value="">—</option>
+      <% venues.forEach(function(v){ %><option value="<%= v.id %>"><%= v.name %></option><% }) %>
+    </select></label>
+  <% } %>
+  <% if (packages.length) { %>
+  <label class="block"><span class="text-xs font-bold text-slate-500">الباقة</span>
+    <select name="package_id" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+      <option value="">—</option>
+      <% packages.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
+    </select></label>
+  <% } %>
+  <label class="block"><span class="text-xs font-bold text-slate-500">الحالة</span>
+    <select name="status" class="w-full border border-rose-100 rounded-xl px-3 py-2 mt-1">
+      <option value="held">مؤقت (مستني عربون)</option><option value="confirmed">مؤكّد</option>
+    </select></label>
+  <div class="sm:col-span-3">
+    <button class="bg-brand-700 text-white font-bold rounded-xl px-6 py-2.5">احجز</button>
+    <p class="text-xs text-slate-400 mt-2">النظام بيرفض أي حجز على يوم وفترة محجوزين — حتى لو الحجز التاني «مؤقت».</p>
+  </div>
+</form>
+<%- include('foot') %>

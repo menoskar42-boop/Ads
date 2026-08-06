@@ -165,6 +165,8 @@ router.get('/sitemap.xml', async (req, res) => {
           WHERE ns.company_id = c.id) AS nutri_about_len,
         (SELECT COALESCE(char_length(trim(ws.about)), 0) FROM workshop_settings ws
           WHERE ws.company_id = c.id) AS wsh_about_len,
+        (SELECT COALESCE(char_length(trim(hs.about)), 0) FROM hall_settings hs
+          WHERE hs.company_id = c.id) AS hall_about_len,
         (SELECT COUNT(*) FROM furniture_products fp
           WHERE fp.company_id = c.id AND fp.is_active) AS furn_count,
         COALESCE(char_length(trim(c.description)), 0) AS desc_len
@@ -182,6 +184,7 @@ router.get('/sitemap.xml', async (req, res) => {
       if (row.page_type === 'nutrition' && row.slug === 'nutrition') continue;
       if (row.page_type === 'furniture' && row.slug === 'furniture') continue;
       if (row.page_type === 'workshop' && row.slug === 'workshop') continue;
+      if (row.page_type === 'hall' && row.slug === 'hall') continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
@@ -202,6 +205,9 @@ router.get('/sitemap.xml', async (req, res) => {
         // is whether the page says anything at all.
         : row.page_type === 'workshop'
         ? (Number(row.desc_len) >= 40 || Number(row.wsh_about_len) >= 60)
+        // Mirrors tenant.js.
+        : row.page_type === 'hall'
+        ? (Number(row.desc_len) >= 40 || Number(row.hall_about_len) >= 60)
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
       urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });

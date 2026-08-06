@@ -1,0 +1,23 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-4">القاعات</h1>
+<p class="text-slate-500 text-sm mb-4">كل قاعة ليها تقويمها — يعني تقدر تحجز قاعتين في نفس اليوم من غير تعارض.</p>
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-rose-100 p-8 text-center text-slate-500">مفيش قاعات مسجّلة. لو عندك مكان واحد بس، مش لازم تسجّل حاجة.</div>
+<% } else { %>
+  <div class="space-y-2">
+    <% rows.forEach(function(v){ %>
+      <div class="bg-white rounded-2xl border border-rose-100 p-4 text-sm flex justify-between gap-3">
+        <span class="font-bold"><%= v.name %></span>
+        <span class="text-slate-500"><%= v.capacity ? v.capacity + ' فرد' : '—' %></span>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+<h2 class="font-black text-lg mt-8 mb-3">قاعة جديدة</h2>
+<form method="post" action="/hall/venues" class="bg-white rounded-2xl border border-rose-100 p-5 grid sm:grid-cols-3 gap-3 text-sm">
+  <input name="name" required placeholder="اسم القاعة *" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="capacity" type="number" min="0" dir="ltr" placeholder="السعة" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <input name="note" placeholder="ملاحظات" class="border border-rose-100 rounded-xl px-3 py-2" />
+  <div class="sm:col-span-3"><button class="bg-brand-700 text-white font-bold rounded-xl px-6 py-2.5">حفظ</button></div>
+</form>
+<%- include('foot') %>

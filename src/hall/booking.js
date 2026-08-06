@@ -81,9 +81,33 @@ function depositFor(total, percent) {
  * compares slots as strings), so this is the check that runs first and the
  * index is the backstop for the race.
  */
+/**
+ * Normalise a date to YYYY-MM-DD before comparing.
+ *
+ * Postgres returns a DATE column as a JS Date; a form sends the string
+ * '2026-11-20'. Comparing them with String() gave
+ * 'Fri Nov 20 2026 00:00:00 GMT+0000…' against '2026-11-20', which never
+ * matched — so collides() returned false for every real booking and the only
+ * thing stopping a double booking was the database index. Same-slot clashes
+ * still failed (with the wrong message), and a full-day booking laid on top of
+ * an evening one went straight through, because the index compares slots as
+ * strings and 'full' is not 'evening'.
+ */
+function sameDay(a, b) {
+  const norm = (v) => {
+    if (v instanceof Date) return isNaN(v) ? '' : v.toISOString().slice(0, 10);
+    const s = String(v || '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    return isNaN(d) ? s : d.toISOString().slice(0, 10);
+  };
+  const x = norm(a);
+  return !!x && x === norm(b);
+}
+
 function collides(wanted, existing) {
   if (!existing || !BLOCKING.includes(existing.status)) return false;
-  if (String(existing.event_date) !== String(wanted.event_date)) return false;
+  if (!sameDay(existing.event_date, wanted.event_date)) return false;
   const a = existing.venue_id == null ? 0 : Number(existing.venue_id);
   const b = wanted.venue_id == null ? 0 : Number(wanted.venue_id);
   if (a !== b) return false;
@@ -139,6 +163,6 @@ function bookingCode(id) {
 }
 
 module.exports = {
-  STATUSES, BLOCKING, SLOTS, ENQUIRY_STATUSES, OPEN_ENQUIRY,
+  STATUSES, BLOCKING, SLOTS, ENQUIRY_STATUSES, OPEN_ENQUIRY, sameDay,
   totals, depositFor, collides, findCollision, suggestInstallments, bookingCode, round2,
 };

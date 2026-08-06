@@ -1,0 +1,186 @@
+<%
+  // Public page for a wedding hall.
+  //
+  // Built as a booking machine, not a brochure. A family looking for a hall has
+  // three questions and asks them in this order: is my date free, how much for
+  // my number of people, and can I come and see it. So the enquiry form is the
+  // page — it sits high, it asks for the date and the headcount, and everything
+  // else is below it.
+  var hs = (typeof hallSettings !== 'undefined' && hallSettings) ? hallSettings : {};
+  var packages = (typeof hallPackages !== 'undefined' && hallPackages) ? hallPackages : [];
+  var displayName = hs.business_name || company.company_name;
+  var about = (hs.about || company.description || '').trim();
+  var phone = (hs.phone || '').trim();
+  var wa = String(hs.whatsapp || hs.phone || '').replace(/[^0-9]/g, '');
+  var perHead = Number(hs.price_per_head || 0);
+  var basePrice = Number(hs.base_price || 0);
+
+  var __title = (displayName + ' — قاعة أفراح ومناسبات').slice(0, 60);
+  var __descBase = about || ('قاعة ' + displayName + ' للأفراح والمناسبات'
+    + (hs.address ? ' في ' + hs.address : '')
+    + (hs.capacity_max ? ' — تستوعب لحد ' + hs.capacity_max + ' فرد' : '') + '.');
+  var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+  var sent = (typeof enquirySent !== 'undefined' && enquirySent);
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<%- include('partials/seo_meta', { title: __title, description: __desc,
+      siteLogo: company.logo_url || null, siteAppName: displayName }) %>
+<% if (!(typeof noindex !== 'undefined' && noindex)) { %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "EventVenue",
+  "name": displayName,
+  "description": __desc,
+  "url": canonicalUrl,
+  "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
+  "telephone": phone || undefined,
+  "maximumAttendeeCapacity": hs.capacity_max || undefined,
+  "address": hs.address ? { "@type": "PostalAddress", "streetAddress": hs.address, "addressCountry": "EG" } : undefined,
+  "areaServed": "EG"
+}) %>
+</script>
+<% } %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-rose-50/40 text-slate-800">
+
+<header class="bg-gradient-to-br from-rose-900 to-rose-700 text-white">
+  <div class="max-w-4xl mx-auto px-4 py-12 text-center">
+    <% if (company.logo_url) { %>
+      <img src="<%= company.logo_url %>" alt="شعار <%= displayName %>"
+        class="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 bg-white/10" />
+    <% } else { %><div class="text-4xl mb-3">💍</div><% } %>
+    <h1 class="text-3xl sm:text-4xl font-black mb-2"><%= displayName %></h1>
+    <p class="text-rose-100 text-sm sm:text-base">
+      قاعة أفراح ومناسبات<% if (hs.address) { %> · <%= hs.address %><% } %>
+      <% if (hs.capacity_max) { %> · تستوعب <%= hs.capacity_min ? hs.capacity_min + '–' : 'لحد ' %><%= hs.capacity_max %> فرد<% } %>
+    </p>
+
+    <%# The price is shown, not hidden. A hall that hides it gets enquiries it
+        cannot convert and loses the families it could have served. %>
+    <% if (basePrice > 0 || perHead > 0) { %>
+      <div class="inline-block bg-white/10 rounded-2xl px-6 py-3 mt-6 text-sm">
+        <% if (basePrice > 0) { %><span>تبدأ من <b><%= basePrice.toLocaleString('ar-EG') %></b></span><% } %>
+        <% if (perHead > 0) { %><span class="mx-2 text-rose-200">+</span><span><b><%= perHead.toLocaleString('ar-EG') %></b> للفرد</span><% } %>
+      </div>
+    <% } %>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+
+  <%# The form is the page. It asks for the date and the headcount because
+      those are what the hall needs to answer at all — an enquiry that says
+      only "how much?" costs two more messages before anybody can reply. %>
+  <section id="enquire" class="bg-white rounded-2xl border border-rose-100 shadow-sm p-6 mb-8 -mt-16 relative">
+    <% if (sent) { %>
+      <div class="text-center py-6">
+        <div class="text-4xl mb-3">✓</div>
+        <h2 class="font-black text-xl mb-2">وصلنا استفسارك</h2>
+        <p class="text-slate-600 text-sm">هنكلّمك قريّب ونقولك لو التاريخ متاح والتكلفة بالظبط.</p>
+        <% if (wa) { %>
+          <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+            class="inline-block mt-5 bg-emerald-500 text-white font-bold rounded-xl px-6 py-3">أو كلّمنا على واتساب دلوقتي</a>
+        <% } %>
+      </div>
+    <% } else { %>
+      <h2 class="font-black text-xl mb-1">اسأل عن تاريخك</h2>
+      <p class="text-slate-500 text-sm mb-5">قولنا التاريخ وعدد المدعوين، ونرجعلك بالتكلفة ومعاد معاينة.</p>
+      <form method="post" action="/enquire" class="grid sm:grid-cols-2 gap-3 text-sm">
+        <div style="position:absolute;left:-9999px" aria-hidden="true">
+          <label>لا تملأ<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        </div>
+        <input type="hidden" name="ft" value="<%= Date.now() %>" />
+        <label class="block"><span class="text-xs font-bold text-slate-500">اسمك *</span>
+          <input name="name" required class="w-full border border-rose-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">واتساب أو تليفون *</span>
+          <input name="phone" required dir="ltr" class="w-full border border-rose-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ المناسبة</span>
+          <input name="event_date" type="date" dir="ltr" class="w-full border border-rose-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">عدد المدعوين</span>
+          <input name="guests" type="number" min="0" dir="ltr" class="w-full border border-rose-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">نوع المناسبة</span>
+          <input name="event_type" placeholder="فرح، خطوبة، عيد ميلاد…" class="w-full border border-rose-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الميزانية تقريباً</span>
+          <input name="budget" type="number" min="0" dir="ltr" class="w-full border border-rose-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <textarea name="note" rows="2" placeholder="أي حاجة تحب تقولهالنا" class="sm:col-span-2 border border-rose-200 rounded-xl px-3 py-2.5"></textarea>
+        <div class="sm:col-span-2 flex flex-wrap gap-3">
+          <button class="bg-rose-700 text-white font-bold rounded-xl px-8 py-3">ابعت الاستفسار</button>
+          <% if (wa) { %>
+            <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+              class="bg-emerald-500 text-white font-bold rounded-xl px-6 py-3">أو واتساب</a>
+          <% } %>
+        </div>
+      </form>
+    <% } %>
+  </section>
+
+  <% if (packages.length) { %>
+    <section class="mb-8">
+      <h2 class="font-black text-xl mb-4">الباقات</h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <% packages.forEach(function(p){ %>
+          <div class="bg-white rounded-2xl border border-rose-100 p-5">
+            <div class="font-black text-lg"><%= p.name %></div>
+            <% if (p.description) { %><p class="text-slate-500 text-sm mt-1"><%= p.description %></p><% } %>
+            <div class="mt-3 text-sm text-slate-700">
+              <% if (Number(p.base_price) > 0) { %><div>تبدأ من <b><%= Number(p.base_price).toLocaleString('ar-EG') %></b></div><% } %>
+              <% if (Number(p.price_per_head) > 0) { %><div><b><%= Number(p.price_per_head).toLocaleString('ar-EG') %></b> للفرد</div><% } %>
+              <% if (!Number(p.base_price) && !Number(p.price_per_head)) { %><div class="text-slate-400">اسأل عن السعر</div><% } %>
+            </div>
+            <% if (p.includes) { %><p class="text-xs text-slate-600 mt-3 whitespace-pre-line"><%= p.includes %></p><% } %>
+            <a href="#enquire" class="block text-center mt-4 bg-rose-50 text-rose-800 font-bold rounded-xl py-2 text-sm">اسأل عن الباقة دي</a>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (about) { %>
+    <section class="bg-white rounded-2xl border border-rose-100 p-6 mb-8">
+      <h2 class="font-black text-lg mb-3">عن القاعة</h2>
+      <p class="text-slate-600 leading-relaxed whitespace-pre-line"><%= about %></p>
+    </section>
+  <% } %>
+
+  <% if (hs.map_url || hs.video_url) { %>
+    <section class="flex flex-wrap gap-3 mb-8">
+      <% if (hs.map_url) { %>
+        <a href="<%= hs.map_url %>" target="_blank" rel="noopener"
+          class="bg-white border border-rose-100 rounded-xl px-5 py-3 text-sm font-bold">📍 موقعنا على الخريطة</a>
+      <% } %>
+      <% if (hs.video_url) { %>
+        <a href="<%= hs.video_url %>" target="_blank" rel="noopener"
+          class="bg-white border border-rose-100 rounded-xl px-5 py-3 text-sm font-bold">🎥 شوف جولة في القاعة</a>
+      <% } %>
+    </section>
+  <% } %>
+
+  <div class="bg-rose-900 text-white rounded-2xl p-6 text-center">
+    <h2 class="font-black text-lg mb-2">التواريخ الحلوة بتتحجز بدري</h2>
+    <p class="text-rose-200 text-sm mb-5">اسأل عن تاريخك دلوقتي قبل ما حد يسبقك عليه.</p>
+    <div class="flex flex-wrap gap-3 justify-center">
+      <a href="#enquire" class="bg-white text-rose-900 font-bold rounded-xl px-6 py-3">اسأل عن تاريخك</a>
+      <% if (phone) { %>
+        <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>" class="bg-rose-700 font-bold rounded-xl px-6 py-3">📞 <span dir="ltr"><%= phone %></span></a>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<footer class="text-center py-8 text-xs text-slate-400">
+  <a href="https://oscardevs.com" target="_blank" rel="noopener" class="hover:text-slate-600">مقدَّم من OscarDevs</a>
+</footer>
+</body>
+</html>

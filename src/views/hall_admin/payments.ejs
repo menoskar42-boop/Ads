@@ -1,0 +1,33 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  var today = new Date().toISOString().slice(0,10);
+%>
+<h1 class="font-black text-xl mb-4">العرابين والأقساط</h1>
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-rose-100 p-8 text-center text-slate-500">مفيش أقساط مسجّلة.</div>
+<% } else { %>
+<table class="rt w-full bg-white sm:rounded-2xl sm:border border-rose-100 text-sm">
+  <thead class="bg-rose-50/60 text-slate-500 text-xs"><tr>
+    <th class="text-start px-4 py-2">العميل</th><th class="text-start px-4 py-2">المناسبة</th>
+    <th class="text-start px-4 py-2">الاستحقاق</th><th class="text-start px-4 py-2">المبلغ</th>
+    <th class="text-start px-4 py-2">الحالة</th>
+  </tr></thead>
+  <tbody>
+  <% rows.forEach(function(r){ var late = !r.paid_at && String(r.due_on).slice(0,10) < today; %>
+    <tr class="border-t border-rose-50">
+      <td class="px-4 py-2" data-l="العميل"><a href="/hall/bookings/<%= r.booking_id %>" class="font-bold text-brand-700"><%= r.customer_name %></a></td>
+      <td class="px-4 py-2" data-l="المناسبة"><%= d(r.event_date) %></td>
+      <td class="px-4 py-2 <%= late ? 'text-rose-600 font-bold' : '' %>" data-l="الاستحقاق"><%= String(r.due_on).slice(0,10) %></td>
+      <td class="px-4 py-2" data-l="المبلغ"><bdi><%= money(r.amount) %></bdi></td>
+      <td class="px-4 py-2" data-l="الحالة">
+        <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= r.paid_at ? 'bg-emerald-50 text-emerald-700' : (late ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600') %>">
+          <%= r.paid_at ? 'اتدفع' : (late ? 'متأخر' : 'لسه') %></span>
+      </td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+<% } %>
+<%- include('foot') %>

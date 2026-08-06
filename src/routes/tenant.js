@@ -368,6 +368,22 @@ router.get('/', async (req, res) => {
     } catch (e) { /* never block render */ }
   }
 
+  // A hall's public page is an enquiry form with a building behind it, so the
+  // packages load with it — the price is the question, and hiding it costs the
+  // hall the families it could have served.
+  let hallSettings = null;
+  let hallPackages = [];
+  if (company.page_type === 'hall') {
+    try {
+      hallSettings = (await pool.query(
+        'SELECT * FROM hall_settings WHERE company_id = $1', [company.id])).rows[0] || null;
+      hallPackages = (await pool.query(
+        `SELECT id, name, description, base_price, price_per_head, includes
+           FROM hall_packages WHERE company_id=$1 AND is_active
+          ORDER BY sort_order, name LIMIT 12`, [company.id])).rows;
+    } catch (e) { /* never block render */ }
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
@@ -376,6 +392,7 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'nutrition') view = 'tenant_nutrition';
   else if (company.page_type === 'furniture') view = 'tenant_furniture';
   else if (company.page_type === 'workshop') view = 'tenant_workshop';
+  else if (company.page_type === 'hall') view = 'tenant_hall';
   else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
@@ -408,6 +425,12 @@ router.get('/', async (req, res) => {
   // kind of gate as the others: enough pieces to be worth landing on.
   else if (company.page_type === 'furniture') {
     indexable = furnitureProducts.length >= 3 && company.slug !== 'furniture';
+  }
+  // Same shape as the workshop's: a hall page is about the hall, and one that
+  // says nothing has no business in the index.
+  else if (company.page_type === 'hall') {
+    const hAbout = hallSettings && hallSettings.about ? hallSettings.about.trim().length : 0;
+    indexable = (descLen >= 40 || hAbout >= 60) && company.slug !== 'hall';
   }
   // A workshop has no catalogue to count, so the gate is the same as the
   // clinic's: does the page actually say anything? A page that cannot answer
@@ -474,6 +497,9 @@ router.get('/', async (req, res) => {
     nutritionSettings,
     furnitureSettings,
     workshopSettings,
+    hallSettings,
+    hallPackages,
+    enquirySent: req.query.enquired === '1',
     workshopStats,
     furnitureProducts,
     gymSettings,
@@ -1301,6 +1327,55 @@ router.get('/compare', async (req, res) => {
     } catch (e) { console.error('[compare]', e.message); }
   }
   res.render('shop/compare', { company, products, noindex: true, showAds: false });
+});
+
+
+// ── Public enquiry from a hall's page ────────────────────────────────────────
+//
+// The one form on the page, and the reason the page exists. Rate limited and
+// honeypotted like every other public write: this creates a row and a
+// follow-up task, so a bot loose on it fills the hall's morning with noise.
+// _rl is already imported above for the coupon limiter. Keyed per tenant as
+// well as per IP so one busy hall cannot throttle another's enquiries.
+const hallEnquiryLimiter = _rl({
+  name: 'hall-enquiry', windowMs: 60 * 60000, max: 6,
+  keyFn: (req) => ((req.tenant && req.tenant.id) || 'h') + '|' + _cip(req),
+});
+
+router.post('/enquire', hallEnquiryLimiter, async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'hall') return res.redirect('/');
+  const b = req.body || {};
+
+  // Same pair /apply and /contact use: answer success either way so the bot
+  // stops retrying instead of learning what to avoid.
+  const bot = String(b.website || '').trim()
+    || (Number(b.ft) && Date.now() - Number(b.ft) < 2500);
+  if (bot) return res.redirect('/?enquired=1');
+
+  const clip = (v, n) => { const s2 = String(v == null ? '' : v).trim().slice(0, n); return s2 || null; };
+  const name = clip(b.name, 120);
+  const phone = clip(b.phone, 40);
+  if (!name || !phone) return res.redirect('/');
+
+  try {
+    await pool.query(
+      `INSERT INTO hall_enquiries (company_id, name, phone, whatsapp, event_date, event_type,
+                                   guests, budget, note, source, next_action_on)
+       VALUES ($1,$2,$3,$3,$4,$5,$6,$7,$8,'website', CURRENT_DATE)`,
+      [company.id, name, phone,
+       /^\d{4}-\d{2}-\d{2}$/.test(String(b.event_date || '')) ? b.event_date : null,
+       clip(b.event_type, 60),
+       Number.isFinite(parseInt(b.guests, 10)) ? parseInt(b.guests, 10) : null,
+       Number.isFinite(Number(b.budget)) && Number(b.budget) > 0 ? Number(b.budget) : null,
+       clip(b.note, 1000)]
+    );
+  } catch (e) {
+    // A failed insert must not lose the family. Log it and still thank them —
+    // the phone number is on the page and they will use it.
+    console.error('[hall enquiry]', e.message);
+  }
+  res.redirect('/?enquired=1');
 });
 
 module.exports = router;

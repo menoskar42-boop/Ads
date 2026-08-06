@@ -34,7 +34,7 @@ const cleanRef = (s) => {
 };
 
 router.get('/apply', (req, res) => {
-  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop'].includes(req.query.type) ? req.query.type : '';
+  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall'].includes(req.query.type) ? req.query.type : '';
   const ref = cleanRef(req.query.ref);
   const values = {};
   if (preType) values.business_type = preType;
@@ -79,7 +79,7 @@ router.post('/apply', applyLimiter, async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return render('بريد إلكتروني غير صالح.');
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
-  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop'].includes(values.business_type)) return render('اختر نوع الموقع.');
+  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall'].includes(values.business_type)) return render('اختر نوع الموقع.');
   if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
     return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
   }
@@ -131,7 +131,8 @@ router.post('/apply', applyLimiter, async (req, res) => {
       : values.business_type === 'gym' ? 'جيم/لياقة'
       : values.business_type === 'furniture' ? 'موبيليا/ورشة'
       : values.business_type === 'nutrition' ? 'تغذية علاجية'
-      : values.business_type === 'workshop' ? 'ورش سيارات' : 'بورتفوليو';
+      : values.business_type === 'workshop' ? 'ورش سيارات'
+      : values.business_type === 'hall' ? 'قاعات أفراح' : 'بورتفوليو';
     pool.query(
       `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
        SELECT $1, $2, $3, $4, $5, 'طلب تسجيل', 'interested', $6, CURRENT_DATE

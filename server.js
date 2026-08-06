@@ -402,6 +402,7 @@ app.use('/gym', require('./src/routes/gym_admin'));
 app.use('/furniture', require('./src/routes/furniture_admin'));
 app.use('/workshop', require('./src/routes/workshop_admin'));
 app.use('/einvoice', require('./src/routes/einvoice_admin'));
+app.use('/hall', require('./src/routes/hall_admin'));
 app.use('/nutrition', require('./src/routes/nutrition_admin'));
 app.use('/radiology', require('./src/routes/radiology'));
 
@@ -1317,6 +1318,7 @@ const { ensureRadiologySchema } = require('./src/radiology/schema');
 const { ensureFurnitureSchema } = require('./src/furniture/schema');
 const { ensureWorkshopSchema } = require('./src/workshop/schema');
 const { ensureEinvoiceSchema } = require('./src/einvoice/schema');
+const { ensureHallSchema } = require('./src/hall/schema');
 const { ensureNutritionSchema } = require('./src/nutrition/schema');
 const { ensureSokroSchema } = require('./sokro/schema');
 const { syncMedicinesSafe } = require('./src/pharmacy/medicine_sync');
@@ -1331,6 +1333,7 @@ initDb()
   .then(() => ensureFurnitureSchema())
   .then(() => ensureWorkshopSchema())
   .then(() => ensureEinvoiceSchema())
+  .then(() => ensureHallSchema())
   .then(() => ensureNutritionSchema())
   .then(() => ensureSokroSchema())
   // Auto-import the full Egyptian medicines catalog once the tables exist.

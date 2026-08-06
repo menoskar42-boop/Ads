@@ -1,0 +1,55 @@
+<%- include('head') %>
+<%
+  // `money` is also the name of the object this route passes in, and a
+  // template-local function shadows it — so the helper is named fmt.
+  function fmt(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  var SL={new:'جديد',contacted:'اتكلّمنا',viewing_booked:'معاينة محجوزة',viewed:'شاف القاعة',quoted:'اتعمله عرض',won:'حجز',lost:'ضاع'};
+%>
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <h1 class="font-black text-xl">التقارير</h1>
+  <div class="flex gap-1 text-xs">
+    <% [30,90,180,365].forEach(function(n){ %>
+      <a href="/hall/reports?days=<%= n %>" class="px-3 py-1.5 rounded-lg <%= days===n ? 'bg-brand-700 text-white font-bold' : 'bg-white border border-rose-100' %>"><%= n %> يوم</a>
+    <% }) %>
+  </div>
+</div>
+
+<%# The number a hall owner actually wants. Null when nobody asked at all —
+    a rate of zero out of zero enquiries is a lie, not a result. %>
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+  <div class="bg-white rounded-2xl border border-rose-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">استفسارات</div>
+    <div class="text-2xl font-black mt-1"><%= totalEnq %></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-rose-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">حجوزات</div>
+    <div class="text-2xl font-black text-emerald-700 mt-1"><%= won %></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-rose-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">نسبة التحويل</div>
+    <div class="text-2xl font-black text-brand-700 mt-1"><%= conversion == null ? '—' : conversion + '%' %></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-rose-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">متوسط الحجز</div>
+    <div class="text-xl font-black mt-1"><bdi><%= fmt(money.avg || 0) %></bdi></div>
+  </div>
+</div>
+
+<h2 class="font-black text-lg mb-3">الاستفسارات حسب المرحلة</h2>
+<div class="bg-white rounded-2xl border border-rose-100 p-5">
+  <% var keys = Object.keys(SL); var any = keys.some(function(k){ return byStatus[k]; }); %>
+  <% if (!any) { %><p class="text-slate-400 text-sm">مفيش استفسارات في الفترة دي.</p><% } else { %>
+    <div class="space-y-2 text-sm">
+      <% keys.forEach(function(k){ if (!byStatus[k]) return; %>
+        <div class="flex items-center gap-3">
+          <span class="w-32 text-slate-600"><%= SL[k] %></span>
+          <div class="flex-1 bg-rose-50 rounded-full h-3 overflow-hidden">
+            <div class="bg-brand-500 h-full" style="width:<%= Math.round((byStatus[k]/totalEnq)*100) %>%"></div>
+          </div>
+          <span class="w-10 text-end font-bold"><%= byStatus[k] %></span>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+<%- include('foot') %>
