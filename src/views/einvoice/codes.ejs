@@ -1,0 +1,42 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-1">أكواد الأصناف</h1>
+<p class="text-slate-500 text-sm mb-5">
+  المصلحة بتطلب كود لكل صنف في الفاتورة (EGS أو GS1). اربط اسم الصنف زي ما هو
+  مكتوب عندك بالكود مرة واحدة، والنظام هيستخدمه في كل فاتورة بعد كده.
+</p>
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 mb-6">مفيش أكواد مسجّلة لسه.</div>
+<% } else { %>
+  <table class="w-full bg-white rounded-2xl border border-slate-200 text-sm mb-6 overflow-hidden">
+    <thead class="bg-slate-50 text-slate-500 text-xs">
+      <tr><th class="text-start px-4 py-2">الصنف عندك</th><th class="text-start px-4 py-2">النوع</th>
+      <th class="text-start px-4 py-2">الكود</th><th class="text-start px-4 py-2">الوحدة</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function(r){ %>
+        <tr class="border-t border-slate-100">
+          <td class="px-4 py-2 font-semibold"><%= r.label %></td>
+          <td class="px-4 py-2"><%= r.code_type %></td>
+          <td class="px-4 py-2" dir="ltr"><%= r.item_code %></td>
+          <td class="px-4 py-2" dir="ltr"><%= r.unit_type %></td>
+          <td class="px-4 py-2 text-end">
+            <form method="post" action="/einvoice/codes/<%= r.id %>/delete">
+              <button class="text-rose-600 text-xs font-bold">حذف</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+<h2 class="font-black text-lg mb-3">إضافة كود</h2>
+<form method="post" action="/einvoice/codes" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-4 gap-3 text-sm">
+  <input name="label" required placeholder="اسم الصنف زي ما هو عندك *" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
+  <select name="code_type" class="border border-slate-200 rounded-xl px-3 py-2">
+    <option value="EGS">EGS</option><option value="GS1">GS1</option>
+  </select>
+  <input name="item_code" required dir="ltr" placeholder="الكود *" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <input name="unit_type" dir="ltr" value="EA" placeholder="الوحدة" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <div class="sm:col-span-4"><button class="bg-slate-800 text-white font-bold rounded-xl px-6 py-2.5">حفظ</button></div>
+</form>
+<%- include('foot') %>

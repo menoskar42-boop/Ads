@@ -1,0 +1,111 @@
+<%- include('head') %>
+<% var s = st || {}; %>
+<h1 class="font-black text-xl mb-1">الفاتورة الإلكترونية</h1>
+<p class="text-slate-500 text-sm mb-5">
+  بياناتك إنت وحدك. المنصّة عمرها ما بتقدّم فواتير بالنيابة عن حد — الإرسال بيتم
+  ببيانات منشأتك أو مايتمش.
+</p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم الحفظ ✓</div><% } %>
+<% if (!vaultReady) { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-3 text-sm mb-4">
+    <b>مفتاح التشفير مش متظبّط على السيرفر.</b> ماينفعش نحفظ بيانات دخولك للمصلحة
+    من غير تشفير — ظبّط <code>EINVOICE_SECRET_KEY</code> الأول.
+  </div>
+<% } %>
+<% if (s.last_check_at) { %>
+  <div class="<%= s.last_check_ok ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800' %> border rounded-xl px-4 py-3 text-sm mb-4">
+    <b>آخر فحص:</b> <%= s.last_check_note || '' %>
+  </div>
+<% } %>
+
+<% if (summary) { %>
+<div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+  <% [['جاهز للإرسال',summary.ready,'text-brand'],['فيه أخطاء',summary.draft,'text-amber-600'],
+      ['اتبعت',summary.submitted,''],['اتقبل',summary.accepted,'text-emerald-700'],
+      ['مرفوض/فشل',summary.problem,'text-rose-600']].forEach(function(c){ %>
+    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+      <div class="text-xs text-slate-500 font-semibold"><%= c[0] %></div>
+      <div class="text-xl font-black mt-1 <%= c[2] %>"><%= c[1] %></div>
+    </div>
+  <% }) %>
+</div>
+<% } %>
+
+<form method="post" action="/einvoice/settings" class="space-y-5">
+  <section class="bg-white rounded-2xl border border-slate-200 p-5">
+    <label class="flex items-center gap-3 font-bold mb-4">
+      <input type="checkbox" name="enabled" value="1" <%= s.enabled ? 'checked' : '' %> />
+      فعّل الفاتورة الإلكترونية لحسابي
+    </label>
+    <p class="text-xs text-slate-500 mb-4">لو مقفولة، مفيش أي حاجة بتتغيّر في نظامك — الميزة دي اختيارية بالكامل.</p>
+
+    <h2 class="font-black mb-3">بيانات المنشأة</h2>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">الرقم الضريبي *</span>
+        <input name="tax_id" dir="ltr" value="<%= s.tax_id || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">كود النشاط *</span>
+        <input name="activity_code" dir="ltr" value="<%= s.activity_code || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">اسم المنشأة زي ما المصلحة مسجّلاه *</span>
+        <input name="issuer_name" value="<%= s.issuer_name || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">كود الفرع</span>
+        <input name="branch_code" dir="ltr" value="<%= s.branch_code || '0' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">المحافظة</span>
+        <input name="issuer_governate" value="<%= s.issuer_governate || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">المدينة</span>
+        <input name="issuer_city" value="<%= s.issuer_city || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">الشارع</span>
+        <input name="issuer_street" value="<%= s.issuer_street || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">رقم المبنى</span>
+        <input name="issuer_building" dir="ltr" value="<%= s.issuer_building || '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-5">
+    <h2 class="font-black mb-1">بيانات الدخول للمنظومة</h2>
+    <p class="text-xs text-slate-500 mb-4">
+      بتتخزّن مشفّرة، وعمرها ما بتترجع للشاشة تاني. سيبها فاضية لو مش عايز تغيّرها.
+    </p>
+    <div class="grid sm:grid-cols-3 gap-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">البيئة</span>
+        <select name="environment" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+          <option value="preprod" <%= s.environment !== 'production' ? 'selected' : '' %>>تجريبية (Preprod)</option>
+          <option value="production" <%= s.environment === 'production' ? 'selected' : '' %>>إنتاج</option>
+        </select></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">Client ID <%= hasClientId ? '(محفوظ ✓)' : '' %></span>
+        <input name="client_id" dir="ltr" autocomplete="off" placeholder="<%= hasClientId ? '••••••••' : '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">Client Secret <%= hasSecret ? '(محفوظ ✓)' : '' %></span>
+        <input name="client_secret" type="password" dir="ltr" autocomplete="new-password" placeholder="<%= hasSecret ? '••••••••' : '' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-5">
+    <h2 class="font-black mb-1">التوقيع الإلكتروني</h2>
+    <p class="text-xs text-slate-600 leading-relaxed mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+      المصلحة بتطلب توقيع المستند <b>بشهادة منشأتك نفسها</b> اللي على التوكن/الـHSM بتاعك.
+      يعني <b>إحنا مش بنقدر نوقّع بدالك</b> — ولا المفروض نقدر. إحنا بنبني المستند
+      ونبعته للموقّع اللي إنت بتحدّده، وعمرنا ما بنشوف المفتاح الخاص.
+    </p>
+    <div class="grid sm:grid-cols-3 gap-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">طريقة التوقيع</span>
+        <select name="signing_mode" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+          <option value="none" <%= s.signing_mode === 'none' || !s.signing_mode ? 'selected' : '' %>>مفيش (نبني ونحتفظ بس)</option>
+          <option value="local" <%= s.signing_mode === 'local' ? 'selected' : '' %>>موقّع على جهازك</option>
+          <option value="remote" <%= s.signing_mode === 'remote' ? 'selected' : '' %>>خدمة توقيع</option>
+        </select></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">عنوان الموقّع</span>
+        <input name="signer_url" dir="ltr" value="<%= s.signer_url || '' %>" placeholder="http://localhost:8090/sign" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">توكن الموقّع <%= hasSignerToken ? '(محفوظ ✓)' : '' %></span>
+        <input name="signer_token" type="password" dir="ltr" autocomplete="new-password" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+    </div>
+  </section>
+
+  <div class="flex gap-3">
+    <button class="bg-slate-800 text-white font-bold rounded-xl px-8 py-3">حفظ</button>
+  </div>
+</form>
+
+<form method="post" action="/einvoice/check" class="mt-3">
+  <button class="bg-white border border-slate-300 font-bold rounded-xl px-6 py-2.5 text-sm">🔌 اختبر الاتصال</button>
+</form>
+<%- include('foot') %>

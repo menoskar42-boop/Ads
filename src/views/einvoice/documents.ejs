@@ -1,0 +1,71 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  var LBL = { draft:'فيه أخطاء', ready:'جاهز', signed:'موقّع', submitted:'اتبعت',
+              accepted:'اتقبل', rejected:'مرفوض', failed:'فشل', cancelled:'ملغي' };
+  var TONE = { draft:'bg-amber-50 text-amber-700', ready:'bg-blue-50 text-blue-700',
+               submitted:'bg-slate-100 text-slate-700', accepted:'bg-emerald-50 text-emerald-700',
+               rejected:'bg-rose-50 text-rose-700', failed:'bg-rose-50 text-rose-700',
+               cancelled:'bg-slate-100 text-slate-500', signed:'bg-blue-50 text-blue-700' };
+%>
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <h1 class="font-black text-xl">المستندات</h1>
+  <div class="flex gap-1 text-xs overflow-x-auto">
+    <a href="/einvoice/documents" class="px-3 py-1.5 rounded-lg <%= !status ? 'bg-slate-800 text-white font-bold' : 'bg-white border border-slate-200' %>">الكل</a>
+    <% Q.STATUSES.forEach(function(s){ %>
+      <a href="/einvoice/documents?status=<%= s %>" class="px-3 py-1.5 rounded-lg whitespace-nowrap <%= status===s ? 'bg-slate-800 text-white font-bold' : 'bg-white border border-slate-200' %>"><%= LBL[s] %></a>
+    <% }) %>
+  </div>
+</div>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">
+    مفيش مستندات بالفلتر ده.
+  </div>
+<% } else { %>
+  <div class="space-y-2">
+    <% rows.forEach(function(r){ %>
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 text-sm">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div class="min-w-[12rem]">
+            <div class="font-bold"><%= r.internal_id || ('#' + r.id) %></div>
+            <div class="text-slate-500 text-xs mt-0.5">
+              <%= (KINDS[r.source_kind] && KINDS[r.source_kind].label) || r.source_kind %> · <%= d(r.issued_at || r.created_at) %>
+            </div>
+          </div>
+          <div class="text-end">
+            <div class="font-black"><bdi><%= money(r.total_amount) %></bdi></div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= TONE[r.status] || 'bg-slate-100' %>"><%= LBL[r.status] || r.status %></span>
+          </div>
+        </div>
+
+        <%# The reason, in the merchant's words, right where the document is —
+            not in a log they will never open. %>
+        <% if (r.error_message) { %>
+          <div class="mt-3 bg-rose-50 border border-rose-100 text-rose-800 rounded-xl px-3 py-2 text-xs leading-relaxed">
+            <%= r.error_message %>
+          </div>
+        <% } %>
+        <% if (r.submission_uuid) { %>
+          <div class="mt-2 text-xs text-slate-500" dir="ltr">UUID: <%= r.submission_uuid %></div>
+        <% } %>
+
+        <div class="mt-3 flex gap-2">
+          <% if (['draft','rejected','failed'].includes(r.status)) { %>
+            <form method="post" action="/einvoice/documents/<%= r.id %>/rebuild">
+              <button class="bg-slate-100 font-bold rounded-lg px-3 py-1.5 text-xs">إعادة البناء</button>
+            </form>
+          <% } %>
+          <% if (['ready','signed','rejected','failed'].includes(r.status)) { %>
+            <form method="post" action="/einvoice/documents/<%= r.id %>/submit">
+              <button class="bg-slate-800 text-white font-bold rounded-lg px-3 py-1.5 text-xs">إرسال للمصلحة</button>
+            </form>
+          <% } %>
+          <% if (r.attempts) { %><span class="text-xs text-slate-400 self-center">محاولات: <%= r.attempts %></span><% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+<%- include('foot') %>
