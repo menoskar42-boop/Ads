@@ -1,0 +1,56 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:0}); }
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">الملخّص</h1>
+  <form class="ms-auto text-sm">
+    <select name="months" onchange="this.form.submit()" class="border border-violet-200 rounded-xl px-3 py-2">
+      <% [3,6,12].forEach(function(m){ %>
+        <option value="<%= m %>" <%= months===m?'selected':'' %>>آخر <%= m %> شهور</option>
+      <% }) %>
+    </select>
+  </form>
+</div>
+
+<p class="text-slate-500 text-sm mb-4">
+  نسبة التحصيل هي الرقم اللي بيقول إذا كانت التذكيرات بتشتغل ولا لأ: كام في المية من مصاريف الشهر دخلت فعلاً.
+</p>
+
+<table class="rt w-full bg-white rounded-2xl border border-violet-100 text-sm overflow-hidden">
+  <thead class="bg-violet-50 text-brand-800 text-xs">
+    <tr>
+      <th class="text-start p-3">الشهر</th>
+      <th class="text-start p-3">المستحق</th>
+      <th class="text-start p-3">المحصّل</th>
+      <th class="text-start p-3">نسبة التحصيل</th>
+      <th class="text-start p-3">نسبة الحضور</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% list.slice().reverse().forEach(function(r){ %>
+      <tr class="border-t border-violet-50">
+        <td class="p-3 font-bold" data-l="الشهر"><%= r.label %></td>
+        <td class="p-3" data-l="المستحق"><bdi><%= money(r.billed) %></bdi></td>
+        <td class="p-3 text-emerald-700" data-l="المحصّل"><bdi><%= money(r.paid) %></bdi></td>
+        <td class="p-3" data-l="نسبة التحصيل">
+          <% if (r.rate === null) { %><span class="text-slate-400 text-xs">مفيش فواتير</span>
+          <% } else { %>
+            <div class="flex items-center gap-2">
+              <div class="flex-1 h-2 bg-violet-100 rounded-full overflow-hidden min-w-[60px]">
+                <div class="h-full <%= r.rate >= 80 ? 'bg-emerald-500' : r.rate >= 50 ? 'bg-amber-500' : 'bg-rose-500' %>"
+                  style="width:<%= Math.min(100, r.rate) %>%"></div>
+              </div>
+              <b class="text-xs"><%= r.rate %>%</b>
+            </div>
+          <% } %>
+        </td>
+        <td class="p-3" data-l="نسبة الحضور">
+          <% if (r.attendance === null) { %><span class="text-slate-400 text-xs">مفيش تسجيل</span>
+          <% } else { %><b><%= r.attendance %>%</b><% } %>
+        </td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+<%- include('foot') %>

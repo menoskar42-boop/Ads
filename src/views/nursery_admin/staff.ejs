@@ -1,0 +1,37 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-4">المدرّسين والمشرفين</h1>
+
+<% if (rows.length) { %>
+  <table class="rt w-full bg-white rounded-2xl border border-violet-100 text-sm overflow-hidden mb-6">
+    <thead class="bg-violet-50 text-brand-800 text-xs">
+      <tr><th class="text-start p-3">الاسم</th><th class="text-start p-3">الوظيفة</th>
+          <th class="text-start p-3">التليفون</th><th class="text-start p-3">ملاحظات</th></tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function(s){ %>
+        <tr class="border-t border-violet-50 <%= s.is_active ? '' : 'opacity-50' %>">
+          <td class="p-3 font-bold" data-l="الاسم"><%= s.name %></td>
+          <td class="p-3 text-slate-600" data-l="الوظيفة"><%= s.role || '—' %></td>
+          <td class="p-3 text-slate-600" data-l="التليفون"><span dir="ltr"><%= s.phone || '—' %></span></td>
+          <td class="p-3 text-slate-500 text-xs" data-l="ملاحظات"><%= s.note || '' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } else { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm mb-6">
+    مفيش مدرّسين مسجّلين.
+  </div>
+<% } %>
+
+<section class="bg-white rounded-2xl border border-violet-100 p-5">
+  <h2 class="font-black text-lg mb-3">إضافة</h2>
+  <form method="post" action="/nursery/staff" class="grid sm:grid-cols-4 gap-3 text-sm">
+    <input name="name" required placeholder="الاسم *" class="border border-violet-200 rounded-xl px-3 py-2" />
+    <input name="role" placeholder="مدرّسة / مشرفة / سواق" class="border border-violet-200 rounded-xl px-3 py-2" />
+    <input name="phone" dir="ltr" placeholder="التليفون" class="border border-violet-200 rounded-xl px-3 py-2" />
+    <input name="note" placeholder="ملاحظات" class="border border-violet-200 rounded-xl px-3 py-2" />
+    <div class="sm:col-span-4"><button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3">حفظ</button></div>
+  </form>
+</section>
+<%- include('foot') %>

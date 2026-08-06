@@ -1,0 +1,96 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">مصاريف <%= F.periodLabel(period) %></h1>
+  <div class="ms-auto flex gap-2 text-sm">
+    <a href="/nursery/fees?period=<%= prev %>" class="bg-white border border-violet-200 rounded-xl px-3 py-2">← <%= F.periodLabel(prev) %></a>
+    <a href="/nursery/fees?period=<%= next %>" class="bg-white border border-violet-200 rounded-xl px-3 py-2"><%= F.periodLabel(next) %> →</a>
+  </div>
+</div>
+
+<% if (error) { %><div class="bg-rose-50 text-rose-800 rounded-xl px-4 py-2 text-sm mb-4"><%= error %></div><% } %>
+<% if (generated !== null && generated !== undefined) { %>
+  <div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-2 text-sm mb-4">
+    <% if (generated > 0) { %>اتعمل <b><%= generated %></b> فاتورة جديدة.
+    <% } else { %>مفيش فواتير جديدة — الشهر ده متعمول قبل كده. الأرقام تحت زي ما هي، مفيش حاجة اتكررت.<% } %>
+  </div>
+<% } %>
+
+<div class="grid sm:grid-cols-3 gap-3 mb-5">
+  <div class="bg-white rounded-2xl border border-violet-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">مستحق الشهر ده</div>
+    <div class="text-xl font-black mt-1"><bdi><%= money(totals.billed) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-violet-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">إجمالي المتأخر (كل الشهور)</div>
+    <div class="text-xl font-black text-rose-600 mt-1"><bdi><%= money(totals.due) %></bdi></div>
+  </div>
+  <form method="post" action="/nursery/fees/generate" class="bg-brand-700 text-white rounded-2xl p-4">
+    <input type="hidden" name="period" value="<%= period %>" />
+    <div class="text-xs font-bold text-violet-200">مستني فاتورة</div>
+    <div class="text-xl font-black mt-1"><%= pending %></div>
+    <button class="w-full mt-2 bg-white text-brand-800 font-bold rounded-xl py-2 text-sm">
+      اعمل فواتير <%= F.periodLabel(period) %>
+    </button>
+    <%# Pressing this twice is safe by construction — the unique index makes the
+        second press a no-op and the banner above says so out loud. %>
+    <p class="text-[11px] text-violet-200 mt-2 leading-snug">آمن تضغطه أكتر من مرة — مش هيتعمل فاتورة مكررة لأي حد.</p>
+  </form>
+</div>
+
+<% if (!list.length) { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm">
+    مفيش <%= W.children %> مقيّدين لسه.
+  </div>
+<% } else { %>
+  <table class="rt w-full bg-white rounded-2xl border border-violet-100 text-sm overflow-hidden">
+    <thead class="bg-violet-50 text-brand-800 text-xs">
+      <tr>
+        <th class="text-start p-3">الاسم</th>
+        <th class="text-start p-3">مصاريف الشهر</th>
+        <th class="text-start p-3">فاتورة الشهر</th>
+        <th class="text-start p-3">المتأخر الكلي</th>
+        <th class="text-start p-3">تحصيل</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% list.forEach(function(r){ %>
+        <tr class="border-t border-violet-50">
+          <td class="p-3" data-l="الاسم">
+            <a href="/nursery/children/<%= r.id %>" class="font-bold text-brand-800"><%= r.name %></a>
+            <% if (r.group_name) { %><span class="text-xs text-slate-400 block"><%= r.group_name %></span><% } %>
+          </td>
+          <td class="p-3" data-l="مصاريف الشهر">
+            <bdi><%= money(r.fee.net) %></bdi>
+            <% if (r.fee.discount > 0) { %><span class="text-xs text-emerald-600 block">بعد خصم <bdi><%= money(r.fee.discount) %></bdi></span><% } %>
+          </td>
+          <td class="p-3" data-l="فاتورة الشهر">
+            <% if (r.invoice_id) { %><span class="text-xs text-emerald-700 font-bold">اتعملت</span>
+            <% } else if (!r.billable) { %><span class="text-xs text-slate-400">مش عليه الشهر ده</span>
+            <% } else { %><span class="text-xs text-amber-600 font-bold">لسه</span><% } %>
+          </td>
+          <td class="p-3" data-l="المتأخر الكلي">
+            <% if (r.a && r.a.due > 0) { %>
+              <b class="<%= r.a.lateMonths ? 'text-rose-600' : 'text-amber-600' %>"><bdi><%= money(r.a.due) %></bdi></b>
+              <% if (r.a.lateMonths) { %><span class="text-xs text-rose-500 block"><%= r.a.lateMonths %> شهر</span><% } %>
+            <% } else { %><span class="text-emerald-600 text-xs font-bold">مسدّد</span><% } %>
+          </td>
+          <td class="p-3" data-l="تحصيل">
+            <% if (r.a && r.a.due > 0) { %>
+              <form method="post" action="/nursery/payments" class="flex gap-1">
+                <input type="hidden" name="child_id" value="<%= r.id %>" />
+                <input type="hidden" name="back" value="/nursery/fees?period=<%= period %>" />
+                <input name="amount" type="number" min="0" step="0.01" dir="ltr" value="<%= r.a.due %>"
+                  class="w-24 border border-violet-200 rounded-lg px-2 py-1.5 text-xs" />
+                <button class="bg-emerald-600 text-white text-xs font-bold rounded-lg px-3">دفع</button>
+              </form>
+            <% } else { %>—<% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+<%- include('foot') %>

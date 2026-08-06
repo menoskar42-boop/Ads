@@ -1,0 +1,51 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+%>
+<h1 class="font-black text-xl mb-4"><%= W.groups %></h1>
+
+<% if (rows.length) { %>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+    <% rows.forEach(function(g){ %>
+      <div class="bg-white rounded-2xl border border-violet-100 p-4">
+        <div class="font-black"><%= g.name %></div>
+        <% if (g.teacher) { %><div class="text-xs text-slate-500 mt-0.5">👩‍🏫 <%= g.teacher %></div><% } %>
+        <% if (g.schedule) { %><div class="text-xs text-slate-500 mt-0.5">🕒 <%= g.schedule %></div><% } %>
+        <div class="text-sm mt-2">
+          <a href="/nursery/children?group=<%= g.id %>" class="text-brand-700 font-bold"><%= g.kids %> <%= W.child %></a>
+          <% if (g.capacity) { %><span class="text-slate-400 text-xs"> من <%= g.capacity %></span><% } %>
+        </div>
+        <% if (Number(g.monthly_fee) > 0) { %>
+          <div class="text-xs text-slate-600 mt-1">المصاريف: <bdi><%= money(g.monthly_fee) %></bdi> شهرياً</div>
+        <% } %>
+      </div>
+    <% }) %>
+  </div>
+<% } else { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm mb-6">
+    مفيش <%= W.groups %> لسه.
+  </div>
+<% } %>
+
+<section class="bg-white rounded-2xl border border-violet-100 p-5">
+  <h2 class="font-black text-lg mb-1">إضافة <%= W.group %></h2>
+  <p class="text-xs text-slate-500 mb-4">
+    المصاريف اللي هنا بتبقى السعر الافتراضي لأي <%= W.child %> في <%= W.group %> — إلا لو ليه سعر خاص.
+  </p>
+  <form method="post" action="/nursery/groups" class="grid sm:grid-cols-3 gap-3 text-sm">
+    <label class="block"><span class="text-xs font-bold text-slate-500">الاسم *</span>
+      <input name="name" required class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">المدرّس</span>
+      <input name="teacher" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">المواعيد</span>
+      <input name="schedule" placeholder="سبت وثلاثاء ٥ م" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">السعة</span>
+      <input name="capacity" type="number" min="0" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">المصاريف الشهرية</span>
+      <input name="monthly_fee" type="number" min="0" step="0.01" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">الترتيب</span>
+      <input name="sort_order" type="number" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <div class="sm:col-span-3"><button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3">حفظ</button></div>
+  </form>
+</section>
+<%- include('foot') %>

@@ -1,0 +1,112 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+%>
+<%# The one question a nursery manager cannot answer and pays to have answered.
+    It is the biggest thing on the screen on purpose. %>
+<div class="grid sm:grid-cols-3 gap-3 mb-5">
+  <a href="/nursery/reminders" class="sm:col-span-2 bg-gradient-to-br from-brand-700 to-brand-900 text-white rounded-2xl p-5 block">
+    <div class="text-xs font-bold text-violet-200">المتأخر عندك دلوقتي</div>
+    <div class="text-4xl font-black mt-1"><bdi><%= money(stats.owed) %></bdi> <span class="text-lg font-bold text-violet-200">جنيه</span></div>
+    <div class="text-sm text-violet-100 mt-2">
+      <% if (stats.lateFamilies) { %>
+        عند <b><%= stats.lateFamilies %></b> <%= W.guardian %> فات ميعاد سدادهم — اضغط تشوف الرسائل الجاهزة.
+      <% } else { %>
+        مفيش حد فات عليه ميعاد. تمام كده.
+      <% } %>
+    </div>
+  </a>
+  <div class="grid grid-cols-2 sm:grid-cols-1 gap-3">
+    <div class="bg-white rounded-2xl border border-violet-100 p-4">
+      <div class="text-xs text-slate-500 font-semibold">تحصيل <%= periodLabel %></div>
+      <div class="text-xl font-black text-emerald-700 mt-1"><bdi><%= money(stats.collected) %></bdi></div>
+    </div>
+    <a href="/nursery/children" class="bg-white rounded-2xl border border-violet-100 p-4 hover:border-brand-300">
+      <div class="text-xs text-slate-500 font-semibold"><%= W.children %> بالمكان</div>
+      <div class="text-xl font-black mt-1"><%= stats.active %></div>
+    </a>
+  </div>
+</div>
+
+<div class="grid sm:grid-cols-3 gap-3 mb-6 text-sm">
+  <% if (flags.has('attendance')) { %>
+    <a href="/nursery/attendance" class="bg-white rounded-2xl border border-violet-100 p-4 hover:border-brand-300">
+      <span class="text-lg">✅</span>
+      <div class="font-black mt-1">نداء الحضور</div>
+      <div class="text-xs text-slate-500 mt-0.5">
+        <% if (stats.absentToday) { %><span class="text-rose-600 font-bold"><%= stats.absentToday %> غايب النهاردة</span>
+        <% } else { %>سجّل حضور النهاردة<% } %>
+      </div>
+    </a>
+  <% } %>
+  <a href="/nursery/fees" class="bg-white rounded-2xl border border-violet-100 p-4 hover:border-brand-300">
+    <span class="text-lg">💰</span>
+    <div class="font-black mt-1">مصاريف <%= periodLabel %></div>
+    <div class="text-xs text-slate-500 mt-0.5">اعمل فواتير الشهر وسجّل اللي دفع</div>
+  </a>
+  <% if (flags.has('enquiries')) { %>
+    <a href="/nursery/enquiries" class="bg-white rounded-2xl border border-violet-100 p-4 hover:border-brand-300">
+      <span class="text-lg">📥</span>
+      <div class="font-black mt-1">طلبات التحاق</div>
+      <div class="text-xs text-slate-500 mt-0.5">
+        <% if (stats.newEnq) { %><span class="text-brand-700 font-bold"><%= stats.newEnq %> جديد</span><% } else { %>مفيش جديد<% } %>
+      </div>
+    </a>
+  <% } %>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div>
+    <h2 class="font-black text-lg mb-3">متأخرين في المصاريف</h2>
+    <% if (!late.length) { %>
+      <div class="bg-white rounded-2xl border border-violet-100 p-6 text-center text-slate-400 text-sm">
+        محدش متأخر. لو ده مش صح، ابدأ من صفحة المصاريف واعمل فواتير الشهر.
+      </div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% late.forEach(function(k){ %>
+          <a href="/nursery/children/<%= k.id %>" class="block bg-white rounded-2xl border border-violet-100 p-4 text-sm hover:border-brand-300">
+            <div class="flex justify-between gap-2 flex-wrap items-center">
+              <span class="font-bold"><%= k.name %></span>
+              <span class="font-black text-rose-600"><bdi><%= money(k.a.due) %></bdi></span>
+            </div>
+            <div class="text-slate-500 text-xs mt-1">
+              متأخر <%= k.a.lateMonths %> شهر<% if (k.a.oldestUnpaidLabel) { %> — من <%= k.a.oldestUnpaidLabel %><% } %>
+              <% if (k.guardian_name) { %> · <%= k.guardian_name %><% } %>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+      <a href="/nursery/reminders" class="block text-center mt-3 bg-brand-700 text-white font-bold rounded-xl py-3 text-sm">
+        📲 ابعت التذكيرات
+      </a>
+    <% } %>
+  </div>
+
+  <div>
+    <h2 class="font-black text-lg mb-3">غياب النهاردة</h2>
+    <% if (!absent.length) { %>
+      <div class="bg-white rounded-2xl border border-violet-100 p-6 text-center text-slate-400 text-sm">
+        مفيش غياب مسجّل النهاردة.
+      </div>
+    <% } else { %>
+      <div class="space-y-2">
+        <% absent.forEach(function(a){
+             var wa = F.waLink(a.guardian_whatsapp || a.guardian_phone,
+               a.name + ' مجاش النهاردة. كل حاجة تمام؟'); %>
+          <div class="bg-white rounded-2xl border border-violet-100 p-4 text-sm">
+            <div class="flex justify-between gap-2 items-center flex-wrap">
+              <span class="font-bold"><%= a.name %></span>
+              <% if (wa) { %>
+                <a href="<%= wa %>" target="_blank" rel="noopener"
+                  class="bg-emerald-500 text-white text-xs font-bold rounded-lg px-3 py-1.5">اطمن على <%= W.child %></a>
+              <% } %>
+            </div>
+            <% if (a.guardian_name) { %><div class="text-slate-500 text-xs mt-1"><%= a.guardian_name %></div><% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>
+<%- include('foot') %>

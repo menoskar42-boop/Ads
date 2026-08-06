@@ -1,0 +1,112 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  var SL = { active:'مقيّد', paused:'موقوف مؤقتاً', left:'خرج' };
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl"><%= W.children %></h1>
+  <a href="#add" class="ms-auto bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm">+ إضافة <%= W.child %></a>
+</div>
+
+<form class="flex flex-wrap gap-2 mb-4 text-sm">
+  <input name="q" value="<%= q || '' %>" placeholder="ابحث بالاسم أو رقم <%= W.guardian %>"
+    class="border border-violet-200 rounded-xl px-3 py-2 flex-1 min-w-[180px]" />
+  <select name="status" class="border border-violet-200 rounded-xl px-3 py-2">
+    <% ['active','paused','left'].forEach(function(s){ %>
+      <option value="<%= s %>" <%= status===s?'selected':'' %>><%= SL[s] %></option>
+    <% }) %>
+  </select>
+  <select name="group" class="border border-violet-200 rounded-xl px-3 py-2">
+    <option value="">كل <%= W.groups %></option>
+    <% groups.forEach(function(g){ %>
+      <option value="<%= g.id %>" <%= String(groupId)===String(g.id)?'selected':'' %>><%= g.name %></option>
+    <% }) %>
+  </select>
+  <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-4 py-2">بحث</button>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm mb-6">
+    مفيش <%= W.children %> هنا.
+  </div>
+<% } else { %>
+  <table class="rt w-full bg-white rounded-2xl border border-violet-100 text-sm overflow-hidden mb-6">
+    <thead class="bg-violet-50 text-brand-800 text-xs">
+      <tr>
+        <th class="text-start p-3">الاسم</th>
+        <th class="text-start p-3">السن</th>
+        <th class="text-start p-3"><%= W.group %></th>
+        <th class="text-start p-3"><%= W.guardian %></th>
+        <th class="text-start p-3">المتأخر</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function(r){ %>
+        <tr class="border-t border-violet-50">
+          <td class="p-3" data-l="الاسم">
+            <a href="/nursery/children/<%= r.id %>" class="font-bold text-brand-800"><%= r.name %></a>
+            <% if (r.allergies) { %><span class="text-xs bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 ms-1">حساسية</span><% } %>
+          </td>
+          <td class="p-3 text-slate-600" data-l="السن"><%= F.ageLabel(r.birth_date) || '—' %></td>
+          <td class="p-3 text-slate-600" data-l="<%= W.group %>"><%= r.group_name || '—' %></td>
+          <td class="p-3 text-slate-600" data-l="<%= W.guardian %>">
+            <%= r.guardian_name || '—' %>
+            <% if (r.guardian_phone) { %><span class="text-xs text-slate-400 block" dir="ltr"><%= r.guardian_phone %></span><% } %>
+          </td>
+          <td class="p-3" data-l="المتأخر">
+            <% if (r.a && r.a.due > 0) { %>
+              <b class="<%= r.a.lateMonths ? 'text-rose-600' : 'text-amber-600' %>"><bdi><%= money(r.a.due) %></bdi></b>
+              <% if (r.a.lateMonths) { %><span class="text-xs text-rose-500 block"><%= r.a.lateMonths %> شهر متأخر</span><% } %>
+            <% } else { %><span class="text-emerald-600 text-xs font-bold">مسدّد</span><% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+<% } %>
+
+<section id="add" class="bg-white rounded-2xl border border-violet-100 p-5">
+  <h2 class="font-black text-lg mb-1">إضافة <%= W.child %></h2>
+  <p class="text-slate-500 text-xs mb-4">
+    لو <%= W.guardian %> مش مسجّل، اكتب اسمه ورقمه هنا وهيتسجّل معاه على طول.
+  </p>
+  <form method="post" action="/nursery/children" class="grid sm:grid-cols-3 gap-3 text-sm">
+    <label class="block"><span class="text-xs font-bold text-slate-500">الاسم *</span>
+      <input name="name" required class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ الميلاد</span>
+      <input name="birth_date" type="date" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500"><%= W.group %></span>
+      <select name="group_id" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1">
+        <option value="">—</option>
+        <% groups.forEach(function(g){ %><option value="<%= g.id %>"><%= g.name %></option><% }) %>
+      </select></label>
+
+    <label class="block"><span class="text-xs font-bold text-slate-500"><%= W.guardian %> المسجّل</span>
+      <select name="guardian_id" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1">
+        <option value="">— جديد —</option>
+        <% guardians.forEach(function(g){ %><option value="<%= g.id %>"><%= g.name %></option><% }) %>
+      </select></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">أو اسم <%= W.guardian %> الجديد</span>
+      <input name="guardian_name" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">رقم واتساب <%= W.guardian %></span>
+      <input name="guardian_phone" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <label class="block"><span class="text-xs font-bold text-slate-500">المصاريف الشهرية</span>
+      <input name="monthly_fee" type="number" min="0" step="0.01" dir="ltr" placeholder="سيبها فاضية = سعر <%= W.group %>"
+        class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">خصم ثابت</span>
+      <input name="discount" type="number" min="0" step="0.01" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ القيد</span>
+      <input name="enrolled_on" type="date" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">حساسية أو دواء</span>
+      <input name="allergies" placeholder="مهم — بيظهر في نداء الحضور" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+    <label class="block"><span class="text-xs font-bold text-slate-500">رقم للطوارئ</span>
+      <input name="emergency_phone" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+    <div class="sm:col-span-3">
+      <button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3">حفظ</button>
+    </div>
+  </form>
+</section>
+<%- include('foot') %>

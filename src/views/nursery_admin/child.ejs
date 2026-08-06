@@ -1,0 +1,270 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v ? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
+  var SL = { active:'مقيّد', paused:'موقوف مؤقتاً', left:'خرج' };
+  var AL = { present:'حاضر', absent:'غايب', late:'اتأخر', excused:'بعذر' };
+%>
+<% if (saved) { %><div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-2 text-sm mb-4">اتحفظ.</div><% } %>
+
+<div class="flex items-start gap-3 flex-wrap mb-5">
+  <div>
+    <h1 class="font-black text-2xl"><%= child.name %></h1>
+    <div class="text-slate-500 text-sm mt-1">
+      <%= F.ageLabel(child.birth_date) || 'السن غير مسجّل' %>
+      <% if (child.group_name) { %> · <%= child.group_name %><% } %>
+      · <%= SL[child.status] || child.status %>
+    </div>
+  </div>
+  <a href="/nursery/children" class="ms-auto text-sm text-brand-700 font-bold">← <%= W.children %></a>
+</div>
+
+<% if (child.allergies || child.medical_note) { %>
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5 text-sm">
+    <div class="font-black text-amber-900 mb-1">⚠️ ملاحظات طبية</div>
+    <% if (child.allergies) { %><div class="text-amber-900">حساسية: <%= child.allergies %></div><% } %>
+    <% if (child.medical_note) { %><div class="text-amber-800 mt-0.5"><%= child.medical_note %></div><% } %>
+    <% if (child.emergency_phone) { %><div class="text-amber-800 mt-0.5">طوارئ: <span dir="ltr"><%= child.emergency_phone %></span></div><% } %>
+  </div>
+<% } %>
+
+<%# The money, first and plainly. %>
+<div class="grid sm:grid-cols-3 gap-3 mb-6">
+  <div class="bg-white rounded-2xl border border-violet-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">إجمالي المستحق</div>
+    <div class="text-xl font-black mt-1"><bdi><%= money(a.billed) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-violet-100 p-4">
+    <div class="text-xs text-slate-500 font-semibold">اللي دفعه</div>
+    <div class="text-xl font-black text-emerald-700 mt-1"><bdi><%= money(a.paid) %></bdi></div>
+  </div>
+  <div class="bg-white rounded-2xl border <%= a.due > 0 ? 'border-rose-200' : 'border-violet-100' %> p-4">
+    <div class="text-xs text-slate-500 font-semibold">المتبقّي</div>
+    <div class="text-xl font-black <%= a.due > 0 ? 'text-rose-600' : 'text-emerald-700' %> mt-1"><bdi><%= money(a.due) %></bdi></div>
+    <% if (a.lateMonths) { %><div class="text-xs text-rose-500 mt-0.5">متأخر <%= a.lateMonths %> شهر</div><% } %>
+    <% if (a.credit > 0) { %><div class="text-xs text-emerald-600 mt-0.5">دفع زيادة <bdi><%= money(a.credit) %></bdi></div><% } %>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <div class="space-y-6">
+    <%# Record a payment ------------------------------------------------- %>
+    <section class="bg-white rounded-2xl border border-violet-100 p-5">
+      <h2 class="font-black text-lg mb-3">تسجيل دفعة</h2>
+      <form method="post" action="/nursery/payments" class="grid sm:grid-cols-2 gap-3 text-sm">
+        <input type="hidden" name="child_id" value="<%= child.id %>" />
+        <input type="hidden" name="back" value="/nursery/children/<%= child.id %>" />
+        <label class="block"><span class="text-xs font-bold text-slate-500">المبلغ *</span>
+          <input name="amount" type="number" min="0" step="0.01" required dir="ltr"
+            value="<%= a.due > 0 ? a.due : '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الطريقة</span>
+          <select name="method" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1">
+            <option value="cash">كاش</option>
+            <option value="instapay">إنستاباي</option>
+            <option value="wallet">محفظة</option>
+            <option value="bank">تحويل بنكي</option>
+          </select></label>
+        <input name="note" placeholder="ملاحظة" class="sm:col-span-2 border border-violet-200 rounded-xl px-3 py-2" />
+        <div class="sm:col-span-2"><button class="bg-emerald-600 text-white font-bold rounded-xl px-6 py-2.5">سجّل الدفعة</button></div>
+      </form>
+    </section>
+
+    <%# The ledger. Oldest-first allocation means the open months listed here are
+        exactly the months the reminder message names. %>
+    <section class="bg-white rounded-2xl border border-violet-100 p-5">
+      <h2 class="font-black text-lg mb-3">كشف الحساب</h2>
+      <% if (!invoices.length) { %>
+        <p class="text-slate-400 text-sm">مفيش فواتير لسه. اعمل فواتير الشهر من صفحة المصاريف.</p>
+      <% } else { %>
+        <table class="w-full text-sm">
+          <tbody>
+            <% invoices.forEach(function(i){
+                 var net = Number(i.amount||0) - Number(i.discount||0);
+                 var open = a.open.filter(function(o){ return o.period === i.period; })[0]; %>
+              <tr class="border-b border-violet-50 <%= i.cancelled ? 'opacity-40 line-through' : '' %>">
+                <td class="py-2">
+                  <%= F.periodLabel(i.period) %>
+                  <% if (i.kind !== 'monthly') { %><span class="text-xs text-slate-400"><%= i.note || 'إضافي' %></span><% } %>
+                  <div class="text-xs text-slate-400">استحقاق <%= d(i.due_on) %></div>
+                </td>
+                <td class="py-2 text-end"><bdi><%= money(net) %></bdi></td>
+                <td class="py-2 text-end w-24">
+                  <% if (i.cancelled) { %><span class="text-xs text-slate-400">ملغاة</span>
+                  <% } else if (open) { %><span class="text-xs text-rose-600 font-bold">باقي <bdi><%= money(open.remaining) %></bdi></span>
+                  <% } else { %><span class="text-xs text-emerald-600 font-bold">مسدّدة</span><% } %>
+                </td>
+                <td class="py-2 text-end">
+                  <% if (!i.cancelled) { %>
+                    <form method="post" action="/nursery/fees/<%= i.id %>/cancel"
+                      onsubmit="return confirm('إلغاء الفاتورة دي؟')">
+                      <button class="text-xs text-slate-400 hover:text-rose-600">إلغاء</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+
+      <% if (payments.length) { %>
+        <h3 class="font-bold text-sm mt-5 mb-2 text-slate-600">الدفعات</h3>
+        <ul class="text-sm space-y-1">
+          <% payments.forEach(function(p){ %>
+            <li class="flex justify-between border-b border-violet-50 py-1.5">
+              <span class="text-slate-500 text-xs"><%= d(p.paid_at) %> · <%= p.method %><% if (p.note) { %> · <%= p.note %><% } %></span>
+              <b class="text-emerald-700"><bdi><%= money(p.amount) %></bdi></b>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+
+      <details class="mt-5">
+        <summary class="text-sm font-bold text-brand-700 cursor-pointer">إضافة مبلغ خارج المصاريف الشهرية</summary>
+        <form method="post" action="/nursery/fees/charge" class="grid sm:grid-cols-2 gap-3 text-sm mt-3">
+          <input type="hidden" name="child_id" value="<%= child.id %>" />
+          <label class="block"><span class="text-xs font-bold text-slate-500">المبلغ *</span>
+            <input name="amount" type="number" min="0" step="0.01" required dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+          <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ الاستحقاق</span>
+            <input name="due_on" type="date" dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+          <input name="note" placeholder="رحلة، زي مدرسة، كتب…" class="sm:col-span-2 border border-violet-200 rounded-xl px-3 py-2" />
+          <div class="sm:col-span-2"><button class="bg-brand-700 text-white font-bold rounded-xl px-6 py-2.5">إضافة</button></div>
+        </form>
+      </details>
+    </section>
+
+    <% if (a.due > 0) { %>
+      <section class="bg-white rounded-2xl border border-violet-100 p-5">
+        <h2 class="font-black text-lg mb-2">رسالة التذكير</h2>
+        <p class="text-xs text-slate-500 mb-3">الرسالة مكتوبة جاهزة — إنت بتراجعها وتبعتها من واتسابك.</p>
+        <pre class="bg-violet-50 rounded-xl p-3 text-xs whitespace-pre-wrap leading-relaxed"><%= msg %></pre>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <% if (wa) { %>
+            <a href="<%= wa %>" target="_blank" rel="noopener"
+              class="bg-emerald-500 text-white font-bold rounded-xl px-5 py-2.5 text-sm">افتح واتساب</a>
+          <% } else { %>
+            <span class="text-xs text-slate-400 self-center">مفيش رقم واتساب لـ<%= W.guardian %>.</span>
+          <% } %>
+          <form method="post" action="/nursery/reminders/<%= child.id %>/sent">
+            <input type="hidden" name="amount" value="<%= a.due %>" />
+            <input type="hidden" name="body" value="<%= msg %>" />
+            <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-5 py-2.5 text-sm">سجّل إني بعتّها</button>
+          </form>
+        </div>
+        <% if (reminders.length) { %>
+          <p class="text-xs text-slate-400 mt-3">آخر تذكير: <%= d(reminders[0].sent_at) %></p>
+        <% } %>
+      </section>
+    <% } %>
+  </div>
+
+  <div class="space-y-6">
+    <%# Who may collect the child. %>
+    <section class="bg-white rounded-2xl border border-violet-100 p-5">
+      <h2 class="font-black text-lg mb-1">مصرّح لهم الاستلام</h2>
+      <p class="text-xs text-slate-500 mb-3">مين غير <%= W.guardian %> يقدر يستلم <%= W.child %>.</p>
+      <% if (pickups.length) { %>
+        <ul class="text-sm space-y-2 mb-4">
+          <% pickups.forEach(function(p){ %>
+            <li class="flex items-center gap-2 border-b border-violet-50 pb-2">
+              <span class="font-bold"><%= p.name %></span>
+              <span class="text-xs text-slate-500"><%= p.relation || '' %><% if (p.phone) { %> · <span dir="ltr"><%= p.phone %></span><% } %></span>
+              <form method="post" action="/nursery/children/<%= child.id %>/pickup/<%= p.id %>/remove" class="ms-auto">
+                <button class="text-xs text-slate-400 hover:text-rose-600">شيله</button>
+              </form>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p class="text-slate-400 text-sm mb-4">محدش غير <%= W.guardian %>.</p>
+      <% } %>
+      <form method="post" action="/nursery/children/<%= child.id %>/pickup" class="grid grid-cols-2 gap-2 text-sm">
+        <input name="name" required placeholder="الاسم" class="border border-violet-200 rounded-xl px-3 py-2" />
+        <input name="relation" placeholder="صلة القرابة" class="border border-violet-200 rounded-xl px-3 py-2" />
+        <input name="phone" dir="ltr" placeholder="التليفون" class="border border-violet-200 rounded-xl px-3 py-2" />
+        <input name="national_id" dir="ltr" placeholder="الرقم القومي" class="border border-violet-200 rounded-xl px-3 py-2" />
+        <div class="col-span-2"><button class="bg-brand-700 text-white font-bold rounded-xl px-5 py-2">إضافة</button></div>
+      </form>
+    </section>
+
+    <%# The record itself. %>
+    <section class="bg-white rounded-2xl border border-violet-100 p-5">
+      <h2 class="font-black text-lg mb-3">بيانات <%= W.child %></h2>
+      <form method="post" action="/nursery/children/<%= child.id %>" class="grid sm:grid-cols-2 gap-3 text-sm">
+        <label class="block"><span class="text-xs font-bold text-slate-500">الاسم</span>
+          <input name="name" value="<%= child.name %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ الميلاد</span>
+          <input name="birth_date" type="date" dir="ltr" value="<%= F.ymd(child.birth_date) || '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500"><%= W.group %></span>
+          <select name="group_id" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1">
+            <option value="">—</option>
+            <% groups.forEach(function(g){ %>
+              <option value="<%= g.id %>" <%= String(child.group_id)===String(g.id)?'selected':'' %>><%= g.name %></option>
+            <% }) %>
+          </select></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500"><%= W.guardian %></span>
+          <select name="guardian_id" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1">
+            <option value="">—</option>
+            <% guardians.forEach(function(g){ %>
+              <option value="<%= g.id %>" <%= String(child.guardian_id)===String(g.id)?'selected':'' %>><%= g.name %></option>
+            <% }) %>
+          </select></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">المصاريف الشهرية</span>
+          <input name="monthly_fee" type="number" min="0" step="0.01" dir="ltr"
+            value="<%= child.monthly_fee == null ? '' : child.monthly_fee %>"
+            placeholder="فاضية = <%= money(fee.amount) %> من <%= W.group %>"
+            class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">خصم ثابت</span>
+          <input name="discount" type="number" min="0" step="0.01" dir="ltr" value="<%= child.discount %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">الحالة</span>
+          <select name="status" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1">
+            <% ['active','paused','left'].forEach(function(s){ %>
+              <option value="<%= s %>" <%= child.status===s?'selected':'' %>><%= SL[s] %></option>
+            <% }) %>
+          </select></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ الخروج</span>
+          <input name="left_on" type="date" dir="ltr" value="<%= F.ymd(child.left_on) || '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <input type="hidden" name="enrolled_on" value="<%= F.ymd(child.enrolled_on) || '' %>" />
+        <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">حساسية</span>
+          <input name="allergies" value="<%= child.allergies || '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">ملاحظة طبية</span>
+          <input name="medical_note" value="<%= child.medical_note || '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">رقم الطوارئ</span>
+          <input name="emergency_phone" dir="ltr" value="<%= child.emergency_phone || '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">ملاحظات</span>
+          <input name="note" value="<%= child.note || '' %>" class="w-full border border-violet-200 rounded-xl px-3 py-2 mt-1" /></label>
+        <div class="sm:col-span-2"><button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-2.5">حفظ</button></div>
+      </form>
+    </section>
+
+    <% if (attendance.length) { %>
+      <section class="bg-white rounded-2xl border border-violet-100 p-5">
+        <h2 class="font-black text-lg mb-3">آخر أيام الحضور</h2>
+        <div class="flex flex-wrap gap-1.5">
+          <% attendance.forEach(function(x){
+               var c = x.status==='present' ? 'bg-emerald-100 text-emerald-800'
+                     : x.status==='absent' ? 'bg-rose-100 text-rose-700'
+                     : x.status==='late' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'; %>
+            <span class="<%= c %> rounded-lg px-2 py-1 text-xs"><%= d(x.day) %> · <%= AL[x.status] || x.status %></span>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+
+    <% if (reports.length) { %>
+      <section class="bg-white rounded-2xl border border-violet-100 p-5">
+        <h2 class="font-black text-lg mb-3">آخر الأخبار اليومية</h2>
+        <ul class="text-sm space-y-2">
+          <% reports.forEach(function(r){ %>
+            <li class="border-b border-violet-50 pb-2">
+              <div class="text-xs text-slate-400"><%= d(r.day) %></div>
+              <div><%= [r.mood, r.ate, r.slept].filter(Boolean).join(' · ') %></div>
+              <% if (r.body) { %><div class="text-slate-600 text-xs mt-0.5"><%= r.body %></div><% } %>
+            </li>
+          <% }) %>
+        </ul>
+      </section>
+    <% } %>
+  </div>
+</div>
+<%- include('foot') %>

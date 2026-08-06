@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= title %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
+    // Violet — unused by the other verticals, so a manager who also runs a shop
+    // knows which system she is in from the colour alone.
+    colors: { brand: { 50:'#f5f3ff',100:'#ede9fe',200:'#ddd6fe',300:'#c4b5fd',400:'#a78bfa',500:'#8b5cf6',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6',900:'#4c1d95' } }
+  } } };
+</script>
+<style>
+  body{font-family:'Cairo',sans-serif}
+  @media (max-width: 639px) {
+    table.rt, table.rt tbody, table.rt tr, table.rt td { display:block; width:100%; }
+    table.rt thead { display:none; }
+    table.rt tr { background:#fff; border:1px solid #ede9fe; border-radius:1rem; padding:.5rem .75rem; margin-bottom:.6rem; }
+    table.rt td { display:flex; align-items:center; gap:.5rem; padding:.35rem 0 !important; border:0 !important; text-align:start !important; }
+    table.rt td::before { content: attr(data-l); flex:0 0 40%; color:#6d28d9; font-size:.7rem; font-weight:700; }
+    table.rt td:not([data-l])::before { content:none; }
+    input, select, textarea { font-size:16px !important; }
+  }
+</style>
+</head>
+<body class="bg-violet-50/40 text-slate-800 pb-16 sm:pb-0">
+<%
+  var __tab = typeof tab !== 'undefined' ? tab : '';
+  function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__tab===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
+  var __nav = (typeof nurseryNav !== 'undefined' ? nurseryNav : []);
+%>
+<header class="bg-brand-700 text-white">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <a href="/nursery" class="font-black text-lg flex items-center gap-2">
+      🧸 <span class="truncate max-w-[45vw] sm:max-w-none"><%= company.company_name %></span>
+    </a>
+    <nav class="hidden sm:flex items-center gap-1 text-sm ms-auto">
+      <a href="/nursery" class="<%= __cls('dashboard') %>">لوحة التحكم</a>
+      <% __nav.forEach(function(f){ %><a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.label %></a><% }); %>
+      <a href="/nursery/settings" class="<%= __cls('settings') %>">الإعدادات</a>
+    </nav>
+    <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
+      <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5">خروج</button>
+    </form>
+  </div>
+</header>
+<nav class="sm:hidden bg-brand-800 text-white/90 overflow-x-auto">
+  <div class="flex gap-1 px-3 py-2 text-xs whitespace-nowrap">
+    <a href="/nursery" class="<%= __cls('dashboard') %>">لوحة التحكم</a>
+    <% __nav.forEach(function(f){ %><a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.icon %> <%= f.label %></a><% }); %>
+    <a href="/nursery/settings" class="<%= __cls('settings') %>">الإعدادات</a>
+  </div>
+</nav>
+<main class="max-w-6xl mx-auto px-4 py-6">

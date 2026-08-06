@@ -1,0 +1,83 @@
+<%- include('head') %>
+<%
+  var AL = { present:'حاضر', absent:'غايب', late:'اتأخر', excused:'بعذر' };
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">نداء الحضور</h1>
+  <form class="ms-auto flex gap-2 text-sm">
+    <input name="day" type="date" dir="ltr" value="<%= day %>" class="border border-violet-200 rounded-xl px-3 py-2" />
+    <select name="group" class="border border-violet-200 rounded-xl px-3 py-2">
+      <option value="">كل <%= W.groups %></option>
+      <% groups.forEach(function(g){ %>
+        <option value="<%= g.id %>" <%= String(groupId)===String(g.id)?'selected':'' %>><%= g.name %></option>
+      <% }) %>
+    </select>
+    <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-4 py-2">عرض</button>
+  </form>
+</div>
+
+<% if (saved) { %><div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-2 text-sm mb-4">الحضور اتحفظ.</div><% } %>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm">
+    مفيش <%= W.children %> مقيّدين.
+  </div>
+<% } else { %>
+  <%# One tap per child, saved in one go. A nursery does this standing in a
+      doorway holding somebody's bag, so nothing here needs two hands. %>
+  <form method="post" action="/nursery/attendance">
+    <input type="hidden" name="day" value="<%= day %>" />
+    <input type="hidden" name="group" value="<%= groupId || '' %>" />
+    <div class="space-y-2 mb-4">
+      <% rows.forEach(function(r){ var cur = r.status || 'present'; %>
+        <div class="bg-white rounded-2xl border border-violet-100 p-3 flex items-center gap-3 flex-wrap">
+          <div class="min-w-[40%]">
+            <span class="font-bold"><%= r.name %></span>
+            <% if (r.allergies) { %>
+              <span class="text-xs bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 ms-1" title="<%= r.allergies %>">⚠️ حساسية</span>
+            <% } %>
+            <% if (r.group_name) { %><span class="text-xs text-slate-400 block"><%= r.group_name %></span><% } %>
+          </div>
+          <div class="flex gap-1 ms-auto text-xs">
+            <% ['present','late','absent','excused'].forEach(function(s){
+                 var on = cur === s;
+                 var cls = !on ? 'bg-slate-100 text-slate-500'
+                   : s==='present' ? 'bg-emerald-600 text-white'
+                   : s==='late' ? 'bg-amber-500 text-white'
+                   : s==='absent' ? 'bg-rose-600 text-white' : 'bg-slate-600 text-white'; %>
+              <label class="cursor-pointer">
+                <%# status_<id>, not status[<id>] — the body parser runs with
+                    extended:false and would leave the bracket form as a literal
+                    key the route never reads. %>
+                <input type="radio" name="status_<%= r.id %>" value="<%= s %>" <%= on?'checked':'' %> class="sr-only peer" />
+                <span class="<%= cls %> rounded-lg px-3 py-2 font-bold block peer-checked:ring-2 peer-checked:ring-brand-400"><%= AL[s] %></span>
+              </label>
+            <% }) %>
+          </div>
+          <% if (r.status && r.status !== 'absent' && !r.out_at) { %>
+            <details class="w-full">
+              <summary class="text-xs text-brand-700 font-bold cursor-pointer">تسجيل الانصراف</summary>
+              <div class="flex gap-2 mt-2 text-xs">
+                <input form="out<%= r.id %>" name="picked_by" placeholder="استلمه مين؟"
+                  class="border border-violet-200 rounded-lg px-2 py-1.5 flex-1" />
+                <button form="out<%= r.id %>" class="bg-brand-700 text-white font-bold rounded-lg px-3">انصرف</button>
+              </div>
+            </details>
+          <% } else if (r.out_at) { %>
+            <div class="w-full text-xs text-slate-400">انصرف<% if (r.picked_by) { %> مع <%= r.picked_by %><% } %></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+    <button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3 sticky bottom-4 shadow-lg">حفظ الحضور</button>
+  </form>
+
+  <%# The pickup forms live outside the roll-call form: a form inside a form is
+      not valid HTML and the browser silently drops the inner one. %>
+  <% rows.forEach(function(r){ %>
+    <form id="out<%= r.id %>" method="post" action="/nursery/attendance/<%= r.id %>/out" class="hidden">
+      <input type="hidden" name="day" value="<%= day %>" />
+    </form>
+  <% }) %>
+<% } %>
+<%- include('foot') %>

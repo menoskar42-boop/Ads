@@ -384,6 +384,22 @@ router.get('/', async (req, res) => {
     } catch (e) { /* never block render */ }
   }
 
+  // A nursery's public page is a trust page: a parent wants the ages, the hours,
+  // the groups and who teaches them before they will type a phone number. So the
+  // groups load with the page rather than sitting behind an enquiry.
+  let nurserySettings = null;
+  let nurseryGroups = [];
+  if (company.page_type === 'nursery') {
+    try {
+      nurserySettings = (await pool.query(
+        'SELECT * FROM nursery_settings WHERE company_id = $1', [company.id])).rows[0] || null;
+      nurseryGroups = (await pool.query(
+        `SELECT id, name, teacher, schedule, monthly_fee
+           FROM nursery_groups WHERE company_id=$1 AND is_active
+          ORDER BY sort_order, name LIMIT 12`, [company.id])).rows;
+    } catch (e) { /* never block render */ }
+  }
+
   let view;
   if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
@@ -393,6 +409,7 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'furniture') view = 'tenant_furniture';
   else if (company.page_type === 'workshop') view = 'tenant_workshop';
   else if (company.page_type === 'hall') view = 'tenant_hall';
+  else if (company.page_type === 'nursery') view = 'tenant_nursery';
   else if (company.page_type === 'gym') view = 'tenant_gym';
   else view = 'tenant_portfolio';
 
@@ -431,6 +448,13 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'hall') {
     const hAbout = hallSettings && hallSettings.about ? hallSettings.about.trim().length : 0;
     indexable = (descLen >= 40 || hAbout >= 60) && company.slug !== 'hall';
+  }
+  // Same gate again for a nursery: a parent landing from a search must find
+  // something that answers "who are you", and a page that says nothing is thin
+  // content whatever it is about.
+  else if (company.page_type === 'nursery') {
+    const nAbout = nurserySettings && nurserySettings.about ? nurserySettings.about.trim().length : 0;
+    indexable = (descLen >= 40 || nAbout >= 60) && company.slug !== 'nursery';
   }
   // A workshop has no catalogue to count, so the gate is the same as the
   // clinic's: does the page actually say anything? A page that cannot answer
@@ -499,6 +523,8 @@ router.get('/', async (req, res) => {
     workshopSettings,
     hallSettings,
     hallPackages,
+    nurserySettings,
+    nurseryGroups,
     enquirySent: req.query.enquired === '1',
     workshopStats,
     furnitureProducts,
@@ -1374,6 +1400,46 @@ router.post('/enquire', hallEnquiryLimiter, async (req, res) => {
     // A failed insert must not lose the family. Log it and still thank them —
     // the phone number is on the page and they will use it.
     console.error('[hall enquiry]', e.message);
+  }
+  res.redirect('/?enquired=1');
+});
+
+// ── Public enrolment enquiry from a nursery's page ───────────────────────────
+//
+// Same shape and the same protections as the hall's. Its own limiter rather
+// than a shared one, because a nursery and a hall on the same server should
+// never be able to exhaust each other's quota.
+const nurseryEnrolLimiter = _rl({
+  name: 'nursery-enrol', windowMs: 60 * 60000, max: 6,
+  keyFn: (req) => ((req.tenant && req.tenant.id) || 'n') + '|' + _cip(req),
+});
+
+router.post('/enrol', nurseryEnrolLimiter, async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'nursery') return res.redirect('/');
+  const b = req.body || {};
+
+  const bot = String(b.website || '').trim()
+    || (Number(b.ft) && Date.now() - Number(b.ft) < 2500);
+  if (bot) return res.redirect('/?enquired=1');
+
+  const clip = (v, n) => { const s2 = String(v == null ? '' : v).trim().slice(0, n); return s2 || null; };
+  const name = clip(b.name, 120);
+  const phone = clip(b.phone, 40);
+  if (!name || !phone) return res.redirect('/');
+
+  try {
+    await pool.query(
+      `INSERT INTO nursery_enquiries (company_id, name, phone, whatsapp, child_name,
+                                      child_age, interest, note, source, next_action_on)
+       VALUES ($1,$2,$3,$3,$4,$5,$6,$7,'website', CURRENT_DATE)`,
+      [company.id, name, phone, clip(b.child_name, 120), clip(b.child_age, 40),
+       clip(b.interest, 120), clip(b.note, 1000)]
+    );
+  } catch (e) {
+    // Never lose the parent over a database error — thank them and let the
+    // phone number on the page do the rest.
+    console.error('[nursery enrol]', e.message);
   }
   res.redirect('/?enquired=1');
 });

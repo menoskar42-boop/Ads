@@ -1,0 +1,70 @@
+<%- include('head') %>
+<h1 class="font-black text-xl mb-4">الإعدادات</h1>
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم الحفظ ✓</div><% } %>
+<form method="post" action="/nursery/settings" class="space-y-5">
+  <section class="bg-white rounded-2xl border border-violet-100 p-5">
+    <h2 class="font-black mb-1">نوع المكان</h2>
+    <p class="text-xs text-slate-500 mb-3">
+      ده بيغيّر الكلام في كل الشاشات: «الطفل» و«الفصل» للحضانة، «الطالب» و«المجموعة» لمركز الدروس.
+    </p>
+    <div class="grid sm:grid-cols-2 gap-2 text-sm">
+      <label class="flex items-center gap-3 p-3 rounded-xl border border-violet-100 cursor-pointer">
+        <input type="radio" name="kind" value="nursery" <%= settings.kind === 'center' ? '' : 'checked' %> />
+        <span><b>حضانة</b><span class="block text-xs text-slate-500">أطفال، فصول، أخبار يومية</span></span>
+      </label>
+      <label class="flex items-center gap-3 p-3 rounded-xl border border-violet-100 cursor-pointer">
+        <input type="radio" name="kind" value="center" <%= settings.kind === 'center' ? 'checked' : '' %> />
+        <span><b>مركز دروس</b><span class="block text-xs text-slate-500">طلاب، مجموعات، مواعيد</span></span>
+      </label>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-violet-100 p-5">
+    <h2 class="font-black mb-3">البيانات</h2>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <input name="business_name" value="<%= settings.business_name || '' %>" placeholder="الاسم" class="border border-violet-100 rounded-xl px-3 py-2" />
+      <input name="phone" dir="ltr" value="<%= settings.phone || '' %>" placeholder="التليفون" class="border border-violet-100 rounded-xl px-3 py-2" />
+      <input name="whatsapp" dir="ltr" value="<%= settings.whatsapp || '' %>" placeholder="واتساب" class="border border-violet-100 rounded-xl px-3 py-2" />
+      <input name="address" value="<%= settings.address || '' %>" placeholder="العنوان" class="border border-violet-100 rounded-xl px-3 py-2" />
+      <textarea name="about" rows="3" placeholder="نبذة عن المكان — دي بتظهر في صفحتك على الإنترنت" class="border border-violet-100 rounded-xl px-3 py-2 sm:col-span-2"><%= settings.about || '' %></textarea>
+      <input name="map_url" dir="ltr" value="<%= settings.map_url || '' %>" placeholder="رابط الخريطة" class="border border-violet-100 rounded-xl px-3 py-2 sm:col-span-2" />
+      <label class="block"><span class="text-xs font-bold text-slate-500">من سن (بالسنة)</span>
+        <input name="age_from" type="number" min="0" max="25" dir="ltr" value="<%= settings.age_from || '' %>" class="w-full border border-violet-100 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">لسن</span>
+        <input name="age_to" type="number" min="0" max="25" dir="ltr" value="<%= settings.age_to || '' %>" class="w-full border border-violet-100 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">مواعيد العمل من</span>
+        <input name="open_from" value="<%= settings.open_from || '' %>" placeholder="٨ ص" class="w-full border border-violet-100 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">لـ</span>
+        <input name="open_to" value="<%= settings.open_to || '' %>" placeholder="٣ م" class="w-full border border-violet-100 rounded-xl px-3 py-2 mt-1" /></label>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-violet-100 p-5">
+    <h2 class="font-black mb-1">المصاريف</h2>
+    <p class="text-xs text-slate-500 mb-3">
+      يوم الاستحقاق هو اللي بيحدّد مين «متأخر» — قبله محدش متأخر، وبعده الاسم بيظهر في التذكيرات لوحده.
+    </p>
+    <div class="grid sm:grid-cols-2 gap-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">المصاريف الافتراضية</span>
+        <input name="default_fee" type="number" step="0.01" min="0" dir="ltr" value="<%= Number(settings.default_fee || 0) %>" class="w-full border border-violet-100 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">يوم الاستحقاق من الشهر (١–٢٨)</span>
+        <input name="due_day" type="number" min="1" max="28" dir="ltr" value="<%= Number(settings.due_day || 5) %>" class="w-full border border-violet-100 rounded-xl px-3 py-2 mt-1" /></label>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-violet-100 p-5">
+    <h2 class="font-black mb-3">الأقسام</h2>
+    <div class="grid sm:grid-cols-2 gap-2 text-sm">
+      <% FLAGS.forEach(function(f){ %>
+        <label class="flex items-start gap-3 p-3 rounded-xl border border-violet-50 <%= f.core?'bg-violet-50/40':'' %>">
+          <input type="checkbox" name="flags" value="<%= f.key %>" class="mt-1" <%= flags.has(f.key)?'checked':'' %> <%= f.core?'disabled checked':'' %> />
+          <span><span class="font-bold"><%= f.icon %> <%= f.label %></span>
+            <span class="block text-xs text-slate-500 mt-0.5"><%= f.desc %></span>
+            <% if (f.core) { %><span class="block text-[10px] text-slate-400 mt-0.5">أساسي — مش بيتقفل</span><% } %></span>
+        </label>
+      <% }) %>
+    </div>
+  </section>
+  <button class="bg-brand-700 text-white font-bold rounded-xl px-8 py-3">حفظ</button>
+</form>
+<%- include('foot') %>

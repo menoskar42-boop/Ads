@@ -1,0 +1,179 @@
+<%
+  // Public page for a nursery or a tutoring centre.
+  //
+  // A parent choosing a nursery is not shopping, they are deciding who to trust
+  // with a child. So this page leads with the things that answer that — the age
+  // range, the hours, the groups and who teaches them — and puts the enrolment
+  // form in the middle rather than behind a phone number nobody answers at 9pm.
+  var ns = (typeof nurserySettings !== 'undefined' && nurserySettings) ? nurserySettings : {};
+  var groups = (typeof nurseryGroups !== 'undefined' && nurseryGroups) ? nurseryGroups : [];
+  var centre = ns.kind === 'center';
+  var W = centre
+    ? { child: 'الطالب', children: 'الطلاب', group: 'المجموعة', groups: 'المجموعات', kind: 'مركز دروس' }
+    : { child: 'الطفل', children: 'الأطفال', group: 'الفصل', groups: 'الفصول', kind: 'حضانة' };
+  var displayName = ns.business_name || company.company_name;
+  var about = (ns.about || company.description || '').trim();
+  var phone = (ns.phone || '').trim();
+  var wa = String(ns.whatsapp || ns.phone || '').replace(/[^0-9]/g, '');
+  var hours = (ns.open_from && ns.open_to) ? (ns.open_from + ' – ' + ns.open_to) : '';
+  var ages = (ns.age_from || ns.age_to)
+    ? ('من ' + (ns.age_from || 0) + ' لـ ' + (ns.age_to || '') + ' سنة') : '';
+
+  var __title = (displayName + ' — ' + W.kind).slice(0, 60);
+  var __descBase = about || (W.kind + ' ' + displayName
+    + (ns.address ? ' في ' + ns.address : '')
+    + (ages ? ' — ' + ages : '') + '.');
+  var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+  var sent = (typeof enquirySent !== 'undefined' && enquirySent);
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
+<%- include('partials/seo_meta', { title: __title, description: __desc,
+      siteLogo: company.logo_url || null, siteAppName: displayName }) %>
+<% if (!(typeof noindex !== 'undefined' && noindex)) { %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": centre ? "EducationalOrganization" : "ChildCare",
+  "name": displayName,
+  "description": __desc,
+  "url": canonicalUrl,
+  "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
+  "telephone": phone || undefined,
+  "openingHours": hours || undefined,
+  "address": ns.address ? { "@type": "PostalAddress", "streetAddress": ns.address, "addressCountry": "EG" } : undefined,
+  "areaServed": "EG"
+}) %>
+</script>
+<% } %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-violet-50/40 text-slate-800">
+
+<header class="bg-gradient-to-br from-violet-900 to-violet-700 text-white">
+  <div class="max-w-4xl mx-auto px-4 py-12 text-center">
+    <% if (company.logo_url) { %>
+      <img src="<%= company.logo_url %>" alt="شعار <%= displayName %>"
+        class="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 bg-white/10" />
+    <% } else { %><div class="text-4xl mb-3"><%= centre ? '📚' : '🧸' %></div><% } %>
+    <h1 class="text-3xl sm:text-4xl font-black mb-2"><%= displayName %></h1>
+    <p class="text-violet-100 text-sm sm:text-base">
+      <%= W.kind %><% if (ns.address) { %> · <%= ns.address %><% } %>
+    </p>
+    <div class="flex flex-wrap gap-2 justify-center mt-5 text-sm">
+      <% if (ages) { %><span class="bg-white/10 rounded-xl px-4 py-2"><%= ages %></span><% } %>
+      <% if (hours) { %><span class="bg-white/10 rounded-xl px-4 py-2">🕒 <span dir="ltr"><%= hours %></span></span><% } %>
+      <% if (Number(ns.default_fee) > 0) { %>
+        <span class="bg-white/10 rounded-xl px-4 py-2">تبدأ من <b><%= Number(ns.default_fee).toLocaleString('ar-EG') %></b> شهرياً</span>
+      <% } %>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+
+  <section id="enrol" class="bg-white rounded-2xl border border-violet-100 shadow-sm p-6 mb-8 -mt-16 relative">
+    <% if (sent) { %>
+      <div class="text-center py-6">
+        <div class="text-4xl mb-3">✓</div>
+        <h2 class="font-black text-xl mb-2">وصلنا طلبك</h2>
+        <p class="text-slate-600 text-sm">هنكلّمك قريّب ونقولك على الأماكن المتاحة والمصاريف.</p>
+        <% if (wa) { %>
+          <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+            class="inline-block mt-5 bg-emerald-500 text-white font-bold rounded-xl px-6 py-3">أو كلّمنا على واتساب دلوقتي</a>
+        <% } %>
+      </div>
+    <% } else { %>
+      <h2 class="font-black text-xl mb-1">اسأل عن مكان لـ<%= W.child %></h2>
+      <p class="text-slate-500 text-sm mb-5">سيبلنا رقمك وهنرجعلك بالمصاريف والمواعيد والأماكن الفاضية.</p>
+      <form method="post" action="/enrol" class="grid sm:grid-cols-2 gap-3 text-sm">
+        <div style="position:absolute;left:-9999px" aria-hidden="true">
+          <label>لا تملأ<input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+        </div>
+        <input type="hidden" name="ft" value="<%= Date.now() %>" />
+        <label class="block"><span class="text-xs font-bold text-slate-500">اسم حضرتك *</span>
+          <input name="name" required class="w-full border border-violet-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">واتساب أو تليفون *</span>
+          <input name="phone" required dir="ltr" class="w-full border border-violet-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">اسم <%= W.child %></span>
+          <input name="child_name" class="w-full border border-violet-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <label class="block"><span class="text-xs font-bold text-slate-500">السن أو السنة الدراسية</span>
+          <input name="child_age" class="w-full border border-violet-200 rounded-xl px-3 py-2.5 mt-1" /></label>
+        <% if (groups.length) { %>
+          <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500"><%= W.group %> اللي مهتم بيه</span>
+            <select name="interest" class="w-full border border-violet-200 rounded-xl px-3 py-2.5 mt-1">
+              <option value="">مش متأكد</option>
+              <% groups.forEach(function(g){ %><option value="<%= g.name %>"><%= g.name %></option><% }) %>
+            </select></label>
+        <% } %>
+        <textarea name="note" rows="2" placeholder="أي حاجة تحب تقولهالنا" class="sm:col-span-2 border border-violet-200 rounded-xl px-3 py-2.5"></textarea>
+        <div class="sm:col-span-2 flex flex-wrap gap-3">
+          <button class="bg-violet-700 text-white font-bold rounded-xl px-8 py-3">ابعت الطلب</button>
+          <% if (wa) { %>
+            <a href="https://wa.me/<%= wa %>" target="_blank" rel="noopener"
+              class="bg-emerald-500 text-white font-bold rounded-xl px-6 py-3">أو واتساب</a>
+          <% } %>
+        </div>
+      </form>
+    <% } %>
+  </section>
+
+  <% if (groups.length) { %>
+    <section class="mb-8">
+      <h2 class="font-black text-xl mb-4"><%= W.groups %></h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <% groups.forEach(function(g){ %>
+          <div class="bg-white rounded-2xl border border-violet-100 p-5">
+            <div class="font-black text-lg"><%= g.name %></div>
+            <% if (g.teacher) { %><div class="text-slate-500 text-sm mt-1">👩‍🏫 <%= g.teacher %></div><% } %>
+            <% if (g.schedule) { %><div class="text-slate-500 text-sm mt-0.5">🕒 <%= g.schedule %></div><% } %>
+            <% if (Number(g.monthly_fee) > 0) { %>
+              <div class="text-slate-700 text-sm mt-3"><b><%= Number(g.monthly_fee).toLocaleString('ar-EG') %></b> شهرياً</div>
+            <% } %>
+            <a href="#enrol" class="block text-center mt-4 bg-violet-50 text-violet-800 font-bold rounded-xl py-2 text-sm">اسأل عن <%= W.group %> ده</a>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (about) { %>
+    <section class="bg-white rounded-2xl border border-violet-100 p-6 mb-8">
+      <h2 class="font-black text-lg mb-3">عن <%= displayName %></h2>
+      <p class="text-slate-600 leading-relaxed whitespace-pre-line"><%= about %></p>
+    </section>
+  <% } %>
+
+  <% if (ns.map_url) { %>
+    <section class="mb-8">
+      <a href="<%= ns.map_url %>" target="_blank" rel="noopener"
+        class="inline-block bg-white border border-violet-100 rounded-xl px-5 py-3 text-sm font-bold">📍 موقعنا على الخريطة</a>
+    </section>
+  <% } %>
+
+  <div class="bg-violet-900 text-white rounded-2xl p-6 text-center">
+    <h2 class="font-black text-lg mb-2">الأماكن محدودة</h2>
+    <p class="text-violet-200 text-sm mb-5">احجز مكان لـ<%= W.child %> بدري قبل ما <%= W.groups %> تكمل.</p>
+    <div class="flex flex-wrap gap-3 justify-center">
+      <a href="#enrol" class="bg-white text-violet-900 font-bold rounded-xl px-6 py-3">اسأل عن مكان</a>
+      <% if (phone) { %>
+        <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>" class="bg-violet-700 font-bold rounded-xl px-6 py-3">📞 <span dir="ltr"><%= phone %></span></a>
+      <% } %>
+    </div>
+  </div>
+</main>
+
+<footer class="text-center py-8 text-xs text-slate-400">
+  <a href="https://oscardevs.com" target="_blank" rel="noopener" class="hover:text-slate-600">مقدَّم من OscarDevs</a>
+</footer>
+</body>
+</html>

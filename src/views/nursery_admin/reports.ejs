@@ -1,0 +1,58 @@
+<%- include('head') %>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <div>
+    <h1 class="font-black text-xl">الأخبار اليومية</h1>
+    <p class="text-slate-500 text-sm mt-0.5">السطرين اللي <%= W.guardian %> بيستناهم — أكل ونوم ومزاج.</p>
+  </div>
+  <form class="ms-auto flex gap-2 text-sm">
+    <input name="day" type="date" dir="ltr" value="<%= day %>" class="border border-violet-200 rounded-xl px-3 py-2" />
+    <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-4 py-2">عرض</button>
+  </form>
+</div>
+
+<% if (saved) { %><div class="bg-emerald-50 text-emerald-800 rounded-xl px-4 py-2 text-sm mb-4">اتحفظ.</div><% } %>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm">
+    مفيش <%= W.children %> مقيّدين.
+  </div>
+<% } else { %>
+  <div class="space-y-3">
+    <% rows.forEach(function(r){ %>
+      <form method="post" action="/nursery/reports" class="bg-white rounded-2xl border border-violet-100 p-4">
+        <input type="hidden" name="day" value="<%= day %>" />
+        <input type="hidden" name="child_id" value="<%= r.id %>" />
+        <div class="flex items-center gap-2 mb-3 flex-wrap">
+          <span class="font-black"><%= r.name %></span>
+          <% if (r.group_name) { %><span class="text-xs text-slate-400"><%= r.group_name %></span><% } %>
+          <% if (r.mood || r.ate || r.slept || r.body) { %>
+            <span class="text-xs text-emerald-600 font-bold ms-auto">اتكتب</span>
+          <% } %>
+        </div>
+        <div class="grid sm:grid-cols-4 gap-2 text-sm">
+          <select name="mood" class="border border-violet-200 rounded-xl px-3 py-2">
+            <option value="">المزاج</option>
+            <% ['مبسوط','هادي','تعبان','عيّاط','نشيط'].forEach(function(m){ %>
+              <option value="<%= m %>" <%= r.mood===m?'selected':'' %>><%= m %></option>
+            <% }) %>
+          </select>
+          <select name="ate" class="border border-violet-200 rounded-xl px-3 py-2">
+            <option value="">الأكل</option>
+            <% ['كل كويس','كل نص','مكلش'].forEach(function(m){ %>
+              <option value="<%= m %>" <%= r.ate===m?'selected':'' %>><%= m %></option>
+            <% }) %>
+          </select>
+          <select name="slept" class="border border-violet-200 rounded-xl px-3 py-2">
+            <option value="">النوم</option>
+            <% ['نام كويس','نام شوية','منامش'].forEach(function(m){ %>
+              <option value="<%= m %>" <%= r.slept===m?'selected':'' %>><%= m %></option>
+            <% }) %>
+          </select>
+          <input name="body" value="<%= r.body || '' %>" placeholder="أي حاجة تانية" class="border border-violet-200 rounded-xl px-3 py-2" />
+        </div>
+        <button class="mt-3 bg-brand-700 text-white font-bold rounded-xl px-5 py-2 text-sm">حفظ</button>
+      </form>
+    <% }) %>
+  </div>
+<% } %>
+<%- include('foot') %>

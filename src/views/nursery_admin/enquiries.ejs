@@ -1,0 +1,61 @@
+<%- include('head') %>
+<%
+  function d(v){ try{ return v ? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short'}) : '—'; }catch(e){ return '—'; } }
+  var SL = { new:'جديد', contacted:'اتكلّمنا', visited:'زار المكان', enrolled:'اتقيّد', lost:'ضاع' };
+%>
+<div class="flex items-center gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl">طلبات الالتحاق</h1>
+  <form class="ms-auto text-sm">
+    <select name="status" onchange="this.form.submit()" class="border border-violet-200 rounded-xl px-3 py-2">
+      <option value="">المفتوح بس</option>
+      <% Object.keys(SL).forEach(function(s){ %>
+        <option value="<%= s %>" <%= status===s?'selected':'' %>><%= SL[s] %></option>
+      <% }) %>
+    </select>
+  </form>
+</div>
+
+<% if (!rows.length) { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-400 text-sm">
+    مفيش طلبات هنا. الطلبات بتوصل من صفحتك العامة على الإنترنت.
+  </div>
+<% } else { %>
+  <div class="space-y-3">
+    <% rows.forEach(function(e){
+         var wa = F.waLink(e.whatsapp || e.phone); %>
+      <div class="bg-white rounded-2xl border border-violet-100 p-4">
+        <div class="flex items-start gap-2 flex-wrap">
+          <div>
+            <span class="font-black"><%= e.name %></span>
+            <% if (e.phone) { %><span class="text-xs text-slate-500 ms-2" dir="ltr"><%= e.phone %></span><% } %>
+            <div class="text-xs text-slate-500 mt-1">
+              <% if (e.child_name) { %><%= W.child %>: <%= e.child_name %><% } %>
+              <% if (e.child_age) { %> · السن: <%= e.child_age %><% } %>
+              <% if (e.interest) { %> · <%= e.interest %><% } %>
+            </div>
+            <% if (e.note) { %><p class="text-sm text-slate-600 mt-1"><%= e.note %></p><% } %>
+          </div>
+          <span class="ms-auto text-xs font-bold px-2 py-0.5 rounded-full bg-violet-50 text-brand-700"><%= SL[e.status] || e.status %></span>
+        </div>
+        <form method="post" action="/nursery/enquiries/<%= e.id %>" class="flex flex-wrap gap-2 mt-3 text-sm items-end">
+          <label class="block"><span class="text-xs font-bold text-slate-500">الحالة</span>
+            <select name="status" class="border border-violet-200 rounded-xl px-3 py-2 mt-1 block">
+              <% Object.keys(SL).forEach(function(s){ %>
+                <option value="<%= s %>" <%= e.status===s?'selected':'' %>><%= SL[s] %></option>
+              <% }) %>
+            </select></label>
+          <label class="block"><span class="text-xs font-bold text-slate-500">متابعة يوم</span>
+            <input name="next_action_on" type="date" dir="ltr" value="<%= F.ymd(e.next_action_on) || '' %>"
+              class="border border-violet-200 rounded-xl px-3 py-2 mt-1 block" /></label>
+          <button class="bg-brand-700 text-white font-bold rounded-xl px-5 py-2.5">حفظ</button>
+          <% if (wa) { %>
+            <a href="<%= wa %>" target="_blank" rel="noopener"
+              class="bg-emerald-500 text-white font-bold rounded-xl px-5 py-2.5">واتساب</a>
+          <% } %>
+          <span class="text-xs text-slate-400 self-center">وصل <%= d(e.created_at) %></span>
+        </form>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+<%- include('foot') %>

@@ -1,0 +1,72 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
+  function d(v){ try{ return v ? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short'}) : null; }catch(e){ return null; } }
+%>
+<div class="mb-5">
+  <h1 class="font-black text-xl">التذكيرات</h1>
+  <p class="text-slate-500 text-sm mt-1">
+    كل <%= W.guardian %> فات عليه ميعاد السداد، والرسالة مكتوبة له جاهزة. إنت بتراجع وتبعت من واتسابك —
+    ده الرقم اللي حد هيرد عليه.
+  </p>
+</div>
+
+<% if (!list.length) { %>
+  <div class="bg-white rounded-2xl border border-violet-100 p-8 text-center text-slate-500 text-sm">
+    <div class="text-3xl mb-2">👏</div>
+    محدش فات عليه ميعاد سداد. لو ده مش صح، اتأكد إنك عملت فواتير الشهر من
+    <a href="/nursery/fees" class="text-brand-700 font-bold">صفحة المصاريف</a>.
+  </div>
+<% } else { %>
+  <div class="bg-brand-700 text-white rounded-2xl p-5 mb-5">
+    <div class="text-xs font-bold text-violet-200">إجمالي المتأخر عند <%= list.length %> <%= W.guardian %></div>
+    <div class="text-3xl font-black mt-1"><bdi><%= money(total) %></bdi> <span class="text-base text-violet-200">جنيه</span></div>
+  </div>
+
+  <div class="space-y-3">
+    <% list.forEach(function(r){ %>
+      <div class="bg-white rounded-2xl border border-violet-100 p-5">
+        <div class="flex items-start gap-3 flex-wrap">
+          <div>
+            <a href="/nursery/children/<%= r.id %>" class="font-black text-brand-800"><%= r.name %></a>
+            <div class="text-xs text-slate-500 mt-0.5">
+              <%= r.guardian_name || 'مفيش ' + W.guardian + ' مسجّل' %>
+              <% if (r.guardian_phone) { %> · <span dir="ltr"><%= r.guardian_phone %></span><% } %>
+            </div>
+          </div>
+          <div class="ms-auto text-end">
+            <div class="font-black text-rose-600 text-lg"><bdi><%= money(r.a.due) %></bdi></div>
+            <div class="text-xs text-rose-500">متأخر <%= r.a.lateMonths %> شهر</div>
+          </div>
+        </div>
+
+        <div class="text-xs text-slate-500 mt-2">
+          الشهور المفتوحة: <%= r.a.open.map(function(o){ return o.label; }).join('، ') %>
+          <% if (r.last_reminder) { %>
+            <span class="text-amber-600">· آخر تذكير <%= d(r.last_reminder) %></span>
+          <% } %>
+        </div>
+
+        <details class="mt-3">
+          <summary class="text-xs font-bold text-brand-700 cursor-pointer">اقرا الرسالة قبل ما تبعتها</summary>
+          <pre class="bg-violet-50 rounded-xl p-3 text-xs whitespace-pre-wrap leading-relaxed mt-2"><%= r.msg %></pre>
+        </details>
+
+        <div class="flex flex-wrap gap-2 mt-3">
+          <% if (r.wa) { %>
+            <a href="<%= r.wa %>" target="_blank" rel="noopener"
+              class="bg-emerald-500 text-white font-bold rounded-xl px-5 py-2.5 text-sm">افتح واتساب</a>
+          <% } else { %>
+            <span class="text-xs text-slate-400 self-center">مفيش رقم واتساب — ضيفه من ملف <%= W.child %>.</span>
+          <% } %>
+          <form method="post" action="/nursery/reminders/<%= r.id %>/sent">
+            <input type="hidden" name="amount" value="<%= r.a.due %>" />
+            <input type="hidden" name="body" value="<%= r.msg %>" />
+            <button class="bg-brand-100 text-brand-800 font-bold rounded-xl px-5 py-2.5 text-sm">سجّل إني بعتّها</button>
+          </form>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+<%- include('foot') %>
