@@ -112,7 +112,8 @@ router.post('/apply', async (req, res) => {
       : values.business_type === 'orders' ? 'مطاعم/طلبات'
       : values.business_type === 'gym' ? 'جيم/لياقة'
       : values.business_type === 'furniture' ? 'موبيليا/ورشة'
-      : values.business_type === 'nutrition' ? 'تغذية علاجية' : 'بورتفوليو';
+      : values.business_type === 'nutrition' ? 'تغذية علاجية'
+      : values.business_type === 'workshop' ? 'ورش سيارات' : 'بورتفوليو';
     pool.query(
       `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
        SELECT $1, $2, $3, $4, $5, 'طلب تسجيل', 'interested', $6, CURRENT_DATE

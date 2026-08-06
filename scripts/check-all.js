@@ -14,6 +14,7 @@ const CHECKS = [
   ['check-schema-order',    'ترتيب الـDDL (ALTER بعد CREATE)'],
   ['check-schema-columns',  'أعمدة الـINSERT موجودة في المخطط'],
   ['check-async-routes',    'أخطاء الـasync لا تعلّق الطلب'],
+  ['check-page-types',      'أنواع النشاط مكتملة في كل الأماكن'],
   ['check-neuropilot-app',  'تطبيق NeuroPilot وصفحته'],
   ['render-clinic-pages',   'صفحات العيادة بالعربي والإنجليزي'],
   ['render-kakeibo-pages',  'شاشات كاكيبو'],

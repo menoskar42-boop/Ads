@@ -12,7 +12,7 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "هل إنشاء الصفحة مجاني؟", "acceptedAnswer": { "@type": "Answer", "text": "أيوة، إنشاء الصفحة وتقديم الطلب مجاني بالكامل. الجزء المدفوع الوحيد والاختياري هو مميزات المساعد الذكي للمطاعم." } },
+    { "@type": "Question", "name": "هل إنشاء الصفحة مجاني؟", "acceptedAnswer": { "@type": "Answer", "text": "تقديم الطلب مجاني، والاشتراك مجاني بالكامل أول ٦ شهور. بعد كده تختار: اشتراك شهري أو شراء كامل — الأسعار كلها معروضة على الصفحة الرئيسية. ومميزات المساعد الذكي للمطاعم إضافة اختيارية منفصلة." } },
     { "@type": "Question", "name": "إمتى تشتغل صفحتي بعد الطلب؟", "acceptedAnswer": { "@type": "Answer", "text": "بعد مراجعة فريقنا للطلب وتفعيل الحساب، تقدر تدخل لوحة التحكم وتبدأ إضافة محتواك فوراً، وتشتغل صفحتك على رابطك الخاص." } },
     { "@type": "Question", "name": "أنهي أنواع المواقع اللي أقدر أطلبها؟", "acceptedAnswer": { "@type": "Answer", "text": "بورتفوليو، متجر إلكتروني، صيدلية أونلاين، صفحة مطاعم/سوبر ماركت للطلبات، إدارة عيادات، وإدارة جيم/صالة رياضية." } },
     { "@type": "Question", "name": "الرابط بتاعي هيكون شكله إيه؟", "acceptedAnswer": { "@type": "Answer", "text": "هيكون على الاسم المختصر اللي تختاره وقت الطلب، بحروف إنجليزية صغيرة وأرقام و«-» فقط (مثال: my-store)." } }
@@ -37,7 +37,7 @@
   <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
     <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">قدّم طلب إنشاء صفحتك</h1>
     <p class="text-gray-500 text-sm mb-2">اختَر نوع صفحتك — <strong>بورتفوليو</strong>، <strong>متجر إلكتروني</strong>، <strong>صيدلية أونلاين</strong>، أو <strong>مطاعم/سوبر ماركت</strong> — واملأ بياناتك بدقّة. بعد موافقة فريقنا هتدخل لوحة تحكم صفحتك مباشرة.</p>
-    <p class="text-gray-400 text-xs mb-8">الصفحة والطلبات مجانية بالكامل؛ مميزات الذكاء الاصطناعي للمطاعم هي الجزء المدفوع الاختياري.</p>
+    <p class="text-gray-400 text-xs mb-8">تقديم الطلب مجاني، والاشتراك مجاني أول ٦ شهور. بعدها تختار اشتراك شهري أو شراء كامل — الأسعار على الصفحة الرئيسية.</p>
 
     <% if (error) { %>
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6"><%= error %></div>
@@ -90,6 +90,7 @@
             <option value="gym" <%= values.business_type === 'gym' ? 'selected' : '' %>>جيم / صالة رياضية</option>
             <option value="furniture" <%= values.business_type === 'furniture' ? 'selected' : '' %>>معرض / ورشة موبيليا</option>
             <option value="nutrition" <%= values.business_type === 'nutrition' ? 'selected' : '' %>>عيادة تغذية</option>
+            <option value="workshop" <%= values.business_type === 'workshop' ? 'selected' : '' %>>ورشة سيارات</option>
           </select>
         </div>
       </div>
@@ -175,7 +176,7 @@
     <div class="space-y-4 text-sm">
       <div>
         <h3 class="font-bold text-gray-900 mb-1">هل إنشاء الصفحة مجاني؟</h3>
-        <p class="text-gray-600 leading-7">أيوة، إنشاء الصفحة وتقديم الطلب مجاني بالكامل. الجزء المدفوع الوحيد والاختياري هو مميزات المساعد الذكي للمطاعم.</p>
+        <p class="text-gray-600 leading-7">تقديم الطلب مجاني، والاشتراك مجاني بالكامل أول ٦ شهور. بعد كده تختار اشتراك شهري أو شراء كامل، والأسعار كلها معروضة على الصفحة الرئيسية قبل ما تقدّم. ومميزات المساعد الذكي للمطاعم إضافة اختيارية منفصلة.</p>
       </div>
       <div>
         <h3 class="font-bold text-gray-900 mb-1">إمتى تشتغل صفحتي بعد الطلب؟</h3>
