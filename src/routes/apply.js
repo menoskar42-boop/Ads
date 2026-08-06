@@ -1,5 +1,15 @@
 const express = require('express');
 const router = express.Router();
+
+// Public, unauthenticated, and both of these write rows or send mail — so both
+// are throttled. Per-instance only (Autoscale runs several), but that still
+// raises the cost of a spam run by orders of magnitude.
+const { rateLimit } = require('../middleware/rateLimit');
+const applyLimiter = rateLimit({ name: 'apply', windowMs: 60 * 60000, max: 5 });
+// The status lookup is the sharper one: it answers a question about somebody
+// else's application from an email address alone, so it is capped hard enough
+// that walking a list of addresses is not worth doing.
+const statusLimiter = rateLimit({ name: 'apply-status', windowMs: 15 * 60000, max: 8 });
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const { sendApplicationReceived, sendAdminNewApplication } = require('../lib/mailer');
@@ -37,7 +47,7 @@ router.get('/apply', (req, res) => {
   });
 });
 
-router.post('/apply', async (req, res) => {
+router.post('/apply', applyLimiter, async (req, res) => {
   const v = (k, max = 200) => String(req.body[k] || '').trim().slice(0, max);
   const values = {
     full_name: v('full_name', 100),
@@ -158,15 +168,19 @@ router.get('/apply/status', (req, res) => {
   res.render('apply/status', { result: null, email: '', error: null });
 });
 
-router.post('/apply/status', async (req, res) => {
+router.post('/apply/status', statusLimiter, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase().slice(0, 150);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.render('apply/status', { result: null, email, error: 'اكتب بريداً إلكترونياً صحيحاً.' });
   }
   try {
     const r = await pool.query(
-      `SELECT sa.status, sa.admin_notes, sa.business_name, sa.created_at,
-              c.slug AS company_slug
+      // Deliberately NOT selecting admin_notes or business_name. This endpoint
+      // answers to an email address with no login and no token, so anyone who
+      // guesses an address could read the notes the team wrote about that
+      // applicant. The status and the live link are what the applicant already
+      // knows or is entitled to; internal notes are not.
+      `SELECT sa.status, sa.created_at, c.slug AS company_slug
        FROM signup_applications sa
        LEFT JOIN companies c ON c.id = sa.approved_company_id
        WHERE sa.email = $1

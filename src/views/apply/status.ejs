@@ -43,7 +43,7 @@
             <div class="flex items-center gap-2 text-amber-700 font-bold mb-1">
               <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> قيد المراجعة
             </div>
-            <p class="text-sm text-amber-800">طلبك (<%= result.business_name || '' %>) وصلنا وبيتراجع من فريقنا. هنفعّل حسابك قريباً، وبمجرد الموافقة هتقدر تدخل بنفس البريد وكلمة السر.</p>
+            <p class="text-sm text-amber-800">طلبك وصلنا وبيتراجع من فريقنا. هنفعّل حسابك قريباً، وبمجرد الموافقة هتقدر تدخل بنفس البريد وكلمة السر.</p>
           </div>
         <% } else if (result.status === 'approved') { %>
           <div class="bg-green-50 border border-green-200 rounded-2xl p-5">
@@ -51,7 +51,7 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
               تمت الموافقة 🎉
             </div>
-            <p class="text-sm text-green-800 mb-4">مبروك! موقعك (<%= result.business_name || '' %>) اتفعّل. ادخل لوحة التحكم بنفس البريد وكلمة السر اللي سجّلت بهم عشان تظبط صفحتك.</p>
+            <p class="text-sm text-green-800 mb-4">مبروك! موقعك اتفعّل. ادخل لوحة التحكم بنفس البريد وكلمة السر اللي سجّلت بهم عشان تظبط صفحتك.</p>
             <div class="flex flex-col sm:flex-row gap-3">
               <a href="/company/login" class="bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition shadow text-center">ادخل لوحة التحكم</a>
               <% if (result.company_slug) { %>
@@ -64,7 +64,7 @@
             <div class="flex items-center gap-2 text-red-700 font-bold mb-1">
               <span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> لم يتم القبول
             </div>
-            <p class="text-sm text-red-800">للأسف لم يتم قبول طلبك<% if (result.admin_notes) { %> — السبب: <%= result.admin_notes %><% } %>. تقدر تتواصل معنا أو <a href="/apply" class="underline font-semibold">تقدّم طلباً جديداً</a>.</p>
+            <p class="text-sm text-red-800">للأسف لم يتم قبول طلبك. تواصل معنا على واتساب ونقولك السبب، أو <a href="/apply" class="underline font-semibold">قدّم طلباً جديداً</a>.</p>
           </div>
         <% } else { %>
           <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
