@@ -524,8 +524,53 @@ async function initDb() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS sender_phone TEXT;
+      -- Spam-flagged messages stay in the DB but live in a separate folder in
+      -- the merchant admin. This ALTER was written into src/db/schema.js, a
+      -- file nothing ever required, so on a fresh database the column did not
+      -- exist and /company/messages returned 500 for every merchant.
+      ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS is_spam BOOLEAN DEFAULT false;
+      CREATE INDEX IF NOT EXISTS idx_contact_msg_company_spam
+        ON contact_messages (company_id, is_spam);
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS page_type TEXT DEFAULT 'portfolio';
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'EGP';
+      -- Referral loop. Same story: these lived only in the dead schema file and
+      -- in scripts/backfill-referrals.js, a script somebody has to remember to
+      -- run. Read by the admin panel, the apply flow and the merchant panel.
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS free_until DATE;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS referral_code TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES companies(id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_referral_code
+        ON companies (referral_code) WHERE referral_code IS NOT NULL;
+      -- CRM. admin.js has an ensureCrmSchema() that ALTERs these, but nothing
+      -- created them, so the ALTER aborted the whole block and /admin/crm was a
+      -- permanent 500. Created here, before anything alters them.
+      CREATE TABLE IF NOT EXISTS crm_leads (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        business_name TEXT,
+        category TEXT,
+        link TEXT,
+        source TEXT,
+        status TEXT DEFAULT 'new',
+        priority TEXT DEFAULT 'normal',
+        notes TEXT,
+        next_followup DATE,
+        last_contacted_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+      CREATE INDEX IF NOT EXISTS idx_crm_leads_followup ON crm_leads (next_followup);
+      CREATE TABLE IF NOT EXISTS crm_activities (
+        id SERIAL PRIMARY KEY,
+        lead_id INTEGER REFERENCES crm_leads(id) ON DELETE CASCADE,
+        type TEXT DEFAULT 'note',
+        body TEXT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_crm_activities_lead ON crm_activities (lead_id);
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id),

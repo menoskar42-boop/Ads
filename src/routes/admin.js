@@ -653,9 +653,28 @@ async function ensureCrmSchema() {
   _crmSchemaReady = true;
   try {
     await pool.query(`
+      -- CREATE before ALTER. Postgres aborts the whole multi-statement block at
+      -- the first failure, so when crm_leads did not exist the three ALTERs
+      -- below took the crm_activities CREATE down with them and /admin/crm was
+      -- a permanent 500. server.js now creates both tables at boot; this stays
+      -- as a self-heal for a database that predates that.
+      CREATE TABLE IF NOT EXISTS crm_leads (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT,
+        business_name TEXT,
+        category TEXT,
+        link TEXT,
+        source TEXT,
+        status TEXT DEFAULT 'new',
+        notes TEXT,
+        next_followup DATE,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
       ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS email TEXT;
       ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal';
       ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ;
+      ALTER TABLE crm_leads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
       CREATE TABLE IF NOT EXISTS crm_activities (
         id SERIAL PRIMARY KEY,
         lead_id INTEGER REFERENCES crm_leads(id) ON DELETE CASCADE,

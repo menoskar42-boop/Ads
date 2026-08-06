@@ -66,7 +66,10 @@ const bad = [];
 for (const f of files) {
   if (/schema\.js$/.test(f)) continue;
   const s = fs.readFileSync(f, 'utf8');
-  for (const m of stripSqlComments(s).matchAll(/INSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s*\(([^)]*)\)/gi)) {
+  const clean = stripSqlComments(s);
+
+  // 1. INSERT column lists.
+  for (const m of clean.matchAll(/INSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s*\(([^)]*)\)/gi)) {
     const t = m[1].toLowerCase();
     if (!cols[t]) continue;               // not a table this app creates
     for (const raw of m[2].split(',')) {
@@ -75,6 +78,42 @@ for (const f of files) {
       if (cols[t].has(c)) continue;
       const line = s.slice(0, m.index).split('\n').length;
       bad.push(`${path.relative(ROOT, f)}:${line}  INSERT INTO ${t} → "${c}" not in the schema`);
+    }
+  }
+
+  // 2. Single-table SELECT / UPDATE / DELETE bodies.
+  //
+  // Checking only INSERT is what let contact_messages.is_spam ship: the column
+  // appeared in a WHERE clause, never in an insert, so nothing looked at it and
+  // /company/messages was a 500 for every merchant on a fresh database.
+  //
+  // Restricted to statements naming exactly one of our tables — with a join,
+  // a bare column name cannot be attributed to a table without a real parser,
+  // and guessing produces noise nobody reads.
+  const STMT = /\b(?:SELECT|UPDATE|DELETE)\b[\s\S]{0,900}?(?=;|`|'|"|$)/gi;
+  for (const stmt of clean.match(STMT) || []) {
+    const named = [...stmt.matchAll(/\b(?:FROM|UPDATE|JOIN)\s+([a-z_][a-z0-9_]*)/gi)]
+      .map((x) => x[1].toLowerCase());
+    const ours = [...new Set(named)].filter((t) => cols[t]);
+    if (ours.length !== 1 || named.length !== 1) continue;   // skip joins entirely
+    const t = ours[0];
+    // Identifiers that sit where a column goes: after WHERE/AND/SET/ORDER BY,
+    // immediately followed by a comparison or assignment.
+    // Strip ::type casts first — "$3::int IS NULL" put the cast's type where a
+    // column name goes and the check reported a column called "int".
+    const noCasts = stmt.replace(/::\s*[a-z_][a-z0-9_]*(\s*\[\s*\])?/gi, ' ');
+    const ids = new Set();
+    for (const c of noCasts.matchAll(/\b([a-z_][a-z0-9_]*)\s*(?:=|<>|!=|>=|<=|>|<|\bIS\b|\bILIKE\b|\bLIKE\b)/gi)) {
+      ids.add(c[1].toLowerCase());
+    }
+    for (const c of ids) {
+      if (cols[t].has(c)) continue;
+      // SQL keywords, functions and bind markers are not columns.
+      if (/^(select|from|where|and|or|not|null|true|false|set|values|order|by|group|having|limit|offset|as|on|case|when|then|else|end|coalesce|count|sum|max|min|avg|now|current_date|current_timestamp|interval|date|text|integer|numeric|boolean|distinct|exists|in|between|asc|desc|nulls|first|last|filter|over|returning|conflict|do|update|delete|insert|into|join|left|right|inner|outer|using|with|all|any|some|cast|extract|trim|lower|upper|length|char_length|to_char|to_date|greatest|least|abs|round|floor|ceil|nullif|array|row|json|jsonb|string_agg|array_agg|regexp_replace|split_part|position|substring|replace|concat|md5|random|uuid)$/i.test(c)) continue;
+      if (/^\$\d+$/.test(c)) continue;
+      const at = s.indexOf(stmt.slice(0, 40));
+      const line = at > 0 ? s.slice(0, at).split('\n').length : 0;
+      bad.push(`${path.relative(ROOT, f)}:${line}  ${t} → "${c}" not in the schema`);
     }
   }
 }

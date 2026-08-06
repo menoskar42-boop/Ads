@@ -20,7 +20,6 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const FILES = [
   'server.js',
-  'src/db/schema.js',
   'src/clinic/schema.js',
   'src/pharmacy/schema.js',
   'src/food/schema.js',
