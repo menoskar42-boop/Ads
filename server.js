@@ -325,7 +325,19 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'oscardevs-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' },
+  cookie: {
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    // sameSite=lax is what stops CSRF here: the browser withholds this cookie
+    // on a cross-site POST, so a form auto-submitted from another origin
+    // arrives unauthenticated. (Checked: no GET route performs a write an
+    // attacker would gain anything from, which is the hole lax leaves open.)
+    sameSite: 'lax',
+    // HTTPS-only in production so the session cannot ride an accidental
+    // http:// request. Safe to enable because `trust proxy` is on above —
+    // without it Express would see the proxy's plain HTTP hop, refuse to set
+    // the cookie, and every login would silently fail.
+    secure: process.env.NODE_ENV === 'production',
+  },
 }));
 
 // ===== Kakeibo (kakeibo.oscardevs.com) — AI financial coach, host-routed =====
