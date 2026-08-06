@@ -19,8 +19,13 @@ const DRY = process.argv.includes('--dry-run');
 const NO_SEED = process.argv.includes('--no-seed');
 const SLUG = 'nutrition';
 const EMAIL = 'nutrition@demo.oscardevs.com';
-// Read from the environment; no default, so nothing is published.
-const PASSWORD = process.env.DEMO_NUTRITION_PASSWORD || process.env.DEMO_PASSWORD || '';
+// Same contract as every other demo script: --password= or the env vars, and
+// NO default. The old version hashed whatever it got — including the empty
+// string when the env was unset — which quietly created a login that accepted
+// a BLANK password. bcrypt.compare('', hashOf('')) is true.
+const _pwArg = process.argv.find((a) => a.startsWith('--password='));
+const PASSWORD = (_pwArg ? _pwArg.slice(11) : '')
+  || process.env.DEMO_NUTRITION_PASSWORD || process.env.DEMO_PASSWORD || '';
 
 const say = (m) => console.log((DRY ? '[dry] ' : '') + m);
 
@@ -45,9 +50,13 @@ async function main() {
   } else { say(`company "${SLUG}" already exists (id ${c.id})`); }
   if (DRY && !c) return;
 
-  const hash = await bcrypt.hash(PASSWORD, 10);
-  say(`login ${EMAIL} / ${PASSWORD}`);
-  if (!DRY) {
+  // With no password supplied, the demo tenant is still created — it just has
+  // no login. A demo nobody can sign into is a small loss; a demo EVERYBODY
+  // can sign into (empty password) is not.
+  const hash = PASSWORD ? await bcrypt.hash(PASSWORD, 10) : null;
+  if (!hash) say('no password supplied — login not created/updated');
+  else say(`login ${EMAIL}`);
+  if (!DRY && hash) {
     await pool.query(
       `INSERT INTO company_users (company_id, email, password_hash)
        VALUES ($1,$2,$3) ON CONFLICT (email) DO UPDATE SET password_hash=EXCLUDED.password_hash`,

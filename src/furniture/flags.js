@@ -14,7 +14,7 @@ const FLAGS = [
     desc: 'الموردين والعملاء والخامات والعمالة والمنتجات.' },
   { key: 'purchases',  label: 'المشتريات',        icon: '🧾', path: '/furniture/purchases',
     desc: 'أوامر شراء للموردين، استلام كلي أو جزئي، وحساب كل مورد.' },
-  { key: 'inventory',  label: 'المخزون',          icon: '📦', path: '/furniture/inventory',
+  { key: 'inventory',  label: 'المخزون',          icon: '📦', path: '/furniture/master/materials',
     desc: 'أرصدة الخامات، الحد الأدنى، وحركة الصرف والوارد.' },
   { key: 'sales',      label: 'المبيعات',         icon: '🛒', path: '/furniture/sales',
     desc: 'فواتير بمقدّم ودفعات، والمتبقّي وكشف حساب العميل.' },

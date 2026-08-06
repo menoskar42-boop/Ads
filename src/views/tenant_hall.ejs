@@ -20,6 +20,18 @@
     + (hs.address ? ' في ' + hs.address : '')
     + (hs.capacity_max ? ' — تستوعب لحد ' + hs.capacity_max + ' فرد' : '') + '.');
   var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+  // The page's own subdomain URL. res.locals.canonicalUrl is built from
+  // req.originalUrl on the MAIN origin, so on a tenant subdomain it points at
+  // oscardevs.com/ — telling Google this page is a duplicate of the marketing
+  // homepage, which drops the tenant from the index entirely.
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug)
+    : (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '');
+  // Only http(s) may leave through an href. EJS escaping covers HTML but does
+  // nothing about a javascript: scheme, and these fields are typed by the
+  // tenant — a hostile tenant must not get script into every visitor's click.
+  var __safeUrl = function (u) { u = String(u == null ? '' : u).trim(); return /^https?:\/\//i.test(u) ? u : ''; };
+  var __safe_map_url = __safeUrl(hs.map_url);
+  var __safe_video_url = __safeUrl(hs.video_url);
   var sent = (typeof enquirySent !== 'undefined' && enquirySent);
 %>
 <!DOCTYPE html>
@@ -31,7 +43,7 @@
 <title><%= __title %></title>
 <meta name="description" content="<%= __desc %>" />
 <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
-<%- include('partials/seo_meta', { title: __title, description: __desc,
+<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon,
       siteLogo: company.logo_url || null, siteAppName: displayName }) %>
 <% if (!(typeof noindex !== 'undefined' && noindex)) { %>
 <script type="application/ld+json">
@@ -40,7 +52,7 @@
   "@type": "EventVenue",
   "name": displayName,
   "description": __desc,
-  "url": canonicalUrl,
+  "url": __canon,
   "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
   "telephone": phone || undefined,
   "maximumAttendeeCapacity": hs.capacity_max || undefined,
@@ -154,14 +166,14 @@
     </section>
   <% } %>
 
-  <% if (hs.map_url || hs.video_url) { %>
+  <% if (__safe_map_url || __safe_video_url) { %>
     <section class="flex flex-wrap gap-3 mb-8">
-      <% if (hs.map_url) { %>
-        <a href="<%= hs.map_url %>" target="_blank" rel="noopener"
+      <% if (__safe_map_url) { %>
+        <a href="<%= __safe_map_url %>" target="_blank" rel="noopener"
           class="bg-white border border-rose-100 rounded-xl px-5 py-3 text-sm font-bold">📍 موقعنا على الخريطة</a>
       <% } %>
-      <% if (hs.video_url) { %>
-        <a href="<%= hs.video_url %>" target="_blank" rel="noopener"
+      <% if (__safe_video_url) { %>
+        <a href="<%= __safe_video_url %>" target="_blank" rel="noopener"
           class="bg-white border border-rose-100 rounded-xl px-5 py-3 text-sm font-bold">🎥 شوف جولة في القاعة</a>
       <% } %>
     </section>

@@ -30,6 +30,12 @@ const express = require('express');
 // rejected handler calls next(err) like a thrown one, and must run BEFORE the
 // route modules below are required — they register their routes at load time.
 require('./src/lib/async_routes')(express);
+// 81 files each build their own Postgres pool; unbounded, that is 800+
+// potential connections against a server that allows ~100, and under a normal
+// multi-panel crawl it actually hit "sorry, too many clients already". This
+// patch makes every `new Pool()` for the same connection string share ONE
+// bounded pool, and must run before any module requires 'pg'.
+require('./src/lib/shared_pool')(require('pg'));
 const path = require('path');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
@@ -1390,8 +1396,14 @@ setInterval(() => {
 // evening hour it sends in, and every send is deduped against
 // clinic_whatsapp_log — so an extra tick can never double-message a patient.
 const clinicReminders = require('./src/clinic/reminders');
+// `pool` used to be referenced here bare, but no module-level pool exists in
+// this file — it was a const inside initDb(). Every hourly tick therefore threw
+// ReferenceError before reaching .catch(), the uncaughtException handler
+// swallowed it, and clinic reminders silently never sent. With the shared-pool
+// patch, this Pool is the same bounded pool the rest of the app uses.
+const remindersPool = new (require('pg').Pool)({ connectionString: process.env.DATABASE_URL });
 setInterval(() => {
-  clinicReminders.sendDueReminders(pool).catch((e) => console.error('[reminders]', e.message));
+  clinicReminders.sendDueReminders(remindersPool).catch((e) => console.error('[reminders]', e.message));
 }, 60 * 60 * 1000).unref();
 
 // Subscriptions (phase 32): create due recurring orders. Runs hourly and is

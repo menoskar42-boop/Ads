@@ -13,6 +13,12 @@
   var __descBase = about || ('ورشة ' + displayName + ' لصيانة وإصلاح السيارات'
     + (ws.address ? ' في ' + ws.address : '') + '. تشخيص، قطع غيار، وضمان على الشغل.');
   var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+  // The page's own subdomain URL. res.locals.canonicalUrl is built from
+  // req.originalUrl on the MAIN origin, so on a tenant subdomain it points at
+  // oscardevs.com/ — telling Google this page is a duplicate of the marketing
+  // homepage, which drops the tenant from the index entirely.
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug)
+    : (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '');
 %>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -23,7 +29,7 @@
 <title><%= __title %></title>
 <meta name="description" content="<%= __desc %>" />
 <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
-<%- include('partials/seo_meta', { title: __title, description: __desc,
+<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon,
       siteLogo: company.logo_url || null, siteAppName: displayName }) %>
 <% if (!(typeof noindex !== 'undefined' && noindex)) { %>
 <script type="application/ld+json">
@@ -32,7 +38,7 @@
   "@type": "AutoRepair",
   "name": displayName,
   "description": __desc,
-  "url": canonicalUrl,
+  "url": __canon,
   "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
   "telephone": phone || undefined,
   "address": ws.address ? { "@type": "PostalAddress", "streetAddress": ws.address, "addressCountry": "EG" } : undefined,

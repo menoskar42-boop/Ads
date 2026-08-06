@@ -137,6 +137,13 @@ router.post('/login', loginLimiter, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
   const renderLogin = (opts) => res.render('company/login', Object.assign({ error: null, notice: null }, opts));
+  // An empty password is never a valid credential, whatever the database says.
+  // bcrypt.compare('', hashOf('')) is TRUE — and a seed script that hashed an
+  // unset env var actually shipped such an account, which made this login
+  // accept a blank password until the audit caught it. Reject before comparing.
+  if (!email || !password) {
+    return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+  }
   try {
     const result = await pool.query(
       `SELECT cu.*, c.company_name, c.theme_color, c.slug

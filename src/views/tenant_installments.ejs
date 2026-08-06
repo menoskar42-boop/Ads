@@ -25,6 +25,17 @@
     + (qs.address ? ' في ' + qs.address : '')
     + '. أقساط بمواعيد واضحة وكشف حساب لكل عميل.');
   var __desc = __descBase.replace(/\s+/g, ' ').slice(0, 158);
+  // The page's own subdomain URL. res.locals.canonicalUrl is built from
+  // req.originalUrl on the MAIN origin, so on a tenant subdomain it points at
+  // oscardevs.com/ — telling Google this page is a duplicate of the marketing
+  // homepage, which drops the tenant from the index entirely.
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug)
+    : (typeof canonicalUrl !== 'undefined' ? canonicalUrl : '');
+  // Only http(s) may leave through an href. EJS escaping covers HTML but does
+  // nothing about a javascript: scheme, and these fields are typed by the
+  // tenant — a hostile tenant must not get script into every visitor's click.
+  var __safeUrl = function (u) { u = String(u == null ? '' : u).trim(); return /^https?:\/\//i.test(u) ? u : ''; };
+  var __safe_map_url = __safeUrl(qs.map_url);
 %>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -35,7 +46,7 @@
 <title><%= __title %></title>
 <meta name="description" content="<%= __desc %>" />
 <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
-<%- include('partials/seo_meta', { title: __title, description: __desc,
+<%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon,
       siteLogo: company.logo_url || null, siteAppName: displayName }) %>
 <% if (!(typeof noindex !== 'undefined' && noindex)) { %>
 <script type="application/ld+json">
@@ -44,7 +55,7 @@
   "@type": "Store",
   "name": displayName,
   "description": __desc,
-  "url": canonicalUrl,
+  "url": __canon,
   "image": company.logo_url ? (siteOrigin + company.logo_url) : undefined,
   "telephone": phone || undefined,
   "address": qs.address ? { "@type": "PostalAddress", "streetAddress": qs.address, "addressCountry": "EG" } : undefined,
@@ -110,8 +121,8 @@
     </ol>
   </section>
 
-  <% if (qs.map_url) { %>
-    <a href="<%= qs.map_url %>" target="_blank" rel="noopener"
+  <% if (__safe_map_url) { %>
+    <a href="<%= __safe_map_url %>" target="_blank" rel="noopener"
       class="inline-block bg-white border border-teal-100 rounded-xl px-5 py-3 text-sm font-bold mb-6">📍 موقعنا على الخريطة</a>
   <% } %>
 
