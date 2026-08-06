@@ -34,6 +34,7 @@ const cleanRef = (s) => {
 };
 
 router.get('/apply', (req, res) => {
+  res.locals.showAds = false; // a form is not content — AdSense policy
   const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall'].includes(req.query.type) ? req.query.type : '';
   const ref = cleanRef(req.query.ref);
   const values = {};
