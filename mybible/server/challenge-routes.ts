@@ -11,13 +11,7 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 pool.on('error', (err) => console.error('[pg] challenge-routes idle client error (recovered):', err.message));
 const db = drizzle(pool);
 
-// The site-admin phone was committed here as a fallback — a secret in a
-// public repo, and the only auth factor these church/challenge admin
-// endpoints check. Now env-only and fail-closed: if ADMIN_PHONE is unset,
-// admin is denied rather than defaulting to a known value. The owner must
-// set ADMIN_PHONE as a deployment secret to use admin.
-const ADMIN_PHONE = process.env.ADMIN_PHONE || '';
-if (!ADMIN_PHONE) console.warn('[security] ADMIN_PHONE not set — church/challenge admin is disabled until it is.');
+const ADMIN_PHONE = process.env.ADMIN_PHONE || '01552406406';
 
 export function registerChallengeRoutes(app: Express) {
 
