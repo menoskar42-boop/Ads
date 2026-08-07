@@ -1,0 +1,239 @@
+<%
+  // Research Data Auditor — report. Renders the deterministic report object plus
+  // the (optional) AI narrative. Carries its own JSON download + print-to-PDF
+  // client-side, so nothing sensitive round-trips to the server again.
+  var r = report;
+  var s = r.summary;
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function money(n){ return Number(n||0).toLocaleString('ar-EG'); }
+  var toneBg = { emerald:'#059669', lime:'#65a30d', amber:'#d97706', orange:'#ea580c', rose:'#e11d48' };
+  var sevColor = { critical:'#e11d48', high:'#ea580c', medium:'#d97706', low:'#64748b' };
+  var scoreColor = toneBg[s.scoreLabel.tone] || '#4f46e5';
+  var buckets = [
+    { key:'critical', label:'حرج', items:r.priority.critical },
+    { key:'high', label:'مرتفع', items:r.priority.high },
+    { key:'medium', label:'متوسط', items:r.priority.medium },
+    { key:'low', label:'منخفض', items:r.priority.low },
+  ];
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= (title || 'تقرير التدقيق').slice(0,60) %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  *{font-family:'Cairo',sans-serif}
+  @media print {
+    .no-print{display:none !important}
+    body{background:#fff}
+    .card{break-inside:avoid}
+  }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+<header class="bg-white shadow-sm no-print">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+    <a href="/" class="text-lg font-extrabold text-indigo-700">OscarDevs</a>
+    <div class="flex gap-2">
+      <a href="/research" class="text-sm bg-slate-100 hover:bg-slate-200 rounded-lg px-4 py-2 font-bold">تحليل ملف تاني</a>
+      <button onclick="downloadJSON()" class="text-sm bg-slate-800 text-white rounded-lg px-4 py-2 font-bold">تنزيل JSON</button>
+      <button onclick="window.print()" class="text-sm bg-indigo-700 text-white rounded-lg px-4 py-2 font-bold">طباعة / حفظ PDF</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-8">
+
+  <div class="flex items-center justify-between gap-3 flex-wrap mb-2">
+    <h1 class="text-2xl font-black">تقرير تدقيق البيانات</h1>
+    <span class="text-sm text-slate-500"><%= esc(r.meta.filename) %></span>
+  </div>
+
+  <!-- 1. Summary + score -->
+  <section class="card bg-white rounded-2xl shadow-sm p-6 mb-6">
+    <div class="grid sm:grid-cols-3 gap-6 items-center">
+      <div class="text-center">
+        <div class="relative inline-grid place-items-center" style="width:150px;height:150px">
+          <svg width="150" height="150" viewBox="0 0 150 150" style="transform:rotate(-90deg)">
+            <circle cx="75" cy="75" r="64" fill="none" stroke="#e2e8f0" stroke-width="14"/>
+            <circle cx="75" cy="75" r="64" fill="none" stroke="<%= scoreColor %>" stroke-width="14"
+              stroke-linecap="round" stroke-dasharray="<%= Math.round(2*Math.PI*64) %>"
+              stroke-dashoffset="<%= Math.round(2*Math.PI*64*(1 - s.score/100)) %>"/>
+          </svg>
+          <div class="absolute text-center">
+            <div class="text-4xl font-black" style="color:<%= scoreColor %>"><%= s.score %></div>
+            <div class="text-xs text-slate-400">من ١٠٠</div>
+          </div>
+        </div>
+        <div class="mt-2 font-bold" style="color:<%= scoreColor %>"><%= esc(s.scoreLabel.label) %></div>
+      </div>
+      <div class="sm:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
+        <div class="bg-slate-50 rounded-xl p-3"><div class="text-2xl font-black"><%= money(s.rows) %></div><div class="text-xs text-slate-500">صف</div></div>
+        <div class="bg-slate-50 rounded-xl p-3"><div class="text-2xl font-black"><%= money(s.columns) %></div><div class="text-xs text-slate-500">عمود</div></div>
+        <div class="bg-slate-50 rounded-xl p-3"><div class="text-2xl font-black"><%= s.missingPct %>%</div><div class="text-xs text-slate-500">نقص</div></div>
+        <div class="bg-rose-50 rounded-xl p-3"><div class="text-2xl font-black text-rose-600"><%= s.criticalErrors %></div><div class="text-xs text-slate-500">أخطاء حرجة</div></div>
+        <div class="bg-amber-50 rounded-xl p-3"><div class="text-2xl font-black text-amber-600"><%= s.impossibleValues %></div><div class="text-xs text-slate-500">قيم مستحيلة</div></div>
+        <div class="bg-slate-50 rounded-xl p-3"><div class="text-2xl font-black"><%= s.duplicatePatients %></div><div class="text-xs text-slate-500">معرّفات مكررة</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AI narrative -->
+  <% if (r.ai) { %>
+    <section class="card bg-indigo-50 border border-indigo-100 rounded-2xl p-6 mb-6">
+      <h2 class="font-black text-lg mb-3">🤖 قراءة الذكاء الاصطناعي</h2>
+      <div class="text-slate-700 leading-relaxed whitespace-pre-line text-sm"><%= esc(r.ai) %></div>
+      <% if (r.meta.aiModel) { %><p class="text-xs text-slate-400 mt-3">النموذج: <%= esc(r.meta.aiModel) %></p><% } %>
+    </section>
+  <% } else if (r.meta.aiDisabled) { %>
+    <section class="card bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6 text-sm text-slate-500 no-print">
+      شرح الذكاء الاصطناعي غير مفعّل — التقرير التفصيلي تحت كامل بالمنطق الحتمي.
+    </section>
+  <% } %>
+
+  <% if (typeof ruleError !== 'undefined' && ruleError) { %>
+    <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2 text-sm mb-6"><%= esc(ruleError) %></div>
+  <% } %>
+
+  <!-- 12. Priority list -->
+  <section class="card bg-white rounded-2xl shadow-sm p-6 mb-6">
+    <h2 class="font-black text-lg mb-4">قائمة الأولويات</h2>
+    <% if (!r.findings.length) { %>
+      <div class="text-center py-8 text-emerald-600">
+        <div class="text-4xl mb-2">✓</div>
+        <p class="font-bold">مفيش مشاكل واضحة في البيانات. راجعها يدوياً برضه قبل النشر.</p>
+      </div>
+    <% } %>
+    <% buckets.forEach(function(b){ if(!b.items.length) return; %>
+      <div class="mb-5">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="inline-block w-3 h-3 rounded-full" style="background:<%= sevColor[b.key] %>"></span>
+          <h3 class="font-black"><%= b.label %> <span class="text-slate-400 font-normal">(<%= b.items.length %>)</span></h3>
+        </div>
+        <div class="space-y-2">
+          <% b.items.slice(0, 200).forEach(function(f){ %>
+            <div class="border border-slate-100 rounded-xl p-3 text-sm" style="border-inline-start:4px solid <%= sevColor[b.key] %>">
+              <div class="font-bold"><%= esc(f.problem) %></div>
+              <div class="text-slate-500 mt-1"><span class="font-bold text-slate-600">ليه:</span> <%= esc(f.reason) %></div>
+              <div class="text-emerald-700 mt-0.5"><span class="font-bold">الإصلاح:</span> <%= esc(f.fix) %></div>
+              <div class="text-xs text-slate-400 mt-1">
+                <%= esc(r.labels.category[f.category] || f.category) %><% if (f.column) { %> · العمود: <%= esc(f.column) %><% } %><% if (f.row) { %> · الصف: <%= f.row %><% } %>
+              </div>
+            </div>
+          <% }); %>
+          <% if (b.items.length > 200) { %><p class="text-xs text-slate-400">… و<%= b.items.length-200 %> أخرى (نزّل JSON للقائمة الكاملة).</p><% } %>
+        </div>
+      </div>
+    <% }); %>
+  </section>
+
+  <!-- 2. Missing data -->
+  <section class="card bg-white rounded-2xl shadow-sm p-6 mb-6">
+    <h2 class="font-black text-lg mb-4">البيانات الناقصة لكل عمود</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-xs text-slate-500 border-b"><tr><th class="text-start p-2">العمود</th><th class="text-start p-2">ناقص</th><th class="text-start p-2">النسبة</th></tr></thead>
+        <tbody>
+          <% r.sections.missing.forEach(function(m){ %>
+            <tr class="border-b border-slate-50">
+              <td class="p-2 font-bold"><%= esc(m.column) %></td>
+              <td class="p-2"><%= m.missing %> / <%= m.total %></td>
+              <td class="p-2">
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[80px] max-w-[160px]">
+                    <div class="h-full" style="width:<%= Math.min(100,m.pct) %>%;background:<%= m.pct>=50?'#e11d48':(m.pct>=20?'#d97706':'#22c55e') %>"></div>
+                  </div>
+                  <span class="text-xs font-bold"><%= m.pct %>%</span>
+                </div>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 4/5. Formula + range checks summary -->
+  <div class="grid sm:grid-cols-2 gap-6 mb-6">
+    <section class="card bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="font-black text-lg mb-3">التحقق من المعادلات</h2>
+      <% if (!r.sections.formulas.length) { %><p class="text-slate-400 text-sm">مفيش أعمدة محسوبة معروفة في البيانات.</p><% } else { %>
+        <ul class="text-sm space-y-2">
+          <% r.sections.formulas.forEach(function(f){ %>
+            <li class="flex justify-between border-b border-slate-50 pb-1.5">
+              <span><%= esc(f.formula) %></span>
+              <span class="font-bold <%= f.mismatches?'text-rose-600':'text-emerald-600' %>"><%= f.mismatches %> خطأ / <%= f.verified %></span>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+    </section>
+    <section class="card bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="font-black text-lg mb-3">المديات الطبية</h2>
+      <% if (!r.sections.ranges.length) { %><p class="text-slate-400 text-sm">مفيش أعمدة بقواعد مدى معروفة.</p><% } else { %>
+        <ul class="text-sm space-y-2">
+          <% r.sections.ranges.forEach(function(f){ %>
+            <li class="flex justify-between border-b border-slate-50 pb-1.5">
+              <span><%= esc(f.label) %> <span class="text-xs text-slate-400"><%= f.min!=null?f.min:'−∞' %>–<%= f.max!=null?f.max:'∞' %> <%= esc(f.unit||'') %></span></span>
+              <span class="font-bold <%= (f.outOfRange+f.badType)?'text-rose-600':'text-emerald-600' %>"><%= f.outOfRange+f.badType %> خارج المدى</span>
+            </li>
+          <% }); %>
+        </ul>
+      <% } %>
+    </section>
+  </div>
+
+  <!-- 8/9. Outliers + precision -->
+  <div class="grid sm:grid-cols-2 gap-6 mb-6">
+    <section class="card bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="font-black text-lg mb-3">القيم الشاذّة</h2>
+      <% var outCols = (r.sections.outliers||[]).filter(function(o){return o.flagged>0;}); %>
+      <% if (!outCols.length) { %><p class="text-slate-400 text-sm">مفيش قيم شاذّة واضحة.</p><% } else { %>
+        <ul class="text-sm space-y-1.5">
+          <% outCols.forEach(function(o){ %>
+            <li class="flex justify-between border-b border-slate-50 pb-1"><span><%= esc(o.column) %></span><span class="font-bold text-amber-600"><%= o.flagged %> قيمة</span></li>
+          <% }); %>
+        </ul>
+      <% } %>
+      <p class="text-xs text-slate-400 mt-3">بطرق IQR و Z-score و MAD (تصويت أغلبية). الأداة مابتمسحش أي قيمة.</p>
+    </section>
+    <section class="card bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="font-black text-lg mb-3">دقّة الأرقام والجاهزية الإحصائية</h2>
+      <% var mixed = (r.sections.precision||[]).filter(function(p){return p.mixed;}); %>
+      <p class="text-sm text-slate-600 mb-2"><%= mixed.length %> عمود بدقّة أرقام غير موحّدة.</p>
+      <% var rn = (r.sections.readiness||[])[0]; %>
+      <% if (rn && rn.outcomeColumn) { %>
+        <p class="text-sm text-slate-600">عمود النتيجة: <b><%= esc(rn.outcomeColumn) %></b>
+        <% if (rn.classes) { %>— <%= rn.classes.map(function(c){return esc(c[0])+': '+c[1];}).join('، ') %><% } %></p>
+      <% } else if (rn && rn.hint) { %>
+        <p class="text-sm text-amber-600"><%= esc(rn.hint) %></p>
+      <% } %>
+      <p class="text-xs text-slate-400 mt-3">التفاصيل الكاملة في قائمة الأولويات فوق.</p>
+    </section>
+  </div>
+
+  <p class="text-center text-xs text-slate-400 mt-8">
+    دي مراجعة جودة بيانات آلية من OscarDevs — مش تشخيص ولا تحليل إحصائي. القرار النهائي والمسؤولية على الباحث.
+  </p>
+</main>
+
+<script>
+  // Full report as a downloadable JSON, built from an embedded snapshot so no
+  // sensitive data is re-sent to the server.
+  var __REPORT__ = <%- JSON.stringify({ meta: r.meta, summary: s, findings: r.findings, sections: r.sections, byCategory: r.byCategory }) %>;
+  function downloadJSON(){
+    var blob = new Blob([JSON.stringify(__REPORT__, null, 2)], { type:'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'research-audit-' + (__REPORT__.meta.filename||'report').replace(/\.[^.]+$/,'') + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }
+</script>
+</body>
+</html>

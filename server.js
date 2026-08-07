@@ -417,6 +417,8 @@ app.use('/qastly/s', require('./src/routes/installments_public'));
 app.use('/qastly', require('./src/routes/installments_admin'));
 app.use('/nutrition', require('./src/routes/nutrition_admin'));
 app.use('/radiology', require('./src/routes/radiology'));
+// Research Data Auditor — standalone AI tool, no DB tables, stateless.
+app.use('/research', require('./src/routes/research_auditor'));
 
 // Super admin panel must be before tenant middleware too
 app.use('/admin', adminRouter);

@@ -76,7 +76,12 @@ function parseDataset(buffer, opts = {}) {
   // header:1 gives an array-of-arrays so we control header handling ourselves,
   // rather than letting XLSX silently rename duplicate headers.
   const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: false });
-  if (!aoa.length) { const e = new Error('الملف مفيهوش بيانات.'); e.code = 'NO_DATA'; throw e; }
+  // Guard the header row explicitly: an empty sheet, or a build of xlsx whose
+  // reader returns nothing, must produce a clean "no data" error rather than a
+  // cryptic "cannot read '0' of undefined".
+  if (!Array.isArray(aoa) || !aoa.length || !Array.isArray(aoa[0]) || !aoa[0].length) {
+    const e = new Error('الملف مفيهوش صف عناوين أو بيانات.'); e.code = 'NO_DATA'; throw e;
+  }
 
   const rawHeader = aoa[0].map((h, i) => {
     const name = (h === null || String(h).trim() === '') ? `عمود ${i + 1}` : String(h).trim();

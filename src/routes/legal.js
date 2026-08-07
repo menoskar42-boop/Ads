@@ -155,6 +155,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/help',     priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
+    { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
     // privacy + terms are noindex,follow (boilerplate legal) → intentionally NOT
     // listed here: a sitemap must only contain indexable (200, index) URLs.
   ];
@@ -288,6 +289,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع أو نظام إدارة — بورتفوليو، متجر إلكتروني، صيدلية، مطعم/طلبات، عيادة، جيم، معرض وورشة موبيليا، عيادة تغذية، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، أو بيع بالتقسيط.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
+  lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): أداة ذكاء اصطناعي تراجع بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي — نقص وتكرارات وقيم مستحيلة وأخطاء وحدات ومعادلات وقيم شاذّة، مع تقرير جودة.`);
   lines.push(`- [نظام عيادات الأسنان](${SITE_ORIGIN}/dental): صفحة النظام المتخصّص لعيادات الأسنان — خريطة أسنان FDI، خطط علاج لكل سن، مخطط لثة، تعليق على الأشعة، تقسيط وتذكير واتساب.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (OncoScan لدعم قرار الأشعة، Safari Kids، NeuroPilot، Kakeibo، Sokro).`);
   lines.push(`- [تواصل معنا](${SITE_ORIGIN}/contact): طرق التواصل مع الفريق.`);

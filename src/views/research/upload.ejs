@@ -1,0 +1,131 @@
+<%
+  // Research Data Auditor — upload page. Public utility tool, no ads, no data
+  // persistence. Real explanatory content so the page stands on its own.
+  var __title = 'مدقّق بيانات الأبحاث الطبية — Research Data Auditor';
+  var __desc = 'أداة ذكاء اصطناعي تراجع بيانات بحثك (Excel/CSV) قبل التحليل الإحصائي: نقص، تكرارات، قيم مستحيلة، أخطاء وحدات ومعادلات، وقيم شاذّة — مع تقرير جودة مفصّل.';
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title.slice(0, 60) %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('../partials/seo_meta', { title: __title.slice(0,60), description: __desc }) %>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-slate-500 flex gap-3 flex-wrap">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/our-work" class="hover:text-indigo-700">من أعمالنا</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<section class="bg-gradient-to-br from-indigo-900 to-indigo-700 text-white">
+  <div class="max-w-3xl mx-auto px-4 py-12 text-center">
+    <div class="text-4xl mb-3">🔬</div>
+    <h1 class="text-3xl sm:text-4xl font-black mb-3">مدقّق بيانات الأبحاث</h1>
+    <p class="text-indigo-100 leading-relaxed">
+      قبل ما تدخّل بياناتك على SPSS أو أي تحليل إحصائي، الأداة دي بتراجع ملف الإكسل
+      وبتطلعلك <strong>الأخطاء البشرية</strong> اللي بتفسد النتائج: نقص، تكرارات، قيم مستحيلة،
+      أخطاء وحدات، معادلات محسوبة غلط، وقيم شاذّة.
+    </p>
+    <p class="text-indigo-200 text-xs mt-4">
+      دي أداة <strong>مراجعة جودة بيانات</strong> — مش محرّك إحصاء، ومش بتشخّص. القرار النهائي للباحث.
+    </p>
+  </div>
+</section>
+
+<main class="max-w-3xl mx-auto px-4 py-10">
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-3 text-sm mb-6"><%= error %></div>
+  <% } %>
+
+  <form method="post" action="/research/analyze" enctype="multipart/form-data"
+        class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 sm:p-8">
+    <h2 class="font-black text-xl mb-1">ارفع بياناتك</h2>
+    <p class="text-slate-500 text-sm mb-6">المدعوم دلوقتي: Excel (.xlsx / .xls) و CSV. (DICOM والصور في نسخة قادمة.)</p>
+
+    <label class="block mb-5">
+      <span class="text-sm font-bold text-slate-700">ملف البيانات <span class="text-rose-600">*</span></span>
+      <input type="file" name="dataset" accept=".xlsx,.xls,.csv" required
+        class="mt-2 block w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 file:me-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:text-white file:px-4 file:py-2" />
+    </label>
+
+    <div class="grid sm:grid-cols-2 gap-4 mb-5">
+      <label class="block">
+        <span class="text-sm font-bold text-slate-700">بروتوكول الدراسة (PDF)</span>
+        <span class="text-xs text-slate-400 block">اختياري</span>
+        <input type="file" name="protocol" accept=".pdf"
+          class="mt-2 block w-full text-xs border border-slate-200 rounded-xl px-3 py-2" />
+      </label>
+      <label class="block">
+        <span class="text-sm font-bold text-slate-700">دليل القياسات</span>
+        <span class="text-xs text-slate-400 block">اختياري</span>
+        <input type="file" name="guide"
+          class="mt-2 block w-full text-xs border border-slate-200 rounded-xl px-3 py-2" />
+      </label>
+    </div>
+
+    <details class="mb-6">
+      <summary class="text-sm font-bold text-indigo-700 cursor-pointer">قواعد مخصّصة (JSON) — للمتقدّمين</summary>
+      <p class="text-xs text-slate-500 mt-2 mb-2">
+        تقدر تضيف حدود ووحدات لأعمدة معيّنة. مثال:
+      </p>
+      <pre class="bg-slate-50 rounded-lg p-3 text-xs overflow-x-auto text-left" dir="ltr">{
+  "rules": [
+    { "column": "eGFR", "min": 0, "max": 200, "unit": "mL/min", "decimals": 1 },
+    { "column": "Grade", "allowed": [1,2,3], "integer": true }
+  ]
+}</pre>
+      <textarea name="customRules" rows="4" dir="ltr" placeholder='{ "rules": [ ... ] }'
+        class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs mt-2"></textarea>
+    </details>
+
+    <button class="w-full bg-indigo-700 hover:bg-indigo-800 text-white font-bold rounded-xl py-3.5 text-lg">
+      حلّل البيانات
+    </button>
+    <p class="text-center text-xs text-slate-400 mt-3">
+      🔒 بياناتك <strong>مابتتخزّنش على السيرفر</strong> — بتتحلّل وتتمسح فوراً بعد ما التقرير يطلع.
+      <% if (typeof aiEnabled !== 'undefined' && !aiEnabled) { %><br />(شرح الذكاء الاصطناعي غير مفعّل حالياً — التقرير التفصيلي هيطلع كامل بدونه.)<% } %>
+    </p>
+  </form>
+
+  <section class="mt-10 grid sm:grid-cols-2 gap-4 text-sm">
+    <div class="bg-white rounded-2xl border border-slate-100 p-5">
+      <div class="text-2xl mb-2">🧮</div>
+      <h3 class="font-black mb-1">١٢ نوع فحص</h3>
+      <p class="text-slate-500">نقص، تكرارات، معادلات، مديات طبية، وحدات، اتساق، قيم شاذّة، دقّة أرقام، وجاهزية إحصائية.</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-5">
+      <div class="text-2xl mb-2">🎯</div>
+      <h3 class="font-black mb-1">قائمة أولويات</h3>
+      <p class="text-slate-500">كل مشكلة معاها: السبب، وليه مهمة، والإصلاح المقترح — مرتّبة حرج/مرتفع/متوسط/منخفض.</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-5">
+      <div class="text-2xl mb-2">🤖</div>
+      <h3 class="font-black mb-1">شرح بالذكاء الاصطناعي</h3>
+      <p class="text-slate-500">شرح مبسّط للنتائج — بيشرح المشاكل بس، <strong>مابيخترعش استنتاجات طبية</strong>، ولو مش متأكد بيقول «يحتاج مراجعة الباحث».</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-100 p-5">
+      <div class="text-2xl mb-2">📄</div>
+      <h3 class="font-black mb-1">تقرير احترافي</h3>
+      <p class="text-slate-500">تقرير كامل على الشاشة، قابل للطباعة / حفظ PDF، وتنزيل JSON. الأداة <strong>مابتعدّلش بياناتك أبداً</strong>.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="bg-white border-t border-slate-200 py-8 text-center text-sm text-slate-500">
+  <a href="/" class="hover:text-indigo-700">OscarDevs</a> ·
+  <a href="/our-work" class="hover:text-indigo-700">من أعمالنا</a>
+</footer>
+</body>
+</html>
