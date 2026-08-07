@@ -21,7 +21,7 @@
 <%- include('partials/seo_meta', { title: __dTitle, description: __dDesc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __cName, ogImage: doctor.photo_url || company.logo_url || '' }) %>
 <% if (!__pageNoindex) { %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context': 'https://schema.org',
   '@type': 'Physician',
   name: __dName,
@@ -33,7 +33,7 @@
 }, doctor.photo_url ? { image: doctor.photo_url } : {})) %>
 </script>
 <script type="application/ld+json">
-<%- JSON.stringify({ '@context':'https://schema.org','@type':'BreadcrumbList','itemListElement':[
+<%- jsonLd({ '@context':'https://schema.org','@type':'BreadcrumbList','itemListElement':[
   { '@type':'ListItem','position':1,'name':__cName,'item':__base },
   { '@type':'ListItem','position':2,'name':__dName,'item':__canon }
 ] }) %>

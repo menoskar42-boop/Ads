@@ -47,7 +47,7 @@
 <% if (!__pageNoindex) { %>
 <%# GEO / local structured data — only on indexable pages. %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context': 'https://schema.org',
   '@type': 'Pharmacy',
   name: __phName,
@@ -406,7 +406,7 @@
   var count = document.getElementById('resultCount');
   var icon = document.getElementById('searchIcon');
   var spin = document.getElementById('searchSpin');
-  var unit = <%- JSON.stringify(t('pharmacy.items_word')) %>;
+  var unit = <%- jsonLd(t('pharmacy.items_word')) %>;
   var isAr = document.documentElement.lang === 'ar';
   var toAr = function (n) { return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); };
   var t = null;
@@ -477,13 +477,13 @@
 
 <script>
 (function () {
-  var KEY = 'oscardevs_ph_cart_' + <%- JSON.stringify(company.slug) %>;
-  var CKEY = 'oscardevs_ph_contact_' + <%- JSON.stringify(company.slug) %>;
-  var CUR = <%- JSON.stringify(t('pharmacy.currency')) %>;
-  var ADD = <%- JSON.stringify(t('pharmacy.cart.add')) %>;
-  var ADDED = <%- JSON.stringify(t('pharmacy.cart.added')) %>;
-  var MAXW = <%- JSON.stringify(t('pharmacy.cart.max_reached')) %>;
-  var DELIVERY = <%- JSON.stringify(pharmacySettings && pharmacySettings.delivery_enabled && Number(pharmacySettings.delivery_fee) > 0 ? Number(pharmacySettings.delivery_fee) : 0) %>;
+  var KEY = 'oscardevs_ph_cart_' + <%- jsonLd(company.slug) %>;
+  var CKEY = 'oscardevs_ph_contact_' + <%- jsonLd(company.slug) %>;
+  var CUR = <%- jsonLd(t('pharmacy.currency')) %>;
+  var ADD = <%- jsonLd(t('pharmacy.cart.add')) %>;
+  var ADDED = <%- jsonLd(t('pharmacy.cart.added')) %>;
+  var MAXW = <%- jsonLd(t('pharmacy.cart.max_reached')) %>;
+  var DELIVERY = <%- jsonLd(pharmacySettings && pharmacySettings.delivery_enabled && Number(pharmacySettings.delivery_fee) > 0 ? Number(pharmacySettings.delivery_fee) : 0) %>;
   var isAr = document.documentElement.lang === 'ar';
 
   var bar = document.getElementById('phCartBar');

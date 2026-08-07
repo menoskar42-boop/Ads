@@ -25,7 +25,7 @@
 <meta name="description" content="<%= __desc %>" />
 <%- include('../partials/seo_meta', { title: __title, description: __desc }) %>
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- jsonLd({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "نظام إدارة عيادات الأسنان — OscarDevs",
@@ -46,7 +46,7 @@
     the same crumbs further down the page, and two BreadcrumbLists on one page
     is a conflict for a crawler to resolve rather than extra coverage. %>
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- jsonLd({
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [

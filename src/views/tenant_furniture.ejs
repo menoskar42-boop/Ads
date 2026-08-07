@@ -54,7 +54,7 @@
 <%# Structured data only on pages that are actually indexed — describing a page
     to a crawler that has been told not to index it is noise. %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context': 'https://schema.org',
   '@type': 'FurnitureStore',
   name: __name,

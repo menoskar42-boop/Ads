@@ -27,7 +27,7 @@
 <%- include('partials/seo_meta', { title: __title, description: __desc, canonical: __canon, siteLogo: company.logo_url || '', siteAppName: __name, ogImage: company.logo_url || '', siteManifest: '/manifest.webmanifest' }) %>
 <% if (!__noindex && __outlets.length) { %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context': 'https://schema.org',
   '@type': (__outlets.some(function(o){return o.vertical==='restaurant';}) ? 'Restaurant' : 'Store'),
   name: __name, url: __canon, description: __desc,
@@ -208,16 +208,16 @@
 </div>
 
 <script>
-window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.id, fee:Number(o.delivery_fee)||0, min:Number(o.min_order)||0, name:(o.name_ar||o.name) }; })) %>;
+window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:Number(o.delivery_fee)||0, min:Number(o.min_order)||0, name:(o.name_ar||o.name) }; })) %>;
 </script>
 <script>
 (function () {
-  var KEY = 'oscardevs_food_cart_' + <%- JSON.stringify(company.slug) %>;
-  var HKEY = 'oscardevs_food_history_' + <%- JSON.stringify(company.slug) %>;
-  var CKEY = 'oscardevs_food_contact_' + <%- JSON.stringify(company.slug) %>;
-  var CUR = <%- JSON.stringify(__cur) %>;
+  var KEY = 'oscardevs_food_cart_' + <%- jsonLd(company.slug) %>;
+  var HKEY = 'oscardevs_food_history_' + <%- jsonLd(company.slug) %>;
+  var CKEY = 'oscardevs_food_contact_' + <%- jsonLd(company.slug) %>;
+  var CUR = <%- jsonLd(__cur) %>;
   var isAr = document.documentElement.lang === 'ar';
-  var MINW = <%- JSON.stringify(t('orders.min_order_warn')) %>;
+  var MINW = <%- jsonLd(t('orders.min_order_warn')) %>;
   var outlets = {}; (window.__OUTLETS || []).forEach(function (o) { outlets[o.id] = o; });
   var appliedPercent = 0;
 
@@ -294,7 +294,7 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
     else { minWarn.classList.add('hidden'); confirmBtn.disabled = false; confirmBtn.style.opacity = '1'; }
   }
 
-  var UPSELL_ON = <%- JSON.stringify(typeof foodUpsellOn !== 'undefined' && foodUpsellOn) %>;
+  var UPSELL_ON = <%- jsonLd(typeof foodUpsellOn !== 'undefined' && foodUpsellOn) %>;
   function renderUpsell() {
     if (!UPSELL_ON) return;
     var box = document.getElementById('upsellBox'), list = document.getElementById('upsellList');
@@ -331,7 +331,7 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
       var c = load(), id = b.dataset.id;
       if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price), q: 0, o: b.dataset.outlet };
       c[id].q += 1; save(c); renderBar();
-      b.textContent = '✓'; setTimeout(function () { b.textContent = <%- JSON.stringify(t('orders.add')) %>; }, 600);
+      b.textContent = '✓'; setTimeout(function () { b.textContent = <%- jsonLd(t('orders.add')) %>; }, 600);
     });
   });
 
@@ -361,10 +361,10 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
         couponMsg.classList.remove('hidden');
         if (d && d.ok) {
           appliedPercent = d.percent || 0; couponField.value = code;
-          couponMsg.textContent = <%- JSON.stringify(t('orders.coupon_applied')) %>; couponMsg.className = 'text-xs font-bold text-green-600';
+          couponMsg.textContent = <%- jsonLd(t('orders.coupon_applied')) %>; couponMsg.className = 'text-xs font-bold text-green-600';
         } else {
           appliedPercent = 0; couponField.value = '';
-          couponMsg.textContent = <%- JSON.stringify(t('orders.coupon_invalid')) %>; couponMsg.className = 'text-xs font-bold text-red-600';
+          couponMsg.textContent = <%- jsonLd(t('orders.coupon_invalid')) %>; couponMsg.className = 'text-xs font-bold text-red-600';
         }
         renderDrawer(); renderBar();
       }).catch(function () {});
@@ -397,7 +397,7 @@ window.__OUTLETS = <%- JSON.stringify(__outlets.map(function(o){ return { id:o.i
   var oList = document.getElementById('ordersList');
   function loadHist() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } }
   function fmtDate(ts) { try { return new Date(ts).toLocaleDateString(isAr ? 'ar-EG' : 'en-US'); } catch (e) { return ''; } }
-  var ITEMS_W = <%- JSON.stringify(t('orders.items_count')) %>, REORDER = <%- JSON.stringify(t('orders.reorder')) %>, TRACK = <%- JSON.stringify(t('orders.track')) %>, NOHIST = <%- JSON.stringify(t('orders.no_history')) %>;
+  var ITEMS_W = <%- jsonLd(t('orders.items_count')) %>, REORDER = <%- jsonLd(t('orders.reorder')) %>, TRACK = <%- jsonLd(t('orders.track')) %>, NOHIST = <%- jsonLd(t('orders.no_history')) %>;
   function renderHist() {
     var h = loadHist(); oList.innerHTML = '';
     if (!h.length) { oList.innerHTML = '<p class="text-center text-gray-400 py-10">' + NOHIST + '</p>'; return; }

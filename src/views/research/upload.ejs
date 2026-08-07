@@ -13,7 +13,7 @@
 <meta name="description" content="<%= __desc %>" />
 <%- include('../partials/seo_meta', { title: __title.slice(0,60), description: __desc }) %>
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- jsonLd({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "Research Data Auditor — مدقّق بيانات الأبحاث",

@@ -41,7 +41,7 @@
 <% if (!__pageNoindex) { %>
 <%# GEO / medical structured data — only on indexable pages. %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context': 'https://schema.org',
   '@type': 'MedicalClinic',
   name: __cName,

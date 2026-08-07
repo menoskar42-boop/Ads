@@ -47,7 +47,7 @@
   </style>
 </head>
 <body>
-<script>window.SHOP_SLUG = <%- JSON.stringify(company.slug) %>;</script>
+<script>window.SHOP_SLUG = <%- jsonLd(company.slug) %>;</script>
 <% var __on = function(k){ return typeof feat === 'undefined' || feat[k] !== false; }; %>
 <%# Merchant marketing pixels (phase 24) — the store owner's own tracking IDs %>
 <% if (company.fb_pixel_id) { %>
@@ -123,7 +123,7 @@
 <script>
 (function(){
   var sel = document.getElementById('odvCurSel'); if (!sel) return;
-  var KEY = 'odv_cur_' + <%- JSON.stringify(company.slug) %>;
+  var KEY = 'odv_cur_' + <%- jsonLd(company.slug) %>;
   function apply(){
     var o = sel.options[sel.selectedIndex];
     var rate = parseFloat(o.getAttribute('data-rate')) || 1;

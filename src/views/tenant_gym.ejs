@@ -23,7 +23,7 @@
 <%- include('partials/seo_meta', { title: cTitle, description: cDesc, canonical: canon, siteAppName: gName, siteLogo: company.logo_url || '', ogImage: company.logo_url || '', siteManifest: '/manifest.webmanifest' }) %>
 <% if (!noindex) { %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context':'https://schema.org','@type':['HealthClub','SportsActivityLocation'],
   name: gName, url: canon, description: cDesc, areaServed:{'@type':'Country',name:'Egypt'}
 },

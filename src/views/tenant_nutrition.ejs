@@ -43,7 +43,7 @@
 <%# Structured data only on pages that are actually indexed. Describing a page
     to a search engine that has been told not to index it is noise. %>
 <script type="application/ld+json">
-<%- JSON.stringify(Object.assign({
+<%- jsonLd(Object.assign({
   '@context': 'https://schema.org',
   '@type': 'Dietitian',
   name: __name,

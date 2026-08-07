@@ -52,6 +52,11 @@ function base(extra) {
     t: (k) => k,
     canonicalCompanyUrl: (slug) => `https://${slug}.oscardevs.com`,
     termsVersion: '1.3',
+    // Mirror the app's res.locals.jsonLd (server.js) so views that embed JSON-LD
+    // via jsonLd() render here too — same \u-escaping the real request uses.
+    jsonLd: (obj) => JSON.stringify(obj)
+      .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
+      .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'),
   }, extra || {});
 }
 

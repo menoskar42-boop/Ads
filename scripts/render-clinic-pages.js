@@ -44,6 +44,11 @@ function base(lang, tab) {
     LOC: lang === 'en' ? 'en-GB' : 'ar-EG',
     t: (k) => t(k, lang),
     modules: {},
+    // Mirror server.js res.locals.jsonLd so any public tenant view that embeds
+    // JSON-LD via jsonLd() renders in this harness with the same \u-escaping.
+    jsonLd: (o) => JSON.stringify(o)
+      .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
+      .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'),
   };
 }
 

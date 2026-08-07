@@ -389,6 +389,16 @@ app.use((req, res, next) => {
   res.locals.siteOrigin = origin;
   res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
   res.locals.ads = adsConfig;
+  // Safe JSON for embedding inside an inline <script> or a JSON-LD block.
+  // Plain JSON.stringify does NOT escape a closing-script sequence, so any
+  // tenant-controlled string (a business name, an outlet name, an "about")
+  // containing one would break out of the tag and execute — stored XSS. This
+  // escapes the HTML-significant chars + the JS line separators U+2028/U+2029
+  // into \u escapes: still valid JSON/JS, impossible to close the tag. Views
+  // use <%- jsonLd(obj) %> instead of <%- JSON.stringify(obj) %>.
+  res.locals.jsonLd = (obj) => JSON.stringify(obj)
+    .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   // Default OFF — AdSense loads only on content pages that opt in (fail-closed
   // so prohibited pages like login/dashboards/checkout/404 never show ads).
   res.locals.showAds = false;

@@ -50,7 +50,7 @@
       siteLogo: company.logo_url || null, siteAppName: displayName }) %>
 <% if (!(typeof noindex !== 'undefined' && noindex)) { %>
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- jsonLd({
   "@context": "https://schema.org",
   "@type": centre ? "EducationalOrganization" : "ChildCare",
   "name": displayName,

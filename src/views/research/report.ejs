@@ -225,7 +225,7 @@
 <script>
   // Full report as a downloadable JSON, built from an embedded snapshot so no
   // sensitive data is re-sent to the server.
-  var __REPORT__ = <%- JSON.stringify({ meta: r.meta, summary: s, findings: r.findings, sections: r.sections, byCategory: r.byCategory }) %>;
+  var __REPORT__ = <%- jsonLd({ meta: r.meta, summary: s, findings: r.findings, sections: r.sections, byCategory: r.byCategory }) %>;
   function downloadJSON(){
     var blob = new Blob([JSON.stringify(__REPORT__, null, 2)], { type:'application/json' });
     var a = document.createElement('a');

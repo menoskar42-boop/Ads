@@ -21,7 +21,7 @@
 <meta property="og:image" content="<%= (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') %>/og-default.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- jsonLd({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "OncoScan",
