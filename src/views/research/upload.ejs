@@ -12,6 +12,21 @@
 <title><%= __title.slice(0, 60) %></title>
 <meta name="description" content="<%= __desc %>" />
 <%- include('../partials/seo_meta', { title: __title.slice(0,60), description: __desc }) %>
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Research Data Auditor — مدقّق بيانات الأبحاث",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "inLanguage": "ar",
+  "isAccessibleForFree": true,
+  "description": __desc,
+  "url": (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') + '/research',
+  "featureList": ["فحص البيانات الناقصة", "كشف التكرارات", "التحقق من المعادلات", "المديات الطبية", "أخطاء الوحدات", "القيم الشاذّة", "الجاهزية الإحصائية"],
+  "provider": { "@type": "Organization", "name": "OscarDevs", "url": (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') }
+}) %>
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>*{font-family:'Cairo',sans-serif}</style>

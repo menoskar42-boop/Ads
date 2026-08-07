@@ -3,9 +3,20 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<meta name="robots" content="noindex,nofollow" />
+<%# Default noindex for the whole authenticated app; the public landing/login
+    opts in via pageIndexable so it (and only it) can be discovered + shared. %>
+<meta name="robots" content="<%= (typeof pageIndexable !== 'undefined' && pageIndexable) ? 'index,follow' : 'noindex,nofollow' %>" />
 <title><%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle + ' · ' : '' %><%= t('app.name') %></title>
-<meta name="description" content="<%= t('app.tagline') %>" />
+<meta name="description" content="<%= (typeof metaDescription !== 'undefined' && metaDescription) ? metaDescription : t('app.tagline') %>" />
+<% if (typeof pageIndexable !== 'undefined' && pageIndexable) { %>
+<link rel="canonical" href="https://kakeibo.oscardevs.com/" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="<%= (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : t('app.name') %>" />
+<meta property="og:description" content="<%= (typeof metaDescription !== 'undefined' && metaDescription) ? metaDescription : t('app.tagline') %>" />
+<meta property="og:url" content="https://kakeibo.oscardevs.com/" />
+<meta property="og:image" content="https://oscardevs.com/og-default.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<% } %>
 <meta name="theme-color" content="#c0392b" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="icon" href="/kkb-icon.svg" />

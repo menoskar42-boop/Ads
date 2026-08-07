@@ -156,8 +156,15 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
+    { loc: '/radiology', priority: '0.6', changefreq: 'monthly', lastmod: today }, // OncoScan public landing (index,follow)
+    // Standalone "من أعمالنا" apps on their own subdomains — both are fully
+    // index-ready (index,follow, canonical, description, OG, JSON-LD) but were
+    // absent from every sitemap, so nothing pointed crawlers at them.
+    { loc: 'https://adhd.' + BASE_DOMAIN + '/',  priority: '0.6', changefreq: 'monthly', lastmod: today }, // NeuroPilot
+    { loc: 'https://mykid.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'monthly', lastmod: today }, // Safari Kids
     // privacy + terms are noindex,follow (boilerplate legal) → intentionally NOT
     // listed here: a sitemap must only contain indexable (200, index) URLs.
+    // Kakeibo + Sokro stay out: their public roots are noindex login-gated apps.
   ];
   for (const a of ARTICLES) {
     urls.push({ loc: '/blog/' + a.slug, priority: '0.7', changefreq: 'monthly', lastmod: a.date });
@@ -291,7 +298,15 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
   lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): أداة ذكاء اصطناعي تراجع بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي — نقص وتكرارات وقيم مستحيلة وأخطاء وحدات ومعادلات وقيم شاذّة، مع تقرير جودة.`);
   lines.push(`- [نظام عيادات الأسنان](${SITE_ORIGIN}/dental): صفحة النظام المتخصّص لعيادات الأسنان — خريطة أسنان FDI، خطط علاج لكل سن، مخطط لثة، تعليق على الأشعة، تقسيط وتذكير واتساب.`);
-  lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب طوّرها فريق OscarDevs (OncoScan لدعم قرار الأشعة، Safari Kids، NeuroPilot، Kakeibo، Sokro).`);
+  lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب وموبايل طوّرها فريق OscarDevs.`);
+  // Individual, citable entries for each showcased app — an LLM gets a real URL
+  // + description per app instead of names buried in one line.
+  lines.push(`- [OncoScan — دعم قرار الأشعة](${SITE_ORIGIN}/radiology): أداة ذكاء اصطناعي لدعم قرار الأشعة (CT/MRI) — رفع DICOM وعرض في المتصفح وتقرير منظّم ثنائي اللغة. غير تشخيصية.`);
+  lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): مراجعة جودة بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي.`);
+  lines.push(`- [NeuroPilot — مؤقّت تركيز لأصحاب ADHD](https://adhd.${BASE_DOMAIN}/): تطبيق مؤقّت تركيز (Pomodoro) مصمّم لأصحاب فرط الحركة وتشتّت الانتباه.`);
+  lines.push(`- [Safari Kids — عالم الاستكشاف السحري](https://mykid.${BASE_DOMAIN}/): تطبيق تعليمي تفاعلي للأطفال مع شخصية «ميزو».`);
+  lines.push(`- [Sokro — وكيل ذكاء اصطناعي عربي](https://sokro.${BASE_DOMAIN}/): وكيل ذكاء اصطناعي عربي يبحث ويلخّص ويكتب تقارير، بالصوت والنص.`);
+  lines.push(`- [Kakeibo — مدرّب مالي](https://kakeibo.${BASE_DOMAIN}/): تطبيق إدارة مصاريف وميزانية بأسلوب «كاكيبو» الياباني.`);
   lines.push(`- [تواصل معنا](${SITE_ORIGIN}/contact): طرق التواصل مع الفريق.`);
   lines.push('');
   lines.push('## المدوّنة (أدلة عملية أصلية)');

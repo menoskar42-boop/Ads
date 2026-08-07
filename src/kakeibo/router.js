@@ -84,7 +84,19 @@ function afterAuthRedirect(res, profile) {
 /* ─── Landing / auth ───────────────────────────────────── */
 router.get('/', (req, res) => {
   if (res.locals.user) return afterAuthRedirect(res, res.locals.profile);
-  res.render('kakeibo/login', { mode: req.query.mode === 'signup' ? 'signup' : 'login', error: req.query.err === 'oauth' ? res.locals.t('auth.err_invalid') : null, googleAuth: googleConfigured() });
+  // The logged-out root is the public landing (hero + features + login form), so
+  // it opts into indexing with a marketing title/description; every other
+  // kakeibo page keeps the default noindex from head.ejs.
+  res.render('kakeibo/login', {
+    mode: req.query.mode === 'signup' ? 'signup' : 'login',
+    error: req.query.err === 'oauth' ? res.locals.t('auth.err_invalid') : null,
+    googleAuth: googleConfigured(),
+    pageIndexable: true,
+    // The head appends " · كاكيبو", so the brand is left off here — otherwise the
+    // title reads "كاكيبو … · كاكيبو" and runs past 60 chars.
+    pageTitle: 'مدرّب مالي بأسلوب ياباني لإدارة المصاريف',
+    metaDescription: 'كاكيبو: تطبيق عربي لإدارة المصاريف والميزانية بأسلوب «كاكيبو» الياباني — تسجّل مصاريفك، يحسبلك ميزانيتك، ويساعدك توفّر بوعي. مجاني للبدء.',
+  });
 });
 
 router.post('/signup', async (req, res) => {

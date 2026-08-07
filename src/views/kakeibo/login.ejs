@@ -1,4 +1,6 @@
-<% pageTitle = mode === 'signup' ? t('auth.signup') : t('auth.login') %>
+<%# Respect a marketing pageTitle passed by the public-landing route; only fall
+    back to the generic auth title when none was provided. %>
+<% pageTitle = (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle : (mode === 'signup' ? t('auth.signup') : t('auth.login')) %>
 <%- include('head') %>
 
 <main class="wrap" style="padding-top:24px;padding-bottom:48px">

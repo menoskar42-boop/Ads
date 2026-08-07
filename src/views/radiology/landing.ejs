@@ -2,8 +2,38 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="robots" content="noindex,nofollow" />
-<title>OncoScan — دعم قرار الأشعة (غير تشخيصي)</title>
+<%
+  // This is the PUBLIC marketing landing (the authenticated app pages under
+  // _layout_top.ejs stay noindex). It is showcased in /our-work, so it should be
+  // discoverable and share well. The gated dashboard/upload/study pages are a
+  // separate layout and remain noindex.
+  var __rurl = (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') + '/radiology';
+  var __rdesc = 'OncoScan: أداة دعم قرار للأشعة (CT/MRI) بالذكاء الاصطناعي — رفع دراسات DICOM، عرضها في المتصفح، وتقرير منظّم ثنائي اللغة. أداة غير تشخيصية، القرار للطبيب.';
+%>
+<meta name="robots" content="index,follow" />
+<title>OncoScan — دعم قرار الأشعة (CT/MRI) بالذكاء الاصطناعي</title>
+<meta name="description" content="<%= __rdesc %>" />
+<link rel="canonical" href="<%= __rurl %>" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="OncoScan — دعم قرار الأشعة بالذكاء الاصطناعي" />
+<meta property="og:description" content="<%= __rdesc %>" />
+<meta property="og:url" content="<%= __rurl %>" />
+<meta property="og:image" content="<%= (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') %>/og-default.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "OncoScan",
+  "applicationCategory": "HealthApplication",
+  "operatingSystem": "Web",
+  "description": __rdesc,
+  "url": __rurl,
+  "inLanguage": "ar",
+  "isAccessibleForFree": true,
+  "provider": { "@type": "Organization", "name": "OscarDevs", "url": (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') }
+}) %>
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>*{font-family:'Cairo',sans-serif}body{background:#0b1220;color:#e5edf7}.accent-bg{background:#0ea5e9;color:#04121f}.card{background:#111a2e;border:1px solid #1e2a44}</style>
