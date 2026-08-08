@@ -1883,8 +1883,12 @@ ${excludedStr}
   const MONTH_NAMES = ['', 'توت', 'بابه', 'هاتور', 'كيهك', 'طوبة', 'أمشير',
     'برمهات', 'برموده', 'بشنس', 'بؤونه', 'أبيب', 'مسرى', 'النسيء'];
 
-  // بيانات الكتامارس مضمّنة مباشرة في السيرفر (نسخة مبسّطة)
-  // المصدر: الكتامارس الأرثوذكسي القبطي
+  // ⚠️ دي **مش** القطمارس القبطي الحقيقي، رغم إن التعليق القديم كان بيقول كده.
+  // خطة قراءات متسلسلة مولّدة آلياً: الإنجيل بيمشي بالترتيب (يوحنا ١ ← ٢ ← ٣ …)
+  // والبولس (رومية بالترتيب) والكاثوليكون (يعقوب بالترتيب). القطمارس الحقيقي
+  // بيوزّع قراءات محدّدة على أيام السنة الطقسية، مش تقسيم متسلسل للأسفار.
+  // وكمان ٤٩ يوم بس من ٣٦٥. لازم يتبدّل بمصدر كنسي معتمد قبل الاعتماد عليه
+  // في قدّاس — وعشان كده الـAPI بيرجّع exact=false والشاشة بتنبّه المستخدم.
   const serverLectionary: Record<string, { pauline: ReadingRef; catholic: ReadingRef; praxis: ReadingRef; psalm: ReadingRef; gospel: ReadingRef }> = {
     '1-1':  { pauline: {book:'رومية',fromCh:8,fromVs:1,toCh:8,toVs:11,label:'رومية 8: 1-11'}, catholic: {book:'يعقوب',fromCh:1,fromVs:1,toCh:1,toVs:12,label:'يعقوب 1: 1-12'}, praxis: {book:'أعمال الرسل',fromCh:1,fromVs:15,toCh:1,toVs:26,label:'أعمال 1: 15-26'}, psalm: {book:'المزامير',fromCh:1,fromVs:1,toCh:1,toVs:6,label:'مزمور 1: 1-6'}, gospel: {book:'يوحنا',fromCh:1,fromVs:1,toCh:1,toVs:17,label:'يوحنا 1: 1-17'} },
     '1-8':  { pauline: {book:'رومية',fromCh:8,fromVs:12,toCh:8,toVs:27,label:'رومية 8: 12-27'}, catholic: {book:'يعقوب',fromCh:1,fromVs:13,toCh:1,toVs:27,label:'يعقوب 1: 13-27'}, praxis: {book:'أعمال الرسل',fromCh:2,fromVs:1,toCh:2,toVs:21,label:'أعمال 2: 1-21'}, psalm: {book:'المزامير',fromCh:8,fromVs:1,toCh:8,toVs:9,label:'مزمور 8: 1-9'}, gospel: {book:'يوحنا',fromCh:1,fromVs:18,toCh:1,toVs:34,label:'يوحنا 1: 18-34'} },
