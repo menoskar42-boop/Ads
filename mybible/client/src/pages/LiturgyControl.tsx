@@ -128,6 +128,11 @@ export default function LiturgyControl() {
   }, [session]);
 
   const [copticDate, setCopticDate] = useState<string | null>(null);
+  // هل القراءات المعروضة هي قراءات اليوم نفسه؟ لو لأ، لازم الشاشة تقول كده —
+  // القطمارس المخزّن مش مكتمل لكل أيام السنة، وعرض قراءة يوم تاني كأنها قراءة
+  // النهاردة في قدّاس أسوأ بكتير من إننا نقول إنها تقريبية ومحتاجة مراجعة.
+  const [readingsExact, setReadingsExact] = useState(true);
+  const [readingsSourceDay, setReadingsSourceDay] = useState<string | null>(null);
 
   // جلب الجلسة والقراءات اليومية معاً عند الفتح
   useEffect(() => {
@@ -156,9 +161,12 @@ export default function LiturgyControl() {
       setCopticMode(initialMode);
       let readingsOverride = data.readingsOverride ?? null;
       if (readings) {
-        const { copticDate: cd, ...override } = readings as { copticDate: string } & DailyReadingSlides;
+        const { copticDate: cd, exact, sourceDay, ...override } = readings as
+          { copticDate: string; exact?: boolean; sourceDay?: string } & DailyReadingSlides;
         readingsOverride = override as DailyReadingSlides;
         setCopticDate(cd);
+        setReadingsExact(exact !== false);
+        setReadingsSourceDay(sourceDay ?? null);
       }
       // السنكسار الحقيقي — يُملأ من بيانات الموقع (لا يحتاج خادماً)
       const synaxToday = getTodaySynaxarium();
@@ -800,6 +808,18 @@ export default function LiturgyControl() {
             <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 text-center">
               <span className="text-xs text-gray-400">📅 </span>
               <span className="text-xs text-emerald-300 font-bold">{copticDate}</span>
+            </div>
+          )}
+
+          {/* تحذير: القراءات المعروضة مش قراءات اليوم نفسه */}
+          {copticDate && !readingsExact && (
+            <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-3 text-center">
+              <div className="text-xs text-amber-300 font-bold mb-1">⚠️ القراءات دي تقريبية</div>
+              <div className="text-[11px] text-amber-200/90 leading-relaxed">
+                مفيش قراءة مسجّلة ليوم <b>{copticDate}</b> في القطمارس المخزّن، فمعروض
+                {readingsSourceDay ? <> قراءة يوم <b>{readingsSourceDay}</b></> : <> أقرب يوم سابق</>}.
+                <br />راجع القطمارس قبل القراءة في القدّاس.
+              </div>
             </div>
           )}
         </div>

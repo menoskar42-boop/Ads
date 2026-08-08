@@ -1945,20 +1945,43 @@ ${excludedStr}
     'feast-pentecost':    { pauline: {book:'كورنثوس الأولى',fromCh:12,fromVs:1,toCh:12,toVs:14,label:'كورنثوس الأولى 12: 1-14'}, catholic: {book:'يوحنا الأولى',fromCh:4,fromVs:1,toCh:4,toVs:6,label:'يوحنا الأولى 4: 1-6'}, praxis: {book:'أعمال الرسل',fromCh:2,fromVs:1,toCh:2,toVs:21,label:'أعمال 2: 1-21'}, psalm: {book:'المزامير',fromCh:104,fromVs:30,toCh:104,toVs:30,label:'مزمور 104: 30'}, gospel: {book:'يوحنا',fromCh:14,fromVs:15,toCh:14,toVs:27,label:'يوحنا 14: 15-27'} },
   };
 
-  function getServerLectionary(month: number, day: number) {
-    const ANCHORS = [1, 8, 15, 22, 29];
-    const anchorsDesc = ANCHORS.filter(d => d <= day).sort((a, b) => b - a);
-    for (const anchor of anchorsDesc) {
-      const key = `${month}-${anchor}`;
-      if (serverLectionary[key]) return serverLectionary[key];
+  // يبحث عن قراءة اليوم، ويقول بصراحة إن كانت قراءة اليوم نفسه أم أقرب يوم سابق.
+  //
+  // النسخة القديمة كانت تبحث في أيام ثابتة [1,8,15,22,29] فقط، بينما مدخلات
+  // الجدول الفعلية في الشهور 2..8 مسجّلة على أيام 7/14/21/28 و6/13/20/27 …
+  // فلم تكن تُعثر أبداً، فيسقط البحث على الشهر السابق ثم على '1-1'. النتيجة:
+  // ستة شهور كاملة (هاتور→برموده، ومنها كيهك والصوم الكبير) كانت تعرض قراءة
+  // '1-1' طوال الوقت، ويوم واحد فقط من كل ١٧ يوماً كان يعرض قراءته الصحيحة.
+  // الحل: نبحث في مفاتيح الشهر الموجودة فعلاً بدل قائمة أيام مفترضة.
+  function getServerLectionary(month: number, day: number): {
+    reading: typeof serverLectionary[string]; exact: boolean; sourceKey: string;
+  } {
+    const exactKey = `${month}-${day}`;
+    if (serverLectionary[exactKey]) {
+      return { reading: serverLectionary[exactKey], exact: true, sourceKey: exactKey };
     }
+    // أقرب يوم سابق داخل نفس الشهر — من المفاتيح الموجودة فعلاً لا من أيام مفترضة
+    const daysInMonth = Object.keys(serverLectionary)
+      .filter(k => k.startsWith(`${month}-`))
+      .map(k => parseInt(k.split('-')[1], 10))
+      .filter(d => Number.isFinite(d) && d <= day)
+      .sort((a, b) => b - a);
+    if (daysInMonth.length) {
+      const key = `${month}-${daysInMonth[0]}`;
+      return { reading: serverLectionary[key], exact: false, sourceKey: key };
+    }
+    // وإلا: آخر يوم مسجّل في الشهر السابق
     const prevMonth = month === 1 ? 13 : month - 1;
-    const prevKeys = [29, 22, 15, 8, 1];
-    for (const anchor of prevKeys) {
-      const key = `${prevMonth}-${anchor}`;
-      if (serverLectionary[key]) return serverLectionary[key];
+    const daysPrev = Object.keys(serverLectionary)
+      .filter(k => k.startsWith(`${prevMonth}-`))
+      .map(k => parseInt(k.split('-')[1], 10))
+      .filter(d => Number.isFinite(d))
+      .sort((a, b) => b - a);
+    if (daysPrev.length) {
+      const key = `${prevMonth}-${daysPrev[0]}`;
+      return { reading: serverLectionary[key], exact: false, sourceKey: key };
     }
-    return serverLectionary['1-1'];
+    return { reading: serverLectionary['1-1'], exact: false, sourceKey: '1-1' };
   }
 
   // حساب الفصح القبطي (أرثوذكسي) باستخدام خوارزمية Meeus/Jones/Butcher مع تحويل يوليانى→ميلادى
@@ -1996,7 +2019,11 @@ ${excludedStr}
       const { day, month } = gregorianToCopticServer(today);
       const copticDate = `${day} ${MONTH_NAMES[month] ?? 'توت'}`;
       const feastKey = getFeastKey(today);
-      const lectionary = (feastKey && serverLectionary[feastKey]) || getServerLectionary(month, day);
+      const feastReading = feastKey ? serverLectionary[feastKey] : undefined;
+      const resolved = feastReading
+        ? { reading: feastReading, exact: true, sourceKey: feastKey as string }
+        : getServerLectionary(month, day);
+      const lectionary = resolved.reading;
 
       const [pauline, catholic, praxis, psalm, gospel] = await Promise.all([
         fetchReadingText(lectionary.pauline),
@@ -2006,7 +2033,17 @@ ${excludedStr}
         fetchReadingText(lectionary.gospel),
       ]);
 
-      res.json({ copticDate, pauline, catholic, praxis, psalm, gospel });
+      // exact=false يعني إن دي أقرب قراءة سابقة مش قراءة اليوم نفسه. الشاشة
+      // لازم تقول كده بوضوح — عرض قراءة يوم تاني كأنها قراءة النهاردة في قدّاس
+      // أسوأ بكتير من إننا نقول إنها غير مؤكدة.
+      const sourceDay = /^\d+-\d+$/.test(resolved.sourceKey)
+        ? `${resolved.sourceKey.split('-')[1]} ${MONTH_NAMES[parseInt(resolved.sourceKey.split('-')[0], 10)] ?? ''}`.trim()
+        : resolved.sourceKey;
+      res.json({
+        copticDate, pauline, catholic, praxis, psalm, gospel,
+        exact: resolved.exact,
+        sourceDay,
+      });
     } catch (err) {
       console.error('daily-readings error:', err);
       res.status(500).json({ error: 'فشل جلب القراءات' });
