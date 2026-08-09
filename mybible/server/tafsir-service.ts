@@ -171,6 +171,101 @@ function loadEntries(csvName: string, chapter?: number): TafsirEntry[] | null {
   return null;
 }
 
+// ── التحقّق من إن النص فعلاً بتاع الإصحاح المطلوب ────────────────────────────
+// التفسير بيفتتح بترويسة بتسمّي إصحاحه بالحروف («الإصحاح الثانى»). ده شاهد
+// مستقل عن ترقيم الـCSV، وبيكشف السجلات اللي اترقّمت غلط في الاستخراج.
+
+const ORD_ONES = ['', 'الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس',
+  'السابع', 'الثامن', 'التاسع'];
+const ORD_UNITS = ['', 'الحادي', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس',
+  'السابع', 'الثامن', 'التاسع'];
+// كل عقد بصيغتيه: الرفع (العشرون) والجر (العشرين) — النصوص بتستخدم الاتنين.
+const ORD_TENS: Record<number, string[]> = {
+  10: ['العاشر'],
+  20: ['العشرون', 'العشرين'], 30: ['الثلاثون', 'الثلاثين'],
+  40: ['الأربعون', 'الأربعين'], 50: ['الخمسون', 'الخمسين'],
+  60: ['الستون', 'الستين'], 70: ['السبعون', 'السبعين'],
+  80: ['الثمانون', 'الثمانين'], 90: ['التسعون', 'التسعين'],
+  100: ['المائة', 'المئة'],
+};
+
+/** توحيد الألف/الياء/التاء المربوطة وحذف التشكيل — الملفات مش متسقة فيهم. */
+function normalizeArabic(s: string): string {
+  return s
+    .replace(/[ً-ْٰ]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildOrdinals(): Map<string, number> {
+  const m = new Map<string, number>();
+  const put = (s: string, n: number) => { if (s) m.set(normalizeArabic(s), n); };
+  for (let i = 1; i <= 9; i++) put(ORD_ONES[i], i);
+  put(ORD_TENS[10][0], 10);
+  for (let i = 11; i <= 19; i++) put(`${ORD_UNITS[i - 10]} عشر`, i);
+  for (const t of [20, 30, 40, 50, 60, 70, 80, 90]) {
+    for (const form of ORD_TENS[t]) {
+      put(form, t);
+      for (let u = 1; u <= 9; u++) put(`${ORD_UNITS[u]} و${form}`, t + u);
+    }
+  }
+  for (const hundred of ORD_TENS[100]) {
+    put(hundred, 100);
+    for (let u = 1; u <= 9; u++) put(`${ORD_ONES[u]} بعد ${hundred}`, 100 + u);
+    for (const t of [10, 20, 30, 40, 50]) {
+      for (const form of ORD_TENS[t]) {
+        put(`${form} بعد ${hundred}`, 100 + t);
+        for (let u = 1; u <= 9; u++) {
+          if (t === 10) put(`${ORD_UNITS[u]} عشر بعد ${hundred}`, 110 + u);
+          else put(`${ORD_UNITS[u]} و${form} بعد ${hundred}`, 100 + t + u);
+        }
+      }
+    }
+  }
+  return m;
+}
+
+const ORDINALS = buildOrdinals();
+
+/**
+ * رقم الإصحاح اللي النص بيقول عن نفسه إنه هو، أو null لو الترويسة مش مصرّحة.
+ *
+ * بنقرا **سطر الترويسة الأول بس**. لو وسّعنا أكتر بنلقط أرقام من المتن — زي
+ * «كان المفروض أن يأتى بعد الإصحاح 18» أو «الإصحاح 1- سنير» (ترقيم قائمة) —
+ * وكل دي بتدّي إنذارات كاذبة.
+ */
+export function declaredChapter(text: string): number | null {
+  const head = normalizeArabic(text.split('\n')[0] ?? '');
+  const digits = /^(?:مقدمه\s+)?(?:ل)?(?:الاصحاح|الاصحاحات)\s+(\d+)/.exec(head);
+  if (digits) return parseInt(digits[1], 10);
+
+  const m = /^(?:مقدمه\s+)?(?:ل)?(?:الاصحاح|الاصحاحات)\s+(.{1,32})/.exec(head);
+  if (!m) return null;
+  // الأطول أولاً عشان «الثاني والعشرون» ما تتقريش «الثاني»
+  let best: number | null = null, bestLen = 0;
+  for (const [name, num] of ORDINALS) {
+    if (name.length > bestLen && m[1].startsWith(name)) { best = num; bestLen = name.length; }
+  }
+  return best;
+}
+
+/**
+ * هل النص ده فعلاً بتاع الإصحاح المطلوب؟
+ * بنرفض بس لما الترويسة تصرّح برقم **مختلف**. لو مفيش ترويسة مصرّحة (٢١٥ إصحاح
+ * من ١١٨٩) بنقبله — الغياب مش دليل على الخطأ.
+ */
+export function belongsToChapter(text: string, chapter: number): boolean {
+  const declared = declaredChapter(text);
+  if (declared === null || declared === chapter) return true;
+  // ترويسة مدى: «الإصحاحات السابع عشر حتى الحادى والعشرون» بتبدأ بأول رقم،
+  // فأي إصحاح بعده جوّه المدى مقبول.
+  const isRange = /الاصحاحات/.test(normalizeArabic(text.split('\n')[0] ?? ''));
+  return isRange && chapter > declared;
+}
+
 export function getBookIntro(csvName: string): string | null {
   const entries = loadEntries(csvName, 1);
   if (!entries) return null;
@@ -189,14 +284,35 @@ export function getBookIntro(csvName: string): string | null {
   return v1Entry.tafsir;
 }
 
-export function getChapterTafsir(
+/**
+ * زي getChapterTafsir بالظبط بس **من غير** فلتر المحاذاة.
+ * موجودة عشان script/check-tafsir-alignment.ts يقدر يشوف السجلات المرقّمة غلط؛
+ * لو استخدم النسخة المفلترة هيلاقيها اتشالت وما يكشفش حاجة.
+ * ماتستخدمهاش في أي راوت — دي للتشخيص بس.
+ */
+export function getChapterTafsirRaw(csvName: string, chapter: number): string | null {
+  return chapterTafsir(csvName, chapter, false);
+}
+
+export function getChapterTafsir(csvName: string, chapter: number): string | null {
+  return chapterTafsir(csvName, chapter, true);
+}
+
+function chapterTafsir(
   csvName: string,
-  chapter: number
+  chapter: number,
+  enforceAlignment: boolean
 ): string | null {
   const entries = loadEntries(csvName, chapter);
   if (!entries) return null;
 
-  const chapterEntries = entries.filter((e) => e.chapter === chapter);
+  // بعض السجلات مرقّمة غلط في المصدر: عدد ١٩ متخزّن فيه تفسير عدد ٢٧، وحزقيال ٣
+  // فيه تفسير حزقيال ٢. لو عرضناها زي ما هي، القارئ بياخد تفسير إصحاح تاني
+  // **على إنه تفسير الإصحاح اللي فتحه** — وده أسوأ من إنه ما يلاقيش حاجة.
+  // النص بيصرّح برقم إصحاحه في ترويسته، فنستبعد أي سجل بيقول رقم مختلف.
+  const chapterEntries = entries
+    .filter((e) => e.chapter === chapter)
+    .filter((e) => !enforceAlignment || belongsToChapter(e.tafsir, chapter));
   if (chapterEntries.length === 0) return null;
 
   // الإصحاح الواحد ممكن يبقى ليه أكتر من نص: عنوان قصير («الإصحاح الخامس»)
@@ -629,6 +745,9 @@ function chapterTextLengths(filePath: string): Map<number, number> {
     const entries = parseCSV(fs.readFileSync(filePath, "utf-8"));
     for (const e of entries) {
       if (!e.tafsir || e.tafsir.length < 20) continue;
+      // نفس الفلتر اللي في getChapterTafsir — من غيره التقرير بيقول إن الإصحاح
+      // فيه تفسير والتطبيق بيعرض «مفيش»، وهو ده اللي بيحصل في عدد ١٩ وحزقيال ٣.
+      if (!belongsToChapter(e.tafsir, e.chapter)) continue;
       const len = uniqueContentLength(e.tafsir);
       const prev = found.get(e.chapter) ?? 0;
       if (len > prev) found.set(e.chapter, len);
