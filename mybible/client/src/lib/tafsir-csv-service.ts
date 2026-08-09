@@ -94,6 +94,18 @@ export async function fetchBookIntro(bookName: string): Promise<string | null> {
   }
 }
 
+/**
+ * صاحب التفسير المعروض في التطبيق.
+ *
+ * ⚠️ ده مش تفصيلة شكلية — عرض تفسير من غير ما ننسبه لصاحبه غلط. لازم يظهر
+ * في **كل** مكان بيتعرض فيه نص تفسير.
+ *
+ * ملحوظة عشان الخلط ما يتكرّرش: ملفات `tafsir-links.md` و`tafsir-luke.md`
+ * و`tafsir-data.ts` بتشاور على تفسير **القمص تادرس يعقوب ملطي** من موقع
+ * القديس تكلا — ده مصدر تاني مختلف تماماً، ومش مستخدَم في التطبيق.
+ */
+export const TAFSIR_AUTHOR = 'أبونا أنطونيوس فكري';
+
 /** ليه مفيش تفسير: السفر كله مش متحمّل، ولا السفر موجود بس الإصحاح ده ناقص. */
 export type TafsirMissingReason = 'book-missing' | 'chapter-missing' | null;
 

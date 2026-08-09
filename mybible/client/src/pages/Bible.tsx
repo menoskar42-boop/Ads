@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type BibleBook, type BibleVerse } from '@/lib/api';
-import { fetchBookIntro, fetchChapterTafsir, fetchVerseTafsir, getLastChapterTafsirReason, type TafsirMissingReason } from '@/lib/tafsir-csv-service';
+import { fetchBookIntro, fetchChapterTafsir, fetchVerseTafsir, getLastChapterTafsirReason, TAFSIR_AUTHOR, type TafsirMissingReason } from '@/lib/tafsir-csv-service';
 import { getVideoId } from '@/lib/video-links-data';
 import { getChanteVideoId, getSpokenVideoId } from '@/lib/chanted-videos-data';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -749,9 +749,14 @@ export default function Bible() {
                     <span className="mr-2 text-sm text-muted-foreground">جاري تحميل التفسير...</span>
                   </div>
                 ) : tafsirText ? (
-                  <div className="p-4 bg-primary/5 rounded-lg whitespace-pre-wrap text-lg leading-loose font-body" style={{ background: 'rgba(155, 40, 65, 0.06)' }} data-testid="text-tafsir-content">
-                    <TafsirText text={tafsirText} />
-                  </div>
+                  <>
+                    <div className="p-4 bg-primary/5 rounded-lg whitespace-pre-wrap text-lg leading-loose font-body" style={{ background: 'rgba(155, 40, 65, 0.06)' }} data-testid="text-tafsir-content">
+                      <TafsirText text={tafsirText} />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground text-center" data-testid="text-tafsir-author">
+                      تفسير {TAFSIR_AUTHOR}
+                    </p>
+                  </>
                 ) : (
                   <div className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">
                     {tafsirReason === 'book-missing' ? (
