@@ -35,72 +35,62 @@ function getTafsirPartsDir(): string {
 
 function parseCSV(text: string): TafsirEntry[] {
   const entries: TafsirEntry[] = [];
-  const lines = text.split("\n");
+  // بعض الملفات فيها BOM في أولها وسطور بنهايات CRLF
+  const lines = text.replace(/^﻿/, "").replace(/\r\n/g, "\n").split("\n");
   if (lines.length < 2) return entries;
 
-  let i = 1;
-  while (i < lines.length) {
-    let line = lines[i];
-    if (!line.trim()) {
-      i++;
-      continue;
+  // ⚠️ الملفات دي مكتوبة بشكل غلط: حقل التفسير بيفتح بعلامة تنصيص و**ماتتقفلش
+  // أبداً** (كل سطر فيه عدد فردي من العلامات). فعدّ العلامات — اللي كان
+  // مستخدَم قبل كده — بيخلّي السجل يفضل "مفتوح" ويبلع السجلات اللي بعده، فيظهر
+  // للمستخدم نص فيه صفوف CSV خام زي «أمثال,3,4,"…».
+  //
+  // الحاجة الوحيدة الموثوقة إن كل سجل بيبدأ بسطر شكله:
+  //     <اسم السفر>,<رقم الإصحاح>,<رقم الآية>,
+  // وأي سطر تاني هو امتداد للتفسير اللي قبله. وعشان ما نقسّمش سجل بالغلط لو
+  // نص التفسير نفسه فيه سطر شبه ده، بنشترط إن اسم السفر يبقى **نفس** الاسم
+  // اللي في أول سجل في الملف.
+  const RECORD_START = /^("?)([^,\n]{0,40}?)\1,(\d+),(\d+),/;
+
+  let bookLabel: string | null = null;
+  let cur: { book: string; chapter: number; verse: number; parts: string[] } | null = null;
+
+  const flush = () => {
+    if (!cur) return;
+    const tafsir = cur.parts
+      .join("\n")
+      .replace(/^"/, "")        // علامة الفتح
+      .replace(/"$/, "")        // علامة الإقفال لو الملف سليم
+      .replace(/""/g, '"')      // تنصيص مهروب جوّه الحقل
+      // بقايا RTF زي \'a1 — في ترويسات المدى بتلعب دور شرطة الفصل
+      .replace(/\\'[0-9a-fA-F]{2}/g, "-")
+      .trim();
+    if (tafsir) {
+      entries.push({ book: cur.book, chapter: cur.chapter, verse: cur.verse, tafsir });
     }
+    cur = null;
+  };
 
-    let inQuotes = false;
-    let fields: string[] = [];
-    let current = "";
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    const m = RECORD_START.exec(line);
+    const book = m ? m[2].trim() : null;
 
-    for (let j = 0; j < line.length; j++) {
-      const ch = line[j];
-      if (ch === '"') {
-        if (inQuotes && j + 1 < line.length && line[j + 1] === '"') {
-          current += '"';
-          j++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch === "," && !inQuotes) {
-        fields.push(current);
-        current = "";
-      } else {
-        current += ch;
-      }
-    }
+    // أول سجل في الملف بيحدّد اسم السفر المعتمد لباقي الملف
+    if (m && bookLabel === null) bookLabel = book;
 
-    while (inQuotes && i + 1 < lines.length) {
-      i++;
-      current += "\n" + lines[i];
-      for (let j = 0; j < lines[i].length; j++) {
-        if (lines[i][j] === '"') {
-          inQuotes = !inQuotes;
-        }
-      }
-    }
-
-    fields.push(current.replace(/"$/, ""));
-    i++;
-
-    if (fields.length >= 4) {
-      const chapter = parseInt(fields[1], 10);
-      const verse = parseInt(fields[2], 10);
-      if (!isNaN(chapter) && !isNaN(verse)) {
-        // Normalize RTF escape sequences like \'a1 (hex byte) that appear in
-        // some CSV entries due to imperfect RTF→CSV conversion. In the context
-        // of section headers like ( مر14:1\'a1 2) these act as range separators
-        // and should be treated as hyphens.
-        const tafsir = fields[3]
-          .replace(/\r/g, "")
-          .replace(/\\'[0-9a-fA-F]{2}/g, "-")
-          .trim();
-        entries.push({
-          book: fields[0].trim(),
-          chapter,
-          verse,
-          tafsir,
-        });
-      }
+    if (m && book === bookLabel) {
+      flush();
+      cur = {
+        book: book!,
+        chapter: parseInt(m[3], 10),
+        verse: parseInt(m[4], 10),
+        parts: [line.slice(m[0].length)],
+      };
+    } else if (cur) {
+      cur.parts.push(line);
     }
   }
+  flush();
 
   return entries;
 }
@@ -563,11 +553,21 @@ export interface BookCoverage {
   fileMissing: boolean;
   /** أصحاحات موجودة في الملف بس رقمها أكبر من عدد أصحاحات السفر (بيانات غلط) */
   extra: number[];
+  /** أصحاحات فيها تفسير حقيقي (≥ SUBSTANTIVE_MIN_CHARS)، مش مجرد عنوان */
+  substantive: number;
+  /** طول النص عند الوسيط — مؤشّر سريع على عمق التفسير في السفر ده */
+  medianChars: number;
 }
 
 export interface TafsirCoverage {
   books: BookCoverage[];
-  totals: { expectedChapters: number; presentChapters: number; missingBooks: number };
+  totals: {
+    expectedChapters: number;
+    presentChapters: number;
+    /** منهم: كام إصحاح فيه تفسير حقيقي مش مجرد عنوان قسم */
+    substantiveChapters: number;
+    missingBooks: number;
+  };
   tafsirDir: string;
   partsDir: string;
   /**
@@ -595,18 +595,51 @@ function closestBookName(name: string): string | null {
 
 let coverageCache: TafsirCoverage | null = null;
 
-/** أرقام الأصحاحات الموجودة فعلاً في ملف CSV واحد (من غير ما نحتفظ بنص التفسير). */
-function chaptersInFile(filePath: string): Set<number> {
-  const found = new Set<number>();
+/**
+ * الحد الأدنى لطول النص عشان نعتبره **تفسير حقيقي** مش مجرد عنوان.
+ * كتير من الملفات فيها عنوان القسم بس — زي «الإصحاح الأول» أو
+ * «( يو1:1-18) المسيح الأزلي صار جسداً» — من غير أي شرح بعده.
+ */
+export const SUBSTANTIVE_MIN_CHARS = 120;
+
+/**
+ * لكل إصحاح في الملف: أطول نص تفسير موجود له.
+ * بنرجّع الأطوال مش النصوص عشان ما نحتفظش بميجابايتات في الذاكرة.
+ */
+function chapterTextLengths(filePath: string): Map<number, number> {
+  const found = new Map<number, number>();
   try {
     const entries = parseCSV(fs.readFileSync(filePath, "utf-8"));
     for (const e of entries) {
-      if (e.tafsir && e.tafsir.length >= 20) found.add(e.chapter);
+      if (!e.tafsir || e.tafsir.length < 20) continue;
+      const len = uniqueContentLength(e.tafsir);
+      const prev = found.get(e.chapter) ?? 0;
+      if (len > prev) found.set(e.chapter, len);
     }
   } catch (err) {
     console.error(`[tafsir] coverage: تعذّرت قراءة ${filePath}:`, err);
   }
   return found;
+}
+
+/**
+ * طول النص بعد ما نشيل السطور المكرّرة.
+ *
+ * بعض السجلات فيها نفس السطر متكرّر مئات المرات (خلل في الاستخراج من المصدر) —
+ * مثلاً تكوين ٣ فيه سجل ١٠٠ ألف حرف عبارة عن آية واحدة متكرّرة ١٤٠٠ مرة. لو
+ * قِسنا الطول الخام هنعتبره «تفسير عميق» وهو مجرد قمامة، فالقياس لازم يبقى على
+ * المحتوى المختلف بس.
+ */
+function uniqueContentLength(text: string): number {
+  const seen = new Set<string>();
+  let total = 0;
+  for (const line of text.split("\n")) {
+    const key = line.trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    total += key.length;
+  }
+  return total;
 }
 
 /** كل ملفات الـCSV اللي بتخصّ سفر معيّن (الملف الكامل + ملفات الأجزاء). */
@@ -637,6 +670,7 @@ export function getTafsirCoverage(refresh = false): TafsirCoverage {
   const books: BookCoverage[] = [];
   let expectedChapters = 0;
   let presentChapters = 0;
+  let substantiveChapters = 0;
   let missingBooks = 0;
 
   for (const [book, expected] of Object.entries(EXPECTED_CHAPTERS)) {
@@ -644,22 +678,37 @@ export function getTafsirCoverage(refresh = false): TafsirCoverage {
     const files = filesForBook(book);
     if (files.length === 0) {
       missingBooks++;
-      books.push({ book, expected, present: 0, missing: [], fileMissing: true, extra: [] });
+      books.push({
+        book, expected, present: 0, missing: [], fileMissing: true, extra: [],
+        substantive: 0, medianChars: 0,
+      });
       continue;
     }
 
-    const found = new Set<number>();
+    const lengths = new Map<number, number>();
     for (const f of files) {
-      for (const ch of chaptersInFile(f)) found.add(ch);
+      for (const [ch, len] of chapterTextLengths(f)) {
+        if (len > (lengths.get(ch) ?? 0)) lengths.set(ch, len);
+      }
     }
 
     const missing: number[] = [];
-    for (let c = 1; c <= expected; c++) if (!found.has(c)) missing.push(c);
-    const extra = Array.from(found).filter((c) => c < 1 || c > expected).sort((a, b) => a - b);
+    for (let c = 1; c <= expected; c++) if (!lengths.has(c)) missing.push(c);
+    const extra = Array.from(lengths.keys())
+      .filter((c) => c < 1 || c > expected).sort((a, b) => a - b);
+
+    const inRange = Array.from(lengths.entries()).filter(([c]) => c >= 1 && c <= expected);
+    const substantive = inRange.filter(([, len]) => len >= SUBSTANTIVE_MIN_CHARS).length;
+    const sorted = inRange.map(([, len]) => len).sort((a, b) => a - b);
+    const medianChars = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
 
     const present = expected - missing.length;
     presentChapters += present;
-    books.push({ book, expected, present, missing, fileMissing: false, extra });
+    substantiveChapters += substantive;
+    books.push({
+      book, expected, present, missing, fileMissing: false, extra,
+      substantive, medianChars,
+    });
   }
 
   // ملفات موجودة بس اسمها مش متعرّف عليه — سبب شائع لـ«لا يوجد تفسير» رغم
@@ -677,7 +726,7 @@ export function getTafsirCoverage(refresh = false): TafsirCoverage {
 
   coverageCache = {
     books,
-    totals: { expectedChapters, presentChapters, missingBooks },
+    totals: { expectedChapters, presentChapters, substantiveChapters, missingBooks },
     tafsirDir: getTafsirDir(),
     partsDir: getTafsirPartsDir(),
     unknownFiles,

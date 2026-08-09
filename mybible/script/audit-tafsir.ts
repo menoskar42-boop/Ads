@@ -46,14 +46,22 @@ function printBook(b: BookCoverage, full: boolean) {
     console.log(`  ❌ ${b.book.padEnd(18)} مفيش ملف CSV خالص (المتوقع ${b.expected} إصحاح)`);
     return;
   }
-  if (b.missing.length === 0) {
-    console.log(`  ✅ ${b.book.padEnd(18)} ${b.present}/${b.expected}`);
-  } else {
-    const list = full || b.missing.length <= 12
-      ? ranges(b.missing)
-      : ranges(b.missing.slice(0, 12)) + ` … (+${b.missing.length - 12})`;
-    console.log(`  ⚠️  ${b.book.padEnd(18)} ${b.present}/${b.expected} — ناقص: ${list}`);
-  }
+  // «الإصحاح موجود» مش معناه «فيه تفسير» — كتير من الملفات فيها عنوان القسم بس
+  // (زي «الإصحاح الأول») من غير أي شرح، فلازم نعرض العمق مش العدد بس.
+  const depth = b.substantive === b.expected
+    ? '✅ تفسير كامل'
+    : b.substantive === 0
+      ? `🔴 عناوين بس — مفيش تفسير (الوسيط ${b.medianChars} حرف)`
+      : `🟡 ${b.substantive}/${b.expected} فيها تفسير حقيقي (الوسيط ${b.medianChars} حرف)`;
+
+  const coverage = b.missing.length === 0
+    ? `${b.present}/${b.expected}`
+    : `${b.present}/${b.expected} — ناقص: ` + (full || b.missing.length <= 12
+        ? ranges(b.missing)
+        : ranges(b.missing.slice(0, 12)) + ` … (+${b.missing.length - 12})`);
+
+  console.log(`  ${b.book.padEnd(18)} ${coverage.padEnd(12)} ${depth}`);
+
   if (b.extra.length) {
     console.log(`     ↳ أرقام أصحاحات غريبة في الملف (أكبر من عدد أصحاحات السفر): ${ranges(b.extra)}`);
   }
@@ -91,21 +99,24 @@ function main() {
     process.exit(b.missing.length === 0 && !b.fileMissing ? 0 : 1);
   }
 
-  const { expectedChapters, presentChapters, missingBooks } = cov.totals;
+  const { expectedChapters, presentChapters, substantiveChapters, missingBooks } = cov.totals;
   const pct = ((presentChapters / expectedChapters) * 100).toFixed(1);
+  const pctReal = ((substantiveChapters / expectedChapters) * 100).toFixed(1);
 
-  const complete = cov.books.filter(b => !b.fileMissing && b.missing.length === 0);
-  const partial  = cov.books.filter(b => !b.fileMissing && b.missing.length > 0);
   const absent   = cov.books.filter(b => b.fileMissing);
+  const present  = cov.books.filter(b => !b.fileMissing);
+  // الترتيب حسب عمق التفسير — الأسفار اللي فيها عناوين بس تبان في الآخر
+  const real     = present.filter(b => b.substantive > 0).sort((a, b) => b.medianChars - a.medianChars);
+  const headings = present.filter(b => b.substantive === 0);
 
-  if (complete.length) {
-    console.log(`── أسفار مكتملة (${complete.length}) ──`);
-    complete.forEach(b => printBook(b, args.full));
+  if (real.length) {
+    console.log(`── أسفار فيها تفسير حقيقي (${real.length}) ──`);
+    real.forEach(b => printBook(b, args.full));
     console.log('');
   }
-  if (partial.length) {
-    console.log(`── أسفار فيها نقص (${partial.length}) ──`);
-    partial.forEach(b => printBook(b, args.full));
+  if (headings.length) {
+    console.log(`── 🔴 أسفار فيها عناوين أقسام بس، من غير تفسير (${headings.length}) ──`);
+    headings.forEach(b => printBook(b, args.full));
     console.log('');
   }
   if (absent.length) {
@@ -128,8 +139,16 @@ function main() {
   }
 
   console.log('═══ الخلاصة ═══');
-  console.log(`الأصحاحات: ${presentChapters}/${expectedChapters} فيها تفسير (${pct}%)`);
-  console.log(`الأسفار  : ${complete.length} مكتمل، ${partial.length} ناقص، ${absent.length} مفيش له ملف`);
+  console.log(`أصحاحات فيها أي نص     : ${presentChapters}/${expectedChapters} (${pct}%)`);
+  console.log(`منها تفسير حقيقي       : ${substantiveChapters}/${expectedChapters} (${pctReal}%)`);
+  console.log(`الأسفار                : ${real.length} فيها تفسير، ${headings.length} عناوين بس، ${absent.length} مفيش لها ملف`);
+
+  if (headings.length) {
+    console.log('');
+    console.log(`⚠️  ${headings.length} سفر ملفاتهم فيها **عناوين الأقسام بس** — يعني نص زي`);
+    console.log('   «الإصحاح الأول» أو «( يو1:1-18) المسيح الأزلي صار جسداً» من غير أي شرح بعده.');
+    console.log('   الاستخراج من المصدر خد العناوين وساب المتن. لازم تتجاب تاني.');
+  }
 
   if (missingBooks > 0) {
     console.log('');
