@@ -532,6 +532,164 @@ export function getVerseTafsir(
   return null;
 }
 
+// ── تدقيق التغطية ────────────────────────────────────────────────────────────
+// عدد الأصحاحات الحقيقي لكل سفر (بأسماء ملفات الـCSV زي ما هي في
+// client/src/lib/tafsir-csv-service.ts). لازم نعرف الرقم المتوقّع عشان نقدر
+// نقول «ناقص إصحاح ٣» بدل ما نقول بس «الملف موجود».
+export const EXPECTED_CHAPTERS: Record<string, number> = {
+  "تكوين": 50, "خروج": 40, "لاويين": 27, "عدد": 36, "تثنية": 34,
+  "يشوع": 24, "قضاة": 21, "راعوث": 4, "صموئيل أول": 31, "صموئيل ثاني": 24,
+  "ملوك أول": 22, "ملوك ثاني": 25, "أخبار أيام أول": 29, "أخبار أيام ثاني": 36,
+  "عزرا": 10, "نحميا": 13, "أستير": 10, "أيوب": 42, "مزامير": 150,
+  "أمثال": 31, "جامعة": 12, "نشيد الأنشاد": 8, "إشعياء": 66, "إرميا": 52,
+  "مراثي إرميا": 5, "حزقيال": 48, "دانيال": 12, "هوشع": 14, "يوئيل": 3,
+  "عاموس": 9, "عوبديا": 1, "يونان": 4, "ميخا": 7, "ناحوم": 3, "حبقوق": 3,
+  "صفنيا": 3, "حجي": 2, "زكريا": 14, "ملاخي": 4,
+  "متى": 28, "مرقس": 16, "لوقا": 24, "يوحنا": 21, "أعمال الرسل": 28,
+  "رومية": 16, "كورنثوس أولى": 16, "كورنثوس ثانية": 13, "غلاطية": 6,
+  "أفسس": 6, "فيلبي": 4, "كولوسي": 4, "تسالونيكي أولى": 5,
+  "تسالونيكي ثانية": 3, "تيموثاوس أولى": 6, "تيموثاوس ثانية": 4,
+  "تيطس": 3, "فليمون": 1, "عبرانيين": 13, "يعقوب": 5, "بطرس أولى": 5,
+  "بطرس ثانية": 3, "يوحنا أولى": 5, "يوحنا ثانية": 1, "يوحنا ثالثة": 1,
+  "يهوذا": 1, "رؤيا": 22,
+};
+
+export interface BookCoverage {
+  book: string;
+  expected: number;
+  present: number;
+  missing: number[];
+  /** true = مفيش ملف CSV للسفر ده أصلاً (مش مجرد أصحاحات ناقصة) */
+  fileMissing: boolean;
+  /** أصحاحات موجودة في الملف بس رقمها أكبر من عدد أصحاحات السفر (بيانات غلط) */
+  extra: number[];
+}
+
+export interface TafsirCoverage {
+  books: BookCoverage[];
+  totals: { expectedChapters: number; presentChapters: number; missingBooks: number };
+  tafsirDir: string;
+  partsDir: string;
+  /**
+   * ملفات CSV موجودة في المجلد بس اسمها مش مطابق لأي اسم سفر متوقّع.
+   * دي أخطر حالة: الملف موجود والتفسير جوّاه، بس التطبيق مش بيلاقيه لأن
+   * الاسم غلط (مثلاً "سفر الأمثال.csv" بدل "أمثال.csv") — فالمستخدم بيشوف
+   * «لا يوجد تفسير» رغم إن البيانات موجودة.
+   */
+  unknownFiles: { file: string; suggestion: string | null }[];
+}
+
+/** أقرب اسم سفر متوقّع لاسم ملف غريب — عشان نقترح إعادة التسمية الصح. */
+function closestBookName(name: string): string | null {
+  const stripped = name.replace(/^سفر\s+/, '').replace(/^ال/, '').trim();
+  let best: string | null = null;
+  let bestLen = 0;
+  for (const book of Object.keys(EXPECTED_CHAPTERS)) {
+    const bare = book.replace(/^ال/, '');
+    if (name.includes(book) || book.includes(stripped) || stripped.includes(bare)) {
+      if (book.length > bestLen) { best = book; bestLen = book.length; }
+    }
+  }
+  return best;
+}
+
+let coverageCache: TafsirCoverage | null = null;
+
+/** أرقام الأصحاحات الموجودة فعلاً في ملف CSV واحد (من غير ما نحتفظ بنص التفسير). */
+function chaptersInFile(filePath: string): Set<number> {
+  const found = new Set<number>();
+  try {
+    const entries = parseCSV(fs.readFileSync(filePath, "utf-8"));
+    for (const e of entries) {
+      if (e.tafsir && e.tafsir.length >= 20) found.add(e.chapter);
+    }
+  } catch (err) {
+    console.error(`[tafsir] coverage: تعذّرت قراءة ${filePath}:`, err);
+  }
+  return found;
+}
+
+/** كل ملفات الـCSV اللي بتخصّ سفر معيّن (الملف الكامل + ملفات الأجزاء). */
+function filesForBook(csvName: string): string[] {
+  const out: string[] = [];
+  const full = path.join(getTafsirDir(), `${csvName}.csv`);
+  if (fs.existsSync(full)) out.push(full);
+
+  const partsDir = getTafsirPartsDir();
+  if (fs.existsSync(partsDir)) {
+    for (const f of fs.readdirSync(partsDir)) {
+      if (f.startsWith(`${csvName}_`) && /_\d+_\d+\.csv$/.test(f)) {
+        out.push(path.join(partsDir, f));
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * تقرير كامل: كل سفر، كل إصحاح — فيه تفسير ولا لأ.
+ * بيقرا كل ملف مرة واحدة وبيرمي النص بعدها، فماينفخش الذاكرة زي loadEntries.
+ * النتيجة متخزّنة في الكاش لأنها غالية؛ استخدم refresh=true بعد ما تضيف ملفات.
+ */
+export function getTafsirCoverage(refresh = false): TafsirCoverage {
+  if (coverageCache && !refresh) return coverageCache;
+
+  const books: BookCoverage[] = [];
+  let expectedChapters = 0;
+  let presentChapters = 0;
+  let missingBooks = 0;
+
+  for (const [book, expected] of Object.entries(EXPECTED_CHAPTERS)) {
+    expectedChapters += expected;
+    const files = filesForBook(book);
+    if (files.length === 0) {
+      missingBooks++;
+      books.push({ book, expected, present: 0, missing: [], fileMissing: true, extra: [] });
+      continue;
+    }
+
+    const found = new Set<number>();
+    for (const f of files) {
+      for (const ch of chaptersInFile(f)) found.add(ch);
+    }
+
+    const missing: number[] = [];
+    for (let c = 1; c <= expected; c++) if (!found.has(c)) missing.push(c);
+    const extra = Array.from(found).filter((c) => c < 1 || c > expected).sort((a, b) => a - b);
+
+    const present = expected - missing.length;
+    presentChapters += present;
+    books.push({ book, expected, present, missing, fileMissing: false, extra });
+  }
+
+  // ملفات موجودة بس اسمها مش متعرّف عليه — سبب شائع لـ«لا يوجد تفسير» رغم
+  // إن البيانات موجودة فعلاً على السيرفر.
+  const unknownFiles: { file: string; suggestion: string | null }[] = [];
+  for (const dir of [getTafsirDir(), getTafsirPartsDir()]) {
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.csv')) continue;
+      const base = f.replace(/\.csv$/, '').replace(/_\d+_\d+$/, '');
+      if (base in EXPECTED_CHAPTERS) continue;
+      unknownFiles.push({ file: path.join(dir, f), suggestion: closestBookName(base) });
+    }
+  }
+
+  coverageCache = {
+    books,
+    totals: { expectedChapters, presentChapters, missingBooks },
+    tafsirDir: getTafsirDir(),
+    partsDir: getTafsirPartsDir(),
+    unknownFiles,
+  };
+  return coverageCache;
+}
+
+/** هل فيه ملف تفسير للسفر ده أصلاً؟ (بيفرّق بين «السفر مش متحمّل» و«الإصحاح ناقص») */
+export function hasBookFile(csvName: string): boolean {
+  return filesForBook(csvName).length > 0;
+}
+
 export function listAvailableBooks(): string[] {
   const books = new Set<string>();
 

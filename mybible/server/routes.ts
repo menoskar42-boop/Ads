@@ -7,7 +7,7 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
-import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks } from "./tafsir-service";
+import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
@@ -433,6 +433,18 @@ export async function registerRoutes(
     }
   });
 
+  // تقرير تغطية التفسير: كل سفر وكل إصحاح — موجود ولا ناقص.
+  // ?refresh=1 يعيد الفحص بعد ما تضيف ملفات CSV جديدة من غير ما تعيد تشغيل السيرفر.
+  app.get('/api/tafsir/coverage', (req, res) => {
+    try {
+      const coverage = getTafsirCoverage(req.query.refresh === '1');
+      res.json(coverage);
+    } catch (error) {
+      console.error('[tafsir] coverage error:', error);
+      res.status(500).json({ message: 'Failed to compute tafsir coverage' });
+    }
+  });
+
   app.get('/api/tafsir/book-intro/:csvName', (req, res) => {
     try {
       const csvName = decodeURIComponent(req.params.csvName);
@@ -449,7 +461,10 @@ export async function registerRoutes(
       const csvName = decodeURIComponent(req.params.csvName);
       const chapter = parseInt(req.params.chapter, 10);
       const tafsir = getChapterTafsir(csvName, chapter);
-      res.json({ tafsir });
+      // نرجّع السبب عشان الواجهة تقول للمستخدم إيه اللي ناقص بالظبط بدل
+      // رسالة «لا يوجد تفسير» اللي مش بتفرّق بين سفر مش متحمّل وإصحاح ناقص.
+      const reason = tafsir ? null : hasBookFile(csvName) ? 'chapter-missing' : 'book-missing';
+      res.json({ tafsir, reason });
     } catch (error) {
       console.error('[tafsir] chapter error:', error);
       res.status(500).json({ message: 'Failed to fetch chapter tafsir' });

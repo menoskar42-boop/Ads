@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type BibleBook, type BibleVerse } from '@/lib/api';
-import { fetchBookIntro, fetchChapterTafsir, fetchVerseTafsir } from '@/lib/tafsir-csv-service';
+import { fetchBookIntro, fetchChapterTafsir, fetchVerseTafsir, getLastChapterTafsirReason, type TafsirMissingReason } from '@/lib/tafsir-csv-service';
 import { getVideoId } from '@/lib/video-links-data';
 import { getChanteVideoId, getSpokenVideoId } from '@/lib/chanted-videos-data';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -56,6 +56,7 @@ export default function Bible() {
   const [tafsirDialogType, setTafsirDialogType] = useState<'intro' | 'chapter' | 'verse'>('chapter');
   const [tafsirVerseNum, setTafsirVerseNum] = useState<number>(0);
   const [tafsirText, setTafsirText] = useState<string | null>(null);
+  const [tafsirReason, setTafsirReason] = useState<TafsirMissingReason>(null);
   const [tafsirLoading, setTafsirLoading] = useState(false);
   const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
   const [currentVideoStart, setCurrentVideoStart] = useState<number | undefined>(undefined);
@@ -620,8 +621,9 @@ export default function Bible() {
                       changeSubView('tafsir');
                       setTafsirText(null);
                       setTafsirLoading(true);
+                      setTafsirReason(null);
                       fetchChapterTafsir(selectedBook.name, selectedChapter)
-                        .then(text => { setTafsirText(text); setTafsirLoading(false); })
+                        .then(text => { setTafsirText(text); setTafsirReason(getLastChapterTafsirReason()); setTafsirLoading(false); })
                         .catch(() => setTafsirLoading(false));
                     }}
                     className="bg-gradient-to-r from-primary to-primary/80"
@@ -751,7 +753,15 @@ export default function Bible() {
                     <TafsirText text={tafsirText} />
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">لا يوجد تفسير متاح حاليًا.</p>
+                  <div className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">
+                    {tafsirReason === 'book-missing' ? (
+                      <p>تفسير سفر {selectedBook?.name} لسه مش متحمّل على الموقع. بنشتغل على إضافته.</p>
+                    ) : tafsirReason === 'chapter-missing' ? (
+                      <p>مفيش تفسير مسجّل للإصحاح {selectedChapter} من سفر {selectedBook?.name} لحد دلوقتي.</p>
+                    ) : (
+                      <p>لا يوجد تفسير متاح حاليًا.</p>
+                    )}
+                  </div>
                 )}
                 <Button variant="outline" onClick={() => changeSubView('verses')} className="mt-4 w-full border-primary text-primary font-semibold">
                   <ChevronLeft className="w-5 h-5 ml-1" />رجوع للآيات
@@ -912,8 +922,9 @@ export default function Bible() {
                       changeSubView('tafsir');
                       setTafsirText(null);
                       setTafsirLoading(true);
+                      setTafsirReason(null);
                       fetchChapterTafsir(selectedBook.name, selectedChapter)
-                        .then(text => { setTafsirText(text); setTafsirLoading(false); })
+                        .then(text => { setTafsirText(text); setTafsirReason(getLastChapterTafsirReason()); setTafsirLoading(false); })
                         .catch(() => setTafsirLoading(false));
                     }}
                     style={{ background: 'hsl(345, 55%, 35%)', color: 'hsl(40, 30%, 97%)' }}

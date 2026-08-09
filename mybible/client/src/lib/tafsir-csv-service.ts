@@ -94,14 +94,26 @@ export async function fetchBookIntro(bookName: string): Promise<string | null> {
   }
 }
 
+/** ليه مفيش تفسير: السفر كله مش متحمّل، ولا السفر موجود بس الإصحاح ده ناقص. */
+export type TafsirMissingReason = 'book-missing' | 'chapter-missing' | null;
+
+let lastChapterReason: TafsirMissingReason = null;
+
+/** سبب آخر محاولة فاشلة لجلب تفسير إصحاح — تقراه الواجهة بعد ما ترجع null. */
+export function getLastChapterTafsirReason(): TafsirMissingReason {
+  return lastChapterReason;
+}
+
 export async function fetchChapterTafsir(bookName: string, chapter: number): Promise<string | null> {
+  lastChapterReason = null;
   try {
     const csvName = getCSVFileName(bookName);
-    if (!csvName) return null;
+    if (!csvName) { lastChapterReason = 'book-missing'; return null; }
 
     const response = await fetch(`/api/tafsir/chapter/${encodeURIComponent(csvName)}/${chapter}`);
     if (!response.ok) return null;
     const data = await response.json();
+    if (!data.tafsir) lastChapterReason = (data.reason as TafsirMissingReason) ?? null;
     return data.tafsir || null;
   } catch (e) {
     console.log("Chapter tafsir fetch error:", e);
