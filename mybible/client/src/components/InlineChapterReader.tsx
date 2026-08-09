@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { DEUTEROCANONICAL_BOOKS } from '@/lib/group-auto-reading';
 import { apocryphaBooks } from '@/lib/apocrypha-content';
-import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir, TAFSIR_AUTHOR } from '@/lib/tafsir-csv-service';
+import { fetchBookIntro, fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 
 const MAX_MIN_SECONDS = 40;
 const MIN_SCROLLS = 5;
@@ -321,14 +321,7 @@ export function InlineChapterReader({ bookName: initialBookName, chapter: initia
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
           ) : (
-            <>
-              <p className="text-sm leading-loose whitespace-pre-wrap text-foreground font-display" dir="rtl">{tafsirText}</p>
-              {tafsirText && !tafsirText.startsWith('لا ') && (
-                <p className="mt-2 text-xs text-muted-foreground text-center" dir="rtl" data-testid="text-tafsir-author">
-                  تفسير {TAFSIR_AUTHOR}
-                </p>
-              )}
-            </>
+            <p className="text-sm leading-loose whitespace-pre-wrap text-foreground font-display" dir="rtl">{tafsirText}</p>
           )}
         </DialogContent>
       </Dialog>
