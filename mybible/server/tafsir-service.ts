@@ -199,6 +199,25 @@ export function getChapterTafsir(
   const chapterEntries = entries.filter((e) => e.chapter === chapter);
   if (chapterEntries.length === 0) return null;
 
+  // الإصحاح الواحد ممكن يبقى ليه أكتر من نص: عنوان قصير («الإصحاح الخامس»)
+  // جنب الشرح الكامل. لازم نرجّع الأغنى مش أول واحد نلاقيه — قبل كده كان متى ٥
+  // بيعرض «الإصحاح الخامس» وبس رغم إن التفسير كله موجود في صف تاني.
+  // القياس بالمحتوى المختلف مش بالطول الخام، عشان صف مليان سطر مكرّر ألف مرة
+  // ما يكسبش (تكوين ٣ فيه صف كده).
+  const richest = (list: TafsirEntry[]): string | null => {
+    let best: string | null = null;
+    let bestLen = -1;
+    for (const e of list) {
+      const len = uniqueContentLength(e.tafsir);
+      if (len > bestLen) { bestLen = len; best = e.tafsir; }
+    }
+    return best;
+  };
+
+  // تخطّي الآية ١ له معنى في الإصحاح الأول بس — هناك بتكون مقدمة السفر أو
+  // مقدمة العهد، مش تفسير الإصحاح. في باقي الأصحاحات الآية ١ هي مكان التفسير
+  // نفسه، وتخطّيها كان بيرمي الشرح كله: متى ٥ عنده صفّين الاتنين على آية ١،
+  // واحد ٢٩ ألف حرف والتاني ٢٦ حرف، والفلتر كان بيرمي الاتنين وينتهي بالأقصر.
   if (chapter === 1) {
     const v1Entry = chapterEntries.find((e) => e.verse === 1);
     const hasTestamentIntro =
@@ -206,17 +225,15 @@ export function getChapterTafsir(
       (v1Entry.tafsir.startsWith("مقدمة عن العهد القديم") ||
         v1Entry.tafsir.startsWith("مقدمة عن العهد الجديد"));
 
-    let skipVerses = [1];
-    if (hasTestamentIntro) skipVerses = [1, 2];
-
-    const chapterTafsir = chapterEntries.find(
-      (e) => !skipVerses.includes(e.verse)
+    const skipVerses = hasTestamentIntro ? [1, 2] : [1];
+    const chapterTafsir = richest(
+      chapterEntries.filter((e) => !skipVerses.includes(e.verse))
     );
-    if (chapterTafsir) return chapterTafsir.tafsir;
+    if (chapterTafsir) return chapterTafsir;
   }
 
-  const nonIntro = chapterEntries.find((e) => e.verse !== 1);
-  if (nonIntro) return nonIntro.tafsir;
+  const best = richest(chapterEntries);
+  if (best) return best;
 
   const uniqueTexts = Array.from(
     new Set(chapterEntries.map((e) => e.tafsir))
