@@ -607,7 +607,38 @@ function stripTafsirHeader(text: string): string {
     .trim();
 }
 
+/**
+ * تفسير آية بعينها، أو null لو مفيش.
+ *
+ * الغلاف ده بيرفض حاجة واحدة: إن نرجّع **مقدمة السفر** على إنها تفسير الآية.
+ *
+ * ليه: extractVerseTafsir لما ما تلاقيش قسم للآية بترجّع النص الخام كله، وسجل
+ * الإصحاح الأول غالباً هو المقدمة. القياس على ٥٠٠ عيّنة (٤ آيات × أول إصحاحين
+ * × ٦٥ سفر) طلّع ١٧٣ حالة — ٣٥٪ في ٥٨ سفر — بترجّع المقدمة. المستخدم اللي
+ * بيضغط «تفسير الآية» ويشوف المقدمة مفيش قدامه أي علامة إنها مش تفسير آيته.
+ *
+ * عرض النص الغلط أسوأ من عرض «مفيش» — نفس المبدأ اللي اتعملت بيه
+ * belongsToChapter().
+ */
 export function getVerseTafsir(
+  csvName: string,
+  chapter: number,
+  verse: number
+): string | null {
+  const t = verseTafsirRaw(csvName, chapter, verse);
+  if (!t) return null;
+  const intro = getBookIntro(csvName);
+  if (intro && sameOpening(t, intro)) return null;
+  return t;
+}
+
+/** أول ٨٠ حرف متطابقة (بعد توحيد المسافات) = نفس النص عملياً. */
+function sameOpening(a: string, b: string): boolean {
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 80);
+  return norm(a) === norm(b);
+}
+
+function verseTafsirRaw(
   csvName: string,
   chapter: number,
   verse: number
@@ -615,7 +646,10 @@ export function getVerseTafsir(
   const entries = loadEntries(csvName, chapter);
   if (!entries) return null;
 
-  const chapterEntries = entries.filter((e) => e.chapter === chapter);
+  // نفس فلتر getChapterTafsir — سجل مرقّم غلط ما ينفعش يتقرا كتفسير آية كمان.
+  const chapterEntries = entries
+    .filter((e) => e.chapter === chapter)
+    .filter((e) => belongsToChapter(e.tafsir, chapter));
 
   // ── Step 1: Try every entry for this exact verse (CSV may have duplicates
   //   with different tafsir blobs; the first one may not contain the right section)

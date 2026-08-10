@@ -476,8 +476,13 @@ export async function registerRoutes(
       const csvName = decodeURIComponent(req.params.csvName);
       const chapter = parseInt(req.params.chapter, 10);
       const verse = parseInt(req.params.verse, 10);
-      const tafsir = getVerseTafsir(csvName, chapter, verse);
-      res.json({ tafsir });
+      // لو الآية مالهاش تفسير مخصوص، نرجّع تفسير الإصحاح **بعلامة scope** بدل
+      // ما نسيب المستخدم من غير حاجة. العلامة مش تفصيلة: عرض تفسير الإصحاح
+      // على إنه تفسير الآية هو نفس الغلط اللي كان بيعرض مقدمة السفر.
+      const verseText = getVerseTafsir(csvName, chapter, verse);
+      if (verseText) return res.json({ tafsir: verseText, scope: 'verse' });
+      const chapterText = getChapterTafsir(csvName, chapter);
+      res.json({ tafsir: chapterText, scope: chapterText ? 'chapter' : null });
     } catch (error) {
       console.error('[tafsir] verse error:', error);
       res.status(500).json({ message: 'Failed to fetch verse tafsir' });
