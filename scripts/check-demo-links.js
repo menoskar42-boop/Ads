@@ -14,14 +14,19 @@
  *   installments كلهم وقعوا مع بعض). الكود بيبان سليم لأن اللينك مكتوب صح —
  *   الناقص بيانات مش كود، وعشان كده مفيش فحص كان بيمسكه.
  *
- * بيفحص حاجتين:
+ * بيفحص تلات حاجات:
  *   ١) كل سلَج معلَن في الواجهة له سكربت إنشاء، أو مسجَّل في MANUAL_DEMOS.
- *      ده بيشتغل من غير قاعدة بيانات، وبيمسك «ضفت كارت ونسيت السكربت».
- *   ٢) لو DATABASE_URL متظبّط: الشركة موجودة فعلاً و is_active = true.
- *      ده الفحص الحقيقي — الوحيد اللي بيثبت إن اللينك مش هيدّي 404.
+ *      من غير قاعدة بيانات، وبيمسك «ضفت كارت ونسيت السكربت».
+ *   ٢) لو DATABASE_URL متظبّط: الشركة موجودة و is_active = true.
+ *   ٣) مع --http: بيجيب الروابط زي ما الزائر بيعمل.
+ *
+ * ⚠️ (٢) وحده مش كفاية وده اتثبت بالتجربة: قال «١٢ لينك سليم» وستة منهم كانوا
+ * بيدّوا 404، لأن الـShell بيوصل لقاعدة بيانات غير اللي الـdeployment بيقرا
+ * منها. استعلام ناجح مش دليل على موقع شغّال. (٣) هو الوحيد اللي بيثبت ده.
  *
  *   node scripts/check-demo-links.js
- *   DATABASE_URL=... node scripts/check-demo-links.js
+ *   node scripts/check-demo-links.js --http
+ *   SITE_ORIGIN=https://staging.example node scripts/check-demo-links.js --http
  */
 'use strict';
 const fs = require('fs');
@@ -91,6 +96,50 @@ async function checkDatabase(slugs) {
   }
 }
 
+/**
+ * الفحص الوحيد اللي مايتخدعش: بنجيب الرابط زي ما الزائر بيعمل.
+ *
+ * ليه ده مهم: النسخة اللي بتسأل قاعدة البيانات قالت «١٢ لينك سليم» وستة منهم
+ * كانوا بيدّوا 404 — لأن الـShell بيوصل لقاعدة بيانات غير اللي الـdeployment
+ * بيقرا منها، فالشركات كانت متعمولة في المكان الغلط. الاستعلام كان بيعدّي
+ * والموقع بيفشل. الـHTTP بيقيس اللي بيحصل فعلاً.
+ */
+async function checkOverHttp(slugs, origin) {
+  const u = new URL(origin);
+  // نأخذ البروتوكول والمنفذ من origin عشان الفحص يشتغل على staging أو محلي كمان
+  const host = u.host.replace(/^www\./, '');
+  const problems = [];
+
+  for (const slug of slugs) {
+    // ١) صفحة العميل على الساب دومين
+    const pub = `${u.protocol}//${slug}.${host}/`;
+    try {
+      const r = await fetch(pub, { redirect: 'manual' });
+      if (r.status !== 200) {
+        problems.push({ slug, url: pub, why: `رجّع ${r.status} بدل 200` });
+      }
+    } catch (e) {
+      problems.push({ slug, url: pub, why: 'تعذّر الوصول: ' + e.message });
+    }
+
+    // ٢) لوحة العرض. المفروض تحويل للوحة — التحويل لـ?demo=unavailable معناه
+    //    إن الشركة مش موجودة في قاعدة البيانات اللي الموقع شغّال عليها.
+    const demo = `${origin.replace(/\/$/, '')}/demo/${slug}`;
+    try {
+      const r = await fetch(demo, { redirect: 'manual' });
+      const loc = r.headers.get('location') || '';
+      if (r.status < 300 || r.status >= 400) {
+        problems.push({ slug, url: demo, why: `رجّع ${r.status} بدل تحويل` });
+      } else if (/demo=unavailable/.test(loc)) {
+        problems.push({ slug, url: demo, why: 'الشركة مش موجودة في قاعدة بيانات الموقع الحي' });
+      }
+    } catch (e) {
+      problems.push({ slug, url: demo, why: 'تعذّر الوصول: ' + e.message });
+    }
+  }
+  return problems;
+}
+
 async function main() {
   const advertised = advertisedSlugs();
   const seeders = seededSlugs();
@@ -135,8 +184,28 @@ async function main() {
     }
   }
 
+  // ── ٣) الفحص الحاسم: هات الروابط زي ما الزائر بيعمل
+  const origin = process.argv.includes('--http')
+    ? (process.env.SITE_ORIGIN || 'https://oscardevs.com')
+    : null;
+  if (!origin) {
+    console.log('ℹ️  عايز تتأكد إن اللينكات بتفتح فعلاً؟ شغّل: node scripts/check-demo-links.js --http');
+    console.log('   ده بيجيبها بالـHTTP — الفحص الوحيد اللي مايتخدعش لو قاعدة');
+    console.log('   البيانات اللي بتشوفها غير اللي الموقع المنشور بيقرا منها.');
+  } else {
+    const problems = await checkOverHttp([...advertised.keys()], origin);
+    if (problems.length) {
+      failed = true;
+      console.error(`❌ روابط مش شغّالة على ${origin}:`);
+      for (const p of problems) console.error(`   · ${p.url}\n     ${p.why}`);
+    } else {
+      console.log(`✅ كل الروابط بتفتح فعلاً على ${origin}`);
+    }
+  }
+
   if (failed) process.exit(1);
-  const mode = process.env.DATABASE_URL ? 'مع فحص قاعدة البيانات' : 'فحص كود فقط';
+  const mode = origin ? 'HTTP حقيقي'
+    : process.env.DATABASE_URL ? 'قاعدة بيانات (مش دليل على الموقع الحي)' : 'كود فقط';
   console.log(`✅ ${advertised.size} لينك نموذج سليم (${mode})`);
 }
 
