@@ -68,9 +68,15 @@ async function dashboard(pool, userId, profile) {
   // daysLeft is 0 on payday itself, so the period is treated as having at least
   // one day rather than dividing by zero and printing Infinity at somebody.
   const spendableDays = Math.max(1, daysLeft);
+  // Today's budget is set from what was left at the START of today, not from
+  // `remaining` — `remaining` already has today's spending taken out of it, so
+  // dividing it and then subtracting spentToday charged the user twice for
+  // every pound spent today. Spend 100 with 3000 over 10 days and the old
+  // formula showed 190 left today instead of 200.
+  const remainingBeforeToday = remaining + spentToday;
   // Never negative: "you may spend -300 a day" is not an instruction anyone can
   // follow. Overspending is a STATE the page names, not a negative allowance.
-  const perDay = Math.max(0, Math.round(remaining / spendableDays));
+  const perDay = Math.max(0, Math.round(remainingBeforeToday / spendableDays));
   // What is genuinely left for the rest of today, after what has already gone.
   const leftToday = Math.round(perDay - spentToday);
   const overBudget = remaining < 0;
