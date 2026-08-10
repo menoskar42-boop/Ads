@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const demoMode = require('../lib/demo_mode');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Gate for the merchant dashboard (/company/*). Beyond checking that a session
@@ -8,6 +9,10 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // transient DB error (login-time checks still block new suspended sessions).
 async function requireLogin(req, res, next) {
   if (!req.session || !req.session.companyId) return res.redirect('/company/login');
+  // وضع العرض: الزائر داخل من غير كلمة سر، فأي طلب بيغيّر بيانات ممنوع.
+  // المنع هنا على السيرفر عن قصد — إخفاء الأزرار من الواجهة بيتعدّى بـcurl،
+  // والبيانات دي بيشوفها عملاء محتملين تانيين.
+  if (demoMode.blockWrite(req, res)) return;
   try {
     const r = await pool.query('SELECT is_active FROM companies WHERE id = $1', [req.session.companyId]);
     if (!r.rows.length || r.rows[0].is_active === false) {

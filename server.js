@@ -44,6 +44,10 @@ const tenantMiddleware = require('./src/middleware/tenant');
 const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
+const demoMode = require('./src/lib/demo_mode');
+// shared_pool (fetched above) makes every new Pool() for this connection string
+// share one bounded pool, so this doesn't add connections.
+const demoPool = new (require('pg').Pool)({ connectionString: process.env.DATABASE_URL });
 const pharmacyAdminRouter = require('./src/routes/pharmacy_admin');
 const foodAdminRouter = require('./src/routes/food_admin');
 const clinicAdminRouter = require('./src/routes/clinic_admin');
@@ -407,6 +411,38 @@ app.use((req, res, next) => {
 
 // Bare /company has no page of its own → send to login (avoids 404).
 app.get('/company', (req, res) => res.redirect('/company/login'));
+
+// وضع العرض: /demo/<slug> بيدخّل الزائر لوحة التحكم التجريبية من غير كلمة سر.
+// «شاهد نموذج حي» كان بيوصّل للصفحة العامة بس، فالنظام الإداري — اللي هو
+// المنتج الحقيقي — كان مخفي ورا تسجيل دخول ومحدش بيشوفه.
+//
+// مقفول على السلَجات التجريبية بس، والجلسة بتتعلّم demoReadOnly فيمنع أي كتابة
+// في requireLogin. لازم تيجي قبل app.use('/company') عشان الجلسة تكون جاهزة.
+app.get('/demo/:slug', async (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase();
+  if (!demoMode.isDemoSlug(slug)) return res.status(404).redirect('/');
+  try {
+    const r = await demoPool.query(
+      'SELECT id, name, slug, theme_color, is_active FROM companies WHERE slug = $1',
+      [slug]
+    );
+    const c = r.rows[0];
+    if (!c || c.is_active === false) return res.redirect('/?demo=unavailable');
+    // نفس الحقول اللي بيحطّها الدخول العادي — القالب بيقرا منها (اسم الشركة،
+    // اللون، السلَج). من غيرها اللوحة بتترسم فاضية.
+    req.session.companyId = c.id;
+    req.session.companyName = c.name;
+    req.session.companySlug = c.slug;
+    req.session.themeColor = c.theme_color;
+    req.session.adminLang = 'ar';
+    req.session.demoReadOnly = true;
+    req.session.demoSlug = slug;
+    return req.session.save(() => res.redirect('/company/dashboard'));
+  } catch (e) {
+    console.error('[demo] failed to open demo session:', e.message);
+    return res.redirect('/');
+  }
+});
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);

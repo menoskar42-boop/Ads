@@ -5,6 +5,7 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /company/
+Disallow: /demo/
 Disallow: /customer/
 # /uploads/ stays crawlable: it holds tenant logos + product/medicine images
 # referenced by public pages, Schema.org and og:image.
