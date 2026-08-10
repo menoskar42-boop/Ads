@@ -1,0 +1,55 @@
+<%
+  pageTitle = 'الشركات التجريبية';
+  activePage = 'demos';
+%>
+<%- include('_layout_top') %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-3xl" dir="rtl">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">الشركات التجريبية</h2>
+    <p class="text-sm text-gray-500 mb-5">
+      بيعمل شركات «شاهد نموذج حي» ببياناتها التجريبية (منتجات، عملاء، أقسام)
+      على قاعدة البيانات اللي الموقع ده شغّال عليها.
+    </p>
+
+    <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 mb-5 text-sm leading-relaxed">
+      شغّله من هنا مش من الـShell. الـShell بيوصل لقاعدة بيانات تانية، فالشركات
+      بتتعمل في المكان الغلط والموقع يفضل يدّي 404.
+    </div>
+
+    <% if (error) { %>
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/admin/demos/seed" class="mb-6">
+      <label class="block text-sm font-semibold text-gray-700 mb-1">كلمة سر الحسابات التجريبية</label>
+      <input type="text" name="demo_password" required autocomplete="off"
+        class="w-full border border-gray-200 rounded-xl px-4 py-2.5 mb-1 text-sm"
+        placeholder="كلمة سر واحدة لكل الحسابات التجريبية" />
+      <p class="text-xs text-gray-500 mb-4">
+        دي كلمة سر لوحات التحكم التجريبية. متستخدمش كلمة سر بتاعتك في حاجة تانية.
+        لو الحساب موجود، هيتعمله إعادة تعيين للكلمة دي.
+      </p>
+      <button type="submit" class="bg-indigo-600 text-white font-semibold rounded-xl px-5 py-2.5 text-sm">
+        اعمل الشركات التجريبية
+      </button>
+    </form>
+
+    <% if (results) { %>
+      <h3 class="font-bold text-gray-800 mb-3">النتيجة</h3>
+      <% results.forEach(function (r) { %>
+        <div class="border rounded-xl mb-3 overflow-hidden <%= r.ok ? 'border-green-200' : 'border-red-200' %>">
+          <div class="px-4 py-2 text-sm font-semibold <%= r.ok ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800' %>">
+            <%= r.ok ? '✅' : '❌' %> <%= r.slug %>
+          </div>
+          <pre class="text-xs bg-gray-50 text-gray-700 p-3 overflow-x-auto" dir="ltr"><%= r.output.trim() || '(مفيش مخرجات)' %></pre>
+        </div>
+      <% }); %>
+      <p class="text-sm text-gray-600 mt-4">
+        اتأكد بفتح
+        <a class="text-indigo-600 underline" href="https://nutrition.oscardevs.com" target="_blank" rel="noopener">nutrition.oscardevs.com</a>
+        و<a class="text-indigo-600 underline" href="/demo/nutrition" target="_blank" rel="noopener">/demo/nutrition</a>.
+      </p>
+    <% } %>
+  </div>
+
+<%- include('_layout_bottom') %>

@@ -109,6 +109,25 @@ for (const f of ['src/views/admin/companies/add.ejs', 'src/views/admin/companies
     + 'pages that render noindex. Missing: ' + missing.join(', '));
 }
 
+// ── 7. The super-admin must be able to create every type ───────────────────
+// A type missing from the admin whitelist silently becomes 'portfolio': the
+// nursery you just created renders as a portfolio page, with no error and no
+// log line. nursery and installments were both missing this way.
+{
+  const admin = read('src/routes/admin.js');
+  const m2 = /const PAGE_TYPES = \[([^\]]+)\]/.exec(admin);
+  if (!m2) {
+    check('admin.js exposes a PAGE_TYPES list', false,
+      'Expected a single const PAGE_TYPES array in src/routes/admin.js.');
+  } else {
+    const adminTypes = m2[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+    const missing = TYPES.filter((t) => !adminTypes.includes(t));
+    check('the super-admin can create every type', missing.length === 0,
+      'A type the admin form rejects falls back to portfolio with no error, so\n   '
+      + 'the tenant renders the wrong template. Missing: ' + missing.join(', '));
+  }
+}
+
 console.log(failed ? `\n⚠️  ${failed} مشكلة — نوع نشاط ناقص في مكان ما.`
   : '\nكل أنواع النشاط مكتملة في كل الأماكن.');
 process.exit(failed ? 1 : 0);

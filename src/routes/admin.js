@@ -3,6 +3,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
+// كل أنواع النشاط اللي الأدمن يقدر يختارها. كانت مكتوبة مرتين بالإيد وناقصها
+// nursery و installments، فأي شركة من النوعين دول كانت بتترمي على portfolio
+// من غير أي رسالة — الحضانة تطلع صفحة أعمال. مصدر واحد دلوقتي،
+// وscripts/check-page-types.js بيتأكد إنه مكتمل.
+const PAGE_TYPES = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym',
+  'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'];
 const { sendApplicationApproved } = require('../lib/mailer');
 const QRCode = require('qrcode');
 
@@ -89,6 +95,65 @@ router.post('/logout', (req, res) => {
 });
 
 /* ─── DASHBOARD ─────────────────────────────────────────── */
+// ── إنشاء الشركات التجريبية على قاعدة البيانات اللي الموقع نفسه بيقرا منها ──
+//
+// المشكلة اللي بيحلّها: سكربتات enable-demo-*.js اتشغّلت من Shell بتاع
+// الـworkspace، وده بيوصل لقاعدة بيانات **غير** اللي الـdeployment بيستخدمها.
+// النتيجة إن الشركات اتعملت في القاعدة الغلط، والموقع الحي فضل يدّي 404 على
+// hall.oscardevs.com و nutrition.oscardevs.com، و/demo/<slug> يرجّع للرئيسية.
+//
+// الراوت ده بيشغّل نفس السكربتات كـchild process بيرث بيئة التطبيق — يعني
+// DATABASE_URL بتاعه هو اللي الموقع شغّال بيه، فمستحيل يروح للقاعدة الغلط.
+// بنشغّل السكربتات بدل ما نكرّر منطقها عشان تيجي البيانات التجريبية معاها
+// (منتجات، عملاء، أقسام) مش مجرد صف الشركة.
+const DEMO_SEEDERS = [
+  ['nutrition', 'enable-demo-nutrition.js'],
+  ['furniture', 'enable-demo-furniture.js'],
+  ['workshop', 'enable-demo-workshop.js'],
+  ['hall', 'enable-demo-hall.js'],
+  ['nursery', 'enable-demo-nursery.js'],
+  ['installments', 'enable-demo-installments.js'],
+  ['clinic', 'enable-demo-clinic.js'],
+];
+
+router.post('/demos/seed', requireAdmin, async (req, res) => {
+  const { execFile } = require('child_process');
+  const path = require('path');
+  const password = String((req.body && req.body.demo_password) || '').trim();
+  if (!password) {
+    return res.status(400).render('admin/demos', {
+      session: adminSession(req), activePage: 'demos',
+      results: null, error: 'اكتب كلمة سر للحسابات التجريبية الأول.',
+    });
+  }
+
+  const run = (script) => new Promise((resolve) => {
+    // قايمة ثابتة — مفيش أي جزء من الأمر جاي من المستخدم غير كلمة السر،
+    // وهي بتتبعت كمتغيّر بيئة مش كوسيط في سطر الأوامر.
+    execFile(process.execPath, [path.join(__dirname, '..', '..', 'scripts', script)], {
+      env: { ...process.env, DEMO_PASSWORD: password },
+      timeout: 120000,
+    }, (err, stdout, stderr) => {
+      resolve({ script, ok: !err, output: String(stdout || '') + String(stderr || '') });
+    });
+  });
+
+  const results = [];
+  for (const [slug, script] of DEMO_SEEDERS) {
+    const r = await run(script);
+    results.push({ slug, ...r });
+  }
+  res.render('admin/demos', {
+    session: adminSession(req), activePage: 'demos', results, error: null,
+  });
+});
+
+router.get('/demos', requireAdmin, (req, res) => {
+  res.render('admin/demos', {
+    session: adminSession(req), activePage: 'demos', results: null, error: null,
+  });
+});
+
 router.get('/dashboard', requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -137,7 +202,7 @@ router.get('/companies/add', requireAdmin, (req, res) => {
 
 router.post('/companies/add', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, admin_email, admin_password } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = PAGE_TYPES.includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   const form = { company_name, slug, description, theme_color, admin_email, page_type };
 
   const renderError = (error) =>
@@ -216,7 +281,7 @@ router.get('/companies/:id/edit', requireAdmin, async (req, res) => {
 
 router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, is_active } = req.body;
-  const page_type = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall'].includes(req.body.page_type) ? req.body.page_type : 'portfolio';
+  const page_type = PAGE_TYPES.includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   try {
     if (!SLUG_REGEX.test(slug) || RESERVED_SLUGS.includes(slug)) {
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
