@@ -422,8 +422,10 @@ app.get('/demo/:slug', async (req, res) => {
   const slug = String(req.params.slug || '').toLowerCase();
   if (!demoMode.isDemoSlug(slug)) return res.status(404).redirect('/');
   try {
+    // العمود اسمه company_name مش name — الغلط ده كان بيرمي استثناء فالـcatch
+    // يرجّع الزائر للصفحة الرئيسية بدل لوحة العرض.
     const r = await demoPool.query(
-      'SELECT id, name, slug, theme_color, is_active FROM companies WHERE slug = $1',
+      'SELECT id, company_name, slug, theme_color, is_active FROM companies WHERE slug = $1',
       [slug]
     );
     const c = r.rows[0];
@@ -431,7 +433,7 @@ app.get('/demo/:slug', async (req, res) => {
     // نفس الحقول اللي بيحطّها الدخول العادي — القالب بيقرا منها (اسم الشركة،
     // اللون، السلَج). من غيرها اللوحة بتترسم فاضية.
     req.session.companyId = c.id;
-    req.session.companyName = c.name;
+    req.session.companyName = c.company_name;
     req.session.companySlug = c.slug;
     req.session.themeColor = c.theme_color;
     req.session.adminLang = 'ar';
