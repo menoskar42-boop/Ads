@@ -19,6 +19,7 @@ const CHECKS = [
   ['check-shared-pool',     'بوول قاعدة البيانات المشترك + حماية الباسورد'],
   ['check-no-secrets',      'مفيش بيانات دخول في الكود'],
   ['check-neuropilot-app',  'تطبيق NeuroPilot وصفحته'],
+  ['check-demo-links',      'روابط «شاهد نموذج حي» تفتح فعلاً'],
   ['render-clinic-pages',   'صفحات العيادة بالعربي والإنجليزي'],
   ['render-kakeibo-pages',  'شاشات كاكيبو'],
   ['seo-audit',             'SEO و AdSense للصفحات العامة'],
