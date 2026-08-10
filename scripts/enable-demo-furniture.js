@@ -97,18 +97,21 @@ async function main() {
     }
 
     const hasUser = await pool.query('SELECT 1 FROM company_users WHERE company_id=$1 LIMIT 1', [c.id]);
-    if (!hasUser.rows.length && !password) {
-      console.log('  → no password given; skipping the login (pass --password=… or set DEMO_PASSWORD)');
-    } else if (!hasUser.rows.length) {
+    if (!password) {
+      console.log('  → no password given; leaving the login alone (pass --password=… or set DEMO_PASSWORD)');
+    } else {
+      // DO UPDATE, not DO NOTHING — same as every other demo script. With
+      // DO NOTHING a re-run silently kept the old password while reporting
+      // success, so rotating a demo credential looked like it worked and
+      // didn't. Re-running with a new DEMO_PASSWORD must actually reset it.
       await pool.query(
-        'INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3) ON CONFLICT (email) DO NOTHING',
+        `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3)
+         ON CONFLICT (email) DO UPDATE SET password_hash=EXCLUDED.password_hash`,
         [c.id, email, await bcrypt.hash(password, 10)]
       );
       // The password is never echoed. Printing it puts a working credential in
       // a terminal scrollback, a CI log and a screenshot.
-      console.log(`  → login created: ${email}`);
-    } else {
-      console.log('  → login already exists, left alone');
+      console.log(`  → login ${hasUser.rows.length ? 'password reset' : 'created'}: ${email}`);
     }
 
     for (const key of OPTIONAL_KEYS) {
