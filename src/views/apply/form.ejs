@@ -8,18 +8,52 @@
     AdSense rules. %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>أنشئ موقعك أو متجرك أو صيدليتك أو مطعمك | OscarDevs</title>
-<meta name="description" content="قدّم طلب إنشاء بورتفوليو، متجر إلكتروني، صيدلية أونلاين، أو صفحة مطاعم/طلبات مع OscarDevs — تسجيل ذاتي، تفعيل سريع، وأسعار مناسبة في مصر والعالم العربي." />
-<%- include('../partials/seo_meta', { title: 'أنشئ موقعك أو متجرك أو صيدليتك أو مطعمك | OscarDevs', description: 'قدّم طلب إنشاء بورتفوليو، متجر إلكتروني، صيدلية أونلاين، أو صفحة مطاعم/طلبات مع OscarDevs — تسجيل ذاتي، تفعيل سريع، وأسعار مناسبة في مصر والعالم العربي.', ogImage: siteOrigin + '/og-default.png' }) %>
+<%# One variable each, used by <title>, <meta description> and seo_meta.
+    Writing the strings out three times is how #14 and #18 in
+    docs/SEO_MISTAKES_LOG.md happened twice already: somebody edits one copy,
+    Google reads a different title from the one the social card shows, and the
+    <meta description> stops matching og:description.
+
+    Measured with python3 (wc -m miscounts Arabic in some locales):
+    title 56 chars (limit 60), description 150 (target 150–160).
+
+    Both name the verticals rather than saying "and more": the old pair listed four
+    types, so a visitor arriving from the workshop or hall card found a page
+    that never used the word they searched for. %>
+<%
+  var __title = 'موقع لنشاطك: متجر، صيدلية، عيادة، ورشة، قاعة | OscarDevs';
+  var __desc  = '١٢ نوع موقع من OscarDevs: متجر، صيدلية، مطاعم، عيادة، تغذية، جيم، موبيليا، ورش سيارات، قاعات أفراح، حضانات، تقسيط، وبورتفوليو. تسجيل ذاتي وتفعيل سريع.';
+%>
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('../partials/seo_meta', { title: __title, description: __desc, ogImage: siteOrigin + '/og-default.png' }) %>
+<%# The FAQ answers live here, in one array, and are rendered BOTH into the
+    JSON-LD below and into the visible section further down. They used to be two
+    hand-kept copies of the same four answers, which is a structured-data
+    mismatch waiting to happen — Google requires the markup to describe content
+    actually on the page, and the two copies drift the moment one is edited.
+    This one already had: the types answer named six verticals while the form's
+    dropdown offered twelve. %>
+<%
+  var __faq = [
+    ['هل إنشاء الصفحة مجاني؟',
+     'تقديم الطلب مجاني، والاشتراك مجاني بالكامل أول ٦ شهور. بعد كده تختار: اشتراك شهري أو شراء كامل — الأسعار كلها معروضة على الصفحة الرئيسية. ومميزات المساعد الذكي للمطاعم إضافة اختيارية منفصلة.'],
+    ['إمتى تشتغل صفحتي بعد الطلب؟',
+     'بعد مراجعة فريقنا للطلب وتفعيل الحساب، تقدر تدخل لوحة التحكم وتبدأ إضافة محتواك فوراً، وتشتغل صفحتك على رابطك الخاص.'],
+    ['أنهي أنواع المواقع اللي أقدر أطلبها؟',
+     'اتناشر نوع: متجر إلكتروني، بورتفوليو، صيدلية أونلاين، مطاعم وسوبر ماركت (طلبات)، عيادة، عيادة تغذية، جيم، معرض أو ورشة موبيليا، ورشة سيارات، قاعة أفراح ومناسبات، حضانة أو مركز دروس، وبيع بالتقسيط.'],
+    ['الرابط بتاعي هيكون شكله إيه؟',
+     'رابطك هيكون سب دومين خاص بيك على الشكل ده: your-name.oscardevs.com — بتختار الاسم المختصر وقت الطلب، بحروف إنجليزية صغيرة وأرقام و«-» فقط.'],
+  ];
+%>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "هل إنشاء الصفحة مجاني؟", "acceptedAnswer": { "@type": "Answer", "text": "تقديم الطلب مجاني، والاشتراك مجاني بالكامل أول ٦ شهور. بعد كده تختار: اشتراك شهري أو شراء كامل — الأسعار كلها معروضة على الصفحة الرئيسية. ومميزات المساعد الذكي للمطاعم إضافة اختيارية منفصلة." } },
-    { "@type": "Question", "name": "إمتى تشتغل صفحتي بعد الطلب؟", "acceptedAnswer": { "@type": "Answer", "text": "بعد مراجعة فريقنا للطلب وتفعيل الحساب، تقدر تدخل لوحة التحكم وتبدأ إضافة محتواك فوراً، وتشتغل صفحتك على رابطك الخاص." } },
-    { "@type": "Question", "name": "أنهي أنواع المواقع اللي أقدر أطلبها؟", "acceptedAnswer": { "@type": "Answer", "text": "بورتفوليو، متجر إلكتروني، صيدلية أونلاين، صفحة مطاعم/سوبر ماركت للطلبات، إدارة عيادات، وإدارة جيم/صالة رياضية." } },
-    { "@type": "Question", "name": "الرابط بتاعي هيكون شكله إيه؟", "acceptedAnswer": { "@type": "Answer", "text": "هيكون على الاسم المختصر اللي تختاره وقت الطلب، بحروف إنجليزية صغيرة وأرقام و«-» فقط (مثال: my-store)." } }
+    <% __faq.forEach(function(q, i){ %>
+    { "@type": "Question", "name": <%- JSON.stringify(q[0]) %>, "acceptedAnswer": { "@type": "Answer", "text": <%- JSON.stringify(q[1]) %> } }<%= i < __faq.length - 1 ? ',' : '' %>
+    <% }) %>
   ]
 }
 </script>
@@ -40,7 +74,7 @@
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'قدّم طلب' } ] }) %>
   <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
     <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">قدّم طلب إنشاء صفحتك</h1>
-    <p class="text-gray-500 text-sm mb-2">اختَر نوع صفحتك — <strong>بورتفوليو</strong>، <strong>متجر إلكتروني</strong>، <strong>صيدلية أونلاين</strong>، أو <strong>مطاعم/سوبر ماركت</strong> — واملأ بياناتك بدقّة. بعد موافقة فريقنا هتدخل لوحة تحكم صفحتك مباشرة.</p>
+    <p class="text-gray-500 text-sm mb-2">اختَر نوع صفحتك من <strong>١٢ نوع</strong> — متجر إلكتروني، بورتفوليو، صيدلية، مطاعم وطلبات، عيادة، عيادة تغذية، جيم، موبيليا، <strong>ورشة سيارات</strong>، <strong>قاعة أفراح</strong>، <strong>حضانة</strong>، أو <strong>بيع بالتقسيط</strong> — واملأ بياناتك بدقّة. بعد موافقة فريقنا هتدخل لوحة تحكم صفحتك مباشرة.</p>
     <p class="text-gray-400 text-xs mb-8">تقديم الطلب مجاني، والاشتراك مجاني أول ٦ شهور. بعدها تختار اشتراك شهري أو شراء كامل — الأسعار على الصفحة الرئيسية.</p>
 
     <% if (error) { %>
@@ -111,12 +145,18 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم المختصر للرابط *</label>
-        <div class="flex">
-          <span class="inline-flex items-center px-3 rounded-r-xl bg-gray-100 text-gray-500 text-sm border border-l-0 border-gray-200">/view/</span>
+        <%# It said "/view/" — a path that exists but 301s to the subdomain. The
+            canonical everywhere in this codebase is <slug>.oscardevs.com
+            (docs/SEO_MISTAKES_LOG.md #1), the activation email quotes that
+            form, and it is what the customer will type and hand out. Showing
+            them the redirecting path was telling them their address is
+            something it is not. %>
+        <div class="flex" dir="ltr">
           <input type="text" name="preferred_slug" id="slugInput" value="<%= values.preferred_slug || '' %>" required maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?"
             class="flex-1 border border-gray-200 rounded-l-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <span class="inline-flex items-center px-3 rounded-r-xl bg-gray-100 text-gray-500 text-sm border border-r-0 border-gray-200">.oscardevs.com</span>
         </div>
-        <p class="text-xs text-gray-400 mt-1">حروف إنجليزية صغيرة وأرقام و"-" فقط. مثال: <code>my-store</code></p>
+        <p class="text-xs text-gray-400 mt-1">حروف إنجليزية صغيرة وأرقام و"-" فقط. رابطك هيبقى مثلاً <code dir="ltr">my-store.oscardevs.com</code></p>
         <p id="slugStatus" class="text-xs mt-1 font-semibold" style="display:none"></p>
       </div>
       <div>
@@ -170,13 +210,24 @@
   <!-- Unique, indexable content (SEO): the form alone was too thin for Google to index. -->
   <section class="mt-8 bg-white rounded-2xl shadow p-6 sm:p-10">
     <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mb-4">أنواع الصفحات اللي تقدر تطلبها</h2>
+    <%# All twelve, in the same order as the dropdown above. Six of them —
+        موبيليا، تغذية، ورش سيارات، قاعات، حضانات، تقسيط — were shipped and
+        linked from the home page but were not named anywhere on this page, so a
+        visitor who clicked the workshop card landed here and read six
+        paragraphs, none of them about workshops. %>
     <div class="grid sm:grid-cols-2 gap-4 text-sm text-gray-600 leading-7">
       <p><strong class="text-gray-900">متجر إلكتروني:</strong> متجر كامل بسلة شراء، إدارة منتجات وأقسام، كوبونات خصم، وتتبّع طلبات — جاهز تبيع بيه أونلاين.</p>
       <p><strong class="text-gray-900">بورتفوليو:</strong> صفحة أعمال احترافية تعرض خدماتك ومشاريعك ووسائل تواصلك في تصميم نظيف وسريع.</p>
       <p><strong class="text-gray-900">صيدلية أونلاين:</strong> كتالوج أدوية ومنتجات، سلة طلب، وإدارة مخزون — مع صفحة لتتبّع الطلب.</p>
       <p><strong class="text-gray-900">مطاعم / سوبر ماركت (طلبات):</strong> منيو رقمي وطلب أونلاين، مع مساعد ذكي اختياري يستقبل الطلب بالمحادثة.</p>
       <p><strong class="text-gray-900">عيادة / إدارة عيادات:</strong> حجز مواعيد، ملفات المرضى، وإدارة الأطباء والخدمات من لوحة واحدة.</p>
+      <p><strong class="text-gray-900">عيادة تغذية:</strong> ملفات المتابعة والقياسات، وخطط الأكل، وحجز جلسات المتابعة لكل عميل.</p>
       <p><strong class="text-gray-900">جيم / صالة رياضية:</strong> اشتراكات، حجز حصص، ومتابعة الأعضاء والحضور.</p>
+      <p><strong class="text-gray-900">معرض / ورشة موبيليا:</strong> معرض قطع بالمقاسات والخامات، طلبات تفصيل، ومتابعة التنفيذ خطوة بخطوة.</p>
+      <p><strong class="text-gray-900">ورشة سيارات:</strong> استقبال السيارات وأوامر الشغل، قطع الغيار والعمالة، وسجل صيانة لكل عربية.</p>
+      <p><strong class="text-gray-900">قاعة أفراح ومناسبات:</strong> تقويم حجوزات بالتواريخ المتاحة، باقات وأسعار، وعربون وتأكيد الحجز.</p>
+      <p><strong class="text-gray-900">حضانة / مركز دروس:</strong> تسجيل الأطفال أو الطلبة، المجموعات والمواعيد، والحضور والمصروفات.</p>
+      <p><strong class="text-gray-900">بيع بالتقسيط (قسّطلي):</strong> عقود تقسيط بجدول أقساط، متابعة التحصيل، وتنبيه بالمتأخرات.</p>
     </div>
 
     <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mt-8 mb-4">إزاي بيشتغل؟</h2>
@@ -188,23 +239,15 @@
     </ol>
 
     <h2 class="text-xl sm:text-2xl font-extrabold text-gray-900 mt-8 mb-4">أسئلة شائعة</h2>
+    <%# Rendered from the same __faq array as the JSON-LD above, so the markup
+        can never describe an answer the page does not show. %>
     <div class="space-y-4 text-sm">
+      <% __faq.forEach(function(q){ %>
       <div>
-        <h3 class="font-bold text-gray-900 mb-1">هل إنشاء الصفحة مجاني؟</h3>
-        <p class="text-gray-600 leading-7">تقديم الطلب مجاني، والاشتراك مجاني بالكامل أول ٦ شهور. بعد كده تختار اشتراك شهري أو شراء كامل، والأسعار كلها معروضة على الصفحة الرئيسية قبل ما تقدّم. ومميزات المساعد الذكي للمطاعم إضافة اختيارية منفصلة.</p>
+        <h3 class="font-bold text-gray-900 mb-1"><%= q[0] %></h3>
+        <p class="text-gray-600 leading-7"><%= q[1] %></p>
       </div>
-      <div>
-        <h3 class="font-bold text-gray-900 mb-1">إمتى تشتغل صفحتي بعد الطلب؟</h3>
-        <p class="text-gray-600 leading-7">بعد مراجعة فريقنا للطلب وتفعيل الحساب، تقدر تدخل لوحة التحكم وتبدأ إضافة محتواك فوراً، وتشتغل صفحتك على رابطك الخاص.</p>
-      </div>
-      <div>
-        <h3 class="font-bold text-gray-900 mb-1">أنهي أنواع المواقع اللي أقدر أطلبها؟</h3>
-        <p class="text-gray-600 leading-7">بورتفوليو، متجر إلكتروني، صيدلية أونلاين، صفحة مطاعم/سوبر ماركت للطلبات، إدارة عيادات، وإدارة جيم/صالة رياضية.</p>
-      </div>
-      <div>
-        <h3 class="font-bold text-gray-900 mb-1">الرابط بتاعي هيكون شكله إيه؟</h3>
-        <p class="text-gray-600 leading-7">هيكون على الاسم المختصر اللي تختاره وقت الطلب، بحروف إنجليزية صغيرة وأرقام و«-» فقط (مثال: my-store).</p>
-      </div>
+      <% }) %>
     </div>
   </section>
 </main>

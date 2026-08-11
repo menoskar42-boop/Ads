@@ -18,6 +18,15 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const TERMS_VERSION = '1.0';
 
+// The definition of what a customer may request, and the source
+// scripts/check-page-types.js reads to verify every other place that offers a
+// type agrees with it. It used to be written out twice — once for the ?type=
+// prefill and once for the POST validation — so a vertical could be accepted on
+// submit but impossible to arrive pre-selected, or the reverse, with nothing to
+// notice. One list, both uses.
+const BUSINESS_TYPES = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym',
+  'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'];
+
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
 const RESERVED_SLUGS = new Set([
   'admin', 'api', 'apply', 'company', 'customer', 'shop', 'view',
@@ -35,7 +44,7 @@ const cleanRef = (s) => {
 
 router.get('/apply', (req, res) => {
   res.locals.showAds = false; // a form is not content — AdSense policy
-  const preType = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'].includes(req.query.type) ? req.query.type : '';
+  const preType = BUSINESS_TYPES.includes(req.query.type) ? req.query.type : '';
   const ref = cleanRef(req.query.ref);
   const values = {};
   if (preType) values.business_type = preType;
@@ -80,7 +89,7 @@ router.post('/apply', applyLimiter, async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) return render('بريد إلكتروني غير صالح.');
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
-  if (!['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym', 'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'].includes(values.business_type)) return render('اختر نوع الموقع.');
+  if (!BUSINESS_TYPES.includes(values.business_type)) return render('اختر نوع الموقع.');
   if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
     return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
   }

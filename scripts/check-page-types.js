@@ -30,7 +30,11 @@ const check = (label, ok, why) => {
 
 // The whitelist in apply.js is the definition of what a customer may request.
 const applySrc = read('src/routes/apply.js');
-const m = /\[((?:\s*'[a-z_]+'\s*,?)+)\]\.includes\(req\.body\.business_type\)/.exec(applySrc)
+// Named constant first — the list used to be inlined at both call sites, and
+// naming it is what stops the two copies drifting. The inline forms are still
+// accepted so this keeps working if it is ever written that way again.
+const m = /const BUSINESS_TYPES = \[([^\]]+)\]/.exec(applySrc)
+  || /\[((?:\s*'[a-z_]+'\s*,?)+)\]\.includes\(req\.body\.business_type\)/.exec(applySrc)
   || /\[((?:\s*'[a-z_]+'\s*,?)+)\]\.includes\(req\.query\.type\)/.exec(applySrc);
 if (!m) {
   console.log('❌ could not find the business_type whitelist in src/routes/apply.js');
