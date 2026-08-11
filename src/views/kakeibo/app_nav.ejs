@@ -1,10 +1,12 @@
 <%
   var __active = typeof active !== 'undefined' ? active : '';
+  // "Where it went" and "Month summary" were two tabs onto the same month's
+  // numbers, so they are one tab now. Four is also the most a bottom bar holds
+  // before the labels start truncating in Arabic.
   var __items = [
     ['home','/app','🏠','nav.home'],
-    ['reports','/reports','📊','nav.reports'],
+    ['summary','/summary','📊','nav.review'],
     ['add','/add','➕','nav.add'],
-    ['review','/review','📅','nav.review'],
     ['profile','/profile','👤','nav.profile']
   ];
 %>

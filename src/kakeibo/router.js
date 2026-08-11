@@ -634,23 +634,47 @@ router.post('/budgets/save', requireOnboarded, async (req, res) => {
   res.redirect('/budgets?saved=1');
 });
 
-/* ─── Reports ──────────────────────────────────────────── */
-router.get('/reports', requireOnboarded, async (req, res) => {
+/* ─── Month summary (was: /reports + /review) ──────────── */
+// Two tabs answered one question off the same data: /reports drew a donut of
+// this month's categories, /review drew bars of this month's categories. Nobody
+// could say which to open, and only one of them had a month picker — so the
+// donut was permanently stuck on the current month. One page now, and the picker
+// moves everything month-specific together.
+//
+// The old paths still work and keep their ?ym. Somebody has /review?ym=2026-6 in
+// their history, and a dead bookmark is a worse outcome than a redirect.
+router.get('/summary', requireOnboarded, async (req, res) => {
   try {
     const uid = req.session.kkbUserId;
     const now = new Date();
-    const mStart = stats.ymd(new Date(now.getFullYear(), now.getMonth(), 1));
-    const mEnd = stats.ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    const [byCat, monthly, weekly] = await Promise.all([
-      stats.categoryBreakdown(pool, uid, mStart, mEnd),
+    let y = now.getFullYear(), m = now.getMonth();
+    const q = String(req.query.ym || '');
+    if (/^\d{4}-\d{1,2}$/.test(q)) { const [yy, mm] = q.split('-').map(Number); y = yy; m = Math.min(11, Math.max(0, mm - 1)); }
+    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth();
+
+    const [review, monthly, weekly] = await Promise.all([
+      stats.monthReview(pool, uid, res.locals.profile, y, m),
       stats.monthlySeries(pool, uid, 6),
       stats.weeklySeries(pool, uid, 7),
     ]);
-    // AI weekly report + saving suggestions — cached per ISO week.
-    let weeklyReport = null, suggestions = null;
-    if (ai.isEnabled() && byCat.length) {
+    const cur = new Date(y, m, 1);
+    const prev = new Date(y, m - 1, 1), next = new Date(y, m + 1, 1);
+    const monthName = cur.toLocaleDateString(res.locals.lang === 'en' ? 'en-US' : 'ar-EG', { month: 'long', year: 'numeric' });
+
+    // AI monthly narrative — cached per month (only for months with data).
+    let narrative = null, weeklyReport = null, suggestions = null;
+    const catCtx = (review.cats || []).slice(0, 4).map((c) => c.key + '=' + Math.round(c.total)).join(', ');
+    if (ai.isEnabled() && review.spent > 0) {
+      narrative = await ai.cachedText(pool, uid, 'monthly', y + '-' + (m + 1), [
+        { role: 'system', content: ai.coachSystem(res.locals.lang) },
+        { role: 'user', content: 'Month: earned=' + Math.round(review.income) + ', spent=' + Math.round(review.spent) + ', saved=' + Math.round(review.saved) + ', rate=' + review.rate + '%, top(' + res.locals.profile.currency + '): ' + catCtx + '. Write a 2–3 sentence review with one takeaway.' },
+      ], 170);
+    }
+    // The weekly note is about the last seven days, so it belongs to the current
+    // month only — printing "this week you spent…" under March 2026 would be a
+    // lie about the page you are looking at.
+    if (ai.isEnabled() && isCurrentMonth && (review.cats || []).length) {
       const wk = isoWeekKey(now);
-      const catCtx = byCat.slice(0, 4).map((c) => c.key + '=' + Math.round(c.total)).join(', ');
       const thisWk = weekly.length ? Math.round(weekly[weekly.length - 1].total) : 0;
       const prevWk = weekly.length > 1 ? Math.round(weekly[weekly.length - 2].total) : 0;
       weeklyReport = await ai.cachedText(pool, uid, 'weekly', wk, [
@@ -663,38 +687,20 @@ router.get('/reports', requireOnboarded, async (req, res) => {
       ], 90);
       if (sg) { try { const j = JSON.parse(sg); if (Array.isArray(j.tips)) suggestions = j.tips.slice(0, 3); } catch (e) { suggestions = [sg]; } }
     }
-    res.render('kakeibo/reports', Object.assign({ byCat, monthly, weekly, weeklyReport, suggestions }, APP_LOCALS));
-  } catch (e) { console.error('[kkb reports]', e.message); res.status(500).send('Error.'); }
-});
-
-/* ─── Monthly review ───────────────────────────────────── */
-router.get('/review', requireOnboarded, async (req, res) => {
-  try {
-    const now = new Date();
-    let y = now.getFullYear(), m = now.getMonth();
-    const q = String(req.query.ym || '');
-    if (/^\d{4}-\d{1,2}$/.test(q)) { const [yy, mm] = q.split('-').map(Number); y = yy; m = Math.min(11, Math.max(0, mm - 1)); }
-    const uid = req.session.kkbUserId;
-    const review = await stats.monthReview(pool, uid, res.locals.profile, y, m);
-    const cur = new Date(y, m, 1);
-    const prev = new Date(y, m - 1, 1), next = new Date(y, m + 1, 1);
-    const monthName = cur.toLocaleDateString(res.locals.lang === 'en' ? 'en-US' : 'ar-EG', { month: 'long', year: 'numeric' });
-    // AI monthly narrative — cached per month (only for months with data).
-    let narrative = null;
-    if (ai.isEnabled() && review.spent > 0) {
-      const catCtx = (review.cats || []).slice(0, 4).map((c) => c.key + '=' + Math.round(c.total)).join(', ');
-      narrative = await ai.cachedText(pool, uid, 'monthly', y + '-' + (m + 1), [
-        { role: 'system', content: ai.coachSystem(res.locals.lang) },
-        { role: 'user', content: 'Month: earned=' + Math.round(review.income) + ', spent=' + Math.round(review.spent) + ', saved=' + Math.round(review.saved) + ', rate=' + review.rate + '%, top(' + res.locals.profile.currency + '): ' + catCtx + '. Write a 2–3 sentence review with one takeaway.' },
-      ], 170);
-    }
-    res.render('kakeibo/review', Object.assign({
-      review, monthName, narrative,
+    res.render('kakeibo/summary', Object.assign({
+      review, monthly, weekly, monthName, narrative, weeklyReport, suggestions, isCurrentMonth,
       prevYm: prev.getFullYear() + '-' + (prev.getMonth() + 1),
       nextYm: (next <= now ? next.getFullYear() + '-' + (next.getMonth() + 1) : null),
     }, APP_LOCALS));
-  } catch (e) { console.error('[kkb review]', e.message); res.status(500).send('Error.'); }
+  } catch (e) { console.error('[kkb summary]', e.message); res.status(500).send('Error.'); }
 });
+
+function toSummary(req, res) {
+  const q = String(req.query.ym || '');
+  res.redirect('/summary' + (/^\d{4}-\d{1,2}$/.test(q) ? '?ym=' + encodeURIComponent(q) : ''));
+}
+router.get('/reports', requireOnboarded, toSummary);
+router.get('/review', requireOnboarded, toSummary);
 
 /* ─── Profile / settings ───────────────────────────────── */
 // The advanced tools (twin, simulator, investments, family, coach, notifications)

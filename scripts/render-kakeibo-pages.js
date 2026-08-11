@@ -67,6 +67,21 @@ const CASES = {
   // Someone who took the "I don't know yet" way out of both money questions.
   onboarding_unknown: () => ({ __file: 'onboarding.ejs', error: null,
     profile: { onboarded: true, monthly_income: 0, saving_goal: 0, salary_day: 1, country: 'EG', weekend: 'fri_sat', currency: 'EGP', salary_type: 'fixed' } }),
+  summary: () => ({
+    review: { year: 2026, month0: 7, income: 12000, spent: 3200, saved: 8800, rate: 73,
+      largest: { key: 'food', total: 1400 },
+      cats: [{ key: 'food', total: 1400 }, { key: 'transport', total: 1100 }, { key: 'bills', total: 700 }] },
+    monthly: [{ label: '3/26', total: 4000 }, { label: '4/26', total: 3100 }],
+    weekly: [{ label: 'W-1', total: 800 }, { label: 'W-0', total: 900 }],
+    monthName: 'August 2026', narrative: null, weeklyReport: null, suggestions: null,
+    isCurrentMonth: true, prevYm: '2026-7', nextYm: null }),
+  // A month with nothing in it. The trend charts must survive this branch —
+  // an empty month is exactly when the longer view is worth looking at.
+  summary_empty: () => ({ __file: 'summary.ejs',
+    review: { year: 2026, month0: 2, income: 0, spent: 0, saved: 0, rate: 0, largest: null, cats: [] },
+    monthly: [{ label: '3/26', total: 4000 }], weekly: [{ label: 'W-0', total: 900 }],
+    monthName: 'March 2026', narrative: null, weeklyReport: null, suggestions: null,
+    isCurrentMonth: false, prevYm: '2026-2', nextYm: '2026-4' }),
   dashboard: () => ({ data: dash(), insight: null, challenge: null, goals: [], gam: { level: 3, xp: 240, streak: 5 }, smart: null, twin: null }),
   dashboard_no_income: () => ({ __file: 'dashboard.ejs',
     data: dash({ income: 0, goal: 0, noIncome: true, remaining: -3200, savingRate: 0, goalProgress: 0,
@@ -104,6 +119,12 @@ function countFields(html) {
 }
 
 let fail = 0;
+const arabic = /[؀-ۿ]/;
+// The language switcher is labelled in the language it switches TO, so "ع" on
+// an English page is correct. Drop it before looking for leaks.
+const strip = (h) => h.replace(/<a[^>]*href="\?lang=[^"]*"[\s\S]*?<\/a>/g, ' ')
+  .replace(/<[^>]+>/g, ' ');
+
 const check = (label, ok, extra) => {
   if (!ok) { fail++; console.log(`❌ ${label}${extra ? ' — ' + extra : ''}`); }
   else console.log(`✅ ${label}${extra ? ' — ' + extra : ''}`);
@@ -171,6 +192,30 @@ for (const k of ['dash.goal', 'dash.saving_rate', 'dash.week', 'dash.month', 'ga
 const topSections = (dashTop.match(/<section\b/g) || []).length;
 check('dashboard: three cards above the fold', topSections === 3, `${topSections}`);
 
+// The merge is only safe if the one page carries what both pages carried. Each
+// of these was on /review or /reports and would be a silent loss if dropped.
+const sum = render('summary', 'ar');
+for (const k of ['rev.earned', 'rev.spent', 'rev.saved', 'rev.rate', 'rev.largest',
+  'rep.title', 'rep.monthly', 'rep.weekly']) {
+  check(`summary: carries "${STR.en[k]}"`, sum.includes(STR.ar[k]));
+}
+check('summary: the month picker points at /summary',
+  sum.includes('href="/summary?ym=2026-7"') && !sum.includes('href="/review'));
+// The trend charts sit outside the "nothing this month" branch on purpose.
+const sumEmpty = render('summary_empty', 'ar');
+check('summary (empty month): says so', sumEmpty.includes(STR.ar['rev.none']));
+check('summary (empty month): still draws the 6-month and 7-week trends',
+  sumEmpty.includes(STR.ar['rep.monthly']) && sumEmpty.includes(STR.ar['rep.weekly']));
+const sumEn = strip(render('summary', 'en'));
+check('summary/en: no Arabic leaked', !arabic.test(sumEn),
+  arabic.test(sumEn) ? (sumEn.match(/[؀-ۿ][^<>]{0,40}/) || [''])[0] : '');
+
+// The bottom bar lost a tab in the merge; the two old paths must not linger in
+// it, or the redirect becomes a visible flicker on every tap.
+check('nav: four tabs, none of them the old two',
+  (sum.match(/<a href="\/(app|summary|add|profile)"/g) || []).length === 4
+  && !sum.includes('href="/reports"') && !sum.includes('href="/review"'));
+
 const add = render('add', 'ar');
 const addTop = beforeDetails(add);
 // amount + category radios (6) + description = 8 before the fold; method/date/receipt below.
@@ -206,11 +251,6 @@ check('profile (new user): says what is coming and when',
   profNew.includes(STR.ar['prof.tools_locked']));
 check('profile (unlocked): no locked note', !prof.includes(STR.ar['prof.tools_locked']));
 const profEn = render('profile', 'en');
-const arabic = /[؀-ۿ]/;
-// The language switcher is labelled in the language it switches TO, so "ع" on
-// an English page is correct. Drop it before looking for leaks.
-const strip = (h) => h.replace(/<a[^>]*href="\?lang=[^"]*"[\s\S]*?<\/a>/g, ' ')
-  .replace(/<[^>]+>/g, ' ');
 const enText = strip(profEn);
 check('profile/en: no Arabic leaked', !arabic.test(enText),
   arabic.test(enText) ? (enText.match(/[؀-ۿ][^<>]{0,40}/) || [''])[0] : '');

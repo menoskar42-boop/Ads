@@ -103,7 +103,7 @@
   <section style="margin-top:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 8px">
       <h2 class="kkb-display" style="font-size:1.05rem;margin:0"><%= t('dash.recent') %></h2>
-      <% if (data.recent.length) { %><a href="/expenses" style="font-size:.8rem"><%= lang==='en'?'All':'الكل' %></a><% } %>
+      <% if (data.recent.length) { %><a href="/expenses" style="font-size:.8rem"><%= t('common.all') %></a><% } %>
     </div>
     <% if (!data.recent.length) { %>
       <div class="card" style="padding:26px;text-align:center">

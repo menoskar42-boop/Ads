@@ -1,0 +1,144 @@
+<% pageTitle = t('rev.title') %>
+<%- include('head') %>
+<%#
+  "Where your money went" and "Month summary" were two tabs answering one
+  question with the same data cut two ways: one drew a donut of this month's
+  categories, the other drew bars of this month's categories. Nobody could say
+  which tab to open, and the donut was locked to the current month while the
+  bars had a month picker.
+
+  One page now, driven by the month picker, so the whole thing — headline
+  figures, biggest category, the breakdown — moves together when you step back a
+  month. The donut and the bars were the same numbers, so they are one block: the
+  donut for the shape, the rows for the amounts.
+
+  /reports and /review both redirect here and keep their ?ym, so a bookmark or a
+  browser history entry still lands on the right month.
+%>
+<%
+  var __cat = {}; CATEGORIES.forEach(function(c){ __cat[c.key]=c; });
+  var cats = review.cats || [];
+  var catTotal = cats.reduce(function(s,x){ return s + Number(x.total); }, 0);
+  var acc = 0, stops = [];
+  cats.forEach(function(x){
+    var c = __cat[x.key] || __cat.other;
+    var pct = catTotal>0 ? (Number(x.total)/catTotal*100) : 0;
+    stops.push(c.color + ' ' + acc.toFixed(2) + '% ' + (acc+pct).toFixed(2) + '%');
+    acc += pct;
+  });
+  var conic = stops.length ? ('conic-gradient(' + stops.join(',') + ')') : 'var(--line)';
+  var monMax = Math.max(1, ...monthly.map(function(m){ return Number(m.total); }));
+  var wkMax = Math.max(1, ...weekly.map(function(w){ return Number(w.total); }));
+  var hasData = review.spent > 0 || review.income > 0;
+%>
+<main class="wrap" style="padding-top:6px">
+
+  <!-- ══════════ WHICH MONTH ══════════ -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 2px 14px">
+    <a href="/summary?ym=<%= prevYm %>" class="pill" aria-label="<%= t('rev.prev') %>">‹</a>
+    <h1 class="kkb-display" style="font-size:1.15rem;margin:0"><%= monthName %></h1>
+    <% if (nextYm) { %><a href="/summary?ym=<%= nextYm %>" class="pill" aria-label="<%= t('rev.next') %>">›</a>
+    <% } else { %><span class="pill" style="opacity:.3">›</span><% } %>
+  </div>
+
+  <% if (!hasData) { %>
+    <div class="card" style="padding:26px;text-align:center"><p class="muted" style="margin:0"><%= t('rev.none') %></p></div>
+  <% } else { %>
+
+    <% if (typeof narrative !== 'undefined' && narrative) { %>
+    <section class="card" style="padding:14px 16px;margin-bottom:12px;border-inline-start:3px solid var(--accent)">
+      <div class="muted" style="font-size:.68rem;font-weight:700">🤖 <%= t('ai.monthly_review') %></div>
+      <div style="font-size:.92rem;margin-top:3px;line-height:1.55"><%= narrative %></div>
+    </section>
+    <% } %>
+
+    <!-- ══════════ THE FOUR FIGURES ══════════ -->
+    <section style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="card" style="padding:16px"><div class="muted" style="font-size:.78rem">💰 <%= t('rev.earned') %></div><div style="font-weight:800;font-size:1.2rem;margin-top:3px"><bdi><%= money(review.income) %></bdi></div></div>
+      <div class="card" style="padding:16px"><div class="muted" style="font-size:.78rem">💸 <%= t('rev.spent') %></div><div style="font-weight:800;font-size:1.2rem;margin-top:3px;color:var(--warn)"><bdi><%= money(review.spent) %></bdi></div></div>
+      <div class="card" style="padding:16px"><div class="muted" style="font-size:.78rem">🐷 <%= t('rev.saved') %></div><div style="font-weight:800;font-size:1.2rem;margin-top:3px;color:<%= review.saved>=0?'var(--accent-2)':'var(--accent)' %>"><bdi><%= money(review.saved) %></bdi></div></div>
+      <div class="card" style="padding:16px"><div class="muted" style="font-size:.78rem">📈 <%= t('rev.rate') %></div><div style="font-weight:800;font-size:1.2rem;margin-top:3px" class="accent"><%= review.rate %>%</div></div>
+    </section>
+
+    <% if (review.largest) { var lc = __cat[review.largest.key] || __cat.other; %>
+    <section class="card" style="padding:18px;margin-top:12px;display:flex;align-items:center;gap:14px">
+      <span style="display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:<%= lc.color %>22;font-size:1.6rem"><%= lc.icon %></span>
+      <div style="flex:1">
+        <div class="muted" style="font-size:.78rem"><%= t('rev.largest') %></div>
+        <div style="font-weight:800;font-size:1.05rem"><%= t('cat.'+review.largest.key) %></div>
+      </div>
+      <b><bdi><%= money(review.largest.total) %></bdi></b>
+    </section>
+    <% } %>
+
+    <!-- ══════════ WHERE IT WENT ══════════ -->
+    <%# Kept the wording the owner picked for the old tab — the question people
+        actually ask is "where did my money go", not "by category". %>
+    <% if (catTotal > 0) { %>
+    <section class="card" style="padding:18px;margin-top:12px">
+      <div style="font-weight:700;margin-bottom:12px">🥧 <%= t('rep.title') %></div>
+      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div style="width:130px;height:130px;border-radius:50%;background:<%= conic %>;display:grid;place-items:center;flex:none">
+          <div style="width:78px;height:78px;border-radius:50%;background:var(--surface);display:grid;place-items:center;text-align:center">
+            <span style="font-size:.7rem" class="muted"><%= t('rev.spent') %></span>
+          </div>
+        </div>
+        <div style="flex:1;min-width:170px;display:flex;flex-direction:column;gap:7px">
+          <% cats.forEach(function(x){ var c=__cat[x.key]||__cat.other; var pct=Math.round(Number(x.total)/catTotal*100); %>
+            <div style="display:flex;align-items:center;gap:8px;font-size:.82rem">
+              <span style="width:11px;height:11px;border-radius:3px;background:<%= c.color %>;flex:none"></span>
+              <span style="flex:1"><%= c.icon %> <%= t('cat.'+x.key) %></span>
+              <b style="white-space:nowrap"><bdi><%= money(x.total) %></bdi></b>
+              <span class="muted" style="width:34px;text-align:end"><%= pct %>%</span>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+    </section>
+    <% } %>
+
+    <% if (typeof weeklyReport !== 'undefined' && weeklyReport) { %>
+    <section class="card" style="padding:14px 16px;margin-top:12px;border-inline-start:3px solid var(--accent)">
+      <div class="muted" style="font-size:.68rem;font-weight:700">🤖 <%= t('ai.weekly') %> · <%= t('ai.badge') %></div>
+      <div style="font-size:.92rem;margin-top:3px;line-height:1.55"><%= weeklyReport %></div>
+    </section>
+    <% } %>
+    <% if (typeof suggestions !== 'undefined' && suggestions && suggestions.length) { %>
+    <section class="card" style="padding:14px 16px;margin-top:12px">
+      <div style="font-weight:700;margin-bottom:6px">💡 <%= t('ai.suggestions') %></div>
+      <% suggestions.forEach(function(s){ %><div style="display:flex;gap:8px;font-size:.88rem;padding:3px 0"><span class="accent">◆</span><span><%= s %></span></div><% }) %>
+    </section>
+    <% } %>
+  <% } %>
+
+  <!-- ══════════ THE LONGER VIEW ══════════ -->
+  <%# The two trend charts do not belong to the picked month — they always show
+      the last 6 months and 7 weeks — so they sit apart from everything above,
+      and outside the "no data this month" branch: a month you spent nothing in
+      is exactly when the trend is worth seeing. %>
+  <section class="card" style="padding:18px;margin-top:12px">
+    <div style="font-weight:700;margin-bottom:14px">📊 <%= t('rep.monthly') %> <span class="muted" style="font-size:.75rem;font-weight:500">· <%= t('rep.last6') %></span></div>
+    <div style="display:flex;align-items:flex-end;gap:8px;height:120px">
+      <% monthly.forEach(function(m){ var h=Math.round(Number(m.total)/monMax*100); %>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="width:100%;max-width:34px;height:<%= Math.max(3,h) %>%;background:var(--accent-2);border-radius:7px 7px 0 0"></div>
+          <span class="muted" style="font-size:.66rem" dir="ltr"><%= m.label %></span>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+
+  <section class="card" style="padding:18px;margin-top:12px">
+    <div style="font-weight:700;margin-bottom:14px">🗓️ <%= t('rep.weekly') %> <span class="muted" style="font-size:.75rem;font-weight:500">· <%= t('rep.last7w') %></span></div>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:100px">
+      <% weekly.forEach(function(w,i){ var h=Math.round(Number(w.total)/wkMax*100); %>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end">
+          <div style="width:100%;max-width:26px;height:<%= Math.max(3,h) %>%;background:var(--accent);border-radius:6px 6px 0 0"></div>
+          <span class="muted" style="font-size:.6rem"><%= i===weekly.length-1 ? t('rep.now') : ('-'+(weekly.length-1-i)) %></span>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+</main>
+<%- include('app_nav', { active: 'summary' }) %>
+<%- include('foot') %>
