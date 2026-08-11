@@ -43,10 +43,13 @@ git push origin HEAD:refs/heads/claude/build-oscardevs-ads-mvp-8krfN
 >   --registry=https://registry.npmjs.org/ --prefix /tmp/kkb
 > NODE_PATH=/tmp/kkb/node_modules node scripts/render-kakeibo-pages.js
 > ```
-> وفيه كمان `node scripts/check-kakeibo-i18n.js` — بيشتغل **من غير أي حزم**
-> (قاموس كاكيبو داتا صافية): بيتأكد إن كل مفاتيح `t()` في القوالب موجودة في
-> البلوكين، وإن وسوم `<% %>` والأقواس متوازنة. ⚠️ **`check-i18n.js` بيفحص
-> `src/i18n/strings` بس — مش قاموس كاكيبو.**
+> وفيه كمان **تلات فحوص بتشتغل من غير أي حزم خالص:**
+> `check-kakeibo-i18n.js` (مفاتيح `t()` + توازن القوالب — ⚠️ **`check-i18n.js`
+> بيفحص `src/i18n/strings` بس، مش قاموس كاكيبو**) ·
+> `check-payday.js` (شرط الفترة) · `check-kakeibo-stats.js` (حساب اليوم).
+>
+> **و`check-all.js` بقى بيفرّق بين «فشل» و«اتخطّى»:** الفحص اللي محتاج حزم
+> بيخرج بكود `2` وبيظهر ⏭️ مش ✅ — عشان فحص مشتغلش مايتحسبش ناجح.
 
 **٤) النشر.** المالك بينشر من Replit بزرار Republish. لو فيه نشر شغّال، الضغط
 تاني بيصطف وراه. آخر خطوة (Promote) بتاخد دقايق.
@@ -144,6 +147,7 @@ node scripts/check-demo-links.js --http
 | `scripts/check-kakeibo-i18n.js` | قاموس كاكيبو + توازن القوالب — **بدون حزم** |
 | `scripts/check-payday.js` | شرط الفترة `البداية ≤ النهارده < الجاي` — **بدون حزم** |
 | `scripts/check-kakeibo-stats.js` | حساب «تقدر تصرف النهارده» — **بدون حزم ولا قاعدة** |
+| `scripts/check-kakeibo-routes.js` | بيشغّل الراوتر فعلاً (بـ`pg` مزيّف) — **محتاج حزم** |
 
 ### المطلوب
 - [x] **شاشة البداية** — الضيف بقى الزرار الأساسي، والباقي (دخول/إنشاء حساب/
