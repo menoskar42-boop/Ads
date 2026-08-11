@@ -1,6 +1,12 @@
 <% pageTitle = t('onb.title') %>
 <%- include('head') %>
-<% var p = (typeof profile !== 'undefined' && profile) ? profile : {}; %>
+<% var p = (typeof profile !== 'undefined' && profile) ? profile : {};
+   // A zero only means "I don't know" for somebody who has already been through
+   // this screen. On a brand-new profile the columns default to 0 too, and
+   // pre-ticking the box there would answer the question for them.
+   var __seen = !!p.onboarded;
+   var __incUnknown  = __seen && !(Number(p.monthly_income) > 0);
+   var __goalUnknown = __seen && !(Number(p.saving_goal) > 0); %>
 <main class="wrap" style="padding-top:20px;padding-bottom:48px">
   <section style="text-align:center;margin:8px 0 22px">
     <div class="hanko" style="width:52px;height:52px;margin:0 auto 12px;font-size:1.4rem">計</div>
@@ -12,10 +18,22 @@
     <% if (error) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:10px 12px;font-size:.9rem;font-weight:600;margin-bottom:14px"><%= error %></div><% } %>
     <form method="post" action="/onboarding" style="display:flex;flex-direction:column;gap:16px">
 
+      <%# "I don't know yet" is the honest answer for a lot of people on day one —
+          freelancers, anyone paid in cash, anyone who has never added it up. The
+          old form made both money questions `required`, so that person either
+          invented a number (which then drives every figure in the app) or gave
+          up at the first screen. Ticking the box empties and disables the field,
+          so nothing is submitted and the server stores 0 = "not set yet". With
+          JS off the field simply stays empty, which the server reads the same
+          way — the escape hatch does not depend on the script running. %>
       <div>
         <label class="lbl">💰 <%= t('onb.income') %></label>
-        <input name="monthly_income" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" value="<%= (p.monthly_income && Number(p.monthly_income)>0) ? Number(p.monthly_income) : '' %>" />
+        <input name="monthly_income" id="incomeInput" type="number" inputmode="decimal" step="0.01" min="0" class="fld" dir="ltr" placeholder="0" value="<%= (p.monthly_income && Number(p.monthly_income)>0) ? Number(p.monthly_income) : '' %>" />
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.income_hint') %></p>
+        <label class="muted" style="display:flex;align-items:center;gap:7px;font-size:.78rem;margin:7px 2px 0;cursor:pointer">
+          <input type="checkbox" class="kkb-dunno" data-for="incomeInput" <%= __incUnknown ? 'checked' : '' %> style="width:auto;margin:0" />
+          <span><%= t('onb.dunno') %></span>
+        </label>
       </div>
 
       <%# One question, not two. The schedule and the day number are a single
@@ -40,10 +58,16 @@
 
       <div>
         <label class="lbl">🎯 <%= t('onb.goal') %></label>
-        <input name="saving_goal" id="goalInput" type="number" inputmode="decimal" step="0.01" min="0" required class="fld" dir="ltr" placeholder="0" value="<%= (p.saving_goal && Number(p.saving_goal)>0) ? Number(p.saving_goal) : '' %>" />
+        <input name="saving_goal" id="goalInput" type="number" inputmode="decimal" step="0.01" min="0" class="fld" dir="ltr" placeholder="0" value="<%= (p.saving_goal && Number(p.saving_goal)>0) ? Number(p.saving_goal) : '' %>" />
         <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.goal_hint') %></p>
         <p id="goalSuggest" class="muted" style="font-size:.74rem;margin:4px 2px 0;display:none"><%= t('onb.goal_suggest') %></p>
+        <label class="muted" style="display:flex;align-items:center;gap:7px;font-size:.78rem;margin:7px 2px 0;cursor:pointer">
+          <input type="checkbox" class="kkb-dunno" data-for="goalInput" <%= __goalUnknown ? 'checked' : '' %> style="width:auto;margin:0" />
+          <span><%= t('onb.dunno') %></span>
+        </label>
       </div>
+
+      <p class="muted" style="font-size:.74rem;margin:-6px 2px 0"><%= t('onb.dunno_hint') %></p>
 
       <%# Country, weekend and currency are already on the answer most people
           would pick, and none of them stops the app working. Asking for them up
@@ -96,6 +120,24 @@
   </section>
 </main>
 <script>
+// "I don't know yet": empty the field and take it out of the submission, so the
+// server stores 0 rather than a number the person made up. Ticked on load if the
+// profile already has 0 there, so re-opening this screen shows the same answer
+// they gave.
+(function(){
+  Array.prototype.forEach.call(document.querySelectorAll('.kkb-dunno'), function(box){
+    var fld=document.getElementById(box.getAttribute('data-for'));
+    if(!fld) return;
+    function sync(){
+      fld.disabled = box.checked;
+      fld.style.opacity = box.checked ? '.45' : '';
+      if(box.checked) fld.value='';
+    }
+    box.addEventListener('change',sync);
+    sync();
+  });
+})();
+
 (function(){
   var sel=document.getElementById('salaryType'), row=document.getElementById('salaryDayRow');
   function sync(){ row.style.display = sel.value==='fixed' ? '' : 'none'; }

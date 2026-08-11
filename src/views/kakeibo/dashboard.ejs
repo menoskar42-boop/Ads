@@ -9,12 +9,18 @@
   // Everything that does not answer it moved below into a section the reader
   // opens on purpose.
   //
-  // Three states with different copy each, because the right thing to do
-  // differs: today's money is still there / today is spent / the whole period
-  // is overspent.
-  var __state = data.overBudget ? 'over' : (data.leftToday < 0 ? 'today_done' : 'ok');
-  var __tone  = __state === 'ok' ? 'var(--accent-2)' : 'var(--warn)';
-  var __hero  = __state === 'ok' ? data.leftToday : Math.abs(data.leftToday);
+  // Four states with different copy each, because the right thing to do differs:
+  // no income on file / today's money is still there / today is spent / the
+  // whole period is overspent.
+  //
+  // no_income comes first and outranks the rest. Skipping the money questions is
+  // now allowed, and with income = 0 every derived figure turns negative — the
+  // page would have greeted a brand-new user with "you spent more than you
+  // earned", which is a statement about our missing data, not their spending.
+  var __state = data.noIncome ? 'no_income'
+              : (data.overBudget ? 'over' : (data.leftToday < 0 ? 'today_done' : 'ok'));
+  var __tone  = __state === 'ok' ? 'var(--accent-2)' : (__state === 'no_income' ? 'var(--ink)' : 'var(--warn)');
+  var __hero  = __state === 'no_income' ? data.spentToday : (__state === 'ok' ? data.leftToday : Math.abs(data.leftToday));
   var __usedPct = data.perDay > 0 ? Math.min(100, Math.round(data.spentToday / data.perDay * 100)) : 100;
 %>
 <main class="wrap" style="max-width:520px;padding-top:6px">
@@ -22,7 +28,10 @@
   <!-- ══════════ THE ANSWER ══════════ -->
   <section class="card" style="padding:26px 22px 22px;text-align:center;background:linear-gradient(135deg,var(--surface),var(--paper))">
     <div class="muted" style="font-size:.84rem;font-weight:600">
-      <%= __state === 'over' ? t('dash.over_label') : (__state === 'today_done' ? t('dash.today_over_label') : t('dash.can_spend')) %>
+      <% if (__state === 'no_income') { %><%= t('dash.spent_today') %>
+      <% } else if (__state === 'over') { %><%= t('dash.over_label') %>
+      <% } else if (__state === 'today_done') { %><%= t('dash.today_over_label') %>
+      <% } else { %><%= t('dash.can_spend') %><% } %>
     </div>
 
     <div class="kkb-display" style="font-size:2.9rem;font-weight:800;line-height:1.1;margin:6px 0 2px;color:<%= __tone %>">
@@ -32,12 +41,20 @@
     <%# A number with no sentence is a dashboard. A number with a sentence is
         advice — and advice is what somebody standing in a shop needs. %>
     <div class="muted" style="font-size:.8rem;line-height:1.7;max-width:34ch;margin:0 auto">
-      <% if (__state === 'over') { %><%= t('dash.over_help') %>
+      <% if (__state === 'no_income') { %><%= t('dash.no_income_help') %>
+      <% } else if (__state === 'over') { %><%= t('dash.over_help') %>
       <% } else if (__state === 'today_done') { %><%= t('dash.today_over_help') %>
       <% } else { %><%= t('dash.can_spend_help') %><% } %>
     </div>
 
-    <% if (!data.overBudget) { %>
+    <% if (__state === 'no_income') { %>
+    <a href="/onboarding" class="btn btn-ghost" style="margin-top:16px"><%= t('dash.set_income') %></a>
+    <% } %>
+
+    <%# The bar measures today against a daily allowance. With no income there is
+        no allowance to measure against — perDay is 0, which would paint it full
+        red on somebody who has spent nothing. %>
+    <% if (!data.overBudget && __state !== 'no_income') { %>
     <div style="height:8px;background:var(--paper);border:1px solid var(--line);border-radius:99px;overflow:hidden;margin:16px 0 8px">
       <div style="height:100%;width:<%= __usedPct %>%;background:<%= __usedPct>=100?'var(--warn)':'var(--accent-2)' %>"></div>
     </div>
@@ -54,11 +71,15 @@
 
   <!-- ══════════ THE PERIOD, IN ONE LINE ══════════ -->
   <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:12px">
+    <%# "Left this period" is income minus spending. With no income on file it is
+        just spending with a minus sign — a number that would be read as debt. %>
+    <% if (!data.noIncome) { %>
     <div style="flex:1">
       <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.remaining') %></div>
       <div style="font-weight:800;font-size:1.08rem;color:<%= data.remaining>=0?'var(--ink)':'var(--warn)' %>"><bdi><%= money(data.remaining) %></bdi></div>
     </div>
     <div style="width:1px;height:30px;background:var(--line)"></div>
+    <% } %>
     <div style="flex:1;text-align:center">
       <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.days_left') %></div>
       <div style="font-weight:800;font-size:1.08rem"><%= num(data.daysLeft) %></div>
@@ -73,7 +94,7 @@
   <!-- ══════════ A WARNING, ONLY WHEN THERE IS ONE ══════════ -->
   <%# Shown only when the projection says the period actually ends short. A
       forecast that is permanently on screen stops being read. %>
-  <% if (data.willOverspend && !data.overBudget) { %>
+  <% if (data.willOverspend && !data.overBudget && !data.noIncome) { %>
   <div style="display:flex;align-items:center;gap:9px;background:color-mix(in srgb,var(--warn) 12%,var(--surface));border:1px solid var(--line);border-radius:14px;padding:11px 14px;margin-top:12px;font-size:.84rem;line-height:1.6">
     <span style="font-size:1.1rem">⚠️</span>
     <span><%= t('dash.pace_warning') %> <b><%= money(data.projectedSpend) %></b></span>

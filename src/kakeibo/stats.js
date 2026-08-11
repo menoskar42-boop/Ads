@@ -80,11 +80,18 @@ async function dashboard(pool, userId, profile) {
   // What is genuinely left for the rest of today, after what has already gone.
   const leftToday = Math.round(perDay - spentToday);
   const overBudget = remaining < 0;
+  // Income can legitimately be 0 now: the first screen lets people skip the
+  // money questions with "I don't know yet". Nothing above changes — but every
+  // figure derived from income (remaining, perDay, overBudget) is then an
+  // artefact of the missing number, not a fact about their spending, and the
+  // page has to say so rather than announce "you spent more than you earned"
+  // to somebody who never told us what they earn.
+  const noIncome = income <= 0;
 
   return { periodStart, nextPay, daysLeft, income, goal, spentPeriod, remaining,
     savingRate, goalProgress, spentToday, spentWeek, spentMonth, recent,
     projectedSpend, projectedRemaining, willOverspend,
-    perDay, leftToday, overBudget, spendableDays };
+    perDay, leftToday, overBudget, spendableDays, noIncome };
 }
 
 async function categoryBreakdown(pool, userId, fromYmd, toYmdExcl) {

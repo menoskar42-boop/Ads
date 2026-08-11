@@ -48,10 +48,30 @@ function base(lang) {
   };
 }
 
+// A dashboard snapshot shaped like stats.dashboard()'s return value.
+function dash(over) {
+  return Object.assign({
+    periodStart: new Date('2026-08-01'), nextPay: new Date('2026-08-25'), daysLeft: 21,
+    income: 12000, goal: 1500, spentPeriod: 3200, remaining: 8800, savingRate: 73,
+    goalProgress: 100, spentToday: 140, spentWeek: 900, spentMonth: 3200,
+    projectedSpend: 9600, projectedRemaining: 2400, willOverspend: false,
+    perDay: 419, leftToday: 279, overBudget: false, spendableDays: 21, noIncome: false,
+    recent: [{ id: 1, amount: 140, description: 'Coffee', category: 'food', payment_method: 'cash', spent_on: '2026-08-04' }],
+  }, over || {});
+}
+
 const CASES = {
   onboarding: () => ({ error: null, profile: {} }),
   onboarding_edit: () => ({ __file: 'onboarding.ejs', error: null,
-    profile: { monthly_income: 12000, saving_goal: 1500, salary_day: 25, country: 'EG', weekend: 'fri_sat', currency: 'EGP', salary_type: 'fixed' } }),
+    profile: { onboarded: true, monthly_income: 12000, saving_goal: 1500, salary_day: 25, country: 'EG', weekend: 'fri_sat', currency: 'EGP', salary_type: 'fixed' } }),
+  // Someone who took the "I don't know yet" way out of both money questions.
+  onboarding_unknown: () => ({ __file: 'onboarding.ejs', error: null,
+    profile: { onboarded: true, monthly_income: 0, saving_goal: 0, salary_day: 1, country: 'EG', weekend: 'fri_sat', currency: 'EGP', salary_type: 'fixed' } }),
+  dashboard: () => ({ data: dash(), insight: null, challenge: null, goals: [], gam: null, smart: null, twin: null }),
+  dashboard_no_income: () => ({ __file: 'dashboard.ejs',
+    data: dash({ income: 0, goal: 0, noIncome: true, remaining: -3200, savingRate: 0, goalProgress: 0,
+      perDay: 0, leftToday: -140, overBudget: true, willOverspend: true }),
+    insight: null, challenge: null, goals: [], gam: null, smart: null, twin: null }),
   add: () => ({ error: null, editExpense: null }),
   add_edit: () => ({ __file: 'add.ejs', error: null,
     editExpense: { id: 7, amount: 250, category: 'food', payment_method: 'card', spent_on: '2026-07-30', description: 'Lunch', receipt_url: '/uploads/r.jpg' } }),
@@ -102,6 +122,32 @@ check('onboarding: country/weekend/currency still submitted', ['country', 'weeke
   .every((n) => onb.includes(`name="${n}"`)));
 check('onboarding: still asks income, salary_day, saving_goal',
   ['monthly_income', 'salary_day', 'saving_goal'].every((n) => onb.includes(`name="${n}"`)));
+
+// "I don't know yet" only works if the fields stop being required — a `required`
+// attribute left behind blocks the form in the browser before the server ever
+// sees the empty value, and the escape hatch silently does nothing.
+const moneyFields = (onb.match(/<input[^>]*name="(?:monthly_income|saving_goal)"[^>]*>/g) || []);
+check('onboarding: the two money fields are not required',
+  moneyFields.length === 2 && moneyFields.every((f) => !/\brequired\b/.test(f)), `${moneyFields.length} fields`);
+check('onboarding: both money fields have an "I don\'t know yet" box',
+  (onb.match(/class="kkb-dunno"/g) || []).length === 2);
+// Anchored to the <input> on purpose: the page's own script mentions
+// `box.checked`, and an unanchored match happily found that instead.
+const TICKED = /<input[^>]*kkb-dunno[^>]*\bchecked\b/g;
+check('onboarding (new user): nothing pre-ticked', !(onb.match(TICKED) || []).length);
+const onbUnknown = render('onboarding_unknown', 'ar');
+check('onboarding (came back with 0): both boxes ticked',
+  (onbUnknown.match(TICKED) || []).length === 2);
+
+// With no income every derived figure goes negative, so the page must not accuse
+// the user of overspending money they never told us about.
+const dashNo = render('dashboard_no_income', 'ar');
+const { STR } = require(path.join(ROOT, 'src/kakeibo/i18n'));
+check('dashboard (no income): does not claim overspending',
+  !dashNo.includes(STR.ar['dash.over_label']) && !dashNo.includes(STR.ar['dash.pace_warning']));
+check('dashboard (no income): offers to set it', dashNo.includes(STR.ar['dash.set_income']));
+check('dashboard (income set): still answers "can I spend today"',
+  render('dashboard', 'ar').includes(STR.ar['dash.can_spend']));
 
 const add = render('add', 'ar');
 const addTop = beforeDetails(add);

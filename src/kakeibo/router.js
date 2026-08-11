@@ -225,8 +225,13 @@ const WEEKENDS = ['fri_sat', 'fri', 'sat_sun', 'sun', 'none'];
 
 router.post('/onboarding', requireKkb, async (req, res) => {
   const b = req.body || {};
-  const income = toNum(b.monthly_income, NaN);
-  const goal = toNum(b.saving_goal, NaN);
+  // An empty (or absent, when the "I don't know yet" box disabled it) money
+  // field is an answer, not a mistake: store 0 and let the app say it has no
+  // figure yet. A field that was FILLED IN but is not a number is still an
+  // error — silently zeroing a typo would quietly wipe somebody's income.
+  const blank = (v) => v === undefined || v === null || String(v).trim() === '';
+  const income = blank(b.monthly_income) ? 0 : toNum(b.monthly_income, NaN);
+  const goal = blank(b.saving_goal) ? 0 : toNum(b.saving_goal, NaN);
   const day = Math.min(31, Math.max(1, toInt(b.salary_day, 1)));
   const currency = CURRENCIES.includes(String(b.currency)) ? b.currency : 'EGP';
   const salaryType = SALARY_TYPES.includes(String(b.salary_type)) ? b.salary_type : 'fixed';
