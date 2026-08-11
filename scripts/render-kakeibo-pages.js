@@ -92,13 +92,19 @@ const CASES = {
   add: () => ({ error: null, editExpense: null }),
   add_edit: () => ({ __file: 'add.ejs', error: null,
     editExpense: { id: 7, amount: 250, category: 'food', payment_method: 'card', spent_on: '2026-07-30', description: 'Lunch', receipt_url: '/uploads/r.jpg' } }),
-  profile: () => ({ saved: false, upgraded: false, upErr: null, toolsUnlocked: true,
-    pushEnabled: true, pushKey: 'k',
+  // Long-standing account: both steps of the tools list are on the menu.
+  profile: () => ({ saved: false, upgraded: false, upErr: null, expenseCount: 40,
+    toolsMin: 5, toolsMore: 20, pushEnabled: true, pushKey: 'k',
     user: { display_name: 'Ali', email: 'a@b.com', is_guest: false },
     profile: { monthly_income: 12000, saving_goal: 1500, currency: 'EGP' } }),
-  // Fewer than five expenses on file: the advanced tools are not on the menu yet.
+  // Below the first step: the invitation note, not the menu.
   profile_new: () => ({ __file: 'profile.ejs', saved: false, upgraded: false, upErr: null,
-    toolsUnlocked: false, pushEnabled: true, pushKey: 'k',
+    expenseCount: 2, toolsMin: 5, toolsMore: 20, pushEnabled: true, pushKey: 'k',
+    user: { display_name: 'Ali', email: 'a@b.com', is_guest: false },
+    profile: { monthly_income: 12000, saving_goal: 1500, currency: 'EGP' } }),
+  // Between the two steps: the first three tools, not yet the rest.
+  profile_step1: () => ({ __file: 'profile.ejs', saved: false, upgraded: false, upErr: null,
+    expenseCount: 7, toolsMin: 5, toolsMore: 20, pushEnabled: true, pushKey: 'k',
     user: { display_name: 'Ali', email: 'a@b.com', is_guest: false },
     profile: { monthly_income: 12000, saving_goal: 1500, currency: 'EGP' } }),
 };
@@ -247,22 +253,37 @@ for (const href of ['/family', '/goals', '/budgets', '/investments', '/twin', '/
 }
 check('profile: notifications offered once unlocked', prof.includes('id="pushBtn"'));
 
-// A new account does not get the six advanced tools on the menu — but the
-// routes are untouched, so this must stay a menu change and never become a
-// guard. If someone later "tidies up" by adding requireOnboarded-style gating to
-// the routes themselves, a saved link starts 302-ing and this stops being
-// reversible for the user.
+// A new account gets an invitation instead of the menu — but nothing is
+// withheld: "Try the tools" opens onto the same list with working links, and
+// the routes themselves are untouched. If someone later "tidies up" by gating
+// the routes, a saved link starts 302-ing and this stops being a menu decision.
 const profNew = render('profile_new', 'ar');
-for (const href of ['/twin', '/simulator', '/investments', '/family', '/coach']) {
-  check(`profile (new user): ${href} is off the menu`, !profNew.includes(`href="${href}"`));
-}
-for (const href of ['/budgets', '/goals', '/onboarding', '/holidays']) {
-  check(`profile (new user): ${href} still on the menu`, profNew.includes(`href="${href}"`));
-}
 check('profile (new user): no notification permission prompt', !profNew.includes('id="pushBtn"'));
-check('profile (new user): says what is coming and when',
-  profNew.includes(STR.ar['prof.tools_locked']));
-check('profile (unlocked): no locked note', !prof.includes(STR.ar['prof.tools_locked']));
+check('profile (new user): invited, with the count so far',
+  profNew.includes('سجّل 5 مصروفات') && profNew.includes('سجّلت 2 من 5'));
+check('profile (new user): nothing reads as locked or paid',
+  !/🔒|قفل|مقفول|locked|upgrade|اشترك/i.test(profNew));
+check('profile (new user): "try the tools" opens the real, working links',
+  profNew.includes(STR.ar['prof.tools_try'])
+  && ['/simulator', '/coach', '/twin', '/investments', '/family']
+    .every((h) => profNew.includes(`href="${h}"`)));
+check('profile (new user): the note can be dismissed and the choice kept',
+  profNew.includes('id="toolsSoonHide"') && profNew.includes('kkb-tools-soon'));
+
+// The reveal is in two steps, so the first one must NOT bring the whole set.
+const profStep1 = render('profile_step1', 'ar');
+for (const href of ['/simulator', '/coach']) {
+  check(`profile (7 expenses): ${href} is on the menu`,
+    profStep1.includes(`>${'‹'}<`) && profStep1.includes(`href="${href}"`));
+}
+for (const href of ['/twin', '/investments', '/family']) {
+  check(`profile (7 expenses): ${href} waits for the second step`, !profStep1.includes(`href="${href}"`));
+}
+check('profile (7 expenses): the invitation is gone', !profStep1.includes('id="toolsSoon"'));
+check('profile (7 expenses): notifications are offered', profStep1.includes('id="pushBtn"'));
+check('profile (40 expenses): the second step arrived',
+  ['/twin', '/investments', '/family'].every((h) => prof.includes(`href="${h}"`)));
+check('profile (40 expenses): no invitation note', !prof.includes('id="toolsSoon"'));
 const profEn = render('profile', 'en');
 const enText = strip(profEn);
 check('profile/en: no Arabic leaked', !arabic.test(enText),

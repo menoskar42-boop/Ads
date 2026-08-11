@@ -70,7 +70,10 @@ const STR = {
     'prof.grp_plan': 'التخطيط',
     'prof.grp_setup': 'الإعداد',
     'prof.grp_tools': 'أدوات',
-    'prof.tools_locked': 'الأدوات المتقدّمة (توأم مالي، محاكي، استثمارات، عائلة، مدرّب، إشعارات) بتظهر هنا بعد أول ٥ مصروفات — أغلبها محتاج بياناتك عشان يشتغل.',
+    'prof.tools_soon': 'سجّل {n} مصروفات وهنعرضلك أدوات تساعدك تفهم إنفاقك أكتر.',
+    'prof.tools_progress': 'سجّلت {done} من {n}.',
+    'prof.tools_try': 'جرّب الأدوات',
+    'prof.tools_hide': 'إخفاء',
     'prof.d_coach': 'اسأله أي حاجة عن فلوسك — بيجاوب بأرقامك إنت.',
     'prof.d_push': 'تذكير بتسجيل مصروفك وتنبيه لو عدّيت السقف.',
     'prof.d_family': 'شارك الميزانية مع بيتك.',
@@ -201,7 +204,10 @@ const STR = {
     'prof.grp_plan': 'Planning',
     'prof.grp_setup': 'Setup',
     'prof.grp_tools': 'Tools',
-    'prof.tools_locked': 'The advanced tools (financial twin, simulator, investments, family, coach, notifications) appear here after your first 5 expenses — most of them need your data to work.',
+    'prof.tools_soon': 'Log {n} expenses and we will show you tools that help you understand your spending better.',
+    'prof.tools_progress': "You've logged {done} of {n}.",
+    'prof.tools_try': 'Try the tools',
+    'prof.tools_hide': 'Hide',
     'prof.d_coach': 'Ask it anything about your money — it answers from your numbers.',
     'prof.d_push': 'Reminders to log an expense, and an alert when you go over.',
     'prof.d_family': 'Share a budget with your household.',
@@ -265,8 +271,19 @@ const STR = {
 };
 
 function normLang(l) { return l === 'en' ? 'en' : 'ar'; }
+// t('key') as before; t('key', { n: 5 }) fills {n} in the string.
+//
+// Without this, a sentence with a number in it has to be split into fragments
+// that are concatenated in the template — and the fragments only reassemble
+// correctly in the language they were written for. "You have logged 2 of 5"
+// and "سجّلت ٢ من ٥" do not share a word order, so the pieces cannot be reused.
+// One string per language with a placeholder in it keeps the sentence whole.
 function makeT(lang) {
   const L = normLang(lang);
-  return (key) => (STR[L] && STR[L][key]) || (STR.ar[key]) || key;
+  return (key, vars) => {
+    const s = (STR[L] && STR[L][key]) || (STR.ar[key]) || key;
+    if (!vars) return s;
+    return s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] === undefined || vars[k] === null ? m : String(vars[k])));
+  };
 }
 module.exports = { STR, normLang, makeT };

@@ -706,13 +706,22 @@ router.get('/reports', requireOnboarded, toSummary);
 router.get('/review', requireOnboarded, toSummary);
 
 /* ─── Profile / settings ───────────────────────────────── */
-// The advanced tools (twin, simulator, investments, family, coach, notifications)
-// are held back until there is data for them to work on. The twin needs habits to
-// learn, the simulator needs categories to cut, the coach answers from your
-// numbers — shown on day one they are six dead ends that make the app look big
-// and unhelpful at the same time. Five expenses is the gate. Nothing is disabled:
-// every route still serves, so a saved link or a browser autocomplete still works.
+// The advanced tools appear as there is data for them to work on, in two steps
+// rather than all six at once — the thresholds are what each one actually needs:
+//
+//   5  · simulator, coach, notifications. The simulator cuts a category, the
+//        coach answers from your numbers, and reminders are what build the
+//        logging habit in the first place. All three do something useful with
+//        a handful of expenses.
+//   20 · twin, investments, family. The twin detects RECURRING expenses — its
+//        own empty state says "log for a month or two" — and investments and
+//        family are not about understanding this month's spending at all.
+//
+// Nothing is ever disabled or locked: every route serves from day one, and the
+// note shown before the first step opens onto the full working list. This is
+// the order of a menu, not a paywall.
 const TOOLS_MIN_EXPENSES = 5;
+const TOOLS_MORE_EXPENSES = 20;
 router.get('/profile', requireOnboarded, async (req, res) => {
   const uerrMap = { email: res.locals.t('auth.err_email'), pass: res.locals.t('auth.err_pass'), exists: res.locals.t('auth.err_exists') };
   let expenseCount = 0;
@@ -723,7 +732,8 @@ router.get('/profile', requireOnboarded, async (req, res) => {
     currencies: CURRENCIES, saved: req.query.saved === '1',
     pushEnabled: kpush.isEnabled(), pushKey: kpush.publicKey(),
     upErr: uerrMap[req.query.uerr] || null, upgraded: req.query.upgraded === '1',
-    aiEnabled: ai.isEnabled(), toolsUnlocked: expenseCount >= TOOLS_MIN_EXPENSES,
+    aiEnabled: ai.isEnabled(),
+    expenseCount, toolsMin: TOOLS_MIN_EXPENSES, toolsMore: TOOLS_MORE_EXPENSES,
   }, APP_LOCALS));
 });
 

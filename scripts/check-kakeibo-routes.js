@@ -121,17 +121,30 @@ const check = (label, ok, extra) => {
       ranges.some(([f, t]) => f === '2026-06-01' && t === '2026-07-01'),
       JSON.stringify(ranges[0] || []));
 
-    // ── The tools gate is a menu, never a guard ────────────────────────────
-    db.expenseCount = 9;
-    const profMany = await get('/profile');
-    check('/profile lists the tools once there are 5+ expenses',
-      (await profMany.text()).includes('href="/twin"'));
+    // ── The tools appear in two steps, and are never a guard ───────────────
     db.expenseCount = 2;
     const profFew = await get('/profile');
-    check('/profile hides the tools below 5 expenses',
-      !(await profFew.text()).includes('href="/twin"'));
+    const few = await profFew.text();
+    check('/profile below 5 expenses: invitation, not a menu',
+      few.includes('id="toolsSoon"') && !few.includes('id="pushBtn"'));
+    check('/profile below 5: the count comes from the database, not a guess',
+      few.includes('سجّلت 2 من 5'));
+
+    db.expenseCount = 7;
+    const step1 = await (await get('/profile')).text();
+    check('/profile at 7 expenses: step one only',
+      step1.includes('href="/simulator"') && !step1.includes('href="/twin"'));
+
+    db.expenseCount = 40;
+    const step2 = await (await get('/profile')).text();
+    check('/profile at 40 expenses: step two as well',
+      step2.includes('href="/simulator"') && step2.includes('href="/twin"'));
+
+    // The whole design rests on this: the menu decides what is SHOWN, never
+    // what is reachable.
+    db.expenseCount = 0;
     const twin = await get('/twin');
-    check('/twin still serves below the gate — hidden from the menu, not blocked',
+    check('/twin serves at zero expenses — hidden from the menu, not blocked',
       twin.status === 200, String(twin.status));
 
     // ── "I don't know yet" reaches the database as 0, not as an error ──────

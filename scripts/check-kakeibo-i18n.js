@@ -49,6 +49,18 @@ const leaked = Object.entries(STR.en || {}).filter(([, v]) => typeof v === 'stri
 if (leaked.length) fail(`en: ${leaked.length} قيمة فيها حروف عربية — ${leaked.slice(0, 5).map(([k]) => k).join(', ')}`);
 else console.log('✅ en: مفيش حروف عربية في البلوك الإنجليزي');
 
+// A {placeholder} present in one language and missing in the other means the
+// number simply vanishes from that translation — "You have logged of 5" — and
+// nothing else would notice, because both strings exist and both render.
+const holders = (s) => (String(s).match(/\{\w+\}/g) || []).sort().join(',');
+const mismatched = [...arKeys].filter((k) => enKeys.has(k) && holders(STR.ar[k]) !== holders(STR.en[k]));
+if (mismatched.length) {
+  fail(`${mismatched.length} مفتاح المتغيّرات فيه مختلفة بين العربي والإنجليزي`);
+  mismatched.slice(0, 10).forEach((k) => console.error(`   - ${k}: ar[${holders(STR.ar[k])}] en[${holders(STR.en[k])}]`));
+} else {
+  console.log('✅ المتغيّرات {…} متطابقة في اللغتين');
+}
+
 /* ── 2) every literal t('…') key exists ────────────────── */
 function walk(dir, out) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -61,9 +73,11 @@ function walk(dir, out) {
 const files = walk(path.join(ROOT, 'src/views/kakeibo'), [])
   .concat(walk(path.join(ROOT, 'src/kakeibo'), []).filter((f) => !/i18n\.js$/.test(f)));
 
-// Only literal calls: t('x') / t("x"). A concatenated key (t('cat.' + k)) is
-// resolved at runtime and is checked by the prefix rule below instead.
-const LITERAL = /\bt\(\s*(['"])([a-z0-9_.]+)\1\s*\)/gi;
+// Only literal keys: t('x'), t("x"), t('x', { n: 5 }). A concatenated key
+// (t('cat.' + k)) is resolved at runtime and is checked by the prefix rule
+// below instead. The trailing [,)] is what admits the interpolating form —
+// without it, every t('key', vars) call silently escaped validation.
+const LITERAL = /\bt\(\s*(['"])([a-z0-9_.]+)\1\s*[,)]/gi;
 const CONCAT = /\bt\(\s*(['"])([a-z0-9_]+\.)\1\s*\+/gi;
 const usedKeys = new Map();      // key -> first file that used it
 const usedPrefixes = new Map();  // 'cat.' -> first file

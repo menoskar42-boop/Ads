@@ -54,14 +54,23 @@
       /simulator, /investments, /family and /coach all still serve, so a saved
       link or a browser autocomplete keeps working from the first day. %>
   <%
-    var __unlocked = typeof toolsUnlocked !== 'undefined' && toolsUnlocked;
-    var __tools = [
+    var __n    = typeof expenseCount !== 'undefined' ? Number(expenseCount) || 0 : 0;
+    var __min  = typeof toolsMin  !== 'undefined' ? Number(toolsMin)  : 5;
+    var __more = typeof toolsMore !== 'undefined' ? Number(toolsMore) : 20;
+    var __unlocked = __n >= __min;
+    var __ai = typeof aiEnabled !== 'undefined' && aiEnabled;
+
+    // Step one: the three that do something useful with a handful of expenses.
+    var __tools = [['/simulator', '🧪', 'sim.title', 'prof.d_simulator']];
+    if (__ai) __tools.push(['/coach', '🤖', 'coach.title', 'prof.d_coach']);
+    // Step two: the twin needs recurring expenses to detect, and investments and
+    // family are not about this month's spending at all.
+    var __later = [
       ['/twin',        '🧬', 'twin.title',  'prof.d_twin'],
-      ['/simulator',   '🧪', 'sim.title',   'prof.d_simulator'],
       ['/investments', '📈', 'inv.title',   'prof.d_investments'],
       ['/family',      '👨‍👩‍👧', 'fam.title', 'prof.d_family'],
     ];
-    if (typeof aiEnabled !== 'undefined' && aiEnabled) __tools.push(['/coach', '🤖', 'coach.title', 'prof.d_coach']);
+    if (__n >= __more) __tools = __tools.concat(__later);
     var __groups = [
       ['prof.grp_money', [
         ['/budgets', '🎛️', 'bud.title',   'prof.d_budgets'],
@@ -92,11 +101,54 @@
   </section>
   <% }) %>
 
-  <%# Held-back, not hidden. One muted line naming what is coming and when beats
-      six cards now, and beats silence — a feature nobody knows exists is one
-      nobody asks for. %>
+  <%# Not a lock and not a paywall — an invitation with a progress line.
+      "Try the tools" opens onto the real list with working links, because
+      nothing here is actually withheld: /simulator and the rest serve from day
+      one. Anyone curious enough to open it gets everything immediately, which
+      is the difference between "not shown yet" and "not allowed".
+
+      Dismissible, and the choice is remembered. Somebody who has read it once
+      and decided not to care should not be told again on every visit. It never
+      comes back either way — once the tools appear, this note is gone. %>
   <% if (!__unlocked) { %>
-  <p class="muted" style="font-size:.76rem;line-height:1.7;margin:16px 4px 0"><%= t('prof.tools_locked') %></p>
+  <section id="toolsSoon" class="card" style="padding:14px 16px;margin-top:16px">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.86rem;line-height:1.7"><%= t('prof.tools_soon', { n: __min }) %></div>
+        <div class="muted" style="font-size:.76rem;margin-top:3px"><%= t('prof.tools_progress', { done: __n, n: __min }) %></div>
+      </div>
+      <button type="button" id="toolsSoonHide" class="muted" aria-label="<%= t('prof.tools_hide') %>"
+        style="flex:none;background:none;border:0;font-size:1.1rem;line-height:1;cursor:pointer;color:inherit;padding:2px 4px">×</button>
+    </div>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;list-style:none;font-size:.82rem;font-weight:700;color:var(--accent)">
+        <%= t('prof.tools_try') %> ›
+      </summary>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+        <% __tools.concat(__later).forEach(function(it){ %>
+        <a href="<%= it[0] %>" class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
+          <span style="font-size:1.15rem;flex:none"><%= it[1] %></span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:.9rem"><%= t(it[2]) %></div>
+            <div class="muted" style="font-size:.73rem;margin-top:1px"><%= t(it[3]) %></div>
+          </div>
+          <span class="muted" style="font-size:1.05rem;flex:none">‹</span>
+        </a>
+        <% }) %>
+      </div>
+    </details>
+  </section>
+  <script>
+  (function(){
+    var box=document.getElementById('toolsSoon'), btn=document.getElementById('toolsSoonHide'), KEY='kkb-tools-soon';
+    if(!box||!btn) return;
+    try { if(localStorage.getItem(KEY)==='hidden') box.style.display='none'; } catch(e){}
+    btn.addEventListener('click',function(){
+      box.style.display='none';
+      try { localStorage.setItem(KEY,'hidden'); } catch(e){}
+    });
+  })();
+  </script>
   <% } %>
 
   <section class="card" style="padding:16px;margin-top:14px">
