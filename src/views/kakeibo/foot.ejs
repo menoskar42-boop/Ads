@@ -12,6 +12,17 @@
   });
 })();
 </script>
+<script>
+/* data-confirm: ask before a destructive submit. The attribute was already on
+   "delete family" and "leave family" but nothing ever read it, so both went
+   through on the first click — and deleting a family drops every member's link
+   to it. One listener, delegated, covers any button that carries it. */
+document.addEventListener('click', function (ev) {
+  var el = ev.target && ev.target.closest ? ev.target.closest('[data-confirm]') : null;
+  if (!el) return;
+  if (!window.confirm(el.getAttribute('data-confirm'))) { ev.preventDefault(); ev.stopPropagation(); }
+}, true);
+</script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 </body>
 </html>
