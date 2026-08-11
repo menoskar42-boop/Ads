@@ -29,12 +29,24 @@ git push origin HEAD:refs/heads/claude/build-oscardevs-ads-mvp-8krfN
 **٢) الفحوص.** `node scripts/check-all.js` قبل وبعد. لو فحص كان فاشل قبل
 تعديلك، مش مسؤوليتك — قارن الحالة قبل وبعد بدل ما تفترض.
 
-**٣) البيئة دي مش بتنزّل حزم.** `npm install` بيفشل: الـlockfile فيه روابط
-لـ`package-firewall.replit.local`، وحزمة `xlsx` جاية من CDN محجوب. يعني الفحوص
-اللي محتاجة `node_modules` (`seo-audit`, `render-clinic-pages`,
+**٣) البيئة دي مش بتنزّل حزم — من الـlockfile.** `npm install` بيفشل: الـlockfile
+فيه روابط لـ`package-firewall.replit.local`، وحزمة `xlsx` جاية من CDN محجوب.
+يعني الفحوص اللي محتاجة `node_modules` (`seo-audit`, `render-clinic-pages`,
 `render-kakeibo-pages`, `check-async-routes`) ممكن تفشل عندك بسبب البيئة مش
 بسبب الكود. اتأكد من رسالة الخطأ: لو فيها `Cannot find module` أو `requireStack`
 يبقى بيئة.
+
+> ✅ **لكن الريجستري العام نفسه شغّال** (اتجرّب ٢٠٢٦-٠٨-١١). تقدر تنزّل حزمة
+> واحدة برّه المشروع وتشغّل الفحص فعلاً بدل ما تفترض:
+> ```bash
+> npm install ejs --no-save --no-package-lock \
+>   --registry=https://registry.npmjs.org/ --prefix /tmp/kkb
+> NODE_PATH=/tmp/kkb/node_modules node scripts/render-kakeibo-pages.js
+> ```
+> وفيه كمان `node scripts/check-kakeibo-i18n.js` — بيشتغل **من غير أي حزم**
+> (قاموس كاكيبو داتا صافية): بيتأكد إن كل مفاتيح `t()` في القوالب موجودة في
+> البلوكين، وإن وسوم `<% %>` والأقواس متوازنة. ⚠️ **`check-i18n.js` بيفحص
+> `src/i18n/strings` بس — مش قاموس كاكيبو.**
 
 **٤) النشر.** المالك بينشر من Replit بزرار Republish. لو فيه نشر شغّال، الضغط
 تاني بيصطف وراه. آخر خطوة (Promote) بتاخد دقايق.
@@ -130,8 +142,10 @@ node scripts/check-demo-links.js --http
 - [x] **شاشة البداية** — الضيف بقى الزرار الأساسي، والباقي (دخول/إنشاء حساب/
       Google/Apple) جوّه `<details>` بعنوان «لدي حساب». بيتفتح تلقائياً لو فيه
       خطأ أو لو المستخدم طلب إنشاء حساب.
-- [ ] **الإعداد الأول ٣ أسئلة**: دخلك التقريبي؟ / بتقبض إمتى؟ / عايز توفر كام؟
-      (مع خيار «مش عارف دلوقتي»).
+- [x] **الإعداد الأول ٣ أسئلة**: التلاتة كانوا موجودين؛ اللي اتضاف هو «مش عارف
+      دلوقتي» على سؤالي الفلوس (اتشالت `required`، والفاضي بقى بيتخزّن 0). ولأن
+      دخل = 0 بقى ممكن، الرئيسية بقى ليها حالة رابعة `noIncome` بدل ما تقول
+      لمستخدم جديد «صرفت أكتر من دخلك».
 - [x] **المصطلحات** — اتغيّرت الأربعة في العربي والإنجليزي:
       | من | إلى |
       |---|---|
