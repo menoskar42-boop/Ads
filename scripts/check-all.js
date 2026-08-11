@@ -19,6 +19,7 @@ const CHECKS = [
   ['check-schema-columns',  'أعمدة الـINSERT موجودة في المخطط'],
   ['check-async-routes',    'أخطاء الـasync لا تعلّق الطلب'],
   ['check-page-types',      'أنواع النشاط مكتملة في كل الأماكن'],
+  ['check-apply-track',     'متابعة الطلب بالتوكن + الفورم مايكشفش'],
   ['check-route-order',     'ترتيب الـroutes (الصفحات العامة قبل المحميّة)'],
   ['check-shared-pool',     'بوول قاعدة البيانات المشترك + حماية الباسورد'],
   ['check-no-secrets',      'مفيش بيانات دخول في الكود'],

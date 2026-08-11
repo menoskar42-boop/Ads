@@ -735,6 +735,18 @@ async function initDb() {
       -- Carries a referrer's code from /apply?ref=… through review, so the
       -- bonus months can be granted at approval time.
       ALTER TABLE signup_applications ADD COLUMN IF NOT EXISTS referral_code TEXT;
+      -- A per-application secret, emailed to the applicant when they apply, so
+      -- following a request needs something only they were given. /apply/status
+      -- used to answer to an email address alone, which meant anyone who knew a
+      -- person's address could learn that they had applied and what happened —
+      -- the rate limit made that slow, not impossible.
+      ALTER TABLE signup_applications ADD COLUMN IF NOT EXISTS track_token TEXT;
+      -- Expiry, so a link forwarded or left in an old mailbox stops working.
+      ALTER TABLE signup_applications ADD COLUMN IF NOT EXISTS track_expires_at TIMESTAMPTZ;
+      -- Unique so a collision is a write error rather than two applicants
+      -- sharing a link. NULLs do not collide in Postgres, so rows that predate
+      -- this column are unaffected.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_signup_track_token ON signup_applications (track_token);
       ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id);
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;

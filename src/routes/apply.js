@@ -12,7 +12,8 @@ const applyLimiter = rateLimit({ name: 'apply', windowMs: 60 * 60000, max: 5 });
 const statusLimiter = rateLimit({ name: 'apply-status', windowMs: 15 * 60000, max: 8 });
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
-const { sendApplicationReceived, sendAdminNewApplication } = require('../lib/mailer');
+const { sendApplicationReceived, sendAdminNewApplication, sendApplicationTrackLink } = require('../lib/mailer');
+const { canonicalCompanyUrl } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -36,6 +37,14 @@ const RESERVED_SLUGS = new Set([
 
 // Referral codes are short, uppercase and unambiguous — they get typed and read
 // aloud, so keep the accepted shape narrow.
+// crypto.randomBytes, never Math.random: Math.random is seeded from a value an
+// attacker can often narrow down and its output is reproducible from a handful
+// of samples — fine for shuffling a list, useless as a secret.
+const crypto = require('crypto');
+const TRACK_TTL_DAYS = 90;
+const newTrackToken = () => crypto.randomBytes(32).toString('hex');
+const TRACK_RE = /^[a-f0-9]{64}$/;
+
 const REF_RE = /^[A-Z0-9]{4,12}$/;
 const cleanRef = (s) => {
   const v = String(s || '').trim().toUpperCase().slice(0, 12);
@@ -111,21 +120,27 @@ router.post('/apply', applyLimiter, async (req, res) => {
     const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim().slice(0, 80);
     const ua = String(req.headers['user-agent'] || '').slice(0, 300);
 
+    const trackToken = newTrackToken();
     await pool.query(
       `INSERT INTO signup_applications
          (full_name, email, phone, country, business_name, business_type, preferred_slug,
-          description, password_hash, accepted_terms_version, accepted_ip, user_agent, referral_code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          description, password_hash, accepted_terms_version, accepted_ip, user_agent, referral_code,
+          track_token, track_expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now() + ($15 || ' days')::interval)`,
       [
         values.full_name, values.email, values.phone, values.country || null,
         values.business_name, values.business_type, values.preferred_slug,
         values.description || null, passwordHash, TERMS_VERSION, ip, ua,
         values.referral_code || null,
+        trackToken, String(TRACK_TTL_DAYS),
       ]
     );
-    // Notification emails (fire-and-forget, fail-open).
-    sendApplicationReceived({ to: values.email, fullName: values.full_name, businessName: values.business_name, country: values.country })
-      .catch((e) => console.error('[apply] received-email error:', e.message));
+    // Notification emails (fire-and-forget, fail-open). The tracking link goes
+    // in this one — it is the only place the applicant ever receives it.
+    sendApplicationReceived({
+      to: values.email, fullName: values.full_name, businessName: values.business_name,
+      country: values.country, trackUrl: trackUrlFor(res, trackToken),
+    }).catch((e) => console.error('[apply] received-email error:', e.message));
     sendAdminNewApplication({
       fullName: values.full_name, email: values.email, phone: values.phone, country: values.country,
       businessName: values.business_name, businessType: values.business_type,
@@ -185,34 +200,82 @@ router.get('/apply/check-slug', async (req, res) => {
 });
 
 /* ─── SELF-SERVICE STATUS CHECK ──────────────────────────── */
-router.get('/apply/status', (req, res) => {
-  res.render('apply/status', { result: null, email: '', error: null });
-});
+// A form page: no ad unit, and no reason to be indexed.
+function statusPage(res, locals) {
+  res.locals.showAds = false;
+  return res.render('apply/status', Object.assign({ result: null, email: '', error: null, sent: false }, locals));
+}
+function trackUrlFor(res, token) {
+  return (res.locals.siteOrigin || '') + '/apply/track/' + token;
+}
 
+router.get('/apply/status', (req, res) => statusPage(res, {}));
+
+// The email form no longer ANSWERS — it sends. Whatever the address, the page
+// says the same sentence and the response costs the same work, so the reply
+// itself reveals nothing. Previously "no application with this email" and "under
+// review" were two different screens, which turned the form into an oracle:
+// anyone with a list of addresses could learn who had applied here and how it
+// went. The rate limit slowed that down; it did not stop it.
 router.post('/apply/status', statusLimiter, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase().slice(0, 150);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.render('apply/status', { result: null, email, error: 'اكتب بريداً إلكترونياً صحيحاً.' });
+    return statusPage(res, { email, error: 'اكتب بريداً إلكترونياً صحيحاً.' });
   }
   try {
+    // Runs for every address, found or not, so the timing does not separate the
+    // two cases either. A token is minted for older rows that predate the
+    // column, otherwise their owners could never be sent a link.
     const r = await pool.query(
-      // Deliberately NOT selecting admin_notes or business_name. This endpoint
-      // answers to an email address with no login and no token, so anyone who
-      // guesses an address could read the notes the team wrote about that
-      // applicant. The status and the live link are what the applicant already
-      // knows or is entitled to; internal notes are not.
-      `SELECT sa.status, sa.created_at, c.slug AS company_slug
-       FROM signup_applications sa
-       LEFT JOIN companies c ON c.id = sa.approved_company_id
-       WHERE sa.email = $1
-       ORDER BY sa.created_at DESC LIMIT 1`,
-      [email]
+      `UPDATE signup_applications
+          SET track_token = COALESCE(track_token, $2),
+              track_expires_at = now() + ($3 || ' days')::interval
+        WHERE id = (SELECT id FROM signup_applications WHERE email = $1
+                    ORDER BY created_at DESC LIMIT 1)
+        RETURNING track_token, full_name, country`,
+      [email, newTrackToken(), String(TRACK_TTL_DAYS)]
     );
-    const result = r.rows.length ? r.rows[0] : { status: 'none' };
-    res.render('apply/status', { result, email, error: null });
+    if (r.rows.length) {
+      const row = r.rows[0];
+      sendApplicationTrackLink({
+        to: email, fullName: row.full_name, country: row.country,
+        trackUrl: trackUrlFor(res, row.track_token),
+      }).catch((e) => console.error('[apply] track-link email error:', e.message));
+    }
   } catch (err) {
+    // Even a failure answers the same way. An error page for one address and a
+    // success page for another is the same leak wearing a different hat.
     console.error('[POST /apply/status] error:', err);
-    res.render('apply/status', { result: null, email, error: 'حدث خطأ غير متوقع. حاول مرة أخرى.' });
+  }
+  return statusPage(res, { email, sent: true });
+});
+
+/* ─── FOLLOW A REQUEST BY TOKEN ──────────────────────────── */
+// The token is the credential: 32 random bytes, emailed to the applicant, and
+// nothing else is needed. An unknown or expired one renders the same "not found"
+// card rather than a 404, so probing tokens tells an attacker nothing either.
+router.get('/apply/track/:token', statusLimiter, async (req, res) => {
+  const token = String(req.params.token || '');
+  if (!TRACK_RE.test(token)) return statusPage(res, { result: { status: 'none' } });
+  try {
+    const r = await pool.query(
+      // Still not selecting admin_notes: the token proves who the applicant is,
+      // not that they are entitled to read the team's internal notes about them.
+      `SELECT sa.status, sa.created_at, sa.business_name, c.slug AS company_slug
+         FROM signup_applications sa
+         LEFT JOIN companies c ON c.id = sa.approved_company_id
+        WHERE sa.track_token = $1
+          AND (sa.track_expires_at IS NULL OR sa.track_expires_at > now())`,
+      [token]
+    );
+    const row = r.rows[0];
+    // The live link the page offers must be the canonical subdomain, not the
+    // /view/ path that redirects to it.
+    if (row && row.company_slug) row.site_url = canonicalCompanyUrl(row.company_slug, req);
+    return statusPage(res, { result: row || { status: 'none' } });
+  } catch (err) {
+    console.error('[GET /apply/track] error:', err);
+    return statusPage(res, { result: { status: 'none' } });
   }
 });
 

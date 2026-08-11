@@ -1,13 +1,30 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<%- include('../partials/ads_loader') %>
+<%# No ad loader. This is a form, well under the word count AdSense expects on a
+    monetised page, and leaving the loader in lets Auto Ads place a unit on it
+    from the account settings with no change here — the same reason /apply and
+    /contact dropped it (docs/SEO_MISTAKES_LOG.md #20). The route also sets
+    showAds = false, because a view can be edited back. %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex,follow" />
+<%# This page can be reached at /apply/track/<64 hex>, and that token is the
+    credential. Two consequences the page has to handle itself:
+
+    1. The Referer header. This page pulls a font stylesheet and Tailwind from
+       two third-party hosts, and by default the browser tells them the full URL
+       it is loading them from — handing the token to both. no-referrer stops
+       that, and nothing here needs a referrer to work.
+    2. The canonical tag. Left to the default it would print the token inside a
+       <link rel="canonical">, i.e. copy the secret into a tag whose whole
+       purpose is to be collected and passed around. It points at the tokenless
+       form instead, which is also the honest canonical: every token renders the
+       same page. %>
+<meta name="referrer" content="no-referrer" />
 <title>متابعة حالة الطلب | OscarDevs</title>
 <meta name="description" content="تابع حالة طلب إنشاء موقعك على منصّة OscarDevs." />
-<%- include('../partials/seo_meta', { title: 'متابعة حالة الطلب — OscarDevs', description: 'تابع حالة طلب إنشاء موقعك على منصّة OscarDevs.' }) %>
+<%- include('../partials/seo_meta', { title: 'متابعة حالة الطلب — OscarDevs', description: 'تابع حالة طلب إنشاء موقعك على منصّة OscarDevs.', canonical: (typeof siteOrigin !== 'undefined' ? siteOrigin : '') + '/apply/status' }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>* { font-family: 'Cairo', sans-serif; }</style>
@@ -24,16 +41,27 @@
 <main class="max-w-2xl mx-auto px-4 py-12">
   <div class="bg-white rounded-2xl shadow p-6 sm:p-10">
     <h1 class="text-2xl font-extrabold text-gray-900 mb-2">متابعة حالة طلبك</h1>
-    <p class="text-gray-500 text-sm mb-6">اكتب البريد الإلكتروني اللي قدّمت بيه طلبك عشان تعرف موقفه.</p>
+
+    <%# The form sends the link, it does not show the status. Showing it here
+        would mean this page answers questions about an email address to whoever
+        types it — so the copy promises an email rather than an answer. %>
+    <p class="text-gray-500 text-sm mb-6">لو معاك رابط المتابعة اللي بعتناه لك بعد التقديم، افتحه على طول. مش لاقيه؟ اكتب بريدك وهنبعتهولك تاني.</p>
 
     <% if (error) { %>
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-5"><%= error %></div>
     <% } %>
 
+    <% if (typeof sent !== 'undefined' && sent) { %>
+      <%# Deliberately the same sentence whether or not an application exists. %>
+      <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 mb-5">
+        <p class="text-sm text-indigo-900 leading-7">لو فيه طلب مسجّل بالبريد ده، هيوصلك عليه رابط المتابعة خلال دقايق. بصّ في الـSpam كمان لو ماوصلش.</p>
+      </div>
+    <% } %>
+
     <form method="POST" action="/apply/status" class="flex flex-col sm:flex-row gap-3 mb-2">
       <input type="email" name="email" value="<%= email %>" required placeholder="you@email.com"
         class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-      <button type="submit" class="bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-800 transition shadow">تحقّق</button>
+      <button type="submit" class="bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-800 transition shadow">ابعتلي الرابط</button>
     </form>
 
     <% if (result) { %>
@@ -55,7 +83,10 @@
             <div class="flex flex-col sm:flex-row gap-3">
               <a href="/company/login" class="bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition shadow text-center">ادخل لوحة التحكم</a>
               <% if (result.company_slug) { %>
-                <a href="/view/<%= result.company_slug %>" target="_blank" class="bg-white border border-green-300 text-green-700 font-bold px-6 py-3 rounded-xl hover:bg-green-50 transition text-center">عاين موقعك</a>
+                <%# The canonical subdomain, computed in the route — /view/<slug>
+                    only redirects there, and it is not the address the customer
+                    will be told to use anywhere else. %>
+                <a href="<%= result.site_url || ('/view/' + result.company_slug) %>" target="_blank" rel="noopener" class="bg-white border border-green-300 text-green-700 font-bold px-6 py-3 rounded-xl hover:bg-green-50 transition text-center">عاين موقعك</a>
               <% } %>
             </div>
           </div>

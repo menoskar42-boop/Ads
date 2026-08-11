@@ -37,6 +37,23 @@ function siteOrigin() {
   return (process.env.SITE_ORIGIN || 'https://oscardevs.com').replace(/\/+$/, '');
 }
 
+// The address we hand a customer must be the one their site actually lives at.
+// The canonical form everywhere in this codebase is <slug>.oscardevs.com
+// (docs/SEO_MISTAKES_LOG.md #1); /view/<slug> exists but redirects, and the
+// activation email was quoting the redirect. CLAUDE.md is explicit that a wrong
+// link in an activation message is a problem with the customer, not a typo.
+//
+// Only built when the configured origin is a bare two-label domain — on a
+// preview host (foo.replit.app, localhost) a subdomain would not resolve, so
+// the path form is still correct there.
+function companyUrl(slug) {
+  if (!slug) return null;
+  const origin = siteOrigin();
+  const host = origin.replace(/^https?:\/\//, '').split('/')[0];
+  if (/^[a-z0-9-]+\.[a-z]{2,}$/i.test(host)) return 'https://' + encodeURIComponent(slug) + '.' + host;
+  return origin + '/view/' + encodeURIComponent(slug);
+}
+
 const FROM = () => process.env.MAIL_FROM || 'OscarDevs <support@oscardevs.com>';
 
 // Country names (Arabic) that map to an Arabic email; everything else → English.
@@ -93,11 +110,17 @@ function btn(href, label, color) {
   return `<a href="${href}" style="display:inline-block;background:${color || '#4338ca'};color:#fff;font-weight:700;text-decoration:none;padding:12px 22px;border-radius:12px;">${label}</a>`;
 }
 
-/** Confirmation sent right after an application is submitted. */
-async function sendApplicationReceived({ to, fullName, businessName, country }) {
+/**
+ * Confirmation sent right after an application is submitted.
+ *
+ * This carries the tracking link, and it is the only place the applicant ever
+ * receives it — /apply/status will re-send it to the address on the application,
+ * but it will not show a status to anyone who merely types an address in.
+ */
+async function sendApplicationReceived({ to, fullName, businessName, country, trackUrl }) {
   const origin = siteOrigin();
   const lang = localeForCountry(country);
-  const statusUrl = origin + '/apply/status';
+  const statusUrl = trackUrl || (origin + '/apply/status');
   let subject, html, text;
   if (lang === 'en') {
     html = shell('en', 'We received your request ✅', `
@@ -117,12 +140,40 @@ async function sendApplicationReceived({ to, fullName, businessName, country }) 
   return sendMail({ to, subject, html, text });
 }
 
+/**
+ * Re-sends the tracking link when somebody asks for it from /apply/status.
+ *
+ * Sent only to the address on the application itself, which is why the page can
+ * answer everyone identically: the link reaches the applicant's inbox, and a
+ * stranger typing their address in learns nothing from the screen.
+ */
+async function sendApplicationTrackLink({ to, fullName, country, trackUrl }) {
+  const lang = localeForCountry(country);
+  let subject, html, text;
+  if (lang === 'en') {
+    html = shell('en', 'Your tracking link', `
+      <p style="font-size:14px;line-height:1.8;color:#4b5563;">Hi ${fullName || ''}, here is the link to follow your request with OscarDevs.</p>
+      <p style="font-size:14px;line-height:1.8;color:#4b5563;">Keep it to yourself — anyone with this link can see the status of your request.</p>
+      <p style="margin:22px 0;">${btn(trackUrl, 'Track your request')}</p>`);
+    text = `Track your request: ${trackUrl}`;
+    subject = 'Your tracking link — OscarDevs';
+  } else {
+    html = shell('ar', 'رابط متابعة طلبك', `
+      <p style="font-size:14px;line-height:1.8;color:#4b5563;">أهلاً ${fullName || ''}، ده رابط متابعة طلبك مع OscarDevs.</p>
+      <p style="font-size:14px;line-height:1.8;color:#4b5563;">خلّيه ليك لوحدك — أي حد معاه اللينك ده يقدر يشوف حالة طلبك.</p>
+      <p style="margin:22px 0;">${btn(trackUrl, 'متابعة حالة الطلب')}</p>`);
+    text = `رابط متابعة طلبك: ${trackUrl}`;
+    subject = 'رابط متابعة طلبك — OscarDevs';
+  }
+  return sendMail({ to, subject, html, text });
+}
+
 /** Activation email sent when the super-admin approves an application. */
 async function sendApplicationApproved({ to, fullName, businessName, slug, country }) {
   const origin = siteOrigin();
   const lang = localeForCountry(country);
   const loginUrl = origin + '/company/login';
-  const siteUrl = slug ? origin + '/view/' + encodeURIComponent(slug) : null;
+  const siteUrl = companyUrl(slug);
   let subject, html, text;
   if (lang === 'en') {
     html = shell('en', 'Congratulations! Your site is live 🎉', `
@@ -169,4 +220,4 @@ async function sendAdminNewApplication({ fullName, email, phone, country, busine
   return sendMail({ to, subject: `طلب جديد: ${businessName || ''} — OscarDevs`, html, text });
 }
 
-module.exports = { sendMail, sendApplicationReceived, sendApplicationApproved, sendAdminNewApplication, siteOrigin, localeForCountry };
+module.exports = { sendMail, sendApplicationReceived, sendApplicationApproved, sendApplicationTrackLink, sendAdminNewApplication, siteOrigin, localeForCountry };
