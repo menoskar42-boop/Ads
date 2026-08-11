@@ -69,25 +69,23 @@
     </a>
   </section>
 
-  <!-- ══════════ THE PERIOD, IN ONE LINE ══════════ -->
-  <section class="card" style="padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:12px">
-    <%# "Left this period" is income minus spending. With no income on file it is
-        just spending with a minus sign — a number that would be read as debt. %>
+  <!-- ══════════ HOW LONG IT HAS TO LAST ══════════ -->
+  <%# This was three equal columns — an amount, a day count and a date, all in
+      the same bold 1.08rem, so the eye had to pick between them. Only one of the
+      three is a decision: how much is left until the money comes again. The
+      other two say WHEN, which is context for that number, so they read as one
+      quiet line under it instead of competing with it.
+
+      "Left until payday" is income minus spending. With no income on file it is
+      just spending with a minus sign — a figure that reads as debt — so the
+      amount drops out and the timing line carries the card on its own. %>
+  <section class="card" style="padding:14px 16px;margin-top:12px">
     <% if (!data.noIncome) { %>
-    <div style="flex:1">
-      <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.remaining') %></div>
-      <div style="font-weight:800;font-size:1.08rem;color:<%= data.remaining>=0?'var(--ink)':'var(--warn)' %>"><bdi><%= money(data.remaining) %></bdi></div>
-    </div>
-    <div style="width:1px;height:30px;background:var(--line)"></div>
+    <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.remaining') %></div>
+    <div style="font-weight:800;font-size:1.25rem;line-height:1.3;color:<%= data.remaining>=0?'var(--ink)':'var(--warn)' %>"><bdi><%= money(data.remaining) %></bdi></div>
     <% } %>
-    <div style="flex:1;text-align:center">
-      <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.days_left') %></div>
-      <div style="font-weight:800;font-size:1.08rem"><%= num(data.daysLeft) %></div>
-    </div>
-    <div style="width:1px;height:30px;background:var(--line)"></div>
-    <div style="flex:1;text-align:end">
-      <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.next_pay') %></div>
-      <div style="font-weight:700;font-size:.86rem"><%= __d(data.nextPay) %></div>
+    <div class="muted" style="font-size:.74rem;margin-top:<%= data.noIncome ? '0' : '3px' %>">
+      <%= num(data.daysLeft) %> <%= t('dash.days_left') %> · <%= t('dash.next_pay') %> <%= __d(data.nextPay) %>
     </div>
   </section>
 

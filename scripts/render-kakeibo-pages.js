@@ -67,11 +67,11 @@ const CASES = {
   // Someone who took the "I don't know yet" way out of both money questions.
   onboarding_unknown: () => ({ __file: 'onboarding.ejs', error: null,
     profile: { onboarded: true, monthly_income: 0, saving_goal: 0, salary_day: 1, country: 'EG', weekend: 'fri_sat', currency: 'EGP', salary_type: 'fixed' } }),
-  dashboard: () => ({ data: dash(), insight: null, challenge: null, goals: [], gam: null, smart: null, twin: null }),
+  dashboard: () => ({ data: dash(), insight: null, challenge: null, goals: [], gam: { level: 3, xp: 240, streak: 5 }, smart: null, twin: null }),
   dashboard_no_income: () => ({ __file: 'dashboard.ejs',
     data: dash({ income: 0, goal: 0, noIncome: true, remaining: -3200, savingRate: 0, goalProgress: 0,
       perDay: 0, leftToday: -140, overBudget: true, willOverspend: true }),
-    insight: null, challenge: null, goals: [], gam: null, smart: null, twin: null }),
+    insight: null, challenge: null, goals: [], gam: { level: 3, xp: 240, streak: 5 }, smart: null, twin: null }),
   add: () => ({ error: null, editExpense: null }),
   add_edit: () => ({ __file: 'add.ejs', error: null,
     editExpense: { id: 7, amount: 250, category: 'food', payment_method: 'card', spent_on: '2026-07-30', description: 'Lunch', receipt_url: '/uploads/r.jpg' } }),
@@ -146,8 +146,24 @@ const { STR } = require(path.join(ROOT, 'src/kakeibo/i18n'));
 check('dashboard (no income): does not claim overspending',
   !dashNo.includes(STR.ar['dash.over_label']) && !dashNo.includes(STR.ar['dash.pace_warning']));
 check('dashboard (no income): offers to set it', dashNo.includes(STR.ar['dash.set_income']));
+const dashOk = render('dashboard', 'ar');
 check('dashboard (income set): still answers "can I spend today"',
-  render('dashboard', 'ar').includes(STR.ar['dash.can_spend']));
+  dashOk.includes(STR.ar['dash.can_spend']));
+
+// The home screen is meant to carry four things and nothing else: what you can
+// spend today, what you spent today, what is left until payday, and the recent
+// list. Everything else lives behind "more detail" — which is easy to undo by
+// accident, since dropping one card back above the fold looks like a small edit.
+const dashTop = dashOk.slice(0, dashOk.indexOf('<details id="kkbMore"'));
+for (const k of ['dash.can_spend', 'dash.spent_today', 'dash.remaining', 'dash.recent']) {
+  check(`dashboard: "${STR.en[k]}" is above the fold`, dashTop.includes(STR.ar[k]));
+}
+for (const k of ['dash.goal', 'dash.saving_rate', 'dash.week', 'dash.month', 'gam.level']) {
+  check(`dashboard: "${STR.en[k]}" stayed below the fold`,
+    !dashTop.includes(STR.ar[k]) && dashOk.includes(STR.ar[k]));
+}
+const topSections = (dashTop.match(/<section\b/g) || []).length;
+check('dashboard: three cards above the fold', topSections === 3, `${topSections}`);
 
 const add = render('add', 'ar');
 const addTop = beforeDetails(add);
