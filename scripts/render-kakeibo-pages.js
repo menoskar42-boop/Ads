@@ -75,7 +75,13 @@ const CASES = {
   add: () => ({ error: null, editExpense: null }),
   add_edit: () => ({ __file: 'add.ejs', error: null,
     editExpense: { id: 7, amount: 250, category: 'food', payment_method: 'card', spent_on: '2026-07-30', description: 'Lunch', receipt_url: '/uploads/r.jpg' } }),
-  profile: () => ({ saved: false, upgraded: false, upErr: null,
+  profile: () => ({ saved: false, upgraded: false, upErr: null, toolsUnlocked: true,
+    pushEnabled: true, pushKey: 'k',
+    user: { display_name: 'Ali', email: 'a@b.com', is_guest: false },
+    profile: { monthly_income: 12000, saving_goal: 1500, currency: 'EGP' } }),
+  // Fewer than five expenses on file: the advanced tools are not on the menu yet.
+  profile_new: () => ({ __file: 'profile.ejs', saved: false, upgraded: false, upErr: null,
+    toolsUnlocked: false, pushEnabled: true, pushKey: 'k',
     user: { display_name: 'Ali', email: 'a@b.com', is_guest: false },
     profile: { monthly_income: 12000, saving_goal: 1500, currency: 'EGP' } }),
 };
@@ -178,9 +184,27 @@ check('add (editing): details open by default', /<details\s+open/.test(addEdit))
 check('add (new): details closed by default', !/<details\s+open/.test(add));
 
 const prof = render('profile', 'ar');
-for (const href of ['/family', '/goals', '/budgets', '/investments', '/twin', '/simulator', '/onboarding', '/holidays']) {
+for (const href of ['/family', '/goals', '/budgets', '/investments', '/twin', '/simulator', '/coach', '/onboarding', '/holidays']) {
   check(`profile: ${href} still linked`, prof.includes(`href="${href}"`));
 }
+check('profile: notifications offered once unlocked', prof.includes('id="pushBtn"'));
+
+// A new account does not get the six advanced tools on the menu — but the
+// routes are untouched, so this must stay a menu change and never become a
+// guard. If someone later "tidies up" by adding requireOnboarded-style gating to
+// the routes themselves, a saved link starts 302-ing and this stops being
+// reversible for the user.
+const profNew = render('profile_new', 'ar');
+for (const href of ['/twin', '/simulator', '/investments', '/family', '/coach']) {
+  check(`profile (new user): ${href} is off the menu`, !profNew.includes(`href="${href}"`));
+}
+for (const href of ['/budgets', '/goals', '/onboarding', '/holidays']) {
+  check(`profile (new user): ${href} still on the menu`, profNew.includes(`href="${href}"`));
+}
+check('profile (new user): no notification permission prompt', !profNew.includes('id="pushBtn"'));
+check('profile (new user): says what is coming and when',
+  profNew.includes(STR.ar['prof.tools_locked']));
+check('profile (unlocked): no locked note', !prof.includes(STR.ar['prof.tools_locked']));
 const profEn = render('profile', 'en');
 const arabic = /[؀-ۿ]/;
 // The language switcher is labelled in the language it switches TO, so "ع" on

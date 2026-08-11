@@ -43,25 +43,36 @@
 
   <%# These were eight identical ghost buttons in a stack. Eight equal-weight
       options with nothing but a name on each is a menu you have to open one by
-      one to understand. Same eight destinations, now grouped by what you came
-      here to do, with one line each saying what it is for. %>
+      one to understand. Same destinations, now grouped by what you came here to
+      do, with one line each saying what it is for.
+
+      The advanced six are split off into "Tools" and held back until there are
+      five expenses on file. Every one of them reads the ledger — the twin learns
+      habits, the simulator cuts categories, the coach answers from your numbers
+      — so on day one they are dead ends that make the app look big and unhelpful
+      at once. Nothing is disabled: this is the menu, not the door. /twin,
+      /simulator, /investments, /family and /coach all still serve, so a saved
+      link or a browser autocomplete keeps working from the first day. %>
   <%
+    var __unlocked = typeof toolsUnlocked !== 'undefined' && toolsUnlocked;
+    var __tools = [
+      ['/twin',        '🧬', 'twin.title',  'prof.d_twin'],
+      ['/simulator',   '🧪', 'sim.title',   'prof.d_simulator'],
+      ['/investments', '📈', 'inv.title',   'prof.d_investments'],
+      ['/family',      '👨‍👩‍👧', 'fam.title', 'prof.d_family'],
+    ];
+    if (typeof aiEnabled !== 'undefined' && aiEnabled) __tools.push(['/coach', '🤖', 'coach.title', 'prof.d_coach']);
     var __groups = [
       ['prof.grp_money', [
-        ['/budgets',     '🎛️', 'bud.title',   'prof.d_budgets'],
-        ['/investments', '📈', 'inv.title',   'prof.d_investments'],
-        ['/family',      '👨‍👩‍👧', 'fam.title', 'prof.d_family'],
-      ]],
-      ['prof.grp_plan', [
-        ['/goals',     '🎯', 'goals.title', 'prof.d_goals'],
-        ['/twin',      '🧬', 'twin.title',  'prof.d_twin'],
-        ['/simulator', '🧪', 'sim.title',   'prof.d_simulator'],
-      ]],
-      ['prof.grp_setup', [
-        ['/onboarding', '📅', 'prof.edit_salary', 'prof.d_salary'],
-        ['/holidays',   '🎌', 'hol.title',        'prof.d_holidays'],
+        ['/budgets', '🎛️', 'bud.title',   'prof.d_budgets'],
+        ['/goals',   '🎯', 'goals.title', 'prof.d_goals'],
       ]],
     ];
+    if (__unlocked) __groups.push(['prof.grp_tools', __tools]);
+    __groups.push(['prof.grp_setup', [
+      ['/onboarding', '📅', 'prof.edit_salary', 'prof.d_salary'],
+      ['/holidays',   '🎌', 'hol.title',        'prof.d_holidays'],
+    ]]);
   %>
   <% __groups.forEach(function(g){ %>
   <section style="margin-top:16px">
@@ -81,6 +92,13 @@
   </section>
   <% }) %>
 
+  <%# Held-back, not hidden. One muted line naming what is coming and when beats
+      six cards now, and beats silence — a feature nobody knows exists is one
+      nobody asks for. %>
+  <% if (!__unlocked) { %>
+  <p class="muted" style="font-size:.76rem;line-height:1.7;margin:16px 4px 0"><%= t('prof.tools_locked') %></p>
+  <% } %>
+
   <section class="card" style="padding:16px;margin-top:14px">
     <div style="font-weight:700;margin-bottom:2px">⬇︎ <%= t('exp.title') %></div>
     <p class="muted" style="font-size:.76rem;margin:0 0 12px"><%= t('exp.hint') %></p>
@@ -90,7 +108,10 @@
     </div>
   </section>
 
-  <% if (typeof pushEnabled !== 'undefined' && pushEnabled) { %>
+  <%# Notifications belong to the same held-back set: reminders to log an expense
+      are noise to somebody who has not started, and asking for the browser
+      permission on day one is the surest way to have it denied for good. %>
+  <% if (typeof pushEnabled !== 'undefined' && pushEnabled && __unlocked) { %>
   <section class="card" style="padding:16px;margin-top:14px">
     <div style="font-weight:700;margin-bottom:2px">🔔 <%= t('push.title') %></div>
     <p class="muted" style="font-size:.76rem;margin:0 0 12px"><%= t('push.hint') %></p>

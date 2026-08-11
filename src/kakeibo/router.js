@@ -697,9 +697,25 @@ router.get('/review', requireOnboarded, async (req, res) => {
 });
 
 /* ─── Profile / settings ───────────────────────────────── */
-router.get('/profile', requireOnboarded, (req, res) => {
+// The advanced tools (twin, simulator, investments, family, coach, notifications)
+// are held back until there is data for them to work on. The twin needs habits to
+// learn, the simulator needs categories to cut, the coach answers from your
+// numbers — shown on day one they are six dead ends that make the app look big
+// and unhelpful at the same time. Five expenses is the gate. Nothing is disabled:
+// every route still serves, so a saved link or a browser autocomplete still works.
+const TOOLS_MIN_EXPENSES = 5;
+router.get('/profile', requireOnboarded, async (req, res) => {
   const uerrMap = { email: res.locals.t('auth.err_email'), pass: res.locals.t('auth.err_pass'), exists: res.locals.t('auth.err_exists') };
-  res.render('kakeibo/profile', Object.assign({ currencies: CURRENCIES, saved: req.query.saved === '1', pushEnabled: kpush.isEnabled(), pushKey: kpush.publicKey(), upErr: uerrMap[req.query.uerr] || null, upgraded: req.query.upgraded === '1' }, APP_LOCALS));
+  let expenseCount = 0;
+  try {
+    expenseCount = Number((await pool.query('SELECT COUNT(*)::int AS n FROM kkb_expenses WHERE user_id=$1', [req.session.kkbUserId])).rows[0].n) || 0;
+  } catch (e) { console.error('[kkb profile count]', e.message); }
+  res.render('kakeibo/profile', Object.assign({
+    currencies: CURRENCIES, saved: req.query.saved === '1',
+    pushEnabled: kpush.isEnabled(), pushKey: kpush.publicKey(),
+    upErr: uerrMap[req.query.uerr] || null, upgraded: req.query.upgraded === '1',
+    aiEnabled: ai.isEnabled(), toolsUnlocked: expenseCount >= TOOLS_MIN_EXPENSES,
+  }, APP_LOCALS));
 });
 
 // Guest → real account: keep all data, just add email + password.
