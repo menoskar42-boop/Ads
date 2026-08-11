@@ -55,7 +55,7 @@ function dash(over) {
     income: 12000, goal: 1500, spentPeriod: 3200, remaining: 8800, savingRate: 73,
     goalProgress: 100, spentToday: 140, spentWeek: 900, spentMonth: 3200,
     projectedSpend: 9600, projectedRemaining: 2400, willOverspend: false,
-    perDay: 419, leftToday: 279, overBudget: false, spendableDays: 21, noIncome: false,
+    perDay: 419, leftToday: 279, overBudget: false, spendableDays: 21, noIncome: false, irregular: false,
     recent: [{ id: 1, amount: 140, description: 'Coffee', category: 'food', payment_method: 'cash', spent_on: '2026-08-04' }],
   }, over || {});
 }

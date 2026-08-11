@@ -13,6 +13,7 @@ const CHECKS = [
   ['check-i18n',            'القاموس ثنائي اللغة'],
   ['check-kakeibo-i18n',    'قاموس كاكيبو + توازن القوالب'],
   ['check-payday',          'فترة الراتب: البداية ≤ النهارده < الجاي'],
+  ['check-kakeibo-stats',   'حساب «تقدر تصرف النهارده» (مفيش خصم مزدوج)'],
   ['check-schema-order',    'ترتيب الـDDL (ALTER بعد CREATE)'],
   ['check-schema-columns',  'أعمدة الـINSERT موجودة في المخطط'],
   ['check-async-routes',    'أخطاء الـasync لا تعلّق الطلب'],
