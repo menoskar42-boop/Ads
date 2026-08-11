@@ -78,7 +78,11 @@ const files = walk(path.join(ROOT, 'src/views/kakeibo'), [])
 // below instead. The trailing [,)] is what admits the interpolating form —
 // without it, every t('key', vars) call silently escaped validation.
 const LITERAL = /\bt\(\s*(['"])([a-z0-9_.]+)\1\s*[,)]/gi;
-const CONCAT = /\bt\(\s*(['"])([a-z0-9_]+\.)\1\s*\+/gi;
+// Multi-segment prefixes count too: t('onb.wknd.' + w). The old pattern stopped
+// at the first dot, so that whole family went unvalidated — if every onb.wknd.*
+// key were deleted, the weekend dropdown would render five raw keys and nothing
+// here would have said so.
+const CONCAT = /\bt\(\s*(['"])([a-z0-9_.]+\.)\1\s*\+/gi;
 const usedKeys = new Map();      // key -> first file that used it
 const usedPrefixes = new Map();  // 'cat.' -> first file
 for (const f of files) {

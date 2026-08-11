@@ -70,7 +70,10 @@
       ['/investments', '📈', 'inv.title',   'prof.d_investments'],
       ['/family',      '👨‍👩‍👧', 'fam.title', 'prof.d_family'],
     ];
-    if (__n >= __more) __tools = __tools.concat(__later);
+    // Built once, so "everything there is" cannot drift out of step with the
+    // two steps. The note below shows __all; the menu shows __tools.
+    var __all = __tools.concat(__later);
+    if (__n >= __more) __tools = __all;
     var __groups = [
       ['prof.grp_money', [
         ['/budgets', '🎛️', 'bud.title',   'prof.d_budgets'],
@@ -125,7 +128,7 @@
         <%= t('prof.tools_try') %> ›
       </summary>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-        <% __tools.concat(__later).forEach(function(it){ %>
+        <% __all.forEach(function(it){ %>
         <a href="<%= it[0] %>" class="card" style="padding:12px 14px;display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
           <span style="font-size:1.15rem;flex:none"><%= it[1] %></span>
           <div style="flex:1;min-width:0">
