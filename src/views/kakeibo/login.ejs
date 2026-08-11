@@ -12,43 +12,51 @@
   </section>
 
   <!-- Auth card -->
+  <%# الضيف هو الفعل الأساسي. الشاشة كانت بتحط خمس اختيارات متساوية في وش
+      المستخدم (دخول، إنشاء حساب، ضيف، Google، Apple) والزائر الجديد أغلبه
+      عايز يجرّب مش يعمل حساب. الباقي موجود زي ما هو، بس مطوي. %>
   <section class="card" style="padding:22px">
     <% if (error) { %><div style="background:rgba(192,57,43,.1);color:var(--accent);border-radius:12px;padding:10px 12px;font-size:.9rem;font-weight:600;margin-bottom:14px"><%= error %></div><% } %>
 
-    <form method="post" action="/<%= mode === 'signup' ? 'signup' : 'login' %>" style="display:flex;flex-direction:column;gap:14px">
-      <% if (mode === 'signup') { %>
-        <div><label class="lbl"><%= t('common.name') %></label><input name="name" class="fld" maxlength="80" autocomplete="name" /></div>
-      <% } %>
-      <div><label class="lbl"><%= t('common.email') %></label><input name="email" type="email" dir="ltr" required class="fld" autocomplete="email" /></div>
-      <div><label class="lbl"><%= t('common.password') %></label><input name="password" type="password" required minlength="6" class="fld" autocomplete="<%= mode === 'signup' ? 'new-password' : 'current-password' %>" /></div>
-      <button class="btn btn-primary"><%= mode === 'signup' ? t('auth.signup') : t('auth.login') %></button>
-    </form>
-
-    <p style="text-align:center;margin:14px 0 0;font-size:.9rem" class="muted">
-      <% if (mode === 'signup') { %>
-        <%= t('auth.have_account') %> <a href="/?mode=login"><%= t('auth.login') %></a>
-      <% } else { %>
-        <%= t('auth.no_account') %> <a href="/?mode=signup"><%= t('auth.signup') %></a>
-      <% } %>
-    </p>
-
-    <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
-      <span style="flex:1;height:1px;background:var(--line)"></span>
-      <span class="muted" style="font-size:.8rem"><%= t('common.or') %></span>
-      <span style="flex:1;height:1px;background:var(--line)"></span>
-    </div>
-
     <form method="post" action="/guest">
-      <button class="btn btn-ghost" style="margin-bottom:10px">🚀 <%= t('auth.guest') %></button>
+      <button class="btn btn-primary" style="width:100%">🚀 <%= t('auth.try_now') %></button>
     </form>
-    <p class="muted" style="font-size:.78rem;text-align:center;margin:0 0 14px"><%= t('auth.guest_note') %></p>
+    <p class="muted" style="font-size:.78rem;text-align:center;margin:10px 0 0"><%= t('auth.guest_note') %></p>
 
-    <% if (typeof googleAuth !== 'undefined' && googleAuth) { %>
-      <a href="/auth/google" class="btn btn-ghost" style="margin-bottom:8px">🔵 <%= t('auth.google') %></a>
-    <% } else { %>
-      <button class="btn btn-ghost" disabled style="margin-bottom:8px" title="<%= t('auth.soon') %>"><%= t('auth.google') %> · <%= t('auth.soon') %></button>
-    <% } %>
-    <button class="btn btn-ghost" disabled title="<%= t('auth.soon') %>"><%= t('auth.apple') %> · <%= t('auth.soon') %></button>
+    <%# مفتوح لو المستخدم طلب إنشاء حساب صراحةً، أو لو فيه خطأ لازم يشوفه. %>
+    <details <%= (error || mode === 'signup') ? 'open' : '' %> style="margin-top:18px">
+      <summary style="cursor:pointer;text-align:center;font-weight:600;font-size:.92rem"><%= t('auth.have_login') %></summary>
+
+      <form method="post" action="/<%= mode === 'signup' ? 'signup' : 'login' %>" style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
+        <% if (mode === 'signup') { %>
+          <div><label class="lbl"><%= t('common.name') %></label><input name="name" class="fld" maxlength="80" autocomplete="name" /></div>
+        <% } %>
+        <div><label class="lbl"><%= t('common.email') %></label><input name="email" type="email" dir="ltr" required class="fld" autocomplete="email" /></div>
+        <div><label class="lbl"><%= t('common.password') %></label><input name="password" type="password" required minlength="6" class="fld" autocomplete="<%= mode === 'signup' ? 'new-password' : 'current-password' %>" /></div>
+        <button class="btn btn-primary"><%= mode === 'signup' ? t('auth.signup') : t('auth.login') %></button>
+      </form>
+
+      <p style="text-align:center;margin:14px 0 0;font-size:.9rem" class="muted">
+        <% if (mode === 'signup') { %>
+          <%= t('auth.have_account') %> <a href="/?mode=login"><%= t('auth.login') %></a>
+        <% } else { %>
+          <%= t('auth.no_account') %> <a href="/?mode=signup"><%= t('auth.signup') %></a>
+        <% } %>
+      </p>
+
+      <div style="display:flex;align-items:center;gap:12px;margin:18px 0">
+        <span style="flex:1;height:1px;background:var(--line)"></span>
+        <span class="muted" style="font-size:.8rem"><%= t('common.or') %></span>
+        <span style="flex:1;height:1px;background:var(--line)"></span>
+      </div>
+
+      <% if (typeof googleAuth !== 'undefined' && googleAuth) { %>
+        <a href="/auth/google" class="btn btn-ghost" style="margin-bottom:8px">🔵 <%= t('auth.google') %></a>
+      <% } else { %>
+        <button class="btn btn-ghost" disabled style="margin-bottom:8px" title="<%= t('auth.soon') %>"><%= t('auth.google') %> · <%= t('auth.soon') %></button>
+      <% } %>
+      <button class="btn btn-ghost" disabled title="<%= t('auth.soon') %>"><%= t('auth.apple') %> · <%= t('auth.soon') %></button>
+    </details>
   </section>
 
   <!-- Feature hints -->
