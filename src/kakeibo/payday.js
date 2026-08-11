@@ -1,5 +1,6 @@
 // Flexible payday calculation — works for any pay system, not just a fixed day.
-// salaryType: 'fixed' (use salaryDay) | 'last' (last day of month) | 'before_last'.
+// salaryType: 'fixed' (use salaryDay) | 'last' (last day of month) |
+//   'before_last' | 'irregular' (no payday at all — budget by calendar month).
 // weekend: which days are non-working, so payday shifts EARLIER off them
 //   'fri_sat' (EG/Gulf) | 'fri' | 'sat_sun' (western) | 'sun' | 'none'.
 // (Public-holiday shifting can layer on top later; weekends cover the common case.)
@@ -23,6 +24,16 @@ function fmt(d) { const p = (n) => (n < 10 ? '0' : '') + n; return d.getFullYear
 // `customSet` is an optional Set of 'YYYY-MM-DD' user-added holidays.
 function paydayFor(profile, year, month0, customSet) {
   const type = (profile && profile.salary_type) || 'fixed';
+  // Irregular income — freelance, commission, cash work, anything that arrives
+  // when it arrives. There is no payday to compute, so the period people
+  // actually budget against is the calendar month, and the boundary is the 1st.
+  //
+  // It returns EARLY, before the weekend/holiday shift: that shift exists
+  // because an employer pays on the last working day before a holiday. The 1st
+  // of the month is a date on a calendar, not a day anybody gets paid, so
+  // sliding it back onto the previous month would only make the period wrong.
+  if (type === 'irregular') return new Date(year, month0, 1);
+
   const last = lastDayOfMonth(year, month0);
   let day;
   if (type === 'last') day = last;
@@ -41,22 +52,42 @@ function paydayFor(profile, year, month0, customSet) {
   return d;
 }
 
-// The NEXT payday on/after `from` (defaults to today). Looks at this month then next.
+// A month's payday can land in the PREVIOUS calendar month: the shift above
+// walks backwards off weekends and holidays, so "the 1st of August 2026" (a
+// Saturday, after a Friday) is paid on Thursday 30 July. Both helpers below
+// therefore have to look at a window of months rather than assume month N's
+// payday falls inside month N — the old versions checked exactly one fallback
+// month and returned it unconditionally.
+//
+// The bug that showed: paid on the 1st, on 11 August 2026. nextPayday started
+// from 31 July, found July's payday (1 July) in the past, and returned "next
+// month's" — which was 30 July, still in the past. The dashboard got a period
+// that had already ended: daysLeft 0, so spendableDays fell to 1 and the whole
+// month's remaining money was offered as today's allowance.
+const WINDOW = [-1, 0, 1, 2];
+
+// The NEXT payday on/after `from` (defaults to today).
 function nextPayday(profile, from, customSet) {
   const base = from ? new Date(from) : new Date();
   base.setHours(0, 0, 0, 0);
-  const thisMonth = paydayFor(profile, base.getFullYear(), base.getMonth(), customSet);
-  if (thisMonth >= base) return thisMonth;
-  return paydayFor(profile, base.getFullYear(), base.getMonth() + 1, customSet);
+  let best = null;
+  for (const off of WINDOW) {
+    const d = paydayFor(profile, base.getFullYear(), base.getMonth() + off, customSet);
+    if (d >= base && (best === null || d < best)) best = d;   // the earliest one that is not past
+  }
+  return best || paydayFor(profile, base.getFullYear(), base.getMonth() + 1, customSet);
 }
 
 // The payday that STARTED the current pay period (most recent payday on/before today).
 function currentPeriodStart(profile, from, customSet) {
   const base = from ? new Date(from) : new Date();
   base.setHours(0, 0, 0, 0);
-  const thisMonth = paydayFor(profile, base.getFullYear(), base.getMonth(), customSet);
-  if (thisMonth <= base) return thisMonth;
-  return paydayFor(profile, base.getFullYear(), base.getMonth() - 1, customSet);
+  let best = null;
+  for (const off of WINDOW) {
+    const d = paydayFor(profile, base.getFullYear(), base.getMonth() + off, customSet);
+    if (d <= base && (best === null || d > best)) best = d;   // the latest one that has happened
+  }
+  return best || paydayFor(profile, base.getFullYear(), base.getMonth() - 1, customSet);
 }
 
 module.exports = { paydayFor, nextPayday, currentPeriodStart, lastDayOfMonth, WEEKEND_DAYS };
