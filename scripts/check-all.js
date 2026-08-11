@@ -14,6 +14,7 @@ const CHECKS = [
   ['check-kakeibo-i18n',    'قاموس كاكيبو + توازن القوالب'],
   ['check-payday',          'فترة الراتب: البداية ≤ النهارده < الجاي'],
   ['check-kakeibo-stats',   'حساب «تقدر تصرف النهارده» (مفيش خصم مزدوج)'],
+  ['check-kakeibo-routes',  'راوتات كاكيبو بتردّ صح (redirects + الحفظ)'],
   ['check-schema-order',    'ترتيب الـDDL (ALTER بعد CREATE)'],
   ['check-schema-columns',  'أعمدة الـINSERT موجودة في المخطط'],
   ['check-async-routes',    'أخطاء الـasync لا تعلّق الطلب'],
@@ -29,12 +30,21 @@ const CHECKS = [
 ];
 
 let failed = 0;
+let skipped = 0;
 for (const [name, what] of CHECKS) {
   process.stdout.write(name.padEnd(24));
   try {
     execFileSync(process.execPath, [path.join(__dirname, name + '.js')], { stdio: 'pipe' });
     console.log('✅  ' + what);
   } catch (e) {
+    // Exit 2 means the check could not run (missing node_modules), not that it
+    // found something. Showing that as a pass would turn an environment gap
+    // into a green tick nobody questions.
+    if (e.status === 2) {
+      skipped += 1;
+      console.log('⏭️   ' + what + ' — اتخطّى (حزم ناقصة، مش نتيجة)');
+      continue;
+    }
     failed += 1;
     console.log('❌  ' + what);
     const out = ((e.stdout || '') + (e.stderr || '')).toString();
@@ -42,5 +52,6 @@ for (const [name, what] of CHECKS) {
       .forEach((l) => console.log('    ' + l.trim()));
   }
 }
-console.log(failed ? `\n⚠️  ${failed} فحص فشل.` : '\nكل الفحوص عدّت.');
+const tail = skipped ? ` (و${skipped} اتخطّى)` : '';
+console.log(failed ? `\n⚠️  ${failed} فحص فشل${tail}.` : `\nكل الفحوص عدّت${tail}.`);
 process.exit(failed ? 1 : 0);
