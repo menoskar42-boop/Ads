@@ -82,6 +82,8 @@ const CASES = {
     monthly: [{ label: '3/26', total: 4000 }], weekly: [{ label: 'W-0', total: 900 }],
     monthName: 'March 2026', narrative: null, weeklyReport: null, suggestions: null,
     isCurrentMonth: false, prevYm: '2026-2', nextYm: '2026-4' }),
+  dashboard_irregular: () => ({ __file: 'dashboard.ejs', data: dash({ irregular: true }),
+    insight: null, challenge: null, goals: [], gam: { level: 3, xp: 240, streak: 5 }, smart: null, twin: null }),
   dashboard: () => ({ data: dash(), insight: null, challenge: null, goals: [], gam: { level: 3, xp: 240, streak: 5 }, smart: null, twin: null }),
   dashboard_no_income: () => ({ __file: 'dashboard.ejs',
     data: dash({ income: 0, goal: 0, noIncome: true, remaining: -3200, savingRate: 0, goalProgress: 0,
@@ -191,6 +193,17 @@ for (const k of ['dash.goal', 'dash.saving_rate', 'dash.week', 'dash.month', 'ga
 }
 const topSections = (dashTop.match(/<section\b/g) || []).length;
 check('dashboard: three cards above the fold', topSections === 3, `${topSections}`);
+
+// No payday means no salary date to print. A freelancer told "Next salary 1 Sep"
+// is being shown a fact about somebody else's job.
+const dashIrr = render('dashboard_irregular', 'ar');
+check('dashboard (irregular): says month, not salary',
+  dashIrr.includes(STR.ar['dash.remaining_month']) && dashIrr.includes(STR.ar['dash.next_month'])
+  && !dashIrr.includes(STR.ar['dash.next_pay']));
+check('dashboard (salaried): still says salary',
+  dashOk.includes(STR.ar['dash.next_pay']) && !dashOk.includes(STR.ar['dash.next_month']));
+check('onboarding: freelance is on the payday list',
+  onb.includes('value="irregular"') && onb.includes(STR.ar['onb.stype.irregular']));
 
 // The merge is only safe if the one page carries what both pages carried. Each
 // of these was on /review or /reports and would be a silent loss if dropped.

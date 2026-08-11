@@ -80,12 +80,16 @@
       just spending with a minus sign — a figure that reads as debt — so the
       amount drops out and the timing line carries the card on its own. %>
   <section class="card" style="padding:14px 16px;margin-top:12px">
+    <%# Somebody with no payday should not be told when their salary lands. For
+        an irregular income the period IS the calendar month, so the card names
+        the month and its first day instead of a salary date that does not
+        exist for them. %>
     <% if (!data.noIncome) { %>
-    <div class="muted" style="font-size:.72rem;font-weight:600"><%= t('dash.remaining') %></div>
+    <div class="muted" style="font-size:.72rem;font-weight:600"><%= data.irregular ? t('dash.remaining_month') : t('dash.remaining') %></div>
     <div style="font-weight:800;font-size:1.25rem;line-height:1.3;color:<%= data.remaining>=0?'var(--ink)':'var(--warn)' %>"><bdi><%= money(data.remaining) %></bdi></div>
     <% } %>
     <div class="muted" style="font-size:.74rem;margin-top:<%= data.noIncome ? '0' : '3px' %>">
-      <%= num(data.daysLeft) %> <%= t('dash.days_left') %> · <%= t('dash.next_pay') %> <%= __d(data.nextPay) %>
+      <%= num(data.daysLeft) %> <%= t('dash.days_left') %> · <%= data.irregular ? t('dash.next_month') : t('dash.next_pay') %> <%= __d(data.nextPay) %>
     </div>
   </section>
 

@@ -87,11 +87,14 @@ async function dashboard(pool, userId, profile) {
   // page has to say so rather than announce "you spent more than you earned"
   // to somebody who never told us what they earn.
   const noIncome = income <= 0;
+  // Passed through, not computed: with no payday the "period" is the calendar
+  // month, so the screen has to stop calling its boundary a salary date.
+  const irregular = (profile && profile.salary_type) === 'irregular';
 
   return { periodStart, nextPay, daysLeft, income, goal, spentPeriod, remaining,
     savingRate, goalProgress, spentToday, spentWeek, spentMonth, recent,
     projectedSpend, projectedRemaining, willOverspend,
-    perDay, leftToday, overBudget, spendableDays, noIncome };
+    perDay, leftToday, overBudget, spendableDays, noIncome, irregular };
 }
 
 async function categoryBreakdown(pool, userId, fromYmd, toYmdExcl) {

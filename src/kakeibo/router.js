@@ -220,7 +220,10 @@ router.get('/onboarding', requireKkb, (req, res) => {
 });
 
 const { COUNTRIES } = require('./holidays');
-const SALARY_TYPES = ['fixed', 'last', 'before_last'];
+// 'irregular' = no payday at all (freelance/cash/commission); payday.js budgets
+// that profile by the calendar month instead. Stored in the same TEXT column, so
+// there is no DDL to add — kkb_profiles.salary_type has no CHECK constraint.
+const SALARY_TYPES = ['fixed', 'last', 'before_last', 'irregular'];
 const WEEKENDS = ['fri_sat', 'fri', 'sat_sun', 'sun', 'none'];
 
 router.post('/onboarding', requireKkb, async (req, res) => {

@@ -48,12 +48,21 @@
             <option value="fixed" <%= pst==='fixed'?'selected':'' %>><%= t('onb.stype.fixed') %></option>
             <option value="last" <%= pst==='last'?'selected':'' %>><%= t('onb.stype.last') %></option>
             <option value="before_last" <%= pst==='before_last'?'selected':'' %>><%= t('onb.stype.before_last') %></option>
+            <%# The Egyptian market this is built for is full of people with no
+                payday at all — freelancers, drivers, anyone paid per job. The
+                three options above all ask "which day of the month", which is a
+                question they cannot answer, so they picked one at random and
+                every figure in the app was then anchored to a date that means
+                nothing to them. This option drops the payday entirely and
+                budgets by the calendar month. %>
+            <option value="irregular" <%= pst==='irregular'?'selected':'' %>><%= t('onb.stype.irregular') %></option>
           </select>
           <input id="salaryDayRow" name="salary_day" type="number" inputmode="numeric" min="1" max="31"
             value="<%= p.salary_day || 1 %>" class="fld" dir="ltr" aria-label="<%= t('onb.salary_day') %>"
             style="width:80px;text-align:center" />
         </div>
-        <p class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.salary_day_hint') %></p>
+        <p id="salaryDayHint" class="muted" style="font-size:.76rem;margin:5px 2px 0"><%= t('onb.salary_day_hint') %></p>
+        <p id="irregularHint" class="muted" style="font-size:.76rem;margin:5px 2px 0;display:none"><%= t('onb.income_hint_irregular') %></p>
       </div>
 
       <div>
@@ -140,7 +149,16 @@
 
 (function(){
   var sel=document.getElementById('salaryType'), row=document.getElementById('salaryDayRow');
-  function sync(){ row.style.display = sel.value==='fixed' ? '' : 'none'; }
+  var dayHint=document.getElementById('salaryDayHint'), irrHint=document.getElementById('irregularHint');
+  function sync(){
+    row.style.display = sel.value==='fixed' ? '' : 'none';
+    // The day-number hint explains a box that is not on screen unless the
+    // schedule uses it, and the irregular note only makes sense for the one
+    // choice that has no payday.
+    var irr = sel.value==='irregular';
+    if(dayHint) dayHint.style.display = sel.value==='fixed' ? '' : 'none';
+    if(irrHint) irrHint.style.display = irr ? '' : 'none';
+  }
   if(sel&&row){ sel.addEventListener('change',sync); sync(); }
 })();
 
