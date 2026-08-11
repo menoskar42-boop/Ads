@@ -37,12 +37,6 @@
       </div>
     </div>
 
-    <div>
-      <label class="lbl"><%= t('add.desc') %></label>
-      <input name="description" id="descInput" maxlength="200" class="fld" autocomplete="off" value="<%= ed && ed.description ? ed.description : '' %>" />
-      <p id="aiSug" class="muted" style="font-size:.72rem;margin:5px 2px 0;display:none"></p>
-    </div>
-
     <%# Payment method, date and receipt are already right on almost every
         entry — cash, today, no photo. Leaving them open made logging a coffee
         a six-field form, so they fold away. Opened automatically while editing
@@ -53,6 +47,15 @@
         <%= t('add.more') %>
       </summary>
       <p class="muted" style="font-size:.74rem;margin:0 0 12px"><%= t('add.more_hint') %></p>
+
+      <%# الوصف اتنقل جوّه هنا: تسجيل قهوة بقى مبلغ + تصنيف + حفظ. اللي عايز
+          يكتب وصف لسه يقدر، بس مش شرط يعدّي عليه كل مرة. الـid زي ما هو لأن
+          اقتراح الذكاء الاصطناعي تحت بيكتب فيه. %>
+      <div style="margin-bottom:12px">
+        <label class="lbl"><%= t('add.desc') %></label>
+        <input name="description" id="descInput" maxlength="200" class="fld" autocomplete="off" value="<%= ed && ed.description ? ed.description : '' %>" />
+        <p id="aiSug" class="muted" style="font-size:.72rem;margin:5px 2px 0;display:none"></p>
+      </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
