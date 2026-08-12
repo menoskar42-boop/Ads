@@ -7,6 +7,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = require('../clinic/modules');
+const { ownerGuard, ref } = require('../lib/tenant_scope');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -175,6 +176,20 @@ router.post('/doctors/:id/delete', async (req, res) => {
 });
 
 // ── Patients ─────────────────────────────────────────────────────────────────
+//
+// Everything below /patients/<number>/ writes to a named person's medical file.
+// The number is whatever the browser sent, and each route used it next to
+// company_id from the session without checking the two belong together — so
+// editing the address bar attached a vital sign, a note or a prescription to
+// ANOTHER clinic's patient. The row then carried our company_id and their
+// patient: it showed on neither file, and nobody could account for it.
+//
+// One guard on the prefix instead of one check per route. The routes that had
+// this bug were not careless, they were just many — and the next one written
+// would have had it too. This way it cannot.
+router.use('/patients/:id(\\d+)', ownerGuard(pool, 'clinic_patients', '/clinic/patients'));
+router.use('/patients/:pid(\\d+)', ownerGuard(pool, 'clinic_patients', '/clinic/patients', 'pid'));
+
 router.get('/patients', async (req, res) => {
   const q = String(req.query.q || '').trim();
   const params = [req.company.id]; let where = 'company_id=$1';
@@ -293,11 +308,17 @@ router.post('/visits', async (req, res) => {
       pid = ins.rows[0].id;
     }
     if (pid || b.doctor_id) {
-      await pool.query(
+      // Three ids off the form. A visit is the row the whole file hangs from,
+      // so the patient must be OURS or nothing is written — the doctor and the
+      // visit type merely fall to NULL if they are not.
+      const ins = await pool.query(
         `INSERT INTO clinic_visits (company_id, patient_id, doctor_id, visit_type_id, status, visit_date, arrival_at, is_urgent)
-         VALUES ($1,$2,$3,$4,'waiting', (now() AT TIME ZONE 'Africa/Cairo')::date, now(), $5)`,
+         SELECT $1::int,$2::int,${ref('clinic_doctors', '$3', '$1')},${ref('clinic_visit_types', '$4', '$1')},'waiting',
+                (now() AT TIME ZONE 'Africa/Cairo')::date, now(), $5::boolean
+          WHERE $2::int IS NULL OR EXISTS (SELECT 1 FROM clinic_patients WHERE id=$2 AND company_id=$1)`,
         [cid, pid, parseInt(b.doctor_id, 10) || null, parseInt(b.visit_type_id, 10) || null, String(b.is_urgent) === '1']
       );
+      if (!ins.rowCount) return res.redirect('/clinic/queue?error=patient');
     }
   } catch (e) { console.error('[clinic visit add]', e.message); }
   res.redirect('/clinic/queue?saved=1');
@@ -503,8 +524,11 @@ router.post('/patients/:id/vitals', async (req, res) => {
   const num = (v) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : null);
   try {
     await pool.query(
+      // visit_id comes from the form. Scoped in the statement itself, so a
+      // visit belonging to another clinic lands as NULL instead of linking
+      // this reading across tenants.
       `INSERT INTO clinic_vitals (company_id, patient_id, visit_id, systolic, diastolic, heart_rate, temperature, weight, height, spo2, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+       VALUES ($1,$2,${ref('clinic_visits', '$3', '$1')},$4,$5,$6,$7,$8,$9,$10,$11)`,
       [cid, pid, parseInt(b.visit_id, 10) || null, num(b.systolic), num(b.diastolic), num(b.heart_rate),
         num(b.temperature), num(b.weight), num(b.height), num(b.spo2), String(b.notes || '').slice(0, 500) || null]
     );
@@ -543,7 +567,7 @@ router.post('/patients/:id/notes', async (req, res) => {
     try {
       await pool.query(
         `INSERT INTO clinic_notes (company_id, patient_id, visit_id, doctor_id, category, title, content)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+         VALUES ($1,$2,${ref('clinic_visits', '$3', '$1')},${ref('clinic_doctors', '$4', '$1')},$5,$6,$7)`,
         [cid, pid, parseInt(b.visit_id, 10) || null, parseInt(b.doctor_id, 10) || null,
           String(b.category || 'general').slice(0, 30), String(b.title || '').slice(0, 120) || null, content]
       );
@@ -569,7 +593,7 @@ router.post('/patients/:id/prescriptions', async (req, res) => {
     try {
       await pool.query(
         `INSERT INTO clinic_prescriptions (company_id, patient_id, visit_id, doctor_id, medications, notes)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
+         VALUES ($1,$2,${ref('clinic_visits', '$3', '$1')},${ref('clinic_doctors', '$4', '$1')},$5,$6)`,
         [cid, pid, parseInt(b.visit_id, 10) || null, parseInt(b.doctor_id, 10) || null,
           JSON.stringify(meds), String(b.notes || '').slice(0, 1000) || null]
       );
@@ -693,17 +717,26 @@ router.post('/invoices', async (req, res) => {
     if (!items.length) { await client.query('ROLLBACK'); return res.redirect('/clinic/invoices'); }
     const subtotal = items.reduce((a, it) => a + it.total_price, 0);
     const total = Math.max(0, subtotal - discount);
+    // An invoice names a person and asks them for money, so a patient_id that
+    // is not ours writes nothing at all — unlike the visit and doctor links,
+    // which are allowed to fall to NULL.
     const inv = await client.query(
       `INSERT INTO clinic_invoices (company_id, patient_id, visit_id, doctor_id, status, discount_amount, subtotal, total_amount)
-       VALUES ($1,$2,$3,$4,'pending',$5,$6,$7) RETURNING id`,
+       SELECT $1::int,$2::int,${ref('clinic_visits', '$3', '$1')},${ref('clinic_doctors', '$4', '$1')},'pending',$5::numeric,$6::numeric,$7::numeric
+        WHERE $2::int IS NULL OR EXISTS (SELECT 1 FROM clinic_patients WHERE id=$2 AND company_id=$1)
+        RETURNING id`,
       [cid, pid, parseInt(b.visit_id, 10) || null, parseInt(b.doctor_id, 10) || null, discount, subtotal, total]
     );
+    if (!inv.rows.length) {
+      await client.query('ROLLBACK');
+      return res.redirect('/clinic/invoices?error=patient');
+    }
     const invId = inv.rows[0].id;
     for (const it of items) {
       await client.query(
         `INSERT INTO clinic_invoice_items (invoice_id, service_id, name, quantity, unit_price, total_price, doctor_share)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [invId, it.service_id, it.name, it.quantity, it.unit_price, it.total_price, it.doctor_share]
+         VALUES ($1,${ref('clinic_services', '$2', '$8')},$3,$4,$5,$6,$7)`,
+        [invId, it.service_id, it.name, it.quantity, it.unit_price, it.total_price, it.doctor_share, cid]
       );
     }
     await client.query('COMMIT');

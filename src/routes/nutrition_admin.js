@@ -10,6 +10,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const E = require('../nutrition/engine');
 const P = require('../nutrition/practice');
+const { ownerGuard } = require('../lib/tenant_scope');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -36,6 +37,14 @@ async function requirePractice(req, res, next) {
   }
 }
 router.use(requireLogin, requirePractice);
+
+// Everything under /patients/<number>/ writes to a named person's health
+// record. The number is whatever the browser sent, and the measurement and lab
+// inserts below paired it with company_id from the session without checking
+// they belong together — so editing the address bar wrote a weight or a blood
+// result onto another practice's patient. One guard on the prefix covers every
+// route under it, including ones added later.
+router.use('/patients/:id(\\d+)', ownerGuard(pool, 'nutrition_patients', '/nutrition/patients'));
 
 // Mounted after the guards so both inherit req.company — a food or a plan
 // router that ran before the practice check would be reachable by any login.
