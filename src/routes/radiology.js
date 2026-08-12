@@ -9,6 +9,13 @@ const os = require('os');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
+const deident = require('../radiology/deident');
+
+// Why a file was refused, in the doctor's words.
+const REASONS = {
+  not_dicom: 'فيه ملف مش DICOM سليم (مش لاقي علامة DICM في أوله). ارفع ملفات الدراسة زي ما طلعت من الجهاز.',
+  unsupported_syntax: 'فيه ملف بصيغة نقل DICOM قديمة (big-endian أو مضغوطة الهيدر) مش قادرين نقرا هيدرها — ومن غير ما نقراه مانقدرش نشيل اسم المريض منه، فمابنخزّنهوش.',
+};
 const { Pool } = require('pg');
 const { loginLimiter } = require('../middleware/rateLimit');
 const aiReplyCache = require('../lib/ai_reply_cache');
@@ -111,14 +118,32 @@ router.post('/upload', requireDoctor, upload.array('dicom', 600), async (req, re
     );
     const studyId = st.rows[0].id;
     // Stream each file into the DB one at a time (keeps memory flat).
+    //
+    // And take the patient's identity out of the header before it is stored.
+    // The form asks for a reference CODE, but the uploaded file still carried
+    // PatientName, PatientBirthDate, PatientID, the referring physician and the
+    // institution — which every DICOM viewer displays. Asking for a code and
+    // keeping the name anyway looks like de-identification and is not.
+    const stripped = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const bytes = fs.readFileSync(f.path);
+      const clean = deident.deidentify(bytes);
+      if (!clean.ok) {
+        // Refuse rather than store a header we could not read. That is the
+        // whole point: an unreadable header is the case this exists to stop.
+        await client.query('ROLLBACK');
+        cleanup();
+        return res.render('radiology/upload', { error: REASONS[clean.reason] || REASONS.not_dicom });
+      }
+      clean.removed.forEach((r) => { if (!stripped.includes(r)) stripped.push(r); });
       await client.query(
         'INSERT INTO rad_slices (study_id, slice_index, filename, dicom_bytes, byte_size) VALUES ($1,$2,$3,$4,$5)',
         [studyId, i, (f.originalname || '').slice(0, 200), bytes, bytes.length]
       );
     }
+    await client.query('UPDATE rad_studies SET deidentified = $1 WHERE id = $2',
+      [stripped.join(', ') || 'none', studyId]);
     await client.query('COMMIT');
     cleanup();
     res.redirect('/radiology/dashboard?saved=1');

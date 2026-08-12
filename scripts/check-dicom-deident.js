@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+/**
+ * The upload form asks for a patient *code*. The file still had the name in it.
+ *
+ * OncoScan's form has always asked the doctor for a "patient reference" rather
+ * than a name — and then stored the uploaded DICOM byte for byte, with
+ * `PatientName`, `PatientBirthDate`, `PatientID`, the referring physician and
+ * the institution sitting in its header where every viewer in the world reads
+ * them. That is worse than not asking: it looks like de-identification.
+ *
+ * This builds real DICOM files in memory, runs them through the de-identifier,
+ * and reads the tags back out. Not "the function was called" — the name is
+ * actually gone and the pixels are actually intact.
+ *
+ *   node scripts/check-dicom-deident.js
+ */
+'use strict';
+const D = require('../src/radiology/deident');
+
+let fail = 0;
+const check = (label, ok, extra) => {
+  console.log((ok ? '✅ ' : '❌ ') + label + (extra ? ' — ' + extra : ''));
+  if (!ok) fail++;
+};
+
+/* ── A minimal DICOM writer, so the fixtures are real files ────────────── */
+const SHORT_VR = (vr) => !['OB', 'OW', 'OF', 'OD', 'OL', 'SQ', 'UT', 'UN'].includes(vr);
+
+function element(group, el, vr, value, explicit) {
+  const val = Buffer.isBuffer(value) ? value : Buffer.from(value, 'latin1');
+  // DICOM values are even-length; odd ones are padded.
+  const body = val.length % 2 ? Buffer.concat([val, Buffer.from(vr === 'UI' ? '\0' : ' ', 'latin1')]) : val;
+  if (!explicit) {
+    const head = Buffer.alloc(8);
+    head.writeUInt16LE(group, 0); head.writeUInt16LE(el, 2); head.writeUInt32LE(body.length, 4);
+    return Buffer.concat([head, body]);
+  }
+  if (SHORT_VR(vr)) {
+    const head = Buffer.alloc(8);
+    head.writeUInt16LE(group, 0); head.writeUInt16LE(el, 2);
+    head.write(vr, 4, 'latin1'); head.writeUInt16LE(body.length, 6);
+    return Buffer.concat([head, body]);
+  }
+  const head = Buffer.alloc(12);
+  head.writeUInt16LE(group, 0); head.writeUInt16LE(el, 2);
+  head.write(vr, 4, 'latin1'); head.writeUInt32LE(body.length, 8);
+  return Buffer.concat([head, body]);
+}
+
+function buildDicom(transferSyntax, extra) {
+  const explicit = transferSyntax !== D.IMPLICIT_LE;
+  // The meta group is explicit VR LE whatever the dataset uses.
+  const metaBody = Buffer.concat([
+    element(0x0002, 0x0002, 'UI', '1.2.840.10008.5.1.4.1.1.2', true),
+    element(0x0002, 0x0003, 'UI', '1.2.3.4.5', true),
+    element(0x0002, 0x0010, 'UI', transferSyntax, true),
+  ]);
+  const meta = Buffer.concat([
+    element(0x0002, 0x0000, 'UL', (() => { const b = Buffer.alloc(4); b.writeUInt32LE(metaBody.length); return b; })(), true),
+    metaBody,
+  ]);
+  // Dataset, in ascending tag order as DICOM requires.
+  const ds = Buffer.concat([
+    element(0x0008, 0x0050, 'SH', 'ACC-99812', explicit),
+    element(0x0008, 0x0080, 'LO', 'مستشفى أسيوط الجامعي', explicit),
+    element(0x0008, 0x0090, 'PN', 'Dr^Referring^Physician', explicit),
+    element(0x0010, 0x0010, 'PN', 'AHMED^MOHAMED^SAYED', explicit),
+    element(0x0010, 0x0020, 'LO', 'MRN-4471', explicit),
+    element(0x0010, 0x0030, 'DA', '19780412', explicit),
+    element(0x0010, 0x0040, 'CS', 'M', explicit),          // sex — must survive
+    element(0x0010, 0x1010, 'AS', '048Y', explicit),       // age — must survive
+    element(0x0010, 0x2154, 'SH', '01001234567', explicit),
+    element(0x0018, 0x0050, 'DS', '1.25', explicit),       // slice thickness
+    element(0x0020, 0x0013, 'IS', '42', explicit),         // instance number
+    element(0x0028, 0x0010, 'US', (() => { const b = Buffer.alloc(2); b.writeUInt16LE(512); return b; })(), explicit),
+    element(0x7FE0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]), explicit),
+  ].concat(extra || []));
+  return Buffer.concat([Buffer.alloc(128), Buffer.from('DICM', 'latin1'), meta, ds]);
+}
+
+/* ── Explicit VR little-endian: the common case ────────────────────────── */
+{
+  const buf = buildDicom(D.EXPLICIT_LE);
+  check('الملف المصنوع بيتقرا كـDICOM', D.isDicom(buf));
+  check('واسم المريض موجود فيه قبل ما نشيله',
+    (D.readTag(buf, 0x0010, 0x0010) || '').includes('AHMED'));
+
+  const before = buf.length;
+  const r = D.deidentify(buf);
+  check('التنظيف نجح', r.ok, r.reason || '');
+  check('وطول الملف مااتغيّرش (مفيش إعادة ترميز)', buf.length === before);
+
+  const name = D.readTag(buf, 0x0010, 0x0010);
+  check('اسم المريض اختفى', !!name && !name.includes('AHMED'), JSON.stringify(name));
+  check('الرقم القومي/MRN اختفى', !(D.readTag(buf, 0x0010, 0x0020) || '').includes('4471'));
+  check('تاريخ الميلاد اختفى', !(D.readTag(buf, 0x0010, 0x0030) || '').includes('1978'));
+  check('التليفون اختفى', !(D.readTag(buf, 0x0010, 0x2154) || '').includes('01001234567'));
+  check('اسم المستشفى اختفى', !(D.readTag(buf, 0x0008, 0x0080) || '').includes('أسيوط'));
+  check('اسم الطبيب المحوِّل اختفى', !(D.readTag(buf, 0x0008, 0x0090) || '').includes('Referring'));
+  check('ورقم الحجز اختفى', !(D.readTag(buf, 0x0008, 0x0050) || '').includes('99812'));
+
+  // The half that matters clinically.
+  check('النوع (M/F) باقي — ده تشخيصي', (D.readTag(buf, 0x0010, 0x0040) || '').trim() === 'M');
+  check('السن باقي', (D.readTag(buf, 0x0010, 0x1010) || '').trim() === '048Y');
+  check('سُمك الشريحة باقي', (D.readTag(buf, 0x0018, 0x0050) || '').trim() === '1.25');
+  check('رقم الشريحة باقي (الترتيب التشريحي بيعتمد عليه)',
+    (D.readTag(buf, 0x0020, 0x0013) || '').trim() === '42');
+  check('بيانات الصورة نفسها مالمستهاش',
+    buf.includes(Buffer.from([1, 2, 3, 4, 5, 6, 7, 8])));
+
+  check('والتقرير بيقول اتشال إيه بالظبط',
+    r.removed.includes('PatientName') && r.removed.includes('PatientBirthDate'),
+    r.removed.join(', '));
+}
+
+/* ── Implicit VR little-endian: older scanners still emit it ───────────── */
+{
+  const buf = buildDicom(D.IMPLICIT_LE);
+  const r = D.deidentify(buf);
+  check('implicit VR: التنظيف نجح', r.ok, r.reason || '');
+  check('implicit VR: الاسم اختفى', !(D.readTag(buf, 0x0010, 0x0010) || '').includes('AHMED'));
+  check('implicit VR: النوع باقي', (D.readTag(buf, 0x0010, 0x0040) || '').trim() === 'M');
+}
+
+/* ── What must be refused rather than half-done ────────────────────────── */
+{
+  const notDicom = Buffer.from('this is a jpeg, not a study');
+  const r1 = D.deidentify(notDicom);
+  check('ملف مش DICOM بيترفض', r1.ok === false && r1.reason === 'not_dicom');
+
+  const bigEndian = buildDicom('1.2.840.10008.1.2.2');
+  const r2 = D.deidentify(bigEndian);
+  check('صيغة نقل مش مدعومة بتترفض بدل ما تتلخبط',
+    r2.ok === false && r2.reason === 'unsupported_syntax');
+}
+
+/* ── The route actually uses it, and refuses on failure ────────────────── */
+{
+  const fs = require('fs');
+  const path = require('path');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/radiology.js'), 'utf8');
+  check('راوت الرفع بينضّف كل ملف', /deident\.deidentify\(bytes\)/.test(route));
+  check('والملف اللي مااتقراش بيترفض والرفع بيتلغي',
+    /if \(!clean\.ok\)/.test(route) && /ROLLBACK/.test(route));
+  check('واللي اتشال بيتسجّل على الدراسة',
+    /UPDATE rad_studies SET deidentified/.test(route));
+}
+
+console.log(fail
+  ? `\n${fail} مشكلة — يعني اسم مريض لسه بيتخزّن جوّه ملف الأشعة.`
+  : '\nهوية المريض بتتشال من هيدر الـDICOM قبل التخزين، والصورة والسن والنوع بيفضلوا.');
+process.exit(fail ? 1 : 0);

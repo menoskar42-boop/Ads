@@ -34,6 +34,10 @@ async function ensureRadiologySchema() {
         created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_rad_studies_doctor ON rad_studies (doctor_id, created_at DESC);
+      -- Which identifying tags were emptied out of this study's headers on
+      -- upload. Shown to the doctor, so "the name is gone" is a statement they
+      -- can check rather than a promise on a marketing page.
+      ALTER TABLE rad_studies ADD COLUMN IF NOT EXISTS deidentified TEXT;
       -- Original DICOM file bytes per slice (near-zero ingestion memory; decoded
       -- on demand in the browser).
       CREATE TABLE IF NOT EXISTS rad_slices (
