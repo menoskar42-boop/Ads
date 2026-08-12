@@ -71,8 +71,16 @@ if (!star) {
 }
 
 // The opposite failure: blocking what has to stay open.
+//
+// OAI-SearchBot and OAI-AdsBot are listed for a reason that is easy to miss:
+// OpenAI runs several bots and they do different jobs. GPTBot collects training
+// data; OAI-SearchBot is the one that fetches a page so ChatGPT can answer with
+// it *now*. Declaring GPTBot and calling it "we allow ChatGPT" is the mistake —
+// it grants the crawler that cannot cite us and stays silent about the one that
+// can. https://platform.openai.com/docs/bots
 const named = groups.flatMap((g) => g.agents);
-for (const bot of ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'Mediapartners-Google']) {
+for (const bot of ['GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'OAI-AdsBot',
+  'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'Mediapartners-Google']) {
   const g = groups.find((x) => x.agents.includes(bot));
   check(`${bot} is not blocked from public content`,
     !!g && g.directives.some((d) => d.key === 'allow' && d.val === '/'),

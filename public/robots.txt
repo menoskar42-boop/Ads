@@ -43,6 +43,28 @@ Disallow: /company/
 Disallow: /demo/
 Disallow: /customer/
 
+# OpenAI ships THREE crawlers and they are not interchangeable.
+#   GPTBot        — collects training data.
+#   OAI-SearchBot — the one that fetches pages to answer a live ChatGPT search.
+#   ChatGPT-User  — a user asking ChatGPT to open a specific link.
+#   OAI-AdsBot    — checks the page a paid placement would point at.
+# Only GPTBot and ChatGPT-User were listed here, so the crawler that decides
+# whether OscarDevs can be quoted inside a ChatGPT answer had no group of its
+# own. https://platform.openai.com/docs/bots
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
+
+User-agent: OAI-AdsBot
+Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
+
 User-agent: PerplexityBot
 Allow: /
 Disallow: /admin/
