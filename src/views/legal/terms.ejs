@@ -5,9 +5,14 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex,follow" />
-<title>الشروط والأحكام | OscarDevs</title>
+<%# One variable for both: <title> and og:title said different things here,
+    which is #12 in docs/SEO_MISTAKES_LOG.md — Google reads one headline and
+    the social card shows another. The seo_meta form wins because that is the
+    one already used everywhere else. %>
+<% var __t = 'الشروط والأحكام — OscarDevs'; %>
+<title><%= __t %></title>
 <meta name="description" content="الشروط والأحكام لاستخدام منصة OscarDevs لإنشاء مواقع البورتفوليو والمتاجر الإلكترونية." />
-<%- include('../partials/seo_meta', { title: 'الشروط والأحكام — OscarDevs', description: 'الشروط والأحكام لاستخدام منصة OscarDevs لإنشاء مواقع البورتفوليو والمتاجر الإلكترونية.' }) %>
+<%- include('../partials/seo_meta', { title: __t, description: 'الشروط والأحكام لاستخدام منصة OscarDevs لإنشاء مواقع البورتفوليو والمتاجر الإلكترونية.' }) %>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <style>

@@ -138,6 +138,24 @@ function audit(name, html, spec) {
 
   if (!/<link rel="canonical"/.test(html)) out.push('لا يوجد canonical');
 
+  // Mistakes #12, #13, #14 and #18 in docs/SEO_MISTAKES_LOG.md, none of which
+  // had an automated guard and three of which have already happened twice:
+  //   · <title> must equal og:title — Google reading one headline and the
+  //     social card showing another is the same page telling two stories;
+  //   · <meta description> must equal og:description, for the same reason;
+  //   · seo_meta is the only place allowed to emit og:*, so a second copy
+  //     means a page is printing its own and they will drift.
+  const ogTitle = (html.match(/<meta property="og:title" content="([^"]*)"/) || [])[1];
+  const ogDesc = (html.match(/<meta property="og:description" content="([^"]*)"/) || [])[1];
+  const nOgTitle = (html.match(/property="og:title"/g) || []).length;
+  const nOgDesc = (html.match(/property="og:description"/g) || []).length;
+  if (nOgTitle > 1) out.push(`og:title مكرّر ${nOgTitle} مرات — المصدر الوحيد المسموح هو seo_meta`);
+  if (nOgDesc > 1) out.push(`og:description مكرّر ${nOgDesc} مرات — المصدر الوحيد المسموح هو seo_meta`);
+  if (title && ogTitle && title !== ogTitle) {
+    out.push(`<title> مختلف عن og:title — «${title}» مقابل «${ogTitle}»`);
+  }
+  if (desc && ogDesc && desc !== ogDesc) out.push('meta description مختلف عن og:description');
+
   // Every image needs alt text — Bing flagged this and it is an accessibility
   // requirement, not only an SEO one. Decorative images may use alt="".
   const imgs = html.match(/<img\b[^>]*>/gi) || [];

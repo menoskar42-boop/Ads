@@ -32,6 +32,7 @@ const CHECKS = [
   ['render-kakeibo-pages',  'شاشات كاكيبو'],
   ['seo-audit',             'SEO و AdSense للصفحات العامة'],
   ['seo-audit-tenants',     'SEO و AdSense لصفحات المستأجرين (١٢ قطاع)'],
+  ['check-sitemap',         'السايت‌ماب مايدرجش صفحة noindex'],
 ];
 
 let failed = 0;

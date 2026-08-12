@@ -5,10 +5,15 @@
     Guarantees zero adsbygoogle in the 404 source, regardless of showAds. %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>الصفحة غير موجودة (404) | OscarDevs</title>
+  <%# One variable for both: <title> and og:title said different things here,
+      which is #12 in docs/SEO_MISTAKES_LOG.md — Google reads one headline and
+      the social card shows another. The seo_meta form wins because that is the
+      one already used everywhere else. %>
+  <% var __t = 'الصفحة غير موجودة — OscarDevs'; %>
+  <title><%= __t %></title>
   <meta name="description" content="الصفحة اللي بتدور عليها مش موجودة. ارجع للرئيسية أو تصفّح المدوّنة." />
   <meta name="robots" content="noindex,follow" />
-  <%- include('partials/seo_meta', { title: 'الصفحة غير موجودة — OscarDevs', description: 'الصفحة اللي بتدور عليها مش موجودة. ارجع للرئيسية أو تصفّح المدوّنة.' }) %>
+  <%- include('partials/seo_meta', { title: __t, description: 'الصفحة اللي بتدور عليها مش موجودة. ارجع للرئيسية أو تصفّح المدوّنة.' }) %>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>* { font-family: 'Cairo', sans-serif; }</style>
