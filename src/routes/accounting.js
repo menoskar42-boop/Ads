@@ -3,6 +3,7 @@
 // orders tables; cost prices, fixed expenses, staff commissions, tax and payment
 // settings are layered on top. The site stays free; this is a management tool.
 const express = require('express');
+const payVault = require('../lib/pay_vault');
 const router = express.Router();
 const { Pool } = require('pg');
 const multer = require('multer');
@@ -268,26 +269,70 @@ router.post('/costs/:id/markup', async (req, res) => {
 router.get('/payments', async (req, res) => {
   const p = (await pool.query('SELECT * FROM payment_settings WHERE company_id=$1', [req.company.id])).rows[0]
     || { company_id: req.company.id, cod_enabled: true, gateway: 'none' };
-  res.render('accounting/payments', { company: req.company, pay: p, session: req.session, saved: req.query.saved === '1' });
+  // The view gets a hint, never the credential. It used to receive both in
+  // full and print them into value="" — putting a live API key in the page
+  // source, the browser cache and any screen-share of that tab.
+  const shown = Object.assign({}, p);
+  shown.gateway_secret_set = !!(p.gateway_secret_enc || p.gateway_secret);
+  shown.gateway_hmac_set = !!(p.gateway_hmac_enc || p.gateway_hmac);
+  delete shown.gateway_secret; delete shown.gateway_secret_enc;
+  delete shown.gateway_hmac; delete shown.gateway_hmac_enc;
+  res.render('accounting/payments', {
+    company: req.company, pay: shown, session: req.session,
+    saved: req.query.saved === '1', keyError: req.query.err === 'nokey',
+  });
 });
 router.post('/payments', async (req, res) => {
   const b = req.body || {};
   const gateway = ['none', 'paymob', 'fawry', 'stripe', 'paypal'].includes(b.gateway) ? b.gateway : 'none';
+  // Two credentials here are secrets, not settings: the API key can take money
+  // in this merchant's name and the HMAC can forge the callback that marks
+  // their orders paid. They are encrypted before they touch the database, and
+  // the form never sends them back, so an EMPTY field means "keep what is
+  // stored" — not "clear it". Clearing is an explicit checkbox.
+  const cur = (await pool.query(
+    'SELECT gateway_secret, gateway_secret_enc, gateway_hmac, gateway_hmac_enc FROM payment_settings WHERE company_id=$1',
+    [req.company.id]
+  )).rows[0] || {};
+
+  function keep(fieldName, clearFlag, encCol, legacyCol) {
+    if (b[clearFlag] === '1') return null;                 // explicit erase
+    const typed = String(b[fieldName] || '').trim();
+    if (!typed) {
+      // Nothing typed: carry the stored value forward. A row still holding the
+      // old plaintext gets encrypted here, so simply saving the form migrates
+      // it and the plaintext column is nulled below.
+      const existing = payVault.read(cur[encCol], cur[legacyCol]);
+      return existing ? payVault.encrypt(existing) : null;
+    }
+    return payVault.encrypt(typed);
+  }
+
   try {
+    if (!payVault.configured()) {
+      // Refusing is the point. Falling back to plaintext is the bug this
+      // replaced, and it would be invisible to the merchant.
+      console.error('[accounting payments] no PAYMENTS_SECRET_KEY / SESSION_SECRET — refusing to store gateway credentials');
+      return res.redirect('/accounting/payments?err=nokey');
+    }
+    const secretEnc = keep('gateway_secret', 'gateway_secret_clear', 'gateway_secret_enc', 'gateway_secret');
+    const hmacEnc = keep('gateway_hmac', 'gateway_hmac_clear', 'gateway_hmac_enc', 'gateway_hmac');
     await pool.query(
-      `INSERT INTO payment_settings (company_id, cod_enabled, cod_terms, custom_methods, instapay_handle, wallet_number, payoneer_email, bank_details, gateway, gateway_public_key, gateway_secret, gateway_integration_id, gateway_iframe_id, gateway_exclusive, instructions, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now())
+      `INSERT INTO payment_settings (company_id, cod_enabled, cod_terms, custom_methods, instapay_handle, wallet_number, payoneer_email, bank_details, gateway, gateway_public_key, gateway_secret_enc, gateway_hmac_enc, gateway_secret, gateway_hmac, gateway_integration_id, gateway_iframe_id, gateway_exclusive, instructions, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,$13,$14,$15,$16, now())
        ON CONFLICT (company_id) DO UPDATE SET
          cod_enabled=EXCLUDED.cod_enabled, cod_terms=EXCLUDED.cod_terms, custom_methods=EXCLUDED.custom_methods,
          instapay_handle=EXCLUDED.instapay_handle, wallet_number=EXCLUDED.wallet_number,
          payoneer_email=EXCLUDED.payoneer_email, bank_details=EXCLUDED.bank_details, gateway=EXCLUDED.gateway,
-         gateway_public_key=EXCLUDED.gateway_public_key, gateway_secret=EXCLUDED.gateway_secret,
+         gateway_public_key=EXCLUDED.gateway_public_key,
+         gateway_secret_enc=EXCLUDED.gateway_secret_enc, gateway_hmac_enc=EXCLUDED.gateway_hmac_enc,
+         gateway_secret=NULL, gateway_hmac=NULL,
          gateway_integration_id=EXCLUDED.gateway_integration_id, gateway_iframe_id=EXCLUDED.gateway_iframe_id,
          gateway_exclusive=EXCLUDED.gateway_exclusive, instructions=EXCLUDED.instructions, updated_at=now()`,
       [req.company.id, b.cod_enabled === '1', (b.cod_terms || '').trim() || null, (b.custom_methods || '').trim() || null,
        (b.instapay_handle || '').trim() || null, (b.wallet_number || '').trim() || null,
        (b.payoneer_email || '').trim() || null, (b.bank_details || '').trim() || null, gateway,
-       (b.gateway_public_key || '').trim() || null, (b.gateway_secret || '').trim() || null,
+       (b.gateway_public_key || '').trim() || null, secretEnc, hmacEnc,
        (b.gateway_integration_id || '').trim() || null, (b.gateway_iframe_id || '').trim() || null,
        b.gateway_exclusive === '1', (b.instructions || '').trim() || null]
     );

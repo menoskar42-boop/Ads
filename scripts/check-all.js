@@ -22,6 +22,7 @@ const CHECKS = [
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-nutrition',       'محرّك سعرات التغذية + عزل بوابة المريض'],
+  ['check-payment-secrets', 'مفاتيح الدفع مشفّرة ومش بتتعرض'],
   ['check-apply-track',     'متابعة الطلب بالتوكن + الفورم مايكشفش'],
   ['check-route-order',     'ترتيب الـroutes (الصفحات العامة قبل المحميّة)'],
   ['check-shared-pool',     'بوول قاعدة البيانات المشترك + حماية الباسورد'],

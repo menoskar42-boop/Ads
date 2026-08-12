@@ -58,12 +58,23 @@
         </select>
       </div>
       <p class="text-[12px] text-gray-600 bg-gray-50 rounded-lg px-3 py-2"><%= t('acct.payments.own_keys') %></p>
-      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.api_key') %></span><input name="gateway_secret" dir="ltr" value="<%= pay.gateway_secret || '' %>" class="fld" placeholder="Paymob API key" autocomplete="off" /></div>
+      <%# Never printed back. An empty box means "keep what is stored"; the
+          checkbox is the only way to erase. Printing the key into value="" put
+          it in the page source, the browser cache and every screen-share. %>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.api_key') %></span>
+        <input name="gateway_secret" dir="ltr" value="" class="fld" autocomplete="off"
+               placeholder="<%= pay.gateway_secret_set ? '•••••••• (محفوظ — سيبه فاضي عشان مايتغيّرش)' : 'Paymob API key' %>" />
+        <% if (pay.gateway_secret_set) { %><label class="text-xs text-gray-500 mt-1 inline-flex items-center gap-1"><input type="checkbox" name="gateway_secret_clear" value="1" /> امسح المفتاح المحفوظ</label><% } %>
+      </div>
       <div class="grid sm:grid-cols-2 gap-3">
         <div><span class="text-xs text-gray-500 block mb-1">Integration ID <span class="text-gray-400">(Paymob)</span></span><input name="gateway_integration_id" dir="ltr" value="<%= pay.gateway_integration_id || '' %>" class="fld" placeholder="e.g. 123456" /></div>
         <div><span class="text-xs text-gray-500 block mb-1">iFrame ID <span class="text-gray-400">(Paymob)</span></span><input name="gateway_iframe_id" dir="ltr" value="<%= pay.gateway_iframe_id || '' %>" class="fld" placeholder="e.g. 98765" /></div>
       </div>
-      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.hmac') %></span><input name="gateway_hmac" dir="ltr" value="<%= pay.gateway_hmac || '' %>" class="fld" placeholder="HMAC secret" autocomplete="off" /></div>
+      <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.hmac') %></span>
+        <input name="gateway_hmac" dir="ltr" value="" class="fld" autocomplete="off"
+               placeholder="<%= pay.gateway_hmac_set ? '•••••••• (محفوظ — سيبه فاضي عشان مايتغيّرش)' : 'HMAC secret' %>" />
+        <% if (pay.gateway_hmac_set) { %><label class="text-xs text-gray-500 mt-1 inline-flex items-center gap-1"><input type="checkbox" name="gateway_hmac_clear" value="1" /> امسح الـHMAC المحفوظ</label><% } %>
+      </div>
       <div><span class="text-xs text-gray-500 block mb-1"><%= t('acct.payments.gateway_key') %> <span class="text-gray-400">(<%= t('acct.payments.optional') %>)</span></span><input name="gateway_public_key" dir="ltr" value="<%= pay.gateway_public_key || '' %>" class="fld" placeholder="pk_… / public key" /></div>
       <%
         var __cb = company.page_type === 'shop'

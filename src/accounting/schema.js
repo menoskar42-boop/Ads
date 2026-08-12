@@ -76,6 +76,15 @@ async function ensureAccountingSchema() {
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_integration_id TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_iframe_id TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_hmac TEXT;
+      -- Encrypted at rest (src/lib/pay_vault.js, AES-256-GCM). The two columns
+      -- above are the plaintext originals: still read as a fallback so live
+      -- merchants keep working across the deploy, and overwritten with NULL the
+      -- first time the merchant saves the form. A Paymob API key plus its HMAC
+      -- is enough to take payments in the merchant's name and to forge the
+      -- callback that marks their orders paid — it does not belong in a column
+      -- anybody with a database dump can read.
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_secret_enc TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_hmac_enc TEXT;
 
       -- Online-payment state on orders (COD orders stay 'unpaid'/'cod').
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';

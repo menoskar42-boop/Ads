@@ -1,4 +1,5 @@
 const express = require('express');
+const payVault = require('../lib/pay_vault');
 const router = express.Router();
 const { Pool } = require('pg');
 const crypto = require('crypto');
@@ -945,8 +946,10 @@ router.post('/order/pay/paymob/callback', async (req, res) => {
     const orderId = parseInt(m[2], 10);
     const o = (await pool.query(`SELECT company_id FROM ${table} WHERE id=$1`, [orderId])).rows[0];
     if (!o || o.company_id !== company.id) return res.status(200).send('no order');
-    const settings = (await pool.query('SELECT gateway_hmac FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
-    if (!paymob.verifyCallbackHmac(obj, settings && settings.gateway_hmac, providedHmac)) {
+    const settings = (await pool.query('SELECT gateway_hmac, gateway_hmac_enc FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
+    // Encrypted at rest; the plaintext column is the pre-migration fallback.
+    const hmacSecret = payVault.read(settings && settings.gateway_hmac_enc, settings && settings.gateway_hmac);
+    if (!paymob.verifyCallbackHmac(obj, hmacSecret, providedHmac)) {
       console.error('[paymob tenant callback] HMAC mismatch', moid);
       return res.status(403).send('bad hmac');
     }

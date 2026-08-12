@@ -1,4 +1,5 @@
 const express = require('express');
+const payVault = require('../lib/pay_vault');
 const router = express.Router();
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
@@ -575,8 +576,8 @@ router.post('/pay/paymob/callback', async (req, res) => {
     const orderId = parseInt(m[1], 10);
     const o = (await pool.query('SELECT company_id FROM orders WHERE id=$1', [orderId])).rows[0];
     if (!o) return res.status(200).send('no order');
-    const settings = (await pool.query('SELECT gateway_hmac FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
-    const hmacSecret = settings && settings.gateway_hmac;
+    const settings = (await pool.query('SELECT gateway_hmac, gateway_hmac_enc FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
+    const hmacSecret = payVault.read(settings && settings.gateway_hmac_enc, settings && settings.gateway_hmac);
     if (!paymob.verifyCallbackHmac(obj, hmacSecret, providedHmac)) {
       console.error('[paymob callback] HMAC mismatch for order', orderId);
       return res.status(403).send('bad hmac');
