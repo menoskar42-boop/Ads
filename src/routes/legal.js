@@ -284,14 +284,12 @@ router.get('/llms.txt', (req, res) => {
   lines.push('## الأنظمة الجاهزة');
   lines.push('- **موقع بورتفوليو**: هوية رقمية لأصحاب المهن والحرف مع معرض أعمال ونموذج تواصل.');
   lines.push('- **متجر إلكتروني**: منتجات وسلة وطلبات وكوبونات وتقارير مبيعات.');
-  // "تنبيهات صلاحية" was here and is not true: pharmacy_inventory stores an
-  // `expiry` per item and the form edits it, but nothing sorts, filters or warns
-  // on it — there is no near-expiry screen anywhere in pharmacy_admin.js. What
-  // DOES alert is the stock level (low / out against min_qty), and the available
-  // quantity is real (qty minus reserved). Claiming a feature we do not ship is
-  // worse than a GEO problem: a model repeats it, a pharmacist buys on it, and
-  // finds it missing on day one.
-  lines.push('- **نظام إدارة الصيدليات**: مخزون مربوط بكتالوج أدوية (أكتر من ٢٥ ألف صنف)، كمية متاحة تلقائية (الإجمالي ناقص المحجوز)، تنبيه نقص ونفاد الأصناف، تاريخ صلاحية لكل صنف، وطلبات أونلاين.');
+  // "تنبيهات صلاحية" was here while nothing in the code did it — the expiry date
+  // was stored and never looked at. The claim was pulled, then the feature was
+  // built (EXPIRY_SOON_DAYS in pharmacy_admin.js: 60 days, counters, filter and
+  // ordering), so it is back and now true. scripts/check-pharmacy-expiry.js
+  // fails if this sentence outlives the screen it describes.
+  lines.push('- **نظام إدارة الصيدليات**: مخزون مربوط بكتالوج أدوية (أكتر من ٢٥ ألف صنف)، كمية متاحة تلقائية (الإجمالي ناقص المحجوز)، تنبيه نقص ونفاد الأصناف، تنبيهات صلاحية (بيوريك اللي انتهى واللي فاضله أقل من ٦٠ يوم)، وطلبات أونلاين.');
   lines.push('- **نظام إدارة العيادات**: حجز مواعيد، ملفات مرضى، روشتات، أقساط، وزيارات منزلية.');
   lines.push('- **نظام المطاعم والطلبات**: منيو وأصناف وإضافات وطلبات أونلاين واستقبال ذكي.');
   lines.push('- **نظام إدارة الجيم**: اشتراكات ومدرّبين وحضور وخطط تمرين.');

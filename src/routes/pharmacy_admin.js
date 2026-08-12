@@ -143,9 +143,16 @@ router.get('/', async (req, res) => {
 });
 
 /* ─── Inventory ─────────────────────────────────────────── */
+// How long before an expiry date counts as "coming up". 60 days is the window a
+// pharmacy can still act in: most suppliers accept returns while there are two
+// months left, and after that the stock is simply money on a shelf.
+const EXPIRY_SOON_DAYS = 60;
+
 router.get('/inventory', gate('inventory'), async (req, res) => {
   const cid = req.company.id;
   const q = (req.query.q || '').trim();
+  // 'expired' | 'soon' — anything else shows everything.
+  const filter = ['expired', 'soon'].includes(String(req.query.filter)) ? req.query.filter : '';
   try {
     const params = [cid];
     let where = 'pi.company_id = $1';
@@ -154,12 +161,41 @@ router.get('/inventory', gate('inventory'), async (req, res) => {
                ' OR m.name_en ILIKE $' + params.length +
                ' OR pi.barcode = $' + (params.push(q)) + ' OR m.barcode = $' + params.length + ')';
     }
+    // The expiry date was stored and edited but never looked at: nothing sorted
+    // or warned on it, so a pharmacist could only find near-expiry stock by
+    // reading every row. Classified in SQL so the filter and the ordering are
+    // the database's job, and a pharmacy with thousands of lines still works.
+    //
+    // Ordering puts anything expiring first, soonest at the top — the only
+    // order that matters when this list is what you act on.
+    const dayIdx = params.push(EXPIRY_SOON_DAYS);
+    const expiryCase = `CASE
+        WHEN pi.expiry IS NULL THEN NULL
+        WHEN pi.expiry < CURRENT_DATE THEN 'expired'
+        WHEN pi.expiry <= CURRENT_DATE + ($${dayIdx} || ' days')::interval THEN 'soon'
+        ELSE 'ok' END`;
+    if (filter) where += ` AND (${expiryCase}) = '${filter}'`;
     const items = (await pool.query(
       `SELECT pi.*, m.name_ar, m.name_en, m.form, m.manufacturer,
-              GREATEST(pi.qty - pi.reserved_qty, 0) AS available_qty
+              GREATEST(pi.qty - pi.reserved_qty, 0) AS available_qty,
+              ${expiryCase} AS expiry_status,
+              (pi.expiry - CURRENT_DATE) AS days_to_expiry
        FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
-       WHERE ${where} ORDER BY m.name_ar`, params
+       WHERE ${where}
+       ORDER BY CASE ${expiryCase} WHEN 'expired' THEN 0 WHEN 'soon' THEN 1 ELSE 2 END,
+                pi.expiry NULLS LAST, m.name_ar`, params
     )).rows;
+
+    // Counted over the whole pharmacy, never over the current search — the
+    // header has to say "you have 4 expired items" even while you are looking
+    // at one you searched for.
+    const counts = (await pool.query(
+      `SELECT COUNT(*) FILTER (WHERE pi.expiry < CURRENT_DATE)::int AS expired,
+              COUNT(*) FILTER (WHERE pi.expiry >= CURRENT_DATE
+                AND pi.expiry <= CURRENT_DATE + ($2 || ' days')::interval)::int AS soon
+         FROM pharmacy_inventory pi WHERE pi.company_id = $1`,
+      [cid, EXPIRY_SOON_DAYS]
+    )).rows[0];
     // The catalog can be ~25k rows, so we don't ship it all to the page; the
     // add form uses a type-ahead (/pharmacy/api/catalog-search) instead. Here
     // we just show how big the catalog is and when it last refreshed.
@@ -172,6 +208,7 @@ router.get('/inventory', gate('inventory'), async (req, res) => {
     res.render('pharmacy_admin/inventory', {
       company: req.company, items, catalogCount,
       lastSync: lastSyncRow ? lastSyncRow.value : null,
+      expiryCounts: counts, expiryFilter: filter, expirySoonDays: EXPIRY_SOON_DAYS,
       currentSearch: q, session: req.session,
       saved: req.query.saved === '1', error: req.query.error || null,
       synced: req.query.synced === '1',

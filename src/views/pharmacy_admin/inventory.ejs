@@ -57,6 +57,40 @@
     </form>
   </details>
 
+  <%# Expiry watch. The date was captured from day one and never surfaced — the
+      only way to find near-expiry stock was to read every row, which nobody
+      does, so it rotted on the shelf. Two counters, each a link that filters
+      the list to exactly those items. Shown only when there is something to
+      act on: a bar that is permanently on screen stops being read. %>
+  <%
+    var __exp = (typeof expiryCounts !== 'undefined' && expiryCounts) ? expiryCounts : { expired: 0, soon: 0 };
+    var __filter = typeof expiryFilter !== 'undefined' ? expiryFilter : '';
+    var __qs = (currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '') + (lang !== 'ar' ? '&lang=' + lang : '');
+  %>
+  <% if (__exp.expired || __exp.soon || __filter) { %>
+  <div class="mb-4 flex flex-wrap items-center gap-2">
+    <span class="text-xs font-bold text-gray-400"><%= t('pharmacy.admin.exp_watch') %></span>
+    <% if (__exp.expired) { %>
+      <a href="/pharmacy/inventory?filter=expired<%= __qs %>"
+         class="text-xs font-bold rounded-full px-3 py-1.5 <%= __filter==='expired' ? 'bg-red-600 text-white' : 'text-red-600 bg-red-50 hover:bg-red-100' %>">
+        <%= t('pharmacy.admin.exp_expired') %> · <%= __exp.expired %>
+      </a>
+    <% } %>
+    <% if (__exp.soon) { %>
+      <a href="/pharmacy/inventory?filter=soon<%= __qs %>"
+         class="text-xs font-bold rounded-full px-3 py-1.5 <%= __filter==='soon' ? 'bg-amber-500 text-white' : 'text-amber-700 bg-amber-50 hover:bg-amber-100' %>">
+        <%= t('pharmacy.admin.exp_soon') %> · <%= __exp.soon %>
+      </a>
+    <% } %>
+    <% if (__filter) { %>
+      <a href="/pharmacy/inventory<%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
+         class="text-xs font-bold text-gray-500 underline px-2"><%= t('pharmacy.admin.exp_show_all') %></a>
+    <% } else if (!__exp.expired && !__exp.soon) { %>
+      <span class="text-xs text-gray-400"><%= t('pharmacy.admin.exp_none') %></span>
+    <% } %>
+  </div>
+  <% } %>
+
   <!-- Search -->
   <form method="get" class="mb-4 flex gap-2">
     <% if (lang !== 'ar') { %><input type="hidden" name="lang" value="<%= lang %>" /><% } %>
@@ -80,9 +114,23 @@
               <div class="text-xs text-gray-400"><%= _s || '' %><% if (it.form) { %> · <%= it.form %><% } %></div>
             </div>
             <% var avail = Number(it.available_qty)||0; var st = avail<=0?'out':(it.qty<=it.min_qty?'low':'in'); %>
-            <span class="shrink-0 text-xs font-bold rounded-full px-2 py-1 <%= st==='in'?'text-green-700 bg-green-50':(st==='low'?'text-amber-700 bg-amber-50':'text-red-600 bg-red-50') %>">
-              <%= st==='in'?t('pharmacy.available'):(st==='low'?t('pharmacy.limited'):t('pharmacy.out')) %>
-            </span>
+            <div class="shrink-0 flex items-center gap-1.5">
+              <%# The expiry badge sits BEFORE the stock badge on purpose: an
+                  expired box is not sellable however many of it there are. %>
+              <% if (it.expiry_status === 'expired' || it.expiry_status === 'soon') {
+                   var d = Math.abs(Number(it.days_to_expiry) || 0); %>
+                <span class="text-xs font-bold rounded-full px-2 py-1 <%= it.expiry_status==='expired' ? 'text-white bg-red-600' : 'text-amber-800 bg-amber-100' %>">
+                  <% if (it.expiry_status === 'expired') { %>
+                    <%= t('pharmacy.admin.exp_expired') %><%= d ? ' · ' + d + ' ' + t('pharmacy.admin.exp_expired_since') : '' %>
+                  <% } else { %>
+                    <%= d %> <%= t('pharmacy.admin.exp_days_left') %>
+                  <% } %>
+                </span>
+              <% } %>
+              <span class="text-xs font-bold rounded-full px-2 py-1 <%= st==='in'?'text-green-700 bg-green-50':(st==='low'?'text-amber-700 bg-amber-50':'text-red-600 bg-red-50') %>">
+                <%= st==='in'?t('pharmacy.available'):(st==='low'?t('pharmacy.limited'):t('pharmacy.out')) %>
+              </span>
+            </div>
           </div>
           <div class="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
             <div><span class="lbl"><%= t('pharmacy.admin.qty') %></span><input name="qty" type="number" min="0" value="<%= it.qty %>" class="fld" /></div>
