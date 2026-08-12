@@ -161,6 +161,12 @@ nav {
   animation: fadeUp 0.8s 0.3s ease both;
 }
 
+/* Under the hero buttons: what "15 minutes" actually costs the visitor. */
+.hero-note {
+  margin-top: 14px; font-size: 0.92rem; color: var(--muted);
+  animation: fadeUp 0.8s 0.35s ease both;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--cyan), #00c4aa);
   color: var(--bg); border: none;
