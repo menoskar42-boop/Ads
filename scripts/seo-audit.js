@@ -75,6 +75,7 @@ const PAGES = {
   contact: { file: 'legal/contact.ejs', locals: { sent: false, error: null, showAds: false }, noAds: true, thin: true },
   our_work:{ file: 'legal/our_work.ejs',locals: {} },
   dental:  { file: 'landing/dental.ejs',locals: {} },
+  workshop:{ file: 'landing/workshop.ejs', locals: {} },
   research:{ file: 'research/upload.ejs', locals: { aiEnabled: false, error: null, showAds: false }, noAds: true },
   help:    { file: 'legal/help.ejs',    locals: {} },
   blog_index: {

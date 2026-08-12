@@ -1,0 +1,176 @@
+<%
+  // Sector landing page: car workshops.
+  //
+  // Codex's external review called this "the strongest sales opportunity" and
+  // said to make it the first full sector page, because the message writes
+  // itself: the argument every workshop has is "I never agreed to that", and
+  // the second is the customer who never comes back for the next service.
+  //
+  // Every claim below maps to code in src/routes/workshop_admin.js:
+  //   · approval        → POST /jobs/:id/approve
+  //   · parts + labour  → POST /jobs/:id/parts, /labour, workshop_part_moves
+  //   · photos          → workshop_job_photos
+  //   · reminders       → GET /reminders (by months AND by kilometres)
+  //   · vehicle history → GET /vehicles/:id
+  // Nothing here is aspirational. A landing page promising a feature the
+  // product lacks is the fastest way to lose the first customer it wins — the
+  // pharmacy "expiry alerts" claim on this same site is what that looks like.
+
+  // 57 characters, measured with python3 (wc -m miscounts Arabic in some
+  // locales). Brand dropped: at this length the keywords are worth more.
+  var __title = 'برنامج إدارة ورش السيارات — أمر شغل بموافقة العميل';
+  var __desc = 'برنامج إدارة ورش السيارات: ملف لكل عربية، أمر شغل بعرض سعر يوافق عليه العميل قبل التنفيذ، قطع غيار وعمالة بالتكلفة، وتذكير صيانة بالكيلومترات وبالشهور.';
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('../partials/seo_meta', { title: __title, description: __desc }) %>
+<script type="application/ld+json">
+<%- jsonLd({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "برنامج إدارة ورش السيارات — OscarDevs",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": __desc,
+  "url": siteOrigin + "/workshop",
+  "inLanguage": "ar",
+  "publisher": { "@id": siteOrigin + "#organization" },
+  "offers": {
+    "@type": "Offer",
+    "price": "199",
+    "priceCurrency": "EGP",
+    "description": "اشتراك شهري بعد انتهاء العرض المجاني"
+  }
+}) %>
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;font-family:'Cairo',sans-serif}
+  body{margin:0;background:#0f172a;color:#e2e8f0;line-height:1.9}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  a{color:#38bdf8}
+  .hero{background:linear-gradient(160deg,#0f172a,#1e293b 60%,#0c4a6e);padding:64px 0 56px;text-align:center}
+  .hero h1{font-size:clamp(1.7rem,4.5vw,2.7rem);margin:0 0 14px;color:#fff;line-height:1.4}
+  .hero p{font-size:1.05rem;color:#cbd5e1;max-width:60ch;margin:0 auto 26px}
+  .cta{display:inline-block;background:#f59e0b;color:#0f172a;font-weight:800;text-decoration:none;padding:14px 30px;border-radius:14px}
+  .cta.ghost{background:transparent;color:#e2e8f0;border:1.5px solid #475569;margin-inline-start:10px}
+  section{padding:52px 0;border-top:1px solid #1e293b}
+  h2{font-size:clamp(1.3rem,3.2vw,1.9rem);color:#fff;margin:0 0 10px}
+  .lead{color:#94a3b8;margin:0 0 28px;max-width:65ch}
+  .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:#111c30;border:1px solid #1e293b;border-radius:18px;padding:22px}
+  .card h3{margin:0 0 8px;color:#fff;font-size:1.05rem}
+  .card p{margin:0;color:#94a3b8;font-size:.95rem}
+  .pain{background:#111c30;border-inline-start:4px solid #f59e0b;border-radius:14px;padding:18px 22px;margin-bottom:16px}
+  .pain b{color:#fff;display:block;margin-bottom:4px}
+  .pain span{color:#94a3b8;font-size:.95rem}
+  .foot{padding:40px 0 60px;text-align:center;color:#64748b;font-size:.9rem}
+  ol{color:#94a3b8;padding-inline-start:22px}
+  ol li{margin-bottom:10px}
+  ol b{color:#e2e8f0}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>الورشة اللي كل حاجة فيها مكتوبة</h1>
+    <p>أمر شغل بعرض سعر العميل بيوافق عليه <b>قبل</b> ما تفك مسمار، وملف لكل عربية بيفضل معاك، وتذكير بالصيانة الجاية بالكيلومترات وبالشهور. مفيش خناقة على «أنا ما وافقتش»، ومفيش عميل بيروح ومايرجعش.</p>
+    <a href="/apply?type=workshop" class="cta">اطلب النظام</a>
+    <a href="/contact" class="cta ghost">كلّمنا الأول</a>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h2>التلات خناقات اللي بتحصل في أي ورشة</h2>
+      <p class="lead">النظام ده مبني حوالين الحاجات دي بالذات، مش حوالين قايمة مميزات.</p>
+
+      <div class="pain">
+        <b>«أنا ما وافقتش على ده»</b>
+        <span>العميل بيستلم عرض السعر ويوافق عليه، والموافقة بتتسجّل بوقتها في أمر الشغل. لما يتحاسب، هو شايف نفس الأرقام اللي وافق عليها — مفيش مفاجآت ومفيش كلام في الهوا.</span>
+      </div>
+
+      <div class="pain">
+        <b>«العربية دي عملنا فيها إيه المرة اللي فاتت؟»</b>
+        <span>كل عربية ليها ملف: كل زيارة، وكل قطعة اتغيّرت، والعمالة اللي اتعملت، وصور قبل وبعد. الفني الجديد بيفتح الملف بدل ما يسأل زميله اللي مش موجود.</span>
+      </div>
+
+      <div class="pain">
+        <b>العميل بيصلّح مرة ومايرجعش</b>
+        <span>النظام بيعرف الصيانة الجاية بالكيلومترات وبالشهور، وبيطلّعلك قايمة العربيات اللي جه ميعادها. الشغل الراجع ده أرخص شغل هتجيبه في حياتك — إنت بس محتاج تفتكره.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>إيه اللي جوّه النظام</h2>
+      <p class="lead">كله شغّال دلوقتي — مش خطة ولا «قريباً».</p>
+      <div class="grid">
+        <div class="card">
+          <h3>ملف لكل عربية</h3>
+          <p>الماركة والموديل والسنة والشاسيه وقراءة العدّاد، وتاريخ كامل بكل أمر شغل اتعمل عليها.</p>
+        </div>
+        <div class="card">
+          <h3>أمر شغل بموافقة</h3>
+          <p>تكتب المطلوب وسعره، العميل يوافق، وبعدها بس بيتحوّل لتنفيذ. الموافقة متسجّلة بوقتها.</p>
+        </div>
+        <div class="card">
+          <h3>قطع غيار بالتكلفة</h3>
+          <p>مخزن قطع بحركة دخول وخروج، وكل قطعة بتتحطّ على أمر الشغل بتكلفتها وسعر بيعها — فبتعرف ربحك على الأمر مش على الشهر.</p>
+        </div>
+        <div class="card">
+          <h3>عمالة وفنّيين</h3>
+          <p>ساعات الشغل على كل أمر ومين عملها، فبتعرف الفني بيعمل كام أمر وبكام.</p>
+        </div>
+        <div class="card">
+          <h3>صور قبل وبعد</h3>
+          <p>صور بتترفع على أمر الشغل نفسه. الخربوشة اللي كانت موجودة قبل ما العربية تدخل، مكتوبة بالصورة.</p>
+        </div>
+        <div class="card">
+          <h3>تذكير الصيانة</h3>
+          <p>بالكيلومترات وبالشهور — أيهما أقرب. قايمة جاهزة بمين تكلّمه النهارده.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>بيمشي إزاي</h2>
+      <ol>
+        <li><b>العربية تدخل:</b> تفتح ملفها أو تعمل واحد جديد، وتسجّل قراءة العدّاد.</li>
+        <li><b>تكتب أمر الشغل:</b> المطلوب والقطع والعمالة، والسعر بيتحسب قدّامك.</li>
+        <li><b>العميل يوافق:</b> بيشوف الأرقام ويوافق قبل ما الشغل يبدأ.</li>
+        <li><b>التنفيذ:</b> القطع بتنزل من المخزن، والساعات بتتسجّل، والصور بتترفع.</li>
+        <li><b>التسليم والتحصيل:</b> بيتحاسب على نفس الأرقام اللي وافق عليها، والدفع بيتسجّل.</li>
+        <li><b>بعدها:</b> الصيانة الجاية بتتحسب لوحدها، وبتلاقيه في قايمة التذكير في ميعاده.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>الأسعار</h2>
+      <p class="lead">تقديم الطلب مجاني، والاشتراك <b>مجاني بالكامل أول ٦ شهور</b>. بعد كده تختار اشتراك شهري أو شراء كامل — الأسعار كلها معروضة على الصفحة الرئيسية قبل ما تقدّم.</p>
+      <a href="/apply?type=workshop" class="cta">اطلب نظام الورشة</a>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <a href="/">OscarDevs</a> · <a href="/apply?type=workshop">اطلب النظام</a> · <a href="/contact">تواصل معنا</a>
+  </div>
+</footer>
+
+</body>
+</html>

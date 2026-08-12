@@ -47,6 +47,14 @@ router.get('/dental', (req, res) => {
   res.render('landing/dental');
 });
 
+// Sector landing page: car workshops. Codex's external review called this the
+// strongest sales opportunity on the site and said to give it a full page of
+// its own rather than a card among twelve — the argument every workshop has
+// ("I never agreed to that") is a message that sells itself.
+router.get('/workshop', (req, res) => {
+  res.render('landing/workshop');
+});
+
 router.get('/contact', (req, res) => {
   // Ads off on /contact. It is a form and a phone number — under the word count
   // AdSense expects on a monetised page — and leaving the loader in would let
@@ -155,6 +163,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/help',     priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
+    { loc: '/workshop', priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/radiology', priority: '0.6', changefreq: 'monthly', lastmod: today }, // OncoScan public landing (index,follow)
     // Standalone "من أعمالنا" apps on their own subdomains — both are fully
@@ -308,6 +317,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
   lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): أداة ذكاء اصطناعي تراجع بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي — نقص وتكرارات وقيم مستحيلة وأخطاء وحدات ومعادلات وقيم شاذّة، مع تقرير جودة.`);
   lines.push(`- [نظام عيادات الأسنان](${SITE_ORIGIN}/dental): صفحة النظام المتخصّص لعيادات الأسنان — خريطة أسنان FDI، خطط علاج لكل سن، مخطط لثة، تعليق على الأشعة، تقسيط وتذكير واتساب.`);
+  lines.push(`- [نظام ورش السيارات](${SITE_ORIGIN}/workshop): صفحة النظام المتخصّص لورش السيارات — ملف لكل عربية، أمر شغل بعرض سعر يوافق عليه العميل قبل التنفيذ، قطع غيار وعمالة بالتكلفة، وتذكير صيانة بالكيلومترات وبالشهور.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب وموبايل طوّرها فريق OscarDevs.`);
   // Individual, citable entries for each showcased app — an LLM gets a real URL
   // + description per app instead of names buried in one line.
