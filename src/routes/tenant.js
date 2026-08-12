@@ -1376,6 +1376,13 @@ router.get('/feed.xml', async (req, res) => {
       'SELECT id, name, name_ar, description, description_ar, price, image_url, stock FROM products WHERE company_id=$1 AND is_active=true ORDER BY id',
       [company.id]
     )).rows;
+    // The feed used to say EGP for every store. A store selling in SAR had its
+    // prices read as Egyptian pounds — Google Merchant rejects the mismatch,
+    // and Facebook Catalog silently imports the wrong number, which is worse.
+    // g:price wants an ISO-4217 code, so anything that is not three letters
+    // falls back rather than shipping "ج.م" into an XML feed.
+    const raw = String(company.currency || '').trim().toUpperCase();
+    const cur = /^[A-Z]{3}$/.test(raw) ? raw : 'EGP';
     const items = rows.map((p) => {
       const name = p.name_ar || p.name || '';
       const desc = (p.description_ar || p.description || name).slice(0, 4000);
@@ -1388,7 +1395,7 @@ router.get('/feed.xml', async (req, res) => {
         `    <g:link>${base}/shop/${company.slug}/product/${p.id}</g:link>`,
         img ? `    <g:image_link>${xesc(img)}</g:image_link>` : '',
         `    <g:availability>${p.stock > 0 ? 'in stock' : 'out of stock'}</g:availability>`,
-        `    <g:price>${Number(p.price).toFixed(2)} EGP</g:price>`,
+        `    <g:price>${Number(p.price).toFixed(2)} ${cur}</g:price>`,
         '    <g:condition>new</g:condition>',
         '  </item>',
       ].filter(Boolean).join('\n');

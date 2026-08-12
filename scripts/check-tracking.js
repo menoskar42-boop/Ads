@@ -96,6 +96,16 @@ catch (e) {
   check('وعملة متجره هي اللي بتتبعت', /var CUR = "SAR"/.test(on));
 }
 
+/* ── The product feed ──────────────────────────────────────────────────── */
+// Same bug, other end of the funnel: every store's feed said EGP. Google
+// Merchant rejects a price whose currency does not match the account; Facebook
+// Catalog imports it anyway, at the wrong number.
+{
+  const src = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  check('الـFeed مابيقولش EGP لكل متجر', !/g:price>\$\{[^}]*\} EGP</.test(src));
+  check('وبياخد عملة المتجر بصيغة ISO', /\^\[A-Z\]\{3\}\$/.test(src) && /g:price>\$\{[^}]*\} \$\{cur\}</.test(src));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — من غيرها التاجر مش عارف أي إعلان جابله بيعة.`
   : '\nالتتبّع: الخمس أحداث بتتبعت للتلات منصّات، والعملة عملة المتجر.');
