@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%
+  var __title = 'حقائق عن OscarDevs — من نحن وأين وماذا نقدّم';
+  var __desc = 'صفحة حقائق OscarDevs: الاسم والمقر في أسيوط ورقم التواصل والأنظمة الاثنا عشر الجاهزة وما يشمله كل نظام وكيف تُحدَّد الأسعار وملكية الموقع والدومين.';
+%>
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('../partials/seo_meta', { title: __title, description: __desc }) %>
+<%
+  /* One machine-readable answer to "who is OscarDevs, where, and what do they
+     sell". The GEO review scored our entity clarity 7/10 and our chances of
+     being cited 4/10: an assistant could read our marketing pages and still not
+     be able to state a plain fact about us. This page is the plain facts, and
+     the JSON-LD below says the same thing in the same words — a page and its
+     structured data that disagree are worse than either alone. */
+  var __facts = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    '@id': siteOrigin + '#organization',
+    name: 'OscarDevs',
+    url: siteOrigin,
+    telephone: '+201552406406',
+    email: 'contact@oscardevs.com',
+    areaServed: [{ '@type': 'Country', name: 'مصر' }],
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '5 ش العادلي، حي شركة فريال',
+      addressLocality: 'أسيوط',
+      addressRegion: 'أسيوط',
+      postalCode: '71111',
+      addressCountry: 'EG',
+    },
+    knowsLanguage: ['ar', 'en'],
+  };
+%>
+<script type="application/ld+json"><%- jsonLd(__facts) %></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"حقائق عن OscarDevs","item":"<%= siteOrigin %>/company-facts"}]}</script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .prose h2 { font-size: 1.4rem; font-weight: 800; margin-top: 2rem; margin-bottom: 0.6rem; color: #111827; }
+  .prose p { line-height: 1.95; color: #374151; margin-bottom: 1rem; font-size: 1rem; }
+  .prose ul { padding-right: 1.5rem; list-style: disc; margin: 0.5rem 0 1rem; }
+  .prose li { line-height: 1.85; color: #374151; margin-bottom: 0.35rem; }
+  .facts td, .facts th { border: 1px solid #e5e7eb; padding: 10px 14px; text-align: right; vertical-align: top; }
+  .facts th { background: #f9fafb; font-weight: 700; color: #111827; width: 32%; }
+</style>
+</head>
+<body class="bg-gray-50">
+
+<header class="bg-white shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-3 flex-wrap">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/faq" class="hover:text-indigo-700">الأسئلة الشائعة</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-10">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'حقائق عن OscarDevs' } ] }) %>
+  <article class="prose bg-white rounded-2xl shadow p-6 sm:p-10">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">حقائق عن OscarDevs</h1>
+    <p class="text-gray-500 text-sm mb-8">
+      كل الإجابات المباشرة عن OscarDevs في صفحة واحدة: مين إحنا، فين، بنقدّم إيه،
+      بنشتغل إزاي، والعميل بيملك إيه. لو بتدوّر على معلومة محدّدة عننا، هي هنا.
+    </p>
+
+    <h2>بيانات أساسية</h2>
+    <table class="facts w-full text-sm mb-6">
+      <tbody>
+        <tr><th>الاسم</th><td>OscarDevs</td></tr>
+        <tr><th>النشاط</th><td>تصميم وتطوير مواقع ومتاجر إلكترونية، وأنظمة إدارة جاهزة للأنشطة الصغيرة والمتوسطة</td></tr>
+        <tr><th>المقر</th><td>5 ش العادلي، حي شركة فريال، أسيوط، مصر — الرقم البريدي 71111</td></tr>
+        <tr><th>نطاق الخدمة</th><td>مصر كلها والعالم العربي — الشغل كله أونلاين، والمقر لمن يفضّل يقابلنا</td></tr>
+        <tr><th>التواصل</th><td>واتساب وهاتف: <a href="tel:+201552406406" class="text-indigo-700">01552406406</a> · بريد: <a href="mailto:contact&#64;oscardevs.com" class="text-indigo-700">contact&#64;oscardevs.com</a></td></tr>
+        <tr><th>الموقع</th><td><a href="<%= siteOrigin %>/" class="text-indigo-700"><%= siteOrigin.replace('https://','') %></a></td></tr>
+        <tr><th>اللغات</th><td>العربية والإنجليزية — لوحات التحكم والصفحات العامة تدعم الاتنين</td></tr>
+        <tr><th>عملة التعامل</th><td>الجنيه المصري (ج.م)، والمتاجر تقدر تعرض بعملات تانية لعملائها</td></tr>
+      </tbody>
+    </table>
+
+    <h2>الأنظمة الجاهزة (اتناشر نظام)</h2>
+    <p>
+      كل نظام منهم بيشتغل على نطاق فرعي خاص بالعميل (<span dir="ltr">اسمك.oscardevs.com</span>)،
+      وبيجي بصفحة عامة لعملائه ولوحة تحكم لصاحب النشاط:
+    </p>
+    <ul>
+      <li><strong>موقع بورتفوليو</strong> — معرض أعمال ونموذج تواصل لأصحاب المهن.</li>
+      <li><strong>متجر إلكتروني</strong> — منتجات وسلة وطلبات وكوبونات وتقارير مبيعات.</li>
+      <li><strong>إدارة صيدلية</strong> — مخزون على كتالوج أدوية، متاح تلقائي، تنبيهات نقص وصلاحية، وطلبات أونلاين.</li>
+      <li><strong>إدارة عيادة</strong> — مواعيد وملفات مرضى وروشتات وفواتير.</li>
+      <li><strong>مطاعم وطلبات</strong> — منيو وإضافات وطلبات أونلاين وفروع.</li>
+      <li><strong>إدارة جيم</strong> — اشتراكات ومدرّبين وحضور وحصص.</li>
+      <li><strong>عيادة تغذية</strong> — قياسات وتحاليل وحساب سعرات وماكروز وخطط غذائية وحساب لكل مريض.</li>
+      <li><strong>معرض ومصنع موبيليا</strong> — كتالوج ومخزون وتوصيل وتركيب وضمان ومرتجعات.</li>
+      <li><strong>ورشة سيارات</strong> — ملف لكل عربية، أمر شغل بعرض سعر موافَق عليه، قطع غيار، وتذكير صيانة.</li>
+      <li><strong>قاعة أفراح</strong> — تقويم بقفل يمنع حجز اليوم مرتين، باقات وسعر للفرد، وعرابين وأقساط.</li>
+      <li><strong>حضانة ومركز دروس</strong> — فاتورة شهرية لكل طفل، متأخرات، تذكيرات، حضور، ومصرّح لهم الاستلام.</li>
+      <li><strong>قسّطلي — تحصيل أقساط</strong> — جدول أقساط، سداد الأقدم أولاً، وكشف حساب خاص لكل عميل.</li>
+    </ul>
+
+    <h2>اللي بيجي مع أي نظام</h2>
+    <ul>
+      <li>نطاق فرعي مجاني على oscardevs.com، أو ربط نطاقك الخاص لو عندك واحد.</li>
+      <li>لوحة تحكم بالعربي تعدّل منها المحتوى والصور والأسعار بنفسك، من غير برمجة.</li>
+      <li>تصميم متجاوب مع الموبايل، وSEO مضبوط من أول يوم (عناوين ووصف وSchema وsitemap).</li>
+      <li>زرار واتساب موصول برقمك، ونموذج تواصل بيوصلك.</li>
+      <li>طرق الدفع اللي تختارها إنت لعملائك — دفع عند الاستلام، إنستاباي، محفظة، أو بوابة دفع ببيانات حسابك.</li>
+      <li>دعم مباشر على واتساب من نفس الفريق اللي كاتب الكود.</li>
+    </ul>
+
+    <h2>الأسعار</h2>
+    <p>
+      السعر بيختلف حسب النظام وحسب التخصيص المطلوب، وبيتحدّد في مكالمة قصيرة قبل
+      أي التزام — <strong>مافيش عمولة على مبيعاتك</strong>، وسعر الاشتراك هو
+      اللي بتدفعه. لو عايز رقم دلوقتي، ابعتلنا على واتساب باسم النشاط والنظام
+      اللي محتاجه وهنرد بالسعر النهائي.
+    </p>
+
+    <h2>الملكية والبيانات</h2>
+    <ul>
+      <li><strong>المحتوى ليك.</strong> منتجاتك وعملاؤك وطلباتك وصورك ملكك، وتقدر تطلب نسخة منها.</li>
+      <li><strong>الدومين الخاص ليك</strong> لو سجّلته باسمك — إحنا بنربطه بس.</li>
+      <li>بنستخدم بياناتك عشان نشغّل خدمتك، مش عشان نبيعها. التفاصيل في
+        <a href="/privacy" class="text-indigo-700">سياسة الخصوصية</a> و<a href="/terms" class="text-indigo-700">الشروط والأحكام</a>.</li>
+    </ul>
+
+    <h2>أسئلة سريعة</h2>
+    <p><strong>هل لازم أكون بفهم في البرمجة؟</strong> لأ. كل حاجة من لوحة التحكم.</p>
+    <p><strong>ينفع أبدأ بنظام وأضيف تاني بعدين؟</strong> أيوه، الأنظمة بتشتغل جنب بعض على نفس الحساب.</p>
+    <p><strong>بتشتغلوا مع بره مصر؟</strong> أيوه — التواصل والتسليم كله أونلاين.</p>
+    <p><strong>لو وقفت الاشتراك بيحصل إيه؟</strong> الصفحة بتقف، وبياناتك تفضل متاحة لك تطلب نسخة منها.</p>
+
+    <p class="mt-8">
+      عايز تتأكد من حاجة مش مكتوبة هنا؟
+      <a href="/contact" class="text-indigo-700 font-bold">اسألنا مباشرة</a> —
+      أو اقرأ <a href="/about" class="text-indigo-700">من نحن</a> و<a href="/faq" class="text-indigo-700">الأسئلة الشائعة</a>.
+    </p>
+  </article>
+</main>
+
+<footer class="text-center text-gray-400 text-xs py-8">© <%= new Date().getFullYear() %> OscarDevs</footer>
+</body>
+</html>

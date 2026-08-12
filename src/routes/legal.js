@@ -55,6 +55,15 @@ router.get('/workshop', (req, res) => {
   res.render('landing/workshop');
 });
 
+// One page a model can quote a fact off. The external GEO review scored our
+// entity clarity 7/10 and "likely to be cited" 4/10: everything about us was
+// spread across marketing copy, so answering "where are they, what do they
+// sell, what does it cost" meant inference. Inference is what an assistant
+// hedges about.
+router.get('/company-facts', (req, res) => {
+  res.render('legal/company_facts');
+});
+
 router.get('/contact', (req, res) => {
   // Ads off on /contact. It is a form and a phone number — under the word count
   // AdSense expects on a monetised page — and leaving the loader in would let
@@ -124,6 +133,7 @@ router.get('/admin/seo/ping-indexnow', async (req, res) => {
   const urls = [
     SITE_ORIGIN + '/',
     SITE_ORIGIN + '/about',
+    SITE_ORIGIN + '/company-facts',
     SITE_ORIGIN + '/contact',
     SITE_ORIGIN + '/faq',
     SITE_ORIGIN + '/help',
@@ -162,6 +172,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/faq',      priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/help',     priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
+    { loc: '/company-facts', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/workshop', priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
@@ -312,17 +323,19 @@ router.get('/llms.txt', (req, res) => {
   lines.push('## صفحات أساسية');
   lines.push(`- [الرئيسية](${SITE_ORIGIN}/): نظرة عامة على حلول OscarDevs الرقمية وأنظمة الإدارة الجاهزة.`);
   lines.push(`- [من نحن](${SITE_ORIGIN}/about): قصة OscarDevs ورؤيتها.`);
+  // The page to quote a fact off: name, city, phone, the twelve systems, what
+  // each includes, how pricing is decided, and who owns the domain and data.
+  lines.push(`- [حقائق عن OscarDevs](${SITE_ORIGIN}/company-facts): بيانات موجزة — الاسم والمقر (أسيوط، مصر) ورقم التواصل والأنظمة الاثنا عشر وما يشمله كل نظام وكيف تُحدَّد الأسعار وملكية الموقع والدومين والبيانات.`);
   lines.push(`- [اطلب موقعك](${SITE_ORIGIN}/apply): تقديم طلب إنشاء موقع أو نظام إدارة — بورتفوليو، متجر إلكتروني، صيدلية، مطعم/طلبات، عيادة، جيم، معرض وورشة موبيليا، عيادة تغذية، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، أو بيع بالتقسيط.`);
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
-  lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): أداة ذكاء اصطناعي تراجع بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي — نقص وتكرارات وقيم مستحيلة وأخطاء وحدات ومعادلات وقيم شاذّة، مع تقرير جودة.`);
   lines.push(`- [نظام عيادات الأسنان](${SITE_ORIGIN}/dental): صفحة النظام المتخصّص لعيادات الأسنان — خريطة أسنان FDI، خطط علاج لكل سن، مخطط لثة، تعليق على الأشعة، تقسيط وتذكير واتساب.`);
   lines.push(`- [نظام ورش السيارات](${SITE_ORIGIN}/workshop): صفحة النظام المتخصّص لورش السيارات — ملف لكل عربية، أمر شغل بعرض سعر يوافق عليه العميل قبل التنفيذ، قطع غيار وعمالة بالتكلفة، وتذكير صيانة بالكيلومترات وبالشهور.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب وموبايل طوّرها فريق OscarDevs.`);
   // Individual, citable entries for each showcased app — an LLM gets a real URL
   // + description per app instead of names buried in one line.
   lines.push(`- [OncoScan — دعم قرار الأشعة](${SITE_ORIGIN}/radiology): أداة ذكاء اصطناعي لدعم قرار الأشعة (CT/MRI) — رفع DICOM وعرض في المتصفح وتقرير منظّم ثنائي اللغة. غير تشخيصية.`);
-  lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): مراجعة جودة بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي.`);
+  lines.push(`- [مدقّق بيانات الأبحاث](${SITE_ORIGIN}/research): أداة ذكاء اصطناعي تراجع بيانات الأبحاث الطبية (Excel/CSV) قبل التحليل الإحصائي — نقص وتكرارات وقيم مستحيلة وأخطاء وحدات ومعادلات وقيم شاذّة، مع تقرير جودة.`);
   lines.push(`- [NeuroPilot — مؤقّت تركيز لأصحاب ADHD](https://adhd.${BASE_DOMAIN}/): تطبيق مؤقّت تركيز (Pomodoro) مصمّم لأصحاب فرط الحركة وتشتّت الانتباه.`);
   lines.push(`- [Safari Kids — عالم الاستكشاف السحري](https://mykid.${BASE_DOMAIN}/): تطبيق تعليمي تفاعلي للأطفال مع شخصية «ميزو».`);
   lines.push(`- [Sokro — وكيل ذكاء اصطناعي عربي](https://sokro.${BASE_DOMAIN}/): وكيل ذكاء اصطناعي عربي يبحث ويلخّص ويكتب تقارير، بالصوت والنص.`);
