@@ -26,17 +26,50 @@
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
       <div class="px-5 py-3 border-b border-slate-100 font-extrabold text-slate-900 text-sm"><%= t('hr.team_today') %></div>
       <% staff.forEach(function(s){ var open = openByStaff[s.id]; %>
-      <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
+      <div class="p-4 border-b border-slate-100 last:border-0">
+      <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 grid place-items-center">👤</div>
         <div class="min-w-0 flex-1">
           <div class="font-bold text-slate-900"><%= s.name %></div>
-          <div class="text-xs text-slate-500"><%= s.role||'' %><% if(open){ %> · <span class="text-emerald-600"><%= t('hr.present_since') %> <%= fmtTime(open.check_in) %></span><% } %></div>
+          <div class="text-xs text-slate-500">
+            <%= s.role||'' %><% if(open){ %> · <span class="text-emerald-600"><%= t('hr.present_since') %> <%= fmtTime(open.check_in) %></span><% } %>
+            · <% if (s.username && s.login_enabled) { %><span class="text-brand-600"><%= t('clinic.staff.has_login') %> (<%= t('clinic.perm.role.' + (s.perm_role || 'reception')) %>)</span>
+              <% } else { %><span class="text-slate-400"><%= t('clinic.staff.no_login') %></span><% } %>
+          </div>
         </div>
         <form method="post" action="/clinic/staff/<%= s.id %>/check">
           <% if (open) { %><button class="text-xs bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg px-3 py-1.5 font-bold"><%= t('hr.check_out') %></button>
           <% } else { %><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-3 py-1.5 font-bold"><%= t('hr.check_in') %></button><% } %>
         </form>
         <form method="post" action="/clinic/staff/<%= s.id %>/delete" onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)"><button class="text-slate-300 hover:text-red-600 text-sm"><%= t('common.delete') %></button></form>
+      </div>
+
+      <!-- The login. Separate from the HR row on purpose: a name on the
+           attendance sheet and an account that can open a medical file are two
+           different things, and the second is the one worth a deliberate act. -->
+      <details class="mt-3">
+        <summary class="text-xs font-bold text-slate-500 cursor-pointer"><%= t('clinic.staff.login_title') %></summary>
+        <form method="post" action="/clinic/staff/<%= s.id %>/login" class="grid sm:grid-cols-4 gap-2 mt-3">
+          <input name="username" value="<%= s.username || '' %>" maxlength="60" dir="ltr"
+            placeholder="<%= t('clinic.staff.username') %>" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          <input name="password" type="password" autocomplete="new-password" maxlength="100" dir="ltr"
+            placeholder="<%= s.username ? t('clinic.staff.password_keep') : t('clinic.staff.password') %>"
+            class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          <select name="perm_role" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+            <% ROLE_KEYS.forEach(function(r){ %>
+            <option value="<%= r %>" <%= (s.perm_role || 'reception') === r ? 'selected' : '' %>><%= t('clinic.perm.role.' + r) %></option>
+            <% }); %>
+          </select>
+          <div class="flex items-center gap-2">
+            <label class="flex items-center gap-1.5 text-xs text-slate-600 flex-1">
+              <input type="checkbox" name="login_enabled" value="1" <%= s.login_enabled ? 'checked' : '' %> />
+              <%= t('clinic.staff.login_on') %>
+            </label>
+            <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-3 py-2 text-xs"><%= t('common.save') %></button>
+          </div>
+        </form>
+        <p class="text-xs text-slate-400 mt-2"><%= t('clinic.staff.role_hint') %></p>
+      </details>
       </div>
       <% }); %>
     </div>

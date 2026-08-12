@@ -44,6 +44,11 @@ function base(lang, tab) {
     LOC: lang === 'en' ? 'en-GB' : 'ar-EG',
     t: (k) => t(k, lang),
     modules: {},
+    // Every clinic page is rendered by a login with a role now. The owner is
+    // the default here; the restricted view is rendered separately below so a
+    // page that only works for an owner is caught.
+    perms: { role: 'owner', isStaff: false, name: null,
+      medical: true, finance: true, schedule: true, patients: true, settings: true, staff: true },
     // Mirror server.js res.locals.jsonLd so any public tenant view that embeds
     // JSON-LD via jsonLd() renders in this harness with the same \u-escaping.
     jsonLd: (o) => JSON.stringify(o)
@@ -65,6 +70,10 @@ const FIXTURES = {
   }),
 
   patients: () => ({ tab: 'patients', patients: [patient], q: '' }),
+
+  denied: () => ({ tab: '', need: 'medical',
+    perms: { role: 'reception', isStaff: true, medical: false, finance: false,
+      schedule: true, patients: true, settings: false, staff: false } }),
 
   // The public clinic page — the only one visitors see, so it is checked in
   // both languages too, and its <title> is length-checked below.
@@ -959,7 +968,12 @@ const FIXTURES = {
 
   mod_staff: () => ({
     tab: 'hr',
-    staff: [{ id: 1, name: 'Nour', role: 'Reception' }],
+    ROLE_KEYS: require('../src/clinic/perms').ROLE_KEYS,
+    saved: false, error: null,
+    staff: [
+      { id: 1, name: 'Nour', role: 'Reception', username: 'nour', perm_role: 'reception', login_enabled: true },
+      { id: 2, name: 'Hana', role: 'Nurse' },
+    ],
     openByStaff: { 1: { check_in: NOW } },
     today: [{ staff_name: 'Nour', check_in: NOW, check_out: null }],
   }),

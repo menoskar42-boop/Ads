@@ -17,7 +17,10 @@
 </p>
 
 <div class="grid gap-6 lg:grid-cols-3">
-  <!-- Left: forms -->
+  <!-- Left: forms. Clinical entry — hidden from a login without `medical`, and
+       the routes behind them refuse it too (src/clinic/perms.js). Hiding a
+       button is a courtesy; the server check is the rule. -->
+  <% if (perms.medical) { %>
   <div class="lg:col-span-1 space-y-4">
     <!-- Vitals -->
     <a href="/clinic/patients/<%= patient.id %>/trends"
@@ -138,9 +141,10 @@
       </form>
     </div>
   </div>
+  <% } %>
 
   <!-- Right: history -->
-  <div class="lg:col-span-2 space-y-6">
+  <div class="<%= perms.medical ? 'lg:col-span-2' : 'lg:col-span-3' %> space-y-6">
     <!-- Visits -->
     <section id="visits">
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.visits') %> (<%= visits.length %>)</h2>
@@ -171,7 +175,7 @@
     </section>
 
     <!-- Vitals history -->
-    <% if (vitals.length) { %>
+    <% if (perms.medical && vitals.length) { %>
     <section>
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.vitals_log') %></h2>
       <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
@@ -198,7 +202,7 @@
     <% } %>
 
     <!-- Notes history -->
-    <% if (notes.length) { %>
+    <% if (perms.medical && notes.length) { %>
     <section>
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.notes_log') %></h2>
       <div class="space-y-2">
@@ -214,7 +218,7 @@
     <% } %>
 
     <!-- Prescriptions history -->
-    <% if (prescriptions.length) { %>
+    <% if (perms.medical && prescriptions.length) { %>
     <section>
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.rx_log') %></h2>
       <div class="space-y-2">

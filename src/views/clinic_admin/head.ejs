@@ -76,6 +76,21 @@
              // A log nobody can reach is a table, not an audit trail.
              { path:'/clinic/audit',   label:t('clinic.nav.audit'), icon:'🕵️', key:'audit' },
              { path:'/clinic/settings',label:t('clinic.nav.settings'),icon:'⚙️', key:'settings' }]);
+
+  // Drop what this login cannot open. The server refuses it either way
+  // (src/clinic/perms.js) — this only stops the nav offering a locked door.
+  var __perms = (typeof perms !== 'undefined' && perms) ? perms
+    : { medical:true, finance:true, schedule:true, patients:true, settings:true, staff:true };
+  var __PATH_PERM = { '/clinic/invoices':'finance', '/clinic/finance':'finance',
+    '/clinic/cashbox':'finance', '/clinic/insurance':'finance', '/clinic/installments':'finance',
+    '/clinic/settings':'settings', '/clinic/modules':'settings', '/clinic/addons':'settings',
+    '/clinic/integrations':'settings', '/clinic/services':'settings', '/clinic/doctors':'settings',
+    '/clinic/audit':'settings', '/clinic/staff':'staff',
+    '/clinic/queue':'schedule', '/clinic/appointments':'schedule', '/clinic/patients':'patients' };
+  __more = __more.filter(function(m){
+    var need = __PATH_PERM[m.path];
+    return !need || __perms[need];
+  });
 %>
 <header class="bg-brand-700 text-white sticky top-0 z-30">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">

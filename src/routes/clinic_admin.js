@@ -9,6 +9,7 @@ const requireLogin = require('../middleware/auth');
 const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = require('../clinic/modules');
 const { ownerGuard, ref } = require('../lib/tenant_scope');
 const audit = require('../lib/audit');
+const clinicPerms = require('../clinic/perms');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -41,10 +42,17 @@ async function requireClinic(req, res, next) {
     req.enabledModules = visible;
     res.locals.enabledModules = visible;
     res.locals.clinicModules = modulesForSpecialty(specialty);
+
+    // What this login may reach. The owner's account has everything; a staff
+    // login is scoped by its role. See src/clinic/perms.js for why this is a
+    // path-prefix rule and not an `if` inside every route.
+    const perms = clinicPerms.permsFor(req.session);
+    req.perms = perms;
+    res.locals.perms = perms;
     next();
   } catch (e) { console.error('[clinic admin]', e.message); res.redirect('/company/login'); }
 }
-router.use(requireLogin, requireClinic);
+router.use(requireLogin, requireClinic, clinicPerms.guard());
 
 // Guard a route behind an enabled module; 404-style redirect to dashboard if off.
 function requireModule(key) {
@@ -1087,7 +1095,11 @@ router.get('/staff', requireModule('hr'), async (req, res) => {
     // Map staff_id → today's open attendance row (checked in, not out).
     const openByStaff = {};
     today.rows.forEach((r) => { if (r.check_in && !r.check_out) openByStaff[r.staff_id] = r; });
-    res.render('clinic_admin/mod_staff', { company: req.company, tab: 'hr', staff: staff.rows, today: today.rows, openByStaff });
+    res.render('clinic_admin/mod_staff', {
+      company: req.company, tab: 'hr', staff: staff.rows, today: today.rows, openByStaff,
+      ROLE_KEYS: clinicPerms.ROLE_KEYS,
+      saved: req.query.saved === '1', error: req.query.error || null,
+    });
   } catch (e) { console.error('[staff]', e.message); res.status(500).send('error'); }
 });
 router.post('/staff', requireModule('hr'), async (req, res) => {
@@ -1098,6 +1110,47 @@ router.post('/staff', requireModule('hr'), async (req, res) => {
   }
   res.redirect('/clinic/staff');
 });
+// Give a staff row a login, or change its scope. Only the owner's account can:
+// staff:true is owner/manager, and a manager handing out `medical` to itself is
+// the hole this whole thing exists to close, so the role list a manager may
+// assign excludes anything above its own reach.
+router.post('/staff/:id/login', requireModule('hr'), async (req, res) => {
+  const cid = req.company.id, sid = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const username = String(b.username || '').trim().toLowerCase().slice(0, 60);
+  const role = clinicPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'reception';
+  const enabled = b.login_enabled === '1';
+  try {
+    if (!username) {
+      // No username means no account — the row stays an HR record.
+      await pool.query(
+        'UPDATE clinic_staff SET username=NULL, password_hash=NULL, login_enabled=false WHERE id=$1 AND company_id=$2',
+        [sid, cid]);
+      audit.log(pool, req, { entity: 'staff', entityId: sid, action: 'update', meta: { login: 'removed' } });
+      return res.redirect('/clinic/staff?saved=1');
+    }
+    const password = String(b.password || '');
+    if (password) {
+      const hash = await require('bcryptjs').hash(password, 10);
+      await pool.query(
+        'UPDATE clinic_staff SET username=$1, password_hash=$2, perm_role=$3, login_enabled=$4 WHERE id=$5 AND company_id=$6',
+        [username, hash, role, enabled, sid, cid]);
+    } else {
+      // Blank password keeps the existing one — changing somebody's role should
+      // not force you to know their password.
+      await pool.query(
+        'UPDATE clinic_staff SET username=$1, perm_role=$2, login_enabled=$3 WHERE id=$4 AND company_id=$5',
+        [username, role, enabled, sid, cid]);
+    }
+    audit.log(pool, req, { entity: 'staff', entityId: sid, action: 'update',
+      meta: { role, login_enabled: enabled, password_changed: !!password } });
+    res.redirect('/clinic/staff?saved=1');
+  } catch (e) {
+    console.error('[staff login]', e.message);
+    res.redirect('/clinic/staff?error=username');
+  }
+});
+
 router.post('/staff/:id/delete', requireModule('hr'), async (req, res) => {
   try { await pool.query('DELETE FROM clinic_staff WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); } catch (e) { console.error(e.message); }
   res.redirect('/clinic/staff');

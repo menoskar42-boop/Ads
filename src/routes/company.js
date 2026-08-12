@@ -128,9 +128,16 @@ const ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'shipped', 'out_for
 // Pharmacy staff (non-owner) may not use the owner's company pages — redirect
 // them to their scoped /pharmacy area. Login/logout/push stay open.
 router.use((req, res, next) => {
+  const open = req.path === '/login' || req.path === '/logout' || req.path.startsWith('/push/');
   if (req.session && req.session.staffId) {
-    if (req.path === '/login' || req.path === '/logout' || req.path.startsWith('/push/')) return next();
+    if (open) return next();
     return res.redirect('/pharmacy');
+  }
+  // Same rule for clinic staff: the owner's company pages hold the billing and
+  // the page settings, and a receptionist has no business in either.
+  if (req.session && req.session.clinicStaffId) {
+    if (open) return next();
+    return res.redirect('/clinic');
   }
   next();
 });
@@ -220,6 +227,33 @@ router.post('/login', loginLimiter, async (req, res) => {
         req.session.adminLang = 'ar';
         return res.redirect('/pharmacy');
       }
+      // Clinic staff account (reception / doctor / accountant / manager /
+      // call centre). Same door as everyone else — the scope comes from the
+      // row, not from a different login page.
+      const clinicR = await pool.query(
+        `SELECT cs.*, c.company_name, c.theme_color, c.slug
+         FROM clinic_staff cs JOIN companies c ON c.id = cs.company_id
+         WHERE lower(cs.username) = $1 AND cs.login_enabled = true
+           AND cs.is_active = true AND c.is_active = true`,
+        [email]
+      );
+      if (clinicR.rows.length) {
+        const st = clinicR.rows[0];
+        const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
+        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        req.session.companyId = st.company_id;
+        // Named differently from the pharmacy's staffId on purpose: one session
+        // must never be read as the other's role.
+        req.session.clinicStaffId = st.id;
+        req.session.clinicRole = st.perm_role || 'reception';
+        req.session.staffName = st.name || st.username;
+        req.session.companyName = st.company_name;
+        req.session.themeColor = st.theme_color;
+        req.session.companySlug = st.slug;
+        req.session.adminLang = 'ar';
+        return res.redirect('/clinic');
+      }
+
       // No active account yet — check if there's an application so we can guide them.
       const appR = await pool.query(
         `SELECT status, admin_notes FROM signup_applications WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,

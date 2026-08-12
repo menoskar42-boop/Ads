@@ -464,6 +464,18 @@ async function ensureClinicSchema() {
         is_active   BOOLEAN NOT NULL DEFAULT true,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      -- Staff logins. The table began as an HR record (name, role, phone) for
+      -- attendance; these columns turn a row into an account that can sign in
+      -- with its own scope. Nullable, so every existing HR row stays valid and
+      -- simply has no login.
+      ALTER TABLE clinic_staff ADD COLUMN IF NOT EXISTS username TEXT;
+      ALTER TABLE clinic_staff ADD COLUMN IF NOT EXISTS password_hash TEXT;
+      -- reception · doctor · accountant · manager · callcenter
+      ALTER TABLE clinic_staff ADD COLUMN IF NOT EXISTS perm_role TEXT;
+      ALTER TABLE clinic_staff ADD COLUMN IF NOT EXISTS login_enabled BOOLEAN NOT NULL DEFAULT false;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_clinic_staff_username
+        ON clinic_staff (lower(username)) WHERE username IS NOT NULL;
+
       CREATE TABLE IF NOT EXISTS clinic_attendance (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
