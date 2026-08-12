@@ -274,7 +274,12 @@ router.get('/llms.txt', (req, res) => {
   const lines = [];
   lines.push('# OscarDevs');
   lines.push('');
-  lines.push('> منصّة حلول رقمية متكاملة للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وتسعة أنظمة إدارة جاهزة (صيدلية، عيادة، مطاعم وطلبات، جيم، عيادة تغذية، معرض ومصنع موبيليا، ورشة سيارات، متجر، بورتفوليو)، وتطبيقات ويب وموبايل — تسليم سريع، أسعار مناسبة، وSEO جاهز.');
+  // The blockquote is the line a model quotes when asked what OscarDevs is, so
+  // the count and the list have to agree with each other AND with the twelve
+  // systems below. It said "تسعة" while listing twelve — a source that
+  // contradicts itself in its own summary is one an assistant learns to hedge
+  // about, and the three unlisted verticals never got mentioned at all.
+  lines.push('> منصّة حلول رقمية متكاملة للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، و**اتناشر نظام إدارة جاهز** (بورتفوليو، متجر، صيدلية، عيادة، مطاعم وطلبات، جيم، عيادة تغذية، معرض ومصنع موبيليا، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، وتحصيل أقساط)، وتطبيقات ويب وموبايل — تسليم سريع، أسعار مناسبة، وSEO جاهز.');
   lines.push('');
   lines.push('## الأنظمة الجاهزة');
   lines.push('- **موقع بورتفوليو**: هوية رقمية لأصحاب المهن والحرف مع معرض أعمال ونموذج تواصل.');

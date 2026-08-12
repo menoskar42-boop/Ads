@@ -132,6 +132,47 @@ for (const f of ['src/views/admin/companies/add.ejs', 'src/views/admin/companies
   }
 }
 
+// ── 8. What we tell machines we sell must be what we sell ──────────────────
+// GEO, not SEO: an assistant asked "what does OscarDevs do?" answers from the
+// Organization offer catalog and from /llms.txt, not from the home page. Both
+// had drifted to nine systems while the site sold twelve, so three verticals
+// were invisible to every model — and the offer catalog's own comment said
+// "eight". Keyword per type, because these are prose in Arabic rather than
+// slugs; one distinctive word is enough to prove the vertical is named.
+{
+  const KEYWORD = {
+    shop: 'متجر', portfolio: 'بورتفوليو', pharmacy: 'صيدلي', orders: 'مطاعم',
+    clinic: 'عيادات', gym: 'الجيم', furniture: 'موبيليا', nutrition: 'التغذية',
+    workshop: 'ورش السيارات', hall: 'قاعات الأفراح', nursery: 'الحضانات',
+    installments: 'الأقساط',
+  };
+  const unmapped = TYPES.filter((t) => !KEYWORD[t]);
+  check('every type has a keyword to look for', unmapped.length === 0,
+    'Add one to KEYWORD in this file: ' + unmapped.join(', '));
+
+  const catalog = (read('src/views/partials/seo_meta.ejs')
+    .match(/"hasOfferCatalog"[\s\S]*?\n\s*\}\s*\n\s*\}/) || [''])[0];
+  const missingCat = TYPES.filter((t) => KEYWORD[t] && !catalog.includes(KEYWORD[t]));
+  check('the Organization offer catalog names every type', missingCat.length === 0,
+    'A model answering "what does OscarDevs sell?" reads this graph and will\n   '
+    + 'never mention these: ' + missingCat.join(', '));
+
+  const llms = (read('src/routes/legal.js').match(/router\.get\('\/llms\.txt'[\s\S]*?\n\}\);/) || [''])[0];
+  const missingLlms = TYPES.filter((t) => KEYWORD[t] && !llms.includes(KEYWORD[t]));
+  check('/llms.txt names every type', missingLlms.length === 0,
+    'llms.txt is the curated map assistants read first. Missing: ' + missingLlms.join(', '));
+
+  // The summary blockquote states a count. A count that disagrees with the list
+  // under it is a source that contradicts itself in its own one-line summary.
+  const WORDS = { 8: 'تمانية', 9: 'تسعة', 10: 'عشرة', 11: 'حداشر', 12: 'اتناشر', 13: 'تلتاشر' };
+  const quote = (llms.match(/lines\.push\('>([^']*)'\)/) || ['', ''])[1];
+  const stale = Object.entries(WORDS).filter(([n, w]) => Number(n) !== TYPES.length && quote.includes(w));
+  check(`the llms.txt summary says ${TYPES.length} (${WORDS[TYPES.length] || TYPES.length})`,
+    stale.length === 0 && (!WORDS[TYPES.length] || quote.includes(WORDS[TYPES.length])),
+    stale.length ? `it says "${stale[0][1]}" and there are ${TYPES.length}`
+      : `expected the word "${WORDS[TYPES.length]}" in the summary line`);
+}
+
 console.log(failed ? `\n⚠️  ${failed} مشكلة — نوع نشاط ناقص في مكان ما.`
   : '\nكل أنواع النشاط مكتملة في كل الأماكن.');
 process.exit(failed ? 1 : 0);

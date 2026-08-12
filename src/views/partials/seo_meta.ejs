@@ -98,7 +98,7 @@
       "url": "<%= siteOrigin %>",
       "logo": "<%= siteOrigin %>/logo.png",
       "image": "<%= siteOrigin %>/logo.png",
-      "description": "منصّة حلول رقمية متكاملة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وأنظمة إدارة جاهزة للعيادات والصيدليات والمطاعم والجيم وعيادات التغذية ومعارض الموبيليا وورش السيارات، وتطبيقات ويب وموبايل.",
+      "description": "منصّة حلول رقمية متكاملة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وأنظمة إدارة جاهزة للعيادات والصيدليات والمطاعم والجيم وعيادات التغذية ومعارض الموبيليا وورش السيارات وقاعات الأفراح والحضانات والبيع بالتقسيط، وتطبيقات ويب وموبايل.",
       "email": "contact@oscardevs.com",
       "telephone": "+201552406406",
       "areaServed": ["مصر", "العالم العربي"],
@@ -121,9 +121,12 @@
         "https://www.facebook.com/OscarDevsEG",
         "https://www.instagram.com/oscardevseg"
       ],
-      <%# The eight systems we actually ship. Kept in sync with the service
-          cards on the homepage — an LLM or a crawler reading this graph gets
-          the same list a visitor sees, never a longer one. %>
+      <%# Every system we ship — all twelve, matching the whitelist in
+          src/routes/apply.js and the service cards on the homepage. A model
+          answering "what does OscarDevs do?" reads THIS, so a short list here
+          means three verticals it will never mention. It had drifted twice: the
+          comment said eight, the array held nine, and the site sold twelve.
+          scripts/check-page-types.js now fails if a type is missing from it. %>
       "hasOfferCatalog": {
         "@type": "OfferCatalog",
         "name": "حلول OscarDevs الرقمية",
@@ -136,7 +139,10 @@
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة الجيم" } },
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة عيادة التغذية" } },
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة معرض ومصنع الموبيليا" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة ورش السيارات" } }
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة ورش السيارات" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة قاعات الأفراح والمناسبات" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام إدارة الحضانات ومراكز الدروس" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "نظام تحصيل الأقساط — قسّطلي" } }
         ]
       }
     },
