@@ -132,6 +132,20 @@ check('the encrypted column wins over the plaintext one', V.read(blob, 'legacy_k
   });
   check('every selling vertical shows the merchant\'s payment methods',
     missing.length === 0, missing.join(', '));
+  // The storefront is not the only place a buyer pays. The pharmacy has a
+  // separate single-item order route and a confirmation page, and the
+  // confirmation page needs them most: the order exists, the money does not
+  // yet, and this is where somebody paying by InstaPay finds out where to send
+  // it. Both were rendering nothing.
+  const buying = ['src/views/tenant_pharmacy_order.ejs'];
+  const blind = buying.filter((f) => !/payment_methods/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+  check('the order and confirmation pages show them too', blind.length === 0, blind.join(', '));
+  const tenantSrc = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  const renders = (tenantSrc.match(/res\.render\('tenant_pharmacy_order'/g) || []).length;
+  const passes = (tenantSrc.match(/payment,?\s*$/gm) || []).length;
+  check('and the route actually passes them', renders > 0 && passes >= renders,
+    `${renders} render(s), ${passes} pass(es)`);
+
   const pf = fs.readFileSync(path.join(ROOT, 'src/views/tenant_portfolio.ejs'), 'utf8');
   check('the portfolio page does not (nothing is sold there)', !/payment_methods/.test(pf));
 

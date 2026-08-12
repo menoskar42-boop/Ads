@@ -720,9 +720,14 @@ router.get('/order', pharmacyOrderGuard, async (req, res) => {
        WHERE pi.company_id = $1 AND pi.medicine_id = $2`, [company.id, mid]
     )).rows[0];
     if (!item || Number(item.available) <= 0) return res.redirect('/');
+    // The buyer is one click from paying here, so this page has to say HOW.
+    // It is a separate route from the cart, and it was the one that never
+    // received the merchant's payment methods — the cart shows them above its
+    // confirm button and this page showed nothing at all.
+    const payment = await loadPaymentMethods(pool, company, res.locals.t);
     res.render('tenant_pharmacy_order', {
       company, item, settings: req.pharmacySettings, noindex: true, done: false, order: null,
-      error: req.query.e || null,
+      error: req.query.e || null, payment,
       canonical: 'https://' + company.slug + '.oscardevs.com/',
     });
   } catch (e) { console.error('order form error:', e.message); res.status(500).send('Error.'); }
@@ -768,9 +773,13 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
       body: `طلب جديد من ${name}: ${inv.name_ar} × ${qty}`,
       url: '/pharmacy/orders',
     }, 'order').catch((e) => console.error('[push pharmacy order] error:', e.message));
+    // The confirmation page needs them MOST: the order exists, the money does
+    // not yet, and this is where a buyer paying by InstaPay or a link finds out
+    // where to send it.
+    const payment = await loadPaymentMethods(pool, company, res.locals.t);
     res.render('tenant_pharmacy_order', {
       company, item: null, settings: req.pharmacySettings, noindex: true, done: true,
-      order: { id: ord.id, name: inv.name_ar, qty, total, token },
+      order: { id: ord.id, name: inv.name_ar, qty, total, token }, payment,
       canonical: 'https://' + company.slug + '.oscardevs.com/',
     });
   } catch (e) {
