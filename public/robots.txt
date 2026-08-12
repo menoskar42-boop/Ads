@@ -14,16 +14,54 @@ Disallow: /customer/
 User-agent: Mediapartners-Google
 Allow: /
 
-# AI / generative crawlers - same access as the default group
+# AI / generative crawlers - genuinely the same access as the default group.
+#
+# The comment used to say "same access" while the groups said something else. A
+# crawler obeys ONLY the most specific group that matches it and inherits
+# nothing from `*`, so declaring these bots with a bare "Allow: /" did not give
+# them the default rules — it gave them everything, including the four paths the
+# default group is kept out of.
+#
+# /demo/ is the one that mattered: it is public, it serves demo tenants filled
+# with sample data, and an assistant that crawled it could quote invented
+# products and prices as if they were a real pharmacy's. The rest are behind a
+# login and would only have wasted crawl budget on redirects.
+#
+# Each group therefore repeats the disallows. There is no "inherit" in this
+# format; repetition is the only way to say it.
 User-agent: GPTBot
 Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
+
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
+
 User-agent: PerplexityBot
 Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
+
 User-agent: ClaudeBot
 Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
+
 User-agent: Google-Extended
 Allow: /
+Disallow: /admin/
+Disallow: /company/
+Disallow: /demo/
+Disallow: /customer/
 
 Sitemap: https://oscardevs.com/sitemap.xml

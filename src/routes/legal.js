@@ -284,7 +284,14 @@ router.get('/llms.txt', (req, res) => {
   lines.push('## الأنظمة الجاهزة');
   lines.push('- **موقع بورتفوليو**: هوية رقمية لأصحاب المهن والحرف مع معرض أعمال ونموذج تواصل.');
   lines.push('- **متجر إلكتروني**: منتجات وسلة وطلبات وكوبونات وتقارير مبيعات.');
-  lines.push('- **نظام إدارة الصيدليات**: مخزون مربوط بكتالوج أدوية، تنبيهات صلاحية، وطلبات أونلاين.');
+  // "تنبيهات صلاحية" was here and is not true: pharmacy_inventory stores an
+  // `expiry` per item and the form edits it, but nothing sorts, filters or warns
+  // on it — there is no near-expiry screen anywhere in pharmacy_admin.js. What
+  // DOES alert is the stock level (low / out against min_qty), and the available
+  // quantity is real (qty minus reserved). Claiming a feature we do not ship is
+  // worse than a GEO problem: a model repeats it, a pharmacist buys on it, and
+  // finds it missing on day one.
+  lines.push('- **نظام إدارة الصيدليات**: مخزون مربوط بكتالوج أدوية (أكتر من ٢٥ ألف صنف)، كمية متاحة تلقائية (الإجمالي ناقص المحجوز)، تنبيه نقص ونفاد الأصناف، تاريخ صلاحية لكل صنف، وطلبات أونلاين.');
   lines.push('- **نظام إدارة العيادات**: حجز مواعيد، ملفات مرضى، روشتات، أقساط، وزيارات منزلية.');
   lines.push('- **نظام المطاعم والطلبات**: منيو وأصناف وإضافات وطلبات أونلاين واستقبال ذكي.');
   lines.push('- **نظام إدارة الجيم**: اشتراكات ومدرّبين وحضور وخطط تمرين.');
