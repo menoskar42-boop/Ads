@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = require('../clinic/modules');
 const { ownerGuard, ref } = require('../lib/tenant_scope');
+const audit = require('../lib/audit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -173,6 +174,34 @@ router.post('/doctors/:id/delete', async (req, res) => {
   try { await pool.query('DELETE FROM clinic_doctors WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.company.id]); }
   catch (e) { console.error(e.message); }
   res.redirect('/clinic/doctors');
+});
+
+// ── Who touched what ─────────────────────────────────────────────────────────
+//
+// A log nobody can read is not an audit trail, it is a table. This is the
+// screen that makes it one — and it is read-only by construction: there is no
+// route anywhere that deletes from the log.
+// The clinic dashboard is bilingual, so the labels are keys, not words —
+// render-clinic-pages.js fails on any Arabic that reaches the English page.
+const AUDIT_ENTITIES = ['patient', 'vitals', 'note', 'prescription', 'invoice',
+  'measurement', 'lab', 'patient_login'];
+router.get('/audit', async (req, res) => {
+  const patient = parseInt(req.query.patient, 10);
+  const entity = String(req.query.entity || '').slice(0, 40) || null;
+  try {
+    const rows = await audit.recent(pool, req.company.id, {
+      patientId: Number.isInteger(patient) ? patient : undefined,
+      entity: entity || undefined,
+      limit: 200,
+    });
+    res.render('clinic_admin/audit', {
+      company: req.company, tab: 'audit', rows, ENTITIES: AUDIT_ENTITIES,
+      filters: { patient: Number.isInteger(patient) ? patient : '', entity: entity || '' },
+    });
+  } catch (e) {
+    console.error('[clinic audit]', e.message);
+    res.status(500).send('error');
+  }
 });
 
 // ── Patients ─────────────────────────────────────────────────────────────────
@@ -343,6 +372,9 @@ router.get('/patients/:id', async (req, res) => {
   try {
     const pRes = await pool.query('SELECT * FROM clinic_patients WHERE id=$1 AND company_id=$2', [pid, cid]);
     if (!pRes.rows.length) return res.redirect('/clinic/patients');
+    // "Who opened this record" is one of the questions the reviews asked, and
+    // it needs the read to be logged, not only the writes.
+    audit.log(pool, req, { entity: 'patient', entityId: pid, patientId: pid, action: 'view' });
     const [visits, vitals, notes, rx, docs, vtypes] = await Promise.all([
       pool.query(
         `SELECT v.*, d.name AS doctor_name, vt.name AS visit_type_name FROM clinic_visits v
@@ -409,6 +441,7 @@ router.post('/patients/:id/birth-date', async (req, res) => {
       'UPDATE clinic_patients SET birth_date=$1, birth_year=COALESCE(EXTRACT(YEAR FROM $1::date)::int, birth_year) WHERE id=$2 AND company_id=$3',
       [d, pid, req.company.id]
     );
+    audit.log(pool, req, { entity: 'patient', entityId: pid, patientId: pid, action: 'update', meta: { field: 'birth_date' } });
   } catch (e) { console.error('[birth date]', e.message); }
   res.redirect('/clinic/patients/' + pid + '/vaccines');
 });
@@ -555,6 +588,7 @@ router.post('/patients/:id/vitals', async (req, res) => {
         );
       }
     }
+    audit.log(pool, req, { entity: 'vitals', patientId: pid, action: 'create' });
   } catch (e) { console.error('[clinic vitals]', e.message); }
   res.redirect('/clinic/patients/' + pid + '#vitals');
 });
@@ -571,6 +605,8 @@ router.post('/patients/:id/notes', async (req, res) => {
         [cid, pid, parseInt(b.visit_id, 10) || null, parseInt(b.doctor_id, 10) || null,
           String(b.category || 'general').slice(0, 30), String(b.title || '').slice(0, 120) || null, content]
       );
+      audit.log(pool, req, { entity: 'note', patientId: pid, action: 'create',
+        meta: { category: String(b.category || 'general').slice(0, 30) } });
     } catch (e) { console.error('[clinic note]', e.message); }
   }
   res.redirect('/clinic/patients/' + pid + '#notes');
@@ -597,6 +633,11 @@ router.post('/patients/:id/prescriptions', async (req, res) => {
         [cid, pid, parseInt(b.visit_id, 10) || null, parseInt(b.doctor_id, 10) || null,
           JSON.stringify(meds), String(b.notes || '').slice(0, 1000) || null]
       );
+      // The medication list is NOT copied here — duplicating a prescription to
+      // protect prescriptions is not a trade worth making. The count is enough
+      // to tell a real entry from an empty one.
+      audit.log(pool, req, { entity: 'prescription', patientId: pid, action: 'create',
+        meta: { medications: meds.length } });
     } catch (e) { console.error('[clinic rx]', e.message); }
   }
   res.redirect('/clinic/patients/' + pid + '#prescriptions');

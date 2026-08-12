@@ -1,0 +1,71 @@
+<%- include('head', { title: t('clinic.audit.title'), tab: 'audit' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('clinic.audit.title') %></h1>
+<p class="text-slate-500 mb-6"><%= t('clinic.audit.sub') %></p>
+
+<form method="get" class="bg-white border border-slate-200 rounded-2xl p-4 mb-5 flex flex-wrap gap-3 items-end">
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1"><%= t('clinic.audit.patient_no') %></label>
+    <input name="patient" value="<%= filters.patient || '' %>" inputmode="numeric"
+      class="border border-slate-200 rounded-xl px-3 py-2 text-sm w-32" placeholder="<%= t('clinic.audit.all') %>" />
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1"><%= t('clinic.audit.kind') %></label>
+    <select name="entity" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+      <option value=""><%= t('clinic.audit.all') %></option>
+      <% ENTITIES.forEach(function(e){ %>
+      <option value="<%= e %>" <%= filters.entity === e ? 'selected' : '' %>><%= t('clinic.audit.e.' + e) %></option>
+      <% }); %>
+    </select>
+  </div>
+  <button class="bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('clinic.audit.filter') %></button>
+  <% if (filters.patient || filters.entity) { %>
+  <a href="/clinic/audit" class="border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-600"><%= t('clinic.audit.clear') %></a>
+  <% } %>
+</form>
+
+<% if (!rows.length) { %>
+<div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500">
+  <%= t('clinic.audit.empty') %>
+</div>
+<% } else { %>
+<div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
+  <table class="w-full text-sm min-w-[720px]">
+    <thead class="text-slate-400 text-xs border-b border-slate-100">
+      <tr>
+        <th class="px-4 py-3 text-start"><%= t('clinic.audit.when') %></th>
+        <th class="px-4 py-3 text-start"><%= t('clinic.audit.who') %></th>
+        <th class="px-4 py-3 text-start"><%= t('clinic.audit.did') %></th>
+        <th class="px-4 py-3 text-start"><%= t('clinic.audit.on') %></th>
+        <th class="px-4 py-3 text-start"><%= t('clinic.audit.patient') %></th>
+        <th class="px-4 py-3 text-start"><%= t('clinic.audit.from') %></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      <% rows.forEach(function(r){ %>
+      <tr>
+        <td class="px-4 py-2.5 whitespace-nowrap text-slate-500" dir="ltr">
+          <%= new Date(r.created_at).toLocaleString(LOC) %>
+        </td>
+        <td class="px-4 py-2.5"><%= r.actor_label || (r.actor_kind === 'company' ? t('clinic.audit.account') : r.actor_kind) %></td>
+        <td class="px-4 py-2.5">
+          <span class="<%= r.action === 'delete' ? 'text-red-600 font-bold' : (r.action === 'view' ? 'text-slate-500' : 'text-slate-900 font-semibold') %>">
+            <%= t('clinic.audit.a.' + r.action) %>
+          </span>
+        </td>
+        <td class="px-4 py-2.5"><%= t('clinic.audit.e.' + r.entity) %><%= r.entity_id ? ' #' + r.entity_id : '' %></td>
+        <td class="px-4 py-2.5">
+          <% if (r.patient_id) { %>
+          <a href="/clinic/patients/<%= r.patient_id %>" class="text-brand-600 hover:underline">#<%= r.patient_id %></a>
+          <% } else { %>—<% } %>
+        </td>
+        <td class="px-4 py-2.5 text-slate-400 font-mono text-xs" dir="ltr"><%= r.ip || '—' %></td>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-slate-400 mt-3"><%= t('clinic.audit.count').replace('{n}', rows.length) %></p>
+<% } %>
+
+</main></body></html>

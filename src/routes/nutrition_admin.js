@@ -11,6 +11,7 @@ const { Pool } = require('pg');
 const E = require('../nutrition/engine');
 const P = require('../nutrition/practice');
 const { ownerGuard } = require('../lib/tenant_scope');
+const audit = require('../lib/audit');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -155,6 +156,8 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
   try {
     const data = await P.file(pool, req.company.id, parseInt(req.params.id, 10));
     if (!data) return res.redirect('/nutrition/patients');
+    audit.log(pool, req, { entity: 'patient', entityId: parseInt(req.params.id, 10),
+      patientId: parseInt(req.params.id, 10), action: 'view' });
     res.render('nutrition_admin/patient', {
       tab: 'patients', ...data,
       progress: P.progress(data.series, data.patient.target_weight_kg),
@@ -187,6 +190,7 @@ router.post('/patients/:id(\\d+)/measure', async (req, res) => {
        VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,$5,$6,$7,'clinic',$8)`,
       [req.company.id, id, date(b.taken_on), num(b.weight_kg), num(b.body_fat_pct),
         num(b.waist_cm), num(b.muscle_kg), text(b.notes, 300)]);
+    audit.log(pool, req, { entity: 'measurement', patientId: id, action: 'create' });
   } catch (e) { console.error('[nutrition measure]', e.message); }
   res.redirect('/nutrition/patients/' + id + '?saved=1');
 });
@@ -199,6 +203,7 @@ router.post('/patients/:id(\\d+)/measure/:mid(\\d+)/delete', async (req, res) =>
   try {
     await pool.query('DELETE FROM nutrition_measurements WHERE id=$1 AND patient_id=$2 AND company_id=$3',
       [parseInt(req.params.mid, 10), id, req.company.id]);
+    audit.log(pool, req, { entity: 'measurement', entityId: parseInt(req.params.mid, 10), patientId: id, action: 'delete' });
   } catch (e) { console.error('[nutrition measure del]', e.message); }
   res.redirect('/nutrition/patients/' + id);
 });
@@ -214,6 +219,7 @@ router.post('/patients/:id(\\d+)/lab', async (req, res) => {
       `INSERT INTO nutrition_labs (company_id, patient_id, taken_on, title, value, unit, notes)
        VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,$5,$6,$7)`,
       [req.company.id, id, date(b.taken_on), title, text(b.value, 60), text(b.unit, 20), text(b.notes, 300)]);
+    audit.log(pool, req, { entity: 'lab', patientId: id, action: 'create', meta: { title } });
   } catch (e) { console.error('[nutrition lab]', e.message); }
   res.redirect('/nutrition/patients/' + id + '?saved=1');
 });
@@ -223,6 +229,7 @@ router.post('/patients/:id(\\d+)/lab/:lid(\\d+)/delete', async (req, res) => {
   try {
     await pool.query('DELETE FROM nutrition_labs WHERE id=$1 AND patient_id=$2 AND company_id=$3',
       [parseInt(req.params.lid, 10), id, req.company.id]);
+    audit.log(pool, req, { entity: 'lab', entityId: parseInt(req.params.lid, 10), patientId: id, action: 'delete' });
   } catch (e) { console.error('[nutrition lab del]', e.message); }
   res.redirect('/nutrition/patients/' + id);
 });
@@ -282,6 +289,7 @@ router.post('/patients/:id(\\d+)/login', async (req, res) => {
               password_hash=EXCLUDED.password_hash, is_active=true`,
       [req.company.id, id, login, hash]);
     // Handed over in the session, not the URL. Shown once on the next render.
+    audit.log(pool, req, { entity: 'patient_login', patientId: id, action: 'reset_password' });
     req.session.nutriPw = { id, password };
     res.redirect('/nutrition/patients/' + id);
   } catch (e) {

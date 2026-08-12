@@ -979,6 +979,21 @@ const FIXTURES = {
     date: '2026-08-03', saved: false,
   }),
 
+  // The access log: rendered here because it is the one screen a clinic owner
+  // opens when something went wrong, and a crash on it would be found then.
+  audit: () => ({
+    tab: 'audit',
+    ENTITIES: ['patient', 'vitals', 'note', 'prescription', 'invoice',
+      'measurement', 'lab', 'patient_login'],
+    filters: { patient: '', entity: '' },
+    rows: [
+      { id: 2, created_at: NOW, actor_kind: 'company', actor_label: null,
+        entity: 'prescription', entity_id: 91, patient_id: 12, action: 'delete', ip: '197.0.0.1' },
+      { id: 1, created_at: NOW, actor_kind: 'staff', actor_label: 'Reception',
+        entity: 'patient', entity_id: 12, patient_id: 12, action: 'view', ip: null },
+    ],
+  }),
+
   invoices: () => ({
     tab: 'invoices',
     summary: { today_collected: 1200, collected: 45000, outstanding: 3000, open_count: 4 },

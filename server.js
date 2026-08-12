@@ -1092,6 +1092,12 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_threads TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_website TEXT;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
+    `);
+    // Who opened, changed or deleted a patient's record. Three external
+    // reviews asked for this separately (clinic, nutrition, radiology) — until
+    // now the question had no answer at all, not a bad one.
+    await client.query(require('./src/lib/audit').SCHEMA);
+    await client.query(`
       -- Portfolio items were title + description + image, which answers "what
       -- does it look like" and nothing else. A prospect asks "who was the
       -- client, what was wrong, what did you do, what changed" — so an item can
