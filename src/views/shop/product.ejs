@@ -77,6 +77,32 @@
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
+<%- include('../partials/merchant_pixels', { company: company }) %>
+<script>
+  // The product page is the strongest retargeting signal a store has, and it
+  // was the one page with no pixel on it at all.
+  odvTrack('ViewContent', {
+    id: <%- jsonLd(String(product.id)) %>,
+    name: <%- jsonLd(pName) %>,
+    value: <%= Number(product.price) %>,
+    price: <%= Number(product.price) %>
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    var f = document.getElementById('addForm');
+    if (!f) return;
+    f.addEventListener('submit', function () {
+      var q = f.querySelector('[name="quantity"]');
+      var n = q ? Number(q.value) || 1 : 1;
+      odvTrack('AddToCart', {
+        id: <%- jsonLd(String(product.id)) %>,
+        name: <%- jsonLd(pName) %>,
+        price: <%= Number(product.price) %>,
+        value: <%= Number(product.price) %> * n,
+        quantity: n
+      });
+    });
+  });
+</script>
 
 <header class="bg-white shadow-sm sticky top-0 z-20">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">

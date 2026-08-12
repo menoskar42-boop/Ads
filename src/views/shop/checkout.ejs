@@ -19,6 +19,13 @@
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
+<%- include('../partials/merchant_pixels', { company: company }) %>
+<script>
+  odvTrack('InitiateCheckout', {
+    value: <%= Number(orderSubtotal) %>,
+    quantity: <%= (orderLines || []).reduce(function(a,b){ return a + Number(b.quantity || 1); }, 0) || 1 %>
+  });
+</script>
 
 <header class="bg-white shadow-sm">
   <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">

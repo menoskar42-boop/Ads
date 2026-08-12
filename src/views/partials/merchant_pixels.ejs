@@ -1,0 +1,94 @@
+<%
+  /* The merchant's own tracking pixels — Meta, TikTok, GA4 — plus one function
+     that sends a real e-commerce event to all three at once.
+
+     What was here before: the pixels loaded on the storefront only, and fired
+     PageView only. So a merchant could pay for ads, get sales, and have no
+     way to know which ad produced them — Meta and TikTok both optimise on
+     Purchase, and neither ever received one. The product page, the page most
+     worth retargeting from, carried no pixel at all.
+
+     Usage: include this partial with { company: company } at the top of the
+     body, then call odvTrack('AddToCart', { id, name, value, currency,
+     quantity }) anywhere after it.
+
+     Event names are the platform's own, mapped per platform:
+       ViewContent · AddToCart · InitiateCheckout · Purchase · Contact
+     Currency comes from the store, not a hardcoded EGP.
+
+     Nothing loads for a merchant who entered no IDs, and odvTrack stays
+     defined either way so a caller never has to check. */
+  var __cur = (company && company.currency) || 'EGP';
+  var __fb = company && company.fb_pixel_id;
+  var __tt = company && company.tiktok_pixel_id;
+  var __ga = company && company.ga4_id;
+%>
+<% if (__fb) { %>
+<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','<%= __fb %>');fbq('track','PageView');</script>
+<% } %>
+<% if (__tt) { %>
+<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var n="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=n;ttq._t=ttq._t||{};ttq._t[e]=+new Date;var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=n+"?sdkid="+e;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load('<%= __tt %>');ttq.page()}(window,document,'ttq');</script>
+<% } %>
+<% if (__ga) { %>
+<script async src="https://www.googletagmanager.com/gtag/js?id=<%= __ga %>"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','<%= __ga %>');</script>
+<% } %>
+<script>
+(function () {
+  var CUR = <%- jsonLd(__cur) %>;
+  // GA4 uses its own names for the same four moments.
+  var GA = { ViewContent: 'view_item', AddToCart: 'add_to_cart',
+             InitiateCheckout: 'begin_checkout', Purchase: 'purchase',
+             Contact: 'generate_lead' };
+  // TikTok's spelling differs again.
+  var TT = { ViewContent: 'ViewContent', AddToCart: 'AddToCart',
+             InitiateCheckout: 'InitiateCheckout', Purchase: 'CompletePayment',
+             Contact: 'Contact' };
+
+  window.odvTrack = function (event, d) {
+    d = d || {};
+    var value = Number(d.value || 0);
+    var cur = d.currency || CUR;
+    var id = d.id == null ? '' : String(d.id);
+    var qty = Number(d.quantity || 1);
+    try {
+      if (window.fbq) {
+        fbq('track', event, {
+          content_ids: id ? [id] : undefined,
+          content_name: d.name,
+          content_type: 'product',
+          value: value || undefined,
+          currency: cur,
+          num_items: event === 'Purchase' ? qty : undefined,
+        });
+      }
+    } catch (e) {}
+    try {
+      if (window.ttq && TT[event]) {
+        ttq.track(TT[event], {
+          contents: id ? [{ content_id: id, content_name: d.name, quantity: qty, price: d.price }] : undefined,
+          value: value || undefined,
+          currency: cur,
+        });
+      }
+    } catch (e) {}
+    try {
+      if (window.gtag && GA[event]) {
+        gtag('event', GA[event], {
+          currency: cur,
+          value: value || undefined,
+          transaction_id: d.orderId || undefined,
+          items: id ? [{ item_id: id, item_name: d.name, price: d.price, quantity: qty }] : undefined,
+        });
+      }
+    } catch (e) {}
+  };
+
+  // A WhatsApp click is the checkout of every page that does not have a cart —
+  // a clinic, a hall, a workshop. It was never counted anywhere.
+  document.addEventListener('click', function (ev) {
+    var a = ev.target && ev.target.closest && ev.target.closest('a[href*="wa.me/"], a[href*="api.whatsapp.com"]');
+    if (a) window.odvTrack('Contact', { name: 'whatsapp' });
+  }, true);
+})();
+</script>

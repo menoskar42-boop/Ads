@@ -18,6 +18,16 @@
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center px-4 py-10">
+<%- include('../partials/merchant_pixels', { company: company }) %>
+<script>
+  // The event both Meta and TikTok optimise on — and the one this store had
+  // never sent, which is why a merchant could not tell which ad paid off.
+  odvTrack('Purchase', {
+    orderId: <%- jsonLd(String(order.id)) %>,
+    value: <%= Number(order.total_amount) %>,
+    quantity: <%= items.reduce(function(a,b){return a + Number(b.quantity||1);},0) %>
+  });
+</script>
   <div class="max-w-2xl w-full bg-white rounded-3xl shadow-xl p-8 text-center">
     <div class="w-16 h-16 brand-bg rounded-full mx-auto flex items-center justify-center text-white mb-4">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
