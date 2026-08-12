@@ -21,7 +21,14 @@
  *   node scripts/seo-audit-tenants.js shop gym   # only these
  */
 'use strict';
-const ejs = require('ejs');
+let ejs;
+try { ejs = require('ejs'); }
+catch (e) {
+  // Exit 2, not 1: check-all renders that as "skipped" rather than a failure,
+  // so a missing package never reads as a broken page.
+  console.log('⏭️  ejs مش منزّل — الفحص ده محتاج node_modules.');
+  process.exit(2);
+}
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
