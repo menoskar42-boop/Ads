@@ -19,6 +19,20 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 const text = (v, max) => String(v || '').trim().slice(0, max) || null;
 
+/**
+ * The one-time password handover.
+ *
+ * Tied to the patient id it was created for, so a stale flash cannot surface
+ * on a different patient's page, and deleted on read so a refresh does not
+ * show it again.
+ */
+function takeFlashPassword(req, patientId) {
+  const f = req.session && req.session.nutriPw;
+  if (!f) return null;
+  delete req.session.nutriPw;
+  return f.id === patientId ? String(f.password).slice(0, 32) : null;
+}
+
 function requireLogin(req, res, next) {
   if (req.session && req.session.companyId) return next();
   res.redirect('/company/login');
@@ -146,7 +160,12 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
       progress: P.progress(data.series, data.patient.target_weight_kg),
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
       // Shown once and never again — it exists only as a hash from here on.
-      newPassword: typeof req.query.pw === 'string' ? req.query.pw.slice(0, 32) : null,
+      // Read once and gone. It used to arrive as ?pw=… — which puts a patient's
+      // password in the browser history, in the address bar over someone's
+      // shoulder, in the Referer header of the next request, and in any proxy
+      // or server log that records URLs. A flash in the session shows it on
+      // exactly one render and leaves no copy anywhere.
+      newPassword: takeFlashPassword(req, parseInt(req.params.id, 10)),
       portalUrl: 'https://' + req.company.slug + '.oscardevs.com/portal',
       saved: req.query.saved === '1', err: req.query.err || null,
     });
@@ -262,8 +281,9 @@ router.post('/patients/:id(\\d+)/login', async (req, res) => {
        ON CONFLICT (patient_id) DO UPDATE SET login=EXCLUDED.login,
               password_hash=EXCLUDED.password_hash, is_active=true`,
       [req.company.id, id, login, hash]);
-    // Carried in the URL for one render. Never stored, never shown twice.
-    res.redirect(`/nutrition/patients/${id}?pw=${encodeURIComponent(password)}`);
+    // Handed over in the session, not the URL. Shown once on the next render.
+    req.session.nutriPw = { id, password };
+    res.redirect('/nutrition/patients/' + id);
   } catch (e) {
     console.error('[nutrition patient login]', e.message);
     res.redirect('/nutrition/patients/' + id + '?err=login_taken');

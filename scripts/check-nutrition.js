@@ -130,5 +130,25 @@ const born = (age) => {
   check('no patient id in any portal URL', idInUrl.length === 0, idInUrl.join(', '));
 }
 
+/* ── The patient's password never travels in a URL ─────────────────────── */
+// It used to be handed over as ?pw=… — which writes a named person's password
+// into the browser history, the address bar, the Referer of the next request,
+// and any log that records URLs. A session flash shows it once and keeps no
+// copy.
+{
+  const fs = require('fs');
+  const ROOT = path.join(__dirname, '..');
+  const admin = fs.readFileSync(path.join(ROOT, 'src/routes/nutrition_admin.js'), 'utf8');
+  // Comments stripped first: this file explains the old shape, and the
+  // explanation is not the bug.
+  const code = admin.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  check('كلمة سر المريض مابتتحطش في الرابط',
+    !/\?pw=/.test(code) && !/req\.query\.pw/.test(code));
+  check('بتتسلّم مرة واحدة من الجلسة وتتمسح',
+    /req\.session\.nutriPw = \{/.test(admin) && /delete req\.session\.nutriPw/.test(admin));
+  check('ومربوطة بالمريض اللي اتعملت له',
+    /f\.id === patientId/.test(admin));
+}
+
 console.log(fail ? `\n${fail} فشل — دي أرقام بتتحسب لمرضى.` : '\nمحرّك التغذية وبواباته سليمين.');
 process.exit(fail ? 1 : 0);
