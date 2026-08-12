@@ -219,3 +219,16 @@
 </script>
 
 <main class="max-w-5xl mx-auto px-4 py-6">
+<%
+  /* A failed save used to end at ?saved=1 all the same — the catch logged to
+     the server and the page said "done". Every route that can fail now
+     redirects with ?error=save instead, and the banner lives here so no page
+     has to remember to render it. */
+  var __qs = (typeof query !== 'undefined' && query) ? query
+    : ((typeof req !== 'undefined' && req && req.query) ? req.query : {});
+%>
+<% if (__qs.error === 'save') { %>
+<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">
+  <%= t('clinic.save_failed') %>
+</div>
+<% } %>

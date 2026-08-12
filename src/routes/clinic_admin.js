@@ -292,7 +292,13 @@ router.post('/settings', async (req, res) => {
         [req.company.id, key]
       ).catch((e) => console.error('[specialty module]', key, e.message));
     }
-  } catch (e) { console.error('[clinic settings]', e.message); }
+  } catch (e) {
+    // The save failed and the page used to say it succeeded. A settings
+    // screen that lies about saving is how a clinic discovers, weeks later,
+    // that its working hours were never stored.
+    console.error('[clinic settings]', e.message);
+    return res.redirect('/clinic/settings?error=save');
+  }
   res.redirect('/clinic/settings?saved=1');
 });
 
@@ -357,7 +363,10 @@ router.post('/visits', async (req, res) => {
       );
       if (!ins.rowCount) return res.redirect('/clinic/queue?error=patient');
     }
-  } catch (e) { console.error('[clinic visit add]', e.message); }
+  } catch (e) {
+    console.error('[clinic visit add]', e.message);
+    return res.redirect('/clinic/queue?error=save');
+  }
   res.redirect('/clinic/queue?saved=1');
 });
 
@@ -947,7 +956,10 @@ router.post('/whatsapp', requireModule('whatsapp'), async (req, res) => {
         String(b.confirm_template || '').slice(0, 1000) || null,
         String(b.reminder_template || '').slice(0, 1000) || null]
     );
-  } catch (e) { console.error('[whatsapp save]', e.message); }
+  } catch (e) {
+    console.error('[whatsapp save]', e.message);
+    return res.redirect('/clinic/whatsapp?error=save');
+  }
   res.redirect('/clinic/whatsapp?saved=1');
 });
 router.post('/whatsapp/test', requireModule('whatsapp'), async (req, res) => {
@@ -1295,7 +1307,10 @@ router.post('/modules', async (req, res) => {
         [cid, key, wanted.has(key)]
       );
     }
-  } catch (e) { console.error('[clinic modules save]', e.message); }
+  } catch (e) {
+    console.error('[clinic modules save]', e.message);
+    return res.redirect('/clinic/modules?error=save');
+  }
   res.redirect('/clinic/modules?saved=1');
 });
 

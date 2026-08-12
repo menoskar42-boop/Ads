@@ -394,6 +394,10 @@ app.use((req, res, next) => {
   res.locals.siteOrigin = origin;
   res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
   res.locals.ads = adsConfig;
+  // Views could not read the query string, so a shared banner (e.g. the clinic's
+  // "the save failed") had to be threaded through every render call by hand —
+  // which is how one of them ends up missing it.
+  res.locals.query = req.query || {};
   // One price table for every page that quotes one. The numbers used to live
   // only in the home page's markup, and a landing page had already drifted to
   // a different system's price in its structured data.

@@ -313,7 +313,7 @@ router.get('/settings', async (req, res) => {
   try {
     res.render('nutrition_admin/settings', {
       tab: 'settings', settings: await P.settings(pool, req.company.id),
-      saved: req.query.saved === '1',
+      saved: req.query.saved === '1', err: req.query.err || null,
     });
   } catch (e) { console.error('[nutrition settings]', e.message); res.status(500).send('error'); }
 });
@@ -338,7 +338,10 @@ router.post('/settings', async (req, res) => {
       [req.company.id, text(b.practice_name, 120), text(b.about, 1500), text(b.address, 200),
         text(b.phone, 30), text(b.whatsapp, 30), text(b.hours, 200),
         b.booking_enabled === '1', protein, fat]);
-  } catch (e) { console.error('[nutrition settings save]', e.message); }
+  } catch (e) {
+    console.error('[nutrition settings save]', e.message);
+    return res.redirect('/nutrition/settings?err=save');
+  }
   res.redirect('/nutrition/settings?saved=1');
 });
 

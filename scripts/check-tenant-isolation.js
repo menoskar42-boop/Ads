@@ -115,6 +115,28 @@ check('ورفض الكتابة بيوصل للمستخدم مش بيعدّي ك�
   check('مفيش INSERT رجع ياخد visit_id خام جنب company_id', back.length === 0, back.join(', '));
 }
 
+/* ── A failed save must not report success ─────────────────────────────── */
+// Root cause ج٣: `catch { console.error }` followed by `redirect('?saved=1')`.
+// The server knew the write failed and the page said "done".
+{
+  const nutrition2 = fs.readFileSync(path.join(ROOT, 'src/routes/nutrition_admin.js'), 'utf8');
+  const company = fs.readFileSync(path.join(ROOT, 'src/routes/company.js'), 'utf8');
+  const liars = [];
+  // A catch that RETURNS has handled it; the success redirect below is then
+  // unreachable on failure. Only a catch that falls through is the bug.
+  const RE = /catch \([^)]*\) \{([^{}]*)\}\s*\n\s*res\.redirect\('([^']*saved=1)'\)/g;
+  for (const [file, src] of [['clinic_admin.js', clinic], ['nutrition_admin.js', nutrition2],
+    ['company.js', company]]) {
+    for (const m of src.matchAll(RE)) {
+      if (!/\breturn\b/.test(m[1])) liars.push(`${file}: ${m[2]}`);
+    }
+  }
+  check('مفيش حفظ فاشل بيقول «اتحفظ»', liars.length === 0, liars.join(' | '));
+  check('والعيادة بتحوّل لـerror=save بدل ما تكمّل', /error=save/.test(clinic));
+  check('وفيه بانر بيعرضه في كل صفحات العيادة',
+    /__qs\.error === 'save'/.test(fs.readFileSync(path.join(ROOT, 'src/views/clinic_admin/head.ejs'), 'utf8')));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — دي بيانات طبية باسم إنسان، والصف بيتكتب على مريض عيادة تانية.`
   : '\nعزل المستأجرين: المعرّفات من الطلب متقيّدة بالشركة في نفس الجملة.');

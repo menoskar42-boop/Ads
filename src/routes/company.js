@@ -1095,7 +1095,8 @@ router.post('/products/import', requireLogin, requireShop, async (req, res) => {
 router.get('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
     const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
-    res.render('company/marketing', { company: c, session: req.session, saved: req.query.saved === '1' });
+    res.render('company/marketing', { company: c, session: req.session,
+      saved: req.query.saved === '1', saveError: req.query.error === 'save' });
   } catch (e) { console.error('[marketing]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/marketing', requireLogin, requireShop, async (req, res) => {
@@ -1110,7 +1111,12 @@ router.post('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
     await pool.query('UPDATE companies SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3, whatsapp_number=$4 WHERE id=$5',
       [clean(b.fb_pixel_id), clean(b.tiktok_pixel_id), clean(b.ga4_id), cleanPhone(b.whatsapp_number), req.session.companyId]);
-  } catch (e) { console.error('[marketing save]', e.message); }
+  } catch (e) {
+    // Was: log it and redirect to ?saved=1 anyway. A merchant would paste a
+    // pixel id, be told it saved, and wonder for a week why no events arrived.
+    console.error('[marketing save]', e.message);
+    return res.redirect('/company/marketing?error=save');
+  }
   res.redirect('/company/marketing?saved=1');
 });
 
@@ -1317,7 +1323,12 @@ router.get('/shipping', requireLogin, requireShop, async (req, res) => {
 // Save the merchant's courier integration (provider + their own API key).
 router.post('/shipping/integration', requireLogin, requireShop, async (req, res) => {
   try { await require('../lib/shipping_providers').saveIntegration(req.session.companyId, req.body || {}); }
-  catch (e) { console.error('[courier save]', e.message); }
+  catch (e) {
+    // A courier API key that did not save, reported as saved, means orders
+    // silently stop reaching Bosta.
+    console.error('[courier save]', e.message);
+    return res.redirect('/company/shipping?error=save');
+  }
   res.redirect('/company/shipping?saved=1');
 });
 router.post('/shipping/add', requireLogin, requireShop, async (req, res) => {
@@ -1348,7 +1359,11 @@ router.get('/features', requireLogin, requireShop, async (req, res) => {
   } catch (e) { console.error('[features]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/features', requireLogin, requireShop, async (req, res) => {
-  try { await shopFeatures.setFeatures(req.session.companyId, req.body || {}); } catch (e) { console.error('[features save]', e.message); }
+  try { await shopFeatures.setFeatures(req.session.companyId, req.body || {}); }
+  catch (e) {
+    console.error('[features save]', e.message);
+    return res.redirect('/company/features?error=save');
+  }
   res.redirect('/company/features?saved=1');
 });
 
