@@ -98,5 +98,25 @@ check('the encrypted column wins over the plaintext one', V.read(blob, 'legacy_k
   check('every consumer decrypts instead of reading the column', bare.length === 0, bare.join(' | '));
 }
 
+/* ── Opt-in, never imposed ─────────────────────────────────────────────── */
+// Owner's rule (CLAUDE.md, 2026-08-11): a merchant adds an e-invoice or a
+// payment gateway if they want one, the same as any other part of their page.
+// Both are therefore OFF until switched on, and this fails if a default ever
+// flips — "on unless you turn it off" would put a merchant's tax identity or
+// card processing live without them asking.
+{
+  const einv = fs.readFileSync(path.join(ROOT, 'src/einvoice/schema.js'), 'utf8');
+  check('the e-invoice is off until a merchant enables it',
+    /enabled\s+BOOLEAN NOT NULL DEFAULT false/.test(einv));
+  const acct = fs.readFileSync(path.join(ROOT, 'src/accounting/schema.js'), 'utf8');
+  check('no payment gateway until a merchant configures one',
+    /gateway TEXT DEFAULT 'none'/.test(acct));
+  // And the manual methods are individually nullable rather than required, so a
+  // merchant can offer cash only and nothing else.
+  check('the manual methods are optional too',
+    /instapay_handle TEXT,/.test(acct) && /wallet_number TEXT,/.test(acct)
+    && !/instapay_handle TEXT NOT NULL/.test(acct));
+}
+
 console.log(fail ? `\n${fail} فشل — دي مفاتيح بتحرّك فلوس عملائك.` : '\nمفاتيح الدفع مشفّرة ومش بتتعرض.');
 process.exit(fail ? 1 : 0);
