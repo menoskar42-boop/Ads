@@ -4,6 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
+const flow = require('../lib/order_flow');
 const requireLogin = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -197,12 +198,33 @@ router.post('/orders/:id/status', async (req, res) => {
   const cid = req.company.id;
   const id = toInt(req.params.id, null);
   const status = FOOD_FLOW.includes(req.body.status) ? req.body.status : null;
-  if (status) {
-    const r = await pool.query('UPDATE food_orders SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3 RETURNING id', [status, id, cid]);
-    if (r.rows.length) {
-      await pool.query('INSERT INTO food_order_events (order_id, status, note) VALUES ($1,$2,$3)', [id, status, 'admin']);
+  if (!status) return res.redirect('/food/orders');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // FOR UPDATE, because two people on two screens moving the same order is
+    // the normal case in a restaurant, not the rare one.
+    const cur = (await client.query(
+      'SELECT status FROM food_orders WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid])).rows[0];
+    if (!cur) { await client.query('ROLLBACK'); return res.redirect('/food/orders'); }
+    // A delivered order that goes back to preparing and forward again is how
+    // the pharmacy sold the same stock twice. Same rule here, from the shared
+    // module rather than a second copy of the same `if`.
+    const move = flow.canMove(FOOD_FLOW, cur.status, status);
+    if (!move.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect('/food/orders?error=' + move.reason);
     }
-  }
+    await client.query('UPDATE food_orders SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3',
+      [status, id, cid]);
+    await client.query('INSERT INTO food_order_events (order_id, status, note) VALUES ($1,$2,$3)',
+      [id, status, 'admin']);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[food order status]', e.message);
+    return res.redirect('/food/orders?error=save');
+  } finally { client.release(); }
   res.redirect('/food/orders');
 });
 

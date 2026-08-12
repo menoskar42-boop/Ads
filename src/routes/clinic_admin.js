@@ -10,6 +10,7 @@ const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = requ
 const { ownerGuard, ref } = require('../lib/tenant_scope');
 const audit = require('../lib/audit');
 const clinicPerms = require('../clinic/perms');
+const flow = require('../lib/order_flow');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -370,15 +371,39 @@ router.post('/visits', async (req, res) => {
   res.redirect('/clinic/queue?saved=1');
 });
 
+const VISIT_FLOW = ['waiting', 'in_room', 'done', 'cancelled'];
 router.post('/visits/:id/status', async (req, res) => {
-  const st = ['waiting', 'in_room', 'done', 'cancelled'].includes(req.body.status) ? req.body.status : null;
-  if (st) {
-    try { await pool.query('UPDATE clinic_visits SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3', [st, parseInt(req.params.id, 10), req.company.id]); }
-    catch (e) { console.error(e.message); }
-  }
-  res.redirect(req.body.back === 'file' && req.body.patient_id
+  const st = VISIT_FLOW.includes(req.body.status) ? req.body.status : null;
+  const back = req.body.back === 'file' && req.body.patient_id
     ? '/clinic/patients/' + parseInt(req.body.patient_id, 10)
-    : '/clinic/queue');
+    : '/clinic/queue';
+  if (!st) return res.redirect(back);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Reception and the doctor both have this queue open; the lock is for them,
+    // not for an attacker.
+    const cur = (await client.query(
+      'SELECT status FROM clinic_visits WHERE id=$1 AND company_id=$2 FOR UPDATE',
+      [parseInt(req.params.id, 10), req.company.id])).rows[0];
+    if (!cur) { await client.query('ROLLBACK'); return res.redirect(back); }
+    // A finished visit is finished: done → in_room → done would put a patient
+    // back in the room on today's queue and count the visit twice in the day's
+    // numbers. Same rule the pharmacy learned the hard way.
+    const move = flow.canMove(VISIT_FLOW, cur.status, st);
+    if (!move.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect(back + '?error=' + move.reason);
+    }
+    await client.query('UPDATE clinic_visits SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3',
+      [st, parseInt(req.params.id, 10), req.company.id]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[visit status]', e.message);
+    return res.redirect(back + '?error=save');
+  } finally { client.release(); }
+  res.redirect(back);
 });
 
 // ── Patient clinical file (visits history + vitals + notes + prescriptions) ──
