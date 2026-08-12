@@ -30,6 +30,7 @@ const CHECKS = [
   ['render-clinic-pages',   'صفحات العيادة بالعربي والإنجليزي'],
   ['render-kakeibo-pages',  'شاشات كاكيبو'],
   ['seo-audit',             'SEO و AdSense للصفحات العامة'],
+  ['seo-audit-tenants',     'SEO و AdSense لصفحات المستأجرين (١٢ قطاع)'],
 ];
 
 let failed = 0;

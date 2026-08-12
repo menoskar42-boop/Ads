@@ -501,6 +501,24 @@ router.get('/', async (req, res) => {
   // A nutrition practice page carries none either: it is health-adjacent and
   // the whole vertical is deliberately ad-free.
   if (company.page_type === 'nutrition') res.locals.showAds = false;
+  // Four more verticals join them, measured rather than guessed. Rendering each
+  // template with a FULLY filled-in tenant (long description, six items, every
+  // setting populated) and counting the words:
+  //
+  //     orders 101 · nursery 135 · hall 136 · workshop 149 · installments 159
+  //
+  // against the 250-word floor this repo uses for a monetised page. These are
+  // not thin because the customer left them empty — they are as full as their
+  // template gets, so the indexable gate above never fires and every one of
+  // them served ads on ~100–160 words. That is rule #5 in
+  // docs/SEO_MISTAKES_LOG.md, and the account it risks is the one CLAUDE.md
+  // says not to break.
+  //
+  // Ads come back per vertical when its template carries enough content to
+  // clear the floor; scripts/seo-audit-tenants.js is what says when.
+  if (['orders', 'workshop', 'hall', 'nursery', 'installments'].includes(company.page_type)) {
+    res.locals.showAds = false;
+  }
 
   const preset = getPreset(company.profession);
   const pc = company.page_content || {};

@@ -428,7 +428,9 @@ ul{ list-style:none; }
 .footer .brand{ color:#fff; margin-bottom:16px; }
 .footer .mark rect, .footer .mark circle{ fill:#fff !important; }
 .footer p.about-f{ font-size:.95rem; max-width:38ch; }
-.footer h4{ font-family:var(--font-display); color:#fff; font-size:1rem; margin-bottom:16px; font-weight:600; }
+/* h3, not h4: the heading before the footer is an h2, and h2 → h4 skips a
+   level. The size lives here, so the tag carries no visual weight. */
+.footer h3{ font-family:var(--font-display); color:#fff; font-size:1rem; margin-bottom:16px; font-weight:600; }
 .footer ul li{ margin-bottom:11px; }
 .footer ul a{ font-size:.94rem; transition:color .25s, padding .25s; }
 .footer ul a:hover{ color:var(--accent-soft); padding-inline-start:5px; }
@@ -996,7 +998,7 @@ ul{ list-style:none; }
         <p class="about-f"><%= displayDesc || preset.about %></p>
       </div>
       <div>
-        <h4>روابط سريعة</h4>
+        <h3>روابط سريعة</h3>
         <ul>
           <li><a href="#about">عنّا</a></li>
           <li><a href="#services">الخدمات</a></li>
@@ -1006,7 +1008,7 @@ ul{ list-style:none; }
         </ul>
       </div>
       <div>
-        <h4>تواصل</h4>
+        <h3>تواصل</h3>
         <ul>
           <% if (company.contact_phone) { %><li><a href="tel:<%= company.contact_phone %>" dir="ltr" style="display:inline-block"><%= company.contact_phone %></a></li><% } %>
           <% if (company.contact_email) { %><li><a href="mailto:<%= company.contact_email %>"><%= company.contact_email %></a></li><% } %>

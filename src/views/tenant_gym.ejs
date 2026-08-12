@@ -143,7 +143,9 @@
   .btn--wa{background:#25D366;color:#062a12} .btn--wa:hover{background:#2ee474;color:#062a12}
   .foot{border-top:1px solid var(--line);margin-top:clamp(64px,9vw,110px)}
   .foot__top{display:grid;grid-template-columns:1fr;gap:34px;padding:56px 0 40px}
-  .foot__col h4{font-size:13px;font-weight:800;letter-spacing:.06em;color:#fff;margin:0 0 16px;text-transform:uppercase}
+  /* h3, not h4: the last heading before the footer is an h2, and h2 → h4
+     skips a level. The size is set here, so the tag carries no visual weight. */
+  .foot__col h3{font-size:13px;font-weight:800;letter-spacing:.06em;color:#fff;margin:0 0 16px;text-transform:uppercase}
   .foot__col a,.foot__col p{display:block;color:var(--mut);font-size:14px;font-weight:600;margin:0 0 11px;line-height:1.5} .foot__col a:hover{color:var(--acc)}
   .foot__bot{border-top:1px solid var(--line);padding:22px 0;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;color:var(--mut);font-size:13px;font-weight:600}
   .foot__bot .pw b{color:#fff} .foot__bot .pw b span{color:var(--acc)} .foot__member{color:#fff;font-weight:800} .foot__member:hover{color:var(--acc)}
@@ -380,19 +382,19 @@
           <p style="max-width:34ch"><%= about.slice(0,120) %></p>
         </div>
         <div class="foot__col">
-          <h4>روابط</h4>
+          <h3>روابط</h3>
           <% if (gymPlans.length) { %><a href="#pricing">الباقات</a><% } %>
           <% if (gymClasses.length) { %><a href="#classes">الكلاسات</a><% } %>
           <% if (gymTrainers.length) { %><a href="#trainers">المدرّبون</a><% } %>
           <a href="#gallery">المعرض</a>
         </div>
         <div class="foot__col">
-          <h4>تواصل</h4>
+          <h3>تواصل</h3>
           <% if (g.phone) { %><a href="tel:<%= g.phone %>" dir="ltr"><%= g.phone %></a><% } %>
           <% if (wa) { %><a href="https://wa.me/<%= wa %>" target="_blank" rel="nofollow noopener">واتساب</a><% } %>
         </div>
         <div class="foot__col">
-          <h4>العنوان والمواعيد</h4>
+          <h3>العنوان والمواعيد</h3>
           <% if (g.address) { %><p><%= g.address %></p><% } %>
           <% if (g.hours) { %><p><%= g.hours %></p><% } %>
           <a href="/checkin" class="foot__member">عضو حالي؟ سجّل حضورك ←</a>

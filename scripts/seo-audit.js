@@ -183,43 +183,51 @@ function auditArticles() {
 }
 
 // ── Runner ───────────────────────────────────────────────────────────────────
-const asked = process.argv.slice(2);
-const names = asked.length ? asked : Object.keys(PAGES);
-let failed = 0;
+// The rule set is the valuable part and there is only one of it: seo-audit-tenants.js
+// requires audit() from here rather than restating the limits, so a change to
+// what "too long" means moves both at once.
+module.exports = { audit, TITLE_MAX, DESC_MIN, DESC_MAX, MIN_WORDS_WITH_ADS, base };
 
-for (const name of names) {
-  const spec = PAGES[name];
-  if (!spec) { console.log(`⏭️  ${name} — لا يوجد fixture`); continue; }
-  const file = path.join(VIEWS, spec.file);
-  let html;
-  try {
-    html = ejs.render(fs.readFileSync(file, 'utf8'), base(spec.locals),
-      { filename: file, root: VIEWS });
-  } catch (e) {
-    failed++;
-    console.log(`❌ ${name} — فشل العرض: ${e.message}`);
-    continue;
+if (require.main === module) {
+  const asked = process.argv.slice(2);
+  const names = asked.length ? asked : Object.keys(PAGES);
+  let failed = 0;
+
+  for (const name of names) {
+    const spec = PAGES[name];
+    if (!spec) { console.log(`⏭️  ${name} — لا يوجد fixture`); continue; }
+    const file = path.join(VIEWS, spec.file);
+    let html;
+    try {
+      html = ejs.render(fs.readFileSync(file, 'utf8'), base(spec.locals),
+        { filename: file, root: VIEWS });
+    } catch (e) {
+      failed++;
+      console.log(`❌ ${name} — فشل العرض: ${e.message}`);
+      continue;
+    }
+    const r = audit(name, html, spec);
+    if (r.problems.length) {
+      failed++;
+      console.log(`❌ ${name} — ${r.problems.length} مخالفة:`);
+      r.problems.forEach((p) => console.log('   · ' + p));
+    } else {
+      console.log(`✅ ${name} (${r.words} كلمة${r.hasAds ? '، عليها إعلانات' : ''})`);
+    }
   }
-  const r = audit(name, html, spec);
-  if (r.problems.length) {
-    failed++;
-    console.log(`❌ ${name} — ${r.problems.length} مخالفة:`);
-    r.problems.forEach((p) => console.log('   · ' + p));
-  } else {
-    console.log(`✅ ${name} (${r.words} كلمة${r.hasAds ? '، عليها إعلانات' : ''})`);
+
+  if (!asked.length) {
+    const art = auditArticles();
+    if (art.length) {
+      failed++;
+      console.log(`❌ المقالات — ${art.length} مخالفة:`);
+      art.forEach((p) => console.log('   · ' + p));
+    } else {
+      console.log(`✅ المقالات (${ARTICLES.length} مقال)`);
+    }
   }
+
+  console.log(failed ? `\n${failed} صفحة فيها مخالفة.` : '\nكل الصفحات العامة مطابقة لشروط SEO و AdSense.');
+  process.exit(failed ? 1 : 0);
+
 }
-
-if (!asked.length) {
-  const art = auditArticles();
-  if (art.length) {
-    failed++;
-    console.log(`❌ المقالات — ${art.length} مخالفة:`);
-    art.forEach((p) => console.log('   · ' + p));
-  } else {
-    console.log(`✅ المقالات (${ARTICLES.length} مقال)`);
-  }
-}
-
-console.log(failed ? `\n${failed} صفحة فيها مخالفة.` : '\nكل الصفحات العامة مطابقة لشروط SEO و AdSense.');
-process.exit(failed ? 1 : 0);
