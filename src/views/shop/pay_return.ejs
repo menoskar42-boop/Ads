@@ -16,5 +16,6 @@
     <p class="text-gray-500 text-sm mb-5"><%= ok ? t('acct.pay.thanks_note') : t('acct.pay.processing_note') %></p>
     <a href="/" class="inline-block bg-emerald-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('acct.pay.home') %></a>
   </div>
+      <%- include('../partials/payment_methods') %>
 </body>
 </html>

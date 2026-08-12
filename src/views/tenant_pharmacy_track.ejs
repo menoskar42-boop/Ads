@@ -84,6 +84,7 @@
     <p id="notifHint" class="text-xs text-gray-400 text-center mt-2"><%= t('pharmacy.track.enable_hint') %></p>
   <% } %>
   <a href="/" class="block text-center text-sm text-gray-500 underline mt-4"><%= t('pharmacy.order.back') %></a>
+      <%- include('partials/payment_methods') %>
 </main>
 
 <script>

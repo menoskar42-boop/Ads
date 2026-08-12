@@ -559,9 +559,16 @@ router.get('/:slug/pay/:orderId', async (req, res) => {
 });
 
 // Buyer return page (informational — do NOT trust query params to mark paid).
-router.get('/pay/return', (req, res) => {
+router.get('/pay/return', async (req, res) => {
   const ok = String(req.query.success) === 'true';
-  res.render('shop/pay_return', { ok });
+  // A failed card payment is exactly when the other methods matter: the buyer
+  // still wants the order and has just been told no. Sending them back to an
+  // empty page loses the sale.
+  let payment = null;
+  if (!ok && req.company) {
+    try { payment = await loadPaymentMethods(pool, req.company, res.locals.t); } catch (e) { payment = null; }
+  }
+  res.render('shop/pay_return', { ok, payment });
 });
 
 // Server-to-server webhook from Paymob. HMAC-verified with the MERCHANT'S secret
@@ -762,7 +769,14 @@ router.get('/:slug/order/:id', async (req, res) => {
     // the order isn't already paid.
     const paySettings = await loadPaySettings(pool, company.id);
     const canPayOnline = gatewayReady(paySettings) && order.payment_status !== 'paid';
-    res.render('shop/success', { company, order, items: items.rows, canPayOnline });
+    // The order exists and, for every manual method, the money does not yet.
+    // This is where a buyer paying by InstaPay or a wallet finds out where to
+    // send it — showing nothing here is the same as not offering the method.
+    // Suppressed once the order is paid: a paid receipt asking for a transfer
+    // is how a customer pays twice.
+    const payment = order.payment_status === 'paid'
+      ? null : await loadPaymentMethods(pool, company, res.locals.t);
+    res.render('shop/success', { company, order, items: items.rows, canPayOnline, payment });
   } catch (err) {
     console.error('[GET /shop/:slug/order/:id] error:', err);
     res.status(500).send('Error.');

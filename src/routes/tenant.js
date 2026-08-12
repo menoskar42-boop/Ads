@@ -882,8 +882,13 @@ router.get('/order/track/:token', async (req, res) => {
     )).rows;
     const paySettings = await loadPaySettings(pool, req.tenant.id);
     const canPayOnline = gatewayReady(paySettings) && order.payment_status !== 'paid';
+    // A buyer opens this page to answer one of two questions: where is my order,
+    // and how do I pay for it. Unpaid orders get the methods; a paid one does
+    // not, because a receipt asking for a transfer is how somebody pays twice.
+    const payment = order.payment_status === 'paid'
+      ? null : await loadPaymentMethods(pool, req.tenant, res.locals.t);
     res.render('tenant_pharmacy_track', {
-      company: req.tenant, order, items, noindex: true,
+      company: req.tenant, order, items, noindex: true, payment,
       pushKey: push.publicKey(),
       canPayOnline, payUrl: '/order/pharmacy/pay/' + order.track_token,
       canonical: 'https://' + req.tenant.slug + '.oscardevs.com/',

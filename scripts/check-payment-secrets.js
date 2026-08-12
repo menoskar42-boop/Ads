@@ -137,14 +137,37 @@ check('the encrypted column wins over the plaintext one', V.read(blob, 'legacy_k
   // confirmation page needs them most: the order exists, the money does not
   // yet, and this is where somebody paying by InstaPay finds out where to send
   // it. Both were rendering nothing.
-  const buying = ['src/views/tenant_pharmacy_order.ejs'];
+  // Every screen where a buyer could still owe money. The cart is deliberately
+  // absent: checkout is one click later and carries them. A PAID order is also
+  // deliberately absent — a receipt asking for a transfer is how somebody pays
+  // twice, so the routes pass null once payment_status is 'paid'.
+  const buying = [
+    'src/views/tenant_pharmacy_order.ejs',   // order form + confirmation
+    'src/views/tenant_pharmacy_track.ejs',   // "where is my order, and how do I pay"
+    'src/views/shop/checkout.ejs',
+    'src/views/shop/success.ejs',            // order placed, money not yet sent
+    'src/views/shop/pay_return.ejs',         // card declined — the alternatives
+  ];
   const blind = buying.filter((f) => !/payment_methods/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
   check('the order and confirmation pages show them too', blind.length === 0, blind.join(', '));
-  const tenantSrc = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
-  const renders = (tenantSrc.match(/res\.render\('tenant_pharmacy_order'/g) || []).length;
-  const passes = (tenantSrc.match(/payment,?\s*$/gm) || []).length;
-  check('and the route actually passes them', renders > 0 && passes >= renders,
-    `${renders} render(s), ${passes} pass(es)`);
+  // A correct view with a route that forgets to pass `payment` renders the
+  // same blank page, so both halves are checked.
+  for (const [file, view] of [['src/routes/tenant.js', 'tenant_pharmacy_order'],
+    ['src/routes/tenant.js', 'tenant_pharmacy_track'], ['src/routes/shop.js', 'shop/success'],
+    ['src/routes/shop.js', 'shop/pay_return']]) {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const re = new RegExp("res\\.render\\('" + view.replace('/', '\\/') + "'[\\s\\S]{0,400}?\\}\\);", 'g');
+    const blocks = src.match(re) || [];
+    const blind = blocks.filter((b) => !/payment/.test(b));
+    check(`${view}: every render is handed the methods`, blocks.length > 0 && blind.length === 0,
+      `${blocks.length} render(s), ${blind.length} blind`);
+  }
+  // Paid orders must NOT be asked for money again.
+  const shopSrc = fs.readFileSync(path.join(ROOT, 'src/routes/shop.js'), 'utf8');
+  const tenSrc = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  check('a paid order is not shown payment instructions',
+    /payment_status === 'paid'\s*\n?\s*\? null/.test(shopSrc)
+    && /payment_status === 'paid'\s*\n?\s*\? null/.test(tenSrc));
 
   const pf = fs.readFileSync(path.join(ROOT, 'src/views/tenant_portfolio.ejs'), 'utf8');
   check('the portfolio page does not (nothing is sold there)', !/payment_methods/.test(pf));
