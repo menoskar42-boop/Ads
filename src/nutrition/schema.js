@@ -142,6 +142,12 @@ async function ensureNutritionSchema() {
         created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_nut_plans ON nutrition_plans (patient_id, is_active);
+      -- One active plan per patient, enforced by the database rather than by
+      -- the order of two statements. "Deactivate the old one, then insert the
+      -- new one" is correct until two tabs do it at once, and then the patient
+      -- portal has two plans to choose between and picks wrong.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_one_active_plan
+        ON nutrition_plans (patient_id) WHERE is_active;
 
       CREATE TABLE IF NOT EXISTS nutrition_plan_items (
         id         SERIAL PRIMARY KEY,

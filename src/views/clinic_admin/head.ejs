@@ -232,3 +232,18 @@
   <%= t('clinic.save_failed') %>
 </div>
 <% } %>
+<% if (__qs.error === 'settled') { %>
+<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm mb-4">
+  <%= t('clinic.inv.settled') %>
+</div>
+<% } %>
+<% if (__qs.change) { %>
+<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm mb-4">
+  <%= t('clinic.inv.change').replace('{n}', __qs.change) %>
+</div>
+<% } %>
+<% if (__qs.error === 'final' || __qs.error === 'backwards') { %>
+<div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-4">
+  <%= t(__qs.error === 'final' ? 'clinic.flow.final' : 'clinic.flow.backwards') %>
+</div>
+<% } %>

@@ -859,18 +859,37 @@ router.post('/invoices/:id/payments', async (req, res) => {
     await client.query('BEGIN');
     const inv = (await client.query('SELECT total_amount, paid_amount, status FROM clinic_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid])).rows[0];
     if (!inv || inv.status === 'cancelled') { await client.query('ROLLBACK'); return res.redirect('/clinic/invoices/' + id); }
-    await client.query('INSERT INTO clinic_payments (company_id, invoice_id, amount, method) VALUES ($1,$2,$3,$4)', [cid, id, amount, method]);
-    const paid = Number(inv.paid_amount) + amount;
+    // Overpayment. A 500 invoice could take a 5,000 payment and the file then
+    // showed paid_amount 5,000 against total 500 — a number that is not wrong
+    // by a typo, it is wrong in a way the monthly report repeats. The payment
+    // is capped at what is still owed and the surplus is called what it is:
+    // change the clinic owes back, stated on the spot rather than buried.
     const total = Number(inv.total_amount);
+    const due = Math.max(0, +(total - Number(inv.paid_amount)).toFixed(2));
+    const applied = Math.min(amount, due);
+    const change = +(amount - applied).toFixed(2);
+    if (applied <= 0) {
+      // Nothing owed. Recording a zero payment would just add a row that makes
+      // the ledger harder to read.
+      await client.query('ROLLBACK');
+      return res.redirect('/clinic/invoices/' + id + '?error=settled');
+    }
+    await client.query('INSERT INTO clinic_payments (company_id, invoice_id, amount, method) VALUES ($1,$2,$3,$4)', [cid, id, applied, method]);
+    const paid = Number(inv.paid_amount) + applied;
     const status = paid >= total ? 'paid' : paid > 0 ? 'partial' : 'pending';
     await client.query(
       'UPDATE clinic_invoices SET paid_amount=$1, status=$2, paid_at=CASE WHEN $2=\'paid\' AND paid_at IS NULL THEN now() ELSE paid_at END WHERE id=$3 AND company_id=$4',
       [paid, status, id, cid]
     );
     await client.query('COMMIT');
+    audit.log(pool, req, { entity: 'invoice', entityId: id, action: 'update',
+      meta: { paid: applied, method, change } });
+    // The cashier has money in their hand that is not ours; say so now.
+    if (change > 0) return res.redirect('/clinic/invoices/' + id + '?change=' + change);
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[clinic payment]', e.message);
+    return res.redirect('/clinic/invoices/' + id + '?error=save');
   } finally { client.release(); }
   res.redirect('/clinic/invoices/' + id);
 });

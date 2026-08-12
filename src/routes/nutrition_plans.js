@@ -55,16 +55,29 @@ router.post('/patients/:id(\\d+)/plans', async (req, res) => {
     const carbs = int(b.target_carbs) || (c.ok && c.macros ? c.macros.carbs : null);
     const fat = int(b.target_fat) || (c.ok && c.macros ? c.macros.fat : null);
 
-    // Only one active plan at a time. Two active plans means the patient
-    // portal has to guess which one to show, and it will guess wrong.
-    await pool.query(
-      'UPDATE nutrition_plans SET is_active=false WHERE patient_id=$1 AND company_id=$2', [pid, cid]);
-    const r = await pool.query(
-      `INSERT INTO nutrition_plans
-         (company_id, patient_id, title, target_kcal, target_protein, target_carbs, target_fat, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [cid, pid, text(b.title, 120), target, protein, carbs, fat, text(b.notes, 500)]);
-    res.redirect('/nutrition/plans/' + r.rows[0].id);
+    // Only one active plan at a time. Two active plans means the patient portal
+    // has to guess which one to show, and it will guess wrong.
+    //
+    // Deactivate-then-insert is correct until two tabs do it at once, so both
+    // statements are now one transaction AND the database carries a unique
+    // partial index on (patient_id) WHERE is_active — the transaction makes it
+    // ordinary, the index makes it impossible.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'UPDATE nutrition_plans SET is_active=false WHERE patient_id=$1 AND company_id=$2', [pid, cid]);
+      const r = await client.query(
+        `INSERT INTO nutrition_plans
+           (company_id, patient_id, title, target_kcal, target_protein, target_carbs, target_fat, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+        [cid, pid, text(b.title, 120), target, protein, carbs, fat, text(b.notes, 500)]);
+      await client.query('COMMIT');
+      return res.redirect('/nutrition/plans/' + r.rows[0].id);
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw e;
+    } finally { client.release(); }
   } catch (e) {
     console.error('[nutrition plan create]', e.message);
     res.redirect('/nutrition/patients/' + pid + '?err=save');

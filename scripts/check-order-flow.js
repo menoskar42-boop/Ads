@@ -87,6 +87,42 @@ check('والصيدلية بتقفله كمان', /FROM pharmacy_orders WHERE id
 check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي بالسكوت',
   /error=' \+ move\.reason/.test(food) && /error=' \+ move\.reason/.test(clinic));
 
+/* ── ج٦: check-then-write races ────────────────────────────────────────── */
+// A coupon validated and THEN incremented lets two customers read used_count 9
+// against a limit of 10 and both get the discount. "Last 10 orders" quietly
+// becomes "however many arrive in the same second".
+{
+  const tenant = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  check('كوبون المطاعم بيتحجز بشرط الحد في نفس الجملة',
+    /UPDATE food_coupons SET used_count = used_count \+ 1[\s\S]{0,220}used_count < usage_limit/.test(tenant));
+  check('واللي خسر السباق الطلب بيعدّي بسعر كامل مش بيفشل عليه',
+    /if \(!claim\.rowCount\) cp = \{ ok: false/.test(tenant));
+  check('ومفيش زيادة غير مشروطة فاضلة',
+    !/UPDATE food_coupons SET used_count = used_count \+ 1 WHERE id = \$1'\)/.test(tenant));
+
+  // The shop's coupon was already correct — SELECT … FOR UPDATE with the limit
+  // in the WHERE. Asserted so it stays that way.
+  const shop = fs.readFileSync(path.join(ROOT, 'src/routes/shop.js'), 'utf8');
+  check('كوبون المتجر لسه بيتقفل بـFOR UPDATE',
+    /FROM coupons WHERE company_id=\$1 AND code=\$2[\s\S]{0,200}FOR UPDATE/.test(shop));
+
+  // One active nutrition plan, enforced by the database and not by statement order.
+  const nutSchema = fs.readFileSync(path.join(ROOT, 'src/nutrition/schema.js'), 'utf8');
+  check('خطة نشطة واحدة بس — قيد فريد في قاعدة البيانات',
+    /CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_one_active_plan[\s\S]{0,120}WHERE is_active/.test(nutSchema));
+  const plans = fs.readFileSync(path.join(ROOT, 'src/routes/nutrition_plans.js'), 'utf8');
+  check('والتعطيل والإضافة في transaction واحدة',
+    /BEGIN[\s\S]{0,600}UPDATE nutrition_plans SET is_active=false[\s\S]{0,600}INSERT INTO nutrition_plans[\s\S]{0,400}COMMIT/.test(plans));
+}
+
+/* ── The overpaid invoice ──────────────────────────────────────────────── */
+{
+  const clinic2 = fs.readFileSync(path.join(ROOT, 'src/routes/clinic_admin.js'), 'utf8');
+  check('الدفعة محدودة بالمتبقّي', /const applied = Math\.min\(amount, due\)/.test(clinic2));
+  check('والزيادة بتتقال للكاشير كباقي', /change=' \+ change/.test(clinic2));
+  check('وفاتورة متسدّدة مابتقبلش دفعة تانية', /error=settled/.test(clinic2));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — دي الحالة اللي بتخصم المخزون وتحسب البيعة مرتين.`
   : '\nالحالات النهائية مابترجعش، في التلات أنظمة، والصف بيتقفل قبل القرار.');

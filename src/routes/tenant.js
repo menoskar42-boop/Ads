@@ -1253,7 +1253,24 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
       }
     }
     const deliveryFee = Object.keys(outFee).reduce((s, k) => s + outFee[k], 0);
-    const cp = await validateFoodCoupon(client, company.id, req.body.coupon, subtotal);
+    let cp = await validateFoodCoupon(client, company.id, req.body.coupon, subtotal);
+    // Claim the use BEFORE pricing the order, and claim it conditionally.
+    // Validating and then incrementing left a window where two customers both
+    // read used_count = 9 against a limit of 10 and both got the discount —
+    // "last 10 orders" quietly became "however many arrive in the same second".
+    // The UPDATE re-checks the limit in its own WHERE, so exactly one wins.
+    if (cp.ok) {
+      const claim = await client.query(
+        `UPDATE food_coupons SET used_count = used_count + 1
+          WHERE id = $1 AND company_id = $2
+            AND (usage_limit IS NULL OR usage_limit <= 0 OR used_count < usage_limit)
+          RETURNING used_count`,
+        [cp.coupon.id, company.id]
+      );
+      // Lost the race: the order still goes through, at full price, rather than
+      // failing on the customer for something they did not do.
+      if (!claim.rowCount) cp = { ok: false, discount: 0 };
+    }
     const discount = cp.ok ? cp.discount : 0;
     const total = Math.max(0, subtotal + deliveryFee - discount);
     const token = crypto.randomBytes(9).toString('hex');
@@ -1263,7 +1280,6 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
       [company.id, lineItems[0].outlet, name, total, deliveryFee, address || null, phone, notes || null,
        cp.ok ? cp.coupon.code : null, discount, token]
     )).rows[0];
-    if (cp.ok) await client.query('UPDATE food_coupons SET used_count = used_count + 1 WHERE id = $1', [cp.coupon.id]);
     for (const li of lineItems) {
       await client.query(
         `INSERT INTO food_order_items (order_id, item_id, name_snapshot, quantity, price) VALUES ($1,$2,$3,$4,$5)`,
