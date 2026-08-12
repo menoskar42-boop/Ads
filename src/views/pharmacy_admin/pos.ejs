@@ -107,6 +107,26 @@
     if(!q){ results.classList.add('hidden'); results.innerHTML=''; return; }
     timer = setTimeout(function(){ doSearch(q); }, 150);
   });
+
+  // Desktop barcode/QR readers are HID devices: they TYPE the code into the
+  // focused box and press Enter. The box is autofocused, so scanning already
+  // filled it — but Enter did nothing and the pharmacist had to reach for the
+  // mouse on every item, which defeats the scanner. Enter now adds the single
+  // exact barcode match and clears the box, ready for the next scan.
+  searchBox.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    var code = (searchBox.value || '').trim();
+    if (!code) return;
+    getAll('inv').then(function (rows) {
+      var exact = rows.filter(function (it) { return it.barcode && String(it.barcode) === code; });
+      // Only an unambiguous barcode is auto-added. A name search that happens to
+      // match one row is not the same thing, and adding the wrong medicine
+      // because it was the only hit is worse than making them tap it.
+      if (exact.length === 1) { addToCart(exact[0]); toast(nm(exact[0])); searchBox.value = ''; results.classList.add('hidden'); }
+      else { doSearch(code); }
+    });
+  });
   function doSearch(q){
     var ql = q.toLowerCase();
     getAll('inv').then(function(rows){

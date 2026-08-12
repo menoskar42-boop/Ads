@@ -268,11 +268,25 @@ router.post('/inventory/:id/update', gate('inventory'), withImage(uploadMedImage
   try {
     let imageUrl = null;
     if (req.file) { await compressImage(req.file.path); imageUrl = '/uploads/' + req.file.filename; }
+    // QA: a pharmacist could type a quantity BELOW what is already reserved for
+    // open orders, which makes available_qty (qty − reserved_qty) negative — the
+    // shelf owes stock it does not have, and the orders holding it silently
+    // become unfulfillable. Refuse, and say what the floor is; correcting the
+    // count is right, promising stock that is already spoken for is not.
+    const wanted = toInt(b.qty, 0);
+    const cur = (await pool.query(
+      'SELECT reserved_qty FROM pharmacy_inventory WHERE id=$1 AND company_id=$2', [id, cid]
+    )).rows[0];
+    const reserved = cur ? Number(cur.reserved_qty) || 0 : 0;
+    if (wanted < reserved) {
+      return res.redirect('/pharmacy/inventory?error=' + encodeURIComponent(
+        `فيه ${reserved} محجوزين لطلبات مفتوحة — الكمية ماينفعش تقل عن كده. الغِ الطلبات الأول لو عايز تنزّلها.`));
+    }
     await pool.query(
       `UPDATE pharmacy_inventory SET qty=$1, price=$2, cost=$3, min_qty=$4,
          expiry=$5, barcode=$6, image_url=COALESCE($9, image_url), description=$10, updated_at=now()
        WHERE id=$7 AND company_id=$8`,
-      [toInt(b.qty, 0), toNum(b.price, null), toNum(b.cost, null), toInt(b.min_qty, 0),
+      [wanted, toNum(b.price, null), toNum(b.cost, null), toInt(b.min_qty, 0),
        (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, id, cid, imageUrl,
        (b.description || '').trim() || null]
     );
@@ -597,6 +611,15 @@ router.post('/orders/:id/status', gate('orders'), async (req, res) => {
     if (!ord) { await client.query('ROLLBACK'); return res.redirect('/pharmacy/orders?error=1'); }
     const prev = ord.status;
     const terminalDone = ['delivered', 'rejected', 'cancelled'].includes(prev);
+    // A finished order is finished. `terminalDone` was computed and only used to
+    // guard the release branch, so delivered → preparing → delivered walked
+    // straight back through the fulfil branch: stock left the shelf a SECOND
+    // time and the day's takings counted the order twice. Reported by QA.
+    // Re-selecting the same status is a harmless no-op and stays allowed.
+    if (terminalDone && next !== prev) {
+      await client.query('ROLLBACK');
+      return res.redirect('/pharmacy/orders?error=final');
+    }
     const items = (await client.query(
       'SELECT medicine_id, qty FROM pharmacy_order_items WHERE order_id = $1', [oid]
     )).rows.filter(i => i.medicine_id);
