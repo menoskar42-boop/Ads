@@ -55,6 +55,24 @@ router.get('/workshop', (req, res) => {
   res.render('landing/workshop');
 });
 
+// A reference page per system: /pharmacy-management-egypt and its eight
+// siblings. The GEO review's point was that twelve systems shared one crowded
+// home page, so a question like "أفضل برنامج إدارة صيدلية في مصر" had nothing
+// on this site to match — a card cannot be cited. /dental and /workshop
+// already worked this way; these are the rest, driven by one content module so
+// the words per sector stay that sector's own.
+const { SECTORS, othersOf } = require('../lib/sector_landings');
+for (const slug of Object.keys(SECTORS)) {
+  router.get('/' + slug, (req, res) => {
+    const sector = Object.assign({ slug }, SECTORS[slug]);
+    res.render('landing/sector', {
+      sector,
+      others: othersOf(slug),
+      demoUrl: 'https://' + sector.demo + '.' + BASE_DOMAIN + '/',
+    });
+  });
+}
+
 // One page a model can quote a fact off. The external GEO review scored our
 // entity clarity 7/10 and "likely to be cited" 4/10: everything about us was
 // spread across marketing copy, so answering "where are they, what do they
@@ -134,6 +152,7 @@ router.get('/admin/seo/ping-indexnow', async (req, res) => {
     SITE_ORIGIN + '/',
     SITE_ORIGIN + '/about',
     SITE_ORIGIN + '/company-facts',
+    ...Object.keys(SECTORS).map((slug) => SITE_ORIGIN + '/' + slug),
     SITE_ORIGIN + '/contact',
     SITE_ORIGIN + '/faq',
     SITE_ORIGIN + '/help',
@@ -173,6 +192,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/help',     priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/company-facts', priority: '0.7', changefreq: 'monthly', lastmod: today },
+    ...Object.keys(SECTORS).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/workshop', priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
@@ -319,6 +339,13 @@ router.get('/llms.txt', (req, res) => {
   lines.push('- **نظام قاعات الأفراح والمناسبات**: تقويم بقفل حقيقي يمنع حجز اليوم مرتين، متابعة استفسارات بميعاد، باقات وسعر للفرد، وعرابين وأقساط.');
   lines.push('- **نظام الحضانات ومراكز الدروس**: فاتورة شهرية لكل طفل، كشف متأخرات بالشهور، تذكيرات واتساب مهذّبة، حضور وغياب، ومصرّح لهم الاستلام.');
   lines.push('- **قسّطلي — تحصيل الأقساط**: جدول أقساط بتواريخ مضبوطة، سداد الأقدم أولاً، لينك كشف حساب خاص لكل عميل، وتذكير قبل الميعاد.');
+  lines.push('');
+  // A reference page per system. These are the pages that answer "أفضل برنامج
+  // إدارة صيدلية في مصر" — the home page only ever had a card.
+  lines.push('## صفحات الأنظمة (صفحة مرجعية لكل نظام)');
+  for (const [slug, sec] of Object.entries(SECTORS)) {
+    lines.push(`- [${sec.title.split('—')[0].trim()}](${SITE_ORIGIN}/${slug}): ${sec.desc}`);
+  }
   lines.push('');
   lines.push('## صفحات أساسية');
   lines.push(`- [الرئيسية](${SITE_ORIGIN}/): نظرة عامة على حلول OscarDevs الرقمية وأنظمة الإدارة الجاهزة.`);

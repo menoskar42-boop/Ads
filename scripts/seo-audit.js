@@ -61,6 +61,8 @@ function base(extra) {
   }, extra || {});
 }
 
+const { SECTORS, othersOf } = require('../src/lib/sector_landings');
+
 const PAGES = {
   home: {
     file: 'home.ejs',
@@ -78,6 +80,17 @@ const PAGES = {
   dental:  { file: 'landing/dental.ejs',locals: {} },
   workshop:{ file: 'landing/workshop.ejs', locals: {} },
   facts:   { file: 'legal/company_facts.ejs', locals: {} },
+  // One entry per sector reference page: same template, different words. A
+  // shared template makes it cheap to ship nine doorway pages by accident, so
+  // every one of them is audited, not just the first.
+  ...Object.fromEntries(Object.keys(SECTORS).map((slug) => [slug, {
+    file: 'landing/sector.ejs',
+    locals: {
+      sector: Object.assign({ slug }, SECTORS[slug]),
+      others: othersOf(slug),
+      demoUrl: 'https://' + SECTORS[slug].demo + '.oscardevs.com/',
+    },
+  }])),
   research:{ file: 'research/upload.ejs', locals: { aiEnabled: false, error: null, showAds: false }, noAds: true },
   help:    { file: 'legal/help.ejs',    locals: {} },
   blog_index: {

@@ -1,0 +1,174 @@
+<%
+  /* One layout, nine sectors. The words come from src/lib/sector_landings.js —
+     each sector's own pains, features and questions, not a template with the
+     noun swapped. A page that says the same thing about a pharmacy and a
+     wedding hall is a doorway page, and #7 in docs/SEO_MISTAKES_LOG.md is
+     exactly that mistake.
+
+     Prices come from src/lib/pricing.js; nothing here types a number. */
+  var s = sector;
+  var price = pricing.PRICES[s.type];
+%>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= s.title %></title>
+<meta name="description" content="<%= s.desc %>" />
+<%- include('../partials/seo_meta', { title: s.title, description: s.desc }) %>
+<script type="application/ld+json">
+<%- jsonLd({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": s.title.split('—')[0].trim() + " — OscarDevs",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": s.desc,
+  "url": siteOrigin + "/" + s.slug,
+  "inLanguage": "ar",
+  "publisher": { "@id": siteOrigin + "#organization" },
+  "areaServed": { "@type": "Country", "name": "مصر" },
+  "offers": {
+    "@type": "Offer",
+    "price": String(price.monthly),
+    "priceCurrency": "EGP",
+    "description": "اشتراك شهري بعد انتهاء العرض المجاني، أو شراء كامل بـ" + price.buy + " ج"
+  }
+}) %>
+</script>
+<script type="application/ld+json">
+<%- jsonLd({
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": s.faq.map(function (q) {
+    return {
+      "@type": "Question",
+      "name": q[0],
+      "acceptedAnswer": { "@type": "Answer", "text": String(q[1]).replace(/<[^>]+>/g, '') },
+    };
+  }),
+}) %>
+</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"<%= s.title.split('—')[0].trim() %>","item":"<%= siteOrigin %>/<%= s.slug %>"}]}</script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;font-family:'Cairo',sans-serif}
+  body{margin:0;background:#0f172a;color:#e2e8f0;line-height:1.9}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  a{color:#38bdf8}
+  .hero{background:linear-gradient(160deg,#0f172a,#1e293b 60%,#0c4a6e);padding:64px 0 56px;text-align:center}
+  .hero h1{font-size:clamp(1.7rem,4.5vw,2.7rem);margin:0 0 14px;color:#fff;line-height:1.4}
+  .hero p{font-size:1.05rem;color:#cbd5e1;max-width:62ch;margin:0 auto 26px}
+  .who{color:#94a3b8;font-size:.95rem;margin:0 auto 24px;max-width:60ch}
+  .cta{display:inline-block;background:#f59e0b;color:#0f172a;font-weight:800;text-decoration:none;padding:14px 30px;border-radius:14px}
+  .cta.ghost{background:transparent;color:#e2e8f0;border:1.5px solid #475569;margin-inline-start:10px}
+  section{padding:52px 0;border-top:1px solid #1e293b}
+  h2{font-size:clamp(1.3rem,3.2vw,1.9rem);color:#fff;margin:0 0 10px}
+  .lead{color:#94a3b8;margin:0 0 28px;max-width:65ch}
+  .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:#111c30;border:1px solid #1e293b;border-radius:18px;padding:22px}
+  .card h3{margin:0 0 8px;color:#fff;font-size:1.05rem}
+  .card p{margin:0;color:#94a3b8;font-size:.95rem}
+  .pain{background:#111c30;border-inline-start:4px solid #f59e0b;border-radius:14px;padding:18px 22px;margin-bottom:16px}
+  .pain b{color:#fff;display:block;margin-bottom:4px}
+  .pain span{color:#94a3b8;font-size:.95rem}
+  .qa{border-top:1px solid #1e293b;padding:16px 0}
+  .qa b{color:#fff;display:block;margin-bottom:4px}
+  .qa span{color:#94a3b8;font-size:.95rem}
+  .foot{padding:40px 0 60px;text-align:center;color:#64748b;font-size:.9rem}
+  ol{color:#94a3b8;padding-inline-start:22px}
+  ol li{margin-bottom:10px}
+  .other{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+  .other a{background:#111c30;border:1px solid #1e293b;border-radius:999px;padding:8px 16px;text-decoration:none;font-size:.9rem}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1><%= s.h1 %></h1>
+    <p><%- s.lead %></p>
+    <p class="who"><b>لمين؟</b> <%= s.forWho %></p>
+    <a href="/apply?type=<%= s.type %>" class="cta">اطلب النظام</a>
+    <a href="<%= demoUrl %>" target="_blank" rel="nofollow" class="cta ghost">شوف نموذج حي</a>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h2>المشاكل اللي النظام ده مبني حواليها</h2>
+      <p class="lead">مش قايمة مميزات — دي الحاجات اللي بتوجع فعلاً في الشغل ده.</p>
+      <% s.pains.forEach(function (p) { %>
+      <div class="pain"><b><%= p[0] %></b><span><%- p[1] %></span></div>
+      <% }); %>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>إيه اللي جوّه النظام</h2>
+      <p class="lead">كله شغّال دلوقتي. أي حاجة لسه تحت التنفيذ مكتوبة كده صراحة في الأسئلة تحت.</p>
+      <div class="grid">
+        <% s.features.forEach(function (f) { %>
+        <div class="card"><h3><%= f[0] %></h3><p><%- f[1] %></p></div>
+        <% }); %>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>بيمشي إزاي</h2>
+      <ol>
+        <% s.steps.forEach(function (st) { %><li><%- st %></li><% }); %>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>الأسعار</h2>
+      <p class="lead">
+        تقديم الطلب مجاني. <%= pricing.priceLine(s.type) %>
+        <strong>ومافيش عمولة على مبيعاتك</strong> في كل الحالات.
+        الأسعار كلها في <a href="/company-facts">صفحة الحقائق</a>.
+      </p>
+      <a href="/apply?type=<%= s.type %>" class="cta">اطلب النظام</a>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>أسئلة شائعة</h2>
+      <% s.faq.forEach(function (q) { %>
+      <div class="qa"><b><%= q[0] %></b><span><%- q[1] %></span></div>
+      <% }); %>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>أنظمة تانية</h2>
+      <p class="lead">لو نشاطك مش ده، غالباً ليه نظام مخصّص عندنا.</p>
+      <div class="other">
+        <% others.forEach(function (o) { %><a href="/<%= o.slug %>"><%= o.label %></a><% }); %>
+        <a href="/dental">عيادات الأسنان</a>
+        <a href="/workshop">ورش السيارات</a>
+        <a href="/">كل الأنظمة</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <a href="/">OscarDevs</a> · <a href="/apply?type=<%= s.type %>">اطلب النظام</a> ·
+    <a href="/company-facts">حقائق عننا</a> · <a href="/contact">تواصل معنا</a>
+  </div>
+</footer>
+
+</body>
+</html>
