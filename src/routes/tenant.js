@@ -4,6 +4,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const { getPreset } = require('../lib/portfolio_presets');
+const { isDemoSlug } = require('../lib/demo_mode');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
@@ -541,6 +542,15 @@ router.get('/', async (req, res) => {
     sidebarAd: ads.find(a => a.position === 'sidebar') || null,
     footerAd:  ads.find(a => a.position === 'footer')  || null,
     portfolio,
+    // The portfolio template carries a full set of sample work — six invented
+    // projects with stock photos, "480+ مشروع منجز", a 4.9 rating — that used
+    // to render for ANY tenant with no items of their own. On a real business's
+    // page that is not a placeholder, it is a fabricated track record: a
+    // visitor sent the link reads six client names the merchant never worked
+    // with. The samples now belong to the demo tenants only, and everyone else
+    // gets the empty state (owner) or nothing at all (visitor).
+    sampleContent: isDemoSlug(company.slug),
+    isPageOwner: Boolean(req.session && req.session.companyId === company.id),
     products,
     categories,
     banners,

@@ -10,6 +10,10 @@
   var displayName = (typeof pickContent === 'function' ? pickContent(company, 'company_name', company.content_i18n) : null) || company.company_name;
   var displayDesc = (typeof pickContent === 'function' ? pickContent(company, 'description', company.content_i18n) : null) || company.description || '';
   var brandColor = company.theme_color || preset.primary;
+  // Sample work + invented numbers render for the demo tenants only. On a
+  // real merchant's page they would read as that merchant's track record.
+  var showSamples = (typeof sampleContent !== 'undefined') && sampleContent;
+  var ownerViewing = (typeof isPageOwner !== 'undefined') && isPageOwner;
   var brandAccent = company.color_accent || preset.accent;
 %>
 <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
@@ -312,6 +316,11 @@ ul{ list-style:none; }
    معرض الأعمال
    ============================================================ */
 .filters{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:34px; }
+/* بديل الأعمال الوهمية: حالة فاضية لصاحب الصفحة، وتوضيح إن نماذج الديمو مش شغل حقيقي */
+.work-empty{ text-align:center; padding:48px 24px; border:1px dashed var(--line,#d9d9d9); border-radius:22px; }
+.work-empty h3{ font-size:1.15rem; margin:0 0 8px; }
+.work-empty p{ margin:0 0 20px; opacity:.72; }
+.sample-note{ margin:0 0 22px; padding:12px 16px; border-radius:14px; background:rgba(0,0,0,.05); font-size:.92rem; }
 .filter-btn{ padding:9px 20px; border-radius:999px; border:1.5px solid var(--line); font-weight:500; font-size:.92rem; color:var(--muted); transition:.3s; }
 .filter-btn:hover{ border-color:var(--primary); color:var(--ink); }
 .filter-btn.active{ background:var(--primary); color:#fff; border-color:var(--primary); }
@@ -562,10 +571,13 @@ ul{ list-style:none; }
       </div>
 
       <!-- العنصر البصري: صورة مؤطّرة + رقاقات زجاجية (بدّل الصورة) -->
+      <% var heroImg = company.hero_image_url || company.logo_url || (showSamples ? 'https://picsum.photos/seed/awj-hero/900/1100' : ''); %>
+      <% if (heroImg) { %>
       <div class="hero-visual">
         <div class="hero-frame">
-          <img src="https://picsum.photos/seed/awj-hero/900/1100" alt="فريق أوْج أثناء العمل على مشروع تصميم" loading="eager" width="900" height="1100" />
+          <img src="<%= heroImg %>" alt="<%= displayName %>" loading="eager" width="900" height="1100" />
         </div>
+        <% if (showSamples) { %>
         <div class="glass-chip chip-1">
           <span class="big">480+</span>
           <span class="lbl">مشروع منجز</span>
@@ -574,7 +586,9 @@ ul{ list-style:none; }
           <span class="chip-stars" aria-hidden="true">★★★★★</span>
           <span class="lbl">تقييم 4.9 من العملاء</span>
         </div>
+        <% } %>
       </div>
+      <% } %>
     </div>
 
     <!-- شريط التخصصات المتحرك -->
@@ -629,14 +643,18 @@ ul{ list-style:none; }
         </div>
       </div>
 
+      <% var aboutImg = company.about_image_url || (showSamples ? 'https://picsum.photos/seed/awj-about/700/840' : ''); %>
+      <% if (aboutImg) { %>
       <div class="about-figure" data-reveal>
-        <!-- بدّل الصورة بصورة فريقك أو مكان عملك -->
-        <img src="https://picsum.photos/seed/awj-about/700/840" alt="مساحة عمل استوديو أوْج" loading="lazy" width="700" height="840" />
+        <img src="<%= aboutImg %>" alt="<%= displayName %>" loading="lazy" width="700" height="840" />
+        <% if (showSamples) { %>
         <div class="about-badge">
           <div class="n">‎%98</div>
           <div class="t">من عملائنا يعودون لمشروع جديد</div>
         </div>
+        <% } %>
       </div>
+      <% } %>
     </div>
   </section>
   <% } %>
@@ -706,7 +724,7 @@ ul{ list-style:none; }
   <div class="container" style="margin-inline:auto"><%- include('partials/ad_unit', { slot: ads.slots.portfolioTop }) %></div>
 
   <!-- ============================== الأعمال ============================== -->
-  <% if (company.show_portfolio !== false) { %>
+  <% if (company.show_portfolio !== false && ((portfolio && portfolio.length) || showSamples || ownerViewing)) { %>
   <section class="section work" id="work">
     <div class="container">
       <span class="eyebrow" data-reveal><span class="num">03</span> · مختارات من أعمالنا</span>
@@ -723,9 +741,10 @@ ul{ list-style:none; }
         </a>
         <% }) %>
       </div>
-      <% } else { %>
+      <% } else if (showSamples) { %>
 
-      <!-- نماذج افتراضية (تظهر لحين إضافة أعمالك) -->
+      <!-- نماذج توضيحية — الصفحة التجريبية بس. مافيش تاجر حقيقي بيشوفها. -->
+      <p class="sample-note" data-reveal>هذه <strong>نماذج توضيحية</strong> لشكل الأعمال في الصفحة التجريبية، وليست أعمالاً حقيقية.</p>
       <div class="filters" data-reveal>
         <button class="filter-btn active" data-filter="all">الكل</button>
         <button class="filter-btn" data-filter="هوية">هوية</button>
@@ -766,6 +785,14 @@ ul{ list-style:none; }
           <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
           <div class="overlay"><span class="cat">هوية بصرية</span><h3>صالون لمسة</h3></div>
         </a>
+      </div>
+      <% } else if (ownerViewing) { %>
+
+      <!-- صاحب الصفحة بس هو اللي يشوف ده — الزائر مايشوفش قسم فاضي -->
+      <div class="work-empty" data-reveal>
+        <h3>لسه مافيش أعمال في صفحتك</h3>
+        <p>أضف أول عمل بصورة وعنوان ووصف قصير، وهيظهر هنا لعملائك على طول.</p>
+        <a href="/company/portfolio" class="btn btn-primary">أضف أول أعمالك</a>
       </div>
       <% } %>
     </div>

@@ -239,6 +239,13 @@ for (const type of names) {
   const problems = [];
   if (!/<meta name="robots"[^>]*noindex/.test(thin)) problems.push('صفحة فاضية من غير noindex — دي doorway page');
   if (/adsbygoogle|pagead2\.googlesyndication/.test(thin)) problems.push('إعلانات على صفحة فاضية — مخالفة AdSense صريحة');
+  // A tenant with nothing filled in must not be shown somebody else's work.
+  // The portfolio template used to fall back to six invented projects with
+  // stock photos — on a real business's page that is a fabricated track
+  // record, not a placeholder. The demo tenants keep the samples (and label
+  // them); this fixture is a real merchant, so nothing invented may appear.
+  if (/picsum\.photos/.test(thin)) problems.push('صور نموذجية (picsum) على صفحة تاجر حقيقي — دي أعمال مش بتاعته');
+  if (/480\+|من عملائنا يعودون/.test(thin)) problems.push('أرقام إنجازات مخترعة على صفحة تاجر حقيقي');
   if (problems.length) {
     failed++;
     console.log(`❌ ${type} (فاضي) — ${problems.length} مخالفة:`);
