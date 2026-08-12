@@ -83,6 +83,13 @@ async function ensureAccountingSchema() {
       -- is enough to take payments in the merchant's name and to forge the
       -- callback that marks their orders paid — it does not belong in a column
       -- anybody with a database dump can read.
+      -- A hosted payment link the merchant pastes from their own provider
+      -- (Paymob payment link, Fawry, a bank link…). This is how most small
+      -- merchants actually take card payments: no API keys, no callbacks, no
+      -- credentials for us to hold — the customer opens the merchant's own
+      -- page. Not a secret, so not encrypted; it is a public URL by design.
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS payment_link TEXT;
+      ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS payment_link_label TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_secret_enc TEXT;
       ALTER TABLE payment_settings ADD COLUMN IF NOT EXISTS gateway_hmac_enc TEXT;
 

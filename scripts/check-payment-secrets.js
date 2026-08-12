@@ -118,5 +118,30 @@ check('the encrypted column wins over the plaintext one', V.read(blob, 'legacy_k
     && !/instapay_handle TEXT NOT NULL/.test(acct));
 }
 
+/* ── The customer actually sees what the merchant chose ────────────────── */
+// Every vertical stored these settings and, until now, not one page showed
+// them: a pharmacist could fill in their InstaPay handle and their customer
+// would never learn it. Portfolio is the deliberate exception — nothing is
+// bought there.
+{
+  const SELL = ['shop', 'pharmacy', 'orders', 'clinic', 'nutrition', 'furniture',
+    'workshop', 'hall', 'nursery', 'installments', 'gym'];
+  const missing = SELL.filter((t) => {
+    const f = path.join(ROOT, `src/views/tenant_${t}.ejs`);
+    return !fs.existsSync(f) || !/payment_methods/.test(fs.readFileSync(f, 'utf8'));
+  });
+  check('every selling vertical shows the merchant\'s payment methods',
+    missing.length === 0, missing.join(', '));
+  const pf = fs.readFileSync(path.join(ROOT, 'src/views/tenant_portfolio.ejs'), 'utf8');
+  check('the portfolio page does not (nothing is sold there)', !/payment_methods/.test(pf));
+
+  // A pasted link goes into an href the customer clicks. javascript: and data:
+  // would run on our page, in the merchant's name.
+  const loader = fs.readFileSync(path.join(ROOT, 'src/lib/payment_methods.js'), 'utf8');
+  check('only http(s) links are ever rendered', /\^https\?:/.test(loader));
+  const route = fs.readFileSync(path.join(ROOT, 'src/routes/accounting.js'), 'utf8');
+  check('and only http(s) links are stored', /\^https\?:/.test(route));
+}
+
 console.log(fail ? `\n${fail} فشل — دي مفاتيح بتحرّك فلوس عملائك.` : '\nمفاتيح الدفع مشفّرة ومش بتتعرض.');
 process.exit(fail ? 1 : 0);

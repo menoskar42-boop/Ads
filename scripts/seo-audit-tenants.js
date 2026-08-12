@@ -112,7 +112,13 @@ function base(over) {
     gymTrainers: [{ id: 1, name: 'مدرّب', specialty: 'لياقة', photo_url: null }],
     gymClasses: [{ id: 1, name: 'حصة', day_of_week: 1, start_time: '18:00', trainer_name: 'مدرّب' }],
     gymGallery: [], gymBookedStatus: null, gymBookError: false,
-    enquirySent: false, payment: null,
+    enquirySent: false,
+    // The merchant's chosen payment methods, as their customer sees them.
+    payment: { instructions: 'حوّل وابعتلنا صورة التحويل.', methods: [
+      { key: 'cod', label: 'الدفع عند الاستلام' },
+      { key: 'link', label: 'ادفع أونلاين', online: true, url: 'https://accept.paymob.com/l/demo' },
+      { key: 'instapay', label: 'InstaPay', detail: 'demo@instapay' },
+    ] },
     currentCategory: '', currentSearch: '',
     shopPriceRange: { min: 0, max: 1000 }, shopFilters: {},
     feat: {}, deals: {}, storeCurrencies: [], cartCount: 0,
@@ -196,11 +202,11 @@ for (const type of names) {
     continue;
   }
   // Three templates are genuinely short even when a customer fills everything
-  // in: orders 101, furniture 106, nutrition 81 words. None of them carries an
+  // in: orders 116, furniture 121, nutrition 96 words. None of them carries an
   // ad unit, so this is not an AdSense violation — it is a content gap, and it
   // is recorded here with its number rather than hidden by lowering the bar for
   // everyone. Raise the template's content and lower these; do not raise them.
-  const KNOWN_SHORT = { orders: 101, furniture: 106, nutrition: 81 };
+  const KNOWN_SHORT = { orders: 116, furniture: 121, nutrition: 96 };
   const r = audit(type, html, {});
   if (KNOWN_SHORT[type]) {
     r.problems = r.problems.filter((p) => !/محتوى قليل جداً/.test(p));

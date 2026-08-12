@@ -136,6 +136,7 @@
       <a href="tel:<%= phone.replace(/[^0-9+]/g,'') %>" class="inline-block bg-white text-teal-900 font-bold rounded-xl px-8 py-3">📞 <span dir="ltr"><%= phone %></span></a>
     <% } %>
   </div>
+  <%- include('partials/payment_methods') %>
 </main>
 
 <footer class="text-center py-8 text-xs text-slate-400">

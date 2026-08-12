@@ -22,6 +22,17 @@ async function loadPaymentMethods(pool, company, t) {
       methods.push({ key: 'cod', label: (p && p.cod_terms) ? p.cod_terms : t('acct.payments.cod'), detail: null });
     }
     if (p) {
+      // A payment link the merchant hosts themselves. Rendered as a real button
+      // rather than a line of text: "pay here" that you cannot click is not a
+      // payment method. http(s) only — a javascript: or data: URL pasted into
+      // this box would run on the customer's page.
+      if (p.payment_link && /^https?:\/\//i.test(String(p.payment_link).trim())) {
+        methods.push({
+          key: 'link', online: true,
+          label: (p.payment_link_label || '').trim() || t('acct.payments.pay_link'),
+          detail: null, url: String(p.payment_link).trim(),
+        });
+      }
       if (p.instapay_handle) methods.push({ key: 'instapay', label: 'InstaPay', detail: p.instapay_handle });
       if (p.wallet_number)   methods.push({ key: 'wallet', label: t('acct.payments.wallet'), detail: p.wallet_number });
       if (p.payoneer_email)  methods.push({ key: 'payoneer', label: 'Payoneer', detail: p.payoneer_email });

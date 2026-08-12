@@ -318,12 +318,13 @@ router.post('/payments', async (req, res) => {
     const secretEnc = keep('gateway_secret', 'gateway_secret_clear', 'gateway_secret_enc', 'gateway_secret');
     const hmacEnc = keep('gateway_hmac', 'gateway_hmac_clear', 'gateway_hmac_enc', 'gateway_hmac');
     await pool.query(
-      `INSERT INTO payment_settings (company_id, cod_enabled, cod_terms, custom_methods, instapay_handle, wallet_number, payoneer_email, bank_details, gateway, gateway_public_key, gateway_secret_enc, gateway_hmac_enc, gateway_secret, gateway_hmac, gateway_integration_id, gateway_iframe_id, gateway_exclusive, instructions, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NULL,NULL,$13,$14,$15,$16, now())
+      `INSERT INTO payment_settings (company_id, cod_enabled, cod_terms, custom_methods, instapay_handle, wallet_number, payoneer_email, bank_details, gateway, payment_link, payment_link_label, gateway_public_key, gateway_secret_enc, gateway_hmac_enc, gateway_secret, gateway_hmac, gateway_integration_id, gateway_iframe_id, gateway_exclusive, instructions, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULL,NULL,$15,$16,$17,$18, now())
        ON CONFLICT (company_id) DO UPDATE SET
          cod_enabled=EXCLUDED.cod_enabled, cod_terms=EXCLUDED.cod_terms, custom_methods=EXCLUDED.custom_methods,
          instapay_handle=EXCLUDED.instapay_handle, wallet_number=EXCLUDED.wallet_number,
          payoneer_email=EXCLUDED.payoneer_email, bank_details=EXCLUDED.bank_details, gateway=EXCLUDED.gateway,
+         payment_link=EXCLUDED.payment_link, payment_link_label=EXCLUDED.payment_link_label,
          gateway_public_key=EXCLUDED.gateway_public_key,
          gateway_secret_enc=EXCLUDED.gateway_secret_enc, gateway_hmac_enc=EXCLUDED.gateway_hmac_enc,
          gateway_secret=NULL, gateway_hmac=NULL,
@@ -332,6 +333,11 @@ router.post('/payments', async (req, res) => {
       [req.company.id, b.cod_enabled === '1', (b.cod_terms || '').trim() || null, (b.custom_methods || '').trim() || null,
        (b.instapay_handle || '').trim() || null, (b.wallet_number || '').trim() || null,
        (b.payoneer_email || '').trim() || null, (b.bank_details || '').trim() || null, gateway,
+       // http(s) only. A javascript: or data: URL pasted here would run on the
+       // customer's page, and the merchant pasting it may not be the one who
+       // owns the shop tomorrow.
+       (/^https?:\/\//i.test(String(b.payment_link || '').trim()) ? String(b.payment_link).trim() : null),
+       (b.payment_link_label || '').trim().slice(0, 40) || null,
        (b.gateway_public_key || '').trim() || null, secretEnc, hmacEnc,
        (b.gateway_integration_id || '').trim() || null, (b.gateway_iframe_id || '').trim() || null,
        b.gateway_exclusive === '1', (b.instructions || '').trim() || null]

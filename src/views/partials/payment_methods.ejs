@@ -1,15 +1,78 @@
-<%# Renders the merchant's payment methods. Expects `payment` = {methods, instructions}. %>
+<%#
+  The payment methods THIS merchant chose, as their customer sees them.
+
+  Every vertical stored these settings and not one page showed them: a pharmacist
+  could fill in their InstaPay handle and their customer would never learn it.
+  The whole point of per-tenant payment configuration is this block.
+
+  Included by every selling vertical. Portfolio is the one page type that omits
+  it — nothing is bought there.
+
+  Expects `payment` from res.render (tenant.js builds it via
+  src/lib/payment_methods.js) and falls back to rendering nothing rather than
+  throwing, because a checkout must not die because a settings row is missing.
+-%>
 <% if (typeof payment !== 'undefined' && payment && payment.methods && payment.methods.length) { %>
-<div class="pay-methods">
-  <div class="pay-methods-title" style="font-weight:700;font-size:.9rem;margin-bottom:8px;">💳 <%= t('acct.payments.checkout_title') %></div>
-  <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;">
-    <% payment.methods.forEach(function(mth){ %>
-      <li style="display:flex;align-items:center;gap:8px;border:1px solid #e5e7eb;border-radius:12px;padding:9px 12px;font-size:.86rem;">
-        <span style="font-weight:700;"><%= mth.label %></span>
-        <% if (mth.detail) { %><span dir="ltr" style="margin-inline-start:auto;color:#6b7280;font-family:monospace;font-size:.82rem;"><%= mth.detail %></span><% } %>
+<section class="pay-methods" aria-labelledby="payMethodsTitle">
+  <h3 id="payMethodsTitle" class="pay-methods__title"><%= t('acct.payments.checkout_title') %></h3>
+
+  <ul class="pay-methods__list">
+    <% payment.methods.forEach(function (m) { %>
+      <li class="pay-methods__item<%= m.online ? ' is-online' : '' %>">
+        <span class="pay-methods__label"><%= m.label %></span>
+
+        <% if (m.url) { %>
+          <%# The merchant's own hosted link. rel="noopener" because it leaves
+              our origin, and nofollow because it is a transaction endpoint, not
+              content we are recommending to a crawler. %>
+          <a class="pay-methods__btn" href="<%= m.url %>" target="_blank" rel="noopener nofollow">
+            <%= t('acct.payments.pay_now') %> ↗
+          </a>
+        <% } else if (m.detail) { %>
+          <%# A handle or a number the customer has to transfer to. Selectable
+              and copyable: retyping a wallet number off a screen is how money
+              goes to a stranger. %>
+          <span class="pay-methods__detail" dir="ltr"><%= m.detail %></span>
+          <button type="button" class="pay-methods__copy" data-copy="<%= m.detail %>"
+                  data-done="<%= t('acct.payments.copied') %>"><%= t('acct.payments.copy') %></button>
+        <% } %>
       </li>
-    <% }); %>
+    <% }) %>
   </ul>
-  <% if (payment.instructions) { %><p style="font-size:.78rem;color:#6b7280;margin-top:8px;line-height:1.6;"><%= payment.instructions %></p><% } %>
-</div>
+
+  <% if (payment.instructions) { %>
+    <p class="pay-methods__note"><%= payment.instructions %></p>
+  <% } %>
+</section>
+
+<style>
+  .pay-methods{margin:18px 0;padding:16px 18px;border:1px solid rgba(127,127,127,.25);border-radius:16px}
+  .pay-methods__title{margin:0 0 10px;font-size:1rem;font-weight:800}
+  .pay-methods__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+  .pay-methods__item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.92rem}
+  .pay-methods__item.is-online .pay-methods__label{font-weight:700}
+  .pay-methods__label{flex:1;min-width:120px}
+  .pay-methods__detail{font-family:ui-monospace,monospace;background:rgba(127,127,127,.12);border-radius:8px;padding:3px 8px}
+  .pay-methods__copy{background:none;border:1px solid rgba(127,127,127,.35);border-radius:8px;padding:3px 10px;font:inherit;font-size:.8rem;cursor:pointer}
+  .pay-methods__btn{display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;border-radius:10px;padding:8px 16px;font-size:.88rem}
+  .pay-methods__note{margin:12px 0 0;font-size:.85rem;opacity:.8;line-height:1.7;white-space:pre-line}
+</style>
+<script>
+(function () {
+  document.querySelectorAll('.pay-methods__copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-copy') || '';
+      var done = function () { var o = b.textContent; b.textContent = b.getAttribute('data-done'); setTimeout(function () { b.textContent = o; }, 1600); };
+      // navigator.clipboard needs a secure context and is missing on some
+      // in-app browsers, which is exactly where these pages get opened.
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(v).then(done).catch(function () {}); return; }
+      var ta = document.createElement('textarea');
+      ta.value = v; ta.setAttribute('readonly', ''); ta.style.position = 'absolute'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    });
+  });
+})();
+</script>
 <% } %>

@@ -58,6 +58,16 @@
         </select>
       </div>
       <p class="text-[12px] text-gray-600 bg-gray-50 rounded-lg px-3 py-2"><%= t('acct.payments.own_keys') %></p>
+      <%# The way most small merchants actually take cards: they paste a link
+          their own provider hosts. No API keys change hands, so there is nothing
+          here for us to hold or to leak. %>
+      <div class="sm:col-span-2 pt-2 mt-2 border-t border-gray-100">
+        <div class="font-bold text-sm mb-1"><%= t('acct.payments.link_title') %></div>
+        <p class="text-xs text-gray-500 mb-2"><%= t('acct.payments.link_desc') %></p>
+        <input name="payment_link" dir="ltr" type="url" value="<%= pay.payment_link || '' %>" class="fld" placeholder="https://accept.paymob.com/l/..." />
+        <input name="payment_link_label" value="<%= pay.payment_link_label || '' %>" class="fld mt-2" placeholder="<%= t('acct.payments.link_label_ph') %>" />
+      </div>
+
       <%# Never printed back. An empty box means "keep what is stored"; the
           checkbox is the only way to erase. Printing the key into value="" put
           it in the page source, the browser cache and every screen-share. %>
