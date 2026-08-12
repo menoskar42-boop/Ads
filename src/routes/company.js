@@ -40,7 +40,7 @@ function makeUploader(prefix) {
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (imageMimeRegex.test(file.mimetype)) cb(null, true);
-      else cb(new Error('Only image files (PNG, JPEG, GIF, WEBP, SVG) are allowed.'));
+      else cb(new Error('Only image files (PNG, JPEG, GIF, WEBP) are allowed.'));
     },
   });
 }
@@ -65,7 +65,7 @@ function makeMediaUploader(prefix) {
         else cb(new Error('Only video files (MP4, MOV, WEBM, MKV, AVI) are allowed.'));
       } else {
         if (imageMimeRegex.test(file.mimetype)) cb(null, true);
-        else cb(new Error('Only image files (PNG, JPEG, GIF, WEBP, SVG) are allowed.'));
+        else cb(new Error('Only image files (PNG, JPEG, GIF, WEBP) are allowed.'));
       }
     },
   });
@@ -510,7 +510,13 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
     }
 
     console.log('[POST /portfolio/add] file:', req.file?.filename, 'body:', Object.keys(req.body));
-    const { title, description, image_url, order_index } = req.body;
+    const { description, image_url, order_index } = req.body;
+    // `required` in the form is a hint to a browser, not a rule. A direct POST
+    // (or a browser with JS disabled on a patched form) was storing items with
+    // an empty title, which the public page then rendered as "Untitled".
+    const title = String(req.body.title || '').trim();
+    if (!title) return renderError('العنوان مطلوب — العمل من غير عنوان بيظهر في صفحتك باسم Untitled.');
+    if (title.length > 120) return renderError('العنوان طويل — خلّيه ١٢٠ حرف على الأكثر.');
     const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
     if (req.file) { await compressImage(req.file.path); }
 

@@ -75,9 +75,9 @@
               <span class="text-xs text-gray-400">الشعار الحالي</span>
             </div>
           <% } %>
-          <input type="file" name="logo_file" accept="image/*"
+          <input type="file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/webp"
             class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer mb-3" />
-          <p class="text-xs text-gray-400 mb-2">ارفع صورة (PNG, JPEG, GIF, WEBP, SVG — أقصى 5MB) أو ألصق رابطاً بالأسفل.</p>
+          <p class="text-xs text-gray-400 mb-2">ارفع صورة (PNG, JPG, GIF, WEBP — أقصى 5MB) أو ألصق رابطاً بالأسفل.</p>
           <input type="text" name="logo_url" value="<%= company.logo_url || '' %>" placeholder="https://... أو اتركه فارغاً"
             class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition" />
         </div>

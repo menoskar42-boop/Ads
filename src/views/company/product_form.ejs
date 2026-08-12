@@ -126,7 +126,7 @@
         <% if (product && product.image_url) { %>
           <img src="<%= product.image_url %>" alt="" class="w-24 h-24 rounded-xl object-cover mb-3" />
         <% } %>
-        <input type="file" name="image_file" accept="image/*"
+        <input type="file" name="image_file" accept="image/png,image/jpeg,image/gif,image/webp"
           class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer mb-2" />
         <input type="text" name="image_url" value="<%= product && product.image_url || '' %>" placeholder="https://..."
           class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
@@ -187,7 +187,7 @@
         <p class="text-xs text-gray-400 mb-3"><%= t('company.no_extra_images') %></p>
       <% } %>
       <form method="POST" action="/company/products/<%= product.id %>/images/add" enctype="multipart/form-data" class="flex items-center gap-2">
-        <input type="file" name="image_file" accept="image/*" required
+        <input type="file" name="image_file" accept="image/png,image/jpeg,image/gif,image/webp" required
           class="flex-1 text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700" />
         <button type="submit" class="brand-bg text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">+ <%= t('company.add_image') %></button>
       </form>
