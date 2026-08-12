@@ -388,11 +388,16 @@ app.use((req, res, next) => {
 // units across the platform (main site + every tenant) read slot ids
 // from this single object so OscarDevs' AdSense account serves the lot.
 const adsConfig = require('./src/config/ads');
+const pricing = require('./src/lib/pricing');
 app.use((req, res, next) => {
   const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
   res.locals.siteOrigin = origin;
   res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
   res.locals.ads = adsConfig;
+  // One price table for every page that quotes one. The numbers used to live
+  // only in the home page's markup, and a landing page had already drifted to
+  // a different system's price in its structured data.
+  res.locals.pricing = pricing;
   // Safe JSON for embedding inside an inline <script> or a JSON-LD block.
   // Plain JSON.stringify does NOT escape a closing-script sequence, so any
   // tenant-controlled string (a business name, an outlet name, an "about")

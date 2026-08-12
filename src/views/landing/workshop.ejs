@@ -43,7 +43,7 @@
   "publisher": { "@id": siteOrigin + "#organization" },
   "offers": {
     "@type": "Offer",
-    "price": "199",
+    "price": String(pricing.PRICES.workshop.monthly),
     "priceCurrency": "EGP",
     "description": "اشتراك شهري بعد انتهاء العرض المجاني"
   }
@@ -160,7 +160,7 @@
   <section>
     <div class="wrap">
       <h2>الأسعار</h2>
-      <p class="lead">تقديم الطلب مجاني، والاشتراك <b>مجاني بالكامل أول ٦ شهور</b>. بعد كده تختار اشتراك شهري أو شراء كامل — الأسعار كلها معروضة على الصفحة الرئيسية قبل ما تقدّم.</p>
+      <p class="lead">تقديم الطلب مجاني. <%= pricing.priceLine('workshop') %> والأسعار كلها معروضة على <a href="/">الصفحة الرئيسية</a> قبل ما تقدّم.</p>
       <a href="/apply?type=workshop" class="cta">اطلب نظام الورشة</a>
     </div>
   </section>
