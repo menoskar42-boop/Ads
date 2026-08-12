@@ -191,87 +191,95 @@ function render(type, state) {
   return ejs.render(fs.readFileSync(file, 'utf8'), locals, { filename: file, root: VIEWS });
 }
 
-let failed = 0;
-for (const type of names) {
-  // ── Filled in: must satisfy every rule the main site does ──────────────
-  let html;
-  try { html = render(type, 'rich'); }
-  catch (e) {
-    failed++;
-    console.log(`❌ ${type} — مارسمش: ${(process.env.SEO_VERBOSE ? e.stack : e.message).split('\n').slice(0, 4).join('\n      ')}`);
-    continue;
-  }
-  // Three templates are genuinely short even when a customer fills everything
-  // in: orders 116, furniture 121, nutrition 96 words. None of them carries an
-  // ad unit, so this is not an AdSense violation — it is a content gap, and it
-  // is recorded here with its number rather than hidden by lowering the bar for
-  // everyone. Raise the template's content and lower these; do not raise them.
-  const KNOWN_SHORT = { orders: 116, furniture: 121, nutrition: 96 };
-  const r = audit(type, html, {});
-  if (KNOWN_SHORT[type]) {
-    r.problems = r.problems.filter((p) => !/محتوى قليل جداً/.test(p));
-    if (r.words > KNOWN_SHORT[type]) {
-      console.log(`   ℹ️  ${type} كبر من ${KNOWN_SHORT[type]} لـ${r.words} كلمة — نزّل الرقم في KNOWN_SHORT`);
-    } else if (r.words < KNOWN_SHORT[type]) {
-      r.problems.push(`المحتوى قلّ من ${KNOWN_SHORT[type]} لـ${r.words} كلمة — الصفحة بتترقّ مش بتكبر`);
+// Exported so a sibling check can render a tenant page with the same fixture
+// instead of keeping a second, drifting copy of every local tenant.js passes.
+module.exports = { base, render, VIEWS, TENANTS, DESC };
+
+function main() {
+  let failed = 0;
+  for (const type of names) {
+    // ── Filled in: must satisfy every rule the main site does ──────────────
+    let html;
+    try { html = render(type, 'rich'); }
+    catch (e) {
+      failed++;
+      console.log(`❌ ${type} — مارسمش: ${(process.env.SEO_VERBOSE ? e.stack : e.message).split('\n').slice(0, 4).join('\n      ')}`);
+      continue;
+    }
+    // Three templates are genuinely short even when a customer fills everything
+    // in: orders 116, furniture 121, nutrition 96 words. None of them carries an
+    // ad unit, so this is not an AdSense violation — it is a content gap, and it
+    // is recorded here with its number rather than hidden by lowering the bar for
+    // everyone. Raise the template's content and lower these; do not raise them.
+    const KNOWN_SHORT = { orders: 116, furniture: 121, nutrition: 96 };
+    const r = audit(type, html, {});
+    if (KNOWN_SHORT[type]) {
+      r.problems = r.problems.filter((p) => !/محتوى قليل جداً/.test(p));
+      if (r.words > KNOWN_SHORT[type]) {
+        console.log(`   ℹ️  ${type} كبر من ${KNOWN_SHORT[type]} لـ${r.words} كلمة — نزّل الرقم في KNOWN_SHORT`);
+      } else if (r.words < KNOWN_SHORT[type]) {
+        r.problems.push(`المحتوى قلّ من ${KNOWN_SHORT[type]} لـ${r.words} كلمة — الصفحة بتترقّ مش بتكبر`);
+      }
+    }
+    if (r.problems.length) {
+      failed++;
+      console.log(`❌ ${type} (مليان) — ${r.problems.length} مخالفة:`);
+      r.problems.forEach((p) => console.log('   · ' + p));
+    } else {
+      console.log(`✅ ${type} (مليان: ${r.words} كلمة${r.hasAds ? '، عليها إعلانات' : ''})`);
+    }
+
+    // ── Empty: the whole point of the indexing gate ────────────────────────
+    // A tenant who signed up and never filled anything in must not be indexed
+    // and must not carry an ad unit. That is rule #5 in SEO_MISTAKES_LOG, and it
+    // is what keeps a hundred empty subdomains from becoming doorway pages
+    // against the AdSense account.
+    let thin;
+    try { thin = render(type, 'thin'); }
+    catch (e) {
+      failed++;
+      console.log(`❌ ${type} (فاضي) — مارسمش: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+    const problems = [];
+    if (!/<meta name="robots"[^>]*noindex/.test(thin)) problems.push('صفحة فاضية من غير noindex — دي doorway page');
+    if (/adsbygoogle|pagead2\.googlesyndication/.test(thin)) problems.push('إعلانات على صفحة فاضية — مخالفة AdSense صريحة');
+    // A tenant with nothing filled in must not be shown somebody else's work.
+    // The portfolio template used to fall back to six invented projects with
+    // stock photos — on a real business's page that is a fabricated track
+    // record, not a placeholder. The demo tenants keep the samples (and label
+    // them); this fixture is a real merchant, so nothing invented may appear.
+    if (/picsum\.photos/.test(thin)) problems.push('صور نموذجية (picsum) على صفحة تاجر حقيقي — دي أعمال مش بتاعته');
+    if (/480\+|من عملائنا يعودون/.test(thin)) problems.push('أرقام إنجازات مخترعة على صفحة تاجر حقيقي');
+    if (problems.length) {
+      failed++;
+      console.log(`❌ ${type} (فاضي) — ${problems.length} مخالفة:`);
+      problems.forEach((p) => console.log('   · ' + p));
     }
   }
-  if (r.problems.length) {
-    failed++;
-    console.log(`❌ ${type} (مليان) — ${r.problems.length} مخالفة:`);
-    r.problems.forEach((p) => console.log('   · ' + p));
-  } else {
-    console.log(`✅ ${type} (مليان: ${r.words} كلمة${r.hasAds ? '، عليها إعلانات' : ''})`);
+
+  // The list above is a copy of a decision made in tenant.js. Copies drift, and
+  // this one drifting means ads quietly return to a page too thin to carry them.
+  {
+    const routeSrc = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+    const offInRoute = new Set();
+    for (const m of routeSrc.matchAll(/page_type === '(\w+)'\)\s*res\.locals\.showAds = false/g)) offInRoute.add(m[1]);
+    const listed = /\[([^\]]+)\]\.includes\(company\.page_type\)\)\s*\{\s*\n\s*res\.locals\.showAds = false/.exec(routeSrc);
+    if (listed) for (const q of listed[1].match(/'(\w+)'/g) || []) offInRoute.add(q.replace(/'/g, ''));
+    const drift = [...NEVER_ADS].filter((x) => !offInRoute.has(x))
+      .concat([...offInRoute].filter((x) => !NEVER_ADS.has(x)));
+    if (drift.length) {
+      failed++;
+      console.log(`❌ قايمة «بدون إعلانات» مختلفة بين tenant.js والفحص: ${drift.join(', ')}`);
+    } else {
+      console.log(`✅ قايمة «بدون إعلانات» متطابقة مع tenant.js (${offInRoute.size} قطاع)`);
+    }
   }
 
-  // ── Empty: the whole point of the indexing gate ────────────────────────
-  // A tenant who signed up and never filled anything in must not be indexed
-  // and must not carry an ad unit. That is rule #5 in SEO_MISTAKES_LOG, and it
-  // is what keeps a hundred empty subdomains from becoming doorway pages
-  // against the AdSense account.
-  let thin;
-  try { thin = render(type, 'thin'); }
-  catch (e) {
-    failed++;
-    console.log(`❌ ${type} (فاضي) — مارسمش: ${e.message.split('\n')[0]}`);
-    continue;
-  }
-  const problems = [];
-  if (!/<meta name="robots"[^>]*noindex/.test(thin)) problems.push('صفحة فاضية من غير noindex — دي doorway page');
-  if (/adsbygoogle|pagead2\.googlesyndication/.test(thin)) problems.push('إعلانات على صفحة فاضية — مخالفة AdSense صريحة');
-  // A tenant with nothing filled in must not be shown somebody else's work.
-  // The portfolio template used to fall back to six invented projects with
-  // stock photos — on a real business's page that is a fabricated track
-  // record, not a placeholder. The demo tenants keep the samples (and label
-  // them); this fixture is a real merchant, so nothing invented may appear.
-  if (/picsum\.photos/.test(thin)) problems.push('صور نموذجية (picsum) على صفحة تاجر حقيقي — دي أعمال مش بتاعته');
-  if (/480\+|من عملائنا يعودون/.test(thin)) problems.push('أرقام إنجازات مخترعة على صفحة تاجر حقيقي');
-  if (problems.length) {
-    failed++;
-    console.log(`❌ ${type} (فاضي) — ${problems.length} مخالفة:`);
-    problems.forEach((p) => console.log('   · ' + p));
-  }
+  console.log(failed
+    ? `\n${failed} قطاع فيه مخالفة — دي صفحات بيشوفها عملاء العملاء.`
+    : `\nكل صفحات المستأجرين (${names.length} قطاع) مطابقة لشروط SEO و AdSense.`);
+  process.exit(failed ? 1 : 0);
 }
 
-// The list above is a copy of a decision made in tenant.js. Copies drift, and
-// this one drifting means ads quietly return to a page too thin to carry them.
-{
-  const routeSrc = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
-  const offInRoute = new Set();
-  for (const m of routeSrc.matchAll(/page_type === '(\w+)'\)\s*res\.locals\.showAds = false/g)) offInRoute.add(m[1]);
-  const listed = /\[([^\]]+)\]\.includes\(company\.page_type\)\)\s*\{\s*\n\s*res\.locals\.showAds = false/.exec(routeSrc);
-  if (listed) for (const q of listed[1].match(/'(\w+)'/g) || []) offInRoute.add(q.replace(/'/g, ''));
-  const drift = [...NEVER_ADS].filter((x) => !offInRoute.has(x))
-    .concat([...offInRoute].filter((x) => !NEVER_ADS.has(x)));
-  if (drift.length) {
-    failed++;
-    console.log(`❌ قايمة «بدون إعلانات» مختلفة بين tenant.js والفحص: ${drift.join(', ')}`);
-  } else {
-    console.log(`✅ قايمة «بدون إعلانات» متطابقة مع tenant.js (${offInRoute.size} قطاع)`);
-  }
-}
-
-console.log(failed
-  ? `\n${failed} قطاع فيه مخالفة — دي صفحات بيشوفها عملاء العملاء.`
-  : `\nكل صفحات المستأجرين (${names.length} قطاع) مطابقة لشروط SEO و AdSense.`);
-process.exit(failed ? 1 : 0);
+if (require.main === module) main();

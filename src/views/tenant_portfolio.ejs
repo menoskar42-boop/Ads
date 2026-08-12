@@ -316,6 +316,16 @@ ul{ list-style:none; }
    معرض الأعمال
    ============================================================ */
 .filters{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:34px; }
+.pf-modal{ border:0; border-radius:22px; padding:28px; max-width:620px; width:92vw; color:var(--ink); background:#fff; }
+.pf-modal::backdrop{ background:rgba(0,0,0,.55); }
+.pf-modal h3{ font-size:1.35rem; margin:0 0 4px; }
+.pf-modal h4{ font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; opacity:.6; margin:18px 0 6px; }
+.pf-modal p{ margin:0; line-height:1.9; }
+.pf-modal img{ width:100%; border-radius:14px; margin:16px 0 4px; }
+.pf-client{ opacity:.7; font-size:.92rem; }
+.pf-close{ float:left; }
+.pf-close button{ border:0; background:transparent; font-size:1.1rem; cursor:pointer; color:inherit; }
+.pf-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:24px; }
 /* بديل الأعمال الوهمية: حالة فاضية لصاحب الصفحة، وتوضيح إن نماذج الديمو مش شغل حقيقي */
 .work-empty{ text-align:center; padding:48px 24px; border:1px dashed var(--line,#d9d9d9); border-radius:22px; }
 .work-empty h3{ font-size:1.15rem; margin:0 0 8px; }
@@ -731,16 +741,57 @@ ul{ list-style:none; }
       <h2 class="section-title" data-reveal style="margin-bottom:26px">مشاريع نفخر بها.</h2>
 
       <% if (portfolio && portfolio.length) { %>
+      <%
+        // Categories the merchant actually typed. No filter bar for one bucket.
+        var pfCats = [];
+        portfolio.forEach(function(it){ var c=(it.category||'').trim(); if (c && pfCats.indexOf(c)===-1) pfCats.push(c); });
+        var hasDetail = function(it){ return !!((it.problem||'').trim() || (it.solution||'').trim() || (it.result||'').trim() || (it.client_name||'').trim()); };
+      %>
+      <% if (pfCats.length > 1) { %>
+      <div class="filters" data-reveal>
+        <button class="filter-btn active" data-filter="all">الكل</button>
+        <% pfCats.forEach(function(c){ %><button class="filter-btn" data-filter="<%= c %>"><%= c %></button><% }) %>
+      </div>
+      <% } %>
+
       <!-- أعمال التاجر الفعلية -->
       <div class="portfolio-grid" data-reveal-children>
         <% portfolio.forEach(function(item){ %>
-        <a href="<%= item.image_url || '#' %>" <%= item.image_url ? 'target="_blank" rel="noopener"' : '' %> class="project" aria-label="<%= item.title || 'عمل' %>">
-          <% if (item.image_url) { %><img src="<%= item.image_url %>" alt="<%= item.title || '' %>" loading="lazy" /><% } %>
+        <%
+          // Where the card goes when clicked, in order of usefulness: the case
+          // study if there is one, then the live project, then the image.
+          var open = hasDetail(item) ? ('#pf-' + item.id)
+            : (item.project_url || item.image_url || '#');
+          var external = !hasDetail(item) && (item.project_url || item.image_url);
+        %>
+        <a href="<%= open %>" <% if (external) { %>target="_blank" rel="noopener"<% } %>
+           class="project" data-cat="<%= item.category || '' %>"
+           <% if (hasDetail(item)) { %>data-pf="<%= item.id %>"<% } %>
+           aria-label="<%= item.title || 'عمل' %>">
+          <% if (item.image_url) { %><img src="<%= item.image_url %>" alt="<%= item.image_alt || item.title || '' %>" loading="lazy" /><% } %>
           <span class="view" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg></span>
-          <div class="overlay"><% if (item.description) { %><span class="cat"><%= item.description %></span><% } %><h3><%= item.title || '' %></h3></div>
+          <div class="overlay"><% if (item.category || item.description) { %><span class="cat"><%= item.category || item.description %></span><% } %><h3><%= item.title || '' %></h3></div>
         </a>
         <% }) %>
       </div>
+
+      <!-- تفاصيل كل مشروع: العميل، المشكلة، الحل، النتيجة — الحاجات اللي العميل
+           المحتمل بيسأل عليها فعلاً. بتظهر بس لو التاجر كتبها. -->
+      <% portfolio.filter(hasDetail).forEach(function(item){ %>
+      <dialog class="pf-modal" id="pf-<%= item.id %>">
+        <form method="dialog" class="pf-close"><button aria-label="إغلاق">✕</button></form>
+        <h3><%= item.title %></h3>
+        <% if (item.client_name) { %><p class="pf-client"><%= item.client_name %></p><% } %>
+        <% if (item.image_url) { %><img src="<%= item.image_url %>" alt="<%= item.image_alt || item.title %>" loading="lazy" /><% } %>
+        <% if (item.problem) { %><h4>المشكلة</h4><p><%= item.problem %></p><% } %>
+        <% if (item.solution) { %><h4>اللي عملناه</h4><p><%= item.solution %></p><% } %>
+        <% if (item.result) { %><h4>النتيجة</h4><p><%= item.result %></p><% } %>
+        <div class="pf-actions">
+          <% if (item.project_url) { %><a class="btn btn-ghost" href="<%= item.project_url %>" target="_blank" rel="noopener">شوف المشروع</a><% } %>
+          <a class="btn btn-primary" href="#contact" onclick="this.closest('dialog').close()">عايز نتيجة زي دي؟ كلّمنا</a>
+        </div>
+      </dialog>
+      <% }) %>
       <% } else if (showSamples) { %>
 
       <!-- نماذج توضيحية — الصفحة التجريبية بس. مافيش تاجر حقيقي بيشوفها. -->
@@ -1148,6 +1199,20 @@ filterBtns.forEach(btn => btn.addEventListener('click', () => {
     p.classList.toggle('hide', !show);
   });
 }));
+
+/* ============================================================
+   5b. تفاصيل المشروع
+   الكارت لينك عادي على #pf-<id>. لو المتصفح بيدعم <dialog> بنفتحه كمودال،
+   ولو لأ اللينك بيوديه للعنصر نفسه — يعني الكلام موجود في الحالتين.
+   ============================================================ */
+document.querySelectorAll('.project[data-pf]').forEach(card => {
+  card.addEventListener('click', (e) => {
+    const dlg = document.getElementById('pf-' + card.dataset.pf);
+    if (!dlg || typeof dlg.showModal !== 'function') return;
+    e.preventDefault();
+    dlg.showModal();
+  });
+});
 
 /* ============================================================
    6. الأسئلة الشائعة (Accordion)

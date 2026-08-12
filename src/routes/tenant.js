@@ -123,8 +123,12 @@ router.get('/', async (req, res) => {
 
   let portfolio = [];
   try {
+    // is_hidden: a merchant taking a project down (client asked, work is dated)
+    // without losing it. is_featured first, then the order they arranged.
     const portfolioResult = await pool.query(
-      'SELECT * FROM portfolio_items WHERE company_id = $1 ORDER BY order_index, created_at DESC',
+      `SELECT * FROM portfolio_items
+        WHERE company_id = $1 AND COALESCE(is_hidden, false) = false
+        ORDER BY COALESCE(is_featured, false) DESC, order_index, created_at DESC`,
       [company.id]
     );
     portfolio = portfolioResult.rows;

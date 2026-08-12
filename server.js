@@ -1087,6 +1087,21 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_threads TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS social_website TEXT;
       ALTER TABLE banner_slides ADD COLUMN IF NOT EXISTS slot TEXT DEFAULT 'section';
+      -- Portfolio items were title + description + image, which answers "what
+      -- does it look like" and nothing else. A prospect asks "who was the
+      -- client, what was wrong, what did you do, what changed" — so an item can
+      -- now carry a case study. Every column is nullable: an item with a title
+      -- and a photo stays exactly as valid as it was.
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS image_alt TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS project_url TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS category TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS client_name TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS problem TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS solution TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS result TEXT;
+      ALTER TABLE portfolio_items ADD COLUMN IF NOT EXISTS before_image_url TEXT;
     `);
 
     // Demo catalog for the Delta showcase store (only seeded when it has no products,

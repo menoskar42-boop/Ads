@@ -45,6 +45,50 @@ function makeUploader(prefix) {
   });
 }
 
+/**
+ * Delete an upload this company no longer references.
+ *
+ * Only files we wrote, under uploadDir, and only by basename — a stored value
+ * is merchant input, so `/uploads/../../server.js` must not resolve anywhere
+ * near the app. A pasted external URL is not ours and is left alone.
+ */
+function removeUpload(url) {
+  const val = String(url || '');
+  if (!val.startsWith('/uploads/')) return;
+  const name = path.basename(val);
+  if (!name || name === '.' || name === '..') return;
+  const full = path.join(uploadDir, name);
+  if (path.dirname(full) !== path.resolve(uploadDir)) return;
+  fs.unlink(full, (err) => {
+    if (err && err.code !== 'ENOENT') console.error('[removeUpload]', name, err.message);
+  });
+}
+
+/**
+ * The optional case-study half of a portfolio item.
+ *
+ * A blank field is stored as NULL, not '', so "did the merchant write this?"
+ * is one question in SQL and in the template. project_url is http(s)-only for
+ * the same reason as the payment link: it ends up in an href a visitor clicks.
+ */
+function caseStudyFields(body) {
+  const txt = (v, max) => {
+    const t = String(v == null ? '' : v).trim();
+    return t ? t.slice(0, max) : null;
+  };
+  const link = txt(body.project_url, 500);
+  return {
+    image_alt:   txt(body.image_alt, 160),
+    project_url: link && /^https?:\/\//i.test(link) ? link : null,
+    category:    txt(body.category, 60),
+    client_name: txt(body.client_name, 120),
+    problem:     txt(body.problem, 1200),
+    solution:    txt(body.solution, 1200),
+    result:      txt(body.result, 1200),
+    is_featured: body.is_featured === 'on' || body.is_featured === '1' || body.is_featured === 'true',
+  };
+}
+
 // Product form accepts one image + one (larger) video. Each field is validated
 // against its own MIME allowlist; uploads are compressed after they land.
 function makeMediaUploader(prefix) {
@@ -479,7 +523,15 @@ router.get('/portfolio', requireLogin, async (req, res) => {
     'SELECT * FROM portfolio_items WHERE company_id = $1 ORDER BY order_index, created_at DESC',
     [req.session.companyId]
   );
-  res.render('company/portfolio', { items: result.rows, session: req.session, error: null });
+  const ERRORS = {
+    upload: 'فشل رفع الصورة. تأكد إن الصيغة مدعومة (PNG/JPG/GIF/WEBP) وأقل من 5 ميجا.',
+    title: 'العنوان مطلوب وما يزيدش عن ١٢٠ حرف.',
+  };
+  res.render('company/portfolio', {
+    items: result.rows, session: req.session,
+    error: ERRORS[req.query.error] || null,
+    saved: req.query.saved === '1',
+  });
 });
 
 router.get('/portfolio/add', requireLogin, (req, res) => res.redirect('/company/portfolio'));
@@ -497,6 +549,7 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
           items: result.rows,
           session: req.session,
           error: message,
+          saved: false,
         });
       } catch (renderErr) {
         console.error('[POST /portfolio/add] render fallback failed:', renderErr);
@@ -521,10 +574,14 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
     if (req.file) { await compressImage(req.file.path); }
 
     try {
+      const cs = caseStudyFields(req.body);
       await pool.query(
-        `INSERT INTO portfolio_items (company_id, title, description, image_url, order_index)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [req.session.companyId, title, description, finalImageUrl, parseInt(order_index) || 0]
+        `INSERT INTO portfolio_items (company_id, title, description, image_url, order_index,
+           image_alt, project_url, category, client_name, problem, solution, result, is_featured)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [req.session.companyId, title, description, finalImageUrl, parseInt(order_index) || 0,
+          cs.image_alt, cs.project_url, cs.category, cs.client_name, cs.problem, cs.solution,
+          cs.result, cs.is_featured]
       );
       console.log('[POST /portfolio/add] success');
       return res.redirect('/company/portfolio');
@@ -536,10 +593,109 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
 });
 
 router.post('/portfolio/delete/:id', requireLogin, async (req, res) => {
-  await pool.query(
-    'DELETE FROM portfolio_items WHERE id = $1 AND company_id = $2',
+  // RETURNING so the file can go with the row. Deleting the record alone left
+  // the upload on disk forever — invisible, and growing with every correction
+  // a merchant makes (which was the only way to fix a typo before /edit).
+  const gone = await pool.query(
+    'DELETE FROM portfolio_items WHERE id = $1 AND company_id = $2 RETURNING image_url',
     [req.params.id, req.session.companyId]
   );
+  if (gone.rows.length) removeUpload(gone.rows[0].image_url);
+  res.redirect('/company/portfolio');
+});
+
+/* ─── PORTFOLIO: edit / hide / reorder ──────────────────────
+ * Adding and deleting were the only two operations. A typo in a title meant
+ * deleting the item and uploading the image again, and there was no way to take
+ * a project down for a while without losing it.
+ */
+router.post('/portfolio/edit/:id', requireLogin, (req, res) => {
+  uploadItemImage(req, res, async (uploadErr) => {
+    const back = (q) => res.redirect('/company/portfolio' + (q || ''));
+    if (uploadErr) return back('?error=upload');
+
+    const title = String(req.body.title || '').trim();
+    if (!title || title.length > 120) return back('?error=title');
+
+    // Same tenant rule as everywhere else: the id is filtered by company_id in
+    // the same statement, so a guessed id belonging to another company matches
+    // nothing rather than being fetched and then checked.
+    const cur = await pool.query(
+      'SELECT image_url FROM portfolio_items WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.session.companyId]
+    );
+    if (!cur.rows.length) return res.status(404).redirect('/company/portfolio');
+
+    let imageUrl = cur.rows[0].image_url;
+    const pasted = String(req.body.image_url || '').trim();
+    if (req.file) {
+      await compressImage(req.file.path);
+      const old = imageUrl;
+      imageUrl = `/uploads/${req.file.filename}`;
+      removeUpload(old);                       // replaced, so the old file is dead
+    } else if (pasted && pasted !== imageUrl) {
+      const old = imageUrl;
+      imageUrl = pasted;
+      removeUpload(old);
+    }
+
+    const cs = caseStudyFields(req.body);
+    await pool.query(
+      `UPDATE portfolio_items SET title=$1, description=$2, image_url=$3, order_index=$4,
+         image_alt=$5, project_url=$6, category=$7, client_name=$8, problem=$9,
+         solution=$10, result=$11, is_featured=$12
+       WHERE id=$13 AND company_id=$14`,
+      [title, req.body.description || null, imageUrl, parseInt(req.body.order_index) || 0,
+        cs.image_alt, cs.project_url, cs.category, cs.client_name, cs.problem, cs.solution,
+        cs.result, cs.is_featured, req.params.id, req.session.companyId]
+    );
+    return back('?saved=1');
+  });
+});
+
+// Hide keeps the work; delete loses it. Two different intentions that used to
+// share one button.
+router.post('/portfolio/toggle/:id', requireLogin, async (req, res) => {
+  await pool.query(
+    'UPDATE portfolio_items SET is_hidden = NOT COALESCE(is_hidden, false) WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/portfolio');
+});
+
+// Ordering was a number the merchant typed on every item. Two buttons instead:
+// swap order_index with the neighbour in the requested direction.
+router.post('/portfolio/move/:id', requireLogin, async (req, res) => {
+  const dir = req.body.dir === 'up' ? 'up' : 'down';
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const all = await client.query(
+      `SELECT id, order_index FROM portfolio_items WHERE company_id = $1
+       ORDER BY order_index, created_at DESC FOR UPDATE`,
+      [req.session.companyId]
+    );
+    const rows = all.rows;
+    const i = rows.findIndex((r) => String(r.id) === String(req.params.id));
+    const j = dir === 'up' ? i - 1 : i + 1;
+    if (i >= 0 && j >= 0 && j < rows.length) {
+      // The stored indexes can be equal (everything defaults to 0), so the
+      // positions are rewritten from the visible order rather than swapped —
+      // swapping two zeros changes nothing.
+      const order = rows.map((r) => r.id);
+      order.splice(j, 0, order.splice(i, 1)[0]);
+      for (let k = 0; k < order.length; k++) {
+        await client.query('UPDATE portfolio_items SET order_index = $1 WHERE id = $2 AND company_id = $3',
+          [k, order[k], req.session.companyId]);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[POST /portfolio/move] ', e.message);
+  } finally {
+    client.release();
+  }
   res.redirect('/company/portfolio');
 });
 
