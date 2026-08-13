@@ -55,6 +55,22 @@
 </style>
 </head>
 <body class="antialiased">
+<%
+  /* Why an order was refused. It used to redirect to ?err=… and show nothing,
+     so a customer whose basket mixed two branches just watched the page reload
+     with a full cart and no explanation. */
+  var __err = (typeof query !== 'undefined' && query) ? query.err : null;
+  var __errMsg = {
+    order: 'مش قادرين نستلم الطلب. راجع السلة والاسم والتليفون وجرّب تاني.',
+    minorder: 'قيمة الطلب أقل من الحد الأدنى للفرع ده.',
+    multibranch: 'السلة فيها أصناف من أكتر من فرع. كل طلب بيتجهّز من فرع واحد — اطلب من فرع، وبعدين اعمل طلب تاني من الفرع التاني.',
+  }[__err];
+%>
+<% if (__errMsg) { %>
+<div style="max-width:900px;margin:12px auto 0;padding:12px 16px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:14px;">
+  <%= __errMsg %>
+</div>
+<% } %>
 
 <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100">
   <div class="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">

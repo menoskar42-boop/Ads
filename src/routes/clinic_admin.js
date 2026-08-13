@@ -11,6 +11,7 @@ const { ownerGuard, ref } = require('../lib/tenant_scope');
 const audit = require('../lib/audit');
 const clinicPerms = require('../clinic/perms');
 const flow = require('../lib/order_flow');
+const booking = require('../clinic/booking');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -1475,18 +1476,28 @@ router.post('/voice-bookings/:id/book', addons.requireAddon(pool, 'voice_booking
   const name = String(b.patient_name || '').trim().slice(0, 120);
   const phone = String(b.phone || '').trim().slice(0, 30);
   if (!name || !phone) return res.redirect('/clinic/voice-bookings');
+  const slotAt = b.slot_at ? new Date(b.slot_at) : null;
+  const bad = booking.slotProblem(slotAt);
+  if (bad) return res.redirect('/clinic/voice-bookings?error=' + bad);
   try {
-    const appt = (await pool.query(
-      `INSERT INTO clinic_appointments (company_id, doctor_id, patient_name, patient_phone, slot_at, reason, status, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'confirmed','من حجز صوتي') RETURNING id`,
-      [cid, parseInt(b.doctor_id, 10) || null, name, phone,
-       b.slot_at ? new Date(b.slot_at) : null, String(b.reason || '').slice(0, 300) || null]
-    )).rows[0];
+    // Same free-slot test as the public form. The receptionist booking from a
+    // voice message must not be able to put a second patient on a doctor who is
+    // already taken at that time.
+    const q = booking.insertIfFree({
+      companyId: cid, doctorId: parseInt(b.doctor_id, 10) || null, name, phone,
+      slotAt, reason: String(b.reason || '').slice(0, 300) || null, status: 'confirmed',
+    });
+    const ins = await pool.query(q.text, q.values);
+    if (!ins.rows.length) return res.redirect('/clinic/voice-bookings?error=taken');
+    const appt = ins.rows[0];
     await pool.query(
       `UPDATE clinic_voice_bookings SET appointment_id=$1, status='booked' WHERE id=$2 AND company_id=$3`,
       [appt.id, id, cid]
     );
-  } catch (e) { console.error('[voice book]', e.message); }
+  } catch (e) {
+    console.error('[voice book]', e.message);
+    return res.redirect('/clinic/voice-bookings?error=save');
+  }
   res.redirect('/clinic/voice-bookings');
 });
 

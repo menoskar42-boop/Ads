@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const crypto = require('crypto');
 const { getPreset } = require('../lib/portfolio_presets');
 const { isDemoSlug } = require('../lib/demo_mode');
+const booking = require('../clinic/booking');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
@@ -635,10 +636,19 @@ router.post('/book', clinicGuard, async (req, res) => {
   const reason = String((req.body && req.body.reason) || '').trim().slice(0, 300);
   try {
     if (doctorId) { const ok = (await pool.query('SELECT 1 FROM clinic_doctors WHERE id=$1 AND company_id=$2', [doctorId, company.id])).rowCount; if (!ok) doctorId = null; }
-    await pool.query(
-      'INSERT INTO clinic_appointments (company_id, doctor_id, patient_name, patient_phone, slot_at, reason) VALUES ($1,$2,$3,$4,$5,$6)',
-      [company.id, doctorId, name, phone, slotAt, reason || null]
-    );
+    // A slot that has already gone is a typo, not a booking — it lands in the
+    // queue where nobody looks for it.
+    const bad = booking.slotProblem(slotAt);
+    if (bad) return res.redirect('/?error=' + bad + '#book');
+    // The clash test lives inside the INSERT: a clinic that shares its booking
+    // link on WhatsApp really does get two people on the same slot in the same
+    // second, and a SELECT beforehand lets both through.
+    const q = booking.insertIfFree({
+      companyId: company.id, doctorId, name, phone,
+      slotAt, reason: reason || null, status: 'pending',
+    });
+    const ins = await pool.query(q.text, q.values);
+    if (!ins.rows.length) return res.redirect('/?error=taken#book');
     // Auto-confirm over WhatsApp (best-effort, non-blocking).
     maybeSendBookingConfirm(company, name, phone, doctorId);
     const ref = req.get('referer') || '';
@@ -1246,6 +1256,17 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
       lineItems.push({ id: r.id, name: (r.name_ar || r.name), qty: it.q, price: Number(r.price), outlet: r.outlet_id });
     }
     if (!lineItems.length) { await client.query('ROLLBACK'); return res.redirect('/?err=order'); }
+    // One order belongs to one branch. A cart mixing two outlets was stored
+    // under `lineItems[0].outlet`: the first branch's kitchen got a ticket for
+    // food it does not make, and the second branch never saw the order at all —
+    // while the customer was charged both branches' delivery fees. Refusing is
+    // the honest fix; splitting one basket into two orders with two deliveries
+    // is not what the customer pressed the button for.
+    const outletIds = Object.keys(outSub);
+    if (outletIds.length > 1) {
+      await client.query('ROLLBACK');
+      return res.redirect('/?err=multibranch');
+    }
     for (const oid of Object.keys(outSub)) {
       const r = rows.find(x => String(x.outlet_id) === String(oid));
       if (r && Number(r.min_order) > 0 && outSub[oid] < Number(r.min_order)) {
@@ -1277,7 +1298,7 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
     const ord = (await client.query(
       `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, coupon_code, discount_amount, track_token)
        VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-      [company.id, lineItems[0].outlet, name, total, deliveryFee, address || null, phone, notes || null,
+      [company.id, Number(outletIds[0]), name, total, deliveryFee, address || null, phone, notes || null,
        cp.ok ? cp.coupon.code : null, discount, token]
     )).rows[0];
     for (const li of lineItems) {

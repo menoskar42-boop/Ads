@@ -123,6 +123,48 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
   check('وفاتورة متسدّدة مابتقبلش دفعة تانية', /error=settled/.test(clinic2));
 }
 
+/* ── One order, one branch ─────────────────────────────────────────────── */
+// A cart mixing two outlets was filed under `lineItems[0].outlet`: the first
+// branch's kitchen got a ticket for food it does not make, the second never saw
+// the order, and the customer paid both branches' delivery fees.
+{
+  const tenant2 = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  check('سلة من فرعين بتترفض بدل ما تتنسب لفرع واحد',
+    /outletIds\.length > 1/.test(tenant2) && /err=multibranch/.test(tenant2));
+  // The comment explains the old shape; the code must not still contain it.
+  const code2 = tenant2.replace(/^\s*\/\/.*$/gm, '');
+  check('ومفيش نسبة للفرع الأول من غير فحص', !/lineItems\[0\]\.outlet/.test(code2));
+  const view = fs.readFileSync(path.join(ROOT, 'src/views/tenant_orders.ejs'), 'utf8');
+  check('والعميل بيتقاله السبب مش بس الصفحة بتترمي',
+    /multibranch/.test(view) && /minorder/.test(view));
+}
+
+/* ── Appointment conflicts ─────────────────────────────────────────────── */
+{
+  const B = require('../src/clinic/booking');
+  const now = new Date('2026-08-12T10:00:00Z');
+  check('موعد في الماضي بيترفض', B.slotProblem(new Date('2026-08-12T09:00:00Z'), now) === 'past');
+  check('بس «دلوقتي» بالظبط بيعدّي (سكرتيرة بتحجز حالاً)',
+    B.slotProblem(new Date('2026-08-12T09:58:00Z'), now) === null);
+  check('وسنة كاملة قدّام بتترفض كغلطة كتابة',
+    B.slotProblem(new Date('2028-01-01T09:00:00Z'), now) === 'far');
+  check('ومن غير ميعاد مفيش مشكلة', B.slotProblem(null, now) === null);
+
+  const q = B.insertIfFree({ companyId: 1, doctorId: 2, name: 'a', phone: 'b', slotAt: now, reason: null });
+  check('فحص التعارض جوّه الـINSERT نفسه مش SELECT قبله',
+    /INSERT INTO clinic_appointments[\s\S]*NOT EXISTS/.test(q.text));
+  check('والتعارض بيتقاس بمدة الكشف مش بالثانية بالظبط',
+    /abs\(extract\(epoch/.test(q.text) && /\$8 \* 60/.test(q.text));
+  check('والملغي مابيحجزش الميعاد', /status <> 'cancelled'/.test(q.text));
+
+  const tenant3 = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  const clinic3 = fs.readFileSync(path.join(ROOT, 'src/routes/clinic_admin.js'), 'utf8');
+  check('الحجز العام بيستخدمه', /booking\.insertIfFree/.test(tenant3) && /err' \+ bad|error=' \+ bad/.test(tenant3));
+  check('وحجز اللوحة كمان', /booking\.insertIfFree/.test(clinic3));
+  check('واللي الميعاد بتاعه اتحجز بيتقاله',
+    /error=taken/.test(tenant3) && /error=taken/.test(clinic3));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — دي الحالة اللي بتخصم المخزون وتحسب البيعة مرتين.`
   : '\nالحالات النهائية مابترجعش، في التلات أنظمة، والصف بيتقفل قبل القرار.');
