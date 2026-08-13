@@ -140,6 +140,26 @@ catch (e) {
   check('بس بيشوف بيانات المريض عشان يحجزله', recep.includes('01000000000'));
 }
 
+/* ── The demo clinic must be reachable, and testable ───────────────────── */
+// /admin/demos runs seven seeders with one password. Six of them created a
+// login; this one did not — so the clinic demo existed and nobody could get
+// into it, which is why the live QA pass had to skip every logged-in test.
+{
+  const seeder = fs.readFileSync(path.join(ROOT, 'scripts/enable-demo-clinic.js'), 'utf8');
+  check('سكربت العيادة التجريبية بيعمل حساب دخول',
+    /INSERT INTO company_users \(company_id, email, password_hash\)/.test(seeder));
+  check('وإعادة التشغيل بتغيّر كلمة السر فعلاً (مش DO NOTHING)',
+    /ON CONFLICT \(email\) DO UPDATE SET password_hash=EXCLUDED\.password_hash/.test(seeder));
+  // Without a staff login, "the receptionist cannot read a diagnosis" is a
+  // claim nobody can check.
+  check('وبيعمل حساب استقبال كمان عشان الصلاحيات تتجرّب',
+    /perm_role='reception'/.test(seeder) && /login_enabled=true/.test(seeder));
+  // The VALUE, not the word: "no password given" is a fine thing to print.
+  check('وكلمة السر مابتتطبعش في اللوج',
+    !/console\.log\([^)]*\$\{password\}/.test(seeder) && !/console\.log\(password/.test(seeder));
+  check('ومش مكتوبة في الملف', !/password = '[^']+'/.test(seeder));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — يعني موظف الاستقبال لسه يقدر يقرا تشخيص.`
   : '\nصلاحيات العيادة: كل مسار بيطلب صلاحيته، والملف الطبي مقفول على مين مالوش دعوة.');

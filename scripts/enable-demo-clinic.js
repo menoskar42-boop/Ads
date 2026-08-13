@@ -30,6 +30,16 @@ const slug = arg('slug', 'clinic');
 // demonstrates a specialty switching its own module on.
 const specialty = arg('specialty', 'dentistry');
 const quota = parseInt(arg('quota', '50'), 10) || 50;
+// The owner's login for the demo clinic. Same convention as every other demo
+// seeder — this script was the ONLY one of the seven with no login block at
+// all, so /admin/demos created six usable demos and one nobody could get into.
+const email = arg('email', `${slug}@demo.oscardevs.com`);
+const password = arg('password', process.env.DEMO_PASSWORD || '');
+// A reception staff login, so the permission model can actually be exercised:
+// "the receptionist cannot read a diagnosis" is only testable by logging in as
+// one. Uses the same password — it is a demo, and two demo passwords to keep
+// track of is how one of them ends up written down somewhere.
+const staffUser = arg('staff-username', `${slug}-reception`);
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -99,6 +109,48 @@ async function main() {
       [c.id, specialty]
     );
     console.log(`  → specialty set to ${specialty}`);
+
+    // ── Logins ───────────────────────────────────────────────────────────
+    if (!password) {
+      console.log('  → no password given; leaving the logins alone (pass --password=… or set DEMO_PASSWORD)');
+    } else {
+      const bcrypt = require('bcryptjs');
+      const hash = await bcrypt.hash(password, 10);
+      // DO UPDATE, not DO NOTHING: with DO NOTHING a re-run silently keeps the
+      // old password while reporting success, so rotating a demo credential
+      // looks like it worked and did not.
+      await pool.query(
+        `INSERT INTO company_users (company_id, email, password_hash) VALUES ($1,$2,$3)
+         ON CONFLICT (email) DO UPDATE SET password_hash=EXCLUDED.password_hash`,
+        [c.id, email, hash]
+      );
+      console.log(`  → owner login ready: ${email}`);
+
+      // The reception account. `clinic_staff` began as an HR row for the
+      // attendance sheet, so this both creates the person and gives them a
+      // scoped login.
+      const st = (await pool.query(
+        `SELECT id FROM clinic_staff WHERE company_id=$1 AND lower(username)=lower($2)`,
+        [c.id, staffUser]
+      )).rows[0];
+      if (st) {
+        await pool.query(
+          `UPDATE clinic_staff SET password_hash=$1, perm_role='reception',
+                  login_enabled=true, is_active=true WHERE id=$2`,
+          [hash, st.id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO clinic_staff (company_id, name, role, username, password_hash,
+                                     perm_role, login_enabled, is_active)
+           VALUES ($1,$2,$3,$4,$5,'reception',true,true)`,
+          [c.id, 'استقبال (تجريبي)', 'reception', staffUser, hash]
+        );
+      }
+      console.log(`  → reception login ready: ${staffUser} (role: reception)`);
+      // Never echoed. Printing it puts a working credential in a terminal
+      // scrollback, a CI log and a screenshot.
+    }
 
     console.log(`\ndone — open https://oscardevs.com/clinic after logging in as this clinic`);
   } finally {
