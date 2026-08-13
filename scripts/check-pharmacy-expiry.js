@@ -174,6 +174,34 @@ app.use('/pharmacy', pharmacyRouter);
     !claims.length || hasFeature,
     claims.length ? 'claimed in: ' + claims.join(', ') : 'not claimed anywhere (fine)');
 
-  console.log(fail ? `\n${fail} فشل.` : '\nمتابعة الصلاحيات شغّالة، والادعاء مطابق للكود.');
+  /* ── "الصنف اللي قرّب يخلص بيتعلّم قدّامك" ──────────────────────────────── */
+// The owner said this to a real lead on WhatsApp, so it is a claim like any
+// other and gets a check like any other. It was TRUE — the badge and the
+// dashboard counter both existed — but it was half the feature expiry has:
+// no way to ask for the list, and the badge measured the wrong number.
+{
+  const route = fs.readFileSync(path.join(ROOT, 'src/routes/pharmacy_admin.js'), 'utf8');
+  const view = fs.readFileSync(path.join(ROOT, 'src/views/pharmacy_admin/inventory.ejs'), 'utf8');
+  const dash = fs.readFileSync(path.join(ROOT, 'src/views/pharmacy_admin/dashboard.ejs'), 'utf8');
+
+  check('حالة المخزون محسوبة في SQL مش في القالب',
+    /stockCase = `CASE/.test(route) && /\$\{stockCase\} AS stock_status/.test(route));
+  // The whole point: a box reserved for an online order is not on the shelf.
+  check('المتاح = الكمية ناقص المحجوز في كل مكان',
+    /GREATEST\(pi\.qty - pi\.reserved_qty, 0\) <= pi\.min_qty/.test(route));
+  check('والبادج بيقرا نفس الحالة مش بيعيد حسابها',
+    /it\.stock_status === 'out'/.test(view) && !/it\.qty<=it\.min_qty/.test(view));
+  check('عدّاد اللوحة بيستخدم المتاح كمان (مش الكمية الخام)',
+    /GREATEST\(qty - reserved_qty, 0\) <= min_qty\)::int AS low_stock/.test(route));
+
+  check('فيه فلتر بيجيب النواقص لوحدها', /filter === 'low' \|\| filter === 'out'/.test(route));
+  check('وشرايح بتفتح الفلتر ده', /filter=low/.test(view) && /filter=out/.test(view));
+  check('وعدّاد اللوحة نفسه بقى لينك بيفتح القايمة',
+    /\/pharmacy\/inventory\?filter=low/.test(dash) && /\/pharmacy\/inventory\?filter=out/.test(dash));
+  check('والناقص بيطلع فوق في الترتيب',
+    /ORDER BY CASE \$\{stockCase\} WHEN 'out' THEN 0 WHEN 'low' THEN 1/.test(route));
+}
+
+console.log(fail ? `\n${fail} فشل.` : '\nمتابعة الصلاحيات شغّالة، والادعاء مطابق للكود.');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error('❌ ' + e.stack); process.exit(1); });

@@ -118,8 +118,11 @@ router.get('/', async (req, res) => {
   try {
     const stats = (await pool.query(
       `SELECT COUNT(*)::int AS total,
-              COUNT(*) FILTER (WHERE (qty - reserved_qty) <= 0)::int AS out_stock,
-              COUNT(*) FILTER (WHERE (qty - reserved_qty) > 0 AND qty <= min_qty)::int AS low_stock
+              COUNT(*) FILTER (WHERE GREATEST(qty - reserved_qty, 0) <= 0)::int AS out_stock,
+              -- Available, not gross qty: ten boxes with nine reserved is one
+              -- box, and the dashboard used to call that "in stock".
+              COUNT(*) FILTER (WHERE GREATEST(qty - reserved_qty, 0) > 0
+                AND GREATEST(qty - reserved_qty, 0) <= min_qty)::int AS low_stock
        FROM pharmacy_inventory WHERE company_id = $1`, [cid]
     )).rows[0];
     const today = (await pool.query(
@@ -151,8 +154,8 @@ const EXPIRY_SOON_DAYS = 60;
 router.get('/inventory', gate('inventory'), async (req, res) => {
   const cid = req.company.id;
   const q = (req.query.q || '').trim();
-  // 'expired' | 'soon' — anything else shows everything.
-  const filter = ['expired', 'soon'].includes(String(req.query.filter)) ? req.query.filter : '';
+  // 'expired' | 'soon' | 'low' | 'out' — anything else shows everything.
+  const filter = ['expired', 'soon', 'low', 'out'].includes(String(req.query.filter)) ? req.query.filter : '';
   try {
     const params = [cid];
     let where = 'pi.company_id = $1';
@@ -174,15 +177,31 @@ router.get('/inventory', gate('inventory'), async (req, res) => {
         WHEN pi.expiry < CURRENT_DATE THEN 'expired'
         WHEN pi.expiry <= CURRENT_DATE + ($${dayIdx} || ' days')::interval THEN 'soon'
         ELSE 'ok' END`;
-    if (filter) where += ` AND (${expiryCase}) = '${filter}'`;
+    // Stock level, on the SAME footing as expiry. The dashboard has counted
+    // "نواقص" for a long time and the row has always carried an amber badge —
+    // but there was no way to ASK for the list. A count you cannot open is a
+    // number, not a screen: with a few hundred lines the pharmacist had to scan
+    // the whole table to find the twelve the dashboard was talking about.
+    //
+    // Availability is qty MINUS what is reserved for online orders, everywhere.
+    // The badge used bare qty, so ten boxes with nine reserved showed green
+    // "متوفر" while one was actually sellable.
+    const stockCase = `CASE
+        WHEN GREATEST(pi.qty - pi.reserved_qty, 0) <= 0 THEN 'out'
+        WHEN GREATEST(pi.qty - pi.reserved_qty, 0) <= pi.min_qty THEN 'low'
+        ELSE 'ok' END`;
+    if (filter === 'low' || filter === 'out') where += ` AND (${stockCase}) = '${filter}'`;
+    else if (filter) where += ` AND (${expiryCase}) = '${filter}'`;
     const items = (await pool.query(
       `SELECT pi.*, m.name_ar, m.name_en, m.form, m.manufacturer,
               GREATEST(pi.qty - pi.reserved_qty, 0) AS available_qty,
               ${expiryCase} AS expiry_status,
+              ${stockCase} AS stock_status,
               (pi.expiry - CURRENT_DATE) AS days_to_expiry
        FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
        WHERE ${where}
-       ORDER BY CASE ${expiryCase} WHEN 'expired' THEN 0 WHEN 'soon' THEN 1 ELSE 2 END,
+       ORDER BY CASE ${stockCase} WHEN 'out' THEN 0 WHEN 'low' THEN 1 ELSE 2 END,
+                CASE ${expiryCase} WHEN 'expired' THEN 0 WHEN 'soon' THEN 1 ELSE 2 END,
                 pi.expiry NULLS LAST, m.name_ar`, params
     )).rows;
 
@@ -192,7 +211,10 @@ router.get('/inventory', gate('inventory'), async (req, res) => {
     const counts = (await pool.query(
       `SELECT COUNT(*) FILTER (WHERE pi.expiry < CURRENT_DATE)::int AS expired,
               COUNT(*) FILTER (WHERE pi.expiry >= CURRENT_DATE
-                AND pi.expiry <= CURRENT_DATE + ($2 || ' days')::interval)::int AS soon
+                AND pi.expiry <= CURRENT_DATE + ($2 || ' days')::interval)::int AS soon,
+              COUNT(*) FILTER (WHERE GREATEST(pi.qty - pi.reserved_qty, 0) <= 0)::int AS out,
+              COUNT(*) FILTER (WHERE GREATEST(pi.qty - pi.reserved_qty, 0) > 0
+                AND GREATEST(pi.qty - pi.reserved_qty, 0) <= pi.min_qty)::int AS low
          FROM pharmacy_inventory pi WHERE pi.company_id = $1`,
       [cid, EXPIRY_SOON_DAYS]
     )).rows[0];

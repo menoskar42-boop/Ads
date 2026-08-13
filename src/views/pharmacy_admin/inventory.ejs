@@ -67,7 +67,29 @@
     var __filter = typeof expiryFilter !== 'undefined' ? expiryFilter : '';
     var __qs = (currentSearch ? '&q=' + encodeURIComponent(currentSearch) : '') + (lang !== 'ar' ? '&lang=' + lang : '');
   %>
-  <% if (__exp.expired || __exp.soon || __filter) { %>
+  <% if (__exp.out || __exp.low || __filter === 'low' || __filter === 'out') { %>
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    <span class="text-xs font-bold text-gray-400"><%= t('pharmacy.admin.stock_watch') %></span>
+    <% if (__exp.out) { %>
+      <a href="/pharmacy/inventory?filter=out<%= __qs %>"
+         class="text-xs font-bold rounded-full px-3 py-1.5 <%= __filter==='out' ? 'bg-red-600 text-white' : 'text-red-600 bg-red-50 hover:bg-red-100' %>">
+        <%= t('pharmacy.out') %> · <%= __exp.out %>
+      </a>
+    <% } %>
+    <% if (__exp.low) { %>
+      <a href="/pharmacy/inventory?filter=low<%= __qs %>"
+         class="text-xs font-bold rounded-full px-3 py-1.5 <%= __filter==='low' ? 'bg-amber-500 text-white' : 'text-amber-700 bg-amber-50 hover:bg-amber-100' %>">
+        <%= t('pharmacy.admin.stock_low') %> · <%= __exp.low %>
+      </a>
+    <% } %>
+    <% if (__filter === 'low' || __filter === 'out') { %>
+      <a href="/pharmacy/inventory<%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
+         class="text-xs font-bold text-gray-500 underline px-2"><%= t('pharmacy.admin.exp_show_all') %></a>
+    <% } %>
+  </div>
+  <% } %>
+
+  <% if (__exp.expired || __exp.soon || __filter === 'expired' || __filter === 'soon') { %>
   <div class="mb-4 flex flex-wrap items-center gap-2">
     <span class="text-xs font-bold text-gray-400"><%= t('pharmacy.admin.exp_watch') %></span>
     <% if (__exp.expired) { %>
@@ -82,7 +104,7 @@
         <%= t('pharmacy.admin.exp_soon') %> · <%= __exp.soon %>
       </a>
     <% } %>
-    <% if (__filter) { %>
+    <% if (__filter === 'expired' || __filter === 'soon') { %>
       <a href="/pharmacy/inventory<%= currentSearch ? '?q=' + encodeURIComponent(currentSearch) : '' %>"
          class="text-xs font-bold text-gray-500 underline px-2"><%= t('pharmacy.admin.exp_show_all') %></a>
     <% } else if (!__exp.expired && !__exp.soon) { %>
@@ -113,7 +135,15 @@
               <div class="font-extrabold text-gray-900 truncate"><%= _p %></div>
               <div class="text-xs text-gray-400"><%= _s || '' %><% if (it.form) { %> · <%= it.form %><% } %></div>
             </div>
-            <% var avail = Number(it.available_qty)||0; var st = avail<=0?'out':(it.qty<=it.min_qty?'low':'in'); %>
+            <%
+              /* stock_status comes from SQL so the badge, the chip counts and
+                 the filter can never disagree. It is computed on AVAILABLE
+                 stock (qty minus what online orders reserved) — the old badge
+                 compared bare qty, so ten boxes with nine reserved showed a
+                 green "متوفر" while one was sellable. */
+              var avail = Number(it.available_qty)||0;
+              var st = it.stock_status === 'out' ? 'out' : (it.stock_status === 'low' ? 'low' : 'in');
+            %>
             <div class="shrink-0 flex items-center gap-1.5">
               <%# The expiry badge sits BEFORE the stock badge on purpose: an
                   expired box is not sellable however many of it there are. %>

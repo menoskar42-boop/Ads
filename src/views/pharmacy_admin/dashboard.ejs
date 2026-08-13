@@ -18,8 +18,8 @@
       var __canFin = (typeof perms !== 'undefined' && perms) ? perms.canFinance : true;
       var cards = [
         { label: t('pharmacy.admin.total_items'), val: stats.total, cls: 'text-gray-900' },
-        { label: t('pharmacy.admin.low_stock'), val: stats.low_stock, cls: 'text-amber-600' },
-        { label: t('pharmacy.admin.out_stock'), val: stats.out_stock, cls: 'text-red-600' },
+        { label: t('pharmacy.admin.low_stock'), val: stats.low_stock, cls: 'text-amber-600', href: '/pharmacy/inventory?filter=low' },
+        { label: t('pharmacy.admin.out_stock'), val: stats.out_stock, cls: 'text-red-600', href: '/pharmacy/inventory?filter=out' },
         { label: t('pharmacy.admin.pending_orders'), val: pendingOrders, cls: 'text-emerald-700' }
       ];
       if (__canFin) {
@@ -27,11 +27,23 @@
         cards.push({ label: t('pharmacy.admin.today_profit'), val: Number(today.profit||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-emerald-700' });
       }
     %>
+    <%
+      /* The counters that name a problem now open the list of it. "12 نواقص"
+         with nothing to click is a number, not a screen — the pharmacist still
+         had to scan the whole table to find which twelve. */
+    %>
     <% cards.forEach(function(c){ %>
+      <% if (c.href && Number(c.val) > 0) { %>
+      <a href="<%= c.href %>" class="block bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center hover:border-gray-300 transition">
+        <div class="text-2xl font-extrabold <%= c.cls %> tabular-nums"><%= c.val %></div>
+        <div class="text-xs text-gray-500 mt-1"><%= c.label %> ←</div>
+      </a>
+      <% } else { %>
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 text-center">
         <div class="text-2xl font-extrabold <%= c.cls %> tabular-nums"><%= c.val %></div>
         <div class="text-xs text-gray-500 mt-1"><%= c.label %></div>
       </div>
+      <% } %>
     <% }) %>
   </div>
 
