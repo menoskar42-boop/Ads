@@ -163,6 +163,21 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
   check('وحجز اللوحة كمان', /booking\.insertIfFree/.test(clinic3));
   check('واللي الميعاد بتاعه اتحجز بيتقاله',
     /error=taken/.test(tenant3) && /error=taken/.test(clinic3));
+
+  // Found in the live QA pass: the route returned taken/past/far correctly and
+  // the page printed one generic "check your name and phone" for all three —
+  // so a patient whose name and phone were fine was sent to check them while
+  // the real reason went unsaid. A right refusal with the wrong reason is a
+  // refusal the customer cannot act on.
+  const clinicView = fs.readFileSync(path.join(ROOT, 'src/views/tenant_clinic.ejs'), 'utf8');
+  check('وكل سبب رفض ليه رسالته هو',
+    /taken: 'cp\.err_taken'/.test(clinicView) && /past: 'cp\.err_past'/.test(clinicView)
+    && /far: 'cp\.err_far'/.test(clinicView));
+  const strings = fs.readFileSync(path.join(ROOT, 'src/i18n/strings.js'), 'utf8');
+  check('والرسايل التلاتة موجودة بالعربي والإنجليزي',
+    (strings.match(/'cp\.err_taken'/g) || []).length === 2
+    && (strings.match(/'cp\.err_past'/g) || []).length === 2
+    && (strings.match(/'cp\.err_far'/g) || []).length === 2);
 }
 
 /* ── المرحلة ٤: شاشة المطبخ وأول شاشة بعد الدخول ───────────────────────── */

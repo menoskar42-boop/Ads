@@ -162,7 +162,18 @@
     <% if (typeof sent !== 'undefined' && sent) { %>
       <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 text-sm font-semibold"><%= t('cp.sent') %></div>
     <% } else if (typeof contactError !== 'undefined' && contactError) { %>
-      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm font-semibold"><%= t('cp.error') %></div>
+      <%
+        /* The refusal has a reason and the patient has to hear THAT reason. The
+           booking route already returns error=taken / past / far, but this
+           block printed one generic "check your name and phone" for all of
+           them — so somebody whose name and phone were perfectly fine was sent
+           to check their name and phone while the real problem (that slot is
+           taken) went unsaid. Found in the live QA pass. */
+        var __bk = {
+          taken: 'cp.err_taken', past: 'cp.err_past', far: 'cp.err_far',
+        }[String(contactError)] || 'cp.error';
+      %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm font-semibold"><%= t(__bk) %></div>
     <% } %>
     <form method="POST" action="/book" class="grid gap-3 mt-3">
       <input type="text" name="patient_name" required maxlength="80" placeholder="<%= t('cp.name') %>" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
