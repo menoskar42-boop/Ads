@@ -20,7 +20,8 @@
         { label: t('pharmacy.admin.total_items'), val: stats.total, cls: 'text-gray-900' },
         { label: t('pharmacy.admin.low_stock'), val: stats.low_stock, cls: 'text-amber-600', href: '/pharmacy/inventory?filter=low' },
         { label: t('pharmacy.admin.out_stock'), val: stats.out_stock, cls: 'text-red-600', href: '/pharmacy/inventory?filter=out' },
-        { label: t('pharmacy.admin.pending_orders'), val: pendingOrders, cls: 'text-emerald-700' }
+        { label: t('pharmacy.admin.pending_orders'), val: pendingOrders, cls: 'text-emerald-700' },
+        { label: t('pharmacy.admin.stock_review'), val: (typeof reviewCount !== 'undefined' ? reviewCount : 0), cls: 'text-rose-600', href: '/pharmacy/stock-review' }
       ];
       if (__canFin) {
         cards.push({ label: t('pharmacy.admin.today_sales'), val: Number(today.sales||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-gray-900' });

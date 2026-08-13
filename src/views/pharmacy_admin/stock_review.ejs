@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('pharmacy.review.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+<header class="bg-white border-b border-gray-100">
+  <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="/pharmacy" class="font-extrabold text-emerald-700"><%= company.company_name %></a>
+    <a href="/pharmacy/inventory" class="text-sm text-gray-500 hover:text-gray-800"><%= t('pharmacy.admin.inventory') %> ←</a>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-6">
+  <h1 class="text-xl font-extrabold mb-1"><%= t('pharmacy.review.title') %></h1>
+  <p class="text-sm text-gray-500 mb-5 leading-relaxed"><%= t('pharmacy.review.sub') %></p>
+
+  <% if (saved) { %>
+  <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm mb-4">
+    <%= t('pharmacy.review.saved') %>
+  </div>
+  <% } %>
+
+  <% if (!rows.length) { %>
+  <div class="bg-white border border-gray-100 rounded-2xl p-10 text-center text-gray-400">
+    <%= t('pharmacy.review.none') %>
+  </div>
+  <% } else { %>
+  <div class="space-y-3">
+    <% rows.forEach(function(r){ %>
+    <div class="bg-white border border-rose-200 rounded-2xl p-4">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="min-w-0">
+          <div class="text-xs text-gray-400 mb-1">
+            <%= t('pharmacy.review.when') %>: <%= new Date(r.created_at).toLocaleString(LOC) %>
+          </div>
+          <div class="text-sm text-gray-700 mb-2">
+            <%= t('pharmacy.review.items') %>:
+            <%= (r.items || []).map(function(i){ return i.name + ' ×' + i.qty; }).join(' · ') %>
+          </div>
+          <div class="text-sm font-bold text-rose-600"><%= t('pharmacy.review.diff') %>: <%= r.review_note || '—' %></div>
+        </div>
+        <form method="POST" action="/pharmacy/stock-review/<%= r.id %>/done">
+          <button class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-3 py-2 whitespace-nowrap">
+            <%= t('pharmacy.review.done') %>
+          </button>
+        </form>
+      </div>
+    </div>
+    <% }); %>
+  </div>
+  <% } %>
+</main>
+
+</body>
+</html>

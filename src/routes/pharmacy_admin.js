@@ -135,9 +135,14 @@ router.get('/', async (req, res) => {
     const pending = (await pool.query(
       "SELECT COUNT(*)::int AS n FROM pharmacy_orders WHERE company_id = $1 AND status = 'pending'", [cid]
     )).rows[0].n;
+    // Offline sales that took more off the shelf than the system had.
+    const review = (await pool.query(
+      'SELECT COUNT(*)::int AS n FROM pharmacy_sales WHERE company_id = $1 AND needs_review = true AND reviewed_at IS NULL',
+      [cid]
+    )).rows[0].n;
     const settings = (await pool.query('SELECT * FROM pharmacy_settings WHERE company_id = $1', [cid])).rows[0] || {};
     res.render('pharmacy_admin/dashboard', {
-      company: req.company, stats, today, pendingOrders: pending, settings, session: req.session,
+      company: req.company, stats, today, pendingOrders: pending, reviewCount: review, settings, session: req.session,
     });
   } catch (e) {
     console.error('pharmacy dashboard error:', e.message);
@@ -521,6 +526,45 @@ router.get('/api/inventory-all', gate('pos'), async (req, res) => {
   } catch (e) { console.error('inventory-all error:', e.message); res.status(500).json([]); }
 });
 
+/* ─── Offline sales that oversold ────────────────────────────────────────
+ *
+ * A flag nobody can see is the same silence it replaced, so here is the list.
+ * Marking one reviewed does not change any number — it records that a human
+ * went and counted the shelf, which is the only thing that can actually settle
+ * the difference.
+ */
+router.get('/stock-review', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const rows = (await pool.query(
+      `SELECT s.*, COALESCE(json_agg(json_build_object('name', si.name, 'qty', si.qty))
+                            FILTER (WHERE si.id IS NOT NULL), '[]') AS items
+         FROM pharmacy_sales s
+         LEFT JOIN pharmacy_sale_items si ON si.sale_id = s.id
+        WHERE s.company_id = $1 AND s.needs_review = true AND s.reviewed_at IS NULL
+        GROUP BY s.id
+        ORDER BY s.created_at DESC LIMIT 200`, [cid]
+    )).rows;
+    res.render('pharmacy_admin/stock_review', {
+      company: req.company, rows, session: req.session,
+      saved: req.query.saved === '1',
+    });
+  } catch (e) {
+    console.error('[stock review]', e.message);
+    res.status(500).send('error');
+  }
+});
+
+router.post('/stock-review/:id/done', gate('inventory'), async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE pharmacy_sales SET reviewed_at = now() WHERE id=$1 AND company_id=$2 AND needs_review = true',
+      [parseInt(req.params.id, 10), req.company.id]
+    );
+  } catch (e) { console.error('[stock review done]', e.message); }
+  res.redirect('/pharmacy/stock-review?saved=1');
+});
+
 // Sync a batch of sales made offline. Each carries an offline_uid; replays are
 // idempotent (a uid already recorded is skipped). Offline sales are facts that
 // already happened at the counter, so they're always applied (no availability
@@ -555,11 +599,22 @@ router.post('/pos/sync', gate('pos'), async (req, res) => {
         lines.push({ medicine_id: mid, name: inv ? inv.name_ar : (raw.name || ''), qty, price, cost });
       }
       if (!lines.length) { await client.query('ROLLBACK'); continue; }
-      await stock.sellDirect(client, cid, lines);
+      // The sale is applied either way — it already happened at the counter.
+      // But if the shelf did not have what it sold, that is a discrepancy
+      // somebody has to walk over and count, not a number to floor at zero and
+      // forget. The pharmacist gets a review list instead of a quiet loss.
+      const short = await stock.sellDirect(client, cid, lines);
+      const note = short.length
+        ? short.map((x) => {
+          const l = lines.find((y) => y.medicine_id === x.medicine_id);
+          return `${(l && l.name) || ('#' + x.medicine_id)}: اتباع ${x.wanted} والنظام كان شايف ${x.had}`;
+        }).join(' · ').slice(0, 500)
+        : null;
       const sale = (await client.query(
-        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id, offline_uid)
-         VALUES ($1,'sale',$2,$3,$4,$5) ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
-        [cid, total, profit, req.session.staffId || null, uid]
+        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id, offline_uid,
+                                     needs_review, review_note)
+         VALUES ($1,'sale',$2,$3,$4,$5,$6,$7) ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
+        [cid, total, profit, req.session.staffId || null, uid, short.length > 0, note]
       )).rows[0];
       if (sale) {
         for (const l of lines) {

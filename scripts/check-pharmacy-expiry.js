@@ -202,6 +202,48 @@ app.use('/pharmacy', pharmacyRouter);
     /ORDER BY CASE \$\{stockCase\} WHEN 'out' THEN 0 WHEN 'low' THEN 1/.test(route));
 }
 
+/* ── بند ١٧: مزامنة الأوفلاين كانت بتبيع زيادة بالسكوت ─────────────────── */
+// The offline till sells whether or not the database agrees — the customer has
+// already walked out with the box. Flooring the stock at zero and saying
+// nothing is how a pharmacy ends up with a number nobody trusts.
+{
+  const stockLib = fs.readFileSync(path.join(ROOT, 'src/pharmacy/stock.js'), 'utf8');
+  const route = fs.readFileSync(path.join(ROOT, 'src/routes/pharmacy_admin.js'), 'utf8');
+  const schema = fs.readFileSync(path.join(ROOT, 'src/pharmacy/schema.js'), 'utf8');
+
+  check('البيعة لسه بتتطبّق (الأوفلاين واقعة حصلت)', /GREATEST\(0, qty - \$3\)/.test(stockLib));
+  check('بس النقص بيترجع مش بيتبلع', /return short;/.test(stockLib));
+  check('والقراءة قبل الخصم في نفس الجملة (CTE) مش SELECT قبلها',
+    /WITH cur AS \(/.test(stockLib) && /FOR UPDATE/.test(stockLib));
+  check('البيعة الناقصة بتتعلّم للمراجعة',
+    /needs_review, review_note/.test(route) && /short\.length > 0/.test(route));
+  check('والملاحظة بتقول اتباع كام والنظام كان شايف كام',
+    /اتباع \$\{x\.wanted\} والنظام كان شايف \$\{x\.had\}/.test(route));
+  check('وفيه أعمدة للمراجعة في السكيمة',
+    /needs_review BOOLEAN NOT NULL DEFAULT false/.test(schema) && /reviewed_at TIMESTAMPTZ/.test(schema));
+  check('وشاشة بتعرضها', /router\.get\('\/stock-review'/.test(route)
+    && fs.existsSync(path.join(ROOT, 'src/views/pharmacy_admin/stock_review.ejs')));
+  check('وعدّاد على اللوحة بيفتحها',
+    /\/pharmacy\/stock-review/.test(fs.readFileSync(path.join(ROOT, 'src/views/pharmacy_admin/dashboard.ejs'), 'utf8')));
+  // Marking it reviewed must not silently "fix" the number — only a human
+  // counting the shelf can.
+  check('«راجعتها» مابتغيّرش أي رقم مخزون',
+    /UPDATE pharmacy_sales SET reviewed_at = now\(\)/.test(route)
+    && !/stock-review[\s\S]{0,600}UPDATE pharmacy_inventory/.test(route));
+}
+
+/* ── بند ١٨: زرار + في السلة كان بيعدّي المتاح ─────────────────────────── */
+{
+  const view = fs.readFileSync(path.join(ROOT, 'src/views/tenant_pharmacy.ejs'), 'utf8');
+  const tenant = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+  check('الحد الأقصى بيتحفظ مع سطر السلة', /q: 0, max: max/.test(view));
+  check('وزرار + في الدرج بيحترمه', /var cap = Number\(ln\.max\) \|\| 999/.test(view));
+  check('والسيرفر لسه هو الحكم', /Number\(inv\.available\) < c\.q/.test(tenant));
+  check('وبيقول للعميل السبب بدل ما يرجّعه فاضي',
+    /err=stock/.test(tenant) && /err === 'stock'/.test(view));
+  check('والرسالة بتقول المتاح كام', /left=/.test(tenant) && /__q\.left/.test(view));
+}
+
 console.log(fail ? `\n${fail} فشل.` : '\nمتابعة الصلاحيات شغّالة، والادعاء مطابق للكود.');
   process.exit(fail ? 1 : 0);
 })().catch((e) => { console.error('❌ ' + e.stack); process.exit(1); });

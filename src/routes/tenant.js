@@ -843,7 +843,16 @@ router.post('/order/cart', pharmacyOrderGuard, async (req, res) => {
          FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
          WHERE pi.company_id = $1 AND pi.medicine_id = $2 FOR UPDATE`, [company.id, c.id]
       )).rows[0];
-      if (!inv || Number(inv.available) < c.q) { await client.query('ROLLBACK'); return res.redirect('/' + langQ); }
+      if (!inv || Number(inv.available) < c.q) {
+        // Was: redirect to the storefront and say nothing. The customer got
+        // their cart back, full, with no idea why the order did not go
+        // through — and the honest answer ("somebody bought the last two while
+        // you were typing your address") is one they can act on.
+        await client.query('ROLLBACK');
+        const which = inv ? encodeURIComponent(String(inv.name_ar || '').slice(0, 60)) : '';
+        return res.redirect('/' + (langQ ? langQ + '&' : '?') + 'err=stock'
+          + (which ? '&item=' + which : '') + (inv ? '&left=' + Number(inv.available) : ''));
+      }
       const price = Number(inv.price) || 0;
       itemsTotal += price * c.q;
       lines.push({ medicine_id: c.id, name: inv.name_ar, qty: c.q, price });

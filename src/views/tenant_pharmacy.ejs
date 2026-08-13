@@ -112,6 +112,27 @@
 </head>
 
 <body class="bg-sand-50 text-ink antialiased">
+<%
+  /* Why an order was refused. It used to redirect here with ?err= and show
+     nothing at all: the customer saw the page reload with a full cart and no
+     explanation. */
+  var __q = (typeof query !== 'undefined' && query) ? query : {};
+  var __errMsg = null;
+  if (__q.err === 'stock') {
+    __errMsg = __q.item
+      ? ('«' + __q.item + '» مابقاش متاح بالكمية اللي في سلتك'
+         + (__q.left !== undefined ? (' — المتاح دلوقتي ' + __q.left) : '')
+         + '. عدّل الكمية وجرّب تاني.')
+      : 'واحد من الأصناف مابقاش متاح بالكمية اللي طلبتها. عدّل السلة وجرّب تاني.';
+  }
+%>
+<% if (__errMsg) { %>
+<div class="max-w-3xl mx-auto mt-3 px-4">
+  <div class="rounded-2xl px-4 py-3 text-sm" style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;">
+    <%= __errMsg %>
+  </div>
+</div>
+<% } %>
 
 <!-- ═══ HEADER ═══ -->
 <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-sand-200">
@@ -548,7 +569,12 @@
   document.querySelectorAll('.ph-add').forEach(function (b) {
     b.addEventListener('click', function () {
       var c = load(), id = b.dataset.id, max = parseInt(b.dataset.max, 10) || 999;
-      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price) || 0, q: 0 };
+      // The cap travels WITH the line. The + inside the drawer had no idea what
+      // the available quantity was, so a customer could walk a cart past the
+      // stock and only find out at checkout — where the server refused the whole
+      // order.
+      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price) || 0, q: 0, max: max };
+      c[id].max = max;
       if (c[id].q >= max) { var lbl0 = b.querySelector('.ph-add-label'); if (lbl0) { lbl0.textContent = MAXW; setTimeout(function () { lbl0.textContent = ADD; }, 1200); } return; }
       c[id].q += 1; save(c); renderBar();
       var lbl = b.querySelector('.ph-add-label');
@@ -558,7 +584,17 @@
 
   lines.addEventListener('click', function (e) {
     var c = load(), tg = e.target;
-    if (tg.dataset.p) { c[tg.dataset.p].q += 1; }
+    if (tg.dataset.p) {
+      var ln = c[tg.dataset.p];
+      var cap = Number(ln.max) || 999;
+      if (ln.q >= cap) {
+        // Say why, on the button the customer just pressed.
+        tg.textContent = '⤫'; tg.title = MAXW;
+        setTimeout(function () { tg.textContent = '+'; }, 900);
+        return;
+      }
+      ln.q += 1;
+    }
     else if (tg.dataset.m) { c[tg.dataset.m].q -= 1; if (c[tg.dataset.m].q <= 0) delete c[tg.dataset.m]; }
     else if (tg.dataset.r) { delete c[tg.dataset.r]; }
     else return;

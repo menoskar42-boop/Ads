@@ -181,6 +181,15 @@ async function ensurePharmacySchema() {
       CREATE INDEX IF NOT EXISTS idx_pharm_sales_company ON pharmacy_sales (company_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_sales_offline
         ON pharmacy_sales (company_id, offline_uid) WHERE offline_uid IS NOT NULL;
+      -- An offline sale that took more off the shelf than the system thought
+      -- was there. The sale still stands (the customer left with the box) —
+      -- but somebody has to go and count that shelf, so it is flagged instead
+      -- of being floored at zero in silence.
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS needs_review BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS review_note TEXT;
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_pharm_sales_review
+        ON pharmacy_sales (company_id, created_at DESC) WHERE needs_review;
 
       CREATE TABLE IF NOT EXISTS pharmacy_sale_items (
         id SERIAL PRIMARY KEY,
