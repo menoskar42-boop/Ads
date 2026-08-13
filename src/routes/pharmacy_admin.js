@@ -7,6 +7,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const stock = require('../pharmacy/stock');
+const gs1 = require('../pharmacy/gs1');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
 const multer = require('multer');
@@ -443,20 +444,41 @@ router.get('/pos', gate('pos'), (req, res) => {
 
 // JSON search over this pharmacy's stock — used by the POS and (later) the
 // barcode scanner. Matches Arabic/English name or barcode.
+// The GS1 parser, served to the till from the SAME file the server uses. A
+// second copy in a <script> tag is how two implementations of one rule start
+// disagreeing — and this one has to work offline, so it cannot be an API call.
+router.get('/js/gs1.js', (req, res) => {
+  res.type('application/javascript');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.sendFile(require('path').join(__dirname, '..', 'pharmacy', 'gs1.js'));
+});
+
 router.get('/api/inventory-search', gate('pos'), async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.json([]);
   try {
+    // A GS1 DataMatrix off an Egyptian pack arrives as one long string holding
+    // the GTIN, the batch and the expiry. Searching for that whole string finds
+    // nothing — so it is decoded first, and the GTIN's EAN-13 form is what the
+    // inventory is actually keyed on.
+    const code = gs1.parse(q);
+    const keys = gs1.searchKeys(code);
     const rows = (await pool.query(
       `SELECT pi.medicine_id, pi.price, GREATEST(pi.qty - pi.reserved_qty,0) AS available,
-              m.name_ar, m.name_en
+              pi.expiry, m.name_ar, m.name_en
        FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
        WHERE pi.company_id = $1 AND (
-         m.name_ar ILIKE $2 OR m.name_en ILIKE $2 OR pi.barcode = $3 OR m.barcode = $3)
+         m.name_ar ILIKE $2 OR m.name_en ILIKE $2
+         OR pi.barcode = ANY($3) OR m.barcode = ANY($3))
        ORDER BY m.name_ar LIMIT 30`,
-      [req.company.id, '%' + q + '%', q]
+      [req.company.id, '%' + q + '%', keys.length ? keys.concat([q]) : [q]]
     )).rows;
-    res.json(rows);
+    // The pack told us its batch and expiry; hand them back so the till can
+    // show them and the pharmacist can see a mismatch with what is on file.
+    res.json(code.gs1
+      ? { items: rows, scanned: { gtin: code.gtin || null, batch: code.batch || null,
+        expiry: code.expiry || null, serial: code.serial || null, partial: !!code.partial } }
+      : rows);
   } catch (e) { console.error('pos search error:', e.message); res.status(500).json([]); }
 });
 

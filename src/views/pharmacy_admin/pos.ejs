@@ -12,6 +12,9 @@
   #scanOverlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
   #reader{width:100%;max-width:360px;border-radius:16px;overflow:hidden;background:#000}</style>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<%# The GS1 decoder — the same file the server parses with, not a copy. Loaded
+    from our own origin so the till keeps decoding packs with the net down. %>
+<script src="/pharmacy/js/gs1.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800">
 <%- include('nav', { active: 'pos' }) %>
@@ -113,18 +116,53 @@
   // filled it — but Enter did nothing and the pharmacist had to reach for the
   // mouse on every item, which defeats the scanner. Enter now adds the single
   // exact barcode match and clears the box, ready for the next scan.
+  // An Egyptian pack's DataMatrix is one long string holding the GTIN, the
+  // batch and the expiry — searching for it whole finds nothing. Decoded with
+  // the SAME module the server uses (served at /pharmacy/js/gs1.js) so the till
+  // still works with the internet down, which is the whole point of this screen.
+  function scanKeys(code) {
+    if (!window.GS1) return [code];
+    var p = window.GS1.parse(code);
+    if (!p.gs1) return [code];
+    lastScan = p;
+    return window.GS1.searchKeys(p).concat([code]);
+  }
+  var lastScan = null;
+
+  function matchBarcode(rows, code) {
+    var keys = scanKeys(code);
+    return rows.filter(function (it) {
+      return it.barcode && keys.indexOf(String(it.barcode)) >= 0;
+    });
+  }
+
+  // What the pack itself said, shown next to the item. A batch or an expiry the
+  // pharmacist can see is a batch they can check against the shelf.
+  function scanNote() {
+    if (!lastScan) return '';
+    var bits = [];
+    if (lastScan.batch) bits.push('تشغيلة ' + lastScan.batch);
+    if (lastScan.expiry) bits.push('صلاحية ' + lastScan.expiry);
+    return bits.join(' · ');
+  }
+
   searchBox.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Enter') return;
     ev.preventDefault();
     var code = (searchBox.value || '').trim();
     if (!code) return;
+    lastScan = null;
     getAll('inv').then(function (rows) {
-      var exact = rows.filter(function (it) { return it.barcode && String(it.barcode) === code; });
+      var exact = matchBarcode(rows, code);
       // Only an unambiguous barcode is auto-added. A name search that happens to
       // match one row is not the same thing, and adding the wrong medicine
       // because it was the only hit is worse than making them tap it.
-      if (exact.length === 1) { addToCart(exact[0]); toast(nm(exact[0])); searchBox.value = ''; results.classList.add('hidden'); }
-      else { doSearch(code); }
+      if (exact.length === 1) {
+        addToCart(exact[0]);
+        var note = scanNote();
+        toast(nm(exact[0]) + (note ? ' — ' + note : ''));
+        searchBox.value = ''; results.classList.add('hidden');
+      } else { doSearch(code); }
     });
   });
   function doSearch(q){
@@ -243,9 +281,11 @@
     overlay.style.display='flex'; scanner=new Html5Qrcode('reader');
     scanner.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}}, function(code){
       stopScan();
+      lastScan = null;
       getAll('inv').then(function(rows){
-        var hit=rows.filter(function(it){ return it.barcode && String(it.barcode)===String(code); })[0];
-        if(hit){ addToCart(hit); toast(nm(hit)); } else { searchBox.value=code; doSearch(code); }
+        var hit = matchBarcode(rows, String(code))[0];
+        if(hit){ addToCart(hit); var n = scanNote(); toast(nm(hit) + (n ? ' — ' + n : '')); }
+        else { searchBox.value=code; doSearch(code); }
       });
     }, function(){}).catch(function(){ overlay.style.display='none'; scanner=null; searchBox.focus(); });
   };

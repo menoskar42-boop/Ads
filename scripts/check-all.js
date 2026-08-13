@@ -21,6 +21,7 @@ const CHECKS = [
   ['check-page-types',      'أنواع النشاط مكتملة في كل الأماكن'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
+  ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],
   ['check-portfolio',       'البورتفوليو: مفيش أعمال مخترعة ولا وعد كاذب'],
   ['check-pricing',         'الأسعار متطابقة في كل مكان بتتذكر فيه'],
   ['check-tracking',        'أحداث التسويق بتتبعت فعلاً (مش PageView بس)'],
