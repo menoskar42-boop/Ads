@@ -4,10 +4,14 @@
 %>
 <header class="bg-orange-600 text-white">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
-    <a href="/food" class="font-extrabold text-lg flex items-center gap-1">🍽️ <%= company.company_name %></a>
+    <a href="/food/orders" class="font-extrabold text-lg flex items-center gap-1">🍽️ <%= company.company_name %></a>
     <nav class="flex items-center gap-1 text-sm mr-auto ms-auto flex-wrap">
-      <a href="/food" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a>
+      <%# Orders first: it is what a restaurant opens forty times a shift, and
+          the menu is what they touch once a month. They used to be the other
+          way round. %>
       <a href="/food/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.admin_orders') %></a>
+      <a href="/food/kds" class="px-3 py-1.5 rounded-lg <%= __active==='kds'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🍳 <%= t('food.kds.nav') %></a>
+      <a href="/food/menu" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a>
       <a href="/food/coupons" class="px-3 py-1.5 rounded-lg <%= __active==='coupons'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.coupons') %></a>
       <a href="/food/ai" class="px-3 py-1.5 rounded-lg <%= __active==='ai'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🤖 <%= t('food.ai.nav') %></a>
       <a href="/food/reports" class="px-3 py-1.5 rounded-lg <%= __active==='reports'?'bg-white/25 font-bold':'hover:bg-white/15' %>">📊 <%= t('food.reports.nav') %></a>

@@ -165,6 +165,33 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
     /error=taken/.test(tenant3) && /error=taken/.test(clinic3));
 }
 
+/* ── المرحلة ٤: شاشة المطبخ وأول شاشة بعد الدخول ───────────────────────── */
+{
+  const kdsView = fs.readFileSync(path.join(ROOT, 'src/views/food_admin/kds.ejs'), 'utf8');
+  const nav = fs.readFileSync(path.join(ROOT, 'src/views/food_admin/nav.ejs'), 'utf8');
+
+  check('أول شاشة بعد الدخول بقت الطلبات مش إدارة المنيو',
+    /router\.get\('\/', \(req, res\) => res\.redirect\('\/food\/orders'\)\)/.test(food));
+  check('والمنيو لسه موجود على /food/menu', /router\.get\('\/menu'/.test(food));
+  check('والقايمة بتحطّ الطلبات قبل المنيو',
+    nav.indexOf('/food/orders') < nav.indexOf('/food/menu'));
+
+  check('شاشة المطبخ موجودة', /router\.get\('\/kds'/.test(food));
+  check('وبتجيب اللي لسه بيتعمل بس', /status IN \('pending','accepted','preparing'\)/.test(food));
+  // The whole point of a kitchen screen: no prices, and one action.
+  check('مفيش أسعار على شاشة المطبخ', !/price|السعر|ج\.م/.test(kdsView));
+  check('وفيها زرار واحد بس', (kdsView.match(/<button/g) || []).length === 1);
+  check('والانتظار بالدقايق بيغيّر لون التذكرة',
+    /mins >= 20 \? 'hot'/.test(kdsView) && /mins >= 10 \? 'warm'/.test(kdsView));
+  check('وبتحدّث نفسها من غير ما حد يضغط', /location\.reload\(\)/.test(kdsView));
+  check('وبتبطّل تحديث لو الشاشة مش ظاهرة',
+    /document\.visibilityState === 'visible'/.test(kdsView));
+  // Even the kitchen's button goes through the shared state rule.
+  check('وزرار «جاهز» بيمشي على نفس قاعدة الحالات',
+    /flow\.canMove\(FOOD_FLOW, cur\.status, 'out_for_delivery'\)/.test(food));
+  check('وبيقفل الصف قبلها', /SELECT status FROM food_orders WHERE id=\$1 AND company_id=\$2 FOR UPDATE/.test(food));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — دي الحالة اللي بتخصم المخزون وتحسب البيعة مرتين.`
   : '\nالحالات النهائية مابترجعش، في التلات أنظمة، والصف بيتقفل قبل القرار.');

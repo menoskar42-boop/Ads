@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>شاشة المطبخ — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800;900&display=swap" rel="stylesheet" />
+<style>
+  /* Read from two metres away, with wet hands, under kitchen lighting.
+     Dark because the screen is on a wall for twelve hours. */
+  *{box-sizing:border-box;font-family:'Cairo',sans-serif;margin:0}
+  body{background:#0b1220;color:#e8eefc;padding:14px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+  .top h1{font-size:1.5rem;font-weight:900}
+  .top a{color:#93c5fd;text-decoration:none;font-size:.95rem}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .tick{background:#111c30;border:2px solid #1e2a44;border-radius:18px;padding:16px;display:flex;flex-direction:column}
+  .tick.warm{border-color:#f59e0b}
+  .tick.hot{border-color:#ef4444}
+  .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .no{font-size:1.5rem;font-weight:900}
+  .age{font-size:1.5rem;font-weight:900;color:#93c5fd}
+  .warm .age{color:#fbbf24}
+  .hot .age{color:#f87171}
+  ul{list-style:none;padding:0;margin:0 0 12px}
+  li{display:flex;gap:12px;align-items:baseline;padding:7px 0;border-bottom:1px solid #1a2438;font-size:1.35rem;font-weight:800}
+  li:last-child{border-bottom:0}
+  .q{min-width:2.6rem;color:#34d399;font-size:1.6rem;font-weight:900}
+  .note{background:#3f2d0b;border:1px solid #a16207;color:#fde68a;border-radius:12px;padding:9px 12px;font-size:1.05rem;font-weight:800;margin-bottom:12px}
+  button{width:100%;background:#059669;color:#fff;border:0;border-radius:14px;padding:15px;font-size:1.2rem;font-weight:900;font-family:inherit;cursor:pointer}
+  button:active{background:#047857}
+  .empty{text-align:center;padding:70px 20px;color:#64748b;font-size:1.3rem;font-weight:800}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>🍳 المطبخ — <%= orders.length %> طلب</h1>
+  <a href="/food/orders">شاشة الطلبات الكاملة ←</a>
+</div>
+
+<% if (!orders.length) { %>
+  <div class="empty">مفيش طلبات دلوقتي.</div>
+<% } else { %>
+<div class="grid">
+  <% orders.forEach(function(o){
+       /* Minutes waiting drives the colour. A ticket that has been up for
+          twenty minutes has to look different from one that just arrived —
+          that is the only thing a kitchen screen is really for. */
+       var mins = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000));
+       var cls = mins >= 20 ? 'hot' : (mins >= 10 ? 'warm' : '');
+  %>
+  <div class="tick <%= cls %>">
+    <div class="hd">
+      <span class="no">#<%= o.id %></span>
+      <span class="age"><%= mins %> د</span>
+    </div>
+    <ul>
+      <% (o.items || []).forEach(function(i){ %>
+      <li><span class="q">×<%= i.quantity %></span><span><%= i.name_snapshot %></span></li>
+      <% }); %>
+    </ul>
+    <% if (o.notes) { %><div class="note">📝 <%= o.notes %></div><% } %>
+    <form method="POST" action="/food/kds/<%= o.id %>/ready">
+      <button type="submit">جاهز ✓</button>
+    </form>
+  </div>
+  <% }); %>
+</div>
+<% } %>
+
+<script>
+  // Nobody in a kitchen is going to press refresh. Reload on a timer, but only
+  // while the page is actually visible — a screen in the back office at 3am
+  // should not keep the database busy.
+  setInterval(function () {
+    if (document.visibilityState === 'visible') location.reload();
+  }, 20000);
+</script>
+</body>
+</html>

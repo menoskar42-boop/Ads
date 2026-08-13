@@ -51,7 +51,16 @@ async function ownsOutlet(companyId, outletId) {
 }
 
 /* ─── Menu manager (main page) ──────────────────────────── */
-router.get('/', async (req, res) => {
+/* The first screen after login.
+ *
+ * It used to be the menu manager — the screen a restaurant touches once a
+ * month. What they open forty times a shift is "what has to go out now", and
+ * that was two clicks away. The menu is still one click away at /food/menu;
+ * they have simply swapped places, which is what the external review asked for.
+ */
+router.get('/', (req, res) => res.redirect('/food/orders'));
+
+router.get('/menu', async (req, res) => {
   const cid = req.company.id;
   try {
     const outlets = (await pool.query('SELECT * FROM food_outlets WHERE company_id = $1 ORDER BY vertical', [cid])).rows;
@@ -104,17 +113,17 @@ router.post('/outlet/save', withImage, async (req, res) => {
          (b.opening_time || '09:00').trim(), (b.closing_time || '23:00').trim(), image]
       );
     }
-    res.redirect('/food?saved=1');
+    res.redirect('/food/menu?saved=1');
   } catch (e) {
     console.error('outlet save error:', e.message);
-    res.redirect('/food?error=' + encodeURIComponent('حصل خطأ'));
+    res.redirect('/food/menu?error=' + encodeURIComponent('حصل خطأ'));
   }
 });
 
 router.post('/outlet/:id/toggle', async (req, res) => {
   await pool.query('UPDATE food_outlets SET is_active = NOT is_active WHERE id=$1 AND company_id=$2',
     [toInt(req.params.id, null), req.company.id]);
-  res.redirect('/food');
+  res.redirect('/food/menu');
 });
 
 /* ─── Categories ────────────────────────────────────────── */
@@ -128,7 +137,7 @@ router.post('/category/add', async (req, res) => {
       [outletId, (b.name || b.name_ar || '').trim(), (b.name_ar || '').trim() || null]
     );
   }
-  res.redirect('/food?saved=1');
+  res.redirect('/food/menu?saved=1');
 });
 
 router.post('/category/:id/delete', async (req, res) => {
@@ -136,14 +145,14 @@ router.post('/category/:id/delete', async (req, res) => {
     `DELETE FROM food_categories WHERE id=$1 AND outlet_id IN (SELECT id FROM food_outlets WHERE company_id=$2)`,
     [toInt(req.params.id, null), req.company.id]
   );
-  res.redirect('/food');
+  res.redirect('/food/menu');
 });
 
 /* ─── Items ─────────────────────────────────────────────── */
 router.post('/item/add', withImage, async (req, res) => {
   const b = req.body || {};
   const outletId = toInt(b.outlet_id, null);
-  if (!outletId || !(await ownsOutlet(req.company.id, outletId))) return res.redirect('/food');
+  if (!outletId || !(await ownsOutlet(req.company.id, outletId))) return res.redirect('/food/menu');
   const image = req.file ? '/uploads/' + req.file.filename : null;
   if (req.file) await compressImage(req.file.path);
   await pool.query(
@@ -152,7 +161,7 @@ router.post('/item/add', withImage, async (req, res) => {
     [outletId, toInt(b.category_id, null), (b.name || b.name_ar || '').trim(), (b.name_ar || '').trim() || null,
      (b.description || '').trim() || null, toNum(b.price, 0), image]
   );
-  res.redirect('/food?saved=1');
+  res.redirect('/food/menu?saved=1');
 });
 
 router.post('/item/:id/update', withImage, async (req, res) => {
@@ -167,7 +176,7 @@ router.post('/item/:id/update', withImage, async (req, res) => {
      toNum(b.price, 0), toInt(b.category_id, null), b.is_available === 'on',
      image, toInt(req.params.id, null), req.company.id]
   );
-  res.redirect('/food?saved=1');
+  res.redirect('/food/menu?saved=1');
 });
 
 router.post('/item/:id/delete', async (req, res) => {
@@ -175,11 +184,64 @@ router.post('/item/:id/delete', async (req, res) => {
     `DELETE FROM food_items WHERE id=$1 AND outlet_id IN (SELECT id FROM food_outlets WHERE company_id=$2)`,
     [toInt(req.params.id, null), req.company.id]
   );
-  res.redirect('/food');
+  res.redirect('/food/menu');
 });
 
 /* ─── Orders (incoming) ─────────────────────────────────── */
 const FOOD_FLOW = ['pending', 'accepted', 'preparing', 'out_for_delivery', 'delivered', 'rejected', 'cancelled'];
+
+/* ─── KDS: the kitchen display ────────────────────────────────────────────
+ *
+ * The orders screen is built for whoever answers the phone: prices, statuses,
+ * a dropdown per order. A kitchen needs the opposite — item, quantity, note,
+ * how long it has been waiting, in type big enough to read from two metres
+ * away with wet hands. No prices (they are none of the kitchen's business and
+ * they crowd the screen) and one button.
+ *
+ * It refreshes itself, because nobody in a kitchen is going to press F5.
+ */
+router.get('/kds', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    // Only what is still cooking. Delivered and cancelled belong on the other
+    // screen; here they are noise.
+    const orders = (await pool.query(
+      `SELECT id, status, customer_name, notes, created_at, outlet_id
+         FROM food_orders
+        WHERE company_id = $1 AND status IN ('pending','accepted','preparing')
+        ORDER BY created_at ASC LIMIT 60`, [cid]
+    )).rows;
+    for (const o of orders) {
+      o.items = (await pool.query(
+        'SELECT name_snapshot, quantity FROM food_order_items WHERE order_id = $1 ORDER BY id', [o.id]
+      )).rows;
+    }
+    res.render('food_admin/kds', { company: req.company, orders, session: req.session });
+  } catch (e) { console.error('[kds]', e.message); res.status(500).send('Error.'); }
+});
+
+// The kitchen's one action: this is done, it can go out.
+router.post('/kds/:id/ready', async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = (await client.query(
+      'SELECT status FROM food_orders WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid])).rows[0];
+    if (cur && flow.canMove(FOOD_FLOW, cur.status, 'out_for_delivery').ok) {
+      await client.query('UPDATE food_orders SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3',
+        ['out_for_delivery', id, cid]);
+      await client.query('INSERT INTO food_order_events (order_id, status, note) VALUES ($1,$2,$3)',
+        [id, 'out_for_delivery', 'kds']);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[kds ready]', e.message);
+  } finally { client.release(); }
+  res.redirect('/food/kds');
+});
 
 router.get('/orders', async (req, res) => {
   const cid = req.company.id;
