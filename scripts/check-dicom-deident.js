@@ -226,6 +226,33 @@ function buildDicom(transferSyntax, extra) {
     && /slice_order/.test(fs2.readFileSync(path2.join(__dirname, '..', 'src/views/radiology/study.ejs'), 'utf8')));
 }
 
+/* ── An AI draft is not a report ───────────────────────────────────────── */
+// The screen showed a model's draft exactly like a finished report — name,
+// timestamp, text — so it could be printed or forwarded as though a doctor had
+// read it. That is the one thing a tool like this must never produce.
+{
+  const fs3 = require('fs');
+  const path3 = require('path');
+  const R = (p) => fs3.readFileSync(path3.join(__dirname, '..', p), 'utf8');
+  const schema = R('src/radiology/schema.js');
+  const route = R('src/routes/radiology.js');
+  const view = R('src/views/radiology/study.ejs');
+
+  check('فيه اعتماد بتوقيع وتاريخ',
+    /approved_at TIMESTAMPTZ/.test(schema) && /approved_by TEXT/.test(schema));
+  check('ونص الطبيب متخزّن منفصل عن نص الـAI', /final_text TEXT/.test(schema));
+  check('الاعتماد راوت مستقل وبيتقيّد بالطبيب صاحب الدراسة',
+    /router\.post\('\/report\/:id\/approve'/.test(route)
+    && /study_id IN \(SELECT id FROM rad_studies WHERE doctor_id = \$4\)/.test(route));
+  check('ومابيتعملش مرتين', /approved_at IS NULL/.test(route));
+  check('المسودة بتبان «غير معتمَدة» بوضوح', /غير معتمَدة/.test(view));
+  check('ومكتوب صراحة إنها مش تقرير طبي', /مش تقرير طبي/.test(view));
+  check('والمعتمَد بيبان مين اعتمده وإمتى',
+    /approved_by/.test(view) && /approved_at/.test(view));
+  check('ومسودة الـAI الأصلية بتفضل متشافة جنب النص النهائي',
+    /مسودة الـAI الأصلية/.test(view));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — يعني اسم مريض لسه بيتخزّن جوّه ملف الأشعة.`
   : '\nهوية المريض بتتشال من هيدر الـDICOM قبل التخزين، والصورة والسن والنوع بيفضلوا.');

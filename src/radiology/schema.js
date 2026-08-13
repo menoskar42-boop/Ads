@@ -68,6 +68,16 @@ async function ensureRadiologySchema() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_rad_reports_study ON rad_reports (study_id, created_at DESC);
+      -- Sign-off. An AI draft and a radiologist's report are not the same
+      -- document, and the screen used to show them the same way: model name,
+      -- timestamp, text. A draft that reads like a report is the one thing a
+      -- tool like this must never produce.
+      ALTER TABLE rad_reports ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+      ALTER TABLE rad_reports ADD COLUMN IF NOT EXISTS approved_by TEXT;
+      -- The doctor's own text. The AI draft (report_text) is never edited in
+      -- place: what the model said and what the doctor signed have to stay
+      -- separable afterwards.
+      ALTER TABLE rad_reports ADD COLUMN IF NOT EXISTS final_text TEXT;
     `);
   } catch (e) {
     console.error('[radiology schema]', e.message);

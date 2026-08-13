@@ -147,15 +147,46 @@
   <% } %>
 
   <div class="card rounded-2xl p-5">
-    <h2 class="font-bold text-sm mb-3">تقارير الـAI</h2>
+    <h2 class="font-bold text-sm mb-3">التقارير</h2>
     <% if (!reports.length) { %>
       <p class="text-sm text-slate-500 text-center py-4">مفيش تقارير بعد.</p>
     <% } else { %>
       <div class="space-y-3">
-        <% reports.forEach(function(r){ %>
-        <div class="border border-[#1e2a44] rounded-xl p-3">
-          <div class="text-xs text-slate-400 mb-1"><%= r.model_name || 'AI' %> · <%= new Date(r.created_at).toLocaleString('ar-EG') %></div>
-          <p class="text-sm text-slate-200 whitespace-pre-line"><%= r.report_text %></p>
+        <% reports.forEach(function(r){ var done = !!r.approved_at; %>
+        <div class="border rounded-xl p-3 <%= done ? 'border-emerald-500/40' : 'border-amber-500/40' %>">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= done ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300' %>">
+              <%= done ? 'تقرير معتمَد' : '⚠️ مسودة AI — غير معتمَدة' %>
+            </span>
+            <span class="text-xs text-slate-400"><%= r.model_name || 'AI' %> · <%= new Date(r.created_at).toLocaleString('ar-EG') %></span>
+          </div>
+
+          <% if (done) { %>
+            <div class="text-xs text-emerald-300/80 mb-2">
+              اعتمدها <%= r.approved_by || 'الطبيب' %> · <%= new Date(r.approved_at).toLocaleString('ar-EG') %>
+            </div>
+            <p class="text-sm text-slate-200 whitespace-pre-line"><%= r.final_text || r.report_text %></p>
+            <% if (r.final_text) { %>
+            <details class="mt-3">
+              <summary class="text-xs text-slate-500 cursor-pointer">مسودة الـAI الأصلية</summary>
+              <p class="text-xs text-slate-400 whitespace-pre-line mt-2"><%= r.report_text %></p>
+            </details>
+            <% } %>
+          <% } else { %>
+            <p class="text-xs text-amber-300/80 mb-2">
+              دي مسودة من نموذج ذكاء اصطناعي. <b>مش تقرير طبي</b> لحد ما طبيب يراجعها ويعتمدها.
+            </p>
+            <p class="text-sm text-slate-200 whitespace-pre-line"><%= r.report_text %></p>
+            <form method="POST" action="/radiology/report/<%= r.id %>/approve" class="mt-3"
+                  onsubmit="return confirm('هتعتمد التقرير ده باسمك. بعد الاعتماد مش هينفع يتغيّر.')">
+              <textarea name="final_text" rows="4" maxlength="20000"
+                class="w-full bg-[#0b1220] border border-[#1e2a44] rounded-xl p-2 text-sm text-slate-200"
+                placeholder="صيغتك النهائية (اختياري — سيبها فاضية لو موافق على نص المسودة زي ما هو)"></textarea>
+              <button class="mt-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg px-3 py-1.5">
+                راجعتها وأعتمدها
+              </button>
+            </form>
+          <% } %>
         </div>
         <% }); %>
       </div>

@@ -176,6 +176,35 @@ router.get('/study/:id', requireDoctor, async (req, res) => {
     res.render('radiology/study', { study, reports });
   } catch (e) { console.error('[rad study]', e.message); res.redirect('/radiology/dashboard'); }
 });
+/* ── Sign off a report ─────────────────────────────────────────────────────
+ *
+ * An AI draft and a radiologist's report are not the same document. The screen
+ * showed them identically — model name, timestamp, text — so a draft could be
+ * printed, forwarded, or acted on as though a doctor had read it. Approving is
+ * a deliberate act with a name and a time on it, and the doctor's own wording
+ * is stored SEPARATELY from the model's: what the AI said and what the doctor
+ * signed have to stay distinguishable afterwards.
+ */
+router.post('/report/:id/approve', requireDoctor, async (req, res) => {
+  const rid = parseInt(req.params.id, 10);
+  const finalText = String((req.body || {}).final_text || '').trim().slice(0, 20000);
+  try {
+    // Scoped through the study to this doctor, in the same statement.
+    const r = await pool.query(
+      `UPDATE rad_reports SET approved_at = now(), approved_by = $1, final_text = $2
+        WHERE id = $3 AND approved_at IS NULL
+          AND study_id IN (SELECT id FROM rad_studies WHERE doctor_id = $4)
+        RETURNING study_id`,
+      [req.session.radDoctorName || 'doctor', finalText || null, rid, req.session.radDoctorId]
+    );
+    if (!r.rows.length) return res.redirect('/radiology/dashboard');
+    res.redirect('/radiology/study/' + r.rows[0].study_id + '?approved=1');
+  } catch (e) {
+    console.error('[rad approve]', e.message);
+    res.redirect('/radiology/dashboard');
+  }
+});
+
 // Serve one slice's raw DICOM bytes (scoped to the owning doctor). The browser
 // viewer decodes + windows it — the server never touches pixel data.
 router.get('/study/:id/slice/:index', requireDoctor, async (req, res) => {
