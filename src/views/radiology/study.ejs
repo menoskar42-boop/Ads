@@ -10,6 +10,19 @@
         <% if (study.patient_ref) { %> · <span dir="ltr"><%= study.patient_ref %></span><% } %>
         · <%= new Date(study.created_at).toLocaleDateString('ar-EG') %>
       </div>
+      <%
+        /* How the slices were ordered. The radiologist has to be told this,
+           not left to notice: an "upload" ordering means the sequence is
+           whatever the file picker produced, which is not anatomical. */
+        var __ord = {
+          position: ['bg-emerald-500/15 text-emerald-300', 'الترتيب: موضع الشريحة في الجسم (ImagePositionPatient)'],
+          instance: ['bg-emerald-500/15 text-emerald-300', 'الترتيب: رقم الشريحة من الجهاز (InstanceNumber)'],
+          upload:   ['bg-amber-500/15 text-amber-300', '⚠️ الترتيب: ترتيب رفع الملفات — الملفات مافيهاش موضع ولا رقم شريحة، فالتسلسل ده مش تشريحي'],
+        }[study.slice_order] || null;
+      %>
+      <% if (__ord) { %>
+      <div class="text-xs mt-2"><span class="px-2 py-1 rounded-lg <%= __ord[0] %>"><%= __ord[1] %></span></div>
+      <% } %>
     </div>
     <form method="POST" action="/radiology/study/<%= study.id %>/delete" onsubmit="return confirm('حذف الدراسة وكل شرائحها؟')">
       <button class="text-xs border border-rose-500/40 text-rose-400 rounded-lg px-3 py-1.5 hover:bg-rose-500/10">حذف الدراسة</button>

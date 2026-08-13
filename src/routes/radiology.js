@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const deident = require('../radiology/deident');
+const sliceOrder = require('../radiology/slice_order');
 
 // Why a file was refused, in the doctor's words.
 const REASONS = {
@@ -125,8 +126,13 @@ router.post('/upload', requireDoctor, upload.array('dicom', 600), async (req, re
     // institution — which every DICOM viewer displays. Asking for a code and
     // keeping the name anyway looks like de-identification and is not.
     const stripped = [];
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
+    // Clean every file first, then decide the order, then store. The slices used
+    // to be numbered by the order the browser handed the files over — which is
+    // the file picker's order, and a file picker sorts IM1, IM10, IM11, IM2. The
+    // radiologist then scrolls through the body in the wrong sequence and
+    // nothing looks broken.
+    const loaded = [];
+    for (const f of files) {
       const bytes = fs.readFileSync(f.path);
       const clean = deident.deidentify(bytes);
       if (!clean.ok) {
@@ -137,13 +143,18 @@ router.post('/upload', requireDoctor, upload.array('dicom', 600), async (req, re
         return res.render('radiology/upload', { error: REASONS[clean.reason] || REASONS.not_dicom });
       }
       clean.removed.forEach((r) => { if (!stripped.includes(r)) stripped.push(r); });
+      loaded.push({ buf: bytes, name: (f.originalname || '').slice(0, 200) });
+    }
+    const { order, basis } = sliceOrder.sortSlices(loaded);
+    for (let i = 0; i < order.length; i++) {
+      const sl = loaded[order[i]];
       await client.query(
         'INSERT INTO rad_slices (study_id, slice_index, filename, dicom_bytes, byte_size) VALUES ($1,$2,$3,$4,$5)',
-        [studyId, i, (f.originalname || '').slice(0, 200), bytes, bytes.length]
+        [studyId, i, sl.name, sl.buf, sl.buf.length]
       );
     }
-    await client.query('UPDATE rad_studies SET deidentified = $1 WHERE id = $2',
-      [stripped.join(', ') || 'none', studyId]);
+    await client.query('UPDATE rad_studies SET deidentified = $1, slice_order = $2 WHERE id = $3',
+      [stripped.join(', ') || 'none', basis, studyId]);
     await client.query('COMMIT');
     cleanup();
     res.redirect('/radiology/dashboard?saved=1');

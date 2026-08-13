@@ -38,6 +38,12 @@ async function ensureRadiologySchema() {
       -- upload. Shown to the doctor, so "the name is gone" is a statement they
       -- can check rather than a promise on a marketing page.
       ALTER TABLE rad_studies ADD COLUMN IF NOT EXISTS deidentified TEXT;
+      -- What the slices were ordered by: 'position' (ImagePositionPatient, the
+      -- scanner's own measurement), 'instance' (InstanceNumber) or 'upload'
+      -- (neither tag present in every file). Shown to the radiologist, because
+      -- "these are in the order you picked the files" is something they must be
+      -- told rather than left to notice.
+      ALTER TABLE rad_studies ADD COLUMN IF NOT EXISTS slice_order TEXT;
       -- Original DICOM file bytes per slice (near-zero ingestion memory; decoded
       -- on demand in the browser).
       CREATE TABLE IF NOT EXISTS rad_slices (

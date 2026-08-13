@@ -47,6 +47,24 @@ function element(group, el, vr, value, explicit) {
   return Buffer.concat([head, body]);
 }
 
+
+/** Like buildDicom, but with a chosen InstanceNumber (or none) + extra tags. */
+function buildDicomWithInstance(instance, extra) {
+  const explicit = true;
+  const metaBody = Buffer.concat([
+    element(0x0002, 0x0002, 'UI', '1.2.840.10008.5.1.4.1.1.2', true),
+    element(0x0002, 0x0010, 'UI', D.EXPLICIT_LE, true),
+  ]);
+  const meta = Buffer.concat([
+    element(0x0002, 0x0000, 'UL', (() => { const b = Buffer.alloc(4); b.writeUInt32LE(metaBody.length); return b; })(), true),
+    metaBody,
+  ]);
+  const ds = [element(0x0010, 0x0010, 'PN', 'X^Y', explicit)]
+    .concat(extra || [])
+    .concat(instance == null ? [] : [element(0x0020, 0x0013, 'IS', String(instance), explicit)]);
+  return Buffer.concat([Buffer.alloc(128), Buffer.from('DICM', 'latin1'), meta, Buffer.concat(ds)]);
+}
+
 function buildDicom(transferSyntax, extra) {
   const explicit = transferSyntax !== D.IMPLICIT_LE;
   // The meta group is explicit VR LE whatever the dataset uses.
@@ -144,6 +162,68 @@ function buildDicom(transferSyntax, extra) {
     /if \(!clean\.ok\)/.test(route) && /ROLLBACK/.test(route));
   check('واللي اتشال بيتسجّل على الدراسة',
     /UPDATE rad_studies SET deidentified/.test(route));
+}
+
+/* ── Anatomical order ──────────────────────────────────────────────────── */
+// The most serious functional bug the review found: slices were numbered by the
+// order the browser handed the files over, and a file picker sorts IM1, IM10,
+// IM11, IM2. The radiologist scrolls through the body in the wrong sequence and
+// nothing looks broken.
+{
+  const order = require('../src/radiology/slice_order');
+  const el = (g, e, vr, v) => element(g, e, vr, v, true);
+
+  // Build a study the way a file picker would hand it over: 1, 10, 11, 2, 3.
+  const mk = (instance, z) => {
+    const extra = [];
+    if (z !== null && z !== undefined) extra.push(el(0x0020, 0x0032, 'DS', '0\\0\\' + z));
+    // InstanceNumber sits at 0020,0013 which is already in the base fixture, so
+    // build a bespoke file rather than duplicating the tag.
+    return { buf: buildDicomWithInstance(instance, extra) };
+  };
+
+  const picker = [1, 10, 11, 2, 3];
+  {
+    // With InstanceNumber only.
+    const slices = picker.map((n) => mk(n));
+    const r = order.sortSlices(slices);
+    check('الترتيب بيستخدم رقم الشريحة لما مفيش موضع', r.basis === 'instance');
+    check('و1,10,11,2,3 بترجع 1,2,3,10,11',
+      r.order.map((i) => picker[i]).join(',') === '1,2,3,10,11',
+      r.order.map((i) => picker[i]).join(','));
+  }
+  {
+    // With a real position: the position wins, even when it disagrees.
+    const zs = [50, 10, 20, 40, 30];
+    const slices = picker.map((n, i) => mk(n, zs[i]));
+    const r = order.sortSlices(slices);
+    check('الموضع في الجسم بيغلب رقم الشريحة', r.basis === 'position');
+    check('والترتيب بقى بالموضع تصاعدياً',
+      r.order.map((i) => zs[i]).join(',') === '10,20,30,40,50',
+      r.order.map((i) => zs[i]).join(','));
+  }
+  {
+    // Half with a position, half without: sorting on it would move some slices
+    // and leave the rest, which is worse than not sorting at all.
+    const slices = [mk(1, 10), mk(2), mk(3, 30)];
+    const r = order.sortSlices(slices);
+    check('أساس ناقص في بعض الملفات مابيتستخدمش', r.basis === 'instance');
+  }
+  {
+    const noTags = [{ buf: buildDicomWithInstance(null, []) }, { buf: buildDicomWithInstance(null, []) }];
+    const r = noTags.length ? order.sortSlices(noTags) : null;
+    check('ومن غير أي أساس بيرجع لترتيب الرفع ويقوله', r.basis === 'upload');
+  }
+
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const route = fs2.readFileSync(path2.join(__dirname, '..', 'src/routes/radiology.js'), 'utf8');
+  check('راوت الرفع بيرتّب قبل ما يخزّن', /sliceOrder\.sortSlices\(loaded\)/.test(route));
+  check('وslice_index بقى من الترتيب مش من ترتيب الملفات',
+    /for \(let i = 0; i < order\.length; i\+\+\)/.test(route));
+  check('والأساس بيتسجّل على الدراسة عشان الدكتور يشوفه',
+    /slice_order = \$2/.test(route)
+    && /slice_order/.test(fs2.readFileSync(path2.join(__dirname, '..', 'src/views/radiology/study.ejs'), 'utf8')));
 }
 
 console.log(fail
