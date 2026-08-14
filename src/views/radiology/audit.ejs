@@ -1,0 +1,47 @@
+<% var pageTitle = 'سجل الوصول'; %>
+<%- include('_layout_top') %>
+  <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+    <div>
+      <h1 class="text-2xl font-black">سجل الوصول</h1>
+      <p class="text-slate-400 text-sm">مين فتح إيه، وإمتى — على حسابك إنت.</p>
+    </div>
+    <a href="/radiology/dashboard" class="text-sm text-slate-400 hover:text-slate-200">← دراساتي</a>
+  </div>
+
+  <%# Said plainly, because a log that can be edited says whatever the last
+      person to edit it wanted it to say. %>
+  <p class="text-xs text-slate-500 mb-5">
+    السجل ده بيتكتب عليه بس — مافيش تعديل ولا حذف لأي سطر فيه، ولا حتى من هنا.
+    فتح شريحة واحدة مش بيتسجّل (اللفة الواحدة في الدراسة بتجيب مئات الشرائح
+    وكانت هتغرق السجل)؛ اللي بيتسجّل هو فتح الدراسة نفسها.
+  </p>
+
+  <% if (!rows.length) { %>
+    <div class="card rounded-2xl p-10 text-center text-slate-400">مافيش حاجة اتسجّلت لسه.</div>
+  <% } else { %>
+    <div class="card rounded-2xl overflow-x-auto">
+      <table class="w-full text-sm min-w-[560px]">
+        <thead class="text-slate-400 text-xs">
+          <tr class="border-b border-slate-700/60">
+            <th class="text-start px-4 py-2.5">الوقت</th>
+            <th class="text-start px-4 py-2.5">الحاجة</th>
+            <th class="text-start px-4 py-2.5">اللي حصل</th>
+            <th class="text-start px-4 py-2.5">تفاصيل</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function(r){ %>
+          <tr class="border-b border-slate-800/60">
+            <td class="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap"><%= fmt(r.created_at) %></td>
+            <td class="px-4 py-2.5"><%= LABEL[r.entity] || r.entity %><% if (r.entity_id) { %> <span class="text-slate-500">#<%= r.entity_id %></span><% } %></td>
+            <td class="px-4 py-2.5">
+              <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= TONE[r.action] || 'bg-slate-500/15 text-slate-300' %>"><%= ACTION[r.action] || r.action %></span>
+            </td>
+            <td class="px-4 py-2.5 text-xs text-slate-400"><%= r.meta ? detail(r.meta) : '—' %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+<%- include('_layout_bottom') %>

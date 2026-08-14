@@ -97,6 +97,49 @@ check('الحذف بيتسجّل مش بس الإضافة',
 check('فتح ملف المريض بيتسجّل كمان (العيادة والتغذية)',
   /action: 'view'/.test(clinic) && /action: 'view'/.test(nutrition));
 
+/* ── Radiology, the last system without one ────────────────────────────── */
+// OncoScan has no company: a study belongs to a doctor. Writing the doctor's id
+// into company_id would make one column mean two things, so the row names the
+// system instead and company_id is allowed to be empty for those.
+{
+  const rad = read('src/routes/radiology.js');
+  check('السجل بقى فيه عمود system وcompany_id مسموح يبقى فاضي',
+    /ADD COLUMN IF NOT EXISTS system TEXT/.test(SCHEMA)
+    && /ALTER COLUMN company_id DROP NOT NULL/.test(SCHEMA)
+    && /idx_audit_system_actor/.test(SCHEMA));
+  check('والأشعة بتسجّل باسم الدكتور مش كإنه شركة',
+    /system: 'radiology'/.test(rad) && /actorKind: 'rad_doctor'/.test(rad)
+    && /actorId: req\.session && req\.session\.radDoctorId/.test(rad));
+
+  const RAD_EVENTS = [
+    ["entity: 'study', entityId: study.id, action: 'view'", 'فتح الدراسة'],
+    ["entity: 'study', entityId: studyId, action: 'create'", 'رفع الدراسة'],
+    ["entity: 'study', entityId: sid, action: 'delete'", 'حذف الدراسة'],
+    ["action: 'draft'", 'مسوّدة الـAI'],
+    ["action: 'approve'", 'توقيع التقرير'],
+  ];
+  for (const [needle, ar] of RAD_EVENTS) {
+    check(`الأشعة — ${ar}: بتتسجّل`, rad.includes(needle));
+  }
+  // A draft and a signed report are different documents; the log keeps them apart
+  // for the same reason the screen does.
+  check('والمسوّدة متفرّقة عن التقرير الموقّع في السجل',
+    /action: 'draft'/.test(rad) && /action: 'approve'/.test(rad));
+  // Logging every slice fetch would drown the log: one scroll fires hundreds.
+  check('وفتح شريحة واحدة مش بيتسجّل (اللفة الواحدة مئات الشرايح)',
+    !/radLog\(req, \{ entity: 'slice'/.test(rad));
+  // The delete must be recorded only when a row was really removed.
+  check('وحذف الدراسة بيتسجّل بس لما يحصل فعلاً',
+    /RETURNING id, num_slices/.test(rad) && /if \(r\.rows\.length\) radLog/.test(rad));
+  check('وفيه شاشة للدكتور يقرا سجله',
+    /router\.get\('\/audit', requireDoctor/.test(rad)
+    && fs.existsSync(path.join(ROOT, 'src/views/radiology/audit.ejs')));
+  check('وموصولة من القايمة', /href="\/radiology\/audit"/.test(read('src/views/radiology/_layout_top.ejs')));
+  check('والقراءة بتتقيّد بالدكتور نفسه',
+    /system: 'radiology', actorId: req\.session\.radDoctorId/.test(rad)
+    && /where = 'system = \$'/.test(lib));
+}
+
 /* ── The contents are not duplicated ───────────────────────────────────── */
 check('محتوى الروشتة مابيتنسخش في السجل — العدد بس',
   /meta: \{ medications: meds\.length \}/.test(clinic)

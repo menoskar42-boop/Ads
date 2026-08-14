@@ -11,6 +11,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const deident = require('../radiology/deident');
 const sliceOrder = require('../radiology/slice_order');
+const audit = require('../lib/audit');
 
 // Why a file was refused, in the doctor's words.
 const REASONS = {
@@ -40,6 +41,28 @@ router.use((req, res, next) => { res.locals.noindex = true; res.locals.showAds =
 function requireDoctor(req, res, next) {
   if (!req.session || !req.session.radDoctorId) return res.redirect('/radiology/login');
   next();
+}
+
+/* Who touched which study, and when.
+ *
+ * The third of the three systems the reviews asked this for, and the last one
+ * without it. OncoScan has no company: a study belongs to a doctor, so the log
+ * records the system and the doctor rather than pretending the doctor is a
+ * tenant.
+ *
+ * Opening a study IS logged — reading somebody's scan is the action that most
+ * needs a name on it. Fetching an individual slice is NOT: scrolling one study
+ * fires hundreds of those, and a log nobody can read because it is drowning in
+ * slice fetches answers no question. The study view already records that the
+ * doctor opened it.
+ */
+function radLog(req, e) {
+  return audit.log(pool, req, Object.assign({
+    system: 'radiology',
+    actorKind: 'rad_doctor',
+    actorId: req.session && req.session.radDoctorId,
+    actorLabel: (req.session && req.session.radDoctorName) || null,
+  }, e));
 }
 
 /* ── Landing (disclaimer) ──────────────────────────────────────────────────── */
@@ -100,6 +123,36 @@ router.get('/dashboard', requireDoctor, async (req, res) => {
   } catch (e) { console.error('[rad dashboard]', e.message); res.status(500).send('Error.'); }
 });
 
+/* ── The doctor's own access trail ─────────────────────────────────────────── */
+router.get('/audit', requireDoctor, async (req, res) => {
+  const LABEL = { study: 'دراسة', report: 'تقرير' };
+  const ACTION = { view: 'اتفتحت', create: 'اترفعت', delete: 'اتمسحت', draft: 'مسوّدة AI', approve: 'اتوقّعت' };
+  const TONE = {
+    view: 'bg-slate-500/15 text-slate-300',
+    create: 'bg-sky-500/15 text-sky-300',
+    draft: 'bg-amber-500/15 text-amber-300',
+    approve: 'bg-emerald-500/15 text-emerald-300',
+    delete: 'bg-red-500/15 text-red-300',
+  };
+  // The meta is small facts, never the record itself — a count, a model name.
+  const KEY = { slices: 'شرايح', modality: 'النوع', slice_order: 'الترتيب',
+    deidentified: 'تاجات اتشالت', study_id: 'دراسة', model: 'الموديل', edited: 'الدكتور عدّل النص' };
+  const detail = (m) => Object.keys(m || {})
+    .map((k) => (KEY[k] || k) + ': ' + (typeof m[k] === 'boolean' ? (m[k] ? 'أيوه' : 'لأ') : m[k]))
+    .join(' · ') || '—';
+  try {
+    const rows = await audit.recent(pool, null,
+      { system: 'radiology', actorId: req.session.radDoctorId, limit: 300 });
+    res.render('radiology/audit', {
+      rows, LABEL, ACTION, TONE, detail,
+      fmt: (d) => { try { return new Date(d).toLocaleString('ar-EG'); } catch (e) { return String(d); } },
+    });
+  } catch (e) {
+    console.error('[rad audit]', e.message);
+    res.redirect('/radiology/dashboard');
+  }
+});
+
 /* ── Upload a study ────────────────────────────────────────────────────────── */
 router.get('/upload', requireDoctor, (req, res) => res.render('radiology/upload', { error: null }));
 router.post('/upload', requireDoctor, upload.array('dicom', 600), async (req, res) => {
@@ -157,6 +210,8 @@ router.post('/upload', requireDoctor, upload.array('dicom', 600), async (req, re
       [stripped.join(', ') || 'none', basis, studyId]);
     await client.query('COMMIT');
     cleanup();
+    radLog(req, { entity: 'study', entityId: studyId, action: 'create',
+      meta: { slices: order.length, modality, slice_order: basis, deidentified: stripped.length } });
     res.redirect('/radiology/dashboard?saved=1');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -173,6 +228,7 @@ router.get('/study/:id', requireDoctor, async (req, res) => {
       [parseInt(req.params.id, 10), req.session.radDoctorId])).rows[0];
     if (!study) return res.redirect('/radiology/dashboard');
     const reports = (await pool.query('SELECT * FROM rad_reports WHERE study_id=$1 ORDER BY created_at DESC', [study.id])).rows;
+    radLog(req, { entity: 'study', entityId: study.id, action: 'view' });
     res.render('radiology/study', { study, reports });
   } catch (e) { console.error('[rad study]', e.message); res.redirect('/radiology/dashboard'); }
 });
@@ -198,6 +254,10 @@ router.post('/report/:id/approve', requireDoctor, async (req, res) => {
       [req.session.radDoctorName || 'doctor', finalText || null, rid, req.session.radDoctorId]
     );
     if (!r.rows.length) return res.redirect('/radiology/dashboard');
+    // Signing off is the single most consequential action in the tool: an AI
+    // draft becomes a document with a doctor's name on it.
+    radLog(req, { entity: 'report', entityId: rid, action: 'approve',
+      meta: { study_id: r.rows[0].study_id, edited: !!finalText } });
     res.redirect('/radiology/study/' + r.rows[0].study_id + '?approved=1');
   } catch (e) {
     console.error('[rad approve]', e.message);
@@ -263,10 +323,14 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
     // Rough cost estimate (gpt-4o pricing); best-effort only.
     const u = out.usage || {};
     const cost = +(((u.prompt_tokens || 0) * 2.5 + (u.completion_tokens || 0) * 10) / 1e6).toFixed(4);
-    await pool.query(
-      'INSERT INTO rad_reports (study_id, model_name, focus, report_text, cost_usd) VALUES ($1,$2,$3,$4,$5)',
+    const newReport = await pool.query(
+      'INSERT INTO rad_reports (study_id, model_name, focus, report_text, cost_usd) VALUES ($1,$2,$3,$4,$5) RETURNING id',
       [studyId, out.model, focus || null, out.text, cost]
     );
+    // A draft, not a report — which is why the action says 'draft'. The log
+    // must keep the two apart for the same reason the screen does.
+    radLog(req, { entity: 'report', entityId: newReport.rows[0].id, action: 'draft',
+      meta: { study_id: studyId, model: out.model, slices: Array.isArray(images) ? images.length : 0 } });
     await pool.query("UPDATE rad_studies SET status='analyzed' WHERE id=$1", [studyId]).catch(() => {});
     // Remember this exact slide-set → report so an identical re-generate is free.
     aiReplyCache.put(pool, cacheNs, cacheKey, { reply: out.text }).catch(() => {});
@@ -308,7 +372,15 @@ router.post('/study/:id/chat', requireDoctor, express.json({ limit: '8mb' }), as
 });
 
 router.post('/study/:id/delete', requireDoctor, async (req, res) => {
-  try { await pool.query('DELETE FROM rad_studies WHERE id=$1 AND doctor_id=$2', [parseInt(req.params.id, 10), req.session.radDoctorId]); }
+  const sid = parseInt(req.params.id, 10);
+  // Logged BEFORE the delete cascades the study away, and only when a row was
+  // actually removed — "who deleted that study" is the question this exists for.
+  try {
+    const r = await pool.query('DELETE FROM rad_studies WHERE id=$1 AND doctor_id=$2 RETURNING id, num_slices',
+      [sid, req.session.radDoctorId]);
+    if (r.rows.length) radLog(req, { entity: 'study', entityId: sid, action: 'delete',
+      meta: { slices: r.rows[0].num_slices } });
+  }
   catch (e) { console.error('[rad study del]', e.message); }
   res.redirect('/radiology/dashboard');
 });

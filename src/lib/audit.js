@@ -50,6 +50,14 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_audit_company_time ON ${TABLE} (company_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_audit_patient ON ${TABLE} (company_id, patient_id, created_at DESC);
+  -- Radiology has no company: OncoScan has its own doctor login (rad_doctors),
+  -- and a study belongs to a doctor, not to a tenant. Writing the doctor's id
+  -- into company_id would make one column mean two different things, so the
+  -- system is named and company_id is allowed to be empty for those rows.
+  ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS system TEXT NOT NULL DEFAULT 'clinic';
+  ALTER TABLE ${TABLE} ALTER COLUMN company_id DROP NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_audit_system_actor
+    ON ${TABLE} (system, actor_id, created_at DESC);
 `;
 
 /** The client's address, as far as we can honestly tell behind a proxy. */
@@ -65,21 +73,29 @@ function ipOf(req) {
  *   audit.log(pool, req, { entity: 'vitals', entityId: id, patientId: pid, action: 'create' });
  */
 function log(pool, req, e) {
-  const companyId = (req && req.company && req.company.id)
-    || (req && req.session && req.session.companyId) || null;
-  if (!pool || !companyId || !e || !e.entity || !e.action) return Promise.resolve();
-
   const s = (req && req.session) || {};
-  // A staff login names the person; a plain company login names the account.
-  const actorKind = s.staffId ? 'staff' : (s.adminId ? 'admin' : 'company');
-  const actorId = s.staffId || s.adminId || companyId;
+  const system = (e && e.system) || 'clinic';
+  const companyId = (req && req.company && req.company.id) || s.companyId || null;
+  // Radiology passes its own actor because it has no company at all — a study
+  // belongs to a doctor. Every other system identifies the tenant and derives
+  // the actor from the session.
+  const actorKind = e && e.actorKind ? e.actorKind
+    : (s.staffId ? 'staff' : (s.clinicStaffId ? 'staff'
+      : (s.foodStaffId ? 'staff' : (s.nutriStaffId ? 'staff'
+        : (s.adminId ? 'admin' : 'company')))));
+  const actorId = (e && Number.isInteger(e.actorId) ? e.actorId : null)
+    || s.staffId || s.clinicStaffId || s.foodStaffId || s.nutriStaffId || s.adminId || companyId;
+
+  // A row that names neither a tenant nor an actor cannot be read later, so it
+  // is not worth writing.
+  if (!pool || !e || !e.entity || !e.action || (!companyId && !actorId)) return Promise.resolve();
 
   return pool.query(
     `INSERT INTO ${TABLE}
-       (company_id, actor_kind, actor_id, actor_label, entity, entity_id, patient_id, action, meta, ip)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-    [companyId, actorKind, actorId,
-      (s.staffName || s.companyName || null),
+       (company_id, system, actor_kind, actor_id, actor_label, entity, entity_id, patient_id, action, meta, ip)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [companyId, String(system).slice(0, 20), actorKind, actorId,
+      (e.actorLabel || s.staffName || s.companyName || null),
       String(e.entity).slice(0, 40),
       Number.isInteger(e.entityId) ? e.entityId : null,
       Number.isInteger(e.patientId) ? e.patientId : null,
@@ -98,6 +114,12 @@ async function recent(pool, companyId, opts) {
   const o = opts || {};
   const params = [companyId];
   let where = 'company_id = $1';
+  // Radiology reads its own trail by doctor, since those rows have no company.
+  if (companyId == null && o.system && Number.isInteger(o.actorId)) {
+    params.length = 0;
+    where = 'system = $' + params.push(String(o.system).slice(0, 20))
+      + ' AND actor_id = $' + params.push(o.actorId);
+  }
   if (Number.isInteger(o.patientId)) where += ' AND patient_id = $' + params.push(o.patientId);
   if (o.entity) where += ' AND entity = $' + params.push(String(o.entity).slice(0, 40));
   const limit = Math.min(500, Math.max(1, parseInt(o.limit, 10) || 200));
