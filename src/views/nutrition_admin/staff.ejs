@@ -1,0 +1,100 @@
+<%- include('head', { title: t('nt.staff.title'), tab: 'staff' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1">👥 <%= t('nt.staff.title') %></h1>
+<p class="text-slate-500 mb-5 text-sm"><%= t('nt.staff.intro') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('nt.m.saved') %></div><% } %>
+<% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('nt.staff.err.' + err) %></div><% } %>
+
+<%# What each role reaches, stated once so nobody has to guess before handing
+    somebody an account. %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5 overflow-x-auto">
+  <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.staff.what_each_sees') %></h2>
+  <table class="w-full text-xs min-w-[460px]">
+    <thead class="text-slate-500">
+      <tr>
+        <th class="text-start py-1"><%= t('nt.staff.role_col') %></th>
+        <% ['patients','measure','clinical','settings','staff'].forEach(function(k){ %>
+        <th class="py-1"><%= t('nt.staff.perm.' + k) %></th>
+        <% }); %>
+      </tr>
+    </thead>
+    <tbody>
+      <% Object.keys(ROLES).forEach(function(r){ %>
+      <tr class="border-t border-slate-100">
+        <td class="py-1.5 font-bold"><%= t('nt.staff.role.' + r) %></td>
+        <% ['patients','measure','clinical','settings','staff'].forEach(function(k){ %>
+        <td class="py-1.5 text-center"><%= ROLES[r][k] ? '✅' : '—' %></td>
+        <% }); %>
+      </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.staff.clinical_note') %></p>
+</div>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.staff.add') %></h2>
+  <form method="post" action="/nutrition/staff" class="grid sm:grid-cols-4 gap-3 items-end">
+    <div>
+      <label class="block text-xs text-slate-500 mb-1"><%= t('nt.m.name') %></label>
+      <input name="name" required class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1"><%= t('nt.staff.phone') %></label>
+      <input name="phone" dir="ltr" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1"><%= t('nt.staff.role_col') %></label>
+      <select name="perm_role" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+        <% roles.forEach(function(r){ %><option value="<%= r %>"><%= t('nt.staff.role.' + r) %></option><% }); %>
+      </select>
+    </div>
+    <button class="bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl px-5 py-2.5 text-sm"><%= t('nt.m.add') %></button>
+  </form>
+</div>
+
+<% if (!staff.length) { %>
+  <p class="text-sm text-slate-400"><%= t('nt.staff.empty') %></p>
+<% } %>
+<% staff.forEach(function(s){ %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-4">
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
+    <h3 class="font-bold text-slate-800"><%= s.name %></h3>
+    <span class="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5"><%= t('nt.staff.role.' + (s.perm_role || 'reception')) %></span>
+    <% if (s.login_enabled) { %>
+      <span class="text-xs bg-emerald-50 text-emerald-700 rounded-full px-2 py-0.5"><%= t('nt.staff.can_login') %></span>
+    <% } else { %>
+      <span class="text-xs bg-slate-100 text-slate-500 rounded-full px-2 py-0.5"><%= t('nt.staff.no_login') %></span>
+    <% } %>
+    <% if (s.phone) { %><span class="text-xs text-slate-400" dir="ltr"><%= s.phone %></span><% } %>
+    <form method="post" action="/nutrition/staff/<%= s.id %>/delete" class="ms-auto">
+      <button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1"><%= t('nt.m.delete') %></button>
+    </form>
+  </div>
+  <form method="post" action="/nutrition/staff/<%= s.id %>/login" class="grid sm:grid-cols-5 gap-3 items-end">
+    <div>
+      <label class="block text-xs text-slate-500 mb-1"><%= t('nt.staff.username') %></label>
+      <input name="username" value="<%= s.username || '' %>" dir="ltr" autocomplete="off" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1"><%= t('nt.staff.password') %></label>
+      <input name="password" type="password" dir="ltr" autocomplete="new-password" placeholder="<%= t('nt.staff.pw_keep') %>" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+    </div>
+    <div>
+      <label class="block text-xs text-slate-500 mb-1"><%= t('nt.staff.role_col') %></label>
+      <select name="perm_role" class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm">
+        <% roles.forEach(function(r){ %><option value="<%= r %>" <%= (s.perm_role || 'reception') === r ? 'selected' : '' %>><%= t('nt.staff.role.' + r) %></option><% }); %>
+      </select>
+    </div>
+    <label class="flex items-center gap-2 text-sm pb-2">
+      <input type="checkbox" name="login_enabled" value="1" <%= s.login_enabled ? 'checked' : '' %> />
+      <%= t('nt.staff.login_enabled') %>
+    </label>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm"><%= t('nt.m.save') %></button>
+  </form>
+  <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.staff.login_hint') %></p>
+</div>
+<% }); %>
+
+</main></body></html>

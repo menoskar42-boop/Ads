@@ -11,6 +11,9 @@ const { Pool } = require('pg');
 const E = require('../nutrition/engine');
 const P = require('../nutrition/practice');
 const { ownerGuard } = require('../lib/tenant_scope');
+const staffScope = require('../lib/staff_scope');
+const nutriPerms = require('../nutrition/perms');
+const bcrypt = require('bcryptjs');
 const audit = require('../lib/audit');
 
 const router = express.Router();
@@ -45,13 +48,20 @@ async function requirePractice(req, res, next) {
     if (!c || c.page_type !== 'nutrition' || c.is_active === false) return res.redirect('/company/login');
     req.company = c;
     res.locals.company = c;
+    // Who is on this screen — the dietitian, or the assistant with the scale,
+    // or somebody on the phone. Computed once so no route has to.
+    const perms = nutriPerms.permsFor(req.session);
+    req.perms = perms;
+    res.locals.perms = perms;
     next();
   } catch (e) {
     console.error('[nutrition admin]', e.message);
     res.redirect('/company/login');
   }
 }
-router.use(requireLogin, requirePractice);
+// staffScope keeps another system's staff out entirely; nutriPerms.guard()
+// decides what this practice's own roles reach, from the path prefix.
+router.use(requireLogin, staffScope.only('/nutrition'), requirePractice, nutriPerms.guard());
 
 // Everything under /patients/<number>/ writes to a named person's health
 // record. The number is whatever the browser sent, and the measurement and lab
@@ -343,6 +353,89 @@ router.post('/settings', async (req, res) => {
     return res.redirect('/nutrition/settings?err=save');
   }
   res.redirect('/nutrition/settings?saved=1');
+});
+
+// ── Practice staff ───────────────────────────────────────────────────────────
+/* The assistant with the scale, and whoever answers the phone.
+ *
+ * Both used to sign in as the dietitian, because there was no other way in —
+ * which put a blood panel and a treatment plan one click from the front desk.
+ * Only the dietitian reaches this screen (`staff` is owner-only in perms.js).
+ */
+router.get('/staff', async (req, res) => {
+  try {
+    const staff = (await pool.query(
+      `SELECT id, name, username, perm_role, phone, login_enabled, is_active
+         FROM nutrition_staff WHERE company_id=$1 ORDER BY is_active DESC, id`,
+      [req.company.id])).rows;
+    res.render('nutrition_admin/staff', {
+      tab: 'staff', staff, roles: nutriPerms.ROLE_KEYS, ROLES: nutriPerms.ROLES,
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) { console.error('[nutrition staff]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/staff', async (req, res) => {
+  const b = req.body || {};
+  const name = text(b.name, 120);
+  if (!name) return res.redirect('/nutrition/staff?err=no_name');
+  const role = nutriPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'reception';
+  try {
+    await pool.query(
+      'INSERT INTO nutrition_staff (company_id, name, perm_role, phone) VALUES ($1,$2,$3,$4)',
+      [req.company.id, name, role, text(b.phone, 30)]);
+  } catch (e) {
+    console.error('[nutrition staff add]', e.message);
+    return res.redirect('/nutrition/staff?err=save');
+  }
+  audit.log(pool, req, { entity: 'staff', action: 'create', meta: { role } });
+  res.redirect('/nutrition/staff?saved=1');
+});
+
+router.post('/staff/:id(\\d+)/login', async (req, res) => {
+  const cid = req.company.id, sid = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const username = String(b.username || '').trim().toLowerCase().slice(0, 60);
+  const role = nutriPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'reception';
+  const enabled = b.login_enabled === '1';
+  try {
+    if (!username) {
+      // No username, no account — the row stays a name on the rota.
+      await pool.query(
+        'UPDATE nutrition_staff SET username=NULL, password_hash=NULL, login_enabled=false, perm_role=$1 WHERE id=$2 AND company_id=$3',
+        [role, sid, cid]);
+      audit.log(pool, req, { entity: 'staff', entityId: sid, action: 'update', meta: { login: 'removed' } });
+      return res.redirect('/nutrition/staff?saved=1');
+    }
+    const password = String(b.password || '');
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await pool.query(
+        'UPDATE nutrition_staff SET username=$1, password_hash=$2, perm_role=$3, login_enabled=$4 WHERE id=$5 AND company_id=$6',
+        [username, hash, role, enabled, sid, cid]);
+    } else {
+      // Blank keeps the old password: changing a role should not require
+      // knowing it.
+      await pool.query(
+        'UPDATE nutrition_staff SET username=$1, perm_role=$2, login_enabled=$3 WHERE id=$4 AND company_id=$5',
+        [username, role, enabled, sid, cid]);
+    }
+    audit.log(pool, req, { entity: 'staff', entityId: sid, action: 'update',
+      meta: { role, login_enabled: enabled, password_changed: !!password } });
+    res.redirect('/nutrition/staff?saved=1');
+  } catch (e) {
+    console.error('[nutrition staff login]', e.message);
+    res.redirect('/nutrition/staff?err=username');
+  }
+});
+
+router.post('/staff/:id(\\d+)/delete', async (req, res) => {
+  const sid = parseInt(req.params.id, 10);
+  try {
+    await pool.query('DELETE FROM nutrition_staff WHERE id=$1 AND company_id=$2', [sid, req.company.id]);
+  } catch (e) { console.error('[nutrition staff delete]', e.message); }
+  audit.log(pool, req, { entity: 'staff', entityId: sid, action: 'delete' });
+  res.redirect('/nutrition/staff?saved=1');
 });
 
 module.exports = router;

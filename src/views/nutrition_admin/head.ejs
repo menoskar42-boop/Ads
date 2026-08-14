@@ -35,12 +35,18 @@
 <%
   var __tab = typeof tab !== 'undefined' ? tab : '';
   function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__tab===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
+  /* A link the server answers with 403 is worse than no link. The guard in
+     src/nutrition/perms.js is what actually decides; this only keeps the
+     assistant's screen from showing doors that will not open. */
+  var __p = (typeof perms !== 'undefined' && perms) ? perms
+    : { patients: true, measure: true, clinical: true, settings: true, staff: true, isStaff: false };
   var __nav = [
-    { key:'dashboard', path:'/nutrition',          label: t('nt.nav.dashboard') },
-    { key:'patients',  path:'/nutrition/patients', label: t('nt.nav.patients') },
-    { key:'foods',     path:'/nutrition/foods',    label: t('nt.nav.foods') },
-    { key:'settings',  path:'/nutrition/settings', label: t('nt.nav.settings') }
-  ];
+    { key:'dashboard', path:'/nutrition',          label: t('nt.nav.dashboard'), on: true },
+    { key:'patients',  path:'/nutrition/patients', label: t('nt.nav.patients'),  on: __p.patients },
+    { key:'foods',     path:'/nutrition/foods',    label: t('nt.nav.foods'),     on: __p.settings },
+    { key:'settings',  path:'/nutrition/settings', label: t('nt.nav.settings'),  on: __p.settings },
+    { key:'staff',     path:'/nutrition/staff',    label: t('nt.nav.staff'),     on: __p.staff }
+  ].filter(function(n){ return n.on; });
 %>
 
 <header class="bg-brand-600 text-white">
@@ -51,6 +57,7 @@
     <nav class="hidden sm:flex items-center gap-1 text-sm ms-auto">
       <% __nav.forEach(function(n){ %><a href="<%= n.path %>" class="<%= __cls(n.key) %>"><%= n.label %></a><% }); %>
     </nav>
+    <% if (__p.isStaff) { %><span class="hidden sm:inline text-xs text-white/80"><%= __p.name %> · <%= t('nt.staff.role.' + __p.role) %></span><% } %>
     <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
       <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5"><%= t('common.logout') %></button>
     </form>

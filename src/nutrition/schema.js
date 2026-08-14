@@ -42,6 +42,27 @@ async function ensureNutritionSchema() {
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
+      -- The practice's own staff: an assistant with a scale, somebody on the
+      -- phone. Small practices, which is exactly why this matters — the
+      -- assistant used to sign in as the dietitian, so a blood panel was one
+      -- click from the front desk. Roles live in src/nutrition/perms.js.
+      CREATE TABLE IF NOT EXISTS nutrition_staff (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        username      TEXT,
+        password_hash TEXT,
+        perm_role     TEXT NOT NULL DEFAULT 'reception',
+        phone         TEXT,
+        login_enabled BOOLEAN NOT NULL DEFAULT false,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nutri_staff_company ON nutrition_staff (company_id);
+      -- Partial: a name on the rota with no login is a perfectly normal row.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_nutri_staff_username
+        ON nutrition_staff (lower(username)) WHERE username IS NOT NULL;
+
       CREATE TABLE IF NOT EXISTS nutrition_patients (
         id            SERIAL PRIMARY KEY,
         company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

@@ -23,6 +23,7 @@ const AREAS = [
   ['staffId', '/pharmacy'],
   ['clinicStaffId', '/clinic'],
   ['foodStaffId', '/food'],
+  ['nutriStaffId', '/nutrition'],
 ];
 
 /** The area this session is scoped to, or null for the owner's own account. */

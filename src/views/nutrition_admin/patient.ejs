@@ -2,13 +2,19 @@
 <%
   function n(v, d){ return v == null ? '—' : Number(v).toLocaleString(LOC, {maximumFractionDigits: d == null ? 0 : d}); }
   function fmtD(v){ if(!v) return '—'; try { return new Date(v).toLocaleDateString(LOC,{year:'numeric',month:'short',day:'numeric'}); } catch(e){ return '—'; } }
+  /* The guard refuses the clinical routes outright; this keeps the numbers off
+     a page the assistant is allowed to open. */
+  var __p = (typeof perms !== 'undefined' && perms) ? perms
+    : { patients: true, measure: true, clinical: true, settings: true, staff: true };
 %>
 
 <div class="flex items-center gap-3 mb-1 flex-wrap">
   <a href="/nutrition/patients" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('nt.nav.patients') %></a>
   <h1 class="text-2xl font-black text-slate-900"><%= patient.name %></h1>
+  <% if (__p.clinical) { %>
   <a href="/nutrition/patients/<%= patient.id %>/report"
      class="no-print ms-auto text-xs bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">📄 <%= t('nt.rep.title') %></a>
+  <% } %>
 </div>
 <p class="text-slate-500 mb-5 text-sm">
   <%= patient.gender ? t('nt.g.' + patient.gender) : '—' %>
@@ -134,6 +140,7 @@
   <!-- ── القياسات ──────────────────────────────────────────────────── -->
   <div class="bg-white rounded-2xl shadow-sm p-5">
     <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.meas.title') %></h2>
+    <% if (__p.measure) { %>
     <form method="post" action="/nutrition/patients/<%= patient.id %>/measure" class="grid grid-cols-2 gap-2 mb-4 no-print">
       <label class="text-xs font-bold text-slate-600"><%= t('nt.f.date') %>
         <input name="taken_on" type="date" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
@@ -149,6 +156,7 @@
       </label>
       <button class="col-span-2 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm"><%= t('nt.meas.add') %></button>
     </form>
+    <% } %>
 
     <% if (!measurements.length) { %>
       <p class="text-sm text-slate-500"><%= t('nt.meas.empty') %></p>
@@ -160,10 +168,12 @@
         <span class="font-bold text-slate-800"><%= m.weight_kg != null ? m.weight_kg + ' ' + t('nt.u.kg') : '—' %></span>
         <% if (m.body_fat_pct != null) { %><span class="text-xs text-slate-500"><%= m.body_fat_pct %>% <%= t('nt.f.body_fat_short') %></span><% } %>
         <% if (m.source === 'patient') { %><span class="text-[10px] bg-sky-50 text-sky-700 rounded-full px-2 py-0.5"><%= t('nt.meas.by_patient') %></span><% } %>
+        <% if (__p.measure) { %>
         <form method="post" action="/nutrition/patients/<%= patient.id %>/measure/<%= m.id %>/delete" class="ms-auto no-print"
               onsubmit="return confirm(<%= JSON.stringify(t('nt.meas.del_confirm')) %>)">
           <button class="text-xs text-slate-300 hover:text-red-600">✕</button>
         </form>
+        <% } %>
       </div>
       <% }); %>
     </div>
@@ -174,6 +184,10 @@
   </div>
 
   <!-- ── التحاليل ──────────────────────────────────────────────────── -->
+  <%# Blood work is the dietitian's, not the front desk's. The route refuses it
+      too — this is so the numbers are not printed onto a page the assistant IS
+      allowed to open. %>
+  <% if (__p.clinical) { %>
   <div class="bg-white rounded-2xl shadow-sm p-5">
     <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.lab.title') %></h2>
     <form method="post" action="/nutrition/patients/<%= patient.id %>/lab" class="grid grid-cols-2 gap-2 mb-4 no-print">
@@ -209,9 +223,12 @@
     </div>
     <% } %>
   </div>
+  <% } %>
 </div>
 
 <!-- ── دخول المريض ──────────────────────────────────────────────── -->
+<%# Handing somebody a portal account hands them their own medical record. %>
+<% if (__p.clinical) { %>
 <div class="bg-white rounded-2xl shadow-sm p-5 mt-5 no-print">
   <h2 class="font-bold text-slate-800 mb-1 text-sm"><%= t('nt.pu.title') %></h2>
   <p class="text-xs text-slate-500 mb-3"><%= t('nt.pu.sub') %></p>
@@ -258,8 +275,10 @@
   </form>
   <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.pu.reset_hint') %></p>
 </div>
+<% } %>
 
 <!-- ── الخطط الغذائية ────────────────────────────────────────────── -->
+<% if (__p.clinical) { %>
 <div class="bg-white rounded-2xl shadow-sm p-5 mt-5">
   <div class="flex items-center gap-2 mb-3">
     <h2 class="font-bold text-slate-800 text-sm"><%= t('nt.pl.title') %></h2>
@@ -297,6 +316,7 @@
     <p class="text-[11px] text-amber-700 mt-2"><%= t('nt.pl.no_calc') %></p>
   <% } %>
 </div>
+<% } %>
 
 <!-- ── بيانات المريض ─────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-5 mt-5 no-print">

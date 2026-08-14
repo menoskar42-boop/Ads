@@ -145,6 +145,11 @@ router.use((req, res, next) => {
     if (open) return next();
     return res.redirect('/food');
   }
+  // Same for the dietitian's assistant.
+  if (req.session && req.session.nutriStaffId) {
+    if (open) return next();
+    return res.redirect('/nutrition');
+  }
   next();
 });
 
@@ -285,6 +290,28 @@ router.post('/login', loginLimiter, async (req, res) => {
         // /food picks the landing screen from the role — the kitchen tablet
         // may not open the orders list at all.
         return res.redirect('/food');
+      }
+      // The dietitian's practice staff (assistant / reception).
+      const nutriR = await pool.query(
+        `SELECT ns.*, c.company_name, c.theme_color, c.slug
+         FROM nutrition_staff ns JOIN companies c ON c.id = ns.company_id
+         WHERE lower(ns.username) = $1 AND ns.login_enabled = true
+           AND ns.is_active = true AND c.is_active = true`,
+        [email]
+      );
+      if (nutriR.rows.length) {
+        const st = nutriR.rows[0];
+        const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
+        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        req.session.companyId = st.company_id;
+        req.session.nutriStaffId = st.id;
+        req.session.nutriRole = st.perm_role || 'reception';
+        req.session.staffName = st.name || st.username;
+        req.session.companyName = st.company_name;
+        req.session.themeColor = st.theme_color;
+        req.session.companySlug = st.slug;
+        req.session.adminLang = 'ar';
+        return res.redirect('/nutrition');
       }
 
       // No active account yet — check if there's an application so we can guide them.

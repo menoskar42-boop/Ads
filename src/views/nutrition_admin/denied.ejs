@@ -1,0 +1,15 @@
+<%- include('head', { title: t('nt.staff.denied_title'), tab: '' }) %>
+
+<div class="max-w-lg mx-auto bg-white rounded-2xl shadow-sm p-8 text-center mt-8">
+  <div class="text-4xl mb-3">🔒</div>
+  <h1 class="text-xl font-black text-slate-900 mb-2"><%= t('nt.staff.denied_title') %></h1>
+  <p class="text-slate-500 mb-1"><%= t('nt.staff.denied_body') %></p>
+  <p class="text-slate-400 text-sm mb-6">
+    <%= t('nt.staff.your_role') %>: <b><%= t('nt.staff.role.' + perms.role) %></b>
+  </p>
+  <a href="/nutrition" class="inline-block bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm">
+    <%= t('nt.staff.back') %>
+  </a>
+</div>
+
+</main></body></html>
