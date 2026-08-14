@@ -75,7 +75,7 @@ check('كل مسار طبي تحت المريض بيطلب medical',
 /* ── It is actually mounted, once, on the router ───────────────────────── */
 const clinic = fs.readFileSync(path.join(ROOT, 'src/routes/clinic_admin.js'), 'utf8');
 check('الحارس مركّب على الراوتر كله مرة واحدة',
-  /router\.use\(requireLogin, requireClinic, clinicPerms\.guard\(\)\)/.test(clinic));
+  /router\.use\(requireLogin, staffScope\.only\('\/clinic'\), requireClinic, clinicPerms\.guard\(\)\)/.test(clinic));
 check('والصلاحيات محسوبة في requireClinic', /req\.perms = perms/.test(clinic)
   && /res\.locals\.perms = perms/.test(clinic));
 // A POST must be refused too — a hidden button is not a permission system.

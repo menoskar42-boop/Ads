@@ -128,6 +128,29 @@ async function ensureFoodSchema() {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_food_coupon_uniq ON food_coupons (company_id, code);
 
+      -- Shift staff with their own login: cashier · shift manager · kitchen ·
+      -- delivery. Everything used to run on the owner's account, which meant a
+      -- restaurant either gave the rider the owner's password or did not use
+      -- the system during a shift. Roles live in src/food/perms.js; this table
+      -- only says who exists and which role they carry.
+      CREATE TABLE IF NOT EXISTS food_staff (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        username      TEXT,
+        password_hash TEXT,
+        perm_role     TEXT NOT NULL DEFAULT 'cashier',
+        phone         TEXT,
+        login_enabled BOOLEAN NOT NULL DEFAULT false,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_food_staff_company ON food_staff (company_id);
+      -- Partial, because a staff row without a login is a normal row and any
+      -- number of them may have no username at all.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_food_staff_username
+        ON food_staff (lower(username)) WHERE username IS NOT NULL;
+
       CREATE TABLE IF NOT EXISTS food_reviews (
         id SERIAL PRIMARY KEY,
         outlet_id INTEGER REFERENCES food_outlets(id) ON DELETE CASCADE,

@@ -185,8 +185,12 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
   const kdsView = fs.readFileSync(path.join(ROOT, 'src/views/food_admin/kds.ejs'), 'utf8');
   const nav = fs.readFileSync(path.join(ROOT, 'src/views/food_admin/nav.ejs'), 'utf8');
 
+  // The redirect became role-aware when the shift staff arrived (the kitchen
+  // tablet may not open the orders list at all), but the fact this asserts is
+  // unchanged: whoever CAN see the orders lands on them, not on the menu.
   check('أول شاشة بعد الدخول بقت الطلبات مش إدارة المنيو',
-    /router\.get\('\/', \(req, res\) => res\.redirect\('\/food\/orders'\)\)/.test(food));
+    /router\.get\('\/', \(req, res\) => res\.redirect\(foodPerms\.homeFor\(req\.perms\)\)\)/.test(food)
+    && require('../src/food/perms').homeFor({ orders: true, kitchen: true, menu: true }) === '/food/orders');
   check('والمنيو لسه موجود على /food/menu', /router\.get\('\/menu'/.test(food));
   check('والقايمة بتحطّ الطلبات قبل المنيو',
     nav.indexOf('/food/orders') < nav.indexOf('/food/menu'));

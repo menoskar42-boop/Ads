@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
+const staffScope = require('../lib/staff_scope');
 const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = require('../clinic/modules');
 const { ownerGuard, ref } = require('../lib/tenant_scope');
 const audit = require('../lib/audit');
@@ -54,7 +55,7 @@ async function requireClinic(req, res, next) {
     next();
   } catch (e) { console.error('[clinic admin]', e.message); res.redirect('/company/login'); }
 }
-router.use(requireLogin, requireClinic, clinicPerms.guard());
+router.use(requireLogin, staffScope.only('/clinic'), requireClinic, clinicPerms.guard());
 
 // Guard a route behind an enabled module; 404-style redirect to dashboard if off.
 function requireModule(key) {

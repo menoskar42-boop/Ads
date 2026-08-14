@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.staff.denied_title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: '' }) %>
+
+<main class="max-w-lg mx-auto px-4 py-10">
+  <div class="bg-white border border-gray-100 rounded-2xl shadow-sm p-8 text-center">
+    <div class="text-4xl mb-3">🔒</div>
+    <h1 class="text-xl font-black mb-2"><%= t('food.staff.denied_title') %></h1>
+    <p class="text-gray-500 mb-1"><%= t('food.staff.denied_body') %></p>
+    <p class="text-gray-400 text-sm mb-6">
+      <%= t('food.staff.your_role') %>: <b><%= t('food.staff.role.' + perms.role) %></b>
+    </p>
+    <a href="<%= home %>" class="inline-block bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm">
+      <%= t('food.staff.back') %>
+    </a>
+  </div>
+</main>
+</body></html>

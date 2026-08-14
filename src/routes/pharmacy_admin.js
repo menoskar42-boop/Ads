@@ -6,6 +6,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
+const staffScope = require('../lib/staff_scope');
 const stock = require('../pharmacy/stock');
 const gs1 = require('../pharmacy/gs1');
 const push = require('../lib/push');
@@ -102,7 +103,8 @@ function gate(key) {
   };
 }
 
-router.use(requireLogin, requirePharmacy);
+// The pharmacy's own staff pass; another system's staff go back to theirs.
+router.use(requireLogin, staffScope.only('/pharmacy'), requirePharmacy);
 
 function toNum(v, def) {
   const n = parseFloat(v);

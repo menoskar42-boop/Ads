@@ -5,7 +5,10 @@ const express = require('express');
 const router = express.Router();
 const { Pool } = require('pg');
 const flow = require('../lib/order_flow');
+const foodPerms = require('../food/perms');
+const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
+const staffScope = require('../lib/staff_scope');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -39,10 +42,17 @@ async function requireOrders(req, res, next) {
       return res.status(404).render('404', { subdomain: null });
     }
     req.company = r.rows[0];
+    // Who is on this screen — the owner, or a cashier / shift manager / the
+    // kitchen tablet / a rider. Computed once, here, so no route has to.
+    const perms = foodPerms.permsFor(req.session);
+    req.perms = perms;
+    res.locals.perms = perms;
     next();
   } catch (e) { console.error('requireOrders error:', e.message); res.status(500).send('Error.'); }
 }
-router.use(requireLogin, requireOrders);
+// One guard for the whole router: permission comes from the path prefix (see
+// src/food/perms.js), so a route added later is covered by where it lives.
+router.use(requireLogin, staffScope.only('/food'), requireOrders, foodPerms.guard());
 
 // Owns this outlet? (guards outlet/category/item mutations to the company)
 async function ownsOutlet(companyId, outletId) {
@@ -58,7 +68,9 @@ async function ownsOutlet(companyId, outletId) {
  * that was two clicks away. The menu is still one click away at /food/menu;
  * they have simply swapped places, which is what the external review asked for.
  */
-router.get('/', (req, res) => res.redirect('/food/orders'));
+// …for whoever may open it. The kitchen tablet may not read the orders list at
+// all, so a fixed redirect would greet it with a locked door every sign-in.
+router.get('/', (req, res) => res.redirect(foodPerms.homeFor(req.perms)));
 
 router.get('/menu', async (req, res) => {
   const cid = req.company.id;
@@ -449,6 +461,88 @@ router.get('/reports', async (req, res) => {
     } catch (e) { console.error('[reports]', e.message); }
   }
   res.render('food_admin/reports', { company: req.company, session: req.session, active, data });
+});
+
+/* ─── Shift staff ───────────────────────────────────────── */
+/* The cashier, the shift manager, the kitchen tablet, the rider.
+ *
+ * Before this, all four were the owner's login. A restaurant will not hand a
+ * delivery rider the account that holds the menu prices and the day's takings,
+ * so in practice the owner had to stand at the till all night — the system was
+ * unusable during an actual shift, which is the only time a restaurant uses it.
+ *
+ * Only the owner reaches this screen (`staff` is owner-only in perms.js): a
+ * shift manager promoting itself would undo the whole point.
+ */
+router.get('/staff', async (req, res) => {
+  try {
+    const staff = (await pool.query(
+      `SELECT id, name, username, perm_role, phone, login_enabled, is_active
+         FROM food_staff WHERE company_id=$1 ORDER BY is_active DESC, id`,
+      [req.company.id])).rows;
+    res.render('food_admin/staff', {
+      company: req.company, session: req.session, staff,
+      roles: foodPerms.ROLE_KEYS, ROLES: foodPerms.ROLES, pendingOrders: 0,
+      saved: req.query.saved === '1',
+      errorCode: String(req.query.error || '') || null,
+    });
+  } catch (e) { console.error('[food staff]', e.message); res.status(500).send('Error.'); }
+});
+
+router.post('/staff/add', async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return res.redirect('/food/staff?error=no_name');
+  const role = foodPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'cashier';
+  try {
+    await pool.query(
+      'INSERT INTO food_staff (company_id, name, perm_role, phone) VALUES ($1,$2,$3,$4)',
+      [req.company.id, name, role, String(b.phone || '').trim().slice(0, 30) || null]);
+  } catch (e) { console.error('[food staff add]', e.message); return res.redirect('/food/staff?error=save'); }
+  res.redirect('/food/staff?saved=1');
+});
+
+// Give a row a login, change its role, or take the login away again.
+router.post('/staff/:id/login', async (req, res) => {
+  const cid = req.company.id, sid = toInt(req.params.id, null);
+  const b = req.body || {};
+  const username = String(b.username || '').trim().toLowerCase().slice(0, 60);
+  const role = foodPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'cashier';
+  const enabled = b.login_enabled === '1';
+  try {
+    if (!username) {
+      // No username means no account. The row stays as a name on the rota.
+      await pool.query(
+        'UPDATE food_staff SET username=NULL, password_hash=NULL, login_enabled=false, perm_role=$1 WHERE id=$2 AND company_id=$3',
+        [role, sid, cid]);
+      return res.redirect('/food/staff?saved=1');
+    }
+    const password = String(b.password || '');
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await pool.query(
+        'UPDATE food_staff SET username=$1, password_hash=$2, perm_role=$3, login_enabled=$4 WHERE id=$5 AND company_id=$6',
+        [username, hash, role, enabled, sid, cid]);
+    } else {
+      // A blank password keeps the old one — moving somebody from cashier to
+      // shift manager should not require knowing their password.
+      await pool.query(
+        'UPDATE food_staff SET username=$1, perm_role=$2, login_enabled=$3 WHERE id=$4 AND company_id=$5',
+        [username, role, enabled, sid, cid]);
+    }
+    res.redirect('/food/staff?saved=1');
+  } catch (e) {
+    console.error('[food staff login]', e.message);
+    // The unique index is the only realistic failure here.
+    res.redirect('/food/staff?error=username');
+  }
+});
+
+router.post('/staff/:id/delete', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM food_staff WHERE id=$1 AND company_id=$2', [toInt(req.params.id, null), req.company.id]);
+  } catch (e) { console.error('[food staff delete]', e.message); }
+  res.redirect('/food/staff?saved=1');
 });
 
 module.exports = router;

@@ -1,22 +1,29 @@
 <%
   var __active = typeof active !== 'undefined' ? active : '';
   var __other = lang === 'ar' ? 'en' : 'ar';
+  /* A link the server would answer with 403 is worse than no link. The guard in
+     src/food/perms.js is what actually decides; this only stops the kitchen
+     tablet from showing the rider's screen a door it cannot open. */
+  var __p = (typeof perms !== 'undefined' && perms) ? perms
+    : { orders: true, kitchen: true, menu: true, finance: true, marketing: true, staff: true, isStaff: false };
 %>
 <header class="bg-orange-600 text-white">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
-    <a href="/food/orders" class="font-extrabold text-lg flex items-center gap-1">🍽️ <%= company.company_name %></a>
+    <a href="/food" class="font-extrabold text-lg flex items-center gap-1">🍽️ <%= company.company_name %></a>
     <nav class="flex items-center gap-1 text-sm mr-auto ms-auto flex-wrap">
       <%# Orders first: it is what a restaurant opens forty times a shift, and
           the menu is what they touch once a month. They used to be the other
           way round. %>
-      <a href="/food/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.admin_orders') %></a>
-      <a href="/food/kds" class="px-3 py-1.5 rounded-lg <%= __active==='kds'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🍳 <%= t('food.kds.nav') %></a>
-      <a href="/food/menu" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a>
-      <a href="/food/coupons" class="px-3 py-1.5 rounded-lg <%= __active==='coupons'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.coupons') %></a>
-      <a href="/food/ai" class="px-3 py-1.5 rounded-lg <%= __active==='ai'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🤖 <%= t('food.ai.nav') %></a>
-      <a href="/food/reports" class="px-3 py-1.5 rounded-lg <%= __active==='reports'?'bg-white/25 font-bold':'hover:bg-white/15' %>">📊 <%= t('food.reports.nav') %></a>
-      <a href="/accounting" class="px-3 py-1.5 rounded-lg hover:bg-white/15">💰 <%= t('acct.title') %></a>
+      <% if (__p.orders) { %><a href="/food/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.admin_orders') %></a><% } %>
+      <% if (__p.kitchen) { %><a href="/food/kds" class="px-3 py-1.5 rounded-lg <%= __active==='kds'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🍳 <%= t('food.kds.nav') %></a><% } %>
+      <% if (__p.menu) { %><a href="/food/menu" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a><% } %>
+      <% if (__p.marketing) { %><a href="/food/coupons" class="px-3 py-1.5 rounded-lg <%= __active==='coupons'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.coupons') %></a>
+      <a href="/food/ai" class="px-3 py-1.5 rounded-lg <%= __active==='ai'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🤖 <%= t('food.ai.nav') %></a><% } %>
+      <% if (__p.finance) { %><a href="/food/reports" class="px-3 py-1.5 rounded-lg <%= __active==='reports'?'bg-white/25 font-bold':'hover:bg-white/15' %>">📊 <%= t('food.reports.nav') %></a><% } %>
+      <% if (__p.staff) { %><a href="/food/staff" class="px-3 py-1.5 rounded-lg <%= __active==='staff'?'bg-white/25 font-bold':'hover:bg-white/15' %>">👥 <%= t('food.staff.nav') %></a><% } %>
+      <% if (__p.finance && !__p.isStaff) { %><a href="/accounting" class="px-3 py-1.5 rounded-lg hover:bg-white/15">💰 <%= t('acct.title') %></a><% } %>
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.view_public') %></a>
+      <% if (__p.isStaff) { %><span class="px-3 py-1.5 text-white/80"><%= __p.name %> · <%= t('food.staff.role.' + __p.role) %></span><% } %>
       <a href="?lang=<%= __other %>" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 font-bold"><%= t('common.toggle_lang') %></a>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.logout') %></button></form>
     </nav>

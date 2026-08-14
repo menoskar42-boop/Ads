@@ -139,6 +139,12 @@ router.use((req, res, next) => {
     if (open) return next();
     return res.redirect('/clinic');
   }
+  // And the restaurant's shift staff: the owner's pages hold the billing and
+  // the page settings, and a rider has no business in either.
+  if (req.session && req.session.foodStaffId) {
+    if (open) return next();
+    return res.redirect('/food');
+  }
   next();
 });
 
@@ -252,6 +258,33 @@ router.post('/login', loginLimiter, async (req, res) => {
         req.session.companySlug = st.slug;
         req.session.adminLang = 'ar';
         return res.redirect('/clinic');
+      }
+      // Restaurant shift staff (cashier / shift manager / kitchen / delivery).
+      // Same door again — the scope comes from the row.
+      const foodR = await pool.query(
+        `SELECT fs.*, c.company_name, c.theme_color, c.slug
+         FROM food_staff fs JOIN companies c ON c.id = fs.company_id
+         WHERE lower(fs.username) = $1 AND fs.login_enabled = true
+           AND fs.is_active = true AND c.is_active = true`,
+        [email]
+      );
+      if (foodR.rows.length) {
+        const st = foodR.rows[0];
+        const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
+        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        req.session.companyId = st.company_id;
+        // Its own name, like the clinic's: one staff session must never be read
+        // as another system's role.
+        req.session.foodStaffId = st.id;
+        req.session.foodRole = st.perm_role || 'cashier';
+        req.session.staffName = st.name || st.username;
+        req.session.companyName = st.company_name;
+        req.session.themeColor = st.theme_color;
+        req.session.companySlug = st.slug;
+        req.session.adminLang = 'ar';
+        // /food picks the landing screen from the role — the kitchen tablet
+        // may not open the orders list at all.
+        return res.redirect('/food');
       }
 
       // No active account yet — check if there's an application so we can guide them.

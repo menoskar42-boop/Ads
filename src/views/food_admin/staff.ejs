@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.staff.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:7px 9px; width:100%; background:#fff; font-size:.85rem; }
+  .lbl { font-size:.68rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'staff' }) %>
+<%
+  var __errMsg = errorCode === 'username' ? t('food.staff.err_username')
+    : (errorCode === 'no_name' ? t('food.staff.err_no_name')
+    : (errorCode === 'save' ? t('food.admin.save_failed') : null));
+%>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (__errMsg) { %><div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= __errMsg %></div><% } %>
+
+  <h1 class="text-2xl font-extrabold mb-1"><%= t('food.staff.title') %></h1>
+  <p class="text-sm text-gray-500 mb-5"><%= t('food.staff.intro') %></p>
+
+  <!-- What each role can reach, stated once so nobody has to guess. -->
+  <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6 overflow-x-auto">
+    <h2 class="font-bold mb-3 text-sm"><%= t('food.staff.what_each_sees') %></h2>
+    <table class="w-full text-xs min-w-[520px]">
+      <thead class="text-gray-500">
+        <tr>
+          <th class="text-start py-1"><%= t('food.staff.role_col') %></th>
+          <% ['orders','kitchen','menu','marketing','finance','staff'].forEach(function(k){ %>
+          <th class="py-1"><%= t('food.staff.perm.' + k) %></th>
+          <% }); %>
+        </tr>
+      </thead>
+      <tbody>
+        <% Object.keys(ROLES).forEach(function(r){ %>
+        <tr class="border-t border-gray-100">
+          <td class="py-1.5 font-bold"><%= t('food.staff.role.' + r) %></td>
+          <% ['orders','kitchen','menu','marketing','finance','staff'].forEach(function(k){ %>
+          <td class="py-1.5 text-center"><%= ROLES[r][k] ? '✅' : '—' %></td>
+          <% }); %>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+    <p class="text-[11px] text-gray-400 mt-2"><%= t('food.staff.kitchen_note') %></p>
+  </section>
+
+  <!-- Add -->
+  <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+    <h2 class="font-bold mb-3 text-sm"><%= t('food.staff.add') %></h2>
+    <form method="post" action="/food/staff/add" class="grid gap-3 sm:grid-cols-4 items-end">
+      <div><span class="lbl"><%= t('food.admin.name') %></span><input name="name" class="fld" required /></div>
+      <div><span class="lbl"><%= t('food.staff.phone') %></span><input name="phone" class="fld" dir="ltr" /></div>
+      <div>
+        <span class="lbl"><%= t('food.staff.role_col') %></span>
+        <select name="perm_role" class="fld">
+          <% roles.forEach(function(r){ %><option value="<%= r %>"><%= t('food.staff.role.' + r) %></option><% }); %>
+        </select>
+      </div>
+      <button class="bg-gray-800 text-white font-bold rounded-lg px-4 py-2 text-sm">+ <%= t('food.staff.add') %></button>
+    </form>
+  </section>
+
+  <!-- The rota, each row with its own login form -->
+  <% if (!staff.length) { %>
+    <p class="text-sm text-gray-400"><%= t('food.staff.empty') %></p>
+  <% } %>
+  <% staff.forEach(function(s){ %>
+  <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <h3 class="font-bold"><%= s.name %></h3>
+      <span class="text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5"><%= t('food.staff.role.' + (s.perm_role || 'cashier')) %></span>
+      <% if (s.login_enabled) { %>
+        <span class="text-xs bg-green-50 text-green-700 rounded-full px-2 py-0.5"><%= t('food.staff.can_login') %></span>
+      <% } else { %>
+        <span class="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5"><%= t('food.staff.no_login') %></span>
+      <% } %>
+      <% if (s.phone) { %><span class="text-xs text-gray-400" dir="ltr"><%= s.phone %></span><% } %>
+      <form method="post" action="/food/staff/<%= s.id %>/delete" class="ms-auto inline">
+        <button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1" data-confirm="<%= t('common.tap_confirm') %>"><%= t('pharmacy.admin.delete') %></button>
+      </form>
+    </div>
+    <form method="post" action="/food/staff/<%= s.id %>/login" class="grid gap-3 sm:grid-cols-5 items-end">
+      <div><span class="lbl"><%= t('food.staff.username') %></span><input name="username" value="<%= s.username || '' %>" class="fld" dir="ltr" autocomplete="off" /></div>
+      <div>
+        <span class="lbl"><%= t('food.staff.password') %></span>
+        <input name="password" type="password" class="fld" dir="ltr" autocomplete="new-password" placeholder="<%= t('food.staff.pw_keep') %>" />
+      </div>
+      <div>
+        <span class="lbl"><%= t('food.staff.role_col') %></span>
+        <select name="perm_role" class="fld">
+          <% roles.forEach(function(r){ %><option value="<%= r %>" <%= (s.perm_role || 'cashier') === r ? 'selected' : '' %>><%= t('food.staff.role.' + r) %></option><% }); %>
+        </select>
+      </div>
+      <label class="flex items-center gap-2 text-sm pb-2">
+        <input type="checkbox" name="login_enabled" value="1" <%= s.login_enabled ? 'checked' : '' %> />
+        <%= t('food.staff.login_enabled') %>
+      </label>
+      <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-4 py-2 text-sm"><%= t('pharmacy.admin.save') %></button>
+    </form>
+    <p class="text-[11px] text-gray-400 mt-2"><%= t('food.staff.login_hint') %></p>
+  </section>
+  <% }); %>
+</main>
+</body></html>

@@ -8,6 +8,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const multer = require('multer');
 const requireLogin = require('../middleware/auth');
+const staffScope = require('../lib/staff_scope');
 const sheet = require('../lib/sheet_import');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -31,7 +32,9 @@ async function loadCompany(req, res, next) {
     next();
   } catch (e) { console.error('[accounting] loadCompany:', e.message); res.status(500).send('Error.'); }
 }
-router.use(requireLogin, loadCompany);
+// The books belong to the owner. A staff session sets companyId like any
+// other, so without this a cashier or a rider reads the whole ledger.
+router.use(requireLogin, staffScope.ownerOnly(), loadCompany);
 
 // Revenue + order count + COGS for the current month, per vertical.
 async function verticalTotals(company) {
