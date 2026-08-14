@@ -109,6 +109,69 @@ async function ensurePharmacySchema() {
       ALTER TABLE pharmacy_inventory ADD COLUMN IF NOT EXISTS image_url TEXT;
       ALTER TABLE pharmacy_inventory ADD COLUMN IF NOT EXISTS description TEXT;
 
+      /* Batches (تشغيلات).
+       *
+       * The inventory row above is ONE row per medicine with ONE expiry date and
+       * ONE cost. A pharmacy does not work that way: the same medicine arrives in
+       * batches, each with its own lot number, its own expiry and its own price
+       * from the supplier. Without this there is no way to answer "which lot is
+       * this box from", no way to pull a recalled lot off the shelf, no way to
+       * sell the nearest-expiry stock first, and no true cost per sale.
+       *
+       * The design decision that keeps this from being a rewrite: batches are a
+       * DETAIL layer under the aggregate, not a replacement for it.
+       * pharmacy_inventory.qty stays the number the till, the storefront and the
+       * reservations all read, exactly as before. A pharmacy that does not track
+       * lots simply has no batch rows and behaves precisely as it does today.
+       * Where batches DO exist they are consumed nearest-expiry-first, and the
+       * part of the stock no batch covers is shown as untracked rather than
+       * quietly implied to be zero.
+       *
+       * Nearest EXPIRY, not first received: for medicine, FEFO is the correct
+       * rule and FIFO is the wrong one. A box received last month that expires
+       * next week must go before one received today that expires next year.
+       */
+      CREATE TABLE IF NOT EXISTS pharmacy_batches (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        medicine_id  INTEGER NOT NULL REFERENCES medicines(id),
+        batch_no     TEXT,
+        expiry       DATE,
+        qty          INTEGER NOT NULL DEFAULT 0,
+        cost         NUMERIC(10,2),
+        supplier     TEXT,
+        -- A recalled or quarantined lot is still physically on the premises and
+        -- still has to be counted and returned to the supplier, so it is not
+        -- deleted — it is taken out of what may be sold.
+        status       TEXT NOT NULL DEFAULT 'active',   -- active | recalled
+        recall_note  TEXT,
+        received_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_batch_med
+        ON pharmacy_batches (company_id, medicine_id, expiry);
+      -- The dispensing order, as an index: nearest expiry first, and a batch
+      -- with no expiry date last (an unknown date is not an early one).
+      CREATE INDEX IF NOT EXISTS idx_pharm_batch_fefo
+        ON pharmacy_batches (company_id, medicine_id, expiry NULLS LAST, id)
+        WHERE status = 'active' AND qty > 0;
+
+      -- Which batch each sold line came out of. This is the record that answers
+      -- "who did we sell the recalled lot to" — the question a recall is.
+      CREATE TABLE IF NOT EXISTS pharmacy_sale_batches (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        batch_id     INTEGER REFERENCES pharmacy_batches(id) ON DELETE SET NULL,
+        medicine_id  INTEGER,
+        sale_id      INTEGER,
+        order_id     INTEGER,
+        qty          INTEGER NOT NULL DEFAULT 0,
+        cost         NUMERIC(10,2),
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_sale_batch
+        ON pharmacy_sale_batches (company_id, batch_id, created_at DESC);
+
       -- Online orders (patient -> pharmacy).
       CREATE TABLE IF NOT EXISTS pharmacy_orders (
         id SERIAL PRIMARY KEY,

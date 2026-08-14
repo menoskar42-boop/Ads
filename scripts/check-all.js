@@ -22,6 +22,7 @@ const CHECKS = [
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],
+  ['check-batches',         'التشغيلات: الأقرب انتهاءً بيتباع الأول + سحب دفعة'],
   ['check-portfolio',       'البورتفوليو: مفيش أعمال مخترعة ولا وعد كاذب'],
   ['check-pricing',         'الأسعار متطابقة في كل مكان بتتذكر فيه'],
   ['check-tracking',        'أحداث التسويق بتتبعت فعلاً (مش PageView بس)'],

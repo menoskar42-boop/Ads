@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('ph.batch.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; width:100%; background:#fff; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'inventory' }) %>
+<%
+  var __errMsg = errorCode === 'qty' ? t('ph.batch.err_qty')
+    : (errorCode === 'save' ? t('ph.batch.err_save') : null);
+  var TODAY = new Date(); TODAY.setHours(0,0,0,0);
+  function d(v){ if(!v) return null; var x = new Date(v); return isNaN(x) ? null : x; }
+  function fmtD(v){ var x = d(v); return x ? x.toISOString().slice(0,10) : '—'; }
+  function days(v){ var x = d(v); return x ? Math.round((x - TODAY) / 86400000) : null; }
+%>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (__errMsg) { %><div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= __errMsg %></div><% } %>
+
+  <div class="flex items-center gap-2 mb-1 flex-wrap">
+    <a href="/pharmacy/inventory" class="text-gray-400 hover:text-gray-600 text-sm">← <%= t('pharmacy.admin.inventory') %></a>
+    <h1 class="text-2xl font-extrabold"><%= inv.name_ar || inv.name_en %></h1>
+    <% if (inv.form) { %><span class="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5"><%= inv.form %></span><% } %>
+  </div>
+  <p class="text-sm text-gray-500 mb-5"><%= t('ph.batch.sub') %></p>
+
+  <!-- The three numbers that have to agree. -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div class="text-xs text-gray-500 mb-1"><%= t('ph.batch.total') %></div>
+      <div class="text-2xl font-extrabold"><%= total %></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div class="text-xs text-gray-500 mb-1"><%= t('ph.batch.tracked') %></div>
+      <div class="text-2xl font-extrabold text-emerald-700"><%= tracked %></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div class="text-xs text-gray-500 mb-1"><%= t('ph.batch.untracked') %></div>
+      <div class="text-2xl font-extrabold <%= untracked ? 'text-amber-600' : 'text-gray-300' %>"><%= untracked %></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div class="text-xs text-gray-500 mb-1"><%= t('ph.batch.reserved') %></div>
+      <div class="text-2xl font-extrabold text-gray-400"><%= reserved %></div>
+    </div>
+  </div>
+
+  <%# Said plainly rather than left to look like a bug. A pharmacy that starts
+      tracking lots today has shelves full of stock that predates the records. %>
+  <% if (untracked) { %>
+  <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-5"><%= t('ph.batch.untracked_note').replace('{n}', untracked) %></p>
+  <% } %>
+
+  <!-- Add a lot -->
+  <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+    <h2 class="font-bold mb-1 text-sm"><%= t('ph.batch.add') %></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('ph.batch.add_hint') %></p>
+    <form method="post" action="/pharmacy/inventory/<%= inv.id %>/batches" class="grid gap-3 sm:grid-cols-5 items-end">
+      <div><span class="lbl"><%= t('ph.batch.no') %></span><input name="batch_no" class="fld" dir="ltr" /></div>
+      <div><span class="lbl"><%= t('ph.batch.expiry') %></span><input name="expiry" type="date" class="fld" dir="ltr" /></div>
+      <div><span class="lbl"><%= t('ph.batch.qty') %></span><input name="qty" type="number" min="1" required class="fld" /></div>
+      <div><span class="lbl"><%= t('ph.batch.cost') %></span><input name="cost" type="number" min="0" <%- 'step="0.01"' %> class="fld" /></div>
+      <div><span class="lbl"><%= t('ph.batch.supplier') %></span><input name="supplier" class="fld" /></div>
+      <button class="sm:col-span-5 sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-5 py-2 text-sm">+ <%= t('ph.batch.add') %></button>
+    </form>
+  </section>
+
+  <!-- The lots -->
+  <% if (!batches.length) { %>
+    <p class="text-sm text-gray-400"><%= t('ph.batch.empty') %></p>
+  <% } else { %>
+  <section class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto mb-6">
+    <table class="w-full text-sm min-w-[620px]">
+      <thead class="text-gray-500 text-xs border-b border-gray-100">
+        <tr>
+          <th class="text-start px-4 py-2.5"><%= t('ph.batch.no') %></th>
+          <th class="text-start px-4 py-2.5"><%= t('ph.batch.expiry') %></th>
+          <th class="text-start px-4 py-2.5"><%= t('ph.batch.qty') %></th>
+          <th class="text-start px-4 py-2.5"><%= t('ph.batch.cost') %></th>
+          <th class="text-start px-4 py-2.5"><%= t('ph.batch.supplier') %></th>
+          <th class="text-start px-4 py-2.5"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% batches.forEach(function(bt, i){
+             var dd = days(bt.expiry);
+             var expired = dd !== null && dd < 0;
+             var soon = dd !== null && dd >= 0 && dd <= 60;
+             var live = bt.status === 'active' && bt.qty > 0;
+        %>
+        <tr class="border-b border-gray-50 <%= bt.status === 'recalled' ? 'bg-red-50/40' : '' %>">
+          <td class="px-4 py-2.5">
+            <span class="font-bold" dir="ltr"><%= bt.batch_no || '—' %></span>
+            <%# The lot that will leave next, marked — that is the whole of FEFO
+                made visible, and a pharmacist can check it against the shelf. %>
+            <% if (live && i === batches.findIndex(function(x){ return x.status==='active' && x.qty>0; })) { %>
+              <span class="text-[10px] bg-sky-50 text-sky-700 rounded-full px-2 py-0.5 ms-1"><%= t('ph.batch.next_out') %></span>
+            <% } %>
+            <% if (bt.status === 'recalled') { %>
+              <span class="text-[10px] bg-red-100 text-red-700 rounded-full px-2 py-0.5 ms-1"><%= t('ph.batch.recalled') %></span>
+            <% } %>
+          </td>
+          <td class="px-4 py-2.5" dir="ltr">
+            <span class="<%= expired ? 'text-red-600 font-bold' : (soon ? 'text-amber-600 font-bold' : 'text-gray-600') %>"><%= fmtD(bt.expiry) %></span>
+            <% if (dd !== null) { %><span class="text-[11px] text-gray-400"><%= expired ? t('ph.batch.expired') : (dd + ' ' + t('ph.batch.days')) %></span><% } %>
+          </td>
+          <td class="px-4 py-2.5 font-bold"><%= bt.qty %></td>
+          <td class="px-4 py-2.5 text-gray-500"><%= bt.cost == null ? '—' : Number(bt.cost).toFixed(2) %></td>
+          <td class="px-4 py-2.5 text-gray-500"><%= bt.supplier || '—' %></td>
+          <td class="px-4 py-2.5">
+            <div class="flex items-center gap-1 justify-end">
+              <a href="?sold=<%= bt.id %>" class="text-xs text-gray-500 hover:text-gray-800 bg-gray-50 rounded-lg px-2 py-1"><%= t('ph.batch.who_bought') %></a>
+              <% if (bt.status === 'active') { %>
+              <form method="post" action="/pharmacy/inventory/<%= inv.id %>/batches/<%= bt.id %>/recall" class="inline">
+                <button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1" data-confirm="<%= t('common.tap_confirm') %>"><%= t('ph.batch.recall') %></button>
+              </form>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% if (bt.recall_note) { %>
+        <tr class="border-b border-gray-50 bg-red-50/40"><td colspan="6" class="px-4 pb-2.5 text-xs text-red-700"><%= bt.recall_note %></td></tr>
+        <% } %>
+        <% }); %>
+      </tbody>
+    </table>
+  </section>
+  <% } %>
+
+  <!-- Who we sold this lot to — the question a recall is -->
+  <% if (sold) { %>
+  <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+    <h2 class="font-bold mb-1 text-sm"><%= t('ph.batch.who_bought') %> — <span dir="ltr">#<%= soldFrom %></span></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('ph.batch.who_hint') %></p>
+    <% if (!sold.length) { %>
+      <p class="text-sm text-gray-400"><%= t('ph.batch.who_none') %></p>
+    <% } else { %>
+    <div class="divide-y divide-gray-100 text-sm">
+      <% sold.forEach(function(r){ %>
+      <div class="flex flex-wrap items-center gap-2 py-2">
+        <span class="text-xs text-gray-400" dir="ltr"><%= fmtD(r.created_at) %></span>
+        <span class="font-bold"><%= r.qty %></span>
+        <% if (r.customer_name) { %>
+          <span class="text-gray-700"><%= r.customer_name %></span>
+          <% if (r.customer_phone) { %><span class="text-gray-500" dir="ltr"><%= r.customer_phone %></span><% } %>
+        <% } else { %>
+          <%# A counter sale has no name attached, and inventing one would be
+              worse than saying so. %>
+          <span class="text-gray-400"><%= t('ph.batch.counter_sale') %></span>
+        <% } %>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </section>
+  <% } %>
+</main>
+</body></html>

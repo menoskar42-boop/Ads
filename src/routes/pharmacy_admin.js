@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const staffScope = require('../lib/staff_scope');
 const stock = require('../pharmacy/stock');
+const batches = require('../pharmacy/batches');
 const gs1 = require('../pharmacy/gs1');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
@@ -269,6 +270,10 @@ router.post('/inventory/add', gate('inventory'), withImage(uploadMedImage), asyn
       medicineId = ins.rows[0].id;
     }
     if (!medicineId) return res.redirect('/pharmacy/inventory?error=' + encodeURIComponent('اختر دواء أو اكتب اسم جديد'));
+    // A lot number or an expiry date turns this from "add 20 boxes" into "20
+    // boxes of lot X that expire in March". Leave both blank and nothing about
+    // this pharmacy changes — batches are opt-in, per delivery.
+    const wantsBatch = !!((b.batch_no || '').trim() || (b.expiry || '').trim()) && toInt(b.qty, 0) > 0;
     await pool.query(
       `INSERT INTO pharmacy_inventory (company_id, medicine_id, qty, price, cost, min_qty, expiry, barcode, image_url, description)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -284,6 +289,14 @@ router.post('/inventory/add', gate('inventory'), withImage(uploadMedImage), asyn
        toInt(b.min_qty, 0), (b.expiry || '').trim() || null, (b.barcode || '').trim() || null, imageUrl,
        (b.description || '').trim() || null]
     );
+    // Recorded beside the upsert above, which already moved the aggregate —
+    // hence `record` and not `receive`, or the boxes would be counted twice.
+    if (wantsBatch) {
+      await batches.record(pool, cid, medicineId, {
+        qty: toInt(b.qty, 0), batch_no: b.batch_no, expiry: (b.expiry || '').trim() || null,
+        cost: toNum(b.cost, null), supplier: b.supplier,
+      });
+    }
     res.redirect('/pharmacy/inventory?saved=1');
   } catch (e) {
     console.error('inventory add error:', e.message);
@@ -336,6 +349,94 @@ router.post('/inventory/:id/delete', gate('inventory'), async (req, res) => {
     console.error('inventory delete error:', e.message);
     res.redirect('/pharmacy/inventory?error=1');
   }
+});
+
+/* ─── Batches (تشغيلات) ─────────────────────────────────────────────────── */
+/* One medicine's lots: what is on the shelf, from which delivery, expiring when.
+ *
+ * The screen shows the untracked remainder too. A pharmacy that starts tracking
+ * lots today has shelves full of stock that predates the records, and a page
+ * showing only the tracked total would read as though the rest had vanished.
+ */
+router.get('/inventory/:id/batches', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  try {
+    const inv = (await pool.query(
+      `SELECT pi.id, pi.medicine_id, pi.qty, pi.reserved_qty, pi.expiry, m.name_ar, m.name_en, m.form
+         FROM pharmacy_inventory pi JOIN medicines m ON m.id = pi.medicine_id
+        WHERE pi.id = $1 AND pi.company_id = $2`, [id, cid])).rows[0];
+    if (!inv) return res.redirect('/pharmacy/inventory');
+    const data = await batches.forMedicine(pool, cid, inv.medicine_id);
+    // Only asked for when a lot is being looked at — the recall list is the
+    // point of the whole feature but it is not the everyday view.
+    const soldFrom = toInt(req.query.sold, null);
+    const sold = soldFrom ? await batches.soldFrom(pool, cid, soldFrom) : null;
+    res.render('pharmacy_admin/batches', {
+      company: req.company, session: req.session, inv, sold, soldFrom,
+      batches: data.batches, total: data.total, reserved: data.reserved,
+      tracked: data.tracked, untracked: data.untracked,
+      saved: req.query.saved === '1',
+      errorCode: String(req.query.error || '') || null,
+    });
+  } catch (e) {
+    console.error('[batches]', e.message);
+    res.redirect('/pharmacy/inventory?error=1');
+  }
+});
+
+// Add a lot to a medicine already in stock. This one DOES move the aggregate:
+// unlike the add-stock form, there is no other write doing it.
+router.post('/inventory/:id/batches', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  const b = req.body || {};
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      'SELECT medicine_id FROM pharmacy_inventory WHERE id=$1 AND company_id=$2', [id, cid])).rows[0];
+    if (!inv) { await client.query('ROLLBACK'); return res.redirect('/pharmacy/inventory'); }
+    if (toInt(b.qty, 0) <= 0) {
+      await client.query('ROLLBACK');
+      return res.redirect('/pharmacy/inventory/' + id + '/batches?error=qty');
+    }
+    await batches.receive(client, cid, inv.medicine_id, {
+      qty: toInt(b.qty, 0), batch_no: b.batch_no, expiry: (b.expiry || '').trim() || null,
+      cost: toNum(b.cost, null), supplier: b.supplier,
+    });
+    await client.query('COMMIT');
+    res.redirect('/pharmacy/inventory/' + id + '/batches?saved=1');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[batch add]', e.message);
+    res.redirect('/pharmacy/inventory/' + id + '/batches?error=save');
+  } finally { client.release(); }
+});
+
+/* Pull a lot off the shelf.
+ *
+ * Not a delete: those boxes are physically in the pharmacy, they still have to
+ * be counted, and they have to go back to the supplier with their lot number
+ * on the paperwork. What changes is that they stop being sellable.
+ */
+router.post('/inventory/:id/batches/:bid/recall', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const done = await batches.recall(client, cid, toInt(req.params.bid, null),
+      String((req.body || {}).note || ''));
+    await client.query('COMMIT');
+    // Straight to "who did we sell it to" — that question IS the recall.
+    return res.redirect('/pharmacy/inventory/' + id + '/batches?saved=1'
+      + (done ? '&sold=' + toInt(req.params.bid, null) : ''));
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[batch recall]', e.message);
+    res.redirect('/pharmacy/inventory/' + id + '/batches?error=save');
+  } finally { client.release(); }
 });
 
 // Type-ahead over the full (~25k) medicine catalog for the "add stock" form,
@@ -519,6 +620,10 @@ router.post('/pos/checkout', gate('pos'), async (req, res) => {
       `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id) VALUES ($1,'sale',$2,$3,$4) RETURNING id`,
       [cid, total, profit, req.session.staffId || null]
     )).rows[0];
+    // Which lots the boxes came out of, nearest expiry first. The aggregate has
+    // already moved above; this only writes down WHICH batch, so a recall can
+    // later ask who we sold it to.
+    await batches.dispense(client, cid, { saleId: sale.id }, lines);
     for (const l of lines) {
       await client.query(
         `INSERT INTO pharmacy_sale_items (sale_id, medicine_id, name, qty, price, cost) VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -647,6 +752,9 @@ router.post('/pos/sync', gate('pos'), async (req, res) => {
             [sale.id, l.medicine_id, l.name, l.qty, l.price, l.cost]
           );
         }
+        // An offline sale left the shelf hours ago; the lots come off now, in
+        // the same order they would have then.
+        await batches.dispense(client, cid, { saleId: sale.id }, lines);
       }
       await client.query('COMMIT'); synced.push(uid);
     } catch (e) {
@@ -727,6 +835,9 @@ router.post('/orders/:id/status', gate('orders'), async (req, res) => {
 
     if (next === 'delivered' && prev !== 'delivered' && !['rejected', 'cancelled'].includes(prev)) {
       await stock.fulfill(client, cid, items);
+      // The order id, not a sale id: a recall on a delivered order needs the
+      // customer's name and phone, and the order is where those live.
+      await batches.dispense(client, cid, { orderId: oid }, items);
       // record the sale + profit (cost pulled from current inventory)
       let total = 0, profit = 0;
       const lines = (await client.query(
