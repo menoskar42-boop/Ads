@@ -71,7 +71,11 @@ router.get('/menu', async (req, res) => {
     const pending = (await pool.query("SELECT COUNT(*)::int AS n FROM food_orders WHERE company_id = $1 AND status = 'pending'", [cid])).rows[0].n;
     res.render('food_admin/menu', {
       company: req.company, outlets, pendingOrders: pending, session: req.session,
-      saved: req.query.saved === '1', error: req.query.error || null,
+      saved: req.query.saved === '1',
+      // A CODE, not a sentence. The page used to print whatever ?error= said,
+      // so a link could put any text on the merchant's own screen.
+      errorCode: String(req.query.error || '') || null,
+      errorN: toInt(req.query.n, 0),
     });
   } catch (e) {
     console.error('food menu error:', e.message);
@@ -116,7 +120,7 @@ router.post('/outlet/save', withImage, async (req, res) => {
     res.redirect('/food/menu?saved=1');
   } catch (e) {
     console.error('outlet save error:', e.message);
-    res.redirect('/food/menu?error=' + encodeURIComponent('حصل خطأ'));
+    res.redirect('/food/menu?error=save');
   }
 });
 
@@ -140,12 +144,59 @@ router.post('/category/add', async (req, res) => {
   res.redirect('/food/menu?saved=1');
 });
 
+/* Deleting a section with food still in it.
+ *
+ * The foreign key is ON DELETE SET NULL, so the items survived the category and
+ * ended up belonging to nothing: still on the books, in no section, invisible on
+ * a menu that renders section by section. A restaurant tidying its menu lost
+ * dishes without being told.
+ *
+ * So the merchant has to say what happens to them: move them somewhere, or
+ * delete them too. Refusing outright would just make people delete the items
+ * one by one first, which is the same decision with more clicks.
+ */
 router.post('/category/:id/delete', async (req, res) => {
-  await pool.query(
-    `DELETE FROM food_categories WHERE id=$1 AND outlet_id IN (SELECT id FROM food_outlets WHERE company_id=$2)`,
-    [toInt(req.params.id, null), req.company.id]
-  );
-  res.redirect('/food/menu');
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  const moveTo = String((req.body || {}).move_to || '').trim();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Scoped through the outlet, in the same statement as everything below.
+    const cat = (await client.query(
+      `SELECT c.id, c.outlet_id FROM food_categories c
+        WHERE c.id=$1 AND c.outlet_id IN (SELECT id FROM food_outlets WHERE company_id=$2)`,
+      [id, cid])).rows[0];
+    if (!cat) { await client.query('ROLLBACK'); return res.redirect('/food/menu'); }
+
+    const n = (await client.query(
+      'SELECT COUNT(*)::int AS n FROM food_items WHERE category_id=$1', [id])).rows[0].n;
+
+    if (n > 0) {
+      if (moveTo === 'delete') {
+        await client.query('DELETE FROM food_items WHERE category_id=$1', [id]);
+      } else {
+        const target = toInt(moveTo, null);
+        // The destination has to be a real section of the SAME outlet — moving
+        // a dish to another branch's menu is not a tidy-up, it is a bug.
+        const ok = target && (await client.query(
+          'SELECT 1 FROM food_categories WHERE id=$1 AND outlet_id=$2 AND id <> $3',
+          [target, cat.outlet_id, id])).rowCount;
+        if (!ok) {
+          await client.query('ROLLBACK');
+          return res.redirect('/food/menu?error=cat_has_items&n=' + n + '&cat=' + id);
+        }
+        await client.query('UPDATE food_items SET category_id=$1 WHERE category_id=$2', [target, id]);
+      }
+    }
+    await client.query('DELETE FROM food_categories WHERE id=$1', [id]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[category delete]', e.message);
+    return res.redirect('/food/menu?error=save');
+  } finally { client.release(); }
+  res.redirect('/food/menu?saved=1');
 });
 
 /* ─── Items ─────────────────────────────────────────────── */
@@ -303,14 +354,15 @@ router.get('/coupons', async (req, res) => {
   const coupons = (await pool.query('SELECT * FROM food_coupons WHERE company_id = $1 ORDER BY id DESC', [req.company.id])).rows;
   res.render('food_admin/coupons', {
     company: req.company, coupons, session: req.session,
-    saved: req.query.saved === '1', error: req.query.error || null,
+    saved: req.query.saved === '1',
+    errorCode: String(req.query.error || '') || null,
   });
 });
 
 router.post('/coupons/add', async (req, res) => {
   const b = req.body || {};
   const code = (b.code || '').trim().toUpperCase().slice(0, 40);
-  if (!code) return res.redirect('/food/coupons?error=' + encodeURIComponent('اكتب كود'));
+  if (!code) return res.redirect('/food/coupons?error=no_code');
   try {
     await pool.query(
       `INSERT INTO food_coupons (company_id, code, discount_percent, max_discount, min_order, usage_limit, expires_at, is_active)
@@ -322,7 +374,7 @@ router.post('/coupons/add', async (req, res) => {
        toNum(b.min_order, 0), toInt(b.usage_limit, 0), (b.expires_at || '').trim() || null]
     );
     res.redirect('/food/coupons?saved=1');
-  } catch (e) { console.error('coupon add error:', e.message); res.redirect('/food/coupons?error=1'); }
+  } catch (e) { console.error('coupon add error:', e.message); res.redirect('/food/coupons?error=save'); }
 });
 
 router.post('/coupons/:id/toggle', async (req, res) => {

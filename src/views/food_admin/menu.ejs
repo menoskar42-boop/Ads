@@ -15,10 +15,18 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 <%- include('nav', { active: 'menu' }) %>
+<%
+  /* The route hands over a code; the sentence is written here, once, in both
+     languages. An unknown code says nothing at all — the URL is not allowed to
+     put words on the merchant's screen. */
+  var __errMsg = errorCode === 'cat_has_items'
+    ? t('food.admin.cat_has_items').replace('{n}', errorN)
+    : (errorCode === 'save' ? t('food.admin.save_failed') : null);
+%>
 
 <main class="max-w-5xl mx-auto px-4 py-6">
   <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
-  <% if (error) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold"><%= error %></div><% } %>
+  <% if (__errMsg) { %><div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= __errMsg %></div><% } %>
 
   <% ['restaurant','supermarket'].forEach(function(vert){
        var o = outlets.find(function(x){ return x.vertical === vert; });
@@ -70,7 +78,25 @@
           <div class="border border-gray-100 rounded-xl p-3 mb-3">
             <div class="flex items-center gap-2 mb-2">
               <h3 class="font-bold text-gray-700"><%= cat.name_ar || cat.name %></h3>
-              <form method="post" action="/food/category/<%= cat.id %>/delete" class="ms-auto inline"><button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1" data-confirm="<%= t('common.tap_confirm') %>"><%= t('pharmacy.admin.delete') %></button></form>
+              <%
+                /* Deleting a section used to orphan its dishes: the foreign key
+                   is ON DELETE SET NULL, so they survived in no section and
+                   vanished from a menu rendered section by section. The
+                   merchant now says where they go. */
+                var __others = o.categories.filter(function(c){ return c.id !== cat.id; });
+              %>
+              <form method="post" action="/food/category/<%= cat.id %>/delete" class="ms-auto inline flex items-center gap-1">
+                <% if (catItems.length) { %>
+                <select name="move_to" class="text-xs border border-gray-200 rounded-lg px-2 py-1" required>
+                  <option value=""><%= t('food.admin.cat_move_where') %></option>
+                  <% __others.forEach(function(c){ %>
+                  <option value="<%= c.id %>"><%= t('food.admin.cat_move_to') %> <%= c.name_ar || c.name %></option>
+                  <% }); %>
+                  <option value="delete"><%= t('food.admin.cat_del_items') %> (<%= catItems.length %>)</option>
+                </select>
+                <% } %>
+                <button class="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1" data-confirm="<%= t('common.tap_confirm') %>"><%= t('pharmacy.admin.delete') %></button>
+              </form>
             </div>
 
             <% catItems.forEach(function(it){ %>

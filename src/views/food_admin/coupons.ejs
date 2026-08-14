@@ -18,7 +18,13 @@
 
 <main class="max-w-3xl mx-auto px-4 py-6">
   <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
-  <% if (error) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold"><%= error %></div><% } %>
+  <%
+    /* A code, not a sentence: the page used to print whatever ?error= carried,
+       so a link could put any text on the merchant's own screen. */
+    var __errMsg = errorCode === 'no_code' ? t('food.admin.coupon_no_code')
+      : (errorCode === 'save' ? t('food.admin.save_failed') : null);
+  %>
+  <% if (__errMsg) { %><div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= __errMsg %></div><% } %>
 
   <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
     <h2 class="font-extrabold text-orange-700 mb-3">🎟️ <%= t('orders.add_coupon') %></h2>

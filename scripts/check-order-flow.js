@@ -207,6 +207,33 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
   check('وبيقفل الصف قبلها', /SELECT status FROM food_orders WHERE id=\$1 AND company_id=\$2 FOR UPDATE/.test(food));
 }
 
+/* ── Deleting a menu section must not orphan the food ──────────────────── */
+// food_items.category_id is ON DELETE SET NULL, so the dishes survived the
+// section and belonged to nothing: still in the table, gone from a menu that
+// renders section by section. A restaurant tidying its menu lost dishes and was
+// told "saved".
+{
+  const menu = fs.readFileSync(path.join(ROOT, 'src/views/food_admin/menu.ejs'), 'utf8');
+  const del = (food.match(/router\.post\('\/category\/:id\/delete'[\s\S]*?\n\}\);/) || [''])[0];
+  check('حذف القسم بقى معاملة واحدة', /BEGIN/.test(del) && /COMMIT/.test(del));
+  check('والقسم متقيَّد بالمطعم بتاع الشركة',
+    /outlet_id IN \(SELECT id FROM food_outlets WHERE company_id=\$2\)/.test(del));
+  check('وبيعدّ أصنافه قبل ما يمسحه', /COUNT\(\*\)::int AS n FROM food_items WHERE category_id=\$1/.test(del));
+  check('ومن غير قرار مايكمّلش', /ROLLBACK/.test(del) && /error=cat_has_items/.test(del));
+  check('يا ينقلهم', /UPDATE food_items SET category_id=\$1 WHERE category_id=\$2/.test(del));
+  check('يا يمسحهم معاه', /DELETE FROM food_items WHERE category_id=\$1/.test(del));
+  // Moving a dish onto another branch's menu is not a tidy-up, it is a bug.
+  check('والوجهة لازم تكون قسم في نفس المطعم',
+    /FROM food_categories WHERE id=\$1 AND outlet_id=\$2 AND id <> \$3/.test(del));
+  check('والشاشة بتسأل السؤال قبل الحذف', /name="move_to"/.test(menu));
+  check('وبتسأله بس لما القسم فيه أصناف', /if \(catItems\.length\)/.test(menu));
+  check('والقسم مش وجهة لنفسه', /c\.id !== cat\.id/.test(menu));
+  // The page used to print whatever ?error= said, so a link could put any
+  // sentence on the merchant's own screen.
+  check('ورسالة الخطأ اتكتبت في الصفحة مش في اللينك',
+    !/error=' \+ encodeURIComponent/.test(food) && /errorCode === 'cat_has_items'/.test(menu));
+}
+
 console.log(fail
   ? `\n${fail} مشكلة — دي الحالة اللي بتخصم المخزون وتحسب البيعة مرتين.`
   : '\nالحالات النهائية مابترجعش، في التلات أنظمة، والصف بيتقفل قبل القرار.');
