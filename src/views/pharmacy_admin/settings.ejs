@@ -45,6 +45,15 @@
       <input name="delivery_fee" type="number" step="0.01" min="0" value="<%= settings.delivery_fee!=null?Number(settings.delivery_fee):0 %>" class="fld" />
     </div>
 
+    <%# Zero by default and stated plainly: a pharmacy that has not thought
+        about this has not authorised anybody to give money away. %>
+    <div>
+      <label class="lbl font-bold text-sm block mb-1"><%= t('ph.set.discount_max') %></label>
+      <input name="cashier_discount_max" type="number" step="1" min="0" max="100"
+             value="<%= settings.cashier_discount_max!=null?Number(settings.cashier_discount_max):0 %>" class="fld" />
+      <p class="text-sm text-gray-500 mt-1"><%= t('ph.set.discount_max_hint') %></p>
+    </div>
+
     <label class="flex items-center gap-3 cursor-pointer">
       <input type="checkbox" name="is_night_shift" class="w-5 h-5 accent-emerald-700" <%= settings.is_night_shift ? 'checked' : '' %> />
       <span class="font-bold">🌙 <%= t('pharmacy.admin.night_shift') %></span>

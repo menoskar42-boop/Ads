@@ -33,16 +33,53 @@
 
   <div id="posStatus" class="hidden text-sm font-bold rounded-xl px-4 py-2 mt-2"></div>
 
+  <div id="posHeldBox" class="hidden mt-5 bg-white rounded-2xl border border-amber-200 shadow-sm p-4">
+    <div class="font-extrabold text-amber-700 mb-2">⏸️ <%= t('ph.pos.held') %></div>
+    <div id="posHeld" class="divide-y"></div>
+  </div>
+
   <div class="mt-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
     <div class="font-extrabold text-emerald-700 mb-3">🧾 <%= t('pharmacy.pos.cart') %></div>
     <div id="posEmpty" class="text-center text-gray-400 py-8"><%= t('pharmacy.pos.empty') %></div>
     <div id="posCart" class="divide-y"></div>
     <div id="posFooter" class="hidden mt-4">
+      <%# A discount box, because 47.50 gets rounded to 47 at every till in the
+          country and a system with no way to do it gets bypassed on paper. %>
+      <div class="flex items-center gap-2 mb-3">
+        <label class="text-sm text-gray-500"><%= t('ph.pos.discount') %></label>
+        <input id="posDisc" type="number" min="0" max="100" step="1" value="0" class="fld w-20 text-center" />
+        <span class="text-sm text-gray-400">%</span>
+        <span id="posDiscAmt" class="text-sm text-red-600 font-bold"></span>
+      </div>
       <div class="flex items-center justify-between text-lg font-extrabold mb-3">
         <span><%= t('pharmacy.pos.total') %></span>
         <span><span id="posTotal">0</span> <%= t('pharmacy.currency') %></span>
       </div>
-      <button id="posCheckout" class="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl px-6 py-3 w-full text-lg"><%= t('pharmacy.pos.checkout') %></button>
+      <div class="flex gap-2">
+        <button id="posCheckout" class="bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold rounded-xl px-6 py-3 flex-1 text-lg"><%= t('pharmacy.pos.checkout') %></button>
+        <%# Parking a basket is what keeps the queue moving when a customer goes
+            back for one more thing. It lives in the same local store as the
+            offline queue, so it works with the internet down — which is exactly
+            when a pharmacy least wants the queue to stop. %>
+        <button id="posHold" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl px-4 py-3"><%= t('ph.pos.hold') %></button>
+      </div>
+    </div>
+  </div>
+
+  <%# The manager signs in with their real credentials, not a four-digit code:
+      a PIN that unlocks the day's takings gets watched over a shoulder once
+      and then belongs to everybody. %>
+  <div id="posApprove" class="hidden fixed inset-0 bg-black/60 z-40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-5 w-full max-w-sm">
+      <div class="font-extrabold mb-1"><%= t('ph.pos.needs_manager') %></div>
+      <p id="posApproveWhy" class="text-sm text-gray-500 mb-3"></p>
+      <input id="posMgrUser" class="fld w-full mb-2" dir="ltr" autocomplete="off" placeholder="<%= t('ph.pos.manager_user') %>" />
+      <input id="posMgrPw" type="password" class="fld w-full mb-3" dir="ltr" autocomplete="new-password" placeholder="<%= t('ph.pos.manager_pw') %>" />
+      <div id="posApproveErr" class="hidden text-sm text-red-600 font-bold mb-2"></div>
+      <div class="flex gap-2">
+        <button id="posMgrOk" class="bg-emerald-700 text-white font-bold rounded-xl px-4 py-2 flex-1"><%= t('ph.pos.approve') %></button>
+        <button id="posMgrCancel" class="bg-gray-100 text-gray-700 font-bold rounded-xl px-4 py-2"><%= t('common.cancel') %></button>
+      </div>
     </div>
   </div>
 
@@ -57,8 +94,15 @@
     done: <%- JSON.stringify(t('pharmacy.pos.done')) %>, insuf: <%- JSON.stringify(t('pharmacy.pos.insufficient')) %>,
     avail: <%- JSON.stringify(t('pharmacy.pos.available_short')) %>, offline: <%- JSON.stringify(t('pharmacy.pos.offline')) %>,
     online: <%- JSON.stringify(t('pharmacy.pos.online')) %>, pending: <%- JSON.stringify(t('pharmacy.pos.pending')) %>,
-    savedOff: <%- JSON.stringify(t('pharmacy.pos.saved_offline')) %>, loading: <%- JSON.stringify(t('pharmacy.pos.loading')) %>
+    savedOff: <%- JSON.stringify(t('pharmacy.pos.saved_offline')) %>, loading: <%- JSON.stringify(t('pharmacy.pos.loading')) %>,
+    held: <%- JSON.stringify(t('ph.pos.held_done')) %>, resumed: <%- JSON.stringify(t('ph.pos.resumed')) %>,
+    discOffline: <%- JSON.stringify(t('ph.pos.disc_offline')) %>,
+    needMgr: <%- JSON.stringify(t('ph.pos.needs_manager_why')) %>,
+    badMgr: <%- JSON.stringify(t('ph.pos.bad_approval')) %>
   };
+  // The ceiling this cashier may apply alone. The server checks again at
+  // checkout — this only decides whether the till asks for a manager.
+  var DISC_MAX = <%- JSON.stringify(Number(discountMax) || 0) %>;
   var DBNAME = 'oscardevs_pos_<%= company.id %>';
   var $ = function(id){ return document.getElementById(id); };
   function nm(it){ return (LANG==='en' && it.name_en) ? it.name_en : it.name_ar; }
@@ -74,11 +118,15 @@
   var db = null;
   function openDB(){
     return new Promise(function(res, rej){
-      var r = indexedDB.open(DBNAME, 1);
+      // Version 2 adds the parked baskets. onupgradeneeded runs for a browser
+      // still on 1, so a till that has been open since yesterday picks the
+      // store up without losing its queue.
+      var r = indexedDB.open(DBNAME, 2);
       r.onupgradeneeded = function(e){
         var d = e.target.result;
         if(!d.objectStoreNames.contains('inv')) d.createObjectStore('inv', { keyPath:'medicine_id' });
         if(!d.objectStoreNames.contains('queue')) d.createObjectStore('queue', { keyPath:'uid' });
+        if(!d.objectStoreNames.contains('held')) d.createObjectStore('held', { keyPath:'uid' });
       };
       r.onsuccess = function(e){ res(e.target.result); };
       r.onerror = function(){ rej(r.error); };
@@ -209,27 +257,142 @@
     });
     $('posEmpty').classList.toggle('hidden', any);
     $('posFooter').classList.toggle('hidden', !any);
-    $('posTotal').textContent = total.toFixed(2);
+    var pct = discPct();
+    var cut = Math.min(total, Math.round(total * pct) / 100);
+    $('posDiscAmt').textContent = cut ? ('−' + cut.toFixed(2) + ' ' + CUR) : '';
+    $('posTotal').textContent = (total - cut).toFixed(2);
   }
+  function discPct(){
+    var v = Number($('posDisc').value);
+    if(!isFinite(v) || v <= 0) return 0;
+    return Math.min(100, Math.round(v * 100) / 100);
+  }
+  $('posDisc').addEventListener('input', render);
+
+  // ── Parked baskets ──
+  // The queue keeps moving when a customer goes back for one more thing. Stored
+  // in the same local database as the offline queue, so it works with the
+  // internet down — which is exactly when a pharmacy least wants a stuck till.
+  function renderHeld(){
+    return getAll('held').then(function(rows){
+      var box=$('posHeld'); box.innerHTML='';
+      $('posHeldBox').classList.toggle('hidden', !rows.length);
+      rows.sort(function(a,b){ return b.ts - a.ts; }).forEach(function(h){
+        var n=h.items.reduce(function(s,i){ return s+i.qty; },0);
+        var sum=h.items.reduce(function(s,i){ return s+i.price*i.qty; },0);
+        var row=document.createElement('div');
+        row.className='py-2 flex items-center justify-between gap-2';
+        row.innerHTML='<div class="min-w-0"><div class="font-bold truncate">'+esc(h.items.map(function(i){return i.name;}).join(' · '))+'</div>'
+          +'<div style="color:#6b7280;font-size:.8rem">'+n+' × · '+sum.toFixed(2)+' '+CUR+'</div></div>';
+        var ctrl=document.createElement('div'); ctrl.className='flex items-center gap-1 shrink-0';
+        var take=document.createElement('button');
+        take.className='text-sm font-bold bg-emerald-50 text-emerald-700 rounded-lg px-3 py-1.5';
+        take.textContent=<%- JSON.stringify(t('ph.pos.resume')) %>;
+        take.onclick=function(){
+          // Merged, not replaced: dropping whatever is on the screen to bring a
+          // parked basket back would lose a sale in progress.
+          h.items.forEach(function(i){
+            if(!cart[i.medicine_id]) cart[i.medicine_id]={ name:i.name, price:i.price, qty:0, available:i.available||i.qty };
+            cart[i.medicine_id].qty += i.qty;
+          });
+          del('held', h.uid).then(renderHeld).then(function(){ render(); toast(MSG.resumed); });
+        };
+        var drop=document.createElement('button');
+        drop.className='text-sm text-gray-400 hover:text-red-600 px-2';
+        drop.textContent='✕';
+        drop.onclick=function(){ del('held', h.uid).then(renderHeld); };
+        ctrl.appendChild(take); ctrl.appendChild(drop);
+        row.appendChild(ctrl); box.appendChild(row);
+      });
+    });
+  }
+  $('posHold').onclick=function(){
+    var items=cartItems();
+    if(!items.length) return;
+    put('held', { uid:uidGen(), items:items, ts:Date.now() }).then(function(){
+      cart={}; $('posDisc').value=0; render(); toast(MSG.held); return renderHeld();
+    });
+  };
+
+  function cartItems(){
+    return Object.keys(cart).filter(function(id){return cart[id].qty>0;}).map(function(id){
+      return { medicine_id:parseInt(id,10), qty:cart[id].qty, price:cart[id].price,
+               name:cart[id].name, available:cart[id].available };
+    });
+  }
+
+  // ── The manager approval dialog ──
+  var pendingApproval = null;
+  function askManager(why){
+    $('posApproveWhy').textContent = why;
+    $('posApproveErr').classList.add('hidden');
+    $('posMgrUser').value=''; $('posMgrPw').value='';
+    $('posApprove').classList.remove('hidden');
+    $('posMgrUser').focus();
+  }
+  $('posMgrCancel').onclick=function(){ $('posApprove').classList.add('hidden'); pendingApproval=null; };
+  $('posMgrOk').onclick=function(){
+    if(!pendingApproval) return;
+    pendingApproval($('posMgrUser').value, $('posMgrPw').value);
+  };
 
   // Checkout: queue the sale locally, decrement local stock, then try to sync.
   $('posCheckout').onclick=function(){
-    var items=Object.keys(cart).filter(function(id){return cart[id].qty>0;}).map(function(id){
-      return { medicine_id:parseInt(id,10), qty:cart[id].qty, price:cart[id].price, name:cart[id].name };
-    });
+    var items=cartItems();
     if(!items.length) return;
-    var sale={ uid:uidGen(), items:items, ts:Date.now() };
+    var pct=discPct();
+
+    // Above this cashier's ceiling: a manager signs in, ONLINE, because there
+    // is no way to check a password against nothing. Offline the sale still
+    // goes through — at the discount the cashier was allowed to give — and the
+    // difference lands on the review list for a human to settle.
+    if(pct > DISC_MAX){
+      if(!navigator.onLine){ toast(MSG.discOffline); return; }
+      pendingApproval = function(user, pw){
+        sendOnline(items, pct, user, pw);
+      };
+      askManager(MSG.needMgr.replace('{max}', DISC_MAX));
+      return;
+    }
+    queueSale(items, pct);
+  };
+
+  // An approved discount cannot go through the offline queue — the approval is
+  // the whole point and only the server can check it — so it is sent directly.
+  function sendOnline(items, pct, user, pw){
+    fetch('/pharmacy/pos/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ items:items, discount_percent:pct, approver_user:user, approver_password:pw })})
+      .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+      .then(function(out){
+        if(!out.ok || !out.j.ok){
+          $('posApproveErr').textContent = MSG.badMgr;
+          $('posApproveErr').classList.remove('hidden');
+          return;
+        }
+        $('posApprove').classList.add('hidden'); pendingApproval=null;
+        cart={}; $('posDisc').value=0; render();
+        toast(MSG.done);
+        refreshInventory();
+      })
+      .catch(function(){
+        $('posApproveErr').textContent = MSG.badMgr;
+        $('posApproveErr').classList.remove('hidden');
+      });
+  }
+
+  function queueSale(items, pct){
+    var sale={ uid:uidGen(), items:items, discount_percent:pct, ts:Date.now() };
     put('queue', sale).then(function(){
       // optimistic local stock decrement
       return Promise.all(items.map(function(it){
         return new Promise(function(res){ var rq=tx('inv','readwrite').get(it.medicine_id); rq.onsuccess=function(e){ var rec=e.target.result; if(rec){ rec.available=Math.max(0,(Number(rec.available)||0)-it.qty); tx('inv','readwrite').put(rec); } res(); }; rq.onerror=function(){res();}; });
       }));
     }).then(function(){
-      cart={}; render();
+      cart={}; $('posDisc').value=0; render();
       toast(navigator.onLine ? MSG.done : MSG.savedOff);
       trySync();
     });
-  };
+  }
 
   // Flush the offline queue to the server (idempotent via uid).
   var syncing=false;
@@ -238,7 +401,7 @@
     syncing=true;
     return getAll('queue').then(function(q){
       if(!q.length){ syncing=false; updateStatus(); return; }
-      var sales=q.map(function(s){ return { offline_uid:s.uid, items:s.items }; });
+      var sales=q.map(function(s){ return { offline_uid:s.uid, items:s.items, discount_percent:s.discount_percent||0 }; });
       return fetch('/pharmacy/pos/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sales:sales})})
         .then(function(r){ return r.json(); }).then(function(res){
           var done=(res && res.synced) || [];
@@ -291,7 +454,8 @@
   };
 
   // ── Boot ──
-  openDB().then(function(d){ db=d; return refreshInventory(); }).then(function(){ trySync(); updateStatus(); }).catch(function(){
+  openDB().then(function(d){ db=d; return refreshInventory(); })
+    .then(function(){ trySync(); updateStatus(); return renderHeld(); }).catch(function(){
     // IndexedDB unavailable — degrade gracefully to online-only search.
     toast(MSG.loading);
   });

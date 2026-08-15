@@ -282,6 +282,25 @@ async function ensurePharmacySchema() {
       CREATE INDEX IF NOT EXISTS idx_pharm_sales_ref
         ON pharmacy_sales (company_id, ref_sale_id) WHERE ref_sale_id IS NOT NULL;
 
+      /* Discounts, and who allowed them.
+       *
+       * A cashier who can discount without limit can hand the shop away one
+       * pound at a time, and a cashier who cannot discount at all sends every
+       * regular customer to find the owner. So there is a per-pharmacy ceiling
+       * a cashier may apply alone, and anything above it needs a manager to
+       * sign in — on the spot, at the till.
+       *
+       * The amount is stored as well as the percent, because the percent is the
+       * input and the money is the fact. Recomputing "15% of what it was" later
+       * needs a price that may since have changed.
+       */
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0;
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS discount_percent NUMERIC(5,2) NOT NULL DEFAULT 0;
+      -- Who approved an over-limit discount. NULL means it was within the
+      -- cashier's own ceiling and needed nobody.
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS discount_by INTEGER;
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS discount_by_name TEXT;
+
       CREATE TABLE IF NOT EXISTS pharmacy_sale_items (
         id SERIAL PRIMARY KEY,
         sale_id INTEGER REFERENCES pharmacy_sales(id) ON DELETE CASCADE,
@@ -333,6 +352,11 @@ async function ensurePharmacySchema() {
       ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS lng NUMERIC(9,6);
       -- Storefront: show product photos, or list medicines as names only.
       ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS show_images BOOLEAN DEFAULT true;
+      -- The most a cashier may discount at the till without a manager signing
+      -- in. Zero by default: a pharmacy that has not thought about this has not
+      -- authorised anybody to give money away. (Lives here and not with the
+      -- sales columns above, because the ALTER has to follow its own CREATE.)
+      ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS cashier_discount_max NUMERIC(5,2) NOT NULL DEFAULT 0;
     `);
 
     await seedCatalog(client);

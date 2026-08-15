@@ -10,6 +10,7 @@ const staffScope = require('../lib/staff_scope');
 const stock = require('../pharmacy/stock');
 const batches = require('../pharmacy/batches');
 const returns = require('../pharmacy/returns');
+const discount = require('../pharmacy/discount');
 const gs1 = require('../pharmacy/gs1');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
@@ -629,11 +630,14 @@ router.post('/settings', gate('settings'), async (req, res) => {
       `UPDATE pharmacy_settings SET
          online_store_enabled=$1, delivery_enabled=$2, delivery_fee=$3,
          is_night_shift=$4, whatsapp=$5, address=$6, lat=$7, lng=$8,
-         show_images=$9, updated_at=now()
-       WHERE company_id=$10`,
+         show_images=$9, cashier_discount_max=$10, updated_at=now()
+       WHERE company_id=$11`,
       [b.online_store_enabled === 'on', b.delivery_enabled === 'on', toNum(b.delivery_fee, 0),
        b.is_night_shift === 'on', (b.whatsapp || '').trim() || null, (b.address || '').trim() || null,
-       lat, lng, b.show_images === 'on', req.company.id]
+       lat, lng, b.show_images === 'on',
+       // Clamped here as well as in the form: a percent over 100 is not a
+       // discount, it is the pharmacy paying the customer to leave.
+       Math.min(100, Math.max(0, toNum(b.cashier_discount_max, 0))), req.company.id]
     );
     res.redirect('/pharmacy/settings?saved=1');
   } catch (e) {
@@ -643,8 +647,17 @@ router.post('/settings', gate('settings'), async (req, res) => {
 });
 
 /* ─── POS (point of sale) ───────────────────────────────── */
-router.get('/pos', gate('pos'), (req, res) => {
-  res.render('pharmacy_admin/pos', { company: req.company, session: req.session });
+router.get('/pos', gate('pos'), async (req, res) => {
+  const st = (await pool.query(
+    'SELECT cashier_discount_max FROM pharmacy_settings WHERE company_id = $1', [req.company.id]
+  )).rows[0] || {};
+  // What THIS cashier may give away without fetching anybody. The server checks
+  // it again at checkout — this only decides whether the till asks.
+  const max = req.session.staffId
+    ? (discount.APPROVER_ROLES.includes(req.session.staffRole)
+      ? 100 : Number(st.cashier_discount_max) || 0)
+    : 100;
+  res.render('pharmacy_admin/pos', { company: req.company, session: req.session, discountMax: max });
 });
 
 // JSON search over this pharmacy's stock — used by the POS and (later) the
@@ -717,10 +730,28 @@ router.post('/pos/checkout', gate('pos'), async (req, res) => {
       lines.push({ medicine_id: mid, name: inv.name_ar, qty, price, cost });
     }
     if (!lines.length) { await client.query('ROLLBACK'); return res.status(400).json({ ok: false, error: 'empty' }); }
+
+    // The discount is settled on the SERVER against the price the server just
+    // computed. A percent from the browser is a request; a role from the
+    // browser is a suggestion; neither decides anything on its own.
+    const settings = (await client.query(
+      'SELECT cashier_discount_max FROM pharmacy_settings WHERE company_id = $1', [cid])).rows[0] || {};
+    const disc = await discount.settle(pool, cid, req.session, settings, total, req.body || {});
+    if (disc.error) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ ok: false, error: disc.error,
+        max: Number(settings.cashier_discount_max) || 0 });
+    }
+    total -= disc.amount;
+    profit -= disc.amount;      // a discount comes out of the margin, not the cost
+
     await stock.sellDirect(client, cid, lines);
     const sale = (await client.query(
-      `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id) VALUES ($1,'sale',$2,$3,$4) RETURNING id`,
-      [cid, total, profit, req.session.staffId || null]
+      `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id,
+                                   discount_amount, discount_percent, discount_by, discount_by_name)
+       VALUES ($1,'sale',$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      [cid, total, profit, req.session.staffId || null,
+        disc.amount, disc.percent, disc.byId, disc.byName]
     )).rows[0];
     // Which lots the boxes came out of, nearest expiry first. The aggregate has
     // already moved above; this only writes down WHICH batch, so a recall can
@@ -733,7 +764,7 @@ router.post('/pos/checkout', gate('pos'), async (req, res) => {
       );
     }
     await client.query('COMMIT');
-    res.json({ ok: true, total, profit });
+    res.json({ ok: true, total, profit, discount: disc.amount, approved_by: disc.byName });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('pos checkout error:', e.message);
@@ -804,6 +835,9 @@ router.post('/pos/sync', gate('pos'), async (req, res) => {
   const cid = req.company.id;
   const sales = Array.isArray(req.body && req.body.sales) ? req.body.sales : [];
   const synced = [];
+  // Read once, not per sale — a queue flush can carry a whole morning.
+  const psettings = (await pool.query(
+    'SELECT cashier_discount_max FROM pharmacy_settings WHERE company_id = $1', [cid])).rows[0] || {};
   for (const s of sales) {
     const uid = String((s && s.offline_uid) || '').slice(0, 64);
     const items = Array.isArray(s && s.items) ? s.items : [];
@@ -830,22 +864,42 @@ router.post('/pos/sync', gate('pos'), async (req, res) => {
         lines.push({ medicine_id: mid, name: inv ? inv.name_ar : (raw.name || ''), qty, price, cost });
       }
       if (!lines.length) { await client.query('ROLLBACK'); continue; }
+      /* A discount that arrives from an offline queue.
+       *
+       * Only up to the cashier's own ceiling. An over-limit discount needs a
+       * manager to sign in, and there was no server to check that against when
+       * the till was offline — so accepting a queued 40% because the browser
+       * says a manager approved it would make the approval theatre. The sale
+       * still goes through at the discount the cashier WAS allowed to give, and
+       * the difference is flagged for the same review list as a stock
+       * discrepancy: a human decides, which is the only honest outcome.
+       */
+      const askedPct = discount.normalise(s && s.discount_percent);
+      const ceiling = Number(psettings.cashier_discount_max) || 0;
+      const allowedPct = req.session.staffId ? Math.min(askedPct, ceiling) : askedPct;
+      const discAmt = discount.amountOf(total, allowedPct);
+      const discCut = askedPct > allowedPct;
+      total -= discAmt; profit -= discAmt;
+
       // The sale is applied either way — it already happened at the counter.
       // But if the shelf did not have what it sold, that is a discrepancy
       // somebody has to walk over and count, not a number to floor at zero and
       // forget. The pharmacist gets a review list instead of a quiet loss.
       const short = await stock.sellDirect(client, cid, lines);
-      const note = short.length
-        ? short.map((x) => {
-          const l = lines.find((y) => y.medicine_id === x.medicine_id);
-          return `${(l && l.name) || ('#' + x.medicine_id)}: اتباع ${x.wanted} والنظام كان شايف ${x.had}`;
-        }).join(' · ').slice(0, 500)
-        : null;
+      const notes = short.map((x) => {
+        const l = lines.find((y) => y.medicine_id === x.medicine_id);
+        return `${(l && l.name) || ('#' + x.medicine_id)}: اتباع ${x.wanted} والنظام كان شايف ${x.had}`;
+      });
+      if (discCut) {
+        notes.push(`خصم ${askedPct}% اتسجّل ${allowedPct}% — محتاج موافقة مدير ومكانش فيه نت`);
+      }
+      const note = notes.length ? notes.join(' · ').slice(0, 500) : null;
       const sale = (await client.query(
         `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id, offline_uid,
-                                     needs_review, review_note)
-         VALUES ($1,'sale',$2,$3,$4,$5,$6,$7) ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
-        [cid, total, profit, req.session.staffId || null, uid, short.length > 0, note]
+                                     needs_review, review_note, discount_amount, discount_percent)
+         VALUES ($1,'sale',$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
+        [cid, total, profit, req.session.staffId || null, uid,
+          short.length > 0 || discCut, note, discAmt, allowedPct]
       )).rows[0];
       if (sale) {
         for (const l of lines) {
