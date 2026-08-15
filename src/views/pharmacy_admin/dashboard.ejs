@@ -24,8 +24,14 @@
         { label: t('pharmacy.admin.stock_review'), val: (typeof reviewCount !== 'undefined' ? reviewCount : 0), cls: 'text-rose-600', href: '/pharmacy/stock-review' }
       ];
       if (__canFin) {
-        cards.push({ label: t('pharmacy.admin.today_sales'), val: Number(today.sales||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-gray-900' });
+        /* Net of returns — the figure is a plain SUM over sales AND returns,
+           and a return is stored negative. It used to count money that had
+           already been handed back over the counter. */
+        cards.push({ label: t('pharmacy.admin.today_sales'), val: Number(today.sales||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-gray-900', href: '/pharmacy/sales' });
         cards.push({ label: t('pharmacy.admin.today_profit'), val: Number(today.profit||0).toFixed(0) + ' ' + t('pharmacy.currency'), cls: 'text-emerald-700' });
+        if (Number(today.returns || 0) > 0) {
+          cards.push({ label: t('ph.sales.refunded_today'), val: Number(today.returns), cls: 'text-red-600', href: '/pharmacy/sales' });
+        }
       }
     %>
     <%

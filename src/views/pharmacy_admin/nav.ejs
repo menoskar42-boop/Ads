@@ -9,6 +9,7 @@
       <% var P = (typeof perms !== 'undefined' && perms) ? perms : { pos:true, inventory:true, orders:true, settings:true, staff:true }; %>
       <a href="/pharmacy" class="px-3 py-1.5 rounded-lg <%= __active==='dashboard'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.dashboard') %></a>
       <% if (P.pos) { %><a href="/pharmacy/pos" class="px-3 py-1.5 rounded-lg <%= __active==='pos'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.pos') %></a><% } %>
+      <% if (P.pos) { %><a href="/pharmacy/sales" class="px-3 py-1.5 rounded-lg <%= __active==='sales'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('ph.sales.title') %></a><% } %>
       <% if (P.inventory) { %><a href="/pharmacy/inventory" class="px-3 py-1.5 rounded-lg <%= __active==='inventory'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.inventory') %></a><% } %>
       <% if (P.orders) { %><a href="/pharmacy/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.orders') %></a><% } %>
       <% if (P.staff) { %><a href="/pharmacy/staff" class="px-3 py-1.5 rounded-lg <%= __active==='staff'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.staff') %></a><% } %>

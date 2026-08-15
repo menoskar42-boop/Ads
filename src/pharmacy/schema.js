@@ -254,6 +254,34 @@ async function ensurePharmacySchema() {
       CREATE INDEX IF NOT EXISTS idx_pharm_sales_review
         ON pharmacy_sales (company_id, created_at DESC) WHERE needs_review;
 
+      /* Returns (مرتجعات).
+       *
+       * A pharmacy takes returns every day and there was nowhere to record one,
+       * so the day's takings counted money that had already gone back over the
+       * counter, and the shelf count stayed short of a box that was standing on
+       * it. Both numbers were wrong, quietly, every day.
+       *
+       * A return is a row in this same table with kind='return', so the takings
+       * are a plain SUM and net themselves. The convention, stated once here
+       * because it is the sort of thing that gets guessed wrong later: the
+       * HEADER carries signed money — a return's total_amount and profit are
+       * NEGATIVE, money leaving the till — while the ITEM rows carry positive
+       * quantities and `kind` says which way the boxes moved.
+       *
+       * ref_sale_id ties it to what was actually sold, so nobody can return
+       * three of something that was sold twice.
+       */
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS ref_sale_id INTEGER;
+      -- Whether the goods went back on the shelf. Not every return is
+      -- resellable — an opened box, or a fridge item that spent the afternoon
+      -- in a car, is a loss and not stock. The pharmacist decides per return,
+      -- and 'false' is the one that costs money, so it is never the default by
+      -- accident.
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS restock BOOLEAN NOT NULL DEFAULT true;
+      ALTER TABLE pharmacy_sales ADD COLUMN IF NOT EXISTS reason TEXT;
+      CREATE INDEX IF NOT EXISTS idx_pharm_sales_ref
+        ON pharmacy_sales (company_id, ref_sale_id) WHERE ref_sale_id IS NOT NULL;
+
       CREATE TABLE IF NOT EXISTS pharmacy_sale_items (
         id SERIAL PRIMARY KEY,
         sale_id INTEGER REFERENCES pharmacy_sales(id) ON DELETE CASCADE,

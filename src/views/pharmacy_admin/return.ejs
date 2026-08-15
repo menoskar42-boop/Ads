@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('ph.ret.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'sales' }) %>
+<%
+  var __errMsg = errorCode === 'too_many' ? t('ph.ret.err_too_many')
+    : (errorCode === 'empty' ? t('ph.ret.err_empty')
+    : (errorCode === 'not_on_sale' ? t('ph.ret.err_not_on_sale')
+    : (errorCode === 'save' ? t('ph.ret.err_save') : null)));
+  function money(v){ return Number(v || 0).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en', { maximumFractionDigits: 2 }); }
+  var anyLeft = lines.some(function(l){ return l.left > 0; });
+%>
+
+<main class="max-w-3xl mx-auto px-4 py-6">
+  <% if (__errMsg) { %><div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= __errMsg %></div><% } %>
+
+  <div class="flex items-center gap-2 mb-1 flex-wrap">
+    <a href="/pharmacy/sales" class="text-gray-400 hover:text-gray-600 text-sm">← <%= t('ph.sales.title') %></a>
+    <h1 class="text-2xl font-extrabold"><%= t('ph.ret.title') %></h1>
+    <span class="text-sm text-gray-400" dir="ltr">#<%= sale.id %></span>
+  </div>
+  <p class="text-sm text-gray-500 mb-5"><%= t('ph.ret.sub') %></p>
+
+  <% if (!anyLeft) { %>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-center text-gray-500 text-sm"><%= t('ph.ret.all_returned') %></div>
+  <% } else { %>
+  <form method="post" action="/pharmacy/sales/<%= sale.id %>/return">
+    <section class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto mb-5">
+      <table class="w-full text-sm min-w-[520px]">
+        <thead class="text-gray-500 text-xs border-b border-gray-100">
+          <tr>
+            <th class="text-start px-4 py-2.5"><%= t('pharmacy.admin.name_ar') %></th>
+            <th class="text-start px-4 py-2.5"><%= t('ph.ret.sold') %></th>
+            <th class="text-start px-4 py-2.5"><%= t('ph.ret.already') %></th>
+            <th class="text-start px-4 py-2.5"><%= t('ph.ret.can_return') %></th>
+            <th class="text-start px-4 py-2.5"><%= t('ph.ret.returning') %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% lines.forEach(function(l){ %>
+          <tr class="border-b border-gray-50 <%= l.left ? '' : 'text-gray-300' %>">
+            <td class="px-4 py-2.5 font-bold"><%= l.name %></td>
+            <td class="px-4 py-2.5"><%= l.sold %></td>
+            <td class="px-4 py-2.5"><%= l.returned || '—' %></td>
+            <td class="px-4 py-2.5 font-bold"><%= l.left %></td>
+            <td class="px-4 py-2.5">
+              <% if (l.left) { %>
+                <%# max is a courtesy; the server checks again inside the lock,
+                    because two tills refunding one receipt is the case that
+                    matters and the browser cannot see the other till. %>
+                <input type="number" name="qty[<%= l.medicine_id %>]" min="0" max="<%= l.left %>" value="0" class="fld w-20" />
+              <% } else { %>—<% } %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5">
+      <h2 class="font-bold text-sm mb-1"><%= t('ph.ret.where_go') %></h2>
+      <p class="text-xs text-gray-500 mb-3"><%= t('ph.ret.where_hint') %></p>
+      <%# Two radios and no preselected one: a default here decides whether an
+          opened box goes back on the shelf, and that is not a default's call. %>
+      <label class="flex items-start gap-2 mb-2 cursor-pointer">
+        <input type="radio" name="restock" value="1" required class="mt-1" />
+        <span>
+          <span class="font-bold text-sm"><%= t('ph.ret.restock') %></span>
+          <span class="block text-xs text-gray-500"><%= t('ph.ret.restock_hint') %></span>
+        </span>
+      </label>
+      <label class="flex items-start gap-2 cursor-pointer">
+        <input type="radio" name="restock" value="0" required class="mt-1" />
+        <span>
+          <span class="font-bold text-sm"><%= t('ph.ret.writeoff') %></span>
+          <span class="block text-xs text-gray-500"><%= t('ph.ret.writeoff_hint') %></span>
+        </span>
+      </label>
+      <div class="mt-3">
+        <span class="text-xs text-gray-500 block mb-1"><%= t('ph.ret.reason') %></span>
+        <input name="reason" maxlength="300" class="fld w-full" placeholder="<%= t('ph.ret.reason_ph') %>" />
+      </div>
+    </section>
+
+    <button class="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl px-6 py-2.5 text-sm"><%= t('ph.ret.confirm') %></button>
+  </form>
+  <% } %>
+</main>
+</body></html>

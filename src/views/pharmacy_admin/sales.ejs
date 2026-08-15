@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('ph.sales.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%- include('nav', { active: 'sales' }) %>
+<%
+  var __errMsg = errorCode === 'save' ? t('ph.ret.err_save')
+    : (errorCode === 'not_found' ? t('ph.ret.err_not_found') : null);
+  function money(v){ return Number(v || 0).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en', { maximumFractionDigits: 2 }); }
+  function when(v){ try { return new Date(v).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en'); } catch (e) { return String(v); } }
+%>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('pharmacy.admin.saved') %></div><% } %>
+  <% if (__errMsg) { %><div class="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-bold"><%= __errMsg %></div><% } %>
+
+  <h1 class="text-2xl font-extrabold mb-1"><%= t('ph.sales.title') %></h1>
+  <p class="text-sm text-gray-500 mb-5"><%= t('ph.sales.sub') %></p>
+
+  <div class="grid grid-cols-2 gap-3 mb-6">
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div class="text-xs text-gray-500 mb-1"><%= t('ph.sales.net_today') %></div>
+      <div class="text-2xl font-extrabold"><%= money(totals.net) %> <span class="text-sm font-normal text-gray-400"><%= t('pharmacy.currency') %></span></div>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      <div class="text-xs text-gray-500 mb-1"><%= t('ph.sales.refunded_today') %></div>
+      <%# Shown as a positive number with a minus in front of it, because
+          "-‎120" reads as money that went back, and "‎-‎-120" reads as nothing. %>
+      <div class="text-2xl font-extrabold <%= Number(totals.refunded) ? 'text-red-600' : 'text-gray-300' %>">
+        <%= Number(totals.refunded) ? '−' + money(Math.abs(Number(totals.refunded))) : money(0) %>
+        <span class="text-sm font-normal text-gray-400"><%= t('pharmacy.currency') %></span>
+      </div>
+    </div>
+  </div>
+
+  <% if (!rows.length) { %>
+    <p class="text-sm text-gray-400"><%= t('ph.sales.empty') %></p>
+  <% } %>
+
+  <div class="space-y-2">
+  <% rows.forEach(function(r){ var isRet = r.kind === 'return'; %>
+    <div class="bg-white rounded-2xl border <%= isRet ? 'border-red-100' : 'border-gray-100' %> shadow-sm p-4">
+      <div class="flex items-center gap-2 flex-wrap mb-2">
+        <span class="text-xs font-bold rounded-full px-2 py-0.5 <%= isRet ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700' %>">
+          <%= isRet ? t('ph.sales.kind_return') : t('ph.sales.kind_sale') %>
+        </span>
+        <span class="text-xs text-gray-400" dir="ltr">#<%= r.id %></span>
+        <% if (isRet && r.ref_sale_id) { %>
+          <span class="text-xs text-gray-500"><%= t('ph.sales.against') %> <span dir="ltr">#<%= r.ref_sale_id %></span></span>
+        <% } %>
+        <span class="text-xs text-gray-400"><%= when(r.created_at) %></span>
+        <% if (r.staff_name) { %><span class="text-xs text-gray-400">· <%= r.staff_name %></span><% } %>
+        <% if (r.needs_review) { %><span class="text-xs bg-amber-50 text-amber-700 rounded-full px-2 py-0.5"><%= t('ph.sales.needs_review') %></span><% } %>
+        <span class="ms-auto font-extrabold <%= isRet ? 'text-red-600' : '' %>">
+          <%= (isRet ? '−' : '') + money(Math.abs(Number(r.total_amount))) %> <span class="text-xs font-normal text-gray-400"><%= t('pharmacy.currency') %></span>
+        </span>
+      </div>
+
+      <div class="text-sm text-gray-600">
+        <% (r.items || []).forEach(function(it, i){ %><%= i ? ' · ' : '' %><%= it.name %> ×<%= it.qty %><% }); %>
+      </div>
+
+      <% if (isRet) { %>
+        <div class="text-xs mt-2 flex flex-wrap items-center gap-2">
+          <%# The one fact about a return that decides whether it is stock or a
+              loss, so it is on the row and not behind a click. %>
+          <span class="<%= r.restock ? 'text-emerald-700 bg-emerald-50' : 'text-amber-800 bg-amber-50' %> rounded-full px-2 py-0.5">
+            <%= r.restock ? t('ph.ret.restocked') : t('ph.ret.written_off') %>
+          </span>
+          <% if (r.reason) { %><span class="text-gray-500"><%= r.reason %></span><% } %>
+        </div>
+      <% } else { %>
+        <div class="mt-2 flex items-center gap-2">
+          <a href="/pharmacy/sales/<%= r.id %>/return" class="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg px-3 py-1.5"><%= t('ph.ret.make') %></a>
+          <% if (r.return_count) { %>
+            <span class="text-xs text-red-600"><%= t('ph.ret.has_returns').replace('{n}', r.return_count) %></span>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  <% }); %>
+  </div>
+</main>
+</body></html>

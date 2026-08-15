@@ -9,6 +9,7 @@ const requireLogin = require('../middleware/auth');
 const staffScope = require('../lib/staff_scope');
 const stock = require('../pharmacy/stock');
 const batches = require('../pharmacy/batches');
+const returns = require('../pharmacy/returns');
 const gs1 = require('../pharmacy/gs1');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
@@ -129,12 +130,17 @@ router.get('/', async (req, res) => {
                 AND GREATEST(qty - reserved_qty, 0) <= min_qty)::int AS low_stock
        FROM pharmacy_inventory WHERE company_id = $1`, [cid]
     )).rows[0];
+    // Returns included, and that is the point of them being rows here: a return
+    // carries a NEGATIVE total, so the takings net themselves. Filtering to
+    // kind='sale' would show the pharmacist money that already went back over
+    // the counter. `n` still counts sales only — a refund is not a sale.
     const today = (await pool.query(
       `SELECT COALESCE(SUM(total_amount),0)::numeric AS sales,
               COALESCE(SUM(profit),0)::numeric AS profit,
-              COUNT(*)::int AS n
+              COUNT(*) FILTER (WHERE kind = 'sale')::int AS n,
+              COUNT(*) FILTER (WHERE kind = 'return')::int AS returns
        FROM pharmacy_sales
-       WHERE company_id = $1 AND kind = 'sale' AND created_at::date = now()::date`, [cid]
+       WHERE company_id = $1 AND kind IN ('sale','return') AND created_at::date = now()::date`, [cid]
     )).rows[0];
     const pending = (await pool.query(
       "SELECT COUNT(*)::int AS n FROM pharmacy_orders WHERE company_id = $1 AND status = 'pending'", [cid]
@@ -349,6 +355,102 @@ router.post('/inventory/:id/delete', gate('inventory'), async (req, res) => {
     console.error('inventory delete error:', e.message);
     res.redirect('/pharmacy/inventory?error=1');
   }
+});
+
+/* ─── Sales & returns (المبيعات والمرتجعات) ─────────────────────────────── */
+/* There was no list of sales at all, which is why there were no returns: you
+ * cannot hand money back against a receipt you cannot find.
+ */
+router.get('/sales', gate('pos'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const rows = (await pool.query(
+      `SELECT s.id, s.kind, s.total_amount, s.profit, s.created_at, s.ref_sale_id,
+              s.restock, s.reason, s.needs_review, st.name AS staff_name,
+              COALESCE(json_agg(json_build_object('name', si.name, 'qty', si.qty, 'price', si.price)
+                       ORDER BY si.id) FILTER (WHERE si.id IS NOT NULL), '[]') AS items,
+              (SELECT COUNT(*)::int FROM pharmacy_sales r
+                WHERE r.company_id = s.company_id AND r.ref_sale_id = s.id AND r.kind = 'return') AS return_count
+         FROM pharmacy_sales s
+         LEFT JOIN pharmacy_sale_items si ON si.sale_id = s.id
+         LEFT JOIN pharmacy_staff st ON st.id = s.staff_id AND st.company_id = s.company_id
+        WHERE s.company_id = $1 AND s.kind IN ('sale','return')
+        GROUP BY s.id, st.name
+        ORDER BY s.created_at DESC, s.id DESC LIMIT 200`, [cid]
+    )).rows;
+    // Net of returns, over the same window the list shows — the header must not
+    // disagree with the rows under it.
+    const totals = (await pool.query(
+      `SELECT COALESCE(SUM(total_amount),0)::numeric AS net,
+              COALESCE(SUM(total_amount) FILTER (WHERE kind='return'),0)::numeric AS refunded
+         FROM pharmacy_sales
+        WHERE company_id = $1 AND kind IN ('sale','return') AND created_at::date = now()::date`, [cid]
+    )).rows[0];
+    res.render('pharmacy_admin/sales', {
+      company: req.company, session: req.session, rows, totals,
+      saved: req.query.saved === '1',
+      errorCode: String(req.query.error || '') || null,
+      errorName: String(req.query.name || '').slice(0, 80) || null,
+      errorLeft: toInt(req.query.left, null),
+    });
+  } catch (e) {
+    console.error('[sales]', e.message);
+    res.status(500).send('Error.');
+  }
+});
+
+// The return form for one receipt: what is still returnable, line by line.
+router.get('/sales/:id/return', gate('pos'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  try {
+    const state = await returns.returnable(pool, cid, id);
+    if (!state) return res.redirect('/pharmacy/sales');
+    res.render('pharmacy_admin/return', {
+      company: req.company, session: req.session,
+      sale: state.sale, lines: state.lines,
+      errorCode: String(req.query.error || '') || null,
+    });
+  } catch (e) {
+    console.error('[return form]', e.message);
+    res.redirect('/pharmacy/sales?error=save');
+  }
+});
+
+router.post('/sales/:id/return', gate('pos'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, null);
+  const b = req.body || {};
+  // qty[<medicine_id>] — only the lines with a quantity typed into them.
+  const lines = Object.keys(b.qty || {}).map((k) => ({
+    medicine_id: toInt(k, null), qty: toInt((b.qty || {})[k], 0),
+  })).filter((l) => l.medicine_id && l.qty > 0);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const out = await returns.record(client, cid, id, {
+      lines,
+      // Never a convenient default: putting an opened box back on the shelf is
+      // the mistake that costs a patient, not the pharmacy.
+      restock: b.restock === '1',
+      reason: b.reason,
+      staffId: req.session.staffId || null,
+    });
+    if (out.error) {
+      await client.query('ROLLBACK');
+      const q = new URLSearchParams({ error: out.error });
+      if (out.name) q.set('name', out.name);
+      if (out.left != null) q.set('left', String(out.left));
+      return res.redirect('/pharmacy/sales/' + id + '/return?' + q.toString());
+    }
+    await client.query('COMMIT');
+    res.redirect('/pharmacy/sales?saved=1');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[return]', e.message);
+    res.redirect('/pharmacy/sales/' + id + '/return?error=save');
+  } finally { client.release(); }
 });
 
 /* ─── Batches (تشغيلات) ─────────────────────────────────────────────────── */
