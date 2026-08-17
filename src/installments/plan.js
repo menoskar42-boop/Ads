@@ -116,8 +116,25 @@ function allocate(installments, payments, today) {
   const rows = (installments || []).slice()
     .sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0));
 
+  /* The deposit is takings, not an instalment.
+   *
+   * The schedule above is built from (total − down) and never contained the
+   * down payment — but the deposit IS recorded in inst_payments, because a shop
+   * that took 300 at the counter has collected 300 and its monthly figure has
+   * to say so. Summing every payment row against a schedule that already
+   * excluded the deposit counted it twice: a 1000 plan with 300 down and 700 of
+   * instalments read "completed" after the customer had paid 700 in all — and
+   * the shop quietly wrote off the 300 it was still owed, on every plan, for
+   * the whole life of the plan.
+   *
+   * So allocation skips the deposit rows. The money stays in the books; it just
+   * stops paying off instalments it was never part of.
+   */
   let paidPool = 0;
-  for (const p of payments || []) paidPool = round2(paidPool + Number(p.amount || 0));
+  for (const p of payments || []) {
+    if (p && p.is_down) continue;
+    paidPool = round2(paidPool + Number(p.amount || 0));
+  }
 
   const totalDue = round2(rows.reduce((s, r) => s + Number(r.amount || 0), 0));
   let pool = paidPool;

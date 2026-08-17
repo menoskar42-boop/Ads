@@ -80,7 +80,10 @@ async function planBoard(cid, opts) {
   const ids = plans.rows.map((p) => p.id);
   const [items, pays] = await Promise.all([
     pool.query('SELECT * FROM inst_items WHERE company_id=$1 AND plan_id = ANY($2) ORDER BY seq', [cid, ids]),
-    pool.query('SELECT plan_id, amount FROM inst_payments WHERE company_id=$1 AND plan_id = ANY($2)', [cid, ids]),
+    // is_down travels with every row that reaches allocate(): the deposit is
+    // takings but not an instalment, and a SELECT that drops the flag puts the
+    // double-count straight back without changing a line of the logic.
+    pool.query('SELECT plan_id, amount, is_down FROM inst_payments WHERE company_id=$1 AND plan_id = ANY($2)', [cid, ids]),
   ]);
   const byPlanItems = new Map();
   const byPlanPays = new Map();
@@ -246,8 +249,8 @@ router.post('/plans', async (req, res) => {
   // wrong by every deposit it took.
   if (sched.down > 0) {
     await pool.query(
-      `INSERT INTO inst_payments (company_id, plan_id, amount, method, note)
-       VALUES ($1,$2,$3,$4,'مقدّم')`,
+      `INSERT INTO inst_payments (company_id, plan_id, amount, method, note, is_down)
+       VALUES ($1,$2,$3,$4,'مقدّم',true)`,
       [cid, plan.id, sched.down, text(b.method, 20) || 'cash']);
   }
   res.redirect('/qastly/plans/' + plan.id);
@@ -296,7 +299,7 @@ router.post('/plans/:id/pay', async (req, res) => {
     // remember to mark plans finished ends up chasing customers who have paid.
     const [items, pays] = await Promise.all([
       pool.query('SELECT * FROM inst_items WHERE company_id=$1 AND plan_id=$2', [cid, id]),
-      pool.query('SELECT amount FROM inst_payments WHERE company_id=$1 AND plan_id=$2', [cid, id]),
+      pool.query('SELECT amount, is_down FROM inst_payments WHERE company_id=$1 AND plan_id=$2', [cid, id]),
     ]);
     const a = P.allocate(items.rows, pays.rows);
     if (a.settled) {

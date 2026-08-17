@@ -128,6 +128,21 @@ async function ensureInstallmentsSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_inst_payments ON inst_payments (company_id, plan_id, paid_at DESC);
+      /* The down payment is money that changed hands, so it belongs in this
+       * table — the shop's collected figure would be wrong by every deposit
+       * otherwise. But it is NOT a payment against the schedule: the schedule
+       * is built from (total − down) and never contained it.
+       *
+       * Counting it twice is what made a plan read "completed" while the shop
+       * was still owed exactly the deposit. This flag is what keeps the two
+       * meanings apart — the row is takings, and it is not an instalment.
+       */
+      ALTER TABLE inst_payments ADD COLUMN IF NOT EXISTS is_down BOOLEAN NOT NULL DEFAULT false;
+      -- Backfill for plans created before the flag existed. The deposit row is
+      -- identifiable: the code has always written that exact note and nothing
+      -- else writes it.
+      UPDATE inst_payments SET is_down = true
+       WHERE is_down = false AND note = 'مقدّم';
 
       CREATE TABLE IF NOT EXISTS inst_reminders (
         id          SERIAL PRIMARY KEY,
