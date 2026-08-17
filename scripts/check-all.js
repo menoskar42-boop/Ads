@@ -19,6 +19,7 @@ const CHECKS = [
   ['check-schema-columns',  'أعمدة الـINSERT موجودة في المخطط'],
   ['check-async-routes',    'أخطاء الـasync لا تعلّق الطلب'],
   ['check-page-types',      'أنواع النشاط مكتملة في كل الأماكن'],
+  ['check-canonical-urls',  'الكانونيكال بيتركّب صح + مفيش محتوى مخترع'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],

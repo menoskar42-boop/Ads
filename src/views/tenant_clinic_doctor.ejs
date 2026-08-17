@@ -8,8 +8,14 @@
   var __dName = doctor.name;
   var __dTitle = (__dName + (doctor.specialty ? (' — ' + doctor.specialty) : '') + ' | ' + __cName).slice(0, 60);
   var __dDesc = (doctor.bio || (__dName + ' - ' + (doctor.specialty || '') + ' ' + t('cp.d_in') + ' ' + __cName)).trim().slice(0, 155);
-  var __base = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com/');
-  var __canon = __base + 'doctor/' + doctor.slug;
+  /* The canonical has no trailing slash, so `__base + 'doctor/'` used to
+     produce `…oscardevs.comdoctor/ahmed` — a dead URL that was the canonical,
+     the og:url and the JSON-LD url of EVERY doctor page. companyPageUrl joins
+     it properly, in one place. */
+  var __base = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com');
+  var __canon = (typeof companyPageUrl === 'function')
+    ? companyPageUrl(company.slug, 'doctor/' + doctor.slug)
+    : (__base.replace(/\/+$/, '') + '/doctor/' + doctor.slug);
   var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
   var __booking = !clinicSettings || clinicSettings.booking_enabled !== false;
   var __wa = clinicSettings && clinicSettings.whatsapp ? String(clinicSettings.whatsapp).replace(/[^0-9]/g, '') : '';

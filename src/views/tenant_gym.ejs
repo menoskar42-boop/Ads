@@ -12,7 +12,10 @@
   var about = g.about || company.description || 'جيم متكامل بأحدث الأجهزة ومدرّبين معتمدين. ابدأ رحلتك النهاردة.';
   var cTitle = (gName + ' — جيم ولياقة').slice(0, 60);
   var cDesc = (about || tagline).toString().slice(0, 155);
-  var canon = 'https://' + company.slug + '.oscardevs.com/';
+  /* The domain is configuration, not a constant — a hardcoded one makes the
+     canonical lie on every other host the site is served from. */
+  var canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug)
+    : ('https://' + company.slug + '.oscardevs.com');
   var days = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
   var wa = (g.whatsapp || '').replace(/[^0-9]/g,'');
   var brandInitial = (gName || 'G').trim().charAt(0);
@@ -201,15 +204,34 @@
     </div>
   </header>
 
-  <!-- Stats -->
+  <%
+    /* Real numbers only.
+     *
+     * This strip used to print "12 مدرّب" and "40 كلاس" as `|| 12` fallbacks —
+     * i.e. exactly when the gym had none — plus a flat "+500 عضو نشط" and
+     * "24/7" that came from nowhere at all. Every empty gym advertised a staff,
+     * a timetable and a membership it did not have. That is a fabricated claim
+     * on a real business's page, and it is the same thing this site removed
+     * from its own home page for AdSense.
+     *
+     * So a figure appears only when it is counted from this gym's own data, and
+     * the strip disappears entirely when there is nothing true to say.
+     */
+    var __stats = [];
+    if (gymTrainers.length) __stats.push([gymTrainers.length, 'مدرّب']);
+    if (gymClasses.length) __stats.push([gymClasses.length, 'كلاس أسبوعياً']);
+    if (gymPlans.length) __stats.push([gymPlans.length, 'باقة اشتراك']);
+  %>
+  <% if (__stats.length) { %>
+  <!-- Stats — counted from this gym's own data, never filled in -->
   <section class="stats">
     <div class="wrap"><div class="stats__grid">
-      <div class="stat"><div class="stat__n"><%= gymTrainers.length || 12 %></div><div class="stat__l">مدرّب معتمد</div></div>
-      <div class="stat"><div class="stat__n"><%= gymClasses.length || 40 %></div><div class="stat__l">كلاس أسبوعياً</div></div>
-      <div class="stat"><div class="stat__n">+500</div><div class="stat__l">عضو نشط</div></div>
-      <div class="stat"><div class="stat__n">24/7</div><div class="stat__l">مفتوح طول الوقت</div></div>
+      <% __stats.forEach(function(st){ %>
+      <div class="stat"><div class="stat__n"><%= st[0] %></div><div class="stat__l"><%= st[1] %></div></div>
+      <% }); %>
     </div></div>
   </section>
+  <% } %>
 
   <!-- Features -->
   <section class="sec" id="features">
@@ -317,27 +339,15 @@
   </section>
   <% } %>
 
-  <!-- Results (before/after) — showcase placeholders the gym can replace -->
-  <section class="sec" id="results" style="background:#0d0d0d">
-    <div class="wrap">
-      <div class="reveal"><span class="ey">النتائج</span><h2 class="h2">قبل وبعد.. الفرق حقيقي</h2><p class="lead" style="margin-top:14px">أعضاء حقيقيين حقّقوا نتايج فعلية مع فريقنا. دورك جاي.</p></div>
-      <div class="ba">
-        <% [['خسّيت 18 كيلو في 5 شهور والعضلات بانت. المتابعة غيّرت حياتي.','محمود عبد الله','عضو من 2024'],['اتعلمت التكنيك الصح وبنيت كتلة عضلية حقيقية. أحسن قرار.','يوسف حسن','عضو من 2023']].forEach(function(b){ %>
-        <div class="bacard reveal">
-          <div class="bacard__imgs">
-            <div class="bacard__slot"><span class="bacard__lbl">قبل</span><div class="imgph"><%- DUMBBELL %></div></div>
-            <div class="bacard__slot"><span class="bacard__lbl bacard__lbl--a">بعد</span><div class="imgph"><%- DUMBBELL %></div></div>
-          </div>
-          <div class="bacard__body">
-            <div class="stars">★★★★★</div>
-            <p class="bacard__q">«<%= b[0] %>»</p>
-            <div class="bacard__who"><div class="bacard__av"><div class="imgph"></div></div><div><b><%= b[1] %></b><span><%= b[2] %></span></div></div>
-          </div>
-        </div>
-        <% }); %>
-      </div>
-    </div>
-  </section>
+  <%# The "before and after" section used to ship two invented members —
+      named, star-rated, with quoted results — under the line "أعضاء حقيقيين
+      حقّقوا نتايج فعلية". Invented testimonials on a real gym's page are a
+      fabricated claim about real people's results, and the reviews that flagged
+      it were right. It is removed rather than left as a placeholder: a
+      placeholder testimonial is still a testimonial while it is on the page.
+      When there is somewhere for a gym to enter its OWN before/after cases,
+      this section comes back reading from that. %>
+
 
   <!-- Gallery -->
   <section class="sec" id="gallery">

@@ -24,4 +24,23 @@ function canonicalCompanyUrl(slug, req) {
   return base ? `https://${slug}.${base}` : `/view/${safeSlug}`;
 }
 
-module.exports = { getBaseDomains, isProductionHost, matchedBase, canonicalCompanyUrl };
+/**
+ * A URL for a page INSIDE a company's site.
+ *
+ * `canonicalCompanyUrl` deliberately returns no trailing slash, so every caller
+ * that wanted a sub-page wrote `base + 'doctor/' + slug` and produced
+ * `https://clinic.oscardevs.comdoctor/ahmed` — a dead address. That string was
+ * the canonical, the og:url and the JSON-LD `url` on EVERY doctor page of
+ * EVERY clinic, so Google was being pointed at a 404 for all of them.
+ *
+ * Joining is not the caller's job. One slash, always, whichever base is in
+ * play — the production subdomain or the /view/<slug> path used off-domain.
+ */
+function companyPageUrl(slug, req, subPath) {
+  const base = canonicalCompanyUrl(slug, req);
+  const rest = String(subPath || '').replace(/^\/+/, '');
+  if (!rest) return base;
+  return base.replace(/\/+$/, '') + '/' + rest;
+}
+
+module.exports = { getBaseDomains, isProductionHost, matchedBase, canonicalCompanyUrl, companyPageUrl };

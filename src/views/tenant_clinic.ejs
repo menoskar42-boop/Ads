@@ -24,7 +24,13 @@
     var __cut = __cDesc.lastIndexOf(' ');
     if (__cut > 120) __cDesc = __cDesc.slice(0, __cut);
   }
-  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com/');
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com');
+  /* Same trap as the doctor page: the canonical carries no trailing slash, so
+     concatenating a sub-path onto it produced a dead address in the schema. */
+  var __docUrl = function(sl){
+    return (typeof companyPageUrl === 'function') ? companyPageUrl(company.slug, 'doctor/' + sl)
+      : (__canon.replace(/\/+$/, '') + '/doctor/' + sl);
+  };
   var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
   var __wa = clinicSettings && clinicSettings.whatsapp ? String(clinicSettings.whatsapp).replace(/[^0-9]/g, '') : '';
   var __phone = clinicSettings && clinicSettings.phone ? String(clinicSettings.phone).replace(/[^0-9+]/g, '') : '';
@@ -54,7 +60,7 @@
   __phone ? { telephone: __phone } : {},
   (clinicSettings && clinicSettings.address) ? { address: { '@type': 'PostalAddress', streetAddress: clinicSettings.address, addressCountry: 'EG' } } : {},
   __hasGeo ? { geo: { '@type': 'GeoCoordinates', latitude: Number(clinicSettings.map_lat), longitude: Number(clinicSettings.map_lng) }, hasMap: __mapUrl } : {},
-  (clinicDoctors && clinicDoctors.length) ? { employee: clinicDoctors.map(function(d){ return { '@type': 'Physician', name: d.name, medicalSpecialty: d.specialty || __spec, url: __canon + 'doctor/' + d.slug }; }) } : {}
+  (clinicDoctors && clinicDoctors.length) ? { employee: clinicDoctors.map(function(d){ return { '@type': 'Physician', name: d.name, medicalSpecialty: d.specialty || __spec, url: __docUrl(d.slug) }; }) } : {}
 )) %>
 </script>
 <% } %>

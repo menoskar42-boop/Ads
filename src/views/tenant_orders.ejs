@@ -12,7 +12,10 @@
   var __title = (__base.length + __brand.length) <= 60 ? (__base + __brand) : __base.slice(0, 60);
   var __desc = ((company.description || __base).trim()).slice(0, 155);
   var __theme = company.theme_color || '#e8734a';
-  var __canon = 'https://' + company.slug + '.oscardevs.com/';
+  /* The domain is configuration, not a constant — a hardcoded one makes the
+     canonical lie on every other host the site is served from. */
+  var __canon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug)
+    : ('https://' + company.slug + '.oscardevs.com');
   var __noindex = (typeof noindex !== 'undefined' && noindex);
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
   var __outlets = (typeof foodOutlets !== 'undefined' && foodOutlets) ? foodOutlets : [];
