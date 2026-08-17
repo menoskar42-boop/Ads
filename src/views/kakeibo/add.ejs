@@ -85,7 +85,7 @@
    AI only when needed). Fires once the user pauses typing. Never blocks saving. */
 (function(){
   var inp=document.getElementById('descInput'), sug=document.getElementById('aiSug');
-  var SUG=<%- JSON.stringify(t('ai.suggested')) %>, userTouched=false;
+  var SUG=<%- jsonLd(t('ai.suggested')) %>, userTouched=false;
   document.querySelectorAll('input[name="category"]').forEach(function(r){ r.addEventListener('change',function(){userTouched=true;}); });
   var timer=null, last='';
   function pick(cat){
@@ -115,7 +115,7 @@
 (function(){
   var btn=document.getElementById('voiceBtn'), msg=document.getElementById('capMsg');
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  var UNS=<%- JSON.stringify(t('ai.voice_unsupported')) %>, LIS=<%- JSON.stringify(t('ai.listening')) %>, HINT=<%- JSON.stringify(t('ai.voice_hint')) %>;
+  var UNS=<%- jsonLd(t('ai.voice_unsupported')) %>, LIS=<%- jsonLd(t('ai.listening')) %>, HINT=<%- jsonLd(t('ai.voice_hint')) %>;
   function show(t){ msg.textContent=t; msg.style.display=''; }
   if(!btn) return;
   if(!SR){ btn.addEventListener('click',function(){show(UNS);}); return; }
@@ -136,7 +136,7 @@
 // Receipt scan (OCR via vision) — triggered by the scan button / file pick.
 (function(){
   var scan=document.getElementById('scanBtn'), file=document.getElementById('receiptInput'), msg=document.getElementById('capMsg');
-  var AIEN=<%- JSON.stringify(!!aiEnabled) %>, SCAN=<%- JSON.stringify(t('ai.scan')) %>, DONE=<%- JSON.stringify(t('ai.scan_done')) %>, FAIL=<%- JSON.stringify(t('ai.scan_fail')) %>;
+  var AIEN=<%- jsonLd(!!aiEnabled) %>, SCAN=<%- jsonLd(t('ai.scan')) %>, DONE=<%- jsonLd(t('ai.scan_done')) %>, FAIL=<%- jsonLd(t('ai.scan_fail')) %>;
   if(scan&&file) scan.addEventListener('click',function(){ file.click(); });
   if(file&&AIEN) file.addEventListener('change',function(){
     if(!file.files||!file.files[0])return;

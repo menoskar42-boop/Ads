@@ -52,7 +52,7 @@
   "@type": "FAQPage",
   "mainEntity": [
     <% __faq.forEach(function(q, i){ %>
-    { "@type": "Question", "name": <%- JSON.stringify(q[0]) %>, "acceptedAnswer": { "@type": "Answer", "text": <%- JSON.stringify(q[1]) %> } }<%= i < __faq.length - 1 ? ',' : '' %>
+    { "@type": "Question", "name": <%- jsonLd(q[0]) %>, "acceptedAnswer": { "@type": "Answer", "text": <%- jsonLd(q[1]) %> } }<%= i < __faq.length - 1 ? ',' : '' %>
     <% }) %>
   ]
 }

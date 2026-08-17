@@ -23,7 +23,7 @@
 (function(){
   var log=document.getElementById('log'), form=document.getElementById('coachForm'), inp=document.getElementById('cInput'), send=document.getElementById('cSend');
   if(!form) return;
-  var OFF=<%- JSON.stringify(t('coach.off')) %>, LIM=<%- JSON.stringify(t('coach.limited')) %>, ERR=<%- JSON.stringify(t('coach.err')) %>;
+  var OFF=<%- jsonLd(t('coach.off')) %>, LIM=<%- jsonLd(t('coach.limited')) %>, ERR=<%- jsonLd(t('coach.err')) %>;
   var history=[], busy=false;
   function bubble(role,text){
     var w=document.createElement('div'); w.style.cssText='display:flex;'+(role==='user'?'justify-content:flex-start':'justify-content:flex-end');

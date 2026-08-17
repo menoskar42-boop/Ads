@@ -10,13 +10,13 @@
 {
   "@context": "https://schema.org",
   "@type": "<%= __orgType %>",
-  "name": <%- JSON.stringify(company.company_name) %>,
-  "url": <%- JSON.stringify(typeof canonicalCompanyUrl === 'function' ? canonicalCompanyUrl(company.slug) : (siteOrigin + '/view/' + company.slug)) %>,
-  <% if (company.logo_url) { %>"logo": <%- JSON.stringify(company.logo_url.indexOf('http') === 0 ? company.logo_url : (siteOrigin + company.logo_url)) %>,<% } %>
-  <% if (company.description) { %>"description": <%- JSON.stringify(company.description) %>,<% } %>
-  <% if (company.contact_email) { %>"email": <%- JSON.stringify(company.contact_email) %>,<% } %>
-  <% if (company.contact_phone) { %>"telephone": <%- JSON.stringify(company.contact_phone) %>,<% } %>
-  <% if (company.contact_address) { %>"address": { "@type": "PostalAddress", "streetAddress": <%- JSON.stringify(company.contact_address) %> },<% } %>
-  "sameAs": <%- JSON.stringify(__sameAs) %>
+  "name": <%- jsonLd(company.company_name) %>,
+  "url": <%- jsonLd(typeof canonicalCompanyUrl === 'function' ? canonicalCompanyUrl(company.slug) : (siteOrigin + '/view/' + company.slug)) %>,
+  <% if (company.logo_url) { %>"logo": <%- jsonLd(company.logo_url.indexOf('http') === 0 ? company.logo_url : (siteOrigin + company.logo_url)) %>,<% } %>
+  <% if (company.description) { %>"description": <%- jsonLd(company.description) %>,<% } %>
+  <% if (company.contact_email) { %>"email": <%- jsonLd(company.contact_email) %>,<% } %>
+  <% if (company.contact_phone) { %>"telephone": <%- jsonLd(company.contact_phone) %>,<% } %>
+  <% if (company.contact_address) { %>"address": { "@type": "PostalAddress", "streetAddress": <%- jsonLd(company.contact_address) %> },<% } %>
+  "sameAs": <%- jsonLd(__sameAs) %>
 }
 </script>

@@ -175,8 +175,8 @@
   </section>
   <script>
   (function(){
-    var KEY=<%- JSON.stringify(pushKey) %>, btn=document.getElementById('pushBtn'), msg=document.getElementById('pushMsg');
-    var ON=<%- JSON.stringify(t('push.on')) %>, DEN=<%- JSON.stringify(t('push.denied')) %>, OFF=<%- JSON.stringify(t('push.off')) %>, TEST=<%- JSON.stringify(t('push.test')) %>;
+    var KEY=<%- jsonLd(pushKey) %>, btn=document.getElementById('pushBtn'), msg=document.getElementById('pushMsg');
+    var ON=<%- jsonLd(t('push.on')) %>, DEN=<%- jsonLd(t('push.denied')) %>, OFF=<%- jsonLd(t('push.off')) %>, TEST=<%- jsonLd(t('push.test')) %>;
     function show(t){ msg.textContent=t; msg.style.display=''; }
     function b64(s){ var p='='.repeat((4-s.length%4)%4); var b=(s+p).replace(/-/g,'+').replace(/_/g,'/'); var r=atob(b),a=new Uint8Array(r.length); for(var i=0;i<r.length;i++)a[i]=r.charCodeAt(i); return a; }
     if(!('serviceWorker'in navigator)||!('PushManager'in window)||!KEY){ btn.disabled=true; show(OFF); return; }

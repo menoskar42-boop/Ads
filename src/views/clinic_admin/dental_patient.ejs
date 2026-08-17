@@ -275,9 +275,9 @@
      Chairside flow: pick a status once, then tap teeth. Changes are held
      locally and written in one request, because a page reload per tooth is
      unusable with a patient in the chair. */
-  var STATUS_COLORS = <%- JSON.stringify(statuses.reduce(function(a,s){ a[s.key]=s.color; return a; }, {})) %>;
-  var STATUS_LABELS = <%- JSON.stringify(SLABELS) %>;
-  var L = <%- JSON.stringify({
+  var STATUS_COLORS = <%- jsonLd(statuses.reduce(function(a,s){ a[s.key]=s.color; return a; }, {})) %>;
+  var STATUS_LABELS = <%- jsonLd(SLABELS) %>;
+  var L = <%- jsonLd({
     unsaved: t('dp.unsaved_teeth'),
     save:    t('dp.save_chart'),
     saving:  t('common.saving'),

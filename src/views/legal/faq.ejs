@@ -87,8 +87,8 @@
     <% faqs.forEach(function(f, i){ %>
     {
       "@type": "Question",
-      "name": <%- JSON.stringify(f.q) %>,
-      "acceptedAnswer": { "@type": "Answer", "text": <%- JSON.stringify(f.a.replace(/<[^>]*>/g, '')) %> }
+      "name": <%- jsonLd(f.q) %>,
+      "acceptedAnswer": { "@type": "Answer", "text": <%- jsonLd(f.a.replace(/<[^>]*>/g, '')) %> }
     }<%= i < faqs.length - 1 ? ',' : '' %>
     <% }) %>
   ]

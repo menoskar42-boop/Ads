@@ -108,11 +108,11 @@
 
 <script>
   var L = {
-    hint: <%- JSON.stringify(t('fn2.rt.pick_invoice')) %>,
-    none: <%- JSON.stringify(t('fn2.rt.nothing_left')) %>,
-    qty:  <%- JSON.stringify(t('fn2.po.qty')) %>,
-    max:  <%- JSON.stringify(t('fn2.rt.max')) %>,
-    fail: <%- JSON.stringify(t('fn2.rt.load_failed')) %>
+    hint: <%- jsonLd(t('fn2.rt.pick_invoice')) %>,
+    none: <%- jsonLd(t('fn2.rt.nothing_left')) %>,
+    qty:  <%- jsonLd(t('fn2.po.qty')) %>,
+    max:  <%- jsonLd(t('fn2.rt.max')) %>,
+    fail: <%- jsonLd(t('fn2.rt.load_failed')) %>
   };
   // Only one of the two blocks may submit. Hiding is not enough — a hidden
   // field still posts, and its product_id would land in the same array as the

@@ -65,8 +65,8 @@
 <p class="text-xs text-slate-400"><%= t('xr.hint') %></p>
 
 <script>
-  var shapes = <%- JSON.stringify(shapes) %>;
-  var L = <%- JSON.stringify({
+  var shapes = <%- jsonLd(shapes) %>;
+  var L = <%- jsonLd({
     promptText: t('xr.prompt_text'),
     saving:     t('common.saving'),
     saved:      t('xr.saved'),

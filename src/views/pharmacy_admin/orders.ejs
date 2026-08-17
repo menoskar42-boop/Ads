@@ -74,8 +74,8 @@
 <script>
 (function(){
   if (typeof L === 'undefined') return;
-  var shareTxt = <%- JSON.stringify(t('pharmacy.gps.share')) %>;
-  var stopTxt  = <%- JSON.stringify(t('pharmacy.gps.sharing')) %>;
+  var shareTxt = <%- jsonLd(t('pharmacy.gps.share')) %>;
+  var stopTxt  = <%- jsonLd(t('pharmacy.gps.sharing')) %>;
 
   // Live driver map per out-for-delivery order (poll the pharmacy endpoint).
   document.querySelectorAll('.drvmap').forEach(function(el){

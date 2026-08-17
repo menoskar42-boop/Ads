@@ -10,7 +10,7 @@
 <%# og:*/twitter:* come solely from seo_meta below — avoid duplicate/conflicting tags. %>
 <%- include('../partials/seo_meta', { title: __pageTitle, description: (article.metaDescription || article.excerpt).slice(0, 160), ogType: 'article', articleDate: article.date }) %>
 <script type="application/ld+json">
-<%- JSON.stringify({
+<%- jsonLd({
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": article.title,
@@ -95,7 +95,7 @@
       </div>
     </section>
     <script type="application/ld+json">
-    <%- JSON.stringify({
+    <%- jsonLd({
       "@context": "https://schema.org",
       "@type": "FAQPage",
       "mainEntity": article.faq.map(function(item){ return {

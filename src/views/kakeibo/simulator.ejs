@@ -40,8 +40,8 @@
 </main>
 <script>
 (function(){
-  var income=<%- JSON.stringify(income) %>, base=<%- JSON.stringify(baseline) %>;
-  var cur=<%- JSON.stringify((typeof profile!=='undefined'&&profile)?profile.currency:'EGP') %>;
+  var income=<%- jsonLd(income) %>, base=<%- jsonLd(baseline) %>;
+  var cur=<%- jsonLd((typeof profile!=='undefined'&&profile)?profile.currency:'EGP') %>;
   var isAr=document.documentElement.lang==='ar';
   function m(n){ n=Math.round(n); var s=n.toLocaleString(isAr?'ar-EG':'en-US'); return s+' '+cur; }
   var sliders=Array.prototype.slice.call(document.querySelectorAll('.sim-slider'));

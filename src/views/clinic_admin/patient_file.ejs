@@ -240,13 +240,13 @@
 </div>
 
 <script>
-var L = <%- JSON.stringify({
+var L = <%- jsonLd({
   medName:     t('pf.med_name'),
   medDose:     t('pf.med_dose'),
   medFreq:     t('pf.med_freq'),
   medDuration: t('pf.med_duration'),
 }) %>;
-var MED_EN_FIRST = <%- JSON.stringify(lang === 'en') %>;
+var MED_EN_FIRST = <%- jsonLd(lang === 'en') %>;
 function medName(m){
   // An English clinic reads the English trade name first; either way the other
   // name is the fallback, so a drug that only has one is never blank.

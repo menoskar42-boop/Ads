@@ -19,14 +19,27 @@ async function recompute(productId) {
   } catch (e) { console.error('[reviews recompute]', e.message); }
 }
 
-// The customer bought this product (has a matching order_item) → may review once.
+/**
+ * The customer actually received this product → may review it, once.
+ *
+ * "Has an order row" is not the same as "bought it". Cash on delivery means an
+ * order exists the moment somebody types a name and an address, and a
+ * cancelled or rejected order proves nothing at all — so the badge said
+ * "verified purchase" on a review written by a person who had never been sent
+ * the item. That is the difference between a review system and a comment box
+ * with a badge on it.
+ */
+const RECEIVED = ['delivered', 'completed'];
+
 async function hasPurchased(customerId, productId) {
   if (!customerId || !productId) return null;
   try {
     const r = await pool.query(
       `SELECT o.id FROM orders o JOIN order_items oi ON oi.order_id = o.id
-       WHERE o.customer_id = $1 AND oi.product_id = $2 ORDER BY o.id DESC LIMIT 1`,
-      [customerId, productId]
+       WHERE o.customer_id = $1 AND oi.product_id = $2
+         AND o.status = ANY($3::text[])
+       ORDER BY o.id DESC LIMIT 1`,
+      [customerId, productId, RECEIVED]
     );
     return r.rows.length ? r.rows[0].id : null;
   } catch (e) { return null; }
@@ -71,4 +84,4 @@ async function forProduct(productId, limit) {
   } catch (e) { console.error('[reviews forProduct]', e.message); return { reviews: [], breakdown: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } }; }
 }
 
-module.exports = { recompute, hasPurchased, existingReview, forProduct };
+module.exports = { RECEIVED, recompute, hasPurchased, existingReview, forProduct };

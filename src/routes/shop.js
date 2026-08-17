@@ -691,8 +691,19 @@ router.post('/:slug/product/:id/review', async (req, res) => {
     const rating = Math.max(1, Math.min(5, parseInt(req.body.rating, 10) || 0));
     if (!orderId || already || !rating) return res.redirect(back);
     await pool.query(
+      /* Not published on arrival.
+       *
+       * The rating is a number and safe; the title and the body are free text
+       * from the public that lands on a merchant's product page and in its
+       * structured data. Auto-approving them made the page a posting board
+       * anybody could write on — which is how the escaping bug became reachable
+       * by strangers rather than only by the merchant.
+       *
+       * `is_verified` stays true because it now means something: hasPurchased
+       * only passes for an order that was actually received.
+       */
       `INSERT INTO product_reviews (product_id, company_id, customer_id, order_id, rating, title, body, is_verified, is_approved)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,true,true)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,true,false)
        ON CONFLICT (product_id, customer_id) WHERE customer_id IS NOT NULL DO NOTHING`,
       [productId, company.id, req.session.customerId, orderId, rating,
         String(req.body.title || '').trim().slice(0, 120) || null,

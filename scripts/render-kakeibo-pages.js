@@ -17,6 +17,9 @@ const ejs = require('ejs');
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
+// Views embed JSON in <script> through jsonLd; Express supplies it as a local,
+// so a fixture that renders a view directly has to supply it too.
+const { safeJson } = require('../src/lib/safe_json');
 const V = path.join(ROOT, 'src/views/kakeibo');
 const { makeT } = require(path.join(ROOT, 'src/kakeibo/i18n'));
 
@@ -33,6 +36,7 @@ function base(lang) {
   return {
     lang, dir: lang === 'en' ? 'ltr' : 'rtl',
     t: makeT(lang),
+    jsonLd: safeJson,
     money: (v) => String(Math.round(Number(v) || 0)),
     num: (v) => String(v),
     CATEGORIES,

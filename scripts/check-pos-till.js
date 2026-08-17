@@ -31,6 +31,9 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
+// Views embed JSON in <script> through jsonLd; Express supplies it as a local,
+// so a fixture that renders a view directly has to supply it too.
+const { safeJson } = require('../src/lib/safe_json');
 const D = require('../src/pharmacy/discount');
 
 let fail = 0;
@@ -179,7 +182,7 @@ function rest() {
     const VIEWS = path.join(ROOT, 'src/views');
     const base = {
       company: { id: 1, company_name: 'صيدلية', slug: 'demo' }, session: {},
-      lang: 'ar', dir: 'rtl', t,
+      lang: 'ar', dir: 'rtl', t, jsonLd: safeJson,
       perms: { role: 'cashier', pos: true, inventory: false, orders: true, settings: false, staff: false, canFinance: false },
     };
     const pf = path.join(VIEWS, 'pharmacy_admin/pos.ejs');

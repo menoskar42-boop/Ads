@@ -186,15 +186,15 @@
   }
 </style>
 <script>
-  var PREV = <%- JSON.stringify((previous && previous.data) || null) %>;
+  var PREV = <%- jsonLd((previous && previous.data) || null) %>;
 
   /* ── Phone: one tooth at a time ──────────────────────────────────────── */
-  var TEETH = <%- JSON.stringify([].concat.apply([], upper).concat([].concat.apply([], lower))) %>;
-  var QUAD = <%- JSON.stringify({
+  var TEETH = <%- jsonLd([].concat.apply([], upper).concat([].concat.apply([], lower))) %>;
+  var QUAD = <%- jsonLd({
     u0: t('perio.quad.u_right'), u1: t('perio.quad.u_left'),
     l0: t('perio.quad.l_right'), l1: t('perio.quad.l_left'),
   }) %>;
-  var L = <%- JSON.stringify({
+  var L = <%- jsonLd({
     mm:        t('perio.mm'),
     unchanged: t('perio.unchanged'),
     improved:  t('perio.improved'),

@@ -88,21 +88,21 @@
 
 <script>
 (function(){
-  var CUR  = <%- JSON.stringify(t('pharmacy.currency')) %>;
-  var LANG = <%- JSON.stringify(lang) %>;
+  var CUR  = <%- jsonLd(t('pharmacy.currency')) %>;
+  var LANG = <%- jsonLd(lang) %>;
   var MSG  = {
-    done: <%- JSON.stringify(t('pharmacy.pos.done')) %>, insuf: <%- JSON.stringify(t('pharmacy.pos.insufficient')) %>,
-    avail: <%- JSON.stringify(t('pharmacy.pos.available_short')) %>, offline: <%- JSON.stringify(t('pharmacy.pos.offline')) %>,
-    online: <%- JSON.stringify(t('pharmacy.pos.online')) %>, pending: <%- JSON.stringify(t('pharmacy.pos.pending')) %>,
-    savedOff: <%- JSON.stringify(t('pharmacy.pos.saved_offline')) %>, loading: <%- JSON.stringify(t('pharmacy.pos.loading')) %>,
-    held: <%- JSON.stringify(t('ph.pos.held_done')) %>, resumed: <%- JSON.stringify(t('ph.pos.resumed')) %>,
-    discOffline: <%- JSON.stringify(t('ph.pos.disc_offline')) %>,
-    needMgr: <%- JSON.stringify(t('ph.pos.needs_manager_why')) %>,
-    badMgr: <%- JSON.stringify(t('ph.pos.bad_approval')) %>
+    done: <%- jsonLd(t('pharmacy.pos.done')) %>, insuf: <%- jsonLd(t('pharmacy.pos.insufficient')) %>,
+    avail: <%- jsonLd(t('pharmacy.pos.available_short')) %>, offline: <%- jsonLd(t('pharmacy.pos.offline')) %>,
+    online: <%- jsonLd(t('pharmacy.pos.online')) %>, pending: <%- jsonLd(t('pharmacy.pos.pending')) %>,
+    savedOff: <%- jsonLd(t('pharmacy.pos.saved_offline')) %>, loading: <%- jsonLd(t('pharmacy.pos.loading')) %>,
+    held: <%- jsonLd(t('ph.pos.held_done')) %>, resumed: <%- jsonLd(t('ph.pos.resumed')) %>,
+    discOffline: <%- jsonLd(t('ph.pos.disc_offline')) %>,
+    needMgr: <%- jsonLd(t('ph.pos.needs_manager_why')) %>,
+    badMgr: <%- jsonLd(t('ph.pos.bad_approval')) %>
   };
   // The ceiling this cashier may apply alone. The server checks again at
   // checkout — this only decides whether the till asks for a manager.
-  var DISC_MAX = <%- JSON.stringify(Number(discountMax) || 0) %>;
+  var DISC_MAX = <%- jsonLd(Number(discountMax) || 0) %>;
   var DBNAME = 'oscardevs_pos_<%= company.id %>';
   var $ = function(id){ return document.getElementById(id); };
   function nm(it){ return (LANG==='en' && it.name_en) ? it.name_en : it.name_ar; }
@@ -287,7 +287,7 @@
         var ctrl=document.createElement('div'); ctrl.className='flex items-center gap-1 shrink-0';
         var take=document.createElement('button');
         take.className='text-sm font-bold bg-emerald-50 text-emerald-700 rounded-lg px-3 py-1.5';
-        take.textContent=<%- JSON.stringify(t('ph.pos.resume')) %>;
+        take.textContent=<%- jsonLd(t('ph.pos.resume')) %>;
         take.onclick=function(){
           // Merged, not replaced: dropping whatever is on the screen to bring a
           // parked basket back would lose a sale in progress.

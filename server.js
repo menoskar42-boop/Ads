@@ -44,6 +44,7 @@ const tenantMiddleware = require('./src/middleware/tenant');
 const indexRouter = require('./src/routes/index');
 const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
+const { safeJson } = require('./src/lib/safe_json');
 const demoMode = require('./src/lib/demo_mode');
 // shared_pool (fetched above) makes every new Pool() for this connection string
 // share one bounded pool, so this doesn't add connections.
@@ -409,9 +410,7 @@ app.use((req, res, next) => {
   // escapes the HTML-significant chars + the JS line separators U+2028/U+2029
   // into \u escapes: still valid JSON/JS, impossible to close the tag. Views
   // use <%- jsonLd(obj) %> instead of <%- JSON.stringify(obj) %>.
-  res.locals.jsonLd = (obj) => JSON.stringify(obj)
-    .replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
-    .replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  res.locals.jsonLd = safeJson;
   // Default OFF — AdSense loads only on content pages that opt in (fail-closed
   // so prohibited pages like login/dashboards/checkout/404 never show ads).
   res.locals.showAds = false;

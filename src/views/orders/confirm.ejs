@@ -94,16 +94,16 @@
 
 <script>
   // Order was created successfully — clear the local cart.
-  try { localStorage.removeItem('oscardevs_food_cart_' + <%- JSON.stringify(company.slug) %>); } catch (e) {}
+  try { localStorage.removeItem('oscardevs_food_cart_' + <%- jsonLd(company.slug) %>); } catch (e) {}
   // Attach this order's tracking token to the most recent device-local history entry.
   try {
-    var __hk = 'oscardevs_food_history_' + <%- JSON.stringify(company.slug) %>;
+    var __hk = 'oscardevs_food_history_' + <%- jsonLd(company.slug) %>;
     var __h = JSON.parse(localStorage.getItem(__hk) || '[]');
-    if (__h.length && !__h[0].token) { __h[0].token = <%- JSON.stringify(order.track_token) %>; __h[0].orderId = <%= order.id %>; localStorage.setItem(__hk, JSON.stringify(__h)); }
+    if (__h.length && !__h[0].token) { __h[0].token = <%- jsonLd(order.track_token) %>; __h[0].orderId = <%= order.id %>; localStorage.setItem(__hk, JSON.stringify(__h)); }
   } catch (e) {}
   // Live status: reload when the pharmacy/merchant advances the order.
   (function () {
-    var token = <%- JSON.stringify(order.track_token) %>, cur = <%- JSON.stringify(order.status) %>;
+    var token = <%- jsonLd(order.track_token) %>, cur = <%- jsonLd(order.status) %>;
     setInterval(function () {
       fetch('/order/food/' + token + '/status').then(function (r) { return r.json(); }).then(function (d) {
         if (d && d.ok && d.status !== cur) location.reload();

@@ -185,7 +185,7 @@
     </div>
     <script>
     (function(){
-      var sub = <%= Number(orderSubtotal) %>, cur = <%- JSON.stringify(company.currency || 'ج') %>;
+      var sub = <%= Number(orderSubtotal) %>, cur = <%- jsonLd(company.currency || 'ج') %>;
       var sel = document.getElementById('shipZoneSel');
       var shipEl = document.getElementById('sumShipping'), totEl = document.getElementById('sumTotal');
       function fmt(n){ return (Math.round(n*100)/100).toFixed(2) + ' ' + cur; }

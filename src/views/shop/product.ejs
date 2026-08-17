@@ -25,7 +25,7 @@
     siteAppName: displayCompanyName
   }) %>
   <script type="application/ld+json">
-  <%- JSON.stringify({
+  <%- jsonLd({
     "@context": "https://schema.org",
     "@type": "Product",
     "name": pName,
@@ -63,7 +63,7 @@
     crumbs.push({ "@type": "ListItem", "position": crumbs.length + 1, "name": pName, "item": productUrl });
   %>
   <script type="application/ld+json">
-  <%- JSON.stringify({ "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": crumbs }) %>
+  <%- jsonLd({ "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": crumbs }) %>
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
@@ -151,7 +151,7 @@
         </div>
         <script>
         (function () {
-          var imgs = <%- JSON.stringify(allImages.map(function (a) { return a.url; })) %>;
+          var imgs = <%- jsonLd(allImages.map(function (a) { return a.url; })) %>;
           var cur = 0, zoomed = false;
           function thumbs() { return document.querySelectorAll('#thumbRow [data-idx]'); }
           window.odvSetImg = function (i) {
@@ -470,7 +470,7 @@
   <script>
   (function () {
     var KEY = 'odv_recent';
-    var cur = { id: <%= product.id %>, name: <%- JSON.stringify(pName) %>, price: <%= Number(product.price) || 0 %>, image: <%- JSON.stringify(product.image_url || '') %>, url: <%- JSON.stringify('/shop/' + company.slug + '/product/' + product.id) %> };
+    var cur = { id: <%= product.id %>, name: <%- jsonLd(pName) %>, price: <%= Number(product.price) || 0 %>, image: <%- jsonLd(product.image_url || '') %>, url: <%- jsonLd('/shop/' + company.slug + '/product/' + product.id) %> };
     function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     var list = []; try { list = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) {}
     var others = list.filter(function (x) { return x && x.id !== cur.id; }).slice(0, 10);

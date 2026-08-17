@@ -192,7 +192,7 @@
   // page looks frozen and staff click twice — which posts the payment, the visit
   // or the vitals row twice. Disabling the button on submit says "it's working"
   // and makes the double-click harmless.
-  var __SAVING = <%- JSON.stringify(t('common.saving')) %>;
+  var __SAVING = <%- jsonLd(t('common.saving')) %>;
   document.addEventListener('submit', function(ev){
     var f = ev.target;
     if (!f || f.method === 'get' || f.hasAttribute('data-noload')) return;
