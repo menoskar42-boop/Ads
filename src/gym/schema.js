@@ -140,6 +140,25 @@ async function ensureGymSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_products ON gym_products (company_id, is_active);
+      /* "Do we count this one?" — a question stock=0 could not answer.
+       *
+       * The POS treated stock 0 as "not tracked" and sold freely. So a product
+       * that SOLD OUT became untracked at the moment it ran out, and every
+       * sale after that was recorded against boxes that were not there. The
+       * takings said five sold; the shelf had two.
+       *
+       * The form already offers the stock field as optional, so the intent was
+       * always there — it just had nowhere to live. Backfilled once, inside the
+       * same statement that adds the column, so a merchant who later untracks a
+       * product on purpose does not get it re-tracked on the next boot. */
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'gym_products' AND column_name = 'track_stock') THEN
+          ALTER TABLE gym_products ADD COLUMN track_stock BOOLEAN NOT NULL DEFAULT false;
+          UPDATE gym_products SET track_stock = true WHERE stock > 0;
+        END IF;
+      END $$;
       CREATE TABLE IF NOT EXISTS gym_sales (
         id             SERIAL PRIMARY KEY,
         company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

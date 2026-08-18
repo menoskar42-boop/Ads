@@ -321,6 +321,9 @@ router.get('/jobs/:id', async (req, res) => {
   ]);
   res.render('workshop_admin/job', {
     title: J.jobCode(data.job.id), tab: 'jobs', ...data,
+    /* A code the server knows plus one number, never text from the URL. */
+    err: String(req.query.err || '') === 'stock' ? 'stock' : null,
+    errHave: Math.max(0, parseInt(req.query.have, 10) || 0),
     stock: stock.rows, technicians: techs.rows, J,
     totals: J.jobTotals(data.job, data.parts, data.labour),
     labourRate: num(req.settings.labour_rate, 0),
@@ -353,8 +356,24 @@ router.post('/jobs/:id/parts', requireFlag('parts'), async (req, res) => {
         // would re-price an old job at today's cost and rewrite history.
         unitCost = Number(p.avg_cost);
         if (!unitPrice) unitPrice = Number(p.sell_price);
-        await client.query('UPDATE workshop_parts SET qty = qty - $1 WHERE id=$2 AND company_id=$3',
-          [qty, partId, cid]);
+        /* `qty = qty - $1` with no floor issued five from a shelf of two and
+         * left the part at minus three. Nothing errored; the parts screen then
+         * showed a negative number that no purchase could explain, and every
+         * report built on it was wrong from that moment.
+         *
+         * Unlike an offline pharmacy sale — a fact that already happened at the
+         * counter — this is somebody at a desk with the system open. The right
+         * answer is to refuse and say what the shelf shows: correcting the
+         * count is a normal thing to do, issuing stock that is not there is not.
+         */
+        const took = await client.query(
+          'UPDATE workshop_parts SET qty = qty - $1 WHERE id=$2 AND company_id=$3 AND qty >= $1 RETURNING id',
+          [qty, partId, cid]
+        );
+        if (!took.rows.length) {
+          await client.query('ROLLBACK');
+          return res.redirect(`/workshop/jobs/${id}?err=stock&have=${Math.max(0, Number(p.qty) || 0)}`);
+        }
         await client.query(
           // p.id — the locked row this branch already proved is ours.
           `INSERT INTO workshop_part_moves (company_id, part_id, job_id, kind, qty, unit_cost)

@@ -5,6 +5,11 @@
     <div class="card rounded-xl px-4 py-2 text-center"><div class="text-xs text-neutral-400">مبيعات النهاردة</div><div class="text-2xl font-black" style="color:#E4FF1A"><%= Number(todayTotal||0).toFixed(0) %> ج</div></div>
   </div>
   <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+  <% if (typeof err !== 'undefined' && err === 'stock') { %>
+    <div class="bg-rose-900/40 border border-rose-700 text-rose-200 rounded-xl px-4 py-2 mb-4 text-sm">
+      المخزون مايكفيش — الرف فيه <%= errHave %> بس. عدّل الكمية أو حدّث الجرد الأول.
+    </div>
+  <% } %>
 
   <div class="grid md:grid-cols-2 gap-4">
     <!-- Sell -->
@@ -15,7 +20,7 @@
       <% } else { %>
       <form method="POST" action="/gym/pos/sell" class="grid gap-2">
         <select name="product_id" required class="fld rounded-xl px-3 py-2 text-sm">
-          <% products.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %> — <%= Number(p.price).toFixed(0) %>ج<%= p.stock>0?(' ('+p.stock+' متاح)'):'' %></option><% }); %>
+          <% products.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %> — <%= Number(p.price).toFixed(0) %>ج<%= p.track_stock ? (p.stock>0 ? (' ('+p.stock+' متاح)') : ' (خلص)') : '' %></option><% }); %>
         </select>
         <input name="quantity" type="number" min="1" value="1" class="fld rounded-xl px-3 py-2 text-sm" />
         <select name="member_id" class="fld rounded-xl px-3 py-2 text-sm"><option value="">— العضو (اختياري) —</option><% members.forEach(function(m){ %><option value="<%= m.id %>"><%= m.name %></option><% }); %></select>
@@ -47,7 +52,7 @@
     <form method="POST" action="/gym/pos/product/add" class="grid sm:grid-cols-4 gap-2 mb-4">
       <input name="name" required placeholder="اسم المنتج" class="fld rounded-xl px-3 py-2 text-sm" />
       <input name="price" type="number" step="0.01" min="0" required placeholder="السعر" class="fld rounded-xl px-3 py-2 text-sm" />
-      <input name="stock" type="number" min="0" placeholder="المخزون (اختياري)" class="fld rounded-xl px-3 py-2 text-sm" />
+      <input name="stock" type="number" min="0" placeholder="المخزون (سيبه فاضي لو مش بتعدّه)" class="fld rounded-xl px-3 py-2 text-sm" />
       <button class="accent-bg font-bold rounded-xl px-4 text-sm">+ إضافة</button>
     </form>
     <% if (products.length) { %>
@@ -56,7 +61,7 @@
         <div class="flex items-center gap-3 border border-neutral-800 rounded-lg px-3 py-2">
           <span class="text-sm flex-1"><%= p.name %></span>
           <span class="text-sm" style="color:#E4FF1A"><%= Number(p.price).toFixed(0) %>ج</span>
-          <% if (p.stock>0) { %><span class="text-xs text-neutral-500"><%= p.stock %> متاح</span><% } %>
+          <% if (p.track_stock) { %><span class="text-xs <%= p.stock>0 ? 'text-neutral-500' : 'text-rose-600 font-bold' %>"><%= p.stock>0 ? (p.stock + ' متاح') : 'خلص' %></span><% } %>
           <form method="POST" action="/gym/pos/product/<%= p.id %>/delete" onsubmit="return confirm('حذف؟')"><button class="bg-red-600 text-white text-xs rounded-full w-6 h-6">×</button></form>
         </div>
         <% }); %>

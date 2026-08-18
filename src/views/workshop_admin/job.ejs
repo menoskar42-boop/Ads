@@ -7,6 +7,12 @@
 %>
 <a href="/workshop/jobs" class="text-sm text-slate-500 no-print">← <%= t('wsh.common.back') %></a>
 
+<% if (typeof err !== 'undefined' && err === 'stock') { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 mt-3 text-sm no-print">
+    <%= t('wsh.err.stock').replace('{n}', errHave) %>
+  </div>
+<% } %>
+
 <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-3 mb-5">
   <div class="flex items-start justify-between gap-3 flex-wrap">
     <div>

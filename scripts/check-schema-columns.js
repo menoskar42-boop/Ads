@@ -56,7 +56,10 @@ for (const f of files) {
     }
   }
   for (const m of stripSqlComments(s).matchAll(
-    /ALTER TABLE\s+(\w+)\s+ADD COLUMN IF NOT EXISTS\s+([a-z_][a-z0-9_]*)/gi)) {
+    /* `IF NOT EXISTS` is optional: a column added inside a DO block that already
+       tested information_schema does not repeat the guard, and the column is
+       just as real. */
+    /ALTER TABLE\s+(\w+)\s+ADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_][a-z0-9_]*)/gi)) {
     const t = m[1].toLowerCase();
     (cols[t] = cols[t] || new Set()).add(m[2].toLowerCase());
   }

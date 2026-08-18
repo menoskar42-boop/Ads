@@ -302,6 +302,9 @@ router.get('/pos', async (req, res) => {
       company: req.company, tab: 'pos',
       products: products.rows, trainers: trainers.rows, members: members.rows,
       sales: sales.rows, commissions: commissions.rows, todayTotal, saved: req.query.saved === '1',
+      /* A code the server knows plus one number — never text from the URL. */
+      err: String(req.query.err || '') === 'stock' ? 'stock' : null,
+      errHave: Math.max(0, parseInt(req.query.have, 10) || 0),
     });
   } catch (e) { console.error('[gym pos]', e.message); res.status(500).send('error'); }
 });
@@ -309,8 +312,13 @@ router.post('/pos/product/add', async (req, res) => {
   const b = req.body || {};
   const name = String(b.name || '').trim().slice(0, 80);
   if (name) try {
-    await pool.query('INSERT INTO gym_products (company_id, name, price, stock) VALUES ($1,$2,$3,$4)',
-      [req.company.id, name, num(b.price, 0), parseInt(b.stock, 10) || 0]);
+    // A typed number means "count this" — including a typed zero. Leaving the
+    // field blank means "do not count it", which is what the label promises and
+    // what the till now honours.
+    const typed = String(b.stock || '').trim() !== '';
+    await pool.query(
+      'INSERT INTO gym_products (company_id, name, price, stock, track_stock) VALUES ($1,$2,$3,$4,$5)',
+      [req.company.id, name, num(b.price, 0), Math.max(0, parseInt(b.stock, 10) || 0), typed]);
   } catch (e) { console.error('[gym product add]', e.message); }
   res.redirect('/gym/pos?saved=1');
 });
@@ -329,8 +337,26 @@ router.post('/pos/sell', async (req, res) => {
     await client.query('BEGIN');
     const prod = (await client.query('SELECT * FROM gym_products WHERE id=$1 AND company_id=$2 AND is_active=true FOR UPDATE', [parseInt(b.product_id, 10), cid])).rows[0];
     if (!prod) { await client.query('ROLLBACK'); return res.redirect('/gym/pos'); }
-    // Decrement stock only if tracked (>0); allow overselling to 0 gracefully.
-    if (prod.stock > 0) await client.query('UPDATE gym_products SET stock = GREATEST(0, stock - $1) WHERE id=$2', [qty, prod.id]);
+    /* "Allow overselling to 0 gracefully" was the old comment, and it did
+     * something else: `GREATEST(0, stock - qty)` sold five off a shelf of two,
+     * recorded five in the takings, and left the stock at zero. The gym's
+     * report then says it sold product it never had.
+     *
+     * And the old test was `prod.stock > 0`, which made SOLD OUT and NOT
+     * COUNTED the same state — so a product became untracked at the exact
+     * moment it ran out, and everything after that oversold silently. That is
+     * what `track_stock` now answers.
+     */
+    if (prod.track_stock) {
+      const took = await client.query(
+        'UPDATE gym_products SET stock = stock - $1 WHERE id=$2 AND company_id=$3 AND stock >= $1 RETURNING id',
+        [qty, prod.id, cid]
+      );
+      if (!took.rows.length) {
+        await client.query('ROLLBACK');
+        return res.redirect(`/gym/pos?err=stock&have=${Math.max(0, Number(prod.stock) || 0)}`);
+      }
+    }
     const total = +(Number(prod.price) * qty).toFixed(2);
     let commission = 0, trainerId = parseInt(b.trainer_id, 10) || null;
     if (trainerId) {
