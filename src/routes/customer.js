@@ -20,16 +20,16 @@ router.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const r = await pool.query('SELECT * FROM customers WHERE email = $1', [email]);
-    if (!r.rows.length) return res.render('customer/login', { error: 'Invalid email or password.' });
+    if (!r.rows.length) return res.render('customer/login', { error: 'credentials' });
     const ok = await bcrypt.compare(password, r.rows[0].password_hash);
-    if (!ok) return res.render('customer/login', { error: 'Invalid email or password.' });
+    if (!ok) return res.render('customer/login', { error: 'credentials' });
     req.session.customerId = r.rows[0].id;
     req.session.customerEmail = r.rows[0].email;
     req.session.customerLang = r.rows[0].lang || 'ar';
     res.redirect('/customer/orders');
   } catch (err) {
     console.error('[POST /customer/login] error:', err);
-    res.render('customer/login', { error: 'Something went wrong.' });
+    res.render('customer/login', { error: 'oops' });
   }
 });
 
@@ -40,11 +40,11 @@ router.get('/register', (req, res) => {
 router.post('/register', async (req, res) => {
   const { email, password, full_name, phone, address } = req.body;
   if (!email || !password || password.length < 6) {
-    return res.render('customer/register', { error: 'Email and password (min 6 chars) are required.', form: req.body });
+    return res.render('customer/register', { error: 'email_password', form: req.body });
   }
   try {
     const dup = await pool.query('SELECT id FROM customers WHERE email = $1', [email]);
-    if (dup.rows.length) return res.render('customer/register', { error: 'Email already in use.', form: req.body });
+    if (dup.rows.length) return res.render('customer/register', { error: 'email_in_use', form: req.body });
     const hash = await bcrypt.hash(password, 10);
     const ins = await pool.query(
       `INSERT INTO customers (email, password_hash, full_name, phone, address) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
@@ -55,7 +55,7 @@ router.post('/register', async (req, res) => {
     res.redirect('/customer/orders');
   } catch (err) {
     console.error('[POST /customer/register] error:', err);
-    res.render('customer/register', { error: 'Could not register: ' + err.message, form: req.body });
+    res.render('customer/register', { error: 'register_failed', form: req.body });
   }
 });
 
@@ -68,7 +68,7 @@ router.post('/logout', (req, res) => {
 router.get('/orders', requireCustomer, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT o.*, c.company_name, c.slug
+      `SELECT o.*, c.company_name, c.slug, c.currency
        FROM orders o JOIN companies c ON c.id = o.company_id
        WHERE o.customer_id = $1
        ORDER BY o.created_at DESC`,
@@ -111,7 +111,8 @@ router.get('/wishlist/ids', async (req, res) => {
 router.get('/wishlist', requireCustomer, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT p.id, p.name, p.name_ar, p.price, p.image_url, p.stock, c.slug AS company_slug, c.company_name
+      `SELECT p.id, p.name, p.name_ar, p.price, p.image_url, p.stock,
+              c.slug AS company_slug, c.company_name, c.currency
        FROM wishlist_items w
        JOIN products p ON p.id = w.product_id
        JOIN companies c ON c.id = p.company_id
@@ -131,7 +132,7 @@ router.get('/orders/:id', requireCustomer, async (req, res) => {
   const oid = parseInt(req.params.id, 10);
   try {
     const order = (await pool.query(
-      `SELECT o.*, c.company_name, c.slug FROM orders o JOIN companies c ON c.id=o.company_id
+      `SELECT o.*, c.company_name, c.slug, c.currency FROM orders o JOIN companies c ON c.id=o.company_id
        WHERE o.id=$1 AND o.customer_id=$2`, [oid, req.session.customerId]
     )).rows[0];
     if (!order) return res.redirect('/customer/orders');
@@ -191,7 +192,10 @@ router.get('/points', requireCustomer, async (req, res) => {
       orders,
       session: req.session,
       giftSaved: req.query.gift === '1',
-      giftError: req.query.gifterror || null,
+      // Known codes only: this used to print whatever the address bar said,
+      // in a red box, on the customer's own account page.
+      giftError: ['gift_invalid', 'gift_used', 'gift_expired', 'gift_failed']
+        .includes(req.query.gifterror) ? req.query.gifterror : null,
     });
   } catch (e) { console.error('[points]', e.message); res.status(500).send('Error.'); }
 });
@@ -202,7 +206,7 @@ router.get('/points', requireCustomer, async (req, res) => {
 // then usable as payment at any of that store's checkouts.
 router.post('/wallet/redeem', requireCustomer, async (req, res) => {
   const code = String(req.body.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 24);
-  if (!code) return res.redirect('/customer/points?gifterror=' + encodeURIComponent('أدخلي كود صحيح'));
+  if (!code) return res.redirect('/customer/points?gifterror=gift_invalid');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -215,7 +219,7 @@ router.post('/wallet/redeem', requireCustomer, async (req, res) => {
     )).rows[0];
     if (!card) {
       await client.query('ROLLBACK');
-      return res.redirect('/customer/points?gifterror=' + encodeURIComponent('الكود غير صالح أو مستخدم بالفعل'));
+      return res.redirect('/customer/points?gifterror=gift_invalid');
     }
     await client.query('UPDATE gift_cards SET redeemed_by=$1, redeemed_at=now() WHERE id=$2', [req.session.customerId, card.id]);
     await client.query('UPDATE customers SET wallet_balance = wallet_balance + $1 WHERE id=$2', [card.amount, req.session.customerId]);
@@ -224,7 +228,7 @@ router.post('/wallet/redeem', requireCustomer, async (req, res) => {
   } catch (e) {
     await client.query('ROLLBACK');
     console.error('[wallet redeem]', e.message);
-    res.redirect('/customer/points?gifterror=' + encodeURIComponent('تعذّر تفعيل الكرت'));
+    res.redirect('/customer/points?gifterror=gift_failed');
   } finally {
     client.release();
   }

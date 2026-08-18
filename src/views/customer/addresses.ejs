@@ -4,7 +4,7 @@
 <%- include('../partials/ads_loader') %>
   <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow" />
-  <title>عناويني</title>
+  <title><%= t('cst.nav.addresses') %></title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script><style>* { font-family: 'Cairo', sans-serif; }</style>
 </head>
@@ -12,42 +12,42 @@
 <header class="bg-white shadow-sm"><div class="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
   <a href="/" class="font-bold text-gray-800">Oscardevs Ads</a>
   <div class="flex items-center gap-3 text-sm">
-    <a href="/customer/orders" class="text-gray-500 hover:text-indigo-600 font-bold">طلباتي</a>
-    <a href="/customer/points" class="text-gray-500 hover:text-indigo-600 font-bold">نقاطي</a>
+    <a href="/customer/orders" class="text-gray-500 hover:text-indigo-600 font-bold"><%= t('cst.nav.orders') %></a>
+    <a href="/customer/points" class="text-gray-500 hover:text-indigo-600 font-bold"><%= t('cst.nav.points') %></a>
     <form method="POST" action="/customer/logout" class="inline"><button class="text-red-500"><%= t('common.logout') %></button></form>
   </div>
 </div></header>
 <main class="max-w-3xl mx-auto px-4 py-8">
-  <h1 class="text-2xl font-bold text-gray-800 mb-6">📍 عناويني المحفوظة</h1>
+  <h1 class="text-2xl font-bold text-gray-800 mb-6"><%= t('cst.addr.title') %></h1>
 
   <form method="POST" action="/customer/addresses/add" class="bg-white rounded-2xl shadow-sm p-5 mb-6 grid sm:grid-cols-2 gap-3">
-    <input name="label" placeholder="اسم العنوان (البيت/الشغل)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="recipient_name" placeholder="اسم المستلم" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="phone" placeholder="الموبايل" dir="ltr" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="governorate" placeholder="المحافظة" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="city" placeholder="المدينة/المنطقة" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="street" placeholder="الشارع" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="apartment" placeholder="شقة/دور (اختياري)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <input name="notes" placeholder="علامة مميزة (اختياري)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-    <label class="flex items-center gap-2 text-sm text-gray-600 sm:col-span-2"><input type="checkbox" name="is_default" value="1" /> اجعله العنوان الافتراضي</label>
-    <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2.5 text-sm sm:col-span-2">+ حفظ العنوان</button>
+    <input name="label" placeholder="<%= t('cst.addr.label_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="recipient_name" placeholder="<%= t('cst.addr.recipient_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="phone" placeholder="<%= t('cst.addr.phone_ph') %>" dir="ltr" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="governorate" placeholder="<%= t('cst.addr.gov_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="city" placeholder="<%= t('cst.addr.city_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="street" placeholder="<%= t('cst.addr.street_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="apartment" placeholder="<%= t('cst.addr.apt_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <input name="notes" placeholder="<%= t('cst.addr.notes_ph') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    <label class="flex items-center gap-2 text-sm text-gray-600 sm:col-span-2"><input type="checkbox" name="is_default" value="1" /> <%= t('cst.addr.make_default') %></label>
+    <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2.5 text-sm sm:col-span-2"><%= t('cst.addr.save') %></button>
   </form>
 
   <% if (!addresses.length) { %>
-    <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-500">مفيش عناوين محفوظة.</div>
+    <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-500"><%= t('cst.addr.none') %></div>
   <% } else { %>
     <div class="space-y-3">
       <% addresses.forEach(function(a){ %>
       <div class="bg-white rounded-2xl shadow-sm p-4">
         <div class="flex items-center gap-2 mb-1">
-          <span class="font-bold text-gray-800"><%= a.label || 'عنوان' %></span>
-          <% if (a.is_default) { %><span class="text-[10px] bg-indigo-50 text-indigo-600 rounded px-1.5 py-0.5 font-bold">افتراضي</span><% } %>
+          <span class="font-bold text-gray-800"><%= a.label || t('cst.addr.unnamed') %></span>
+          <% if (a.is_default) { %><span class="text-[10px] bg-indigo-50 text-indigo-600 rounded px-1.5 py-0.5 font-bold"><%= t('cst.addr.default') %></span><% } %>
         </div>
         <div class="text-sm text-gray-600"><%= [a.recipient_name, a.phone].filter(Boolean).join(' · ') %></div>
-        <div class="text-sm text-gray-500"><%= [a.governorate, a.city, a.street, a.apartment].filter(Boolean).join('، ') %></div>
+        <div class="text-sm text-gray-500"><%= [a.governorate, a.city, a.street, a.apartment].filter(Boolean).join(t('cst.sep')) %></div>
         <div class="flex gap-3 mt-2 text-xs">
-          <% if (!a.is_default) { %><form method="POST" action="/customer/addresses/<%= a.id %>/default"><button class="text-indigo-600 font-bold">اجعله افتراضي</button></form><% } %>
-          <form method="POST" action="/customer/addresses/<%= a.id %>/delete" onsubmit="return confirm('حذف العنوان؟')"><button class="text-rose-500 font-bold">حذف</button></form>
+          <% if (!a.is_default) { %><form method="POST" action="/customer/addresses/<%= a.id %>/default"><button class="text-indigo-600 font-bold"><%= t('cst.addr.set_default') %></button></form><% } %>
+          <form method="POST" action="/customer/addresses/<%= a.id %>/delete" onsubmit="return confirm('<%= t('cst.addr.confirm_delete') %>')"><button class="text-rose-500 font-bold"><%= t('cst.addr.delete') %></button></form>
         </div>
       </div>
       <% }); %>

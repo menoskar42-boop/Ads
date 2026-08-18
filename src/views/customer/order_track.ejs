@@ -4,30 +4,34 @@
 <%- include('../partials/ads_loader') %>
   <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow" />
-  <title>تتبّع الطلب #<%= order.id %></title>
+  <title><%= t('cst.tr.title') %> #<%= order.id %></title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script><style>* { font-family: 'Cairo', sans-serif; }</style>
 </head>
 <body class="bg-gray-50 min-h-screen">
 <%
-  var STEPS = [['pending','تم الطلب'],['confirmed','تم التأكيد'],['preparing','بيتجهّز'],['shipped','تم الشحن'],['out_for_delivery','في الطريق'],['delivered','تم التوصيل']];
-  var LABEL = {pending:'تم الطلب',confirmed:'تم التأكيد',preparing:'بيتجهّز',shipped:'تم الشحن',out_for_delivery:'في الطريق',delivered:'تم التوصيل',cancelled:'ملغى'};
+  /* The steps are the order's own progress, named once in the dictionary and
+     read from there — hard-coded Arabic here meant an English customer read an
+     Arabic tracker, and a new state meant a blank line. */
+  var STEP_CODES = ['pending','confirmed','preparing','shipped','out_for_delivery','delivered'];
+  var STEPS = STEP_CODES.map(function(c){ return [c, t('cst.step.' + c)]; });
+  var LABEL = function(c){ return t('cst.step.' + c); };
   var cancelled = order.status === 'cancelled';
   var curIdx = STEPS.findIndex(function(s){ return s[0]===order.status; });
 %>
 <header class="bg-white shadow-sm"><div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-  <a href="/customer/orders" class="text-indigo-600 font-bold text-sm">‹ طلباتي</a>
-  <span class="font-bold text-gray-800">طلب #<%= order.id %></span>
+  <a href="/customer/orders" class="text-indigo-600 font-bold text-sm">‹ <%= t('cst.tr.back') %></a>
+  <span class="font-bold text-gray-800"><%= t('cst.tr.order') %> #<%= order.id %></span>
 </div></header>
 <main class="max-w-2xl mx-auto px-4 py-8">
   <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
     <div class="text-sm text-gray-500 mb-1"><%= order.company_name %></div>
-    <div class="text-2xl font-black text-gray-900 mb-1"><%= Number(order.total_amount).toLocaleString('ar-EG') %> ج</div>
-    <div class="text-sm font-bold <%= cancelled ? 'text-rose-600' : 'text-emerald-600' %>"><%= LABEL[order.status] || order.status %></div>
+    <div class="text-2xl font-black text-gray-900 mb-1"><%= Number(order.total_amount).toLocaleString(LOC) %> <%= cur(order) %></div>
+    <div class="text-sm font-bold <%= cancelled ? 'text-rose-600' : 'text-emerald-600' %>"><%= LABEL(order.status) %></div>
   </div>
 
   <% if (cancelled) { %>
-    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 mb-5 text-sm">الطلب اتلغى.</div>
+    <div class="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 mb-5 text-sm"><%= t('cst.tr.cancelled') %></div>
   <% } else { %>
   <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
     <div class="space-y-0">
@@ -47,28 +51,28 @@
   <% } %>
 
   <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
-    <h2 class="font-bold text-gray-700 mb-2 text-sm">المنتجات</h2>
+    <h2 class="font-bold text-gray-700 mb-2 text-sm"><%= t('cst.tr.items') %></h2>
     <% items.forEach(function(it){ %>
     <div class="flex justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
       <span class="text-gray-700"><%= it.product_name %> × <%= it.quantity %></span>
-      <span class="font-bold text-gray-800"><%= Number(it.unit_price * it.quantity).toLocaleString('ar-EG') %> ج</span>
+      <span class="font-bold text-gray-800"><%= Number(it.unit_price * it.quantity).toLocaleString(LOC) %> <%= cur(order) %></span>
     </div>
     <% }); %>
-    <% if (Number(order.shipping_cost) > 0) { %><div class="flex justify-between text-sm py-1.5 text-gray-500"><span>الشحن<%= order.shipping_zone ? (' — ' + order.shipping_zone) : '' %></span><span><%= Number(order.shipping_cost) %> ج</span></div><% } %>
-    <% if (Number(order.discount_amount) > 0) { %><div class="flex justify-between text-sm py-1.5 text-emerald-600"><span>خصم<%= order.coupon_code ? (' ('+order.coupon_code+')') : '' %></span><span>- <%= Number(order.discount_amount) %> ج</span></div><% } %>
+    <% if (Number(order.shipping_cost) > 0) { %><div class="flex justify-between text-sm py-1.5 text-gray-500"><span><%= t('cst.tr.shipping') %><%= order.shipping_zone ? (' — ' + order.shipping_zone) : '' %></span><span><%= Number(order.shipping_cost) %> <%= cur(order) %></span></div><% } %>
+    <% if (Number(order.discount_amount) > 0) { %><div class="flex justify-between text-sm py-1.5 text-emerald-600"><span><%= t('cst.tr.discount') %><%= order.coupon_code ? (' ('+order.coupon_code+')') : '' %></span><span>- <%= Number(order.discount_amount) %> <%= cur(order) %></span></div><% } %>
   </div>
 
   <% if (order.status === 'delivered' && !returnStatus) { %>
   <details class="bg-white rounded-2xl shadow-sm p-5">
-    <summary class="text-sm font-bold text-gray-700 cursor-pointer">طلب إرجاع / استرداد</summary>
+    <summary class="text-sm font-bold text-gray-700 cursor-pointer"><%= t('cst.tr.return_req') %></summary>
     <form method="POST" action="/customer/orders/<%= order.id %>/return" class="mt-3 grid gap-2">
-      <input name="reason" maxlength="120" placeholder="سبب الإرجاع" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-      <textarea name="notes" rows="2" maxlength="500" placeholder="تفاصيل (اختياري)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm"></textarea>
-      <button class="bg-rose-600 text-white font-bold rounded-xl px-4 py-2 text-sm w-fit">إرسال طلب الإرجاع</button>
+      <input name="reason" maxlength="120" placeholder="<%= t('cst.tr.return_reason') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      <textarea name="notes" rows="2" maxlength="500" placeholder="<%= t('cst.tr.return_notes') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm"></textarea>
+      <button class="bg-rose-600 text-white font-bold rounded-xl px-4 py-2 text-sm w-fit"><%= t('cst.tr.return_send') %></button>
     </form>
   </details>
   <% } else if (returnStatus) { %>
-    <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded-2xl p-4 text-sm">طلب الإرجاع: <%= {pending:'قيد المراجعة',approved:'مقبول',rejected:'مرفوض',refunded:'تم الاسترداد'}[returnStatus] || returnStatus %></div>
+    <div class="bg-amber-50 border border-amber-200 text-amber-700 rounded-2xl p-4 text-sm"><%= t('cst.tr.return_status') %> <%= t('cst.ret.' + returnStatus) %></div>
   <% } %>
 </main>
 </body></html>
