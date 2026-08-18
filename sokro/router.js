@@ -241,6 +241,29 @@ router.get('/api/context', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, context: await memory.getContext(req.sokroUser.id) });
 });
 
+// ── Is there a browser, and which one? ───────────────────────────────────────
+//
+// The app showed one static «🧩 المتصفح» chip whether the extension was
+// connected or had never been installed. So a user asked Sokro to open a site,
+// waited, and got an apology — the one fact that would have explained it was
+// on the screen the whole time, saying nothing.
+//
+// Three honest states: the user's own browser (their logged-in sessions), the
+// server's Chromium (public pages only), or nothing — and the last one says
+// what to do about it.
+router.get('/api/browser/status', auth.requireAuth, (req, res) => {
+  const ext = extBridge.connected(req.sokroUser.id);
+  const srv = browser.status();
+  const mode = ext ? 'extension' : (srv.ok ? 'server' : 'none');
+  res.json({
+    ok: true, mode, extension: ext, server: srv.ok,
+    label: { extension: 'متصل بمتصفّحك', server: 'متصفّح السيرفر', none: 'وصّل الإضافة' }[mode],
+    hint: mode === 'extension' ? 'الجلسات اللي مسجّل دخولك فيها متاحة.'
+      : mode === 'server' ? 'بيفتح الصفحات العامة بس — من غير حساباتك.'
+        : (browser.unavailableMessage(srv.why) + ' أو ثبّت إضافة سوكرو من /ext ووصّلها.'),
+  });
+});
+
 // ── Actions API ──────────────────────────────────────────────────────────────
 router.get('/api/actions', auth.requireAuth, (_req, res) => {
   res.json({ ok: true, browserAvailable: browser.available(), actions: registry.catalog() });

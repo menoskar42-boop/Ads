@@ -83,6 +83,11 @@
     text-decoration:none;font-weight:800;font-size:.85rem;border-radius:100px;padding:9px 15px;
     box-shadow:0 6px 20px rgba(0,0,0,.35);backdrop-filter:blur(6px)}
   #extlink:hover{background:rgba(120,140,255,.28)}
+  /* Three states, three colours: connected to YOUR browser, the server's, or
+     nothing at all — the last one is the only one that asks for something. */
+  #extlink.on{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.5);color:#bbf7d0}
+  #extlink.srv{background:rgba(120,140,255,.16);border-color:rgba(120,140,255,.4);color:#cdd6ff}
+  #extlink.off{background:rgba(245,158,11,.18);border-color:rgba(245,158,11,.5);color:#fde68a}
 </style>
 </head>
 <body>
@@ -143,7 +148,7 @@
     </div>
   </div>
 
-  <a id="extlink" class="hidden" href="/ext" target="_blank" rel="noopener" title="ثبّت إضافة المتصفح عشان Sokro يتصفّح المواقع بنفسه">🧩 المتصفح</a>
+  <a id="extlink" class="hidden" href="/ext" target="_blank" rel="noopener" title="حالة المتصفّح">🧩 المتصفح</a>
   <audio id="rtaudio" autoplay></audio>
   <div id="dock" class="dock hidden">
     <div class="status" id="status">اكتب طلبك… أو اضغط 📞 لمكالمة صوتية</div>
@@ -196,6 +201,26 @@
   }
   async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
   function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); }
+  // The browser chip says what is actually true, and keeps saying it: the
+  // extension can be connected mid-session (or its tab closed), and a chip that
+  // only checks once is the same lie with a timestamp.
+  var BROWSER_MODE = null;
+  async function refreshBrowser(){
+    var el=$('#extlink'); if(!el) return;
+    try{
+      var d=await (await fetch('/api/browser/status')).json();
+      if(!d || !d.ok) return;
+      BROWSER_MODE=d.mode;
+      el.classList.remove('on','srv','off');
+      el.classList.add(d.mode==='extension'?'on':d.mode==='server'?'srv':'off');
+      el.textContent=(d.mode==='extension'?'🧩 ':d.mode==='server'?'🖥️ ':'🧩 ')+d.label;
+      el.title=d.hint||'';
+      // Nothing to install when it is already connected — the link would send a
+      // user who is fine to a page telling them to fix something.
+      if(d.mode==='extension'){ el.removeAttribute('href'); } else { el.setAttribute('href','/ext'); }
+    }catch(e){ /* leave the chip as it is rather than lie the other way */ }
+  }
+
   async function refreshGmail(){
     var s=$('#gmailState'), a=$('#gmailConnect'); if(!s) return;
     try{ var d=await (await fetch('/api/gmail/status')).json();
@@ -218,6 +243,7 @@
     $('#logout').classList.remove('hidden'); $('#gear').classList.remove('hidden');
     $('#mute').classList.remove('hidden'); $('#mute').textContent=speakAloud?'🔊':'🔈';
     $('#extlink').classList.remove('hidden');
+    refreshBrowser(); setInterval(refreshBrowser, 20000);
     requestWake(); // keep the screen on while using Sokro
     loadSettings();
     var had=await loadHistory();
