@@ -90,7 +90,7 @@ router.post('/:slug/cart/add', async (req, res) => {
     const requested = existing + quantity;
     if (requested > availStock) {
       if (wantsJson) return res.status(400).json({ ok: false, error: 'Not enough stock for the requested quantity.' });
-      return res.redirect(`/shop/${slug}/cart?error=${encodeURIComponent('Not enough stock for the requested quantity.')}`);
+      return res.redirect(`/shop/${slug}/cart?errorCode=stock`);
     }
     cart[key] = requested;
     if (wantsJson) {
@@ -138,7 +138,9 @@ router.get('/:slug/cart', async (req, res) => {
       lines,
       total,
       cartCount: lines.reduce((s, l) => s + l.quantity, 0),
-      error: req.query.error || null,
+      /* Same reason as the checkout page: a code the server knows, not text
+         the URL supplies. */
+      errorCode: String(req.query.errorCode || '') === 'stock' ? 'stock' : null,
       customerId: req.session.customerId || null,
     });
   } catch (err) {
@@ -268,7 +270,11 @@ router.get('/:slug/checkout', async (req, res) => {
       /* One order per rendered checkout page. The form carries this back and a
          unique index refuses the second submit — see the schema note. */
       idemToken: crypto.randomBytes(16).toString('hex'),
-      error: req.query.error || null,
+      /* A code, not a sentence. `error: req.query.error` printed whatever the
+         URL carried, so a link could put any text on a buyer's checkout page
+         under the shop's own name. Unknown codes show nothing. */
+      errorCode: ['unavailable', 'shipping_zone'].includes(String(req.query.errorCode || ''))
+        ? String(req.query.errorCode) : null,
     });
   } catch (err) {
     console.error('[GET /shop/:slug/checkout] error:', err);
@@ -312,7 +318,7 @@ router.post('/:slug/checkout', async (req, res) => {
       const prod = (await client.query(
         'SELECT id, name, price FROM products WHERE id=$1 AND company_id=$2 AND is_active=true', [productId, company.id]
       )).rows[0];
-      if (!prod) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
+      if (!prod) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?errorCode=unavailable`); }
 
       let unitPrice = Number(prod.price);
       let itemName = prod.name;
@@ -324,7 +330,7 @@ router.post('/:slug/checkout', async (req, res) => {
            RETURNING label, price_delta`,
           [qty, variantId, productId]
         );
-        if (!vu.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
+        if (!vu.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?errorCode=unavailable`); }
         unitPrice = Number(prod.price) + Number(vu.rows[0].price_delta || 0);
         itemName = `${prod.name} (${vu.rows[0].label})`;
       } else {
@@ -333,7 +339,7 @@ router.post('/:slug/checkout', async (req, res) => {
           `UPDATE products SET stock = stock - $1 WHERE id=$2 AND company_id=$3 AND stock >= $1 AND is_active=true RETURNING id`,
           [qty, productId, company.id]
         );
-        if (!upd.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('One of the items is out of stock or unavailable.')}`); }
+        if (!upd.rows.length) { await client.query('ROLLBACK'); return res.redirect(`/shop/${slug}/checkout?errorCode=unavailable`); }
         if (size) itemName = `${prod.name} (مقاس: ${size})`;
       }
       // Apply an active deal discount (phase 10) to the effective unit price.
@@ -391,11 +397,29 @@ router.post('/:slug/checkout', async (req, res) => {
       }
     }
     // Shipping (phase 12): cost by governorate, free over threshold.
+    //
+    // The old shape was `if (govr) { … }` — a missing or unrecognised
+    // governorate silently meant zero. The field is `required` on the form,
+    // but `required` is an attribute in the buyer's browser, not a rule on the
+    // server: a POST without `shipping_zone` shipped anywhere in the country
+    // for free, and so did a POST naming a governorate this merchant does not
+    // deliver to. The shop never saw an error, only a smaller number.
+    //
+    // Zero is still the right answer for a merchant with no zones set up at
+    // all — that is a shop that does not charge for delivery. The difference
+    // between "no zones" and "zone not found" is the whole bug, so the two are
+    // now separate branches instead of one falsy check.
     const govr = String(req.body.shipping_zone || '').trim().slice(0, 60);
     let shipCost = 0, shipZoneName = null;
-    if (govr) {
-      const zone = await shipping.zoneFor(company.id, govr);
-      if (zone) { shipCost = shipping.costFor(zone, afterDiscount); shipZoneName = zone.governorate; }
+    const zones = await shipping.getZones(company.id);
+    if (zones.length) {
+      const zone = govr ? zones.find((z) => String(z.governorate) === govr) : null;
+      if (!zone) {
+        await client.query('ROLLBACK');
+        return res.redirect(`/shop/${slug}/checkout?errorCode=shipping_zone`);
+      }
+      shipCost = shipping.costFor(zone, afterDiscount);
+      shipZoneName = zone.governorate;
     }
     const orderTotal = +(afterDiscount + shipCost).toFixed(2);
     // Wallet / gift-card credit (phase 31): apply the customer's balance against
