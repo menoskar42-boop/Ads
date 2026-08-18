@@ -1566,13 +1566,27 @@ try {
 // the instance happens to be awake (dedup-guarded so it never double-sends). The
 // RELIABLE path is the external trigger below (Replit Autoscale sleeps, so this
 // internal timer won't run while the app is scaled to zero).
-setInterval(() => {
+/* The hour is not a thing that happens once.
+ *
+ * This timer ticks every 30 minutes, so `h === 8` was true at 08:00 AND at
+ * 08:30 — every gym owner got the same renewal alert twice each morning, and
+ * so did every NeuroPilot user. An in-process flag would not have fixed it
+ * either: Autoscale runs more than one instance, each with its own memory.
+ *
+ * The day is claimed in the database, so exactly one tick on exactly one
+ * instance runs the job. See src/lib/once_daily.js. */
+const onceDaily = require('./src/lib/once_daily');
+setInterval(async () => {
   try {
     const h = Number(new Date().toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Africa/Cairo' }));
-    if (h === 8) {
+    if (h !== 8) return;
+    if (await onceDaily.claimToday(sessionPool, 'neuropilot_daily')) {
       neuroPush.sendDaily().catch(() => {});
+    }
+    if (await onceDaily.claimToday(sessionPool, 'gym_expiry_alerts')) {
       require('./src/lib/gym_alerts').runExpiryAlerts().catch(() => {}); // gym renewals
     }
+    onceDaily.sweep(sessionPool).catch(() => {});
   } catch (e) { /* ignore */ }
 }, 30 * 60 * 1000).unref();
 

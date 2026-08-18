@@ -307,7 +307,12 @@ router.post('/classes/add', async (req, res) => {
   if (name) try {
     await pool.query('INSERT INTO gym_classes (company_id, name, day_of_week, start_time, duration_min, trainer_id, capacity, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
       [req.company.id, name, Math.max(0, Math.min(6, parseInt(b.day_of_week, 10) || 0)),
-       String(b.start_time || '').slice(0, 10) || null, Math.max(1, parseInt(b.duration_min, 10) || 60),
+       // HH:MM or nothing. It was stored as any ten characters, so "بعد
+       // الظهر" was a valid start time — and the booking page has to compare it
+       // with a clock to know whether today's class has already run.
+       (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(b.start_time || '').trim())
+         ? String(b.start_time).trim() : null),
+       Math.max(1, parseInt(b.duration_min, 10) || 60),
        parseInt(b.trainer_id, 10) || null, Math.max(1, parseInt(b.capacity, 10) || 20), parseInt(b.sort_order, 10) || 0]);
   } catch (e) { console.error('[gym class add]', e.message); }
   res.redirect('/gym/classes?saved=1');

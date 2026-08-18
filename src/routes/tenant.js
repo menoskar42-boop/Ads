@@ -772,10 +772,31 @@ router.post('/book-class', gymGuard, async (req, res) => {
         [classId, company.id])).rows[0];
       if (!gymClass) { await client.query('ROLLBACK'); return res.redirect('/?bookerr=1#classes'); }
 
-      // Next occurrence of the class's weekday (today if it matches, else within a week).
+      /* Next occurrence of the class's weekday — and if that is TODAY and the
+       * class has already started, next week instead.
+       *
+       * The old query stopped at the weekday, so at ten at night a member could
+       * book the six o'clock class that finished four hours ago. It counted
+       * against the capacity of a session that no longer existed, and the
+       * member turned up to a locked studio the following morning.
+       *
+       * Everything is measured in Cairo time, not the server's: CURRENT_DATE on
+       * a UTC host rolls over at 2am local, so for two hours every night "today"
+       * meant yesterday's class.
+       */
       const bookingDate = (await client.query(
-        "SELECT (CURRENT_DATE + (((7 + $1 - EXTRACT(DOW FROM CURRENT_DATE)::int) % 7)) )::date AS d",
-        [gymClass.day_of_week])).rows[0].d;
+        `WITH n AS (SELECT (now() AT TIME ZONE 'Africa/Cairo') AS ts),
+              t AS (SELECT ts, ts::date AS today,
+                           CASE WHEN $2 ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+                                THEN $2::time ELSE NULL END AS starts
+                      FROM n),
+              b AS (SELECT ts, today, starts,
+                           (today + ((7 + $1 - EXTRACT(DOW FROM ts)::int) % 7)) AS d
+                      FROM t)
+         SELECT (CASE WHEN d = today AND starts IS NOT NULL AND starts <= ts::time
+                      THEN d + 7 ELSE d END)::date AS d
+           FROM b`,
+        [gymClass.day_of_week, gymClass.start_time || null])).rows[0].d;
       const booked = (await client.query(
         "SELECT COUNT(*)::int n FROM gym_bookings WHERE class_id=$1 AND booking_date=$2 AND status='booked'",
         [classId, bookingDate])).rows[0].n;
