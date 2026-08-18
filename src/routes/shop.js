@@ -655,7 +655,9 @@ router.post('/pay/paymob/callback', async (req, res) => {
     const m = /^shop-(\d+)(?:-\d+)?$/.exec(String(merchantOrderId || ''));
     if (!m) return res.status(200).send('ignored');
     const orderId = parseInt(m[1], 10);
-    const o = (await pool.query('SELECT company_id FROM orders WHERE id=$1', [orderId])).rows[0];
+    const o = (await pool.query(
+      'SELECT company_id, payment_intent_cents, total_amount FROM orders WHERE id=$1', [orderId]
+    )).rows[0];
     if (!o) return res.status(200).send('no order');
     const settings = (await pool.query('SELECT gateway_hmac, gateway_hmac_enc FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
     const hmacSecret = payVault.read(settings && settings.gateway_hmac_enc, settings && settings.gateway_hmac);
@@ -663,9 +665,16 @@ router.post('/pay/paymob/callback', async (req, res) => {
       console.error('[paymob callback] HMAC mismatch for order', orderId);
       return res.status(403).send('bad hmac');
     }
-    if (obj.success === true || obj.success === 'true') {
+    // Same rule as the tenant webhook: the signature proves the sender, the
+    // amount proves it paid for this basket.
+    const cur = (await pool.query('SELECT currency FROM companies WHERE id=$1', [o.company_id])).rows[0];
+    const want = Number(o.payment_intent_cents) || Math.round(Number(o.total_amount) * 100);
+    const verdict = paymob.paymentAccepted(obj, want, (cur && cur.currency) || 'EGP');
+    if (verdict.ok) {
       await pool.query("UPDATE orders SET payment_status='paid', payment_ref=$1 WHERE id=$2 AND payment_status <> 'paid'", [String(obj.id || ''), orderId]);
       push.sendToCompany(o.company_id, { title: '💳 دفع أونلاين', body: `تم دفع الطلب #${orderId} أونلاين`, url: '/company/orders' }, 'order').catch(() => {});
+    } else {
+      console.error('[paymob callback] refused order', orderId, verdict.why);
     }
     res.status(200).send('ok');
   } catch (err) {

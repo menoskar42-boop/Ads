@@ -97,4 +97,49 @@ async function createPaymentUrl(creds, order) {
   return { url: `${BASE}/acceptance/iframes/${creds.iframeId}?payment_token=${pk.token}`, orderId: reg.id };
 }
 
-module.exports = { createPaymentUrl, verifyCallbackHmac };
+/**
+ * Is this callback actually a payment for this order?
+ *
+ * A valid HMAC proves the message came from Paymob. It does not prove it paid
+ * for the order we are about to mark paid. The webhook used to look at
+ * `obj.success` alone, so ANY successful transaction on the merchant's account
+ * whose merchant_order_id parsed to our order id would settle it — including
+ * one for one pound. The signature would be perfect, because Paymob really did
+ * sign it.
+ *
+ * So the amount is checked against what we asked for, and the states that mean
+ * "not money yet" are checked too:
+ *
+ *   pending      — the gateway is still waiting on the customer;
+ *   is_auth without is_capture — held on the card, not taken;
+ *   is_voided / is_refunded    — taken and given back;
+ *   error_occured.
+ *
+ * `>=` not `===` on the amount: overpaying is the merchant's problem to refund,
+ * not a reason to leave a paid order showing unpaid.
+ *
+ * Returns { ok, why } — `why` is for the log, never for the buyer.
+ */
+function paymentAccepted(obj, expectedCents, currency) {
+  const truthy = (v) => v === true || v === 'true';
+  const why = [];
+  if (!obj) return { ok: false, why: 'no transaction object' };
+  if (!truthy(obj.success)) why.push('success=' + obj.success);
+  if (truthy(obj.pending)) why.push('pending');
+  if (truthy(obj.error_occured)) why.push('error_occured');
+  if (truthy(obj.is_voided)) why.push('voided');
+  if (truthy(obj.is_refunded)) why.push('refunded');
+  if (truthy(obj.is_auth) && !truthy(obj.is_capture)) why.push('authorised but not captured');
+
+  const paid = Number(obj.amount_cents);
+  const want = Math.round(Number(expectedCents));
+  if (!Number.isFinite(want) || want <= 0) why.push('no expected amount to compare');
+  else if (!Number.isFinite(paid) || Math.round(paid) < want) why.push(`amount ${obj.amount_cents} < ${want}`);
+
+  if (currency && obj.currency && String(obj.currency).toUpperCase() !== String(currency).toUpperCase()) {
+    why.push(`currency ${obj.currency} != ${currency}`);
+  }
+  return { ok: why.length === 0, why: why.join('; ') };
+}
+
+module.exports = { createPaymentUrl, verifyCallbackHmac, paymentAccepted };

@@ -1014,7 +1014,10 @@ router.post('/order/pay/paymob/callback', async (req, res) => {
     if (!m) return res.status(200).send('ignored');
     const table = m[1] === 'pharmacy' ? 'pharmacy_orders' : 'food_orders';
     const orderId = parseInt(m[2], 10);
-    const o = (await pool.query(`SELECT company_id FROM ${table} WHERE id=$1`, [orderId])).rows[0];
+    const amountCol = table === 'pharmacy_orders' ? 'total_amount' : 'total';
+    const o = (await pool.query(
+      `SELECT company_id, payment_intent_cents, ${amountCol} AS amount FROM ${table} WHERE id=$1`, [orderId]
+    )).rows[0];
     if (!o || o.company_id !== company.id) return res.status(200).send('no order');
     const settings = (await pool.query('SELECT gateway_hmac, gateway_hmac_enc FROM payment_settings WHERE company_id=$1', [o.company_id])).rows[0];
     // Encrypted at rest; the plaintext column is the pre-migration fallback.
@@ -1023,9 +1026,17 @@ router.post('/order/pay/paymob/callback', async (req, res) => {
       console.error('[paymob tenant callback] HMAC mismatch', moid);
       return res.status(403).send('bad hmac');
     }
-    if (obj.success === true || obj.success === 'true') {
+    // A valid signature says Paymob sent this. It does not say it paid for THIS
+    // order — the amount and the transaction's own state have to agree too.
+    const want = Number(o.payment_intent_cents) || Math.round(Number(o.amount) * 100);
+    const verdict = paymob.paymentAccepted(obj, want, company.currency || 'EGP');
+    if (verdict.ok) {
       await pool.query(`UPDATE ${table} SET payment_status='paid', payment_ref=$1 WHERE id=$2 AND payment_status <> 'paid'`, [String(obj.id || ''), orderId]);
       push.sendToCompany(o.company_id, { title: '💳 دفع أونلاين', body: 'تم دفع الطلب #' + orderId + ' أونلاين', url: company.page_type === 'pharmacy' ? '/pharmacy/orders' : '/food/orders' }, 'order').catch(() => {});
+    } else {
+      // Not an error to answer with — Paymob retries on non-200. Logged so the
+      // merchant's own support can see a rejected settlement instead of silence.
+      console.error('[paymob tenant callback] refused', moid, verdict.why);
     }
     res.status(200).send('ok');
   } catch (err) { console.error('[paymob tenant callback]', err.message); res.status(200).send('err'); }

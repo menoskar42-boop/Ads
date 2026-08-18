@@ -31,6 +31,7 @@ const CHECKS = [
   ['check-pay-intent',      'نيّة الدفع بتتعمل مرة (مفيش دفع مزدوج)'],
   ['check-shipping-zone',   'الشحن بيتسعّر من مناطق التاجر (مفيش شحن ببلاش)'],
   ['check-installment-cap', 'التحصيل في العيادة متقصوص على المستحق'],
+  ['check-pay-callback',    'كولباك الدفع بيتحقّق من المبلغ مش من التوقيع بس'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],
