@@ -19,7 +19,20 @@ const audit = require('../lib/audit');
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+const M = require('../lib/money');
+
+// A clinical figure that was typed but could not be read is not a blank. Both
+// used to come back as `null`: «٧٥» on an Arabic keyboard, «75 كجم», and an
+// empty box were the same thing, and the row saved without the reading.
+// `optional` keeps "blank means follow the default"; `bad` is what the screen
+// has to say instead of saving a silence.
+const num = (v) => { const r = M.read(v); return r.ok && r.value > 0 ? r.value : null; };
+const bad = (v) => String(v == null ? '' : v).trim() !== '' && !M.read(v).ok;
+
+// Codes the server chose. Printing `req.query.err` would let a link write the
+// words on a dietitian's screen.
+const NT_ERRORS = ['required', 'save', 'empty', 'unreadable', 'login_taken',
+  'no_name', 'username', 'line', 'not_empty'];
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 const text = (v, max) => String(v || '').trim().slice(0, max) || null;
 
@@ -106,7 +119,8 @@ router.get('/patients', async (req, res) => {
     res.render('nutrition_admin/patients', {
       tab: 'patients', rows, tally, archived, q: req.query.q || '',
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
-      saved: req.query.saved === '1', err: req.query.err || null,
+      saved: req.query.saved === '1',
+      err: NT_ERRORS.includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[nutrition patients]', e.message); res.status(500).send('error'); }
 });
@@ -116,6 +130,9 @@ router.post('/patients', async (req, res) => {
   const name = text(b.name, 120);
   if (!name) return res.redirect('/nutrition/patients?err=required');
   const id = parseInt(b.id, 10);
+  if (['height_cm', 'protein_per_kg', 'fat_percent', 'target_weight_kg'].some((f) => bad(b[f]))) {
+    return res.redirect('/nutrition/patients?err=unreadable');
+  }
   const vals = [
     name, text(b.phone, 30), text(b.email, 120),
     b.gender === 'male' || b.gender === 'female' ? b.gender : null,
@@ -180,7 +197,8 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
       // exactly one render and leaves no copy anywhere.
       newPassword: takeFlashPassword(req, parseInt(req.params.id, 10)),
       portalUrl: 'https://' + req.company.slug + '.oscardevs.com/portal',
-      saved: req.query.saved === '1', err: req.query.err || null,
+      saved: req.query.saved === '1',
+      err: NT_ERRORS.includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[nutrition patient]', e.message); res.status(500).send('error'); }
 });
@@ -189,6 +207,12 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
 router.post('/patients/:id(\\d+)/measure', async (req, res) => {
   const id = parseInt(req.params.id, 10);
   const b = req.body || {};
+  // Typed but unreadable is refused before anything is written: a visit that
+  // records three of the four figures and drops the fourth in silence is worse
+  // than one that asks the dietitian to type it again.
+  if (['weight_kg', 'body_fat_pct', 'waist_cm', 'muscle_kg'].some((f) => bad(b[f]))) {
+    return res.redirect('/nutrition/patients/' + id + '?err=unreadable');
+  }
   // A row with nothing measured on it is not a visit, it is a stray click.
   if (!num(b.weight_kg) && !num(b.body_fat_pct) && !num(b.waist_cm) && !num(b.muscle_kg)) {
     return res.redirect('/nutrition/patients/' + id + '?err=empty');
@@ -201,7 +225,10 @@ router.post('/patients/:id(\\d+)/measure', async (req, res) => {
       [req.company.id, id, date(b.taken_on), num(b.weight_kg), num(b.body_fat_pct),
         num(b.waist_cm), num(b.muscle_kg), text(b.notes, 300)]);
     audit.log(pool, req, { entity: 'measurement', patientId: id, action: 'create' });
-  } catch (e) { console.error('[nutrition measure]', e.message); }
+  } catch (e) {
+    console.error('[nutrition measure]', e.message);
+    return res.redirect('/nutrition/patients/' + id + '?err=save');
+  }
   res.redirect('/nutrition/patients/' + id + '?saved=1');
 });
 
@@ -323,7 +350,8 @@ router.get('/settings', async (req, res) => {
   try {
     res.render('nutrition_admin/settings', {
       tab: 'settings', settings: await P.settings(pool, req.company.id),
-      saved: req.query.saved === '1', err: req.query.err || null,
+      saved: req.query.saved === '1',
+      err: NT_ERRORS.includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[nutrition settings]', e.message); res.status(500).send('error'); }
 });
@@ -370,7 +398,8 @@ router.get('/staff', async (req, res) => {
       [req.company.id])).rows;
     res.render('nutrition_admin/staff', {
       tab: 'staff', staff, roles: nutriPerms.ROLE_KEYS, ROLES: nutriPerms.ROLES,
-      saved: req.query.saved === '1', err: req.query.err || null,
+      saved: req.query.saved === '1',
+      err: NT_ERRORS.includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[nutrition staff]', e.message); res.status(500).send('error'); }
 });

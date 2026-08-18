@@ -20,16 +20,16 @@
       <input name="name" maxlength="120" required value="<%= edit ? edit.name : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.kcal') %>
-      <input name="kcal" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.kcal : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="kcal" inputmode="decimal" required pattern="[0-9\u0660-\u0669٫.,\s]+" value="<%= edit ? edit.kcal : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <label class="text-xs font-bold text-slate-600"><%= t('nt.macro.protein') %>
-      <input name="protein_g" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.protein_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="protein_g" inputmode="decimal" required pattern="[0-9\u0660-\u0669٫.,\s]+" value="<%= edit ? edit.protein_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <label class="text-xs font-bold text-slate-600"><%= t('nt.macro.carbs') %>
-      <input name="carbs_g" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.carbs_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="carbs_g" inputmode="decimal" required pattern="[0-9\u0660-\u0669٫.,\s]+" value="<%= edit ? edit.carbs_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <label class="text-xs font-bold text-slate-600"><%= t('nt.macro.fat') %>
-      <input name="fat_g" type="number" min="0" <%- 'step="0.1"' %> value="<%= edit ? edit.fat_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="fat_g" inputmode="decimal" required pattern="[0-9\u0660-\u0669٫.,\s]+" value="<%= edit ? edit.fat_g : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.category') %>
       <input name="category" maxlength="60" value="<%= edit ? (edit.category || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
@@ -38,7 +38,7 @@
       <input name="serving_desc" maxlength="60" placeholder="<%= t('nt.fd.serving_ph') %>" value="<%= edit ? (edit.serving_desc || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.serving_g') %>
-      <input name="serving_g" type="number" min="0" <%- 'step="1"' %> value="<%= edit ? (edit.serving_g || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <input name="serving_g" inputmode="decimal" pattern="[0-9\u0660-\u0669٫.,\s]*" value="<%= edit ? (edit.serving_g || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
     <div class="sm:col-span-3 lg:col-span-6 flex gap-2">
       <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= edit ? t('nt.m.save') : t('nt.m.add') %></button>
