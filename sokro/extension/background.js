@@ -83,6 +83,7 @@ async function execute(cmd) {
     if (cmd.kind === 'browse') output = await doBrowse(cmd.input || {});
     else if (cmd.kind === 'extract_table') output = await doExtractTable(cmd.input || {});
     else if (cmd.kind === 'fill_submit') output = await doFillSubmit(cmd.input || {});
+    else if (cmd.kind === 'wa_send') output = await doWaSend(cmd.input || {});
     else if (cmd.kind === 'op_state') output = await doOpState(cmd.input || {});
     else if (cmd.kind === 'op_act') output = await doOpAct(cmd.input || {});
     else error = 'unknown kind: ' + cmd.kind;
@@ -196,6 +197,57 @@ async function doFillSubmit(input) {
   if (!keep) { try { chrome.tabs.remove(tabId); } catch (e) {} }
   return { url: input.url, filled: result.filled, missed: result.missed || [], wanted: result.wanted,
     submitted: result.submitted, title: after.title, text: after.text, keptOpen: keep };
+}
+
+// ── WhatsApp: send from the user's own session ───────────────────────────────
+//
+// The deep link puts the text in the composer; the send still has to be
+// pressed, and pressing it is the whole job. The one rule here is that this
+// returns `sent: true` ONLY when the composer emptied afterwards — telling
+// somebody their message arrived when it is sitting unsent is worse than
+// telling them nothing.
+async function doWaSend(input) {
+  const tabId = await openAndWait(input.url, true);   // visible: the user watches it happen
+  await new Promise((r) => setTimeout(r, 2500));      // WhatsApp Web hydrates slowly
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      function vis(el){ if(!el) return false; var r=el.getBoundingClientRect(); return r.width>2&&r.height>2; }
+      function composerText(){
+        var box=document.querySelector('div[contenteditable="true"][data-tab]');
+        return box ? (box.innerText || '').trim() : null;
+      }
+      // Not logged in: WhatsApp Web shows its QR screen and no composer at all.
+      if (document.querySelector('canvas[aria-label*="scan" i], [data-testid="qrcode"]')) {
+        return { sent: false, reason: 'not_logged_in' };
+      }
+      var body = (document.body && document.body.innerText) || '';
+      if (/(الرقم|رقم الهاتف|phone number)[\s\S]{0,60}(غير صالح|invalid|not on whatsapp|مش على واتساب)/i.test(body)) {
+        return { sent: false, reason: 'not_on_whatsapp' };
+      }
+      var before = composerText();
+      var btn = document.querySelector('span[data-icon="send"], button[aria-label="Send"], button[aria-label="إرسال"], [data-testid="send"]');
+      if (!vis(btn)) return { sent: false, reason: 'no_send_button', composer: before };
+      (btn.closest('button') || btn).click();
+      return { sent: null, pending: true, before: before };
+    },
+  });
+  if (result && result.sent === false) return Object.assign({ url: input.url }, result);
+  // Confirm rather than assume: read the composer again after the send had time
+  // to happen. An empty composer that had text in it is the page's own receipt.
+  await new Promise((r) => setTimeout(r, 1800));
+  const [{ result: after }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      var box = document.querySelector('div[contenteditable="true"][data-tab]');
+      var last = document.querySelector('div.message-out:last-of-type, [data-testid="msg-container"]:last-of-type');
+      return { composer: box ? (box.innerText || '').trim() : null,
+        lastOut: last ? (last.innerText || '').slice(0, 200) : '' };
+    },
+  });
+  const emptied = after && after.composer === '';
+  return { url: input.url, sent: !!emptied, reason: emptied ? null : 'no_send_button',
+    lastOut: (after && after.lastOut) || '' };
 }
 
 // ── Operator: one persistent tab PER TASK (click / type / select / scroll) ───

@@ -9,5 +9,6 @@ require('./ExtractTableAction');
 require('./FillSubmitAction');
 require('./NavigateSiteAction');
 require('./OperateAction');
+require('./WhatsAppAction');
 
 module.exports = require('./_registry');
