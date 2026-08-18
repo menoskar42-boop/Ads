@@ -198,8 +198,39 @@ async function doFillSubmit(input) {
     submitted: result.submitted, title: after.title, text: after.text, keptOpen: keep };
 }
 
-// ── Operator: drive ONE persistent tab (click / type / select / scroll) ──────
-let opTab = null; // the tab the Operator keeps open across steps
+// ── Operator: one persistent tab PER TASK (click / type / select / scroll) ───
+//
+// There was a single `opTab` for everything. Two tasks running at once — a
+// booking and a price check, or the same task re-fired after a timeout — drove
+// the SAME tab: one navigates away while the other is reading, indexes from the
+// first page get clicked on the second, and the click lands on whatever now
+// occupies that position. On a booking form that is a wrong button pressed with
+// somebody's details already typed in.
+//
+// So a tab belongs to a task, and commands for one task are serialised behind a
+// lock — the observe→decide→act loop is only sound if nothing moves the page
+// between the observation and the act.
+const opTabs = new Map();   // taskKey → tabId
+const opLocks = new Map();  // taskKey → promise chain
+
+function taskKeyOf(input) {
+  const raw = input && input.task != null ? String(input.task) : '';
+  return raw.trim() || 'adhoc';
+}
+
+// Serialise per task: each command waits for the previous one on the same task,
+// and a task that throws must not wedge the chain for the next command.
+function withTaskLock(key, fn) {
+  const prev = opLocks.get(key) || Promise.resolve();
+  const next = prev.then(fn, fn);
+  opLocks.set(key, next.then(() => {}, () => {}));
+  return next;
+}
+
+// A tab the user closed is not this task's tab any more.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  for (const [key, id] of opTabs) if (id === tabId) opTabs.delete(key);
+});
 
 function waitComplete(id) {
   return new Promise((resolve) => {
@@ -208,16 +239,18 @@ function waitComplete(id) {
     setTimeout(resolve, 12000); // hard cap
   });
 }
-async function ensureOpTab(url) {
-  if (opTab != null) { try { await chrome.tabs.get(opTab); } catch (_) { opTab = null; } }
-  if (opTab == null) {
-    opTab = await new Promise((res) => chrome.tabs.create({ url: url || 'about:blank', active: true }, (t) => res(t.id)));
-    await waitComplete(opTab);
+async function ensureOpTab(key, url) {
+  let id = opTabs.get(key);
+  if (id != null) { try { await chrome.tabs.get(id); } catch (_) { id = null; opTabs.delete(key); } }
+  if (id == null) {
+    id = await new Promise((res) => chrome.tabs.create({ url: url || 'about:blank', active: true }, (t) => res(t.id)));
+    opTabs.set(key, id);
+    await waitComplete(id);
   } else if (url) {
-    await new Promise((res) => chrome.tabs.update(opTab, { url, active: true }, () => res()));
-    await waitComplete(opTab);
+    await new Promise((res) => chrome.tabs.update(id, { url, active: true }, () => res()));
+    await waitComplete(id);
   }
-  return opTab;
+  return id;
 }
 // Runs in the page: tag visible interactive elements + return the state.
 function opCollect() {
@@ -242,13 +275,23 @@ async function opStateOf(id) {
   return result;
 }
 async function doOpState(input) {
-  const id = await ensureOpTab(input.url);
-  return await opStateOf(id);
+  const key = taskKeyOf(input);
+  return withTaskLock(key, async () => {
+    const id = await ensureOpTab(key, input.url);
+    return await opStateOf(id);
+  });
 }
 async function doOpAct(input) {
-  if (opTab == null) throw new Error('no operator tab (open a page first)');
+  const key = taskKeyOf(input);
+  return withTaskLock(key, () => opAct(key, input));
+}
+async function opAct(key, input) {
+  const tabId = opTabs.get(key);
+  // The indexes in `idx` were handed out by THIS task's last observation. Acting
+  // on another task's tab would click whatever happens to sit at that number.
+  if (tabId == null) throw new Error('no operator tab for this task (open a page first)');
   const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId: opTab }, args: [input.action || '', input.idx, input.text || ''],
+    target: { tabId }, args: [input.action || '', input.idx, input.text || ''],
     func: (action, idx, text) => {
       var el = (idx != null && idx !== '') ? document.querySelector('[data-sokro-idx="' + idx + '"]') : null;
       try {
@@ -264,8 +307,8 @@ async function doOpAct(input) {
     },
   });
   await new Promise((r) => setTimeout(r, 1100)); // let the page react/navigate
-  await waitComplete(opTab).catch(() => {});
-  const st = await opStateOf(opTab);
+  await waitComplete(tabId).catch(() => {});
+  const st = await opStateOf(tabId);
   return Object.assign({ acted: result }, st);
 }
 
