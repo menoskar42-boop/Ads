@@ -80,8 +80,15 @@ const code = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
   const names = new Set(registry.catalog({ without: ['browser'] }).map((a) => a.name));
   const ctx = { actions: registry };
 
-  check('أسماء أدوات المتصفّح بتتحسب من التسجيل',
-    I.browserActionNames(ctx).sort().join(',') === 'browse,extract_table,fill_submit,navigate_site,operate');
+  {
+    // Derived, not listed: the day a sixth browser action is written this must
+    // pick it up on its own — a fixed list here would be the very thing this
+    // item removed from the planner.
+    const declared = registry.catalog().filter((a) => (a.permissions || []).includes('browser')).map((a) => a.name).sort();
+    const got = I.browserActionNames(ctx).sort();
+    check('أسماء أدوات المتصفّح بتتحسب من التسجيل',
+      got.join(',') === declared.join(',') && declared.length >= 5, got.join(','));
+  }
 
   {
     const plan = { steps: [{ action: 'operate', input: {} }, { action: 'search_web', input: {} }] };
