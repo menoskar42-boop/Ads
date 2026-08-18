@@ -1809,6 +1809,8 @@ router.get('/installments', requireModule('installments'), async (req, res) => {
     res.render('clinic_admin/mod_installments', {
       company: req.company, tab: 'installments',
       plans: plans.rows, invoices: unpaidInvoices.rows, due: due.rows, today,
+      /* A code the server knows, never the query string's own words. */
+      errorCode: String(req.query.error || '') === 'settled' ? 'settled' : null,
     });
   } catch (e) { console.error('[installments]', e.message); res.status(500).send('error'); }
 });
@@ -1880,14 +1882,37 @@ router.post('/installments/:id/pay', requireModule('installments'), async (req, 
     )).rows[0];
     if (!ins || ins.paid_at) { await client.query('ROLLBACK'); return res.redirect('/clinic/installments'); }
 
-    const amount = Math.max(0, parseFloat(req.body.amount) || Number(ins.amount));
     const method = String(req.body.method || 'cash').slice(0, 20);
+
+    // Cap the payment at what the invoice still owes. Without this an
+    // instalment of 100 accepted 999,999 and the invoice read "paid" with a
+    // paid_amount the clinic can never reconcile — the sibling route
+    // (/invoices/:id/payments) already capped, this one did not, so the same
+    // patient's file behaved differently depending on which button was used.
+    const inv = (await client.query(
+      'SELECT total_amount, paid_amount FROM clinic_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE',
+      [ins.invoice_id, cid]
+    )).rows[0];
+    if (!inv) { await client.query('ROLLBACK'); return res.redirect('/clinic/installments'); }
+    const due = Math.max(0, money.r2(Number(inv.total_amount) - Number(inv.paid_amount)));
+    const asked = money.positive(req.body.amount, 0) || money.positive(ins.amount, 0);
+    const applied = Math.min(asked, due);
+    if (applied <= 0) { await client.query('ROLLBACK'); return res.redirect('/clinic/installments?error=settled'); }
+
     await client.query(
       'INSERT INTO clinic_payments (company_id, invoice_id, amount, method) VALUES ($1,$2,$3,$4)',
-      [cid, ins.invoice_id, amount, method]
+      [cid, ins.invoice_id, applied, method]
     );
+    // And an instalment is only closed when it is actually covered. Stamping
+    // paid_at on a short payment would trade one lie for another: the cap
+    // would silently turn "paid 40 of 100" into "paid".
+    const insPaid = money.r2(Number(ins.paid_amount || 0) + applied);
     await client.query(
-      'UPDATE clinic_installments SET paid_amount=$1, paid_at=now() WHERE id=$2', [amount, id]
+      `UPDATE clinic_installments
+          SET paid_amount = $1,
+              paid_at = CASE WHEN $1 >= amount THEN now() ELSE paid_at END
+        WHERE id=$2 AND company_id=$3`,
+      [insPaid, id, cid]
     );
     await client.query(
       `UPDATE clinic_invoices
@@ -1895,7 +1920,7 @@ router.post('/installments/:id/pay', requireModule('installments'), async (req, 
               status = CASE WHEN paid_amount + $1 >= total_amount THEN 'paid' ELSE 'partial' END,
               paid_at = CASE WHEN paid_amount + $1 >= total_amount THEN now() ELSE paid_at END
         WHERE id=$2 AND company_id=$3`,
-      [amount, ins.invoice_id, cid]
+      [applied, ins.invoice_id, cid]
     );
     await client.query('COMMIT');
   } catch (e) {

@@ -1991,6 +1991,7 @@ const strings = {
     // التقسيط
     'in.title':'🧾 التقسيط',
     'in.sub':'قسّط الفاتورة على دفعات بمواعيد — وكل دفعة بتتسجّل تحصيل عادي في الحسابات والخزنة',
+    'in.err.settled':'الفاتورة دي مفيهاش مستحق — مفيش حاجة تتحصّل.',
     'in.late_pre':'فيه','in.late_mid':'قسط متأخر —','in.late_total':'إجمالي',
     'in.create':'تقسيط فاتورة',
     'in.no_invoices':'مفيش فواتير عليها متبقّي وتصلح للتقسيط. (الفواتير المدفوعة أو اللي عليها خطة بالفعل مش بتظهر هنا.)',
@@ -4038,6 +4039,7 @@ const strings = {
     // Instalments
     'in.title':'🧾 Instalments',
     'in.sub':'Split an invoice into dated instalments — each payment posts as a normal collection in the accounts and the cash box',
+    'in.err.settled':'This invoice has nothing outstanding — there is nothing to collect.',
     'in.late_pre':'There are','in.late_mid':'overdue instalments —','in.late_total':'totalling',
     'in.create':'Split an invoice',
     'in.no_invoices':'No invoices with an outstanding balance to split. (Paid invoices, and ones that already have a plan, are not listed here.)',

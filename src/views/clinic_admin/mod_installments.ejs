@@ -9,6 +9,10 @@
 <h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('in.title') %></h1>
 <p class="text-slate-500 mb-6"><%= t('in.sub') %></p>
 
+<% if (typeof errorCode !== 'undefined' && errorCode) { %>
+  <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= t('in.err.' + errorCode) %></div>
+<% } %>
+
 <!-- ── مستحق قريباً / متأخر ─────────────────────────────────────── -->
 <% var overdue = due.filter(function(d){ return iso(d.due_date) < today; }); %>
 <% if (overdue.length) { %>
