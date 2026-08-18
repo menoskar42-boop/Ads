@@ -678,6 +678,7 @@ async function ensureClinicSchema() {
       ALTER TABLE clinic_attendance ALTER COLUMN work_date  SET DEFAULT CURRENT_DATE;
     `);
 
+    await enforceOneAppointmentPerSlot(client);
     await seedDemoClinic(client);
     console.log('Clinic schema ready.');
   } catch (e) {
@@ -690,6 +691,47 @@ async function ensureClinicSchema() {
 
 // Seed a demo clinic tenant (slug 'clinic') so clinic.oscardevs.com resolves to
 // a working sample — kept OFF the homepage until the product ships.
+/**
+ * One live appointment per doctor per exact slot.
+ *
+ * The booking insert already carries its own clash test, but `NOT EXISTS`
+ * under READ COMMITTED cannot see a row another transaction has inserted and
+ * not committed — so two people tapping the same slot in the same second both
+ * find it free. The advisory lock in src/clinic/booking.js is what makes the
+ * ±window test reliable; this index is the backstop underneath it, for the
+ * exact collision a slot picker actually produces and for any code path that
+ * forgets the lock.
+ *
+ * Only exact times, because the window is a per-clinic setting and no index
+ * can express "within twenty minutes".
+ *
+ * Existing clashes are CANCELLED, not deleted — two real patients were told
+ * they had that time, and the clinic needs to see both to ring one of them.
+ * And it has to happen first: a partial unique index over rows that already
+ * violate it is not created at all, and a boot that logs that and carries on
+ * leaves no index and no sign of one missing.
+ */
+async function enforceOneAppointmentPerSlot(client) {
+  try {
+    const dupes = await client.query(`
+      UPDATE clinic_appointments a SET status = 'cancelled'
+       WHERE a.status <> 'cancelled' AND a.slot_at IS NOT NULL AND a.doctor_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM clinic_appointments o
+            WHERE o.company_id = a.company_id AND o.doctor_id = a.doctor_id
+              AND o.slot_at = a.slot_at AND o.status <> 'cancelled' AND o.id < a.id)
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_clinic_one_appt_per_slot
+        ON clinic_appointments (company_id, doctor_id, slot_at)
+        WHERE status <> 'cancelled' AND slot_at IS NOT NULL AND doctor_id IS NOT NULL;
+    `);
+    if (dupes.rowCount) console.log(`Clinic: cancelled ${dupes.rowCount} double-booked appointment(s).`);
+  } catch (e) {
+    console.error('[clinic one-appt index]', e.message);
+  }
+}
+
 async function seedDemoClinic(client) {
   const existing = await client.query('SELECT id, page_type, is_active FROM companies WHERE slug = $1', [DEMO_SLUG]);
   let companyId;

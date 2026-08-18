@@ -646,12 +646,11 @@ router.post('/book', clinicGuard, async (req, res) => {
     // The clash test lives inside the INSERT: a clinic that shares its booking
     // link on WhatsApp really does get two people on the same slot in the same
     // second, and a SELECT beforehand lets both through.
-    const q = booking.insertIfFree({
+    const appt = await booking.book(pool, {
       companyId: company.id, doctorId, name, phone,
       slotAt, reason: reason || null, status: 'pending',
     });
-    const ins = await pool.query(q.text, q.values);
-    if (!ins.rows.length) return res.redirect('/?error=taken#book');
+    if (!appt) return res.redirect('/?error=taken#book');
     // Auto-confirm over WhatsApp (best-effort, non-blocking).
     maybeSendBookingConfirm(company, name, phone, doctorId);
     const ref = req.get('referer') || '';

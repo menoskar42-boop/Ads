@@ -159,8 +159,11 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
 
   const tenant3 = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
   const clinic3 = fs.readFileSync(path.join(ROOT, 'src/routes/clinic_admin.js'), 'utf8');
-  check('الحجز العام بيستخدمه', /booking\.insertIfFree/.test(tenant3) && /err' \+ bad|error=' \+ bad/.test(tenant3));
-  check('وحجز اللوحة كمان', /booking\.insertIfFree/.test(clinic3));
+  /* Both now call booking.book(), which wraps that same INSERT in a
+     transaction and an advisory lock — see check-appointment-slot.js. The fact
+     asserted here is unchanged: neither route hand-rolls the clash test. */
+  check('الحجز العام بيستخدمه', /booking\.book\(pool,/.test(tenant3) && /err' \+ bad|error=' \+ bad/.test(tenant3));
+  check('وحجز اللوحة كمان', /booking\.book\(pool,/.test(clinic3));
   check('واللي الميعاد بتاعه اتحجز بيتقاله',
     /error=taken/.test(tenant3) && /error=taken/.test(clinic3));
 

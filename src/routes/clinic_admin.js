@@ -1494,13 +1494,11 @@ router.post('/voice-bookings/:id/book', addons.requireAddon(pool, 'voice_booking
     // Same free-slot test as the public form. The receptionist booking from a
     // voice message must not be able to put a second patient on a doctor who is
     // already taken at that time.
-    const q = booking.insertIfFree({
+    const appt = await booking.book(pool, {
       companyId: cid, doctorId: parseInt(b.doctor_id, 10) || null, name, phone,
       slotAt, reason: String(b.reason || '').slice(0, 300) || null, status: 'confirmed',
     });
-    const ins = await pool.query(q.text, q.values);
-    if (!ins.rows.length) return res.redirect('/clinic/voice-bookings?error=taken');
-    const appt = ins.rows[0];
+    if (!appt) return res.redirect('/clinic/voice-bookings?error=taken');
     await pool.query(
       `UPDATE clinic_voice_bookings SET appointment_id=$1, status='booked' WHERE id=$2 AND company_id=$3`,
       [appt.id, id, cid]
