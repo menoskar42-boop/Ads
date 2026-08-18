@@ -52,11 +52,18 @@ const SEARCH_BOXES = [
   'input[type="text"]', 'textarea',
 ];
 
-async function fillOne(page, f) {
-  const selectors = f.selector ? [f.selector] : SEARCH_BOXES;
-  for (const sel of selectors) {
+async function fillOne(page, f, used) {
+  // A GIVEN selector is used as given. The candidate list is the fallback for
+  // «اكتب في خانة البحث» only — running it after a missed selector is how a
+  // national ID ends up in the name box on a form that then looks complete.
+  if (f.selector) {
+    try { await page.fill(f.selector, f.value, { timeout: 8000 }); return f.selector; }
+    catch (_) { return null; }
+  }
+  for (const sel of SEARCH_BOXES) {
+    if (used.includes(sel)) continue;   // never two values into one box
     try {
-      await page.fill(sel, f.value, { timeout: f.selector ? 8000 : 1500 });
+      await page.fill(sel, f.value, { timeout: 1500 });
       return sel;
     } catch (_) { /* try the next candidate */ }
   }
@@ -122,10 +129,11 @@ async function run(ctx, input) {
     const out = await ctx.browser.withPage(async (page) => {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       const missed = [];
+      const used = [];
       let lastSelector = null;
       for (const f of fields) {
-        const hit = await fillOne(page, f);
-        if (hit) lastSelector = hit;
+        const hit = await fillOne(page, f, used);
+        if (hit) { used.push(hit); lastSelector = hit; }
         else missed.push(f.selector || 'خانة البحث');
       }
       let submitted = false;

@@ -135,21 +135,32 @@ async function doFillSubmit(input) {
     target: { tabId }, args: [input.fields || [], input.submit == null ? null : String(input.submit), !!input.wantsSubmit],
     func: (fields, submit, wantsSubmit) => {
       function vis(el){ var r=el.getBoundingClientRect(); return r.width>2&&r.height>2; }
-      // Robustly find the target input even if the given selector is wrong: fall
-      // back to a visible search/text box (so "type in the search box" just works).
-      function findInput(sel){
-        if (sel){ try{ var e=document.querySelector(sel); if(e) return e; }catch(_){} }
+      // The fallback is for ONE case only: "type in the site's search box",
+      // which arrives as an EMPTY selector. It used to run whenever a given
+      // selector missed, so on a booking form a wrong `#nid` selector poured the
+      // national ID into the first visible text box — usually the name. Filling
+      // the wrong field is worse than filling none: the form looks complete.
+      function findInput(sel, used){
+        if (sel){ try{ return document.querySelector(sel) || null; }catch(_){ return null; } }
         var cands=['input[type="search"]','input[name="q"]','textarea[name="q"]','input[aria-label*="search" i]','input[placeholder*="بحث"]','input[placeholder*="search" i]','[role="search"] input','input[type="text"]','textarea'];
-        for(var i=0;i<cands.length;i++){ var list=document.querySelectorAll(cands[i]); for(var j=0;j<list.length;j++){ if(vis(list[j])) return list[j]; } }
+        for(var i=0;i<cands.length;i++){
+          var list=document.querySelectorAll(cands[i]);
+          for(var j=0;j<list.length;j++){
+            // And never the same box twice — two values in one field is the same
+            // failure wearing a different hat.
+            if(vis(list[j]) && used.indexOf(list[j])<0) return list[j];
+          }
+        }
         return null;
       }
       // Which fields did NOT land is the answer the server needs: a form that
       // was half filled and then SENT is somebody's booking with their national
       // ID missing, and until now that came back as a success.
-      var filled = 0, target = null, missed = [];
+      var filled = 0, target = null, missed = [], used = [];
       (fields || []).forEach(function (f) {
         try {
-          var el = findInput(f.selector);
+          var el = findInput(f.selector, used);
+          if (el) used.push(el);
           if (!el) { missed.push(f.selector || 'خانة البحث'); return; }
           target = el;
           el.focus(); el.value = f.value;
