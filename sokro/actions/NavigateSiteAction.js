@@ -11,9 +11,12 @@ const { register } = require('./_registry');
 function sameHost(a, b) { try { return new URL(a).host === new URL(b).host; } catch (_) { return false; } }
 
 async function run(ctx, input) {
-  const startUrl = String((input && input.url) || '').trim();
   const goal = String((input && (input.goal || input.query)) || '').trim();
-  if (!/^https?:\/\//i.test(startUrl)) return { ok: false, error: 'valid http(s) url required' };
+  // «ادخل سيلندر ودوّر على…» — the site arrives as a name people say, not as a
+  // URL the model can spell. Resolved from the table, or refused honestly.
+  const hit = require('../lib/siteDict').resolve((input && input.url) || '');
+  if (!hit) return { ok: false, error: 'valid http(s) url required' };
+  const startUrl = hit.url;
   const browse = ctx.actions && ctx.actions.get('browse');
   if (!browse) return { ok: false, error: 'browse action unavailable' };
 

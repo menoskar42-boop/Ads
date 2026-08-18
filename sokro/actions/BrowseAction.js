@@ -19,7 +19,13 @@ function wwwVariant(url) {
 
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
-  if (!/^https?:\/\//i.test(url)) return { ok: false, error: 'valid http(s) url required' };
+  // A name, not a URL: «سيلندر» is a site the user can name and the model
+  // cannot spell. Looked up in a written-down table — never guessed.
+  {
+    const hit = require('../lib/siteDict').resolve(url);
+    if (!hit) return { ok: false, error: 'valid http(s) url required' };
+    url = hit.url;
+  }
   // SSRF guard: never let a browse target hit localhost / the private network /
   // the cloud metadata endpoint (server Playwright shares the deployment's LAN).
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
