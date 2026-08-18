@@ -1,5 +1,10 @@
 'use strict';
 
+// A few examples for the prompt, generated from the ONE table that the actions
+// actually use (`sokro/lib/siteDict.js`) so the two can never drift apart.
+const SITE_HINTS = require('../lib/siteDict').SITES
+  .slice(0, 4).map((s) => s.label + '=' + s.domain).join(', ');
+
 // ── AI Planner ───────────────────────────────────────────────────────────────
 // Turns a natural-language goal into an executable plan (an ordered list of
 // Actions with concrete inputs). Intent detection is folded into the same LLM
@@ -108,7 +113,10 @@ async function plan(ctx, goal, recentContext = []) {
     'TOP PRIORITY: if the user is asking to FIND OUT information / prices / facts / news ("ابحثلي عن أسعار X"، "معلومات عن Y"، "كام سعر Z"، "أخبار كذا"، "find/search for prices of X"), use search_web (input.query = the whole query) — or research_report for a deep report.',
     'Intent → action examples: "اعمل/اعملي/اعمللي/اخلق/ارسم/ارسملي/هاتلي/عايز/عاوز صورة" OR the same verbs + a bare noun like "قطة/كلب/منظر/لوجو/بيت" (WITHOUT the word صورة) → generate_image (input.prompt = a rich description of the thing to draw). "make/create/draw/generate a cat/picture/logo" → generate_image.',
     '"ابحث/دوّر/لاقي/ابحثلي" or "search/find/look up" → search_web (input.query). "ابحث واعمل تقرير" or "research and report" → research_report (input.query).',
-    'When the user says "ابحث/دوّر جوّه/في موقع X عن Y" or "search inside site X for Y", use search_web with input.query = "site:<domain-of-X> Y" (e.g. سليندر=sylndr.com, دوبيزل=dubizzle.com.eg, أمازون=amazon.eg, نون=noon.com).',
+    // The domains are read from the table, not repeated here: a prompt line and
+    // a lookup table that disagree is how «سيلندر» became `selender.com`.
+    'When the user says "ابحث/دوّر جوّه/في موقع X عن Y" or "search inside site X for Y", use search_web with input.query = "site:<domain-of-X> Y" (e.g. ' + SITE_HINTS + ').',
+    'For a site you do not know the domain of, pass the NAME the user said as input.url — it is resolved from a table of known sites, and a name that is not in it is searched for. Do NOT invent a domain.',
   ];
   // Browser-routing guidance — INCLUDED ONLY when the extension is connected.
   const browserRules = [

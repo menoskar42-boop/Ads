@@ -277,9 +277,15 @@ async function run(ctx, input) {
   // No starting site given → don't dead-end. Open a Google search for the goal in
   // the user's browser and LEAVE it open so they see the results right away.
   let noSite = false;
-  if (!/^https?:\/\//i.test(url)) {
-    noSite = true;
-    url = 'https://www.google.com/search?q=' + encodeURIComponent(goal);
+  {
+    // A name in the table opens the SITE. Only a name nobody wrote down falls
+    // back to a search — «افتح سيلندر» must not become a Google results page.
+    const hit = require('../lib/siteDict').resolve(url);
+    if (hit) url = hit.url;
+    else {
+      noSite = true;
+      url = 'https://www.google.com/search?q=' + encodeURIComponent(goal);
+    }
   }
   // Self-heal a mistyped/voice-garbled host (e.g. "we.sylndr.com" → "www.sylndr.com"
   // → "sylndr.com"): try the URL, then the www + registrable-domain variants, and
