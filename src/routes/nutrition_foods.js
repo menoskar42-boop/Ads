@@ -9,12 +9,29 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const M = require('../lib/money');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const num = (v) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
 const text = (v, max) => String(v || '').trim().slice(0, max) || null;
+
+/**
+ * The four figures, per 100g, and the ceiling each one cannot pass.
+ *
+ * `Number(v) || 0` was reading a blank field, an Arabic-numeral 75, and a
+ * typo as the same thing: zero. And zero is a REAL answer here — chicken
+ * breast has 0 g of carbohydrate — so nothing downstream can tell "no carbs"
+ * from "nobody filled this in". Every plan built on that food then computes a
+ * diet that is wrong by however much was missing, and the screen shows a
+ * confident number the whole way. A dietitian cannot audit a silence.
+ *
+ * 900 kcal/100g is above pure oil (884) and below anything physical; a
+ * macronutrient cannot exceed 100 g in 100 g of food.
+ */
+const FIGURES = [['kcal', 900], ['protein_g', 100], ['carbs_g', 100], ['fat_g', 100]];
+
+const FOOD_ERRORS = ['required', 'missing', 'unreadable', 'range', 'save', 'not_empty'];
 
 router.get('/', async (req, res) => {
   const cid = req.company.id;
@@ -37,7 +54,9 @@ router.get('/', async (req, res) => {
     ]);
     res.render('nutrition_admin/foods', {
       tab: 'foods', rows: rows.rows, tally: tally.rows[0], edit: edit.rows[0] || null,
-      q, archived, saved: req.query.saved === '1', err: req.query.err || null,
+      q, archived, saved: req.query.saved === '1',
+      // Known codes only — the page never repeats the address bar's own words.
+      err: FOOD_ERRORS.includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[nutrition foods]', e.message); res.status(500).send('error'); }
 });
@@ -47,9 +66,27 @@ router.post('/', async (req, res) => {
   const name = text(b.name, 120);
   if (!name) return res.redirect('/nutrition/foods?err=required');
   const id = parseInt(b.id, 10);
-  const vals = [name, num(b.kcal), num(b.protein_g), num(b.carbs_g), num(b.fat_g),
-    text(b.serving_desc, 60), Number(b.serving_g) > 0 ? Number(b.serving_g) : null,
-    text(b.category, 60)];
+
+  // Refused, not coerced: a figure nobody typed is not a figure of zero.
+  const figures = [];
+  for (const [field, max] of FIGURES) {
+    const got = M.read(b[field]);
+    if (!got.ok) return res.redirect('/nutrition/foods?err=' + (got.why === 'blank' ? 'missing' : 'unreadable'));
+    if (got.value < 0 || got.value > max) return res.redirect('/nutrition/foods?err=range');
+    figures.push(got.value);
+  }
+  // The serving is optional — but a serving that was typed and could not be
+  // read has to be said out loud too, or the food silently loses it.
+  let servingG = null;
+  if (String(b.serving_g || '').trim() !== '') {
+    const got = M.read(b.serving_g);
+    if (!got.ok) return res.redirect('/nutrition/foods?err=unreadable');
+    if (!(got.value > 0) || got.value > 5000) return res.redirect('/nutrition/foods?err=range');
+    servingG = got.value;
+  }
+
+  const vals = [name, ...figures,
+    text(b.serving_desc, 60), servingG, text(b.category, 60)];
   try {
     if (Number.isInteger(id)) {
       await pool.query(
@@ -62,7 +99,10 @@ router.post('/', async (req, res) => {
            (name, kcal, protein_g, carbs_g, fat_g, serving_desc, serving_g, category, company_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [...vals, req.company.id]);
     }
-  } catch (e) { console.error('[nutrition food save]', e.message); }
+  } catch (e) {
+    console.error('[nutrition food save]', e.message);
+    return res.redirect('/nutrition/foods?err=save');
+  }
   res.redirect('/nutrition/foods?saved=1');
 });
 
@@ -122,7 +162,10 @@ router.post('/starter', async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,100)`,
         [cid, row[lang], row[2], row[3], row[4], row[5], row[6]]);
     }
-  } catch (e) { console.error('[nutrition starter]', e.message); }
+  } catch (e) {
+    console.error('[nutrition starter]', e.message);
+    return res.redirect('/nutrition/foods?err=save');
+  }
   res.redirect('/nutrition/foods?saved=1');
 });
 
