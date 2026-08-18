@@ -173,6 +173,9 @@ register({
   name: 'fill_submit',
   description: 'Fill form fields on a web page and optionally submit (login boxes, search forms, checkout). input.fields=[{selector,value}], optional input.submit=CSS selector of the submit button. A value of "{{secret:NAME}}" is replaced by a stored secret. Requires the user\'s browser.',
   permissions: ['browser', 'submit'],
+  // Typing into a search box may be repeated; sending a form may not. A retry
+  // after a submit whose reply was lost is a second booking on the same name.
+  retryable: (input) => !(input && (input.submit != null || input.submitSelector != null)),
   // (keepOpen defaults true → the tab with the results stays open in the user's browser)
   inputSchema: {
     type: 'object',
