@@ -82,15 +82,29 @@ function buildDicom(transferSyntax, extra) {
     element(0x0008, 0x0050, 'SH', 'ACC-99812', explicit),
     element(0x0008, 0x0080, 'LO', 'مستشفى أسيوط الجامعي', explicit),
     element(0x0008, 0x0090, 'PN', 'Dr^Referring^Physician', explicit),
+    // Where an Egyptian radiography desk actually types the patient's name,
+    // because it is the field the worklist shows.
+    element(0x0008, 0x1030, 'LO', 'AHMED MOHAMED - CT CHEST', explicit),
+    element(0x0008, 0x103E, 'LO', 'AHMED MOHAMED axial', explicit),
     element(0x0010, 0x0010, 'PN', 'AHMED^MOHAMED^SAYED', explicit),
     element(0x0010, 0x0020, 'LO', 'MRN-4471', explicit),
     element(0x0010, 0x0030, 'DA', '19780412', explicit),
     element(0x0010, 0x0040, 'CS', 'M', explicit),          // sex — must survive
     element(0x0010, 0x1010, 'AS', '048Y', explicit),       // age — must survive
     element(0x0010, 0x2154, 'SH', '01001234567', explicit),
+    element(0x0010, 0x4000, 'LT', 'المريض ابن الدكتور سيد', explicit),
     element(0x0018, 0x0050, 'DS', '1.25', explicit),       // slice thickness
     element(0x0020, 0x0013, 'IS', '42', explicit),         // instance number
     element(0x0028, 0x0010, 'US', (() => { const b = Buffer.alloc(2); b.writeUInt16LE(512); return b; })(), explicit),
+    /* Groups 0032 and 0040, in ascending order as DICOM requires.
+     *
+     * TWO tags in group 0040 on purpose. The old stop condition ran AFTER the
+     * removal, so the first tag of the first group past 0x0038 was still
+     * cleaned and only the ones behind it survived — a fixture with one tag
+     * there passes either way and proves nothing. */
+    element(0x0032, 0x1032, 'PN', 'Dr^Requesting^Physician', explicit),
+    element(0x0040, 0x0006, 'PN', 'Dr^Scheduled^Performer', explicit),
+    element(0x0040, 0x2010, 'SH', '01009998888', explicit),
     element(0x7FE0, 0x0010, 'OW', Buffer.from([1, 2, 3, 4, 5, 6, 7, 8]), explicit),
   ].concat(extra || []));
   return Buffer.concat([Buffer.alloc(128), Buffer.from('DICM', 'latin1'), meta, ds]);
@@ -129,6 +143,29 @@ function buildDicom(transferSyntax, extra) {
   check('والتقرير بيقول اتشال إيه بالظبط',
     r.removed.includes('PatientName') && r.removed.includes('PatientBirthDate'),
     r.removed.join(', '));
+
+  /* The free-text fields. A de-identifier that empties PatientName and leaves
+     StudyDescription reading "AHMED MOHAMED - CT CHEST" has done nothing except
+     make everybody believe the file is anonymous. */
+  check('ووصف الدراسة اختفى (ده مكان الاسم الحقيقي في العملي)',
+    !(D.readTag(buf, 0x0008, 0x1030) || '').includes('AHMED'),
+    JSON.stringify(D.readTag(buf, 0x0008, 0x1030)));
+  check('ووصف السلسلة كمان', !(D.readTag(buf, 0x0008, 0x103E) || '').includes('AHMED'));
+  check('وتعليقات المريض اختفت', !(D.readTag(buf, 0x0010, 0x4000) || '').includes('الدكتور'));
+
+  /* These were UNREACHABLE: the walk stopped at group 0x0038, so a tag listed
+     for removal in group 0x0032 or 0x0040 was never even looked at. The stop is
+     now derived from the list, so adding a tag cannot make it unreachable. */
+  check('والطبيب الطالب اختفى (جروب 0x0032 — كان بره المدى)',
+    !(D.readTag(buf, 0x0032, 0x1032) || '').includes('Requesting'),
+    JSON.stringify(D.readTag(buf, 0x0032, 0x1032)));
+  check('واسم المنفّذ المجدول اختفى (أول تاج في جروب 0x0040)',
+    !(D.readTag(buf, 0x0040, 0x0006) || '').includes('Scheduled'));
+  /* The one that only the derived stop reaches: the old condition broke AFTER
+     cleaning the first tag past 0x0038, so this second one survived. */
+  check('ورقم تليفون الطلب اختفى (تاني تاج في نفس الجروب)',
+    !(D.readTag(buf, 0x0040, 0x2010) || '').includes('01009998888'),
+    JSON.stringify(D.readTag(buf, 0x0040, 0x2010)));
 }
 
 /* ── Implicit VR little-endian: older scanners still emit it ───────────── */

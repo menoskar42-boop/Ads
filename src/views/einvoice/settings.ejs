@@ -21,9 +21,10 @@
 
 <% if (summary) { %>
 <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+  <%# A document stuck mid-send only shows up if somebody counts it. %>
   <% [['جاهز للإرسال',summary.ready,'text-brand'],['فيه أخطاء',summary.draft,'text-amber-600'],
       ['اتبعت',summary.submitted,''],['اتقبل',summary.accepted,'text-emerald-700'],
-      ['مرفوض/فشل',summary.problem,'text-rose-600']].forEach(function(c){ %>
+      ['مرفوض/فشل',Number(summary.problem||0)+Number(summary.submitting||0),'text-rose-600']].forEach(function(c){ %>
     <div class="bg-white rounded-2xl border border-slate-200 p-4">
       <div class="text-xs text-slate-500 font-semibold"><%= c[0] %></div>
       <div class="text-xl font-black mt-1 <%= c[2] %>"><%= c[1] %></div>

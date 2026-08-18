@@ -70,10 +70,48 @@ const REMOVE = [
   [0x0010, 0x1060, 'PatientMotherBirthName'],
   [0x0010, 0x2154, 'PatientTelephoneNumbers'],
   [0x0010, 0x2160, 'EthnicGroup'],
+  [0x0038, 0x0010, 'AdmissionID'],
   [0x0038, 0x0300, 'CurrentPatientLocation'],
   [0x0038, 0x0400, 'PatientInstitutionResidence'],
+  [0x0038, 0x0500, 'PatientState'],
+  /* Free-text fields a technician types into.
+   *
+   * StudyDescription is the one that mattered here: in practice it is where an
+   * Egyptian radiography desk puts the patient's name, because it is the field
+   * that shows on the worklist. A de-identifier that empties PatientName and
+   * leaves StudyDescription reading "محمد أحمد - CT chest" has done nothing
+   * except make everybody believe the file is anonymous. */
+  [0x0008, 0x1030, 'StudyDescription'],
+  [0x0008, 0x103E, 'SeriesDescription'],
+  [0x0008, 0x1040, 'InstitutionalDepartmentName'],
+  [0x0010, 0x1090, 'MedicalRecordLocator'],
+  [0x0010, 0x2000, 'MedicalAlerts'],
+  [0x0010, 0x2110, 'Allergies'],
+  [0x0010, 0x2180, 'Occupation'],
+  [0x0010, 0x21B0, 'AdditionalPatientHistory'],
+  [0x0010, 0x4000, 'PatientComments'],
+  /* The request groups. These were UNREACHABLE before: the walk stopped at
+     group 0x0038, so a requesting physician's name and the order's callback
+     phone number were never even looked at. */
+  [0x0032, 0x1032, 'RequestingPhysician'],
+  [0x0032, 0x1033, 'RequestingService'],
+  [0x0032, 0x1060, 'RequestedProcedureDescription'],
+  [0x0040, 0x0006, 'ScheduledPerformingPhysicianName'],
+  [0x0040, 0x0007, 'ScheduledProcedureStepDescription'],
+  [0x0040, 0x1001, 'RequestedProcedureID'],
+  [0x0040, 0x2008, 'OrderEnteredBy'],
+  [0x0040, 0x2009, 'OrderEntererLocation'],
+  [0x0040, 0x2010, 'OrderCallbackPhoneNumber'],
 ];
 const REMOVE_SET = new Set(REMOVE.map(([g, e]) => (g << 16) | e));
+/* Where the walk may stop, derived from the list above rather than typed.
+ *
+ * It used to be a literal `group > 0x0038`, which was true of the list at the
+ * time — and silently WRONG the moment a tag in a higher group was added. That
+ * is the failure this file cannot afford: a tag in the table, believed to be
+ * removed, never reached. Deriving it means adding a tag can never make itself
+ * unreachable. */
+const MAX_GROUP = Math.max(...REMOVE.map(([g]) => g));
 const LABEL = new Map(REMOVE.map(([g, e, l]) => [(g << 16) | e, l]));
 
 /** VRs whose value is binary — zeroed rather than space-padded. */
@@ -157,7 +195,7 @@ function deidentify(buf) {
       removed.push(LABEL.get(tag));
     }
     // Past everything identifying; the rest is pixels and acquisition detail.
-    if (group > 0x0038) break;
+    if (group > MAX_GROUP) break;
     off = valueAt + len;
   }
 

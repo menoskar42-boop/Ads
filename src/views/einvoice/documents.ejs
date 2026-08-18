@@ -2,12 +2,17 @@
 <%
   function money(v){ return Number(v||0).toLocaleString('ar-EG',{maximumFractionDigits:2}); }
   function d(v){ try{ return v? new Date(v).toLocaleDateString('ar-EG',{day:'numeric',month:'short',year:'numeric'}) : '—'; }catch(e){ return '—'; } }
-  var LBL = { draft:'فيه أخطاء', ready:'جاهز', signed:'موقّع', submitted:'اتبعت',
+  var LBL = { draft:'فيه أخطاء', ready:'جاهز', signed:'موقّع',
+              // Mid-send: the answer never came back. Only the authority's own
+              // portal knows whether it arrived, so it is shown, not hidden.
+              submitting:'بيتبعت — راجع بوابة المصلحة',
+              submitted:'اتبعت',
               accepted:'اتقبل', rejected:'مرفوض', failed:'فشل', cancelled:'ملغي' };
   var TONE = { draft:'bg-amber-50 text-amber-700', ready:'bg-blue-50 text-blue-700',
                submitted:'bg-slate-100 text-slate-700', accepted:'bg-emerald-50 text-emerald-700',
                rejected:'bg-rose-50 text-rose-700', failed:'bg-rose-50 text-rose-700',
-               cancelled:'bg-slate-100 text-slate-500', signed:'bg-blue-50 text-blue-700' };
+               cancelled:'bg-slate-100 text-slate-500', signed:'bg-blue-50 text-blue-700',
+               submitting:'bg-amber-50 text-amber-800' };
 %>
 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
   <h1 class="font-black text-xl">المستندات</h1>

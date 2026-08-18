@@ -10,10 +10,19 @@
 const D = require('./document');
 const S = require('./sources');
 
-const STATUSES = ['draft', 'ready', 'signed', 'submitted', 'accepted', 'rejected', 'failed', 'cancelled'];
+const STATUSES = ['draft', 'ready', 'signed', 'submitting', 'submitted', 'accepted',
+  'rejected', 'failed', 'cancelled'];
 // Once a document is accepted by the authority it is final. Nothing in this
 // file may move it, and the routes offer no button that would.
 const FINAL = ['accepted', 'cancelled'];
+/* The states a document may be sent FROM.
+ *
+ * `submitted` is not one of them, and that was the bug: the guard only refused
+ * FINAL, so a document already filed with the authority could be filed again —
+ * a duplicate tax document, which is the merchant's problem to unpick with the
+ * authority, not ours to shrug at. `submitting` is not one either: it means a
+ * send is already in flight. */
+const SENDABLE = ['ready', 'signed', 'rejected', 'failed'];
 
 async function settingsFor(pool, companyId) {
   const r = await pool.query('SELECT * FROM einvoice_settings WHERE company_id=$1', [companyId]);
@@ -125,20 +134,39 @@ async function submit(pool, companyId, docId, transport) {
   const st = await settingsFor(pool, companyId);
   if (!st || !st.enabled) return { ok: false, error: 'الفاتورة الإلكترونية مش مفعّلة.' };
 
-  const doc = (await pool.query(
-    'SELECT * FROM einvoice_documents WHERE id=$1 AND company_id=$2', [docId, companyId])).rows[0];
-  if (!doc) return { ok: false, error: 'المستند مش موجود.' };
-  if (FINAL.includes(doc.status)) return { ok: false, error: 'المستند خلاص اتقبل أو اتلغى.' };
-  if (doc.status === 'draft' || !doc.payload) {
-    return { ok: false, error: 'المستند لسه فيه أخطاء — صلّحها وابنيه تاني قبل الإرسال.' };
-  }
+  const seen = (await pool.query(
+    'SELECT status, payload FROM einvoice_documents WHERE id=$1 AND company_id=$2', [docId, companyId])).rows[0];
+  if (!seen) return { ok: false, error: 'المستند مش موجود.' };
   if (st.signing_mode === 'none') {
     return { ok: false, error: 'التوقيع مش متظبّط. المصلحة بتطلب توقيع بشهادة المنشأة نفسها، فحدّد طريقة التوقيع في الإعدادات الأول.' };
   }
 
-  await pool.query(
-    'UPDATE einvoice_documents SET attempts = attempts + 1, last_attempt_at = now() WHERE id=$1',
-    [docId]);
+  /* Claim the document in the same statement that checks it may be sent.
+   *
+   * Reading the status and then sending is two steps, and a tax filing is the
+   * worst place to leave a gap between them: two clicks, or a retry after a
+   * response that timed out, and the authority receives the same document
+   * twice. Unpicking a duplicate filing is the merchant's problem, with a
+   * government, for weeks.
+   *
+   * `submitting` is a real state, not a flag: if the process dies between the
+   * claim and the answer, the document stays there rather than being sent
+   * again automatically. Stuck is the right side to fail on here, and the queue
+   * screen shows it so a human can check the portal and decide.
+   */
+  const claim = (await pool.query(
+    `UPDATE einvoice_documents
+        SET status='submitting', attempts = attempts + 1, last_attempt_at = now(), updated_at = now()
+      WHERE id=$1 AND company_id=$2 AND status = ANY($3::text[]) AND payload IS NOT NULL
+      RETURNING *`,
+    [docId, companyId, SENDABLE])).rows[0];
+  if (!claim) {
+    if (FINAL.includes(seen.status)) return { ok: false, error: 'المستند خلاص اتقبل أو اتلغى.' };
+    if (seen.status === 'submitted') return { ok: false, error: 'المستند اتبعت خلاص — استنى ردّ المصلحة بدل ما تبعته تاني.' };
+    if (seen.status === 'submitting') return { ok: false, error: 'المستند بيتبعت دلوقتي. حدّث الصفحة بعد شوية.' };
+    return { ok: false, error: 'المستند لسه فيه أخطاء — صلّحها وابنيه تاني قبل الإرسال.' };
+  }
+  const doc = claim;
 
   try {
     const out = await transport.send(st, doc.payload);
@@ -191,9 +219,13 @@ async function summary(pool, companyId) {
        COUNT(*) FILTER (WHERE status='ready')::int     AS ready,
        COUNT(*) FILTER (WHERE status='submitted')::int AS submitted,
        COUNT(*) FILTER (WHERE status='accepted')::int  AS accepted,
+       -- A document stuck mid-send is a problem a person has to look at, not a
+       -- state to hide: the process died between claiming it and hearing back,
+       -- so only the authority's portal knows whether it arrived.
+       COUNT(*) FILTER (WHERE status='submitting')::int AS submitting,
        COUNT(*) FILTER (WHERE status IN ('rejected','failed'))::int AS problem
      FROM einvoice_documents WHERE company_id=$1`, [companyId]);
   return r.rows[0];
 }
 
-module.exports = { STATUSES, FINAL, build, submit, unsubmitted, summary, settingsFor, isEnabled, logAttempt };
+module.exports = { STATUSES, FINAL, SENDABLE, build, submit, unsubmitted, summary, settingsFor, isEnabled, logAttempt };
