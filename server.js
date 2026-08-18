@@ -332,9 +332,41 @@ app.get('/uploads/:file', async (req, res, next) => {
 const { Pool: SessionPool } = require('pg');
 const sessionPool = new SessionPool({ connectionString: process.env.DATABASE_URL });
 const sessionStore = require('./src/lib/pg_session_store')(session, sessionPool);
+
+/* The session secret signs every cookie on the platform. Knowing it means
+ * being able to mint a cookie for any merchant or any admin.
+ *
+ * It used to fall back to a hard-coded string — a value sitting in this
+ * repository, so "is the env var set in production?" was a question
+ * whose wrong answer nobody would ever notice. Nothing breaks when a secret is
+ * guessable; it just quietly stops being a secret.
+ *
+ * So the question is removed instead of asked:
+ *
+ *  · in production a missing SESSION_SECRET stops the boot. A deploy that
+ *    fails is a fixable afternoon; a deploy that succeeds with a public secret
+ *    is discovered later, by somebody else.
+ *  · outside production it gets a random one per boot. Sessions do not survive
+ *    a restart locally — which is a mild annoyance and the honest behaviour,
+ *    where a shared constant would just hide the problem until deploy day. */
+const SESSION_SECRET = (() => {
+  const fromEnv = String(process.env.SESSION_SECRET || '').trim();
+  if (fromEnv.length >= 16) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    console.error(fromEnv
+      ? 'FATAL: SESSION_SECRET is too short (needs 16+ characters).'
+      : 'FATAL: SESSION_SECRET is not set. Set it before deploying — the cookie '
+        + 'that signs every login depends on it.');
+    process.exit(1);
+  }
+  console.warn('[session] SESSION_SECRET not set — using a random one for this '
+    + 'run. Logins will not survive a restart. That is development only.');
+  return require('crypto').randomBytes(32).toString('hex');
+})();
+
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'oscardevs-secret-key',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
