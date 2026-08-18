@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const demoMode = require('../lib/demo_mode');
+const orderReversal = require('../lib/order_reversal');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
@@ -1631,17 +1632,51 @@ router.get('/orders/:id', requireLogin, requireShop, async (req, res) => {
 
 router.post('/orders/:id/status', requireLogin, requireShop, async (req, res) => {
   const { status } = req.body;
-  if (!ORDER_STATUSES.includes(status)) return res.redirect(`/company/orders/${req.params.id}`);
-  const upd = await pool.query(
-    'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3 RETURNING id',
-    [status, req.params.id, req.session.companyId]
-  );
-  // Record in the tracking timeline (phase 15).
-  if (upd.rows.length) {
-    await pool.query('INSERT INTO order_status_history (order_id, status, note) VALUES ($1,$2,$3)',
-      [upd.rows[0].id, status, String(req.body.note || '').slice(0, 200) || null]).catch(() => {});
-  }
-  res.redirect(`/company/orders/${req.params.id}`);
+  const orderId = parseInt(req.params.id, 10);
+  const back = `/company/orders/${req.params.id}`;
+  if (!ORDER_STATUSES.includes(status)) return res.redirect(back);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const upd = await client.query(
+      'UPDATE orders SET status = $1 WHERE id = $2 AND company_id = $3 RETURNING id',
+      [status, orderId, req.session.companyId]
+    );
+    if (!upd.rows.length) { await client.query('ROLLBACK'); return res.redirect(back); }
+
+    /* Cancelling has to give back what placing it took: the wallet money, the
+     * redeemed points, the points earned for a purchase that is not happening,
+     * and the stock. All of it inside the same transaction as the status — a
+     * refunded wallet with the status un-changed is a worse state than either.
+     */
+    let undone = null;
+    if (orderReversal.isReversing(status)) {
+      undone = await orderReversal.reverse(client, req.session.companyId, orderId);
+    }
+
+    // Record in the tracking timeline (phase 15).
+    const note = String(req.body.note || '').slice(0, 200) || null;
+    await client.query('INSERT INTO order_status_history (order_id, status, note) VALUES ($1,$2,$3)',
+      [orderId, status, note]);
+    if (undone && undone.done && (undone.wallet || undone.pointsBack || undone.items)) {
+      // Said out loud on the order's own timeline: a refund nobody can see is
+      // the same silence this fixed.
+      const parts = [];
+      if (undone.wallet) parts.push(`رجع للمحفظة ${undone.wallet}`);
+      if (undone.pointsBack) parts.push(`رجعت ${undone.pointsBack} نقطة`);
+      if (undone.pointsTaken) parts.push(`اتشالت ${undone.pointsTaken} نقطة مكافأة`);
+      if (undone.items) parts.push(`رجع ${undone.items} صنف للمخزون`);
+      await client.query('INSERT INTO order_status_history (order_id, status, note) VALUES ($1,$2,$3)',
+        [orderId, status, parts.join(' · ').slice(0, 200)]);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[order status]', e.message);
+    return res.redirect(back + '?error=save');
+  } finally { client.release(); }
+  res.redirect(back);
 });
 
 // Create a shipment / assign an AWB for an order (phase 25). For an automatic

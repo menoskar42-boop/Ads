@@ -884,6 +884,12 @@ async function initDb() {
        * and the database refuses the second one. A constraint is the only thing
        * both requests are guaranteed to agree about.
        */
+      /* Cancelling an order used to flip a status column and nothing else —
+       * the wallet money, the redeemed points and the stock all stayed gone.
+       * This marks an order whose effects have been undone, so a merchant
+       * clicking cancel twice (or cancelled → pending → cancelled) refunds
+       * once. See src/lib/order_reversal.js. */
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMPTZ;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS idem_token TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idem
         ON orders (company_id, idem_token) WHERE idem_token IS NOT NULL;
