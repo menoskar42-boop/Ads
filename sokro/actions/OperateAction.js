@@ -223,7 +223,11 @@ async function resolveTarget(page, state, idx) {
 // Returns a result, or null if the extension didn't respond (caller falls back).
 async function runExtOperator(ctx, url, goal, maxSteps, confirmSensitive) {
   const ext = require('../extension-bridge');
-  let st = await ext.run(ctx.userId, 'op_state', { url }, 60000);
+  // Every command carries the task it belongs to: the extension keeps one tab
+  // per task, so two runs at once cannot drive the same page — and an index
+  // handed out by THIS task's last observation is only ever acted on here.
+  const task = String((ctx && ctx.taskId) || 'adhoc');
+  let st = await ext.run(ctx.userId, 'op_state', { url, task }, 60000);
   if (!st || !st.ok) return null;
   let state = st.output || {};
   const trail = [], avoid = new Map();
@@ -249,7 +253,7 @@ async function runExtOperator(ctx, url, goal, maxSteps, confirmSensitive) {
       const d = clicks.find((e) => e.idx === dec.idx);
       if (d && isSensitiveLabel(d.label)) { awaitingConfirm = true; sensitiveLabel = d.label; answer = 'وقفت قبل إجراء حسّاس: «' + (d.label || 'زر') + '». قول «أكّد» عشان أضغطه.'; break; }
     }
-    const act = await ext.run(ctx.userId, 'op_act', { action: dec.action, idx: dec.idx, text: dec.text }, 45000);
+    const act = await ext.run(ctx.userId, 'op_act', { action: dec.action, idx: dec.idx, text: dec.text, task }, 45000);
     if (!act || !act.ok) { trail.push({ error: (act && act.error) || 'act failed' }); avoid.set(dec.action + ' #' + dec.idx, 1); break; }
     if (act.output && act.output.acted && act.output.acted.ok === false) {
       const lbl = (clicks.find((e) => e.idx === dec.idx) || {}).label || ('#' + dec.idx);
