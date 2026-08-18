@@ -1301,6 +1301,22 @@ router.get('/subscriptions', requireLogin, requireShop, async (req, res) => {
   } catch (e) { console.error('[company subscriptions]', e.message); res.redirect('/company/dashboard'); }
 });
 
+/* Restart a subscription the renewal job paused.
+ *
+ * The job pauses one when the product is gone or has been out of stock, and
+ * tells the merchant — but a pause with no way back is a deletion with extra
+ * steps. Renewal is set to today so the next run picks it up rather than
+ * waiting out another interval the customer already waited through. */
+router.post('/subscriptions/:id/resume', requireLogin, requireShop, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE subscriptions SET status='active', next_renewal = CURRENT_DATE
+        WHERE id=$1 AND company_id=$2 AND status='paused'`,
+      [parseInt(req.params.id, 10), req.session.companyId]);
+  } catch (e) { console.error('[subscription resume]', e.message); }
+  res.redirect('/company/subscriptions');
+});
+
 /* ─── LANDING PAGES (phase 30) ───────────────────────────── */
 router.get('/landing', requireLogin, requireShop, async (req, res) => {
   try {

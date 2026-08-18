@@ -1005,7 +1005,9 @@ async function initDb() {
         quantity      INTEGER NOT NULL DEFAULT 1,
         unit_price    NUMERIC(10,2) NOT NULL,
         interval_days INTEGER NOT NULL DEFAULT 30,
-        status        TEXT NOT NULL DEFAULT 'active', -- active|cancelled
+        -- active | paused (the product went away or is out of stock and the
+        -- merchant has to decide) | cancelled
+        status        TEXT NOT NULL DEFAULT 'active',
         next_renewal  DATE NOT NULL,
         ship_name     TEXT,
         ship_phone    TEXT,

@@ -8,7 +8,7 @@
       <p class="text-sm text-gray-400 text-center py-8">مفيش اشتراكات بعد. فعّل «الاشتراك المتكرر» على منتج من صفحة تعديله.</p>
     <% } else { %>
       <div class="space-y-2">
-        <% subs.forEach(function(s){ var active = s.status==='active'; %>
+        <% subs.forEach(function(s){ var active = s.status==='active'; var paused = s.status==='paused'; %>
         <div class="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 <%= active?'':'opacity-60' %>">
           <div class="min-w-0 flex-1">
             <div class="font-bold text-gray-800 text-sm truncate"><%= s.product_name %> <span class="text-xs text-gray-400">×<%= s.quantity %></span></div>
@@ -16,8 +16,14 @@
           </div>
           <div class="text-left shrink-0">
             <div class="text-emerald-600 font-bold text-sm"><%= Number(s.unit_price).toFixed(2) %> ج</div>
-            <div class="text-xs <%= active?'text-gray-400':'text-red-400' %>"><%= active ? ('التجديد: ' + new Date(s.next_renewal).toLocaleDateString('ar-EG')) : 'ملغي' %></div>
+            <div class="text-xs <%= active?'text-gray-400':(paused?'text-amber-600':'text-red-400') %>"><%= active ? ('التجديد: ' + new Date(s.next_renewal).toLocaleDateString('ar-EG')) : (paused ? 'متوقّف — المنتج مابقاش متاح' : 'ملغي') %></div>
           </div>
+          <%# A pause the merchant cannot undo is a deletion with extra steps. %>
+          <% if (paused) { %>
+          <form method="POST" action="/company/subscriptions/<%= s.id %>/resume" class="shrink-0">
+            <button class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg px-3 py-1.5 font-bold">تشغيل تاني</button>
+          </form>
+          <% } %>
         </div>
         <% }); %>
       </div>

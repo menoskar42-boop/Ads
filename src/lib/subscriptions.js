@@ -25,6 +25,15 @@ async function subscribe({ companyId, customerId, product, quantity, ship }) {
 }
 
 // Process one due subscription inside its own transaction: create the order,
+/* Tell the merchant. Best-effort and never awaited: a renewal must not fail
+   because a push did. */
+function notify(sub, title, body) {
+  try {
+    require('./push').sendToCompany(sub.company_id,
+      { title: '🔁 ' + title, body, url: '/company/subscriptions' }, 'order').catch(() => {});
+  } catch (e) { /* push optional */ }
+}
+
 // decrement stock, advance the date. Returns 'ordered' | 'skipped' | 'error'.
 async function renewOne(sub) {
   const client = await pool.connect();
@@ -35,19 +44,40 @@ async function renewOne(sub) {
       'SELECT id, name, price FROM products WHERE id=$1 AND company_id=$2 AND is_active=true FOR UPDATE',
       [sub.product_id, sub.company_id]
     )).rows[0];
-    if (!prod) { await client.query('ROLLBACK'); return 'skipped'; }
+    if (!prod) {
+      /* The product is gone or switched off. Retrying every run forever, in
+       * silence, is not a decision — it is the absence of one. The subscription
+       * is paused and the merchant is told, because only they can decide
+       * whether to point the customer at something else or refund them. */
+      await client.query("UPDATE subscriptions SET status='paused' WHERE id=$1", [sub.id]);
+      await client.query('COMMIT');
+      notify(sub, 'المنتج مابقاش متاح', 'الاشتراك اتوقّف مؤقتاً — كلّم العميل أو رشّح له بديل');
+      return 'skipped';
+    }
     const dec = await client.query(
       'UPDATE products SET stock = stock - $1 WHERE id=$2 AND stock >= $1 RETURNING id',
       [sub.quantity, sub.product_id]
     );
     if (!dec.rows.length) {
-      // Out of stock — leave the subscription active and try again next run,
-      // but still push the renewal date forward so we don't retry every hour.
+      /* Out of stock on the day.
+       *
+       * The old behaviour pushed the renewal a WHOLE interval forward and said
+       * nothing. A monthly subscriber whose product was out of stock that
+       * morning lost the entire month — the shop restocked the next day and the
+       * order still did not go out until the month after. Neither the customer
+       * nor the merchant was told; the only trace was a line in a log.
+       *
+       * Now it retries TOMORROW, so a restock the next day still serves the
+       * customer, and the merchant is told today that a renewal is waiting on
+       * stock. Retrying tomorrow rather than every hour is what the interval
+       * push was really for.
+       */
       await client.query(
-        "UPDATE subscriptions SET next_renewal = (CURRENT_DATE + (interval_days || ' days')::interval)::date WHERE id=$1",
+        "UPDATE subscriptions SET next_renewal = (CURRENT_DATE + 1) WHERE id=$1",
         [sub.id]
       );
       await client.query('COMMIT');
+      notify(sub, 'اشتراك مستني مخزون', `«${prod.name}» خلص — فيه اشتراك متجدّد مستني، جهّزه واحنا هنعيد المحاولة بكرة`);
       return 'skipped';
     }
     const total = +(Number(sub.unit_price) * sub.quantity).toFixed(2);
