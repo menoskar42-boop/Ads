@@ -215,6 +215,18 @@ router.get('/login', (req, res) => {
   res.render('company/login', { error: null, notice: null });
 });
 
+/* One sentence for every failed login, whatever the reason. The moment the
+   wording varies by cause, the form starts answering questions nobody
+   authenticated to ask. The hint about tracking an application is part of the
+   constant on purpose — shown to everyone, it tells a stranger nothing. */
+/* A real bcrypt hash of a value nothing can match, compared against when no
+   account was found — see the note at the failure branch. Generated once at
+   boot; the cost has to match the real hashes or it measures differently. */
+const DUMMY_HASH = bcrypt.hashSync('oscardevs-no-such-account', 10);
+
+const LOGIN_FAILED = 'البريد الإلكتروني أو كلمة المرور غير صحيحة. '
+  + 'لو لسه مستني الموافقة على طلبك، تابعه من صفحة «متابعة الطلب».';
+
 const { loginLimiter } = require('../middleware/rateLimit');
 router.post('/login', loginLimiter, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
@@ -225,7 +237,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   // unset env var actually shipped such an account, which made this login
   // accept a blank password until the audit caught it. Reject before comparing.
   if (!email || !password) {
-    return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+    return renderLogin({ error: LOGIN_FAILED });
   }
   try {
     const result = await pool.query(
@@ -247,7 +259,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       if (staffR.rows.length) {
         const st = staffR.rows[0];
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
-        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
         demoMode.endDemo(req);
         req.session.staffId = st.id;
@@ -273,7 +285,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       if (clinicR.rows.length) {
         const st = clinicR.rows[0];
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
-        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
         demoMode.endDemo(req);
         // Named differently from the pharmacy's staffId on purpose: one session
@@ -299,7 +311,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       if (foodR.rows.length) {
         const st = foodR.rows[0];
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
-        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
         demoMode.endDemo(req);
         // Its own name, like the clinic's: one staff session must never be read
@@ -326,7 +338,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       if (nutriR.rows.length) {
         const st = nutriR.rows[0];
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
-        if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+        if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
         demoMode.endDemo(req);
         req.session.nutriStaffId = st.id;
@@ -339,27 +351,32 @@ router.post('/login', loginLimiter, async (req, res) => {
         return res.redirect('/nutrition');
       }
 
-      // No active account yet — check if there's an application so we can guide them.
-      const appR = await pool.query(
-        `SELECT status, admin_notes FROM signup_applications WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
-        [email]
-      );
-      if (appR.rows.length) {
-        const st = appR.rows[0].status;
-        if (st === 'pending') {
-          return renderLogin({ notice: 'طلبك قيد المراجعة من فريقنا. بمجرد الموافقة هتقدر تدخل بنفس البريد وكلمة السر اللي سجّلت بهم. تقدر تتابع حالة طلبك من صفحة "متابعة الطلب".' });
-        }
-        if (st === 'rejected') {
-          const reason = appR.rows[0].admin_notes ? ' السبب: ' + appR.rows[0].admin_notes : ' للاستفسار تواصل معنا.';
-          return renderLogin({ error: 'للأسف لم يتم قبول طلبك.' + reason });
-        }
-      }
-      return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+      // No active account. The login form used to look the email up in
+      // signup_applications and answer — including, on a rejection, the
+      // reviewer's own `admin_notes` verbatim. That is an internal note about
+      // a business ("no licence", "complaint from a customer") handed to
+      // anybody who types the address, with no password and no token. And even
+      // the polite "your application is under review" confirms that this exact
+      // email applied, which is an enumeration oracle on our applicant list.
+      //
+      // /apply/track/:token already answers this question, to the person
+      // holding the token, and deliberately does NOT select admin_notes. A
+      // login form's job is to say whether these credentials work.
+      //
+      // The pointer to that page is shown to EVERYONE who fails to log in, so
+      // it guides the waiting applicant without telling a stranger anything.
+      //
+      // One hash against a throwaway digest before answering: a known email
+      // costs a bcrypt round and an unknown one used to cost none, and that
+      // difference is measurable over a few requests. Same wording AND
+      // roughly the same time, or the wording was the only thing hidden.
+      await bcrypt.compare(password, DUMMY_HASH);
+      return renderLogin({ error: LOGIN_FAILED });
     }
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
+      return renderLogin({ error: LOGIN_FAILED });
     }
     req.session.companyId = user.company_id;
     demoMode.endDemo(req);
