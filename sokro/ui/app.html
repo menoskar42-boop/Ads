@@ -142,6 +142,23 @@
       <select id="setVoice" class="fld"><option value="female">أنثى</option><option value="male">ذكر</option></select>
       <label class="lbl2">لغة الردّ</label>
       <select id="setLang" class="fld"><option value="egyptian">مصري</option><option value="msa">فصحى</option><option value="english">English</option></select>
+      <!-- The vault has been there all along; there was simply no way to put
+           anything in it. A password typed into the chat box would have gone
+           through the model and into the transcript, which is exactly what the
+           vault exists to avoid — so it gets its own field here, sent straight
+           to /api/secrets and never shown again. -->
+      <label class="lbl2">كلمات السر المحفوظة</label>
+      <div id="secBox" style="font-size:13px;color:#9aa3b2">
+        <div id="secList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="secName" class="fld" style="flex:1;margin:0" placeholder="اسم الموقع (مثلاً sylndr)" maxlength="60" />
+          <input id="secValue" class="fld" style="flex:1;margin:0" type="password" placeholder="كلمة السر" autocomplete="new-password" />
+          <button id="secAdd" type="button" class="btn" style="padding:10px 14px">حفظ</button>
+        </div>
+        <div id="secNote" style="margin-top:6px;font-size:12px;color:#6b7280">
+          بتتخزّن متشفّرة (AES-256) على السيرفر. سوكرو بيستخدمها وقت التنفيذ بس، ومابتتبعتش للذكاء الاصطناعي ولا بتظهر تاني.
+        </div>
+      </div>
       <label class="lbl2">جيميل (Gmail API)</label>
       <div id="gmailBox" style="display:flex;align-items:center;gap:10px;font-size:13px;color:#6b7280">
         <span id="gmailState">جارٍ الفحص…</span>
@@ -207,7 +224,7 @@
     return false;
   }
   async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
-  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); }
+  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); refreshSecrets(); }
   // The browser chip says what is actually true, and keeps saying it: the
   // extension can be connected mid-session (or its tab closed), and a chip that
   // only checks once is the same lie with a timestamp.
@@ -251,6 +268,45 @@
     await refreshNotifs();
   }
 
+  // Names only, ever: the API does not return values and neither does this.
+  async function refreshSecrets(){
+    var box=$('#secList'); if(!box) return;
+    box.textContent='';
+    try{
+      var d=await (await fetch('/api/secrets')).json();
+      if(!d||!d.ok){ box.textContent='—'; return; }
+      if(!d.secrets.length){ box.textContent='مفيش كلمات سر محفوظة.'; return; }
+      d.secrets.forEach(function(sec){
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:8px;justify-content:space-between';
+        var n=document.createElement('span'); n.textContent='🔑 '+sec.name; n.style.color='#cdd6ff';
+        var del=document.createElement('button'); del.type='button'; del.textContent='حذف';
+        del.style.cssText='background:none;border:0;color:#f87171;cursor:pointer;font:inherit';
+        del.onclick=async function(){
+          if(!confirm('تحذف كلمة سر «'+sec.name+'»؟')) return;
+          await fetch('/api/secrets/'+encodeURIComponent(sec.name),{method:'DELETE'});
+          refreshSecrets();
+        };
+        row.appendChild(n); row.appendChild(del); box.appendChild(row);
+      });
+    }catch(e){ box.textContent='—'; }
+  }
+  async function saveSecret(){
+    var n=$('#secName'), v=$('#secValue'), note=$('#secNote');
+    var name=(n.value||'').trim(), value=v.value||'';
+    if(!name||!value){ note.textContent='اكتب اسم الموقع وكلمة السر.'; return; }
+    var b=$('#secAdd'), orig=b.textContent; b.disabled=true; b.textContent='…';
+    try{
+      var r=await (await fetch('/api/secrets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,value:value})})).json();
+      // The value leaves the screen whether it saved or not — a password left
+      // sitting in a form is the next person who uses this laptop's problem.
+      v.value=''; n.value='';
+      note.textContent = r&&r.ok ? ('اتحفظت «'+r.name+'» متشفّرة.') : ('مااتحفظتش: '+((r&&r.error)||'جرّب تاني'));
+      refreshSecrets();
+    }catch(e){ v.value=''; note.textContent='مااتحفظتش. جرّب تاني.'; }
+    b.disabled=false; b.textContent=orig;
+  }
+
   async function refreshGmail(){
     var s=$('#gmailState'), a=$('#gmailConnect'); if(!s) return;
     try{ var d=await (await fetch('/api/gmail/status')).json();
@@ -276,6 +332,7 @@
     refreshBrowser(); setInterval(refreshBrowser, 20000);
     refreshNotifs(); setInterval(refreshNotifs, 60000);
     $('#bell').addEventListener('click', openNotifs);
+    $('#secAdd').addEventListener('click', saveSecret);
     requestWake(); // keep the screen on while using Sokro
     loadSettings();
     var had=await loadHistory();
