@@ -46,6 +46,7 @@ const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
 const { safeJson } = require('./src/lib/safe_json');
 const demoMode = require('./src/lib/demo_mode');
+const csrfGuard = require('./src/middleware/csrf');
 // shared_pool (fetched above) makes every new Pool() for this connection string
 // share one bounded pool, so this doesn't add connections.
 const demoPool = new (require('pg').Pool)({ connectionString: process.env.DATABASE_URL });
@@ -466,6 +467,19 @@ app.get('/demo/:slug', async (req, res) => {
  * written yet. Placed after the session middleware and before the routers.
  */
 app.use(demoMode.guard());
+
+/* CSRF, for the hole SameSite=Lax leaves open here.
+ *
+ * The cookie is already lax, so a POST from another SITE arrives without a
+ * session. But every tenant we host is a SUBDOMAIN — same site — so a merchant
+ * could put a form on their own page that posts into /company or /admin with
+ * the victim's cookie attached, and lax would allow it.
+ *
+ * Mounted in the same place and for the same reason as the demo guard above:
+ * a rule that has to be remembered in each router is a rule that will be
+ * forgotten in one of them. See src/middleware/csrf.js for why this compares
+ * Origin instead of putting a token in several hundred forms. */
+app.use(csrfGuard.guard());
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);

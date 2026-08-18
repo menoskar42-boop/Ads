@@ -33,6 +33,7 @@ const CHECKS = [
   ['check-installment-cap', 'التحصيل في العيادة متقصوص على المستحق'],
   ['check-pay-callback',    'كولباك الدفع بيتحقّق من المبلغ مش من التوقيع بس'],
   ['check-random-codes',    'الأكواد اللي بفلوس مولّدة من crypto'],
+  ['check-csrf',            'طلب من صفحة تانية بيتوقف (CSRF عبر السَبدومين)'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],
