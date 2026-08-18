@@ -27,6 +27,7 @@ const CHECKS = [
   ['check-order-reversal',  'الإلغاء بيرجّع الفلوس والنقاط والمخزون مرة واحدة'],
   ['check-money-input',     'أرقام الفلوس من الفورم محدودة (مفيش خصم سالب)'],
   ['check-revenue-truth',   'الإيراد بيعدّ اللي اتباع بس (مش الملغي)'],
+  ['check-coupon-bounds',   'الكوبون مايعديش السلة (مفيش ١٥٠٪)'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],

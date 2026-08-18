@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { getPreset } = require('../lib/portfolio_presets');
 const { isDemoSlug } = require('../lib/demo_mode');
 const booking = require('../clinic/booking');
+const money = require('../lib/money');
 const stock = require('../pharmacy/stock');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
@@ -1048,9 +1049,13 @@ async function validateFoodCoupon(db, companyId, code, subtotal) {
     if (c.expires_at && new Date(c.expires_at).getTime() < Date.now()) return { ok: false, discount: 0 };
     if (c.usage_limit && Number(c.usage_limit) > 0 && Number(c.used_count) >= Number(c.usage_limit)) return { ok: false, discount: 0 };
     if (c.min_order && subtotal < Number(c.min_order)) return { ok: false, discount: 0 };
-    let discount = subtotal * (Number(c.discount_percent) || 0) / 100;
+    // Two bounds, and the second one is not redundant. Saving is clamped to
+    // 0–100 now, but rows written before that are still in the table, and a
+    // coupon can never take more than the basket it is applied to — otherwise
+    // the delivery fee gets eaten and the customer pays nothing.
+    let discount = subtotal * money.percent(c.discount_percent, 0) / 100;
     if (c.max_discount && Number(c.max_discount) > 0) discount = Math.min(discount, Number(c.max_discount));
-    discount = Math.round(discount * 100) / 100;
+    discount = money.discount(discount, subtotal);
     return { ok: discount > 0, discount, coupon: c };
   } catch (e) { console.error('coupon validate error:', e.message); return { ok: false, discount: 0 }; }
 }

@@ -31,6 +31,7 @@ const uploadFoodImage = multer({
 function withImage(req, res, next) { uploadFoodImage(req, res, () => next()); }
 
 function toNum(v, d) { const n = parseFloat(v); return Number.isFinite(n) ? n : d; }
+const money = require('../lib/money');
 function toInt(v, d) { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; }
 
 async function requireOrders(req, res, next) {
@@ -382,8 +383,14 @@ router.post('/coupons/add', async (req, res) => {
        ON CONFLICT (company_id, code) DO UPDATE SET
          discount_percent=EXCLUDED.discount_percent, max_discount=EXCLUDED.max_discount,
          min_order=EXCLUDED.min_order, usage_limit=EXCLUDED.usage_limit, expires_at=EXCLUDED.expires_at, is_active=true`,
-      [req.company.id, code, toInt(b.discount_percent, 0), toNum(b.max_discount, null),
-       toNum(b.min_order, 0), toInt(b.usage_limit, 0), (b.expires_at || '').trim() || null]
+      // `discount_percent=150` used to be saved as written, and a hundred and
+      // fifty percent of a basket is more than the basket. A percentage is
+      // 0–100 by definition, and the definition belongs here — on the way in —
+      // so no row can hold a number that makes the ordering page do the wrong
+      // arithmetic later.
+      [req.company.id, code, money.percent(b.discount_percent, 0),
+       b.max_discount === '' || b.max_discount == null ? null : money.positive(b.max_discount, 0),
+       money.positive(b.min_order, 0), money.count(b.usage_limit, 0), (b.expires_at || '').trim() || null]
     );
     res.redirect('/food/coupons?saved=1');
   } catch (e) { console.error('coupon add error:', e.message); res.redirect('/food/coupons?error=save'); }

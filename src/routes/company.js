@@ -9,6 +9,7 @@ const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const demoMode = require('../lib/demo_mode');
 const orderReversal = require('../lib/order_reversal');
+const money = require('../lib/money');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
@@ -1106,7 +1107,12 @@ router.post('/coupons/add', requireLogin, requireShop, async (req, res) => {
     if (code) await pool.query(
       `INSERT INTO coupons (company_id, code, discount_type, discount_value, min_order_amount, max_uses, expires_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (company_id, code) DO NOTHING`,
-      [req.session.companyId, code, type, num(b.discount_value, 0), num(b.min_order_amount, 0), parseInt(b.max_uses, 10) || null, exp]
+      // A "percent" coupon saved at 150 is not a discount, it is the shop
+      // paying the customer. The checkout clamps what it takes, but a row that
+      // cannot exist is one fewer thing the checkout has to survive.
+      [req.session.companyId, code, type,
+       type === 'percent' ? money.percent(b.discount_value, 0) : money.positive(b.discount_value, 0),
+       money.positive(b.min_order_amount, 0), parseInt(b.max_uses, 10) || null, exp]
     );
   } catch (e) { console.error('[coupon add]', e.message); }
   res.redirect('/company/coupons');
