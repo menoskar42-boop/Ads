@@ -1,5 +1,32 @@
 require('dotenv').config();
 
+/* Every database connection speaks Cairo time.
+ *
+ * The host runs UTC. `CURRENT_DATE`, `timestamptz::date` and
+ * `date_trunc('month', …)` all answer in the SESSION's timezone, so between
+ * midnight and 2am Cairo the database's idea of "today" was still yesterday:
+ *
+ *   · a membership expiring today read as expiring tomorrow;
+ *   · a check-in at 1am landed on the previous day's attendance;
+ *   · a sale in the first two hours of the 1st counted toward last month.
+ *
+ * None of these throw. They are quietly two hours wrong, every night, in
+ * whichever direction makes the report harder to reconcile.
+ *
+ * `options=-c timezone=Africa/Cairo` on the connection string is sent as a
+ * startup parameter, so EVERY pool in the project gets it — including the
+ * dozens created as `new Pool({ connectionString: process.env.DATABASE_URL })`
+ * in modules loaded later. Rewriting forty queries to say `AT TIME ZONE` would
+ * have left the forty-first, which is how this started.
+ *
+ * An `options` already in the URL is left alone: the owner's deployment wins
+ * over a default this file assumes.
+ */
+if (process.env.DATABASE_URL && !/[?&]options=/.test(process.env.DATABASE_URL)) {
+  const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
+  process.env.DATABASE_URL += sep + 'options=' + encodeURIComponent('-c timezone=Africa/Cairo');
+}
+
 // Deploy-stability backstop: Node 22 crashes the process on an unhandled promise
 // rejection, which on Replit Autoscale turns a background failure (e.g. an
 // optional SDK's async init that can't reach its sidecar) into a boot-time
