@@ -132,8 +132,8 @@ async function doFillSubmit(input) {
   const keep = input.keepOpen !== false; // default: leave the tab open (see results)
   const tabId = await openAndWait(input.url, keep);
   const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId }, args: [input.fields || [], input.submit || null],
-    func: (fields, submit) => {
+    target: { tabId }, args: [input.fields || [], input.submit == null ? null : String(input.submit), !!input.wantsSubmit],
+    func: (fields, submit, wantsSubmit) => {
       function vis(el){ var r=el.getBoundingClientRect(); return r.width>2&&r.height>2; }
       // Robustly find the target input even if the given selector is wrong: fall
       // back to a visible search/text box (so "type in the search box" just works).
@@ -143,26 +143,34 @@ async function doFillSubmit(input) {
         for(var i=0;i<cands.length;i++){ var list=document.querySelectorAll(cands[i]); for(var j=0;j<list.length;j++){ if(vis(list[j])) return list[j]; } }
         return null;
       }
-      var filled = 0, target = null;
+      // Which fields did NOT land is the answer the server needs: a form that
+      // was half filled and then SENT is somebody's booking with their national
+      // ID missing, and until now that came back as a success.
+      var filled = 0, target = null, missed = [];
       (fields || []).forEach(function (f) {
         try {
-          var el = findInput(f.selector); if(!el) return; target = el;
+          var el = findInput(f.selector);
+          if (!el) { missed.push(f.selector || 'خانة البحث'); return; }
+          target = el;
           el.focus(); el.value = f.value;
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
           filled++;
-        } catch (e) {}
+        } catch (e) { missed.push(f.selector || 'خانة البحث'); }
       });
       var submitted = false;
-      if (submit) {
+      // Never send a form with a field missing. An empty `submit` still MEANS
+      // submit (press Enter) — treating it as "no" left search boxes filled and
+      // never sent, and the task said it was done.
+      if (wantsSubmit && !missed.length) {
         // Explicit submit selector → click it; else submit the field's form or press Enter.
-        try { var s = document.querySelector(submit); if (s) { s.click(); submitted = true; } } catch (e) {}
+        try { var s = submit ? document.querySelector(submit) : null; if (s) { s.click(); submitted = true; } } catch (e) {}
         if (!submitted && target) {
           try { if (target.form) { target.form.submit(); submitted = true; } } catch (e) {}
           if (!submitted) { try { target.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,which:13,bubbles:true})); target.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',keyCode:13,which:13,bubbles:true})); submitted = true; } catch (e) {} }
         }
       }
-      return { filled: filled, submitted: submitted };
+      return { filled: filled, missed: missed, submitted: submitted, wanted: (fields || []).length };
     },
   });
   // Give a submit navigation a moment, then read the resulting page.
@@ -175,7 +183,8 @@ async function doFillSubmit(input) {
     after = a;
   } catch (e) {}
   if (!keep) { try { chrome.tabs.remove(tabId); } catch (e) {} }
-  return { url: input.url, filled: result.filled, submitted: result.submitted, title: after.title, text: after.text, keptOpen: keep };
+  return { url: input.url, filled: result.filled, missed: result.missed || [], wanted: result.wanted,
+    submitted: result.submitted, title: after.title, text: after.text, keptOpen: keep };
 }
 
 // ── Operator: drive ONE persistent tab (click / type / select / scroll) ──────

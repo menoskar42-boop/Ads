@@ -9,6 +9,18 @@
 const { register } = require('./_registry');
 const SF = require('../lib/siteFinder');
 
+// ── Half a form, reported as a whole one ─────────────────────────────────────
+//
+// A field whose selector did not match was SKIPPED — "rather than fail the
+// whole task" — and the action still returned ok. Then it clicked submit. On a
+// government booking form that means a request went in with the name filled and
+// the national ID empty, or the other way round, and the user was told it
+// worked. There is no worse outcome available here: a clean failure costs a
+// retry, a silent half-submission costs an appointment nobody can trace.
+//
+// So: every requested field must land, NOTHING is submitted when one did not,
+// and what actually happened comes back in the answer.
+//
 // input.fields: [{ selector, value }]  (value may reference a stored secret by
 // name via {{secret:name}} — resolved server-side, never shown to the model).
 async function resolveSecrets(ctx, fields) {
@@ -30,6 +42,35 @@ async function resolveSecrets(ctx, fields) {
   return out;
 }
 
+// The same fallbacks the extension uses, so «اكتب في خانة البحث» (which the
+// planner sends as an EMPTY selector) works on the server path too. It used to
+// `continue` past an empty selector, filling nothing and reporting success.
+const SEARCH_BOXES = [
+  'input[type="search"]', 'input[name="q"]', 'textarea[name="q"]',
+  'input[aria-label*="search" i]', 'input[placeholder*="بحث"]',
+  'input[placeholder*="search" i]', '[role="search"] input',
+  'input[type="text"]', 'textarea',
+];
+
+async function fillOne(page, f) {
+  const selectors = f.selector ? [f.selector] : SEARCH_BOXES;
+  for (const sel of selectors) {
+    try {
+      await page.fill(sel, f.value, { timeout: f.selector ? 8000 : 1500 });
+      return sel;
+    } catch (_) { /* try the next candidate */ }
+  }
+  return null;
+}
+
+// What the user is told. The numbers matter: "2 of 3" is the difference between
+// a retry and a form somebody has to go and cancel.
+function partialMessage(missed, total) {
+  return 'مقدرتش أملا ' + missed.length + ' من ' + total + ' خانة في الصفحة'
+    + (missed.length ? ' (' + missed.join('، ') + ')' : '')
+    + ' — وماضغطتش إرسال، عشان مايتبعتش نص بيانات. الصفحة مفتوحة قدامك.';
+}
+
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   // A name, not a URL: «سيلندر» is a site the user can name and the model
@@ -45,17 +86,34 @@ async function run(ctx, input) {
   catch (e) { return SF.cannotOpen(url, e.message); }
 
   const rawFields = Array.isArray(input && input.fields) ? input.fields : [];
-  if (!rawFields.length && !(input && input.submit)) return { ok: false, error: 'fields or submit required' };
+  // An EMPTY submit means "press Enter / submit the form", which is exactly what
+  // the planner sends for «افتح جوجل واكتب كذا». Treating it as falsy meant the
+  // box was filled and never submitted — and the task said it was done.
+  const rawSubmit = input && (input.submit != null ? input.submit : input.submitSelector);
+  const wantsSubmit = rawSubmit != null;
+  const submit = wantsSubmit ? String(rawSubmit) : null;
+  if (!rawFields.length && !wantsSubmit) return { ok: false, error: 'fields or submit required' };
   const fields = await resolveSecrets(ctx, rawFields);
-  const submit = input && (input.submit || input.submitSelector);
 
   // Prefer the user's live browser (extension); secrets are resolved here and
   // sent as concrete values only to the trusted bridge, never to the model.
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
-    const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit, consented: !!ctx.consented, keepOpen: !(input && input.keepOpen === false) });
-    if (r.ok) { if (ctx.log) ctx.log('fill_submit(ext)', { url, fields: fields.length }); return { ok: true, output: Object.assign({ url }, SF.note(site), r.output) }; }
-    return { ok: false, error: r.error };
+    const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit, wantsSubmit, consented: !!ctx.consented, keepOpen: !(input && input.keepOpen === false) });
+    if (!r.ok) return { ok: false, error: r.error };
+    const o = r.output || {};
+    if (ctx.log) ctx.log('fill_submit(ext)', { url, fields: fields.length, filled: o.filled, submitted: o.submitted });
+    const out = Object.assign({ url }, SF.note(site), o);
+    // The extension reports how many fields it actually found. Ignoring that
+    // number is what made a half-filled form look like a finished one.
+    const filled = Number(o.filled || 0);
+    if (fields.length && filled < fields.length) {
+      return { ok: false, error: partialMessage(o.missed || [], fields.length), errorCode: 'partial_fill', output: out };
+    }
+    if (wantsSubmit && !o.submitted) {
+      return { ok: false, error: 'البيانات اتكتبت بس مقدرتش أضغط إرسال. الصفحة مفتوحة قدامك عشان تراجع وتبعت بنفسك.', errorCode: 'not_submitted', output: out };
+    }
+    return { ok: true, output: out };
   }
   if (!ctx.browser || !ctx.browser.available()) {
     return { ok: false, error: 'browser engine not installed (run: npm i playwright && npx playwright install chromium)' };
@@ -63,23 +121,43 @@ async function run(ctx, input) {
   try {
     const out = await ctx.browser.withPage(async (page) => {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const missed = [];
+      let lastSelector = null;
       for (const f of fields) {
-        if (!f.selector) continue;
-        try { await page.fill(f.selector, f.value, { timeout: 8000 }); }
-        catch (_) { /* skip a field that isn't found rather than fail the whole task */ }
+        const hit = await fillOne(page, f);
+        if (hit) lastSelector = hit;
+        else missed.push(f.selector || 'خانة البحث');
       }
       let submitted = false;
-      if (submit) {
-        try { await Promise.all([page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {}), page.click(submit, { timeout: 8000 })]); submitted = true; }
-        catch (_) { submitted = false; }
+      // Nothing is submitted while a field is missing. This is the whole point:
+      // an incomplete form that was never sent is a retry; one that was sent is
+      // somebody's appointment with half their details on it.
+      if (wantsSubmit && !missed.length) {
+        const press = async () => {
+          if (submit) { await page.click(submit, { timeout: 8000 }); return true; }
+          if (lastSelector) { await page.press(lastSelector, 'Enter', { timeout: 8000 }); return true; }
+          return false;
+        };
+        try {
+          const nav = page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+          submitted = await press();
+          await nav;
+        } catch (_) { submitted = false; }
       }
       const text = await page.evaluate(() => (document.body && document.body.innerText || '').slice(0, 6000));
-      return { title: await page.title(), url: page.url(), submitted, text };
+      return { title: await page.title(), url: page.url(), filled: fields.length - missed.length, missed, submitted, text };
     });
-    if (ctx.log) ctx.log('fill_submit', { url, fields: fields.length, submitted: out.submitted });
-    return { ok: true, output: Object.assign({ url }, SF.note(site), out) };
+    if (ctx.log) ctx.log('fill_submit', { url, fields: fields.length, filled: out.filled, submitted: out.submitted });
+    const payload = Object.assign({ url }, SF.note(site), out);
+    if (out.missed.length) {
+      return { ok: false, error: partialMessage(out.missed, fields.length), errorCode: 'partial_fill', output: payload };
+    }
+    if (wantsSubmit && !out.submitted) {
+      return { ok: false, error: 'البيانات اتكتبت بس مقدرتش أضغط إرسال. الصفحة مفتوحة قدامك عشان تراجع وتبعت بنفسك.', errorCode: 'not_submitted', output: payload };
+    }
+    return { ok: true, output: payload };
   } catch (e) {
-    return { ok: false, error: 'fill_submit failed: ' + e.message };
+    return { ok: false, error: 'مقدرتش أكمّل الفورم: ' + e.message, errorCode: 'failed' };
   }
 }
 
