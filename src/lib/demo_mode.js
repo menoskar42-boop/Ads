@@ -61,4 +61,49 @@ function blockWrite(req, res) {
   return true;
 }
 
-module.exports = { DEMO_SLUGS, isDemoSlug, isDemoSession, isWriteRequest, blockWrite };
+/**
+ * The visitor signed in for real — the demo is over.
+ *
+ * A merchant who once clicked "see a live demo" carried `demoReadOnly` into
+ * their own account and found every save refused, with no way to clear it but
+ * dropping the cookie. The flag has to end the moment a real credential is
+ * accepted, at every door: owner, pharmacy staff, clinic staff, restaurant
+ * staff, dietitian's staff.
+ *
+ * Note this does NOT regenerate the session id. That is a separate hardening
+ * (session fixation) and a bigger change than this one; the flags are what
+ * locked real merchants out.
+ */
+function endDemo(req) {
+  if (!req || !req.session) return;
+  delete req.session.demoReadOnly;
+  delete req.session.demoSlug;
+}
+
+/**
+ * Express middleware: no write, anywhere, in a demo session.
+ *
+ * Mounted once on the app rather than inside each area's own `requireLogin`.
+ * Seven admin routers had written their own login check — none of them called
+ * blockWrite — so a visitor could open a demo and then POST edits and deletes
+ * into the very tenants that are shown to prospects. Seven routers each
+ * remembering a rule is seven chances to forget it; the eighth, written next
+ * year, forgets by default.
+ *
+ * Logging out is the one write a demo session must keep: without it the visitor
+ * is stuck in read-only until the cookie expires.
+ */
+const ALWAYS_ALLOWED = ['/company/logout'];
+
+function guard() {
+  return function demoGuard(req, res, next) {
+    if (ALWAYS_ALLOWED.includes(req.path)) return next();
+    if (blockWrite(req, res)) return;
+    next();
+  };
+}
+
+module.exports = {
+  DEMO_SLUGS, isDemoSlug, isDemoSession, isWriteRequest, blockWrite,
+  endDemo, guard, ALWAYS_ALLOWED,
+};

@@ -7,6 +7,7 @@ const multer = require('multer');
 const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
+const demoMode = require('../lib/demo_mode');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
@@ -228,6 +229,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
         req.session.companyId = st.company_id;
+        demoMode.endDemo(req);
         req.session.staffId = st.id;
         req.session.staffRole = st.role || 'cashier';
         req.session.staffName = st.name || st.username;
@@ -253,6 +255,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
         req.session.companyId = st.company_id;
+        demoMode.endDemo(req);
         // Named differently from the pharmacy's staffId on purpose: one session
         // must never be read as the other's role.
         req.session.clinicStaffId = st.id;
@@ -278,6 +281,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
         req.session.companyId = st.company_id;
+        demoMode.endDemo(req);
         // Its own name, like the clinic's: one staff session must never be read
         // as another system's role.
         req.session.foodStaffId = st.id;
@@ -304,6 +308,7 @@ router.post('/login', loginLimiter, async (req, res) => {
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
         req.session.companyId = st.company_id;
+        demoMode.endDemo(req);
         req.session.nutriStaffId = st.id;
         req.session.nutriRole = st.perm_role || 'reception';
         req.session.staffName = st.name || st.username;
@@ -337,6 +342,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       return renderLogin({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' });
     }
     req.session.companyId = user.company_id;
+    demoMode.endDemo(req);
     req.session.companyUserId = user.id;
     req.session.companyName = user.company_name;
     req.session.themeColor = user.theme_color;

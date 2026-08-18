@@ -21,6 +21,7 @@ const CHECKS = [
   ['check-page-types',      'أنواع النشاط مكتملة في كل الأماكن'],
   ['check-canonical-urls',  'الكانونيكال بيتركّب صح + مفيش محتوى مخترع'],
   ['check-inline-json',     'مفيش JSON خام جوّه <script> (XSS مخزّن)'],
+  ['check-demo-readonly',   'وضع العرض قراءة فقط في التطبيق كله'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],

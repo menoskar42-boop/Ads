@@ -454,6 +454,19 @@ app.get('/demo/:slug', async (req, res) => {
   }
 });
 
+/* وضع العرض: قراءة فقط، على مستوى التطبيق كله.
+ *
+ * Read-only was enforced inside `src/middleware/auth.js` only — and seven admin
+ * routers (موبيليا · ورش · فاتورة · قاعات · حضانات · قسّطلي · تغذية) had each
+ * written their own login check that stopped at "is there a companyId?". So a
+ * visitor could open /demo/furniture and then POST edits and deletes straight
+ * into the tenants we show to prospects.
+ *
+ * One rule, one mount, above every admin area — including the ones nobody has
+ * written yet. Placed after the session middleware and before the routers.
+ */
+app.use(demoMode.guard());
+
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
 app.use('/accounting', require('./src/routes/accounting'));
