@@ -1,6 +1,6 @@
 'use strict';
 
-// ── "Can this merchant actually take money?" ─────────────────────────────────
+// ── The two merchant tools nobody could find ─────────────────────────────────
 //
 // The payment settings live at `/accounting/payments` and nothing else linked
 // to them. A gym owner, a workshop, a nursery — every panel that sells
@@ -61,18 +61,44 @@ async function readyFor(companyId) {
   return value;
 }
 
-/** Drop the cached answer the moment the merchant saves the page. */
-function forget(companyId) { cache.delete(companyId); }
+/**
+ * Is the e-invoice switched on for this merchant?
+ *
+ * Same shape of problem, same shape of fix: the page exists at `/einvoice` and
+ * nothing led to it. Different in one way that matters — the feature is
+ * OPTIONAL by the owner's rule, so "off" is a legitimate state and the chip
+ * must not nag about it the way an unconfigured payment method does.
+ */
+const einvoiceCache = new Map();
+async function einvoiceOn(companyId) {
+  const hit = einvoiceCache.get(companyId);
+  if (hit && Date.now() - hit.at < TTL) return hit.value;
+  let value = null;
+  try {
+    const r = await db().query('SELECT enabled FROM einvoice_settings WHERE company_id=$1', [companyId]);
+    value = !!(r.rows[0] && r.rows[0].enabled);
+  } catch (_) { value = null; }
+  einvoiceCache.set(companyId, { at: Date.now(), value });
+  return value;
+}
+
+/** Drop the cached answers the moment the merchant saves either page. */
+function forget(companyId) { cache.delete(companyId); einvoiceCache.delete(companyId); }
 
 function middleware() {
   return async function payStatus(req, res, next) {
     res.locals.payLink = '/accounting/payments';
+    res.locals.einvoiceLink = '/einvoice';
     res.locals.payReady = null;
+    res.locals.einvoiceOn = null;
     const id = req.session && req.session.companyId;
     if (!id) return next();
-    res.locals.payReady = await readyFor(id);
+    // Both facts in one pass: a panel render must not cost two round trips.
+    const [pay, inv] = await Promise.all([readyFor(id), einvoiceOn(id)]);
+    res.locals.payReady = pay;
+    res.locals.einvoiceOn = inv;
     next();
   };
 }
 
-module.exports = { middleware, readyFor, readyFrom, forget, _cache: cache };
+module.exports = { middleware, readyFor, readyFrom, einvoiceOn, forget, _cache: cache, _einvoiceCache: einvoiceCache };

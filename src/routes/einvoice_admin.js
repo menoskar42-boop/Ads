@@ -101,6 +101,9 @@ router.post('/settings', async (req, res) => {
      text(b.issuer_city, 80), text(b.issuer_street, 150), text(b.issuer_building, 40),
      clientIdEnc, secretEnc, signingMode, text(b.signer_url, 300), signerTokenEnc]
   );
+  // The chip in every panel reads a cached answer; switching the feature on or
+  // off has to change it now, not in a minute.
+  require('../middleware/pay_status').forget(cid);
   res.redirect('/einvoice?saved=1');
 });
 

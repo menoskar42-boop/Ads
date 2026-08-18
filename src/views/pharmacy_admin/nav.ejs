@@ -18,7 +18,7 @@
       <a href="/accounting" class="px-3 py-1.5 rounded-lg hover:bg-white/15">📊 <%= t('acct.title') %></a>
       <a href="https://<%= company.slug %>.oscardevs.com" target="_blank" rel="noopener" class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.view_public') %></a>
       <a href="?lang=<%= __other %>" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 font-bold"><%= t('common.toggle_lang') %></a>
-      <%- include('../partials/pay_link') %>
+      <%- include('../partials/merchant_chips') %>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('pharmacy.admin.logout') %></button></form>
     </nav>
   </div>

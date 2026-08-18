@@ -58,7 +58,7 @@
       <% __nav.forEach(function(n){ %><a href="<%= n.path %>" class="<%= __cls(n.key) %>"><%= n.label %></a><% }); %>
     </nav>
     <% if (__p.isStaff) { %><span class="hidden sm:inline text-xs text-white/80"><%= __p.name %> · <%= t('nt.staff.role.' + __p.role) %></span><% } %>
-    <%- include('../partials/pay_link') %>
+    <%- include('../partials/merchant_chips') %>
     <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
       <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5"><%= t('common.logout') %></button>
     </form>
