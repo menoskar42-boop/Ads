@@ -25,12 +25,21 @@ function register(action) {
 function get(name) { return actions.get(name); }
 
 // Compact catalog for the planner — names + descriptions + permissions only.
-function catalog() {
-  return [...actions.values()].map((a) => ({
-    name: a.name,
-    description: a.description || '',
-    permissions: a.permissions || [],
-  }));
+//
+// `without` DROPS every action that needs one of the named permissions. On a
+// phone with no extension and no server Chromium, the browser tools cannot do
+// anything — and a tool that is merely discouraged in the prompt still gets
+// chosen, then fails, and the user is told about an extension they were never
+// offered. A capability that is not there is not in the list.
+function catalog(opts) {
+  const without = (opts && opts.without) || [];
+  return [...actions.values()]
+    .filter((a) => !(a.permissions || []).some((p) => without.includes(p)))
+    .map((a) => ({
+      name: a.name,
+      description: a.description || '',
+      permissions: a.permissions || [],
+    }));
 }
 
 module.exports = { register, get, catalog, actions };
