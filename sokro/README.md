@@ -1,8 +1,31 @@
 # Sokro — AI Operating System
 
 Voice-driven task execution on the OscarDevs platform. You say what you want —
-Sokro plans it, runs it (browser + APIs), validates, retries on failure, and
-delivers the result (report, image, booking draft, social post…).
+Sokro plans it, runs it (browser + APIs), validates, and delivers the result.
+
+**What it actually does today** (every line here is a file in this folder — the
+description is not allowed to be wider than the code):
+
+| Capability | Where |
+|---|---|
+| Web search, deep research report, image generation | `actions/SearchWebAction.js` · `skills/ResearchReportSkill.js` · `actions/GenerateImageAction.js` |
+| Open / read / navigate a site, extract a table | `actions/BrowseAction.js` · `actions/NavigateSiteAction.js` · `actions/ExtractTableAction.js` |
+| Fill a form and submit it (never half of one) | `actions/FillSubmitAction.js` |
+| Operate a site step by step in the user's own tab | `actions/OperateAction.js` + `extension/background.js` |
+| Send WhatsApp from the user's own session | `actions/WhatsAppAction.js` |
+| Read AND publish on Facebook / Instagram | `skills/FacebookSkill.js` |
+| Gmail (OAuth, read + send) | `skills/GmailApiSkill.js` |
+| Structured bookings: fields, what is missing, confirmation stage | `booking/` |
+| Meeting agendas built one point at a time | `agenda/` |
+| Reminders at a time, delivered to an inbox | `scheduler/` |
+| Encrypted per-user secrets, with a UI to put them in | `secrets/` + `ui/app.html` |
+| Site name → domain, by table then by search | `lib/siteDict.js` · `lib/siteFinder.js` |
+
+**What it does not do:** post without an explicit confirmation of the exact
+text, retry anything that sends or pays, write on a site the user was not shown,
+or treat page content as instructions. Those are guarded by checks in
+`scripts/` (`check-no-retry` · `check-page-trust` · `check-fill-truth` ·
+`check-social-publish` · `check-whatsapp` · `check-booking-confirm`).
 
 Host: `sokro.oscardevs.com` (host-routed sub-app, mounted like `mykid`/`kakeibo`).
 
@@ -35,7 +58,12 @@ sokro/
 ├── workflows/     plan execution + validation + retry
 ├── validation/    Execution Validator
 ├── permissions/   per-action scopes + (voice) consent
-├── scheduler/     scheduled_tasks + cron tick + watchers (no queues/workers)
+├── scheduler/     scheduled_tasks (a time or an interval) + cron tick + delivery
+├── booking/       booking state machine: fields → review → confirm → submit
+├── agenda/        meeting agendas, added a point at a time
+├── lib/           site dictionary + discovery, SSRF guard, page-trust, write guard
+├── extension/     the Chrome service worker that drives the user's own browser
+├── extension-bridge/  the server side of that conversation
 ├── browser/       Playwright wrapper (swappable: CDP / Stagehand / Browser-Use)
 ├── voice/         STT / TTS
 ├── api/           REST + SSE (the mobile app talks to this)
@@ -53,24 +81,34 @@ sokro/
 - **LLM-agnostic** — default OpenAI, others behind one interface.
 - **Security** — secrets are AES-256 encrypted and decrypted only at run-time
   inside the action; **never** placed in an AI prompt. Multi-user isolation.
-- **Self-healing** — the Validator retries failed steps instead of stopping.
+  Page content is fenced as untrusted data, and a run may only write to the
+  domains the user was shown before confirming.
+- **Self-healing, except where it is dangerous** — the Validator retries failed
+  steps, but never a step that submits, pays, posts or messages: a lost reply
+  usually means it worked, and the retry is the second ticket.
 - **Extensible** — a new capability is a new Action file + one register() call.
 
 ## Build order (one feature at a time, run + confirm before the next)
 
 1. Architecture ✅
-2. Project structure (runnable skeleton) ← **current**
-3. Authentication + secrets vault
-4. LLM Abstraction Layer (OpenAI adapter)
-5. Memory
-6. Browser layer + first Action (SearchWeb)
-7. Planner + Validator + Retry
-8. Skills / Workflows
-9. Permissions (voice consent)
-10. Scheduler / Watchers
-11. Reports
-12. Voice + UI
-13. Docs + Deploy + "من أعمالنا" card
+2. Project structure ✅
+3. Authentication + secrets vault ✅ (vault UI in settings)
+4. LLM Abstraction Layer (OpenAI adapter) ✅
+5. Memory ✅
+6. Browser layer + first Action (SearchWeb) ✅
+7. Planner + Validator + Retry ✅ — **retry is refused for anything that sends
+   or pays**; see `scripts/check-no-retry.js`
+8. Skills / Workflows ✅
+9. Permissions (voice consent) ✅ + the domains a run may write to
+10. Scheduler / Watchers ✅ — one-shot reminders and a delivery inbox
+11. Reports ✅
+12. Voice + UI ✅ — browser-status chip, reminders bell, secrets form
+13. Docs + Deploy + "من أعمالنا" card ← **current**
+
+### Next
+- WhatsApp Cloud API (the extension path ships today; the API needs a business
+  account + an approved template).
+- Natural-language times for reminders (the API takes an explicit `runAt`).
 
 ## Run (dev)
 
