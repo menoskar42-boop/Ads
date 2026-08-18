@@ -82,6 +82,40 @@ function isSimpleSearch(goal) {
   if (/فلتر|filter|قارن|compare|سجل دخول|login|checkout|اشتري|شراء|أضف للسلة|add to cart|ثم اضغط|then click/.test(g)) return false;
   return true;
 }
+/**
+ * Drop steps that name a tool this request does not have.
+ *
+ * The catalog is what the model was SHOWN; this is what it is HELD to. A model
+ * that asks for `operate` on a phone with no browser gets the step removed
+ * rather than an executor error — and if that was the whole plan, the user is
+ * told what is missing in one sentence instead of watching a task fail.
+ */
+function keepKnown(plan, names, browserNames) {
+  if (!plan || !Array.isArray(plan.steps)) return plan;
+  const kept = plan.steps.filter((s) => s && names.has(s.action));
+  if (kept.length === plan.steps.length) return plan;
+  const needsBrowser = new Set(browserNames || []);
+  const droppedBrowser = plan.steps
+    .filter((s) => s && !names.has(s.action))
+    .some((s) => needsBrowser.has(s.action));
+  plan.steps = kept;
+  if (!kept.length && !plan.message) {
+    plan.message = droppedBrowser
+      ? 'ده محتاج متصفّح وأنا مش موصول بمتصفّحك دلوقتي. قولي المعلومة اللي عايزها وأنا أدوّرها لك، أو وصّل إضافة سوكرو من الكمبيوتر.'
+      : 'مش لاقي أداة تعمل ده دلوقتي.';
+  }
+  return plan;
+}
+
+// Which actions need a browser is a property OF THE ACTIONS — each one declares
+// `permissions: ['browser']`. Repeating the list here is how a sixth browser
+// action gets written and silently keeps being offered on a phone.
+function browserActionNames(ctx) {
+  try {
+    return ctx.actions.catalog().filter((a) => (a.permissions || []).includes('browser')).map((a) => a.name);
+  } catch (_) { return []; }
+}
+
 function rewriteTypingSteps(plan, names) {
   if (!plan || !Array.isArray(plan.steps) || !names.has('fill_submit')) return plan;
   plan.steps = plan.steps.map((s) => {
@@ -98,14 +132,30 @@ function rewriteTypingSteps(plan, names) {
   return plan;
 }
 
+/**
+ * Can anything actually drive a browser right now?
+ *
+ * Two ways: the user's own browser through the extension, or server-side
+ * Chromium. On a phone with neither, the browser actions are not "unreliable" —
+ * they are impossible, and every plan that reaches for one ends as an apology.
+ */
+function browserPossible(ctx) {
+  let ext = false;
+  try { ext = !!(ctx && ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
+  let server = false;
+  try { server = !!(ctx && ctx.browser && ctx.browser.available()); } catch (_) {}
+  return { ext, server, any: ext || server };
+}
+
 async function plan(ctx, goal, recentContext = []) {
-  const catalog = ctx.actions.catalog();
   // The live-browser tools (browse/operate/fill_submit/navigate_site/extract_table)
-  // are only reliable when the user's EXTENSION is connected. Without it, they fall
-  // to the server browser which is unreliable — so we DON'T tell the model to prefer
-  // them; it routes browser-ish requests to search_web instead.
-  let extConnected = false;
-  try { extConnected = !!(ctx && ctx.userId && require('../extension-bridge').connected(ctx.userId)); } catch (_) {}
+  // all declare the `browser` permission. With no way to run a browser they are
+  // REMOVED FROM THE CATALOG rather than discouraged in the prompt: a tool the
+  // model can still see is a tool it will still choose, and the failure lands on
+  // the user as "install the extension" for something they asked innocently.
+  const B = browserPossible(ctx);
+  const catalog = ctx.actions.catalog(B.any ? undefined : { without: ['browser'] });
+  const extConnected = B.ext;
   const base = [
     'You are Sokro, an AI operating system that EXECUTES real tasks, not just answers.',
     'The user goal is often in Egyptian Arabic. Output a MINIMAL step-by-step plan as JSON.',
@@ -120,7 +170,9 @@ async function plan(ctx, goal, recentContext = []) {
   ];
   // Browser-routing guidance — INCLUDED ONLY when the extension is connected.
   const browserRules = [
-    'The user\'s live browser (Sokro extension) IS connected, so you can act inside sites.',
+    extConnected
+      ? 'The user\'s live browser (Sokro extension) IS connected, so you can act inside sites.'
+      : 'A server-side browser is available, so you can open and read sites (the user\'s own logged-in sessions are NOT available).',
     'If the user just wants to OPEN a site ("افتح جوجل"، "روح لموقع X"، "open X") WITHOUT reading/extracting, use browse with input.url = the site AND input.keepOpen = true.',
     'If they want to OPEN a site and TYPE in its search box then submit ("افتح جوجل واكتب/ابحث عن كذا"، "دوّر على كذا في يوتيوب"), use fill_submit: input.url = the site, input.fields = [{"selector":"","value":"<text>"}], input.submit = "", input.keepOpen = true.',
     'For tasks that INTERACT inside a site — filters, pick a make/model, click into an item, read what appears ("دوّر على رينو ميجان في سيلندر") — use operate with input.url = the site homepage (prefer www) and input.goal = the full task. For reading by following links use navigate_site; for a SINGLE known page use browse.',
@@ -129,14 +181,16 @@ async function plan(ctx, goal, recentContext = []) {
   // No-browser guidance — when the extension is NOT connected, keep everything to
   // tools that don't need a live browser.
   const noBrowserRules = [
-    'The live browser is NOT available right now (no extension connected). So do NOT use browse / operate / fill_submit / navigate_site / extract_table. For anything that would need a website, use search_web (for a specific site use input.query = "site:<domain> <what they want>"), generate_image, or research_report instead. Never tell the user to open a site manually — give them the answer via search_web.',
+    // The tools are already gone from the catalog above; this only explains the
+    // absence so the model routes around it instead of apologising.
+    'The live browser is NOT available right now, so the browsing tools are not in your catalog at all. For anything that would need a website, use search_web (for a specific site use input.query = "site:<domain> <what they want>"), generate_image, or research_report instead. Never tell the user to open a site manually — give them the answer via search_web.',
   ];
   const tail = [
     'Rule of thumb: if the user names a THING to be created (an image, drawing, logo, character, scene) and no other action fits better, default to generate_image rather than returning empty.',
     'Only use actions from the catalog and give concrete `input` for each step. Return empty steps ONLY if truly NO action applies, and then set "message" to a SHORT helpful Arabic sentence telling the user what you CAN do.',
     'Respond ONLY as JSON: {"intent":"short","steps":[{"action":"name","input":{...},"reason":"why"}],"message":"optional"}',
   ];
-  const sys = base.concat(extConnected ? browserRules : noBrowserRules).concat(tail).join(' ');
+  const sys = base.concat(B.any ? browserRules : noBrowserRules).concat(tail).join(' ');
   const names = new Set(catalog.map((a) => a.name));
   const user = `Available actions:\n${catalogText(catalog)}\n\nUser goal: ${goal}`;
   const messages = [{ role: 'system', content: sys }, ...recentContext, { role: 'user', content: user }];
@@ -144,10 +198,14 @@ async function plan(ctx, goal, recentContext = []) {
   // into a dead end — fall back to the deterministic heuristic below.
   let out = null;
   try { out = await llm.json({ messages }); } catch (e) { out = null; }
-  if (out && Array.isArray(out.steps) && out.steps.length) return rewriteTypingSteps(out, names);
+  if (out && Array.isArray(out.steps) && out.steps.length) {
+    const cleaned = keepKnown(out, names, browserActionNames(ctx));
+    if (cleaned.steps.length) return rewriteTypingSteps(cleaned, names);
+    return cleaned;   // nothing survived: the message says why
+  }
   // LLM returned nothing usable (empty steps, unparseable, or unavailable):
   // try the deterministic heuristic so "ارسم صورة قطة" / "ابحثلي..." still run.
-  const h = heuristicPlan(goal, names, extConnected);
+  const h = heuristicPlan(goal, names, B.any);
   if (h) return h;
   return {
     intent: 'unknown',
@@ -179,4 +237,6 @@ async function summarize(ctx, goal, results) {
   catch (_) { return { summary: null, achieved: true }; }
 }
 
-module.exports = { plan, summarize };
+// Exported for the guard: these three decide what the model is allowed to
+// choose, and a rule that cannot be run in a test is a rule nobody is checking.
+module.exports = { plan, summarize, _internals: { heuristicPlan, keepKnown, browserPossible, browserActionNames } };
