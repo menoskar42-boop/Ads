@@ -215,8 +215,11 @@ app.use('/pharmacy', pharmacyRouter);
   check('بس النقص بيترجع مش بيتبلع', /return short;/.test(stockLib));
   check('والقراءة قبل الخصم في نفس الجملة (CTE) مش SELECT قبلها',
     /WITH cur AS \(/.test(stockLib) && /FOR UPDATE/.test(stockLib));
+  /* The columns moved from the INSERT to an UPDATE when the uid claim was put
+     first (see check-offline-sync.js). The fact is the same: a sale the shelf
+     could not cover is flagged, with a note. */
   check('البيعة الناقصة بتتعلّم للمراجعة',
-    /needs_review, review_note/.test(route) && /short\.length > 0/.test(route));
+    /needs_review=\$3, review_note=\$4/.test(route) && /short\.length > 0/.test(route));
   check('والملاحظة بتقول اتباع كام والنظام كان شايف كام',
     /اتباع \$\{x\.wanted\} والنظام كان شايف \$\{x\.had\}/.test(route));
   check('وفيه أعمدة للمراجعة في السكيمة',
