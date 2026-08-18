@@ -10,6 +10,24 @@ const requireLogin = require('../middleware/auth');
 const demoMode = require('../lib/demo_mode');
 const orderReversal = require('../lib/order_reversal');
 const money = require('../lib/money');
+const codes = require('../lib/codes');
+
+/* Error codes, not error sentences.
+ *
+ * These pages rendered `req.query.error` straight into the banner, so a link
+ * could put any text in front of a merchant inside their own admin, under
+ * their own branding — and one of them reflected `err.message`, handing the
+ * page whatever the database said. The server owns the wording; the URL only
+ * gets to name one of these. */
+const PAGE_ERRORS = {
+  giftcards:  { amount: 'القيمة غير صحيحة', save: 'تعذّر إنشاء الكرت' },
+  currencies: { invalid: 'بيانات غير صحيحة', save: 'تعذّر الحفظ' },
+  stock:      { zero: 'اكتب كمية تغيير مش صفر.',
+                negative: 'مش ممكن تطبّق التغيير (المخزون هيبقى سالب أو المنتج مش موجود).',
+                save: 'تعذّر حفظ التغيير.' },
+};
+const pageError = (page, code) => PAGE_ERRORS[page][String(code || '')] || null;
+
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
@@ -1204,20 +1222,18 @@ router.get('/giftcards', requireLogin, requireShop, async (req, res) => {
         WHERE g.company_id=$1 ORDER BY g.created_at DESC LIMIT 200`,
       [req.session.companyId]
     )).rows;
-    res.render('company/giftcards', { cards, session: req.session, saved: req.query.saved === '1', error: req.query.error || null });
+    res.render('company/giftcards', { cards, session: req.session, saved: req.query.saved === '1', error: pageError('giftcards', req.query.error) });
   } catch (e) { console.error('[giftcards]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/giftcards', requireLogin, requireShop, async (req, res) => {
   const b = req.body || {};
   const amount = Math.max(1, Math.min(100000, parseFloat(b.amount) || 0));
-  // Code: uppercase alnum, generated if not supplied.
+  // Code: uppercase alnum, generated if not supplied. The generated one is the
+  // card's entire security — see src/lib/codes.js for why Math.random was not
+  // an option here.
   let code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 24);
-  if (!code) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    code = 'GIFT';
-    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  if (!amount) return res.redirect('/company/giftcards?error=' + encodeURIComponent('القيمة غير صحيحة'));
+  if (!code) code = codes.giftCode();
+  if (!amount) return res.redirect('/company/giftcards?error=amount');
   try {
     await pool.query(
       'INSERT INTO gift_cards (company_id, code, amount) VALUES ($1,$2,$3) ON CONFLICT (company_id, code) DO NOTHING',
@@ -1226,7 +1242,7 @@ router.post('/giftcards', requireLogin, requireShop, async (req, res) => {
     res.redirect('/company/giftcards?saved=1');
   } catch (e) {
     console.error('[giftcard create]', e.message);
-    res.redirect('/company/giftcards?error=' + encodeURIComponent('تعذّر إنشاء الكرت'));
+    res.redirect('/company/giftcards?error=save');
   }
 });
 router.post('/giftcards/:id/toggle', requireLogin, requireShop, async (req, res) => {
@@ -1281,7 +1297,7 @@ router.get('/currencies', requireLogin, requireShop, async (req, res) => {
   try {
     const company = (await pool.query('SELECT currency FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
     const rows = (await pool.query('SELECT * FROM store_currencies WHERE company_id=$1 ORDER BY sort_order, id', [req.session.companyId])).rows;
-    res.render('company/currencies', { base: company.currency || 'EGP', currencies: rows, session: req.session, saved: req.query.saved === '1', error: req.query.error || null });
+    res.render('company/currencies', { base: company.currency || 'EGP', currencies: rows, session: req.session, saved: req.query.saved === '1', error: pageError('currencies', req.query.error) });
   } catch (e) { console.error('[currencies]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/currencies', requireLogin, requireShop, async (req, res) => {
@@ -1289,7 +1305,7 @@ router.post('/currencies', requireLogin, requireShop, async (req, res) => {
   const code = String(b.code || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
   const symbol = String(b.symbol || '').trim().slice(0, 8);
   const rate = parseFloat(b.rate);
-  if (!code || !symbol || !(rate > 0)) return res.redirect('/company/currencies?error=' + encodeURIComponent('بيانات غير صحيحة'));
+  if (!code || !symbol || !(rate > 0)) return res.redirect('/company/currencies?error=invalid');
   try {
     await pool.query(
       `INSERT INTO store_currencies (company_id, code, symbol, rate) VALUES ($1,$2,$3,$4)
@@ -1297,7 +1313,7 @@ router.post('/currencies', requireLogin, requireShop, async (req, res) => {
       [req.session.companyId, code, symbol, rate]
     );
     res.redirect('/company/currencies?saved=1');
-  } catch (e) { console.error('[currency add]', e.message); res.redirect('/company/currencies?error=' + encodeURIComponent('تعذّر الحفظ')); }
+  } catch (e) { console.error('[currency add]', e.message); res.redirect('/company/currencies?error=save'); }
 });
 router.post('/currencies/:id/delete', requireLogin, requireShop, async (req, res) => {
   try { await pool.query('DELETE FROM store_currencies WHERE id=$1 AND company_id=$2', [parseInt(req.params.id, 10), req.session.companyId]); }
@@ -1731,7 +1747,7 @@ router.get('/products/:id/stock', requireLogin, requireShop, async (req, res) =>
     product: product.rows[0],
     movements: movements.rows,
     session: req.session,
-    error: req.query.error || null,
+    error: pageError('stock', req.query.error),
   });
 });
 
@@ -1739,7 +1755,7 @@ router.post('/products/:id/stock', requireLogin, requireShop, async (req, res) =
   const change = parseInt(req.body.change_amount, 10);
   const reason = ['restock', 'adjustment', 'return'].includes(req.body.reason) ? req.body.reason : 'adjustment';
   if (!Number.isFinite(change) || change === 0) {
-    return res.redirect(`/company/products/${req.params.id}/stock?error=${encodeURIComponent('Enter a non-zero change amount.')}`);
+    return res.redirect(`/company/products/${req.params.id}/stock?error=zero`);
   }
   const client = await pool.connect();
   try {
@@ -1752,7 +1768,7 @@ router.post('/products/:id/stock', requireLogin, requireShop, async (req, res) =
     );
     if (!upd.rows.length) {
       await client.query('ROLLBACK');
-      return res.redirect(`/company/products/${req.params.id}/stock?error=${encodeURIComponent('Cannot apply change (stock would go negative or product not found).')}`);
+      return res.redirect(`/company/products/${req.params.id}/stock?error=negative`);
     }
     await client.query(
       `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, notes)
@@ -1764,7 +1780,8 @@ router.post('/products/:id/stock', requireLogin, requireShop, async (req, res) =
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[POST /products/:id/stock] error:', err);
-    res.redirect(`/company/products/${req.params.id}/stock?error=${encodeURIComponent(err.message)}`);
+    // Never `err.message`: that is the database talking to a web page.
+    res.redirect(`/company/products/${req.params.id}/stock?error=save`);
   } finally { client.release(); }
 });
 

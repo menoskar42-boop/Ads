@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
+const codes = require('../lib/codes');
 // كل أنواع النشاط اللي الأدمن يقدر يختارها. كانت مكتوبة مرتين بالإيد وناقصها
 // nursery و installments، فأي شركة من النوعين دول كانت بتترمي على portfolio
 // من غير أي رسالة — الحضانة تطلع صفحة أعمال. مصدر واحد دلوقتي،
@@ -24,16 +25,13 @@ const SLUG_REGEX = /^[a-z0-9-]+$/;
 const FREE_TRIAL_MONTHS = 6;
 const REFERRAL_BONUS_MONTHS = 2;
 
-// Codes get typed by hand and read over the phone, so drop the characters that
-// get confused: O/0, I/1, S/5. Retries on the unique index rather than trusting
-// randomness alone.
-const REF_ALPHABET = 'ABCDEFGHJKLMNPQRTUVWXYZ23456789';
+// A referral code is two free months, so it is worth guessing. It is generated
+// from crypto.randomBytes over a spoken-friendly alphabet (no O/0, I/1, S/5) —
+// see src/lib/codes.js. The collision retry stays: uniqueness and
+// unpredictability are different problems and this loop only solves the first.
 async function makeReferralCode(client) {
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    let code = '';
-    for (let i = 0; i < 6; i += 1) {
-      code += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-    }
+    const code = codes.referralCode();
     const hit = await client.query('SELECT 1 FROM companies WHERE referral_code = $1', [code]);
     if (!hit.rows.length) return code;
   }

@@ -31,7 +31,10 @@ if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, tmpDir),
-    filename: (req, file, cb) => cb(null, `dcm-${Date.now()}-${Math.round(Math.random() * 1e9)}`),
+    // Not a secret (the dir is outside the web root), but two slices landing in
+    // the same millisecond would overwrite each other, and Math.random is not the
+    // tool for "must not collide" either.
+    filename: (req, file, cb) => cb(null, `dcm-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`),
   }),
   limits: { fileSize: 60 * 1024 * 1024, files: 600 }, // up to 600 slices/upload
 });
