@@ -3,6 +3,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const S = require('../furniture/sales');
 const B = require('../furniture/branches');
 
@@ -63,9 +64,11 @@ router.post('/', async (req, res) => {
     await client.query('BEGIN');
     const t = S.invoiceTotals(lines, await taxPercentOf(cid));
     const sale = (await client.query(
+      // customer_id is a number from the form. Scoped in the statement so an
+      // invoice cannot be raised against another showroom's customer.
       `INSERT INTO furniture_sales
          (company_id, customer_id, sale_date, subtotal, tax, total, paid, status, note, branch_id)
-       VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,$5,$6,0,'open',$7,$8) RETURNING id`,
+       VALUES ($1,${ref('furniture_customers', '$2', '$1')},COALESCE($3, CURRENT_DATE),$4,$5,$6,0,'open',$7,$8) RETURNING id`,
       [cid, parseInt(b.customer_id, 10) || null, date(b.sale_date),
         t.subtotal, t.tax, t.total, String(b.note || '').trim().slice(0, 300) || null,
         // Stamped from the active filter when the form does not say: raising an

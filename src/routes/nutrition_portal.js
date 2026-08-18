@@ -179,7 +179,8 @@ router.post('/tick', async (req, res) => {
       `INSERT INTO nutrition_diary (company_id, patient_id, on_date, meal, item_id, done)
        VALUES ($1,$2,$3,$4,$5,true)
        ON CONFLICT (patient_id, on_date, item_id) DO UPDATE SET done = NOT nutrition_diary.done`,
-      [req.practice.id, req.patientId, day, String(b.meal || 'breakfast').slice(0, 20), itemId]);
+      // owns.id — the row the ownership query above actually confirmed.
+      [req.practice.id, req.patientId, day, String(b.meal || 'breakfast').slice(0, 20), owns.id]);
   } catch (e) { console.error('[nutrition tick]', e.message); }
   res.redirect('/portal');
 });

@@ -8,6 +8,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
 
@@ -206,7 +207,7 @@ router.post('/vehicles', async (req, res) => {
     `INSERT INTO workshop_vehicles
        (company_id, customer_id, plate, make, model, model_year, colour, vin, engine, gearbox, fuel,
         odometer, odometer_at, service_km, service_months, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+     VALUES ($1,${ref('workshop_customers', '$2', '$1')},$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
     [cid, customerId, plate, text(b.make, 60), text(b.model, 60), int(b.model_year),
      text(b.colour, 40), text(b.vin, 40), text(b.engine, 40), text(b.gearbox, 40), text(b.fuel, 30),
      odo, odo != null ? new Date() : null, int(b.service_km), int(b.service_months), text(b.note, 500)]
@@ -274,8 +275,9 @@ router.post('/jobs', async (req, res) => {
     `INSERT INTO workshop_jobs
        (company_id, vehicle_id, customer_id, technician_id, complaint, odometer_in,
         promised_at, tax_percent, warranty_months)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-    [cid, vehicleId, v.customer_id, int(b.technician_id), text(b.complaint, 1000), odo,
+     VALUES ($1,$2,$3,${ref('workshop_technicians', '$4', '$1')},$5,$6,$7,$8,$9) RETURNING id`,
+    // v.id, not vehicleId: the SELECT above is what proved this vehicle is ours.
+    [cid, v.id, v.customer_id, int(b.technician_id), text(b.complaint, 1000), odo,
      b.promised_at ? new Date(b.promised_at) : null,
      num(req.settings.tax_percent, 0), int(b.warranty_months, 0) || 0]
   );
@@ -354,14 +356,19 @@ router.post('/jobs/:id/parts', requireFlag('parts'), async (req, res) => {
         await client.query('UPDATE workshop_parts SET qty = qty - $1 WHERE id=$2 AND company_id=$3',
           [qty, partId, cid]);
         await client.query(
+          // p.id — the locked row this branch already proved is ours.
           `INSERT INTO workshop_part_moves (company_id, part_id, job_id, kind, qty, unit_cost)
-           VALUES ($1,$2,$3,'issue',$4,$5)`, [cid, partId, id, qty, unitCost]);
+           VALUES ($1,$2,$3,'issue',$4,$5)`, [cid, p.id, id, qty, unitCost]);
       }
     }
     if (name) {
       await client.query(
+        // This line is written even when the part is not on our shelf (a part
+        // bought for the job and typed by name), so partId is not proven here
+        // the way it is inside the branch above — it gets scoped in the
+        // statement instead of trusted.
         `INSERT INTO workshop_job_parts (company_id, job_id, part_id, name, qty, unit_cost, unit_price)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [cid, id, partId, name, qty, unitCost, unitPrice]);
+         VALUES ($1,$2,${ref('workshop_parts', '$3', '$1')},$4,$5,$6,$7)`, [cid, id, partId, name, qty, unitCost, unitPrice]);
     }
     await client.query('COMMIT');
   } catch (e) {
@@ -384,7 +391,7 @@ router.post('/jobs/:id/labour', async (req, res) => {
   if (desc) {
     await pool.query(
       `INSERT INTO workshop_job_labour (company_id, job_id, technician_id, description, hours, rate, amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       VALUES ($1,$2,${ref('workshop_technicians', '$3', '$1')},$4,$5,$6,$7)`,
       [cid, id, int(b.technician_id), desc, hours, rate, amount]);
   }
   res.redirect('/workshop/jobs/' + id);

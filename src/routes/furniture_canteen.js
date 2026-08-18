@@ -8,6 +8,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -50,7 +51,7 @@ router.post('/', async (req, res) => {
     try {
       await pool.query(
         `INSERT INTO furniture_canteen_purchases (company_id, worker_id, item, amount, paid_cash, buy_date)
-         VALUES ($1,$2,$3,$4,$5,COALESCE($6, CURRENT_DATE))`,
+         VALUES ($1,${ref('furniture_workers', '$2', '$1')},$3,$4,$5,COALESCE($6, CURRENT_DATE))`,
         [req.company.id, workerId, String(b.item || '').trim().slice(0, 120) || null,
           amount, b.paid_cash === '1', date(b.buy_date)]
       );

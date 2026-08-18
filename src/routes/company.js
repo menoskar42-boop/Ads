@@ -1571,12 +1571,13 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
       const subscribable = String(req.body.subscribable) === '1';
       const subInterval = Math.max(1, Math.min(365, parseInt(req.body.sub_interval_days, 10) || 30));
       const subDiscount = Math.max(0, Math.min(90, parseFloat(req.body.sub_discount_pct) || 0));
-      await client.query(
+      const upd = await client.query(
         `UPDATE products SET name=$1, description=$2, price=$3, image_url=$4, stock=$5, category_id=$6,
          name_ar=$7, name_en=$8, description_ar=$9, description_en=$10,
          sale_type=$13, sizes=$14, weight_unit=$15, video_url=$16,
          subscribable=$17, sub_interval_days=$18, sub_discount_pct=$19
-         WHERE id=$11 AND company_id=$12`,
+         WHERE id=$11 AND company_id=$12
+       RETURNING id`,
         [finalName, description || null, priceNum, finalImageUrl, stockNum, categoryId,
          name_ar, name_en, description_ar, description_en, req.params.id, req.session.companyId,
          (['unit','size','weight'].includes(req.body.sale_type) ? req.body.sale_type : 'unit'),
@@ -1584,12 +1585,18 @@ router.post('/products/:id/edit', requireLogin, requireShop, (req, res) => {
          (req.body.sale_type === 'weight' ? (req.body.weight_unit === 'جم' ? 'جم' : 'كجم') : null),
          finalVideoUrl, subscribable, subInterval, subDiscount]
       );
+      // The id the UPDATE confirmed is ours, not the one in the URL. A product
+      // belonging to another shop matched nothing above — but `beforeStock`
+      // falls back to 0 for exactly that case, so `diff` was non-zero and a
+      // movement row got written: their product id, our company_id, a line in
+      // our ledger for stock we do not have.
+      const updated = upd.rows[0];
       const diff = stockNum - beforeStock;
-      if (diff !== 0) {
+      if (updated && diff !== 0) {
         await client.query(
           `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, notes)
            VALUES ($1, $2, $3, 'adjustment', 'Adjusted via product edit')`,
-          [req.params.id, req.session.companyId, diff]
+          [updated.id, req.session.companyId, diff]
         );
       }
       await client.query('COMMIT');
@@ -1784,17 +1791,19 @@ router.post('/products/:id/stock', requireLogin, requireShop, async (req, res) =
     const upd = await client.query(
       `UPDATE products SET stock = stock + $1
        WHERE id = $2 AND company_id = $3 AND (stock + $1) >= 0
-       RETURNING stock`,
+       RETURNING id, stock`,
       [change, req.params.id, req.session.companyId]
     );
     if (!upd.rows.length) {
       await client.query('ROLLBACK');
       return res.redirect(`/company/products/${req.params.id}/stock?error=negative`);
     }
+    // upd.rows[0].id, not req.params.id: the UPDATE above is what proved this
+    // product is ours, so the movement should carry the id it returned.
     await client.query(
       `INSERT INTO stock_movements (product_id, company_id, change_amount, reason, notes)
        VALUES ($1, $2, $3, $4, $5)`,
-      [req.params.id, req.session.companyId, change, reason, req.body.notes || null]
+      [upd.rows[0].id, req.session.companyId, change, reason, req.body.notes || null]
     );
     await client.query('COMMIT');
     res.redirect(`/company/products/${req.params.id}/stock`);

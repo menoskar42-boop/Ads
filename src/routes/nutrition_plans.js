@@ -40,7 +40,9 @@ async function load(companyId, planId) {
 // ── Create a plan for a patient ──────────────────────────────────────────────
 router.post('/patients/:id(\\d+)/plans', async (req, res) => {
   const cid = req.company.id;
-  const pid = parseInt(req.params.id, 10);
+  // req.scopedId is the id ownerGuard already checked against this practice
+  // (mounted on /patients/:id in nutrition_admin.js).
+  const pid = req.scopedId || parseInt(req.params.id, 10);
   const b = req.body || {};
   try {
     const file = await P.file(pool, cid, pid);
@@ -71,7 +73,9 @@ router.post('/patients/:id(\\d+)/plans', async (req, res) => {
         `INSERT INTO nutrition_plans
            (company_id, patient_id, title, target_kcal, target_protein, target_carbs, target_fat, notes)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-        [cid, pid, text(b.title, 120), target, protein, carbs, fat, text(b.notes, 500)]);
+        // file.id — the patient row P.file() just confirmed belongs to this
+        // practice. pid came from the URL; this one came from the database.
+        [cid, file.id, text(b.title, 120), target, protein, carbs, fat, text(b.notes, 500)]);
       await client.query('COMMIT');
       return res.redirect('/nutrition/plans/' + r.rows[0].id);
     } catch (e) {
@@ -133,7 +137,9 @@ router.post('/plans/:id(\\d+)/items', async (req, res) => {
          (company_id, plan_id, food_id, meal, food_name, grams, kcal, protein_g, carbs_g, fat_g, note, sort_order)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
                COALESCE((SELECT MAX(sort_order)+1 FROM nutrition_plan_items WHERE plan_id=$2), 0))`,
-      [cid, planId, foodId, E.MEALS.includes(b.meal) ? b.meal : 'breakfast',
+      // food.id — the row the scoped SELECT above returned.
+      // owns.id and food.id — both rows were just confirmed to be ours.
+      [cid, owns.id, food.id, E.MEALS.includes(b.meal) ? b.meal : 'breakfast',
         line.food_name, line.grams, line.kcal, line.protein_g, line.carbs_g, line.fat_g,
         text(b.note, 200)]);
   } catch (e) { console.error('[nutrition plan item]', e.message); }

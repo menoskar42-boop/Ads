@@ -11,6 +11,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../nursery/flags');
 const F = require('../nursery/fees');
 
@@ -198,10 +199,13 @@ router.post('/children', async (req, res) => {
   }
 
   const r = await pool.query(
+    // Both ids come off the enrolment form. Scoped in the statement: a guardian
+    // or a group belonging to another nursery lands as NULL, instead of tying
+    // this child's record to a family at a different nursery.
     `INSERT INTO nursery_children
        (company_id, guardian_id, group_id, name, birth_date, gender, enrolled_on,
         monthly_fee, discount, allergies, medical_note, emergency_phone, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+     VALUES ($1,${ref('nursery_guardians', '$2', '$1')},${ref('nursery_groups', '$3', '$1')},$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
     [cid, guardianId, int(b.group_id), name, day(b.birth_date), text(b.gender, 10),
      day(b.enrolled_on) || F.ymd(new Date()),
      b.monthly_fee === '' || b.monthly_fee == null ? null : Math.max(0, num(b.monthly_fee, 0)),
@@ -391,7 +395,7 @@ router.post('/fees/charge', async (req, res) => {
   if (childId && amount > 0) {
     await pool.query(
       `INSERT INTO nursery_invoices (company_id, child_id, period, amount, due_on, kind, note)
-       VALUES ($1,$2,$3,$4,$5,'extra',$6)`,
+       VALUES ($1,${ref('nursery_children', '$2', '$1')},$3,$4,$5,'extra',$6)`,
       [cid, childId, F.isPeriod(b.period) ? b.period : F.periodKey(new Date()), amount,
        day(b.due_on), text(b.note, 200)]);
   }
@@ -414,7 +418,7 @@ router.post('/payments', async (req, res) => {
   if (childId && amount > 0) {
     await pool.query(
       `INSERT INTO nursery_payments (company_id, child_id, invoice_id, amount, method, note)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
+       VALUES ($1,${ref('nursery_children', '$2', '$1')},${ref('nursery_invoices', '$3', '$1')},$4,$5,$6)`,
       [cid, childId, int(b.invoice_id), amount, text(b.method, 20) || 'cash', text(b.note, 200)]);
   }
   const back = text(b.back, 200);
@@ -463,7 +467,7 @@ router.post('/reminders/:id/sent', requireFlag('reminders'), async (req, res) =>
   const b = req.body || {};
   await pool.query(
     `INSERT INTO nursery_reminders (company_id, child_id, kind, channel, amount, body)
-     VALUES ($1,$2,'fees',$3,$4,$5)`,
+     VALUES ($1,${ref('nursery_children', '$2', '$1')},'fees',$3,$4,$5)`,
     [req.company.id, int(req.params.id), text(b.channel, 20) || 'whatsapp',
      b.amount ? num(b.amount) : null, text(b.body, 1000)]);
   res.redirect('/nursery/reminders');
@@ -603,7 +607,7 @@ router.post('/reports', requireFlag('reports'), async (req, res) => {
       [cid, childId, d]);
     await pool.query(
       `INSERT INTO nursery_day_reports (company_id, child_id, day, mood, ate, slept, body)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       VALUES ($1,${ref('nursery_children', '$2', '$1')},$3,$4,$5,$6,$7)`,
       [cid, childId, d, text(b.mood, 40), text(b.ate, 60), text(b.slept, 60), text(b.body, 500)]);
   }
   res.redirect('/nursery/reports?day=' + d + '&saved=1');

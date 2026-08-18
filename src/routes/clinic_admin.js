@@ -502,7 +502,7 @@ router.post('/patients/:id/vaccines', async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO clinic_patient_vaccines (company_id, patient_id, schedule_id, name, given_at, batch, note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       VALUES ($1,$2,${ref('clinic_vaccine_schedule', '$3', '$1')},$4,$5,$6,$7)`,
       [cid, pid, parseInt(b.schedule_id, 10) || null, name, givenAt,
        String(b.batch || '').trim().slice(0, 60) || null,
        String(b.note || '').trim().slice(0, 300) || null]
@@ -1253,8 +1253,11 @@ router.post('/calls', requireModule('callcenter'), async (req, res) => {
   const b = req.body || {};
   try {
     await pool.query(
+      // patient_id comes off the form. `ref()` scopes it to this clinic inside
+      // the same statement, so a number from another clinic lands as NULL
+      // instead of filing a call against their patient.
       `INSERT INTO clinic_calls (company_id, patient_id, phone, direction, purpose, outcome, follow_up_at, note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+       VALUES ($1,${ref('clinic_patients', '$2', '$1')},$3,$4,$5,$6,$7,$8)`,
       [req.company.id, parseInt(b.patient_id, 10) || null, String(b.phone || '').slice(0, 30) || null,
         b.direction === 'in' ? 'in' : 'out', String(b.purpose || '').slice(0, 120) || null, String(b.outcome || '').slice(0, 120) || null,
         /^\d{4}-\d{2}-\d{2}$/.test(b.follow_up_at || '') ? b.follow_up_at : null, String(b.note || '').slice(0, 500) || null]
@@ -1722,7 +1725,7 @@ router.post('/home-visits', requireModule('homevisits'), async (req, res) => {
       `INSERT INTO clinic_home_visits
          (company_id, patient_id, doctor_id, patient_name, phone, address, area,
           scheduled_at, visit_fee, transport_fee, reason, note, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+       VALUES ($1,${ref('clinic_patients', '$2', '$1')},${ref('clinic_doctors', '$3', '$1')},$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [req.company.id, num(b.patient_id), num(b.doctor_id), name,
        String(b.phone || '').trim().slice(0, 30) || null,
        address,
@@ -1860,7 +1863,8 @@ router.post('/installments/create', requireModule('installments'), async (req, r
       await client.query(
         `INSERT INTO clinic_installments (company_id, invoice_id, patient_id, seq, due_date, amount)
          VALUES ($1,$2,$3,$4,$5,$6)`,
-        [cid, invoiceId, inv.patient_id, i + 1, d.toISOString().slice(0, 10), i === 0 ? first : per]
+        // inv.id — the row the FOR UPDATE above proved is this clinic's.
+        [cid, inv.id, inv.patient_id, i + 1, d.toISOString().slice(0, 10), i === 0 ? first : per]
       );
     }
     await client.query('COMMIT');
@@ -2476,7 +2480,7 @@ router.post('/dental/lab', requireModule('dental'), async (req, res) => {
       `INSERT INTO clinic_lab_orders
          (company_id, patient_id, doctor_id, lab_name, work_type, tooth_numbers, shade,
           status, cost, sent_at, due_at, note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'sent',$8,$9,$10,$11)`,
+       VALUES ($1,${ref('clinic_patients', '$2', '$1')},${ref('clinic_doctors', '$3', '$1')},$4,$5,$6,$7,'sent',$8,$9,$10,$11)`,
       [cid, num(b.patient_id), num(b.doctor_id),
        String(b.lab_name || '').trim().slice(0, 120) || null,
        workType,

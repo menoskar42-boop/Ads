@@ -112,7 +112,7 @@ check('والرفض بيرجع للمستخدم بسبب، مش بيعدّي ب�
     /CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_one_active_plan[\s\S]{0,120}WHERE is_active/.test(nutSchema));
   const plans = fs.readFileSync(path.join(ROOT, 'src/routes/nutrition_plans.js'), 'utf8');
   check('والتعطيل والإضافة في transaction واحدة',
-    /BEGIN[\s\S]{0,600}UPDATE nutrition_plans SET is_active=false[\s\S]{0,600}INSERT INTO nutrition_plans[\s\S]{0,400}COMMIT/.test(plans));
+    /BEGIN[\s\S]{0,600}UPDATE nutrition_plans SET is_active=false[\s\S]{0,600}INSERT INTO nutrition_plans[\s\S]{0,700}COMMIT/.test(plans));
 }
 
 /* ── The overpaid invoice ──────────────────────────────────────────────── */

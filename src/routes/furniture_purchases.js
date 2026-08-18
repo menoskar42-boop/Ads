@@ -3,6 +3,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const { STATUSES, orderTotals, receive, supplierBalances } = require('../furniture/purchasing');
 
 const router = express.Router();
@@ -66,7 +67,7 @@ router.post('/', async (req, res) => {
     const po = (await client.query(
       `INSERT INTO furniture_purchase_orders
          (company_id, supplier_id, order_date, expected_delivery, status, total, note)
-       VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,'pending',$5,$6) RETURNING id`,
+       VALUES ($1,${ref('furniture_suppliers', '$2', '$1')},COALESCE($3, CURRENT_DATE),$4,'pending',$5,$6) RETURNING id`,
       [cid, parseInt(b.supplier_id, 10) || null, date(b.order_date), date(b.expected_delivery),
         total, String(b.note || '').trim().slice(0, 300) || null]
     )).rows[0];
@@ -166,7 +167,7 @@ router.post('/pay', async (req, res) => {
     try {
       await pool.query(
         `INSERT INTO furniture_supplier_payments (company_id, supplier_id, amount, pay_date, note)
-         VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5)`,
+         VALUES ($1,${ref('furniture_suppliers', '$2', '$1')},$3,COALESCE($4, CURRENT_DATE),$5)`,
         [req.company.id, supplierId, amount, date(b.pay_date), String(b.note || '').trim().slice(0, 300) || null]
       );
       req.flog('supplier_payment.add', 'supplier_payment', supplierId, String(amount));

@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const uploads = require('../lib/uploads');
+const { ref } = require('../lib/tenant_scope');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const push = require('../lib/push');
@@ -337,8 +338,11 @@ router.post('/pos/sell', async (req, res) => {
       if (tr) commission = +(total * Number(tr.commission_pct || 0) / 100).toFixed(2); else trainerId = null;
     }
     await client.query(
+      // member_id arrives from the POS form. Scoped in the statement, so a
+      // number belonging to another gym files as NULL rather than putting this
+      // sale on their member's account.
       `INSERT INTO gym_sales (company_id, product_id, member_id, trainer_id, item_name, unit_price, quantity, total, commission)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       VALUES ($1,$2,${ref('gym_members', '$3', '$1')},$4,$5,$6,$7,$8,$9)`,
       [cid, prod.id, parseInt(b.member_id, 10) || null, trainerId, prod.name, prod.price, qty, total, commission]
     );
     await client.query('COMMIT');

@@ -7,6 +7,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../installments/flags');
 const P = require('../installments/plan');
 
@@ -187,6 +188,15 @@ router.post('/customers/:id', async (req, res) => {
   res.redirect('/qastly/customers/' + int(req.params.id) + '?saved=1');
 });
 
+/* Plan-page errors, by code. The page used to render `req.query.error`
+   decoded, so a link could put any sentence in a red box inside the shop's own
+   admin. */
+const PLAN_ERRORS = {
+  customer: 'اختار عميل من عندك أو اكتب اسم عميل جديد.',
+  total: 'اكتب إجمالي المبلغ.',
+  all_down: 'المقدّم يساوي الإجمالي — مفيش أقساط تتعمل.',
+};
+
 // ── Plans ────────────────────────────────────────────────────────────────────
 router.get('/plans', async (req, res) => {
   const cid = req.company.id;
@@ -196,7 +206,9 @@ router.get('/plans', async (req, res) => {
     'SELECT id, name, phone FROM inst_customers WHERE company_id=$1 ORDER BY name LIMIT 500', [cid]);
   res.render('qastly_admin/plans', {
     title: 'الأقساط', tab: 'plans', P, status, rows: board, customers: customers.rows,
-    error: req.query.error ? decodeURIComponent(req.query.error) : null,
+    /* A code the server knows, not text the URL supplies — `decodeURIComponent`
+       on a query parameter printed whatever the link carried onto the page. */
+    error: PLAN_ERRORS[String(req.query.error || '')] || null,
   });
 });
 
@@ -210,7 +222,7 @@ router.get('/plans', async (req, res) => {
 router.post('/plans', async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
-  const fail = (m) => res.redirect('/qastly/plans?error=' + encodeURIComponent(m));
+  const fail = (code) => res.redirect('/qastly/plans?error=' + code);
 
   let customerId = int(b.customer_id);
   const newName = text(b.customer_name, 120);
@@ -221,23 +233,30 @@ router.post('/plans', async (req, res) => {
       [cid, newName, text(b.customer_phone, 40), text(b.national_id, 20),
        text(b.guarantor_name, 120), text(b.guarantor_phone, 40)])).rows[0].id;
   }
-  if (!customerId) return fail('اختر عميل أو اكتب اسم عميل جديد.');
+  if (!customerId) return fail('customer');
 
   const total = Math.max(0, num(b.total, 0));
-  if (total <= 0) return fail('اكتب إجمالي المبلغ.');
+  if (total <= 0) return fail('total');
   const sched = P.buildSchedule({
     total, down: num(b.down_payment, 0), count: int(b.count, 1),
     startOn: day(b.start_on), interval: b.interval,
   });
-  if (sched.financed <= 0) return fail('المقدّم يساوي الإجمالي — مفيش أقساط تتعمل.');
+  if (sched.financed <= 0) return fail('all_down');
 
   const token = crypto.randomBytes(16).toString('hex');
+  /* A plan names a person and asks them for money every month, so a
+     customer_id that is not ours writes nothing at all — it does not fall back
+     to NULL the way an optional link would. The ownership test is part of the
+     INSERT rather than a SELECT above it: same statement, no window. */
   const plan = (await pool.query(
     `INSERT INTO inst_plans (company_id, customer_id, item, total, down_payment, count,
                              interval, start_on, token, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+     SELECT $1::int,$2::int,$3,$4,$5,$6,$7,$8,$9,$10
+      WHERE EXISTS (SELECT 1 FROM inst_customers WHERE id=$2 AND company_id=$1)
+     RETURNING id`,
     [cid, customerId, text(b.item, 200), total, sched.down, sched.rows.length,
      sched.interval, sched.startOn, token, text(b.note, 500)])).rows[0];
+  if (!plan) return fail('customer');
 
   for (const r of sched.rows) {
     await pool.query(
@@ -343,7 +362,7 @@ router.post('/plans/:id/reminded', async (req, res) => {
   const b = req.body || {};
   await pool.query(
     `INSERT INTO inst_reminders (company_id, plan_id, channel, amount, body)
-     VALUES ($1,$2,$3,$4,$5)`,
+     VALUES ($1,${ref('inst_plans', '$2', '$1')},$3,$4,$5)`,
     [req.company.id, int(req.params.id), text(b.channel, 20) || 'whatsapp',
      b.amount ? num(b.amount) : null, text(b.body, 1000)]);
   const back = text(b.back, 200);

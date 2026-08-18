@@ -3,6 +3,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const P = require('../furniture/payroll');
 
 const router = express.Router();
@@ -67,7 +68,7 @@ router.post('/adjustments', async (req, res) => {
     try {
       await pool.query(
         `INSERT INTO furniture_payroll_adjustments (company_id, worker_id, adj_type, amount, adj_date, note)
-         VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6)`,
+         VALUES ($1,${ref('furniture_workers', '$2', '$1')},$3,$4,COALESCE($5, CURRENT_DATE),$6)`,
         [req.company.id, workerId, type, amount, date(b.adj_date), String(b.note || '').trim().slice(0, 300) || null]
       );
     } catch (e) { console.error('[furniture adjustment]', e.message); }

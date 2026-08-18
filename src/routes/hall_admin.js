@@ -8,6 +8,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { ref } = require('../lib/tenant_scope');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../hall/flags');
 const B = require('../hall/booking');
 
@@ -175,6 +176,13 @@ router.post('/enquiries/:id/note', async (req, res) => {
 });
 
 // ── Bookings ─────────────────────────────────────────────────────────────────
+const HALL_ERRORS = {
+  need_name_date: 'لازم اسم العميل وتاريخ المناسبة.',
+  clash: 'اليوم ده محجوز بالفعل — شوف الحجز في القايمة تحت.',
+  raced: 'اليوم ده اتحجز دلوقتي حالاً من حد تاني. اعمل تحديث للصفحة.',
+  save: 'مش قادرين نحفظ الحجز.',
+};
+
 router.get('/bookings', async (req, res) => {
   const cid = req.company.id;
   const rows = await pool.query(
@@ -190,7 +198,11 @@ router.get('/bookings', async (req, res) => {
     title: 'الحجوزات', tab: 'calendar', B,
     rows: rows.rows.map((r) => ({ ...r, t: B.totals(r, [{ qty: 1, unit_price: r.extras_total }], [{ amount: r.paid }]) })),
     venues: venues.rows, packages: packages.rows,
-    error: req.query.error ? decodeURIComponent(req.query.error) : null,
+    /* Codes, not sentences. This printed whatever the URL carried — and one of
+       the messages it built put ANOTHER CUSTOMER'S NAME in the query string,
+       where it ends up in logs and referrers. The clash details come from the
+       booking list on the page instead. */
+    error: HALL_ERRORS[String(req.query.error || '')] || null,
   });
 });
 
@@ -210,7 +222,7 @@ router.post('/bookings', async (req, res) => {
   const name = text(b.customer_name, 120);
   const slot = B.SLOTS.includes(b.slot) ? b.slot : 'evening';
   const venueId = int(b.venue_id);
-  if (!eventDate || !name) return res.redirect('/hall/bookings?error=' + encodeURIComponent('لازم اسم العميل وتاريخ المناسبة.'));
+  if (!eventDate || !name) return res.redirect('/hall/bookings?error=need_name_date');
 
   const existing = await pool.query(
     `SELECT b.*, v.name AS venue_name FROM hall_bookings b
@@ -219,9 +231,7 @@ router.post('/bookings', async (req, res) => {
     [cid, eventDate, B.BLOCKING]);
   const clash = B.findCollision({ event_date: eventDate, slot, venue_id: venueId }, existing.rows);
   if (clash) {
-    return res.redirect('/hall/bookings?error=' + encodeURIComponent(
-      'اليوم ده محجوز بالفعل باسم ' + clash.customer_name
-      + (clash.venue_name ? ' في ' + clash.venue_name : '') + '.'));
+    return res.redirect('/hall/bookings?error=clash');
   }
 
   // Price defaults come from the package if one was chosen, otherwise from the
@@ -244,7 +254,7 @@ router.post('/bookings', async (req, res) => {
       `INSERT INTO hall_bookings
          (company_id, venue_id, enquiry_id, package_id, customer_name, phone, whatsapp,
           event_date, slot, event_type, guests, base_price, price_per_head, status, hold_until, note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+       VALUES ($1,${ref('hall_venues', '$2', '$1')},${ref('hall_enquiries', '$3', '$1')},${ref('hall_packages', '$4', '$1')},$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [cid, venueId, int(b.enquiry_id), pkgId, name, text(b.phone, 40), text(b.whatsapp, 40),
        eventDate, slot, text(b.event_type, 60), Math.max(0, int(b.guests, 0) || 0),
        base, perHead, b.status === 'confirmed' ? 'confirmed' : 'held', day(b.hold_until), text(b.note, 1000)]);
@@ -259,10 +269,10 @@ router.post('/bookings', async (req, res) => {
     // The index fired: somebody else saved the same date between the check and
     // the insert. Say so plainly rather than showing a constraint name.
     if (String(e.message).includes('idx_hall_no_double_booking')) {
-      return res.redirect('/hall/bookings?error=' + encodeURIComponent('اليوم ده اتحجز دلوقتي حالاً من حد تاني. اعمل تحديث للصفحة.'));
+      return res.redirect('/hall/bookings?error=raced');
     }
     console.error('[hall booking]', e.message);
-    return res.redirect('/hall/bookings?error=' + encodeURIComponent('مش قادرين نحفظ الحجز.'));
+    return res.redirect('/hall/bookings?error=save');
   }
 });
 
