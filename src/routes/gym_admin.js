@@ -63,13 +63,41 @@ router.get('/', async (req, res) => {
   const cid = req.company.id;
   try {
     const [stats, expiring] = await Promise.all([
+      /* These cards say "members", so they have to count PEOPLE.
+       *
+       * They counted rows in gym_memberships. A member who has renewed three
+       * times is three rows, so a gym of 40 read as 120 active — and the same
+       * person appeared in "active" AND in "expired" at once, because the old
+       * subscription is still sitting there beside the current one. Every
+       * number on the screen was inflated, and the more loyal the member the
+       * more they inflated it.
+       *
+       * One row per member — the latest subscription — and then classify that.
+       * A cancelled subscription is not a state a member is in; it is a
+       * decision, so it does not stand in for their current one.
+       *
+       * `frozen` is counted and shown rather than dropped: a frozen member is
+       * neither active nor expired, and leaving them out of all three cards
+       * would make people disappear from the gym's own headcount.
+       */
       pool.query(`
+        WITH latest AS (
+          SELECT DISTINCT ON (member_id) member_id, status, end_date
+            FROM gym_memberships
+           WHERE company_id=$1 AND status <> 'cancelled'
+           ORDER BY member_id, end_date DESC, id DESC
+        )
         SELECT
-          COUNT(*) FILTER (WHERE status='active' AND end_date >= CURRENT_DATE) AS active,
-          COUNT(*) FILTER (WHERE status='active' AND end_date >= CURRENT_DATE AND end_date <= CURRENT_DATE + 7) AS expiring,
-          COUNT(*) FILTER (WHERE status='active' AND end_date < CURRENT_DATE) AS expired,
-          COALESCE(SUM(price) FILTER (WHERE created_at >= date_trunc('month', CURRENT_DATE)),0) AS month_revenue
-        FROM gym_memberships WHERE company_id=$1`, [cid]),
+          (SELECT COUNT(*) FROM latest WHERE status='active' AND end_date >= CURRENT_DATE) AS active,
+          (SELECT COUNT(*) FROM latest WHERE status='active' AND end_date >= CURRENT_DATE
+             AND end_date <= CURRENT_DATE + 7) AS expiring,
+          (SELECT COUNT(*) FROM latest WHERE status='active' AND end_date < CURRENT_DATE) AS expired,
+          (SELECT COUNT(*) FROM latest WHERE status='frozen') AS frozen,
+          -- Revenue is money, not people: every subscription sold this month
+          -- counts, renewals included. Cancelled ones never were revenue.
+          (SELECT COALESCE(SUM(price),0) FROM gym_memberships
+            WHERE company_id=$1 AND status <> 'cancelled'
+              AND created_at >= date_trunc('month', CURRENT_DATE)) AS month_revenue`, [cid]),
       // Members expiring within 7 days OR already expired — the money-saving list.
       pool.query(`
         SELECT DISTINCT ON (m.member_id) m.*, mem.name, mem.phone
@@ -122,8 +150,12 @@ router.post('/members/:id/subscribe', async (req, res) => {
     if (member && plan) {
       // Renew from the current end date if still active, else from today, so a
       // renewal stacks onto the remaining days instead of throwing them away.
+      // A FROZEN membership still has days on it — they are paused, not gone.
+      // Leaving it out here meant renewing while frozen silently threw the
+      // remaining days away, which is the same loss the freeze fix closes.
       const cur = (await pool.query(
-        "SELECT MAX(end_date) AS e FROM gym_memberships WHERE member_id=$1 AND status='active' AND end_date >= CURRENT_DATE", [memberId]
+        `SELECT MAX(end_date) AS e FROM gym_memberships
+          WHERE member_id=$1 AND status IN ('active','frozen') AND end_date >= CURRENT_DATE`, [memberId]
       )).rows[0].e;
       const base = [req.company.id, memberId, plan.id, plan.name, plan.price, plan.duration_days];
       if (cur) {
@@ -143,10 +175,39 @@ router.post('/members/:id/subscribe', async (req, res) => {
   } catch (e) { console.error('[gym subscribe]', e.message); }
   res.redirect('/gym/members?saved=1');
 });
+/* Freeze / unfreeze — and give the days back.
+ *
+ * Freezing used to flip a status and nothing else. The end date kept running,
+ * so a member who paid for thirty days and froze for ten came back to twenty:
+ * the gym sold days and took them away again, for the one reason a member is
+ * most likely to ask about. `frozen_at` records when the pause started and the
+ * unfreeze pushes the end date out by exactly that many days.
+ *
+ * All three columns are set in ONE statement on purpose. Every CASE reads the
+ * row as it was BEFORE the update, so `status='frozen'` means "was frozen"
+ * throughout — and a status that moved without its date moving is precisely the
+ * bug being fixed, so the two must not be able to happen separately.
+ *
+ * The row is picked, not matched: a member with three old subscriptions had
+ * every one of them flipped. And a membership that expired WHILE frozen can
+ * still be unfrozen — otherwise the days it is owed are lost by the passage of
+ * the very time the freeze was meant to stop.
+ */
 router.post('/members/:id/freeze', async (req, res) => {
   try {
     await pool.query(
-      "UPDATE gym_memberships SET status = CASE WHEN status='frozen' THEN 'active' ELSE 'frozen' END WHERE member_id=$1 AND company_id=$2 AND end_date >= CURRENT_DATE",
+      `UPDATE gym_memberships
+          SET status    = CASE WHEN status='frozen' THEN 'active' ELSE 'frozen' END,
+              end_date  = CASE WHEN status='frozen'
+                               THEN end_date + (CURRENT_DATE - COALESCE(frozen_at, CURRENT_DATE))
+                               ELSE end_date END,
+              frozen_at = CASE WHEN status='frozen' THEN NULL ELSE CURRENT_DATE END
+        WHERE id = (
+          SELECT id FROM gym_memberships
+           WHERE member_id=$1 AND company_id=$2
+             AND status IN ('active','frozen')
+             AND (status='frozen' OR end_date >= CURRENT_DATE)
+           ORDER BY end_date DESC, id DESC LIMIT 1)`,
       [parseInt(req.params.id, 10), req.company.id]);
   } catch (e) { console.error('[gym freeze]', e.message); }
   res.redirect('/gym/members');

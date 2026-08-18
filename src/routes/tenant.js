@@ -666,18 +666,37 @@ function gymGuard(req, res, next) {
 }
 
 // Find a member by their membership code OR phone within this gym.
+/**
+ * Find the member behind a code or a phone number.
+ *
+ * `LIMIT 1` was the bug. The code is now unique per gym, so that lookup has one
+ * answer or none. The PHONE cannot be made unique and should not be — a father
+ * and his son on one number is a normal thing, not a data error. So when a
+ * phone matches more than one member this returns `ambiguous` instead of
+ * picking the first row: logging one person's attendance against another, and
+ * reading the wrong subscription to decide whether to let them in, is a
+ * failure that looks exactly like success from the desk.
+ *
+ * Returns { member } · { ambiguous: true } · {}.
+ */
 async function findGymMember(companyId, code, phone) {
   const c = String(code || '').trim();
   const p = String(phone || '').replace(/[^0-9]/g, '');
   if (c) {
-    const r = (await pool.query('SELECT * FROM gym_members WHERE company_id=$1 AND code=$2 LIMIT 1', [companyId, c])).rows[0];
-    if (r) return r;
+    const r = (await pool.query(
+      'SELECT * FROM gym_members WHERE company_id=$1 AND lower(btrim(code))=lower(btrim($2))',
+      [companyId, c])).rows;
+    if (r.length === 1) return { member: r[0] };
+    if (r.length > 1) return { ambiguous: true };
   }
   if (p.length >= 7) {
-    const r = (await pool.query("SELECT * FROM gym_members WHERE company_id=$1 AND regexp_replace(coalesce(phone,''),'[^0-9]','','g')=$2 LIMIT 1", [companyId, p])).rows[0];
-    if (r) return r;
+    const r = (await pool.query(
+      "SELECT * FROM gym_members WHERE company_id=$1 AND regexp_replace(coalesce(phone,''),'[^0-9]','','g')=$2 LIMIT 2",
+      [companyId, p])).rows;
+    if (r.length === 1) return { member: r[0] };
+    if (r.length > 1) return { ambiguous: true };
   }
-  return null;
+  return {};
 }
 
 // Check-in page (member types code/phone → records attendance if active).
@@ -688,8 +707,12 @@ router.post('/checkin', gymGuard, async (req, res) => {
   const company = req.tenant;
   let result;
   try {
-    const member = await findGymMember(company.id, req.body.code, req.body.phone);
-    if (!member) {
+    const found = await findGymMember(company.id, req.body.code, req.body.phone);
+    const member = found.member;
+    if (found.ambiguous) {
+      // Two members on one number is normal. Guessing between them is not.
+      result = { ok: false, msg: 'الرقم ده مسجّل لأكتر من عضو — ادخل بكود العضوية عشان نعرف مين فيهم.' };
+    } else if (!member) {
       result = { ok: false, msg: 'مالقيناش عضو بالبيانات دي. تأكّد من كود العضوية أو الموبايل.' };
     } else {
       const m = (await pool.query(
@@ -699,8 +722,18 @@ router.post('/checkin', gymGuard, async (req, res) => {
       if (!m) {
         result = { ok: false, name: member.name, msg: 'اشتراكك منتهي أو متجمّد — كلّم الاستقبال للتجديد.' };
       } else {
-        await pool.query('INSERT INTO gym_attendance (company_id, member_id) VALUES ($1,$2)', [company.id, member.id]);
-        result = { ok: true, name: member.name, msg: `أهلاً ${member.name}! تم تسجيل حضورك. اشتراكك نشط حتى ${new Date(m.end_date).toLocaleDateString('ar-EG')}.` };
+        // One row per member per day, decided by the unique index rather than
+        // by a SELECT two taps of the same card would race past. A repeat tap
+        // is not an error — it is somebody who already came in today.
+        const ins = await pool.query(
+          `INSERT INTO gym_attendance (company_id, member_id, day)
+           VALUES ($1,$2,(now() AT TIME ZONE 'Africa/Cairo')::date)
+           ON CONFLICT (company_id, member_id, day) DO NOTHING RETURNING id`,
+          [company.id, member.id]);
+        const till = new Date(m.end_date).toLocaleDateString('ar-EG');
+        result = ins.rows.length
+          ? { ok: true, name: member.name, msg: `أهلاً ${member.name}! تم تسجيل حضورك. اشتراكك نشط حتى ${till}.` }
+          : { ok: true, name: member.name, msg: `أهلاً ${member.name}! حضورك النهاردة متسجّل خلاص. اشتراكك نشط حتى ${till}.` };
       }
     }
   } catch (e) { console.error('[gym checkin]', e.message); result = { ok: false, msg: 'حصل خطأ، حاول تاني.' }; }
@@ -716,7 +749,10 @@ router.post('/book-class', gymGuard, async (req, res) => {
     const phone = String(req.body.phone || '').trim().slice(0, 20);
     const phoneKey = phone.replace(/[^0-9]/g, '');
     if (!name || phoneKey.length < 7) return res.redirect('/?bookerr=1#classes');
-    const member = await findGymMember(company.id, req.body.code, phone);
+    // The member link is optional on a public class booking, so an ambiguous
+    // phone books the class under the typed name without attaching it to
+    // anybody's file — better than attaching it to the wrong one.
+    const member = (await findGymMember(company.id, req.body.code, phone)).member || null;
 
     /* Counting and then inserting is how a class of twenty ends up with
      * thirty-nine people in it. Twenty requests arriving together each read

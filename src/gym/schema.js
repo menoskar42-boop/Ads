@@ -102,6 +102,11 @@ async function ensureGymSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_memberships ON gym_memberships (company_id, status, end_date);
+      -- The day a freeze started. Without it, freezing only stopped the member
+      -- coming in — the end date kept running, so a member who paid for thirty
+      -- days and froze for ten got twenty. The gym was selling days and taking
+      -- them back for the one reason a member is most likely to ask about it.
+      ALTER TABLE gym_memberships ADD COLUMN IF NOT EXISTS frozen_at DATE;
       CREATE INDEX IF NOT EXISTS idx_gym_memberships_member ON gym_memberships (member_id, end_date DESC);
       -- Attendance (self / front-desk check-in) + self-service class bookings.
       CREATE TABLE IF NOT EXISTS gym_attendance (
@@ -111,6 +116,16 @@ async function ensureGymSchema() {
         checked_in_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_attendance ON gym_attendance (company_id, checked_in_at DESC);
+      /* The gym's own day, stored rather than derived.
+       *
+       * A unique index cannot be built on the expression
+       * (checked_in_at AT TIME ZONE 'Africa/Cairo')::date — converting a
+       * timestamptz to a local date is STABLE, not IMMUTABLE, so Postgres will
+       * not index it. (And no backticks in here: this comment lives inside a
+       * template literal, where one of them ends it early.) Writing the day at check-in makes "one
+       * attendance per member per day" something the database can actually
+       * enforce, instead of a SELECT that two scans of the same card race past. */
+      ALTER TABLE gym_attendance ADD COLUMN IF NOT EXISTS day DATE;
       CREATE TABLE IF NOT EXISTS gym_bookings (
         id           SERIAL PRIMARY KEY,
         company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -202,6 +217,8 @@ async function ensureGymSchema() {
     `);
 
     await enforceOneBookingPerPerson(client);
+    await enforceUniqueMemberCode(client);
+    await enforceOneCheckinPerDay(client);
     await seedDemoGym(client);
   } catch (e) {
     console.error('[gym schema]', e.message);
@@ -250,6 +267,85 @@ async function enforceOneBookingPerPerson(client) {
     if (dupes.rowCount) console.log(`Gym: cancelled ${dupes.rowCount} duplicate class booking(s).`);
   } catch (e) {
     console.error('[gym one-booking index]', e.message);
+  }
+}
+
+/**
+ * A membership code identifies exactly one member.
+ *
+ * The check-in screen looks a member up by code with `LIMIT 1`. Nothing made
+ * the code unique, so two members could hold the same one and the screen picked
+ * whichever row came back first — logging one person's attendance against
+ * another, and reading the wrong subscription's expiry date to decide whether
+ * to let them in.
+ *
+ * Duplicates are cleared, not merged and not deleted: two different people are
+ * behind those rows, and a system that guesses which is which has made the
+ * problem permanent. The later row loses its code and the gym re-issues one —
+ * which is a five-second job at the desk, and the only version of this that
+ * cannot silently attach one member's history to another.
+ *
+ * Blank codes stay blank and stay allowed: not every gym issues them.
+ */
+async function enforceUniqueMemberCode(client) {
+  try {
+    const cleared = await client.query(`
+      UPDATE gym_members m SET code = NULL
+       WHERE m.code IS NOT NULL AND btrim(m.code) <> ''
+         AND EXISTS (
+           SELECT 1 FROM gym_members o
+            WHERE o.company_id = m.company_id
+              AND lower(btrim(o.code)) = lower(btrim(m.code))
+              AND o.code IS NOT NULL AND btrim(o.code) <> ''
+              AND o.id < m.id)
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_member_code
+        ON gym_members (company_id, lower(btrim(code)))
+        WHERE code IS NOT NULL AND btrim(code) <> '';
+    `);
+    if (cleared.rowCount) {
+      console.log(`Gym: cleared ${cleared.rowCount} duplicate membership code(s) — re-issue them from the members screen.`);
+    }
+  } catch (e) {
+    console.error('[gym member code index]', e.message);
+  }
+}
+
+/**
+ * One check-in per member per day.
+ *
+ * The card reader screen wrote a row every time somebody tapped. A member who
+ * stepped out for a phone call and came back was two visits; a member amusing
+ * themselves at the desk was twenty. Attendance is what a gym uses to decide
+ * whether a class is worth running and whether a member is drifting away, so an
+ * inflated count does not just look wrong — it answers those questions wrong.
+ *
+ * Unlike the duplicate bookings and the double-booked appointments, these rows
+ * are DELETED rather than kept. A second tap of the same card on the same day
+ * carries nothing the first one does not; there is no human decision inside it
+ * to preserve, and keeping it would leave the number wrong on purpose.
+ */
+async function enforceOneCheckinPerDay(client) {
+  try {
+    await client.query(`
+      UPDATE gym_attendance SET day = (checked_in_at AT TIME ZONE 'Africa/Cairo')::date
+       WHERE day IS NULL;
+    `);
+    const dropped = await client.query(`
+      DELETE FROM gym_attendance a
+       WHERE EXISTS (
+         SELECT 1 FROM gym_attendance o
+          WHERE o.company_id = a.company_id AND o.member_id = a.member_id
+            AND o.day = a.day AND o.id < a.id)
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_one_checkin_per_day
+        ON gym_attendance (company_id, member_id, day) WHERE day IS NOT NULL;
+    `);
+    if (dropped.rowCount) console.log(`Gym: removed ${dropped.rowCount} repeated check-in(s) on the same day.`);
+  } catch (e) {
+    console.error('[gym one-checkin index]', e.message);
   }
 }
 
