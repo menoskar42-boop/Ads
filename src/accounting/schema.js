@@ -101,6 +101,19 @@ async function ensureAccountingSchema() {
       ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'unpaid';
       ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_ref TEXT;
 
+      -- The live payment intent, kept so a refresh reuses it instead of asking
+      -- the gateway for a second payment page for the same basket. See
+      -- initiateTenantPay in src/routes/tenant.js; the shop's copy of these
+      -- columns is next to the idempotency token in server.js.
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS payment_url TEXT;
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS payment_intent_at TIMESTAMPTZ;
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS payment_intent_cents INTEGER;
+      ALTER TABLE pharmacy_orders ADD COLUMN IF NOT EXISTS payment_attempt INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_url TEXT;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_intent_at TIMESTAMPTZ;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_intent_cents INTEGER;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS payment_attempt INTEGER NOT NULL DEFAULT 0;
+
       -- Cost columns for COGS (pharmacy_inventory already has cost + price).
       ALTER TABLE products   ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0;
       ALTER TABLE food_items ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0;

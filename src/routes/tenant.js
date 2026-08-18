@@ -941,19 +941,40 @@ router.get('/order/track/:token/status', async (req, res) => {
 /* ─── Online payment (pharmacy + food), same flow as the shop ──
    Each merchant is a single page type, transacts with their OWN gateway keys.
    merchantOrderId is prefixed per vertical so the webhook can route it. */
-async function initiateTenantPay(req, res, { table, prefix, total, name, phone, email, addr, backUrl }) {
+const PAY_INTENT_REUSE_MS = 50 * 60 * 1000;   // gateway keys live an hour
+
+async function initiateTenantPay(req, res, { table, prefix, total, name, phone, email, addr, backUrl, order }) {
   const company = req.tenant;
   try {
     const paySettings = await loadPaySettings(pool, company.id);
     if (!gatewayReady(paySettings)) return res.redirect(backUrl + '?payerror=1');
+    const amountCents = Math.round(Number(total) * 100);
+
+    // Reuse the live intent. Both of these routes are reachable from a tracking
+    // link the customer keeps in WhatsApp, so "opened twice" is the normal case,
+    // not the edge case — and every open used to create another payment page
+    // for the same order at the merchant's gateway.
+    const o = order || {};
+    if (o.payment_url && o.payment_intent_at
+        && (Date.now() - new Date(o.payment_intent_at).getTime()) < PAY_INTENT_REUSE_MS
+        && Number(o.payment_intent_cents) === amountCents) {
+      return res.redirect(o.payment_url);
+    }
+
     const parts = String(name || '').trim().split(/\s+/);
+    const attempt = (Number(o.payment_attempt) || 0) + 1;
     const out = await createGatewayPayment(pool, company, {
-      amountCents: Math.round(Number(total) * 100),
+      amountCents,
       currency: company.currency || 'EGP',
-      merchantOrderId: prefix + '-' + req.__orderId,
+      merchantOrderId: prefix + '-' + req.__orderId + (attempt > 1 ? '-' + attempt : ''),
       billing: { first_name: parts[0] || 'Customer', last_name: parts.slice(1).join(' ') || 'NA', email: email || 'na@na.com', phone: phone || 'NA', street: addr || 'NA' },
     });
-    await pool.query(`UPDATE ${table} SET payment_status='pending', payment_ref=$1 WHERE id=$2`, [String(out.orderId || ''), req.__orderId]);
+    await pool.query(
+      `UPDATE ${table} SET payment_status='pending', payment_ref=$1, payment_url=$2,
+              payment_intent_at=now(), payment_intent_cents=$3, payment_attempt=$4
+        WHERE id=$5`,
+      [String(out.orderId || ''), out.url, amountCents, attempt, req.__orderId]
+    );
     res.redirect(out.url);
   } catch (err) { console.error('[tenant pay initiate]', err.message); res.redirect(backUrl + '?payerror=1'); }
 }
@@ -963,7 +984,7 @@ router.get('/order/pharmacy/pay/:token', pharmacyOrderGuard, async (req, res) =>
   if (!o) return res.redirect('/');
   if (o.payment_status === 'paid') return res.redirect('/order/track/' + o.track_token);
   req.__orderId = o.id;
-  return initiateTenantPay(req, res, { table: 'pharmacy_orders', prefix: 'pharmacy', total: o.total_amount, name: o.customer_name, phone: o.customer_phone, addr: o.customer_address, backUrl: '/order/track/' + o.track_token });
+  return initiateTenantPay(req, res, { table: 'pharmacy_orders', prefix: 'pharmacy', total: o.total_amount, name: o.customer_name, phone: o.customer_phone, addr: o.customer_address, backUrl: '/order/track/' + o.track_token, order: o });
 });
 
 router.get('/order/food/pay/:token', foodOrderGuard, async (req, res) => {
@@ -971,7 +992,7 @@ router.get('/order/food/pay/:token', foodOrderGuard, async (req, res) => {
   if (!o) return res.redirect('/');
   if (o.payment_status === 'paid') return res.redirect('/order/food/' + o.track_token);
   req.__orderId = o.id;
-  return initiateTenantPay(req, res, { table: 'food_orders', prefix: 'food', total: o.total, name: o.customer_name, phone: o.phone, addr: o.delivery_address, backUrl: '/order/food/' + o.track_token });
+  return initiateTenantPay(req, res, { table: 'food_orders', prefix: 'food', total: o.total, name: o.customer_name, phone: o.phone, addr: o.delivery_address, backUrl: '/order/food/' + o.track_token, order: o });
 });
 
 // Informational buyer return page (never trusts query params).
@@ -988,7 +1009,8 @@ router.post('/order/pay/paymob/callback', async (req, res) => {
     const obj = (req.body && req.body.obj) || {};
     const providedHmac = req.query.hmac || (req.body && req.body.hmac);
     const moid = String((obj.order && obj.order.merchant_order_id) || '');
-    const m = /^(pharmacy|food)-(\d+)$/.exec(moid);
+    // `food-12` and `food-12-3` are the same order, a later attempt.
+    const m = /^(pharmacy|food)-(\d+)(?:-\d+)?$/.exec(moid);
     if (!m) return res.status(200).send('ignored');
     const table = m[1] === 'pharmacy' ? 'pharmacy_orders' : 'food_orders';
     const orderId = parseInt(m[2], 10);

@@ -893,6 +893,16 @@ async function initDb() {
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS idem_token TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idem
         ON orders (company_id, idem_token) WHERE idem_token IS NOT NULL;
+      /* Every visit to the payment page used to register a BRAND NEW payment
+       * intent at the gateway for the same order. Two live payment pages for
+       * one basket, and the buyer's back button is enough to open the second.
+       * The intent is now kept on the order and reused while it is still
+       * valid; payment_attempt only moves when a genuinely new one is
+       * needed, so the gateway's merchant_order_id stays unique per attempt. */
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_url TEXT;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_intent_at TIMESTAMPTZ;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_attempt INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_intent_cents INTEGER;
       -- Abandoned checkout recovery (competitor phase 26). One live snapshot per
       -- customer+store; deleted on a completed order, so rows here = carts that
       -- reached checkout but never converted. Merchant sends a manual reminder.

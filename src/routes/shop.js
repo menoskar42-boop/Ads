@@ -563,17 +563,43 @@ router.get('/:slug/pay/:orderId', async (req, res) => {
     if (!placed.includes(orderId) && o.customer_id !== req.session.customerId) return res.status(403).send('Forbidden.');
     if (o.payment_status === 'paid') return res.redirect(`/shop/${slug}/order/${orderId}`);
 
+    const amountCents = Math.round(Number(o.total_amount) * 100);
+
+    // Reuse the live payment intent instead of minting another one.
+    //
+    // This route used to call the gateway on EVERY visit, so a refresh or the
+    // back button produced a second payment page for the same basket — both
+    // live, both payable. Whether that ends as a double charge or as a hard
+    // failure depends only on how the gateway treats a repeated
+    // merchant_order_id; neither outcome is one the buyer caused.
+    //
+    // Paymob keys live an hour (`expiration: 3600`); staying well inside that
+    // means a reused link never lands the buyer on an expired page.
+    const REUSE_MS = 50 * 60 * 1000;
+    const fresh = o.payment_url && o.payment_intent_at
+      && (Date.now() - new Date(o.payment_intent_at).getTime()) < REUSE_MS
+      && Number(o.payment_intent_cents) === amountCents;
+    if (fresh) return res.redirect(o.payment_url);
+
     const nameParts = String(o.customer_name || '').trim().split(/\s+/);
+    // A new attempt gets its own id at the gateway. Same order, next attempt —
+    // so an expired intent can be replaced without colliding with the old one.
+    const attempt = (Number(o.payment_attempt) || 0) + 1;
     const out = await createGatewayPayment(pool, company, {
-      amountCents: Math.round(Number(o.total_amount) * 100),
+      amountCents,
       currency: company.currency || 'EGP',
-      merchantOrderId: `shop-${orderId}`,
+      merchantOrderId: attempt > 1 ? `shop-${orderId}-${attempt}` : `shop-${orderId}`,
       billing: {
         first_name: nameParts[0] || 'Customer', last_name: nameParts.slice(1).join(' ') || 'NA',
         email: o.customer_email || 'na@na.com', phone: o.customer_phone || 'NA', street: o.shipping_address || 'NA',
       },
     });
-    await pool.query("UPDATE orders SET payment_status='pending', payment_ref=$1 WHERE id=$2", [String(out.orderId || ''), orderId]);
+    await pool.query(
+      `UPDATE orders SET payment_status='pending', payment_ref=$1, payment_url=$2,
+              payment_intent_at=now(), payment_intent_cents=$3, payment_attempt=$4
+        WHERE id=$5`,
+      [String(out.orderId || ''), out.url, amountCents, attempt, orderId]
+    );
     res.redirect(out.url);
   } catch (err) {
     console.error('[shop pay initiate]', err.message);
@@ -601,7 +627,8 @@ router.post('/pay/paymob/callback', async (req, res) => {
     const obj = (req.body && req.body.obj) || {};
     const providedHmac = req.query.hmac || (req.body && req.body.hmac);
     const merchantOrderId = obj.order && obj.order.merchant_order_id;
-    const m = /^shop-(\d+)$/.exec(String(merchantOrderId || ''));
+    // `shop-12` and `shop-12-3` are the same order, different attempt.
+    const m = /^shop-(\d+)(?:-\d+)?$/.exec(String(merchantOrderId || ''));
     if (!m) return res.status(200).send('ignored');
     const orderId = parseInt(m[1], 10);
     const o = (await pool.query('SELECT company_id FROM orders WHERE id=$1', [orderId])).rows[0];
