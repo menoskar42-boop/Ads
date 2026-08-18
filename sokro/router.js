@@ -353,9 +353,15 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     const ctx = sokroCtx(req.sokroUser.id, task.id, prefs);
     const plan = await planner.plan(ctx, goal, recentContext);
     const perms = permissions.forPlan(plan, registry);
+    // WHERE, before "confirm?". Approving "book me a ticket" is not approving a
+    // form on a site the user has never heard of, and these domains become the
+    // allowlist the run is held to.
+    const writeGuard = require('./lib/writeGuard');
+    const domains = writeGuard.domainsOf(plan);
+    ctx.allowedDomains = domains;
     await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
     if (perms.requiresConsent) {
-      return res.json({ ok: true, taskId: task.id, conversationId: convId, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, message: plan.message || null });
+      return res.json({ ok: true, taskId: task.id, conversationId: convId, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, domains, sites: writeGuard.consentLine(domains), message: plan.message || null });
     }
     if (!plan.steps || !plan.steps.length) {
       await memory.updateTask(task.id, { status: 'failed' });
@@ -386,7 +392,11 @@ router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
       t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { proceed: true }); } });
     }
     const prefs = await settings.get(req.sokroUser.id);
-    return await executePlan(sokroCtx(req.sokroUser.id, t.id, prefs), t.goal, t.id, t.plan, res, t.conversation_id);
+    const resumeCtx = sokroCtx(req.sokroUser.id, t.id, prefs);
+    // The same allowlist on resume: the consent that was given was for THESE
+    // sites, and the plan stored with the task is where they come from.
+    resumeCtx.allowedDomains = require('./lib/writeGuard').domainsOf(t.plan);
+    return await executePlan(resumeCtx, t.goal, t.id, t.plan, res, t.conversation_id);
   } catch (e) {
     console.error('[sokro] execute:', e.message);
     res.status(500).json({ ok: false, error: e.message });

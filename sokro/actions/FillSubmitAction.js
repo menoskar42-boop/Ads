@@ -91,6 +91,14 @@ async function run(ctx, input) {
   }
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
   catch (e) { return SF.cannotOpen(url, e.message); }
+  // The user approved a plan for particular sites. Typing into a different one
+  // is not the thing they agreed to, however the step got here.
+  {
+    const guard = require('../lib/writeGuard');
+    if (!guard.mayWrite(ctx.allowedDomains, url)) {
+      return { ok: false, error: guard.refusal(url), errorCode: 'off_allowlist' };
+    }
+  }
 
   const rawFields = Array.isArray(input && input.fields) ? input.fields : [];
   // An EMPTY submit means "press Enter / submit the form", which is exactly what
