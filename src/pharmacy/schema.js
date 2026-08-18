@@ -74,6 +74,12 @@ async function ensurePharmacySchema() {
       ALTER TABLE medicines ADD COLUMN IF NOT EXISTS scientific_name TEXT;
       ALTER TABLE medicines ADD COLUMN IF NOT EXISTS drug_class TEXT;
       ALTER TABLE medicines ADD COLUMN IF NOT EXISTS source_key TEXT;
+      -- Stamped when a human writes this row (a pharmacy adding a medicine the
+      -- feed does not carry, or correcting one it got wrong). The importer
+      -- refuses to overwrite a stamped row: a nightly job that quietly restores
+      -- a name somebody deliberately fixed is worse than a stale name, because
+      -- the pharmacist fixes it again and never learns why it keeps coming back.
+      ALTER TABLE medicines ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
       ALTER TABLE medicines ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
       CREATE UNIQUE INDEX IF NOT EXISTS idx_medicines_source_key ON medicines (source_key);
       CREATE INDEX IF NOT EXISTS idx_medicines_sci ON medicines (scientific_name);

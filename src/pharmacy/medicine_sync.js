@@ -87,8 +87,25 @@ function toRow(rec) {
   };
 }
 
-// One multi-row upsert. On source_key conflict we refresh the mutable fields
-// (name/price/manufacturer/class) so prices stay current across refreshes.
+/**
+ * One multi-row upsert.
+ *
+ * On a source_key conflict the mutable fields are refreshed, so prices stay
+ * current across refreshes — that is the whole point of the importer. Two
+ * things it must NOT do:
+ *
+ *  · **Overwrite a row a human wrote.** A pharmacy adds a medicine the feed
+ *    does not carry, or corrects one it got wrong; `edited_at` marks it and the
+ *    DO UPDATE skips it. A nightly job that silently restores a name somebody
+ *    deliberately fixed is worse than a stale name — the pharmacist fixes it
+ *    again, and never finds out why it keeps coming back.
+ *
+ *  · **Duplicate one.** `source_key` is unique, and in Postgres NULLs never
+ *    conflict with each other, so a hand-added "بنادول" and the feed's
+ *    "بنادول" are two rows in a catalogue every pharmacy searches. Before the
+ *    upsert, a hand row with the same name ADOPTS the feed's key: one row,
+ *    which then keeps the human's text because of the rule above.
+ */
 async function upsertBatch(client, rows) {
   const cols = 8;
   const values = [];
@@ -109,6 +126,19 @@ async function upsertBatch(client, rows) {
       r.source_key
     );
   });
+  /* Adopt, so the catalogue does not grow a second copy of a medicine a
+     pharmacy already typed. Only rows nobody has claimed yet (source_key IS
+     NULL) and only an exact name match — a fuzzy match here would merge two
+     genuinely different medicines, which is far worse than a duplicate. */
+  await client.query(
+    `UPDATE medicines m SET source_key = f.key
+       FROM (SELECT unnest($1::text[]) AS name, unnest($2::text[]) AS key) f
+      WHERE m.source_key IS NULL
+        AND lower(btrim(m.name_ar)) = lower(btrim(f.name))
+        AND NOT EXISTS (SELECT 1 FROM medicines x WHERE x.source_key = f.key)`,
+    [rows.map((r) => r.name_ar), rows.map((r) => r.source_key)]
+  );
+
   await client.query(
     `INSERT INTO medicines
        (name_ar, name_en, scientific_name, manufacturer, drug_class, form, default_price, source_key, unit, updated_at)
@@ -121,7 +151,8 @@ async function upsertBatch(client, rows) {
        drug_class = EXCLUDED.drug_class,
        form = EXCLUDED.form,
        default_price = EXCLUDED.default_price,
-       updated_at = now()`,
+       updated_at = now()
+     WHERE medicines.edited_at IS NULL`,
     params
   );
 }

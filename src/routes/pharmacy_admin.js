@@ -270,8 +270,10 @@ router.post('/inventory/add', gate('inventory'), withImage(uploadMedImage), asyn
     const newName = (b.new_name_ar || '').trim();
     if (!medicineId && newName) {
       const ins = await pool.query(
-        `INSERT INTO medicines (name_ar, name_en, form, manufacturer, barcode, default_price)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        // edited_at marks this as a human's row, so the nightly importer will
+        // not rewrite the name or the price underneath the pharmacy.
+        `INSERT INTO medicines (name_ar, name_en, form, manufacturer, barcode, default_price, edited_at)
+         VALUES ($1,$2,$3,$4,$5,$6, now()) RETURNING id`,
         [newName, (b.new_name_en || '').trim() || null, (b.new_form || '').trim() || null,
          (b.new_manufacturer || '').trim() || null, (b.barcode || '').trim() || null, toNum(b.price, null)]
       );
