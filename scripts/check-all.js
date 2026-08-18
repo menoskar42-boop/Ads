@@ -10,6 +10,11 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 
 const CHECKS = [
+  // FIRST, always. Everything below reads source files as text, so all of them
+  // pass happily on a codebase that does not compile — which is exactly what
+  // happened: src/pharmacy/schema.js stopped parsing, server.js requires it,
+  // and the whole suite stayed green while the site would not boot.
+  ['check-syntax',          'كل ملف بيتقرا فعلاً (الموقع بيقوم)'],
   ['check-i18n',            'القاموس ثنائي اللغة'],
   ['check-kakeibo-i18n',    'قاموس كاكيبو + توازن القوالب'],
   ['check-payday',          'فترة الراتب: البداية ≤ النهارده < الجاي'],
@@ -53,6 +58,7 @@ const CHECKS = [
   ['check-class-booking',   'سعة كلاس الجيم ورا قفل + حجز واحد للشخص'],
   ['check-appointment-slot','ميعاد العيادة ورا قفل + فهرس فريد'],
   ['check-offline-sync',    'مزامنة POS الأوفلاين مابتخصمش مرتين'],
+  ['check-reserved-stock',  'المحجوز مايعديش الموجود في الصيدلية'],
   ['check-audit-log',       'سجل الوصول للبيانات الطبية (بيتضاف عليه بس)'],
   ['check-clinic-perms',    'صلاحيات العيادة: الاستقبال مايقراش تشخيص'],
   ['check-food-perms',      'صلاحيات المطعم: المطبخ مايشوفش عنوان العميل'],

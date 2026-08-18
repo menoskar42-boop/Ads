@@ -194,7 +194,13 @@ function rest() {
   /* ── Recall ──────────────────────────────────────────────────────────── */
   const rec = (mod.match(/async function recall[\s\S]*?\n\}/) || [''])[0];
   check('السحب بيقفل التشغيلة ويطلّعها من الرصيد',
-    /status = 'recalled'/.test(rec) && /UPDATE pharmacy_inventory SET qty = GREATEST\(0, qty - \$3\)/.test(rec));
+    /status = 'recalled'/.test(rec) && /SET qty = GREATEST\(0, qty - \$3\)/.test(rec));
+  /* And it takes the holds down with it. Cutting qty alone left reserved_qty
+     behind, so `qty - reserved_qty` went negative — read as a harmless zero on
+     every screen, while the inventory form refused the correction that would
+     have fixed it. See check-reserved-stock.js. */
+  check('وبيقلّل الحجوزات معاه (مفيش رصيد متاح سالب)',
+    /reserved_qty = LEAST\(reserved_qty, GREATEST\(0, qty - \$3\)\)/.test(rec));
   check('ومابيمسحش الصف (العلب لسه في الصيدلية ولازم ترجع للمورّد)',
     !/DELETE FROM pharmacy_batches/.test(mod));
   check('والسحب متقيّد بالصيدلية في نفس الجملة',

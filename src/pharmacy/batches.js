@@ -195,8 +195,23 @@ async function recall(client, companyId, batchId, note) {
   )).rows[0];
   if (!b) return null;
   if (b.qty > 0) {
+    /* Pulling a lot lowers qty — and reserved_qty has to come down with it.
+     *
+     * Leaving it behind makes `qty - reserved_qty` NEGATIVE: the shelf owes
+     * stock it does not have. Every screen prints `GREATEST(…, 0)` so it reads
+     * as a harmless zero, and then the inventory form refuses to let the
+     * pharmacist correct the count "because N are reserved" — reserved for
+     * orders that can never be filled from a recalled lot. The bug hides
+     * itself and blocks its own fix.
+     *
+     * Whatever holds are cut here belong to orders that must be dealt with by
+     * hand anyway: the medicine was recalled.
+     */
     await client.query(
-      `UPDATE pharmacy_inventory SET qty = GREATEST(0, qty - $3), updated_at = now()
+      `UPDATE pharmacy_inventory
+          SET qty = GREATEST(0, qty - $3),
+              reserved_qty = LEAST(reserved_qty, GREATEST(0, qty - $3)),
+              updated_at = now()
         WHERE company_id = $1 AND medicine_id = $2`,
       [companyId, b.medicine_id, b.qty]
     );

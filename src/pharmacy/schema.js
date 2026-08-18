@@ -266,7 +266,11 @@ async function ensurePharmacySchema() {
        * because it is the sort of thing that gets guessed wrong later: the
        * HEADER carries signed money — a return's total_amount and profit are
        * NEGATIVE, money leaving the till — while the ITEM rows carry positive
-       * quantities and `kind` says which way the boxes moved.
+       * quantities and the kind column says which way the boxes moved.
+       *
+       * (No backticks in this comment. It lives INSIDE a JS template literal,
+       * and one of them ends the template two hundred lines early — which is
+       * how this file stopped parsing at all, and with it the whole server.)
        *
        * ref_sale_id ties it to what was actually sold, so nobody can return
        * three of something that was sold twice.
@@ -359,12 +363,53 @@ async function ensurePharmacySchema() {
       ALTER TABLE pharmacy_settings ADD COLUMN IF NOT EXISTS cashier_discount_max NUMERIC(5,2) NOT NULL DEFAULT 0;
     `);
 
+    await enforceReservedNeverExceedsQty(client);
     await seedCatalog(client);
     await seedDemoPharmacy(client);
     console.log('Pharmacy schema ready.');
   } finally {
     client.release();
     await pool.end();
+  }
+}
+
+/**
+ * reserved_qty must never exceed qty.
+ *
+ * Availability is `qty - reserved_qty` everywhere, and every screen wraps it in
+ * `GREATEST(…, 0)` — so when a recalled lot cut qty and left the holds behind,
+ * the number read as a harmless zero while the row said the shelf owed eight
+ * boxes it did not have. Then the inventory form refused to let the pharmacist
+ * correct the count, "because 8 are reserved", for orders that could never be
+ * filled from a recalled lot. The bug hid itself and blocked its own fix.
+ *
+ * Every path that lowers qty now lowers the holds with it. This repairs rows
+ * written before that and then makes the invariant a rule the database keeps,
+ * so the next path to touch qty cannot get it wrong quietly.
+ *
+ * The constraint is added inside its own try: a row that still violates it
+ * would otherwise stop the whole schema boot, and being unable to start is a
+ * worse outcome than a wrong reserved count on one medicine.
+ */
+async function enforceReservedNeverExceedsQty(client) {
+  try {
+    const fixed = await client.query(
+      'UPDATE pharmacy_inventory SET reserved_qty = qty WHERE reserved_qty > qty'
+    );
+    if (fixed.rowCount) {
+      console.log(`Pharmacy: repaired ${fixed.rowCount} row(s) where reserved stock exceeded the shelf.`);
+    }
+  } catch (e) {
+    console.error('[pharmacy reserved repair]', e.message);
+  }
+  try {
+    await client.query(`
+      ALTER TABLE pharmacy_inventory
+        ADD CONSTRAINT pharmacy_inventory_reserved_le_qty CHECK (reserved_qty <= qty) NOT VALID;
+    `);
+  } catch (e) {
+    // Already there is the normal case on every boot after the first.
+    if (!/already exists/i.test(e.message)) console.error('[pharmacy reserved check]', e.message);
   }
 }
 

@@ -73,7 +73,12 @@ async function sellDirect(client, companyId, items) {
           WHERE company_id = $1 AND medicine_id = $2 FOR UPDATE
        ), upd AS (
          UPDATE pharmacy_inventory
-            SET qty = GREATEST(0, qty - $3), updated_at = now()
+            SET qty = GREATEST(0, qty - $3),
+                -- reserved_qty can never exceed qty, or availability
+                -- (qty - reserved_qty) goes negative and the inventory form
+                -- starts refusing the correction that would fix it.
+                reserved_qty = LEAST(reserved_qty, GREATEST(0, qty - $3)),
+                updated_at = now()
           WHERE company_id = $1 AND medicine_id = $2
           RETURNING qty AS after_qty
        )
