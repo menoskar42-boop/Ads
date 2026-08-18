@@ -177,6 +177,10 @@
            taken) went unsaid. Found in the live QA pass. */
         var __bk = {
           taken: 'cp.err_taken', past: 'cp.err_past', far: 'cp.err_far',
+          // The clinic switched online booking off. Saying "check your name"
+          // to somebody whose name is fine is how the old generic message got
+          // fixed once already — this one has its own sentence.
+          closed: 'cp.err_closed',
         }[String(contactError)] || 'cp.error';
       %>
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm font-semibold"><%= t(__bk) %></div>

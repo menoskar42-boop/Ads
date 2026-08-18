@@ -589,7 +589,8 @@ router.get('/', async (req, res) => {
     /* Codes the server knows, so the page cannot be made to say something the
        gym did not write. */
     gymBookedStatus: ['booked', 'waitlist'].includes(String(req.query.booked || '')) ? req.query.booked : null,
-    gymBookError: req.query.bookerr === '1' ? 'bad' : req.query.bookerr === 'dup' ? 'dup' : null,
+    gymBookError: ['1', 'dup', 'closed'].includes(String(req.query.bookerr || ''))
+      ? (req.query.bookerr === '1' ? 'bad' : req.query.bookerr) : null,
     payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
@@ -601,7 +602,10 @@ router.get('/', async (req, res) => {
       : [],
     cartCount,
     sent: req.query.sent === '1',
-    contactError: req.query.error || null,
+    /* A code the server knows, never text from the URL: this string is printed
+       inside a red box on the clinic's own page under the clinic's own name. */
+    contactError: ['1', 'taken', 'past', 'far', 'closed'].includes(String(req.query.error || ''))
+      ? req.query.error : null,
   });
 });
 
@@ -628,6 +632,32 @@ router.get('/doctor/:slug', clinicGuard, async (req, res) => {
   } catch (e) { console.error('Doctor page:', e.message); res.redirect('/'); }
 });
 
+/**
+ * Is public booking switched on for this tenant?
+ *
+ * The setting existed and only the VIEW read it: the button was hidden and the
+ * route accepted the POST anyway. A hidden button is not a closed door — a
+ * saved page, a browser's back button, or anybody who has seen the form once
+ * still books, and the merchant who deliberately turned bookings off keeps
+ * getting them and cannot see why.
+ *
+ * Default is ON: a tenant with no settings row at all has not switched
+ * anything off, and refusing them would break every clinic that never opened
+ * the settings page.
+ */
+async function bookingOpen(table, companyId) {
+  try {
+    const r = await pool.query(
+      `SELECT booking_enabled FROM ${table} WHERE company_id=$1`, [companyId]);
+    return !r.rows.length || r.rows[0].booking_enabled !== false;
+  } catch (e) {
+    // A settings table that cannot be read must not silently close a working
+    // booking form — that would take a merchant's bookings away over a blip.
+    console.error('[bookingOpen]', table, e.message);
+    return true;
+  }
+}
+
 // Appointment booking submission (public form → clinic_appointments).
 router.post('/book', clinicGuard, async (req, res) => {
   const company = req.tenant;
@@ -638,6 +668,8 @@ router.post('/book', clinicGuard, async (req, res) => {
   let slotAt = null; if (req.body.slot_at) { const d = new Date(req.body.slot_at); if (!isNaN(d.getTime())) slotAt = d.toISOString(); }
   const reason = String((req.body && req.body.reason) || '').trim().slice(0, 300);
   try {
+    // The switch the merchant actually flipped.
+    if (!await bookingOpen('clinic_settings', company.id)) return res.redirect('/?error=closed#book');
     if (doctorId) { const ok = (await pool.query('SELECT 1 FROM clinic_doctors WHERE id=$1 AND company_id=$2', [doctorId, company.id])).rowCount; if (!ok) doctorId = null; }
     // A slot that has already gone is a typo, not a booking — it lands in the
     // queue where nobody looks for it.
@@ -745,6 +777,7 @@ router.post('/book-class', gymGuard, async (req, res) => {
   const company = req.tenant;
   const classId = parseInt(req.body.class_id, 10);
   try {
+    if (!await bookingOpen('gym_settings', company.id)) return res.redirect('/?bookerr=closed#classes');
     const name = String(req.body.name || '').trim().slice(0, 80);
     const phone = String(req.body.phone || '').trim().slice(0, 20);
     const phoneKey = phone.replace(/[^0-9]/g, '');

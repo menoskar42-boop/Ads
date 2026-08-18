@@ -87,7 +87,8 @@ check('والامتلاء لسه بيوديّ لقائمة انتظار مش ر�
   check('الحجز المكرر بيرجع برسالة مش بخطأ عام', /bookerr=dup/.test(route));
   check('والصفحة بتقولها', /gymBookError === 'dup'/.test(view));
   check('والرسالة مش من الرابط — أكواد بس',
-    /\['booked', 'waitlist'\]\.includes/.test(tenant) && /bookerr === 'dup' \? 'dup' : null/.test(tenant));
+    /\['booked', 'waitlist'\]\.includes/.test(tenant)
+    && /\['1', 'dup', 'closed'\]\.includes\(String\(req\.query\.bookerr/.test(tenant));
 }
 
 console.log(fail
