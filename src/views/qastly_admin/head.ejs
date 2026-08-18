@@ -43,7 +43,7 @@
       <% __nav.forEach(function(f){ %><a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.label %></a><% }); %>
       <a href="/qastly/settings" class="<%= __cls('settings') %>">الإعدادات</a>
     </nav>
-    <%- include('../partials/pay_link') %>
+    <%- include('../partials/merchant_chips') %>
     <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
       <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5">خروج</button>
     </form>

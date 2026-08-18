@@ -80,8 +80,13 @@ const check = (label, ok, extra) => {
     'qastly_admin/head.ejs', 'clinic_admin/head.ejs', 'food_admin/nav.ejs',
     'pharmacy_admin/nav.ejs', 'company/_layout_top.ejs',
   ];
-  const missing = PANELS.filter((rel) => !fs.readFileSync(path.join(ROOT, 'src/views', rel), 'utf8').includes("include('../partials/pay_link')"));
-  check('كل لوحة قطاع فيها المدخل', missing.length === 0, missing.join(' · ') || PANELS.length + ' لوحة');
+  const missing = PANELS.filter((rel) => !fs.readFileSync(path.join(ROOT, 'src/views', rel), 'utf8').includes("include('../partials/merchant_chips')"));
+  check('كل لوحة قطاع فيها المداخل', missing.length === 0, missing.join(' · ') || PANELS.length + ' لوحة');
+  // One include per panel, two chips inside it: the next tool to surface is an
+  // edit in one file rather than eleven.
+  const chips = fs.readFileSync(path.join(ROOT, 'src/views/partials/merchant_chips.ejs'), 'utf8');
+  check('والمداخل مجمّعة في ملف واحد',
+    /include\('\.\/pay_link'\)/.test(chips) && /include\('\.\/einvoice_link'\)/.test(chips));
 
   // The point of a shared partial: the wording lives once.
   const strays = [];
@@ -110,6 +115,24 @@ const check = (label, ok, extra) => {
   check('وفشل الحفظ بيتقال (مابقاش صامت)', /err=save/.test(acct));
   const view = fs.readFileSync(path.join(ROOT, 'src/views/accounting/payments.ejs'), 'utf8');
   check('والصفحة بتعرض الفشل', /saveError/.test(view));
+}
+
+/* ── The e-invoice, same treatment, quieter voice ──────────────────────── */
+{
+  const tpl = fs.readFileSync(path.join(ROOT, 'src/views/partials/einvoice_link.ejs'), 'utf8');
+  const { t } = require('../src/i18n/strings');
+  const say = (einvoiceOn, lang) => ejs.render(tpl, { einvoiceOn, t: (k) => t(k, lang || 'ar') });
+  check('مدخل الفاتورة الإلكترونية موجود', /🧾/.test(say(true)));
+  check('والمقفولة بتقول إنها مقفولة', /مقفولة/.test(say(false)));
+  // Optional by the owner's standing rule: "off" must not be dressed as a
+  // problem the way an unconfigured payment method is.
+  check('ومابتزنّش على اللي مقفّلها', !/amber/.test(say(false)) && !/فعّل/.test(say(false)));
+  check('وبتتكلم إنجليزي كمان', /E-invoice/.test(say(true, 'en')));
+  check('والقالب مابينفجرش من غير متغيرات', !!ejs.render(tpl, {}));
+  const mw = fs.readFileSync(path.join(ROOT, 'src/middleware/pay_status.js'), 'utf8');
+  check('والحالتين بيتجابوا في نفس اللمسة', /Promise\.all\(\[readyFor\(id\), einvoiceOn\(id\)\]\)/.test(mw));
+  const inv = fs.readFileSync(path.join(ROOT, 'src/routes/einvoice_admin.js'), 'utf8');
+  check('وحفظ الإعدادات بيمسح الكاش', /pay_status'\)\.forget\(cid\)/.test(inv));
 }
 
 console.log(fail

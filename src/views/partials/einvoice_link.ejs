@@ -1,0 +1,16 @@
+<%#
+  The e-invoice entry point, in one file.
+
+  Deliberately quieter than the payments chip: the electronic invoice is an
+  OPTIONAL merchant feature by the owner's standing rule, so "off" is a real
+  choice and not a problem to be nagged about. It says what it is and where it
+  goes, and that is all.
+%>
+<% var __el = (typeof einvoiceLink !== 'undefined' && einvoiceLink) ? einvoiceLink : '/einvoice'; %>
+<% var __eo = (typeof einvoiceOn !== 'undefined') ? einvoiceOn : null; %>
+<% var __t2 = (typeof t === 'function') ? t : function (k) { return { 'einv.link':'الفاتورة الإلكترونية', 'einv.off':'الفاتورة الإلكترونية (مقفولة)', 'einv.title':'الفاتورة الإلكترونية للمصلحة — اختيارية' }[k] || k; }; %>
+<a href="<%= __el %>"
+   class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap <%= __eo === true ? 'bg-sky-100 text-sky-800 border border-sky-300' : 'bg-gray-100 text-gray-600 border border-gray-300' %>"
+   title="<%= __t2('einv.title') %>">
+  🧾 <%= __t2(__eo === true ? 'einv.link' : 'einv.off') %>
+</a>

@@ -58,7 +58,7 @@
       <a href="/workshop/reminders" class="relative text-lg leading-none px-1" title="<%= t('wsh.nav.reminders') %>">⏰<span
         class="absolute -top-1 -end-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 leading-4"><%= __due > 99 ? '99+' : __due %></span></a>
     <% } %>
-    <%- include('../partials/pay_link') %>
+    <%- include('../partials/merchant_chips') %>
     <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
       <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5"><%= t('common.logout') %></button>
     </form>
