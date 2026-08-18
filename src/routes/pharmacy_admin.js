@@ -846,10 +846,28 @@ router.post('/pos/sync', gate('pos'), async (req, res) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const exists = (await client.query(
-        'SELECT 1 FROM pharmacy_sales WHERE company_id=$1 AND offline_uid=$2', [cid, uid]
+      /* Claim the uid BEFORE touching the shelf.
+       *
+       * The old order was: check whether the uid exists, take the stock, then
+       * insert with ON CONFLICT DO NOTHING. Two syncs of the same queue — a
+       * double tap on "sync", or a retry after a timed-out response — both
+       * find no row (neither has committed), and BOTH run sellDirect. The
+       * conflict clause then quietly drops the second INSERT, so one sale is
+       * recorded and the shelf is down by twice the quantity.
+       *
+       * The unique index is the only thing both requests are guaranteed to
+       * agree about, so the row is claimed first and filled in after. The
+       * second request blocks on the index, then gets no row back and knows
+       * this sale is already handled. If the rest fails, the ROLLBACK takes
+       * the claim with it — the sale is not recorded and not double-counted.
+       */
+      const claim = (await client.query(
+        `INSERT INTO pharmacy_sales (company_id, kind, offline_uid, staff_id, total_amount, profit)
+         VALUES ($1,'sale',$2,$3,0,0)
+         ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
+        [cid, uid, req.session.staffId || null]
       )).rows[0];
-      if (exists) { await client.query('COMMIT'); synced.push(uid); continue; }
+      if (!claim) { await client.query('COMMIT'); synced.push(uid); continue; }
       let total = 0, profit = 0; const lines = [];
       for (const raw of items) {
         const mid = parseInt(raw.medicine_id, 10);
@@ -895,24 +913,24 @@ router.post('/pos/sync', gate('pos'), async (req, res) => {
         notes.push(`خصم ${askedPct}% اتسجّل ${allowedPct}% — محتاج موافقة مدير ومكانش فيه نت`);
       }
       const note = notes.length ? notes.join(' · ').slice(0, 500) : null;
-      const sale = (await client.query(
-        `INSERT INTO pharmacy_sales (company_id, kind, total_amount, profit, staff_id, offline_uid,
-                                     needs_review, review_note, discount_amount, discount_percent)
-         VALUES ($1,'sale',$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (company_id, offline_uid) DO NOTHING RETURNING id`,
-        [cid, total, profit, req.session.staffId || null, uid,
-          short.length > 0 || discCut, note, discAmt, allowedPct]
-      )).rows[0];
-      if (sale) {
-        for (const l of lines) {
-          await client.query(
-            'INSERT INTO pharmacy_sale_items (sale_id, medicine_id, name, qty, price, cost) VALUES ($1,$2,$3,$4,$5,$6)',
-            [sale.id, l.medicine_id, l.name, l.qty, l.price, l.cost]
-          );
-        }
-        // An offline sale left the shelf hours ago; the lots come off now, in
-        // the same order they would have then.
-        await batches.dispense(client, cid, { saleId: sale.id }, lines);
+      // Fill in the row claimed above. No conflict clause here: this id is ours.
+      const sale = claim;
+      await client.query(
+        `UPDATE pharmacy_sales
+            SET total_amount=$1, profit=$2, needs_review=$3, review_note=$4,
+                discount_amount=$5, discount_percent=$6
+          WHERE id=$7 AND company_id=$8`,
+        [total, profit, short.length > 0 || discCut, note, discAmt, allowedPct, sale.id, cid]
+      );
+      for (const l of lines) {
+        await client.query(
+          'INSERT INTO pharmacy_sale_items (sale_id, medicine_id, name, qty, price, cost) VALUES ($1,$2,$3,$4,$5,$6)',
+          [sale.id, l.medicine_id, l.name, l.qty, l.price, l.cost]
+        );
       }
+      // An offline sale left the shelf hours ago; the lots come off now, in
+      // the same order they would have then.
+      await batches.dispense(client, cid, { saleId: sale.id }, lines);
       await client.query('COMMIT'); synced.push(uid);
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
