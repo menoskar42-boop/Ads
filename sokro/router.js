@@ -525,6 +525,51 @@ router.post('/api/schedule', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, task });
 });
 
+// ── Meeting agenda: built one point at a time ────────────────────────────────
+const agenda = require('./agenda');
+const agendaStore = require('./agenda/store');
+
+router.get('/api/agenda', auth.requireAuth, async (req, res) => {
+  const a = await agendaStore.open(req.sokroUser.id);
+  if (!a) return res.json({ ok: true, agenda: null, items: [], text: '' });
+  const items = await agendaStore.items(req.sokroUser.id, a.id);
+  res.json({ ok: true, agenda: a, items, text: agenda.render(a, items) });
+});
+
+router.post('/api/agenda', auth.requireAuth, async (req, res) => {
+  const b = req.body || {};
+  const a = await agendaStore.create(req.sokroUser.id, b.title, b.whenAt || null);
+  res.json({ ok: true, agenda: a });
+});
+
+// One point. The duplicate answer is a real answer — «دي عندي خلاص» is useful,
+// a silently ignored tap is not.
+router.post('/api/agenda/:id(\d+)/items', auth.requireAuth, async (req, res) => {
+  const text = String((req.body && req.body.text) || '').trim();
+  const parsed = agenda.parseAdd(text) || text;   // «ضيف بند: كذا» or the bare point
+  const out = await agendaStore.addItem(req.sokroUser.id, parseInt(req.params.id, 10), parsed);
+  if (!out.added) {
+    return res.json({ ok: true, added: false, why: out.why,
+      message: out.why === 'duplicate' ? 'البند ده موجود في الأجندة خلاص.' : 'اكتب البند.' });
+  }
+  res.json({ ok: true, added: true, item: out.item });
+});
+
+router.post('/api/agenda/:id(\d+)/items/:itemId(\d+)/done', auth.requireAuth, async (req, res) => {
+  await agendaStore.setDone(req.sokroUser.id, req.params.itemId, (req.body || {}).done !== false);
+  res.json({ ok: true });
+});
+
+router.delete('/api/agenda/:id(\d+)/items/:itemId(\d+)', auth.requireAuth, async (req, res) => {
+  await agendaStore.removeItem(req.sokroUser.id, parseInt(req.params.id, 10), req.params.itemId);
+  res.json({ ok: true });
+});
+
+router.post('/api/agenda/:id(\d+)/close', auth.requireAuth, async (req, res) => {
+  await agendaStore.close(req.sokroUser.id, parseInt(req.params.id, 10));
+  res.json({ ok: true });
+});
+
 // ── The inbox a reminder lands in ────────────────────────────────────────────
 router.get('/api/notifications', auth.requireAuth, async (req, res) => {
   const rows = await scheduler.notifications(req.sokroUser.id, req.query.limit);

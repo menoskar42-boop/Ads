@@ -120,6 +120,36 @@ async function ensureSokroSchema() {
       CREATE INDEX IF NOT EXISTS sokro_notif_unread_idx
         ON sokro_notifications(user_id, read_at, id DESC);
 
+      -- ── Meeting agendas ──────────────────────────────────────────────────
+      -- Points arrive one sentence at a time, over a whole conversation. Kept
+      -- in the transcript they get re-read (and re-ordered, and occasionally
+      -- lost) every turn; kept as rows they are simply the list.
+      CREATE TABLE IF NOT EXISTS sokro_agendas (
+        id         SERIAL PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        title      TEXT NOT NULL DEFAULT 'الأجندة',
+        when_at    TIMESTAMPTZ,
+        status     TEXT NOT NULL DEFAULT 'open',      -- open | closed
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_agenda_items (
+        id         SERIAL PRIMARY KEY,
+        agenda_id  INTEGER NOT NULL REFERENCES sokro_agendas(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        text       TEXT NOT NULL,
+        item_key   TEXT NOT NULL,                     -- normalised, for "already there"
+        position   INTEGER NOT NULL DEFAULT 1,
+        done       BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      -- The same point cannot be on the same agenda twice. Two rows is how a
+      -- list stops being trusted, and dedupe in code alone loses the race.
+      CREATE UNIQUE INDEX IF NOT EXISTS sokro_agenda_item_once
+        ON sokro_agenda_items(agenda_id, item_key);
+      CREATE INDEX IF NOT EXISTS sokro_agenda_items_idx
+        ON sokro_agenda_items(agenda_id, position);
+
       -- Browser-extension bridge: commands the server enqueues for the user's
       -- Chrome extension to run in their LIVE browser (logged-in sessions), plus
       -- the result the extension posts back. Avoids server-side Chromium.
