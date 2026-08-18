@@ -435,12 +435,22 @@ router.get('/reports', async (req, res) => {
   let data = null;
   if (active) {
     try {
+      // Revenue counts money that came in. A rejected order and a cancelled
+      // order are the two states where it did not, and they were being summed
+      // with the rest — so the report's headline number was the takings PLUS
+      // everything the kitchen refused. The item tables below already
+      // excluded both, which is how the same page could disagree with itself.
+      //
+      // The counts stay over ALL orders on purpose: "orders" and "lost" are
+      // about how the night went, and hiding the refused ones would answer a
+      // different question than the owner is asking.
       const summary = (await pool.query(`
         SELECT COUNT(*)::int AS orders,
-               COALESCE(SUM(total),0)::numeric AS revenue,
-               COALESCE(AVG(total),0)::numeric AS avg_order,
+               COALESCE(SUM(total) FILTER (WHERE status NOT IN ('rejected','cancelled')),0)::numeric AS revenue,
+               COALESCE(AVG(total) FILTER (WHERE status NOT IN ('rejected','cancelled')),0)::numeric AS avg_order,
                COUNT(*) FILTER (WHERE status='delivered')::int AS delivered,
-               COUNT(*) FILTER (WHERE status IN ('rejected','cancelled'))::int AS lost
+               COUNT(*) FILTER (WHERE status IN ('rejected','cancelled'))::int AS lost,
+               COALESCE(SUM(total) FILTER (WHERE status IN ('rejected','cancelled')),0)::numeric AS lost_value
         FROM food_orders WHERE company_id = $1`, [cid])).rows[0];
       const top = (await pool.query(`
         SELECT oi.name_snapshot AS name, SUM(oi.quantity)::int AS qty, COALESCE(SUM(oi.quantity*oi.price),0)::numeric AS revenue

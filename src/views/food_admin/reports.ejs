@@ -48,6 +48,16 @@
       </div>
     </div>
 
+    <%# The refused orders are not deleted from the report, they are moved out
+        of the revenue line and named. An owner who sees revenue drop wants to
+        know where it went, and "it was never yours" is the answer. %>
+    <% if (Number(data.summary.lost)) { %>
+      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5 flex flex-wrap items-center justify-between gap-2">
+        <span class="text-sm text-gray-600"><%= t('food.reports.lost') %>: <b class="text-gray-800"><%= __int(data.summary.lost) %></b></span>
+        <span class="text-sm text-gray-500"><%= t('food.reports.lost_value') %>: <b class="text-gray-700"><%= __money(data.summary.lost_value) %> <%= __cur %></b></span>
+      </div>
+    <% } %>
+
     <div class="grid gap-4 sm:grid-cols-2">
       <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <h2 class="font-bold text-gray-700 mb-3">🔥 <%= t('food.reports.top') %></h2>
