@@ -305,7 +305,7 @@ async function run(ctx, input) {
     for (const c of candidates) {
       try { safe = await guard.assertSafeUrl(c); break; } catch (e) { lastErr = e.message; }
     }
-    if (!safe) return { ok: false, error: 'الموقع مش موجود أو الدومين غلط: ' + lastErr + ' — تأكد من الاسم (مثلاً sylndr.com مش we.sylndr.com).' };
+    if (!safe) return require('../lib/siteFinder').cannotOpen(url, lastErr);
     url = safe;
   }
   if (noSite) {

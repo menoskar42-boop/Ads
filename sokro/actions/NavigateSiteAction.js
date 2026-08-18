@@ -14,8 +14,9 @@ async function run(ctx, input) {
   const goal = String((input && (input.goal || input.query)) || '').trim();
   // «ادخل سيلندر ودوّر على…» — the site arrives as a name people say, not as a
   // URL the model can spell. Resolved from the table, or refused honestly.
-  const site = await require('../lib/siteFinder').find(ctx, (input && input.url) || '');
-  if (!site) return { ok: false, error: 'valid http(s) url required' };
+  const SF = require('../lib/siteFinder');
+  const site = await SF.find(ctx, (input && input.url) || '');
+  if (!site) return SF.cannotOpen((input && input.url) || '', 'not_found');
   const startUrl = site.url;
   const browse = ctx.actions && ctx.actions.get('browse');
   if (!browse) return { ok: false, error: 'browse action unavailable' };
@@ -51,7 +52,7 @@ async function run(ctx, input) {
     answer = 'زُرت ' + trail.length + ' صفحة داخل الموقع. آخر صفحة: ' + (trail[trail.length - 1].url || '');
   }
   return { ok: true, output: Object.assign({ goal, startUrl, hops: trail.length, trail, answer },
-    require('../lib/siteFinder').note(site)) };
+    SF.note(site)) };
 }
 
 register({

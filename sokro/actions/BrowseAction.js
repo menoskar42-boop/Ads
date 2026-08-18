@@ -26,13 +26,13 @@ async function run(ctx, input) {
   let site = null;
   {
     site = await SF.find(ctx, url);
-    if (!site) return { ok: false, error: 'valid http(s) url required' };
+    if (!site) return SF.cannotOpen(url, 'not_found');
     url = site.url;
   }
   // SSRF guard: never let a browse target hit localhost / the private network /
   // the cloud metadata endpoint (server Playwright shares the deployment's LAN).
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
-  catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
+  catch (e) { return SF.cannotOpen(url, e.message); }
   // Prefer the user's LIVE browser via the connected extension (logged-in
   // sessions, no server Chromium). Falls back to server-side Playwright.
   const ext = require('../extension-bridge');
