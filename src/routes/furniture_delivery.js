@@ -6,6 +6,10 @@ const { Pool } = require('pg');
 const D = require('../furniture/delivery');
 
 const router = express.Router();
+
+// The reasons this section can refuse, as data. Printing `req.query.err` would
+// let a link choose the words on the merchant's screen.
+const DELIVERY_ERRORS = ['no_customer', 'invoice_not_found', 'save', 'unpaid', 'bad_date', 'fee'];
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
@@ -34,7 +38,8 @@ router.get('/', async (req, res) => {
       // out is a business rule, and business rules do not belong in EJS.
       dispatch: Object.fromEntries(jobs.map((j) => [j.id, D.dispatchCheck(j, policy)])),
       sales: sales.rows, customers: customers.rows,
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: DELIVERY_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture delivery]', e.message); res.status(500).send('error'); }
 });

@@ -13,7 +13,9 @@ router.get('/', async (req, res) => {
     const branches = await B.list(pool, req.company.id, { includeArchived: true });
     res.render('furniture_admin/branches', {
       company: req.company, tab: 'branches', branches, kinds: B.KINDS,
-      scoped: B.SCOPED, saved: req.query.saved === '1', err: req.query.err || null,
+      // A code the server knows, not text the URL supplies.
+      scoped: B.SCOPED, saved: req.query.saved === '1',
+      err: ['1', 'save'].includes(String(req.query.err || '')) ? req.query.err : null,
     });
   } catch (e) { console.error('[furniture branches]', e.message); res.status(500).send('error'); }
 });
@@ -38,7 +40,10 @@ router.post('/', async (req, res) => {
          VALUES ($1,$2,$3,$4,$5)`, [req.company.id, ...vals]);
       req.flog('branch.add', 'master', null, name);
     }
-  } catch (e) { console.error('[furniture branch save]', e.message); }
+  } catch (e) {
+    console.error('[furniture branch save]', e.message);
+    return res.redirect('/furniture/branches?err=save');
+  }
   res.redirect('/furniture/branches?saved=1');
 });
 

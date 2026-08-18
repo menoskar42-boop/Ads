@@ -55,39 +55,52 @@ async function syncPaid(client, companyId, saleId) {
   return { paid: round2(sum), status };
 }
 
-/** Record a payment and bring the invoice it belongs to back in step. */
-async function addPayment(pool, companyId, { saleId, customerId, amount, payDate, method, note }) {
+/**
+ * Record a payment on the CALLER's transaction.
+ *
+ * Takes a client rather than a pool for the same reason `syncPaid` does: a
+ * deposit taken with an invoice belongs in the invoice's transaction. Recording
+ * it afterwards on its own connection means the invoice can be saved while the
+ * deposit is not — and the showroom is shown one success for two writes.
+ */
+async function recordPayment(client, companyId, { saleId, customerId, amount, payDate, method, note }) {
   const amt = round2(amount);
   if (!(amt > 0)) throw new Error('amount must be positive');
+
+  // A payment against a cancelled invoice would credit an order that is not
+  // happening; take it on the customer's account instead, deliberately.
+  if (saleId) {
+    const s = (await client.query(
+      'SELECT status, customer_id FROM furniture_sales WHERE id=$1 AND company_id=$2', [saleId, companyId]
+    )).rows[0];
+    if (!s) throw new Error('invoice not found');
+    if (s.status === 'cancelled') throw new Error('invoice is cancelled');
+    // Keep the payment attached to whoever the invoice belongs to, so a
+    // statement can never miss a payment because the form sent no customer.
+    if (!customerId) customerId = s.customer_id;
+  }
+
+  await client.query(
+    `INSERT INTO furniture_customer_payments
+       (company_id, sale_id, customer_id, amount, pay_date, method, note)
+     VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6,$7)`,
+    [companyId, saleId || null, customerId || null, amt, payDate || null,
+      ['cash', 'card', 'transfer'].includes(method) ? method : 'cash',
+      note || null]
+  );
+  if (saleId) await syncPaid(client, companyId, saleId);
+  return { amount: amt };
+}
+
+/** The same payment, on its own transaction, for callers who have no other
+ *  write to keep it with. */
+async function addPayment(pool, companyId, payment) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    // A payment against a cancelled invoice would credit an order that is not
-    // happening; take it on the customer's account instead, deliberately.
-    if (saleId) {
-      const s = (await client.query(
-        'SELECT status, customer_id FROM furniture_sales WHERE id=$1 AND company_id=$2', [saleId, companyId]
-      )).rows[0];
-      if (!s) throw new Error('invoice not found');
-      if (s.status === 'cancelled') throw new Error('invoice is cancelled');
-      // Keep the payment attached to whoever the invoice belongs to, so a
-      // statement can never miss a payment because the form sent no customer.
-      if (!customerId) customerId = s.customer_id;
-    }
-
-    await client.query(
-      `INSERT INTO furniture_customer_payments
-         (company_id, sale_id, customer_id, amount, pay_date, method, note)
-       VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6,$7)`,
-      [companyId, saleId || null, customerId || null, amt, payDate || null,
-        ['cash', 'card', 'transfer'].includes(method) ? method : 'cash',
-        note || null]
-    );
-    if (saleId) await syncPaid(client, companyId, saleId);
-
+    const out = await recordPayment(client, companyId, payment);
     await client.query('COMMIT');
-    return { amount: amt };
+    return out;
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -250,4 +263,4 @@ async function statement(pool, companyId, customerId) {
   };
 }
 
-module.exports = { round2, invoiceTotals, dueOf, statusFor, syncPaid, addPayment, customerBalances, receivablesTotal, statement };
+module.exports = { round2, invoiceTotals, dueOf, statusFor, syncPaid, recordPayment, addPayment, customerBalances, receivablesTotal, statement };

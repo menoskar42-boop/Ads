@@ -143,6 +143,7 @@ router.get('/settings', async (req, res) => {
       settings: await settingsOf(req.company.id),
       allFlags: localized(FLAGS, res.locals.t),
       saved: req.query.saved === '1',
+      err: String(req.query.err || '') === 'save' ? 'save' : null,
     });
   } catch (e) { console.error('[furniture settings]', e.message); res.status(500).send('error'); }
 });
@@ -181,7 +182,14 @@ router.post('/settings', async (req, res) => {
     // Which sections are on changes what the rest of the team can even see, so
     // the set is logged in full rather than as "settings changed".
     req.flog('settings.save', 'settings', null, OPTIONAL_KEYS.filter((k) => wanted.has(k)).join(', ') || '—');
-  } catch (e) { console.error('[furniture settings save]', e.message); }
+  } catch (e) {
+    /* `console.error` then `?saved=1` is the shape this wave is about: the
+       server KNEW the write failed and the page said "تم الحفظ". The merchant
+       walks away believing the tax percent is set, and finds out on an invoice.
+       A save that failed must say so. */
+    console.error('[furniture settings save]', e.message);
+    return res.redirect('/furniture/settings?err=save');
+  }
   res.redirect('/furniture/settings?saved=1');
 });
 

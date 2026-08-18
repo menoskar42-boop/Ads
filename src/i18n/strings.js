@@ -1493,6 +1493,11 @@ const strings = {
     'fn2.pay.daily':'يومي','fn2.pay.weekly':'أسبوعي','fn2.pay.piece':'بالقطعة',
     'fn2.m.add':'إضافة','fn2.m.edit':'تعديل','fn2.m.saved':'اتحفظ ✅',
     'fn2.m.required':'الاسم مطلوب.',
+    'fn2.m.savefail':'الحفظ مامشيش — جرّب تاني، ولو فضلت المشكلة كلّمنا.',
+    // A save that did not happen has to say so on the page, whether it failed
+    // or was never attempted because the form was half-filled.
+    'fn2.m.err.save':'الحفظ مامشيش — جرّب تاني، ولو فضلت المشكلة كلّمنا.',
+    'fn2.m.err.incomplete':'ماتحفظش — املا الخانات المطلوبة والمبلغ أكبر من صفر.',
     'fn2.m.in_use':'مينفعش يتمسح — مستخدم في حركات موجودة. أرشِفه بدل ما تمسحه.',
     'fn2.m.active':'المتاح','fn2.m.archived':'المؤرشف','fn2.m.archive':'أرشفة','fn2.m.restore':'استرجاع',
     'fn2.m.search':'بحث بالاسم','fn2.m.empty':'مفيش حاجة هنا لسه.','fn2.m.low':'تحت الحد',
@@ -1523,6 +1528,8 @@ const strings = {
     'fn2.po.err.nothing':'ماتسجّلش استلام — الكميات كانت فاضية أو صفر.',
     'fn2.po.err.receive':'الاستلام فشل — الأمر ممكن يكون ملغي.',
     'fn2.po.err.has_received':'مينفعش الإلغاء — فيه كميات وصلت فعلاً ودخلت المخزون.',
+    'fn2.po.err.incomplete':'ماتسجّلش دفع — اختار المورّد واكتب مبلغ أكبر من صفر.',
+    'fn2.po.err.pay':'تسجيل الدفعة فشل — المبلغ مااتسجّلش. جرّب تاني.',
 
     // المبيعات (المرحلة ٣)
     'fn2.sa.sub':'فواتير بمقدّم ودفعات — والمتبقّي وكشف حساب كل عميل بيتحسبوا لوحدهم.',
@@ -1542,6 +1549,7 @@ const strings = {
     'fn2.sa.st.open':'مفتوحة','fn2.sa.st.paid':'مدفوعة','fn2.sa.st.cancelled':'ملغية',
     'fn2.sa.err.no_lines':'لازم بند واحد على الأقل بسعر.',
     'fn2.sa.err.save':'الحفظ فشل — جرّب تاني.',
+    'fn2.sa.err.deposit':'العربون مااتسجّلش — والفاتورة كمان مااتحفظتش، الاتنين رجعوا مع بعض. راجع مبلغ العربون وجرّب تاني.',
     'fn2.sa.err.pay':'الدفعة ماتسجّلتش — تأكّد من المبلغ، والفاتورة الملغية مابتقبلش دفعات.',
     'fn2.sa.err.has_paid':'مينفعش الإلغاء — فيه دفعات اتحصّلت. ده بقى استرجاع مش إلغاء.',
 
@@ -1862,6 +1870,7 @@ const strings = {
     'fn2.bom.err.invalid':'اختار خامة وكمية أكبر من صفر.',
     'fn2.bom.err.no_components':'مفيش مكوّنات تتحسب منها تكلفة.',
     'fn2.bom.err.unknown_material':'مينفعش — فيه مكوّن خامته اتمسحت، والتكلفة هتبقى ناقصة.',
+    'fn2.bom.err.save':'الحفظ مامشيش — جرّب تاني.',
 
     // الحضور والمرتّبات (المرحلة ٥)
     'fn2.hr.attendance':'الحضور','fn2.hr.payroll':'المرتّبات',
@@ -1886,6 +1895,8 @@ const strings = {
     'fn2.hr.err.period':'حدّد الفترة الأول.',
     'fn2.hr.err.nobody':'ماخترتش حد في الكشف.',
     'fn2.hr.err.run':'الاعتماد فشل — جرّب تاني.',
+    'fn2.hr.err.paid':'التعليم كـ«مدفوع» مامشيش — الكشف لسه زي ما هو.',
+    'fn2.hr.err.save':'الحفظ مامشيش — جرّب تاني.',
 
     // الكانتين والمصروفات (المرحلة ٦)
     'fn2.ct.sub':'مشتريات العمالة — الكاش بيتسدّد في الحال، واللي على الحساب بيتخصم في أول كشف مرتّبات.',
@@ -3545,6 +3556,9 @@ const strings = {
     'fn2.pay.daily':'Daily','fn2.pay.weekly':'Weekly','fn2.pay.piece':'Piece rate',
     'fn2.m.add':'Add','fn2.m.edit':'Edit','fn2.m.saved':'Saved ✅',
     'fn2.m.required':'A name is required.',
+    'fn2.m.savefail':'The save did not go through — try again, and tell us if it keeps happening.',
+    'fn2.m.err.save':'The save did not go through — try again, and tell us if it keeps happening.',
+    'fn2.m.err.incomplete':'Nothing was saved — fill in the required fields with an amount above zero.',
     'fn2.m.in_use':'Cannot be deleted — it is used by existing records. Archive it instead.',
     'fn2.m.active':'Active','fn2.m.archived':'Archived','fn2.m.archive':'Archive','fn2.m.restore':'Restore',
     'fn2.m.search':'Search by name','fn2.m.empty':'Nothing here yet.','fn2.m.low':'Below minimum',
@@ -3575,6 +3589,8 @@ const strings = {
     'fn2.po.err.nothing':'Nothing was received — the quantities were blank or zero.',
     'fn2.po.err.receive':'Receiving failed — the order may be cancelled.',
     'fn2.po.err.has_received':'Cannot cancel — quantities have already arrived and entered stock.',
+    'fn2.po.err.incomplete':'Nothing was recorded — choose a supplier and an amount above zero.',
+    'fn2.po.err.pay':'The payment was not recorded — please try again.',
 
     // Sales (phase 3)
     'fn2.sa.sub':'Invoices with a deposit and further payments — the balance and each customer statement follow on their own.',
@@ -3594,6 +3610,7 @@ const strings = {
     'fn2.sa.st.open':'Open','fn2.sa.st.paid':'Paid','fn2.sa.st.cancelled':'Cancelled',
     'fn2.sa.err.no_lines':'At least one line with a price is required.',
     'fn2.sa.err.save':'Save failed — please try again.',
+    'fn2.sa.err.deposit':'The deposit was not recorded — and neither was the invoice; both were rolled back together. Check the deposit amount and try again.',
     'fn2.sa.err.pay':'The payment was not recorded — check the amount; a cancelled invoice takes no payments.',
     'fn2.sa.err.has_paid':'Cannot cancel — payments have been taken. That is a refund, not a cancellation.',
 
@@ -3913,6 +3930,7 @@ const strings = {
     'fn2.bom.err.invalid':'Choose a material and a quantity above zero.',
     'fn2.bom.err.no_components':'There are no components to cost from.',
     'fn2.bom.err.unknown_material':'Not possible — a component\'s material has been removed, so the cost would be short.',
+    'fn2.bom.err.save':'The save did not go through — please try again.',
 
     // Attendance and payroll (phase 5)
     'fn2.hr.attendance':'Attendance','fn2.hr.payroll':'Payroll',
@@ -3937,6 +3955,8 @@ const strings = {
     'fn2.hr.err.period':'Choose the period first.',
     'fn2.hr.err.nobody':'Nobody was selected for the run.',
     'fn2.hr.err.run':'The run failed — please try again.',
+    'fn2.hr.err.paid':'Marking the run as paid did not go through — it is unchanged.',
+    'fn2.hr.err.save':'The save did not go through — please try again.',
 
     // Canteen and expenses (phase 6)
     'fn2.ct.sub':'What workers take — cash settles on the spot, on account comes off the next payroll run.',

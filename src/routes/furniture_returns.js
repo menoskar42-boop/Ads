@@ -6,6 +6,10 @@ const { Pool } = require('pg');
 const RT = require('../furniture/returns');
 
 const router = express.Router();
+
+// Same rule as everywhere else in this sector: known codes only.
+const RETURN_ERRORS = ['no_lines', 'over_return', 'not_on_invoice', 'invoice_cancelled',
+  'invoice_not_found', 'save', 'refund'];
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
@@ -32,7 +36,8 @@ router.get('/', async (req, res) => {
     res.render('furniture_admin/returns', {
       company: req.company, tab: 'returns',
       returns, sales: sales.rows, customers: customers.rows, products: products.rows,
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: RETURN_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture returns]', e.message); res.status(500).send('error'); }
 });
@@ -93,7 +98,8 @@ router.get('/:id(\\d+)', async (req, res) => {
     if (!data) return res.redirect('/furniture/returns');
     res.render('furniture_admin/return_detail', {
       company: req.company, tab: 'returns', ...data,
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: RETURN_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture return]', e.message); res.status(500).send('error'); }
 });

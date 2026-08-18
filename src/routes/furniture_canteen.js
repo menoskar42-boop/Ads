@@ -39,6 +39,9 @@ router.get('/', async (req, res) => {
       company: req.company, tab: 'canteen',
       workers: workers.rows, rows: rows.rows, pending: pending.rows,
       saved: req.query.saved === '1',
+      // Whitelisted, never echoed: the page prints what the SERVER decided
+      // happened, not what the address bar says happened.
+      err: ['save', 'incomplete'].includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[furniture canteen]', e.message); res.status(500).send('error'); }
 });
@@ -47,15 +50,19 @@ router.post('/', async (req, res) => {
   const b = req.body || {};
   const workerId = parseInt(b.worker_id, 10) || null;
   const amount = num(b.amount);
-  if (workerId && amount > 0) {
-    try {
-      await pool.query(
-        `INSERT INTO furniture_canteen_purchases (company_id, worker_id, item, amount, paid_cash, buy_date)
-         VALUES ($1,${ref('furniture_workers', '$2', '$1')},$3,$4,$5,COALESCE($6, CURRENT_DATE))`,
-        [req.company.id, workerId, String(b.item || '').trim().slice(0, 120) || null,
-          amount, b.paid_cash === '1', date(b.buy_date)]
-      );
-    } catch (e) { console.error('[furniture canteen add]', e.message); }
+  // No worker or no amount means nothing was written. Saying "saved" for a
+  // row that does not exist is the same lie as saying it for one that failed.
+  if (!workerId || !(amount > 0)) return res.redirect('/furniture/canteen?err=incomplete');
+  try {
+    await pool.query(
+      `INSERT INTO furniture_canteen_purchases (company_id, worker_id, item, amount, paid_cash, buy_date)
+       VALUES ($1,${ref('furniture_workers', '$2', '$1')},$3,$4,$5,COALESCE($6, CURRENT_DATE))`,
+      [req.company.id, workerId, String(b.item || '').trim().slice(0, 120) || null,
+        amount, b.paid_cash === '1', date(b.buy_date)]
+    );
+  } catch (e) {
+    console.error('[furniture canteen add]', e.message);
+    return res.redirect('/furniture/canteen?err=save');
   }
   res.redirect('/furniture/canteen?saved=1');
 });

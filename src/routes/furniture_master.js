@@ -53,7 +53,7 @@ router.get('/:entity', async (req, res) => {
     res.render('furniture_admin/master', {
       company: req.company, tab: 'master',
       entity: req.entity, spec: req.spec, rows, edit, q, showArchived, counts,
-      err: req.query.err || null,
+      err: ['required', 'in_use', 'save'].includes(req.query.err) ? req.query.err : null,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture master]', e.message); res.status(500).send('error'); }
@@ -91,7 +91,10 @@ router.post('/:entity', async (req, res) => {
     }
     req.flog(isEdit ? 'master.edit' : 'master.add', 'master', isEdit ? id : null,
       `${req.entity} · ${values.name || ''}`);
-  } catch (e) { console.error('[furniture master save]', e.message); }
+  } catch (e) {
+    console.error('[furniture master save]', e.message);
+    return res.redirect(back(req.entity, '?err=save'));
+  }
   res.redirect(back(req.entity, '?saved=1'));
 });
 

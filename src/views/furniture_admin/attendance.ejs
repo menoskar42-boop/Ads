@@ -6,6 +6,7 @@
 </div>
 <p class="text-stone-500 mb-4 text-sm"><%= t('fn2.hr.attendance_sub') %></p>
 
+<% if (typeof err !== 'undefined' && err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.m.err.' + err) %></div><% } %>
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
 
 <form method="get" class="flex items-center gap-2 mb-4 flex-wrap">

@@ -50,6 +50,7 @@ router.get('/', async (req, res) => {
       company: req.company, tab: 'expenses',
       rows: rows.rows, byCat: byCat.rows, total, from, to,
       categories: CATEGORIES, saved: req.query.saved === '1',
+      err: ['save', 'incomplete'].includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[furniture expenses]', e.message); res.status(500).send('error'); }
 });
@@ -57,18 +58,21 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const b = req.body || {};
   const amount = num(b.amount);
-  if (amount > 0) {
-    try {
-      await pool.query(
-        `INSERT INTO furniture_expenses (company_id, category, amount, spend_date, note, branch_id)
-         VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5,$6)`,
-        [req.company.id, KEYS.includes(b.category) ? b.category : 'other',
-          amount, date(b.spend_date), String(b.note || '').trim().slice(0, 300) || null,
-          require('../furniture/branches').idToStamp(req.branch, b.branch_id, req.branches || [])]
-      );
-      req.flog('expense.add', 'expense', null,
-        `${KEYS.includes(b.category) ? b.category : 'other'} · ${amount}`);
-    } catch (e) { console.error('[furniture expense add]', e.message); }
+  // A zero or unreadable amount writes nothing, so it must not report a save.
+  if (!(amount > 0)) return res.redirect('/furniture/expenses?err=incomplete');
+  try {
+    await pool.query(
+      `INSERT INTO furniture_expenses (company_id, category, amount, spend_date, note, branch_id)
+       VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5,$6)`,
+      [req.company.id, KEYS.includes(b.category) ? b.category : 'other',
+        amount, date(b.spend_date), String(b.note || '').trim().slice(0, 300) || null,
+        require('../furniture/branches').idToStamp(req.branch, b.branch_id, req.branches || [])]
+    );
+    req.flog('expense.add', 'expense', null,
+      `${KEYS.includes(b.category) ? b.category : 'other'} · ${amount}`);
+  } catch (e) {
+    console.error('[furniture expense add]', e.message);
+    return res.redirect('/furniture/expenses?err=save');
   }
   res.redirect('/furniture/expenses?saved=1');
 });
