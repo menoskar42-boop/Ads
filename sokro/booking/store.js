@@ -42,18 +42,44 @@ async function create(userId, conversationId, kind, fields) {
  * Save the merged fields and the new status — scoped in the same statement, so
  * a booking id from anywhere cannot be written by the wrong user.
  */
-async function save(userId, id, { fields, status, site }) {
+async function save(userId, id, { fields, status, site, fingerprint }) {
   const r = await db().query(
     `UPDATE sokro_bookings
         SET fields = COALESCE($3::jsonb, fields),
             status = COALESCE($4, status),
             site   = COALESCE($5, site),
+            -- An explicit empty string clears it: an edit VOIDS a confirmation,
+            -- and COALESCE alone would quietly keep the old yes.
+            confirmed_fingerprint = CASE WHEN $6::text IS NULL THEN confirmed_fingerprint
+                                         WHEN $6 = '' THEN NULL ELSE $6 END,
+            confirmed_at = CASE WHEN $4 = 'confirmed' THEN now()
+                                WHEN $6 = '' THEN NULL ELSE confirmed_at END,
             updated_at = now()
       WHERE id=$1 AND user_id=$2
       RETURNING *`,
-    [id, userId, fields ? JSON.stringify(fields) : null, status || null, site || null]
+    [id, userId, fields ? JSON.stringify(fields) : null, status || null, site || null,
+      fingerprint === undefined ? null : String(fingerprint || '')]
   );
   return r.rows[0] || null;
 }
 
-module.exports = { open, create, save, OPEN };
+/**
+ * Mark it sent, ONCE.
+ *
+ * The claim is the same statement that checks the state, so two requests — a
+ * double tap, a retry after a timeout — cannot both come back with a row and
+ * both submit the booking. This is the one write in the module where being
+ * late is better than being twice.
+ */
+async function claimForSubmit(userId, id, fingerprint) {
+  const r = await db().query(
+    `UPDATE sokro_bookings
+        SET status='submitted', submitted_at=now(), updated_at=now()
+      WHERE id=$1 AND user_id=$2 AND status='confirmed' AND confirmed_fingerprint=$3
+      RETURNING *`,
+    [id, userId, fingerprint]
+  );
+  return r.rows[0] || null;
+}
+
+module.exports = { open, create, save, claimForSubmit, OPEN };

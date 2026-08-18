@@ -13,6 +13,7 @@
 // can only get one message wrong, and the state survives it.
 const state = require('./state');
 const store = require('./store');
+const flow = require('./flow');
 
 const KIND_WORDS = [
   [/طيار|طيران|تذكرة طيران|flight|رحلة جوي/i, 'flight'],
@@ -61,6 +62,33 @@ async function extract(ctx, current, text) {
  * rule ever gets verified.
  */
 async function turn(ctx, current, text) {
+  // At the confirmation gate the message is an ANSWER, not more details. Reading
+  // «أيوه» as a field value — or worse, running the extractor over it and then
+  // treating the turn as progress — is how a booking gets sent while the user
+  // was still looking at the recap.
+  if (current.status === 'ready_for_confirmation') {
+    const answer = flow.readAnswer(text);
+    if (answer === 'yes') {
+      const r = flow.advance(current, 'confirmed', { answer });
+      return { state: r.booking, say: flow.prompt(r.booking), done: r.ok, answer };
+    }
+    if (answer === 'no') {
+      const r = flow.advance(current, 'cancelled', {});
+      return { state: r.booking, say: 'تمام، ألغيت الحجز. قوللي لو تحب تعدّل حاجة.', done: false, answer };
+    }
+    // Unclear on purpose: another question costs a message, a wrong yes costs a
+    // ticket. But an edit is still an edit — read it, and if anything changed
+    // the confirmation is void and the recap is shown again.
+    const { state: edited } = await extract(ctx, current, text);
+    const after = flow.afterEdit(current, edited.fields);
+    if (after.status !== current.status) {
+      const back = flow.advance(after, 'ready_for_confirmation', {});
+      const b = back.ok ? back.booking : after;
+      return { state: b, say: flow.prompt(b) || state.nextQuestion(b), done: false, answer };
+    }
+    return { state: current, say: flow.prompt(current), done: false, answer };
+  }
+
   const { state: next, rejected } = await extract(ctx, current, text);
   const still = state.missing(next);
   const problems = rejected.filter((r) => r.why === 'invalid');
@@ -72,7 +100,12 @@ async function turn(ctx, current, text) {
     return { state: next, say: `${p.label} ${how}.`, done: false };
   }
   if (still.length) return { state: next, say: still[0].ask, done: false };
-  return { state: { ...next, status: 'reviewing' }, say: null, done: true };
+  // Complete → straight to the recap and the question. The stage is set by the
+  // flow, which refuses it while anything required is missing.
+  const toReview = flow.advance({ ...next, status: 'collecting' }, 'reviewing', {});
+  const ready = flow.advance(toReview.booking, 'ready_for_confirmation', {});
+  const b = ready.ok ? ready.booking : toReview.booking;
+  return { state: b, say: flow.prompt(b), done: true };
 }
 
-module.exports = { detectKind, extract, turn, state, store };
+module.exports = { detectKind, extract, turn, state, store, flow };

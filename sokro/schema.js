@@ -145,6 +145,10 @@ async function ensureSokroSchema() {
         status          TEXT NOT NULL DEFAULT 'collecting',
         fields          JSONB NOT NULL DEFAULT '{}'::jsonb,
         site            TEXT,
+        -- The exact values the user said yes to. A booking is submitted only
+        -- while this still matches its fields: editing after confirming voids
+        -- the confirmation, because "the date I agreed to" IS the agreement.
+        confirmed_fingerprint TEXT,
         confirmed_at    TIMESTAMPTZ,
         submitted_at    TIMESTAMPTZ,
         created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
