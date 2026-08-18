@@ -10,8 +10,12 @@
   var CARDS = [
     { key:'sales',     icon:'🛒', label:'fn2.card.sales',     value: d.period.invoiced,        tone:'text-stone-900' },
     { key:'sales',     icon:'⏳', label:'fn2.card.due',       value: d.owedByCustomers,        tone:'text-amber-700' },
-    { key:'inventory', icon:'📦', label:'fn2.card.low_stock', value: d.stock.lowCount, plain:true, tone: d.stock.lowCount ? 'text-amber-700' : 'text-stone-900' },
-    { key:'purchases', icon:'🧾', label:'fn2.card.suppliers', value: d.owedToSuppliers,        tone:'text-amber-700' },
+    // Stock and supplier debt are company-wide by design — one timber store,
+    // one supplier list (src/furniture/branches.js). While a branch filter is
+    // on, these cards say so instead of letting the owner read them as this
+    // branch's numbers.
+    { key:'inventory', icon:'📦', label:'fn2.card.low_stock', value: d.stock.lowCount, plain:true, wide:true, tone: d.stock.lowCount ? 'text-amber-700' : 'text-stone-900' },
+    { key:'purchases', icon:'🧾', label:'fn2.card.suppliers', value: d.owedToSuppliers,        wide:true, tone:'text-amber-700' },
     { key:'delivery',  icon:'🚚', label:'fn2.card.late_delivery', value: d.lateDeliveries, plain:true, tone: d.lateDeliveries ? 'text-red-700' : 'text-stone-900' },
   ].filter(function(c){ return flags.has(c.key); });
 %>
@@ -19,7 +23,7 @@
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
   <% CARDS.forEach(function(c){ %>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-stone-500 mb-1"><%= c.icon %> <%= t(c.label) %></div>
+    <div class="text-xs text-stone-500 mb-1"><%= c.icon %> <%= t(c.label) %><% if (c.wide && d.branch != null) { %> <span class="text-[10px] bg-stone-100 rounded px-1 py-0.5 align-middle"><%= t('fn2.card.all_branches') %></span><% } %></div>
     <div class="text-2xl font-extrabold <%= c.tone %>"><%= c.plain ? c.value : money(c.value) %></div>
   </div>
   <% }); %>
@@ -32,13 +36,13 @@
   </div>
   <% if (flags.has('inventory')) { %>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-stone-500 mb-1">🪵 <%= t('fn2.rp.stock_value') %></div>
+    <div class="text-xs text-stone-500 mb-1">🪵 <%= t('fn2.rp.stock_value') %><% if (d.branch != null) { %> <span class="text-[10px] bg-stone-100 rounded px-1 py-0.5 align-middle"><%= t('fn2.card.all_branches') %></span><% } %></div>
     <div class="text-2xl font-extrabold text-stone-900"><%= money(d.stock.value) %></div>
   </div>
   <% } %>
   <% if (flags.has('purchases')) { %>
   <div class="bg-white rounded-2xl shadow-sm p-4">
-    <div class="text-xs text-stone-500 mb-1">📬 <%= t('fn2.rp.open_orders') %></div>
+    <div class="text-xs text-stone-500 mb-1">📬 <%= t('fn2.rp.open_orders') %><% if (d.branch != null) { %> <span class="text-[10px] bg-stone-100 rounded px-1 py-0.5 align-middle"><%= t('fn2.card.all_branches') %></span><% } %></div>
     <div class="text-2xl font-extrabold text-stone-900"><%= d.openOrders %></div>
   </div>
   <% } %>

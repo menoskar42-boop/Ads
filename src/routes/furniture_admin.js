@@ -128,7 +128,9 @@ router.get('/', async (req, res) => {
     res.render('furniture_admin/dashboard', {
       company: req.company, tab: 'dashboard',
       settings: await settingsOf(req.company.id),
-      d: await R.dashboard(pool, req.company.id),
+      // req.branch was prepared on every request and never passed. That is the
+      // whole of item 31: the filter existed, the numbers ignored it.
+      d: await R.dashboard(pool, req.company.id, req.branch),
     });
   } catch (e) { console.error('[furniture dashboard]', e.message); res.status(500).send('error'); }
 });

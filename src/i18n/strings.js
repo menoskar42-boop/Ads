@@ -1909,6 +1909,7 @@ const strings = {
     'fn2.rp.difference_hint':'⚠️ ده فرق الفترة (فواتير − خامات ومرتّبات ومصروفات)، مش ربح محاسبي: الخامة اللي اشتريتها الشهر ده ممكن تتصرف الشهر الجاي، والمرتّب بيغطّي شغل اتباع بعدين.',
     'fn2.rp.cash':'رصيد الكاش','fn2.rp.stock_value':'قيمة المخزون',
     'fn2.rp.open_orders':'أوامر شراء مفتوحة','fn2.rp.this_month':'الشهر ده',
+    'fn2.card.all_branches':'كل الفروع',
     'fn2.rp.low_stock':'خامات تحت الحد','fn2.rp.stock_ok':'مفيش خامة تحت الحد.',
     'fn2.rp.none':'مفيش أرصدة.','fn2.rp.export':'تصدير Excel','fn2.rp.line':'البند',
 
@@ -3958,6 +3959,7 @@ const strings = {
     'fn2.rp.difference_hint':'⚠️ This is the period difference (invoiced − materials, payroll and expenses), not accounting profit: timber bought this month may be used next, and payroll covers work sold later.',
     'fn2.rp.cash':'Cash balance','fn2.rp.stock_value':'Stock value',
     'fn2.rp.open_orders':'Open purchase orders','fn2.rp.this_month':'this month',
+    'fn2.card.all_branches':'All branches',
     'fn2.rp.low_stock':'Materials below minimum','fn2.rp.stock_ok':'Nothing below its minimum.',
     'fn2.rp.none':'No balances.','fn2.rp.export':'Export to Excel','fn2.rp.line':'Line',
 

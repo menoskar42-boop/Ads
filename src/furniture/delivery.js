@@ -94,15 +94,26 @@ async function schedule(pool, companyId, o) {
   }
   if (!customerId && !saleId) throw new Error('no_customer');
 
+  /* branch_id was never written, and the delivery board filters on it.
+   *
+   * So booking a trip while looking at one showroom produced a row with
+   * branch_id NULL, which the branch-filtered board then did not show. The
+   * appointment did not fail — it VANISHED, which is the worse of the two: a
+   * failure gets rebooked, a disappearance gets discovered by a customer
+   * waiting at home for a van nobody dispatched.
+   *
+   * The branch comes from the same place every other furniture write takes it:
+   * the active filter when the form does not name one. */
   const r = await pool.query(
     `INSERT INTO furniture_deliveries
-       (company_id, sale_id, customer_id, kind, scheduled_date, slot, status, crew, address, phone, note, fee)
-     VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6,'scheduled',$7,$8,$9,$10,$11) RETURNING id`,
+       (company_id, sale_id, customer_id, kind, scheduled_date, slot, status, crew, address, phone, note, fee, branch_id)
+     VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE),$6,'scheduled',$7,$8,$9,$10,$11,$12) RETURNING id`,
     [companyId, saleId, customerId, oneOf(KINDS, o.kind, 'delivery'), o.scheduledDate || null,
       o.slot ? oneOf(SLOTS, o.slot, null) : null,
       String(o.crew || '').trim().slice(0, 120) || null,
       address, phone, String(o.note || '').trim().slice(0, 300) || null,
-      Math.max(0, round2(o.fee))]);
+      Math.max(0, round2(o.fee)),
+      require('./branches').idToStamp(o.branch, o.branchId, o.branches || [])]);
   return r.rows[0];
 }
 

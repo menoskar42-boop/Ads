@@ -22,10 +22,13 @@ function periodOf(q) {
 }
 
 /** Everything the page and the exports read, gathered once. */
-async function gather(pool, cid, from, to) {
+async function gather(pool, cid, from, to, branch = null) {
+  const B = require('../furniture/branches');
+  const expParams = [cid, from, to];
+  const expScope = B.sqlFor(branch, expParams);
   const [period, cash, stock, customers, suppliers, payroll, expenses, byBranch] = await Promise.all([
-    R.periodSummary(pool, cid, from, to),
-    R.cashBalance(pool, cid),
+    R.periodSummary(pool, cid, from, to, branch),
+    R.cashBalance(pool, cid, branch),
     R.inventory(pool, cid),
     S.customerBalances(pool, cid),
     PU.supplierBalances(pool, cid),
@@ -36,9 +39,11 @@ async function gather(pool, cid, from, to) {
         ORDER BY r.period_end DESC, r.id DESC LIMIT 200`, [cid, from, to]),
     pool.query(
       `SELECT category, SUM(amount) AS total, COUNT(*)::int AS n FROM furniture_expenses
-        WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3 GROUP BY category ORDER BY 2 DESC`,
-      [cid, from, to]),
-    require('../furniture/branches').segment(pool, cid, from, to),
+        WHERE company_id=$1 AND spend_date BETWEEN $2 AND $3${expScope} GROUP BY category ORDER BY 2 DESC`,
+      expParams),
+    // The per-branch breakdown is the one table that must stay unfiltered —
+    // it exists to compare the branches with each other.
+    B.segment(pool, cid, from, to),
   ]);
   return { period, cash, stock, customers, suppliers, byBranch,
     payroll: payroll.rows, expenses: expenses.rows };
@@ -47,7 +52,7 @@ async function gather(pool, cid, from, to) {
 router.get('/', async (req, res) => {
   const { from, to } = periodOf(req.query);
   try {
-    const data = await gather(pool, req.company.id, from, to);
+    const data = await gather(pool, req.company.id, from, to, req.branch);
     res.render('furniture_admin/reports', {
       company: req.company, tab: 'reports', from, to, ...data,
     });
@@ -64,7 +69,7 @@ router.get('/export', async (req, res) => {
   const t = res.locals.t;
   const cat = (k) => { const key = 'fn2.ex.cat.' + k; const v = t(key); return v !== key ? v : k; };
   try {
-    const d = await gather(pool, req.company.id, from, to);
+    const d = await gather(pool, req.company.id, from, to, req.branch);
 
     const sheets = [
       { name: t('fn2.rp.line'), widths: [30, 16], rows: [

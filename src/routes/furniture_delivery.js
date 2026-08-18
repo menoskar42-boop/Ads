@@ -46,6 +46,9 @@ router.post('/', async (req, res) => {
       saleId: b.sale_id, customerId: b.customer_id, kind: b.kind,
       scheduledDate: date(b.scheduled_date), slot: b.slot, crew: b.crew,
       address: b.address, phone: b.phone, note: b.note, fee: b.fee,
+      // Which showroom this trip belongs to: what the form says if it says
+      // anything, otherwise the branch the user is looking at.
+      branch: req.branch, branchId: b.branch_id, branches: req.branches || [],
     });
     req.flog('delivery.book', 'delivery', job.id, `#${job.id} · ${b.kind === 'install' ? 'install' : 'delivery'}`);
     res.redirect('/furniture/delivery?saved=1');
