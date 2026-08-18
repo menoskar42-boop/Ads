@@ -13,6 +13,7 @@ const audit = require('../lib/audit');
 const clinicPerms = require('../clinic/perms');
 const flow = require('../lib/order_flow');
 const booking = require('../clinic/booking');
+const money = require('../lib/money');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -781,7 +782,6 @@ router.post('/invoices', async (req, res) => {
   const pid = parseInt(b.patient_id, 10) || null;
   const serviceIds = Array.isArray(b.service_id) ? b.service_id : b.service_id ? [b.service_id] : [];
   const num = (v, d) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : d);
-  const discount = num(b.discount_amount, 0);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -796,12 +796,18 @@ router.post('/invoices', async (req, res) => {
     }
     const manualName = String(b.manual_name || '').trim().slice(0, 120);
     if (manualName) {
-      const price = num(b.manual_price, 0);
+      // A manual line with a negative price is a discount wearing a service's
+      // name — it dodges the discount cap below and can drag the bill under zero.
+      const price = money.positive(b.manual_price, 0);
       items.push({ service_id: null, name: manualName, quantity: 1, unit_price: price, total_price: price, doctor_share: 0 });
     }
     if (!items.length) { await client.query('ROLLBACK'); return res.redirect('/clinic/invoices'); }
-    const subtotal = items.reduce((a, it) => a + it.total_price, 0);
-    const total = Math.max(0, subtotal - discount);
+    const subtotal = money.r2(items.reduce((a, it) => a + it.total_price, 0));
+    // The discount is bounded by what it discounts, and the bound is applied
+    // HERE, not on the way in: `discount_amount=-50` used to reach
+    // `subtotal - (-50)` and add fifty pounds to a patient's bill.
+    const discount = money.discount(b.discount_amount, subtotal);
+    const total = money.r2(subtotal - discount);
     // An invoice names a person and asks them for money, so a patient_id that
     // is not ours writes nothing at all — unlike the visit and doctor links,
     // which are allowed to fall to NULL.
