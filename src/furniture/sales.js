@@ -150,6 +150,65 @@ async function customerBalances(pool, companyId) {
   return r.rows;
 }
 
+/**
+ * What customers actually owe, by the same arithmetic the statement uses.
+ *
+ * The dashboard card computed `SUM(total - paid) FROM furniture_sales WHERE
+ * status='open'` — three differences from the statement, all of them in the
+ * showroom's favour on paper:
+ *
+ *   · returns were not deducted, so credit already given back was still being
+ *     chased;
+ *   · unpaid delivery fees were not added, so real money owed was missing;
+ *   · only 'open' invoices counted, so an invoice marked paid that later had a
+ *     payment reversed vanished from the total.
+ *
+ * Two numbers for one question is worse than either of them alone: the owner
+ * opens the statement to chase a customer and it disagrees with the figure that
+ * made him open it. So this reuses the statement's own expression, and the
+ * dashboard asks THIS.
+ *
+ * Only positive balances are summed. A customer in credit is not a negative
+ * receivable — netting them off would quietly reduce what other customers owe.
+ */
+async function receivablesTotal(pool, companyId, branch = null) {
+  const B = require('./branches');
+  const p = [companyId];
+  /* Branch scoping matches the reports: rows that carry branch_id filter on it,
+     payments reach theirs through the invoice. */
+  const invScope = B.sqlFor(branch, p, 's.branch_id');
+  const payScope = branch == null ? '' : (branch === 'none'
+    ? " AND EXISTS (SELECT 1 FROM furniture_sales ps WHERE ps.id = pm.sale_id AND ps.branch_id IS NULL)"
+    : ` AND EXISTS (SELECT 1 FROM furniture_sales ps WHERE ps.id = pm.sale_id AND ps.branch_id = $${p.push(branch)})`);
+  const retScope = branch == null ? '' : (branch === 'none'
+    ? " AND EXISTS (SELECT 1 FROM furniture_sales rs WHERE rs.id = r.sale_id AND rs.branch_id IS NULL)"
+    : ` AND EXISTS (SELECT 1 FROM furniture_sales rs WHERE rs.id = r.sale_id AND rs.branch_id = $${p.push(branch)})`);
+  const dlvScope = B.sqlFor(branch, p, 'd.branch_id');
+
+  const r = await pool.query(
+    `SELECT COALESCE(SUM(GREATEST(bal, 0)), 0) AS v FROM (
+       SELECT c.id,
+              COALESCE(inv.total,0) - COALESCE(pay.total,0)
+                - COALESCE(ret.credited,0) + COALESCE(ret.refunded,0)
+                + COALESCE(dlv.fees_due,0) AS bal
+         FROM furniture_customers c
+         LEFT JOIN (SELECT s.customer_id, SUM(s.total) AS total FROM furniture_sales s
+                     WHERE s.company_id=$1 AND s.status <> 'cancelled'${invScope}
+                     GROUP BY s.customer_id) inv ON inv.customer_id = c.id
+         LEFT JOIN (SELECT pm.customer_id, SUM(pm.amount) AS total FROM furniture_customer_payments pm
+                     WHERE pm.company_id=$1${payScope}
+                     GROUP BY pm.customer_id) pay ON pay.customer_id = c.id
+         LEFT JOIN (SELECT r.customer_id, SUM(r.total) AS credited, SUM(r.refunded) AS refunded
+                      FROM furniture_returns r WHERE r.company_id=$1${retScope}
+                     GROUP BY r.customer_id) ret ON ret.customer_id = c.id
+         LEFT JOIN (SELECT d.customer_id, SUM(d.fee - d.fee_paid) AS fees_due FROM furniture_deliveries d
+                     WHERE d.company_id=$1 AND d.fee > d.fee_paid${dlvScope}
+                     GROUP BY d.customer_id) dlv ON dlv.customer_id = c.id
+        WHERE c.company_id=$1 AND c.is_active
+     ) t`, p);
+  return round2(r.rows[0].v);
+}
+
 /** One customer's invoices and payments, for the statement page. */
 async function statement(pool, companyId, customerId) {
   const [customer, invoices, payments, returns, fees] = await Promise.all([
@@ -191,4 +250,4 @@ async function statement(pool, companyId, customerId) {
   };
 }
 
-module.exports = { round2, invoiceTotals, dueOf, statusFor, syncPaid, addPayment, customerBalances, statement };
+module.exports = { round2, invoiceTotals, dueOf, statusFor, syncPaid, addPayment, customerBalances, receivablesTotal, statement };

@@ -154,8 +154,12 @@ async function dashboard(pool, cid, branch = null) {
     // — one timber store, one supplier list. See src/furniture/branches.js. The
     // dashboard labels these cards so the owner is not left to assume.
     inventory(pool, cid),
-    (() => { const p = [cid]; return one(pool, `SELECT COALESCE(SUM(total - paid),0) v FROM furniture_sales
-                WHERE company_id=$1 AND status='open'${scope(branch, p, 'branch_id')}`, p); })(),
+    /* The statement's own arithmetic, not a second one. This card used to be
+       `SUM(total - paid) WHERE status='open'`: it chased credit already given
+       back, missed unpaid delivery fees, and dropped any invoice not marked
+       open. So the owner opened a customer's statement to chase them and it
+       disagreed with the number that sent him there. */
+    require('./sales').receivablesTotal(pool, cid, branch),
     one(pool, `SELECT COALESCE(recv,0) - COALESCE(paid,0) v FROM (
                  SELECT (SELECT COALESCE(SUM(i.qty_received * i.unit_cost),0)
                            FROM furniture_purchase_orders po
