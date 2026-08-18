@@ -28,6 +28,7 @@ router.get('/attendance', async (req, res) => {
       company: req.company, tab: 'hr',
       workers: workers.rows, marks: by, day, statuses: P.STATUSES,
       saved: req.query.saved === '1',
+      err: req.query.err === 'save' ? 'save' : null,
     });
   } catch (e) { console.error('[furniture attendance]', e.message); res.status(500).send('error'); }
 });
@@ -54,7 +55,10 @@ router.post('/attendance', async (req, res) => {
         [cid, workerId, day, status, hours]
       );
     }
-  } catch (e) { console.error('[furniture attendance save]', e.message); }
+  } catch (e) {
+    console.error('[furniture attendance save]', e.message);
+    return res.redirect('/furniture/hr/attendance?day=' + day + '&err=save');
+  }
   res.redirect('/furniture/hr/attendance?day=' + day + '&saved=1');
 });
 
@@ -96,7 +100,8 @@ router.get('/payroll', async (req, res) => {
       company: req.company, tab: 'hr',
       rows, workers: workers.rows, history: history.rows, start, end,
       weekDays: P.WEEK_DAYS, dayHours: P.DAY_HOURS,
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: ['period', 'nobody', 'run', 'paid'].includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture payroll]', e.message); res.status(500).send('error'); }
 });
@@ -137,7 +142,10 @@ router.post('/payroll/:id(\\d+)/paid', async (req, res) => {
     await pool.query('UPDATE furniture_payroll_runs SET paid=true WHERE id=$1 AND company_id=$2',
       [id, req.company.id]);
     req.flog('payroll.paid', 'payroll', id, '#' + id);
-  } catch (e) { console.error('[furniture payroll paid]', e.message); }
+  } catch (e) {
+    console.error('[furniture payroll paid]', e.message);
+    return res.redirect('/furniture/hr/payroll?err=paid');
+  }
   res.redirect('/furniture/hr/payroll');
 });
 

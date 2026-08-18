@@ -12,6 +12,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 
+// Codes the server knows, so the page never repeats the address bar's words.
+const PO_ERRORS = ['no_lines', 'save', 'nothing', 'receive', 'has_received', 'incomplete', 'pay'];
+
 // ── List + supplier balances ─────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const cid = req.company.id;
@@ -40,7 +43,8 @@ router.get('/', async (req, res) => {
       company: req.company, tab: 'purchases',
       orders: orders.rows, suppliers: suppliers.rows, materials: materials.rows,
       balances, status, statuses: STATUSES,
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: PO_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture purchases]', e.message); res.status(500).send('error'); }
 });
@@ -116,7 +120,8 @@ router.get('/:id', async (req, res) => {
     res.render('furniture_admin/purchase_detail', {
       company: req.company, tab: 'purchases',
       po, items, payments, totals: orderTotals(items),
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: PO_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture po]', e.message); res.status(500).send('error'); }
 });
@@ -163,18 +168,23 @@ router.post('/pay', async (req, res) => {
   const b = req.body || {};
   const amount = num(b.amount);
   const supplierId = parseInt(b.supplier_id, 10) || null;
-  if (supplierId && amount > 0) {
-    try {
-      await pool.query(
-        `INSERT INTO furniture_supplier_payments (company_id, supplier_id, amount, pay_date, note)
-         VALUES ($1,${ref('furniture_suppliers', '$2', '$1')},$3,COALESCE($4, CURRENT_DATE),$5)`,
-        [req.company.id, supplierId, amount, date(b.pay_date), String(b.note || '').trim().slice(0, 300) || null]
-      );
-      req.flog('supplier_payment.add', 'supplier_payment', supplierId, String(amount));
-    } catch (e) { console.error('[furniture supplier pay]', e.message); }
+  // Where the money went is the one thing this screen exists to record, so a
+  // payment that was not written must never leave with a green banner.
+  const back = (q) => (b.back === 'order' && b.po_id
+    ? '/furniture/purchases/' + parseInt(b.po_id, 10) + q : '/furniture/purchases' + q);
+  if (!supplierId || !(amount > 0)) return res.redirect(back('?err=incomplete'));
+  try {
+    await pool.query(
+      `INSERT INTO furniture_supplier_payments (company_id, supplier_id, amount, pay_date, note)
+       VALUES ($1,${ref('furniture_suppliers', '$2', '$1')},$3,COALESCE($4, CURRENT_DATE),$5)`,
+      [req.company.id, supplierId, amount, date(b.pay_date), String(b.note || '').trim().slice(0, 300) || null]
+    );
+    req.flog('supplier_payment.add', 'supplier_payment', supplierId, String(amount));
+  } catch (e) {
+    console.error('[furniture supplier pay]', e.message);
+    return res.redirect(back('?err=pay'));
   }
-  res.redirect(b.back === 'order' && b.po_id ? '/furniture/purchases/' + parseInt(b.po_id, 10) + '?saved=1'
-    : '/furniture/purchases?saved=1');
+  res.redirect(back('?saved=1'));
 });
 
 module.exports = router;

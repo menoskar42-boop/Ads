@@ -10,13 +10,19 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 
+// The page prints the reason the SERVER decided on. Rendering `req.query.err`
+// straight would let a link put words of somebody else's choosing on the
+// merchant's screen — and this project has already fixed that once.
+const BOM_ERRORS = ['invalid', 'no_components', 'unknown_material', 'save'];
+
 // ── Catalogue with computed costs ────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     res.render('furniture_admin/bom', {
       company: req.company, tab: 'bom',
       products: await B.productCosts(pool, req.company.id),
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: BOM_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture bom]', e.message); res.status(500).send('error'); }
 });
@@ -40,7 +46,8 @@ router.get('/:id(\\d+)', async (req, res) => {
       company: req.company, tab: 'bom',
       product, materials: materials.rows, costed,
       margin: B.marginOf(product.selling_price, components.length ? costed.cost : product.estimated_cost, components.length > 0),
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: BOM_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture bom product]', e.message); res.status(500).send('error'); }
 });
@@ -69,7 +76,10 @@ router.post('/:id(\\d+)/components', async (req, res) => {
         [cid, id, materialId, qty]
       );
     }
-  } catch (e) { console.error('[furniture bom add]', e.message); }
+  } catch (e) {
+    console.error('[furniture bom add]', e.message);
+    return res.redirect('/furniture/bom/' + id + '?err=save');
+  }
   res.redirect('/furniture/bom/' + id + '?saved=1');
 });
 
@@ -95,7 +105,10 @@ router.post('/:id(\\d+)/apply-cost', async (req, res) => {
     // sitting in the product record.
     if (unknown > 0) return res.redirect('/furniture/bom/' + id + '?err=unknown_material');
     await pool.query('UPDATE furniture_products SET estimated_cost=$1 WHERE id=$2 AND company_id=$3', [cost, id, cid]);
-  } catch (e) { console.error('[furniture bom apply]', e.message); }
+  } catch (e) {
+    console.error('[furniture bom apply]', e.message);
+    return res.redirect('/furniture/bom/' + id + '?err=save');
+  }
   res.redirect('/furniture/bom/' + id + '?saved=1');
 });
 

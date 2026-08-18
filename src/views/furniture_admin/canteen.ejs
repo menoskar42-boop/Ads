@@ -7,6 +7,7 @@
 <h1 class="text-2xl font-black text-stone-900 mb-1">🍵 <%= t('fn2.flag.canteen') %></h1>
 <p class="text-stone-500 mb-5 text-sm"><%= t('fn2.ct.sub') %></p>
 
+<% if (typeof err !== 'undefined' && err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('fn2.m.err.' + err) %></div><% } %>
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div><% } %>
 
 <div class="grid lg:grid-cols-3 gap-5">

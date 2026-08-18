@@ -23,7 +23,7 @@
 <% } %>
 <% if (err) { %>
   <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800">
-    <%= err === 'in_use' ? t('fn2.m.in_use') : t('fn2.m.required') %>
+    <%= err === 'in_use' ? t('fn2.m.in_use') : err === 'save' ? t('fn2.m.savefail') : t('fn2.m.required') %>
   </div>
 <% } %>
 

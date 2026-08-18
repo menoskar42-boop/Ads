@@ -13,6 +13,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 
+// Codes the server knows. The page never prints the address bar's own words.
+const SALE_ERRORS = ['no_lines', 'save', 'deposit', 'pay', 'has_paid'];
+
 async function taxPercentOf(cid) {
   const r = await pool.query('SELECT tax_percent FROM furniture_settings WHERE company_id=$1', [cid]);
   return r.rows[0] ? Number(r.rows[0].tax_percent) : 0;
@@ -42,7 +45,8 @@ router.get('/', async (req, res) => {
       company: req.company, tab: 'sales',
       sales: sales.rows, customers: customers.rows, products: products.rows,
       balances, taxPercent, status,
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: SALE_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture sales]', e.message); res.status(500).send('error'); }
 });
@@ -89,25 +93,34 @@ router.post('/', async (req, res) => {
     await require('../furniture/warranty')
       .createForSale(client, cid, sale.id, parseInt(b.customer_id, 10) || null, lines);
 
-    await client.query('COMMIT');
-
-    // The deposit is a payment like any other, taken after the invoice exists so
-    // it goes through the same path — one way for money to enter, not two.
+    // The deposit goes through the same path as any other payment — one way for
+    // money to enter, not two — but on THIS transaction. Written afterwards on
+    // its own connection, a deposit that failed left the invoice saved, the
+    // money unrecorded, and the showroom looking at a success message: the
+    // customer is then chased for a sum they already handed over.
     const deposit = num(b.deposit);
     if (deposit > 0) {
       try {
-        await S.addPayment(pool, cid, {
+        await S.recordPayment(client, cid, {
           saleId: sale.id, customerId: parseInt(b.customer_id, 10) || null,
           amount: deposit, payDate: date(b.sale_date), method: b.deposit_method,
         });
-      } catch (e) { console.error('[furniture deposit]', e.message); }
+      } catch (e) {
+        // Tagged so the screen can name which half went wrong. Both halves are
+        // rolled back either way — "the invoice saved but the deposit did not"
+        // is exactly the state this route is not allowed to leave behind.
+        e.furnitureCode = 'deposit';
+        throw e;
+      }
     }
+
+    await client.query('COMMIT');
     req.flog('sale.create', 'sale', sale.id, `#${sale.id} · ${S.round2(t.total)}`);
     res.redirect('/furniture/sales/' + sale.id + '?saved=1');
   } catch (e) {
     await client.query('ROLLBACK');
     console.error('[furniture sale create]', e.message);
-    res.redirect('/furniture/sales?err=save');
+    res.redirect('/furniture/sales?err=' + (e.furnitureCode === 'deposit' ? 'deposit' : 'save'));
   } finally { client.release(); }
 });
 
@@ -141,7 +154,8 @@ router.get('/:id(\\d+)', async (req, res) => {
       company: req.company, tab: 'sales',
       sale, items: items.rows, payments: payments.rows, deliveries, warranties,
       due: S.dueOf(sale),
-      err: req.query.err || null, saved: req.query.saved === '1',
+      err: SALE_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture sale]', e.message); res.status(500).send('error'); }
 });

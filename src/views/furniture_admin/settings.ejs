@@ -8,6 +8,12 @@
   <%= t('fn2.set.saved') %>
 </div>
 <% } %>
+<%# The server knew the write failed and the page used to say "saved". %>
+<% if (typeof err !== 'undefined' && err === 'save') { %>
+<div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 mb-5 text-sm text-red-800">
+  <%= t('fn2.m.savefail') %>
+</div>
+<% } %>
 
 <form method="post" action="/furniture/settings" class="grid lg:grid-cols-2 gap-5">
   <!-- ── Business details ─────────────────────────────────────────────────── -->
