@@ -511,9 +511,28 @@ router.post('/api/report', auth.requireAuth, async (req, res) => {
 
 // ── Scheduler / watchers (recurring goals) ───────────────────────────────────
 router.post('/api/schedule', auth.requireAuth, async (req, res) => {
-  const goal = String((req.body && req.body.goal) || '').trim();
+  const b = req.body || {};
+  const goal = String(b.goal || '').trim();
   if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
-  res.json({ ok: true, task: await scheduler.create(req.sokroUser.id, goal, req.body.everyMinutes) });
+  // A moment («فكّرني الساعة ٥») or a rhythm («كل ساعة»). A time that already
+  // passed is a typo, and saying so beats firing immediately.
+  const task = await scheduler.create(req.sokroUser.id, goal,
+    { runAt: b.runAt || b.at, everyMinutes: b.everyMinutes }, b.title);
+  if (task && task.error) {
+    return res.status(400).json({ ok: false, error: task.error,
+      message: task.error === 'past' ? 'الميعاد ده عدّى خلاص — اكتب وقت جاي.' : 'مش فاهم الوقت ده. اكتبه كتاريخ وساعة.' });
+  }
+  res.json({ ok: true, task });
+});
+
+// ── The inbox a reminder lands in ────────────────────────────────────────────
+router.get('/api/notifications', auth.requireAuth, async (req, res) => {
+  const rows = await scheduler.notifications(req.sokroUser.id, req.query.limit);
+  res.json({ ok: true, unread: rows.filter((r) => !r.read_at).length, notifications: rows });
+});
+router.post('/api/notifications/:id/read', auth.requireAuth, async (req, res) => {
+  await scheduler.markRead(req.sokroUser.id, req.params.id);
+  res.json({ ok: true });
 });
 router.get('/api/schedule', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, tasks: await scheduler.list(req.sokroUser.id) });
