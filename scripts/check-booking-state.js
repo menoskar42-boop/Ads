@@ -113,8 +113,10 @@ const check = (label, ok, extra) => {
     check('وتاريخ مش مفهوم مابيتخزّنش', t.state.fields.date === undefined);
 
     t = await B.turn(llm({ date: '2026-09-05', name: 'أحمد محمد', national_id: '29001011234567', phone: '01001234567' }), t.state, '…');
-    check('ولما يكتمل بيقول خلاص', t.done === true && t.state.status === 'reviewing');
-    check('ومابيسألش سؤال زيادة', t.say === null);
+    // Completing the fields hands the booking to the confirmation stage — the
+    // recap, not another question. (The gate itself is check-booking-confirm.)
+    check('ولما يكتمل بيقول خلاص', t.done === true && t.state.status === 'ready_for_confirmation');
+    check('ومابيسألش سؤال زيادة — بيعرض الملخّص', /أأكّد الحجز/.test(t.say || ''), t.say);
 
     // An LLM that fails entirely must not lose the booking.
     const broken = { llm: { json: async () => { throw new Error('down'); } } };
