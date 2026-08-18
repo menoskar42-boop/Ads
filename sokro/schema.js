@@ -128,6 +128,33 @@ async function ensureSokroSchema() {
         updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS sokro_operate_mem_idx ON sokro_operate_memory(user_id, host, updated_at DESC);
+
+      -- ── Bookings ─────────────────────────────────────────────────────────
+      -- The DECISIONS behind a booking conversation. The messages table already
+      -- keeps the words; re-reading them every turn is how a required detail
+      -- gets asked twice and another one never gets asked at all. This row says
+      -- what is known, and how far along the confirmation it is.
+      --
+      -- status: collecting → reviewing → ready_for_confirmation → confirmed →
+      --         submitted, plus cancelled / failed.
+      CREATE TABLE IF NOT EXISTS sokro_bookings (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        conversation_id INTEGER,
+        kind            TEXT NOT NULL,            -- flight | train | hotel | restaurant | appointment
+        status          TEXT NOT NULL DEFAULT 'collecting',
+        fields          JSONB NOT NULL DEFAULT '{}'::jsonb,
+        site            TEXT,
+        confirmed_at    TIMESTAMPTZ,
+        submitted_at    TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      -- One open booking per conversation: two would mean an answer landing in
+      -- the wrong one, which is the failure this table exists to prevent.
+      CREATE UNIQUE INDEX IF NOT EXISTS sokro_one_open_booking
+        ON sokro_bookings(user_id, conversation_id)
+        WHERE status IN ('collecting','reviewing','ready_for_confirmation','confirmed');
     `);
     console.log('Sokro schema ready.');
   } finally {
