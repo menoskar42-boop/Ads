@@ -95,6 +95,30 @@ async function ensureSokroSchema() {
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS sokro_sched_due_idx ON sokro_scheduled_tasks(active, next_run_at);
+      -- A reminder is usually a MOMENT, not a rhythm: «فكّرني الساعة ٥» is not
+      -- «كل ٥ ساعات». Without this the only way to express it was a repeating
+      -- task that keeps firing after the thing has passed.
+      ALTER TABLE sokro_scheduled_tasks ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'recurring';
+      ALTER TABLE sokro_scheduled_tasks ADD COLUMN IF NOT EXISTS title TEXT;
+      ALTER TABLE sokro_scheduled_tasks ALTER COLUMN every_minutes DROP NOT NULL;
+
+      -- ── Where a reminder actually lands ──────────────────────────────────
+      -- The scheduler used to run the task and write the result into its own
+      -- row. Nobody reads a row. A reminder nobody receives is not a reminder,
+      -- so every run leaves something the app can show — and marks whether it
+      -- has been seen.
+      CREATE TABLE IF NOT EXISTS sokro_notifications (
+        id         SERIAL PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        source     TEXT NOT NULL DEFAULT 'schedule',   -- schedule | task | system
+        title      TEXT,
+        body       TEXT,
+        meta       JSONB,
+        read_at    TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_notif_unread_idx
+        ON sokro_notifications(user_id, read_at, id DESC);
 
       -- Browser-extension bridge: commands the server enqueues for the user's
       -- Chrome extension to run in their LIVE browser (logged-in sessions), plus

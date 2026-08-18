@@ -88,6 +88,12 @@
   #extlink.on{background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.5);color:#bbf7d0}
   #extlink.srv{background:rgba(120,140,255,.16);border-color:rgba(120,140,255,.4);color:#cdd6ff}
   #extlink.off{background:rgba(245,158,11,.18);border-color:rgba(245,158,11,.5);color:#fde68a}
+  /* Reminders land here. A reminder the user never sees is not a reminder. */
+  #bell{position:fixed;bottom:calc(104px + env(safe-area-inset-bottom));right:14px;z-index:40;display:none;
+    align-items:center;gap:6px;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.5);color:#bbf7d0;
+    font-weight:800;font-size:.85rem;border-radius:100px;padding:9px 15px;cursor:pointer;
+    box-shadow:0 6px 20px rgba(0,0,0,.35);backdrop-filter:blur(6px)}
+  #bell.show{display:inline-flex}
 </style>
 </head>
 <body>
@@ -149,6 +155,7 @@
   </div>
 
   <a id="extlink" class="hidden" href="/ext" target="_blank" rel="noopener" title="حالة المتصفّح">🧩 المتصفح</a>
+  <button id="bell" type="button" title="تذكيراتك">🔔 <span id="bellCount">0</span></button>
   <audio id="rtaudio" autoplay></audio>
   <div id="dock" class="dock hidden">
     <div class="status" id="status">اكتب طلبك… أو اضغط 📞 لمكالمة صوتية</div>
@@ -221,6 +228,29 @@
     }catch(e){ /* leave the chip as it is rather than lie the other way */ }
   }
 
+  // The reminders inbox. Polled, because the app may have been closed when the
+  // schedule fired — the whole point of an inbox rather than a toast.
+  async function refreshNotifs(){
+    var b=$('#bell'), c=$('#bellCount'); if(!b) return;
+    try{
+      var d=await (await fetch('/api/notifications?limit=20')).json();
+      if(!d||!d.ok) return;
+      NOTIFS=d.notifications||[];
+      c.textContent=String(d.unread||0);
+      b.classList.toggle('show', (d.unread||0)>0);
+    }catch(e){}
+  }
+  var NOTIFS=[];
+  async function openNotifs(){
+    var unread=NOTIFS.filter(function(n){return !n.read_at;});
+    for(var i=0;i<unread.length;i++){
+      var n=unread[i];
+      addMsg('ai', (n.title? ('🔔 '+n.title+'\n') : '🔔 ') + (n.body||''));
+      try{ await fetch('/api/notifications/'+n.id+'/read',{method:'POST'}); }catch(e){}
+    }
+    await refreshNotifs();
+  }
+
   async function refreshGmail(){
     var s=$('#gmailState'), a=$('#gmailConnect'); if(!s) return;
     try{ var d=await (await fetch('/api/gmail/status')).json();
@@ -244,6 +274,8 @@
     $('#mute').classList.remove('hidden'); $('#mute').textContent=speakAloud?'🔊':'🔈';
     $('#extlink').classList.remove('hidden');
     refreshBrowser(); setInterval(refreshBrowser, 20000);
+    refreshNotifs(); setInterval(refreshNotifs, 60000);
+    $('#bell').addEventListener('click', openNotifs);
     requestWake(); // keep the screen on while using Sokro
     loadSettings();
     var had=await loadHistory();
