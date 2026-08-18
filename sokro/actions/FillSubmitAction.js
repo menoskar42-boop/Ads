@@ -7,6 +7,7 @@
 // SENSITIVE (permission 'browser') → the planner/consent gate asks first, and
 // the extension shows its own per-domain confirmation.
 const { register } = require('./_registry');
+const SF = require('../lib/siteFinder');
 
 // input.fields: [{ selector, value }]  (value may reference a stored secret by
 // name via {{secret:name}} — resolved server-side, never shown to the model).
@@ -32,11 +33,13 @@ async function resolveSecrets(ctx, fields) {
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   // A name, not a URL: «سيلندر» is a site the user can name and the model
-  // cannot spell. Looked up in a written-down table — never guessed.
+  // cannot spell. Looked up in the written-down table, and — for a name nobody
+  // wrote down — searched for the way a person would. Never guessed.
+  let site = null;
   {
-    const hit = require('../lib/siteDict').resolve(url);
-    if (!hit) return { ok: false, error: 'valid http(s) url required' };
-    url = hit.url;
+    site = await SF.find(ctx, url);
+    if (!site) return { ok: false, error: 'valid http(s) url required' };
+    url = site.url;
   }
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
   catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
@@ -51,7 +54,7 @@ async function run(ctx, input) {
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
     const r = await ext.run(ctx.userId, 'fill_submit', { url, fields, submit, consented: !!ctx.consented, keepOpen: !(input && input.keepOpen === false) });
-    if (r.ok) { if (ctx.log) ctx.log('fill_submit(ext)', { url, fields: fields.length }); return { ok: true, output: Object.assign({ url }, r.output) }; }
+    if (r.ok) { if (ctx.log) ctx.log('fill_submit(ext)', { url, fields: fields.length }); return { ok: true, output: Object.assign({ url }, SF.note(site), r.output) }; }
     return { ok: false, error: r.error };
   }
   if (!ctx.browser || !ctx.browser.available()) {
@@ -74,7 +77,7 @@ async function run(ctx, input) {
       return { title: await page.title(), url: page.url(), submitted, text };
     });
     if (ctx.log) ctx.log('fill_submit', { url, fields: fields.length, submitted: out.submitted });
-    return { ok: true, output: Object.assign({ url }, out) };
+    return { ok: true, output: Object.assign({ url }, SF.note(site), out) };
   } catch (e) {
     return { ok: false, error: 'fill_submit failed: ' + e.message };
   }

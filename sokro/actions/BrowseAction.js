@@ -6,6 +6,7 @@
 // login/booking/social actions later. Requires the browser layer (Chromium);
 // degrades gracefully with a clear error when it isn't installed.
 const { register } = require('./_registry');
+const SF = require('../lib/siteFinder');
 
 // Toggle the www. prefix so a wrong-guessed host (sylndr.com vs www.sylndr.com)
 // can be retried automatically.
@@ -20,11 +21,13 @@ function wwwVariant(url) {
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   // A name, not a URL: «سيلندر» is a site the user can name and the model
-  // cannot spell. Looked up in a written-down table — never guessed.
+  // cannot spell. Looked up in the written-down table, and — for a name nobody
+  // wrote down — searched for the way a person would. Never guessed.
+  let site = null;
   {
-    const hit = require('../lib/siteDict').resolve(url);
-    if (!hit) return { ok: false, error: 'valid http(s) url required' };
-    url = hit.url;
+    site = await SF.find(ctx, url);
+    if (!site) return { ok: false, error: 'valid http(s) url required' };
+    url = site.url;
   }
   // SSRF guard: never let a browse target hit localhost / the private network /
   // the cloud metadata endpoint (server Playwright shares the deployment's LAN).
@@ -39,7 +42,7 @@ async function run(ctx, input) {
     // (e.g. navigate_site hops) pass keepOpen:false to avoid leaving a trail of tabs.
     const keepOpen = !(input && input.keepOpen === false);
     const r = await ext.run(ctx.userId, 'browse', { url, selector: input && input.selector, screenshot: !!(input && input.screenshot), keepOpen });
-    if (r.ok) { if (ctx.log) ctx.log('browse(ext)', { url }); return { ok: true, output: Object.assign({ url }, r.output) }; }
+    if (r.ok) { if (ctx.log) ctx.log('browse(ext)', { url }); return { ok: true, output: Object.assign({ url }, SF.note(site), r.output) }; }
     return { ok: false, error: r.error };
   }
   if (!ctx.browser || !ctx.browser.available()) {
@@ -81,7 +84,7 @@ async function run(ctx, input) {
       return { title, text: data.text, links: data.links, screenshot };
     });
     if (ctx.log) ctx.log('browse', { url: usedUrl });
-    return { ok: true, output: Object.assign({ url: usedUrl }, out) };
+    return { ok: true, output: Object.assign({ url: usedUrl }, SF.note(site), out) };
   } catch (e) {
     return { ok: false, error: 'browse failed: ' + e.message };
   }

@@ -277,11 +277,12 @@ async function run(ctx, input) {
   // No starting site given → don't dead-end. Open a Google search for the goal in
   // the user's browser and LEAVE it open so they see the results right away.
   let noSite = false;
+  let site = null;
   {
     // A name in the table opens the SITE. Only a name nobody wrote down falls
     // back to a search — «افتح سيلندر» must not become a Google results page.
-    const hit = require('../lib/siteDict').resolve(url);
-    if (hit) url = hit.url;
+    const hit = await require('../lib/siteFinder').find(ctx, url);
+    if (hit) { url = hit.url; site = hit; }
     else {
       noSite = true;
       url = 'https://www.google.com/search?q=' + encodeURIComponent(goal);
