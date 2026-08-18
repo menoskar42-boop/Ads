@@ -295,7 +295,8 @@
       </div>
       <% if (typeof gymBookedStatus !== 'undefined' && gymBookedStatus === 'booked') { %><div class="msg msg--ok" style="margin-top:24px">✅ تم حجز مكانك — نشوفك في الكلاس!</div><% } %>
       <% if (typeof gymBookedStatus !== 'undefined' && gymBookedStatus === 'waitlist') { %><div class="msg msg--wait" style="margin-top:24px">الكلاس ممتلئ — اتحطّيت في قائمة الانتظار وهنبلّغك لو فضى مكان.</div><% } %>
-      <% if (typeof gymBookError !== 'undefined' && gymBookError) { %><div class="msg msg--err" style="margin-top:24px">تعذّر الحجز — تأكّد من الاسم والموبايل وحاول تاني.</div><% } %>
+      <% if (typeof gymBookError !== 'undefined' && gymBookError === 'bad') { %><div class="msg msg--err" style="margin-top:24px">تعذّر الحجز — تأكّد من الاسم والموبايل وحاول تاني.</div><% } %>
+      <% if (typeof gymBookError !== 'undefined' && gymBookError === 'dup') { %><div class="msg msg--wait" style="margin-top:24px">الرقم ده حاجز في الكلاس ده بالفعل — مكانك محفوظ.</div><% } %>
       <div class="cgrid">
         <% gymClasses.forEach(function(c){ %>
         <div class="ccard reveal">

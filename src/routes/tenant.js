@@ -586,8 +586,10 @@ router.get('/', async (req, res) => {
     gymTrainers,
     gymClasses,
     gymGallery,
-    gymBookedStatus: req.query.booked || null,
-    gymBookError: req.query.bookerr === '1',
+    /* Codes the server knows, so the page cannot be made to say something the
+       gym did not write. */
+    gymBookedStatus: ['booked', 'waitlist'].includes(String(req.query.booked || '')) ? req.query.booked : null,
+    gymBookError: req.query.bookerr === '1' ? 'bad' : req.query.bookerr === 'dup' ? 'dup' : null,
     payment,
     currentCategory: req.query.category || '',
     currentSearch: req.query.q || '',
@@ -711,24 +713,54 @@ router.post('/book-class', gymGuard, async (req, res) => {
   const company = req.tenant;
   const classId = parseInt(req.body.class_id, 10);
   try {
-    const gymClass = (await pool.query('SELECT * FROM gym_classes WHERE id=$1 AND company_id=$2 AND is_active=true', [classId, company.id])).rows[0];
-    if (!gymClass) return res.redirect('/?bookerr=1#classes');
     const name = String(req.body.name || '').trim().slice(0, 80);
     const phone = String(req.body.phone || '').trim().slice(0, 20);
-    if (!name || phone.replace(/[^0-9]/g, '').length < 7) return res.redirect('/?bookerr=1#classes');
+    const phoneKey = phone.replace(/[^0-9]/g, '');
+    if (!name || phoneKey.length < 7) return res.redirect('/?bookerr=1#classes');
     const member = await findGymMember(company.id, req.body.code, phone);
-    // Next occurrence of the class's weekday (today if it matches, else within a week).
-    const bookingDate = (await pool.query(
-      "SELECT (CURRENT_DATE + (((7 + $1 - EXTRACT(DOW FROM CURRENT_DATE)::int) % 7)) )::date AS d", [gymClass.day_of_week]
-    )).rows[0].d;
-    const booked = (await pool.query(
-      "SELECT COUNT(*)::int n FROM gym_bookings WHERE class_id=$1 AND booking_date=$2 AND status='booked'", [classId, bookingDate]
-    )).rows[0].n;
-    const status = booked >= gymClass.capacity ? 'waitlist' : 'booked';
-    await pool.query(
-      'INSERT INTO gym_bookings (company_id, class_id, member_id, member_name, member_phone, booking_date, status) VALUES ($1,$2,$3,$4,$5,$6,$7)',
-      [company.id, classId, member ? member.id : null, name, phone, bookingDate, status]
-    );
+
+    /* Counting and then inserting is how a class of twenty ends up with
+     * thirty-nine people in it. Twenty requests arriving together each read
+     * "19 booked", each decide there is room, and each insert. Nothing is
+     * wrong with any one of them.
+     *
+     * Locking the CLASS row is what makes the count mean something: every
+     * booking for that class queues behind the same row, so the count each one
+     * reads includes the bookings before it. The lock is on gym_classes and not
+     * on the bookings, because there is no booking row yet to lock. */
+    const client = await pool.connect();
+    let status;
+    try {
+      await client.query('BEGIN');
+      const gymClass = (await client.query(
+        'SELECT * FROM gym_classes WHERE id=$1 AND company_id=$2 AND is_active=true FOR UPDATE',
+        [classId, company.id])).rows[0];
+      if (!gymClass) { await client.query('ROLLBACK'); return res.redirect('/?bookerr=1#classes'); }
+
+      // Next occurrence of the class's weekday (today if it matches, else within a week).
+      const bookingDate = (await client.query(
+        "SELECT (CURRENT_DATE + (((7 + $1 - EXTRACT(DOW FROM CURRENT_DATE)::int) % 7)) )::date AS d",
+        [gymClass.day_of_week])).rows[0].d;
+      const booked = (await client.query(
+        "SELECT COUNT(*)::int n FROM gym_bookings WHERE class_id=$1 AND booking_date=$2 AND status='booked'",
+        [classId, bookingDate])).rows[0].n;
+      status = booked >= gymClass.capacity ? 'waitlist' : 'booked';
+      await client.query(
+        `INSERT INTO gym_bookings (company_id, class_id, member_id, member_name, member_phone, phone_key, booking_date, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        // gymClass.id — the row the FOR UPDATE above proved is this gym's.
+        [company.id, gymClass.id, member ? member.id : null, name, phone, phoneKey, bookingDate, status]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
+      // The unique index fired: this phone already holds a place in this class
+      // on this day. Not an error to shout about — say it plainly.
+      if (String(e.message).includes('idx_gym_one_booking_per_person')) {
+        return res.redirect('/?bookerr=dup#classes');
+      }
+      throw e;
+    } finally { client.release(); }
     res.redirect('/?booked=' + status + '#classes');
   } catch (e) { console.error('[gym book-class]', e.message); res.redirect('/?bookerr=1#classes'); }
 });

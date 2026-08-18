@@ -123,6 +123,11 @@ async function ensureGymSchema() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_bookings ON gym_bookings (company_id, class_id, booking_date);
+      -- The phone the booking was made with, digits only. Written alongside the
+      -- typed one so "0100 123 4567" and "01001234567" are the same person to
+      -- the unique index below — otherwise "one booking each" is defeated by a
+      -- space bar.
+      ALTER TABLE gym_bookings ADD COLUMN IF NOT EXISTS phone_key TEXT;
       -- POS + trainer commissions (phase 5).
       ALTER TABLE gym_trainers ADD COLUMN IF NOT EXISTS commission_pct NUMERIC(5,2) NOT NULL DEFAULT 0;
       CREATE TABLE IF NOT EXISTS gym_products (
@@ -177,11 +182,55 @@ async function ensureGymSchema() {
       CREATE INDEX IF NOT EXISTS idx_gym_gallery ON gym_gallery (company_id, sort_order);
     `);
 
+    await enforceOneBookingPerPerson(client);
     await seedDemoGym(client);
   } catch (e) {
     console.error('[gym schema]', e.message);
   } finally {
     client.release();
+  }
+}
+
+/**
+ * One live booking per person per class per day.
+ *
+ * The public booking form had nothing stopping the same phone number from
+ * booking the same class fifty times — which fills a class of twenty without a
+ * single real member, and the gym only finds out when nineteen people are
+ * turned away at the door.
+ *
+ * The rule belongs in the database, not in the route: two requests arriving
+ * together each check "has this phone booked?" and each get "no". A unique
+ * index is the one place where that question has a single answer.
+ *
+ * Backfilled first, because a partial unique index over rows that already
+ * violate it simply refuses to be created — and a boot that logs an error and
+ * carries on with no index is worse than either outcome. Duplicates are
+ * cancelled rather than deleted: somebody did press that button, and the gym
+ * may want to see it.
+ */
+async function enforceOneBookingPerPerson(client) {
+  try {
+    await client.query(`
+      UPDATE gym_bookings SET phone_key = regexp_replace(COALESCE(member_phone,''), '[^0-9]', '', 'g')
+       WHERE phone_key IS NULL;
+    `);
+    const dupes = await client.query(`
+      UPDATE gym_bookings b SET status = 'cancelled'
+       WHERE b.status <> 'cancelled' AND b.phone_key <> ''
+         AND EXISTS (
+           SELECT 1 FROM gym_bookings o
+            WHERE o.class_id = b.class_id AND o.booking_date = b.booking_date
+              AND o.phone_key = b.phone_key AND o.status <> 'cancelled' AND o.id < b.id)
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_one_booking_per_person
+        ON gym_bookings (class_id, booking_date, phone_key)
+        WHERE status <> 'cancelled' AND phone_key <> '';
+    `);
+    if (dupes.rowCount) console.log(`Gym: cancelled ${dupes.rowCount} duplicate class booking(s).`);
+  } catch (e) {
+    console.error('[gym one-booking index]', e.message);
   }
 }
 
