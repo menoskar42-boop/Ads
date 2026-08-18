@@ -119,6 +119,39 @@ async function main() {
     check('والرد بيقول الصفحة مفتوحة عشان يبعت بنفسه', /تبعت بنفسك/.test(r.error || ''));
   }
 
+  /* ── The fallback is for the search box, and for nothing else ─────────── */
+  {
+    // The dangerous version: `#nid` misses, the code "helpfully" finds the first
+    // visible text box — which is the NAME field — and writes a national ID into
+    // it. Every field then counts as filled, the form is submitted, and it looks
+    // complete. Wrong data is worse than missing data.
+    const page = fakePage(['#name', 'input[type="text"]', '#send']);
+    const r = await fill(ctxWith(page), {
+      url: URL, submit: '#send',
+      fields: [{ selector: '#name', value: 'أحمد' }, { selector: '#nid', value: '29001011234567' }],
+    });
+    check('سيليكتور غلط مابيروحش لأول خانة نص', r.ok === false, JSON.stringify(r.errorCode || ''));
+    check('والرقم القومي مااتكتبش في خانة الاسم',
+      !page.log.filled.some((f) => f.sel !== '#nid' && f.value === '29001011234567'),
+      JSON.stringify(page.log.filled));
+    check('والفورم مااتبعتش', page.log.clicked === null);
+  }
+  {
+    // Two "search box" fields must not both land in the same box.
+    const page = fakePage(['input[type="search"]']);
+    const r = await fill(ctxWith(page), {
+      url: URL, fields: [{ selector: '', value: 'الأول' }, { selector: '', value: 'التاني' }],
+    });
+    check('وقيمتين في خانة واحدة مابيحصلش', r.ok === false && r.errorCode === 'partial_fill');
+    check('والخانة اتكتبت مرة واحدة', page.log.filled.length === 1 && page.log.filled[0].value === 'الأول');
+  }
+  {
+    const bg = fs.readFileSync(path.join(ROOT, 'sokro/extension/background.js'), 'utf8');
+    check('والإضافة كمان: السيليكتور المعطى مالوش بديل',
+      /if \(sel\)\{ try\{ return document\.querySelector\(sel\) \|\| null; \}/.test(bg));
+    check('وبتتجنّب الخانة اللي اتكتبت قبل كده', /used\.indexOf\(list\[j\]\)<0/.test(bg));
+  }
+
   /* ── And the extension side reports the same truth ────────────────────── */
   {
     const bg = fs.readFileSync(path.join(ROOT, 'sokro/extension/background.js'), 'utf8');
