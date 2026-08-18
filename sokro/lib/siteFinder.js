@@ -147,4 +147,42 @@ function note(site) {
   return { site: { domain: site.domain, label: site.label, source: site.source, confidence: site.confidence } };
 }
 
-module.exports = { find, note, registrable, isDirectory, hostOf, NOT_THE_SITE, _memo: memo };
+
+// ── Saying why, in words the person can act on ───────────────────────────────
+//
+// The failures used to come out as `blocked url: dns resolution failed` and
+// `valid http(s) url required`. Both are true and neither is usable: the first
+// is the DNS resolver's opinion, the second is a schema's. Neither tells the
+// person the one thing they can actually do about it — send the link.
+//
+// The reason still travels with the message as a CODE, so a log can be grepped
+// and this file stays the only place the wording lives.
+const REASONS = [
+  [/dns|not found|enotfound|getaddrinfo/i, 'no_such_site'],
+  [/private|blocked host|metadata/i, 'internal'],
+  [/only http|invalid url|missing host/i, 'not_a_link'],
+];
+
+function reasonCode(raw) {
+  const text = String(raw || '');
+  if (text === 'not_found') return 'not_found';
+  for (const [re, code] of REASONS) if (re.test(text)) return code;
+  return 'unknown';
+}
+
+function cannotOpen(asked, raw) {
+  const code = reasonCode(raw);
+  const name = String(asked || '').trim().slice(0, 60);
+  const named = name ? ' «' + name + '»' : '';
+  const say = {
+    // The common one, and the whole reason this exists.
+    not_found: 'مالقيتش موقع بالاسم ده' + named + '. ابعتلي اللينك وأنا أفتحه، أو قولي الاسم بالإنجليزي.',
+    no_such_site: 'العنوان ده' + named + ' مش موجود على الإنترنت — يمكن الاسم متكتب غلط. ابعتلي اللينك وأنا أكمّل.',
+    not_a_link: 'ده مش شكله لينك' + named + '. ابعتلي لينك كامل بيبدأ بـ https:// أو قولي اسم الموقع.',
+    internal: 'العنوان ده جوّه شبكة داخلية، ومش مسموح أفتحه من هنا.',
+    unknown: 'مقدرتش أفتح الموقع' + named + '. ابعتلي اللينك وأنا أحاول تاني.',
+  }[code];
+  return { ok: false, error: say, errorCode: code };
+}
+
+module.exports = { find, note, cannotOpen, reasonCode, registrable, isDirectory, hostOf, NOT_THE_SITE, _memo: memo };

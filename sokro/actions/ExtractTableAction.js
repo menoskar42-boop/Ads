@@ -14,11 +14,11 @@ async function run(ctx, input) {
   let site = null;
   {
     site = await SF.find(ctx, url);
-    if (!site) return { ok: false, error: 'valid http(s) url required' };
+    if (!site) return SF.cannotOpen(url, 'not_found');
     url = site.url;
   }
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
-  catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
+  catch (e) { return SF.cannotOpen(url, e.message); }
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
     const r = await ext.run(ctx.userId, 'extract_table', { url, selector: input && input.selector });
