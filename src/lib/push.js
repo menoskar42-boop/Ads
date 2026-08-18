@@ -62,11 +62,25 @@ async function sendToCompany(companyId, payload, type) {
   // Respect the merchant's per-type preference.
   if (type === 'message' || type === 'order') {
     try {
+      /* `on` is a reserved word in PostgreSQL (it is the JOIN keyword), so
+       * `SELECT notify_orders AS on` was a syntax error EVERY time. The catch
+       * below then failed open and sent anyway — which meant the merchant who
+       * turned notifications OFF kept receiving them, and no error ever reached
+       * a screen. A setting that silently does the opposite of what it says is
+       * worse than a setting that is missing.
+       *
+       * Quoted, it would work; named something that is not a keyword, it cannot
+       * come back. The column name itself is a fixed literal from this file —
+       * never user input — so the interpolation is safe.
+       */
       const col = type === 'order' ? 'notify_orders' : 'notify_messages';
-      const pref = await pool.query(`SELECT ${col} AS on FROM companies WHERE id = $1`, [companyId]);
-      if (pref.rows.length && pref.rows[0].on === false) return;
+      const pref = await pool.query(`SELECT ${col} AS enabled FROM companies WHERE id = $1`, [companyId]);
+      if (pref.rows.length && pref.rows[0].enabled === false) return;
     } catch (err) {
-      console.error('[push] pref check failed:', err.message); // fail-open: still send
+      // Fail-open on a genuine database problem: a merchant who wants alerts
+      // should not lose them because a query hiccupped. But the query above no
+      // longer fails by construction, so this stops hiding a permanent bug.
+      console.error('[push] pref check failed:', err.message);
     }
   }
   let rows = [];
