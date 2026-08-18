@@ -459,7 +459,7 @@ exist` · `could not determine data type of parameter` · `syntax error`)
 
 **واجهات:** `status.preparing` و`status.out_for_delivery` **مش في القاموس** → العميل بيشوف المفتاح الخام.
 
-**بنية:** notifier «رجع متوفّر» بيعلّم notified حتى لو الميل فشل · تنبيه الجيم بيتكرر مرتين يومياً · **`demoReadOnly` بيفضل بعد دخول حقيقي** (مفيش `session.regenerate()`) · إيصالات كاكيبو متاحة للعامة تحت `/uploads/kkb-*` · **Tailwind CDN في ~١٠٠ قالب** (اعتماد طرف ثالث في الإنتاج، ومخالف لهدف Core Web Vitals) · `ai_reply_cache.js` فيه NUL byte حرفي.
+**بنية:** notifier «رجع متوفّر» بيعلّم notified حتى لو الميل فشل · تنبيه الجيم بيتكرر مرتين يومياً · **`demoReadOnly` بيفضل بعد دخول حقيقي** (مفيش `session.regenerate()`) · ~~إيصالات كاكيبو متاحة للعامة تحت `/uploads/kkb-*`~~ ✅ **اتصلّح ٢٠٢٦-٠٨-١٨** (كانت بتتكتب في `public/uploads` واسم الملف فيه **رقم المستخدم** — يعني «هتخمّنه إزاي» مكانتش إجابة. بقت في `private_uploads/kakeibo` برّه جذر الويب، وبتترجع من راوت بيسأل القاعدة في **نفس الجملة** اللي بتلاقي الملف. والقديم بيتنقل بهجرة عند التشغيل — الملفات قبل الصفوف. **وفي نفس الشغل اتكشف إن حارس CSRF كان متركّب بعد راوتر كاكيبو** فكل كاكيبو كان بره الحراسة — اتنقل قبل أول راوتر. الحارس: `check-receipt-privacy.js`) · **Tailwind CDN في ~١٠٠ قالب** (اعتماد طرف ثالث في الإنتاج، ومخالف لهدف Core Web Vitals) · `ai_reply_cache.js` فيه NUL byte حرفي.
 
 ### ⚠️ محتاج تحقق حي (مش هيتأكد من غير تشغيل)
 `SESSION_SECRET` متحطّ؟ · الـCloudflare Worker بيستبدل `X-Tenant-Host`/`X-Forwarded-For`؟ · الهوست شغّال UTC؟ (لو أيوه حجوزات العيادة بتتزحزح ساعتين) · بيمبوب بيبعت callbacks JSON فعلاً؟

@@ -352,6 +352,21 @@ app.use(session({
   },
 }));
 
+/* CSRF, for the hole SameSite=Lax leaves open here.
+ *
+ * The cookie is already lax, so a POST from another SITE arrives without a
+ * session. But every tenant we host is a SUBDOMAIN — same site — so a merchant
+ * could put a form on their own page that posts into /company or /admin with
+ * the victim's cookie attached, and lax would allow it.
+ *
+ * Mounted the moment a session exists and BEFORE the first router — including
+ * the host-routed Kakeibo one below, which returns without ever reaching the
+ * rest of the pipeline. A rule that has to be remembered in each router is a
+ * rule that will be forgotten in one of them. See src/middleware/csrf.js for
+ * why this compares Origin instead of putting a token in several hundred
+ * forms. */
+app.use(csrfGuard.guard());
+
 // ===== Kakeibo (kakeibo.oscardevs.com) — AI financial coach, host-routed =====
 // Its own product: runs after the shared session/body parsers but before the
 // OscarDevs i18n/tenant/ads pipeline, so it never mixes with the merchant site.
@@ -468,18 +483,6 @@ app.get('/demo/:slug', async (req, res) => {
  */
 app.use(demoMode.guard());
 
-/* CSRF, for the hole SameSite=Lax leaves open here.
- *
- * The cookie is already lax, so a POST from another SITE arrives without a
- * session. But every tenant we host is a SUBDOMAIN — same site — so a merchant
- * could put a form on their own page that posts into /company or /admin with
- * the victim's cookie attached, and lax would allow it.
- *
- * Mounted in the same place and for the same reason as the demo guard above:
- * a rule that has to be remembered in each router is a rule that will be
- * forgotten in one of them. See src/middleware/csrf.js for why this compares
- * Origin instead of putting a token in several hundred forms. */
-app.use(csrfGuard.guard());
 
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);

@@ -2,6 +2,9 @@ node_modules
 .env
 *.log
 
+# Kakeibo receipts and anything else deliberately outside the web root.
+private_uploads/
+
 # Safari Kids (mykid) runtime artifacts
 mykid/server/.tts-cache/
 mykid/.env

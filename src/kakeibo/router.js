@@ -23,8 +23,14 @@ try { compressImage = require('../lib/media').compressImage; } catch (e) { /* op
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// Receipt uploads (optional). Reuse the shared public/uploads dir.
-const uploadDir = path.join(__dirname, '../../public/uploads');
+/* Receipt uploads (optional).
+ *
+ * NOT public/uploads. A receipt is a financial document — shop, amount, date —
+ * and these were served by express.static to anybody who asked for the path.
+ * The filename even carried the user id, so guessing was barely needed. They
+ * live outside the web root and come back through /kakeibo/receipt/:file,
+ * which asks the database whether this session owns the row. */
+const uploadDir = path.join(__dirname, '../../private_uploads/kakeibo');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const uploadReceipt = uploads.guard(multer({
   storage: multer.diskStorage({
@@ -67,6 +73,35 @@ function requireKkb(req, res, next) {
   if (!req.session.kkbUserId) return res.redirect('/');
   next();
 }
+
+/* Serve a receipt to the person it belongs to.
+ *
+ * Ownership is proved by the database in the same query that finds the file —
+ * `user_id = $1 AND receipt_url = $2` — not by a separate lookup and not by
+ * the filename, which is user input the moment it appears in a URL. The
+ * basename is taken with path.basename so `../../server.js` cannot address
+ * anything, and the resolved path is re-checked against the directory. */
+router.get('/kakeibo/receipt/:file', requireKkb, async (req, res) => {
+  const name = path.basename(String(req.params.file || ''));
+  try {
+    const owned = await pool.query(
+      'SELECT 1 FROM kkb_expenses WHERE user_id=$1 AND receipt_url=$2 LIMIT 1',
+      [req.session.kkbUserId, '/kakeibo/receipt/' + name]
+    );
+    if (!owned.rows.length) return res.status(404).send('Not found.');
+    const full = path.join(uploadDir, name);
+    if (!full.startsWith(uploadDir + path.sep)) return res.status(404).send('Not found.');
+    if (!fs.existsSync(full)) return res.status(404).send('Not found.');
+    // Never cached by a shared cache, and never sniffed into something active.
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    return res.sendFile(full);
+  } catch (e) {
+    console.error('[kkb receipt]', e.message);
+    return res.status(404).send('Not found.');
+  }
+});
 
 async function createUser({ email, password, name, guest }) {
   const hash = password ? await bcrypt.hash(password, 10) : null;
@@ -574,7 +609,7 @@ router.post('/add', requireOnboarded, withReceipt, async (req, res) => {
   const desc = String(b.description || '').trim().slice(0, 200);
   const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spent_on || '')) ? b.spent_on : stats.ymd(new Date());
   let receiptUrl = null;
-  if (req.file) { receiptUrl = '/uploads/' + req.file.filename; if (compressImage) { try { await compressImage(req.file.path); } catch (e) {} } }
+  if (req.file) { receiptUrl = '/kakeibo/receipt/' + req.file.filename; if (compressImage) { try { await compressImage(req.file.path); } catch (e) {} } }
   try {
     await pool.query(
       `INSERT INTO kkb_expenses (user_id, amount, description, category, payment_method, receipt_url, spent_on)
@@ -603,7 +638,7 @@ router.post('/expense/:id/update', requireOnboarded, withReceipt, async (req, re
   const desc = String(b.description || '').trim().slice(0, 200);
   const spentOn = /^\d{4}-\d{2}-\d{2}$/.test(String(b.spent_on || '')) ? b.spent_on : stats.ymd(new Date(ex.spent_on));
   let receiptUrl = ex.receipt_url;
-  if (req.file) { receiptUrl = '/uploads/' + req.file.filename; if (compressImage) { try { await compressImage(req.file.path); } catch (e) {} } }
+  if (req.file) { receiptUrl = '/kakeibo/receipt/' + req.file.filename; if (compressImage) { try { await compressImage(req.file.path); } catch (e) {} } }
   try {
     await pool.query(
       'UPDATE kkb_expenses SET amount=$1, description=$2, category=$3, payment_method=$4, receipt_url=$5, spent_on=$6 WHERE id=$7 AND user_id=$8',

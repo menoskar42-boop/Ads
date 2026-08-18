@@ -107,10 +107,17 @@ check('وكولباك بيمبوب معفي (متحقّق بـHMAC أقوى من
   const srv = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
   const iSession = srv.indexOf('app.use(session(');
   const iCsrf = srv.indexOf('app.use(csrfGuard.guard())');
-  const iFirstRouter = srv.indexOf("app.use('/company', companyRouter)");
-  check('الحارس متركّب بعد الجلسة وقبل كل الراوترات',
+  /* The FIRST router in the file, not the first admin one. Kakeibo is
+     host-routed and returns without touching the rest of the pipeline, so a
+     guard mounted after it would simply not exist for that whole product —
+     which is what happened the first time this was mounted. */
+  const iFirstRouter = Math.min(
+    ...[srv.indexOf('const kakeiboRouter = require'), srv.indexOf("app.use('/company', companyRouter)")]
+      .filter((i) => i > -1)
+  );
+  check('الحارس متركّب بعد الجلسة وقبل **أول** راوتر (كاكيبو مضمّن)',
     iSession > -1 && iCsrf > iSession && iFirstRouter > iCsrf,
-    `session@${iSession} csrf@${iCsrf} router@${iFirstRouter}`);
+    `session@${iSession} csrf@${iCsrf} أول راوتر@${iFirstRouter}`);
   check('والكوكي لسه lax (ده النص التاني من الحماية)',
     /sameSite: 'lax'/.test(srv));
 }

@@ -2,6 +2,36 @@
 // on the OscarDevs platform, namespaced with `kkb_` so it never touches the
 // merchant/tenant tables. Additive & idempotent (safe on every boot).
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+const PUBLIC_UPLOADS = path.join(__dirname, '../../public/uploads');
+const PRIVATE_RECEIPTS = path.join(__dirname, '../../private_uploads/kakeibo');
+
+async function migrateReceiptsOutOfPublic(client) {
+  try {
+    fs.mkdirSync(PRIVATE_RECEIPTS, { recursive: true });
+    let moved = 0;
+    if (fs.existsSync(PUBLIC_UPLOADS)) {
+      for (const name of fs.readdirSync(PUBLIC_UPLOADS)) {
+        if (!name.startsWith('kkb-')) continue;
+        const to = path.join(PRIVATE_RECEIPTS, name);
+        if (fs.existsSync(to)) { fs.unlinkSync(path.join(PUBLIC_UPLOADS, name)); continue; }
+        fs.renameSync(path.join(PUBLIC_UPLOADS, name), to);
+        moved += 1;
+      }
+    }
+    const r = await client.query(
+      `UPDATE kkb_expenses
+          SET receipt_url = '/kakeibo/receipt/' || substring(receipt_url from '[^/]+$')
+        WHERE receipt_url LIKE '/uploads/kkb-%'`
+    );
+    if (moved || r.rowCount) console.log(`Kakeibo receipts moved out of /uploads: ${moved} file(s), ${r.rowCount} row(s).`);
+  } catch (e) {
+    console.error('[kakeibo receipts migration]', e.message);
+  }
+}
+
 
 async function ensureKakeiboSchema() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -149,6 +179,18 @@ async function ensureKakeiboSchema() {
         UNIQUE (user_id, category)
       );
     `);
+    /* Receipts were written to public/uploads and linked as /uploads/kkb-… —
+     * served by express.static to anybody who asks. A receipt is a financial
+     * document with a shop name, an amount and a date on it, and the filename
+     * carried the user id, so "guessable" was not even required: a directory
+     * listing or one leaked link was enough.
+     *
+     * They now live outside the web root and are served by a route that checks
+     * the row belongs to the session. This moves the ones already written —
+     * files first, then the rows, so a crash in between leaves rows pointing at
+     * a file that is still there rather than at nothing. */
+    await migrateReceiptsOutOfPublic(client);
+
     console.log('Kakeibo schema ready.');
   } finally {
     client.release();
