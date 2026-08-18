@@ -119,6 +119,7 @@
       <form method="post" action="/company/lang/<%= lang === 'ar' ? 'en' : 'ar' %>" class="inline">
         <button class="px-3 py-1.5 rounded-lg hover:bg-white/15 font-semibold"><%= t('clinic.lang.switch') %></button>
       </form>
+      <%- include('../partials/pay_link') %>
       <form method="post" action="/company/logout" class="inline"><button class="px-3 py-1.5 rounded-lg hover:bg-white/15"><%= t('clinic.nav.logout') %></button></form>
     </nav>
 

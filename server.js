@@ -543,6 +543,11 @@ app.get('/demo/:slug', async (req, res) => {
 app.use(demoMode.guard());
 
 
+// "Can this merchant take money yet?" — answered once for the whole app, so a
+// sector panel written next year shows the entry point by existing rather than
+// by remembering to add it.
+app.use(require('./src/middleware/pay_status').middleware());
+
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
 app.use('/accounting', require('./src/routes/accounting'));

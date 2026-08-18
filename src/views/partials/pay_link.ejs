@@ -1,0 +1,20 @@
+<%#
+  The one place the "take payments" entry point is written. Every sector panel
+  includes this, so the wording, the destination and the states change in one
+  file — and a panel that forgets to include it is caught by check-pay-reach.
+
+  Three states on purpose: configured, not configured (the one that needs an
+  action), and unknown (a database hiccup must not tell a merchant who HAS set
+  it up that they have not).
+%>
+<% var __pl = (typeof payLink !== 'undefined' && payLink) ? payLink : '/accounting/payments'; %>
+<% var __pr = (typeof payReady !== 'undefined') ? payReady : null; %>
+<%# One file, so it has to speak the visitor's language too — a hard-coded
+    Arabic chip is the same bug this project just finished removing from the
+    customer pages, and some panels render in English. %>
+<% var __t = (typeof t === 'function') ? t : function (k) { return { 'pay.link':'طرق الدفع', 'pay.setup':'فعّل استلام الفلوس', 'pay.link_title':'طرق استلام الفلوس', 'pay.setup_title':'لسه مافيش طريقة يستلم بيها العميل الفلوس — اضغط عشان تظبّطها' }[k] || k; }; %>
+<a href="<%= __pl %>"
+   class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap <%= __pr === false ? 'bg-amber-100 text-amber-800 border border-amber-300' : __pr === true ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-gray-100 text-gray-700 border border-gray-300' %>"
+   title="<%= __t(__pr === false ? 'pay.setup_title' : 'pay.link_title') %>">
+  💳 <%= __t(__pr === false ? 'pay.setup' : 'pay.link') %>
+</a>
