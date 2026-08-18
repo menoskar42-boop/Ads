@@ -10,6 +10,7 @@ const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const staffScope = require('../lib/staff_scope');
 const multer = require('multer');
+const uploads = require('../lib/uploads');
 const path = require('path');
 const fs = require('fs');
 const { compressImage } = require('../lib/media');
@@ -20,14 +21,14 @@ const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 // SVG excluded on purpose (active content). Only passive raster formats.
 const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp)$/;
-const uploadFoodImage = multer({
+const uploadFoodImage = uploads.guard(multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, `food-${req.session.companyId}-${Date.now()}${path.extname(file.originalname).toLowerCase()}`),
+    filename: (req, file, cb) => cb(null, `food-${req.session.companyId}-${Date.now()}${uploads.extname(file, '.bin')}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => imageMimeRegex.test(file.mimetype) ? cb(null, true) : cb(new Error('image only')),
-}).single('image_file');
+}).single('image_file'), 'image');
 function withImage(req, res, next) { uploadFoodImage(req, res, () => next()); }
 
 function toNum(v, d) { const n = parseFloat(v); return Number.isFinite(n) ? n : d; }

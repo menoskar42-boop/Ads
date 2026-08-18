@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const uploads = require('../lib/uploads');
 const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
@@ -52,7 +53,10 @@ function makeUploader(prefix) {
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
+      // The extension comes from the declared type the fileFilter already
+      // vetted, never from `originalname` — that string is the client's, and it
+      // is how a file lands in public/uploads called `product-7-1699.html`.
+      const ext = uploads.extname(file, '.bin');
       cb(null, `${prefix}-${req.session.companyId}-${Date.now()}${ext}`);
     },
   });
@@ -136,13 +140,13 @@ function makeMediaUploader(prefix) {
   });
 }
 
-const uploadLogo = makeUploader('logo').single('logo_file');
-const uploadItemImage = makeUploader('item').single('image_file');
-const uploadProductImage = makeUploader('product').single('image_file');
-const uploadProductMedia = makeMediaUploader('product').fields([
+const uploadLogo = uploads.guard(makeUploader('logo').single('logo_file'), 'image');
+const uploadItemImage = uploads.guard(makeUploader('item').single('image_file'), 'image');
+const uploadProductImage = uploads.guard(makeUploader('product').single('image_file'), 'image');
+const uploadProductMedia = uploads.guard(makeMediaUploader('product').fields([
   { name: 'image_file', maxCount: 1 },
   { name: 'video_file', maxCount: 1 },
-]);
+]), 'media');
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
 

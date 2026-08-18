@@ -14,6 +14,7 @@ const clinicPerms = require('../clinic/perms');
 const flow = require('../lib/order_flow');
 const booking = require('../clinic/booking');
 const money = require('../lib/money');
+const uploads = require('../lib/uploads');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -1405,11 +1406,11 @@ router.get('/voice-bookings', addons.requireAddon(pool, 'voice_booking'), async 
 
 const voiceUpload = (() => {
   const multer = require('multer');
-  return multer({
+  return uploads.guard(multer({
     storage: multer.memoryStorage(),   // audio goes straight to the API, never to disk
     limits: { fileSize: 12 * 1024 * 1024 },
     fileFilter: (req, file, cb) => cb(null, /^(audio|video)\//.test(file.mimetype)),
-  }).single('audio');
+  }).single('audio'), 'av');
 })();
 
 // Accept a voice note and turn it into a booking request.
@@ -2134,14 +2135,14 @@ const dentalPhotoUpload = (() => {
   const path = require('path');
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(__dirname, '..', '..', 'public', 'uploads')),
-    filename: (req, file, cb) => cb(null, `dental-${req.session.companyId}-${Date.now()}${path.extname(file.originalname).toLowerCase()}`),
+    filename: (req, file, cb) => cb(null, `dental-${req.session.companyId}-${Date.now()}${uploads.extname(file, '.bin')}`),
   });
-  return multer({
+  return uploads.guard(multer({
     storage,
     limits: { fileSize: 5 * 1024 * 1024 },
     // Raster only — SVG is active content and these are served from /uploads.
     fileFilter: (req, file, cb) => cb(null, /^image\/(png|jpeg|jpg|gif|webp)$/.test(file.mimetype)),
-  }).single('photo');
+  }).single('photo'), 'image');
 })();
 
 // Overview: lab orders that need attention + today's dental activity.

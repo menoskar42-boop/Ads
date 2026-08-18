@@ -35,6 +35,7 @@ const CHECKS = [
   ['check-random-codes',    'الأكواد اللي بفلوس مولّدة من crypto'],
   ['check-csrf',            'طلب من صفحة تانية بيتوقف (CSRF عبر السَبدومين)'],
   ['check-login-leak',      'الدخول مابيكشفش حالة الطلب ولا ملاحظات المراجعة'],
+  ['check-upload-type',     'الملف المرفوع بيتفحص من بايتاته مش من كلام العميل'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],

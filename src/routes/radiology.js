@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const crypto = require('crypto');
+const uploads = require('../lib/uploads');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const deident = require('../radiology/deident');
@@ -158,7 +159,12 @@ router.get('/audit', requireDoctor, async (req, res) => {
 
 /* ── Upload a study ────────────────────────────────────────────────────────── */
 router.get('/upload', requireDoctor, (req, res) => res.render('radiology/upload', { error: null }));
-router.post('/upload', requireDoctor, upload.array('dicom', 600), async (req, res) => {
+// The byte check matters more here than anywhere: these files are parsed as
+// DICOM and de-identified slice by slice, and a file that is not DICOM either
+// crashes that or slips through unredacted. 'DICM' sits at offset 128, after
+// the format's preamble.
+const uploadStudy = uploads.guard(upload.array('dicom', 600), 'dicom');
+router.post('/upload', requireDoctor, uploadStudy, async (req, res) => {
   const files = req.files || [];
   const cleanup = () => files.forEach((f) => { try { fs.unlinkSync(f.path); } catch (e) {} });
   if (!files.length) { cleanup(); return res.render('radiology/upload', { error: 'اختر ملفات DICOM.' }); }

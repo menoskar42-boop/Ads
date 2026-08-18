@@ -6,6 +6,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const uploads = require('../lib/uploads');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const push = require('../lib/push');
@@ -20,16 +21,16 @@ const imageMimeRegex = /^image\/(png|jpe?g|gif|webp)$/;
 function gymUploader(prefix) {
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, `gym-${prefix}-${req.session.companyId}-${Date.now()}${path.extname(file.originalname).toLowerCase()}`),
+    filename: (req, file, cb) => cb(null, `gym-${prefix}-${req.session.companyId}-${Date.now()}${uploads.extname(file, '.bin')}`),
   });
   return multer({
     storage, limits: { fileSize: 6 * 1024 * 1024 },
     fileFilter: (req, file, cb) => imageMimeRegex.test(file.mimetype) ? cb(null, true) : cb(new Error('صور فقط (PNG/JPEG/WEBP).')),
   });
 }
-const uploadHero = gymUploader('hero').single('hero_file');
-const uploadGallery = gymUploader('gal').single('image_file');
-const uploadTrainer = gymUploader('trainer').single('photo_file');
+const uploadHero = uploads.guard(gymUploader('hero').single('hero_file'), 'image');
+const uploadGallery = uploads.guard(gymUploader('gal').single('image_file'), 'image');
+const uploadTrainer = uploads.guard(gymUploader('trainer').single('photo_file'), 'image');
 async function compressSafe(file) {
   if (!file) return null;
   try { await compressImage(file.path); } catch (e) { /* keep original on failure */ }

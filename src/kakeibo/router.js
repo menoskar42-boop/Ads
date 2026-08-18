@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const uploads = require('../lib/uploads');
 const { Pool } = require('pg');
 const { makeT, normLang } = require('./i18n');
 const { CATEGORIES, CATEGORY_KEYS, PAYMENT_METHODS } = require('./categories');
@@ -25,15 +26,15 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // Receipt uploads (optional). Reuse the shared public/uploads dir.
 const uploadDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-const uploadReceipt = multer({
+const uploadReceipt = uploads.guard(multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => cb(null, 'kkb-' + (req.session.kkbUserId || 'x') + '-' + Date.now() + path.extname(file.originalname || '').toLowerCase().slice(0, 6)),
+    filename: (req, file, cb) => cb(null, 'kkb-' + (req.session.kkbUserId || 'x') + '-' + Date.now() + uploads.extname(file, '.bin')),
   }),
   limits: { fileSize: 6 * 1024 * 1024 },
   // SVG excluded on purpose (active content) — only passive raster receipts.
   fileFilter: (req, file, cb) => /^image\/(png|jpe?g|gif|webp|heic|heif)$/.test(file.mimetype) ? cb(null, true) : cb(null, false),
-}).single('receipt');
+}).single('receipt'), 'image');
 function withReceipt(req, res, next) { uploadReceipt(req, res, () => next()); }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -534,13 +535,24 @@ router.post('/ai/voice', requireOnboarded, async (req, res) => {
 });
 
 /* ─── AI: OCR a receipt image → expense fields ─────────── */
-const uploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }).single('image');
+// Guarded like the disk uploaders: this buffer is turned into a data: URL and
+// posted to the model, and the mime in that URL used to be the client's own
+// string — so "image/png" plus arbitrary bytes went out over the wire as an
+// image. The byte check makes the declared type true before it is repeated.
+const uploadMem = uploads.guard(
+  multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }).single('image'),
+  'image'
+);
 function withMemImage(req, res, next) { uploadMem(req, res, () => next()); }
 router.post('/ai/ocr', requireOnboarded, withMemImage, async (req, res) => {
   if (!ai.isEnabled()) return res.json({ ok: false, disabled: true });
   if (!req.file || !req.file.buffer) return res.json({ ok: false });
   try {
-    const dataUrl = 'data:' + (req.file.mimetype || 'image/jpeg') + ';base64,' + req.file.buffer.toString('base64');
+    // The kind the bytes actually are, not the header the client sent.
+    const kind = uploads.sniff(req.file.buffer.slice(0, 16));
+    const mime = kind === 'png' ? 'image/png' : kind === 'gif' ? 'image/gif'
+      : kind === 'webp' ? 'image/webp' : kind === 'heic' ? 'image/heic' : 'image/jpeg';
+    const dataUrl = 'data:' + mime + ';base64,' + req.file.buffer.toString('base64');
     const out = await ai.ocrReceipt(dataUrl, res.locals.lang);
     if (!out) return res.json({ ok: false });
     res.json({ ok: true, amount: out.amount, date: out.date, merchant: out.merchant, category: out.category, label: res.locals.t('cat.' + out.category) });

@@ -15,6 +15,7 @@ const gs1 = require('../pharmacy/gs1');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
 const multer = require('multer');
+const uploads = require('../lib/uploads');
 const path = require('path');
 const fs = require('fs');
 const { compressImage } = require('../lib/media');
@@ -27,17 +28,17 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 // SVG excluded on purpose (active content). Only passive raster formats.
 const imageMimeRegex = /^image\/(png|jpeg|jpg|gif|webp)$/;
 function pharmUploader(prefix) {
-  return multer({
+  return uploads.guard(multer({
     storage: multer.diskStorage({
       destination: (req, file, cb) => cb(null, uploadDir),
       filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
+        const ext = uploads.extname(file, '.bin');
         cb(null, `${prefix}-${req.session.companyId}-${Date.now()}${ext}`);
       },
     }),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => imageMimeRegex.test(file.mimetype) ? cb(null, true) : cb(new Error('image only')),
-  }).single('image_file');
+  }).single('image_file'), 'image');
 }
 const uploadMedImage = pharmUploader('phmed');
 const uploadBanner = pharmUploader('phbanner');
