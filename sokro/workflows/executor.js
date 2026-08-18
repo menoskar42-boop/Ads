@@ -5,7 +5,35 @@
 // failure the step is retried (with simple backoff) up to `maxRetries` instead of
 // stopping the whole run. Every step is logged to Memory (execution_history).
 // A hard failure after retries aborts the remaining plan.
+//
+// ── Except the steps that must not run twice ─────────────────────────────────
+//
+// "Retry on failure" is right for a search that timed out and catastrophic for
+// a booking that did not answer in time. A submit whose response never arrived
+// has usually SUCCEEDED — the request reached the site, the reply got lost — and
+// the retry books a second ticket, or pays a second time. Nobody sees it until
+// a statement arrives.
+//
+// The rule is read from what the project already declares: an action holding a
+// SENSITIVE permission (submit · payment · email · social · login · files) runs
+// ONCE. An action can be more precise about itself with `retryable(input)` —
+// `fill_submit` that is only typing into a search box is safe to repeat; the
+// same action with a submit is not.
 const { validate } = require('../validation/validator');
+const permissions = require('../permissions');
+
+/**
+ * May this step be run a second time?
+ *
+ * Defaults to "no" for anything hard to reverse, so a new action is safe by
+ * being declared, not by being remembered here.
+ */
+function mayRetry(action, input) {
+  if (!action) return false;
+  if (action.retryable === false) return false;
+  if (typeof action.retryable === 'function') return action.retryable(input) !== false;
+  return !permissions.isSensitive(action.permissions);
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -33,6 +61,7 @@ async function execute(ctx, plan, opts = {}) {
     if (!action) {
       result = { ok: false, error: 'unknown action: ' + step.action };
     } else {
+      const retries = mayRetry(action, step.input || {}) ? maxRetries : 0;
       let attempt = 0;
       for (;;) {
         attempt++;
@@ -40,7 +69,15 @@ async function execute(ctx, plan, opts = {}) {
         catch (e) { result = { ok: false, error: e.message }; }
         const v = validate(action, result);
         if (v.valid) break;
-        if (attempt > maxRetries) { result.ok = false; result.error = result.error || v.reason; break; }
+        if (attempt > retries) {
+          result.ok = false;
+          result.error = result.error || v.reason;
+          // Say it out loud. A step that was tried once, on purpose, is not the
+          // same as a step that was tried three times and kept failing — and the
+          // user deciding whether to try again deserves to know which.
+          if (retries === 0) result.notRetried = true;
+          break;
+        }
         onStep({ step: i, action: step.action, status: 'retry', attempt, error: v.reason });
         await sleep(400 * attempt);
       }
@@ -63,4 +100,4 @@ async function execute(ctx, plan, opts = {}) {
   return results;
 }
 
-module.exports = { execute };
+module.exports = { execute, mayRetry };

@@ -555,6 +555,9 @@ register({
   name: 'operate',
   description: 'Drive a browser toward a goal like an Operator: open a page then click/type/scroll/navigate step-by-step until the goal is done. Verifies each step, handles cookie/consent popups, retries with fallback selectors, and reloads/rolls back if a page gets stuck. Use for tasks that need real interaction inside a site (apply filters, click into a specific item, read what appears). input.url = start page, input.goal = what to accomplish. input.resume=true continues from where the previous run stopped.',
   permissions: ['browser'],
+  // Never repeated: the operator CLICKS inside a live site, so a failure can sit
+  // on either side of a button that already did something.
+  retryable: false,
   inputSchema: { type: 'object', properties: { url: { type: 'string' }, goal: { type: 'string' }, maxSteps: { type: 'number' }, resume: { type: 'boolean' }, confirmSensitive: { type: 'boolean' } }, required: ['goal'] },
   run,
 });
