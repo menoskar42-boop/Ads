@@ -12,6 +12,7 @@
 <body class="bg-gray-50 text-gray-800">
 <%- include('nav', { active: 'payments' }) %>
 <main class="max-w-2xl mx-auto px-4 py-6">
+  <% if (typeof saveError !== 'undefined' && saveError) { %><div class="mb-4 bg-red-50 text-red-700 rounded-xl px-4 py-2 text-sm font-bold">الحفظ مامشيش — جرّب تاني، والإعدادات لسه زي ما كانت.</div><% } %>
   <% if (saved) { %><div class="mb-4 bg-green-50 text-green-700 rounded-xl px-4 py-2 text-sm font-bold">✓ <%= t('acct.saved') %></div><% } %>
   <p class="text-sm text-gray-500 mb-4"><%= t('acct.payments.intro') %></p>
 

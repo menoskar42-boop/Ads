@@ -283,6 +283,9 @@ router.get('/payments', async (req, res) => {
   res.render('accounting/payments', {
     company: req.company, pay: shown, session: req.session,
     saved: req.query.saved === '1', keyError: req.query.err === 'nokey',
+    // A save that failed said nothing at all before: the page reloaded with the
+    // old values and looked like it had worked.
+    saveError: req.query.err === 'save',
   });
 });
 router.post('/payments', async (req, res) => {
@@ -345,7 +348,13 @@ router.post('/payments', async (req, res) => {
        (b.gateway_integration_id || '').trim() || null, (b.gateway_iframe_id || '').trim() || null,
        b.gateway_exclusive === '1', (b.instructions || '').trim() || null]
     );
-  } catch (e) { console.error('[accounting payments]', e.message); }
+    // The chip in every panel reads a cached answer; a save has to change it now,
+    // not in a minute.
+    require('../middleware/pay_status').forget(req.company.id);
+  } catch (e) {
+    console.error('[accounting payments]', e.message);
+    return res.redirect('/accounting/payments?err=save');
+  }
   res.redirect('/accounting/payments?saved=1');
 });
 
