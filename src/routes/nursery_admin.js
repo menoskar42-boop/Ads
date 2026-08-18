@@ -371,13 +371,21 @@ router.post('/fees/generate', async (req, res) => {
   for (const k of kids.rows) {
     if (!F.shouldInvoice(k, period)) continue;
     const fee = F.feeFor(k, { monthly_fee: k.group_fee }, req.settings);
-    if (fee.amount <= 0) continue; // nothing to bill is not an invoice for zero
+    /* A child who joined on the 20th was invoiced the whole month, and so was a
+     * child collected for the last time on the 3rd. That is not a rounding
+     * decision the nursery made — and the family is the one who notices. When
+     * the nursery has turned proration on, the invoice is the share of the
+     * month the child was actually enrolled for. */
+    const share = req.settings.prorate ? F.monthShare(k, period) : 1;
+    const amount = Math.round(fee.amount * share * 100) / 100;
+    const discount = Math.round(fee.discount * share * 100) / 100;
+    if (amount <= 0) continue; // nothing to bill is not an invoice for zero
     try {
       const r = await pool.query(
         `INSERT INTO nursery_invoices (company_id, child_id, period, amount, discount, due_on, kind)
          VALUES ($1,$2,$3,$4,$5,$6,'monthly')
          ON CONFLICT DO NOTHING RETURNING id`,
-        [cid, k.id, period, fee.amount, fee.discount, dueOn]);
+        [cid, k.id, period, amount, discount, dueOn]);
       if (r.rows.length) made += 1;
     } catch (e) {
       console.error('[nursery invoice]', e.message);
@@ -689,19 +697,19 @@ router.post('/settings', async (req, res) => {
   const b = req.body || {};
   await pool.query(
     `INSERT INTO nursery_settings (company_id, business_name, kind, address, phone, whatsapp, about,
-       age_from, age_to, open_from, open_to, default_fee, due_day, map_url, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+       age_from, age_to, open_from, open_to, default_fee, due_day, prorate, map_url, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now())
      ON CONFLICT (company_id) DO UPDATE SET
        business_name=EXCLUDED.business_name, kind=EXCLUDED.kind, address=EXCLUDED.address,
        phone=EXCLUDED.phone, whatsapp=EXCLUDED.whatsapp, about=EXCLUDED.about,
        age_from=EXCLUDED.age_from, age_to=EXCLUDED.age_to, open_from=EXCLUDED.open_from,
        open_to=EXCLUDED.open_to, default_fee=EXCLUDED.default_fee, due_day=EXCLUDED.due_day,
-       map_url=EXCLUDED.map_url, updated_at=now()`,
+       prorate=EXCLUDED.prorate, map_url=EXCLUDED.map_url, updated_at=now()`,
     [req.company.id, text(b.business_name, 120), b.kind === 'center' ? 'center' : 'nursery',
      text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40), text(b.about, 2000),
      int(b.age_from), int(b.age_to), text(b.open_from, 20), text(b.open_to, 20),
      Math.max(0, num(b.default_fee, 0)), Math.min(28, Math.max(1, int(b.due_day, 5) || 5)),
-     text(b.map_url, 300)]);
+     String(b.prorate) === '1', text(b.map_url, 300)]);
   await saveFlags(pool, req.company.id, Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []));
   res.redirect('/nursery/settings?saved=1');
 });

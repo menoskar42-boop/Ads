@@ -91,6 +91,57 @@ function dueDateFor(period, dueDay) {
  * default — so a scholarship or a sibling rate is set once on the child and
  * never has to be remembered again.
  */
+/**
+ * The share of a month a child was actually enrolled for.
+ *
+ * A child starting on the 20th was invoiced the full month, and a child leaving
+ * on the 3rd was invoiced the full month too. That is not a rounding decision
+ * the nursery made — it is the absence of one, and the family is the party who
+ * notices. Being told to pay for eleven days their child did not attend is the
+ * kind of thing that ends the relationship in the first week of it.
+ *
+ * Returns a fraction of the month, 0…1:
+ *
+ *   · enrolled before the month and still here at the end → 1
+ *   · started mid-month → the days from the start date to month end
+ *   · left mid-month → the days from month start to the leaving date
+ *
+ * The leaving day counts. A child collected on the 3rd was there on the 3rd.
+ *
+ * A nursery that prefers to bill whole months keeps that: `prorate` is a
+ * setting, and this is only consulted when it is on.
+ */
+function monthShare(child, period) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(period || ''));
+  if (!m) return 1;
+  const year = Number(m[1]), month = Number(m[2]);
+  const first = new Date(Date.UTC(year, month - 1, 1));
+  const last = new Date(Date.UTC(year, month, 0));
+  const days = last.getUTCDate();
+
+  const asUtc = (v) => {
+    if (!v) return null;
+    const d = new Date(v);
+    if (isNaN(d)) return null;
+    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  };
+  const from = asUtc(child && child.enrolled_on);
+  const to = asUtc(child && child.left_on);
+
+  let start = 1, end = days;
+  if (from && from > first) {
+    if (from > last) return 0;                    // starts after this month
+    start = from.getUTCDate();
+  }
+  if (to && to < last) {
+    if (to < first) return 0;                     // left before this month
+    end = to.getUTCDate();
+  }
+  const covered = end - start + 1;
+  if (covered <= 0) return 0;
+  return Math.min(1, covered / days);
+}
+
 function feeFor(child, group, settings) {
   const c = child || {};
   const own = c.monthly_fee == null || c.monthly_fee === '' ? null : Number(c.monthly_fee);
@@ -253,5 +304,5 @@ function ageLabel(birth, today) {
 module.exports = {
   round2, ymd, periodKey, isPeriod, periodLabel, shiftPeriod, monthsBetween, periodRange,
   dueDateFor, feeFor, shouldInvoice, arrears, reminderText, waLink, ageOf, ageLabel,
-  CHILD_STATUSES, ATTENDANCE, ENQUIRY_STATUSES, OPEN_ENQUIRY, AR_MONTHS,
+  CHILD_STATUSES, ATTENDANCE, ENQUIRY_STATUSES, OPEN_ENQUIRY, AR_MONTHS, monthShare,
 };

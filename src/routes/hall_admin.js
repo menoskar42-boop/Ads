@@ -224,14 +224,40 @@ router.post('/bookings', async (req, res) => {
   const venueId = int(b.venue_id);
   if (!eventDate || !name) return res.redirect('/hall/bookings?error=need_name_date');
 
-  const existing = await pool.query(
-    `SELECT b.*, v.name AS venue_name FROM hall_bookings b
-       LEFT JOIN hall_venues v ON v.id=b.venue_id
-      WHERE b.company_id=$1 AND b.event_date=$2 AND b.status=ANY($3)`,
-    [cid, eventDate, B.BLOCKING]);
-  const clash = B.findCollision({ event_date: eventDate, slot, venue_id: venueId }, existing.rows);
-  if (clash) {
-    return res.redirect('/hall/bookings?error=clash');
+  /* The clash test has to see the bookings it is racing.
+   *
+   * `full` blocks `evening` and `evening` blocks `full` — the JS rule below
+   * gets that right, and the unique index underneath cannot: it compares slots
+   * for equality, so a `full` and an `evening` on the same day both satisfy it.
+   * Which means for that pair, the SELECT-then-INSERT was the only thing
+   * standing between two weddings and one hall.
+   *
+   * An advisory lock on (company, venue, date) serialises the bookings that
+   * could possibly collide and nothing else — two different Saturdays, or two
+   * different halls, never wait on each other. Held for the transaction, so it
+   * is released whichever way this ends.
+   */
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))',
+      [`hall:${cid}:${venueId || 0}:${eventDate}`]);
+    const existing = await client.query(
+      `SELECT b.*, v.name AS venue_name FROM hall_bookings b
+         LEFT JOIN hall_venues v ON v.id=b.venue_id
+        WHERE b.company_id=$1 AND b.event_date=$2 AND b.status=ANY($3)`,
+      [cid, eventDate, B.BLOCKING]);
+    const clash = B.findCollision({ event_date: eventDate, slot, venue_id: venueId }, existing.rows);
+    if (clash) {
+      await client.query('ROLLBACK');
+      client.release();
+      return res.redirect('/hall/bookings?error=clash');
+    }
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    client.release();
+    console.error('[hall booking lock]', e.message);
+    return res.redirect('/hall/bookings?error=save');
   }
 
   // Price defaults come from the package if one was chosen, otherwise from the
@@ -249,8 +275,10 @@ router.post('/bookings', async (req, res) => {
   if (!Number.isFinite(base)) base = num(req.settings.base_price, 0);
   if (!Number.isFinite(perHead)) perHead = num(req.settings.price_per_head, 0);
 
+  // Same connection and same transaction as the lock above, or the lock
+  // protected nothing.
   try {
-    const r = await pool.query(
+    const r = await client.query(
       `INSERT INTO hall_bookings
          (company_id, venue_id, enquiry_id, package_id, customer_name, phone, whatsapp,
           event_date, slot, event_type, guests, base_price, price_per_head, status, hold_until, note)
@@ -261,11 +289,13 @@ router.post('/bookings', async (req, res) => {
     // An enquiry that became a booking is won — otherwise it sits in the
     // follow-up list forever and somebody rings a couple who already booked.
     if (int(b.enquiry_id)) {
-      await pool.query(`UPDATE hall_enquiries SET status='won', next_action_on=NULL, updated_at=now()
-                         WHERE id=$1 AND company_id=$2`, [int(b.enquiry_id), cid]);
+      await client.query(`UPDATE hall_enquiries SET status='won', next_action_on=NULL, updated_at=now()
+                           WHERE id=$1 AND company_id=$2`, [int(b.enquiry_id), cid]);
     }
+    await client.query('COMMIT');
     return res.redirect('/hall/bookings/' + r.rows[0].id);
   } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
     // The index fired: somebody else saved the same date between the check and
     // the insert. Say so plainly rather than showing a constraint name.
     if (String(e.message).includes('idx_hall_no_double_booking')) {
@@ -273,6 +303,8 @@ router.post('/bookings', async (req, res) => {
     }
     console.error('[hall booking]', e.message);
     return res.redirect('/hall/bookings?error=save');
+  } finally {
+    client.release();
   }
 });
 

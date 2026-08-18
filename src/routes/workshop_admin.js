@@ -737,7 +737,11 @@ router.get('/warranty', requireFlag('warranty'), async (req, res) => {
     // Starts on handover, never on the invoice date. A car invoiced in January
     // and collected in March is under warranty from March.
     const ends = J.addMonths(r.delivered_at, r.warranty_months);
-    const daysLeft = ends ? Math.floor((ends - now) / 86400000) : null;
+    // Calendar days, not elapsed milliseconds. `ends` is midnight on the last
+    // day and `now` is the middle of an afternoon, so the old subtraction made
+    // a warranty whose last day is TODAY come out at −1 — and the screen told
+    // the workshop it had expired. See J.daysBetween.
+    const daysLeft = ends ? J.daysBetween(now, ends) : null;
     return { ...r, ends, daysLeft,
       state: daysLeft == null ? 'unknown' : daysLeft < 0 ? 'expired' : daysLeft <= 30 ? 'expiring' : 'active' };
   });

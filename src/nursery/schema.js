@@ -52,6 +52,11 @@ async function ensureNurserySchema() {
         -- from an opinion into a fact, and it is the whole basis of the reminder
         -- list.
         due_day         INTEGER NOT NULL DEFAULT 5,
+        -- Bill a child who joined on the 20th for eleven days, not for a month.
+        -- Off by default: it changes what families are charged, and that is the
+        -- nursery's decision to make, not a default we quietly apply to
+        -- everybody's existing invoices.
+        prorate         BOOLEAN NOT NULL DEFAULT false,
         currency        TEXT NOT NULL DEFAULT 'EGP',
         map_url         TEXT,
         updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()

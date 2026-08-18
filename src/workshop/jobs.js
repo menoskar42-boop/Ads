@@ -93,6 +93,25 @@ function deliveryCheck(totals, opts = {}) {
  * Add whole months to a date, clamping to the end of the target month.
  * 31 January + 1 month is 28 (or 29) February, not 2 or 3 March.
  */
+/**
+ * Whole days between two moments, counted as CALENDAR days.
+ *
+ * `Math.floor((ends - now) / 86400000)` looks like "days left" and is not. It
+ * measures instants: `ends` is midnight on the last day, `now` is the middle of
+ * an afternoon, so a warranty whose last day is TODAY came out at −1 and the
+ * screen said expired. A workshop turning a customer away on the last day of
+ * their own warranty is the version of this bug that reaches a person.
+ *
+ * Both sides are reduced to their date first, so "today" and "the end date" are
+ * compared as days on a calendar — which is what everybody involved means.
+ */
+function daysBetween(from, to) {
+  const a = new Date(from), b = new Date(to);
+  if (isNaN(a) || isNaN(b)) return null;
+  const day = (d) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((day(b) - day(a)) / 86400000);
+}
+
 function addMonths(date, months) {
   const d = new Date(date);
   if (isNaN(d)) return null;
@@ -171,5 +190,4 @@ function jobCode(id) {
 
 module.exports = {
   STATUSES, OPEN_STATUSES, FLOW, nextStatus,
-  jobTotals, deliveryCheck, nextService, reminderState, addMonths, jobCode,
-};
+  jobTotals, deliveryCheck, nextService, reminderState, addMonths, jobCode, daysBetween };
