@@ -84,9 +84,15 @@ const check = (label, ok, extra) => {
   const code = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, nl)
     .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + nl(m.slice(p.length)));
+  // The actions go through the finder, and the finder asks the table FIRST —
+  // a known name must never cost a search, or become a different site on a day
+  // the results move.
+  const finder = code('sokro/lib/siteFinder.js');
+  check('الباحث بيسأل القاموس الأول', /const direct = dict\.resolve\(raw\);/.test(finder)
+    && finder.indexOf('dict.resolve(raw)') < finder.indexOf("actions.get('search_web')"));
   for (const f of ['BrowseAction', 'ExtractTableAction', 'FillSubmitAction', 'NavigateSiteAction', 'OperateAction']) {
     const src = code('sokro/actions/' + f + '.js');
-    check(f + ' بيحلّ الاسم من القاموس', /require\('\.\.\/lib\/siteDict'\)\.resolve\(/.test(src));
+    check(f + ' بيحلّ الاسم من القاموس', /siteFinder'\)\.find\(ctx|SF\.find\(ctx/.test(src));
   }
   // The old shape refused a name outright; leaving one behind means one action
   // still cannot open a site the other four can.

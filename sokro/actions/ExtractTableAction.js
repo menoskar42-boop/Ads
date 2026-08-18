@@ -4,22 +4,25 @@
 // text). Feeds naturally into the Reports layer (Excel/CSV). Requires the
 // browser layer (Chromium); degrades gracefully when it isn't installed.
 const { register } = require('./_registry');
+const SF = require('../lib/siteFinder');
 
 async function run(ctx, input) {
   let url = String((input && input.url) || '').trim();
   // A name, not a URL: «سيلندر» is a site the user can name and the model
-  // cannot spell. Looked up in a written-down table — never guessed.
+  // cannot spell. Looked up in the written-down table, and — for a name nobody
+  // wrote down — searched for the way a person would. Never guessed.
+  let site = null;
   {
-    const hit = require('../lib/siteDict').resolve(url);
-    if (!hit) return { ok: false, error: 'valid http(s) url required' };
-    url = hit.url;
+    site = await SF.find(ctx, url);
+    if (!site) return { ok: false, error: 'valid http(s) url required' };
+    url = site.url;
   }
   try { url = await require('../lib/urlGuard').assertSafeUrl(url); }
   catch (e) { return { ok: false, error: 'blocked url: ' + e.message }; }
   const ext = require('../extension-bridge');
   if (ctx.userId && ext.connected(ctx.userId)) {
     const r = await ext.run(ctx.userId, 'extract_table', { url, selector: input && input.selector });
-    if (r.ok) { if (ctx.log) ctx.log('extract_table(ext)', { url }); return { ok: true, output: Object.assign({ url }, r.output) }; }
+    if (r.ok) { if (ctx.log) ctx.log('extract_table(ext)', { url }); return { ok: true, output: Object.assign({ url }, SF.note(site), r.output) }; }
     return { ok: false, error: r.error };
   }
   if (!ctx.browser || !ctx.browser.available()) {
@@ -41,7 +44,7 @@ async function run(ctx, input) {
       }, sel);
     });
     if (ctx.log) ctx.log('extract_table', { url, rows: rows.length });
-    return { ok: true, output: { url, rows } };
+    return { ok: true, output: Object.assign({ url, rows }, SF.note(site)) };
   } catch (e) {
     return { ok: false, error: 'extract failed: ' + e.message };
   }
