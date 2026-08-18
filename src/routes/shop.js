@@ -2,6 +2,7 @@ const express = require('express');
 const payVault = require('../lib/pay_vault');
 const router = express.Router();
 const { Pool } = require('pg');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { canonicalCompanyUrl } = require('../lib/urls');
 const push = require('../lib/push');
@@ -264,6 +265,9 @@ router.get('/:slug/checkout', async (req, res) => {
       customerId: req.session.customerId || null,
       orderLines,
       orderSubtotal,
+      /* One order per rendered checkout page. The form carries this back and a
+         unique index refuses the second submit — see the schema note. */
+      idemToken: crypto.randomBytes(16).toString('hex'),
       error: req.query.error || null,
     });
   } catch (err) {
@@ -288,6 +292,11 @@ router.post('/:slug/checkout', async (req, res) => {
   const cart = getCart(req, slug);
   const keys = Object.keys(cart);
   if (!keys.length) return res.redirect(`/shop/${slug}/cart`);
+
+  /* The token the checkout page minted. An old form (or a bot) without one
+     still works — it just loses the double-submit protection, which is better
+     than refusing a real customer's order. */
+  const idemToken = String(req.body.idem_token || '').slice(0, 64) || null;
 
   const client = await pool.connect();
   try {
@@ -411,11 +420,12 @@ router.post('/:slug/checkout', async (req, res) => {
     const orderInsert = await client.query(
       `INSERT INTO orders (company_id, customer_id, customer_name, customer_phone, customer_email,
                            shipping_address, total_amount, status, notes, coupon_code, discount_amount,
-                           shipping_cost, shipping_zone, points_redeemed, points_earned, payment_method, wallet_used)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
+                           shipping_cost, shipping_zone, points_redeemed, points_earned, payment_method, wallet_used,
+                           idem_token)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
       [company.id, customerId, customer_name, customer_phone, customer_email || null,
        shipping_address, finalTotal, notes || null, appliedCode, discountAmount, shipCost, shipZoneName,
-       pointsRedeemed, pointsEarned, paymentMethod, walletUsed]
+       pointsRedeemed, pointsEarned, paymentMethod, walletUsed, idemToken]
     );
     const orderId = orderInsert.rows[0].id;
     // Apply loyalty delta + initial status history.
@@ -460,6 +470,19 @@ router.post('/:slug/checkout', async (req, res) => {
     res.redirect(`/shop/${slug}/order/${orderId}`);
   } catch (err) {
     await client.query('ROLLBACK');
+    /* The second of two taps. The first one's order exists and is correct, so
+       the customer belongs on it — not on an error page telling them something
+       went wrong when nothing did. 23505 = unique_violation. */
+    if (err && err.code === '23505' && idemToken) {
+      try {
+        const prev = (await pool.query(
+          'SELECT id FROM orders WHERE company_id=$1 AND idem_token=$2', [company.id, idemToken])).rows[0];
+        if (prev) {
+          req.session.carts[slug] = {};
+          return res.redirect(`/shop/${slug}/order/${prev.id}`);
+        }
+      } catch (e) { console.error('[checkout idem]', e.message); }
+    }
     console.error('[POST /shop/:slug/checkout] error:', err);
     res.redirect(`/shop/${slug}/checkout?error=${encodeURIComponent('Could not place order: ' + err.message)}`);
   } finally {

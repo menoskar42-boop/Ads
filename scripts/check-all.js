@@ -23,6 +23,7 @@ const CHECKS = [
   ['check-inline-json',     'مفيش JSON خام جوّه <script> (XSS مخزّن)'],
   ['check-demo-readonly',   'وضع العرض قراءة فقط في التطبيق كله'],
   ['check-sql-reserved',    'مفيش كلمة محجوزة كاسم مستعار في SQL'],
+  ['check-order-idempotency','ضغطتين على «اشتري» = أوردر واحد'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],

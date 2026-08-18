@@ -48,6 +48,10 @@
   <% } %>
 
   <form method="POST" action="/shop/<%= company.slug %>/checkout" class="bg-white rounded-2xl shadow p-6 space-y-5">
+    <%# One order per rendered page: the server refuses a second submit carrying
+        the same token, so a double tap lands on the order that already exists
+        instead of placing another one. %>
+    <input type="hidden" name="idem_token" value="<%= idemToken %>" />
     <% if (typeof savedAddresses !== 'undefined' && savedAddresses.length) { %>
     <div>
       <label class="block text-sm font-semibold text-gray-600 mb-1.5">📍 عنوان محفوظ (اختياري)</label>

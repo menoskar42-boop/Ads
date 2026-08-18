@@ -872,6 +872,21 @@ async function initDb() {
       -- Store wallet / gift-card credit per customer (competitor phase 31).
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(10,2) NOT NULL DEFAULT 0;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS wallet_used NUMERIC(10,2) NOT NULL DEFAULT 0;
+      /* Two taps on "buy" = two orders, and the stock deducted twice.
+       *
+       * The cart is cleared AFTER the commit, so a second request that started
+       * before the first finished still sees a full cart and places its own
+       * order. A flag on the session does not fix it either: concurrent
+       * requests each load their own copy of the session and the last write
+       * wins — the race is exactly the case a session flag cannot see.
+       *
+       * So the checkout form carries a token minted when the page was rendered,
+       * and the database refuses the second one. A constraint is the only thing
+       * both requests are guaranteed to agree about.
+       */
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS idem_token TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idem
+        ON orders (company_id, idem_token) WHERE idem_token IS NOT NULL;
       -- Abandoned checkout recovery (competitor phase 26). One live snapshot per
       -- customer+store; deleted on a completed order, so rows here = carts that
       -- reached checkout but never converted. Merchant sends a manual reminder.
