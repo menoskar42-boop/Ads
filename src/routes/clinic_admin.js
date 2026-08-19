@@ -15,6 +15,7 @@ const clinicBoard = require('../clinic/board');
 const clinicQueue = require('../clinic/queue');
 const clinicCalendar = require('../clinic/calendar');
 const fileTabs = require('../clinic/file_tabs');
+const refunds = require('../clinic/refunds');
 const flow = require('../lib/order_flow');
 const booking = require('../clinic/booking');
 const money = require('../lib/money');
@@ -1052,8 +1053,24 @@ router.get('/invoices/:id', async (req, res) => {
       pool.query('SELECT * FROM clinic_invoice_items WHERE invoice_id=$1 ORDER BY id', [id]),
       pool.query('SELECT * FROM clinic_payments WHERE invoice_id=$1 AND company_id=$2 ORDER BY created_at', [id, cid]),
     ]);
+    // The audit trail for THIS invoice: what was collected, what was given
+    // back, who did it and when. Appended to, never edited — so it is read
+    // straight from the log rather than recomputed into a prettier story.
+    let trail = { ok: true, rows: [] };
+    try {
+      trail.rows = (await pool.query(
+        `SELECT created_at, actor_kind, actor_label, action, meta
+           FROM medical_audit_log WHERE company_id=$1 AND entity='invoice' AND entity_id=$2
+          ORDER BY created_at DESC LIMIT 50`, [cid, id])).rows;
+    } catch (e) { trail = { ok: false, rows: [] }; console.error('[clinic invoice trail]', e.message); }
     res.render('clinic_admin/invoice_detail', {
       company: req.company, tab: 'invoices', inv: invRes.rows[0], items: items.rows, payments: payments.rows,
+      maxRefund: refunds.maxRefund(payments.rows),
+      trail: trail.rows, trailOk: trail.ok,
+      error: ['amount', 'nothing', 'too_much', 'save', 'settled', 'missing'].includes(String(req.query.error || ''))
+        ? req.query.error : null,
+      refunded: req.query.refunded === '1',
+      change: Number(req.query.change) > 0 ? Number(req.query.change) : null,
     });
   } catch (e) { console.error('[clinic invoice detail]', e.message); res.status(500).send('error'); }
 });
@@ -1157,6 +1174,91 @@ router.get('/finance', async (req, res) => {
       byService: byService.rows, daily: daily.rows,
     });
   } catch (e) { console.error('[clinic finance]', e.message); res.status(500).send('error'); }
+});
+
+/**
+ * إيصال دفعة — the piece of paper the patient leaves with.
+ *
+ * A printed invoice says what the whole visit cost; a receipt says what THIS
+ * person handed over just now, which is the thing they are asked to prove
+ * later. It is its own page so it prints on its own, and it reads a single
+ * payment row scoped to this clinic — an id in the URL is not a permission.
+ */
+router.get('/invoices/:id/receipt/:pid', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const pid = parseInt(req.params.pid, 10);
+  try {
+    const row = (await pool.query(
+      `SELECT pm.*, i.total_amount, i.paid_amount, i.status, p.name AS patient_name, p.phone AS patient_phone
+         FROM clinic_payments pm
+         JOIN clinic_invoices i ON i.id = pm.invoice_id
+         LEFT JOIN clinic_patients p ON p.id = i.patient_id
+        WHERE pm.id=$1 AND pm.invoice_id=$2 AND pm.company_id=$3`, [pid, id, cid])).rows[0];
+    if (!row) return res.redirect('/clinic/invoices/' + id);
+    res.render('clinic_admin/receipt', {
+      company: req.company, tab: 'invoices', inv: { id }, pay: row,
+      // A negative payment is a refund, and the receipt says so rather than
+      // printing a minus sign somebody has to interpret.
+      isRefund: Number(row.amount) < 0,
+    });
+  } catch (e) {
+    console.error('[clinic receipt]', e.message);
+    res.redirect('/clinic/invoices/' + id);
+  }
+});
+
+/**
+ * المرتجع — money going back over the counter.
+ *
+ * Recorded as a NEGATIVE payment row, so every screen that sums payments nets
+ * itself: the day's cash, the finance report, the invoice's own total. See
+ * src/clinic/refunds.js for why a separate refunds table would be worse.
+ *
+ * The ceiling is what was actually COLLECTED minus what was already given
+ * back, computed inside the transaction from the rows themselves — two
+ * cashiers refunding the same invoice is the case this exists for.
+ */
+router.post('/invoices/:id/refund', async (req, res) => {
+  const cid = req.company.id, id = parseInt(req.params.id, 10);
+  const method = ['cash', 'card', 'wallet', 'transfer'].includes(req.body.method) ? req.body.method : 'cash';
+  const reason = String((req.body || {}).reason || '').trim().slice(0, 200) || null;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inv = (await client.query(
+      'SELECT total_amount, paid_amount, status FROM clinic_invoices WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid]
+    )).rows[0];
+    if (!inv) { await client.query('ROLLBACK'); return res.redirect('/clinic/invoices'); }
+    const pays = (await client.query(
+      'SELECT amount FROM clinic_payments WHERE company_id=$1 AND invoice_id=$2', [cid, id]
+    )).rows;
+    const verdict = refunds.check(inv, pays, req.body.amount);
+    if (!verdict.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect('/clinic/invoices/' + id + '?error=' + verdict.why);
+    }
+    await client.query(
+      'INSERT INTO clinic_payments (company_id, invoice_id, amount, method) VALUES ($1,$2,$3,$4)',
+      [cid, id, -verdict.amount, method]
+    );
+    const paid = +(Number(inv.paid_amount) - verdict.amount).toFixed(2);
+    const status = refunds.statusAfter(inv.total_amount, paid, inv.status === 'cancelled');
+    await client.query(
+      'UPDATE clinic_invoices SET paid_amount=$1, status=$2 WHERE id=$3 AND company_id=$4',
+      [paid, status, id, cid]
+    );
+    await client.query('COMMIT');
+    // The audit trail is append-only: this is a new line, never an edit of the
+    // payment it reverses.
+    audit.log(pool, req, { entity: 'invoice', entityId: id, action: 'refund',
+      meta: { amount: verdict.amount, method, reason } });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[clinic refund]', e.message);
+    return res.redirect('/clinic/invoices/' + id + '?error=save');
+  } finally { client.release(); }
+  res.redirect('/clinic/invoices/' + id + '?refunded=1');
 });
 
 router.post('/invoices/:id/cancel', async (req, res) => {

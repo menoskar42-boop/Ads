@@ -1063,7 +1063,27 @@ const FIXTURES = {
       subtotal: 600, discount_amount: 100, total_amount: 500, paid_amount: 200, status: 'partial',
     },
     items: [{ name: 'Radiograph', quantity: 1, unit_price: 200, total_price: 200 }],
-    payments: [{ created_at: NOW, method: 'cash', amount: 200 }],
+    // A payment and a refund, so both readings of the ledger line render.
+    payments: [
+      { id: 9, created_at: NOW, method: 'cash', amount: 250 },
+      { id: 10, created_at: NOW, method: 'cash', amount: -50 },
+    ],
+    maxRefund: 200,
+    trail: [
+      { created_at: NOW, actor_kind: 'company', actor_label: null, action: 'update', meta: { paid: 250 } },
+      { created_at: NOW, actor_kind: 'staff', actor_label: 'Reception', action: 'refund', meta: { amount: 50, reason: 'cancelled procedure' } },
+    ],
+    trailOk: true, error: 'too_much', refunded: true, change: 20,
+  }),
+
+  // The receipt is its own page because it prints on its own.
+  receipt: () => ({
+    tab: 'invoices',
+    company: { id: 1, company_name: 'Demo Clinic', name: 'Demo Clinic' },
+    inv: { id: 1 },
+    pay: { id: 9, created_at: NOW, method: 'cash', amount: 250, total_amount: 500,
+      paid_amount: 200, status: 'partial', patient_name: patient.name, patient_phone: '01000000000' },
+    isRefund: false,
   }),
 
   finance: () => ({
