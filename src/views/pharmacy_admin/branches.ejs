@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('ph.br.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; width:100%; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'branches' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+  <% var P = (typeof perms !== 'undefined' && perms) ? perms : { settings: true, inventory: true }; %>
+  <% var linkedBranches = links.filter(function (l) { return l.status === 'linked'; }); %>
+
+  <div>
+    <h1 class="text-xl font-extrabold mb-1"><%= t('ph.br.title') %></h1>
+    <p class="text-sm text-gray-500 leading-relaxed"><%= t('ph.br.sub') %></p>
+  </div>
+
+  <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm"><%= t('ph.br.saved') %></div><% } %>
+  <% if (err) { %><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm"><%= t('ph.br.err.' + err) %></div><% } %>
+
+  <!-- الفروع -->
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-3"><%= t('ph.br.links') %></h2>
+
+    <% if (!links.length) { %>
+      <p class="text-sm text-gray-400 py-4 text-center"><%= t('ph.br.no_links') %></p>
+    <% } else { %>
+      <div class="divide-y divide-gray-100 mb-3">
+        <% links.forEach(function (l) { %>
+          <div class="py-2.5 flex items-center justify-between gap-3 flex-wrap">
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-800 text-sm"><%= l.company_name %></div>
+              <div class="text-xs text-gray-400" dir="ltr"><%= l.slug %>.oscardevs.com</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= l.status === 'linked' ? 'bg-emerald-100 text-emerald-800' : l.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-600' %>">
+                <%= t('ph.br.link.' + l.status) %><% if (l.status === 'pending') { %> · <%= t(l.we_asked ? 'ph.br.we_asked' : 'ph.br.they_asked') %><% } %>
+              </span>
+              <% if (P.settings && l.status === 'pending' && !l.we_asked) { %>
+                <form method="POST" action="/pharmacy/branches/<%= l.id %>/answer" class="inline">
+                  <input type="hidden" name="answer" value="linked" />
+                  <button class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-3 py-1.5"><%= t('ph.br.accept') %></button>
+                </form>
+                <form method="POST" action="/pharmacy/branches/<%= l.id %>/answer" class="inline">
+                  <input type="hidden" name="answer" value="declined" />
+                  <button class="text-xs bg-white border border-gray-200 text-gray-600 font-bold rounded-lg px-3 py-1.5"><%= t('ph.br.decline') %></button>
+                </form>
+              <% } %>
+              <% if (P.settings) { %>
+                <form method="POST" action="/pharmacy/branches/<%= l.id %>/unlink" class="inline">
+                  <button class="text-xs text-gray-400 hover:text-rose-600 px-2"><%= t('ph.br.unlink') %></button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <% if (P.settings) { %>
+      <form method="POST" action="/pharmacy/branches/link" class="flex items-end gap-2 flex-wrap border-t border-gray-100 pt-3">
+        <label class="flex-1 min-w-[200px]"><span class="lbl"><%= t('ph.br.add_hint') %></span>
+          <input name="slug" maxlength="60" dir="ltr" placeholder="branch-slug" class="fld" required /></label>
+        <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('ph.br.ask') %></button>
+      </form>
+    <% } %>
+  </section>
+
+  <!-- تحويل -->
+  <% if (linkedBranches.length && medicines.length) { %>
+    <section class="bg-white border border-gray-100 rounded-2xl p-4">
+      <h2 class="font-bold text-gray-800 mb-1"><%= t('ph.br.send') %></h2>
+      <p class="text-xs text-gray-500 mb-3"><%= t('ph.br.send_sub') %></p>
+      <form method="POST" action="/pharmacy/branches/send" class="grid sm:grid-cols-4 gap-2 items-end">
+        <label><span class="lbl"><%= t('ph.br.to') %></span>
+          <select name="to" class="fld">
+            <% linkedBranches.forEach(function (l) { %><option value="<%= l.other_id %>"><%= l.company_name %></option><% }); %>
+          </select></label>
+        <label><span class="lbl"><%= t('ph.br.medicine') %></span>
+          <select name="medicine_id" class="fld">
+            <% medicines.forEach(function (m) { %><option value="<%= m.medicine_id %>"><%= m.name %> (<%= m.available %>)</option><% }); %>
+          </select></label>
+        <label><span class="lbl"><%= t('ph.br.qty') %></span><input name="qty" type="number" min="1" value="1" class="fld" required /></label>
+        <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('ph.br.send_btn') %></button>
+      </form>
+    </section>
+  <% } %>
+
+  <!-- جاي لنا -->
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('ph.br.incoming') %></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('ph.br.incoming_sub') %></p>
+    <% if (!incoming.length) { %>
+      <p class="text-sm text-gray-400 py-4 text-center"><%= t('ph.br.none') %></p>
+    <% } else { %>
+      <div class="divide-y divide-gray-100">
+        <% incoming.forEach(function (tr) { %>
+          <div class="py-2.5 flex items-center justify-between gap-3 flex-wrap">
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-800 text-sm"><%= tr.name || tr.name_at_send %> × <%= tr.qty %></div>
+              <div class="text-xs text-gray-400"><%= t('ph.br.from') %>: <%= tr.from_name %> · <%= new Date(tr.created_at).toLocaleString(LOC) %></div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= tr.status === 'received' ? 'bg-emerald-100 text-emerald-800' : tr.status === 'rejected' ? 'bg-gray-200 text-gray-600' : 'bg-sky-100 text-sky-800' %>">
+                <%= t('ph.br.tr.' + tr.status) %>
+              </span>
+              <% if (tr.status === 'in_transit' && P.inventory) { %>
+                <form method="POST" action="/pharmacy/branches/transfer/<%= tr.id %>/receive" class="inline">
+                  <button class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-3 py-1.5"><%= t('ph.br.confirm') %></button>
+                </form>
+                <form method="POST" action="/pharmacy/branches/transfer/<%= tr.id %>/reject" class="inline">
+                  <button class="text-xs bg-white border border-gray-200 text-gray-600 font-bold rounded-lg px-3 py-1.5"><%= t('ph.br.refuse') %></button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- رايح منّا -->
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('ph.br.outgoing') %></h2>
+    <% if (!outgoing.length) { %>
+      <p class="text-sm text-gray-400 py-4 text-center"><%= t('ph.br.none') %></p>
+    <% } else { %>
+      <div class="divide-y divide-gray-100">
+        <% outgoing.forEach(function (tr) { %>
+          <div class="py-2.5 flex items-center justify-between gap-3 flex-wrap">
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-800 text-sm"><%= tr.name || tr.name_at_send %> × <%= tr.qty %></div>
+              <div class="text-xs text-gray-400"><%= t('ph.br.to') %>: <%= tr.to_name %> · <%= new Date(tr.created_at).toLocaleString(LOC) %></div>
+            </div>
+            <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= tr.status === 'received' ? 'bg-emerald-100 text-emerald-800' : tr.status === 'rejected' ? 'bg-gray-200 text-gray-600' : 'bg-sky-100 text-sky-800' %>">
+              <%= t('ph.br.tr.' + tr.status) %>
+            </span>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </section>
+</main>
+</body></html>
