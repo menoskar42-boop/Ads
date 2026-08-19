@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('ph.rep.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'reports' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+  <% var money = !(typeof perms !== 'undefined' && perms) || perms.canFinance !== false; %>
+
+  <div>
+    <h1 class="text-xl font-extrabold mb-1"><%= t('ph.rep.title') %></h1>
+    <p class="text-sm text-gray-500"><%= t('ph.rep.sub') %></p>
+  </div>
+
+  <form method="GET" class="bg-white border border-gray-100 rounded-2xl p-4 flex items-end gap-3 flex-wrap">
+    <label class="text-xs font-bold text-gray-600"><%= t('ph.rep.days') %>
+      <input name="days" type="number" min="1" max="365" value="<%= days %>" class="fld block mt-1 w-24" />
+    </label>
+    <label class="text-xs font-bold text-gray-600"><%= t('ph.rep.idle') %>
+      <input name="idle" type="number" min="1" max="365" value="<%= idleDays %>" class="fld block mt-1 w-24" />
+    </label>
+    <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('ph.rep.apply') %></button>
+  </form>
+
+  <!-- أكثر مبيعاً -->
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('ph.rep.top') %></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('ph.rep.top_sub') %></p>
+    <% if (!top.length) { %>
+      <p class="text-sm text-gray-400 py-6 text-center"><%= t('ph.rep.none') %></p>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-xs text-gray-500 bg-gray-50">
+            <tr>
+              <th class="text-start px-3 py-2"><%= t('ph.rep.medicine') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.rep.qty') %></th>
+              <% if (money) { %><th class="text-start px-3 py-2"><%= t('ph.rep.revenue') %></th><% } %>
+            </tr>
+          </thead>
+          <tbody>
+            <% top.forEach(function (r) { %>
+              <tr class="border-t border-gray-100">
+                <td class="px-3 py-2 font-semibold text-gray-800"><%= r.name %></td>
+                <td class="px-3 py-2 text-gray-700"><%= r.qty %></td>
+                <% if (money) { %><td class="px-3 py-2 text-emerald-700 font-bold"><%= Number(r.revenue || 0).toFixed(2) %></td><% } %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- راكد -->
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('ph.rep.slow') %></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('ph.rep.slow_sub') %></p>
+    <% if (!slow.length) { %>
+      <p class="text-sm text-gray-400 py-6 text-center"><%= t('ph.rep.none_slow') %></p>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-xs text-gray-500 bg-gray-50">
+            <tr>
+              <th class="text-start px-3 py-2"><%= t('ph.rep.medicine') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.rep.on_shelf') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.rep.last_sold') %></th>
+              <% if (money) { %><th class="text-start px-3 py-2"><%= t('ph.rep.tied_up') %></th><% } %>
+            </tr>
+          </thead>
+          <tbody>
+            <% slow.forEach(function (r) { %>
+              <tr class="border-t border-gray-100">
+                <td class="px-3 py-2 font-semibold text-gray-800"><%= r.name %></td>
+                <td class="px-3 py-2 text-gray-700"><%= r.available %></td>
+                <td class="px-3 py-2 text-gray-500 text-xs">
+                  <%= r.last_sold ? new Date(r.last_sold).toLocaleDateString(LOC) : t('ph.rep.never') %>
+                </td>
+                <% if (money) { %>
+                  <td class="px-3 py-2 text-gray-700">
+                    <%= r.cost == null ? '—' : (Number(r.cost) * Number(r.available)).toFixed(2) %>
+                  </td>
+                <% } %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- هالك -->
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('ph.rep.waste') %></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('ph.rep.waste_sub') %></p>
+    <% if (money) { %>
+      <div class="flex items-center gap-2 flex-wrap text-xs mb-3">
+        <span class="bg-rose-50 text-rose-700 font-bold rounded-full px-3 py-1"><%= t('ph.rep.waste_total') %>: <%= wasteTotals.total.toFixed(2) %></span>
+        <span class="bg-gray-100 text-gray-600 rounded-full px-3 py-1"><%= t('ph.rep.src.return') %>: <%= wasteTotals.returns.toFixed(2) %></span>
+        <span class="bg-gray-100 text-gray-600 rounded-full px-3 py-1"><%= t('ph.rep.src.expired') %>: <%= wasteTotals.expired.toFixed(2) %></span>
+      </div>
+    <% } %>
+    <% if (!waste.length) { %>
+      <p class="text-sm text-gray-400 py-6 text-center"><%= t('ph.rep.none_waste') %></p>
+    <% } else { %>
+      <div class="divide-y divide-gray-100">
+        <% waste.forEach(function (r) { %>
+          <div class="py-2.5 flex items-center justify-between gap-3 flex-wrap">
+            <div class="min-w-0">
+              <div class="font-semibold text-gray-800 text-sm"><%= r.name %></div>
+              <div class="text-xs text-gray-400"><%= r.at ? new Date(r.at).toLocaleDateString(LOC) : '' %><% if (r.note) { %> · <%= r.note %><% } %></div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= r.source === 'expired' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800' %>">
+                <%= t('ph.rep.src.' + r.source) %>
+              </span>
+              <span class="text-sm text-gray-700"><%= r.qty %></span>
+              <% if (money && r.cost != null) { %>
+                <span class="text-sm text-rose-700 font-bold"><%= (Number(r.cost) * Number(r.qty)).toFixed(2) %></span>
+              <% } %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </section>
+</main>
+</body></html>

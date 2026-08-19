@@ -13,6 +13,7 @@ const returns = require('../pharmacy/returns');
 const discount = require('../pharmacy/discount');
 const gs1 = require('../pharmacy/gs1');
 const purchase = require('../pharmacy/purchase');
+const reports = require('../pharmacy/reports');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
 const multer = require('multer');
@@ -799,6 +800,34 @@ router.get('/api/inventory-all', gate('pos'), async (req, res) => {
  * went and counted the shelf, which is the only thing that can actually settle
  * the difference.
  */
+/* ─── التقارير (backlog 81) ──────────────────────────────── */
+//
+// Three questions, one page: what sells, what is standing still, and what was
+// lost. The queries live in src/pharmacy/reports.js — read the note there about
+// why every one of them nets returns instead of summing quantities.
+router.get('/reports', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const days = reports.windowDays(req.query.days, 30);
+  const idleDays = reports.windowDays(req.query.idle, 60);
+  try {
+    // Three independent reads; one slow one must not hold the other two.
+    const [top, slow, waste] = await Promise.all([
+      pool.query(reports.topSellers, [cid, String(days)]),
+      pool.query(reports.slowMoving, [cid, String(idleDays)]),
+      pool.query(reports.waste, [cid, String(days)]),
+    ]);
+    res.render('pharmacy_admin/reports', {
+      company: req.company, session: req.session,
+      days, idleDays,
+      top: top.rows, slow: slow.rows, waste: waste.rows,
+      wasteTotals: reports.wasteTotals(waste.rows),
+    });
+  } catch (e) {
+    console.error('[pharmacy reports]', e.message);
+    res.redirect('/pharmacy');
+  }
+});
+
 /* ─── أوامر الشراء (backlog 81) ──────────────────────────── */
 //
 // The list, one order, and the two writes: sending it, and receiving what came.

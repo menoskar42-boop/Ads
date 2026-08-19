@@ -654,6 +654,17 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'قرّب يخلص',
     'pharmacy.admin.barcode': 'الباركود',
+    // ── تقارير الصيدلية ───────────────────────────────────────────────────
+    'ph.rep.nav':'التقارير','ph.rep.title':'تقارير المخزون','ph.rep.sub':'اللي بيتباع، واللي واقف على الرف، واللي راح.',
+    'ph.rep.days':'المدة (أيام)','ph.rep.idle':'يعتبر راكد بعد (أيام)','ph.rep.apply':'اعرض',
+    'ph.rep.medicine':'الصنف','ph.rep.qty':'الكمية','ph.rep.revenue':'المبيعات','ph.rep.none':'مفيش مبيعات في المدة دي.',
+    'ph.rep.top':'أكثر مبيعاً','ph.rep.top_sub':'الصافي بعد المرتجعات — العلبة اللي رجعت مش بيعة.',
+    'ph.rep.slow':'راكد','ph.rep.slow_sub':'موجود على الرف وماتباعش ولا علبة في المدة دي. واللي عمره ما اتباع داخل هنا كمان.',
+    'ph.rep.on_shelf':'على الرف','ph.rep.last_sold':'آخر بيعة','ph.rep.never':'ولا مرة','ph.rep.tied_up':'فلوس واقفة',
+    'ph.rep.none_slow':'كل حاجة على الرف اتحرّكت في المدة دي.',
+    'ph.rep.waste':'الهالك','ph.rep.waste_sub':'مرتجع مارجعش على الرف، وتشغيلة خلصت صلاحيتها ولسه فيها كمية.',
+    'ph.rep.waste_total':'إجمالي الخسارة','ph.rep.src.return':'مرتجع مش صالح','ph.rep.src.expired':'منتهي الصلاحية',
+    'ph.rep.none_waste':'مفيش هالك متسجّل.',
     // ── أوامر الشراء ──────────────────────────────────────────────────────
     'ph.po.nav':'أوامر الشراء','ph.po.title':'أوامر الشراء','ph.po.sub':'اللي طلبته من المورّد، واللي وصل منه فعلاً.',
     'ph.po.new':'أمر شراء جديد','ph.po.new_sub':'الأصناف اللي وصلت لحدّها الأدنى أو أقل، والكميات مقترحة وتقدر تعدّلها كلها قبل ما تبعت.',
@@ -2910,6 +2921,17 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'Running low',
     'pharmacy.admin.barcode': 'Barcode',
+    // ── Pharmacy reports ──────────────────────────────────────────────────
+    'ph.rep.nav':'Reports','ph.rep.title':'Stock reports','ph.rep.sub':'What sells, what is standing still, and what was lost.',
+    'ph.rep.days':'Window (days)','ph.rep.idle':'Counts as idle after (days)','ph.rep.apply':'Show',
+    'ph.rep.medicine':'Item','ph.rep.qty':'Quantity','ph.rep.revenue':'Sales','ph.rep.none':'No sales in this window.',
+    'ph.rep.top':'Best selling','ph.rep.top_sub':'Net of returns \u2014 a box that came back is not a sale.',
+    'ph.rep.slow':'Idle stock','ph.rep.slow_sub':'On the shelf and not one box sold in this window. Items that never sold are here too.',
+    'ph.rep.on_shelf':'On shelf','ph.rep.last_sold':'Last sold','ph.rep.never':'Never','ph.rep.tied_up':'Money tied up',
+    'ph.rep.none_slow':'Everything on the shelf moved in this window.',
+    'ph.rep.waste':'Waste','ph.rep.waste_sub':'Returns that did not go back on the shelf, and expired batches that still hold stock.',
+    'ph.rep.waste_total':'Total loss','ph.rep.src.return':'Unsellable return','ph.rep.src.expired':'Expired',
+    'ph.rep.none_waste':'No waste recorded.',
     // ── Purchase orders ───────────────────────────────────────────────────
     'ph.po.nav':'Purchase orders','ph.po.title':'Purchase orders','ph.po.sub':'What you ordered from the supplier, and what actually arrived.',
     'ph.po.new':'New purchase order','ph.po.new_sub':'Items at or below their minimum. The quantities are a suggestion \u2014 every one of them is editable before you send it.',
