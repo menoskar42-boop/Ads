@@ -96,6 +96,31 @@
   <% if (!plan.target_kcal) { %>
     <p class="text-[11px] text-slate-400 mt-3"><%= t('nt.pl.no_target') %></p>
   <% } %>
+
+  <%# العناصر الدقيقة: كل عنصر بيقول مجموعه **و** كام سطر مش داخل الحسبة.
+      المجموع اللي بيجمع اللي يعرفه ويسكت عن الباقي بيدّي رقم أقل من الحقيقة —
+      وده بيتقرا «نقص» على مريض مافيهوش نقص. %>
+  <% if (typeof microTotals !== 'undefined' && microTotals) { %>
+  <div class="border-t border-slate-100 mt-4 pt-4">
+    <div class="text-xs font-bold text-slate-600 mb-2"><%= t('nt.pl.micros') %></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <% micros.forEach(function(m){ var v = microTotals[m.key]; %>
+      <div class="border border-slate-100 rounded-xl px-3 py-2">
+        <div class="text-[11px] text-slate-500"><%= t('nt.mi.' + m.key) %></div>
+        <% if (v.value === null) { %>
+          <div class="text-sm font-bold text-slate-400"><%= t('nt.mi.unknown') %></div>
+        <% } else { %>
+          <div class="text-sm font-extrabold text-slate-800"><%= n(v.value, 1) %> <span class="text-[10px] font-normal text-slate-400"><%= t('nt.u.' + m.unit) %></span></div>
+          <% if (v.missing) { %>
+            <div class="text-[10px] text-amber-700"><%= t('nt.mi.missing').replace('{n}', v.missing) %></div>
+          <% } %>
+        <% } %>
+      </div>
+      <% }); %>
+    </div>
+    <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.pl.micros_hint') %></p>
+  </div>
+  <% } %>
 </div>
 
 <!-- ── الوجبات ───────────────────────────────────────────────────── -->

@@ -40,6 +40,21 @@
     <label class="text-xs font-bold text-slate-600"><%= t('nt.fd.serving_g') %>
       <input name="serving_g" inputmode="decimal" pattern="[0-9\u0660-\u0669٫.,\s]*" value="<%= edit ? (edit.serving_g || '') : '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
     </label>
+    <%# العناصر الدقيقة: مطويّة لأنها اختيارية، وفاضية لأن إحنا مانشحنش قاعدة
+        تركيب أغذية. الخانة اللي تفضل فاضية معناها «مش مسجّل» — مش صفر. %>
+    <details class="sm:col-span-3 lg:col-span-6 border border-slate-200 rounded-2xl px-4 py-3" <%= edit && MICROS.some(function(m){ return edit[m.key] != null; }) ? 'open' : '' %>>
+      <summary class="text-xs font-bold text-slate-600 cursor-pointer"><%= t('nt.fd.micros') %></summary>
+      <p class="text-[11px] text-slate-400 mt-1 mb-3"><%= t('nt.fd.micros_hint') %></p>
+      <div class="grid sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <% MICROS.forEach(function(m){ %>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.mi.' + m.key) %> <span class="text-slate-400"><%= t('nt.u.' + m.unit) %></span>
+          <input name="<%= m.key %>" inputmode="decimal" pattern="[0-9٠-٩٫.,\s]*"
+                 value="<%= edit && edit[m.key] != null ? edit[m.key] : '' %>"
+                 class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <% }); %>
+      </div>
+    </details>
     <div class="sm:col-span-3 lg:col-span-6 flex gap-2">
       <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= edit ? t('nt.m.save') : t('nt.m.add') %></button>
       <% if (edit) { %><a href="/nutrition/foods" class="text-sm text-slate-500 px-4 py-2"><%= t('nt.m.cancel') %></a><% } %>

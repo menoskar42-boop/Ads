@@ -174,8 +174,17 @@
   </form>
 </div>
 
-<a href="/portal/progress" class="block bg-white rounded-2xl shadow-sm p-4 text-center text-sm font-bold text-brand-700 hover:bg-brand-50">
-  📈 <%= t('np.nav.progress') %>
-</a>
+<div class="grid gap-2">
+  <a href="/portal/progress" class="block bg-white rounded-2xl shadow-sm p-4 text-center text-sm font-bold text-brand-700 hover:bg-brand-50">
+    📈 <%= t('np.nav.progress') %>
+  </a>
+  <%# مدخل الرسايل بيظهر لما العيادة تكون فاتحة الميزة بس. %>
+  <% if (typeof msgs !== 'undefined' && msgs && msgs.on) { %>
+  <a href="/portal/messages" class="block bg-white rounded-2xl shadow-sm p-4 text-center text-sm font-bold text-brand-700 hover:bg-brand-50">
+    ✉️ <%= t('np.msg.title') %>
+    <% if (msgs.unread) { %><span class="ms-1 text-[11px] bg-brand-600 text-white rounded-full px-2 py-0.5"><%= msgs.unread %></span><% } %>
+  </a>
+  <% } %>
+</div>
 
 </main></body></html>
