@@ -8,6 +8,7 @@ const flow = require('../lib/order_flow');
 const foodPerms = require('../food/perms');
 const foodOptions = require('../food/options');
 const foodTables = require('../food/tables');
+const foodIngredients = require('../food/ingredients');
 const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const staffScope = require('../lib/staff_scope');
@@ -248,6 +249,143 @@ router.post('/item/:id/update', withImage, async (req, res) => {
   res.redirect('/food/menu?saved=1');
 });
 
+/* ─── المكوّنات والتكلفة (backlog 82) ───────────────────────
+ *
+ * The shelf a kitchen actually counts, and the number that says whether a dish
+ * makes money. See src/food/ingredients.js for the rule that decides whether
+ * any of it is true: an unknown cost is unknown, never zero.
+ */
+
+// Recipes for a set of items, as { itemId: [{ingredient_id, qty}] }.
+async function recipesFor(client, itemIds) {
+  if (!itemIds.length) return {};
+  const rows = (await client.query(
+    'SELECT item_id, ingredient_id, qty FROM food_recipes WHERE item_id = ANY($1)', [itemIds]
+  )).rows;
+  const out = {};
+  for (const r of rows) (out[r.item_id] = out[r.item_id] || []).push(r);
+  return out;
+}
+
+router.get('/ingredients', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const rows = (await pool.query(
+      'SELECT * FROM food_ingredients WHERE company_id=$1 AND is_active=true ORDER BY name', [cid]
+    )).rows;
+    res.render('food_admin/ingredients', {
+      company: req.company, session: req.session,
+      rows, low: foodIngredients.lowStock(rows),
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[food ingredients]', e.message);
+    res.redirect('/food/menu');
+  }
+});
+
+router.post('/ingredients/save', async (req, res) => {
+  const b = req.body || {};
+  const cid = req.company.id;
+  const name = String(b.name || '').trim().slice(0, 80);
+  const id = toInt(b.id, 0);
+  if (!name) return res.redirect('/food/ingredients?err=name');
+  // An empty cost stays empty. Writing 0 for "I have not priced this yet" is
+  // what turns an unknown dish cost into a healthy-looking margin.
+  const cost = (b.cost_per_unit === '' || b.cost_per_unit == null) ? null : toNum(b.cost_per_unit, null);
+  try {
+    if (id) {
+      await pool.query(
+        `UPDATE food_ingredients SET name=$1, unit=$2, stock_qty=$3, cost_per_unit=$4, min_qty=$5, updated_at=now()
+          WHERE id=$6 AND company_id=$7`,
+        [name, String(b.unit || 'g').trim().slice(0, 20), toNum(b.stock_qty, 0), cost, toNum(b.min_qty, 0), id, cid]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO food_ingredients (company_id, name, unit, stock_qty, cost_per_unit, min_qty)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [cid, name, String(b.unit || 'g').trim().slice(0, 20), toNum(b.stock_qty, 0), cost, toNum(b.min_qty, 0)]
+      );
+    }
+  } catch (e) {
+    console.error('[food ingredient save]', e.message);
+    return res.redirect('/food/ingredients?err=save');
+  }
+  res.redirect('/food/ingredients?saved=1');
+});
+
+router.post('/ingredients/:id/remove', async (req, res) => {
+  try {
+    await pool.query('UPDATE food_ingredients SET is_active=false WHERE id=$1 AND company_id=$2',
+      [toInt(req.params.id, 0), req.company.id]);
+  } catch (e) { console.error('[food ingredient remove]', e.message); }
+  res.redirect('/food/ingredients?saved=1');
+});
+
+// The recipe for one dish, and what it costs to make.
+router.get('/item/:id/recipe', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    const item = (await pool.query('SELECT * FROM food_items WHERE id=$1', [itemId])).rows[0];
+    const ingredients = (await pool.query(
+      'SELECT * FROM food_ingredients WHERE company_id=$1 AND is_active=true ORDER BY name', [cid]
+    )).rows;
+    const recipe = (await pool.query(
+      `SELECT r.*, i.name, i.unit, i.cost_per_unit
+         FROM food_recipes r JOIN food_ingredients i ON i.id = r.ingredient_id
+        WHERE r.item_id=$1 ORDER BY i.name`, [itemId]
+    )).rows;
+    const byId = {};
+    for (const i of ingredients) byId[i.id] = i;
+    const cost = foodIngredients.costOf(recipe, byId);
+    res.render('food_admin/recipe', {
+      company: req.company, session: req.session, item, ingredients, recipe,
+      cost, margin: foodIngredients.marginOf(item && item.price, cost),
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[food recipe]', e.message);
+    res.redirect('/food/menu');
+  }
+});
+
+router.post('/item/:id/recipe', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  const b = req.body || {};
+  const ingredientId = toInt(b.ingredient_id, 0);
+  const qty = toNum(b.qty, 0);
+  if (!ingredientId || !(qty > 0)) return res.redirect('/food/item/' + itemId + '/recipe?err=qty');
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    // The ingredient has to be this company's, checked where it is written.
+    const ins = await pool.query(
+      `INSERT INTO food_recipes (item_id, ingredient_id, qty)
+       SELECT $1, i.id, $3 FROM food_ingredients i WHERE i.id = $2 AND i.company_id = $4
+       ON CONFLICT (item_id, ingredient_id) DO UPDATE SET qty = EXCLUDED.qty
+       RETURNING id`,
+      [itemId, ingredientId, qty, cid]
+    );
+    if (!ins.rows.length) return res.redirect('/food/item/' + itemId + '/recipe?err=ingredient');
+  } catch (e) {
+    console.error('[food recipe save]', e.message);
+    return res.redirect('/food/item/' + itemId + '/recipe?err=save');
+  }
+  res.redirect('/food/item/' + itemId + '/recipe?saved=1');
+});
+
+router.post('/item/:id/recipe/:rid/delete', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    await pool.query('DELETE FROM food_recipes WHERE id=$1 AND item_id=$2', [toInt(req.params.rid, 0), itemId]);
+  } catch (e) { console.error('[food recipe del]', e.message); }
+  res.redirect('/food/item/' + itemId + '/recipe?saved=1');
+});
+
 /* ─── الطاولات ونقطة البيع (backlog 82) ─────────────────────
  *
  * The floor and the till. Two rules carry both:
@@ -461,6 +599,12 @@ router.post('/pos/create', async (req, res) => {
     await client.query(
       `INSERT INTO food_order_events (order_id, status, note, actor) VALUES ($1,'preparing','pos',$2)`,
       [ord.id, req.session.staffName || 'المالك']);
+    // Ingredients leave the shelf with the order, inside the same transaction:
+    // an order that exists without its stock movement is a kitchen counting
+    // buns it already used.
+    const recipes = await recipesFor(client, lineItems.map((l) => l.id));
+    const need = foodIngredients.needFor(lineItems, recipes);
+    if (need.size) await foodIngredients.consume(client, cid, ord.id, need);
     await client.query('COMMIT');
     res.redirect('/food/pos?saved=1&order=' + ord.id);
   } catch (e) {
@@ -693,6 +837,16 @@ router.post('/orders/:id/status', async (req, res) => {
       [status, id, cid]);
     await client.query('INSERT INTO food_order_events (order_id, status, note) VALUES ($1,$2,$3)',
       [id, status, 'admin']);
+    // The food was never made: the ingredients go back on the shelf. Claimed
+    // through food_stock_moves, so a cancel pressed twice returns them once.
+    if (status === 'cancelled' || status === 'rejected') {
+      const lines = (await client.query(
+        'SELECT item_id AS id, quantity AS qty FROM food_order_items WHERE order_id=$1', [id]
+      )).rows;
+      const recipes = await recipesFor(client, lines.map((l) => l.id).filter(Boolean));
+      const need = foodIngredients.needFor(lines, recipes);
+      if (need.size) await foodIngredients.restore(client, cid, id, need);
+    }
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});

@@ -9,6 +9,7 @@ const booking = require('../clinic/booking');
 const money = require('../lib/money');
 const stock = require('../pharmacy/stock');
 const foodOptions = require('../food/options');
+const foodIngredients = require('../food/ingredients');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
 const deals = require('../lib/deals');
@@ -1585,6 +1586,25 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
       );
     }
     await client.query(`INSERT INTO food_order_events (order_id, status, note) VALUES ($1,'pending','created')`, [ord.id]);
+    // The kitchen's shelf follows the order, in the same transaction. A
+    // restaurant that tracks ingredients wants them gone when the order is
+    // taken, not when somebody remembers; one that does not track any has no
+    // recipes and this does nothing at all.
+    //
+    // Deliberately NOT wrapped in its own try/catch: a failed statement aborts
+    // the whole Postgres transaction, so "swallow the error and carry on" would
+    // produce an order that cannot commit — the worst of both. Either the order
+    // and its stock movement both happen, or neither does.
+    const recipeRows = (await client.query(
+      'SELECT item_id, ingredient_id, qty FROM food_recipes WHERE item_id = ANY($1)',
+      [lineItems.map((l) => l.id)]
+    )).rows;
+    if (recipeRows.length) {
+      const byItem = {};
+      for (const r of recipeRows) (byItem[r.item_id] = byItem[r.item_id] || []).push(r);
+      const need = foodIngredients.needFor(lineItems, byItem);
+      if (need.size) await foodIngredients.consume(client, company.id, ord.id, need);
+    }
     await client.query('COMMIT');
     push.sendToCompany(company.id, { title: '🛎️ طلب جديد', body: 'طلب جديد من ' + name, url: '/food' }, 'order')
       .catch(e => console.error('[food order push] ' + e.message));
