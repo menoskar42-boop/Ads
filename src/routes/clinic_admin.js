@@ -14,6 +14,7 @@ const clinicPerms = require('../clinic/perms');
 const clinicBoard = require('../clinic/board');
 const clinicQueue = require('../clinic/queue');
 const clinicCalendar = require('../clinic/calendar');
+const fileTabs = require('../clinic/file_tabs');
 const flow = require('../lib/order_flow');
 const booking = require('../clinic/booking');
 const money = require('../lib/money');
@@ -581,24 +582,64 @@ router.get('/patients/:id', async (req, res) => {
     // "Who opened this record" is one of the questions the reviews asked, and
     // it needs the read to be logged, not only the writes.
     audit.log(pool, req, { entity: 'patient', entityId: pid, patientId: pid, action: 'view' });
-    const [visits, vitals, notes, rx, docs, vtypes] = await Promise.all([
-      pool.query(
-        `SELECT v.*, d.name AS doctor_name, vt.name AS visit_type_name FROM clinic_visits v
-         LEFT JOIN clinic_doctors d ON d.id=v.doctor_id LEFT JOIN clinic_visit_types vt ON vt.id=v.visit_type_id
-         WHERE v.company_id=$1 AND v.patient_id=$2 ORDER BY v.visit_date DESC, v.id DESC LIMIT 100`, [cid, pid]),
-      pool.query('SELECT * FROM clinic_vitals WHERE company_id=$1 AND patient_id=$2 ORDER BY recorded_at DESC LIMIT 50', [cid, pid]),
-      pool.query(`SELECT n.*, d.name AS doctor_name FROM clinic_notes n LEFT JOIN clinic_doctors d ON d.id=n.doctor_id
-                  WHERE n.company_id=$1 AND n.patient_id=$2 ORDER BY n.created_at DESC LIMIT 50`, [cid, pid]),
-      pool.query(`SELECT r.*, d.name AS doctor_name FROM clinic_prescriptions r LEFT JOIN clinic_doctors d ON d.id=r.doctor_id
-                  WHERE r.company_id=$1 AND r.patient_id=$2 ORDER BY r.created_at DESC LIMIT 50`, [cid, pid]),
+    // ── Tabs (backlog 83) ───────────────────────────────────────────────
+    //
+    // A file with three years in it was one scrolling page, and every open read
+    // all of it. Now a tab reads what a tab needs — and each dataset is settled
+    // on its own, so a query that fails makes ONE section say it could not be
+    // read instead of rendering an empty list that reads as "this patient has
+    // no prescriptions". That sentence is clinical; nobody may invent it.
+    const tab = fileTabs.tabOf(req.query.tab);
+    const need = new Set(fileTabs.needsFor(tab));
+    const SQL = {
+      visits: [`SELECT v.*, d.name AS doctor_name, vt.name AS visit_type_name FROM clinic_visits v
+                 LEFT JOIN clinic_doctors d ON d.id=v.doctor_id LEFT JOIN clinic_visit_types vt ON vt.id=v.visit_type_id
+                 WHERE v.company_id=$1 AND v.patient_id=$2 ORDER BY v.visit_date DESC, v.id DESC LIMIT 100`, [cid, pid]],
+      vitals: ['SELECT * FROM clinic_vitals WHERE company_id=$1 AND patient_id=$2 ORDER BY recorded_at DESC LIMIT 50', [cid, pid]],
+      notes: [`SELECT n.*, d.name AS doctor_name FROM clinic_notes n LEFT JOIN clinic_doctors d ON d.id=n.doctor_id
+                WHERE n.company_id=$1 AND n.patient_id=$2 ORDER BY n.created_at DESC LIMIT 50`, [cid, pid]],
+      prescriptions: [`SELECT r.*, d.name AS doctor_name FROM clinic_prescriptions r LEFT JOIN clinic_doctors d ON d.id=r.doctor_id
+                        WHERE r.company_id=$1 AND r.patient_id=$2 ORDER BY r.created_at DESC LIMIT 50`, [cid, pid]],
+      invoices: [`SELECT i.* FROM clinic_invoices i
+                   WHERE i.company_id=$1 AND i.patient_id=$2 ORDER BY i.created_at DESC LIMIT 100`, [cid, pid]],
+      photos: [`SELECT * FROM clinic_patient_photos WHERE company_id=$1 AND patient_id=$2
+                 ORDER BY created_at DESC LIMIT 100`, [cid, pid]],
+      labs: [`SELECT l.*, d.name AS doctor_name FROM clinic_lab_orders l LEFT JOIN clinic_doctors d ON d.id=l.doctor_id
+               WHERE l.company_id=$1 AND l.patient_id=$2 ORDER BY l.created_at DESC LIMIT 100`, [cid, pid]],
+    };
+    const wanted = [...need];
+    const settled = await Promise.allSettled(wanted.map((k) => pool.query(SQL[k][0], SQL[k][1])));
+    const data = {};
+    wanted.forEach((k, i) => {
+      const r = settled[i];
+      if (r.status === 'fulfilled') data[k] = { ok: true, rows: r.value.rows };
+      else { data[k] = { ok: false }; console.error('[clinic file ' + k + ']', r.reason && r.reason.message); }
+    });
+    const [docs, vtypes] = await Promise.all([
       pool.query('SELECT id, name FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [cid]),
       pool.query('SELECT id, name FROM clinic_visit_types WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [cid]),
     ]);
+    const visits = { rows: fileTabs.rowsOf(data.visits) };
+    const vitals = { rows: fileTabs.rowsOf(data.vitals) };
+    const notes = { rows: fileTabs.rowsOf(data.notes) };
+    const rx = { rows: fileTabs.rowsOf(data.prescriptions) };
     // Which readings this clinic's specialty actually takes.
     const spec = require('../clinic/specialties');
     const settings = (await pool.query('SELECT specialty FROM clinic_settings WHERE company_id=$1', [cid])).rows[0] || {};
     res.render('clinic_admin/patient_file', {
       company: req.company, tab: 'patients',
+      // Which tab is open, and the state of every dataset it drew from.
+      fileTab: tab, fileTabs: fileTabs.TABS,
+      state: {
+        visits: fileTabs.stateOf(data.visits), vitals: fileTabs.stateOf(data.vitals),
+        notes: fileTabs.stateOf(data.notes), prescriptions: fileTabs.stateOf(data.prescriptions),
+        invoices: fileTabs.stateOf(data.invoices), photos: fileTabs.stateOf(data.photos),
+        labs: fileTabs.stateOf(data.labs),
+      },
+      invoices: fileTabs.rowsOf(data.invoices),
+      balance: fileTabs.balanceOf(data.invoices),
+      photos: fileTabs.rowsOf(data.photos),
+      labs: fileTabs.rowsOf(data.labs),
       patient: pRes.rows[0], visits: visits.rows, vitals: vitals.rows, notes: notes.rows,
       prescriptions: rx.rows.map((r) => ({ ...r, meds: Array.isArray(r.medications) ? r.medications : [] })),
       doctors: docs.rows, visitTypes: vtypes.rows,

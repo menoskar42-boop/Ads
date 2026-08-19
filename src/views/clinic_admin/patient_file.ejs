@@ -16,11 +16,22 @@
   <span dir="ltr"><%= patient.phone || '' %></span><%= patient.gender?(' · ' + (GENDER[patient.gender] || patient.gender)):'' %><%= patient.birth_year?(' · ' + t('pf.born') + ' ' + patient.birth_year):'' %>
 </p>
 
+<%# Tabs (backlog 83). The file was one scrolling page that read three years
+    of history on every open, including for somebody checking one date. %>
+<nav class="flex flex-wrap gap-1.5 mb-5 border-b border-slate-200 pb-2">
+  <% fileTabs.forEach(function (tb) { %>
+    <a href="/clinic/patients/<%= patient.id %>?tab=<%= tb %>"
+       class="text-sm font-bold rounded-xl px-3 py-1.5 <%= fileTab === tb ? 'bg-brand-500 text-white' : 'text-slate-600 hover:bg-slate-100' %>">
+      <%= t('pf.tab.' + tb) %>
+    </a>
+  <% }); %>
+</nav>
+
 <div class="grid gap-6 lg:grid-cols-3">
   <!-- Left: forms. Clinical entry — hidden from a login without `medical`, and
        the routes behind them refuse it too (src/clinic/perms.js). Hiding a
        button is a courtesy; the server check is the rule. -->
-  <% if (perms.medical) { %>
+  <% if (perms.medical && fileTab === 'summary') { %>
   <div class="lg:col-span-1 space-y-4">
     <!-- Vitals -->
     <a href="/clinic/patients/<%= patient.id %>/trends"
@@ -144,11 +155,16 @@
   <% } %>
 
   <!-- Right: history -->
-  <div class="<%= perms.medical ? 'lg:col-span-2' : 'lg:col-span-3' %> space-y-6">
+  <div class="<%= (perms.medical && fileTab === 'summary') ? 'lg:col-span-2' : 'lg:col-span-3' %> space-y-6">
     <!-- Visits -->
+    <% if (fileTab === 'summary' || fileTab === 'visits') { %>
     <section id="visits">
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.visits') %> (<%= visits.length %>)</h2>
-      <% if (!visits.length) { %>
+      <%# "No visits" and "I could not read the visits" are different sentences,
+          and only one of them is a fact about this patient. %>
+      <% if (state.visits === 'unknown') { %>
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-slate-500 text-sm"><%= t('pf.unreadable') %></div>
+      <% } else if (!visits.length) { %>
         <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-sm"><%= t('pf.no_visits') %></div>
       <% } else { %>
       <div class="space-y-2.5">
@@ -173,9 +189,10 @@
       </div>
       <% } %>
     </section>
+    <% } %>
 
     <!-- Vitals history -->
-    <% if (perms.medical && vitals.length) { %>
+    <% if (perms.medical && (fileTab === 'summary' || fileTab === 'vitals') && vitals.length) { %>
     <section>
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.vitals_log') %></h2>
       <div class="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
@@ -202,7 +219,7 @@
     <% } %>
 
     <!-- Notes history -->
-    <% if (perms.medical && notes.length) { %>
+    <% if (perms.medical && fileTab === 'summary' && notes.length) { %>
     <section>
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.notes_log') %></h2>
       <div class="space-y-2">
@@ -218,7 +235,7 @@
     <% } %>
 
     <!-- Prescriptions history -->
-    <% if (perms.medical && prescriptions.length) { %>
+    <% if (perms.medical && (fileTab === 'summary' || fileTab === 'prescriptions') && prescriptions.length) { %>
     <section>
       <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.rx_log') %></h2>
       <div class="space-y-2">
@@ -235,6 +252,85 @@
         <% }); %>
       </div>
     </section>
+    <% } %>
+
+    <!-- Invoices (backlog 83) -->
+    <% if (fileTab === 'invoices') { %>
+      <section>
+        <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.tab.invoices') %></h2>
+        <% if (state.invoices === 'unknown') { %>
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-slate-500 text-sm"><%= t('pf.unreadable') %></div>
+        <% } else { %>
+          <%# The balance is null when the invoices could not be read: a zero
+              owed is a statement about money and must not be invented. %>
+          <% if (balance) { %>
+            <div class="flex flex-wrap gap-2 text-xs mb-3">
+              <span class="bg-white border border-slate-200 rounded-full px-3 py-1 font-bold"><%= t('pf.billed') %>: <%= balance.billed.toLocaleString(LOC) %></span>
+              <span class="bg-emerald-50 text-emerald-700 rounded-full px-3 py-1 font-bold"><%= t('pf.paid') %>: <%= balance.paid.toLocaleString(LOC) %></span>
+              <span class="<%= balance.due > 0 ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-500' %> rounded-full px-3 py-1 font-bold"><%= t('pf.due') %>: <%= balance.due.toLocaleString(LOC) %></span>
+            </div>
+          <% } %>
+          <% if (!invoices.length) { %>
+            <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-sm"><%= t('pf.no_invoices') %></div>
+          <% } else { %>
+            <div class="space-y-2">
+              <% invoices.forEach(function (inv) { %>
+                <a href="/clinic/invoices/<%= inv.id %>" class="block bg-white border border-slate-200 rounded-2xl p-4 hover:border-brand-300">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="font-bold text-slate-800 text-sm">#<%= inv.id %> · <%= fmtDate(inv.created_at) %></div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm text-slate-700"><%= Number(inv.total_amount).toLocaleString(LOC) %></span>
+                      <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : inv.status === 'cancelled' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700' %>">
+                        <%= t('iv.st.' + inv.status) %>
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              <% }); %>
+            </div>
+          <% } %>
+        <% } %>
+      </section>
+    <% } %>
+
+    <!-- Attachments: photos, x-rays and lab work (backlog 83) -->
+    <% if (fileTab === 'attachments') { %>
+      <section>
+        <h2 class="font-extrabold text-slate-900 mb-3"><%= t('pf.photos') %></h2>
+        <% if (state.photos === 'unknown') { %>
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-slate-500 text-sm"><%= t('pf.unreadable') %></div>
+        <% } else if (!photos.length) { %>
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-sm"><%= t('pf.no_photos') %></div>
+        <% } else { %>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <% photos.forEach(function (ph) { %>
+              <a href="<%= ph.image_url %>" target="_blank" rel="noopener" class="block bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <img src="<%= ph.image_url %>" alt="<%= ph.caption || t('pf.photos') %>" loading="lazy" class="w-full h-28 object-cover" />
+                <div class="p-2 text-xs text-slate-500 truncate"><%= ph.caption || t('pf.kind.' + ph.kind) %> · <%= fmtDate(ph.created_at) %></div>
+              </a>
+            <% }); %>
+          </div>
+        <% } %>
+
+        <h2 class="font-extrabold text-slate-900 mb-3 mt-6"><%= t('pf.labs') %></h2>
+        <% if (state.labs === 'unknown') { %>
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center text-slate-500 text-sm"><%= t('pf.unreadable') %></div>
+        <% } else if (!labs.length) { %>
+          <div class="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 text-sm"><%= t('pf.no_labs') %></div>
+        <% } else { %>
+          <div class="space-y-2">
+            <% labs.forEach(function (l) { %>
+              <div class="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-2 flex-wrap">
+                <div class="min-w-0">
+                  <div class="font-bold text-slate-800 text-sm"><%= l.work_type %><%= l.lab_name ? (' · ' + l.lab_name) : '' %></div>
+                  <div class="text-xs text-slate-500"><%= fmtDate(l.sent_at || l.created_at) %><%= l.doctor_name ? (' · ' + l.doctor_name) : '' %></div>
+                </div>
+                <span class="text-xs font-bold rounded-full px-2.5 py-1 bg-slate-100 text-slate-600"><%= t('lab.st.' + l.status) %></span>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+      </section>
     <% } %>
   </div>
 </div>

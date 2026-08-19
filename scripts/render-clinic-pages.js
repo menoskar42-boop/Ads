@@ -1130,8 +1130,23 @@ const FIXTURES = {
     ],
   }),
 
-  patient_file: (lang) => ({
+  // The file is tabbed now (backlog 83). Rendered once per tab below, so a
+  // section that only appears on one of them is still exercised — and the
+  // fixture carries an unreadable dataset, because "no prescriptions" and
+  // "could not read the prescriptions" must not look the same.
+  patient_file: (lang, tab) => ({
     tab: 'patients',
+    fileTab: tab || 'summary',
+    fileTabs: require('../src/clinic/file_tabs').TABS,
+    state: { visits: 'has', vitals: 'has', notes: 'has', prescriptions: 'has',
+      invoices: 'has', photos: 'has', labs: 'unknown' },
+    invoices: [
+      { id: 7, created_at: NOW, total_amount: 300, paid_amount: 100, status: 'partial' },
+      { id: 6, created_at: NOW, total_amount: 150, paid_amount: 150, status: 'paid' },
+    ],
+    balance: { billed: 450, paid: 250, due: 200 },
+    photos: [{ id: 1, image_url: '/uploads/x.jpg', caption: '', kind: 'xray', created_at: NOW }],
+    labs: [],
     patient,
     doctors: [doctor],
     visits: [{
@@ -1325,8 +1340,8 @@ function seoProblems(html) {
   return out;
 }
 
-function renderPage(name, lang) {
-  const page = FIXTURES[name](lang);
+function renderPage(name, lang, arg) {
+  const page = FIXTURES[name](lang, arg);
   // Most pages live under clinic_admin/; the public clinic page sits in views/.
   const file = page.__file
     ? path.join(VIEWS, page.__file)
@@ -1351,6 +1366,14 @@ for (const name of names) {
   try {
     ar = renderPage(name, 'ar');
     en = renderPage(name, 'en');
+    // The tabbed patient file: every tab, not only the one that happens to be
+    // the default — a section nobody renders is a section nobody tests.
+    if (name === 'patient_file') {
+      for (const tb of require('../src/clinic/file_tabs').TABS) {
+        ar += renderPage(name, 'ar', tb);
+        en += renderPage(name, 'en', tb);
+      }
+    }
   } catch (e) {
     failed++;
     console.log(`❌ ${name} — فشل العرض: ${e.message}`);
