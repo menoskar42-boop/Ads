@@ -68,8 +68,12 @@ const code = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
     check('والتسجيل قبل الـCOMMIT', iDep > -1 && iCommit > iDep, `deposit@${iDep} commit@${iCommit}`);
   }
   check('وفشل العربون بيرجّع الفاتورة كمان (ROLLBACK)', /ROLLBACK/.test(post));
+  // الشرط هو إن سبب الفشل يوصل للتاجر باسمه، مش إن السطر متكتوب بشكل معيّن:
+  // الراوت بيمرّر `e.furnitureCode` لما يكون كود يعرفه السيرفر، وأي كود تاني
+  // بيبقى «save». تعميم السطر ده كان صح لما بقى للسطور أسباب فشل خاصة بيها.
   check('وبيقول للتاجر إن الاتنين رجعوا',
-    /e\.furnitureCode === 'deposit' \? 'deposit' : 'save'/.test(post));
+    /err=' \+ \([^)]*e\.furnitureCode/.test(post)
+    && /SALE_ERRORS\s*=\s*\[[^\]]*'deposit'/.test(route));
   {
     const i18n = fs.readFileSync(path.join(ROOT, 'src/i18n/strings.js'), 'utf8');
     check('والرسالة باللغتين', (i18n.match(/'fn2\.sa\.err\.deposit'/g) || []).length === 2);

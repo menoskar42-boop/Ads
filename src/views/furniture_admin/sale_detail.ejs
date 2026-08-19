@@ -45,7 +45,10 @@
       <tbody class="divide-y divide-stone-50">
         <% items.forEach(function(it){ %>
         <tr>
-          <td class="py-2.5" data-l="<%= t('iv.c.item') %>"><%= it.product_name || '—' %></td>
+          <%# اسم الخيار متسجّل على السطر نفسه، فحتى لو الخيار اتشال من
+              الكتالوج الفاتورة تفضل تقول اتباع إيه. %>
+          <td class="py-2.5" data-l="<%= t('iv.c.item') %>"><%= it.product_name || '—' %><% if (it.variant_name) { %>
+            <span class="text-xs text-stone-500">— <%= it.variant_name %></span><% } %></td>
           <td class="py-2.5" data-l="<%= t('iv.c.qty') %>"><%= it.qty %></td>
           <td class="py-2.5" data-l="<%= t('iv.c.price') %>"><%= money(it.unit_price) %></td>
           <td class="py-2.5 font-bold" data-l="<%= t('iv.c.total') %>"><%= money(it.total) %></td>

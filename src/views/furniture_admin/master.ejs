@@ -23,7 +23,8 @@
 <% } %>
 <% if (err) { %>
   <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800">
-    <%= err === 'in_use' ? t('fn2.m.in_use') : err === 'save' ? t('fn2.m.savefail') : err === 'image' ? t('fn2.m.err.image') : t('fn2.m.required') %>
+    <%= err === 'in_use' ? t('fn2.m.in_use') : err === 'save' ? t('fn2.m.savefail')
+        : err === 'image' ? t('fn2.m.err.image') : err === 'spec' ? t('fn2.v.err.spec') : t('fn2.m.required') %>
   </div>
 <% } %>
 
@@ -60,6 +61,32 @@
           </label>
           <% if (f.opening) { %><p class="text-[11px] text-stone-400 -mt-1"><%= t('fn2.m.opening_hint') %></p><% } %>
         <% }); %>
+        <%# Measurements and materials, for the entities that declare them.
+            Left blank they are NOT recorded — the catalogue then says nothing
+            about the size instead of claiming the piece is 0 cm wide. %>
+        <% if (spec.specs) { %>
+          <div class="border-t border-stone-100 pt-2 mt-1">
+            <div class="text-[11px] font-bold text-stone-500 mb-1"><%= t('fn2.v.specs') %></div>
+            <div class="grid grid-cols-3 gap-2">
+              <% ['width_cm','depth_cm','height_cm'].forEach(function(k){
+                   var dv = editing && edit[k] != null ? Number(edit[k]) : ''; %>
+                <label class="text-[11px] font-bold text-stone-600">
+                  <%= t('fn2.f.' + k) %>
+                  <input name="<%= k %>" inputmode="decimal" value="<%= dv %>"
+                         class="mt-1 w-full border border-stone-200 rounded-xl px-2 py-2 text-sm" />
+                </label>
+              <% }); %>
+            </div>
+            <p class="text-[11px] text-stone-400 mt-1"><%= t('fn2.v.specs_hint') %></p>
+            <% ['material','finish'].forEach(function(k){ %>
+              <label class="text-xs font-bold text-stone-600 block mt-2">
+                <%= t('fn2.f.' + k) %>
+                <input name="<%= k %>" maxlength="60" value="<%= editing ? (edit[k] || '') : '' %>"
+                       class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+              </label>
+            <% }); %>
+          </div>
+        <% } %>
         <div class="flex gap-2 mt-1">
           <button class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm">
             <%= editing ? t('common.save') : t('fn2.m.add') %>
@@ -138,6 +165,10 @@
               <td class="px-4 py-2">
                 <div class="flex items-center gap-1 justify-end">
                   <a href="/furniture/master/<%= entity %>?edit=<%= r.id %>" class="text-xs px-2.5 py-1 rounded-lg border border-stone-200 hover:bg-stone-50"><%= t('dr.edit') %></a>
+                  <% if (spec.variants) { %>
+                    <a href="/furniture/master/<%= entity %>/<%= r.id %>/variants"
+                       class="text-xs px-2.5 py-1 rounded-lg border border-stone-200 hover:bg-stone-50"><%= t('fn2.v.options') %></a>
+                  <% } %>
                   <form method="post" action="/furniture/master/<%= entity %>/<%= r.id %>/archive">
                     <% if (showArchived) { %><input type="hidden" name="restore" value="1" /><% } %>
                     <button class="text-xs px-2.5 py-1 rounded-lg border border-stone-200 hover:bg-stone-50">

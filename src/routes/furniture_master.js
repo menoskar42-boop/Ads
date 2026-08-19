@@ -13,6 +13,7 @@ const multer = require('multer');
 const uploads = require('../lib/uploads');
 const { compressImage } = require('../lib/media');
 const { ENTITIES, ENTITY_KEYS, coerce, firstMissing, referenceCount } = require('../furniture/master');
+const V = require('../furniture/variants');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -72,7 +73,7 @@ router.get('/:entity', async (req, res) => {
     res.render('furniture_admin/master', {
       company: req.company, tab: 'master',
       entity: req.entity, spec: req.spec, rows, edit, q, showArchived, counts,
-      err: ['required', 'in_use', 'save', 'image'].includes(req.query.err) ? req.query.err : null,
+      err: ['required', 'in_use', 'save', 'image', 'spec'].includes(req.query.err) ? req.query.err : null,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture master]', e.message); res.status(500).send('error'); }
@@ -89,6 +90,16 @@ router.post('/:entity', async (req, res) => {
   const values = coerce(req.entity, req.body, { includeOpening: !isEdit });
   const missing = firstMissing(req.entity, values);
   if (missing) return res.redirect(back(req.entity, '?err=required'));
+
+  // Measurements and materials, for the entities that declare them. Read here
+  // rather than through `coerce` because `coerce` answers every number with a
+  // number: a width left blank would become 0 and print on the catalogue as a
+  // measurement somebody took. A width typed as nonsense is refused outright.
+  if (req.spec.specs) {
+    const specs = V.readSpecs(req.body);
+    if (specs.bad.length) return res.redirect(back(req.entity, '?err=spec'));
+    Object.assign(values, specs.values);
+  }
 
   const cols = Object.keys(values);
   try {
@@ -160,6 +171,94 @@ router.post('/:entity/:id/image/delete', async (req, res) => {
     return res.redirect(back(req.entity, '?err=save'));
   }
   res.redirect(back(req.entity, '?saved=1'));
+});
+
+// ── Variants (backlog 86) ────────────────────────────────────────────────────
+//
+// One piece sold several ways. A page of its own rather than a column on the
+// master table: the options carry money, and money that is edited inline in a
+// row of six other fields is money edited by accident.
+router.get('/:entity/:id/variants', async (req, res) => {
+  if (!req.spec.variants) return res.redirect(back(req.entity));
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  try {
+    const product = (await pool.query(
+      `SELECT * FROM ${req.spec.table} WHERE id=$1 AND company_id=$2`, [id, cid])).rows[0];
+    // Another showroom's piece is not a page here — not even an empty one.
+    if (!product) return res.redirect(back(req.entity));
+    const variants = (await pool.query(
+      `SELECT * FROM furniture_product_variants
+        WHERE company_id=$1 AND product_id=$2 ORDER BY id`, [cid, id])).rows;
+    res.render('furniture_admin/variants', {
+      company: req.company, tab: 'master', entity: req.entity, spec: req.spec,
+      product, variants,
+      // Which of the measurements are actually recorded — worked out here, not
+      // in the template: "is this width a fact or a blank" is a rule.
+      specs: V.specLines(product),
+      // Priced on the server. The screen shows what the piece actually sells
+      // for in each option, so nobody has to add the delta in their head.
+      options: V.optionsFor(product, variants),
+      err: ['name', 'save', 'delta', 'in_use'].includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
+    });
+  } catch (e) { console.error('[furniture variants]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/:entity/:id/variants', async (req, res) => {
+  if (!req.spec.variants) return res.redirect(back(req.entity));
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const to = back(req.entity, `/${id}/variants`);
+  const v = V.readVariant(req.body);
+  if (!v.name) return res.redirect(to + '?err=name');
+  if (v.bad) return res.redirect(to + '?err=delta');
+  try {
+    // The product id comes from the URL, so it is checked inside the statement
+    // that writes the row — a SELECT first would read correctly and still race
+    // with the piece being archived or deleted between the two queries.
+    const done = await pool.query(
+      `INSERT INTO furniture_product_variants (company_id, product_id, name, code, price_delta)
+       SELECT $1, p.id, $3, $4, $5 FROM furniture_products p
+        WHERE p.id=$2 AND p.company_id=$1
+       RETURNING id`,
+      [cid, id, v.name, v.code, v.price_delta]);
+    if (!done.rows.length) return res.redirect(to + '?err=save');
+    req.flog('master.variant.add', 'master', id, v.name);
+  } catch (e) {
+    console.error('[furniture variant add]', e.message);
+    return res.redirect(to + '?err=save');
+  }
+  res.redirect(to + '?saved=1');
+});
+
+router.post('/:entity/:id/variants/:vid/delete', async (req, res) => {
+  if (!req.spec.variants) return res.redirect(back(req.entity));
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const vid = parseInt(req.params.vid, 10);
+  const to = back(req.entity, `/${id}/variants`);
+  try {
+    // An option that has been sold is archived, not deleted. The invoice keeps
+    // its own copy of the name and the price, but the option is still the
+    // reason those lines read the way they do.
+    const sold = (await pool.query(
+      'SELECT COUNT(*)::int c FROM furniture_sale_items WHERE company_id=$1 AND variant_id=$2', [cid, vid]
+    )).rows[0].c;
+    const done = sold > 0
+      ? await pool.query(
+        `UPDATE furniture_product_variants SET is_active=false
+          WHERE id=$1 AND product_id=$2 AND company_id=$3 RETURNING id`, [vid, id, cid])
+      : await pool.query(
+        `DELETE FROM furniture_product_variants
+          WHERE id=$1 AND product_id=$2 AND company_id=$3 RETURNING id`, [vid, id, cid]);
+    if (!done.rows.length) return res.redirect(to + '?err=save');
+    req.flog('master.variant.del', 'master', id, String(vid));
+  } catch (e) {
+    console.error('[furniture variant del]', e.message);
+    return res.redirect(to + '?err=save');
+  }
+  res.redirect(to + '?saved=1');
 });
 
 // ── Archive / restore ────────────────────────────────────────────────────────

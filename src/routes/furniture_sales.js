@@ -5,6 +5,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const { ref } = require('../lib/tenant_scope');
 const S = require('../furniture/sales');
+const V = require('../furniture/variants');
 const B = require('../furniture/branches');
 
 const router = express.Router();
@@ -14,7 +15,7 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 
 // Codes the server knows. The page never prints the address bar's own words.
-const SALE_ERRORS = ['no_lines', 'save', 'deposit', 'pay', 'has_paid'];
+const SALE_ERRORS = ['no_lines', 'save', 'deposit', 'pay', 'has_paid', 'bad_line'];
 
 async function taxPercentOf(cid) {
   const r = await pool.query('SELECT tax_percent FROM furniture_settings WHERE company_id=$1', [cid]);
@@ -30,7 +31,7 @@ router.get('/', async (req, res) => {
     let where = 's.company_id=$1';
     if (status) where += ' AND s.status=$' + params.push(status);
     where += B.sqlFor(req.branch, params, 's.branch_id');
-    const [sales, customers, products, balances, taxPercent] = await Promise.all([
+    const [sales, customers, products, balances, taxPercent, variants] = await Promise.all([
       pool.query(
         `SELECT s.*, c.name AS customer_name FROM furniture_sales s
            LEFT JOIN furniture_customers c ON c.id = s.customer_id
@@ -40,11 +41,22 @@ router.get('/', async (req, res) => {
       pool.query('SELECT id, name, selling_price FROM furniture_products WHERE company_id=$1 AND is_active ORDER BY name', [cid]),
       S.customerBalances(pool, cid),
       taxPercentOf(cid),
+      pool.query(
+        `SELECT id, product_id, name, price_delta FROM furniture_product_variants
+          WHERE company_id=$1 AND is_active ORDER BY id`, [cid]),
     ]);
+    // The options each piece has, already priced. The browser picks the list
+    // to show; it never computes what is in it — a price added up in a page can
+    // be edited in that page, and this one goes on an invoice.
+    const variantMap = {};
+    for (const p of products.rows) {
+      const mine = variants.rows.filter((v) => Number(v.product_id) === Number(p.id));
+      if (mine.length) variantMap[p.id] = V.optionsFor(p, mine);
+    }
     res.render('furniture_admin/sales', {
       company: req.company, tab: 'sales',
       sales: sales.rows, customers: customers.rows, products: products.rows,
-      balances, taxPercent, status,
+      balances, taxPercent, status, variantMap,
       err: SALE_ERRORS.includes(req.query.err) ? req.query.err : null,
       saved: req.query.saved === '1',
     });
@@ -58,10 +70,36 @@ router.post('/', async (req, res) => {
   const pids = [].concat(b.product_id || []);
   const qtys = [].concat(b.qty || []);
   const prices = [].concat(b.unit_price || []);
+  const vids = [].concat(b.variant_id || []);
   const lines = pids
-    .map((p, i) => ({ product_id: parseInt(p, 10) || null, qty: num(qtys[i]) || 1, unit_price: num(prices[i]) }))
+    .map((p, i) => ({
+      product_id: parseInt(p, 10) || null, qty: num(qtys[i]) || 1,
+      unit_price: num(prices[i]), variant_raw: vids[i],
+    }))
     .filter((l) => l.product_id && l.unit_price > 0);
   if (!lines.length) return res.redirect('/furniture/sales?err=no_lines');
+
+  // Which option was chosen on each line. Resolved against THIS showroom's
+  // options for THAT piece, and a line naming an option the piece does not
+  // have is refused — never quietly written as the plain version, which is how
+  // a wardrobe lands on an invoice at a price nobody agreed to.
+  try {
+    const variants = (await pool.query(
+      `SELECT id, product_id, name, price_delta FROM furniture_product_variants
+        WHERE company_id=$1 AND product_id = ANY($2::int[])`,
+      [cid, [...new Set(lines.map((l) => l.product_id))]])).rows;
+    for (const l of lines) {
+      const r = V.resolveVariant(variants, l.variant_raw, l.product_id);
+      if (!r.ok) return res.redirect('/furniture/sales?err=bad_line');
+      l.variant_id = r.variant ? r.variant.id : null;
+      // The option's name is COPIED onto the line. Deleting the option next
+      // year must not rewrite what this invoice says was sold.
+      l.variant_name = r.variant ? r.variant.name : null;
+    }
+  } catch (e) {
+    console.error('[furniture sale variants]', e.message);
+    return res.redirect('/furniture/sales?err=save');
+  }
 
   const client = await pool.connect();
   try {
@@ -81,11 +119,21 @@ router.post('/', async (req, res) => {
     )).rows[0];
 
     for (const l of lines) {
-      await client.query(
-        `INSERT INTO furniture_sale_items (company_id, sale_id, product_id, qty, unit_price, total)
-         VALUES ($1,$2,$3,$4,$5,$6)`,
-        [cid, sale.id, l.product_id, l.qty, l.unit_price, S.round2(l.qty * l.unit_price)]
+      // product_id is a number off the form like customer_id is, and was the
+      // one that never got narrowed: an invoice could carry another showroom's
+      // piece, and the invoice screen then joined and printed its name. The
+      // check happens in the statement that writes the row, and a line that
+      // does not resolve fails the whole invoice rather than saving without it.
+      const done = await client.query(
+        `INSERT INTO furniture_sale_items
+           (company_id, sale_id, product_id, variant_id, variant_name, qty, unit_price, total)
+         SELECT $1,$2,p.id,${ref('furniture_product_variants', '$4', '$1')},$5,$6,$7,$8
+           FROM furniture_products p WHERE p.id=$3 AND p.company_id=$1
+         RETURNING id`,
+        [cid, sale.id, l.product_id, l.variant_id, l.variant_name,
+          l.qty, l.unit_price, S.round2(l.qty * l.unit_price)]
       );
+      if (!done.rows.length) { const e = new Error('line product not found'); e.furnitureCode = 'bad_line'; throw e; }
     }
     // In the same transaction as the invoice: a guarantee that exists without
     // the sale that granted it, or a sale whose guarantee silently failed to
@@ -120,7 +168,7 @@ router.post('/', async (req, res) => {
   } catch (e) {
     await client.query('ROLLBACK');
     console.error('[furniture sale create]', e.message);
-    res.redirect('/furniture/sales?err=' + (e.furnitureCode === 'deposit' ? 'deposit' : 'save'));
+    res.redirect('/furniture/sales?err=' + (SALE_ERRORS.includes(e.furnitureCode) ? e.furnitureCode : 'save'));
   } finally { client.release(); }
 });
 

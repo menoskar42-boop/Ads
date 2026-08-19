@@ -73,6 +73,17 @@ const ENTITIES = {
     // that can carry a photo — declared, rather than special-cased inside
     // the loop that draws all five entities.
     image: true,
+    // Two more declared capabilities, for the same reason `image` is one: the
+    // measurements and the options belong to a piece of furniture and to
+    // nothing else on this screen, and the generic loop must not learn the
+    // word "product" to draw them.
+    //
+    // `specs` are columns on the row itself and are read by
+    // `furniture/variants.readSpecs` — which returns null for a blank
+    // measurement rather than the 0 that `coerce` would store.
+    specs: true,
+    // `variants` is a table of its own, so it gets a page of its own.
+    variants: true,
     refs: [['furniture_sale_items', 'product_id'], ['furniture_product_components', 'product_id']],
     fields: [
       { key: 'name',           type: 'text', max: 120, required: true },

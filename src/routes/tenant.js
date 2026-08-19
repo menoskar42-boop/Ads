@@ -375,11 +375,27 @@ router.get('/', async (req, res) => {
         'SELECT * FROM furniture_settings WHERE company_id = $1', [company.id]
       )).rows[0] || null;
       furnitureProducts = (await pool.query(
-        `SELECT id, name, category, selling_price, notes, image_path
+        `SELECT id, name, category, selling_price, notes, image_path,
+                width_cm, depth_cm, height_cm, material, finish
            FROM furniture_products
           WHERE company_id = $1 AND is_active
           ORDER BY category NULLS LAST, name LIMIT 60`, [company.id]
       )).rows;
+      // The options, priced. Read in one query for the whole page rather than
+      // one per piece, and priced on the server: the card shows what the
+      // showroom would actually charge, not base + delta added up in a browser.
+      const FV = require('../furniture/variants');
+      const vs = (await pool.query(
+        `SELECT id, product_id, name, price_delta FROM furniture_product_variants
+          WHERE company_id = $1 AND is_active ORDER BY id LIMIT 400`, [company.id]
+      )).rows;
+      for (const p of furnitureProducts) {
+        p.specs = FV.specLines(p);
+        const mine = vs.filter((v) => Number(v.product_id) === Number(p.id));
+        // The plain piece is dropped from the public list — the card already
+        // shows its price. What is left are the alternatives, or nothing.
+        p.options = FV.optionsFor(p, mine).filter((o) => o.id !== '');
+      }
     } catch (e) { /* never block render */ }
   }
 
