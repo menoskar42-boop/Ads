@@ -1,0 +1,156 @@
+<%- include('head', { title: t('fn2.mo.title'), tab: 'production' }) %>
+<%
+  function qty(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <h1 class="text-2xl font-black text-stone-900">🔨 <%= t('fn2.mo.title') %></h1>
+</div>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.mo.sub') %></p>
+
+<% if (saved) { %>
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div>
+<% } %>
+<% if (err) { %>
+  <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800">
+    <%# كل سبب باسمه: «مفيش مكوّنات» مش نفس «الخامة ناقصة» مش نفس «اتصرف قبل كده». %>
+    <%= t('fn2.mo.err.' + err) %><% if (err === 'short' && shortName) { %> — <%= shortName %><% } %>
+  </div>
+<% } %>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <!-- ── أمر جديد ─────────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl shadow-sm p-5 lg:sticky lg:top-4">
+      <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.mo.new') %></h2>
+      <% if (!products.length) { %>
+        <p class="text-sm text-stone-400"><%= t('fn2.mo.no_products') %></p>
+      <% } else { %>
+      <form method="post" action="/furniture/production" class="grid gap-2.5">
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.product') %> *
+          <select name="product_id" required class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% products.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %></option><% }); %>
+          </select>
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.po.qty') %> *
+          <input name="qty" inputmode="decimal" value="1" required class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.mo.due') %>
+          <input name="due_date" type="date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.mo.for_sale') %>
+          <select name="sale_id" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <option value=""><%= t('fn2.mo.no_sale') %></option>
+            <% sales.forEach(function(s){ %>
+              <option value="<%= s.id %>">#<%= s.id %> — <%= s.customer_name || '—' %></option>
+            <% }); %>
+          </select>
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.f.notes') %>
+          <input name="note" maxlength="300" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm mt-1"><%= t('fn2.m.add') %></button>
+      </form>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── اللوحة ───────────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-2">
+    <nav class="flex gap-1 text-xs mb-3 flex-wrap">
+      <% [['open', tally.open], ['late', tally.late], ['done', tally.done], ['cancelled', tally.cancelled]].forEach(function(pair){ %>
+        <a href="/furniture/production?view=<%= pair[0] %>"
+           class="px-3 py-1.5 rounded-lg <%= view === pair[0] ? 'bg-brand-600 text-white font-bold' : 'bg-white border border-stone-200 text-stone-600' %>">
+          <%= t('fn2.mo.view.' + pair[0]) %> (<%= pair[1] %>)
+        </a>
+      <% }); %>
+    </nav>
+
+    <% if (!orders.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-stone-400 text-sm"><%= t('fn2.mo.empty') %></div>
+    <% } else { %>
+    <div class="grid gap-3">
+      <% orders.forEach(function(o){ %>
+      <div class="bg-white rounded-2xl shadow-sm p-4">
+        <div class="flex items-start gap-3 flex-wrap">
+          <div class="flex-1 min-w-[12rem]">
+            <div class="font-bold text-stone-900">
+              <%= o.product_name %><% if (o.variant_name) { %> <span class="text-xs text-stone-500">— <%= o.variant_name %></span><% } %>
+              <span class="text-xs text-stone-400">× <%= qty(o.qty) %></span>
+            </div>
+            <div class="text-xs text-stone-500 mt-1">
+              #<%= o.id %>
+              <% if (o.sale_no) { %> · <%= t('fn2.mo.sale') %> #<%= o.sale_no %><% if (o.customer_name) { %> — <%= o.customer_name %><% } %><% } %>
+            </div>
+            <div class="text-xs mt-1">
+              <%# الميعاد: «مافيش ميعاد» مش «مش متأخر». الاتنين إجابة مختلفة. %>
+              <% if (!o.late.known) { %>
+                <span class="text-stone-400"><%= t('fn2.mo.no_due') %></span>
+              <% } else if (o.late.late) { %>
+                <span class="font-bold text-red-600"><%= t('fn2.mo.late') %> — <%= o.due_date.toISOString ? o.due_date.toISOString().slice(0,10) : o.due_date %></span>
+              <% } else { %>
+                <span class="text-stone-500"><%= t('fn2.mo.due') %>: <%= o.due_date.toISOString ? o.due_date.toISOString().slice(0,10) : o.due_date %></span>
+              <% } %>
+            </div>
+            <% if (o.note) { %><p class="text-xs text-stone-500 mt-1"><%= o.note %></p><% } %>
+          </div>
+
+          <div class="text-end">
+            <span class="text-[11px] font-bold rounded-lg px-2 py-1
+              <%= o.status === 'done' ? 'bg-emerald-50 text-emerald-700'
+                 : o.status === 'cancelled' ? 'bg-stone-100 text-stone-500'
+                 : o.status === 'in_progress' ? 'bg-amber-50 text-amber-700' : 'bg-sky-50 text-sky-700' %>">
+              <%= t('fn2.mo.st.' + o.status) %>
+            </span>
+            <div class="text-[11px] mt-1">
+              <%# صرف الخامات: الوقت نفسه هو العلامة، فمفيش «اتصرف» من غير لحظة. %>
+              <% if (o.materials_issued_at) { %>
+                <span class="text-emerald-700 font-bold"><%= t('fn2.mo.issued') %></span>
+              <% } else { %>
+                <span class="text-stone-400"><%= t('fn2.mo.not_issued') %></span>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <%# ملاحظات محسوبة، مش محفوظة: قطعة خلصت من غير صرف خامات لازم تتقال،
+            وإلا المخزن بيقول إن الخشب لسه على الرف وهو بقى دولاب. %>
+        <% (o.notes || []).forEach(function(n){ %>
+          <p class="text-[11px] bg-amber-50 text-amber-800 rounded-lg px-2 py-1 mt-2"><%= t('fn2.mo.note.' + n) %></p>
+        <% }); %>
+
+        <div class="flex gap-2 mt-3 flex-wrap">
+          <% if (!o.materials_issued_at && (o.status === 'queued' || o.status === 'in_progress')) { %>
+            <form method="post" action="/furniture/production/<%= o.id %>/issue">
+              <button class="text-xs font-bold px-3 py-1.5 rounded-lg bg-stone-800 text-white"><%= t('fn2.mo.issue') %></button>
+            </form>
+          <% } %>
+          <% if (o.status === 'queued') { %>
+            <form method="post" action="/furniture/production/<%= o.id %>/move">
+              <input type="hidden" name="to" value="in_progress" />
+              <button class="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 text-white"><%= t('fn2.mo.start') %></button>
+            </form>
+          <% } %>
+          <% if (o.status === 'in_progress') { %>
+            <form method="post" action="/furniture/production/<%= o.id %>/move">
+              <input type="hidden" name="to" value="done" />
+              <button class="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white"><%= t('fn2.mo.finish') %></button>
+            </form>
+          <% } %>
+          <% if (o.status === 'queued' || o.status === 'in_progress') { %>
+            <form method="post" action="/furniture/production/<%= o.id %>/move"
+                  onsubmit="return confirm(<%= JSON.stringify(t('fn2.mo.cancel_ask')) %>)">
+              <input type="hidden" name="to" value="cancelled" />
+              <button class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600"><%= t('common.cancel') %></button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+    <p class="text-[11px] text-stone-400 mt-3"><%= t('fn2.mo.hint') %></p>
+  </div>
+</div>
+
+</main></body></html>

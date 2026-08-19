@@ -592,6 +592,46 @@ async function ensureFurnitureSchema() {
       ALTER TABLE furniture_quote_items ADD COLUMN IF NOT EXISTS variant_id   INTEGER REFERENCES furniture_product_variants(id) ON DELETE SET NULL;
       ALTER TABLE furniture_quote_items ADD COLUMN IF NOT EXISTS variant_name TEXT;
     `);
+
+    // ── Manufacturing orders (phase 9) ───────────────────────────────────────
+    await client.query(`
+      -- What is being built, for whom, and by when. The invoice could not say:
+      -- it is a promise about money, and this is a promise about a workshop.
+      --
+      -- product_name is COPIED. A product deleted next year must not turn last
+      -- month's finished order into a row that says nothing was made.
+      --
+      -- materials_issued_at is a timestamp, not a boolean, and it is the lock:
+      -- the issue claims it with a compare-and-swap on NULL, so two presses of
+      -- the same button take the timber off the shelf once.
+      CREATE TABLE IF NOT EXISTS furniture_production_orders (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        product_id   INTEGER REFERENCES furniture_products(id) ON DELETE SET NULL,
+        variant_id   INTEGER REFERENCES furniture_product_variants(id) ON DELETE SET NULL,
+        product_name TEXT NOT NULL,
+        variant_name TEXT,
+        sale_id      INTEGER REFERENCES furniture_sales(id) ON DELETE SET NULL,
+        qty          NUMERIC(12,2) NOT NULL DEFAULT 1,
+        status       TEXT NOT NULL DEFAULT 'queued',   -- queued | in_progress | done | cancelled
+        due_date     DATE,
+        note         TEXT,
+        materials_issued_at TIMESTAMPTZ,
+        started_at   TIMESTAMPTZ,
+        done_at      TIMESTAMPTZ,
+        branch_id    INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_mo ON furniture_production_orders (company_id, status);
+      CREATE INDEX IF NOT EXISTS idx_furn_mo_sale ON furniture_production_orders (company_id, sale_id);
+
+      -- One order per invoice line, at most. Raising the same invoice's orders
+      -- twice is a double press away, and the workshop would then build the
+      -- bedroom twice.
+      ALTER TABLE furniture_production_orders ADD COLUMN IF NOT EXISTS sale_item_id INTEGER;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_furn_mo_item
+        ON furniture_production_orders (company_id, sale_item_id) WHERE sale_item_id IS NOT NULL;
+    `);
   } finally {
     client.release();
   }
