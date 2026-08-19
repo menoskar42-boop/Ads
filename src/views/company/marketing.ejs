@@ -38,6 +38,45 @@
         <% if (msg) { %><p class="text-xs text-red-600 mt-1"><%= msg %></p><% } %>
       </div>
       <% }); %>
+      <div class="border-t border-gray-100 pt-4">
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">موافقة الزائر على أدوات القياس</label>
+        <select name="consent_mode" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+          <option value="off" <%= company.consent_mode === 'ask' ? '' : 'selected' %>>تحمّل على طول (الافتراضي)</option>
+          <option value="ask" <%= company.consent_mode === 'ask' ? 'selected' : '' %>>اسأل الزائر الأول</option>
+        </select>
+        <%# الجملة دي لازم تفضل دقيقة: الشريط ده عن بيكسلات التاجر بس. %>
+        <p class="text-xs text-gray-400 mt-1">
+          «اسأل الزائر الأول» معناها إن بيكسل فيسبوك/تيك توك/جوجل بتاعك مايتحمّلش لحد ما الزائر يوافق — والأحداث اللي قبل الموافقة مش هتتبعت.
+          ده بيخصّ أدوات القياس بتاعتك بس.
+        </p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Meta Conversion API — توكن الوصول</label>
+        <% if (typeof vaultReady !== 'undefined' && !vaultReady) { %>
+          <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            الخزنة المشفّرة مش متظبّطة على السيرفر، فمش هنخزّن التوكن أصلاً — تخزينه نص صريح مرفوض.
+          </p>
+        <% } else { %>
+          <input name="fb_capi_token" type="password" autocomplete="new-password" dir="ltr"
+                 placeholder="<%= (typeof capiStored !== 'undefined' && capiStored) ? 'متخزّن — سيبها فاضية عشان تفضل زي ما هي' : 'EAAG… (من إعدادات Conversion API في ميتا)' %>"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
+          <%# التوكن نفسه مابيرجعش للصفحة أبداً — نفس قاعدة مفاتيح الدفع. %>
+          <p class="text-xs text-gray-400 mt-1">
+            بيخلّي عملية الشراء تتبعت من السيرفر كمان، فمانع الإعلانات أو قفل الكوكيز مايضيّعش الطلب.
+            الحدث بيتبعت <b>بنفس رقم الطلب</b> فميتا بتدمج النسختين ومابيتحسبش مرتين.
+            <% if (typeof capiStored !== 'undefined' && capiStored) { %>
+              <br />فيه توكن متخزّن دلوقتي — اكتب <code dir="ltr">__clear__</code> لو عايز تمسحه.
+            <% } %>
+          </p>
+        <% } %>
+        <% if (typeof capiErr !== 'undefined' && capiErr) { %>
+          <p class="text-xs text-red-600 mt-1">
+            <%= capiErr === 'vault' ? 'التوكن مااتخزّنش: الخزنة المشفّرة مش متظبّطة على السيرفر.' : 'التوكن مااتخزّنش — جرّب تاني.' %>
+          </p>
+        <% } %>
+      </div>
+
       <div>
         <label class="block text-sm font-semibold text-gray-600 mb-1.5">رقم واتساب لاستقبال الطلبات</label>
         <input name="whatsapp_number" value="<%= company.whatsapp_number || '' %>" dir="ltr" placeholder="مثلاً: 201001234567 (كود الدولة + الرقم)" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />

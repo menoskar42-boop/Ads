@@ -1352,7 +1352,14 @@ router.post('/products/import', requireLogin, requireShop, async (req, res) => {
 /* ─── MARKETING: PIXELS + FEED (phase 24) ────────────────── */
 router.get('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
-    const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
+    const c = (await pool.query(
+      `SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id, whatsapp_number,
+              consent_mode, fb_capi_token_enc
+         FROM companies WHERE id=$1`, [req.session.companyId])).rows[0];
+    // التوكن نفسه مابيرجعش للصفحة أبداً — بس التاجر لازم يعرف إن فيه واحد
+    // متخزّن، وإلا هيفتكر إنه مااتحفظش ويلزقه تاني كل مرة.
+    const capiStored = !!(c && c.fb_capi_token_enc);
+    const vaultReady = require('../lib/pay_vault').configured();
     // أسباب الرفض بتوصل كأكواد من قايمة السيرفر، مش كنص في الرابط: الصفحة
     // مابتطبعش كلام الرابط، والتاجر لازم يعرف **أنهي خانة** فيها إيه.
     const PX = require('../lib/pixel_ids');
@@ -1365,6 +1372,8 @@ router.get('/marketing', requireLogin, requireShop, async (req, res) => {
     });
     res.render('company/marketing', { company: c, session: req.session,
       saved: req.query.saved === '1', bad, platforms: PX.PLATFORMS,
+      capiStored, vaultReady,
+      capiErr: ['vault', 'save'].includes(req.query.capi) ? req.query.capi : null,
       err: req.query.err === 'save' ? 'save' : null, saveError: req.query.error === 'save' });
   } catch (e) { console.error('[marketing]', e.message); res.redirect('/company/dashboard'); }
 });
@@ -1387,9 +1396,31 @@ router.post('/marketing', requireLogin, requireShop, async (req, res) => {
       .map((f) => [f, errors[f].why, errors[f].looksLike || ''].join(':')).join(',');
     return res.redirect('/company/marketing?bad=' + encodeURIComponent(code));
   }
+  // وضع الموافقة: قيمة من قايمة السيرفر، وأي حاجة تانية بتبقى 'off'.
+  const consent = b.consent_mode === 'ask' ? 'ask' : 'off';
+
+  // توكن الـConversion API: سرّ التاجر. بيتشفّر في الخزنة زي مفاتيح بوابات
+  // الدفع، ولو الخزنة مش متظبّطة **بنرفض نخزّنه** بدل ما نحطه نص صريح — دي
+  // نفس القاعدة اللي مفاتيح الدفع اتعلّمناها منها.
+  const vault = require('../lib/pay_vault');
+  const rawToken = String(b.fb_capi_token || '').trim();
+  let tokenEnc; // undefined = ماتغيّرش
+  if (rawToken === '__clear__') tokenEnc = null;
+  else if (rawToken) {
+    if (!vault.configured()) return res.redirect('/company/marketing?capi=vault');
+    try { tokenEnc = vault.encrypt(rawToken); }
+    catch (e) { console.error('[marketing capi]', e.message); return res.redirect('/company/marketing?capi=save'); }
+  }
+
   try {
-    await pool.query('UPDATE companies SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3, whatsapp_number=$4 WHERE id=$5',
-      [values.fb_pixel_id, values.tiktok_pixel_id, values.ga4_id, cleanPhone(b.whatsapp_number), req.session.companyId]);
+    await pool.query(
+      `UPDATE companies
+          SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3, whatsapp_number=$4,
+              consent_mode=$6,
+              fb_capi_token_enc = CASE WHEN $7::boolean THEN $8 ELSE fb_capi_token_enc END
+        WHERE id=$5`,
+      [values.fb_pixel_id, values.tiktok_pixel_id, values.ga4_id, cleanPhone(b.whatsapp_number),
+        req.session.companyId, consent, tokenEnc !== undefined, tokenEnc || null]);
   } catch (e) {
     // Was: log it and redirect to ?saved=1 anyway. A merchant would paste a
     // pixel id, be told it saved, and wonder for a week why no events arrived.

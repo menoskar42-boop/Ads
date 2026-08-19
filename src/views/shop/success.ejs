@@ -23,6 +23,9 @@
   // The event both Meta and TikTok optimise on — and the one this store had
   // never sent, which is why a merchant could not tell which ad paid off.
   odvTrack('Purchase', {
+    // نفس رقم الحدث اللي السيرفر بيبعت بيه لميتا — الاتنين بيتدمجوا في حدث
+    // واحد. من غيره الطلب بيتحسب مرتين.
+    eventId: <%- jsonLd('order-' + String(order.id)) %>,
     orderId: <%- jsonLd(String(order.id)) %>,
     value: <%= Number(order.total_amount) %>,
     quantity: <%= items.reduce(function(a,b){return a + Number(b.quantity||1);},0) %>

@@ -870,6 +870,31 @@ router.get('/:slug/order/:id', async (req, res) => {
     // is how a customer pays twice.
     const payment = order.payment_status === 'paid'
       ? null : await loadPaymentMethods(pool, company, res.locals.t);
+    // ── Conversion API (البند ٨٩) ──────────────────────────────────────
+    //
+    // نفس عملية الشراء بتتبعت من السيرفر كمان، بنفس `event_id` بتاع
+    // المتصفح، عشان ميتا تدمجهم في حدث واحد بدل ما تحسب الطلب مرتين.
+    // بيتبعت من غير انتظار — فشل ميتا ماينفعش يأخّر صفحة نجاح الطلب ولا
+    // يوقّعها على العميل.
+    if (company.fb_pixel_id && company.fb_capi_token_enc) {
+      const capi = require('../lib/capi');
+      const token = require('../lib/pay_vault').read(company.fb_capi_token_enc, null);
+      if (token) {
+        capi.sendPurchase(company, order, {
+          token,
+          currency: company.currency,
+          items: items.rows.reduce((a, b) => a + Number(b.quantity || 1), 0),
+          ip: req.ip,
+          userAgent: req.get('user-agent'),
+          // الكوكيز اللي البيكسل نفسه بيكتبها — بتحسّن المطابقة، ولو مش
+          // موجودة مابنخترعش قيم.
+          fbp: (req.cookies && req.cookies._fbp) || null,
+          fbc: (req.cookies && req.cookies._fbc) || null,
+          url: (res.locals.siteOrigin || '') + req.originalUrl,
+          at: order.created_at,
+        }).catch((e) => console.error('[capi]', e.message));
+      }
+    }
     res.render('shop/success', { company, order, items: items.rows, canPayOnline, payment });
   } catch (err) {
     console.error('[GET /shop/:slug/order/:id] error:', err);
