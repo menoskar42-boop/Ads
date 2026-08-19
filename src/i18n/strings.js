@@ -1550,6 +1550,14 @@ const strings = {
     'dr.add':'إضافة','dr.empty':'أضف أول طبيب من النموذج.','dr.hidden':'مخفي','dr.edit':'تعديل',
 
     // ملف المريض
+    // تبويبات ملف المريض (البند ٨٣).
+    'pf.tab.summary':'ملخص','pf.tab.visits':'زيارات','pf.tab.prescriptions':'وصفات',
+    'pf.tab.vitals':'علامات حيوية','pf.tab.invoices':'فواتير','pf.tab.attachments':'مرفقات',
+    'pf.unreadable':'ما قدرتش أقرا الجزء ده دلوقتي — حدّث الصفحة. (مش معناه إنه فاضي.)',
+    'pf.billed':'إجمالي الفواتير','pf.paid':'المدفوع','pf.due':'المتبقّي',
+    'pf.no_invoices':'مفيش فواتير للمريض ده.','pf.photos':'صور وأشعة','pf.no_photos':'مفيش صور.',
+    'pf.labs':'شغل المعمل','pf.no_labs':'مفيش شغل معمل.',
+    'pf.kind.before':'قبل','pf.kind.after':'بعد','pf.kind.xray':'أشعة',
     'pf.title':'ملف','pf.back':'المرضى','pf.born':'مواليد',
     'pf.trends':'مؤشرات المريض','pf.trends_sub':'منحنى لكل قياس عبر الزيارات — والمقارنة باللي قبله',
     'pf.vax':'كارت التطعيمات','pf.vax_sub':'إيه اتاخد وإيه مستحق وإيه متأخر',
@@ -3914,6 +3922,14 @@ const strings = {
     'dr.add':'Add','dr.empty':'Add your first doctor using the form.','dr.hidden':'Hidden','dr.edit':'Edit',
 
     // Patient file
+    // Patient file tabs (backlog 83).
+    'pf.tab.summary':'Summary','pf.tab.visits':'Visits','pf.tab.prescriptions':'Prescriptions',
+    'pf.tab.vitals':'Vitals','pf.tab.invoices':'Invoices','pf.tab.attachments':'Attachments',
+    'pf.unreadable':'I could not read this section right now \u2014 refresh the page. (It does not mean it is empty.)',
+    'pf.billed':'Billed','pf.paid':'Paid','pf.due':'Outstanding',
+    'pf.no_invoices':'No invoices for this patient.','pf.photos':'Photos and x-rays','pf.no_photos':'No photos.',
+    'pf.labs':'Lab work','pf.no_labs':'No lab work.',
+    'pf.kind.before':'Before','pf.kind.after':'After','pf.kind.xray':'X-ray',
     'pf.title':'File','pf.back':'Patients','pf.born':'born',
     'pf.trends':'Patient trends','pf.trends_sub':'A curve for each reading across visits — and how it compares with the last',
     'pf.vax':'Immunisation record','pf.vax_sub':'What was given, what is due, what is overdue',

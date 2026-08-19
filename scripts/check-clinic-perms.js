@@ -113,6 +113,12 @@ catch (e) {
   const draw = (perms) => ejs.render(fs.readFileSync(file, 'utf8'), {
     company: { id: 1, name: 'C', slug: 'demo', logo_url: null },
     tab: 'patients', lang: 'ar', dir: 'rtl', LOC: 'ar-EG', t, modules: {}, perms,
+    // The file is tabbed now (backlog 83). The summary is the tab a
+    // receptionist lands on, and the one that used to print the diagnosis.
+    fileTab: 'summary', fileTabs: require('../src/clinic/file_tabs').TABS,
+    state: { visits: 'has', vitals: 'has', notes: 'has', prescriptions: 'has',
+      invoices: 'has', photos: 'has', labs: 'has' },
+    invoices: [], balance: null, photos: [], labs: [],
     patient: { id: 12, name: 'مريض', phone: '01000000000', birth_date: null, birth_year: null, gender: 'male', notes: null },
     doctors: [{ id: 1, name: 'د. سارة', specialty: 'general', is_active: true }],
     visitTypes: [], appointments: [],
