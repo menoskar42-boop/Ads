@@ -165,6 +165,65 @@ const view = fs.readFileSync(path.join(ROOT, 'src/views/nutrition_portal/today.e
   check('والصفحة بتعرض النقص', /shopping\.partial/.test(planView) && /nt\.shop\.partial/.test(planView));
 }
 
+/* ── A day with nothing logged is not a day of zero ────────────────────── */
+{
+  const C = require('../src/nutrition/checkin');
+  const rows = [
+    { water_glasses: 8, sleep_hours: 7, steps: null, mood: 'good' },
+    { water_glasses: null, sleep_hours: 5, steps: null, mood: null },
+    { water_glasses: 6, sleep_hours: null, steps: null, mood: 'bad' },
+  ];
+  const sum = C.summarize(rows);
+  // The whole point: `Number(null)` is 0 and 0 is finite, so a naive average
+  // counts every silent day as zero water — and a patient looks worse the less
+  // they use the app, which is the number a dietitian would act on.
+  check('المتوسط على الأيام اللي فيها قراءة بس',
+    sum.water.avg === 7 && sum.water.days === 2, JSON.stringify(sum.water));
+  check('والنوم كمان', sum.sleep.avg === 6 && sum.sleep.days === 2, JSON.stringify(sum.sleep));
+  check('واللي مافيهوش ولا قراءة بيرجع null مش صفر',
+    sum.steps.avg === null && sum.steps.days === 0, JSON.stringify(sum.steps));
+  // 'good' is 4 and 'bad' is 1, so the fortnight averages to the middle.
+  check('والمزاج بيتوسّط وبيرجع كلمة', C.moodWord(sum.mood.avg) === 'ok', String(C.moodWord(sum.mood.avg)));
+  check('ومفيش بيانات = مفيش متوسط', C.summarize([]).water.avg === null);
+  check('ومتوسط مش رقم مالوش كلمة', C.moodWord(null) === null);
+
+  check('وصفر كوباية إجابة حقيقية', C.glasses('0') === 0);
+  check('وخانة فاضية مش إجابة', C.glasses('') === null && C.hours('  ') === null);
+  check('والأرقام العربية بتتقرا', C.glasses('٨') === 8);
+  check('والقيم المستحيلة بتتقص', C.hours('30') === 24 && C.steps('9999999') === 100000);
+  check('وفورم فاضي مش تسجيل', C.readCheckin({}).why === 'empty');
+  check('وملاحظة لوحدها تسجيل', C.readCheckin({ note: 'يوم صعب' }).ok === true);
+  check('ومزاج مش من القايمة بيتشال', C.readCheckin({ mood: 'ecstatic', water_glasses: 2 }).value.mood === null);
+
+  const portal = stripComments(fs.readFileSync(path.join(ROOT, 'src/routes/nutrition_portal.js'), 'utf8'));
+  check('واليوم الواحد صف واحد',
+    /ON CONFLICT \(patient_id, on_date\) DO UPDATE/.test(portal));
+  check('والتعديل مابيمسحش اللي اتسجّل قبل كده',
+    /COALESCE\(EXCLUDED\.water_glasses, nutrition_checkins\.water_glasses\)/.test(portal));
+  const schema = fs.readFileSync(path.join(ROOT, 'src/nutrition/schema.js'), 'utf8');
+  check('والفهرس الفريد بيثبّت ده',
+    /CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_checkin_day ON nutrition_checkins \(patient_id, on_date\)/.test(schema));
+}
+
+/* ── Who went quiet ────────────────────────────────────────────────────── */
+{
+  const C = require('../src/nutrition/checkin');
+  const now = new Date('2026-08-19T12:00:00Z');
+  const ago = (d) => new Date(now.getTime() - d * 86400000);
+  check('اللي سجّل امبارح شغّال', C.engagement(ago(1), now).state === 'active');
+  check('واللي بقاله أسبوع ساكت', C.engagement(ago(7), now).state === 'stale');
+  check('وبيقول بقاله كام يوم', C.engagement(ago(21), now).days === 21);
+  // "Never started" is a different phone call from "stopped".
+  check('واللي عمره ما سجّل حالته لوحدها', C.engagement(null, now).state === 'never');
+  check('وتاريخ بايظ مش «شغّال»', C.engagement('nonsense', now).state === 'never');
+  const practice = stripComments(fs.readFileSync(path.join(ROOT, 'src/nutrition/practice.js'), 'utf8'));
+  check('والقايمة بتحسبها من آخر حاجة عملها فعلاً',
+    /MAX\(created_at\) FROM nutrition_diary/.test(practice) && /MAX\(updated_at\) FROM nutrition_checkins/.test(practice));
+  check('و«epoch» مابتتقريش على إنها ١٩٧٠', /getFullYear\(\) > 1971/.test(practice));
+  const view = fs.readFileSync(path.join(ROOT, 'src/views/nutrition_admin/patients.ejs'), 'utf8');
+  check('والصفحة بتعلّم الساكت', /nc\.eng\.' \+ eng\.state/.test(view));
+}
+
 /* ── Words ─────────────────────────────────────────────────────────────── */
 {
   const keys = ['title', 'sub', 'empty', 'add', 'pick_food', 'or_text', 'partial', 'uncounted'].map((k) => 'nd.' + k)
@@ -175,7 +234,12 @@ const view = fs.readFileSync(path.join(ROOT, 'src/views/nutrition_portal/today.e
     .concat(['clash', 'unknown', 'none', 'no_rules'].map((k) => 'nt.safe.' + k))
     .concat(['np.m.protein', 'np.m.carbs', 'np.m.fat'])
     .concat(['title', 'none', 'no_energy'].map((k) => 'nt.sw.' + k))
-    .concat(['title', 'days', 'empty', 'partial'].map((k) => 'nt.shop.' + k));
+    .concat(['title', 'days', 'empty', 'partial'].map((k) => 'nt.shop.' + k))
+    .concat(['title', 'sub', 'water', 'sleep', 'steps', 'mood', 'mood_skip', 'note', 'save',
+      'avg', 'days', 'no_data'].map((k) => 'nc.' + k))
+    .concat(require('../src/nutrition/checkin').MOODS.map((m) => 'nc.mood.' + m))
+    .concat(['active', 'stale', 'never'].map((k) => 'nc.eng.' + k))
+    .concat(['nt.u.day']);
   for (const lang of ['ar', 'en']) {
     const missing = keys.filter((k) => !strings[lang][k]);
     check(`كل نص موجود (${lang})`, missing.length === 0, missing.join(' · ') || keys.length + ' مفتاح');

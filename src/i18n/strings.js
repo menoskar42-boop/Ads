@@ -2061,6 +2061,14 @@ const strings = {
     'np.u.kg':'كجم','np.u.g':'جم','np.u.kcal':'سعرة',
     // دفتر الأكل الحقيقي والملف الطبي (البند ٨٤).
     'np.m.protein':'بروتين','np.m.carbs':'كارب','np.m.fat':'دهون',
+    // تسجيل اليوم: ماء ونوم وخطوات ومزاج (البند ٨٤).
+    'nc.title':'تسجيل اليوم','nc.sub':'اللي تسجّله بيفسّر الأسبوع اللي الميزان مايتحركش فيه. سيب أي خانة فاضية لو مش فاكر — الفاضي مش صفر.',
+    'nc.water':'مياه (كوب)','nc.sleep':'نوم (ساعة)','nc.steps':'خطوات','nc.mood':'مزاجك','nc.mood_skip':'مش هحدّد',
+    'nc.note':'ملاحظة (اختياري)','nc.save':'سجّل اليوم',
+    'nc.mood.bad':'وحش','nc.mood.low':'تعبان','nc.mood.ok':'عادي','nc.mood.good':'كويس','nc.mood.great':'ممتاز',
+    'nc.avg':'المتوسط','nc.days':'يوم متسجّل','nc.no_data':'مفيش تسجيل لسه',
+    'nt.u.day':'يوم',
+    'nc.eng.active':'بيسجّل','nc.eng.stale':'مسجّلش من','nc.eng.never':'عمره ما سجّل',
     'nd.title':'اللي أكلته النهارده','nd.sub':'اكتب اللي أكلته فعلاً — حتى لو مش من الخطة. ده اللي بيخلّي المتابعة تنفع.',
     'nd.empty':'ماكتبتش حاجة لسه النهارده.','nd.add':'ضيف',
     'nd.pick_food':'اختار من قائمة الدكتور','nd.or_text':'أو اكتب اللي أكلته بكلامك',
@@ -4466,6 +4474,14 @@ const strings = {
     'np.u.kg':'kg','np.u.g':'g','np.u.kcal':'kcal',
     // The real food diary and the medical profile (backlog 84).
     'np.m.protein':'Protein','np.m.carbs':'Carbs','np.m.fat':'Fat',
+    // Daily check-in: water, sleep, steps, mood (backlog 84).
+    'nc.title':'Today\u2019s check-in','nc.sub':'What you log here explains the week the scale does not move. Leave a box empty if you do not remember \u2014 empty is not zero.',
+    'nc.water':'Water (glasses)','nc.sleep':'Sleep (hours)','nc.steps':'Steps','nc.mood':'Mood','nc.mood_skip':'Rather not say',
+    'nc.note':'Note (optional)','nc.save':'Log today',
+    'nc.mood.bad':'Bad','nc.mood.low':'Low','nc.mood.ok':'OK','nc.mood.good':'Good','nc.mood.great':'Great',
+    'nc.avg':'Average','nc.days':'days logged','nc.no_data':'Nothing logged yet',
+    'nt.u.day':'days',
+    'nc.eng.active':'logging','nc.eng.stale':'nothing for','nc.eng.never':'never logged',
     'nd.title':'What I ate today','nd.sub':'Write what you actually ate \u2014 even if it was not on the plan. That is what makes the follow-up worth anything.',
     'nd.empty':'Nothing written down yet today.','nd.add':'Add',
     'nd.pick_food':'Pick from your dietitian\u2019s list','nd.or_text':'or type what you ate in your own words',
