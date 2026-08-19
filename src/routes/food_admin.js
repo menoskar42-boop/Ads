@@ -9,6 +9,7 @@ const foodPerms = require('../food/perms');
 const foodOptions = require('../food/options');
 const foodTables = require('../food/tables');
 const foodIngredients = require('../food/ingredients');
+const foodDelivery = require('../food/delivery');
 const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const staffScope = require('../lib/staff_scope');
@@ -247,6 +248,99 @@ router.post('/item/:id/update', withImage, async (req, res) => {
      image, toInt(req.params.id, null), req.company.id]
   );
   res.redirect('/food/menu?saved=1');
+});
+
+/* ─── مناطق التوصيل والسائقين (backlog 82) ──────────────────
+ *
+ * The fee that used to be one number for the whole city, and the rider who
+ * could read every customer's address. See src/food/delivery.js.
+ */
+
+router.get('/zones', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [zones, outlets] = await Promise.all([
+      pool.query('SELECT * FROM food_zones WHERE company_id=$1 AND is_active=true ORDER BY name', [cid]),
+      pool.query('SELECT id, name, name_ar, delivery_fee FROM food_outlets WHERE company_id=$1 ORDER BY id', [cid]),
+    ]);
+    res.render('food_admin/zones', {
+      company: req.company, session: req.session,
+      zones: zones.rows, outlets: outlets.rows,
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[food zones]', e.message);
+    res.redirect('/food/menu');
+  }
+});
+
+router.post('/zones/save', async (req, res) => {
+  const cid = req.company.id;
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 80);
+  const id = toInt(b.id, 0);
+  if (!name) return res.redirect('/food/zones?err=name');
+  const freeOver = (b.free_over === '' || b.free_over == null) ? null : toNum(b.free_over, null);
+  try {
+    if (id) {
+      await pool.query(
+        `UPDATE food_zones SET name=$1, fee=$2, min_order=$3, free_over=$4, eta_min=$5
+          WHERE id=$6 AND company_id=$7`,
+        [name, toNum(b.fee, 0), toNum(b.min_order, 0), freeOver, toInt(b.eta_min, null), id, cid]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO food_zones (company_id, outlet_id, name, fee, min_order, free_over, eta_min)
+         SELECT $1, o.id, $3, $4, $5, $6, $7 FROM food_outlets o WHERE o.id = $2 AND o.company_id = $1`,
+        [cid, toInt(b.outlet_id, 0), name, toNum(b.fee, 0), toNum(b.min_order, 0), freeOver, toInt(b.eta_min, null)]
+      );
+    }
+  } catch (e) {
+    console.error('[food zone save]', e.message);
+    return res.redirect('/food/zones?err=save');
+  }
+  res.redirect('/food/zones?saved=1');
+});
+
+// Archived, not deleted: orders already stamped with this zone still name it.
+router.post('/zones/:id/remove', async (req, res) => {
+  try {
+    await pool.query('UPDATE food_zones SET is_active=false WHERE id=$1 AND company_id=$2',
+      [toInt(req.params.id, 0), req.company.id]);
+  } catch (e) { console.error('[food zone remove]', e.message); }
+  res.redirect('/food/zones?saved=1');
+});
+
+// Handing an order to a rider.
+router.post('/orders/:id/driver', async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, 0);
+  const driverId = toInt((req.body || {}).driver_id, 0);
+  try {
+    const order = (await pool.query('SELECT * FROM food_orders WHERE id=$1 AND company_id=$2', [id, cid])).rows[0];
+    if (!order) return res.redirect('/food/orders');
+    const verdict = foodDelivery.canAssign(order);
+    if (!verdict.ok) return res.redirect('/food/orders?error=' + verdict.why);
+    if (!driverId) {
+      await pool.query('UPDATE food_orders SET driver_id=NULL, assigned_at=NULL WHERE id=$1 AND company_id=$2', [id, cid]);
+    } else {
+      // The rider has to be this restaurant's rider, checked in the statement
+      // that writes — an id from a form is not a fact.
+      const done = await pool.query(
+        `UPDATE food_orders SET driver_id = s.id, assigned_at = now()
+           FROM food_staff s
+          WHERE food_orders.id = $1 AND food_orders.company_id = $2
+            AND s.id = $3 AND s.company_id=$2 AND s.perm_role = 'delivery' AND s.is_active = true
+          RETURNING food_orders.id`,
+        [id, cid, driverId]
+      );
+      if (!done.rows.length) return res.redirect('/food/orders?error=driver');
+    }
+  } catch (e) {
+    console.error('[food assign driver]', e.message);
+    return res.redirect('/food/orders?error=save');
+  }
+  res.redirect('/food/orders');
 });
 
 /* ─── المكوّنات والتكلفة (backlog 82) ───────────────────────
@@ -802,13 +896,28 @@ router.post('/kds/:id/ready', async (req, res) => {
 router.get('/orders', async (req, res) => {
   const cid = req.company.id;
   try {
+    // A rider needs the address and phone of THEIR delivery. They were being
+    // given every other customer's too, on a phone that leaves the building —
+    // so the filter is here, at the read, and not in the template.
+    const rider = foodDelivery.isRider(req.perms);
     const orders = (await pool.query(
-      'SELECT * FROM food_orders WHERE company_id = $1 ORDER BY created_at DESC LIMIT 100', [cid]
+      rider
+        ? `SELECT * FROM food_orders WHERE company_id = $1 AND driver_id = $2
+             ORDER BY created_at DESC LIMIT 100`
+        : 'SELECT * FROM food_orders WHERE company_id = $1 ORDER BY created_at DESC LIMIT 100',
+      rider ? [cid, toInt(req.session.foodStaffId, 0)] : [cid]
     )).rows;
     for (const o of orders) {
       o.items = (await pool.query('SELECT * FROM food_order_items WHERE order_id = $1', [o.id])).rows;
     }
-    res.render('food_admin/orders', { company: req.company, orders, session: req.session, flow: FOOD_FLOW });
+    const drivers = rider ? [] : (await pool.query(
+      `SELECT id, name FROM food_staff
+        WHERE company_id=$1 AND is_active = true AND perm_role = 'delivery' ORDER BY name`, [cid]
+    )).rows;
+    res.render('food_admin/orders', {
+      company: req.company, orders, session: req.session, flow: FOOD_FLOW,
+      drivers, rider, err: req.query.error || null,
+    });
   } catch (e) { console.error('food orders error:', e.message); res.status(500).send('Error.'); }
 });
 

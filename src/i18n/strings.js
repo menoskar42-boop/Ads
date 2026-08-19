@@ -654,6 +654,19 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'قرّب يخلص',
     'pharmacy.admin.barcode': 'الباركود',
+    // ── مناطق التوصيل والسائقين ───────────────────────────────────────────
+    'food.zone.nav':'مناطق التوصيل','food.zone.title':'مناطق التوصيل',
+    'food.zone.sub':'التوصيل كان رقم واحد للفرع كله، فاللي على بعد شارعين واللي في قرية بيدفعوا نفس الحاجة. سجّل مناطق وأجرة كل واحدة. ولو مسجّلتش مناطق، الفرع بيفضل شغّال بأجرته الواحدة زي ما هو.',
+    'food.zone.none':'مفيش مناطق مسجّلة — الفرع بياخد أجرة توصيل واحدة:',
+    'food.zone.add':'أضف منطقة','food.zone.hint':'«الحد الأدنى» بيمنع الطلبات الصغيرة للمنطقة البعيدة، و«مجاني فوق» بيلغي الأجرة للطلب الكبير.',
+    'food.zone.name':'المنطقة','food.zone.fee':'أجرة التوصيل','food.zone.min':'الحد الأدنى','food.zone.free_over':'مجاني فوق',
+    'food.zone.eta':'مدة (دقيقة)','food.zone.outlet':'الفرع','food.zone.saved':'اتحفظ.',
+    'food.zone.err.name':'اكتب اسم المنطقة.','food.zone.err.save':'مااتحفظش — جرّب تاني.',
+    'orders.zone':'منطقة التوصيل','orders.zone_pick':'اختار منطقتك',
+    'orders.err.zone':'اختار منطقة التوصيل بتاعتك.','orders.err.zone_min':'الطلب أقل من الحد الأدنى للمنطقة دي.',
+    'food.drv.none':'من غير سائق','food.drv.assign':'سلّم لسائق',
+    'food.drv.err.driver':'السائق ده مش من فريقك.','food.drv.err.not_delivery':'الطلب ده مش توصيل.',
+    'food.drv.err.closed':'الطلب ده اتقفل خلاص.','food.drv.err.missing':'الطلب مش موجود.','food.drv.err.save':'مااتحفظش — جرّب تاني.',
     // ── مخزون المكوّنات وتكلفة الطبق ──────────────────────────────────────
     'food.ing.nav':'المكوّنات','food.ing.title':'مخزون المكوّنات',
     'food.ing.sub':'المطعم مابيخلصش منه «برجر»، بيخلص منه عيش. سجّل المكوّنات وكمياتها، والنظام بينزّلها لوحده مع كل طلب ويرجّعها لو الطلب اتلغى.',
@@ -2986,6 +2999,19 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'Running low',
     'pharmacy.admin.barcode': 'Barcode',
+    // ── Delivery zones and drivers ────────────────────────────────────────
+    'food.zone.nav':'Delivery areas','food.zone.title':'Delivery areas',
+    'food.zone.sub':'Delivery used to be one number for the whole branch, so two streets away and a village out of town paid the same. Record areas and what each one costs. If you record none, the branch keeps its single flat fee, unchanged.',
+    'food.zone.none':'No areas recorded \u2014 the branch charges one flat delivery fee:',
+    'food.zone.add':'Add an area','food.zone.hint':'\u201cMinimum\u201d keeps small orders out of the far areas, and \u201cfree over\u201d drops the fee on a large one.',
+    'food.zone.name':'Area','food.zone.fee':'Delivery fee','food.zone.min':'Minimum','food.zone.free_over':'Free over',
+    'food.zone.eta':'ETA (min)','food.zone.outlet':'Branch','food.zone.saved':'Saved.',
+    'food.zone.err.name':'Enter the area name.','food.zone.err.save':'It was not saved \u2014 try again.',
+    'orders.zone':'Delivery area','orders.zone_pick':'Pick your area',
+    'orders.err.zone':'Pick your delivery area.','orders.err.zone_min':'The order is below this area\u2019s minimum.',
+    'food.drv.none':'No driver','food.drv.assign':'Assign a driver',
+    'food.drv.err.driver':'That driver is not on your team.','food.drv.err.not_delivery':'That order is not a delivery.',
+    'food.drv.err.closed':'That order is already closed.','food.drv.err.missing':'No such order.','food.drv.err.save':'It was not saved \u2014 try again.',
     // ── Ingredient stock and dish cost ────────────────────────────────────
     'food.ing.nav':'Ingredients','food.ing.title':'Ingredient stock',
     'food.ing.sub':'A restaurant does not run out of burgers, it runs out of buns. Record the ingredients and their quantities and the system takes them off with every order \u2014 and puts them back if it is cancelled.',
