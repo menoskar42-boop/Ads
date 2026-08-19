@@ -18,6 +18,8 @@ const FLAGS = [
     desc: 'أرصدة الخامات، الحد الأدنى، وحركة الصرف والوارد.' },
   { key: 'sales',      label: 'المبيعات',         icon: '🛒', path: '/furniture/sales',
     desc: 'فواتير بمقدّم ودفعات، والمتبقّي وكشف حساب العميل.' },
+  { key: 'quotes',     label: 'العملاء المحتملين وعروض الأسعار', icon: '📝', path: '/furniture/quotes',
+    desc: 'اللي سأل وماشتراش لسه، وعرض السعر اللي اتقاله — وبصلاحيته، وبيتحوّل لفاتورة مرة واحدة.' },
   { key: 'returns',    label: 'المرتجعات',        icon: '↩️', path: '/furniture/returns',
     desc: 'إشعار خصم للقطعة الراجعة، ورد الفلوس كله أو جزء منه.' },
   { key: 'delivery',   label: 'التسليم والتركيب', icon: '🚚', path: '/furniture/delivery',

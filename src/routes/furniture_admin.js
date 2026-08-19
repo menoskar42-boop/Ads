@@ -93,6 +93,7 @@ router.use('/sales', requireFlag('sales'), require('./furniture_sales'));
 
 // Returns has its own flag, but only the PAGES are gated. Balances and reports
 // always count return rows that exist — see src/furniture/returns.js.
+router.use('/quotes', requireFlag('quotes'), require('./furniture_quotes'));
 router.use('/returns', requireFlag('returns'), require('./furniture_returns'));
 
 router.use('/delivery', requireFlag('delivery'), require('./furniture_delivery'));

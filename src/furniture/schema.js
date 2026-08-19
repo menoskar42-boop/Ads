@@ -196,6 +196,71 @@ async function ensureFurnitureSchema() {
 
     // ── Sales ────────────────────────────────────────────────────────────────
     await client.query(`
+      -- ── Leads and quotes ────────────────────────────────────────────────
+      -- A furniture showroom sells by quoting: somebody walks in, asks about a
+      -- bedroom, and leaves with a price on paper. Until now that conversation
+      -- lived in a notebook, so nobody could answer "who did we quote last
+      -- month and what happened to them?" — which is the whole question a
+      -- showroom's month is decided by.
+      CREATE TABLE IF NOT EXISTS furniture_leads (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        phone      TEXT,
+        phone_key  TEXT,                       -- digits only, so a space is not a new person
+        source     TEXT,                       -- walk-in | phone | facebook | referral | …
+        interest   TEXT,
+        status     TEXT NOT NULL DEFAULT 'new',-- new | quoted | won | lost
+        note       TEXT,
+        branch_id  INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_leads ON furniture_leads (company_id, status, created_at DESC);
+      -- The same phone is the same person. Two rows for one caller is how a
+      -- showroom quotes somebody twice at two different prices.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_furn_lead_phone
+        ON furniture_leads (company_id, phone_key) WHERE phone_key IS NOT NULL AND phone_key <> '';
+
+      CREATE TABLE IF NOT EXISTS furniture_quotes (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        lead_id     INTEGER REFERENCES furniture_leads(id) ON DELETE SET NULL,
+        customer_id INTEGER REFERENCES furniture_customers(id) ON DELETE SET NULL,
+        quote_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+        valid_until DATE,
+        subtotal    NUMERIC(14,2) NOT NULL DEFAULT 0,
+        tax         NUMERIC(14,2) NOT NULL DEFAULT 0,
+        total       NUMERIC(14,2) NOT NULL DEFAULT 0,
+        status      TEXT NOT NULL DEFAULT 'draft', -- draft | sent | accepted | rejected
+        note        TEXT,
+        branch_id   INTEGER REFERENCES furniture_branches(id) ON DELETE SET NULL,
+        -- The invoice this quote became. Set in the SAME statement that accepts
+        -- it, so a quote can never turn into two invoices.
+        sale_id     INTEGER REFERENCES furniture_sales(id) ON DELETE SET NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_quotes ON furniture_quotes (company_id, status, quote_date DESC);
+      -- One invoice per quote, decided by the database rather than by a check in
+      -- code that two clicks can race past.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_furn_quote_one_sale
+        ON furniture_quotes (sale_id) WHERE sale_id IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS furniture_quote_items (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        quote_id   INTEGER NOT NULL REFERENCES furniture_quotes(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES furniture_products(id) ON DELETE SET NULL,
+        -- The name and the price as they were ON THE DAY. A quote is a promise
+        -- about a number; reading today's price back would rewrite what the
+        -- customer was told.
+        name       TEXT,
+        qty        NUMERIC(14,3) NOT NULL DEFAULT 1,
+        unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
+        total      NUMERIC(14,2) NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_quote_items ON furniture_quote_items (quote_id);
+
       CREATE TABLE IF NOT EXISTS furniture_sales (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
