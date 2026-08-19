@@ -13,6 +13,7 @@ const multer = require('multer');
 const deident = require('../radiology/deident');
 const intake = require('../radiology/intake');
 const budget = require('../radiology/budget');
+const worklist = require('../radiology/worklist');
 const sliceOrder = require('../radiology/slice_order');
 const audit = require('../lib/audit');
 
@@ -262,6 +263,24 @@ router.post('/upload', requireDoctor, uploadStudy, async (req, res) => {
     console.error('[rad upload]', e.message);
     res.render('radiology/upload', { error: 'تعذّر رفع الدراسة، حاول تاني.', skipped: [] });
   } finally { client.release(); }
+});
+
+/* ── قايمة الشغل (البند ٨٨) ────────────────────────────────────────────────
+ *
+ * «فيه إيه لسه مافيهوش تقرير؟» — السؤال اللي بيتسأل كل صبح وماكانش ليه صفحة.
+ * الحالة بتتحسب من التقارير، مش من عمود `status` اللي بيفضل مكتوب فيه
+ * «اتحلّلت» حتى بعد ما المسودة تتمسح. */
+router.get('/worklist', requireDoctor, async (req, res) => {
+  try {
+    const board = await worklist.board(pool, req.session.radDoctorId, req.query.view);
+    res.render('radiology/worklist', board);
+  } catch (e) {
+    console.error('[rad worklist]', e.message);
+    // قراءة فشلت مابتقولش «مفيش شغل» — دي أسوأ إجابة ممكنة على السؤال ده.
+    res.render('radiology/worklist', {
+      list: null, tally: { waiting: 0, draft: 0, approved: 0, unknown: 0, all: 0 }, view: 'waiting',
+    });
+  }
 });
 
 /* ── Study detail (Phase 1: metadata; viewer + AI come next) ───────────────── */

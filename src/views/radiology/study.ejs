@@ -56,6 +56,10 @@
     .rad-ctrl{background:#0b1424;border:1px solid #24324f;color:#cbd5e1;border-radius:8px;width:34px;height:34px;font-weight:800;cursor:pointer}
     .rad-canvas-wrap{background:#000;border-radius:12px;overflow:hidden;display:grid;place-items:center;aspect-ratio:1/1;position:relative}
     .rad-canvas-wrap canvas{max-width:100%;max-height:100%;image-rendering:pixelated;transform-origin:center;cursor:crosshair}
+    .rad-preset.rad-on{border-color:#0ea5e9;color:#38bdf8;background:#0e2036}
+    .rad-thumb{width:56px;height:56px;border-radius:6px;border:1px solid #24324f;cursor:pointer;background:#000}
+    .rad-thumb:hover{border-color:#0ea5e9}
+    .rad-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
   </style>
   <div class="card rounded-2xl p-4 mb-4" id="radViewer">
     <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -73,7 +77,14 @@
       <button class="rad-ctrl" data-zout>−</button>
       <button class="rad-ctrl" data-zin>+</button>
     </div>
-    <div class="flex flex-wrap gap-1.5" data-presets></div>
+    <div class="flex flex-wrap gap-1.5 items-center" data-presets></div>
+    <%# القياس والمصغّرات (البند ٨٨). المسافة بتتحسب من PixelSpacing، واللي
+        مافيهوش مقياس بكسل بيتقال إن الرقم بالبكسل — مش بيتحوّل لمليمتر. %>
+    <div class="flex items-center gap-2 mt-2 flex-wrap">
+      <button class="rad-preset" data-measure-btn>📏 قياس مسافة</button>
+      <span class="text-[11px] text-slate-400" data-measure-out></span>
+    </div>
+    <div class="rad-strip mt-3" data-thumbs></div>
     <p class="text-[11px] text-slate-500 mt-2">اسحب على الصورة لضبط الإضاءة (يمين/شمال = العرض، فوق/تحت = المركز). العرض والفكّ في متصفحك — مفيش تحميل على السيرفر.</p>
   </div>
   <script src="/js/rad-viewer.js"></script>

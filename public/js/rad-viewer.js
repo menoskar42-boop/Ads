@@ -41,7 +41,7 @@
     var implicit = (transferSyntax === '1.2.840.10008.1.2');
     var little = (transferSyntax !== '1.2.840.10008.1.2.2');
 
-    var d = { rows: 0, cols: 0, bits: 16, signed: 0, slope: 1, intercept: 0, wc: null, ww: null, mono1: false, pixelOff: 0, pixelLen: 0, little: little };
+    var d = { rows: 0, cols: 0, bits: 16, signed: 0, slope: 1, intercept: 0, wc: null, ww: null, mono1: false, pixelOff: 0, pixelLen: 0, little: little, spacing: null };
     // --- Dataset
     while (pos + 8 <= buffer.byteLength) {
       var g = view.getUint16(pos, little), e = view.getUint16(pos + 2, little), L, h, VR = '';
@@ -62,6 +62,14 @@
         else if (e === 0x1053) d.slope = parseFloat(readStr(view, val, L)) || 1;
         else if (e === 0x1050) d.wc = parseFloat((readStr(view, val, L).split('\\')[0])) || d.wc;
         else if (e === 0x1051) d.ww = parseFloat((readStr(view, val, L).split('\\')[0])) || d.ww;
+        // PixelSpacing (row\column, in mm). Without it a measurement has no
+        // millimetres — and inventing them is the one thing a measuring tool
+        // must never do.
+        else if (e === 0x0030) {
+          var sp = readStr(view, val, L).split('\\');
+          var r0 = parseFloat(sp[0]), c0 = parseFloat(sp[1]);
+          if (isFinite(r0) && r0 > 0) d.spacing = [r0, (isFinite(c0) && c0 > 0) ? c0 : r0];
+        }
       } else if (g === 0x7fe0 && e === 0x0010) { d.pixelOff = val; d.pixelLen = (L === 0xffffffff ? buffer.byteLength - val : L); break; }
       if (L === 0xffffffff) break; // undefined length (shouldn't happen for the tags we read)
       pos = val + L;
@@ -110,18 +118,79 @@
     'بطن': [40, 350], 'أنسجة رخوة': [50, 400], 'كبد': [60, 160]
   };
 
+  /**
+   * المسافة بين نقطتين على الشريحة.
+   *
+   * القاعدة الوحيدة المهمة هنا: **مفيش مليمترات من غير PixelSpacing.** الملف
+   * اللي مافيهوش مقياس بكسل بترجع المسافة بالبكسل ومكتوب إنها بالبكسل —
+   * لأن رقم بالمليمتر جنب ورم رقم بيتبني عليه قرار.
+   *
+   * @returns { value, unit: 'mm' | 'px', known: boolean }
+   */
+  function distanceOf(a, b, spacing) {
+    var dx = (b.x - a.x), dy = (b.y - a.y);
+    if (spacing && spacing.length === 2 && spacing[0] > 0 && spacing[1] > 0) {
+      // PixelSpacing = [row spacing, column spacing]: الصفوف بتمشي مع y.
+      var mmY = dy * spacing[0], mmX = dx * spacing[1];
+      return { value: Math.sqrt(mmX * mmX + mmY * mmY), unit: 'mm', known: true };
+    }
+    return { value: Math.sqrt(dx * dx + dy * dy), unit: 'px', known: false };
+  }
+
   window.OncoViewer = function (opts) {
     var studyId = opts.studyId, count = opts.count, root = opts.root;
     var idx = 0, cache = {}, cur = null, curValues = null, wc = 0, ww = 1, zoom = 1;
 
     var canvas = root.querySelector('[data-canvas]');
     var slider = root.querySelector('[data-slider]');
+    var measureBtn = root.querySelector('[data-measure-btn]');
+    var measureOut = root.querySelector('[data-measure-out]');
+    var strip = root.querySelector('[data-thumbs]');
+    var measuring = false, pts = [];
     var label = root.querySelector('[data-label]');
     var wlLabel = root.querySelector('[data-wl]');
     var msg = root.querySelector('[data-msg]');
     slider.max = count - 1;
 
-    function draw() { if (cur && curValues) render(canvas, cur, curValues, wc, ww); wlLabel.textContent = 'W ' + Math.round(ww) + ' / L ' + Math.round(wc); canvas.style.transform = 'scale(' + zoom + ')'; }
+    function draw() {
+      if (cur && curValues) render(canvas, cur, curValues, wc, ww);
+      drawMeasure();
+      wlLabel.textContent = 'W ' + Math.round(ww) + ' / L ' + Math.round(wc);
+      canvas.style.transform = 'scale(' + zoom + ')';
+    }
+
+    // القياس بيتـرسم فوق الصورة بعد ما تترسم — مش طبقة تانية بتتزحلق عنها
+    // لما الصفحة تتغيّر مقاسها.
+    function drawMeasure() {
+      if (!cur || !pts.length) return;
+      var ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.strokeStyle = '#38bdf8'; ctx.fillStyle = '#38bdf8';
+      ctx.lineWidth = Math.max(1, Math.round(canvas.width / 400));
+      pts.forEach(function (p) { ctx.beginPath(); ctx.arc(p.x, p.y, ctx.lineWidth * 2, 0, 6.284); ctx.fill(); });
+      if (pts.length === 2) {
+        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function showMeasure() {
+      if (!measureOut) return;
+      if (pts.length < 2 || !cur) { measureOut.textContent = measuring ? 'دوس نقطتين على الصورة.' : ''; return; }
+      var d = distanceOf(pts[0], pts[1], cur.spacing);
+      measureOut.textContent = d.known
+        ? ('المسافة: ' + d.value.toFixed(1) + ' مم')
+        // مفيش مليمترات من غير مقياس بكسل — والجملة بتقول السبب مش بس الوحدة.
+        : ('المسافة: ' + Math.round(d.value) + ' بكسل — الملف مافيهوش مقياس بكسل (PixelSpacing)، فمفيش تحويل لمليمتر.');
+    }
+
+    function pointFrom(ev) {
+      var r = canvas.getBoundingClientRect();
+      return {
+        x: Math.round((ev.clientX - r.left) * (canvas.width / r.width)),
+        y: Math.round((ev.clientY - r.top) * (canvas.height / r.height)),
+      };
+    }
 
     function loadSlice(i) {
       label.textContent = (i + 1) + ' / ' + count;
@@ -158,9 +227,26 @@
       presetWrap.appendChild(b);
     });
 
+    // زرار القياس: لما يشتغل، السحب بيبطّل يغيّر الإضاءة — دوستين بيدّوا
+    // مسافة. الوضعين مايشتغلوش مع بعض عشان مايبقاش كل قياس بيغيّر الصورة.
+    if (measureBtn) {
+      measureBtn.addEventListener('click', function () {
+        measuring = !measuring; pts = [];
+        measureBtn.classList.toggle('rad-on', measuring);
+        canvas.style.cursor = measuring ? 'crosshair' : 'crosshair';
+        showMeasure(); draw();
+      });
+    }
+    canvas.addEventListener('click', function (e) {
+      if (!measuring || !cur) return;
+      if (pts.length >= 2) pts = [];
+      pts.push(pointFrom(e));
+      showMeasure(); draw();
+    });
+
     // Drag to adjust W/L (like a real viewer): x=width, y=center.
     var dragging = false, sx = 0, sy = 0, sw = 0, sc = 0;
-    canvas.addEventListener('mousedown', function (e) { dragging = true; sx = e.clientX; sy = e.clientY; sw = ww; sc = wc; });
+    canvas.addEventListener('mousedown', function (e) { if (measuring) return; dragging = true; sx = e.clientX; sy = e.clientY; sw = ww; sc = wc; });
     window.addEventListener('mouseup', function () { dragging = false; });
     window.addEventListener('mousemove', function (e) { if (!dragging) return; ww = Math.max(1, sw + (e.clientX - sx) * 2); wc = sc + (e.clientY - sy) * 2; draw(); });
 
@@ -185,7 +271,32 @@
       try { return c.toDataURL('image/jpeg', 0.6); } catch (e) { return null; }
     }
 
+    // شريط المصغّرات: بيتبني من الشرايح نفسها في المتصفح، بالتدريج، وبيتوقف
+    // عند أول شريحة مش قادرين نفكّها — مصغّرة سودا مش مصغّرة.
+    function buildThumbs() {
+      if (!strip || !count) return;
+      var max = Math.min(16, count), idxs = [];
+      if (count <= max) { for (var i = 0; i < count; i++) idxs.push(i); }
+      else { for (var k = 0; k < max; k++) idxs.push(Math.round(k * (count - 1) / (max - 1))); }
+      idxs.reduce(function (p, i) {
+        return p.then(function () {
+          return fetchParsed(i).then(function (d) {
+            if (!d || d.error) return;
+            var c = document.createElement('canvas');
+            render(c, d, toValues(d), (d.wc != null ? d.wc : wc), (d.ww != null ? d.ww : ww));
+            var t = document.createElement('canvas');
+            t.width = 56; t.height = 56;
+            t.className = 'rad-thumb'; t.title = 'شريحة ' + (i + 1);
+            t.getContext('2d').drawImage(c, 0, 0, 56, 56);
+            t.addEventListener('click', function () { idx = i; slider.value = i; loadSlice(i); });
+            strip.appendChild(t);
+          });
+        });
+      }, Promise.resolve());
+    }
+
     loadSlice(0);
+    buildThumbs();
 
     // Public API: capture N evenly-distributed slices as JPEG data URLs for AI.
     return {
@@ -201,7 +312,11 @@
         }, Promise.resolve([]));
       },
       // The slice the doctor is currently looking at (for chat context).
-      captureCurrent: function () { var u = cur ? toDataURL(cur) : null; return u ? [u] : []; }
+      captureCurrent: function () { var u = cur ? toDataURL(cur) : null; return u ? [u] : []; },
+      // مكشوفة عشان الفحص يقدر يشغّل الحسبة نفسها مش نسخة منها.
+      distanceOf: distanceOf
     };
   };
+  // نفس الدالة متاحة من غير ما تفتح عارض — الفحص بيشغّل الحسبة الحقيقية.
+  window.OncoViewer.distanceOf = distanceOf;
 })();
