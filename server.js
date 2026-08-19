@@ -738,6 +738,26 @@ async function initDb() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_crm_activities_lead ON crm_activities (lead_id);
+      -- The shop's team. Same shape as the restaurant's and the gym's, because
+      -- it is the same idea: somebody packs the orders, somebody writes the
+      -- product pages, somebody runs the discounts — and none of them needs the
+      -- billing, the payment keys, or each other's screens.
+      CREATE TABLE IF NOT EXISTS shop_staff (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        username      TEXT,
+        password_hash TEXT,
+        perm_role     TEXT NOT NULL DEFAULT 'orders',
+        phone         TEXT,
+        login_enabled BOOLEAN NOT NULL DEFAULT false,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_shop_staff_company ON shop_staff (company_id);
+      -- Partial: a row without a username is a name on the team, not an account.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_staff_username
+        ON shop_staff (lower(username)) WHERE username IS NOT NULL;
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id),

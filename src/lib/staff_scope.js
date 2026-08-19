@@ -25,6 +25,10 @@ const AREAS = [
   ['foodStaffId', '/food'],
   ['nutriStaffId', '/nutrition'],
   ['gymStaffId', '/gym'],
+  // The shop's team lives in the owner's own panel, so its "area" is /company —
+  // the perms module inside it decides which pages, and the owner-only pages
+  // (billing, the plan, the payment keys) are not one of them for any role.
+  ['shopStaffId', '/company'],
 ];
 
 /** The area this session is scoped to, or null for the owner's own account. */

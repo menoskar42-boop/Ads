@@ -1,0 +1,80 @@
+<%- include('_layout_top', { activePage: 'staff' }) %>
+
+<h1 class="text-xl font-black text-gray-800 mb-1"><%= t('shopstaff.title') %></h1>
+<p class="text-gray-500 text-sm mb-4"><%= t('shopstaff.sub') %></p>
+
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-4 py-2.5 mb-4 text-sm font-bold"><%= t('shopstaff.saved') %></div><% } %>
+<% if (err) { %>
+  <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-4 py-2.5 mb-4 text-sm font-bold">
+    <%= t('shopstaff.err.' + err) %>
+  </div>
+<% } %>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+  <h2 class="font-bold text-gray-700 text-sm mb-3"><%= t('shopstaff.add') %></h2>
+  <form method="post" action="/company/staff/add" class="flex flex-wrap gap-2 items-end">
+    <label class="text-xs font-bold text-gray-600 flex-1 min-w-[160px]"><%= t('shopstaff.name') %>
+      <input name="name" maxlength="120" required class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-gray-600"><%= t('shopstaff.role_label') %>
+      <select name="perm_role" class="mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm">
+        <% roles.forEach(function (r) { %><option value="<%= r %>"><%= t('shopstaff.role.' + r) %></option><% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-gray-600"><%= t('shopstaff.phone') %>
+      <input name="phone" maxlength="30" dir="ltr" class="mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="brand-bg text-white font-bold rounded-xl px-6 py-2.5 text-sm"><%= t('shopstaff.add_btn') %></button>
+  </form>
+</div>
+
+<% if (!staff.length) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-400 text-sm"><%= t('shopstaff.none') %></div>
+<% } %>
+
+<% staff.forEach(function (s) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-5 mb-3">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <div>
+        <div class="font-black text-gray-800"><%= s.name %></div>
+        <div class="text-xs text-gray-400" dir="ltr"><%= s.phone || '' %></div>
+      </div>
+      <form method="post" action="/company/staff/<%= s.id %>/delete" onsubmit="return confirm('<%= t('shopstaff.confirm_delete') %>')">
+        <button class="text-xs text-gray-400 hover:text-red-600 font-bold"><%= t('shopstaff.remove') %></button>
+      </form>
+    </div>
+
+    <%# What the role reaches, said plainly: the owner is deciding what somebody
+        may see, so the screen shows it instead of naming a role and hoping. %>
+    <div class="text-[11px] mb-3">
+      <% var __r = ROLES[s.perm_role] || {}; %>
+      <% ['orders','catalog','marketing','customers','reports'].forEach(function (k) { %>
+        <span class="inline-block rounded-full px-2 py-0.5 mb-1 <%= __r[k] ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400' %>"><%= (__r[k] ? '✓ ' : '✕ ') + t('shopstaff.perm.' + k) %></span>
+      <% }); %>
+      <span class="inline-block rounded-full px-2 py-0.5 mb-1 bg-gray-100 text-gray-400">✕ <%= t('shopstaff.perm.owner') %></span>
+    </div>
+
+    <form method="post" action="/company/staff/<%= s.id %>/login" class="flex flex-wrap gap-2 items-end">
+      <label class="text-xs font-bold text-gray-600"><%= t('shopstaff.username') %>
+        <input name="username" maxlength="60" dir="ltr" value="<%= s.username || '' %>"
+               class="mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-gray-600"><%= t('shopstaff.password') %>
+        <input name="password" type="password" autocomplete="new-password" placeholder="<%= t('shopstaff.password_ph') %>"
+               class="mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-gray-600"><%= t('shopstaff.role_label') %>
+        <select name="perm_role" class="mt-1 border border-gray-200 rounded-xl px-3 py-2 text-sm">
+          <% roles.forEach(function (r) { %><option value="<%= r %>" <%= s.perm_role === r ? 'selected' : '' %>><%= t('shopstaff.role.' + r) %></option><% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-gray-600 flex items-center gap-1.5 pb-2">
+        <input type="checkbox" name="login_enabled" value="1" <%= s.login_enabled ? 'checked' : '' %> class="rounded" />
+        <%= t('shopstaff.can_login') %>
+      </label>
+      <button class="brand-bg text-white font-bold rounded-xl px-5 py-2.5 text-sm"><%= t('shopstaff.save') %></button>
+    </form>
+  </div>
+<% }); %>
+
+<%- include('_layout_bottom') %>

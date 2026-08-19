@@ -9,6 +9,7 @@ const QRCode = require('qrcode');
 const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const demoMode = require('../lib/demo_mode');
+const shopPerms = require('../shop/perms');
 const orderReversal = require('../lib/order_reversal');
 const money = require('../lib/money');
 const codes = require('../lib/codes');
@@ -181,8 +182,20 @@ router.use((req, res, next) => {
     if (open) return next();
     return res.redirect('/gym');
   }
+  // The shop's own team belongs HERE — this is their panel too. Which pages of
+  // it they may open is decided by one guard on the path prefix, mounted below.
   next();
 });
+
+// Permission for a shop staff session, by path prefix, applied once for the
+// whole router. It does nothing for the owner's session, so this is invisible
+// until somebody hands out an account.
+router.use((req, res, next) => {
+  const perms = shopPerms.permsFor(req.session);
+  req.perms = perms;
+  res.locals.perms = perms;
+  next();
+}, shopPerms.guard());
 
 router.use(async (req, res, next) => {
   res.locals.unreadCount = 0;
@@ -336,6 +349,32 @@ router.post('/login', loginLimiter, async (req, res) => {
         // /food picks the landing screen from the role — the kitchen tablet
         // may not open the orders list at all.
         return res.redirect('/food');
+      }
+      // The shop's own team (orders / catalogue / marketing / manager). Same
+      // door, same rule: the scope comes from the row.
+      const shopR = await pool.query(
+        `SELECT ss.*, c.company_name, c.theme_color, c.slug
+         FROM shop_staff ss JOIN companies c ON c.id = ss.company_id
+         WHERE lower(ss.username) = $1 AND ss.login_enabled = true
+           AND ss.is_active = true AND c.is_active = true`,
+        [email]
+      );
+      if (shopR.rows.length) {
+        const st = shopR.rows[0];
+        const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
+        if (!ok) return renderLogin({ error: LOGIN_FAILED });
+        req.session.companyId = st.company_id;
+        demoMode.endDemo(req);
+        req.session.shopStaffId = st.id;
+        req.session.shopRole = st.perm_role || 'orders';
+        req.session.staffName = st.name || st.username;
+        req.session.companyName = st.company_name;
+        req.session.themeColor = st.theme_color;
+        req.session.companySlug = st.slug;
+        req.session.adminLang = 'ar';
+        // The landing screen follows the role: a copywriter may not open the
+        // orders list, and a fixed redirect would greet them with a locked door.
+        return res.redirect(shopPerms.homeFor(shopPerms.permsFor(req.session)));
       }
       // Gym shift staff (reception / cashier / trainer / manager). Same door
       // again — the scope comes from the row, never from the URL.
@@ -2001,6 +2040,91 @@ router.post('/lang/:lang', async (req, res) => {
   }
   res.cookie('lang', lang, { maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
   res.redirect(req.get('Referrer') || '/company/dashboard');
+});
+
+/* ── The shop's team ────────────────────────────────────────────────────────
+ *
+ * A row here is a person on the team; a row WITH a username is an account.
+ * Those are two different things and the screen keeps them apart, because most
+ * of a small shop's people never need to sign in at all.
+ *
+ * Only the owner reaches this screen — `staff` is a permission no role carries,
+ * so handing out reach stays with whoever pays for the shop.
+ */
+router.get('/staff', requireLogin, async (req, res) => {
+  try {
+    const staff = (await pool.query(
+      `SELECT id, name, username, perm_role, phone, login_enabled, is_active
+         FROM shop_staff WHERE company_id=$1 ORDER BY is_active DESC, id`,
+      [req.session.companyId])).rows;
+    res.render('company/staff', {
+      staff, roles: shopPerms.ROLE_KEYS, ROLES: shopPerms.ROLES,
+      saved: req.query.saved === '1',
+      // Known codes only — this page never prints the address bar's words.
+      err: ['no_name', 'save', 'username'].includes(req.query.err) ? req.query.err : null,
+    });
+  } catch (e) { console.error('[shop staff]', e.message); res.status(500).send('Error.'); }
+});
+
+router.post('/staff/add', requireLogin, async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return res.redirect('/company/staff?err=no_name');
+  const role = shopPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'orders';
+  try {
+    await pool.query('INSERT INTO shop_staff (company_id, name, perm_role, phone) VALUES ($1,$2,$3,$4)',
+      [req.session.companyId, name, role, String(b.phone || '').trim().slice(0, 30) || null]);
+  } catch (e) {
+    console.error('[shop staff add]', e.message);
+    return res.redirect('/company/staff?err=save');
+  }
+  res.redirect('/company/staff?saved=1');
+});
+
+router.post('/staff/:id/login', requireLogin, async (req, res) => {
+  const cid = req.session.companyId;
+  const sid = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const username = String(b.username || '').trim().toLowerCase().slice(0, 60);
+  const role = shopPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'orders';
+  const enabled = b.login_enabled === '1';
+  try {
+    if (!username) {
+      // No username means no account. The row stays as a name on the team.
+      await pool.query(
+        'UPDATE shop_staff SET username=NULL, password_hash=NULL, login_enabled=false, perm_role=$1 WHERE id=$2 AND company_id=$3',
+        [role, sid, cid]);
+      return res.redirect('/company/staff?saved=1');
+    }
+    const password = String(b.password || '');
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await pool.query(
+        'UPDATE shop_staff SET username=$1, password_hash=$2, perm_role=$3, login_enabled=$4 WHERE id=$5 AND company_id=$6',
+        [username, hash, role, enabled, sid, cid]);
+    } else {
+      // A blank password keeps the old one — moving somebody between roles must
+      // not require knowing their password.
+      await pool.query(
+        'UPDATE shop_staff SET username=$1, perm_role=$2, login_enabled=$3 WHERE id=$4 AND company_id=$5',
+        [username, role, enabled, sid, cid]);
+    }
+    res.redirect('/company/staff?saved=1');
+  } catch (e) {
+    console.error('[shop staff login]', e.message);
+    res.redirect('/company/staff?err=username');
+  }
+});
+
+router.post('/staff/:id/delete', requireLogin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM shop_staff WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.session.companyId]);
+  } catch (e) {
+    console.error('[shop staff delete]', e.message);
+    return res.redirect('/company/staff?err=save');
+  }
+  res.redirect('/company/staff?saved=1');
 });
 
 module.exports = router;
