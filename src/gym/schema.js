@@ -172,6 +172,22 @@ async function ensureGymSchema() {
       -- the unique index below — otherwise "one booking each" is defeated by a
       -- space bar.
       ALTER TABLE gym_bookings ADD COLUMN IF NOT EXISTS phone_key TEXT;
+      /* إلغاء ونقل وقائمة انتظار (backlog 85).
+       *
+       * Booking worked and everything after it did not: a member could take a
+       * place and had no way to give it back, so a full class stayed full of
+       * people who were not coming — while the waiting list sat there. And the
+       * list only existed at booking time; nothing ever took anybody off it.
+       *
+       * The token is how a member reaches their own booking without an account.
+       * Same shape as the order tracking link: unguessable, and it identifies
+       * one booking rather than granting a login.
+       */
+      ALTER TABLE gym_bookings ADD COLUMN IF NOT EXISTS token       TEXT;
+      ALTER TABLE gym_bookings ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMPTZ;
+      ALTER TABLE gym_bookings ADD COLUMN IF NOT EXISTS moved_at    TIMESTAMPTZ;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_booking_token
+        ON gym_bookings (token) WHERE token IS NOT NULL;
       -- POS + trainer commissions (phase 5).
       ALTER TABLE gym_trainers ADD COLUMN IF NOT EXISTS commission_pct NUMERIC(5,2) NOT NULL DEFAULT 0;
       CREATE TABLE IF NOT EXISTS gym_products (

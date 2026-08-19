@@ -11,6 +11,7 @@ const stock = require('../pharmacy/stock');
 const foodOptions = require('../food/options');
 const foodIngredients = require('../food/ingredients');
 const foodDelivery = require('../food/delivery');
+const gymBookings = require('../gym/bookings');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
 const deals = require('../lib/deals');
@@ -861,6 +862,7 @@ router.post('/book-class', gymBookLimiter, gymGuard, async (req, res) => {
      * on the bookings, because there is no booking row yet to lock. */
     const client = await pool.connect();
     let status;
+    let token = null;
     try {
       await client.query('BEGIN');
       const gymClass = (await client.query(
@@ -897,11 +899,16 @@ router.post('/book-class', gymBookLimiter, gymGuard, async (req, res) => {
         "SELECT COUNT(*)::int n FROM gym_bookings WHERE class_id=$1 AND booking_date=$2 AND status='booked'",
         [classId, bookingDate])).rows[0].n;
       status = booked >= gymClass.capacity ? 'waitlist' : 'booked';
+      // The token is how the member reaches this booking again — to cancel it,
+      // or to move it. Without one, a place taken is a place that can only be
+      // given back by phoning the gym, which is why full classes stayed full of
+      // people who were not coming.
+      token = crypto.randomBytes(9).toString('hex');
       await client.query(
-        `INSERT INTO gym_bookings (company_id, class_id, member_id, member_name, member_phone, phone_key, booking_date, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        `INSERT INTO gym_bookings (company_id, class_id, member_id, member_name, member_phone, phone_key, booking_date, status, token)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         // gymClass.id — the row the FOR UPDATE above proved is this gym's.
-        [company.id, gymClass.id, member ? member.id : null, name, phone, phoneKey, bookingDate, status]
+        [company.id, gymClass.id, member ? member.id : null, name, phone, phoneKey, bookingDate, status, token]
       );
       await client.query('COMMIT');
     } catch (e) {
@@ -913,8 +920,153 @@ router.post('/book-class', gymBookLimiter, gymGuard, async (req, res) => {
       }
       throw e;
     } finally { client.release(); }
-    res.redirect('/?booked=' + status + '#classes');
+    // Straight to the booking's own page: it carries the place in the queue
+    // and the two things a member needs — cancel, or move to another day.
+    res.redirect(token ? ('/gym/booking/' + token) : ('/?booked=' + status + '#classes'));
   } catch (e) { console.error('[gym book-class]', e.message); res.redirect('/?bookerr=1#classes'); }
+});
+
+/* ─── حجز العضو: صفحته وإلغاؤه ونقله (backlog 85) ───────────────
+ *
+ * A booking a member cannot reach is a booking they cannot give back. The token
+ * identifies one booking — it is not a login and grants nothing else.
+ */
+router.get('/gym/booking/:token', async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'gym') return res.status(404).render('404', { subdomain: null });
+  try {
+    const b = (await pool.query(
+      `SELECT b.*, c.name AS class_name, c.start_time, c.day_of_week, c.capacity, t.name AS trainer_name
+         FROM gym_bookings b
+         JOIN gym_classes c ON c.id = b.class_id
+         LEFT JOIN gym_trainers t ON t.id = c.trainer_id
+        WHERE b.token=$1 AND b.company_id=$2`, [String(req.params.token || '').slice(0, 40), company.id]
+    )).rows[0];
+    if (!b) return res.status(404).render('404', { subdomain: company.slug });
+    // Where they stand, if they are waiting. A member who can see "3rd in line"
+    // stops phoning the gym to ask.
+    const queue = (await pool.query(
+      `SELECT id, status, created_at FROM gym_bookings
+        WHERE class_id=$1 AND booking_date=$2 AND company_id=$3 AND status='waitlist'`,
+      [b.class_id, b.booking_date, company.id])).rows;
+    const today = new Date().toISOString().slice(0, 10);
+    res.render('gym_booking', {
+      company, booking: b,
+      place: gymBookings.placeInLine(b, queue),
+      canCancel: gymBookings.canCancel(b, today),
+      saved: req.query.saved === '1',
+      err: ['missing', 'already', 'past', 'date', 'same', 'wrong_day', 'save'].includes(String(req.query.err || ''))
+        ? req.query.err : null,
+    });
+  } catch (e) {
+    console.error('[gym booking page]', e.message);
+    res.status(500).send('error');
+  }
+});
+
+/**
+ * إلغاء — and the freed place goes to the first person waiting, now.
+ *
+ * In the same transaction, not by a nightly job: a class is at 6pm and a
+ * nightly job promotes somebody at midnight. Exactly one person moves up, the
+ * one who has waited longest — the order the list was formed in is the only
+ * one that cannot be argued with at the door.
+ */
+router.post('/gym/booking/:token/cancel', async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'gym') return res.status(404).render('404', { subdomain: null });
+  const token = String(req.params.token || '').slice(0, 40);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const b = (await client.query(
+      'SELECT * FROM gym_bookings WHERE token=$1 AND company_id=$2 FOR UPDATE', [token, company.id])).rows[0];
+    if (!b) { await client.query('ROLLBACK'); return res.status(404).render('404', { subdomain: company.slug }); }
+    const today = new Date().toISOString().slice(0, 10);
+    const verdict = gymBookings.canCancel(b, today);
+    if (!verdict.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect('/gym/booking/' + token + '?err=' + verdict.why);
+    }
+    await client.query("UPDATE gym_bookings SET status='cancelled' WHERE id=$1 AND company_id=$2", [b.id, company.id]);
+
+    // Only a confirmed place frees a seat; giving up a place on the waiting
+    // list does not promote anybody.
+    if (String(b.status) === 'booked') {
+      const waiting = (await client.query(
+        `SELECT id, status, created_at FROM gym_bookings
+          WHERE class_id=$1 AND booking_date=$2 AND company_id=$3 AND status='waitlist'
+          FOR UPDATE`, [b.class_id, b.booking_date, company.id])).rows;
+      const next = gymBookings.nextInLine(waiting);
+      if (next) {
+        await client.query(
+          "UPDATE gym_bookings SET status='booked', promoted_at=now() WHERE id=$1 AND company_id=$2 AND status='waitlist'",
+          [next.id, company.id]);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[gym booking cancel]', e.message);
+    return res.redirect('/gym/booking/' + token + '?err=save');
+  } finally { client.release(); }
+  res.redirect('/gym/booking/' + token + '?saved=1');
+});
+
+/** نقل — the same class, another day it actually runs. */
+router.post('/gym/booking/:token/move', async (req, res) => {
+  const company = req.tenant;
+  if (!company || company.page_type !== 'gym') return res.status(404).render('404', { subdomain: null });
+  const token = String(req.params.token || '').slice(0, 40);
+  const to = String((req.body || {}).date || '').slice(0, 10);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const b = (await client.query(
+      'SELECT * FROM gym_bookings WHERE token=$1 AND company_id=$2 FOR UPDATE', [token, company.id])).rows[0];
+    if (!b) { await client.query('ROLLBACK'); return res.status(404).render('404', { subdomain: company.slug }); }
+    const cls = (await client.query(
+      'SELECT * FROM gym_classes WHERE id=$1 AND company_id=$2', [b.class_id, company.id])).rows[0];
+    const today = new Date().toISOString().slice(0, 10);
+    const verdict = gymBookings.canMove(b, cls, to, today);
+    if (!verdict.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect('/gym/booking/' + token + '?err=' + verdict.why);
+    }
+    // The new day has its own capacity: moving into a full day joins its
+    // waiting list rather than overfilling the class.
+    const booked = (await client.query(
+      "SELECT COUNT(*)::int n FROM gym_bookings WHERE class_id=$1 AND booking_date=$2 AND company_id=$3 AND status='booked'",
+      [b.class_id, to, company.id])).rows[0].n;
+    const status = cls && booked >= Number(cls.capacity) ? 'waitlist' : 'booked';
+    await client.query(
+      'UPDATE gym_bookings SET booking_date=$3, status=$4, moved_at=now() WHERE id=$1 AND company_id=$2',
+      [b.id, company.id, to, status]);
+
+    // The day they left may now have a free seat.
+    if (String(b.status) === 'booked') {
+      const waiting = (await client.query(
+        `SELECT id, status, created_at FROM gym_bookings
+          WHERE class_id=$1 AND booking_date=$2 AND company_id=$3 AND status='waitlist' FOR UPDATE`,
+        [b.class_id, b.booking_date, company.id])).rows;
+      const next = gymBookings.nextInLine(waiting);
+      if (next) {
+        await client.query(
+          "UPDATE gym_bookings SET status='booked', promoted_at=now() WHERE id=$1 AND company_id=$2 AND status='waitlist'",
+          [next.id, company.id]);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    // Already booked on that day: the one-booking index fired.
+    if (String(e.message).includes('idx_gym_one_booking_per_person')) {
+      return res.redirect('/gym/booking/' + token + '?err=same');
+    }
+    console.error('[gym booking move]', e.message);
+    return res.redirect('/gym/booking/' + token + '?err=save');
+  } finally { client.release(); }
+  res.redirect('/gym/booking/' + token + '?saved=1');
 });
 
 // Public order form for one medicine (?m=<medicine_id>).
