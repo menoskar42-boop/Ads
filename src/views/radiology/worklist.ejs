@@ -1,0 +1,65 @@
+<% var pageTitle = 'قايمة الشغل'; %>
+<%- include('_layout_top') %>
+  <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+    <h1 class="text-2xl font-black">قايمة الشغل</h1>
+    <a href="/radiology/dashboard" class="text-xs text-slate-500 hover:text-white">كل الدراسات →</a>
+  </div>
+  <p class="text-slate-400 text-sm mb-5">اللي لسه مستني تقرير، الأقدم الأول. الحالة بتتحسب من التقارير نفسها كل مرة — مش محفوظة في عمود.</p>
+
+  <%# قراءة فشلت: مش «مفيش شغل». دي أسوأ إجابة ممكنة على السؤال ده. %>
+  <% if (list === null) { %>
+    <div class="card rounded-2xl p-8 text-center text-amber-300 text-sm">
+      ⚠️ مش قادرين نقرا قايمة الشغل دلوقتي. جرّب تحديث الصفحة — ومتعتبرش إن مفيش دراسات مستنية.
+    </div>
+  <% } else { %>
+
+  <nav class="flex gap-1 text-xs mb-4 flex-wrap">
+    <% [['waiting','مستنية'],['draft','مسودة AI'],['approved','معتمَدة'],['all','الكل']].forEach(function(p){ %>
+      <a href="/radiology/worklist?view=<%= p[0] %>"
+         class="px-3 py-1.5 rounded-lg <%= view === p[0] ? 'bg-sky-600 text-white font-bold' : 'bg-[#0b1424] border border-[#24324f] text-slate-300' %>">
+        <%= p[1] %> (<%= tally[p[0]] %>)
+      </a>
+    <% }); %>
+    <% if (tally.unknown) { %>
+      <span class="px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-300">مش معروف (<%= tally.unknown %>)</span>
+    <% } %>
+  </nav>
+
+  <% if (!list.length) { %>
+    <div class="card rounded-2xl p-10 text-center text-slate-400">مفيش دراسات في القسم ده.</div>
+  <% } else { %>
+    <div class="grid gap-2">
+      <% list.forEach(function(s){ %>
+      <a href="/radiology/study/<%= s.id %>" class="card rounded-2xl p-4 hover:border-sky-500/50 transition block">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300"><%= s.modality %></span>
+          <span class="font-bold truncate"><%= s.description || ('دراسة #' + s.id) %></span>
+          <% if (s.patient_ref) { %><span class="text-xs text-slate-500" dir="ltr"><%= s.patient_ref %></span><% } %>
+          <span class="ms-auto text-xs font-bold px-2 py-0.5 rounded-full
+            <%= s.state === 'approved' ? 'bg-emerald-500/15 text-emerald-300'
+               : s.state === 'draft' ? 'bg-amber-500/15 text-amber-300'
+               : s.state === 'unknown' ? 'bg-slate-500/15 text-slate-300' : 'bg-sky-500/15 text-sky-300' %>">
+            <%= s.state === 'approved' ? 'معتمَدة' : s.state === 'draft' ? 'مسودة AI مستنية مراجعة'
+               : s.state === 'unknown' ? 'مش قادرين نتأكد' : 'مستنية تقرير' %>
+          </span>
+        </div>
+        <div class="text-xs text-slate-400 mt-2">
+          <%= s.num_slices %> شريحة
+          <%# «مش عارفين بقالها قد إيه» غير «النهاردة». الاتنين مش نفس الجملة. %>
+          <% if (s.age === null) { %>
+            · تاريخ الرفع مش مقروء
+          <% } else if (s.age === 0) { %>
+            · اترفعت النهاردة
+          <% } else { %>
+            · بقالها <%= s.age %> يوم
+          <% } %>
+          <% if (s.compression) { %>
+            · <span class="text-amber-300">صور مضغوطة (<span dir="ltr"><%= s.compression %></span>)</span>
+          <% } %>
+        </div>
+      </a>
+      <% }); %>
+    </div>
+  <% } %>
+  <% } %>
+<%- include('_layout_bottom') %>
