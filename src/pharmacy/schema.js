@@ -343,6 +343,60 @@ async function ensurePharmacySchema() {
       ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2) DEFAULT 0;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_staff_username ON pharmacy_staff (lower(username));
 
+      /* الفروع والتحويل بينها (backlog 81).
+       *
+       * A branch of a chain is a pharmacy tenant of its own on this platform —
+       * its own panel, its own staff, its own page — so what was missing was
+       * not a branch_id column on the inventory (that is a rewrite of every
+       * stock query in the product), it was consent between two tenants and a
+       * way to move boxes across.
+       *
+       * The unique index is on the PAIR rather than the direction: A asking B
+       * and B asking A are the same relationship, and two rows for it would
+       * mean two answers to whether they are linked.
+       */
+      CREATE TABLE IF NOT EXISTS pharmacy_branch_links (
+        id                SERIAL PRIMARY KEY,
+        company_id        INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        linked_company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        status            TEXT NOT NULL DEFAULT 'pending',  -- pending | linked | declined
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        responded_at      TIMESTAMPTZ
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_link_pair
+        ON pharmacy_branch_links (LEAST(company_id, linked_company_id), GREATEST(company_id, linked_company_id));
+
+      /* The boxes on the road.
+       *
+       * Stock leaves the sending shelf when the transfer is created and reaches
+       * the other one only when somebody there confirms — so between the two it
+       * is on neither shelf, which is the truth and is what stops the same box
+       * being counted twice.
+       *
+       * lines holds the lots the boxes came out of, so the destination can
+       * recreate them with their real expiry dates. Sending stock without its
+       * dates would break nearest-expiry-first dispensing at the other end.
+       */
+      CREATE TABLE IF NOT EXISTS pharmacy_transfers (
+        id              SERIAL PRIMARY KEY,
+        from_company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        to_company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        medicine_id     INTEGER NOT NULL REFERENCES medicines(id),
+        name_at_send    TEXT,
+        qty             INTEGER NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'in_transit',  -- in_transit | received | rejected
+        lines           JSONB NOT NULL DEFAULT '[]'::jsonb,
+        note            TEXT,
+        sent_by         TEXT,
+        received_by     TEXT,
+        settled_at      TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_transfer_to
+        ON pharmacy_transfers (to_company_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_pharm_transfer_from
+        ON pharmacy_transfers (from_company_id, created_at DESC);
+
       /* أوامر الشراء (backlog 81).
        *
        * The order that goes to the supplier, and the record of what came back.

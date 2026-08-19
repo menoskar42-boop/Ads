@@ -14,6 +14,7 @@ const discount = require('../pharmacy/discount');
 const gs1 = require('../pharmacy/gs1');
 const purchase = require('../pharmacy/purchase');
 const reports = require('../pharmacy/reports');
+const transfers = require('../pharmacy/transfers');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
 const multer = require('multer');
@@ -800,6 +801,171 @@ router.get('/api/inventory-all', gate('pos'), async (req, res) => {
  * went and counted the shelf, which is the only thing that can actually settle
  * the difference.
  */
+/* ─── الفروع والتحويل بينها (backlog 81) ─────────────────── */
+//
+// A branch is another pharmacy tenant, linked by consent. See the note at the
+// top of src/pharmacy/transfers.js for why it is not a column on the inventory.
+
+router.get('/branches', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [links, incoming, outgoing, meds] = await Promise.all([
+      pool.query(
+        `SELECT l.*, c.company_name, c.slug, c.id AS other_id,
+                (l.company_id = $1) AS we_asked
+           FROM pharmacy_branch_links l
+           JOIN companies c ON c.id = CASE WHEN l.company_id = $1 THEN l.linked_company_id ELSE l.company_id END
+          WHERE l.company_id = $1 OR l.linked_company_id = $1
+          ORDER BY l.created_at DESC`, [cid]),
+      pool.query(
+        `SELECT tr.*, c.company_name AS from_name, COALESCE(m.name_ar, m.name_en, tr.name_at_send) AS name
+           FROM pharmacy_transfers tr
+           JOIN companies c ON c.id = tr.from_company_id
+           LEFT JOIN medicines m ON m.id = tr.medicine_id
+          WHERE tr.to_company_id = $1 ORDER BY tr.created_at DESC LIMIT 100`, [cid]),
+      pool.query(
+        `SELECT tr.*, c.company_name AS to_name, COALESCE(m.name_ar, m.name_en, tr.name_at_send) AS name
+           FROM pharmacy_transfers tr
+           JOIN companies c ON c.id = tr.to_company_id
+           LEFT JOIN medicines m ON m.id = tr.medicine_id
+          WHERE tr.from_company_id = $1 ORDER BY tr.created_at DESC LIMIT 100`, [cid]),
+      pool.query(
+        `SELECT inv.medicine_id, COALESCE(m.name_ar, m.name_en) AS name,
+                GREATEST(inv.qty - inv.reserved_qty, 0)::int AS available
+           FROM pharmacy_inventory inv JOIN medicines m ON m.id = inv.medicine_id
+          WHERE inv.company_id = $1 AND GREATEST(inv.qty - inv.reserved_qty, 0) > 0
+          ORDER BY name LIMIT 500`, [cid]),
+    ]);
+    res.render('pharmacy_admin/branches', {
+      company: req.company, session: req.session,
+      links: links.rows, incoming: incoming.rows, outgoing: outgoing.rows,
+      medicines: meds.rows,
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[pharmacy branches]', e.message);
+    res.redirect('/pharmacy');
+  }
+});
+
+// Asking another pharmacy to be a branch of the same chain. Owner-only: this
+// decides who may push stock onto this shelf.
+router.post('/branches/link', gate('settings'), async (req, res) => {
+  const cid = req.company.id;
+  const slug = String((req.body || {}).slug || '').trim().toLowerCase().slice(0, 60);
+  if (!slug) return res.redirect('/pharmacy/branches?err=slug');
+  try {
+    const other = (await pool.query(
+      "SELECT id FROM companies WHERE lower(slug)=$1 AND page_type='pharmacy' AND is_active = true", [slug]
+    )).rows[0];
+    if (!other) return res.redirect('/pharmacy/branches?err=notfound');
+    if (other.id === cid) return res.redirect('/pharmacy/branches?err=same');
+    await pool.query(
+      `INSERT INTO pharmacy_branch_links (company_id, linked_company_id, status)
+       VALUES ($1,$2,'pending')
+       ON CONFLICT (LEAST(company_id, linked_company_id), GREATEST(company_id, linked_company_id))
+       DO NOTHING`,
+      [cid, other.id]
+    );
+  } catch (e) {
+    console.error('[branch link]', e.message);
+    return res.redirect('/pharmacy/branches?err=save');
+  }
+  res.redirect('/pharmacy/branches?saved=1');
+});
+
+// Answering a request. Only the side that was ASKED can accept it — otherwise
+// asking would be the same as linking.
+router.post('/branches/:id/answer', gate('settings'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, 0);
+  const want = String((req.body || {}).answer || '');
+  if (!['linked', 'declined'].includes(want)) return res.redirect('/pharmacy/branches?err=state');
+  try {
+    await pool.query(
+      `UPDATE pharmacy_branch_links SET status=$3, responded_at=now()
+        WHERE id=$1 AND linked_company_id=$2 AND status='pending'`,
+      [id, cid, want]
+    );
+  } catch (e) {
+    console.error('[branch answer]', e.message);
+    return res.redirect('/pharmacy/branches?err=save');
+  }
+  res.redirect('/pharmacy/branches?saved=1');
+});
+
+// Either side can end it. A link that only one side can leave is a trap.
+router.post('/branches/:id/unlink', gate('settings'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    await pool.query(
+      'DELETE FROM pharmacy_branch_links WHERE id=$1 AND (company_id=$2 OR linked_company_id=$2)',
+      [toInt(req.params.id, 0), cid]
+    );
+  } catch (e) { console.error('[branch unlink]', e.message); }
+  res.redirect('/pharmacy/branches?saved=1');
+});
+
+// Putting boxes in the car. The stock leaves this shelf now; it reaches the
+// other one when somebody there says it arrived.
+router.post('/branches/send', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const b = req.body || {};
+  const to = toInt(b.to, 0);
+  const medicineId = toInt(b.medicine_id, 0);
+  const qty = toInt(b.qty, 0);
+  if (!to || !medicineId || qty <= 0) return res.redirect('/pharmacy/branches?err=qty');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const name = (await client.query('SELECT COALESCE(name_ar, name_en) AS n FROM medicines WHERE id=$1', [medicineId])).rows[0];
+    const out = await transfers.send(client, {
+      from: cid, to, medicineId, qty,
+      note: b.note, by: req.session.staffName || 'المالك',
+      name: name ? name.n : null,
+    });
+    if (!out.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect('/pharmacy/branches?err=' + out.why);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[branch send]', e.message);
+    return res.redirect('/pharmacy/branches?err=save');
+  } finally {
+    client.release();
+  }
+  res.redirect('/pharmacy/branches?saved=1');
+});
+
+// Confirming, or refusing, what arrived.
+router.post('/branches/transfer/:id/:answer', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, 0);
+  const answer = String(req.params.answer || '');
+  if (!['receive', 'reject'].includes(answer)) return res.redirect('/pharmacy/branches?err=state');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const out = answer === 'receive'
+      ? await transfers.receive(client, id, cid, req.session.staffName || 'المالك')
+      : await transfers.reject(client, id, cid, req.session.staffName || 'المالك');
+    if (!out.ok) {
+      await client.query('ROLLBACK');
+      return res.redirect('/pharmacy/branches?err=' + out.why);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[branch settle]', e.message);
+    return res.redirect('/pharmacy/branches?err=save');
+  } finally {
+    client.release();
+  }
+  res.redirect('/pharmacy/branches?saved=1');
+});
+
 /* ─── التقارير (backlog 81) ──────────────────────────────── */
 //
 // Three questions, one page: what sells, what is standing still, and what was

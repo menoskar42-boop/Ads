@@ -13,6 +13,7 @@
       <% if (P.inventory) { %><a href="/pharmacy/inventory" class="px-3 py-1.5 rounded-lg <%= __active==='inventory'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.inventory') %></a><% } %>
       <% if (P.inventory) { %><a href="/pharmacy/purchases" class="px-3 py-1.5 rounded-lg <%= __active==='purchases'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('ph.po.nav') %></a><% } %>
       <% if (P.inventory) { %><a href="/pharmacy/reports" class="px-3 py-1.5 rounded-lg <%= __active==='reports'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('ph.rep.nav') %></a><% } %>
+      <% if (P.inventory) { %><a href="/pharmacy/branches" class="px-3 py-1.5 rounded-lg <%= __active==='branches'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('ph.br.nav') %></a><% } %>
       <% if (P.orders) { %><a href="/pharmacy/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.orders') %></a><% } %>
       <% if (P.staff) { %><a href="/pharmacy/staff" class="px-3 py-1.5 rounded-lg <%= __active==='staff'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.staff') %></a><% } %>
       <% if (P.settings) { %><a href="/pharmacy/banners" class="px-3 py-1.5 rounded-lg <%= __active==='banners'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('pharmacy.admin.banners') %></a><% } %>
