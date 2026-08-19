@@ -195,10 +195,13 @@ function buildDicom(transferSyntax, extra) {
   const path = require('path');
   const route = fs.readFileSync(path.join(__dirname, '..', 'src/routes/radiology.js'), 'utf8');
   check('راوت الرفع بينضّف كل ملف', /deident\.deidentify\(bytes\)/.test(route));
+  // القرار اتنقل لـ`intake.planUpload` (البند ٨٨) — الشرط هو هو: ملف DICOM
+  // هيدره مش مقروء بيوقّف الرفعة كلها ويعمل ROLLBACK. الملف اللي مش DICOM
+  // أصلاً بيتشال باسمه، وده مش نفس الحالة ومالوش هيدر فيه هوية.
   check('والملف اللي مااتقراش بيترفض والرفع بيتلغي',
-    /if \(!clean\.ok\)/.test(route) && /ROLLBACK/.test(route));
+    /ok: !!clean\.ok/.test(route) && /plan\.refuse/.test(route) && /ROLLBACK/.test(route));
   check('واللي اتشال بيتسجّل على الدراسة',
-    /UPDATE rad_studies SET deidentified/.test(route));
+    /UPDATE rad_studies\s+SET deidentified/.test(route));
 }
 
 /* ── Anatomical order ──────────────────────────────────────────────────── */

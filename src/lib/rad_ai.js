@@ -104,7 +104,12 @@ async function chatAboutStudy({ modality, context, priorReport, history, questio
     const err = new Error(`OpenAI ${res.status}: ${body.slice(0, 300)}`); err.status = res.status; throw err;
   }
   const data = await res.json();
-  return { text: (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim() };
+  // usage بترجع زي التقرير بالظبط: من غيرها سقف التكلفة اليومي مابيشوفش
+  // مصروف الشات خالص، فالسقف بيبقى بيحرس نص الفاتورة.
+  return {
+    text: (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim(),
+    usage: data.usage || {}, model: MODEL,
+  };
 }
 
 module.exports = { generateReport, chatAboutStudy, MODEL };

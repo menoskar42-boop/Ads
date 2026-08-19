@@ -44,6 +44,28 @@ async function ensureRadiologySchema() {
       -- "these are in the order you picked the files" is something they must be
       -- told rather than left to notice.
       ALTER TABLE rad_studies ADD COLUMN IF NOT EXISTS slice_order TEXT;
+      -- بكسلز الشرايح مضغوطة بأي صيغة (JPEG/JPEG2000/RLE)، أو NULL لو مش
+      -- مضغوطة. بيتسجّل ساعة الرفع عشان صفحة الدراسة تقول من الأول إن
+      -- العارض مش هيفكّها — بدل ما الطبيب يستنى تحميل ٣٠٠ شريحة عشان
+      -- يكتشف إنها كلها سودا.
+      ALTER TABLE rad_studies ADD COLUMN IF NOT EXISTS compression TEXT;
+      -- الملفات اللي اتشالت من الرفعة لأنها مش DICOM (DICOMDIR، Thumbs.db…)،
+      -- بأسمائها. مكتوبة عشان الطبيب يشوف اللي اتشال — رفعة بتاخد ٢٩٨ ملف من
+      -- ٣٠٠ من غير ما تقول أنهي اتنين هي رفعة ناقصة في صمت.
+      ALTER TABLE rad_studies ADD COLUMN IF NOT EXISTS skipped_files TEXT;
+
+      -- كل مكالمة للنموذج بتكلفتها. لازم تكون جدول لوحده مش عمود على التقرير:
+      -- الشات بيتكلّف زي التقرير وماكانش بيتسجّل في أي مكان، فالسقف اليومي
+      -- كان هيحرس نص الفاتورة وهو فاكر إنه شايف كلها.
+      CREATE TABLE IF NOT EXISTS rad_ai_usage (
+        id         SERIAL PRIMARY KEY,
+        doctor_id  INTEGER NOT NULL REFERENCES rad_doctors(id) ON DELETE CASCADE,
+        study_id   INTEGER,
+        kind       TEXT NOT NULL,            -- report | chat
+        cost_usd   NUMERIC(10,4) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_rad_usage_day ON rad_ai_usage (doctor_id, created_at);
       -- Original DICOM file bytes per slice (near-zero ingestion memory; decoded
       -- on demand in the browser).
       CREATE TABLE IF NOT EXISTS rad_slices (
