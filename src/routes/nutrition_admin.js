@@ -13,6 +13,8 @@ const P = require('../nutrition/practice');
 const { ownerGuard } = require('../lib/tenant_scope');
 const staffScope = require('../lib/staff_scope');
 const nutriPerms = require('../nutrition/perms');
+const safety = require('../nutrition/safety');
+const diary = require('../nutrition/diary');
 const bcrypt = require('bcryptjs');
 const audit = require('../lib/audit');
 
@@ -168,6 +170,35 @@ router.post('/patients', async (req, res) => {
   }
 });
 
+/**
+ * الملف الطبي — allergies, conditions, medications, stage, preferences.
+ *
+ * Its own form and its own route, deliberately: the details form is the one a
+ * receptionist fills in, and this is the one that decides what may be put on a
+ * plan. See src/nutrition/safety.js for what the matching does — and what it
+ * refuses to claim.
+ */
+router.post('/patients/:id(\\d+)/profile', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const diet = Object.prototype.hasOwnProperty.call(safety.DIETS, String(b.diet_style)) ? b.diet_style : 'none';
+  const stage = Object.prototype.hasOwnProperty.call(safety.STAGE_KCAL, String(b.stage)) ? b.stage : 'none';
+  try {
+    await pool.query(
+      `UPDATE nutrition_patients
+          SET allergies=$1, conditions=$2, medications=$3, avoid_foods=$4,
+              diet_style=$5, stage=$6, budget=$7
+        WHERE id=$8 AND company_id=$9`,
+      [text(b.allergies, 500), text(b.conditions, 500), text(b.medications, 500),
+        text(b.avoid_foods, 500), diet, stage, text(b.budget, 60), id, req.company.id]);
+    audit.log(pool, req, { entity: 'patient', entityId: id, patientId: id, action: 'update' });
+  } catch (e) {
+    console.error('[nutrition profile]', e.message);
+    return res.redirect('/nutrition/patients/' + id + '?err=save');
+  }
+  res.redirect('/nutrition/patients/' + id + '?saved=1');
+});
+
 // Archived, never deleted: a measurement history with no patient attached to it
 // is not privacy, it is just data nobody can account for.
 router.post('/patients/:id(\\d+)/archive', async (req, res) => {
@@ -186,10 +217,27 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
     if (!data) return res.redirect('/nutrition/patients');
     audit.log(pool, req, { entity: 'patient', entityId: parseInt(req.params.id, 10),
       patientId: parseInt(req.params.id, 10), action: 'view' });
+    // The active plan, checked against the patient's profile. Read here so the
+    // page shows a real answer instead of a reassuring blank.
+    let planScan = null;
+    try {
+      const active = (data.plans || []).find((pl) => pl.is_active);
+      const rules = safety.restrictionsOf(data.patient);
+      if (!rules.length) planScan = { state: 'no_rules', hits: [] };
+      else if (active) {
+        const items = (await pool.query(
+          'SELECT id, name FROM nutrition_plan_items WHERE plan_id=$1 AND company_id=$2',
+          [active.id, req.company.id])).rows;
+        planScan = { state: 'checked', hits: safety.scanPlan(items, data.patient) };
+      }
+    } catch (e) { console.error('[nutrition scan]', e.message); }
+
     res.render('nutrition_admin/patient', {
       tab: 'patients', ...data,
       progress: P.progress(data.series, data.patient.target_weight_kg),
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      dietStyles: Object.keys(safety.DIETS), stages: Object.keys(safety.STAGE_KCAL),
+      planScan,
       // Shown once and never again — it exists only as a hash from here on.
       // Read once and gone. It used to arrive as ?pw=… — which puts a patient's
       // password in the browser history, in the address bar over someone's

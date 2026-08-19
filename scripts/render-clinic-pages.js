@@ -57,6 +57,31 @@ function base(lang, tab) {
   };
 }
 
+// The medical-profile locals the dietitian's patient page needs (backlog 84).
+function profileFixture(profile, planItems) {
+  const safety = require('../src/nutrition/safety');
+  const rules = safety.restrictionsOf(profile);
+  return {
+    dietStyles: Object.keys(safety.DIETS),
+    stages: Object.keys(safety.STAGE_KCAL),
+    planScan: rules.length
+      ? { state: 'checked', hits: safety.scanPlan(planItems || [], profile) }
+      : { state: 'no_rules', hits: [] },
+  };
+}
+
+// The diary locals every portal render needs (backlog 84).
+function diaryFixture(ate) {
+  const D = require('../src/nutrition/diary');
+  return {
+    ate,
+    ateByMeal: D.byMeal(ate),
+    ateTotals: D.dayTotals(ate),
+    diaryMeals: D.MEALS,
+    foods: [{ id: 1, name: 'Boiled egg', serving_desc: '1 egg', serving_g: 50 }],
+  };
+}
+
 // ── Per-page fixtures ────────────────────────────────────────────────────────
 // Each entry returns the locals that page's route passes to res.render.
 const FIXTURES = {
@@ -436,6 +461,8 @@ const FIXTURES = {
       id: 1, name: 'Mona S.', phone: '01000000010', gender: 'female',
       birth_date: '1992-03-15', height_cm: 165, activity: 'moderate', goal: 'loss',
       protein_per_kg: null, fat_percent: null, target_weight_kg: 72, notes: '',
+      allergies: 'peanut, nuts', avoid_foods: '', conditions: 'PCOS',
+      medications: '', diet_style: 'vegetarian', stage: 'none', budget: '',
     };
     const measurements = [
       { id: 3, taken_on: '2026-07-20', weight_kg: 84.2, body_fat_pct: 33.1, waist_cm: 92, source: 'clinic' },
@@ -456,6 +483,11 @@ const FIXTURES = {
       latest: measurements[0],
       progress: P.progress(series, patient.target_weight_kg),
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      // The medical profile (backlog 84), with a plan that clashes with it —
+      // the state the screen exists to show.
+      ...profileFixture({ allergies: 'peanut, nuts', diet_style: 'vegetarian' }, [
+        { id: 1, name: 'Peanut butter toast' }, { id: 2, name: 'Oats with milk' },
+      ]),
       saved: false, err: 'empty',
     };
   },
@@ -472,6 +504,9 @@ const FIXTURES = {
       newPassword: null, portalUrl: 'https://nutrio.oscardevs.com/portal',
       calc: E.compute(patient, null, {}), latest: null, progress: null,
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      // Nothing recorded to check against: the screen must say that, not draw
+      // a green tick over an unchecked plan.
+      ...profileFixture({}, []),
       saved: false, err: null,
     };
   },
@@ -604,6 +639,13 @@ const FIXTURES = {
       lastWeight: { weight_kg: 84.2, taken_on: '2026-07-20' },
       loggedToday: false, day: '2026-08-03',
       saved: false, err: 'weight',
+      // The real diary (backlog 84): one entry with a food behind it and one
+      // the patient typed, so the "not counted" state renders.
+      ...diaryFixture([
+        { id: 11, meal: 'breakfast', grams: 100, food_name: 'Boiled egg',
+          food: { kcal: 155, protein_g: 13, carbs_g: 1.1, fat_g: 11 }, created_at: NOW },
+        { id: 12, meal: 'lunch', grams: null, free_text: 'Koshari from outside'  /* patient's own words: kept Latin here so the English render is not flagged for text the PATIENT typed */, food: null, created_at: NOW },
+      ]),
     };
   },
 
@@ -620,6 +662,7 @@ const FIXTURES = {
       planTotals: E.totals([]), eatenTotals: E.totals([]),
       lastWeight: null, loggedToday: false, day: '2026-08-03',
       saved: true, err: null,
+      ...diaryFixture([]),
     };
   },
 

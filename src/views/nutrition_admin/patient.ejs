@@ -424,4 +424,77 @@
   </form>
 </div>
 
+<!-- ── الملف الطبي (البند ٨٤) ─────────────────────────────────────── -->
+<%#
+  Its own form, deliberately: the details above are what a receptionist fills
+  in, and this is what decides what may be put on a plan. The matching flags —
+  it does not certify. See src/nutrition/safety.js.
+%>
+<div class="bg-white rounded-2xl shadow-sm p-4 mt-4 no-print">
+  <h2 class="font-bold text-slate-800 mb-1"><%= t('nt.pf.title') %></h2>
+  <p class="text-xs text-slate-500 mb-3 leading-relaxed"><%= t('nt.pf.sub') %></p>
+
+  <form method="post" action="/nutrition/patients/<%= patient.id %>/profile" class="grid sm:grid-cols-2 gap-3">
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.allergies') %>
+      <input name="allergies" maxlength="500" value="<%= patient.allergies || '' %>"
+             placeholder="<%= t('nt.pf.hint') %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.avoid') %>
+      <input name="avoid_foods" maxlength="500" value="<%= patient.avoid_foods || '' %>"
+             placeholder="<%= t('nt.pf.hint') %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.conditions') %>
+      <input name="conditions" maxlength="500" value="<%= patient.conditions || '' %>"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.medications') %>
+      <input name="medications" maxlength="500" value="<%= patient.medications || '' %>"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.diet') %>
+      <select name="diet_style" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% dietStyles.forEach(function (d) { %>
+          <option value="<%= d %>" <%= (patient.diet_style || 'none') === d ? 'selected' : '' %>><%= t('nt.diet.' + d) %></option>
+        <% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.stage') %>
+      <select name="stage" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% stages.forEach(function (st) { %>
+          <option value="<%= st %>" <%= (patient.stage || 'none') === st ? 'selected' : '' %>><%= t('nt.stage.' + st) %></option>
+        <% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-slate-600"><%= t('nt.pf.budget') %>
+      <input name="budget" maxlength="60" value="<%= patient.budget || '' %>"
+             class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <div class="flex items-end">
+      <button class="bg-slate-800 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('nt.m.save') %></button>
+    </div>
+  </form>
+
+  <%# What the active plan looks like against that profile. `unknown` is drawn
+      grey, never green: turning "nobody checked" into "checked and safe" is
+      the sentence that gets somebody hurt. %>
+  <% if (typeof planScan !== 'undefined' && planScan) { %>
+    <div class="mt-4 border-t border-slate-100 pt-3">
+      <% if (planScan.state === 'no_rules') { %>
+        <p class="text-xs text-slate-400"><%= t('nt.safe.no_rules') %></p>
+      <% } else if (!planScan.hits.length) { %>
+        <p class="text-xs text-emerald-700 font-bold"><%= t('nt.safe.none') %></p>
+      <% } else { %>
+        <p class="text-xs font-bold text-red-700 mb-2"><%= t('nt.safe.clash') %></p>
+        <div class="flex flex-wrap gap-2">
+          <% planScan.hits.forEach(function (h) { %>
+            <span class="text-xs bg-red-50 text-red-700 border border-red-200 rounded-full px-3 py-1">
+              <%= h.item.name %> — <%= h.hits.map(function (x) { return x.term; }).join('، ') %>
+            </span>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+</div>
+
 </main></body></html>

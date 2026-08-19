@@ -54,6 +54,66 @@
 <% }); %>
 <% } %>
 
+<!-- ── دفتر الأكل: اللي اتاكل فعلاً (البند ٨٤) ───────────────────── -->
+<div class="bg-white rounded-2xl shadow-sm p-4 mb-3">
+  <h2 class="font-bold text-slate-800 text-sm mb-1"><%= t('nd.title') %></h2>
+  <p class="text-xs text-slate-400 mb-3"><%= t('nd.sub') %></p>
+
+  <%# The totals say what they could NOT count. A number that silently drops
+      the typed lines under-counts, and the patient looks compliant. %>
+  <div class="flex flex-wrap items-center gap-2 text-xs mb-3">
+    <span class="bg-slate-100 rounded-full px-3 py-1 font-bold"><%= ateTotals.kcal %> <%= t('np.u.kcal') %></span>
+    <span class="bg-slate-50 rounded-full px-3 py-1"><%= t('np.m.protein') %> <%= ateTotals.protein %></span>
+    <span class="bg-slate-50 rounded-full px-3 py-1"><%= t('np.m.carbs') %> <%= ateTotals.carbs %></span>
+    <span class="bg-slate-50 rounded-full px-3 py-1"><%= t('np.m.fat') %> <%= ateTotals.fat %></span>
+    <% if (ateTotals.partial) { %>
+      <span class="bg-amber-50 text-amber-800 rounded-full px-3 py-1 font-bold"><%= t('nd.partial') %> (<%= ateTotals.uncounted %>)</span>
+    <% } %>
+  </div>
+
+  <% ateByMeal.forEach(function (blk) { %>
+    <% if (!blk.entries.length) return; %>
+    <div class="mb-2">
+      <div class="text-xs font-bold text-slate-500 mb-1"><%= t('np.meal.' + blk.meal) %></div>
+      <div class="divide-y divide-slate-50">
+        <% blk.entries.forEach(function (e) { %>
+          <div class="py-1.5 flex items-center justify-between gap-2 text-sm">
+            <span class="min-w-0">
+              <%= e.food_name || e.free_text %>
+              <% if (e.grams) { %><span class="text-slate-400"><%= e.grams %> <%= t('np.u.g') %></span><% } %>
+              <% if (!e.food_name) { %><span class="text-xs text-amber-700"><%= t('nd.uncounted') %></span><% } %>
+            </span>
+            <form method="post" action="/portal/ate/<%= e.id %>/delete">
+              <button class="text-xs text-slate-300 hover:text-red-600">✕</button>
+            </form>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+  <% }); %>
+
+  <% if (!ate.length) { %>
+    <p class="text-xs text-slate-400 py-2"><%= t('nd.empty') %></p>
+  <% } %>
+
+  <form method="post" action="/portal/ate" class="grid gap-2 border-t border-slate-100 pt-3 mt-2">
+    <select name="meal" class="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+      <% diaryMeals.forEach(function (m) { %><option value="<%= m %>"><%= t('np.meal.' + m) %></option><% }); %>
+    </select>
+    <div class="grid grid-cols-3 gap-2">
+      <select name="food_id" class="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <option value=""><%= t('nd.pick_food') %></option>
+        <% foods.forEach(function (f) { %><option value="<%= f.id %>"><%= f.name %></option><% }); %>
+      </select>
+      <input name="grams" type="number" min="1" max="5000" placeholder="<%= t('np.u.g') %>"
+             class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    </div>
+    <input name="text" maxlength="200" placeholder="<%= t('nd.or_text') %>"
+           class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+    <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5 text-sm"><%= t('nd.add') %></button>
+  </form>
+</div>
+
 <!-- ── الوزن ──────────────────────────────────────────────────────── -->
 <div class="bg-white rounded-2xl shadow-sm p-4 mb-3">
   <h2 class="font-bold text-slate-800 text-sm mb-1"><%= t('np.weigh.title') %></h2>
