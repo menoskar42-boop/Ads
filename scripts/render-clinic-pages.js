@@ -552,6 +552,30 @@ const FIXTURES = {
       // check against a hand-written figure that no longer matches.
       mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
       dayTotals: E.totals(items),
+      // Substitutes, the shopping list and the profile clash (backlog 84) —
+      // real functions, so a change to any of them shows up here.
+      ...(function () {
+        const SW = require('../src/nutrition/swaps');
+        const SF = require('../src/nutrition/safety');
+        const patient = { allergies: 'peanut', diet_style: 'none' };
+        const foods = [
+          { id: 1, name: 'Cooked white rice', kcal: 130, protein_g: 2.7, category: 'grain' },
+          { id: 2, name: 'Grilled chicken breast', kcal: 165, protein_g: 31, category: 'protein' },
+          { id: 3, name: 'Peanut butter', kcal: 588, protein_g: 25, category: 'protein' },
+          // No energy figure: cannot be scaled, so it must not be offered.
+          { id: 4, name: 'Mystery item', kcal: 0, protein_g: 0, category: null },
+        ];
+        const swapsByItem = {};
+        for (const it of items) swapsByItem[it.id] = SW.candidates(it, foods, patient, { limit: 4 });
+        return {
+          swapsByItem,
+          clashes: SF.scanPlan(items, patient),
+          // One line with no weight, so the "not everything is in this list"
+          // branch renders.
+          shopping: SW.shoppingList(items.concat([{ food_name: '', grams: 0 }]), 7),
+          shoppingDays: 7,
+        };
+      })(),
       saved: false, err: 'line',
     };
   },
