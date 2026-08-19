@@ -88,7 +88,7 @@ check('والامتلاء لسه بيوديّ لقائمة انتظار مش ر�
   check('والصفحة بتقولها', /gymBookError === 'dup'/.test(view));
   check('والرسالة مش من الرابط — أكواد بس',
     /\['booked', 'waitlist'\]\.includes/.test(tenant)
-    && /\['1', 'dup', 'closed'\]\.includes\(String\(req\.query\.bookerr/.test(tenant));
+    && /\['1', 'dup', 'closed', 'members'\]\.includes\(String\(req\.query\.bookerr/.test(tenant));
 }
 
 console.log(fail

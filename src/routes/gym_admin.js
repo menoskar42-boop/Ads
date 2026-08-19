@@ -459,13 +459,17 @@ router.post('/settings', async (req, res) => {
   const clean = (v, n) => String(v || '').trim().slice(0, n) || null;
   try {
     await pool.query(
-      `INSERT INTO gym_settings (company_id, tagline, about, address, phone, whatsapp, hours, booking_enabled, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+      `INSERT INTO gym_settings (company_id, tagline, about, address, phone, whatsapp, hours, booking_enabled, booking_members_only, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
        ON CONFLICT (company_id) DO UPDATE SET tagline=EXCLUDED.tagline, about=EXCLUDED.about, address=EXCLUDED.address,
-         phone=EXCLUDED.phone, whatsapp=EXCLUDED.whatsapp, hours=EXCLUDED.hours, booking_enabled=EXCLUDED.booking_enabled, updated_at=now()`,
+         phone=EXCLUDED.phone, whatsapp=EXCLUDED.whatsapp, hours=EXCLUDED.hours, booking_enabled=EXCLUDED.booking_enabled,
+         booking_members_only=EXCLUDED.booking_members_only, updated_at=now()`,
       [req.company.id, clean(b.tagline, 120), clean(b.about, 1000), clean(b.address, 200),
        clean(b.phone, 30), (String(b.whatsapp || '').replace(/[^0-9]/g, '').slice(0, 18) || null),
-       clean(b.hours, 100), String(b.booking_enabled) === '1']
+       clean(b.hours, 100), String(b.booking_enabled) === '1',
+       // The gym's own call, and the only anti-spam measure that can turn away
+       // somebody real — so it is off unless they say so.
+       String(b.booking_members_only) === '1']
     );
   } catch (e) { console.error('[gym settings]', e.message); }
   res.redirect('/gym/settings?saved=1');

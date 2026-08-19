@@ -89,7 +89,7 @@ for (const [label, re, table, redirect] of [
   check('رسالة العيادة أكواد معروفة بس',
     /\['1', 'taken', 'past', 'far', 'closed'\]\.includes/.test(tenant));
   check('ورسالة الجيم كمان',
-    /\['1', 'dup', 'closed'\]\.includes\(String\(req\.query\.bookerr/.test(tenant));
+    /\['1', 'dup', 'closed', 'members'\]\.includes\(String\(req\.query\.bookerr/.test(tenant));
 }
 
 /* ── The setting still means something on the screen ───────────────────── */
