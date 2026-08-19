@@ -38,6 +38,9 @@ const GUARDED = [
   // على نفس صلاحية `patients` مش على `clinical`.
   ['/appointments', 'patients'],
   ['/plans', 'clinical'],
+  // القالب العلاجي هو خطة محفوظة — نفس صلاحية الخطة بالظبط، عشان اللي
+  // مايقدرش يكتب خطة مايقدرش يمسح القالب اللي الخطط بتتبني منه.
+  ['/templates', 'clinical'],
   ['/foods', 'settings'],
   ['/settings', 'settings'],
   ['/staff', 'staff'],

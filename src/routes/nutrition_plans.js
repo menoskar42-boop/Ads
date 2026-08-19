@@ -19,6 +19,7 @@ const E = require('../nutrition/engine');
 const P = require('../nutrition/practice');
 const swaps = require('../nutrition/swaps');
 const safety = require('../nutrition/safety');
+const templates = require('../nutrition/templates');
 
 const router = express.Router({ mergeParams: true });
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -121,12 +122,133 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
       mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
       dayTotals: E.totals(data.items),
       swapsByItem,
+      // القوالب العلاجية (البند ٨٤): القايمة بتتعرض على الخطة نفسها عشان
+      // التطبيق يبقى خطوة واحدة، والنتيجة بتترجع بعدها بالتفصيل.
+      templates: (await pool.query(
+        `SELECT t.id, t.name, COUNT(i.id)::int AS lines
+           FROM nutrition_templates t
+           LEFT JOIN nutrition_template_items i ON i.template_id = t.id
+          WHERE t.company_id = $1 GROUP BY t.id ORDER BY t.name`, [req.company.id])).rows,
+      applied: applyReport(req.query),
       clashes: safety.restrictionsOf(patient).length ? safety.scanPlan(data.items, patient) : null,
       shopping: swaps.shoppingList(data.items, req.query.days || 7),
       shoppingDays: Math.max(1, Math.min(31, parseInt(req.query.days, 10) || 7)),
       saved: req.query.saved === '1', err: req.query.err || null,
     });
   } catch (e) { console.error('[nutrition plan]', e.message); res.status(500).send('error'); }
+});
+
+/**
+ * نتيجة آخر تطبيق قالب، جاية في الرابط كأرقام بس.
+ * الأسماء مابتتحطش في الرابط — الصفحة مابتطبعش كلام جاي من العنوان.
+ */
+function applyReport(q) {
+  const n = (v) => { const x = parseInt(v, 10); return Number.isInteger(x) && x >= 0 ? x : null; };
+  const copied = n((q || {}).copied);
+  if (copied === null) return null;
+  return { copied, clash: n(q.clash) || 0, gone: n(q.gone) || 0, warned: n(q.warned) || 0 };
+}
+
+// ── القوالب العلاجية ─────────────────────────────────────────────────────────
+
+// حفظ الخطة الحالية كقالب. الأسطر بتتخزّن كوصفة (وجبة · صنف · جرامات).
+router.post('/plans/:id(\\d+)/save-template', async (req, res) => {
+  const cid = req.company.id;
+  const planId = parseInt(req.params.id, 10);
+  const name = String((req.body || {}).name || '').trim().slice(0, 80);
+  if (!name) return res.redirect('/nutrition/plans/' + planId + '?err=tpl_name');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const items = (await client.query(
+      `SELECT i.food_id, i.food_name, i.meal, i.grams, i.note
+         FROM nutrition_plan_items i
+         JOIN nutrition_plans p ON p.id = i.plan_id
+        WHERE i.plan_id=$1 AND p.company_id=$2 ORDER BY i.meal, i.sort_order`,
+      [planId, cid])).rows;
+    if (!items.length) { await client.query('ROLLBACK'); return res.redirect('/nutrition/plans/' + planId + '?err=tpl_empty'); }
+
+    const tpl = (await client.query(
+      'INSERT INTO nutrition_templates (company_id, name) VALUES ($1,$2) RETURNING id', [cid, name])).rows[0];
+    const lines = templates.linesFromPlan(items);
+    for (const l of lines) {
+      const src = items.find((i) => i.food_id === l.food_id) || {};
+      await client.query(
+        `INSERT INTO nutrition_template_items
+           (company_id, template_id, food_id, food_name, meal, grams, note, sort_order)
+         SELECT $1, $2, f.id, $4, $5, $6, $7, $8 FROM nutrition_foods f
+          WHERE f.id=$3 AND f.company_id=$1`,
+        [cid, tpl.id, l.food_id, src.food_name || null, l.meal, l.grams, l.note, l.sort_order]);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[nutrition tpl save]', e.message);
+    return res.redirect('/nutrition/plans/' + planId + '?err=tpl_save');
+  } finally { client.release(); }
+  res.redirect('/nutrition/plans/' + planId + '?saved=1');
+});
+
+/**
+ * تطبيق قالب على خطة مريض.
+ *
+ * **مايتطبّقش أعمى**: السطر اللي فيه تعارض مع حساسية المريض مابيتنسخش،
+ * والسطر اللي صنفه راح مابيتنسخش — والاتنين بيترجعوا بالعدد للشاشة. قالب
+ * بيتطبّق ناقص في صمت أسوأ من قالب بيترفض بصوت.
+ */
+router.post('/plans/:id(\\d+)/apply-template', async (req, res) => {
+  const cid = req.company.id;
+  const planId = parseInt(req.params.id, 10);
+  const tplId = parseInt((req.body || {}).template_id, 10);
+  const back = '/nutrition/plans/' + planId;
+  if (!Number.isInteger(tplId)) return res.redirect(back + '?err=tpl_pick');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const plan = (await client.query(
+      'SELECT id, patient_id FROM nutrition_plans WHERE id=$1 AND company_id=$2', [planId, cid])).rows[0];
+    if (!plan) { await client.query('ROLLBACK'); return res.redirect('/nutrition/patients'); }
+
+    const lines = (await client.query(
+      `SELECT i.food_id, i.food_name, i.meal, i.grams, i.note, i.sort_order
+         FROM nutrition_template_items i
+         JOIN nutrition_templates t ON t.id = i.template_id
+        WHERE i.template_id=$1 AND t.company_id=$2 ORDER BY i.sort_order`,
+      [tplId, cid])).rows;
+    if (!lines.length) { await client.query('ROLLBACK'); return res.redirect(back + '?err=tpl_empty'); }
+
+    const foods = (await client.query(
+      'SELECT * FROM nutrition_foods WHERE company_id=$1 AND is_active', [cid])).rows;
+    const patient = (await client.query(
+      'SELECT allergies, avoid_foods, diet_style FROM nutrition_patients WHERE id=$1 AND company_id=$2',
+      [plan.patient_id, cid])).rows[0] || {};
+
+    const result = templates.planApply(lines, foods, patient);
+    for (const l of result.apply) {
+      await client.query(
+        `INSERT INTO nutrition_plan_items
+           (company_id, plan_id, food_id, meal, food_name, grams, kcal, protein_g, carbs_g, fat_g, note, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+                 COALESCE((SELECT MAX(sort_order)+1 FROM nutrition_plan_items WHERE plan_id=$2), 0))`,
+        [cid, plan.id, l.food_id, l.meal, l.food_name, l.grams, l.kcal, l.protein_g, l.carbs_g, l.fat_g, l.note]);
+    }
+    await client.query('COMMIT');
+    const s = templates.summary(result);
+    return res.redirect(`${back}?copied=${s.copied}&clash=${s.byWhy.clash || 0}&gone=${s.byWhy.gone || 0}&warned=${s.warned}`);
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[nutrition tpl apply]', e.message);
+    return res.redirect(back + '?err=tpl_save');
+  } finally { client.release(); }
+});
+
+router.post('/templates/:id(\\d+)/delete', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM nutrition_templates WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) { console.error('[nutrition tpl del]', e.message); }
+  res.redirect(req.get('referer') && req.get('referer').includes('/nutrition/plans/')
+    ? req.get('referer').split('?')[0] : '/nutrition/patients');
 });
 
 // ── Add a line ───────────────────────────────────────────────────────────────
