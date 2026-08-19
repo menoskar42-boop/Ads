@@ -311,7 +311,7 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
     // report can therefore NEVER describe stale slides; it's reused only when the
     // request is byte-for-byte identical (e.g. an accidental re-generate).
     const imgFingerprint = crypto.createHash('sha256')
-      .update((Array.isArray(images) ? images : []).join(' ')).digest('hex');
+      .update((Array.isArray(images) ? images : []).join('\u0000')).digest('hex');
     const cacheNs = 'rad:' + studyId;
     const cacheKey = [MODEL, study.modality, study.clinical_context || '', focus, imgFingerprint];
 
