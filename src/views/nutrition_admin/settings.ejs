@@ -19,6 +19,14 @@
       <label class="text-xs font-bold text-slate-600"><%= t('nt.set.whatsapp') %>
         <input name="whatsapp" maxlength="30" value="<%= settings.whatsapp || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
       </label>
+      <%# خدمات العيادة بكلام الأخصائي نفسه (البند ٩٧): سطر لكل خدمة. الصفحة
+          العامة بتعرضها، ولو فضلت فاضية الصفحة بتفضل من غير القسم ده — مفيش
+          نص جاهز من عندنا بيتكتب باسمه. %>
+      <label class="text-xs font-bold text-slate-600 block mb-3"><%= t('nt.set.services') %>
+        <textarea name="services" rows="4" maxlength="1200" placeholder="<%= t('nt.set.services_ph') %>"
+          class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= settings.services || '' %></textarea>
+        <span class="block text-[11px] font-normal text-slate-400 mt-1"><%= t('nt.set.services_hint') %></span>
+      </label>
       <label class="text-xs font-bold text-slate-600"><%= t('nt.set.hours') %>
         <input name="hours" maxlength="200" value="<%= settings.hours || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
       </label>

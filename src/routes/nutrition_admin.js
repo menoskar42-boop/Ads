@@ -477,8 +477,8 @@ router.post('/settings', async (req, res) => {
       `INSERT INTO nutrition_settings
          (company_id, practice_name, about, address, phone, whatsapp, hours,
           booking_enabled, protein_per_kg, fat_percent,
-          subscription_enabled, subscription_price, subscription_months, subscription_since, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+          subscription_enabled, subscription_price, subscription_months, services, subscription_since, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
                -- Stamped the FIRST time charging is switched on. It is what the
                -- grace period for existing patients is measured from, so it must
                -- not move every time the price is edited.
@@ -492,6 +492,7 @@ router.post('/settings', async (req, res) => {
          subscription_enabled=EXCLUDED.subscription_enabled,
          subscription_price=EXCLUDED.subscription_price,
          subscription_months=EXCLUDED.subscription_months,
+         services=EXCLUDED.services,
          subscription_since=EXCLUDED.subscription_since,
          updated_at=now()`,
       [req.company.id, text(b.practice_name, 120), text(b.about, 1500), text(b.address, 200),
@@ -501,7 +502,10 @@ router.post('/settings', async (req, res) => {
         // for the same reason the macros are: a typo here bills a patient.
         b.subscription_enabled === '1',
         SUB.priceOf({ subscription_price: b.subscription_price }),
-        Math.min(36, Math.max(1, parseInt(b.subscription_months, 10) || 1))]);
+        Math.min(36, Math.max(1, parseInt(b.subscription_months, 10) || 1)),
+        // سطر لكل خدمة، بكلام الأخصائي. أقصى ١٢ سطر عشان الصفحة تفضل صفحة.
+        text((String(b.services || '').split(/\r?\n/).map((l) => l.trim())
+          .filter(Boolean).slice(0, 12).join('\n')), 1200)]);
   } catch (e) {
     console.error('[nutrition settings save]', e.message);
     return res.redirect('/nutrition/settings?err=save');

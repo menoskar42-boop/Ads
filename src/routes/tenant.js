@@ -11,6 +11,7 @@ const stock = require('../pharmacy/stock');
 const foodOptions = require('../food/options');
 const foodIngredients = require('../food/ingredients');
 const foodDelivery = require('../food/delivery');
+const tenantWords = require('../lib/tenant_words');
 const gymBookings = require('../gym/bookings');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
@@ -369,6 +370,7 @@ router.get('/', async (req, res) => {
   // card, and nobody drives across town for a business card.
   let furnitureSettings = null;
   let furnitureProducts = [];
+  let furnitureBranches = [];
   if (company.page_type === 'furniture') {
     try {
       furnitureSettings = (await pool.query(
@@ -376,7 +378,7 @@ router.get('/', async (req, res) => {
       )).rows[0] || null;
       furnitureProducts = (await pool.query(
         `SELECT id, name, category, selling_price, notes, image_path,
-                width_cm, depth_cm, height_cm, material, finish
+                width_cm, depth_cm, height_cm, material, finish, warranty_months
            FROM furniture_products
           WHERE company_id = $1 AND is_active
           ORDER BY category NULLS LAST, name LIMIT 60`, [company.id]
@@ -388,6 +390,12 @@ router.get('/', async (req, res) => {
       const vs = (await pool.query(
         `SELECT id, product_id, name, price_delta FROM furniture_product_variants
           WHERE company_id = $1 AND is_active ORDER BY id LIMIT 400`, [company.id]
+      )).rows;
+      // الفروع اللي الزبون يقدر يزورها فعلاً. المعرض والمخزن مش نفس الحاجة،
+      // فالنوع بيتعرض معاها بدل ما كلهم يتقالوا «فرع».
+      furnitureBranches = (await pool.query(
+        `SELECT name, kind, address, phone FROM furniture_branches
+          WHERE company_id = $1 AND is_active ORDER BY id LIMIT 12`, [company.id]
       )).rows;
       for (const p of furnitureProducts) {
         p.specs = FV.specLines(p);
@@ -544,8 +552,17 @@ router.get('/', async (req, res) => {
   // written about the practice shows a visitor nothing, and indexing it would
   // put a page in front of people that cannot answer why they clicked.
   else if (company.page_type === 'nutrition') {
-    const about = nutritionSettings && nutritionSettings.about ? nutritionSettings.about.trim().length : 0;
-    indexable = (descLen >= 40 || about >= 60) && company.slug !== 'nutrition';
+    // البوابة دي كانت بتقيس بطول الحروف: ٤٠ حرف = ست كلمات، والصفحة كانت
+    // بتتأرشف وهي ٩٦ كلمة — أقل من حد المشروع نفسه (١٢٠) اللي `seo-audit`
+    // بيرفض تحته، ويعني صفحة رقيقة متأرشفة ضد حساب أدسنس.
+    //
+    // دلوقتي بتتقاس بكلام العيادة نفسه: النبذة **والخدمات** اللي الأخصائي
+    // كتبها. اللي مايكتبش يفضل بره الفهرس لحد ما يكتب — ولما يكتب بيدخل
+    // لوحده من غير ما حد يطلب.
+    const nw = tenantWords.enough(
+      [company.description, nutritionSettings && nutritionSettings.about,
+        nutritionSettings && nutritionSettings.services], 0, 40);
+    indexable = nw.ok && company.slug !== 'nutrition';
   }
   else indexable = portfolio.length >= 2 || descLen >= 120;
   const noindex = !indexable || hasFilter;
@@ -633,6 +650,7 @@ router.get('/', async (req, res) => {
     enquirySent: req.query.enquired === '1',
     workshopStats,
     furnitureProducts,
+    furnitureBranches,
     gymSettings,
     gymPlans,
     gymTrainers,

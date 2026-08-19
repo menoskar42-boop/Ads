@@ -49,6 +49,12 @@ async function ensureNutritionSchema() {
       -- WHEN the practice started charging. Patients who were already using the
       -- portal get a grace period measured from this, not from their own start.
       ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS subscription_since DATE;
+      -- خدمات العيادة، سطر لكل خدمة، **بكلام الأخصائي نفسه** (البند ٩٧).
+      -- الصفحة العامة كانت ٩٦ كلمة: اسم وتليفون وزرار حجز. المريض اللي بيدوّر
+      -- مش لاقي إجابة على «بتعملوا إيه»، والصفحة رقيقة عند محركات البحث.
+      -- نص جاهز من عندنا كان هيبقى حشو — ودي بالظبط الحاجة اللي البند بيقول
+      -- «مش حشو». فالخانة فاضية لحد ما الأخصائي يكتبها.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS services TEXT;
 
       -- The practice's own staff: an assistant with a scale, somebody on the
       -- phone. Small practices, which is exactly why this matters — the

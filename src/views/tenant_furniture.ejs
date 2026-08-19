@@ -137,6 +137,11 @@
             <% } else { %>
               <div class="text-xs text-stone-400"><%= t('fnp.ask_price') %></div>
             <% } %>
+            <%# الضمان: رقم متسجّل على القطعة نفسها. صفر معناه مفيش ضمان — وده
+                حقيقة عن القطعة، مش خانة ناقصة، فمابيتكتبش «٠ شهر». %>
+            <% if (Number(p.warranty_months) > 0) { %>
+              <div class="text-[11px] text-emerald-700 mt-1"><%= t('fnp.warranty') %>: <%= Number(p.warranty_months) %> <%= t('fnp.months') %></div>
+            <% } %>
             <%# الخيارات بأسعارها المحسوبة على السيرفر — القطعة الواحدة اللي
                 بتتباع بخامتين مش قطعتين، والزائر يشوف الفرق قبل ما يسأل. %>
             <% if (p.options && p.options.length) { %>
@@ -155,6 +160,36 @@
         <% }); %>
       </div>
     <% }); %>
+  </section>
+  <% } %>
+
+  <%# التسليم والتركيب: سياسة المعرض نفسها، مكتوبة بجملة الزبون يفهمها. مفيش
+      اختراع — لو المعرض مادخّلش سياسة، القسم مابيظهرش. %>
+  <% if (S.delivery_policy) { %>
+  <section class="bg-white rounded-2xl shadow-sm p-6 mb-5">
+    <h2 class="font-bold text-stone-900 mb-2"><%= t('fnp.delivery') %></h2>
+    <p class="text-stone-600 text-sm leading-7">
+      <%= S.delivery_policy === 'cod' ? t('fnp.delivery.cod') : t('fnp.delivery.prepaid') %>
+    </p>
+  </section>
+  <% } %>
+
+  <%# الفروع: المعرض اللي الزبون يقدر يزوره فعلاً، ونوعه (معرض/ورشة/مخزن)
+      عشان محدش يروح مخزن فاكره معرض. %>
+  <% if (typeof furnitureBranches !== 'undefined' && furnitureBranches && furnitureBranches.length) { %>
+  <section class="bg-white rounded-2xl shadow-sm p-6 mb-5">
+    <h2 class="font-bold text-stone-900 mb-3"><%= t('fnp.branches') %></h2>
+    <ul class="grid gap-3 text-sm">
+      <% furnitureBranches.forEach(function(b){ %>
+      <li class="border-b border-stone-100 pb-2 last:border-0 last:pb-0">
+        <div class="font-bold text-stone-800"><%= b.name %>
+          <span class="text-[11px] font-normal text-stone-400"><%= t('fnp.branch.' + (b.kind || 'showroom')) %></span>
+        </div>
+        <% if (b.address) { %><div class="text-stone-500 text-xs mt-0.5">📍 <%= b.address %></div><% } %>
+        <% if (b.phone) { %><div class="text-stone-500 text-xs" dir="ltr">📞 <%= b.phone %></div><% } %>
+      </li>
+      <% }); %>
+    </ul>
   </section>
   <% } %>
 
