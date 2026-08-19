@@ -142,7 +142,8 @@ const NOW = new Date('2026-09-05T10:00:00Z');
     /DELETE FROM gym_attendance[\s\S]{0,200}WHERE id=\$1 AND company_id=\$2[\s\S]{0,140}now\(\) - \(\$3 \|\| ' minutes'\)::interval/.test(g));
   check('والرسايل أكواد معروفة مش كلام الرابط',
     /\['in', 'already', 'undone'\]\.includes\(req\.query\.done\)/.test(g) && /\['expired', 'gone', 'late'\]\.includes\(req\.query\.err\)/.test(g));
-  check('والشاشة في القايمة الجانبية', /\['desk','الاستقبال','\/gym\/desk'\]/.test(fs.readFileSync(path.join(ROOT, 'src/views/gym_admin/_layout_top.ejs'), 'utf8')));
+  check('والشاشة في القايمة الجانبية',
+    /\['desk','الاستقبال','\/gym\/desk'/.test(fs.readFileSync(path.join(ROOT, 'src/views/gym_admin/_layout_top.ejs'), 'utf8')));
 }
 
 console.log(fail

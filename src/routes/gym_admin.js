@@ -13,6 +13,9 @@ const requireLogin = require('../middleware/auth');
 const push = require('../lib/push');
 const { compressImage } = require('../lib/media');
 const DESK = require('../gym/desk');
+const gymPerms = require('../gym/perms');
+const bcrypt = require('bcryptjs');
+const staffScope = require('../lib/staff_scope');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -54,10 +57,22 @@ async function requireGym(req, res, next) {
     }
     req.company = r.rows[0];
     res.locals.noindex = true;
+    // Who is asking, and what that role may reach. Computed once here so every
+    // page and every guard read the same answer.
+    const perms = gymPerms.permsFor(req.session);
+    req.perms = perms;
+    res.locals.perms = perms;
     next();
   } catch (e) { console.error('[gym admin]', e.message); res.redirect('/company/login'); }
 }
-router.use(requireLogin, requireGym);
+// One guard for the whole router: the permission comes from the PATH PREFIX
+// (see src/gym/perms.js), so a route added under /gym/reports next year is
+// covered by where it lives rather than by somebody remembering an `if`.
+router.use(requireLogin, staffScope.only('/gym'), requireGym, gymPerms.guard());
+
+// The first screen depends on the role: a trainer may not open the desk, so a
+// fixed redirect would greet them with a locked door on every sign-in.
+router.get('/home', (req, res) => res.redirect(gymPerms.homeFor(req.perms)));
 
 /* ── Dashboard: active / expiring / expired + revenue ──────────────────────── */
 router.get('/', async (req, res) => {
@@ -654,6 +669,90 @@ router.get('/bookings', async (req, res) => {
       ORDER BY b.booking_date, c.name, b.created_at LIMIT 300`, [cid])).rows;
     res.render('gym_admin/bookings', { company: req.company, tab: 'bookings', bookings: rows });
   } catch (e) { console.error('[gym bookings]', e.message); res.status(500).send('error'); }
+});
+
+/* ── The shift: reception, the till, a trainer ──────────────────────────────
+ *
+ * Same screen as the restaurant's, deliberately: one idea to learn. A row here
+ * is a person on the rota; a row WITH a username is an account. Those are two
+ * different things and the screen keeps them apart, because most staff never
+ * need to sign in at all.
+ */
+router.get('/staff', async (req, res) => {
+  try {
+    const staff = (await pool.query(
+      `SELECT id, name, username, perm_role, phone, login_enabled, is_active
+         FROM gym_staff WHERE company_id=$1 ORDER BY is_active DESC, id`, [req.company.id])).rows;
+    res.render('gym_admin/staff', {
+      company: req.company, tab: 'staff', staff,
+      roles: gymPerms.ROLE_KEYS, ROLES: gymPerms.ROLES,
+      saved: req.query.saved === '1',
+      // Known codes only — this page never prints the address bar's words.
+      err: ['no_name', 'save', 'username'].includes(req.query.err) ? req.query.err : null,
+    });
+  } catch (e) { console.error('[gym staff]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/staff/add', async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return res.redirect('/gym/staff?err=no_name');
+  const role = gymPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'reception';
+  try {
+    await pool.query('INSERT INTO gym_staff (company_id, name, perm_role, phone) VALUES ($1,$2,$3,$4)',
+      [req.company.id, name, role, String(b.phone || '').trim().slice(0, 30) || null]);
+  } catch (e) {
+    console.error('[gym staff add]', e.message);
+    return res.redirect('/gym/staff?err=save');
+  }
+  res.redirect('/gym/staff?saved=1');
+});
+
+// Give a row a login, change its role, or take the login away again.
+router.post('/staff/:id(\\d+)/login', async (req, res) => {
+  const cid = req.company.id, sid = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const username = String(b.username || '').trim().toLowerCase().slice(0, 60);
+  const role = gymPerms.ROLE_KEYS.includes(b.perm_role) ? b.perm_role : 'reception';
+  const enabled = b.login_enabled === '1';
+  try {
+    if (!username) {
+      // No username means no account. The row stays as a name on the rota.
+      await pool.query(
+        'UPDATE gym_staff SET username=NULL, password_hash=NULL, login_enabled=false, perm_role=$1 WHERE id=$2 AND company_id=$3',
+        [role, sid, cid]);
+      return res.redirect('/gym/staff?saved=1');
+    }
+    const password = String(b.password || '');
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await pool.query(
+        'UPDATE gym_staff SET username=$1, password_hash=$2, perm_role=$3, login_enabled=$4 WHERE id=$5 AND company_id=$6',
+        [username, hash, role, enabled, sid, cid]);
+    } else {
+      // A blank password keeps the old one — moving somebody from the till to
+      // reception should not require knowing their password.
+      await pool.query(
+        'UPDATE gym_staff SET username=$1, perm_role=$2, login_enabled=$3 WHERE id=$4 AND company_id=$5',
+        [username, role, enabled, sid, cid]);
+    }
+    res.redirect('/gym/staff?saved=1');
+  } catch (e) {
+    console.error('[gym staff login]', e.message);
+    // The unique index is the only realistic failure here.
+    res.redirect('/gym/staff?err=username');
+  }
+});
+
+router.post('/staff/:id(\\d+)/delete', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM gym_staff WHERE id=$1 AND company_id=$2',
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) {
+    console.error('[gym staff delete]', e.message);
+    return res.redirect('/gym/staff?err=save');
+  }
+  res.redirect('/gym/staff?saved=1');
 });
 
 module.exports = router;

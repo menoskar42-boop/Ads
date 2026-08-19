@@ -116,6 +116,28 @@ async function ensureGymSchema() {
         checked_in_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_attendance ON gym_attendance (company_id, checked_in_at DESC);
+
+      -- The people on the shift. Same shape as the restaurant's and the
+      -- clinic's, because it is the same idea: reception, the till, a trainer
+      -- with a tablet. Without it they all signed in as the owner, which is why
+      -- in practice only the owner ever signed in.
+      CREATE TABLE IF NOT EXISTS gym_staff (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        username      TEXT,
+        password_hash TEXT,
+        perm_role     TEXT NOT NULL DEFAULT 'reception',
+        phone         TEXT,
+        login_enabled BOOLEAN NOT NULL DEFAULT false,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_gym_staff_company ON gym_staff (company_id);
+      -- Partial: a staff row without a login is a normal row, and any number of
+      -- them may have no username at all.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_staff_username
+        ON gym_staff (lower(username)) WHERE username IS NOT NULL;
       /* The gym's own day, stored rather than derived.
        *
        * A unique index cannot be built on the expression

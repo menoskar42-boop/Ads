@@ -1,0 +1,16 @@
+<%- include('_layout_top', { tab: '', pageTitle: 'مش من صلاحيتك' }) %>
+
+<%# A locked door with a way out. The role is named, because "you cannot do
+    that" without saying who you are read as leaves people tapping the same
+    link again. %>
+<div class="card rounded-2xl p-8 text-center max-w-lg mx-auto">
+  <div class="text-4xl mb-3">🔒</div>
+  <h1 class="text-xl font-black mb-2">الصفحة دي مش من صلاحيتك</h1>
+  <p class="text-neutral-400 mb-1">كلّم صاحب الجيم لو محتاج توصلها.</p>
+  <p class="text-neutral-500 text-sm mb-6">
+    دورك: <b><%= { manager:'مدير', reception:'استقبال', cashier:'كاشير', trainer:'مدرّب', owner:'المالك' }[perms.role] || perms.role %></b>
+  </p>
+  <a href="<%= home %>" class="inline-block accent-bg font-black rounded-xl px-6 py-3 text-sm">ارجع لشاشتك</a>
+</div>
+
+<%- include('_layout_bottom') %>

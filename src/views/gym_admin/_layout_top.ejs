@@ -9,7 +9,13 @@
 <style>*{font-family:'Cairo',sans-serif}body{background:#0a0a0a;color:#e5e5e5}.card{background:#141414;border:1px solid #232323}.fld{background:#0f0f0f;border:1px solid #2a2a2a;color:#e5e5e5}.accent-bg{background:#E4FF1A;color:#0a0a0a}</style>
 </head>
 <body class="min-h-screen">
-<% var __nav=[['dashboard','لوحة','/gym'],['desk','الاستقبال','/gym/desk'],['members','الأعضاء','/gym/members'],['attendance','الحضور','/gym/attendance'],['bookings','الحجوزات','/gym/bookings'],['reports','التقارير','/gym/reports'],['pos','نقطة بيع','/gym/pos'],['plans','الباقات','/gym/plans'],['trainers','المدرّبون','/gym/trainers'],['classes','الكلاسات','/gym/classes'],['media','الصور','/gym/media'],['settings','الإعدادات','/gym/settings']]; %>
+<%
+  // The menu shows what this role can actually open. A link that answers with a
+  // locked door is worse than no link — it reads as the software being broken.
+  var __p = (typeof perms !== 'undefined' && perms) ? perms : { desk:true, members:true, classes:true, pos:true, finance:true, settings:true, staff:true, role:'owner' };
+  var __all=[['dashboard','لوحة','/gym','finance'],['desk','الاستقبال','/gym/desk','desk'],['members','الأعضاء','/gym/members','members'],['attendance','الحضور','/gym/attendance','desk'],['bookings','الحجوزات','/gym/bookings','classes'],['reports','التقارير','/gym/reports','finance'],['pos','نقطة بيع','/gym/pos','pos'],['plans','الباقات','/gym/plans','finance'],['trainers','المدرّبون','/gym/trainers','classes'],['classes','الكلاسات','/gym/classes','classes'],['media','الصور','/gym/media','settings'],['settings','الإعدادات','/gym/settings','settings'],['staff','الموظفين','/gym/staff','staff']];
+  var __nav=__all.filter(function(n){ return __p[n[3]] !== false; });
+%>
 <div class="flex min-h-screen">
   <aside class="w-56 shrink-0 bg-black border-l border-neutral-800 hidden md:flex flex-col p-3">
     <a href="/gym" class="font-black text-lg px-2 py-3 flex items-center gap-2"><span>🏋️</span> <%= company.company_name %></a>
