@@ -1353,23 +1353,43 @@ router.post('/products/import', requireLogin, requireShop, async (req, res) => {
 router.get('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
     const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
+    // أسباب الرفض بتوصل كأكواد من قايمة السيرفر، مش كنص في الرابط: الصفحة
+    // مابتطبعش كلام الرابط، والتاجر لازم يعرف **أنهي خانة** فيها إيه.
+    const PX = require('../lib/pixel_ids');
+    const bad = {};
+    String(req.query.bad || '').split(',').forEach((part) => {
+      const [field, why, other] = part.split(':');
+      if (PX.PLATFORMS[field] && ['shape', 'snippet', 'wrong_platform'].includes(why)) {
+        bad[field] = { why, looksLike: PX.PLATFORMS[other] ? other : null };
+      }
+    });
     res.render('company/marketing', { company: c, session: req.session,
-      saved: req.query.saved === '1',
+      saved: req.query.saved === '1', bad, platforms: PX.PLATFORMS,
       err: req.query.err === 'save' ? 'save' : null, saveError: req.query.error === 'save' });
   } catch (e) { console.error('[marketing]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/marketing', requireLogin, requireShop, async (req, res) => {
   const b = req.body || {};
-  const clean = (v) => String(v || '').trim().slice(0, 60).replace(/[^\w.\-]/g, '') || null;
   // WhatsApp order number (phase 27): keep digits only (with optional leading +),
   // stored in international format so wa.me links work.
   const cleanPhone = (v) => {
     const digits = String(v || '').replace(/[^\d]/g, '').slice(0, 18);
     return digits || null;
   };
+  // الشكل بيتفحص قبل الحفظ (البند ٨٩). الغلطة اللي بتحصل فعلاً مش حروف
+  // غريبة — إنك تلزق رقم منصّة في خانة منصّة تانية: الصفحة بتقول «اتحفظ»،
+  // والسكربت بيتحمّل، و`fbq('init','G-ABC')` بيفشل بصمت في المتصفح، والتاجر
+  // يفضل أسبوعين مستني أحداث مش جاية.
+  const PX = require('../lib/pixel_ids');
+  const { values, errors } = PX.validateAll(b);
+  if (Object.keys(errors).length) {
+    const code = Object.keys(errors)
+      .map((f) => [f, errors[f].why, errors[f].looksLike || ''].join(':')).join(',');
+    return res.redirect('/company/marketing?bad=' + encodeURIComponent(code));
+  }
   try {
     await pool.query('UPDATE companies SET fb_pixel_id=$1, tiktok_pixel_id=$2, ga4_id=$3, whatsapp_number=$4 WHERE id=$5',
-      [clean(b.fb_pixel_id), clean(b.tiktok_pixel_id), clean(b.ga4_id), cleanPhone(b.whatsapp_number), req.session.companyId]);
+      [values.fb_pixel_id, values.tiktok_pixel_id, values.ga4_id, cleanPhone(b.whatsapp_number), req.session.companyId]);
   } catch (e) {
     // Was: log it and redirect to ?saved=1 anyway. A merchant would paste a
     // pixel id, be told it saved, and wonder for a week why no events arrived.

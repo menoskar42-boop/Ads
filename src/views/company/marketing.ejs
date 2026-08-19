@@ -7,19 +7,37 @@
     <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">تم الحفظ ✅</div><% } %>
     <% if (typeof saveError !== 'undefined' && saveError) { %><div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">الحفظ مانجحش — الأرقام اللي كتبتها ماتخزّنتش. جرّب تاني.</div><% } %>
 
+    <%
+      /* رسالة الرفض لكل خانة. الشكل الغلط مش زي «ده رقم منصّة تانية» مش زي
+         «ده سنيبت» — التلاتة أسباب مختلفة والتاجر بيصلّح كل واحد بطريقة. */
+      var __bad = (typeof bad !== 'undefined' && bad) || {};
+      var __names = { fb_pixel_id: 'Facebook Pixel', tiktok_pixel_id: 'TikTok Pixel', ga4_id: 'Google Analytics 4' };
+      function badMsg(f){
+        var e = __bad[f]; if (!e) return null;
+        if (e.why === 'snippet') return 'ده سكربت أو رابط مش رقم — انسخ الرقم لوحده من إعدادات المنصّة.';
+        if (e.why === 'wrong_platform') return 'الرقم ده شكله رقم ' + (__names[e.looksLike] || 'منصّة تانية') + ' — حطّه في خانته.';
+        return 'الشكل مش مظبوط. ' + (typeof platforms !== 'undefined' && platforms[f] ? platforms[f].hint : '');
+      }
+    %>
+    <% if (Object.keys(__bad).length) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+        مااتحفظش حاجة — فيه خانة أو أكتر شكلها مش مظبوط، وتحت كل واحدة مكتوب السبب.
+      </div>
+    <% } %>
+
     <form method="POST" action="/company/marketing" class="space-y-4">
+      <% ['fb_pixel_id','tiktok_pixel_id','ga4_id'].forEach(function(f){
+           var ph = { fb_pixel_id: 'مثلاً: 123456789012345',
+                      tiktok_pixel_id: 'مثلاً: C1XXXXXXXXXXXXXXXX',
+                      ga4_id: 'G-XXXXXXXXXX' }[f];
+           var msg = badMsg(f); %>
       <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Facebook Pixel ID</label>
-        <input name="fb_pixel_id" value="<%= company.fb_pixel_id || '' %>" dir="ltr" placeholder="مثلاً: 123456789012345" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= __names[f] %> ID</label>
+        <input name="<%= f %>" value="<%= company[f] || '' %>" dir="ltr" placeholder="<%= ph %>"
+               class="w-full border rounded-xl px-4 py-3 text-sm font-mono <%= msg ? 'border-red-300 bg-red-50' : 'border-gray-200' %>" />
+        <% if (msg) { %><p class="text-xs text-red-600 mt-1"><%= msg %></p><% } %>
       </div>
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">TikTok Pixel ID</label>
-        <input name="tiktok_pixel_id" value="<%= company.tiktok_pixel_id || '' %>" dir="ltr" placeholder="مثلاً: C1XXXXXXXXXXXXXXXX" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
-      </div>
-      <div>
-        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Google Analytics 4 (GA4) ID</label>
-        <input name="ga4_id" value="<%= company.ga4_id || '' %>" dir="ltr" placeholder="G-XXXXXXXXXX" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
-      </div>
+      <% }); %>
       <div>
         <label class="block text-sm font-semibold text-gray-600 mb-1.5">رقم واتساب لاستقبال الطلبات</label>
         <input name="whatsapp_number" value="<%= company.whatsapp_number || '' %>" dir="ltr" placeholder="مثلاً: 201001234567 (كود الدولة + الرقم)" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono" />
@@ -27,6 +45,19 @@
       </div>
       <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow">حفظ</button>
     </form>
+
+    <hr class="my-6 border-gray-100" />
+    <h3 class="font-bold text-gray-700 mb-1">اختبار التتبّع</h3>
+    <%# الزرار بيفتح المتجر نفسه — البيكسل بيتحمّل هناك مش في اللوحة. واللي
+        اللوحة بتقوله هو اللي المتصفح شايفه فعلاً، مش «كله تمام». %>
+    <p class="text-xs text-gray-400 mb-2">
+      بيفتح متجرك في تبويب جديد ويقول لك أنهي سكربت اتحمّل فعلاً في المتصفح، وبيبعت حدث تجريبي.
+      إن المنصّة استلمته بيتشاف من <span dir="ltr">Test Events</span> في فيسبوك أو الـDebugger في تيك توك.
+    </p>
+    <a href="https://<%= company.slug %>.oscardevs.com/?odv_test=1" target="_blank" rel="noopener"
+       class="inline-block border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">
+      افتح متجرك واختبر التتبّع
+    </a>
 
     <hr class="my-6 border-gray-100" />
     <h3 class="font-bold text-gray-700 mb-1">كتالوج المنتجات (Feed)</h3>
