@@ -455,6 +455,81 @@ router.post('/patients/:id(\\d+)/login/disable', async (req, res) => {
   res.redirect('/nutrition/patients/' + id);
 });
 
+// ── المواعيد (البند ٨٤) ──────────────────────────────────────────────────────
+//
+// الحجز بقى بتقويم على الصفحة العامة، والشاشة دي هي الطرف التاني: اللي محجوز
+// النهاردة واللي جاي، وحجز من التليفون، وتأكيد/إلغاء.
+const NB = require('../nutrition/booking');
+const APPT_ERRORS = ['name', 'phone', 'slot', 'taken', 'past', 'far', 'save', 'move'];
+
+router.get('/appointments', async (req, res) => {
+  try {
+    const settings = await P.settings(pool, req.company.id);
+    const cfg = NB.settingsFrom(settings);
+    const rows = (await pool.query(
+      `SELECT a.*, p.name AS patient_file_name
+         FROM nutrition_appointments a
+         LEFT JOIN nutrition_patients p ON p.id = a.patient_id
+        WHERE a.company_id = $1 AND a.slot_at >= now() - interval '2 days'
+        ORDER BY a.slot_at LIMIT 300`, [req.company.id])).rows;
+    const today = NB.cairoDate(new Date());
+    res.render('nutrition_admin/appointments', {
+      tab: 'appointments', settings, cfg, today,
+      // اليوم واللي بعده محسوبين من نفس دالة التقويم — الشاشة والصفحة
+      // العامة بيقروا من مصدر واحد، فمستحيل يعرضوا خانات مختلفة.
+      days: NB.daysAhead(cfg, rows, new Date(), 14),
+      rows: rows.map((r) => ({ ...r, ymd: NB.cairoDate(r.slot_at), hm: NB.hhmm(NB.cairoMinutes(r.slot_at)) })),
+      err: APPT_ERRORS.includes(req.query.err) ? req.query.err : null,
+      saved: req.query.saved === '1',
+    });
+  } catch (e) { console.error('[nutrition appts]', e.message); res.status(500).send('error'); }
+});
+
+// حجز من مكتب الاستقبال (مكالمة تليفون). نفس جملة الكتابة اللي على الصفحة
+// العامة — مفيش باب تاني للحجز بقواعد مختلفة.
+router.post('/appointments', async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.patient_name || '').trim().slice(0, 80);
+  const phone = String(b.patient_phone || '').trim().slice(0, 20);
+  if (!name) return res.redirect('/nutrition/appointments?err=name');
+  if (phone.replace(/[^0-9]/g, '').length < 7) return res.redirect('/nutrition/appointments?err=phone');
+  try {
+    const cfg = NB.settingsFrom(await P.settings(pool, req.company.id));
+    const at = NB.slotAt(b.day, b.time);
+    if (!at) return res.redirect('/nutrition/appointments?err=slot');
+    const bad = NB.slotProblem(at);
+    if (bad) return res.redirect('/nutrition/appointments?err=' + bad);
+    const q = NB.insertIfFree({
+      companyId: req.company.id, name, phone, at,
+      note: String(b.note || '').trim().slice(0, 300) || null,
+      status: 'confirmed', minutes: cfg.minutes,
+    });
+    const done = await pool.query(q.text, q.values);
+    if (!done.rows.length) return res.redirect('/nutrition/appointments?err=taken');
+  } catch (e) {
+    console.error('[nutrition appt add]', e.message);
+    return res.redirect('/nutrition/appointments?err=save');
+  }
+  res.redirect('/nutrition/appointments?saved=1');
+});
+
+router.post('/appointments/:id(\\d+)/status', async (req, res) => {
+  const to = String((req.body || {}).status || '');
+  if (!['confirmed', 'done', 'cancelled'].includes(to)) {
+    return res.redirect('/nutrition/appointments?err=move');
+  }
+  try {
+    const done = await pool.query(
+      'UPDATE nutrition_appointments SET status=$1 WHERE id=$2 AND company_id=$3 RETURNING id',
+      [to, parseInt(req.params.id, 10), req.company.id]);
+    if (!done.rows.length) return res.redirect('/nutrition/appointments?err=move');
+  } catch (e) {
+    console.error('[nutrition appt status]', e.message);
+    return res.redirect('/nutrition/appointments?err=save');
+  }
+  res.redirect('/nutrition/appointments?saved=1');
+});
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', async (req, res) => {
   try {
@@ -477,8 +552,9 @@ router.post('/settings', async (req, res) => {
       `INSERT INTO nutrition_settings
          (company_id, practice_name, about, address, phone, whatsapp, hours,
           booking_enabled, protein_per_kg, fat_percent,
-          subscription_enabled, subscription_price, subscription_months, services, subscription_since, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+          subscription_enabled, subscription_price, subscription_months, services,
+          work_days, work_from, work_to, slot_minutes, subscription_since, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
                -- Stamped the FIRST time charging is switched on. It is what the
                -- grace period for existing patients is measured from, so it must
                -- not move every time the price is edited.
@@ -493,6 +569,8 @@ router.post('/settings', async (req, res) => {
          subscription_price=EXCLUDED.subscription_price,
          subscription_months=EXCLUDED.subscription_months,
          services=EXCLUDED.services,
+         work_days=EXCLUDED.work_days, work_from=EXCLUDED.work_from,
+         work_to=EXCLUDED.work_to, slot_minutes=EXCLUDED.slot_minutes,
          subscription_since=EXCLUDED.subscription_since,
          updated_at=now()`,
       [req.company.id, text(b.practice_name, 120), text(b.about, 1500), text(b.address, 200),
@@ -505,7 +583,15 @@ router.post('/settings', async (req, res) => {
         Math.min(36, Math.max(1, parseInt(b.subscription_months, 10) || 1)),
         // سطر لكل خدمة، بكلام الأخصائي. أقصى ١٢ سطر عشان الصفحة تفضل صفحة.
         text((String(b.services || '').split(/\r?\n/).map((l) => l.trim())
-          .filter(Boolean).slice(0, 12).join('\n')), 1200)]);
+          .filter(Boolean).slice(0, 12).join('\n')), 1200),
+        // مواعيد الحجز: الأيام اللي اتعلّم عليها، ووقت البداية والنهاية، وطول
+        // الجلسة. كلها بتترجع لافتراضي معقول في `booking.settingsFrom` لو
+        // القيمة مش مقروءة — إعداد بايظ مايقفلش الحجز.
+        [].concat(b.work_days || []).map((d) => parseInt(d, 10))
+          .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).join(',') || null,
+        /^\d{2}:\d{2}$/.test(String(b.work_from || '')) ? b.work_from : null,
+        /^\d{2}:\d{2}$/.test(String(b.work_to || '')) ? b.work_to : null,
+        Math.min(180, Math.max(10, parseInt(b.slot_minutes, 10) || 45))]);
   } catch (e) {
     console.error('[nutrition settings save]', e.message);
     return res.redirect('/nutrition/settings?err=save');

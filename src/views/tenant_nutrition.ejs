@@ -129,11 +129,84 @@
     </div>
   </section>
 
-  <% if (__booking && __wa) { %>
+  <%# ── الحجز بتقويم (البند ٨٤) ────────────────────────────────────────
+      الزرار اللي كان بيفتح واتساب مابقاش هو الطريقة الوحيدة: فيه خانات
+      حقيقية محسوبة من مواعيد العيادة ناقص اللي اتحجز. الخانة المحجوزة
+      بتتعرض «محجوز» مش بتختفي — عشان الزائر يشوف إن اليوم شغّال. %>
+  <% var __days = (typeof nutritionDays !== 'undefined' && nutritionDays) || []; %>
+  <% if (__booking && __days.length) { %>
+  <section id="book" class="bg-white rounded-2xl shadow-sm p-6 mb-5">
+    <h2 class="font-bold text-slate-900 mb-1"><%= t('ntp.book') %></h2>
+    <p class="text-xs text-slate-500 mb-3"><%= t('ntp.book_hint') %></p>
+
+    <% if (typeof req !== 'undefined' && req && req.query && req.query.sent) { %>
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2 mb-3 text-sm"><%= t('ntp.book_sent') %></div>
+    <% } %>
+    <% var __err = (typeof req !== 'undefined' && req && req.query && req.query.error) ? String(req.query.error) : null; %>
+    <% if (__err) { %>
+      <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2 mb-3 text-sm">
+        <%= __err === 'taken' ? t('ntp.book_taken') : __err === 'closed' ? t('ntp.book_closed') : t('ntp.book_bad') %>
+      </div>
+    <% } %>
+
+    <form method="POST" action="/nutrition/book" class="grid gap-3">
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="text-xs font-bold text-slate-600"><%= t('ntp.book_name') %>
+          <input name="patient_name" required maxlength="80" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('ntp.book_phone') %>
+          <input name="patient_phone" required maxlength="20" dir="ltr" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+      </div>
+      <label class="text-xs font-bold text-slate-600"><%= t('ntp.book_day') %>
+        <select name="day" id="ntDay" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+          <% __days.forEach(function(d, i){ %>
+            <option value="<%= d.ymd %>" <%= i === 0 ? 'selected' : '' %>><%= d.ymd %></option>
+          <% }); %>
+        </select>
+      </label>
+      <div>
+        <div class="text-xs font-bold text-slate-600 mb-1"><%= t('ntp.book_time') %></div>
+        <div id="ntSlots" class="flex flex-wrap gap-2"></div>
+        <input type="hidden" name="time" id="ntTime" required />
+      </div>
+      <label class="text-xs font-bold text-slate-600"><%= t('ntp.book_note') %>
+        <input name="note" maxlength="300" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-3"><%= t('ntp.book_send') %></button>
+    </form>
+    <script>
+      (function () {
+        var DAYS = <%- jsonLd(__days.map(function(d){ return { ymd: d.ymd, slots: d.slots }; })) %>;
+        var sel = document.getElementById('ntDay'), box = document.getElementById('ntSlots'), field = document.getElementById('ntTime');
+        function draw() {
+          var day = DAYS.filter(function (d) { return d.ymd === sel.value; })[0];
+          box.innerHTML = ''; field.value = '';
+          (day ? day.slots : []).forEach(function (s) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.textContent = s.time;
+            b.disabled = !!s.taken;
+            b.className = 'text-sm font-bold rounded-xl px-3 py-2 border ' + (s.taken
+              ? 'border-slate-200 text-slate-300 line-through cursor-not-allowed'
+              : 'border-slate-200 text-slate-700 hover:border-brand-500');
+            b.onclick = function () {
+              field.value = s.time;
+              Array.prototype.forEach.call(box.children, function (c) { c.classList.remove('bg-brand-600', 'text-white'); });
+              b.classList.add('bg-brand-600', 'text-white');
+            };
+            box.appendChild(b);
+          });
+        }
+        sel.addEventListener('change', draw); draw();
+      })();
+    </script>
+  </section>
+  <% } else if (__booking && __wa) { %>
+  <%# مفيش مواعيد متظبّطة: الواتساب لسه أحسن من مفيش حاجة، ومكتوب إنه واتساب. %>
   <a href="https://wa.me/<%= __wa %>?text=<%= encodeURIComponent(t('ntp.book_msg')) %>"
      target="_blank" rel="noopener"
      class="block bg-brand-600 hover:bg-brand-700 text-white text-center font-bold rounded-2xl px-6 py-4 mb-5">
-    <%= t('ntp.book') %>
+    <%= t('ntp.book_wa') %>
   </a>
   <% } %>
 

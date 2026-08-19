@@ -34,6 +34,9 @@ const ROLE_KEYS = Object.keys(ROLES).filter((r) => r !== 'owner');
 /** Path prefix → permission. Longest match wins. */
 const GUARDED = [
   ['/patients', 'patients'],
+  // المواعيد شغل الاستقبال بالتحديد — «بيحجز وبيرد على التليفون». فبتتحط
+  // على نفس صلاحية `patients` مش على `clinical`.
+  ['/appointments', 'patients'],
   ['/plans', 'clinical'],
   ['/foods', 'settings'],
   ['/settings', 'settings'],
