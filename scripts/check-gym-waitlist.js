@@ -122,6 +122,50 @@ const tenant = stripComments(fs.readFileSync(path.join(ROOT, 'src/routes/tenant.
   check('وبتقول للّي اترقّى إنه اترقّى', /booking\.promoted_at/.test(view));
 }
 
+/* ── PAR-Q: a screen, never a clearance ────────────────────────────────── */
+{
+  const P = require('../src/gym/parq');
+  const all = {}; P.QUESTIONS.forEach((q) => { all[q] = 'no'; });
+  check('كل الإجابات «لأ» = مفيش علامات', P.verdict(all) === 'no_flags');
+  check('وأي «أيوه» معناها يشوف دكتور', P.verdict(Object.assign({}, all, { chest_pain: 'yes' })) === 'see_doctor');
+  // The one that must never be read as a no.
+  check('وسؤال مش متجاوب عليه مش «لأ»', P.verdict({ heart: 'no' }) === 'incomplete');
+  check('ومفيش استبيان أصلاً = ناقص', P.verdict(null) === 'incomplete');
+  check('وإجابة مش من الاتنين بتتشال', P.readAnswers({ q_dizzy: 'maybe' }).dizzy === null);
+  check('واللي جاوب «أيوه» بيتسمّى', P.flags(Object.assign({}, all, { heart: 'yes' })).join() === 'heart');
+  check('والسبعة أسئلة كاملة', P.QUESTIONS.length === 7);
+  const view = fs.readFileSync(path.join(ROOT, 'src/views/gym_admin/member.ejs'), 'utf8');
+  // Software cannot say "fit to train", and a screen that printed it would be
+  // why a gym stopped asking a doctor.
+  // Comments are stripped first — the template's own note explains why the
+  // phrase must never appear, and a scan that cannot tell code from prose
+  // would fail on the explanation.
+  check('والشاشة مابتقولش «لائق للتمرين»',
+    !/لائق للتمرين|fit to train/i.test(view.replace(/<%#[\s\S]*?%>/g, ' ')));
+  check('وبتقول إنه استبيان فرز مش شهادة', /استبيان فرز، مش شهادة/.test(view));
+  check('وكل سؤال ليه نص على الشاشة',
+    P.QUESTIONS.every((q) => new RegExp(q + ':').test(view)), P.QUESTIONS.join(' '));
+  const route = stripComments(fs.readFileSync(path.join(ROOT, 'src/routes/gym_admin.js'), 'utf8'));
+  check('والحفظ مقيّد بالجيم', /UPDATE gym_members SET parq=\$3::jsonb[\s\S]{0,80}WHERE id=\$1 AND company_id=\$2/.test(route));
+}
+
+/* ── The card the door scanner reads ───────────────────────────────────── */
+{
+  const route = stripComments(fs.readFileSync(path.join(ROOT, 'src/routes/gym_admin.js'), 'utf8'));
+  const view = fs.readFileSync(path.join(ROOT, 'src/views/gym_admin/member.ejs'), 'utf8');
+  check('الكارت بيحمل الكود نفسه اللي الباب بيفهمه',
+    /QRCode\.toDataURL\(String\(member\.code\)/.test(route));
+  // A QR of an empty string scans as nothing and wastes a print.
+  check('وعضو من غير كود مالوش QR', /if \(member\.code\) \{/.test(route) && /let qr = null;/.test(route));
+  check('والصفحة بتعرض بدالها زرار يطلّع كود', /\/code"/.test(view) && /مالوش كود/.test(view));
+  check('وإصدار الكود بيحترم الفهرس الفريد', /idx_gym_member_code/.test(route));
+  check('وبيجرّب تاني بدل ما يقع', /for \(let attempt = 0; attempt < 5; attempt\+\+\)/.test(route));
+  check('والكود بيتكتب للعضو بتاع الجيم ده بس',
+    /UPDATE gym_members SET code=\$3 WHERE id=\$1 AND company_id=\$2 RETURNING id/.test(route));
+  const desk = fs.readFileSync(path.join(ROOT, 'src/gym/desk.js'), 'utf8');
+  check('والباب أصلاً بيفهم الكود المكتوب', /kind: 'code'/.test(desk));
+}
+
 /* ── Words ─────────────────────────────────────────────────────────────── */
 {
   const keys = ['title', 'saved', 'cancel', 'cancel_confirm', 'move', 'move_do', 'move_hint',

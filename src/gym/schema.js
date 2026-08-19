@@ -89,6 +89,16 @@ async function ensureGymSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_gym_members_company ON gym_members (company_id, created_at DESC);
+      /* PAR-Q والكارت الشخصي (backlog 85).
+       *
+       * The gym was signing people up and putting them on a machine with no
+       * record of whether they had ever been told to be careful. The answers
+       * are kept as given — see src/gym/parq.js for why the verdict is about
+       * the FORM and never about the person.
+       */
+      ALTER TABLE gym_members ADD COLUMN IF NOT EXISTS parq     JSONB;
+      ALTER TABLE gym_members ADD COLUMN IF NOT EXISTS parq_at  TIMESTAMPTZ;
+      ALTER TABLE gym_members ADD COLUMN IF NOT EXISTS parq_note TEXT;
       CREATE TABLE IF NOT EXISTS gym_memberships (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

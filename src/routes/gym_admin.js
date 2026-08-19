@@ -14,6 +14,8 @@ const push = require('../lib/push');
 const { compressImage } = require('../lib/media');
 const DESK = require('../gym/desk');
 const gymPerms = require('../gym/perms');
+const parq = require('../gym/parq');
+const QRCode = require('qrcode');
 const bcrypt = require('bcryptjs');
 const staffScope = require('../lib/staff_scope');
 
@@ -626,12 +628,75 @@ router.get('/members/:id', async (req, res) => {
       pool.query('SELECT * FROM gym_memberships WHERE member_id=$1 ORDER BY end_date DESC LIMIT 20', [mid]),
       pool.query('SELECT * FROM gym_measurements WHERE member_id=$1 ORDER BY measured_on DESC, id DESC LIMIT 50', [mid]),
     ]);
+    // The personal QR. A scanner types the membership code and presses Enter,
+    // so the card carries the code itself — the same string the desk already
+    // understands. A member with no code gets no QR: a picture of an empty
+    // string scans as nothing and wastes a print.
+    let qr = null;
+    if (member.code) {
+      try { qr = await QRCode.toDataURL(String(member.code), { width: 420, margin: 2, errorCorrectionLevel: 'M' }); }
+      catch (e) { console.error('[gym qr]', e.message); }
+    }
+    const answers = member.parq || null;
     res.render('gym_admin/member', {
       company: req.company, tab: 'members', member,
       history: history.rows, measures: measures.rows, saved: req.query.saved === '1',
+      qr,
+      parqQuestions: parq.QUESTIONS,
+      parqAnswers: answers,
+      parqVerdict: parq.verdict(answers),
+      parqFlags: parq.flags(answers),
+      parqFilled: parq.isFilled(answers),
+      err: ['code_taken', 'save'].includes(String(req.query.err || '')) ? req.query.err : null,
     });
   } catch (e) { console.error('[gym member]', e.message); res.redirect('/gym/members'); }
 });
+/**
+ * إصدار كود للعضو — the string the door scanner reads.
+ *
+ * Generated here rather than typed, because two members with the same code make
+ * the check-in screen pick one of them at random. The unique index is the rule;
+ * this only tries not to hit it.
+ */
+router.post('/members/:id/code', async (req, res) => {
+  const cid = req.company.id, mid = parseInt(req.params.id, 10);
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      // From crypto, not Math.random: this code opens a door, and a guessable
+      // one is a way in. (check-random-codes holds this rule for the app.)
+      const code = 'M' + require('crypto').randomBytes(4).toString('hex').toUpperCase();
+      try {
+        const done = await pool.query(
+          'UPDATE gym_members SET code=$3 WHERE id=$1 AND company_id=$2 RETURNING id', [mid, cid, code]);
+        if (done.rows.length) return res.redirect('/gym/members/' + mid + '?saved=1');
+        break;                                   // not this gym's member
+      } catch (e) {
+        // The unique index fired: somebody already holds that code. Try again.
+        if (!String(e.message).includes('idx_gym_member_code')) throw e;
+      }
+    }
+    return res.redirect('/gym/members/' + mid + '?err=code_taken');
+  } catch (e) {
+    console.error('[gym member code]', e.message);
+    return res.redirect('/gym/members/' + mid + '?err=save');
+  }
+});
+
+/** PAR-Q — the seven questions, stored as given. */
+router.post('/members/:id/parq', async (req, res) => {
+  const cid = req.company.id, mid = parseInt(req.params.id, 10);
+  const answers = parq.readAnswers(req.body);
+  try {
+    await pool.query(
+      'UPDATE gym_members SET parq=$3::jsonb, parq_at=now(), parq_note=$4 WHERE id=$1 AND company_id=$2',
+      [mid, cid, JSON.stringify(answers), String((req.body || {}).note || '').trim().slice(0, 300) || null]);
+  } catch (e) {
+    console.error('[gym parq]', e.message);
+    return res.redirect('/gym/members/' + mid + '?err=save');
+  }
+  res.redirect('/gym/members/' + mid + '?saved=1');
+});
+
 router.post('/members/:id/measure', async (req, res) => {
   const b = req.body || {}, mid = parseInt(req.params.id, 10);
   const numOrNull = (v) => (v !== '' && v != null && isFinite(Number(v)) ? Number(v) : null);
