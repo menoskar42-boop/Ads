@@ -1,57 +1,85 @@
 <%- include('head', { title: t('clinic.nav.dashboard'), tab: 'dashboard' }) %>
+<%#
+  Answers, not counters. Every card is a question a reception desk actually
+  asks, and its body is the list — so the answer is on the screen instead of
+  behind a click. The order is by urgency; see src/clinic/board.js.
+%>
 
-<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('cd.hi') %></h1>
-<p class="text-slate-500 mb-6"><%= t('cd.sub') %></p>
-
-<div class="grid gap-4 grid-cols-2 lg:grid-cols-5 mb-6">
-  <a href="/clinic/queue" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
-    <div class="text-3xl font-black text-amber-600"><%= stats.waiting %></div>
-    <div class="text-sm text-slate-500 mt-1"><%= t('cd.in_queue') %></div>
-  </a>
-  <a href="/clinic/appointments" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
-    <div class="text-3xl font-black text-brand-600"><%= stats.pending %></div>
-    <div class="text-sm text-slate-500 mt-1"><%= t('cd.pending') %></div>
-  </a>
-  <a href="/clinic/finance" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
-    <div class="text-3xl font-black text-emerald-600"><%= stats.revenue.toLocaleString(LOC) %></div>
-    <div class="text-sm text-slate-500 mt-1"><%= t('cd.today_revenue') %> (<%= t('cur.egp') %>)</div>
-  </a>
-  <a href="/clinic/doctors" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
-    <div class="text-3xl font-black text-slate-900"><%= stats.doctors %></div>
-    <div class="text-sm text-slate-500 mt-1"><%= t('cd.doctors') %></div>
-  </a>
-  <a href="/clinic/patients" class="bg-white border border-slate-200 rounded-2xl p-5 hover:border-brand-300">
-    <div class="text-3xl font-black text-slate-900"><%= stats.patients %></div>
-    <div class="text-sm text-slate-500 mt-1"><%= t('cd.patients') %></div>
-  </a>
+<div class="flex items-start justify-between gap-3 flex-wrap mb-6">
+  <div>
+    <h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('cd.hi') %></h1>
+    <p class="text-slate-500">
+      <%= needsAttention ? t('cd.needs') : t('cd.calm') %>
+    </p>
+  </div>
+  <% if (revenue !== null) { %>
+    <a href="/clinic/finance" class="bg-white border border-slate-200 rounded-2xl px-5 py-3 hover:border-brand-300">
+      <div class="text-2xl font-black text-emerald-600"><%= Number(revenue).toLocaleString(LOC) %></div>
+      <div class="text-xs text-slate-500"><%= t('cd.today_revenue') %> (<%= t('cur.egp') %>)</div>
+    </a>
+  <% } %>
 </div>
 
-<div class="flex flex-wrap gap-2 mb-8">
+<% if (anyUnknown) { %>
+  <div class="bg-slate-50 border border-slate-200 text-slate-600 rounded-2xl px-4 py-3 text-sm mb-5"><%= t('cd.unknown_note') %></div>
+<% } %>
+
+<div class="grid gap-4 lg:grid-cols-2 mb-8">
+  <% cards.forEach(function (c) {
+       var tone = c.state === 'attention' ? 'border-amber-300' : c.state === 'unknown' ? 'border-slate-200' : 'border-emerald-200';
+       var href = { waiting: '/clinic/queue', unconfirmed: '/clinic/appointments?status=pending',
+                    today: '/clinic/appointments', overdue: '/clinic/invoices', next: '/clinic/appointments' }[c.key];
+  %>
+    <section class="bg-white border <%= tone %> rounded-2xl p-4">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <h2 class="font-extrabold text-slate-900 text-sm"><%= t('cd.q.' + c.key) %></h2>
+        <a href="<%= href %>" class="text-xs font-bold text-brand-600 hover:underline"><%= t('cd.open') %></a>
+      </div>
+
+      <% if (c.state === 'unknown') { %>
+        <p class="text-sm text-slate-400 py-3"><%= t('cd.unknown') %></p>
+      <% } else if (c.state === 'ok') { %>
+        <p class="text-sm text-emerald-700 py-3"><%= t('cd.none.' + c.key) %></p>
+      <% } else { %>
+        <div class="divide-y divide-slate-100">
+          <% c.rows.forEach(function (r) { %>
+            <div class="py-2 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="font-bold text-slate-800 text-sm truncate">
+                  <%= r.patient_name || t('cd.no_name') %>
+                  <% if (r.is_urgent) { %><span class="text-xs text-red-600 font-black">· <%= t('cd.urgent') %></span><% } %>
+                </div>
+                <div class="text-xs text-slate-500 truncate">
+                  <% if (c.key === 'waiting') { %>
+                    <%= r.doctor_name || t('cd.no_doctor') %>
+                    <% if (r.waited === null || r.waited === undefined) { %> · <%= t('cd.no_arrival') %>
+                    <% } else { %> · <span class="<%= r.long_wait ? 'text-red-600 font-bold' : '' %>"><%= r.waited %> <%= t('cd.min') %></span><% } %>
+                  <% } else if (c.key === 'overdue') { %>
+                    <%= (Number(r.total_amount) - Number(r.paid_amount)).toLocaleString(LOC) %> <%= t('cur.egp') %>
+                    · <%= new Date(r.created_at).toLocaleDateString(LOC) %>
+                  <% } else { %>
+                    <%= r.doctor_name || t('cd.no_doctor') %><%= r.slot_at ? (' · ' + new Date(r.slot_at).toLocaleString(LOC)) : '' %>
+                  <% } %>
+                </div>
+              </div>
+              <% if (r.phone) { %>
+                <a href="tel:<%= r.phone %>" class="text-xs text-brand-600 font-bold whitespace-nowrap" dir="ltr">📞 <%= r.phone %></a>
+              <% } %>
+            </div>
+          <% }); %>
+        </div>
+        <% if (c.more) { %>
+          <div class="text-xs text-slate-400 mt-2"><%= t('cd.and_more') %> <%= c.more %></div>
+        <% } %>
+      <% } %>
+    </section>
+  <% }); %>
+</div>
+
+<div class="flex flex-wrap gap-2">
   <a href="/clinic/queue" class="bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-xl px-4 py-2"><%= t('cd.checkin') %></a>
   <a href="/clinic/invoices" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2"><%= t('cd.new_invoice') %></a>
   <a href="/clinic/patients" class="bg-white border border-slate-200 hover:border-brand-300 text-slate-700 text-sm font-bold rounded-xl px-4 py-2"><%= t('cd.add_patient') %></a>
 </div>
-
-<div class="flex items-center justify-between mb-3">
-  <h2 class="text-lg font-extrabold text-slate-900"><%= t('cd.upcoming') %></h2>
-  <a href="/clinic/appointments" class="text-brand-600 font-bold text-sm"><%= t('cd.all_appointments') %></a>
-</div>
-
-<% if (!upcoming.length) { %>
-  <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('cd.no_upcoming') %></div>
-<% } else { %>
-<div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-  <% upcoming.forEach(function(a){ %>
-  <div class="flex items-center gap-3 p-4 border-b border-slate-100 last:border-0">
-    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center">🗓️</div>
-    <div class="min-w-0 flex-1">
-      <div class="font-bold text-slate-900 truncate"><%= a.patient_name %> <span class="text-slate-400 font-normal text-sm" dir="ltr"><%= a.patient_phone %></span></div>
-      <div class="text-xs text-slate-500"><%= a.doctor_name || t('cd.no_doctor') %><%= a.slot_at ? (' · ' + new Date(a.slot_at).toLocaleString(LOC)) : '' %></div>
-    </div>
-    <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status==='confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>"><%= a.status==='confirmed' ? t('cd.confirmed') : t('cd.awaiting') %></span>
-  </div>
-  <% }); %>
-</div>
-<% } %>
 
 </main></body></html>

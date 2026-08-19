@@ -1057,14 +1057,34 @@ const FIXTURES = {
     })),
   }),
 
-  dashboard: () => ({
-    tab: 'dashboard',
-    stats: { waiting: 3, pending: 2, revenue: 4500, doctors: 2, patients: 120 },
-    upcoming: [
-      { patient_name: patient.name, patient_phone: '01000000000', doctor_name: doctor.name, slot_at: NOW, status: 'confirmed' },
-      { patient_name: 'Mona Adel', patient_phone: '', doctor_name: null, slot_at: null, status: 'pending' },
-    ],
-  }),
+  // The board answers questions now (backlog 83). The fixture carries all three
+  // states on purpose — a card with something to do, one with nothing, and one
+  // whose query failed — because the third is the one that used to be a 500.
+  dashboard: () => {
+    const board = require('../src/clinic/board');
+    const cards = board.board({
+      waiting: { ok: true, rows: [
+        { id: 1, patient_name: patient.name, doctor_name: doctor.name, arrival_at: new Date(Date.now() - 35 * 60000), is_urgent: true },
+        { id: 2, patient_name: 'Mona Adel', doctor_name: null, arrival_at: null, is_urgent: false },
+      ] },
+      unconfirmed: { ok: true, rows: [{ id: 3, patient_name: 'Sara', phone: '01000000000', slot_at: NOW, doctor_name: doctor.name }] },
+      today: { ok: true, rows: [] },
+      overdue: { ok: false },
+      next: { ok: true, rows: [{ id: 4, patient_name: patient.name, slot_at: NOW, doctor_name: doctor.name }] },
+    });
+    for (const c of cards) {
+      if (c.key !== 'waiting') continue;
+      c.rows = c.rows.map((r) => {
+        const mins = board.waitedMinutes(r.arrival_at, new Date());
+        return Object.assign({}, r, { waited: mins, long_wait: board.isLongWait(mins) });
+      });
+    }
+    return {
+      tab: 'dashboard', cards, revenue: 4500,
+      needsAttention: board.needsAttention(cards),
+      anyUnknown: board.anyUnknown(cards),
+    };
+  },
 
   doctors: () => ({
     tab: 'doctors',
