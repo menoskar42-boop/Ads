@@ -1,0 +1,85 @@
+<%- include('head', { title: t('clinic.nav.calendar'), tab: 'calendar' }) %>
+<%#
+  A day or a week, with each doctor's working hours drawn on it — and the two
+  things a calendar built by bucketing on a timestamp loses: the appointment
+  with no time, and the one booked outside the doctor's hours.
+%>
+
+<div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+  <h1 class="text-2xl font-black text-slate-900"><%= t('clinic.nav.calendar') %></h1>
+  <form method="get" class="flex items-center gap-2">
+    <input type="date" name="date" value="<%= anchor %>" class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
+    <select name="view" class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm bg-white">
+      <option value="day" <%= view === 'day' ? 'selected' : '' %>><%= t('cal.day') %></option>
+      <option value="week" <%= view === 'week' ? 'selected' : '' %>><%= t('cal.week') %></option>
+    </select>
+    <button class="bg-slate-100 hover:bg-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold"><%= t('q.show') %></button>
+  </form>
+</div>
+
+<div class="space-y-5">
+  <% grid.forEach(function (day) { %>
+    <section class="bg-white border border-slate-200 rounded-2xl p-4">
+      <h2 class="font-extrabold text-slate-900 mb-3">
+        <%= new Date(day.date + 'T12:00:00Z').toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' }) %>
+      </h2>
+
+      <% if (isEmptyDay(day)) { %>
+        <p class="text-sm text-slate-400 py-3"><%= t('cal.empty') %></p>
+      <% } else { %>
+        <div class="grid gap-3 <%= view === 'week' ? '' : 'sm:grid-cols-2' %>">
+          <% day.doctors.forEach(function (col) { %>
+            <% if (!col.appts.length && !col.open.length) return; %>
+            <div class="border border-slate-100 rounded-xl p-3">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <div class="font-bold text-slate-800 text-sm">
+                  <%= col.name || t('q.no_doctor') %><% if (col.room) { %> <span class="text-slate-400 font-normal">· <%= t('q.room') %> <%= col.room %></span><% } %>
+                </div>
+                <div class="text-xs text-slate-500">
+                  <% if (col.open.length) { %>
+                    <% col.open.forEach(function (w, i) { %><%= i ? ' · ' : '' %><%= String(w.start_time).slice(0,5) %>–<%= String(w.end_time).slice(0,5) %><% }); %>
+                  <% } else { %><%= t('cal.no_hours') %><% } %>
+                </div>
+              </div>
+
+              <% if (!col.appts.length) { %>
+                <p class="text-xs text-slate-400"><%= t('cal.free') %></p>
+              <% } else { %>
+                <div class="divide-y divide-slate-100">
+                  <% col.appts.forEach(function (a) { %>
+                    <div class="py-1.5 flex items-center justify-between gap-2 text-sm">
+                      <span class="min-w-0 truncate"><%= a.patient_name || t('q.a_patient') %></span>
+                      <span class="flex items-center gap-2 whitespace-nowrap">
+                        <% if (a.outside) { %>
+                          <span class="text-[10px] bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 font-bold"><%= t('cal.outside') %></span>
+                        <% } %>
+                        <span class="text-slate-600"><%= new Date(a.slot_at).toLocaleTimeString(LOC, { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Cairo' }) %></span>
+                      </span>
+                    </div>
+                  <% }); %>
+                </div>
+              <% } %>
+            </div>
+          <% }); %>
+        </div>
+
+        <% if (day.unscheduled.length) { %>
+          <%# Booked "some time Tuesday". A grid that buckets on the timestamp
+              drops these, and the patient turns up to a clinic with no record. %>
+          <div class="mt-3 border-t border-slate-100 pt-3">
+            <div class="text-xs font-bold text-slate-600 mb-1"><%= t('cal.unscheduled') %></div>
+            <div class="flex flex-wrap gap-2">
+              <% day.unscheduled.forEach(function (a) { %>
+                <span class="text-xs bg-slate-50 border border-slate-200 rounded-full px-3 py-1">
+                  <%= a.patient_name || t('q.a_patient') %><% if (a.doctor_name) { %> · <%= a.doctor_name %><% } %>
+                </span>
+              <% }); %>
+            </div>
+          </div>
+        <% } %>
+      <% } %>
+    </section>
+  <% }); %>
+</div>
+
+</main></body></html>

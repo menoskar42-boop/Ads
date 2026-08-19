@@ -26,7 +26,11 @@
  */
 
 /** Statuses that end an order's life. */
-const TERMINAL = new Set(['delivered', 'done', 'rejected', 'cancelled', 'refunded']);
+const TERMINAL = new Set(['delivered', 'done', 'rejected', 'cancelled', 'refunded',
+  // A patient who never arrived. Terminal for the same reason 'cancelled' is:
+  // leaving it would let a no-show be called into the room, and the day's wait
+  // times are computed from these rows.
+  'no_show']);
 
 /** Statuses reachable from anywhere (before the end). */
 const ALWAYS = new Set(['cancelled', 'rejected']);
