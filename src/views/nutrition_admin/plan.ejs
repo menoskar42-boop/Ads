@@ -29,6 +29,43 @@
 
 <style>@media print { header, nav, .no-print, form { display:none !important; } body{background:#fff !important;} main{max-width:100% !important;padding:0 !important;} }</style>
 
+<%# ── القوالب العلاجية (البند ٨٤) ──────────────────────────────────────
+    التطبيق مابيتمّش أعمى: السطر اللي فيه تعارض مع حساسية المريض مابيتنسخش،
+    والنتيجة بتتقال بالعدد — قالب بيتطبّق ناقص في صمت أسوأ من قالب بيترفض
+    بصوت، لأن الأخصائي بيفتكر إن المريض واخد الخطة كلها. %>
+<% if (typeof applied !== 'undefined' && applied) { %>
+  <div class="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-4 text-sm no-print">
+    <div class="font-bold text-slate-800 mb-1"><%= t('nt.tpl.applied') %></div>
+    <ul class="text-slate-600 grid gap-0.5">
+      <li>✅ <%= t('nt.tpl.copied') %>: <%= applied.copied %></li>
+      <% if (applied.clash) { %><li class="text-red-700">⛔ <%= t('nt.tpl.clash') %>: <%= applied.clash %></li><% } %>
+      <% if (applied.gone) { %><li class="text-amber-700">⚠️ <%= t('nt.tpl.gone') %>: <%= applied.gone %></li><% } %>
+      <% if (applied.warned) { %><li class="text-slate-500">ℹ️ <%= t('nt.tpl.warned') %>: <%= applied.warned %></li><% } %>
+    </ul>
+  </div>
+<% } %>
+
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5 no-print">
+  <h2 class="font-bold text-slate-800 mb-1 text-sm"><%= t('nt.tpl.title') %></h2>
+  <p class="text-xs text-slate-400 mb-3"><%= t('nt.tpl.hint') %></p>
+  <div class="grid sm:grid-cols-2 gap-3">
+    <form method="post" action="/nutrition/plans/<%= plan.id %>/apply-template" class="flex gap-2">
+      <select name="template_id" class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+        <% (typeof templates !== 'undefined' ? templates : []).forEach(function(tp){ %>
+          <option value="<%= tp.id %>"><%= tp.name %> (<%= tp.lines %>)</option>
+        <% }); %>
+      </select>
+      <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm"
+        <%= (typeof templates === 'undefined' || !templates.length) ? 'disabled' : '' %>><%= t('nt.tpl.apply') %></button>
+    </form>
+    <form method="post" action="/nutrition/plans/<%= plan.id %>/save-template" class="flex gap-2">
+      <input name="name" maxlength="80" placeholder="<%= t('nt.tpl.name_ph') %>"
+             class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      <button class="border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700"><%= t('nt.tpl.save') %></button>
+    </form>
+  </div>
+</div>
+
 <!-- ── الإجمالي مقابل الهدف ──────────────────────────────────────── -->
 <%# The targets on this plan are the ones frozen when it was written, NOT
     today's engine output. A plan whose target moves underneath it cannot be

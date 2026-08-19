@@ -84,6 +84,34 @@ async function ensureNutritionSchema() {
       CREATE INDEX IF NOT EXISTS idx_nut_appts ON nutrition_appointments (company_id, slot_at);
       CREATE INDEX IF NOT EXISTS idx_nut_appts_open ON nutrition_appointments (company_id, status, slot_at);
 
+      -- ── القوالب العلاجية (البند ٨٤) ────────────────────────────────────
+      -- «إنقاص وزن ١٥٠٠ سعرة» و«بروتوكول سكري» بتتكتب لكل مريض من الأول.
+      -- القالب بيخزّن **الوصفة** (وجبة · صنف · جرامات) — مش القيم المحسوبة،
+      -- لأنه مش خطة مسلّمة لمريض: القيم بتتحسب وقت التطبيق من الصنف الحي.
+      CREATE TABLE IF NOT EXISTS nutrition_templates (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        note       TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_templates ON nutrition_templates (company_id, name);
+
+      CREATE TABLE IF NOT EXISTS nutrition_template_items (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        template_id INTEGER NOT NULL REFERENCES nutrition_templates(id) ON DELETE CASCADE,
+        food_id     INTEGER REFERENCES nutrition_foods(id) ON DELETE SET NULL,
+        -- الاسم متنسوخ عشان القالب يفضل مقروء حتى لو الصنف اتمسح — والتطبيق
+        -- ساعتها بيرفض السطر **باسمه** بدل ما يختفي بصمت.
+        food_name   TEXT,
+        meal        TEXT NOT NULL DEFAULT 'breakfast',
+        grams       NUMERIC(7,2) NOT NULL DEFAULT 100,
+        note        TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_template_items ON nutrition_template_items (template_id, sort_order);
+
       -- The practice's own staff: an assistant with a scale, somebody on the
       -- phone. Small practices, which is exactly why this matters — the
       -- assistant used to sign in as the dietitian, so a blood panel was one
