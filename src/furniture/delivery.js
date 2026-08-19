@@ -10,6 +10,8 @@
 // useful row in this table, because it is the one the workshop pays for twice.
 'use strict';
 
+const T = require('./tracking');
+
 const KINDS = ['delivery', 'install'];
 const SLOTS = ['morning', 'afternoon', 'evening'];
 const STATUSES = ['scheduled', 'out', 'done', 'failed'];
@@ -188,6 +190,90 @@ async function setStatus(pool, companyId, id, status, note, opts = {}) {
   return r.rows[0];
 }
 
+/**
+ * تسليم بتأكيد — البند ٨٦.
+ *
+ * الرحلة مابتتقفلش على «تم» مجرّدة. فيه طريقتين، والاتنين متسجّلين باسمهم:
+ *
+ *   'code'     — العميل قرا الكود اللي على صفحته للطاقم. الكود بيتقارن **جوّه
+ *                جملة التحديث نفسها** مع شرط إن الاستلام لسه مااتأكدش، فكود
+ *                غلط مابيقفلش الرحلة وكود صح مابيتستعملش مرتين.
+ *   'declared' — الطاقم سلّم والعميل مش موجود/مش قادر يقرا الكود. مسموح،
+ *                بس متكتوب إنه إقرار من الورشة — الشاشة والعميل الاتنين
+ *                بيشوفوا الفرق. الادعاء إن العميل أكّد وهو ما أكّدش أسوأ من
+ *                إننا نقول الحقيقة.
+ *
+ * بيرجع { ok, why } — و`why` من قاموس السيرفر مش من الرابط.
+ */
+async function deliverWithReceipt(pool, companyId, id, opts = {}) {
+  const declared = opts.method === 'declared';
+  const code = T.normalizeCode(opts.code);
+  if (!declared && !T.CODE_RE.test(code)) return { ok: false, why: 'bad_code' };
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // نفس بوابة الفلوس بتاعة الإرسال: مايخرجش من الورشة قبل ما يتحاسب، إلا
+    // بتجاوز صريح متسجّل.
+    if (!opts.override) {
+      const job = (await client.query(
+        `SELECT d.fee, d.fee_paid, s.total AS sale_total, s.paid AS sale_paid
+           FROM furniture_deliveries d
+           LEFT JOIN furniture_sales s ON s.id = d.sale_id
+          WHERE d.id=$1 AND d.company_id=$2`, [id, companyId])).rows[0];
+      if (!job) { await client.query('ROLLBACK'); return { ok: false, why: 'not_found' }; }
+      const check = dispatchCheck(job, opts.policy || 'prepaid');
+      if (!check.ok) { await client.query('ROLLBACK'); return { ok: false, why: 'unpaid', money: check }; }
+    }
+
+    // الشرط في جملة الكتابة: الكود، وإن الاستلام لسه مااتأكدش. قراءة الكود
+    // في جملة والتحديث في جملة تانية بتقرا صح وبتتسابق برضه.
+    const params = [id, companyId, declared ? 'declared' : 'code',
+      String(opts.by || '').trim().slice(0, 80) || null];
+    const codeCond = declared ? '' : ' AND receipt_code = $5';
+    if (!declared) params.push(code);
+
+    const done = (await client.query(
+      `UPDATE furniture_deliveries
+          SET receipt_confirmed_at = now(), receipt_method = $3, receipt_by = $4,
+              status = 'done', done_at = COALESCE(done_at, now())
+        WHERE id=$1 AND company_id=$2 AND receipt_confirmed_at IS NULL${codeCond}
+        RETURNING id, sale_id, receipt_method`, params
+    )).rows[0];
+
+    if (!done) {
+      await client.query('ROLLBACK');
+      const row = (await pool.query(
+        'SELECT receipt_confirmed_at FROM furniture_deliveries WHERE id=$1 AND company_id=$2',
+        [id, companyId])).rows[0];
+      if (!row) return { ok: false, why: 'not_found' };
+      return { ok: false, why: row.receipt_confirmed_at ? 'already' : 'wrong_code' };
+    }
+
+    await client.query('COMMIT');
+    return { ok: true, job: done };
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) { /* راجع للبركة برضه */ }
+    throw e;
+  } finally { client.release(); }
+}
+
+/**
+ * كود الاستلام بيتولد مرة واحدة للرحلة ويفضل هو هو.
+ *
+ * `COALESCE` مش `SET receipt_code=$1` عشان فتح الصفحة تاني مايغيّرش الكود
+ * اللي العميل شايفه على تليفونه.
+ */
+async function ensureReceiptCode(pool, companyId, id) {
+  const r = await pool.query(
+    `UPDATE furniture_deliveries SET receipt_code = COALESCE(receipt_code, $3)
+      WHERE id=$1 AND company_id=$2 AND receipt_confirmed_at IS NULL
+      RETURNING receipt_code`,
+    [id, companyId, T.newReceiptCode()]);
+  return r.rows[0] ? r.rows[0].receipt_code : null;
+}
+
 /** Push a job to another date. Reopens it — a rebooked trip is not done. */
 async function reschedule(pool, companyId, id, newDate, slot) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(newDate || ''))) throw new Error('bad_date');
@@ -250,6 +336,7 @@ async function forSale(pool, companyId, saleId) {
 }
 
 module.exports = {
+  deliverWithReceipt, ensureReceiptCode,
   KINDS, SLOTS, STATUSES, POLICIES, OPEN, isLate, today, round2,
   moneyOf, dispatchCheck, policyOf,
   schedule, setStatus, reschedule, collectFee, board, counts, forSale,

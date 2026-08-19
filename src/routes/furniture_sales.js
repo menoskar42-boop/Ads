@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const { ref } = require('../lib/tenant_scope');
 const S = require('../furniture/sales');
 const V = require('../furniture/variants');
+const T = require('../furniture/tracking');
 const B = require('../furniture/branches');
 
 const router = express.Router();
@@ -202,10 +203,36 @@ router.get('/:id(\\d+)', async (req, res) => {
       company: req.company, tab: 'sales',
       sale, items: items.rows, payments: payments.rows, deliveries, warranties,
       due: S.dueOf(sale),
+      // لينك المتابعة بيتعرض لو اتعمل. مابيتولدش لوحده مع كل فتحة صفحة —
+      // التاجر هو اللي بيقرّر يدّي العميل لينك ولا لأ.
+      trackUrl: sale.track_token
+        ? (res.locals.siteOrigin || '') + '/track/' + sale.track_token : null,
       err: SALE_ERRORS.includes(req.query.err) ? req.query.err : null,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture sale]', e.message); res.status(500).send('error'); }
+});
+
+// ── لينك متابعة الطلب (البند ٨٦) ─────────────────────────────────────────────
+//
+// التوكن بيتعمل مرة واحدة ويفضل هو هو: `COALESCE` مش `SET =`. لو كل ضغطة
+// عملت توكن جديد، اللينك اللي العميل واخده على الواتس بيبطّل يشتغل من غير
+// ما حد يعرف ليه.
+router.post('/:id(\\d+)/track', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  try {
+    const r = await pool.query(
+      `UPDATE furniture_sales SET track_token = COALESCE(track_token, $3)
+        WHERE id=$1 AND company_id=$2 RETURNING track_token`,
+      [id, cid, T.newToken()]);
+    if (!r.rows.length) return res.redirect('/furniture/sales?err=save');
+    req.flog('sale.track', 'sale', id, '#' + id);
+  } catch (e) {
+    console.error('[furniture sale track]', e.message);
+    return res.redirect('/furniture/sales/' + id + '?err=save');
+  }
+  res.redirect('/furniture/sales/' + id + '?saved=1');
 });
 
 // ── Take a payment ───────────────────────────────────────────────────────────

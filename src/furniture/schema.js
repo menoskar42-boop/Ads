@@ -632,6 +632,25 @@ async function ensureFurnitureSchema() {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_furn_mo_item
         ON furniture_production_orders (company_id, sale_item_id) WHERE sale_item_id IS NOT NULL;
     `);
+
+    // ── متابعة الطلب وتأكيد الاستلام (المرحلة ٩) ─────────────────────────────
+    await client.query(`
+      -- الرابط نفسه هو الإثبات: ٣٢ بايت عشوائية، والعميل بياخده من المعرض.
+      -- فريد على مستوى الجدول كله عشان التوكن يتلاقى بيه من غير ما نعرف
+      -- المحل الأول.
+      ALTER TABLE furniture_sales ADD COLUMN IF NOT EXISTS track_token TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_furn_sales_token ON furniture_sales (track_token);
+
+      -- تأكيد الاستلام. الكود ٦ أرقام العميل بيقراها من صفحته للطاقم.
+      --
+      -- receipt_method مش boolean عن قصد: «العميل أكّد بالكود» و«الورشة كتبت
+      -- إنه استلم» مش نفس الحاجة، وخانة واحدة بـtrue/false كانت هتخلّي
+      -- الاتنين سطر واحد على الشاشة.
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS receipt_code TEXT;
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS receipt_confirmed_at TIMESTAMPTZ;
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS receipt_method TEXT;  -- code | declared
+      ALTER TABLE furniture_deliveries ADD COLUMN IF NOT EXISTS receipt_by TEXT;
+    `);
   } finally {
     client.release();
   }

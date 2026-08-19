@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<%# مفيش لودر إعلانات هنا، والراوت كمان بيقفل `showAds`: دي بيانات طلب شخص
+    واحد، مش محتوى — وسياسة أدسنس واضحة في ده (docs/SEO_MISTAKES_LOG.md #20). %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<%# الرابط ده فيه التوكن، والتوكن هو الإثبات. `no-referrer` عشان الخطوط
+    والستايل اللي جايين من هوست تاني ماياخدوش الرابط كامل في الـReferer —
+    ومفيش canonical فيه توكن. %>
+<meta name="referrer" content="no-referrer" />
+<title><%= t('fnt.title') %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-stone-50 text-stone-800">
+
+<main class="max-w-xl mx-auto px-4 py-10">
+<% if (!found) { %>
+  <%# التوكن الغلط بيشوف نفس الكارت — مفيش صفحة بتقول «ده موجود بس مش لك». %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center">
+    <div class="text-4xl mb-3">🔎</div>
+    <h1 class="text-xl font-black text-stone-900 mb-2"><%= t('fnt.none') %></h1>
+    <p class="text-sm text-stone-500 leading-7"><%= t('fnt.none_hint') %></p>
+  </div>
+<% } else { %>
+  <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+    <p class="text-xs text-stone-400 mb-1"><%= sale.company_name %></p>
+    <h1 class="text-xl font-black text-stone-900"><%= t('fnt.order') %> #<%= sale.id %></h1>
+    <p class="text-sm text-stone-500 mt-1"><%= t('fnt.ordered_on') %>: <%= String(sale.sale_date && sale.sale_date.toISOString ? sale.sale_date.toISOString().slice(0,10) : sale.sale_date) %></p>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+    <h2 class="font-bold text-stone-800 mb-3"><%= t('fnt.timeline') %></h2>
+    <ol class="grid gap-3">
+      <% steps.forEach(function(s){ %>
+        <li class="flex items-start gap-3">
+          <span class="mt-0.5 w-6 h-6 rounded-full grid place-items-center text-xs font-bold
+            <%= s.state === 'done' ? 'bg-emerald-100 text-emerald-700'
+               : s.state === 'now' ? 'bg-amber-100 text-amber-700'
+               : s.state === 'untracked' ? 'bg-stone-100 text-stone-400' : 'bg-stone-100 text-stone-400' %>">
+            <%= s.state === 'done' ? '✓' : s.state === 'now' ? '•' : s.state === 'untracked' ? '?' : '–' %>
+          </span>
+          <div class="flex-1">
+            <div class="text-sm font-bold text-stone-800">
+              <%= t('fnt.step.' + s.key) %>
+            </div>
+            <div class="text-xs text-stone-500 mt-0.5">
+              <%# «مش متتبّع» مش «خلص». المعرض اللي مابيسجّلش أوامر تصنيع
+                  مانقدرش نقول نيابةً عنه إن القطعة اتصنعت. %>
+              <% if (s.state === 'untracked') { %>
+                <%= t('fnt.untracked') %>
+              <% } else if (s.state === 'done') { %>
+                <%= t('fnt.done') %><% if (s.date) { %> — <%= s.date %><% } %>
+                <% if (s.key === 'delivery' && s.confirmed === false) { %>
+                  <span class="text-amber-700">(<%= t('fnt.declared') %>)</span>
+                <% } %>
+              <% } else if (s.state === 'now') { %>
+                <% if (s.key === 'making') { %><%= t('fnt.now_making') %><% if (s.of) { %> — <%= s.ready %>/<%= s.of %><% } %>
+                <% } else { %><%= t('fnt.on_the_way') %><% if (s.date) { %> — <%= s.date %><% } %><% } %>
+              <% } else { %>
+                <% if (s.key === 'delivery' && s.date) { %><%= t('fnt.booked_for') %> <%= s.date %>
+                <% } else { %><%= t('fnt.not_yet') %><% } %>
+              <% } %>
+              <% if (s.key === 'delivery' && s.failed) { %>
+                <%# الرحلة اللي فشلت مابتختفيش: العميل استنى فعلاً. %>
+                <div class="text-amber-700 mt-1"><%= t('fnt.failed_tries') %>: <%= s.failed %></div>
+              <% } %>
+            </div>
+          </div>
+        </li>
+      <% }); %>
+    </ol>
+  </div>
+
+  <% if (code) { %>
+  <div class="bg-brand-50 border border-amber-200 bg-amber-50 rounded-2xl p-6 mb-4 text-center">
+    <p class="text-sm text-amber-900 mb-2"><%= t('fnt.code') %></p>
+    <div class="text-3xl font-black tracking-[0.3em] text-amber-900" dir="ltr"><%= code.code %></div>
+    <p class="text-xs text-amber-700 mt-2"><%= t('fnt.code_warn') %></p>
+  </div>
+  <% } %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6 mb-4">
+    <h2 class="font-bold text-stone-800 mb-3"><%= t('fnt.items') %></h2>
+    <ul class="grid gap-1 text-sm text-stone-600">
+      <% items.forEach(function(it){ %>
+        <li class="flex justify-between gap-2">
+          <span><%= it.product_name %><% if (it.variant_name) { %> — <%= it.variant_name %><% } %></span>
+          <span class="text-stone-400">× <%= Number(it.qty) %></span>
+        </li>
+      <% }); %>
+      <% if (!items.length) { %><li class="text-stone-400">—</li><% } %>
+    </ul>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6">
+    <h2 class="font-bold text-stone-800 mb-3"><%= t('fnt.money') %></h2>
+    <dl class="text-sm grid gap-1">
+      <div class="flex justify-between"><dt class="text-stone-500"><%= t('fnt.total') %></dt><dd class="font-bold"><%= money.total.toLocaleString(LOC) %></dd></div>
+      <div class="flex justify-between"><dt class="text-stone-500"><%= t('fnt.paid') %></dt><dd class="font-bold text-emerald-700"><%= money.paid.toLocaleString(LOC) %></dd></div>
+      <div class="flex justify-between"><dt class="text-stone-500"><%= t('fnt.due') %></dt><dd class="font-black"><%= money.due.toLocaleString(LOC) %></dd></div>
+    </dl>
+  </div>
+<% } %>
+</main>
+
+</body>
+</html>

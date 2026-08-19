@@ -591,6 +591,11 @@ app.use(tenantMiddleware);
 // not a nutrition practice, so every other tenant is unaffected.
 app.use('/portal', require('./src/routes/nutrition_portal'));
 
+// متابعة طلب موبيليا بالتوكن. قبل راوتر المستأجر بنفس سبب البوابة: العميل
+// بيفتح اللينك من على سَبدومين المعرض، ولو مشي على الراوتر ده الأول هيلاقي
+// صفحة المعرض العامة مش صفحة طلبه.
+app.use('/track', require('./src/routes/furniture_track'));
+
 // If req.tenant is set, render the tenant page
 app.use((req, res, next) => {
   if (req.tenant) {

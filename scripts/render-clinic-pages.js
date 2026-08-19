@@ -378,6 +378,9 @@ const FIXTURES = {
         { id: 2, product_name: 'Side table', months: 12, state: 'not_started', expiresOn: null },
       ],
       due: S.dueOf(sale), err: 'has_paid', saved: false,
+      // اللينك متعمول هنا عشان الشكل التاني (زرار «اعمل لينك») يتعرض في
+      // الشاشة التانية — الحالتين مختلفتين في الكلام مش في اللون.
+      trackUrl: 'https://oscardevs.com/track/' + 'a'.repeat(64),
       flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
     };
   },
@@ -516,6 +519,32 @@ const FIXTURES = {
     noindex: false, showAds: false,
     siteOrigin: 'https://demo-furniture.oscardevs.com',
   }),
+
+  // صفحة متابعة الطلب (العامة، بالتوكن): بتتعرض باللغتين زي أي صفحة بيشوفها
+  // زبون، والحالة اللي أهم من غيرها هنا هي «التصنيع مش متتبّع» — لازم تبان
+  // جملة، مش علامة رمادية بس.
+  furniture_track: () => {
+    const T = require('../src/furniture/tracking');
+    const sale = { id: 41, sale_date: '2026-08-01', total: 51300, paid: 10000,
+      company_name: 'Mobilia Assiut', company_slug: 'demo-furniture' };
+    const deliveries = [
+      { id: 2, status: 'failed', scheduled_date: '2026-08-14', done_at: null, receipt_code: null, receipt_confirmed_at: null, receipt_method: null },
+      { id: 3, status: 'scheduled', scheduled_date: '2026-08-22', done_at: null, receipt_code: '408215', receipt_confirmed_at: null, receipt_method: null },
+    ];
+    return {
+      // مش `__public`: الصفحة دي بيشوفها زبون، بس هي `noindex` بقرار — بيانات
+      // طلب شخص واحد. تدقيق الميتا مبني على «بتتأرشف» مش على «بيشوفها ناس»،
+      // وفحص تسريب العربي في النسخة الإنجليزية بيمشي عليها زي أي صفحة.
+      __file: 'furniture_track.ejs',
+      found: true, sale,
+      items: [{ product_name: 'Classic bedroom', variant_name: 'Beech', qty: 1 }],
+      steps: T.timelineFor({ sale, production: [], deliveries }),
+      money: T.moneyFor(sale),
+      code: T.activeCodeOf(deliveries),
+      noindex: true, showAds: false,
+      siteOrigin: 'https://demo-furniture.oscardevs.com',
+    };
+  },
 
   // ── Nutrition practice ─────────────────────────────────────────────────────
   nutrition_dashboard: () => ({
