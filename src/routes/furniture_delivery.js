@@ -9,7 +9,8 @@ const router = express.Router();
 
 // The reasons this section can refuse, as data. Printing `req.query.err` would
 // let a link choose the words on the merchant's screen.
-const DELIVERY_ERRORS = ['no_customer', 'invoice_not_found', 'save', 'unpaid', 'bad_date', 'fee'];
+const DELIVERY_ERRORS = ['no_customer', 'invoice_not_found', 'save', 'unpaid', 'bad_date', 'fee',
+  'bad_code', 'wrong_code', 'already', 'not_found'];
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
@@ -92,6 +93,53 @@ router.post('/:id(\\d+)/status', async (req, res) => {
     }
   }
   res.redirect('/furniture/delivery?view=' + view);
+});
+
+// ── كود الاستلام وتأكيده (البند ٨٦) ──────────────────────────────────────────
+//
+// الكود بيتولد للرحلة مرة واحدة، والعميل بيشوفه على صفحة متابعة طلبه.
+router.post('/:id(\\d+)/code', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    const code = await D.ensureReceiptCode(pool, req.company.id, id);
+    if (!code) return res.redirect('/furniture/delivery?err=save');
+    req.flog('delivery.code', 'delivery', id, '#' + id);
+  } catch (e) {
+    console.error('[furniture delivery code]', e.message);
+    return res.redirect('/furniture/delivery?err=save');
+  }
+  res.redirect('/furniture/delivery?saved=1');
+});
+
+// «تم التسليم» ليها طريقتين، والاتنين متسجّلين باسمهم: العميل قال الكود، أو
+// الورشة أقرّت بالتسليم. الشاشة والعميل بيشوفوا الفرق — الادعاء إن العميل
+// أكّد وهو ما أكّدش أسوأ من إننا نقول اللي حصل.
+router.post('/:id(\\d+)/receipt', async (req, res) => {
+  const b = req.body || {};
+  const view = VIEWS.includes(b.view) ? b.view : 'open';
+  const id = parseInt(req.params.id, 10);
+  try {
+    const r = await D.deliverWithReceipt(pool, req.company.id, id, {
+      method: b.method === 'declared' ? 'declared' : 'code',
+      code: b.code,
+      // مين أقرّ بالاستلام — نفس اللي بيتكتب في سجل النشاط، مش «حد».
+      by: require('../furniture/activity').actorOf(req, res.locals.t),
+      override: b.override === '1',
+      policy: await D.policyOf(pool, req.company.id),
+    });
+    if (!r.ok) return res.redirect(`/furniture/delivery?view=${view}&err=${r.why}&job=${id}`);
+    req.flog('delivery.receipt', 'delivery', id, `#${id} · ${r.job.receipt_method}`);
+    // التسليم هو اللحظة اللي الضمان بيبدأ منها — نفس قاعدة زرار الحالة.
+    if (r.job.sale_id) {
+      const started = await require('../furniture/warranty')
+        .startForSale(pool, req.company.id, r.job.sale_id, null);
+      if (started) req.flog('warranty.start', 'warranty', r.job.sale_id, `#${r.job.sale_id} · ${started}`);
+    }
+  } catch (e) {
+    console.error('[furniture delivery receipt]', e.message);
+    return res.redirect(`/furniture/delivery?view=${view}&err=save`);
+  }
+  res.redirect('/furniture/delivery?view=' + view + '&saved=1');
 });
 
 router.post('/:id(\\d+)/move', async (req, res) => {

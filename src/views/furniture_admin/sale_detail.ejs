@@ -124,6 +124,29 @@
   </div>
 </div>
 
+<%# ── لينك متابعة الطلب ─────────────────────────────────────────────────
+    مابيتولدش لوحده: التاجر هو اللي بيقرّر يدّي العميل لينك. وبمجرد ما
+    يتعمل بيفضل هو هو، فاللينك اللي راح على الواتس مايبطّلش يشتغل. %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-5 no-print">
+  <h2 class="font-bold text-stone-800 mb-2"><%= t('fn2.tk.title') %></h2>
+  <% if (!trackUrl) { %>
+    <p class="text-sm text-stone-500 mb-3"><%= t('fn2.tk.hint') %></p>
+    <form method="post" action="/furniture/sales/<%= sale.id %>/track">
+      <button class="text-xs font-bold px-3 py-1.5 rounded-xl bg-stone-800 text-white"><%= t('fn2.tk.make') %></button>
+    </form>
+  <% } else { %>
+    <input value="<%= trackUrl %>" readonly dir="ltr" onclick="this.select()"
+           class="w-full border border-stone-200 rounded-xl px-3 py-2 text-xs bg-stone-50" />
+    <%# واتساب بضغطة من التاجر — مفيش إرسال تلقائي، والجملة بتقول كده. %>
+    <% if (sale.customer_phone) { %>
+      <a href="https://wa.me/<%= String(sale.customer_phone).replace(/[^0-9]/g, '') %>?text=<%= encodeURIComponent(t('fn2.tk.wa_text') + ' ' + trackUrl) %>"
+         target="_blank" rel="noopener"
+         class="inline-block mt-2 text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700"><%= t('fn2.tk.wa') %></a>
+    <% } %>
+    <p class="text-[11px] text-stone-400 mt-2"><%= t('fn2.tk.note') %></p>
+  <% } %>
+</div>
+
 <% if (deliveries && deliveries.length) { %>
 <div class="bg-white rounded-2xl shadow-sm p-5 mt-5">
   <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.flag.delivery') %></h2>
