@@ -7,10 +7,29 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const uploads = require('../lib/uploads');
+const { compressImage } = require('../lib/media');
 const { ENTITIES, ENTITY_KEYS, coerce, firstMissing, referenceCount } = require('../furniture/master');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Product photos land in the same public/uploads sandbox as every other image
+// in the app, through the same guard.
+const uploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const imageMimeRegex = /^image\/(png|jpe?g|gif|webp)$/;
+const uploadProductImage = uploads.guard(multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, `fnprod-${req.company.id}-${Date.now()}${uploads.extname(file, '.bin')}`),
+  }),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => (imageMimeRegex.test(file.mimetype) ? cb(null, true) : cb(new Error('image only'))),
+}).single('image_file'), 'image');
 
 // Resolve :entity once. An unknown name is a wrong URL, not an error page.
 router.param('entity', (req, res, next, value) => {
@@ -53,7 +72,7 @@ router.get('/:entity', async (req, res) => {
     res.render('furniture_admin/master', {
       company: req.company, tab: 'master',
       entity: req.entity, spec: req.spec, rows, edit, q, showArchived, counts,
-      err: ['required', 'in_use', 'save'].includes(req.query.err) ? req.query.err : null,
+      err: ['required', 'in_use', 'save', 'image'].includes(req.query.err) ? req.query.err : null,
       saved: req.query.saved === '1',
     });
   } catch (e) { console.error('[furniture master]', e.message); res.status(500).send('error'); }
@@ -93,6 +112,51 @@ router.post('/:entity', async (req, res) => {
       `${req.entity} · ${values.name || ''}`);
   } catch (e) {
     console.error('[furniture master save]', e.message);
+    return res.redirect(back(req.entity, '?err=save'));
+  }
+  res.redirect(back(req.entity, '?saved=1'));
+});
+
+// ── Product photo (backlog 87) ───────────────────────────────────────────────
+//
+// Only entities that declare `image` accept one, so this cannot be pointed at
+// a table that has no such column by changing the URL.
+router.post('/:entity/:id/image', (req, res, next) => {
+  if (!req.spec.image) return res.redirect(back(req.entity));
+  uploadProductImage(req, res, (err) => {
+    if (err) { console.error('[furniture product image]', err.message); return res.redirect(back(req.entity, '?err=image')); }
+    next();
+  });
+}, async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  if (!req.file) return res.redirect(back(req.entity, '?err=image'));
+  let url = '/uploads/' + req.file.filename;
+  try { await compressImage(req.file.path); } catch (e) { /* keep the original */ }
+  try {
+    const done = await pool.query(
+      `UPDATE ${req.spec.table} SET image_path=$1 WHERE id=$2 AND company_id=$3 RETURNING id`,
+      [url, id, cid]);
+    // A file saved against a row that is not this workshop's is a file nobody
+    // asked for: say the save did not happen rather than reporting success.
+    if (!done.rows.length) return res.redirect(back(req.entity, '?err=save'));
+    req.flog('master.image', 'master', id, req.entity);
+  } catch (e) {
+    console.error('[furniture product image save]', e.message);
+    return res.redirect(back(req.entity, '?err=save'));
+  }
+  res.redirect(back(req.entity, '?saved=1'));
+});
+
+router.post('/:entity/:id/image/delete', async (req, res) => {
+  if (!req.spec.image) return res.redirect(back(req.entity));
+  try {
+    await pool.query(
+      `UPDATE ${req.spec.table} SET image_path=NULL WHERE id=$1 AND company_id=$2`,
+      [parseInt(req.params.id, 10), req.company.id]);
+  } catch (e) {
+    // «اتحفظ» never appears over a write that did not happen.
+    console.error('[furniture product image del]', e.message);
     return res.redirect(back(req.entity, '?err=save'));
   }
   res.redirect(back(req.entity, '?saved=1'));

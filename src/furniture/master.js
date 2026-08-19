@@ -67,6 +67,12 @@ const ENTITIES = {
 
   products: {
     table: 'furniture_products', icon: '🛋️', order: 'name',
+    // The public catalogue reads furniture_products.image_path and nothing
+    // ever wrote it, so every piece in every showroom rendered as the same
+    // chair icon. This flag is what turns the generic master screen into one
+    // that can carry a photo — declared, rather than special-cased inside
+    // the loop that draws all five entities.
+    image: true,
     refs: [['furniture_sale_items', 'product_id'], ['furniture_product_components', 'product_id']],
     fields: [
       { key: 'name',           type: 'text', max: 120, required: true },
