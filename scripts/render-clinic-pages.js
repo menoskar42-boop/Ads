@@ -330,7 +330,9 @@ const FIXTURES = {
 
   furniture_sales: (lang) => {
     const fl = require('../src/furniture/flags');
-    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    // التصنيع مفتوح في الحالة دي عشان بلوك «أوامر تصنيع مع الفاتورة» يتعرض —
+    // الجزء اللي ورا علم قسم مقفول مابيتفحصش لو ماحدش فتحه في الاختبار.
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'production']);
     return {
       __file: 'furniture_admin/sales.ejs', tab: 'sales',
       sales: [

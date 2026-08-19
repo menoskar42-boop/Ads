@@ -7,6 +7,7 @@ const { ref } = require('../lib/tenant_scope');
 const S = require('../furniture/sales');
 const V = require('../furniture/variants');
 const T = require('../furniture/tracking');
+const P = require('../furniture/production');
 const B = require('../furniture/branches');
 
 const router = express.Router();
@@ -16,7 +17,8 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 
 // Codes the server knows. The page never prints the address bar's own words.
-const SALE_ERRORS = ['no_lines', 'save', 'deposit', 'pay', 'has_paid', 'bad_line'];
+const SALE_ERRORS = ['no_lines', 'save', 'deposit', 'pay', 'has_paid', 'bad_line',
+  'customer', 'delivery', 'production'];
 
 async function taxPercentOf(cid) {
   const r = await pool.query('SELECT tax_percent FROM furniture_settings WHERE company_id=$1', [cid]);
@@ -105,6 +107,34 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // ── العميل من نفس الشاشة (البند ٨٦) ────────────────────────────────────
+    //
+    // البيعة في المعرض كانت أربع شاشات: عميل جديد، فاتورة، ميعاد تسليم، وأمر
+    // تصنيع. اللي هنا بيخلّيها شاشة واحدة — **وفي معاملة واحدة**، لأن
+    // «الفاتورة اتحفظت والميعاد لأ» هي بالظبط الحالة اللي البند ده موجود
+    // عشانها.
+    let customerId = parseInt(b.customer_id, 10) || null;
+    const newName = String(b.new_customer_name || '').trim().slice(0, 120);
+    if (!customerId && newName) {
+      const phone = String(b.new_customer_phone || '').trim().slice(0, 30) || null;
+      // نفس الموبايل في نفس المعرض = نفس العميل. من غير الخطوة دي كل بيعة
+      // بتعمل كارت جديد، وكشف حساب العميل بيتقسّم على تلات نسخ منه.
+      // (مفيش فهرس فريد على الموبايل عشان الداتا القديمة، فده تقليل للتكرار
+      //  مش منع مطلق — والتزاحم النادر أقصاه كارت زيادة، مش فلوس ضايعة.)
+      const found = phone ? (await client.query(
+        'SELECT id FROM furniture_customers WHERE company_id=$1 AND phone=$2 ORDER BY id LIMIT 1',
+        [cid, phone])).rows[0] : null;
+      if (found) customerId = found.id;
+      else {
+        const made = await client.query(
+          `INSERT INTO furniture_customers (company_id, name, phone, address)
+           VALUES ($1,$2,$3,$4) RETURNING id`,
+          [cid, newName, phone, String(b.new_customer_address || '').trim().slice(0, 200) || null]);
+        customerId = made.rows[0].id;
+      }
+    }
+
     const t = S.invoiceTotals(lines, await taxPercentOf(cid));
     const sale = (await client.query(
       // customer_id is a number from the form. Scoped in the statement so an
@@ -112,7 +142,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO furniture_sales
          (company_id, customer_id, sale_date, subtotal, tax, total, paid, status, note, branch_id)
        VALUES ($1,${ref('furniture_customers', '$2', '$1')},COALESCE($3, CURRENT_DATE),$4,$5,$6,0,'open',$7,$8) RETURNING id`,
-      [cid, parseInt(b.customer_id, 10) || null, date(b.sale_date),
+      [cid, customerId, date(b.sale_date),
         t.subtotal, t.tax, t.total, String(b.note || '').trim().slice(0, 300) || null,
         // Stamped from the active filter when the form does not say: raising an
         // invoice while looking at one branch means it belongs to that branch.
@@ -135,12 +165,13 @@ router.post('/', async (req, res) => {
           l.qty, l.unit_price, S.round2(l.qty * l.unit_price)]
       );
       if (!done.rows.length) { const e = new Error('line product not found'); e.furnitureCode = 'bad_line'; throw e; }
+      l.item_id = done.rows[0].id;
     }
     // In the same transaction as the invoice: a guarantee that exists without
     // the sale that granted it, or a sale whose guarantee silently failed to
     // record, are both worse than the write failing outright.
     await require('../furniture/warranty')
-      .createForSale(client, cid, sale.id, parseInt(b.customer_id, 10) || null, lines);
+      .createForSale(client, cid, sale.id, customerId, lines);
 
     // The deposit goes through the same path as any other payment — one way for
     // money to enter, not two — but on THIS transaction. Written afterwards on
@@ -151,7 +182,7 @@ router.post('/', async (req, res) => {
     if (deposit > 0) {
       try {
         await S.recordPayment(client, cid, {
-          saleId: sale.id, customerId: parseInt(b.customer_id, 10) || null,
+          saleId: sale.id, customerId,
           amount: deposit, payDate: date(b.sale_date), method: b.deposit_method,
         });
       } catch (e) {
@@ -161,6 +192,34 @@ router.post('/', async (req, res) => {
         e.furnitureCode = 'deposit';
         throw e;
       }
+    }
+
+    // ── ميعاد التسليم وأوامر التصنيع من نفس الشاشة ─────────────────────────
+    //
+    // الاتنين ورا أعلام الأقسام: المعرض اللي قافل التسليم مايتكتبلوش رحلة،
+    // واللي مابيصنّعش مايتفتحلوش أوامر. الميزة اختيارية زي أي ميزة تاجر.
+    const flags = req.flags || new Set();
+    if (b.book_delivery === '1' && flags.has('delivery')) {
+      try {
+        const job = await require('../furniture/delivery').schedule(client, cid, {
+          saleId: sale.id, customerId, kind: b.delivery_kind,
+          scheduledDate: date(b.delivery_date), slot: b.delivery_slot, fee: b.delivery_fee,
+          branch: req.branch, branchId: b.branch_id, branches: req.branches || [],
+        });
+        req.flog('delivery.book', 'delivery', job.id, `#${job.id} · ${t.total}`);
+      } catch (e) { e.furnitureCode = 'delivery'; throw e; }
+    }
+    if (b.make_production === '1' && flags.has('production')) {
+      try {
+        for (const l of lines) {
+          await P.createOrder(client, cid, {
+            productId: l.product_id, variantId: l.variant_id, variantName: l.variant_name,
+            saleId: sale.id, saleItemId: l.item_id, qty: l.qty,
+            dueDate: date(b.delivery_date),
+            branchId: B.idToStamp(req.branch, b.branch_id, req.branches || []),
+          });
+        }
+      } catch (e) { e.furnitureCode = 'production'; throw e; }
     }
 
     await client.query('COMMIT');
