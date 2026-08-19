@@ -148,6 +148,34 @@ async function ensureFoodSchema() {
       CREATE INDEX IF NOT EXISTS idx_food_option_values ON food_item_option_values (option_id);
       ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+      /* الطاولات ونقطة البيع (backlog 82).
+       *
+       * A table has NO status column, on purpose. Every floor system that
+       * stores one ends up with tables stuck on "occupied" after a failed
+       * update or a restart, and a floor that stops trusting the screen. A
+       * table is busy when it has an unfinished dine-in order on it — see
+       * src/food/tables.js.
+       *
+       * The source column says where the order came from. An order rung up at the till
+       * is not an online order: it needs no address, no tracking link, and it
+       * should not look like a delivery in the reports.
+       */
+      CREATE TABLE IF NOT EXISTS food_tables (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        outlet_id  INTEGER REFERENCES food_outlets(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        seats      INTEGER NOT NULL DEFAULT 0,
+        area       TEXT,
+        is_active  BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_food_tables ON food_tables (company_id, is_active);
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS table_id INTEGER REFERENCES food_tables(id) ON DELETE SET NULL;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS source   TEXT NOT NULL DEFAULT 'online';
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS taken_by TEXT;
+      CREATE INDEX IF NOT EXISTS idx_food_orders_table ON food_orders (table_id, status);
+
       CREATE TABLE IF NOT EXISTS food_order_events (
         id SERIAL PRIMARY KEY,
         order_id INTEGER REFERENCES food_orders(id) ON DELETE CASCADE,

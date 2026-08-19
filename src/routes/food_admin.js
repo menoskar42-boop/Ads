@@ -6,6 +6,8 @@ const router = express.Router();
 const { Pool } = require('pg');
 const flow = require('../lib/order_flow');
 const foodPerms = require('../food/perms');
+const foodOptions = require('../food/options');
+const foodTables = require('../food/tables');
 const bcrypt = require('bcryptjs');
 const requireLogin = require('../middleware/auth');
 const staffScope = require('../lib/staff_scope');
@@ -244,6 +246,230 @@ router.post('/item/:id/update', withImage, async (req, res) => {
      image, toInt(req.params.id, null), req.company.id]
   );
   res.redirect('/food/menu?saved=1');
+});
+
+/* ─── الطاولات ونقطة البيع (backlog 82) ─────────────────────
+ *
+ * The floor and the till. Two rules carry both:
+ *
+ *  · A table has no stored status — see src/food/tables.js. It is busy when it
+ *    has an unfinished dine-in order on it, computed each time.
+ *  · The till prices an order with the SAME function the storefront uses
+ *    (src/food/options.js). A second pricing path is a second set of prices,
+ *    and the one nobody is looking at is always the wrong one.
+ */
+
+router.get('/tables', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const [tables, orders, outlets] = await Promise.all([
+      pool.query('SELECT * FROM food_tables WHERE company_id=$1 AND is_active=true ORDER BY id', [cid]),
+      pool.query(
+        `SELECT id, table_id, status, customer_name, total, created_at
+           FROM food_orders WHERE company_id=$1 AND table_id IS NOT NULL
+            AND status = ANY($2) ORDER BY created_at`, [cid, foodTables.OPEN_STATUSES]),
+      pool.query('SELECT id, name, name_ar FROM food_outlets WHERE company_id=$1 ORDER BY id', [cid]),
+    ]);
+    const floor = foodTables.floor(tables.rows, orders.rows);
+    res.render('food_admin/tables', {
+      company: req.company, session: req.session,
+      floor, summary: foodTables.summary(floor), outlets: outlets.rows,
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[food tables]', e.message);
+    res.redirect('/food/menu');
+  }
+});
+
+router.post('/tables/add', async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 40);
+  if (!name) return res.redirect('/food/tables?err=name');
+  try {
+    await pool.query(
+      `INSERT INTO food_tables (company_id, outlet_id, name, seats, area)
+       SELECT $1, o.id, $3, $4, $5 FROM food_outlets o WHERE o.id = $2 AND o.company_id = $1`,
+      [req.company.id, toInt(b.outlet_id, 0), name, foodTables.seatsOf(b.seats), String(b.area || '').trim().slice(0, 60) || null]
+    );
+  } catch (e) {
+    console.error('[food table add]', e.message);
+    return res.redirect('/food/tables?err=save');
+  }
+  res.redirect('/food/tables?saved=1');
+});
+
+// Archived, not deleted: orders already stamped with this table still name it.
+router.post('/tables/:id/remove', async (req, res) => {
+  try {
+    await pool.query('UPDATE food_tables SET is_active=false WHERE id=$1 AND company_id=$2',
+      [toInt(req.params.id, 0), req.company.id]);
+  } catch (e) { console.error('[food table remove]', e.message); }
+  res.redirect('/food/tables?saved=1');
+});
+
+/**
+ * The till.
+ *
+ * One screen: pick how the order is being taken, pick the table if it is
+ * eating in, add items, send it to the kitchen. It is the same order table the
+ * storefront writes to — the kitchen screen, the statuses and the reports all
+ * work on it already — with `source='pos'` so nothing mistakes it for a
+ * delivery that needs an address and a tracking link.
+ */
+router.get('/pos', async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const outlets = (await pool.query(
+      'SELECT * FROM food_outlets WHERE company_id=$1 AND is_active=true ORDER BY id', [cid]
+    )).rows;
+    for (const o of outlets) {
+      o.items = (await pool.query(
+        'SELECT id, name, name_ar, price FROM food_items WHERE outlet_id=$1 AND is_available=true ORDER BY sort_order, id', [o.id]
+      )).rows;
+      if (o.items.length) {
+        const opts = (await pool.query(
+          `SELECT op.id AS option_id, op.item_id, op.name AS group_name, op.required, op.min_select, op.max_select,
+                  v.id AS value_id, v.name AS value_name, v.price_delta
+             FROM food_item_options op
+             LEFT JOIN food_item_option_values v ON v.option_id = op.id
+            WHERE op.item_id = ANY($1)
+            ORDER BY op.sort_order, op.id, v.sort_order, v.id`,
+          [o.items.map((i) => i.id)]
+        )).rows;
+        const byItem = {};
+        for (const r of opts) {
+          const list = (byItem[r.item_id] = byItem[r.item_id] || []);
+          let g = list.find((x) => x.id === r.option_id);
+          if (!g) {
+            g = { id: r.option_id, name: r.group_name, required: r.required === true, min: r.min_select, max: r.max_select, values: [] };
+            list.push(g);
+          }
+          if (r.value_id) g.values.push({ id: r.value_id, name: r.value_name, delta: Number(r.price_delta) || 0 });
+        }
+        for (const it of o.items) it.options = byItem[it.id] || [];
+      }
+    }
+    const tables = (await pool.query(
+      'SELECT * FROM food_tables WHERE company_id=$1 AND is_active=true ORDER BY id', [cid]
+    )).rows;
+    const openOrders = (await pool.query(
+      `SELECT id, table_id, status, created_at FROM food_orders
+        WHERE company_id=$1 AND table_id IS NOT NULL AND status = ANY($2)`, [cid, foodTables.OPEN_STATUSES]
+    )).rows;
+    res.render('food_admin/pos', {
+      company: req.company, session: req.session, outlets,
+      floor: foodTables.floor(tables, openOrders),
+      saved: req.query.saved === '1', err: req.query.err || null,
+      newOrderId: toInt(req.query.order, 0) || null,
+    });
+  } catch (e) {
+    console.error('[food pos]', e.message);
+    res.redirect('/food/orders');
+  }
+});
+
+router.post('/pos/create', async (req, res) => {
+  const cid = req.company.id;
+  const b = req.body || {};
+  let cart = [];
+  try { cart = JSON.parse(b.cart || '[]'); } catch (e) { cart = []; }
+  cart = foodOptions.normalizeCart(cart);
+  const orderType = foodOptions.typeOf(b.order_type);
+  const tableId = toInt(b.table_id, 0);
+  if (!cart.length) return res.redirect('/food/pos?err=empty');
+  if (foodOptions.needsTable(orderType) && !tableId) return res.redirect('/food/pos?err=table');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const ids = cart.map((c) => c.id);
+    const rows = (await client.query(
+      `SELECT fi.id, fi.name, fi.name_ar, fi.price, fi.outlet_id, fo.delivery_fee
+         FROM food_items fi JOIN food_outlets fo ON fo.id = fi.outlet_id
+        WHERE fi.id = ANY($1) AND fo.company_id = $2 AND fi.is_available = true AND fo.is_active = true`,
+      [ids, cid]
+    )).rows;
+    const byId = {}; rows.forEach((r) => { byId[r.id] = r; });
+
+    const optRows = (await client.query(
+      `SELECT op.id AS option_id, op.item_id, op.name AS group_name, op.required, op.min_select, op.max_select,
+              v.id AS value_id, v.name AS value_name, v.price_delta
+         FROM food_item_options op
+         LEFT JOIN food_item_option_values v ON v.option_id = op.id
+        WHERE op.item_id = ANY($1)
+        ORDER BY op.sort_order, op.id, v.sort_order, v.id`, [ids]
+    )).rows;
+    const groupsByItem = {};
+    for (const r of optRows) {
+      const list = (groupsByItem[r.item_id] = groupsByItem[r.item_id] || []);
+      let g = list.find((x) => x.id === r.option_id);
+      if (!g) {
+        g = { id: r.option_id, name: r.group_name, required: r.required === true,
+          min_select: r.min_select, max_select: r.max_select, values: [] };
+        list.push(g);
+      }
+      if (r.value_id) g.values.push({ id: r.value_id, name: r.value_name, price_delta: r.price_delta });
+    }
+
+    let subtotal = 0; const lineItems = []; let outletId = null; let bad = null;
+    for (const it of cart) {
+      const r = byId[it.id]; if (!r) continue;
+      // The same pricing function the storefront uses. Not a copy of it.
+      const priced = foodOptions.priceLine(r, groupsByItem[r.id] || [], it.opts);
+      if (!priced.ok) { bad = priced.why; break; }
+      subtotal += priced.price * it.q;
+      outletId = outletId || r.outlet_id;
+      lineItems.push({ id: r.id, name: (r.name_ar || r.name), qty: it.q, price: priced.price, options: priced.chosen });
+    }
+    if (bad || !lineItems.length) {
+      await client.query('ROLLBACK');
+      return res.redirect('/food/pos?err=' + (bad ? 'option' : 'empty'));
+    }
+
+    // A table has to be this restaurant's, and the check is in the statement
+    // that reads it rather than a promise made earlier.
+    let tableName = null;
+    if (tableId) {
+      const tb = (await client.query(
+        'SELECT * FROM food_tables WHERE id=$1 AND company_id=$2 AND is_active=true', [tableId, cid]
+      )).rows[0];
+      if (!tb) { await client.query('ROLLBACK'); return res.redirect('/food/pos?err=table'); }
+      tableName = foodTables.labelOf(tb);
+    }
+
+    const fee = foodOptions.feeFor(orderType, 0);
+    const total = Math.max(0, subtotal + fee);
+    const ord = (await client.query(
+      `INSERT INTO food_orders
+         (company_id, outlet_id, customer_name, status, total, delivery_fee, phone, notes,
+          order_type, table_id, table_no, source, taken_by)
+       VALUES ($1,$2,$3,'preparing',$4,$5,$6,$7,$8,$9,$10,'pos',$11) RETURNING id`,
+      [cid, outletId, String(b.customer_name || '').trim().slice(0, 100) || 'كاشير',
+        total, fee, String(b.phone || '').trim().slice(0, 30) || null,
+        String(b.notes || '').trim().slice(0, 500) || null,
+        orderType, tableId || null, tableName,
+        req.session.staffName || 'المالك']
+    )).rows[0];
+    for (const li of lineItems) {
+      await client.query(
+        `INSERT INTO food_order_items (order_id, item_id, name_snapshot, quantity, price, options)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+        [ord.id, li.id, li.name, li.qty, li.price, JSON.stringify(li.options || [])]
+      );
+    }
+    await client.query(
+      `INSERT INTO food_order_events (order_id, status, note, actor) VALUES ($1,'preparing','pos',$2)`,
+      [ord.id, req.session.staffName || 'المالك']);
+    await client.query('COMMIT');
+    res.redirect('/food/pos?saved=1&order=' + ord.id);
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[food pos create]', e.message);
+    res.redirect('/food/pos?err=save');
+  } finally {
+    client.release();
+  }
 });
 
 /* ─── الإضافات والاختيارات (backlog 82) ─────────────────────

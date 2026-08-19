@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.tbl.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; width:100%; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'tables' }) %>
+
+<main class="max-w-4xl mx-auto px-4 py-6 space-y-5">
+  <div>
+    <h1 class="text-xl font-extrabold mb-1"><%= t('food.tbl.title') %></h1>
+    <p class="text-sm text-gray-500 leading-relaxed"><%= t('food.tbl.sub') %></p>
+  </div>
+
+  <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm"><%= t('food.tbl.saved') %></div><% } %>
+  <% if (err) { %><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm"><%= t('food.tbl.err.' + err) %></div><% } %>
+
+  <div class="flex items-center gap-2 flex-wrap text-xs">
+    <span class="bg-white border border-gray-200 rounded-full px-3 py-1 font-bold"><%= t('food.tbl.total') %>: <%= summary.total %></span>
+    <span class="bg-emerald-50 text-emerald-700 rounded-full px-3 py-1 font-bold"><%= t('food.tbl.free') %>: <%= summary.free %></span>
+    <span class="bg-orange-50 text-orange-700 rounded-full px-3 py-1 font-bold"><%= t('food.tbl.busy') %>: <%= summary.busy %></span>
+  </div>
+
+  <% if (!floor.length) { %>
+    <div class="bg-white border border-gray-100 rounded-2xl p-8 text-center text-gray-400 text-sm"><%= t('food.tbl.none') %></div>
+  <% } else { %>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <% floor.forEach(function (tb) { %>
+        <div class="rounded-2xl border p-4 <%= tb.state === 'busy' ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-100' %>">
+          <div class="flex items-start justify-between gap-2">
+            <div class="font-extrabold text-lg"><%= tb.name %></div>
+            <form method="post" action="/food/tables/<%= tb.id %>/remove">
+              <button data-confirm="<%= t('common.tap_confirm') %>" class="text-xs text-gray-300 hover:text-red-600">✕</button>
+            </form>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            <%= tb.seats ? tb.seats + ' ' + t('food.tbl.seats') : '' %><%= tb.area ? ' · ' + tb.area : '' %>
+          </div>
+          <div class="mt-2 text-xs font-bold <%= tb.state === 'busy' ? 'text-orange-700' : 'text-emerald-700' %>">
+            <%= t('food.tbl.state.' + tb.state) %>
+            <% if (tb.state === 'busy' && tb.order) { %>
+              · #<%= tb.order.id %>
+            <% } %>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-3"><%= t('food.tbl.add') %></h2>
+    <form method="post" action="/food/tables/add" class="grid sm:grid-cols-5 gap-2 items-end">
+      <label><span class="lbl"><%= t('food.tbl.name') %></span><input name="name" maxlength="40" class="fld" required /></label>
+      <label><span class="lbl"><%= t('food.tbl.seats') %></span><input name="seats" type="number" min="0" max="50" value="0" class="fld" /></label>
+      <label><span class="lbl"><%= t('food.tbl.area') %></span><input name="area" maxlength="60" class="fld" /></label>
+      <label><span class="lbl"><%= t('food.tbl.outlet') %></span>
+        <select name="outlet_id" class="fld">
+          <% outlets.forEach(function (o) { %><option value="<%= o.id %>"><%= o.name_ar || o.name %></option><% }); %>
+        </select></label>
+      <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-4 py-2 text-sm"><%= t('pharmacy.admin.add') %></button>
+    </form>
+  </section>
+</main>
+</body></html>

@@ -15,6 +15,8 @@
           the menu is what they touch once a month. They used to be the other
           way round. %>
       <% if (__p.orders) { %><a href="/food/orders" class="px-3 py-1.5 rounded-lg <%= __active==='orders'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.admin_orders') %></a><% } %>
+      <% if (__p.orders) { %><a href="/food/pos" class="px-3 py-1.5 rounded-lg <%= __active==='pos'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🧾 <%= t('food.pos.nav') %></a><% } %>
+      <% if (__p.menu) { %><a href="/food/tables" class="px-3 py-1.5 rounded-lg <%= __active==='tables'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🪑 <%= t('food.tbl.nav') %></a><% } %>
       <% if (__p.kitchen) { %><a href="/food/kds" class="px-3 py-1.5 rounded-lg <%= __active==='kds'?'bg-white/25 font-bold':'hover:bg-white/15' %>">🍳 <%= t('food.kds.nav') %></a><% } %>
       <% if (__p.menu) { %><a href="/food/menu" class="px-3 py-1.5 rounded-lg <%= __active==='menu'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('food.admin.menu_title') %></a><% } %>
       <% if (__p.marketing) { %><a href="/food/coupons" class="px-3 py-1.5 rounded-lg <%= __active==='coupons'?'bg-white/25 font-bold':'hover:bg-white/15' %>"><%= t('orders.coupons') %></a>
