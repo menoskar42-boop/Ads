@@ -10,6 +10,7 @@ const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const demoMode = require('../lib/demo_mode');
 const shopPerms = require('../shop/perms');
+const shopSetup = require('../shop/setup');
 const orderReversal = require('../lib/order_reversal');
 const money = require('../lib/money');
 const codes = require('../lib/codes');
@@ -559,6 +560,14 @@ router.get('/dashboard', requireLogin, async (req, res) => {
       console.error('[dashboard] referral count failed:', e.message);
     }
 
+    // The setup banner: only a shop has the five steps, and only while at least
+    // one of them is still open. Same computed review as `/company/setup`, so
+    // the two can never disagree.
+    let setup = null;
+    if (company.page_type === 'shop') {
+      setup = shopSetup.review(await setupFacts(company.id, company, res.locals.payReady));
+    }
+
     res.render('company/dashboard', {
       company,
       portfolioCount: parseInt(portfolioCount.rows[0].count),
@@ -567,6 +576,7 @@ router.get('/dashboard', requireLogin, async (req, res) => {
       qrDataUrl,
       referralUrl,
       referralCount,
+      setup,
     });
   } catch (err) {
     console.error(err);
@@ -1026,6 +1036,69 @@ router.post('/categories/:id/delete', requireLogin, requireShop, async (req, res
 });
 
 /* ─── PRODUCTS (shop only) ───────────────────────────────── */
+// ── معالج الإعداد: خمس خطوات، محسوبة مش محفوظة ───────────────────────────────
+//
+// Read the shop's real data and hand it to `src/shop/setup.js`, which owns the
+// judgement. Nothing about "which step is finished" is stored anywhere, so the
+// answer cannot go stale when the merchant deletes the product or clears the
+// payment method that made a step green.
+//
+// Every fact that fails to read comes back as NULL, never as zero. Zero means
+// "you have no products"; null means "I could not tell", and the two are
+// painted differently on purpose.
+async function setupFacts(companyId, company, payReady) {
+  let counts = null;
+  try {
+    const r = await pool.query(
+      `SELECT (SELECT COUNT(*)::int FROM products
+                WHERE company_id = $1 AND is_active = true) AS products,
+              (SELECT COUNT(*)::int FROM products
+                WHERE company_id = $1 AND is_active = true
+                  AND image_url IS NOT NULL AND image_url <> '') AS with_image,
+              (SELECT COUNT(*)::int FROM shipping_zones
+                WHERE company_id = $1 AND is_active = true) AS zones`,
+      [companyId]
+    );
+    counts = r.rows[0] || null;
+  } catch (e) {
+    console.error('[setup] counts failed:', e.message);
+  }
+  return {
+    name: company ? company.company_name : null,
+    logo: company ? company.logo_url : null,
+    description: company ? company.description : null,
+    products: counts ? counts.products : null,
+    productsWithImage: counts ? counts.with_image : null,
+    zones: counts ? counts.zones : null,
+    // `payReady` already came from the one middleware that answers this for the
+    // whole app — asking the database again here would be a second answer to a
+    // question that already has one.
+    payReady: (payReady === undefined ? null : payReady),
+  };
+}
+
+router.get('/setup', requireLogin, requireShop, async (req, res) => {
+  try {
+    const company = (await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId])).rows[0];
+    if (!company) return res.redirect('/company/dashboard');
+    const facts = await setupFacts(company.id, company, res.locals.payReady);
+    let publicUrl = canonicalCompanyUrl(company.slug, req);
+    if (publicUrl.startsWith('/')) {
+      publicUrl = (process.env.SITE_ORIGIN || 'https://oscardevs.com') + publicUrl;
+    }
+    res.render('company/setup', {
+      company,
+      session: req.session,
+      setup: shopSetup.review(facts),
+      facts,
+      publicUrl,
+    });
+  } catch (err) {
+    console.error('[GET /setup] error:', err);
+    res.redirect('/company/dashboard');
+  }
+});
+
 router.get('/products', requireLogin, requireShop, async (req, res) => {
   try {
     const result = await pool.query(

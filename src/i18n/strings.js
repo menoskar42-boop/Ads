@@ -2218,6 +2218,23 @@ const strings = {
     'tb.total':'الإجمالي','tb.collected':'المحصّل','tb.next_due':'القسط الجاي',
     'tb.last_visit':'آخر زيارة','tb.vaccine':'التطعيم','tb.due':'الميعاد',
     'tb.patient':'المريض','tb.status':'الحالة','tb.day':'اليوم',
+    // ── معالج إعداد المتجر (٥ خطوات) ──────────────────────────────────────
+    'setup.nav':'إعداد المتجر','setup.title':'خلّص متجرك في ٥ خطوات','setup.sub':'كل خطوة بتتحسب من بيانات متجرك نفسها — مش محفوظة، فما تقدرش تقول «تمّت» على حاجة اتمسحت.',
+    'setup.steps_done':'خطوات خلصت','setup.all_done':'الخمس خطوات خلصوا. متجرك جاهز يستقبل طلبات.',
+    'setup.banner_title':'خلّص إعداد متجرك','setup.banner_sub':'الخطوات اللي لسه ناقصة بتمنع الطلبات.','setup.cta':'كمّل الإعداد','setup.go':'روح للخطوة',
+    'setup.st.done':'تمّت','setup.st.note':'تمّت — مع ملاحظة','setup.st.todo':'ناقصة','setup.st.unknown':'مش قادر أتأكد',
+    'setup.w.read':'ما قدرتش أقرا البيانات دلوقتي، فمش هقول لك تمّت ولا ناقصة. حدّث الصفحة.',
+    'setup.s.identity':'اسم المتجر والشعار','setup.d.identity':'الاسم اللي هيشوفه الزبون، والشعار اللي هيفضل قدامه.',
+    'setup.w.identity.name':'لسه مافيش اسم للمتجر.','setup.w.identity.logo':'الاسم موجود والشعار لسه فاضي — المتجر شغّال من غيره، بس بيبان أقل احترافية.','setup.w.identity.ok':'الاسم والشعار موجودين.',
+    'setup.s.product':'أول منتج','setup.d.product':'المتجر من غير منتج بيتفتح وما يبيعش حاجة.',
+    'setup.w.product.none':'لسه مافيش أي منتج معروض.','setup.w.product.image':'في منتجات، بس ولا واحد فيهم عليه صورة.','setup.w.product.ok':'في منتجات معروضة وعليها صور.',
+    'setup.s.shipping':'الشحن','setup.d.shipping':'مناطق التوصيل وتكلفة كل واحدة.',
+    'setup.w.shipping.free':'مافيش مناطق شحن متسجّلة — يعني كل طلب هيتحسب شحنه صفر في كل المحافظات. لو ده مقصود، تمام.','setup.w.shipping.ok':'مناطق الشحن وتكلفتها متسجّلة.',
+    'setup.s.payment':'استلام الفلوس','setup.d.payment':'طريقة واحدة على الأقل يدفع بيها العميل.',
+    'setup.w.payment.none':'مافيش ولا طريقة دفع — لا بوابة ولا محفظة ولا دفع عند الاستلام. الطلب هيوصلك من غير ما توصل الفلوس.','setup.w.payment.ok':'في طريقة واحدة على الأقل لاستلام الفلوس.',
+    'setup.s.launch':'افتح للناس','setup.d.launch':'مفيش زرار «نشر» — المتجر ظاهر من أول ما اتعمل. الخطوة دي بتقول لك هو جاهز يستقبل طلب ولا لأ.',
+    'setup.w.launch.live':'متجرك مفتوح دلوقتي على الرابط ده، وأي حد يقدر يطلب منه.','setup.w.launch.blocked':'الرابط شغّال بالفعل، بس اللي هيدخل مش هيقدر يكمّل طلب. كمّل دول الأول:','setup.w.launch.read':'الرابط شغّال، وما قدرتش أتأكد من الخطوات دي.',
+    'setup.open':'افتح المتجر','setup.link':'رابط متجرك',
   },
 
   en: {
@@ -4415,6 +4432,23 @@ const strings = {
     'tb.total':'Total','tb.collected':'Collected','tb.next_due':'Next due',
     'tb.last_visit':'Last visit','tb.vaccine':'Vaccine','tb.due':'Due',
     'tb.patient':'Patient','tb.status':'Status','tb.day':'Day',
+    // ── Shop setup wizard (5 steps) ───────────────────────────────────────
+    'setup.nav':'Store setup','setup.title':'Finish your store in 5 steps','setup.sub':'Every step is computed from your store\u2019s own data \u2014 nothing is remembered, so a step cannot stay green over something you deleted.',
+    'setup.steps_done':'steps done','setup.all_done':'All five steps are done. Your store can take orders.',
+    'setup.banner_title':'Finish setting up your store','setup.banner_sub':'The steps still missing are what stop the orders.','setup.cta':'Continue setup','setup.go':'Go to step',
+    'setup.st.done':'Done','setup.st.note':'Done \u2014 with a note','setup.st.todo':'Missing','setup.st.unknown':'Could not check',
+    'setup.w.read':'I could not read this right now, so I will not say done or missing. Refresh the page.',
+    'setup.s.identity':'Store name and logo','setup.d.identity':'The name your customer sees, and the logo that stays in front of them.',
+    'setup.w.identity.name':'The store has no name yet.','setup.w.identity.logo':'Name is set, logo is empty \u2014 the store works without it, it just looks less professional.','setup.w.identity.ok':'Name and logo are set.',
+    'setup.s.product':'First product','setup.d.product':'A store with no products opens and sells nothing.',
+    'setup.w.product.none':'No product is listed yet.','setup.w.product.image':'There are products, but not one of them has a photo.','setup.w.product.ok':'Products are listed and have photos.',
+    'setup.s.shipping':'Shipping','setup.d.shipping':'Delivery areas and what each one costs.',
+    'setup.w.shipping.free':'No shipping zones are set \u2014 every order ships for zero, everywhere. If that is on purpose, fine.','setup.w.shipping.ok':'Shipping zones and their costs are set.',
+    'setup.s.payment':'Getting paid','setup.d.payment':'At least one way for a customer to hand over money.',
+    'setup.w.payment.none':'No payment method at all \u2014 no gateway, no wallet, not even cash on delivery. Orders will arrive; the money will not.','setup.w.payment.ok':'There is at least one way to be paid.',
+    'setup.s.launch':'Open to people','setup.d.launch':'There is no publish button \u2014 the store is visible from the moment it exists. This step tells you whether it can take an order.',
+    'setup.w.launch.live':'Your store is open at this link right now, and anyone can order from it.','setup.w.launch.blocked':'The link already works, but a visitor cannot complete an order. Finish these first:','setup.w.launch.read':'The link works; I could not verify these steps.',
+    'setup.open':'Open the store','setup.link':'Your store link',
 
 
 

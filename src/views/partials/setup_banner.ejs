@@ -1,0 +1,23 @@
+<%#
+  The nudge, on the dashboard, and only while it is true.
+
+  It disappears by itself when the five steps are done — a banner that stays up
+  after the work is finished is the reason merchants learn to look past banners.
+  It renders nothing at all when `setup` was not computed (a non-shop panel, or
+  a page that did not ask), so including it is always safe.
+%>
+<% if (typeof setup !== 'undefined' && setup && setup.done < setup.total) { %>
+  <% var __t = (typeof t === 'function') ? t : function (k) { return k; }; %>
+  <div class="bg-white rounded-2xl shadow-sm p-5 border border-amber-300">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <div class="font-black text-gray-800"><%= __t('setup.banner_title') %> · <%= setup.done %>/<%= setup.total %></div>
+        <div class="text-xs text-gray-500 mt-0.5"><%= __t('setup.banner_sub') %></div>
+      </div>
+      <a href="/company/setup" class="brand-bg text-white font-bold rounded-xl px-5 py-2 text-sm whitespace-nowrap"><%= __t('setup.cta') %></a>
+    </div>
+    <div class="h-2 rounded-full bg-gray-100 overflow-hidden mt-3">
+      <div class="h-full brand-bg" style="width: <%= setup.percent %>%"></div>
+    </div>
+  </div>
+<% } %>
