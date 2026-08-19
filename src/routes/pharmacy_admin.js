@@ -12,6 +12,7 @@ const batches = require('../pharmacy/batches');
 const returns = require('../pharmacy/returns');
 const discount = require('../pharmacy/discount');
 const gs1 = require('../pharmacy/gs1');
+const purchase = require('../pharmacy/purchase');
 const push = require('../lib/push');
 const { syncMedicinesSafe } = require('../pharmacy/medicine_sync');
 const multer = require('multer');
@@ -798,6 +799,243 @@ router.get('/api/inventory-all', gate('pos'), async (req, res) => {
  * went and counted the shelf, which is the only thing that can actually settle
  * the difference.
  */
+/* ─── أوامر الشراء (backlog 81) ──────────────────────────── */
+//
+// The list, one order, and the two writes: sending it, and receiving what came.
+// Everything about "how far along is this" is derived by src/pharmacy/purchase.js
+// from the lines themselves — see the note there about why none of it is stored.
+
+router.get('/purchases', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const orders = (await pool.query(
+      `SELECT p.*,
+              COALESCE(SUM(i.qty_ordered), 0)::int  AS qty_ordered,
+              COALESCE(SUM(i.qty_received), 0)::int AS qty_received,
+              COUNT(i.id)::int                      AS lines,
+              COALESCE(SUM(CASE WHEN i.qty_received < i.qty_ordered THEN 1 ELSE 0 END), 0)::int AS open_lines
+         FROM pharmacy_po p LEFT JOIN pharmacy_po_items i ON i.po_id = p.id
+        WHERE p.company_id = $1
+        GROUP BY p.id ORDER BY p.created_at DESC LIMIT 200`, [cid]
+    )).rows;
+    // The list needs each order's derived state, and the derivation wants the
+    // lines. One synthetic line per order carries the same information for it:
+    // ordered vs received in total is exactly what `stateOf` reads.
+    const rows = orders.map((o) => Object.assign({}, o, {
+      state: o.lines === 0
+        ? purchase.stateOf(o, [])
+        : purchase.stateOf(o, [{ qty_ordered: o.qty_ordered, qty_received: o.qty_received }]),
+    }));
+    res.render('pharmacy_admin/purchases', {
+      company: req.company, rows, session: req.session,
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[purchases]', e.message);
+    res.redirect('/pharmacy');
+  }
+});
+
+// Start an order from what the shelf is short of. The quantities are a
+// suggestion and every one of them is editable before the order is sent.
+router.get('/purchases/new', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  try {
+    const rows = (await pool.query(
+      `SELECT inv.medicine_id, inv.min_qty, inv.cost,
+              GREATEST(inv.qty - inv.reserved_qty, 0)::int AS available,
+              COALESCE(m.name_ar, m.name_en) AS name
+         FROM pharmacy_inventory inv JOIN medicines m ON m.id = inv.medicine_id
+        WHERE inv.company_id = $1
+        ORDER BY (GREATEST(inv.qty - inv.reserved_qty, 0)::float / NULLIF(inv.min_qty, 0)) ASC NULLS LAST
+        LIMIT 300`, [cid]
+    )).rows;
+    res.render('pharmacy_admin/purchase_new', {
+      company: req.company, session: req.session,
+      suggestions: purchase.suggestions(rows),
+    });
+  } catch (e) {
+    console.error('[purchase new]', e.message);
+    res.redirect('/pharmacy/purchases');
+  }
+});
+
+router.post('/purchases/new', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const b = req.body || {};
+  const ids = [].concat(b.medicine_id || []);
+  const qtys = [].concat(b.qty || []);
+  const costs = [].concat(b.cost || []);
+  const names = [].concat(b.name || []);
+  // Only the lines the pharmacist actually asked for. A form with 300 rows on it
+  // posts 300 fields, and 297 of them are zeros.
+  const lines = [];
+  const seen = new Set();
+  for (let i = 0; i < ids.length; i++) {
+    const mid = toInt(ids[i], 0);
+    const qty = toInt(qtys[i], 0);
+    if (!mid || qty <= 0 || seen.has(mid)) continue;
+    seen.add(mid);
+    lines.push({ mid, qty, cost: costs[i] === '' || costs[i] == null ? null : toNum(costs[i], null), name: String(names[i] || '').slice(0, 200) });
+  }
+  if (!lines.length) return res.redirect('/pharmacy/purchases/new?err=empty');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const po = (await client.query(
+      `INSERT INTO pharmacy_po (company_id, supplier, note, created_by, status)
+       VALUES ($1,$2,$3,$4,'draft') RETURNING id`,
+      [cid, String(b.supplier || '').trim().slice(0, 120) || null,
+        String(b.note || '').trim().slice(0, 500) || null,
+        req.session.staffName || 'المالك']
+    )).rows[0];
+    for (const l of lines) {
+      await client.query(
+        `INSERT INTO pharmacy_po_items (po_id, company_id, medicine_id, name_at_order, qty_ordered, cost)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [po.id, cid, l.mid, l.name || null, l.qty, l.cost]
+      );
+    }
+    await client.query('COMMIT');
+    res.redirect('/pharmacy/purchases/' + po.id);
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[purchase create]', e.message);
+    // A save that did not happen does not answer with «اتحفظ».
+    res.redirect('/pharmacy/purchases/new?err=save');
+  } finally {
+    client.release();
+  }
+});
+
+router.get('/purchases/:id', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, 0);
+  try {
+    const po = (await pool.query('SELECT * FROM pharmacy_po WHERE id=$1 AND company_id=$2', [id, cid])).rows[0];
+    if (!po) return res.status(404).render('404', { subdomain: null });
+    const items = (await pool.query(
+      `SELECT i.*, COALESCE(m.name_ar, m.name_en) AS name
+         FROM pharmacy_po_items i JOIN medicines m ON m.id = i.medicine_id
+        WHERE i.po_id = $1 ORDER BY i.id`, [id]
+    )).rows;
+    const receipts = (await pool.query(
+      'SELECT * FROM pharmacy_po_receipts WHERE po_id=$1 ORDER BY created_at DESC LIMIT 200', [id]
+    )).rows;
+    res.render('pharmacy_admin/purchase_detail', {
+      company: req.company, session: req.session, po, receipts,
+      items: items.map((i) => Object.assign({}, i, {
+        lineState: purchase.lineState(i), outstanding: purchase.outstanding(i),
+      })),
+      state: purchase.stateOf(po, items),
+      totals: purchase.totals(items),
+      canEdit: purchase.canEdit(po, items),
+      canReceive: purchase.canReceive(po, items),
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[purchase detail]', e.message);
+    res.redirect('/pharmacy/purchases');
+  }
+});
+
+// Sent / cancelled — the two states a human sets. `received` is not one of them.
+router.post('/purchases/:id/status', gate('inventory'), async (req, res) => {
+  const id = toInt(req.params.id, 0);
+  const want = String((req.body || {}).status || '');
+  if (!['sent', 'cancelled', 'draft'].includes(want)) return res.redirect('/pharmacy/purchases/' + id + '?err=state');
+  try {
+    await pool.query(
+      `UPDATE pharmacy_po SET status=$3, sent_at = CASE WHEN $3='sent' THEN now() ELSE sent_at END
+        WHERE id=$1 AND company_id=$2`,
+      [id, req.company.id, want]
+    );
+  } catch (e) {
+    console.error('[purchase status]', e.message);
+    return res.redirect('/pharmacy/purchases/' + id + '?err=save');
+  }
+  res.redirect('/pharmacy/purchases/' + id + '?saved=1');
+});
+
+/**
+ * Receiving what arrived.
+ *
+ * One line, one delivery. Three things happen together or none of them do: the
+ * line's received count moves, the delivery is written down, and the stock
+ * arrives as a batch (nearest-expiry-first dispensing needs the lot, not just
+ * the number).
+ *
+ * The double-submit guard is `expected`: the quantity the form was rendered
+ * with. The UPDATE only matches while that is still the value in the table, so
+ * a second press of the same button adds nothing. This is the write in the
+ * pharmacy panel most likely to be double-submitted — it is at the end of a
+ * form, on a phone, in a shop.
+ */
+router.post('/purchases/:id/receive', gate('inventory'), async (req, res) => {
+  const cid = req.company.id;
+  const id = toInt(req.params.id, 0);
+  const b = req.body || {};
+  const itemId = toInt(b.item_id, 0);
+  const qty = toInt(b.qty, 0);
+  const expected = toInt(b.expected, -1);
+  if (!itemId || qty <= 0) return res.redirect('/pharmacy/purchases/' + id + '?err=qty');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const po = (await client.query(
+      'SELECT * FROM pharmacy_po WHERE id=$1 AND company_id=$2 FOR UPDATE', [id, cid]
+    )).rows[0];
+    if (!po) { await client.query('ROLLBACK'); return res.status(404).render('404', { subdomain: null }); }
+    const items = (await client.query('SELECT * FROM pharmacy_po_items WHERE po_id=$1', [id])).rows;
+    const verdict = purchase.canReceive(po, items);
+    if (!verdict.ok) { await client.query('ROLLBACK'); return res.redirect('/pharmacy/purchases/' + id + '?err=' + verdict.why); }
+    const item = items.find((i) => i.id === itemId);
+    if (!item) { await client.query('ROLLBACK'); return res.redirect('/pharmacy/purchases/' + id + '?err=line'); }
+
+    const claimed = await client.query(
+      `UPDATE pharmacy_po_items SET qty_received = qty_received + $3
+        WHERE id = $1 AND po_id = $2 AND qty_received = $4
+        RETURNING id, qty_received`,
+      [itemId, id, qty, expected]
+    );
+    if (!claimed.rows[0]) {
+      await client.query('ROLLBACK');
+      // Somebody (or the same finger, twice) already recorded this delivery.
+      return res.redirect('/pharmacy/purchases/' + id + '?err=already');
+    }
+
+    const cost = b.cost === '' || b.cost == null ? (item.cost == null ? null : Number(item.cost)) : toNum(b.cost, null);
+    // The order and the line are named by the rows this transaction already
+    // read under lock — not by the numbers that came off the form — and the
+    // statement scopes them to this pharmacy itself rather than trusting the
+    // SELECT above to have done it. A read then a write is not a rule; a rule
+    // is a rule inside the statement that writes.
+    await client.query(
+      `INSERT INTO pharmacy_po_receipts (company_id, po_id, item_id, qty, batch_no, expiry, cost, received_by)
+       SELECT $1,$2,$3,$4,$5,$6,$7,$8
+        WHERE EXISTS (SELECT 1 FROM pharmacy_po WHERE id=$2 AND company_id=$1)
+          AND EXISTS (SELECT 1 FROM pharmacy_po_items WHERE id=$3 AND po_id=$2 AND company_id=$1)`,
+      [cid, po.id, item.id, qty,
+        String(b.batch_no || '').trim().slice(0, 60) || null,
+        b.expiry || null, cost, req.session.staffName || 'المالك']
+    );
+    // The stock itself, as a lot. Same client, same transaction: the shelf and
+    // the order move together or neither does.
+    await batches.receive(client, cid, item.medicine_id, {
+      qty, batch_no: b.batch_no, expiry: b.expiry, cost,
+      supplier: po.supplier || null,
+    });
+    await client.query('COMMIT');
+    res.redirect('/pharmacy/purchases/' + id + '?saved=1');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[purchase receive]', e.message);
+    res.redirect('/pharmacy/purchases/' + id + '?err=save');
+  } finally {
+    client.release();
+  }
+});
+
 router.get('/stock-review', gate('inventory'), async (req, res) => {
   const cid = req.company.id;
   try {
