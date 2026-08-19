@@ -2062,6 +2062,15 @@ const strings = {
     // دفتر الأكل الحقيقي والملف الطبي (البند ٨٤).
     'np.m.protein':'بروتين','np.m.carbs':'كارب','np.m.fat':'دهون',
     // تسجيل اليوم: ماء ونوم وخطوات ومزاج (البند ٨٤).
+    // صفحة حجز العضو: إلغاء ونقل وقائمة انتظار (البند ٨٥).
+    'gb.title':'حجزك','gb.saved':'اتظبط.','gb.cancel':'إلغاء الحجز','gb.cancel_confirm':'متأكد إنك بتلغي حجزك؟',
+    'gb.move':'انقل الحجز ليوم تاني','gb.move_do':'انقل','gb.move_hint':'لازم يكون يوم الكلاس نفسه بيشتغل فيه.',
+    'gb.st.booked':'حجزك مؤكّد','gb.st.waitlist':'في قائمة الانتظار','gb.st.cancelled':'الحجز اتلغى',
+    'gb.place':'ترتيبك','gb.promoted':'مكان فضي ودخلت مكانه — تعالى في ميعادك.',
+    'gb.free_seat':'لما تلغي، مكانك بيروح على طول لأول واحد في قائمة الانتظار.',
+    'gb.err.missing':'الحجز ده مش موجود.','gb.err.already':'الحجز ده اتقفل خلاص.',
+    'gb.err.past':'ده حجز يوم عدّى.','gb.err.date':'اكتب تاريخ صح.','gb.err.same':'عندك حجز في اليوم ده خلاص.',
+    'gb.err.wrong_day':'الكلاس ده مابيشتغلش في اليوم ده.','gb.err.save':'مااتظبطش — جرّب تاني.',
     'nc.title':'تسجيل اليوم','nc.sub':'اللي تسجّله بيفسّر الأسبوع اللي الميزان مايتحركش فيه. سيب أي خانة فاضية لو مش فاكر — الفاضي مش صفر.',
     'nc.water':'مياه (كوب)','nc.sleep':'نوم (ساعة)','nc.steps':'خطوات','nc.mood':'مزاجك','nc.mood_skip':'مش هحدّد',
     'nc.note':'ملاحظة (اختياري)','nc.save':'سجّل اليوم',
@@ -4475,6 +4484,15 @@ const strings = {
     // The real food diary and the medical profile (backlog 84).
     'np.m.protein':'Protein','np.m.carbs':'Carbs','np.m.fat':'Fat',
     // Daily check-in: water, sleep, steps, mood (backlog 84).
+    // The member's booking page: cancel, move, waiting list (backlog 85).
+    'gb.title':'Your booking','gb.saved':'Done.','gb.cancel':'Cancel the booking','gb.cancel_confirm':'Cancel your booking?',
+    'gb.move':'Move it to another day','gb.move_do':'Move','gb.move_hint':'It has to be a day this class actually runs.',
+    'gb.st.booked':'Your place is confirmed','gb.st.waitlist':'On the waiting list','gb.st.cancelled':'Cancelled',
+    'gb.place':'position','gb.promoted':'A place opened and you are in it \u2014 come at your time.',
+    'gb.free_seat':'When you cancel, your place goes straight to the first person waiting.',
+    'gb.err.missing':'No such booking.','gb.err.already':'This booking is already closed.',
+    'gb.err.past':'That booking is in the past.','gb.err.date':'Enter a valid date.','gb.err.same':'You already have a booking that day.',
+    'gb.err.wrong_day':'This class does not run on that day.','gb.err.save':'It did not go through \u2014 try again.',
     'nc.title':'Today\u2019s check-in','nc.sub':'What you log here explains the week the scale does not move. Leave a box empty if you do not remember \u2014 empty is not zero.',
     'nc.water':'Water (glasses)','nc.sleep':'Sleep (hours)','nc.steps':'Steps','nc.mood':'Mood','nc.mood_skip':'Rather not say',
     'nc.note':'Note (optional)','nc.save':'Log today',
