@@ -84,6 +84,48 @@
     } catch (e) {}
   };
 
+  /* ── لوحة «اختبار التتبّع» (البند ٨٩) ─────────────────────────────────
+   *
+   * التاجر بيلزق رقم البيكسل وبيستنى. لو الرقم غلط، أو مانع الإعلانات في
+   * متصفحه شايل السكربت، مفيش حاجة على الشاشة بتقول كده — الصفحة شغّالة عادي
+   * والأحداث مش بتوصل.
+   *
+   * اللوحة دي بتفتح بـ`?odv_test=1` بس (لينك من لوحة التاجر)، وبتقول **بالظبط
+   * اللي إحنا قادرين نشوفه**: هل السكربت اتحمّل في المتصفح ده. مابتدّعيش إن
+   * المنصّة استلمت الحدث — ده بيتشاف من Test Events عندهم، واللوحة بتقول ده
+   * صراحةً بدل ما تدّي طمأنينة مالهاش أساس.
+   *
+   * وتلات حالات مش اتنين: «مش متظبّط» (مفيش رقم أصلاً) غير «مااتحملش» (فيه
+   * رقم والسكربت مش موجود) غير «اتحمّل». */
+  if (/(?:^|[?&])odv_test=1(?:&|$)/.test(location.search)) {
+    var CONF = { fb: <%- jsonLd(!!__fb) %>, tt: <%- jsonLd(!!__tt) %>, ga: <%- jsonLd(!!__ga) %> };
+    setTimeout(function () {
+      var box = document.createElement('div');
+      box.setAttribute('dir', 'rtl');
+      box.style.cssText = 'position:fixed;inset-inline-end:12px;bottom:12px;z-index:99999;background:#0f172a;color:#e2e8f0;'
+        + 'font:13px/1.7 system-ui,sans-serif;padding:14px 16px;border-radius:14px;max-width:330px;box-shadow:0 10px 30px rgba(0,0,0,.35)';
+      function row(name, configured, loaded) {
+        var state = !configured ? ['مش متظبّط', '#94a3b8']
+          : loaded ? ['اتحمّل في المتصفح', '#4ade80']
+          : ['مااتحمّلش — الرقم غلط أو فيه مانع إعلانات', '#fbbf24'];
+        return '<div style="display:flex;gap:8px;justify-content:space-between"><span>' + name
+          + '</span><span style="color:' + state[1] + '">' + state[0] + '</span></div>';
+      }
+      box.innerHTML = '<div style="font-weight:700;margin-bottom:6px">اختبار التتبّع</div>'
+        + row('Facebook Pixel', CONF.fb, !!window.fbq)
+        + row('TikTok Pixel', CONF.tt, !!window.ttq)
+        + row('Google Analytics 4', CONF.ga, !!window.gtag)
+        + '<div style="margin-top:8px;color:#94a3b8;font-size:11.5px">'
+        + 'بعتنا حدث تجريبي (ViewContent). اللوحة دي بتقول إن السكربت اتحمّل عندك بس — '
+        + 'إن المنصّة استلمته بيتشاف من Test Events في فيسبوك أو Debugger في تيك توك.'
+        + '</div>';
+      document.body.appendChild(box);
+      // حدث حقيقي عشان يبان في أدوات المنصّة — بقيمة صفر ومن غير رقم منتج
+      // عشان مايتحسبش شراء ولا يبوّظ أرقام التاجر.
+      window.odvTrack('ViewContent', { name: 'odv-test', value: 0 });
+    }, 1200);
+  }
+
   // A WhatsApp click is the checkout of every page that does not have a cart —
   // a clinic, a hall, a workshop. It was never counted anywhere.
   document.addEventListener('click', function (ev) {
