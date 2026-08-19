@@ -1512,6 +1512,16 @@ const strings = {
 
     // لوحة تحكم العيادة
     'cd.hi':'مرحبًا 👋','cd.sub':'نظرة سريعة على عيادتك اليوم',
+    // اللوحة بقت بتجاوب على أسئلة مش بتعرض عدّادات (البند ٨٣).
+    'cd.needs':'في حاجات محتاجة منك دلوقتي.','cd.calm':'كله تمام — مفيش حاجة مستنية.',
+    'cd.unknown':'ما قدرتش أقرا ده دلوقتي — حدّث الصفحة.',
+    'cd.unknown_note':'في سؤال أو أكتر ما قدرتش أجاوب عليه. مش معناه إن الإجابة صفر.',
+    'cd.open':'افتح','cd.and_more':'وكمان','cd.no_name':'من غير اسم','cd.urgent':'مستعجل','cd.min':'دقيقة','cd.no_arrival':'وقت الوصول مش متسجّل',
+    'cd.q.waiting':'مين مستني دلوقتي؟','cd.q.unconfirmed':'مين ماأكّدش؟','cd.q.today':'مين جاي النهارده؟',
+    'cd.q.overdue':'مين عليه فلوس؟','cd.q.next':'إيه الجاي؟',
+    'cd.none.waiting':'مفيش حد مستني.','cd.none.unconfirmed':'كل الحجوزات متأكّدة.','cd.none.today':'مفيش مواعيد مؤكّدة النهارده.',
+    'cd.none.overdue':'مفيش فواتير متأخرة.','cd.none.next':'مفيش موعد جاي.',
+
     'cd.in_queue':'في الطابور الآن','cd.pending':'حجوزات بانتظار التأكيد',
     'cd.today_revenue':'تحصيل اليوم','cd.doctors':'الأطباء','cd.patients':'المرضى',
     'cd.checkin':'➕ تسجيل وصول مريض','cd.new_invoice':'🧾 فاتورة جديدة','cd.add_patient':'🧑 إضافة مريض',
@@ -3854,6 +3864,16 @@ const strings = {
 
     // Clinic dashboard
     'cd.hi':'Welcome 👋','cd.sub':'A quick look at your clinic today',
+    // The board answers questions instead of printing counters (backlog 83).
+    'cd.needs':'Some things need you right now.','cd.calm':'All clear \u2014 nothing is waiting.',
+    'cd.unknown':'I could not read this right now \u2014 refresh the page.',
+    'cd.unknown_note':'One or more questions could not be answered. That does not mean the answer is zero.',
+    'cd.open':'Open','cd.and_more':'and','cd.no_name':'No name','cd.urgent':'Urgent','cd.min':'min','cd.no_arrival':'Arrival time not recorded',
+    'cd.q.waiting':'Who is waiting now?','cd.q.unconfirmed':'Who has not confirmed?','cd.q.today':'Who is coming today?',
+    'cd.q.overdue':'Who owes money?','cd.q.next':'What is next?',
+    'cd.none.waiting':'Nobody is waiting.','cd.none.unconfirmed':'Every booking is confirmed.','cd.none.today':'No confirmed appointments today.',
+    'cd.none.overdue':'No overdue invoices.','cd.none.next':'Nothing scheduled next.',
+
     'cd.in_queue':'In the queue now','cd.pending':'Bookings awaiting confirmation',
     'cd.today_revenue':'Collected today','cd.doctors':'Doctors','cd.patients':'Patients',
     'cd.checkin':'➕ Check a patient in','cd.new_invoice':'🧾 New invoice','cd.add_patient':'🧑 Add a patient',

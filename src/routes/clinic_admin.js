@@ -11,6 +11,7 @@ const { MODULES, getEnabledModules, modulesForSpecialty, visibleModules } = requ
 const { ownerGuard, ref } = require('../lib/tenant_scope');
 const audit = require('../lib/audit');
 const clinicPerms = require('../clinic/perms');
+const clinicBoard = require('../clinic/board');
 const flow = require('../lib/order_flow');
 const booking = require('../clinic/booking');
 const money = require('../lib/money');
@@ -68,24 +69,82 @@ function requireModule(key) {
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
+//
+// The front screen answers questions instead of printing counters — see
+// src/clinic/board.js. Every query is settled on its own: one that fails turns
+// ONE card into "I could not check" instead of turning the whole screen into a
+// 500, and instead of the worse fix, defaulting it to zero and telling a
+// receptionist that nobody is waiting while four people sit in the corridor.
 router.get('/', async (req, res) => {
   const cid = req.company.id;
-  try {
-    const [pending, waiting, docs, patients, revenue, upcoming] = await Promise.all([
-      pool.query("SELECT COUNT(*)::int n FROM clinic_appointments WHERE company_id=$1 AND status='pending'", [cid]),
-      pool.query("SELECT COUNT(*)::int n FROM clinic_visits WHERE company_id=$1 AND visit_date=(now() AT TIME ZONE 'Africa/Cairo')::date AND status IN ('waiting','in_room')", [cid]),
-      pool.query('SELECT COUNT(*)::int n FROM clinic_doctors WHERE company_id=$1 AND is_active=true', [cid]),
-      pool.query('SELECT COUNT(*)::int n FROM clinic_patients WHERE company_id=$1', [cid]),
-      pool.query("SELECT COALESCE(SUM(amount),0) AS t FROM clinic_payments WHERE company_id=$1 AND created_at::date=(now() AT TIME ZONE 'Africa/Cairo')::date", [cid]),
-      pool.query(`SELECT a.*, d.name AS doctor_name FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
-                  WHERE a.company_id=$1 AND a.status IN ('pending','confirmed') ORDER BY a.slot_at NULLS LAST, a.id DESC LIMIT 12`, [cid]),
-    ]);
-    res.render('clinic_admin/dashboard', {
-      company: req.company, tab: 'dashboard',
-      stats: { pending: pending.rows[0].n, waiting: waiting.rows[0].n, doctors: docs.rows[0].n, patients: patients.rows[0].n, revenue: Number(revenue.rows[0].t) },
-      upcoming: upcoming.rows,
+  const today = "(now() AT TIME ZONE 'Africa/Cairo')::date";
+  const queries = {
+    // Who is in the waiting room right now.
+    waiting: [`SELECT v.id, v.status, v.arrival_at, v.is_urgent,
+                      p.name AS patient_name, d.name AS doctor_name
+                 FROM clinic_visits v
+                 LEFT JOIN clinic_patients p ON p.id = v.patient_id
+                 LEFT JOIN clinic_doctors d ON d.id = v.doctor_id
+                WHERE v.company_id=$1 AND v.visit_date=${today} AND v.status IN ('waiting','in_room')
+                ORDER BY v.is_urgent DESC, v.arrival_at NULLS LAST, v.id`, [cid]],
+    // Booked for today and nobody has confirmed with them yet.
+    unconfirmed: [`SELECT a.id, a.patient_name, a.phone, a.slot_at, d.name AS doctor_name
+                     FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
+                    WHERE a.company_id=$1 AND a.status='pending'
+                      AND (a.slot_at IS NULL OR (a.slot_at AT TIME ZONE 'Africa/Cairo')::date <= ${today} + 1)
+                    ORDER BY a.slot_at NULLS LAST, a.id DESC LIMIT 30`, [cid]],
+    // Coming in today, already confirmed.
+    today: [`SELECT a.id, a.patient_name, a.phone, a.slot_at, d.name AS doctor_name
+               FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
+              WHERE a.company_id=$1 AND a.status='confirmed'
+                AND (a.slot_at AT TIME ZONE 'Africa/Cairo')::date = ${today}
+              ORDER BY a.slot_at LIMIT 30`, [cid]],
+    // Money that was billed and never came in.
+    overdue: [`SELECT i.id, i.total_amount, i.paid_amount, i.created_at, p.name AS patient_name
+                 FROM clinic_invoices i LEFT JOIN clinic_patients p ON p.id = i.patient_id
+                WHERE i.company_id=$1 AND i.status IN ('pending','partial')
+                  AND i.created_at < now() - interval '3 days'
+                ORDER BY i.created_at LIMIT 30`, [cid]],
+    // The next thing on the clock.
+    next: [`SELECT a.id, a.patient_name, a.slot_at, d.name AS doctor_name
+              FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
+             WHERE a.company_id=$1 AND a.status IN ('pending','confirmed') AND a.slot_at >= now()
+             ORDER BY a.slot_at LIMIT 5`, [cid]],
+  };
+  const keys = Object.keys(queries);
+  const settled = await Promise.allSettled(keys.map((k) => pool.query(queries[k][0], queries[k][1])));
+  const answers = {};
+  keys.forEach((k, i) => {
+    const r = settled[i];
+    if (r.status === 'fulfilled') answers[k] = { ok: true, rows: r.value.rows };
+    else { answers[k] = { ok: false }; console.error('[clinic dashboard ' + k + ']', r.reason && r.reason.message); }
+  });
+  const cards = clinicBoard.board(answers);
+  // How long each person has been waiting is computed HERE, not in the
+  // template: a view that reaches for a module resolves the path from wherever
+  // the renderer happens to live, which is a footgun in a file nobody tests.
+  const now = new Date();
+  for (const c of cards) {
+    if (c.key !== 'waiting') continue;
+    c.rows = c.rows.map((r) => {
+      const mins = clinicBoard.waitedMinutes(r.arrival_at, now);
+      return Object.assign({}, r, { waited: mins, long_wait: clinicBoard.isLongWait(mins) });
     });
-  } catch (e) { console.error('[clinic dashboard]', e.message); res.status(500).send('error'); }
+  }
+  // Today's takings are still worth a line — but as one number beside the
+  // answers, not as the thing the screen is made of.
+  let revenue = null;
+  try {
+    revenue = Number((await pool.query(
+      `SELECT COALESCE(SUM(amount),0) AS t FROM clinic_payments
+        WHERE company_id=$1 AND created_at::date=${today}`, [cid])).rows[0].t);
+  } catch (e) { console.error('[clinic dashboard revenue]', e.message); }
+  res.render('clinic_admin/dashboard', {
+    company: req.company, tab: 'dashboard',
+    cards, revenue,
+    needsAttention: clinicBoard.needsAttention(cards),
+    anyUnknown: clinicBoard.anyUnknown(cards),
+  });
 });
 
 // ── Appointments (the queue) ─────────────────────────────────────────────────
