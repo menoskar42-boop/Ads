@@ -4,6 +4,93 @@
   <h1 class="text-2xl font-black mt-2 mb-1"><%= member.name %></h1>
   <div class="text-sm text-neutral-400 mb-5"><% if(member.phone){ %><span dir="ltr"><%= member.phone %></span><% } %><% if(member.code){ %> · كود: <span dir="ltr"><%= member.code %></span><% } %></div>
   <% if (saved) { %><div class="bg-emerald-900/40 border border-emerald-700 text-emerald-300 rounded-xl px-4 py-2 mb-4 text-sm">تم الحفظ ✅</div><% } %>
+  <% if (err) { %>
+    <div class="bg-red-900/30 border border-red-800 text-red-300 rounded-xl px-4 py-2 mb-4 text-sm">
+      <%= err === 'code_taken' ? 'ماقدرناش نطلّع كود متكرّرش — جرّب تاني.' : 'مااتحفظش — جرّب تاني.' %>
+    </div>
+  <% } %>
+
+  <!-- كارت العضو: الكود اللي بيقراه الماسح على الباب (البند ٨٥) -->
+  <div class="card rounded-2xl p-5 mb-4 no-print-hide">
+    <h2 class="font-bold text-sm mb-3">🎫 كارت العضو</h2>
+    <% if (qr) { %>
+      <div class="flex items-center gap-4 flex-wrap">
+        <img src="<%= qr %>" alt="كود <%= member.code %>" class="w-36 h-36 rounded-xl bg-white p-2" />
+        <div>
+          <div class="text-xs text-neutral-400">الكود</div>
+          <div class="font-black text-lg" dir="ltr"><%= member.code %></div>
+          <p class="text-xs text-neutral-500 mt-2 max-w-xs leading-relaxed">
+            الماسح على الباب بيكتب الكود ويدوس Enter — نفس الخانة اللي بتكتب فيها بإيدك.
+          </p>
+          <button onclick="window.print()" class="mt-3 bg-neutral-800 text-neutral-100 text-xs font-bold rounded-lg px-4 py-2">اطبع الكارت</button>
+        </div>
+      </div>
+    <% } else { %>
+      <%# A QR of an empty string scans as nothing and wastes a print. %>
+      <p class="text-sm text-neutral-500 mb-3">العضو ده مالوش كود، فمفيش كارت يتطبع.</p>
+      <form method="post" action="/gym/members/<%= member.id %>/code">
+        <button class="accent-bg font-bold rounded-xl px-5 py-2 text-sm">طلّع كود للعضو</button>
+      </form>
+    <% } %>
+  </div>
+
+  <!-- استبيان PAR-Q (البند ٨٥) -->
+  <%
+    var PARQ_TEXT = {
+      heart: 'قال لك دكتور قبل كده إن عندك مشكلة في القلب ولازم تتمرّن تحت إشراف؟',
+      chest_pain: 'بتحس بألم في صدرك وانت بتتمرّن أو وانت مرتاح؟',
+      dizzy: 'بتتوه أو بتقع من الدوخة؟',
+      bone_joint: 'عندك مشكلة في العضم أو المفاصل ممكن التمرين يزوّدها؟',
+      bp_meds: 'بتاخد دوا للضغط أو للقلب؟',
+      pregnancy: 'حامل أو ولدتي من أقل من ٦ شهور؟',
+      other: 'في أي سبب تاني تعرفه يخليك ماتتمرّنش؟',
+    };
+    var VERDICT = {
+      no_flags: { txt: 'مفيش أي إجابة بـ«أيوه» في الاستبيان', cls: 'text-emerald-400' },
+      see_doctor: { txt: 'في إجابة بـ«أيوه» — يشوف دكتور قبل ما يبدأ', cls: 'text-amber-400' },
+      incomplete: { txt: 'الاستبيان لسه مش كامل', cls: 'text-neutral-400' },
+    }[parqVerdict];
+  %>
+  <div class="card rounded-2xl p-5 mb-4">
+    <h2 class="font-bold text-sm mb-1">🩺 استبيان ما قبل التمرين (PAR-Q)</h2>
+    <%# Never "fit to train": software cannot say that, and a screen that
+        printed it would be why a gym stopped asking a doctor. %>
+    <p class="text-xs text-neutral-500 mb-3 leading-relaxed">
+      ده استبيان فرز، مش شهادة لياقة. «مفيش أيوه» معناها مفيش علامة في الورقة دي — مش حكم على الشخص.
+    </p>
+
+    <div class="text-sm font-bold mb-3 <%= VERDICT.cls %>">
+      <%= VERDICT.txt %>
+      <% if (member.parq_at) { %><span class="text-xs text-neutral-500 font-normal">· <%= new Date(member.parq_at).toLocaleDateString('ar-EG') %></span><% } %>
+    </div>
+
+    <form method="post" action="/gym/members/<%= member.id %>/parq" class="grid gap-2">
+      <% parqQuestions.forEach(function (q) { %>
+        <div class="border-b border-neutral-900 pb-2">
+          <div class="text-sm mb-1"><%= PARQ_TEXT[q] %></div>
+          <div class="flex gap-3 text-xs">
+            <label class="flex items-center gap-1">
+              <input type="radio" name="q_<%= q %>" value="yes" <%= parqAnswers && parqAnswers[q] === 'yes' ? 'checked' : '' %> /> أيوه
+            </label>
+            <label class="flex items-center gap-1">
+              <input type="radio" name="q_<%= q %>" value="no" <%= parqAnswers && parqAnswers[q] === 'no' ? 'checked' : '' %> /> لأ
+            </label>
+            <% if (parqAnswers && parqAnswers[q] === null) { %><span class="text-neutral-600">— مش متجاوب عليه</span><% } %>
+          </div>
+        </div>
+      <% }); %>
+      <input name="note" maxlength="300" value="<%= member.parq_note || '' %>" placeholder="ملاحظة (اختياري)"
+             class="fld rounded-xl px-3 py-2 text-sm" />
+      <button class="accent-bg font-bold rounded-xl px-5 py-2 text-sm justify-self-start">احفظ الاستبيان</button>
+    </form>
+
+    <% if (parqFlags.length) { %>
+      <div class="mt-3 text-xs text-amber-300 bg-amber-900/20 border border-amber-800 rounded-xl px-3 py-2">
+        النقط اللي جاوب عليها بـ«أيوه»:
+        <%= parqFlags.map(function (q) { return PARQ_TEXT[q]; }).join(' · ') %>
+      </div>
+    <% } %>
+  </div>
 
   <div class="grid md:grid-cols-2 gap-4">
     <!-- Membership history -->
