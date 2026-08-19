@@ -213,6 +213,54 @@ const FIXTURES = {
     };
   },
 
+  // القطع: بتعرض خانات المقاس والخامة (البند ٨٦) ولينك الخيارات، والقطعة
+  // اللي مقاسها مش متسجّل بتتعرض من غير ما تدّعي مقاس.
+  furniture_products: (lang) => {
+    const m = require('../src/furniture/master');
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    return {
+      __file: 'furniture_admin/master.ejs',
+      tab: 'master', entity: 'products', spec: m.ENTITIES.products,
+      rows: [
+        { id: 1, name: 'Classic bedroom', code: 'BR-1', category: 'Bedrooms', selling_price: 42000,
+          estimated_cost: 26000, warranty_months: 12, notes: null, image_path: null,
+          width_cm: 180, depth_cm: 90, height_cm: 220, material: 'Beech', finish: 'Lacquer' },
+        { id: 2, name: 'Dining table', code: null, category: null, selling_price: 0,
+          estimated_cost: 0, warranty_months: 0, notes: null, image_path: '/uploads/x.jpg',
+          width_cm: null, depth_cm: null, height_cm: null, material: null, finish: null },
+      ],
+      edit: { id: 1, name: 'Classic bedroom', code: 'BR-1', category: 'Bedrooms', selling_price: 42000,
+        estimated_cost: 26000, warranty_months: 12, notes: null,
+        width_cm: 180, depth_cm: 90, height_cm: 220, material: 'Beech', finish: 'Lacquer' },
+      q: '', showArchived: false, counts: { active: 2, archived: 0 },
+      err: 'spec', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
+  // شاشة الخيارات: الأساسي أول السطر، وخيار متأرشف، وقطعة مالهاش مقاسات.
+  furniture_variants: (lang) => {
+    const m = require('../src/furniture/master');
+    const V = require('../src/furniture/variants');
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master']);
+    const product = { id: 1, name: 'Classic bedroom', selling_price: 42000,
+      width_cm: 180, depth_cm: null, height_cm: 220, material: 'Beech', finish: null };
+    const variants = [
+      { id: 7, product_id: 1, name: 'Beech', code: 'BR-1-B', price_delta: 6000, is_active: true },
+      { id: 8, product_id: 1, name: 'No marble top', code: null, price_delta: -2500, is_active: true },
+      { id: 9, product_id: 1, name: 'Old finish', code: null, price_delta: 0, is_active: false },
+    ];
+    return {
+      __file: 'furniture_admin/variants.ejs',
+      tab: 'master', entity: 'products', spec: m.ENTITIES.products,
+      product, variants, specs: V.specLines(product), options: V.optionsFor(product, variants),
+      err: null, saved: true,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   furniture_purchases: (lang) => {
     const fl = require('../src/furniture/flags');
     const flags = new Set([...fl.DEFAULT_ON, 'master']);
@@ -265,6 +313,15 @@ const FIXTURES = {
       ],
       customers: [{ id: 1, name: 'Mohamed A.' }],
       products: [{ id: 1, name: 'Classic bedroom', selling_price: 42000 }],
+      // خيارات القطعة بأسعارها — محسوبة زي ما الراوت بيحسبها بالظبط، مش
+      // مكتوبة بالإيد، عشان لو الحساب اتغيّر الشاشة تتعرض بالجديد.
+      variantMap: {
+        1: require('../src/furniture/variants').optionsFor(
+          { selling_price: 42000 },
+          [{ id: 7, name: 'زان', price_delta: 6000, is_active: true },
+            { id: 8, name: 'بدون رخامة', price_delta: -2500, is_active: true }]
+        ),
+      },
       // One customer in credit, so the credit wording is exercised too.
       balances: [
         { id: 1, name: 'Mohamed A.', invoiced: 51300, paid: 10000, balance: 41300 },

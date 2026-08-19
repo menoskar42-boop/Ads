@@ -547,6 +547,51 @@ async function ensureFurnitureSchema() {
       CREATE INDEX IF NOT EXISTS idx_furn_sales_branch ON furniture_sales (company_id, branch_id);
       CREATE INDEX IF NOT EXISTS idx_furn_exp_branch ON furniture_expenses (company_id, branch_id);
     `);
+
+    // ── Specifications and variants (phase 9) ────────────────────────────────
+    await client.query(`
+      -- The two questions asked in every showroom before the price: how big is
+      -- it, and what is it made of. They lived in the notes field, so no page
+      -- could show them as a spec and no option could carry a price.
+      --
+      -- NULL, not 0. A width nobody measured and a width of zero are different
+      -- facts, and NUMERIC ... DEFAULT 0 would have made them the same one on
+      -- the day the column was added — every piece in every catalogue silently
+      -- claiming to be 0 cm wide.
+      ALTER TABLE furniture_products ADD COLUMN IF NOT EXISTS width_cm  NUMERIC(8,2);
+      ALTER TABLE furniture_products ADD COLUMN IF NOT EXISTS depth_cm  NUMERIC(8,2);
+      ALTER TABLE furniture_products ADD COLUMN IF NOT EXISTS height_cm NUMERIC(8,2);
+      ALTER TABLE furniture_products ADD COLUMN IF NOT EXISTS material  TEXT;
+      ALTER TABLE furniture_products ADD COLUMN IF NOT EXISTS finish    TEXT;
+
+      -- One piece, several ways to buy it: beech or MDF, with or without the
+      -- marble top. Modelled as options ON the product rather than as separate
+      -- products, because they are the same piece — one photo, one guarantee,
+      -- one bill of materials — sold at a difference.
+      --
+      -- price_delta is signed on purpose: "بدون رخامة" is a real option and it
+      -- is cheaper. The selling price is base + delta, floored at zero, and is
+      -- computed on the server every time it is shown or written.
+      CREATE TABLE IF NOT EXISTS furniture_product_variants (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        product_id  INTEGER NOT NULL REFERENCES furniture_products(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        code        TEXT,
+        price_delta NUMERIC(12,2) NOT NULL DEFAULT 0,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_furn_variants ON furniture_product_variants (company_id, product_id);
+
+      -- Which option was sold. ON DELETE SET NULL and never a join for the
+      -- money: the line keeps its own unit_price and its own copied name, so
+      -- deleting the option next year does not rewrite last year's invoice.
+      ALTER TABLE furniture_sale_items  ADD COLUMN IF NOT EXISTS variant_id   INTEGER REFERENCES furniture_product_variants(id) ON DELETE SET NULL;
+      ALTER TABLE furniture_sale_items  ADD COLUMN IF NOT EXISTS variant_name TEXT;
+      ALTER TABLE furniture_quote_items ADD COLUMN IF NOT EXISTS variant_id   INTEGER REFERENCES furniture_product_variants(id) ON DELETE SET NULL;
+      ALTER TABLE furniture_quote_items ADD COLUMN IF NOT EXISTS variant_name TEXT;
+    `);
   } finally {
     client.release();
   }

@@ -1,0 +1,117 @@
+<%- include('head', { title: t('fn2.v.options'), tab: 'master' }) %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+%>
+
+<div class="flex items-center gap-3 mb-1 flex-wrap">
+  <h1 class="text-2xl font-black text-stone-900">🛋️ <%= product.name %></h1>
+  <a href="/furniture/master/<%= entity %>" class="text-xs px-3 py-1.5 rounded-lg bg-white border border-stone-200 text-stone-600 ms-auto"><%= t('common.back') %></a>
+</div>
+<p class="text-stone-500 mb-5 text-sm"><%= t('fn2.v.sub') %></p>
+
+<% if (saved) { %>
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('fn2.m.saved') %></div>
+<% } %>
+<% if (err) { %>
+  <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800">
+    <%= err === 'name' ? t('fn2.v.err.name') : err === 'delta' ? t('fn2.v.err.delta') : t('fn2.m.savefail') %>
+  </div>
+<% } %>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl shadow-sm p-5">
+      <h2 class="font-bold text-stone-800 mb-3"><%= t('fn2.v.add') %></h2>
+      <form method="post" action="/furniture/master/<%= entity %>/<%= product.id %>/variants" class="grid gap-2.5">
+        <label class="text-xs font-bold text-stone-600">
+          <%= t('fn2.v.name') %> *
+          <input name="name" maxlength="80" required placeholder="<%= t('fn2.v.name_ph') %>"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600">
+          <%= t('fn2.v.code') %>
+          <input name="code" maxlength="40" dir="ltr"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600">
+          <%= t('fn2.v.delta') %>
+          <input name="price_delta" inputmode="decimal"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <%# The sign is the whole point: a cheaper option is a real option. %>
+        <p class="text-[11px] text-stone-400 -mt-1"><%= t('fn2.v.delta_hint') %></p>
+        <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm mt-1"><%= t('fn2.m.add') %></button>
+      </form>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm p-5 mt-4">
+      <h2 class="font-bold text-stone-800 mb-2"><%= t('fn2.v.specs') %></h2>
+      <% if (specs.length) { %>
+        <dl class="text-sm text-stone-600 grid gap-1">
+          <% specs.forEach(function(s){ %>
+            <div class="flex gap-2"><dt class="font-bold text-stone-500"><%= t('fn2.f.' + s.key) %>:</dt><dd><%= s.value %></dd></div>
+          <% }); %>
+        </dl>
+      <% } else { %>
+        <%# Nothing is recorded, and the page says exactly that rather than
+            printing zeros that would read as measurements. %>
+        <p class="text-sm text-stone-400"><%= t('fn2.v.no_specs') %></p>
+      <% } %>
+      <a href="/furniture/master/<%= entity %>?edit=<%= product.id %>" class="text-xs text-brand-700 font-bold mt-2 inline-block"><%= t('dr.edit') %></a>
+    </div>
+  </div>
+
+  <div class="lg:col-span-2">
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-stone-50 text-stone-500 text-xs">
+          <tr>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.v.name') %></th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.v.code') %></th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.v.delta') %></th>
+            <th class="text-start px-4 py-2 font-semibold"><%= t('fn2.v.price') %></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-stone-100">
+          <%# The plain piece is always sellable and is shown first, so nobody
+              reads the list as "this piece is only available in beech". %>
+          <tr class="bg-stone-50/60">
+            <td class="px-4 py-2 font-bold text-stone-700"><%= t('fn2.v.plain') %></td>
+            <td class="px-4 py-2 text-stone-400">—</td>
+            <td class="px-4 py-2 text-stone-400">—</td>
+            <td class="px-4 py-2 font-bold"><%= money(product.selling_price) %></td>
+            <td></td>
+          </tr>
+          <% variants.forEach(function(v){ %>
+          <tr class="<%= v.is_active ? '' : 'opacity-50' %>">
+            <td class="px-4 py-2 font-bold text-stone-800">
+              <%= v.name %>
+              <% if (!v.is_active) { %><span class="text-[10px] bg-stone-100 text-stone-500 rounded px-1.5 py-0.5 ms-1"><%= t('fn2.m.archive') %></span><% } %>
+            </td>
+            <td class="px-4 py-2 text-stone-500" dir="ltr"><%= v.code || '—' %></td>
+            <td class="px-4 py-2 <%= Number(v.price_delta) < 0 ? 'text-emerald-700' : 'text-stone-600' %>">
+              <%= Number(v.price_delta) > 0 ? '+' : '' %><%= money(v.price_delta) %>
+            </td>
+            <%# Priced by the server from the stored difference, not added up in
+                the browser: the number here is the number that gets invoiced. %>
+            <td class="px-4 py-2 font-bold"><%= money((options.find(function(o){ return o.id === v.id; }) || {}).price) %></td>
+            <td class="px-4 py-2 text-end">
+              <form method="post" action="/furniture/master/<%= entity %>/<%= product.id %>/variants/<%= v.id %>/delete"
+                    onsubmit="return confirm(<%= JSON.stringify(t('confirm.delete')) %>)">
+                <button class="text-xs px-2 py-1 text-red-500 hover:text-red-700"><%= t('common.delete') %></button>
+              </form>
+            </td>
+          </tr>
+          <% }); %>
+          <% if (!variants.length) { %>
+            <tr><td colspan="5" class="px-4 py-6 text-center text-stone-400 text-sm"><%= t('fn2.v.none') %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-[11px] text-stone-400 mt-2"><%= t('fn2.v.sold_hint') %></p>
+  </div>
+</div>
+
+</main></body></html>
