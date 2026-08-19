@@ -1,0 +1,17 @@
+<%- include('_layout_top', { activePage: '' }) %>
+
+<%# A locked door with a way out, and the role named — "you cannot do that"
+    without saying who you are read as leaves people tapping the link again. %>
+<div class="bg-white rounded-2xl shadow-sm p-10 text-center max-w-lg mx-auto">
+  <div class="text-4xl mb-3">🔒</div>
+  <h1 class="text-xl font-black text-gray-800 mb-2"><%= t('shopstaff.denied_title') %></h1>
+  <p class="text-gray-500 mb-1"><%= t('shopstaff.denied_body') %></p>
+  <p class="text-gray-400 text-sm mb-6">
+    <%= t('shopstaff.your_role') %>: <b><%= t('shopstaff.role.' + perms.role) %></b>
+  </p>
+  <a href="<%= home %>" class="inline-block brand-bg text-white font-bold rounded-xl px-6 py-3 text-sm">
+    <%= t('shopstaff.back') %>
+  </a>
+</div>
+
+<%- include('_layout_bottom') %>
