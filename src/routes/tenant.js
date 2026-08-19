@@ -10,6 +10,7 @@ const money = require('../lib/money');
 const stock = require('../pharmacy/stock');
 const foodOptions = require('../food/options');
 const foodIngredients = require('../food/ingredients');
+const foodDelivery = require('../food/delivery');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
 const deals = require('../lib/deals');
@@ -282,6 +283,13 @@ router.get('/', async (req, res) => {
           }
           for (const it of o.items) it.options = byItem[it.id] || [];
         }
+        // Delivery areas this branch charges by. A branch with none keeps its
+        // single flat fee and the picker never appears.
+        o.zones = (await pool.query(
+          `SELECT id, name, fee, min_order, free_over, eta_min FROM food_zones
+            WHERE company_id = $1 AND is_active = true AND (outlet_id IS NULL OR outlet_id = $2)
+            ORDER BY name`, [company.id, o.id]
+        )).rows;
         foodItemCount += o.items.length;
       }
       // Paid AI assistant: only surface the chat widget when the merchant has an
@@ -1542,7 +1550,27 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
       }
     }
     // Pickup and dine-in pay no delivery fee — the whole point of choosing them.
-    const deliveryFee = foodOptions.feeFor(orderType, Object.keys(outFee).reduce((s, k) => s + outFee[k], 0));
+    // For a delivery, the area decides: a branch with zones charges the zone's
+    // fee, one without keeps its single flat fee exactly as before.
+    let zone = null;
+    let flatFee = Object.keys(outFee).reduce((s, k) => s + outFee[k], 0);
+    if (foodOptions.typeOf(orderType) === 'delivery') {
+      const zoneRows = (await client.query(
+        `SELECT * FROM food_zones WHERE company_id=$1 AND is_active=true
+           AND (outlet_id IS NULL OR outlet_id = $2) ORDER BY name`,
+        [company.id, Number(outletIds[0])]
+      )).rows;
+      const q = foodDelivery.quote(zoneRows, req.body.zone_id, flatFee, subtotal);
+      if (!q.ok) {
+        // A missing or unknown area used to mean free delivery anywhere. It is
+        // a refusal now, the same as the shop's checkout.
+        await client.query('ROLLBACK');
+        return res.redirect('/?err=' + q.why);
+      }
+      flatFee = q.fee;
+      zone = q.zone;
+    }
+    const deliveryFee = foodOptions.feeFor(orderType, flatFee);
     // And the outlet has to actually offer what was asked for.
     const outletRow = rows.find((x) => String(x.outlet_id) === String(outletIds[0]));
     if (!foodOptions.offers(outletRow, orderType)) {
@@ -1571,12 +1599,13 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
     const total = Math.max(0, subtotal + deliveryFee - discount);
     const token = crypto.randomBytes(9).toString('hex');
     const ord = (await client.query(
-      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, coupon_code, discount_amount, track_token, order_type, table_no)
-       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, coupon_code, discount_amount, track_token, order_type, table_no, zone_id, zone_name)
+       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
       [company.id, Number(outletIds[0]), name, total, deliveryFee,
        foodOptions.needsAddress(orderType) ? (address || null) : null, phone, notes || null,
        cp.ok ? cp.coupon.code : null, discount, token, orderType,
-       foodOptions.needsTable(orderType) ? tableNo : null]
+       foodOptions.needsTable(orderType) ? tableNo : null,
+       zone ? zone.id : null, zone ? zone.name : null]
     )).rows[0];
     for (const li of lineItems) {
       await client.query(

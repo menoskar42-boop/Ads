@@ -78,7 +78,8 @@
      from the dictionary, never taken from the URL — and the page renders in
      English too, so the sentences cannot live in the template. */
   var __errCodes = ['order', 'minorder', 'multibranch', 'address', 'table', 'ordertype',
-    'option', 'option_required', 'option_too_many', 'option_too_few', 'option_price'];
+    'option', 'option_required', 'option_too_many', 'option_too_few', 'option_price',
+    'zone', 'zone_min'];
   var __err = (typeof query !== 'undefined' && query) ? String(query.err || '') : '';
   var __errMsg = __errCodes.indexOf(__err) >= 0 ? t('orders.err.' + __err) : null;
 %>
@@ -218,6 +219,20 @@
           <% } else { %>
             <input type="hidden" name="order_type" value="<%= __types[0] || 'delivery' %>" />
           <% } %>
+          <% var __zones = []; __outlets.forEach(function (o) { (o.zones || []).forEach(function (z) { if (!__zones.some(function (x) { return x.id === z.id; })) __zones.push(z); }); }); %>
+          <% if (__zones.length) { %>
+            <%# The area decides the delivery fee. A branch with no areas never
+                shows this and keeps its single flat fee. %>
+            <div id="zoneBox">
+              <label class="block text-[13px] font-bold mb-1"><%= t('orders.zone') %></label>
+              <select name="zone_id" id="zoneSel" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5">
+                <option value=""><%= t('orders.zone_pick') %></option>
+                <% __zones.forEach(function (z) { %>
+                  <option value="<%= z.id %>" data-fee="<%= Number(z.fee) %>" data-min="<%= Number(z.min_order) %>" data-free="<%= z.free_over == null ? '' : Number(z.free_over) %>"><%= z.name %></option>
+                <% }); %>
+              </select>
+            </div>
+          <% } %>
           <div id="addrBox"><label class="block text-[13px] font-bold mb-1"><%= t('orders.address') %></label><textarea name="address" rows="2" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 resize-none"></textarea></div>
           <div id="tableBox" class="hidden"><label class="block text-[13px] font-bold mb-1"><%= t('orders.table') %></label><input name="table_no" maxlength="20" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
           <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.notes') %></label><input name="notes" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
@@ -322,6 +337,18 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
     return hidden ? hidden.value : 'delivery';
   }
 
+  // The fee for the area the customer picked, matching the server's rule: free
+  // over the threshold, the flat branch fee when this shop has no areas.
+  var zoneSel = document.getElementById('zoneSel');
+  function zoneFee(sub, flat) {
+    if (!zoneSel) return flat;
+    var opt = zoneSel.options[zoneSel.selectedIndex];
+    if (!opt || !opt.value) return 0;
+    var free = opt.dataset.free === '' ? null : Number(opt.dataset.free);
+    if (free !== null && free > 0 && sub >= free) return 0;
+    return Number(opt.dataset.fee) || 0;
+  }
+
   function totals() {
     var c = load(), count = 0, sub = 0, outSub = {};
     Object.keys(c).forEach(function (k) {
@@ -333,7 +360,7 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
       var o = outlets[oid]; if (!o) return;
       // No driver, no fee. The server decides the same way; this is only so the
       // number on the screen matches the number that will be charged.
-      if (orderType() === 'delivery') delivery += o.fee;
+      if (orderType() === 'delivery') delivery += zoneFee(sub, o.fee);
       if (o.min > 0 && outSub[oid] < o.min) warn = MINW + ' (' + o.name + '): ' + money(o.min);
     });
     var discount = appliedPercent > 0 ? Math.round(sub * appliedPercent / 100 * 100) / 100 : 0;
@@ -563,11 +590,17 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
       var inp = tbl.querySelector('input');
       if (inp) inp.required = (ty === 'dine_in');
     }
+    var zbox = document.getElementById('zoneBox');
+    if (zbox) {
+      zbox.classList.toggle('hidden', ty !== 'delivery');
+      if (zoneSel) zoneSel.required = (ty === 'delivery');
+    }
     renderDrawer(); renderBar();
   }
   Array.prototype.forEach.call(document.querySelectorAll('.type-radio'), function (r) {
     r.addEventListener('change', syncType);
   });
+  if (zoneSel) zoneSel.addEventListener('change', function () { renderDrawer(); renderBar(); });
   syncType();
 
   form.addEventListener('submit', function (e) {

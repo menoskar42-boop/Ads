@@ -218,6 +218,35 @@ async function ensureFoodSchema() {
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_food_stock_move_once ON food_stock_moves (order_id, kind);
 
+      /* مناطق التوصيل والسائقين (backlog 82).
+       *
+       * Delivery used to cost one number per branch, so two streets away and a
+       * village half an hour out paid the same. A branch with no zones keeps
+       * exactly that behaviour; a branch with zones charges by area.
+       *
+       * The driver is a staff row, not a second people table: the rider already
+       * has a login with the delivery role, and a chain of names in two places
+       * disagrees within a month.
+       */
+      CREATE TABLE IF NOT EXISTS food_zones (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        outlet_id  INTEGER REFERENCES food_outlets(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        fee        NUMERIC(10,2) NOT NULL DEFAULT 0,
+        min_order  NUMERIC(10,2) NOT NULL DEFAULT 0,
+        free_over  NUMERIC(10,2),
+        eta_min    INTEGER,
+        is_active  BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_food_zones ON food_zones (company_id, is_active);
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS zone_id     INTEGER REFERENCES food_zones(id) ON DELETE SET NULL;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS zone_name   TEXT;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS driver_id   INTEGER REFERENCES food_staff(id) ON DELETE SET NULL;
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_food_orders_driver ON food_orders (driver_id, status);
+
       CREATE TABLE IF NOT EXISTS food_order_events (
         id SERIAL PRIMARY KEY,
         order_id INTEGER REFERENCES food_orders(id) ON DELETE CASCADE,

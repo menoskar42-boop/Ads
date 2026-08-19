@@ -60,6 +60,9 @@ const GUARDED = [
   // The kitchen's shelf and what a dish costs: menu work, and the cost is
   // money — but it lives on the item, so it follows the menu permission the
   // way the price already does.
+  // Delivery areas and their prices: the same kind of decision as the menu's
+  // prices, so the same permission.
+  ['/zones', 'menu'],
   ['/ingredients', 'menu'],
   ['/pos', 'orders'],
   ['/tables', 'menu'],
