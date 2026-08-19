@@ -197,6 +197,31 @@ async function load(companyId, patientId, onDate) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+// ── رسايل آمنة ───────────────────────────────────────────────────────────────
+//
+// السؤال ده كان بيروح على واتساب رقم شخصي ومعاه صورة تحليل. هنا جوّه النظام.
+//
+// الصفحة **مابتوعدش بحاجة**: بتقول إن دي مش للطوارئ، وبتقول وقت الرد بكلام
+// العيادة نفسها، و«اتبعت» بتفضل «اتبعت» لحد ما العيادة تفتح الخيط فعلاً.
+const MSG = require('../nutrition/messages');
+// نفس القاعدة: كود الخطأ من قايمة عندنا مش من الرابط.
+const MSG_ERRORS = ['empty', 'send'];
+const msgErr = (v) => (MSG_ERRORS.includes(v) ? v : null);
+
+// المريض بيبعت من تليفونه — الحد أوسع من الدخول وأضيق من صندوق سبام.
+const msgLimiter = rateLimit({ name: 'nutrition-portal-msg', windowMs: 10 * 60000, max: 12 });
+
+/** إعداد الرسايل للعيادة دي. القراءة اللي تفشل = مقفولة (مش بنوعد بصندوق وارد). */
+async function msgPrefs(companyId) {
+  try {
+    const r = (await pool.query(
+      'SELECT messages_enabled, messages_reply_note FROM nutrition_settings WHERE company_id=$1',
+      [companyId])).rows[0];
+    return { on: MSG.enabledFrom(r), note: (r && r.messages_reply_note) || null };
+  } catch (e) { console.error('[portal msg prefs]', e.message); return { on: false, note: null }; }
+}
+
+
 // ── Today ────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const day = today();
@@ -253,8 +278,21 @@ router.get('/', async (req, res) => {
           WHERE company_id=$1 AND is_active=true ORDER BY name LIMIT 400`, [req.practice.id])).rows;
     } catch (e) { console.error('[nutrition foods]', e.message); }
 
+    // الرسايل: المدخل بيظهر لما العيادة تكون فاتحة الميزة بس — لينك لصندوق
+    // وارد محدش بيقراه أسوأ من مفيش لينك.
+    let msgs = { on: false, unread: 0 };
+    try {
+      const prefs = await msgPrefs(req.practice.id);
+      if (prefs.on) {
+        const rows = (await pool.query(
+          'SELECT sender, read_at FROM nutrition_messages WHERE company_id=$1 AND patient_id=$2',
+          [req.practice.id, req.patientId])).rows;
+        msgs = { on: true, unread: MSG.unreadFor(rows, 'patient') };
+      }
+    } catch (e) { console.error('[nutrition portal msgs]', e.message); }
+
     res.render('nutrition_portal/today', {
-      ...d, day, meals: E.MEALS, byMeal,
+      ...d, day, meals: E.MEALS, byMeal, msgs,
       planTotals: E.totals(d.items),
       eatenTotals: E.totals(eaten),
       ate, foods,
@@ -407,6 +445,40 @@ router.get('/progress', async (req, res) => {
       progress: require('../nutrition/practice').progress(series, patient && patient.target_weight_kg),
     });
   } catch (e) { console.error('[nutrition progress]', e.message); res.status(500).send('error'); }
+});
+
+router.get('/messages', async (req, res) => {
+  const prefs = await msgPrefs(req.practice.id);
+  if (!prefs.on) return res.redirect('/portal');
+  try {
+    const rows = (await pool.query(
+      `SELECT id, sender, author_name, body, read_at, created_at FROM nutrition_messages
+        WHERE company_id=$1 AND patient_id=$2 ORDER BY created_at`,
+      [req.practice.id, req.patientId])).rows;
+    // الخيط اتفتح فعلاً → رسايل العيادة بقت «مقروءة» من ناحيتها.
+    const mark = MSG.markRead({ companyId: req.practice.id, patientId: req.patientId, viewer: 'patient' });
+    await pool.query(mark.text, mark.values);
+    res.render('nutrition_portal/messages', {
+      thread: MSG.threadFor(rows, 'patient'),
+      waiting: MSG.waitingHours(rows),
+      replyNote: prefs.note, maxLen: MSG.MAX_LEN,
+      sent: req.query.sent === '1', err: msgErr(req.query.err),
+    });
+  } catch (e) { console.error('[portal messages]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/messages', msgLimiter, async (req, res) => {
+  const prefs = await msgPrefs(req.practice.id);
+  if (!prefs.on) return res.redirect('/portal');
+  const body = MSG.clean((req.body || {}).body);
+  if (!body) return res.redirect('/portal/messages?err=empty');
+  try {
+    const q = MSG.insertMessage({ companyId: req.practice.id, patientId: req.patientId, sender: 'patient', body });
+    const r = await pool.query(q.text, q.values);
+    // مافيش صف = المريض مش بتاع العيادة دي أو موقوف. مابنقولش «اتبعت».
+    if (!r.rows.length) return res.redirect('/portal/messages?err=send');
+  } catch (e) { console.error('[portal message send]', e.message); return res.redirect('/portal/messages?err=send'); }
+  res.redirect('/portal/messages?sent=1');
 });
 
 module.exports = router;

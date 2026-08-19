@@ -20,6 +20,7 @@ const P = require('../nutrition/practice');
 const swaps = require('../nutrition/swaps');
 const safety = require('../nutrition/safety');
 const templates = require('../nutrition/templates');
+const micros = require('../nutrition/micros');
 
 const router = express.Router({ mergeParams: true });
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -104,6 +105,7 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
     // the patient's phone can never disagree about what the plan adds up to.
     const byMeal = {};
     E.MEALS.forEach((m) => { byMeal[m] = data.items.filter((i) => i.meal === m); });
+    const foodsById = new Map(foods.map((f) => [Number(f.id), f]));
 
     // The patient's profile, so a substitute goes through the same check the
     // plan itself does — a peanut offered as an "alternative" is worse than no
@@ -122,6 +124,14 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
       mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
       dayTotals: E.totals(data.items),
       swapsByItem,
+      // العناصر الدقيقة (البند ٨٤): المجموع بيتحسب من قيم الأصناف اللي
+      // الأخصائي كتبها — و**بيقول كام سطر مش محسوب**. مجموع ناقص معروض كأنه
+      // كامل بيدّي رقم أقل من الحقيقة، والأخصائي يقرا «نقص حديد» على مريض
+      // مافيهوش نقص.
+      micros: micros.MICROS,
+      microTotals: micros.totals(data.items.map((i) => ({
+        grams: i.grams, food: foodsById.get(Number(i.food_id)) || null,
+      }))),
       // القوالب العلاجية (البند ٨٤): القايمة بتتعرض على الخطة نفسها عشان
       // التطبيق يبقى خطوة واحدة، والنتيجة بتترجع بعدها بالتفصيل.
       templates: (await pool.query(

@@ -10,6 +10,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const M = require('../lib/money');
+const micros = require('../nutrition/micros');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -54,6 +55,7 @@ router.get('/', async (req, res) => {
     ]);
     res.render('nutrition_admin/foods', {
       tab: 'foods', rows: rows.rows, tally: tally.rows[0], edit: edit.rows[0] || null,
+      MICROS: micros.MICROS,
       q, archived, saved: req.query.saved === '1',
       // Known codes only — the page never repeats the address bar's own words.
       err: FOOD_ERRORS.includes(req.query.err) ? req.query.err : null,
@@ -85,19 +87,31 @@ router.post('/', async (req, res) => {
     servingG = got.value;
   }
 
+  // العناصر الدقيقة: **اختيارية كلها**، والخانة الفاضية بتفضل NULL مش صفر —
+  // إحنا مانشحنش قاعدة تركيب أغذية، فاللي مامتلاش يفضل «مش مسجّل». بس اللي
+  // اتكتب ومااتقراش بيوقّف الحفظ زي أي رقم تاني.
+  const got = micros.readAll(b);
+  if (!got.ok) return res.redirect('/nutrition/foods?err=' + (got.why === 'range' ? 'range' : 'unreadable'));
+  const microVals = micros.KEYS.map((k) => got.values[k]);
+
   const vals = [name, ...figures,
-    text(b.serving_desc, 60), servingG, text(b.category, 60)];
+    text(b.serving_desc, 60), servingG, text(b.category, 60), ...microVals];
+  const microSet = micros.KEYS.map((k, i) => `${k}=$${9 + i}`).join(', ');
+  const microCols = micros.KEYS.join(', ');
+  const microPh = micros.KEYS.map((k, i) => `$${9 + i}`).join(',');
   try {
     if (Number.isInteger(id)) {
       await pool.query(
         `UPDATE nutrition_foods SET name=$1, kcal=$2, protein_g=$3, carbs_g=$4, fat_g=$5,
-                serving_desc=$6, serving_g=$7, category=$8
-          WHERE id=$9 AND company_id=$10`, [...vals, id, req.company.id]);
+                serving_desc=$6, serving_g=$7, category=$8, ${microSet}
+          WHERE id=$${9 + micros.KEYS.length} AND company_id=$${10 + micros.KEYS.length}`,
+        [...vals, id, req.company.id]);
     } else {
       await pool.query(
         `INSERT INTO nutrition_foods
-           (name, kcal, protein_g, carbs_g, fat_g, serving_desc, serving_g, category, company_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [...vals, req.company.id]);
+           (name, kcal, protein_g, carbs_g, fat_g, serving_desc, serving_g, category, ${microCols}, company_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,${microPh},$${9 + micros.KEYS.length})`,
+        [...vals, req.company.id]);
     }
   } catch (e) {
     console.error('[nutrition food save]', e.message);

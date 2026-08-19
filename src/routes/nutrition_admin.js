@@ -553,8 +553,9 @@ router.post('/settings', async (req, res) => {
          (company_id, practice_name, about, address, phone, whatsapp, hours,
           booking_enabled, protein_per_kg, fat_percent,
           subscription_enabled, subscription_price, subscription_months, services,
-          work_days, work_from, work_to, slot_minutes, subscription_since, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
+          work_days, work_from, work_to, slot_minutes,
+          messages_enabled, messages_reply_note, subscription_since, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
                -- Stamped the FIRST time charging is switched on. It is what the
                -- grace period for existing patients is measured from, so it must
                -- not move every time the price is edited.
@@ -571,6 +572,8 @@ router.post('/settings', async (req, res) => {
          services=EXCLUDED.services,
          work_days=EXCLUDED.work_days, work_from=EXCLUDED.work_from,
          work_to=EXCLUDED.work_to, slot_minutes=EXCLUDED.slot_minutes,
+         messages_enabled=EXCLUDED.messages_enabled,
+         messages_reply_note=EXCLUDED.messages_reply_note,
          subscription_since=EXCLUDED.subscription_since,
          updated_at=now()`,
       [req.company.id, text(b.practice_name, 120), text(b.about, 1500), text(b.address, 200),
@@ -591,12 +594,104 @@ router.post('/settings', async (req, res) => {
           .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6).join(',') || null,
         /^\d{2}:\d{2}$/.test(String(b.work_from || '')) ? b.work_from : null,
         /^\d{2}:\d{2}$/.test(String(b.work_to || '')) ? b.work_to : null,
-        Math.min(180, Math.max(10, parseInt(b.slot_minutes, 10) || 45))]);
+        Math.min(180, Math.max(10, parseInt(b.slot_minutes, 10) || 45)),
+        // الرسايل الآمنة: مقفولة لحد ما العيادة تفتحها. استقبال أسئلة طبية
+        // التزام، وعيادة ما تعرفش إن فيه صندوق وارد هتسيب مرضى مستنيين رد.
+        b.messages_enabled === '1', text(b.messages_reply_note, 200)]);
   } catch (e) {
     console.error('[nutrition settings save]', e.message);
     return res.redirect('/nutrition/settings?err=save');
   }
   res.redirect('/nutrition/settings?saved=1');
+});
+
+// ── رسايل آمنة (البند ٨٤) ───────────────────────────────────────────────────
+//
+// السؤال اللي كان بيتبعت على واتساب رقم شخصي — «التحليل ده يعني إيه؟» ومعاه
+// صورة ورقة التحاليل — بقى جوّه النظام جنب ملف المريض.
+//
+// الصندوق ده **على صلاحية `clinical`** زي التحاليل والخطة: اللي جوّاه أسئلة
+// طبية بأسماء أصحابها، مش «حجزلي ميعاد».
+const MSG = require('../nutrition/messages');
+// أكواد الأخطاء من قايمة عندنا — الصفحة مابتطبعش كلام جاي من العنوان.
+const MSG_ERRORS = ['empty', 'save'];
+const msgErr = (v) => (MSG_ERRORS.includes(v) ? v : null);
+
+/** إعداد الرسايل. القراءة اللي تفشل = مقفولة — مابنوعدش بصندوق وارد. */
+async function msgPrefs(companyId) {
+  try {
+    const r = (await pool.query(
+      'SELECT messages_enabled, messages_reply_note FROM nutrition_settings WHERE company_id=$1',
+      [companyId])).rows[0];
+    return { on: MSG.enabledFrom(r), note: (r && r.messages_reply_note) || null };
+  } catch (e) { console.error('[nutrition msg prefs]', e.message); return { on: false, note: null }; }
+}
+
+// صندوق الوارد: خيط لكل مريض، اللي مستني رد فوق.
+router.get('/messages', async (req, res) => {
+  const prefs = await msgPrefs(req.company.id);
+  try {
+    const rows = prefs.on ? (await pool.query(
+      `SELECT m.patient_id, p.name AS patient_name, p.phone,
+              MAX(m.created_at) AS last_at,
+              COUNT(*) FILTER (WHERE m.sender = 'patient' AND m.read_at IS NULL)::int AS unread,
+              (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_body,
+              (ARRAY_AGG(m.sender ORDER BY m.created_at DESC))[1] AS last_sender
+         FROM nutrition_messages m
+         JOIN nutrition_patients p ON p.id = m.patient_id AND p.company_id = m.company_id
+        WHERE m.company_id = $1
+        GROUP BY m.patient_id, p.name, p.phone
+        ORDER BY unread DESC, last_at DESC`, [req.company.id])).rows : [];
+    res.render('nutrition_admin/messages', {
+      tab: 'messages', rows, on: prefs.on, replyNote: prefs.note,
+      err: msgErr(req.query.err),
+    });
+  } catch (e) { console.error('[nutrition inbox]', e.message); res.status(500).send('error'); }
+});
+
+// خيط مريض واحد. رقم المريض في الرابط بيعدّي على `ownerGuard` بتاع
+// `/patients/:id` — فهنا الشرط متكتوب في الجملة نفسها كمان.
+router.get('/messages/:id(\\d+)', async (req, res) => {
+  const prefs = await msgPrefs(req.company.id);
+  if (!prefs.on) return res.redirect('/nutrition/messages');
+  const pid = parseInt(req.params.id, 10);
+  try {
+    const patient = (await pool.query(
+      'SELECT id, name, phone FROM nutrition_patients WHERE id=$1 AND company_id=$2',
+      [pid, req.company.id])).rows[0];
+    if (!patient) return res.redirect('/nutrition/messages');
+    const rows = (await pool.query(
+      `SELECT id, sender, author_name, body, read_at, created_at FROM nutrition_messages
+        WHERE company_id=$1 AND patient_id=$2 ORDER BY created_at`,
+      [req.company.id, pid])).rows;
+    // الخيط اتفتح فعلاً → رسايل المريض بقت «مقروءة». مش وقت وصولها.
+    const mark = MSG.markRead({ companyId: req.company.id, patientId: pid, viewer: 'practice' });
+    await pool.query(mark.text, mark.values);
+    res.render('nutrition_admin/message_thread', {
+      tab: 'messages', patient, thread: MSG.threadFor(rows, 'practice'),
+      waiting: MSG.waitingHours(rows), maxLen: MSG.MAX_LEN,
+      sent: req.query.sent === '1', err: msgErr(req.query.err),
+    });
+  } catch (e) { console.error('[nutrition thread]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/messages/:id(\\d+)', async (req, res) => {
+  const prefs = await msgPrefs(req.company.id);
+  const pid = parseInt(req.params.id, 10);
+  const back = '/nutrition/messages/' + pid;
+  if (!prefs.on) return res.redirect('/nutrition/messages');
+  const body = MSG.clean((req.body || {}).body);
+  if (!body) return res.redirect(back + '?err=empty');
+  try {
+    // اسم اللي بيرد بيتبعت مع الرسالة — المريض يعرف إنه بيكلّم مين.
+    const q = MSG.insertMessage({
+      companyId: req.company.id, patientId: pid, sender: 'practice', body,
+      authorName: (req.perms && req.perms.name) || null,
+    });
+    const r = await pool.query(q.text, q.values);
+    if (!r.rows.length) return res.redirect(back + '?err=save');
+  } catch (e) { console.error('[nutrition reply]', e.message); return res.redirect(back + '?err=save'); }
+  res.redirect(back + '?sent=1');
 });
 
 // ── Practice staff ───────────────────────────────────────────────────────────

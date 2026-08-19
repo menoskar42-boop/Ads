@@ -98,9 +98,22 @@ const code = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
     check(`خانة ${f} مطلوبة في الفورم`,
       new RegExp('name="' + f + '"[^>]*required').test(v));
   }
+  // القاعدة، مش عدد محفوظ: **كل** خانة رقمية في الفورم بتقبل الأرقام العربية.
+  // العدّ اليدوي كان بيقع أول ما تتضاف خانة رقمية جديدة، وده بيخلي الفحص
+  // يتصلّح بتعديل الرقم — يعني بيتعطّل بدل ما يمسك.
+  const NUMERIC = ['kcal', 'protein_g', 'carbs_g', 'fat_g', 'serving_g']
+    .concat(require('../src/nutrition/micros').KEYS);
+  // `[^>]*` مايصلحش هنا: اسم الخانة المبنية في لوب فيه `%>` جوّاه.
+  const tags = v.match(/<input[\s\S]*?\/>/g) || [];
+  const numericTags = tags.filter((tg) => {
+    const m = /name="([^"]+)"/.exec(tg);
+    // الخانة المبنية في لوب اسمها بيتحسب وقت العرض — بنعرفها من الاسم الديناميكي.
+    return (m && NUMERIC.includes(m[1])) || /name="<%= m\.key %>"/.test(tg);
+  });
   check('والخانات بتقبل الأرقام العربية (مش type=number اللي بيرميها)',
-    !/name="(kcal|protein_g|carbs_g|fat_g|serving_g)" type="number"/.test(v)
-    && (v.match(/inputmode="decimal"/g) || []).length === 5);
+    numericTags.length >= 6
+    && numericTags.every((tg) => /inputmode="decimal"/.test(tg) && !/type="number"/.test(tg)),
+    numericTags.length + ' خانة رقمية');
 }
 
 /* ── And it can be said in both languages ──────────────────────────────── */

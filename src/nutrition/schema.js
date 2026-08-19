@@ -88,6 +88,31 @@ async function ensureNutritionSchema() {
       -- «إنقاص وزن ١٥٠٠ سعرة» و«بروتوكول سكري» بتتكتب لكل مريض من الأول.
       -- القالب بيخزّن **الوصفة** (وجبة · صنف · جرامات) — مش القيم المحسوبة،
       -- لأنه مش خطة مسلّمة لمريض: القيم بتتحسب وقت التطبيق من الصنف الحي.
+      -- ── رسايل آمنة (البند ٨٤) ──────────────────────────────────────────
+      -- المريض كان بيبعت سؤاله وصورة تحليله على واتساب رقم شخصي. هنا الكلام
+      -- جوّه النظام جنب ملفه.
+      --
+      -- **مقفولة افتراضياً**: استقبال أسئلة طبية التزام، وعيادة ما تعرفش إن
+      -- فيه صندوق وارد هتسيب مرضى مستنيين رد.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS messages_enabled BOOLEAN NOT NULL DEFAULT false;
+      -- وقت الرد اللي العيادة بتوعد بيه، بكلامها هي — عشان الصفحة تقول للمريض
+      -- «الرد خلال كذا» بدل ما تسيبه يخمّن.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS messages_reply_note TEXT;
+
+      CREATE TABLE IF NOT EXISTS nutrition_messages (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id  INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        sender      TEXT NOT NULL,          -- 'patient' | 'practice'
+        -- اسم اللي رد من العيادة: المريض يعرف إنه بيكلّم الأخصائي ولا الاستقبال.
+        author_name TEXT,
+        body        TEXT NOT NULL,
+        -- «اتقرت» بتتكتب لما الطرف التاني يفتح الخيط فعلاً — مش وقت الوصول.
+        read_at     TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_messages ON nutrition_messages (company_id, patient_id, created_at);
+
       CREATE TABLE IF NOT EXISTS nutrition_templates (
         id         SERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -212,6 +237,19 @@ async function ensureNutritionSchema() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_nut_foods ON nutrition_foods (company_id, is_active, name);
+
+      -- ── العناصر الدقيقة (البند ٨٤) ─────────────────────────────────────
+      -- كلها **بتقبل NULL** ومن غير افتراضي — ودي كل النقطة: إحنا مانشحنش
+      -- قاعدة تركيب أغذية (الأرقام دي ليها مصادر ورخص وبتختلف بالبلد وطريقة
+      -- الطبخ)، فالخانة بتفضل فاضية لحد ما الأخصائي يملاها من مرجعه.
+      -- افتراضي صفر هنا كان هيخلي كل صنف في كل عيادة يدّعي إن فيه صفر حديد.
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS fiber_g      NUMERIC(6,2);
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS sodium_mg    NUMERIC(9,2);
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS potassium_mg NUMERIC(9,2);
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS calcium_mg   NUMERIC(9,2);
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS iron_mg      NUMERIC(8,2);
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS vit_d_ug     NUMERIC(8,2);
+      ALTER TABLE nutrition_foods ADD COLUMN IF NOT EXISTS vit_b12_ug   NUMERIC(8,2);
 
       CREATE TABLE IF NOT EXISTS nutrition_plans (
         id             SERIAL PRIMARY KEY,

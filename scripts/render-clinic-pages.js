@@ -665,7 +665,14 @@ const FIXTURES = {
       { id: 1, name: 'Cooked white rice', kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3, category: 'grain', serving_g: 100, serving_desc: null },
       { id: 2, name: 'Grilled chicken breast', kcal: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6, category: 'protein', serving_g: 150, serving_desc: null },
     ],
-    tally: { active: 22, archived: 1 }, edit: null, q: '', archived: false,
+    tally: { active: 22, archived: 1 }, q: '', archived: false,
+    MICROS: require('../src/nutrition/micros').MICROS,
+    // صنف بيتعدّل وفيه عنصرين متسجّلين والباقي فاضي — القسم بيتفتح ومابيدّعيش
+    // إن اللي فاضي صفر.
+    edit: { id: 1, name: 'Cooked white rice', kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3,
+      category: 'grain', serving_g: 100, serving_desc: null,
+      iron_mg: 1.2, fiber_g: 0.4, sodium_mg: null, potassium_mg: null,
+      calcium_mg: null, vit_d_ug: null, vit_b12_ug: null },
     saved: true, err: 'not_empty',
   }),
 
@@ -673,6 +680,7 @@ const FIXTURES = {
   nutrition_foods_empty: () => ({
     __file: 'nutrition_admin/foods.ejs', tab: 'foods',
     rows: [], tally: { active: 0, archived: 0 }, edit: null, q: '', archived: false,
+    MICROS: require('../src/nutrition/micros').MICROS,
     saved: false, err: null,
   }),
 
@@ -688,6 +696,15 @@ const FIXTURES = {
     E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
     return {
       __file: 'nutrition_admin/plan.ejs', tab: 'patients',
+      micros: require('../src/nutrition/micros').MICROS,
+      // عنصر متسجّل على صنفين من أربعة، وعنصر مش متسجّل خالص — التلات حالات
+      // بتترسم: رقم بكامله، ورقم ومعاه «كام سطر مش محسوبين»، و«مش مسجّل».
+      microTotals: require('../src/nutrition/micros').totals([
+        { grams: 100, food: { iron_mg: 1.2, fiber_g: 0 } },
+        { grams: 60, food: { iron_mg: 1.6, fiber_g: 2.4 } },
+        { grams: 200, food: null },
+        { grams: 150, food: {} },
+      ]),
       plan: { id: 1, pid: 1, patient_name: 'Mona S.', title: 'August plan',
         target_kcal: 1650, target_protein: 152, target_carbs: 132, target_fat: 46,
         start_date: '2026-08-01', is_active: true, notes: 'Water 2L a day.' },
@@ -811,6 +828,8 @@ const FIXTURES = {
       lastWeight: { weight_kg: 84.2, taken_on: '2026-07-20' },
       loggedToday: false, day: '2026-08-03',
       saved: false, err: 'weight',
+      // الرسايل مفتوحة وفيه رسالة ما اتقرتش — المدخل والعدّاد الاتنين بيترسموا.
+      msgs: { on: true, unread: 2 },
       // The real diary (backlog 84): one entry with a food behind it and one
       // the patient typed, so the "not counted" state renders.
       ...diaryFixture([
@@ -834,6 +853,7 @@ const FIXTURES = {
       planTotals: E.totals([]), eatenTotals: E.totals([]),
       lastWeight: null, loggedToday: false, day: '2026-08-03',
       saved: true, err: null,
+      msgs: { on: false, unread: 0 },
       ...diaryFixture([]),
     };
   },
@@ -861,9 +881,70 @@ const FIXTURES = {
     __file: 'nutrition_admin/settings.ejs', tab: 'settings',
     settings: { practice_name: 'Demo Nutrition', phone: '0882000000', whatsapp: '201000000000',
       hours: 'Sat-Thu 4pm-10pm', address: '5 Adly St', about: 'A demo practice.',
-      booking_enabled: true, protein_per_kg: 1.8, fat_percent: 25 },
+      booking_enabled: true, protein_per_kg: 1.8, fat_percent: 25,
+      messages_enabled: true, messages_reply_note: 'We reply within 24 hours on working days' },
     saved: true,
   }),
+
+  // ── رسايل آمنة (البند ٨٤) ────────────────────────────────────────────────
+  // الحالات اللي لازم ترسم: رسالة اتبعتت ولسه ما اتقرتش، ورسالة اتقرت، ورد من
+  // العيادة باسم اللي رد — و«مستني رد من كذا ساعة» محسوبة من الرسايل نفسها.
+  nutrition_messages_thread: () => {
+    const MSG = require('../src/nutrition/messages');
+    const rows = [
+      { id: 1, sender: 'patient', author_name: null, body: 'What does this lab result mean?',
+        read_at: '2026-08-18T10:00:00Z', created_at: '2026-08-18T09:00:00Z' },
+      { id: 2, sender: 'practice', author_name: 'Dr. Nour', body: 'Bring it to your next visit and we will go through it.',
+        read_at: null, created_at: '2026-08-18T10:05:00Z' },
+      { id: 3, sender: 'patient', author_name: null, body: 'Can I swap the rice for potatoes today?',
+        read_at: null, created_at: '2026-08-19T07:00:00Z' },
+    ];
+    return {
+      __file: 'nutrition_admin/message_thread.ejs', tab: 'messages',
+      patient: { id: 1, name: 'Mona S.', phone: '01000000010' },
+      thread: MSG.threadFor(rows, 'practice'),
+      waiting: MSG.waitingHours(rows, new Date('2026-08-19T12:00:00Z')),
+      maxLen: MSG.MAX_LEN, sent: false, err: 'empty',
+    };
+  },
+
+  nutrition_messages_inbox: () => ({
+    __file: 'nutrition_admin/messages.ejs', tab: 'messages', on: true,
+    replyNote: 'We reply within 24 hours on working days',
+    rows: [
+      { patient_id: 1, patient_name: 'Mona S.', phone: '01000000010', last_at: '2026-08-19T07:00:00Z',
+        unread: 1, last_body: 'Can I swap the rice for potatoes today?', last_sender: 'patient' },
+      { patient_id: 2, patient_name: 'Karim H.', phone: null, last_at: '2026-08-17T15:00:00Z',
+        unread: 0, last_body: 'Bring it to your next visit and we will go through it.', last_sender: 'practice' },
+    ],
+    err: null,
+  }),
+
+  // والصندوق وهو مقفول: بيقول إنه مقفول بدل ما يبان فاضي.
+  nutrition_messages_off: () => ({
+    __file: 'nutrition_admin/messages.ejs', tab: 'messages', on: false,
+    replyNote: null, rows: [], err: null,
+  }),
+
+  nutrition_portal_messages: () => {
+    const MSG = require('../src/nutrition/messages');
+    const rows = [
+      { id: 1, sender: 'patient', author_name: null, body: 'What does this lab result mean?',
+        read_at: '2026-08-18T10:00:00Z', created_at: '2026-08-18T09:00:00Z' },
+      { id: 2, sender: 'practice', author_name: 'Dr. Nour', body: 'Bring it to your next visit and we will go through it.',
+        read_at: null, created_at: '2026-08-18T10:05:00Z' },
+      { id: 3, sender: 'patient', author_name: null, body: 'Can I swap the rice for potatoes today?',
+        read_at: null, created_at: '2026-08-19T07:00:00Z' },
+    ];
+    return {
+      __file: 'nutrition_portal/messages.ejs',
+      practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+      thread: MSG.threadFor(rows, 'patient'),
+      waiting: MSG.waitingHours(rows, new Date('2026-08-19T12:00:00Z')),
+      replyNote: 'We reply within 24 hours on working days',
+      maxLen: MSG.MAX_LEN, sent: true, err: null,
+    };
+  },
 
   furniture_alerts: (lang) => {
     const fl = require('../src/furniture/flags');
