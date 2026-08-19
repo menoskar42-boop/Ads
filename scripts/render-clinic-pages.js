@@ -14,6 +14,7 @@
  */
 'use strict';
 const ejs = require('ejs');
+const fs = require('fs');
 const path = require('path');
 const { t } = require('../src/i18n/strings');
 const { visibleArabic } = require('./check-clinic-i18n');
@@ -1576,6 +1577,16 @@ for (const name of names) {
   try {
     ar = renderPage(name, 'ar');
     en = renderPage(name, 'en');
+    /* الصفحات المرسومة تتكتب على القرص لو حد طلب كده (`RENDER_DUMP_DIR`).
+     * `check-tailwind-build` بيقرا منها كلاسات الـHTML الحقيقية ويتأكد إن
+     * ملف الـCSS المبني فيه قاعدة لكل واحد — الفحص ده مستحيل من غير الـHTML
+     * الفعلي، لأن الكلاس اللي بيتركّب في EJS مابيبانش في نص القالب. */
+    if (process.env.RENDER_DUMP_DIR) {
+      const dir = process.env.RENDER_DUMP_DIR;
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, name + '.ar.html'), ar);
+      fs.writeFileSync(path.join(dir, name + '.en.html'), en);
+    }
     // The tabbed patient file: every tab, not only the one that happens to be
     // the default — a section nobody renders is a section nobody tests.
     if (name === 'patient_file') {
