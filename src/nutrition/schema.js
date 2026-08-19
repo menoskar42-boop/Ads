@@ -270,6 +270,32 @@ async function ensureNutritionSchema() {
       ALTER TABLE nutrition_diary ADD COLUMN IF NOT EXISTS kind     TEXT NOT NULL DEFAULT 'tick';  -- tick | ate
       CREATE INDEX IF NOT EXISTS idx_nut_diary_ate ON nutrition_diary (patient_id, on_date, kind);
 
+      /* ماء ونوم وخطوات ومزاج (backlog 84).
+       *
+       * A weight once a week is a thin picture of a month, and the things that
+       * explain a stalled week — no sleep, no water, a bad fortnight — were
+       * nowhere, so the follow-up ran on the patient's memory of a Tuesday two
+       * weeks ago.
+       *
+       * One row per patient per day: a second check-in on the same day is a
+       * correction, not a new day, and the unique index makes that true rather
+       * than hoped for.
+       */
+      CREATE TABLE IF NOT EXISTS nutrition_checkins (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id    INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        on_date       DATE NOT NULL DEFAULT CURRENT_DATE,
+        water_glasses INTEGER,
+        sleep_hours   NUMERIC(4,1),
+        steps         INTEGER,
+        mood          TEXT,
+        note          TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_checkin_day ON nutrition_checkins (patient_id, on_date);
+
       /* حساسية وأمراض وأدوية وتفضيلات (backlog 84).
        *
        * The practice stored a patient's height, weight and goal and nothing

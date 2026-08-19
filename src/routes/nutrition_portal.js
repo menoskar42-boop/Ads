@@ -24,6 +24,7 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const E = require('../nutrition/engine');
 const diary = require('../nutrition/diary');
+const checkin = require('../nutrition/checkin');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -235,6 +236,15 @@ router.get('/', async (req, res) => {
         }));
     } catch (e) { console.error('[nutrition diary read]', e.message); }
 
+    // Today's check-in, if there is one. A day with nothing logged stays null
+    // rather than becoming a row of zeros.
+    let todayCheckin = null;
+    try {
+      todayCheckin = (await pool.query(
+        'SELECT * FROM nutrition_checkins WHERE patient_id=$1 AND company_id=$2 AND on_date=$3',
+        [req.patientId, req.practice.id, day])).rows[0] || null;
+    } catch (e) { console.error('[nutrition checkin read]', e.message); }
+
     // The practice's food list, for picking instead of typing.
     let foods = [];
     try {
@@ -251,6 +261,7 @@ router.get('/', async (req, res) => {
       ateByMeal: diary.byMeal(ate),
       ateTotals: diary.dayTotals(ate),
       diaryMeals: diary.MEALS,
+      todayCheckin, checkinMoods: checkin.MOODS,
       lastWeight,
       loggedToday: lastWeight && String(lastWeight.taken_on).slice(0, 10) === day,
       saved: req.query.saved === '1', err: req.query.err || null,
@@ -328,6 +339,38 @@ router.post('/ate/:id(\\d+)/delete', async (req, res) => {
       [parseInt(req.params.id, 10), req.patientId, req.practice.id]);
   } catch (e) { console.error('[nutrition ate delete]', e.message); }
   res.redirect('/portal');
+});
+
+/**
+ * تسجيل اليوم — water, sleep, steps, mood.
+ *
+ * One row per day: sending the form twice is a correction, not a second day.
+ * Everything is optional and a blank stays NULL, because a day with no reading
+ * is not a day of zero — an average that counts silence as zero makes a
+ * patient look worse the less they use the app.
+ */
+router.post('/checkin', async (req, res) => {
+  const day = today();
+  const read = checkin.readCheckin(req.body);
+  if (!read.ok) return res.redirect('/portal?err=' + read.why);
+  const v = read.value;
+  try {
+    await pool.query(
+      `INSERT INTO nutrition_checkins (company_id, patient_id, on_date, water_glasses, sleep_hours, steps, mood, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (patient_id, on_date) DO UPDATE SET
+         water_glasses = COALESCE(EXCLUDED.water_glasses, nutrition_checkins.water_glasses),
+         sleep_hours   = COALESCE(EXCLUDED.sleep_hours,   nutrition_checkins.sleep_hours),
+         steps         = COALESCE(EXCLUDED.steps,         nutrition_checkins.steps),
+         mood          = COALESCE(EXCLUDED.mood,          nutrition_checkins.mood),
+         note          = COALESCE(EXCLUDED.note,          nutrition_checkins.note),
+         updated_at    = now()`,
+      [req.practice.id, req.patientId, day, v.water_glasses, v.sleep_hours, v.steps, v.mood, v.note]);
+  } catch (e) {
+    console.error('[nutrition checkin]', e.message);
+    return res.redirect('/portal?err=save');
+  }
+  res.redirect('/portal?saved=1');
 });
 
 // ── Log today's weight ───────────────────────────────────────────────────────

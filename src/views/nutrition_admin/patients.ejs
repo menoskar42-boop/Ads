@@ -80,7 +80,17 @@
           </td>
           <td class="px-4 py-2 text-slate-600" data-l="<%= t('nt.f.goal') %>"><%= t('nt.goal.' + p.goal) %></td>
           <td class="px-4 py-2 font-semibold" data-l="<%= t('nt.pt.last_weight') %>"><%= p.last_weight != null ? p.last_weight + ' ' + t('nt.u.kg') : '—' %></td>
-          <td class="px-4 py-2 text-xs text-slate-500" data-l="<%= t('nt.pt.last_seen') %>"><%= p.last_seen ? String(p.last_seen).slice(0,10) : '—' %></td>
+          <td class="px-4 py-2 text-xs text-slate-500" data-l="<%= t('nt.pt.last_seen') %>">
+            <%= p.last_seen ? String(p.last_seen).slice(0,10) : '—' %>
+            <%# Who has gone quiet — computed from the last thing they actually
+                did, not from a flag somebody has to remember to set. %>
+            <% var eng = p.engagement; %>
+            <% if (eng && eng.state !== 'active') { %>
+              <span class="ms-1 rounded-full px-2 py-0.5 font-bold <%= eng.state === 'never' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-800' %>">
+                <%= t('nc.eng.' + eng.state) %><% if (eng.state === 'stale') { %> <%= eng.days %> <%= t('nt.u.day') %><% } %>
+              </span>
+            <% } %>
+          </td>
           <td class="px-4 py-2">
             <form method="post" action="/nutrition/patients/<%= p.id %>/archive">
               <input type="hidden" name="restore" value="<%= archived ? '1' : '0' %>" />

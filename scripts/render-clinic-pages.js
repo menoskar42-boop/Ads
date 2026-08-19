@@ -71,9 +71,12 @@ function profileFixture(profile, planItems) {
 }
 
 // The diary locals every portal render needs (backlog 84).
-function diaryFixture(ate) {
+function diaryFixture(ate, todayCheckin) {
   const D = require('../src/nutrition/diary');
+  const C = require('../src/nutrition/checkin');
   return {
+    todayCheckin: todayCheckin || null,
+    checkinMoods: C.MOODS,
     ate,
     ateByMeal: D.byMeal(ate),
     ateTotals: D.dayTotals(ate),
@@ -444,9 +447,15 @@ const FIXTURES = {
     const E = require('../src/nutrition/engine');
     return {
       __file: 'nutrition_admin/patients.ejs', tab: 'patients',
+      // Three engagement states (backlog 84): logging, gone quiet, never
+      // started. The last two are the only reason this column exists.
       rows: [
-        { id: 1, name: 'Mona S.', phone: '01000000010', goal: 'loss', last_weight: 84.2, last_seen: '2026-07-20' },
-        { id: 2, name: 'Karim H.', phone: null, goal: 'gain', last_weight: null, last_seen: null },
+        { id: 1, name: 'Mona S.', phone: '01000000010', goal: 'loss', last_weight: 84.2, last_seen: '2026-07-20',
+          engagement: { state: 'active', days: 1 } },
+        { id: 2, name: 'Karim H.', phone: null, goal: 'gain', last_weight: null, last_seen: null,
+          engagement: { state: 'never', days: null } },
+        { id: 3, name: 'Hoda A.', phone: null, goal: 'maintain', last_weight: 70, last_seen: '2026-07-01',
+          engagement: { state: 'stale', days: 21 } },
       ],
       tally: { active: 12, archived: 3 }, archived: false, q: '',
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
@@ -669,7 +678,7 @@ const FIXTURES = {
         { id: 11, meal: 'breakfast', grams: 100, food_name: 'Boiled egg',
           food: { kcal: 155, protein_g: 13, carbs_g: 1.1, fat_g: 11 }, created_at: NOW },
         { id: 12, meal: 'lunch', grams: null, free_text: 'Koshari from outside'  /* patient's own words: kept Latin here so the English render is not flagged for text the PATIENT typed */, food: null, created_at: NOW },
-      ]),
+      ], { water_glasses: 8, sleep_hours: 6.5, steps: null, mood: 'ok', note: null }),
     };
   },
 

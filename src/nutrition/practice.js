@@ -20,10 +20,21 @@ async function patients(pool, companyId, { q, archived = false } = {}) {
   const params = [companyId];
   let where = 'p.company_id=$1 AND p.is_active = $' + params.push(!archived);
   if (q) where += ` AND p.name ILIKE $${params.push('%' + String(q).slice(0, 60) + '%')}`;
+  // `last_activity` is the most recent thing the patient actually DID — a
+  // weight, a diary line, a check-in. The patient who stopped logging is the
+  // patient who stopped, and that is the one worth a phone call; before this
+  // the list gave no signal at all about who had gone quiet.
   const r = await pool.query(
     `SELECT p.*,
             m.weight_kg AS last_weight, m.taken_on AS last_seen,
-            (SELECT COUNT(*)::int FROM nutrition_measurements x WHERE x.patient_id = p.id) AS readings
+            (SELECT COUNT(*)::int FROM nutrition_measurements x WHERE x.patient_id = p.id) AS readings,
+            GREATEST(
+              COALESCE(m.taken_on::timestamptz, 'epoch'::timestamptz),
+              COALESCE((SELECT MAX(created_at) FROM nutrition_diary d
+                         WHERE d.patient_id = p.id AND d.kind = 'ate'), 'epoch'::timestamptz),
+              COALESCE((SELECT MAX(updated_at) FROM nutrition_checkins c
+                         WHERE c.patient_id = p.id), 'epoch'::timestamptz)
+            ) AS last_activity
        FROM nutrition_patients p
        LEFT JOIN LATERAL (
          SELECT weight_kg, taken_on FROM nutrition_measurements
@@ -31,7 +42,14 @@ async function patients(pool, companyId, { q, archived = false } = {}) {
        ) m ON true
       WHERE ${where}
       ORDER BY p.name LIMIT 500`, params);
-  return r.rows;
+  const CH = require('./checkin');
+  const now = new Date();
+  return r.rows.map((row) => {
+    // 'epoch' means every source was empty: never logged, not "logged in 1970".
+    const raw = row.last_activity && new Date(row.last_activity).getFullYear() > 1971
+      ? row.last_activity : null;
+    return Object.assign({}, row, { engagement: CH.engagement(raw, now) });
+  });
 }
 
 async function counts(pool, companyId) {
