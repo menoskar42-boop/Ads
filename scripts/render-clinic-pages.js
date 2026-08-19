@@ -261,6 +261,32 @@ const FIXTURES = {
     };
   },
 
+  // لوحة التصنيع: أمر متأخر، وأمر من غير ميعاد، وأمر خلص من غير صرف خامات —
+  // التلات حالات اللي الشاشة لازم تفرّق بينهم بالكلام مش باللون بس.
+  furniture_production: (lang) => {
+    const P = require('../src/furniture/production');
+    const fl = require('../src/furniture/flags');
+    const flags = new Set([...fl.DEFAULT_ON, 'master', 'production']);
+    const rows = [
+      { id: 3, product_name: 'Classic bedroom', variant_name: 'Beech', qty: 2, status: 'queued',
+        due_date: '2026-07-01', materials_issued_at: null, sale_no: 12, customer_name: 'Mohamed A.', note: null },
+      { id: 4, product_name: 'Dining table', variant_name: null, qty: 1, status: 'in_progress',
+        due_date: null, materials_issued_at: '2026-08-10T09:00:00Z', sale_no: null, customer_name: null, note: 'Rush job' },
+      { id: 5, product_name: 'Wardrobe', variant_name: null, qty: 1, status: 'done',
+        due_date: '2026-08-25', materials_issued_at: null, sale_no: null, customer_name: null, note: null },
+    ];
+    const today = '2026-08-19';
+    return {
+      __file: 'furniture_admin/production.ejs', tab: 'production',
+      orders: rows.map((o) => ({ ...o, late: P.lateOf(o, today), notes: P.notesFor(o) })),
+      view: 'open', today, tally: P.tally(rows, today),
+      products: [{ id: 1, name: 'Classic bedroom', selling_price: 42000 }],
+      sales: [{ id: 12, sale_date: '2026-08-01', customer_name: 'Mohamed A.' }],
+      err: 'short', shortName: 'Beech 18mm', saved: false,
+      flags, furnitureNav: fl.localized(fl.FLAGS.filter((f) => flags.has(f.key)), (k) => t(k, lang)),
+    };
+  },
+
   furniture_purchases: (lang) => {
     const fl = require('../src/furniture/flags');
     const flags = new Set([...fl.DEFAULT_ON, 'master']);

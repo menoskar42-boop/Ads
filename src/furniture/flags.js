@@ -26,6 +26,8 @@ const FLAGS = [
     desc: 'مواعيد التسليم والتركيب، الطاقم، والمتأخّر — والرحلة اللي فشلت متسجّلة.' },
   { key: 'bom',        label: 'مكوّنات المنتج',    icon: '🪚', path: '/furniture/bom',
     desc: 'خامات كل قطعة، تكلفتها المحسوبة تلقائياً، والربح المتوقّع.' },
+  { key: 'production', label: 'أوامر التصنيع',    icon: '🔨', path: '/furniture/production',
+    desc: 'اللي بيتصنّع دلوقتي وبيتسلّم امتى، وصرف خامات القطعة من المخزن مرة واحدة.' },
   { key: 'hr',         label: 'الحضور والمرتّبات', icon: '👷', path: '/furniture/hr/attendance',
     desc: 'حضور وانصراف، ومرتّبات بالخصومات والمكافآت والجزاءات والسلف.' },
   { key: 'canteen',    label: 'الكانتين',         icon: '🍵', path: '/furniture/canteen',

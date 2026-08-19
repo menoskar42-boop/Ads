@@ -108,6 +108,9 @@ router.use('/backup', requireFlag('backup'), require('./furniture_backup'));
 router.use('/activity', requireFlag('activity'), require('./furniture_activity'));
 
 router.use('/bom', requireFlag('bom'), require('./furniture_bom'));
+// أوامر التصنيع: قسم اختياري زي أي قسم تاني — الورشة اللي مابتصنّعش
+// مابتشوفهوش، واللينك نفسه مابيفتحش لما يكون مقفول.
+router.use('/production', requireFlag('production'), require('./furniture_production'));
 
 // Attendance and payroll share one router — a payslip is meaningless without
 // the attendance it was calculated from, so they cannot be toggled apart.
