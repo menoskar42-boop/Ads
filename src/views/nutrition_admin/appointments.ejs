@@ -1,0 +1,120 @@
+<%- include('head', { title: t('nt.ap.title'), tab: 'appointments' }) %>
+
+<h1 class="text-2xl font-black text-slate-900 mb-1"><%= t('nt.ap.title') %></h1>
+<p class="text-slate-500 mb-5 text-sm"><%= t('nt.ap.sub') %></p>
+
+<% if (saved) { %>
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('nt.m.saved') %></div>
+<% } %>
+<% if (err) { %>
+  <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('nt.ap.err.' + err) %></div>
+<% } %>
+
+<div class="grid lg:grid-cols-3 gap-5">
+  <!-- ── حجز من التليفون ─────────────────────────────────────────────────── -->
+  <div class="lg:col-span-1">
+    <div class="bg-white rounded-2xl shadow-sm p-5 lg:sticky lg:top-4">
+      <h2 class="font-bold text-slate-800 mb-3"><%= t('nt.ap.new') %></h2>
+      <%# نفس الخانات اللي المريض بيشوفها على الصفحة العامة — محسوبة من نفس
+          الدالة، فمستحيل المكتب يشوف خانة والصفحة تشوف غيرها. %>
+      <% if (!days.length) { %>
+        <p class="text-sm text-slate-400"><%= t('nt.ap.no_slots') %></p>
+      <% } else { %>
+      <form method="post" action="/nutrition/appointments" class="grid gap-2.5">
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.ap.name') %> *
+          <input name="patient_name" required maxlength="80" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.ap.phone') %> *
+          <input name="patient_phone" required maxlength="20" dir="ltr" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.ap.day') %>
+          <select name="day" id="apDay" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <% days.forEach(function(d, i){ %>
+              <option value="<%= d.ymd %>" <%= i === 0 ? 'selected' : '' %>><%= d.ymd %><%= d.ymd === today ? ' — ' + t('nt.ap.today') : '' %></option>
+            <% }); %>
+          </select>
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.ap.time') %>
+          <select name="time" id="apTime" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"></select>
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.ap.note') %>
+          <input name="note" maxlength="300" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-4 py-2 text-sm mt-1"><%= t('nt.ap.new') %></button>
+      </form>
+      <script>
+        (function () {
+          var DAYS = <%- jsonLd(days.map(function(d){ return { ymd: d.ymd, slots: d.slots }; })) %>;
+          var day = document.getElementById('apDay'), time = document.getElementById('apTime');
+          function draw() {
+            var d = DAYS.filter(function (x) { return x.ymd === day.value; })[0];
+            time.innerHTML = '';
+            (d ? d.slots : []).forEach(function (s) {
+              var o = document.createElement('option');
+              o.value = s.time;
+              // الخانة المحجوزة بتتعرض ومقفولة — الموظف يعرف إنها اتاخدت،
+              // مش يفتكر إن الميعاد ده مش من مواعيد العيادة.
+              o.textContent = s.time + (s.taken ? ' — ' + <%= JSON.stringify(t('nt.ap.st.confirmed')) %> : '');
+              o.disabled = !!s.taken;
+              time.appendChild(o);
+            });
+          }
+          day.addEventListener('change', draw); draw();
+        })();
+      </script>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── اللي محجوز ──────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-2">
+    <% if (!rows.length) { %>
+      <div class="bg-white rounded-2xl shadow-sm p-8 text-center text-slate-400 text-sm"><%= t('nt.ap.none') %></div>
+    <% } else { %>
+    <div class="grid gap-2">
+      <% rows.forEach(function(r){ %>
+      <div class="bg-white rounded-2xl shadow-sm p-4 <%= r.status === 'cancelled' ? 'opacity-60' : '' %>">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-bold text-slate-900"><%= r.patient_name %></span>
+          <span class="text-xs text-slate-500" dir="ltr"><%= r.patient_phone %></span>
+          <% if (r.patient_file_name) { %>
+            <span class="text-[10px] bg-brand-50 text-brand-700 rounded-full px-2 py-0.5"><%= t('nt.ap.file') %></span>
+          <% } %>
+          <span class="ms-auto text-xs font-bold px-2 py-0.5 rounded-full
+            <%= r.status === 'cancelled' ? 'bg-slate-100 text-slate-500'
+               : r.status === 'done' ? 'bg-emerald-50 text-emerald-700'
+               : r.status === 'confirmed' ? 'bg-brand-50 text-brand-700' : 'bg-amber-50 text-amber-700' %>">
+            <%= t('nt.ap.st.' + r.status) %>
+          </span>
+        </div>
+        <div class="text-sm text-slate-600 mt-1">
+          <%= r.ymd %><%= r.ymd === today ? ' — ' + t('nt.ap.today') : '' %> · <span dir="ltr"><%= r.hm %></span>
+        </div>
+        <% if (r.note) { %><p class="text-xs text-slate-500 mt-1"><%= r.note %></p><% } %>
+
+        <% if (r.status !== 'cancelled' && r.status !== 'done') { %>
+        <div class="flex gap-2 mt-3 flex-wrap">
+          <% if (r.status === 'pending') { %>
+            <form method="post" action="/nutrition/appointments/<%= r.id %>/status">
+              <input type="hidden" name="status" value="confirmed" />
+              <button class="text-xs font-bold px-3 py-1.5 rounded-lg bg-brand-600 text-white"><%= t('nt.ap.confirm') %></button>
+            </form>
+          <% } %>
+          <form method="post" action="/nutrition/appointments/<%= r.id %>/status">
+            <input type="hidden" name="status" value="done" />
+            <button class="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 text-white"><%= t('nt.ap.done') %></button>
+          </form>
+          <form method="post" action="/nutrition/appointments/<%= r.id %>/status">
+            <input type="hidden" name="status" value="cancelled" />
+            <button class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600"><%= t('nt.ap.cancel') %></button>
+          </form>
+        </div>
+        <% } %>
+      </div>
+      <% }); %>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+</main></body></html>

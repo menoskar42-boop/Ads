@@ -27,6 +27,32 @@
           class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"><%= settings.services || '' %></textarea>
         <span class="block text-[11px] font-normal text-slate-400 mt-1"><%= t('nt.set.services_hint') %></span>
       </label>
+      <%# مواعيد الحجز (البند ٨٤): الخانات على الصفحة العامة بتتحسب من دول —
+          فتغييرهم بيغيّر التقويم فوراً، ومفيش خانات قديمة بتفضل شغّالة. %>
+      <div class="border-t border-slate-100 pt-3 mb-3">
+        <div class="text-xs font-bold text-slate-600 mb-2"><%= t('nt.set.booking') %></div>
+        <div class="flex flex-wrap gap-2 mb-2">
+          <% var __sel = String(settings.work_days == null ? '0,1,2,3,4,6' : settings.work_days).split(',');
+             ['sun','mon','tue','wed','thu','fri','sat'].forEach(function(d, i){ %>
+            <label class="flex items-center gap-1 text-xs border border-slate-200 rounded-lg px-2 py-1">
+              <input type="checkbox" name="work_days" value="<%= i %>" <%= __sel.indexOf(String(i)) >= 0 ? 'checked' : '' %> />
+              <%= t('nt.day.' + d) %>
+            </label>
+          <% }); %>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <label class="text-[11px] font-bold text-slate-600"><%= t('nt.set.from') %>
+            <input name="work_from" type="time" value="<%= settings.work_from || '16:00' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-2 py-2 text-sm" />
+          </label>
+          <label class="text-[11px] font-bold text-slate-600"><%= t('nt.set.to') %>
+            <input name="work_to" type="time" value="<%= settings.work_to || '22:00' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-2 py-2 text-sm" />
+          </label>
+          <label class="text-[11px] font-bold text-slate-600"><%= t('nt.set.slot') %>
+            <input name="slot_minutes" type="number" min="10" max="180" value="<%= settings.slot_minutes || 45 %>" class="mt-1 w-full border border-slate-200 rounded-xl px-2 py-2 text-sm" />
+          </label>
+        </div>
+      </div>
+
       <label class="text-xs font-bold text-slate-600"><%= t('nt.set.hours') %>
         <input name="hours" maxlength="200" value="<%= settings.hours || '' %>" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
       </label>

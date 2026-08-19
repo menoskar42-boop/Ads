@@ -558,6 +558,30 @@ const FIXTURES = {
     total: 12,
   }),
 
+  // شاشة المواعيد (البند ٨٤): يوم فيه خانة محجوزة وخانة فاضية، وحجز متأكّد
+  // وحجز مستني وحجز ملغي — التلات حالات بكلامهم مش بلونهم بس.
+  nutrition_appointments: () => {
+    const NB = require('../src/nutrition/booking');
+    const cfg = NB.settingsFrom({});
+    const now = new Date('2026-08-19T09:00:00Z');
+    const at = NB.slotAt('2026-08-20', '17:30');
+    const rows = [
+      { id: 1, patient_name: 'Mona S.', patient_phone: '01000000000', slot_at: at,
+        note: 'First session', status: 'pending', patient_file_name: null },
+      { id: 2, patient_name: 'Karim H.', patient_phone: '01111111111', slot_at: NB.slotAt('2026-08-20', '18:15'),
+        note: null, status: 'confirmed', patient_file_name: 'Karim H.' },
+      { id: 3, patient_name: 'Sara A.', patient_phone: '01222222222', slot_at: NB.slotAt('2026-08-22', '16:00'),
+        note: null, status: 'cancelled', patient_file_name: null },
+    ];
+    return {
+      __file: 'nutrition_admin/appointments.ejs', tab: 'appointments',
+      settings: {}, cfg, today: NB.cairoDate(now),
+      days: NB.daysAhead(cfg, rows, now, 7),
+      rows: rows.map((r) => ({ ...r, ymd: NB.cairoDate(r.slot_at), hm: NB.hhmm(NB.cairoMinutes(r.slot_at)) })),
+      err: 'taken', saved: false,
+    };
+  },
+
   nutrition_patients: () => {
     const E = require('../src/nutrition/engine');
     return {

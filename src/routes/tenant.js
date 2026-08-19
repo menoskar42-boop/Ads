@@ -410,11 +410,24 @@ router.get('/', async (req, res) => {
   // A nutrition practice's own public page: who they are, how to reach them,
   // and a booking request. Loaded the same way the clinic's is.
   let nutritionSettings = null;
+  let nutritionDays = [];
   if (company.page_type === 'nutrition') {
     try {
       nutritionSettings = (await pool.query(
         'SELECT * FROM nutrition_settings WHERE company_id = $1', [company.id]
       )).rows[0] || null;
+      // تقويم الحجز (البند ٨٤): الخانات بتتحسب من إعدادات العيادة ناقص اللي
+      // اتحجز فعلاً — مفيش جدول خانات متخزّن يبات شغّال بعد ما المواعيد تتغيّر.
+      const nb = require('../nutrition/booking');
+      const cfg = nb.settingsFrom(nutritionSettings || {});
+      if (cfg.enabled) {
+        const taken = (await pool.query(
+          `SELECT slot_at FROM nutrition_appointments
+            WHERE company_id = $1 AND status <> 'cancelled'
+              AND slot_at >= now() - interval '1 day'
+              AND slot_at <= now() + interval '30 days'`, [company.id])).rows;
+        nutritionDays = nb.daysAhead(cfg, taken);
+      }
     } catch (e) { /* never block render */ }
   }
 
@@ -640,6 +653,7 @@ router.get('/', async (req, res) => {
     clinicSettings,
     clinicSpecialtyLabel,
     nutritionSettings,
+    nutritionDays,
     furnitureSettings,
     workshopSettings,
     hallSettings,
@@ -727,6 +741,49 @@ async function bookingOpen(table, companyId) {
     return true;
   }
 }
+
+/* حجز موعد في عيادة تغذية (البند ٨٤).
+ *
+ * نفس شكل حجز العيادة: الخانة بتتفحص جوّه جملة الكتابة، فاتنين بيحجزوا نفس
+ * الخانة في نفس الثانية واحد بس بينجح. والزرار اللي كان بيفتح واتساب مابقاش
+ * هو الطريقة الوحيدة — بقى فيه تقويم بخانات حقيقية. */
+function nutritionGuard(req, res, next) {
+  if (!req.tenant || req.tenant.page_type !== 'nutrition') return res.redirect('/');
+  next();
+}
+
+router.post('/nutrition/book', nutritionGuard, async (req, res) => {
+  const company = req.tenant;
+  const b = req.body || {};
+  const nb = require('../nutrition/booking');
+  const name = String(b.patient_name || '').trim().slice(0, 80);
+  const phone = String(b.patient_phone || '').trim().slice(0, 20);
+  if (!name || phone.replace(/[^0-9]/g, '').length < 7) return res.redirect('/?error=1#book');
+  try {
+    if (!await bookingOpen('nutrition_settings', company.id)) return res.redirect('/?error=closed#book');
+    const cfg = nb.settingsFrom((await pool.query(
+      'SELECT * FROM nutrition_settings WHERE company_id=$1', [company.id])).rows[0] || {});
+    const at = nb.slotAt(b.day, b.time);
+    if (!at) return res.redirect('/?error=1#book');
+    // الخانة اللي مش من مواعيد العيادة أصلاً بتترفض — مش بتتقبل عشان الشكل
+    // بتاعها مظبوط.
+    const offered = nb.slotsFor(cfg, String(b.day), []).some((s) => s.time === String(b.time));
+    if (!offered) return res.redirect('/?error=1#book');
+    const bad = nb.slotProblem(at);
+    if (bad) return res.redirect('/?error=' + bad + '#book');
+    const q = nb.insertIfFree({
+      companyId: company.id, name, phone, at,
+      note: String(b.note || '').trim().slice(0, 300) || null,
+      status: 'pending', minutes: cfg.minutes,
+    });
+    const done = await pool.query(q.text, q.values);
+    if (!done.rows.length) return res.redirect('/?error=taken#book');
+    return res.redirect('/?sent=1#book');
+  } catch (e) {
+    console.error('[nutrition book]', e.message);
+    return res.redirect('/?error=1#book');
+  }
+});
 
 // Appointment booking submission (public form → clinic_appointments).
 router.post('/book', clinicGuard, async (req, res) => {

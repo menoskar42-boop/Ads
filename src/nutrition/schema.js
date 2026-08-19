@@ -56,6 +56,34 @@ async function ensureNutritionSchema() {
       -- «مش حشو». فالخانة فاضية لحد ما الأخصائي يكتبها.
       ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS services TEXT;
 
+      -- ── مواعيد الحجز (البند ٨٤) ────────────────────────────────────────
+      -- الزرار اللي كان على الصفحة بيفتح واتساب بجملة جاهزة. ده مش حجز:
+      -- الأخصائي بيرد بعد ساعتين يقول «الميعاد محجوز»، والمريض راح لغيره.
+      -- ومفيش أي حاجة كانت بتمنع إن اتنين يتفقوا على نفس الساعة.
+      --
+      -- الخانات **بتتحسب** من الإعدادات دي كل مرة، مش متخزّنة كصفوف: جدول
+      -- خانات متخزّن معناه إن تغيير المواعيد بيسيب خانات قديمة شغّالة.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_days TEXT;      -- '0,1,2,3,4,6'
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_from TEXT;      -- '16:00'
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_to TEXT;        -- '22:00'
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS slot_minutes INTEGER;
+
+      CREATE TABLE IF NOT EXISTS nutrition_appointments (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        -- المريض الجديد مالوش ملف لسه، فالاسم والموبايل بيتخزّنوا على الحجز
+        -- نفسه. واللي عنده ملف بيترابط بيه عشان تاريخه يبان.
+        patient_id    INTEGER REFERENCES nutrition_patients(id) ON DELETE SET NULL,
+        patient_name  TEXT NOT NULL,
+        patient_phone TEXT NOT NULL,
+        slot_at       TIMESTAMPTZ NOT NULL,
+        note          TEXT,
+        status        TEXT NOT NULL DEFAULT 'pending',  -- pending|confirmed|done|cancelled
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_appts ON nutrition_appointments (company_id, slot_at);
+      CREATE INDEX IF NOT EXISTS idx_nut_appts_open ON nutrition_appointments (company_id, status, slot_at);
+
       -- The practice's own staff: an assistant with a scale, somebody on the
       -- phone. Small practices, which is exactly why this matters — the
       -- assistant used to sign in as the dietitian, so a blood panel was one
