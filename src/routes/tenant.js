@@ -8,6 +8,7 @@ const { isDemoSlug } = require('../lib/demo_mode');
 const booking = require('../clinic/booking');
 const money = require('../lib/money');
 const stock = require('../pharmacy/stock');
+const foodOptions = require('../food/options');
 const push = require('../lib/push');
 const shopFeatures = require('../lib/shop_features');
 const deals = require('../lib/deals');
@@ -255,6 +256,31 @@ router.get('/', async (req, res) => {
         o.rating = (await pool.query(
           'SELECT ROUND(AVG(rating), 1) AS avg, COUNT(*)::int AS n FROM food_reviews WHERE outlet_id = $1', [o.id]
         )).rows[0];
+        // Modifier groups for this outlet's items, attached to the item they
+        // belong to. One query per outlet rather than one per item.
+        if (o.items.length) {
+          const opts = (await pool.query(
+            `SELECT op.id AS option_id, op.item_id, op.name AS group_name, op.required, op.min_select, op.max_select,
+                    v.id AS value_id, v.name AS value_name, v.price_delta
+               FROM food_item_options op
+               LEFT JOIN food_item_option_values v ON v.option_id = op.id
+              WHERE op.item_id = ANY($1)
+              ORDER BY op.sort_order, op.id, v.sort_order, v.id`,
+            [o.items.map((i) => i.id)]
+          )).rows;
+          const byItem = {};
+          for (const r of opts) {
+            const list = (byItem[r.item_id] = byItem[r.item_id] || []);
+            let g = list.find((x) => x.id === r.option_id);
+            if (!g) {
+              g = { id: r.option_id, name: r.group_name, required: r.required === true,
+                min: r.min_select, max: r.max_select, values: [] };
+              list.push(g);
+            }
+            if (r.value_id) g.values.push({ id: r.value_id, name: r.value_name, delta: Number(r.price_delta) || 0 });
+          }
+          for (const it of o.items) it.options = byItem[it.id] || [];
+        }
         foodItemCount += o.items.length;
       }
       // Paid AI assistant: only surface the chat widget when the merchant has an
@@ -1422,34 +1448,79 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
   const company = req.tenant;
   let cart;
   try { cart = JSON.parse(req.body.cart || '[]'); } catch (e) { cart = []; }
-  cart = (Array.isArray(cart) ? cart : [])
-    .map(x => ({ id: parseInt(x.id, 10), q: Math.max(1, parseInt(x.q, 10) || 1) }))
-    .filter(x => x.id);
+  // The chosen modifiers ride along per line; the server prices them.
+  cart = foodOptions.normalizeCart(cart);
   const name = String(req.body.customer_name || '').trim().slice(0, 100);
   const phone = String(req.body.phone || '').trim().slice(0, 30);
   const address = String(req.body.address || '').trim().slice(0, 300);
   const notes = String(req.body.notes || '').trim().slice(0, 500);
+  const orderType = foodOptions.typeOf(req.body.order_type);
+  const tableNo = String(req.body.table_no || '').trim().slice(0, 20);
   if (!cart.length || !name || phone.length < 6) return res.redirect('/?err=order');
+  // An address is a delivery's business. Asking a customer who is collecting
+  // for one is how this system used to work, and it was wrong in both
+  // directions: it demanded what it did not need and charged for what it was
+  // not doing.
+  if (foodOptions.needsAddress(orderType) && !address) return res.redirect('/?err=address');
+  if (foodOptions.needsTable(orderType) && !tableNo) return res.redirect('/?err=table');
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const ids = cart.map(i => i.id);
     const rows = (await client.query(
-      `SELECT fi.id, fi.name, fi.name_ar, fi.price, fi.outlet_id, fo.delivery_fee, fo.min_order
+      `SELECT fi.id, fi.name, fi.name_ar, fi.price, fi.outlet_id, fo.delivery_fee, fo.min_order,
+              fo.allow_delivery, fo.allow_pickup, fo.allow_dine_in
        FROM food_items fi JOIN food_outlets fo ON fo.id = fi.outlet_id
        WHERE fi.id = ANY($1) AND fo.company_id = $2 AND fi.is_available = true AND fo.is_active = true`,
       [ids, company.id]
     )).rows;
     const byId = {}; rows.forEach(r => { byId[r.id] = r; });
 
+    // The option groups for exactly the items in this cart, with their values.
+    // Read here rather than trusted from the browser: the client says WHICH
+    // options were chosen, this says what they cost and whether they even
+    // belong to that item.
+    const optRows = (await client.query(
+      `SELECT o.id AS option_id, o.item_id, o.name AS group_name, o.required, o.min_select, o.max_select,
+              v.id AS value_id, v.name AS value_name, v.price_delta
+         FROM food_item_options o
+         LEFT JOIN food_item_option_values v ON v.option_id = o.id
+        WHERE o.item_id = ANY($1)
+        ORDER BY o.sort_order, o.id, v.sort_order, v.id`,
+      [ids]
+    )).rows;
+    const groupsByItem = {};
+    for (const r of optRows) {
+      const list = (groupsByItem[r.item_id] = groupsByItem[r.item_id] || []);
+      let g = list.find((x) => x.id === r.option_id);
+      if (!g) {
+        g = { id: r.option_id, name: r.group_name, required: r.required === true,
+          min_select: r.min_select, max_select: r.max_select, values: [] };
+        list.push(g);
+      }
+      if (r.value_id) g.values.push({ id: r.value_id, name: r.value_name, price_delta: r.price_delta });
+    }
+
     let subtotal = 0; const outSub = {}; const outFee = {}; const lineItems = [];
+    let optionError = null;
     for (const it of cart) {
       const r = byId[it.id]; if (!r) continue;
-      const line = Number(r.price) * it.q; subtotal += line;
+      const priced = foodOptions.priceLine(r, groupsByItem[r.id] || [], it.opts);
+      if (!priced.ok) { optionError = priced.why; break; }
+      const line = priced.price * it.q; subtotal += line;
       outSub[r.outlet_id] = (outSub[r.outlet_id] || 0) + line;
       outFee[r.outlet_id] = Number(r.delivery_fee) || 0;
-      lineItems.push({ id: r.id, name: (r.name_ar || r.name), qty: it.q, price: Number(r.price), outlet: r.outlet_id });
+      lineItems.push({
+        id: r.id, name: (r.name_ar || r.name), qty: it.q, price: priced.price,
+        outlet: r.outlet_id, options: priced.chosen,
+      });
+    }
+    if (optionError) {
+      // Refusing beats quietly serving a large at the small price, or cooking
+      // something nobody chose.
+      await client.query('ROLLBACK');
+      return res.redirect('/?err=' + (optionError === 'unknown_option' ? 'option' : 'option_' + optionError));
     }
     if (!lineItems.length) { await client.query('ROLLBACK'); return res.redirect('/?err=order'); }
     // One order belongs to one branch. A cart mixing two outlets was stored
@@ -1469,7 +1540,14 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
         await client.query('ROLLBACK'); return res.redirect('/?err=minorder');
       }
     }
-    const deliveryFee = Object.keys(outFee).reduce((s, k) => s + outFee[k], 0);
+    // Pickup and dine-in pay no delivery fee — the whole point of choosing them.
+    const deliveryFee = foodOptions.feeFor(orderType, Object.keys(outFee).reduce((s, k) => s + outFee[k], 0));
+    // And the outlet has to actually offer what was asked for.
+    const outletRow = rows.find((x) => String(x.outlet_id) === String(outletIds[0]));
+    if (!foodOptions.offers(outletRow, orderType)) {
+      await client.query('ROLLBACK');
+      return res.redirect('/?err=ordertype');
+    }
     let cp = await validateFoodCoupon(client, company.id, req.body.coupon, subtotal);
     // Claim the use BEFORE pricing the order, and claim it conditionally.
     // Validating and then incrementing left a window where two customers both
@@ -1492,15 +1570,18 @@ router.post('/order/food', foodOrderGuard, async (req, res) => {
     const total = Math.max(0, subtotal + deliveryFee - discount);
     const token = crypto.randomBytes(9).toString('hex');
     const ord = (await client.query(
-      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, coupon_code, discount_amount, track_token)
-       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-      [company.id, Number(outletIds[0]), name, total, deliveryFee, address || null, phone, notes || null,
-       cp.ok ? cp.coupon.code : null, discount, token]
+      `INSERT INTO food_orders (company_id, outlet_id, customer_name, status, total, delivery_fee, delivery_address, phone, notes, coupon_code, discount_amount, track_token, order_type, table_no)
+       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
+      [company.id, Number(outletIds[0]), name, total, deliveryFee,
+       foodOptions.needsAddress(orderType) ? (address || null) : null, phone, notes || null,
+       cp.ok ? cp.coupon.code : null, discount, token, orderType,
+       foodOptions.needsTable(orderType) ? tableNo : null]
     )).rows[0];
     for (const li of lineItems) {
       await client.query(
-        `INSERT INTO food_order_items (order_id, item_id, name_snapshot, quantity, price) VALUES ($1,$2,$3,$4,$5)`,
-        [ord.id, li.id, li.name, li.qty, li.price]
+        `INSERT INTO food_order_items (order_id, item_id, name_snapshot, quantity, price, options)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+        [ord.id, li.id, li.name, li.qty, li.price, JSON.stringify(li.options || [])]
       );
     }
     await client.query(`INSERT INTO food_order_events (order_id, status, note) VALUES ($1,'pending','created')`, [ord.id]);

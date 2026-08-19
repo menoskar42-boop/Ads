@@ -111,11 +111,13 @@ router.post('/outlet/save', withImage, async (req, res) => {
       await pool.query(
         `UPDATE food_outlets SET name=$1, name_ar=$2, description=$3,
            delivery_fee=$4, delivery_time_min=$5, min_order=$6,
-           opening_time=$7, closing_time=$8, image_url=COALESCE($9, image_url)
+           opening_time=$7, closing_time=$8, image_url=COALESCE($9, image_url),
+           allow_delivery=$12, allow_pickup=$13, allow_dine_in=$14
          WHERE id=$10 AND company_id=$11`,
         [(b.name || '').trim() || vertical, (b.name_ar || '').trim() || null, (b.description || '').trim() || null,
          toNum(b.delivery_fee, 0), toInt(b.delivery_time_min, 30), toNum(b.min_order, 0),
-         (b.opening_time || '09:00').trim(), (b.closing_time || '23:00').trim(), image, id, cid]
+         (b.opening_time || '09:00').trim(), (b.closing_time || '23:00').trim(), image, id, cid,
+         b.allow_delivery === 'on', b.allow_pickup === 'on', b.allow_dine_in === 'on']
       );
     } else {
       await pool.query(
@@ -244,6 +246,123 @@ router.post('/item/:id/update', withImage, async (req, res) => {
   res.redirect('/food/menu?saved=1');
 });
 
+/* ─── الإضافات والاختيارات (backlog 82) ─────────────────────
+ *
+ * "Large, extra cheese, no onion" is not a note in the comments box: it changes
+ * the price and it changes what the kitchen makes. The prices live here so the
+ * checkout can compute them — see src/food/options.js for why they are never
+ * taken from the browser.
+ */
+async function ownsItem(cid, itemId) {
+  const r = await pool.query(
+    `SELECT 1 FROM food_items fi JOIN food_outlets fo ON fo.id = fi.outlet_id
+      WHERE fi.id = $1 AND fo.company_id = $2`, [itemId, cid]);
+  return r.rows.length > 0;
+}
+
+router.get('/item/:id/options', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    const item = (await pool.query('SELECT * FROM food_items WHERE id=$1', [itemId])).rows[0];
+    const rows = (await pool.query(
+      `SELECT o.id AS option_id, o.name AS group_name, o.required, o.min_select, o.max_select, o.sort_order,
+              v.id AS value_id, v.name AS value_name, v.price_delta
+         FROM food_item_options o
+         LEFT JOIN food_item_option_values v ON v.option_id = o.id
+        WHERE o.item_id = $1
+        ORDER BY o.sort_order, o.id, v.sort_order, v.id`, [itemId]
+    )).rows;
+    const groups = [];
+    for (const r of rows) {
+      let g = groups.find((x) => x.id === r.option_id);
+      if (!g) {
+        g = { id: r.option_id, name: r.group_name, required: r.required, min_select: r.min_select, max_select: r.max_select, values: [] };
+        groups.push(g);
+      }
+      if (r.value_id) g.values.push({ id: r.value_id, name: r.value_name, price_delta: r.price_delta });
+    }
+    res.render('food_admin/options', {
+      company: req.company, item, groups,
+      saved: req.query.saved === '1', err: req.query.err || null,
+    });
+  } catch (e) {
+    console.error('[food options]', e.message);
+    res.redirect('/food/menu');
+  }
+});
+
+router.post('/item/:id/options/group', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (!name) return res.redirect('/food/item/' + itemId + '/options?err=name');
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    await pool.query(
+      `INSERT INTO food_item_options (item_id, name, required, min_select, max_select, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [itemId, name, b.required === 'on', toInt(b.min_select, 0), toInt(b.max_select, 0), toInt(b.sort_order, 0)]
+    );
+  } catch (e) {
+    console.error('[food option group]', e.message);
+    return res.redirect('/food/item/' + itemId + '/options?err=save');
+  }
+  res.redirect('/food/item/' + itemId + '/options?saved=1');
+});
+
+router.post('/item/:id/options/:gid/value', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  const gid = toInt(req.params.gid, 0);
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (!name) return res.redirect('/food/item/' + itemId + '/options?err=name');
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    // The group has to belong to THIS item, in the statement that writes — a
+    // value hung off somebody else's group is a price on somebody else's menu.
+    const ins = await pool.query(
+      `INSERT INTO food_item_option_values (option_id, name, price_delta, sort_order)
+       SELECT o.id, $2, $3, $4 FROM food_item_options o WHERE o.id = $1 AND o.item_id = $5
+       RETURNING id`,
+      [gid, name, toNum(b.price_delta, 0), toInt(b.sort_order, 0), itemId]
+    );
+    if (!ins.rows.length) return res.redirect('/food/item/' + itemId + '/options?err=group');
+  } catch (e) {
+    console.error('[food option value]', e.message);
+    return res.redirect('/food/item/' + itemId + '/options?err=save');
+  }
+  res.redirect('/food/item/' + itemId + '/options?saved=1');
+});
+
+router.post('/item/:id/options/:gid/delete', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    await pool.query('DELETE FROM food_item_options WHERE id=$1 AND item_id=$2', [toInt(req.params.gid, 0), itemId]);
+  } catch (e) { console.error('[food option del]', e.message); }
+  res.redirect('/food/item/' + itemId + '/options?saved=1');
+});
+
+router.post('/item/:id/options/value/:vid/delete', async (req, res) => {
+  const cid = req.company.id;
+  const itemId = toInt(req.params.id, 0);
+  try {
+    if (!(await ownsItem(cid, itemId))) return res.status(404).render('404', { subdomain: null });
+    await pool.query(
+      `DELETE FROM food_item_option_values
+        WHERE id = $1
+          AND option_id IN (SELECT id FROM food_item_options WHERE item_id = $2)`,
+      [toInt(req.params.vid, 0), itemId]
+    );
+  } catch (e) { console.error('[food option value del]', e.message); }
+  res.redirect('/food/item/' + itemId + '/options?saved=1');
+});
+
 router.post('/item/:id/delete', async (req, res) => {
   await pool.query(
     `DELETE FROM food_items WHERE id=$1 AND outlet_id IN (SELECT id FROM food_outlets WHERE company_id=$2)`,
@@ -271,14 +390,16 @@ router.get('/kds', async (req, res) => {
     // Only what is still cooking. Delivered and cancelled belong on the other
     // screen; here they are noise.
     const orders = (await pool.query(
-      `SELECT id, status, customer_name, notes, created_at, outlet_id
+      `SELECT id, status, customer_name, notes, created_at, outlet_id, order_type, table_no
          FROM food_orders
         WHERE company_id = $1 AND status IN ('pending','accepted','preparing')
         ORDER BY created_at ASC LIMIT 60`, [cid]
     )).rows;
     for (const o of orders) {
+      // The modifiers travel with the line: a kitchen that cannot see «بدون
+      // بصل» is a kitchen that was never told.
       o.items = (await pool.query(
-        'SELECT name_snapshot, quantity FROM food_order_items WHERE order_id = $1 ORDER BY id', [o.id]
+        'SELECT name_snapshot, quantity, options FROM food_order_items WHERE order_id = $1 ORDER BY id', [o.id]
       )).rows;
     }
     res.render('food_admin/kds', { company: req.company, orders, session: req.session });

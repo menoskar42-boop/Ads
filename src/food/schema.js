@@ -104,6 +104,50 @@ async function ensureFoodSchema() {
         price NUMERIC(10,2) NOT NULL DEFAULT 0
       );
 
+      /* أنواع الطلب والإضافات (backlog 82).
+       *
+       * Every food order here used to be a delivery, so a customer collecting
+       * their own order paid a delivery fee and typed an address for a driver
+       * who was never coming. The type decides the fee, the address and whether
+       * the kitchen is cooking for a table in the room — so it is a column on
+       * the order, not a note in it.
+       *
+       * The types are opt-in per outlet and delivery starts on, because that is
+       * what every restaurant already on the platform is doing today.
+       */
+      ALTER TABLE food_outlets ADD COLUMN IF NOT EXISTS allow_delivery BOOLEAN NOT NULL DEFAULT true;
+      ALTER TABLE food_outlets ADD COLUMN IF NOT EXISTS allow_pickup   BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE food_outlets ADD COLUMN IF NOT EXISTS allow_dine_in  BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE food_orders  ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'delivery';
+      ALTER TABLE food_orders  ADD COLUMN IF NOT EXISTS table_no   TEXT;
+
+      /* Modifiers: size, extras, without.
+       *
+       * These are not a note in the comments box — they change the price and
+       * they change what the kitchen makes. The chosen options are snapshotted
+       * onto the order line with what each one cost AT THE TIME, so tomorrow's
+       * price for extra cheese does not rewrite yesterday's receipt.
+       */
+      CREATE TABLE IF NOT EXISTS food_item_options (
+        id         SERIAL PRIMARY KEY,
+        item_id    INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        required   BOOLEAN NOT NULL DEFAULT false,
+        min_select INTEGER NOT NULL DEFAULT 0,
+        max_select INTEGER NOT NULL DEFAULT 0,   -- 0 = no limit
+        sort_order INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_food_item_options ON food_item_options (item_id);
+      CREATE TABLE IF NOT EXISTS food_item_option_values (
+        id          SERIAL PRIMARY KEY,
+        option_id   INTEGER NOT NULL REFERENCES food_item_options(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        price_delta NUMERIC(10,2) NOT NULL DEFAULT 0,
+        sort_order  INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_food_option_values ON food_item_option_values (option_id);
+      ALTER TABLE food_order_items ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '[]'::jsonb;
+
       CREATE TABLE IF NOT EXISTS food_order_events (
         id SERIAL PRIMARY KEY,
         order_id INTEGER REFERENCES food_orders(id) ON DELETE CASCADE,
