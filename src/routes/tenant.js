@@ -589,7 +589,7 @@ router.get('/', async (req, res) => {
     /* Codes the server knows, so the page cannot be made to say something the
        gym did not write. */
     gymBookedStatus: ['booked', 'waitlist'].includes(String(req.query.booked || '')) ? req.query.booked : null,
-    gymBookError: ['1', 'dup', 'closed'].includes(String(req.query.bookerr || ''))
+    gymBookError: ['1', 'dup', 'closed', 'members'].includes(String(req.query.bookerr || ''))
       ? (req.query.bookerr === '1' ? 'bad' : req.query.bookerr) : null,
     payment,
     currentCategory: req.query.category || '',
@@ -773,11 +773,32 @@ router.post('/checkin', gymGuard, async (req, res) => {
 });
 
 // Self class booking (member books a class for a date; capacity → waitlist).
-router.post('/book-class', gymGuard, async (req, res) => {
+/* A form on the open internet fills a class in seconds.
+ *
+ * Three things, in increasing order of how much they cost a real person:
+ *
+ *   1. a RATE LIMIT per gym per IP — a human books one or two classes, not
+ *      thirty; this costs an honest visitor nothing at all;
+ *   2. a HONEYPOT field, hidden from people and irresistible to a script that
+ *      fills every input it finds. A filled honeypot is answered like a normal
+ *      success so the script learns nothing, and nothing is written;
+ *   3. MEMBERS ONLY, which the gym switches on itself — it is the only one of
+ *      the three that can turn away somebody real.
+ */
+const gymBookLimiter = _rl({
+  name: 'gym-book', windowMs: 15 * 60000, max: 8,
+  keyFn: (req) => ((req.tenant && req.tenant.id) || 'g') + '|' + _cip(req),
+});
+
+router.post('/book-class', gymBookLimiter, gymGuard, async (req, res) => {
   const company = req.tenant;
   const classId = parseInt(req.body.class_id, 10);
   try {
     if (!await bookingOpen('gym_settings', company.id)) return res.redirect('/?bookerr=closed#classes');
+    // The honeypot: a field no human sees, so anything in it came from a script.
+    // It is answered like a success on purpose — an error would tell the script
+    // which field to leave alone next time.
+    if (String(req.body.website || '').trim() !== '') return res.redirect('/?booked=booked#classes');
     const name = String(req.body.name || '').trim().slice(0, 80);
     const phone = String(req.body.phone || '').trim().slice(0, 20);
     const phoneKey = phone.replace(/[^0-9]/g, '');
@@ -786,6 +807,13 @@ router.post('/book-class', gymGuard, async (req, res) => {
     // phone books the class under the typed name without attaching it to
     // anybody's file — better than attaching it to the wrong one.
     const member = (await findGymMember(company.id, req.body.code, phone)).member || null;
+    // …unless the gym said members only, in which case the link is the point.
+    if (!member) {
+      const setting = await pool.query('SELECT booking_members_only FROM gym_settings WHERE company_id=$1', [company.id]);
+      if (setting.rows[0] && setting.rows[0].booking_members_only === true) {
+        return res.redirect('/?bookerr=members#classes');
+      }
+    }
 
     /* Counting and then inserting is how a class of twenty ends up with
      * thirty-nine people in it. Twenty requests arriving together each read

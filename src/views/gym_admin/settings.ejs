@@ -12,6 +12,10 @@
       <label class="text-sm text-neutral-300">المواعيد<input name="hours" value="<%= s.hours||'' %>" class="fld rounded-xl px-3 py-2 text-sm w-full mt-1" /></label>
     </div>
     <label class="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" name="booking_enabled" value="1" <%= (s.booking_enabled!==false)?'checked':'' %> /> تفعيل الحجز أونلاين</label>
+    <%# The gym's own call, and the only anti-spam measure here that can turn a
+        real person away — so it says what it does before it is switched on. %>
+    <label class="flex items-center gap-2 text-sm text-neutral-300"><input type="checkbox" name="booking_members_only" value="1" <%= s.booking_members_only?'checked':'' %> /> الحجز للأعضاء المسجّلين بس</label>
+    <p class="text-xs text-neutral-500">لو شغّلتها، اللي مش مسجّل عندك مايقدرش يحجز كلاس من الموقع — هيتقاله يكلّمكم. (الحماية من السبام شغّالة في الحالتين.)</p>
     <button class="accent-bg font-bold rounded-xl px-6 py-3 text-sm w-max">حفظ</button>
   </form>
 <%- include('_layout_bottom') %>

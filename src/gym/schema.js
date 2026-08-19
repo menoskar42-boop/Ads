@@ -133,6 +133,13 @@ async function ensureGymSchema() {
         is_active     BOOLEAN NOT NULL DEFAULT true,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      -- Public class booking is a form on the open internet. The rate limit and
+      -- the honeypot are always on; THIS is the gym's own call: whether a
+      -- stranger may book at all, or only somebody already on the members list.
+      -- Default OFF, because a gym that uses classes to win new members would
+      -- otherwise wake up unable to take a booking from anybody new.
+      ALTER TABLE gym_settings ADD COLUMN IF NOT EXISTS booking_members_only BOOLEAN NOT NULL DEFAULT false;
+
       CREATE INDEX IF NOT EXISTS idx_gym_staff_company ON gym_staff (company_id);
       -- Partial: a staff row without a login is a normal row, and any number of
       -- them may have no username at all.
