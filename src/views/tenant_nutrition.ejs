@@ -91,6 +91,20 @@
   </section>
   <% } %>
 
+  <%# الخدمات: سطر لكل خدمة، بكلام الأخصائي. القسم مابيظهرش لو مكتبش حاجة —
+      نص من عندنا هنا كان هيبقى حشو معروض باسمه. %>
+  <% var __services = String(S.services || '').split(/\r?\n/).map(function(x){ return x.trim(); }).filter(Boolean).slice(0, 12); %>
+  <% if (__services.length) { %>
+  <section class="bg-white rounded-2xl shadow-sm p-6 mb-5">
+    <h2 class="font-bold text-slate-900 mb-3"><%= t('ntp.services') %></h2>
+    <ul class="grid gap-2 text-sm text-slate-600">
+      <% __services.forEach(function(x){ %>
+        <li class="flex gap-2 leading-7"><span class="text-brand-600">•</span><span><%= x %></span></li>
+      <% }); %>
+    </ul>
+  </section>
+  <% } %>
+
   <section class="bg-white rounded-2xl shadow-sm p-6 mb-5">
     <h2 class="font-bold text-slate-900 mb-3"><%= t('ntp.contact') %></h2>
     <div class="grid gap-3 text-sm">

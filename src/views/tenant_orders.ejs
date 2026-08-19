@@ -163,6 +163,46 @@
 
     <div id="emptySearch" class="hidden text-center py-16 text-gray-400"><%= t('orders.empty_menu') %></div>
 
+    <%# مناطق التوصيل — بيانات المطعم نفسه (البند ٩٧).
+        كانت مدفونة جوّه قائمة منسدلة في السلة، فالزبون اللي لسه بيقرّر يطلب من
+        هنا ولا لأ ماكانش يشوفها، والصفحة نفسها كانت رقيقة. السؤال الأول اللي
+        بيتسأل هو «بتوصلوا لمنطقتي وبكام»، والإجابة عندنا مكتوبة أصلاً. %>
+    <% var __allZones = []; __outlets.forEach(function (o) { (o.zones || []).forEach(function (z) {
+         if (!__allZones.some(function (x) { return x.id === z.id; })) __allZones.push(z); }); }); %>
+    <% if (__allZones.length) { %>
+    <section class="mt-10">
+      <h2 class="text-xl font-extrabold mb-3"><%= t('orders.zones_title') %></h2>
+      <div class="overflow-x-auto rounded-2xl border border-gray-100 bg-white">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs">
+            <tr>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('orders.zone') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('orders.delivery_fee') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('orders.min_order') %></th>
+              <th class="text-start px-4 py-2 font-semibold"><%= t('orders.eta') %></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            <% __allZones.forEach(function (z) { %>
+            <tr>
+              <td class="px-4 py-2 font-bold text-gray-800"><%= z.name %></td>
+              <%# صفر رسوم = توصيل مجاني، ودي حقيقة. «مش متسجّل» حاجة تانية
+                  ومابتتكتبش صفر. %>
+              <td class="px-4 py-2"><%= Number(z.fee) > 0 ? (__money(z.fee) + ' ' + __cur) : t('orders.free_delivery') %></td>
+              <td class="px-4 py-2"><%= Number(z.min_order) > 0 ? (__money(z.min_order) + ' ' + __cur) : '—' %></td>
+              <td class="px-4 py-2"><%= z.eta_min ? (z.eta_min + ' ' + t('orders.minutes')) : '—' %></td>
+            </tr>
+            <% if (z.free_over != null && Number(z.free_over) > 0) { %>
+            <tr><td colspan="4" class="px-4 pb-2 text-xs text-emerald-700"><%= t('orders.free_over') %> <%= __money(z.free_over) %> <%= __cur %></td></tr>
+            <% } %>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-gray-400 mt-2"><%= t('orders.zones_hint') %></p>
+    </section>
+    <% } %>
+
     <%# AdSense — allowed here: the menu is a real publisher-content surface.
         Kept well clear of the floating cart / checkout / tracking (policy). %>
     <div class="mt-10"><%- include('partials/ad_unit', { slot: ads.slots.ordersMenu }) %></div>

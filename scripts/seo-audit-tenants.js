@@ -90,16 +90,40 @@ function base(over) {
     portfolio: three, products: three, categories: [{ id: 1, name: 'قسم' }], banners: [],
     pharmacyItems: three, pharmacySettings: { delivery_fee: 10, min_order: 50, hours: '٩ص–١١م' },
     pharmacyStockCount: 3,
-    foodOutlets: [{ id: 1, name: 'الفرع', items: three }], foodItemCount: 3,
+    // مطعم «مليان» عنده مناطق توصيل — ودي أول حاجة الزبون بيدوّر عليها،
+    // فلازم تكون في الحالة اللي بنقيس بيها الصفحة الكاملة.
+    foodOutlets: [{ id: 1, name: 'الفرع', items: three, zones: [
+      { id: 1, name: 'وسط البلد', fee: 10, min_order: 60, free_over: 200, eta_min: 30 },
+      { id: 2, name: 'الحي الجديد', fee: 15, min_order: 80, free_over: null, eta_min: 45 },
+      { id: 3, name: 'الوليدية', fee: 0, min_order: 0, free_over: null, eta_min: 25 },
+    ] }], foodItemCount: 3,
     aiAssistantOn: false, foodUpsellOn: false,
     clinicDoctors: [{ id: 1, name: 'د. تجريبي', specialty: 'عام', photo_url: null, bio: 'نبذة.' }],
     clinicSettings: { specialty: 'general', about: DESC, address: 'أسيوط', phone: '0882000000',
       whatsapp: '201000000000', hours: 'السبت–الخميس ٤م–١٠م', booking_enabled: true,
       map_lat: null, map_lng: null },
     clinicSpecialtyLabel: 'عيادة عامة',
-    nutritionSettings: { about: DESC, hours: '٤م–١٠م', phone: '0882000000', whatsapp: '201000000000', booking_enabled: true },
-    furnitureSettings: { about: DESC, phone: '0882000000', whatsapp: '201000000000', showroom: 'أسيوط' },
-    furnitureProducts: three,
+    nutritionSettings: { about: DESC, hours: '٤م–١٠م', phone: '0882000000', whatsapp: '201000000000', booking_enabled: true,
+      // خدمات مكتوبة بكلام الأخصائي — دي حالة العيادة «المليانة».
+      services: 'تقييم غذائي كامل بقياسات الجسم وتحاليل الدم\nخطة إنقاص وزن مع متابعة أسبوعية\nتغذية رياضية لزيادة الكتلة العضلية\nتغذية علاجية للسكري وضغط الدم\nتغذية الحوامل والمرضعات\nمتابعة أونلاين عن طريق بوابة المريض' },
+    furnitureSettings: { about: DESC, phone: '0882000000', whatsapp: '201000000000', showroom: 'أسيوط',
+      delivery_policy: 'prepaid' },
+    // معرض «مليان»: قطع بمقاسات وخامة وضمان، وفروع يقدر الزبون يزورها.
+    furnitureProducts: three.map(function (p, i) {
+      return Object.assign({}, p, {
+        selling_price: p.price, warranty_months: i === 0 ? 24 : 0,
+        width_cm: 180, depth_cm: 90, height_cm: 220, material: 'زان', finish: 'ورنيش',
+        // نفس الحسبة اللي الراوت بيعملها — المقاس اللي مش متسجّل مابيظهرش،
+        // واللي متسجّل بيتكتب زي ما الزائر هيشوفه.
+        specs: require('../src/furniture/variants').specLines({
+          width_cm: 180, depth_cm: 90, height_cm: 220, material: 'زان', finish: 'ورنيش' }),
+        options: [],
+      });
+    }),
+    furnitureBranches: [
+      { name: 'المعرض الرئيسي', kind: 'showroom', address: '٥ ش العادلي، أسيوط', phone: '0882000000' },
+      { name: 'الورشة', kind: 'workshop', address: 'المنطقة الصناعية، أسيوط', phone: null },
+    ],
     workshopSettings: { about: DESC, phone: '0882000000', whatsapp: '201000000000', address: 'أسيوط' },
     workshopStats: { cars: 12, orders: 30 },
     hallSettings: { about: DESC, phone: '0882000000', whatsapp: '201000000000', address: 'أسيوط', capacity: 300 },
@@ -211,7 +235,11 @@ function main() {
     // ad unit, so this is not an AdSense violation — it is a content gap, and it
     // is recorded here with its number rather than hidden by lowering the bar for
     // everyone. Raise the template's content and lower these; do not raise them.
-    const KNOWN_SHORT = { orders: 116, furniture: 121, nutrition: 96 };
+    // البند ٩٧: التلاتة دول كانوا رقيقين لأن الصفحة ماكانتش بتعرض بيانات
+    // التاجر اللي عندنا أصلاً (مناطق التوصيل · التسليم والضمان والفروع ·
+    // خدمات العيادة). الأرقام اتحدّثت بعد ما اتعرضت — والفحص بيقع لو نزلت
+    // تاني، فالصفحة تقدر تكبر ومابتقدرش ترقّ.
+    const KNOWN_SHORT = {};
     const r = audit(type, html, {});
     if (KNOWN_SHORT[type]) {
       r.problems = r.problems.filter((p) => !/محتوى قليل جداً/.test(p));
