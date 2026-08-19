@@ -2067,6 +2067,11 @@ const strings = {
     'nd.partial':'في حاجات مش محسوبة في الأرقام دي','nd.uncounted':'· مش محسوب',
     'nd.err.empty':'اكتب اسم الأكلة أو اختار من القائمة.','nd.err.grams':'اكتب الكمية بالجرام للأكلة اللي اخترتها.',
     'nd.err.food':'الأكلة دي مش من قائمة دكتورك.','nd.err.save':'مااتسجّلش — جرّب تاني.',
+    // البدائل وقائمة التسوّق (البند ٨٤).
+    'nt.sw.title':'بدائل','nt.sw.none':'مفيش بديل مناسب في قائمة الأكل عندك.',
+    'nt.sw.no_energy':'السطر ده مالوش سعرات، فمفيش حاجة نقيس عليها البديل.',
+    'nt.shop.title':'قائمة التسوّق','nt.shop.days':'يوم','nt.shop.empty':'الخطة لسه فاضية.',
+    'nt.shop.partial':'في سطور مش داخلة في القايمة (مالهاش كمية أو اسم)',
     'nt.pf.title':'الملف الطبي','nt.pf.sub':'ده اللي بيمنع الخطة تحط حاجة تضرّ المريض. البحث بالكلمة — بيحذّر، مش بيضمن.',
     'nt.pf.allergies':'حساسية','nt.pf.conditions':'أمراض مزمنة','nt.pf.medications':'أدوية',
     'nt.pf.avoid':'أكل مش بيحبه/مش بياكله','nt.pf.diet':'نمط الأكل','nt.pf.stage':'الحالة','nt.pf.budget':'الميزانية',
@@ -4467,6 +4472,11 @@ const strings = {
     'nd.partial':'Some entries are not counted in these numbers','nd.uncounted':'\u00b7 not counted',
     'nd.err.empty':'Name the food or pick one from the list.','nd.err.grams':'Enter the quantity in grams for the food you picked.',
     'nd.err.food':'That food is not on your dietitian\u2019s list.','nd.err.save':'It was not saved \u2014 try again.',
+    // Substitutes and the shopping list (backlog 84).
+    'nt.sw.title':'Substitutes','nt.sw.none':'Nothing in your food list fits this line.',
+    'nt.sw.no_energy':'This line carries no calories, so there is nothing to scale a substitute against.',
+    'nt.shop.title':'Shopping list','nt.shop.days':'days','nt.shop.empty':'The plan is still empty.',
+    'nt.shop.partial':'Some lines are not in this list (no weight or no name)',
     'nt.pf.title':'Medical profile','nt.pf.sub':'This is what stops a plan handing the patient something that harms them. Word matching \u2014 it flags, it does not guarantee.',
     'nt.pf.allergies':'Allergies','nt.pf.conditions':'Chronic conditions','nt.pf.medications':'Medications',
     'nt.pf.avoid':'Foods they will not eat','nt.pf.diet':'Diet style','nt.pf.stage':'Stage','nt.pf.budget':'Budget',

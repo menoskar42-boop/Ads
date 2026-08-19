@@ -90,6 +90,29 @@
       <form method="post" action="/nutrition/plans/<%= plan.id %>/items/<%= i.id %>/delete" class="no-print">
         <button class="text-xs text-slate-300 hover:text-red-600">✕</button>
       </form>
+
+      <%# البدائل: كمية من أكلة تانية بتحمل نفس السعرات — مش أكلة شبهها.
+          واللي بيتعارض مع ملف المريض مابيتعرضش أصلاً، واللي ما قدرناش نتأكد
+          منه بيتعلّم بدل ما يتحط كأنه مفحوص. %>
+      <% var sw = swapsByItem[i.id]; %>
+      <% if (sw) { %>
+        <details class="w-full no-print">
+          <summary class="text-xs text-brand-700 cursor-pointer"><%= t('nt.sw.title') %></summary>
+          <% if (!sw.ok) { %>
+            <p class="text-xs text-slate-400 mt-1"><%= t('nt.sw.' + sw.why) %></p>
+          <% } else if (!sw.options.length) { %>
+            <p class="text-xs text-slate-400 mt-1"><%= t('nt.sw.none') %></p>
+          <% } else { %>
+            <div class="flex flex-wrap gap-2 mt-2">
+              <% sw.options.forEach(function (o) { %>
+                <span class="text-xs rounded-full px-3 py-1 border <%= o.safety === 'clear' ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-200 text-amber-800' %>">
+                  <%= o.food.name %> — <%= o.grams %> <%= t('nt.u.g') %><% if (o.safety !== 'clear') { %> · <%= t('nt.safe.unknown') %><% } %>
+                </span>
+              <% }); %>
+            </div>
+          <% } %>
+        </details>
+      <% } %>
     </div>
     <% }); %>
   </div>
@@ -116,6 +139,55 @@
   <% } %>
 </div>
 <% }); %>
+
+<!-- ── قائمة التسوّق (البند ٨٤) ───────────────────────────────────── -->
+<%#
+  A list that silently drops the lines it cannot weigh sends somebody to the
+  shop missing an ingredient. The count comes back with the list.
+%>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-4">
+  <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+    <h2 class="font-bold text-slate-800"><%= t('nt.shop.title') %></h2>
+    <form method="get" class="flex items-center gap-2 no-print">
+      <input type="number" name="days" min="1" max="31" value="<%= shoppingDays %>"
+             class="w-20 border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
+      <button class="bg-slate-100 hover:bg-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold"><%= t('nt.shop.days') %></button>
+    </form>
+  </div>
+
+  <% if (!shopping.lines.length) { %>
+    <p class="text-sm text-slate-400"><%= t('nt.shop.empty') %></p>
+  <% } else { %>
+    <div class="grid sm:grid-cols-2 gap-x-6 divide-y divide-slate-50 sm:divide-y-0">
+      <% shopping.lines.forEach(function (l) { %>
+        <div class="py-1.5 flex items-center justify-between gap-2 text-sm">
+          <span class="text-slate-700"><%= l.name %></span>
+          <span class="font-bold text-slate-800"><%= l.grams %> <%= t('nt.u.g') %></span>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <% if (shopping.partial) { %>
+    <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-3">
+      <%= t('nt.shop.partial') %> (<%= shopping.uncounted %>)
+    </p>
+  <% } %>
+</div>
+
+<%# What on this plan clashes with the patient's own profile. %>
+<% if (clashes && clashes.length) { %>
+  <div class="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+    <p class="text-sm font-bold text-red-700 mb-2"><%= t('nt.safe.clash') %></p>
+    <div class="flex flex-wrap gap-2">
+      <% clashes.forEach(function (h) { %>
+        <span class="text-xs bg-white border border-red-200 text-red-700 rounded-full px-3 py-1">
+          <%= h.item.food_name || h.item.name %> — <%= h.hits.map(function (x) { return x.term; }).join('، ') %>
+        </span>
+      <% }); %>
+    </div>
+  </div>
+<% } %>
 
 <% if (plan.notes) { %>
   <div class="bg-white rounded-2xl shadow-sm p-5"><p class="text-sm text-slate-600"><%= plan.notes %></p></div>

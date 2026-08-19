@@ -17,6 +17,8 @@ const express = require('express');
 const { Pool } = require('pg');
 const E = require('../nutrition/engine');
 const P = require('../nutrition/practice');
+const swaps = require('../nutrition/swaps');
+const safety = require('../nutrition/safety');
 
 const router = express.Router({ mergeParams: true });
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -102,10 +104,26 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
     const byMeal = {};
     E.MEALS.forEach((m) => { byMeal[m] = data.items.filter((i) => i.meal === m); });
 
+    // The patient's profile, so a substitute goes through the same check the
+    // plan itself does — a peanut offered as an "alternative" is worse than no
+    // alternative, because it looks like it came from the same place.
+    const patient = (await pool.query(
+      'SELECT allergies, avoid_foods, diet_style FROM nutrition_patients WHERE id=$1 AND company_id=$2',
+      [data.plan.pid, req.company.id])).rows[0] || {};
+
+    // Swaps per line, and the plan's own clashes. Both are computed here so the
+    // page shows an answer instead of a button that goes somewhere.
+    const swapsByItem = {};
+    for (const it of data.items) swapsByItem[it.id] = swaps.candidates(it, foods, patient, { limit: 4 });
+
     res.render('nutrition_admin/plan', {
       tab: 'patients', ...data, foods, meals: E.MEALS, byMeal,
       mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
       dayTotals: E.totals(data.items),
+      swapsByItem,
+      clashes: safety.restrictionsOf(patient).length ? safety.scanPlan(data.items, patient) : null,
+      shopping: swaps.shoppingList(data.items, req.query.days || 7),
+      shoppingDays: Math.max(1, Math.min(31, parseInt(req.query.days, 10) || 7)),
       saved: req.query.saved === '1', err: req.query.err || null,
     });
   } catch (e) { console.error('[nutrition plan]', e.message); res.status(500).send('error'); }
