@@ -22,17 +22,66 @@
   var __fb = company && company.fb_pixel_id;
   var __tt = company && company.tiktok_pixel_id;
   var __ga = company && company.ga4_id;
+  /* الموافقة (البند ٨٩): 'ask' معناها مايتحمّلش سكربت لحد ما الزائر يوافق.
+     الافتراضي 'off' عشان المتاجر الشغّالة مايتغيّرش سلوكها في الصمت.
+     ⚠️ ده عن بيكسلات التاجر بس — إعلانات أدسنس ليها آليتها عند جوجل. */
+  var __consent = (company && company.consent_mode) === 'ask' ? 'ask' : 'off';
+  var __store = company && (company.slug || company.id) ? String(company.slug || company.id) : 'store';
 %>
-<% if (__fb) { %>
-<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','<%= __fb %>');fbq('track','PageView');</script>
-<% } %>
-<% if (__tt) { %>
-<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var n="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=n;ttq._t=ttq._t||{};ttq._t[e]=+new Date;var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=n+"?sdkid="+e;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load('<%= __tt %>');ttq.page()}(window,document,'ttq');</script>
-<% } %>
-<% if (__ga) { %>
-<script async src="https://www.googletagmanager.com/gtag/js?id=<%= __ga %>"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','<%= __ga %>');</script>
-<% } %>
+<script>
+(function () {
+  var CONSENT = <%- jsonLd(__consent) %>;
+  var KEY = 'odv_consent_' + <%- jsonLd(__store) %>;
+  var IDS = { fb: <%- jsonLd(__fb || '') %>, tt: <%- jsonLd(__tt || '') %>, ga: <%- jsonLd(__ga || '') %> };
+
+  // اللودرات زي ما هي — بس بقت بتتنده لما يبقى مسموح، مش وقت رسم الصفحة.
+  function loadFb(id){ !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',id);fbq('track','PageView'); }
+  function loadTt(id){ !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.load=function(e){var n="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=n;ttq._t=ttq._t||{};ttq._t[e]=+new Date;var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.src=n+"?sdkid="+e;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(id);ttq.page()}(window,document,'ttq'); }
+  function loadGa(id){
+    var s = document.createElement('script'); s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ window.dataLayer.push(arguments); };
+    gtag('js', new Date()); gtag('config', id);
+  }
+  function loadAll(){
+    if (window.__odvPixelsLoaded) return;
+    window.__odvPixelsLoaded = true;
+    try { if (IDS.fb) loadFb(IDS.fb); } catch (e) {}
+    try { if (IDS.tt) loadTt(IDS.tt); } catch (e) {}
+    try { if (IDS.ga) loadGa(IDS.ga); } catch (e) {}
+  }
+
+  function stored(){ try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+
+  if (CONSENT !== 'ask') loadAll();
+  else if (stored() === 'yes') loadAll();
+  else if (stored() !== 'no') {
+    // شريط تحت، مش طبقة فوق الصفحة: الطبقة بتغطّي محتوى (وإعلانات)، والزائر
+    // اللي مايردّش لازم يفضل قادر يستعمل المتجر.
+    document.addEventListener('DOMContentLoaded', function () {
+      var bar = document.createElement('div');
+      bar.setAttribute('dir', 'rtl');
+      bar.style.cssText = 'position:fixed;inset-inline:0;bottom:0;z-index:9998;background:#111827;color:#e5e7eb;'
+        + 'font:13px/1.7 system-ui,sans-serif;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center';
+      bar.innerHTML = '<span>المتجر بيستخدم أدوات قياس (فيسبوك/تيك توك/جوجل) عشان يعرف إعلاناته بتوصل لمين. توافق؟</span>';
+      var yes = document.createElement('button');
+      yes.textContent = 'موافق';
+      yes.style.cssText = 'background:#22c55e;color:#052e16;border:0;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer';
+      var no = document.createElement('button');
+      no.textContent = 'لأ';
+      no.style.cssText = 'background:transparent;color:#e5e7eb;border:1px solid #4b5563;border-radius:8px;padding:6px 14px;cursor:pointer';
+      // الرفض بيتخزّن زي الموافقة — الزائر اللي قال لأ مايتسألش كل صفحة.
+      function answer(v){ try { localStorage.setItem(KEY, v); } catch (e) {} bar.remove(); if (v === 'yes') loadAll(); }
+      yes.onclick = function(){ answer('yes'); };
+      no.onclick = function(){ answer('no'); };
+      bar.appendChild(yes); bar.appendChild(no);
+      document.body.appendChild(bar);
+    });
+  }
+})();
+</script>
 <script>
 (function () {
   var CUR = <%- jsonLd(__cur) %>;
@@ -51,6 +100,13 @@
     var cur = d.currency || CUR;
     var id = d.id == null ? '' : String(d.id);
     var qty = Number(d.quantity || 1);
+    /* رقم الحدث — البند ٨٩.
+     *
+     * نفس عملية الشراء بتتبعت من المتصفح ومن السيرفر (Conversion API). لو
+     * الاتنين مابعتوش **نفس الرقم**، ميتا بتحسبهم عمليتين، والتاجر بيفتكر
+     * إن الإعلان بيجيب ضعف اللي بيجيبه ويزوّد الميزانية على رقم مش حقيقي.
+     * الرقم مشتق من رقم الطلب فإعادة تحميل الصفحة مابتعملش حدث تالت. */
+    var evId = d.eventId ? String(d.eventId) : null;
     try {
       if (window.fbq) {
         fbq('track', event, {
@@ -60,7 +116,7 @@
           value: value || undefined,
           currency: cur,
           num_items: event === 'Purchase' ? qty : undefined,
-        });
+        }, evId ? { eventID: evId } : undefined);
       }
     } catch (e) {}
     try {
@@ -69,7 +125,7 @@
           contents: id ? [{ content_id: id, content_name: d.name, quantity: qty, price: d.price }] : undefined,
           value: value || undefined,
           currency: cur,
-        });
+        }, evId ? { event_id: evId } : undefined);
       }
     } catch (e) {}
     try {

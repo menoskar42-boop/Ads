@@ -58,8 +58,13 @@ check('ضغطة واتساب بتتحسب كـContact', /wa\.me\//.test(partial)
 
 // Purchase without a value is a conversion the platform cannot bid on.
 check('Purchase بيحمل قيمة الطلب ورقمه',
-  /odvTrack\('Purchase'[\s\S]{0,200}order\.total_amount/.test(read('shop/success.ejs'))
+  /odvTrack\('Purchase'[\s\S]{0,600}order\.total_amount/.test(read('shop/success.ejs'))
   && /orderId/.test(read('shop/success.ejs')));
+// البند ٨٩: نفس الشراء بيتبعت من السيرفر كمان، فالرقم لازم يكون واحد — من
+// غيره ميتا بتحسب الطلب مرتين والتاجر بيزوّد ميزانية على رقم مش حقيقي.
+check('وبرقم حدث واحد مع نسخة السيرفر',
+  /eventId: <%- jsonLd\('order-' \+ String\(order\.id\)\)/.test(read('shop/success.ejs'))
+  && /eventID: evId/.test(read('partials/merchant_pixels.ejs')));
 check('AddToCart بياخد الكمية اللي العميل اختارها',
   /quantity: n/.test(read('shop/product.ejs')));
 
@@ -86,13 +91,29 @@ catch (e) {
     { filename: f, root: V });
 
   const off = draw({});
+  /* بعد البند ٨٩ اللودرات بقت دوال بتتنده لما يبقى فيه رقم ومسموح (الموافقة)،
+     فروابط المنصّات موجودة في نص السكربت حتى لو التاجر مادخّلش حاجة. الشرط
+     الحقيقي مش «الرابط مش مكتوب» — الشرط إن **مفيش سكربت خارجي بيتحمّل**:
+     مفيش وسم <script src> لأي منهم، وخريطة الأرقام فاضية، والتحميل مشروط
+     بوجود الرقم. */
   check('تاجر مادخّلش أي ID مابيحمّلش أي سكربت خارجي',
-    !/fbevents\.js|analytics\.tiktok\.com|googletagmanager/.test(off));
+    !/<script[^>]+src=["'][^"']*(fbevents\.js|analytics\.tiktok\.com|googletagmanager)/.test(off)
+    && /IDS = \{ fb: "", tt: "", ga: "" \}/.test(off)
+    && /if \(IDS\.fb\) loadFb/.test(off) && /if \(IDS\.tt\) loadTt/.test(off)
+    && /if \(IDS\.ga\) loadGa/.test(off));
   check('ومع ذلك odvTrack موجودة فمفيش صفحة بتقع', /window\.odvTrack = function/.test(off));
 
   const on = draw({ fb_pixel_id: '123', tiktok_pixel_id: 'C1', ga4_id: 'G-X', currency: 'SAR' });
   check('التاجر اللي دخّل IDs بيتحمّلوا كلهم',
-    /fbevents\.js/.test(on) && /analytics\.tiktok\.com/.test(on) && /googletagmanager/.test(on));
+    /IDS = \{ fb: "123", tt: "C1", ga: "G-X" \}/.test(on)
+    && /fbevents\.js/.test(on) && /analytics\.tiktok\.com/.test(on) && /googletagmanager/.test(on));
+  // والموافقة: 'off' بتحمّل على طول، و'ask' مابتحمّلش غير بعد رد الزائر.
+  check('والافتراضي بيحمّل من غير سؤال', /CONSENT !== 'ask'\) loadAll\(\)/.test(on));
+  const ask = draw({ fb_pixel_id: '123', consent_mode: 'ask', slug: 'x' });
+  check('و«اسأل الأول» مابتحمّلش قبل الموافقة',
+    /var CONSENT = "ask"/.test(ask) && /stored\(\) === 'yes'\) loadAll\(\)/.test(ask));
+  check('والرفض بيتخزّن زي الموافقة فمحدش بيتسأل كل صفحة',
+    /localStorage\.setItem\(KEY, v\)/.test(ask));
   check('وعملة متجره هي اللي بتتبعت', /var CUR = "SAR"/.test(on));
 }
 

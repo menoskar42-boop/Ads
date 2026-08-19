@@ -975,6 +975,17 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS tiktok_pixel_id TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS ga4_id TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS whatsapp_number TEXT;
+      /* موافقة الزائر على بيكسلات التاجر (البند ٨٩).
+       *
+       * 'off' افتراضياً — عشان سلوك المتاجر الشغّالة مايتغيّرش في الصمت.
+       * 'ask' معناها بيكسلات التاجر مابتتحمّلش لحد ما الزائر يوافق.
+       *
+       * ⚠️ ده عن **بيكسلات التاجر بس**. إعلانات أدسنس بتاعتنا ليها آلية
+       * موافقة خاصة بجوجل، وماينفعش نتلاعب بيها من هنا (خط أحمر). */
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS consent_mode TEXT NOT NULL DEFAULT 'off';
+      /* توكن Conversion API بتاع ميتا — سرّ التاجر، مشفّر في الخزنة زي
+       * مفاتيح بوابات الدفع، ومابيترجعش للفورم أبداً. */
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS fb_capi_token_enc TEXT;
       -- Store wallet / gift-card credit per customer (competitor phase 31).
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(10,2) NOT NULL DEFAULT 0;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS wallet_used NUMERIC(10,2) NOT NULL DEFAULT 0;
