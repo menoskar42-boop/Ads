@@ -7,16 +7,14 @@
 <title><%= title %> — <%= company.company_name %></title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { darkMode: 'class', theme: { extend: {
-    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
-    // Warm wood tones, so the workshop's system does not look like the clinic's.
-    colors: { brand: { 50:'#fbf6f0',100:'#f4e6d6',200:'#e8ccae',300:'#d9a06a',400:'#c17f3f',500:'#a86a32',600:'#8a5524',700:'#6d431d',800:'#523216',900:'#3a230f' } }
-  } } };
-</script>
+<link rel="stylesheet" href="/css/tw.css" />
+<style>:root{--brand-50:251 246 240;--brand-100:244 230 214;--brand-200:232 204 174;--brand-300:217 160 106;--brand-400:193 127 63;--brand-500:168 106 50;--brand-600:138 85 36;--brand-700:109 67 29;--brand-800:82 50 22;--brand-900:58 35 15;}</style>
 <style>
   body{font-family:'Cairo',sans-serif}
+  /* الطباعة: القاعدة هنا مرة واحدة عشان `no-print` يشتغل في كل صفحة —
+     كانت متكتوبة في صفحات معيّنة بس، فالكلاس على صفحة تانية ماكانش بيعمل
+     حاجة والصفحة بتطبع أزرار. */
+  @media print { header, nav, .no-print { display: none !important; } }
 
   /* Wide tables become labelled cards on a phone — a workshop owner checks
      stock from the floor, not from a desk, and sideways scrolling hides the

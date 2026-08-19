@@ -6,14 +6,8 @@
 <meta name="robots" content="noindex,nofollow" />
 <title><%= title %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { theme: { extend: {
-    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
-    // Teal — the last unused colour across the verticals.
-    colors: { brand: { 50:'#f0fdfa',100:'#ccfbf1',200:'#99f6e4',300:'#5eead4',400:'#2dd4bf',500:'#14b8a6',600:'#0d9488',700:'#0f766e',800:'#115e59',900:'#134e4a' } }
-  } } };
-</script>
+<link rel="stylesheet" href="/css/tw.css" />
+<style>:root{--brand-50:240 253 250;--brand-100:204 251 241;--brand-200:153 246 228;--brand-300:94 234 212;--brand-400:45 212 191;--brand-500:20 184 166;--brand-600:13 148 136;--brand-700:15 118 110;--brand-800:17 94 89;--brand-900:19 78 74;}</style>
 <style>
   body{font-family:'Cairo',sans-serif}
   @media (max-width: 639px) {

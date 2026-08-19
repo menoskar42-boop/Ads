@@ -7,15 +7,8 @@
 <title><%= title %> — <%= company.company_name %></title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { darkMode: 'class', theme: { extend: {
-    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
-    // Steel blue — a workshop should not open to the same colour as the
-    // furniture showroom or the clinic.
-    colors: { brand: { 50:'#eef4f8',100:'#d6e5ef',200:'#adc9dd',300:'#7ea7c6',400:'#5185ac',500:'#376b91',600:'#2b5575',700:'#22425c',800:'#1a3245',900:'#12232f' } }
-  } } };
-</script>
+<link rel="stylesheet" href="/css/tw.css" />
+<style>:root{--brand-50:238 244 248;--brand-100:214 229 239;--brand-200:173 201 221;--brand-300:126 167 198;--brand-400:81 133 172;--brand-500:55 107 145;--brand-600:43 85 117;--brand-700:34 66 92;--brand-800:26 50 69;--brand-900:18 35 47;}</style>
 <style>
   body{font-family:'Cairo',sans-serif}
   /* Wide tables become labelled cards on a phone. A mechanic checks a job from

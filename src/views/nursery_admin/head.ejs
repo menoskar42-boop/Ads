@@ -6,15 +6,8 @@
 <meta name="robots" content="noindex,nofollow" />
 <title><%= title %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { theme: { extend: {
-    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
-    // Violet — unused by the other verticals, so a manager who also runs a shop
-    // knows which system she is in from the colour alone.
-    colors: { brand: { 50:'#f5f3ff',100:'#ede9fe',200:'#ddd6fe',300:'#c4b5fd',400:'#a78bfa',500:'#8b5cf6',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6',900:'#4c1d95' } }
-  } } };
-</script>
+<link rel="stylesheet" href="/css/tw.css" />
+<style>:root{--brand-50:245 243 255;--brand-100:237 233 254;--brand-200:221 214 254;--brand-300:196 181 253;--brand-400:167 139 250;--brand-500:139 92 246;--brand-600:124 58 237;--brand-700:109 40 217;--brand-800:91 33 182;--brand-900:76 29 149;}</style>
 <style>
   body{font-family:'Cairo',sans-serif}
   @media (max-width: 639px) {

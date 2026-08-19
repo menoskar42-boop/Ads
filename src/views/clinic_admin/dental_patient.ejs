@@ -71,7 +71,7 @@
       var status = c ? c.status : 'sound';
       var surf = (c && c.surfaces) || '';
   %>
-    <div class="tooth-wrap flex flex-col items-center gap-0.5" data-tooth="<%= t %>">
+    <div class="flex flex-col items-center gap-0.5" data-tooth="<%= t %>">
       <svg viewBox="0 0 40 40" class="tooth w-10 h-10 sm:w-11 sm:h-11 cursor-pointer select-none"
            data-tooth="<%= t %>" data-status="<%= status %>" data-surfaces="<%= surf %>"
            onclick="onToothClick(event, <%= t %>)">

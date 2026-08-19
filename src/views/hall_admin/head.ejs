@@ -6,14 +6,8 @@
 <meta name="robots" content="noindex,nofollow" />
 <title><%= title %> — <%= company.company_name %></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { theme: { extend: {
-    fontFamily: { sans: ['Cairo','system-ui','sans-serif'] },
-    // Warm rose — a hall should not open to the same screen as a workshop.
-    colors: { brand: { 50:'#fdf2f5',100:'#fce7ec',200:'#f8c9d6',300:'#f0a0b8',400:'#e46e93',500:'#d24a74',600:'#b8325c',700:'#97264a',800:'#7a1f3d',900:'#5e1830' } }
-  } } };
-</script>
+<link rel="stylesheet" href="/css/tw.css" />
+<style>:root{--brand-50:253 242 245;--brand-100:252 231 236;--brand-200:248 201 214;--brand-300:240 160 184;--brand-400:228 110 147;--brand-500:210 74 116;--brand-600:184 50 92;--brand-700:151 38 74;--brand-800:122 31 61;--brand-900:94 24 48;}</style>
 <style>
   body{font-family:'Cairo',sans-serif}
   @media (max-width: 639px) {
