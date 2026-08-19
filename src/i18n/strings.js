@@ -1760,6 +1760,7 @@ const strings = {
     'fn2.m.in_use':'مينفعش يتمسح — مستخدم في حركات موجودة. أرشِفه بدل ما تمسحه.',
     'fn2.m.active':'المتاح','fn2.m.archived':'المؤرشف','fn2.m.archive':'أرشفة','fn2.m.restore':'استرجاع',
     'fn2.m.search':'بحث بالاسم','fn2.m.empty':'مفيش حاجة هنا لسه.','fn2.m.low':'تحت الحد',
+    'fn2.m.photo':'الصورة','fn2.m.upload':'ارفع صورة','fn2.m.err.image':'الصورة مااترفعتش — صور بس (PNG/JPEG/WEBP) وأقل من ٦ ميجا.',
     'fn2.m.opening_hint':'الرصيد اللي موجود عندك دلوقتي. بعد كده الكمية بتتغيّر من حركة المخزون بس.',
     'fn2.m.archive_hint':'الأرشفة بتخفي السجل من القوائم من غير ما تضيّع تاريخه. المسح النهائي متاح للسجلات اللي لسه مستخدمتش في أي حركة.',
 
@@ -4184,6 +4185,7 @@ const strings = {
     'fn2.m.in_use':'Cannot be deleted — it is used by existing records. Archive it instead.',
     'fn2.m.active':'Active','fn2.m.archived':'Archived','fn2.m.archive':'Archive','fn2.m.restore':'Restore',
     'fn2.m.search':'Search by name','fn2.m.empty':'Nothing here yet.','fn2.m.low':'Below minimum',
+    'fn2.m.photo':'Photo','fn2.m.upload':'Upload a photo','fn2.m.err.image':'The photo was not uploaded \u2014 images only (PNG/JPEG/WEBP), under 6 MB.',
     'fn2.m.opening_hint':'What you hold right now. After this, quantity changes only through stock movements.',
     'fn2.m.archive_hint':'Archiving hides a record from the lists without losing its history. Permanent deletion is offered only for records not yet used anywhere.',
 

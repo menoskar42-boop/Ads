@@ -23,7 +23,7 @@
 <% } %>
 <% if (err) { %>
   <div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800">
-    <%= err === 'in_use' ? t('fn2.m.in_use') : err === 'save' ? t('fn2.m.savefail') : t('fn2.m.required') %>
+    <%= err === 'in_use' ? t('fn2.m.in_use') : err === 'save' ? t('fn2.m.savefail') : err === 'image' ? t('fn2.m.err.image') : t('fn2.m.required') %>
   </div>
 <% } %>
 
@@ -96,6 +96,7 @@
         <table class="w-full text-sm rt">
           <thead class="bg-stone-50 text-stone-600">
             <tr>
+              <% if (spec.image) { %><th class="text-start px-4 py-2 font-semibold"><%= t('fn2.m.photo') %></th><% } %>
               <% spec.fields.forEach(function(f){ %><th class="text-start px-4 py-2 font-semibold"><%= fld(f) %></th><% }); %>
               <th class="px-4 py-2"></th>
             </tr>
@@ -105,6 +106,25 @@
                  var low = entity === 'materials' && Number(r.min_qty) > 0 && Number(r.qty) <= Number(r.min_qty);
             %>
             <tr class="<%= low ? 'bg-amber-50/50' : '' %>">
+              <%# The catalogue on the public page reads image_path. Nothing ever
+                  wrote it, so every piece rendered as the same chair icon. %>
+              <% if (spec.image) { %>
+                <td class="px-4 py-2" data-l="<%= t('fn2.m.photo') %>">
+                  <% if (r.image_path) { %>
+                    <img src="<%= r.image_path %>" alt="<%= r.name %>" loading="lazy"
+                         class="w-14 h-14 rounded-lg object-cover border border-stone-200" />
+                    <form method="post" action="/furniture/master/<%= entity %>/<%= r.id %>/image/delete" class="mt-1">
+                      <button class="text-[10px] text-stone-400 hover:text-red-600"><%= t('common.delete') %></button>
+                    </form>
+                  <% } else { %>
+                    <form method="post" action="/furniture/master/<%= entity %>/<%= r.id %>/image" enctype="multipart/form-data" class="grid gap-1">
+                      <input type="file" name="image_file" accept="image/*" required
+                             class="text-[10px] w-28 border border-stone-200 rounded-lg p-1" />
+                      <button class="text-[10px] px-2 py-1 rounded-lg border border-stone-200 hover:bg-stone-50"><%= t('fn2.m.upload') %></button>
+                    </form>
+                  <% } %>
+                </td>
+              <% } %>
               <% spec.fields.forEach(function(f){ %>
                 <td class="px-4 py-2" data-l="<%= fld(f) %>" <%- f.dir ? 'dir="' + f.dir + '"' : '' %>>
                   <% if (f.type === 'num') { %><%= money(r[f.key]) %>
