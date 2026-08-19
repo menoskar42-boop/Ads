@@ -53,12 +53,14 @@
   %>
   <div class="tick <%= cls %>">
     <div class="hd">
-      <span class="no">#<%= o.id %></span>
+      <span class="no">#<%= o.id %><% if (o.order_type && o.order_type !== 'delivery') { %> · <%= t('orders.type.' + o.order_type) %><% } %><% if (o.table_no) { %> · <%= t('orders.table') %> <%= o.table_no %><% } %></span>
       <span class="age"><%= mins %> د</span>
     </div>
     <ul>
       <% (o.items || []).forEach(function(i){ %>
-      <li><span class="q">×<%= i.quantity %></span><span><%= i.name_snapshot %></span></li>
+      <%# The modifiers ARE the order for a kitchen: «بدون بصل» on a screen the
+          cook cannot see is the same as never having been said. %>
+      <li><span class="q">×<%= i.quantity %></span><span><%= i.name_snapshot %><% if (i.options && i.options.length) { %> — <%= i.options.map(function(x){ return x.name; }).join(' · ') %><% } %></span></li>
       <% }); %>
     </ul>
     <% if (o.notes) { %><div class="note">📝 <%= o.notes %></div><% } %>

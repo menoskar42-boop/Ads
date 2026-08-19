@@ -23,6 +23,18 @@
   function __money(v) { var n = Number(v); if (!isFinite(n)) return '0'; return n.toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { maximumFractionDigits: 2 }); }
   function __vlabel(v) { return v === 'supermarket' ? t('orders.supermarket') : t('orders.restaurant'); }
   var __cur = t('pharmacy.currency');
+  // The order types every outlet on this page agrees to. One order belongs to
+  // one branch, but the picker is drawn once for the page — so offering a type
+  // only some branches accept would send the customer to a refusal at the end.
+  var __otypes = ['delivery', 'pickup', 'dine_in'].filter(function (ty) {
+    if (!__outlets.length) return ty === 'delivery';
+    return __outlets.every(function (o) {
+      if (ty === 'delivery') return o.allow_delivery !== false;
+      if (ty === 'pickup') return o.allow_pickup === true;
+      return o.allow_dine_in === true;
+    });
+  });
+  if (!__otypes.length) __otypes = ['delivery'];
 %>
 <% if (__noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
 <title><%= __title %></title>
@@ -62,12 +74,13 @@
   /* Why an order was refused. It used to redirect to ?err=… and show nothing,
      so a customer whose basket mixed two branches just watched the page reload
      with a full cart and no explanation. */
-  var __err = (typeof query !== 'undefined' && query) ? query.err : null;
-  var __errMsg = {
-    order: 'مش قادرين نستلم الطلب. راجع السلة والاسم والتليفون وجرّب تاني.',
-    minorder: 'قيمة الطلب أقل من الحد الأدنى للفرع ده.',
-    multibranch: 'السلة فيها أصناف من أكتر من فرع. كل طلب بيتجهّز من فرع واحد — اطلب من فرع، وبعدين اعمل طلب تاني من الفرع التاني.',
-  }[__err];
+  /* The codes the server may send back, and only those: a message is looked up
+     from the dictionary, never taken from the URL — and the page renders in
+     English too, so the sentences cannot live in the template. */
+  var __errCodes = ['order', 'minorder', 'multibranch', 'address', 'table', 'ordertype',
+    'option', 'option_required', 'option_too_many', 'option_too_few', 'option_price'];
+  var __err = (typeof query !== 'undefined' && query) ? String(query.err || '') : '';
+  var __errMsg = __errCodes.indexOf(__err) >= 0 ? t('orders.err.' + __err) : null;
 %>
 <% if (__errMsg) { %>
 <div style="max-width:900px;margin:12px auto 0;padding:12px 16px;border-radius:14px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:14px;">
@@ -132,8 +145,12 @@
                   <% if (it.description) { %><p class="text-xs text-gray-500 leading-tight mt-0.5 line-clamp-2"><%= it.description %></p><% } %>
                   <div class="mt-auto pt-2 flex items-center justify-between">
                     <span class="font-extrabold accent-text"><bdi><%= __money(it.price) %> <span class="text-xs text-gray-400"><%= __cur %></span></bdi></span>
+                    <%# An item with modifiers opens a chooser; one without behaves
+                        exactly as it did before. The groups ride on the button so
+                        the page needs no second request to show them. %>
                     <button type="button" class="add-btn crystal accent-bg text-white rounded-full px-4 py-1.5 text-sm font-bold"
-                            data-id="<%= it.id %>" data-name="<%= iName %>" data-price="<%= Number(it.price) %>" data-outlet="<%= o.id %>"><%= t('orders.add') %></button>
+                            data-id="<%= it.id %>" data-name="<%= iName %>" data-price="<%= Number(it.price) %>" data-outlet="<%= o.id %>"
+                            data-opts="<%= (it.options && it.options.length) ? encodeURIComponent(JSON.stringify(it.options)) : '' %>"><%= t('orders.add') %></button>
                   </div>
                 </div>
               </div>
@@ -182,7 +199,27 @@
         <div id="custFields" class="space-y-3 pt-2 hidden">
           <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.name') %></label><input name="customer_name" required class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
           <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.phone') %></label><input name="phone" type="tel" dir="ltr" required class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-end" placeholder="01xxxxxxxxx" /></div>
-          <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.address') %></label><textarea name="address" rows="2" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 resize-none"></textarea></div>
+          <%# Delivery, pickup or a table in the room. Only the types this
+              restaurant switched on appear, and delivery is the default because
+              it is what every existing outlet is already doing. %>
+          <% var __types = __otypes || []; %>
+          <% if (__types.length > 1) { %>
+            <div>
+              <label class="block text-[13px] font-bold mb-1"><%= t('orders.type') %></label>
+              <div id="typeRow" class="flex gap-2 flex-wrap">
+                <% __types.forEach(function (ty, i) { %>
+                  <label class="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold cursor-pointer">
+                    <input type="radio" name="order_type" value="<%= ty %>" <%= i === 0 ? 'checked' : '' %> class="type-radio" />
+                    <%= t('orders.type.' + ty) %>
+                  </label>
+                <% }); %>
+              </div>
+            </div>
+          <% } else { %>
+            <input type="hidden" name="order_type" value="<%= __types[0] || 'delivery' %>" />
+          <% } %>
+          <div id="addrBox"><label class="block text-[13px] font-bold mb-1"><%= t('orders.address') %></label><textarea name="address" rows="2" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 resize-none"></textarea></div>
+          <div id="tableBox" class="hidden"><label class="block text-[13px] font-bold mb-1"><%= t('orders.table') %></label><input name="table_no" maxlength="20" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
           <div><label class="block text-[13px] font-bold mb-1"><%= t('orders.notes') %></label><input name="notes" class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5" /></div>
           <p class="text-xs text-gray-400">💵 <%= t('orders.cod') %></p>
         </div>
@@ -211,6 +248,24 @@
         <button type="submit" id="confirmBtn" class="w-full crystal accent-bg text-white rounded-2xl py-3.5 font-extrabold"><%= t('orders.confirm_order') %></button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modifiers: size, extras, without -->
+<div id="optModal" class="fixed inset-0 z-50 hidden">
+  <div id="optOverlay" class="absolute inset-0 bg-black/50"></div>
+  <div class="absolute inset-x-0 bottom-0 sm:inset-y-0 sm:end-0 sm:inset-x-auto w-full sm:max-w-md bg-white shadow-2xl flex flex-col max-h-[85vh] sm:max-h-none rounded-t-2xl sm:rounded-none">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <h2 id="optTitle" class="font-extrabold text-lg"></h2>
+      <button id="optClose" type="button" class="grid place-items-center h-9 w-9 rounded-full hover:bg-gray-100" aria-label="close">
+        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="optBody" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4"></div>
+    <div class="border-t border-gray-100 p-4 space-y-2">
+      <p id="optWarn" class="hidden text-sm text-red-600 font-bold bg-red-50 rounded-xl px-3 py-2"></p>
+      <button id="optDone" type="button" class="w-full crystal accent-bg text-white rounded-2xl py-3 font-extrabold"><%= t('orders.add') %></button>
+    </div>
   </div>
 </div>
 
@@ -258,6 +313,15 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
   function fmt(n) { n = Math.round(n * 100) / 100; return isAr ? String(n).replace(/\d/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }) : String(n); }
   function money(n) { return fmt(n) + ' ' + CUR; }
 
+  // Which type is selected right now. The page may only offer one, in which
+  // case it is a hidden field — reading both keeps this honest either way.
+  function orderType() {
+    var checked = document.querySelector('.type-radio:checked');
+    if (checked) return checked.value;
+    var hidden = form && form.querySelector('input[name="order_type"]');
+    return hidden ? hidden.value : 'delivery';
+  }
+
   function totals() {
     var c = load(), count = 0, sub = 0, outSub = {};
     Object.keys(c).forEach(function (k) {
@@ -267,7 +331,9 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
     var delivery = 0, warn = '';
     Object.keys(outSub).forEach(function (oid) {
       var o = outlets[oid]; if (!o) return;
-      delivery += o.fee;
+      // No driver, no fee. The server decides the same way; this is only so the
+      // number on the screen matches the number that will be charged.
+      if (orderType() === 'delivery') delivery += o.fee;
       if (o.min > 0 && outSub[oid] < o.min) warn = MINW + ' (' + o.name + '): ' + money(o.min);
     });
     var discount = appliedPercent > 0 ? Math.round(sub * appliedPercent / 100 * 100) / 100 : 0;
@@ -298,7 +364,7 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
         + '<span class="w-6 text-center font-bold qv"></span>'
         + '<button type="button" data-p="' + id + '" class="inc grid place-items-center h-7 w-7 rounded-full hover:bg-gray-100">+</button></div>'
         + '<button type="button" data-r="' + id + '" class="rm text-red-500 px-1">🗑️</button>';
-      row.querySelector('.font-bold.text-sm').textContent = it.n;
+      row.querySelector('.font-bold.text-sm').textContent = it.n + (it.d ? ' — ' + it.d : '');
       row.querySelector('.accent-text').textContent = money(it.p * it.q);
       row.querySelector('.qv').textContent = fmt(it.q);
       lines.appendChild(row);
@@ -345,13 +411,106 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
   function openD() { renderDrawer(); renderUpsell(); drawer.classList.remove('hidden'); document.body.style.overflow = 'hidden'; }
   function closeD() { drawer.classList.add('hidden'); document.body.style.overflow = ''; }
 
-  document.querySelectorAll('.add-btn').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var c = load(), id = b.dataset.id;
-      if (!c[id]) c[id] = { n: b.dataset.name, p: Number(b.dataset.price), q: 0, o: b.dataset.outlet };
-      c[id].q += 1; save(c); renderBar();
-      b.textContent = '✓'; setTimeout(function () { b.textContent = <%- jsonLd(t('orders.add')) %>; }, 600);
+  // ── Modifiers ─────────────────────────────────────────────────────────
+  //
+  // The cart key is the item id when nothing was chosen, and "id|1,2" when it
+  // was. That keeps a burger with cheese and a plain burger as two lines — and
+  // keeps every existing path that looks a plain id up in the cart working
+  // exactly as before.
+  function cartKey(id, opts) {
+    return opts && opts.length ? id + '|' + opts.slice().sort(function (a, b) { return a - b; }).join(',') : String(id);
+  }
+  function addLine(b, opts, delta, label) {
+    var c = load(), id = b.dataset.id, k = cartKey(id, opts);
+    if (!c[k]) c[k] = { i: Number(id), n: b.dataset.name, p: Number(b.dataset.price) + (delta || 0), q: 0, o: b.dataset.outlet, x: opts || [], d: label || '' };
+    c[k].q += 1; save(c); renderBar(); renderDrawer();
+    b.textContent = '✓'; setTimeout(function () { b.textContent = <%- jsonLd(t('orders.add')) %>; }, 600);
+  }
+
+  var optModal = document.getElementById('optModal');
+  var optBody = document.getElementById('optBody');
+  var optTitle = document.getElementById('optTitle');
+  var optDone = document.getElementById('optDone');
+  var optWarn = document.getElementById('optWarn');
+  var optFor = null, optGroups = [];
+
+  function closeOpt() { if (optModal) optModal.classList.add('hidden'); document.body.style.overflow = ''; }
+
+  function readChoice() {
+    var picked = [], delta = 0, names = [], bad = null;
+    optGroups.forEach(function (g) {
+      var boxes = optBody.querySelectorAll('input[data-g="' + g.id + '"]:checked');
+      var min = g.required ? Math.max(1, Number(g.min) || 0) : (Number(g.min) || 0);
+      var max = Number(g.max) || 0;
+      if (boxes.length < min) bad = bad || (<%- jsonLd(t('orders.opt_required')) %> + ' ' + g.name);
+      if (max > 0 && boxes.length > max) bad = bad || (<%- jsonLd(t('orders.opt_max')) %> + ' ' + g.name + ': ' + max);
+      Array.prototype.forEach.call(boxes, function (bx) {
+        picked.push(Number(bx.value));
+        delta += Number(bx.dataset.delta) || 0;
+        names.push(bx.dataset.label);
+      });
     });
+    return { picked: picked, delta: delta, label: names.join(' · '), bad: bad };
+  }
+
+  function openOpt(b) {
+    var raw = b.dataset.opts;
+    try { optGroups = JSON.parse(decodeURIComponent(raw)); } catch (e) { optGroups = []; }
+    if (!optGroups.length) { addLine(b, [], 0, ''); return; }
+    optFor = b;
+    optTitle.textContent = b.dataset.name;
+    optBody.innerHTML = '';
+    optWarn.classList.add('hidden');
+    optGroups.forEach(function (g) {
+      var single = Number(g.max) === 1;
+      var wrap = document.createElement('div');
+      wrap.className = 'space-y-1.5';
+      var h = document.createElement('div');
+      h.className = 'font-bold text-sm';
+      h.textContent = g.name + (g.required ? ' *' : '');
+      wrap.appendChild(h);
+      (g.values || []).forEach(function (v) {
+        var lab = document.createElement('label');
+        lab.className = 'flex items-center justify-between gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm cursor-pointer';
+        var left = document.createElement('span');
+        left.className = 'flex items-center gap-2';
+        var input = document.createElement('input');
+        input.type = single ? 'radio' : 'checkbox';
+        input.name = 'g' + g.id;
+        input.value = v.id;
+        input.dataset.g = g.id;
+        input.dataset.delta = v.delta;
+        input.dataset.label = v.name;
+        left.appendChild(input);
+        left.appendChild(document.createTextNode(' ' + v.name));
+        lab.appendChild(left);
+        var right = document.createElement('span');
+        right.className = 'text-xs accent-text font-bold';
+        right.textContent = Number(v.delta) ? (Number(v.delta) > 0 ? '+' : '') + money(Number(v.delta)) : '';
+        lab.appendChild(right);
+        wrap.appendChild(lab);
+      });
+      optBody.appendChild(wrap);
+    });
+    optModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  if (optDone) {
+    optDone.addEventListener('click', function () {
+      var pick = readChoice();
+      if (pick.bad) { optWarn.textContent = pick.bad; optWarn.classList.remove('hidden'); return; }
+      addLine(optFor, pick.picked, pick.delta, pick.label);
+      closeOpt();
+    });
+  }
+  var optClose = document.getElementById('optClose');
+  var optOverlay = document.getElementById('optOverlay');
+  if (optClose) optClose.addEventListener('click', closeOpt);
+  if (optOverlay) optOverlay.addEventListener('click', closeOpt);
+
+  document.querySelectorAll('.add-btn').forEach(function (b) {
+    b.addEventListener('click', function () { openOpt(b); });
   });
 
   lines.addEventListener('click', function (e) {
@@ -389,9 +548,33 @@ window.__OUTLETS = <%- jsonLd(__outlets.map(function(o){ return { id:o.id, fee:N
       }).catch(function () {});
   });
 
+  // The fields follow the type: an address for a delivery, a table for the room.
+  function syncType() {
+    var ty = orderType();
+    var addr = document.getElementById('addrBox');
+    var tbl = document.getElementById('tableBox');
+    if (addr) {
+      addr.classList.toggle('hidden', ty !== 'delivery');
+      var ta = addr.querySelector('textarea');
+      if (ta) ta.required = (ty === 'delivery');
+    }
+    if (tbl) {
+      tbl.classList.toggle('hidden', ty !== 'dine_in');
+      var inp = tbl.querySelector('input');
+      if (inp) inp.required = (ty === 'dine_in');
+    }
+    renderDrawer(); renderBar();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.type-radio'), function (r) {
+    r.addEventListener('change', syncType);
+  });
+  syncType();
+
   form.addEventListener('submit', function (e) {
     var c = load();
-    var arr = Object.keys(c).map(function (id) { return { id: Number(id), q: c[id].q }; });
+    var arr = Object.keys(c).map(function (k) {
+      return { id: Number(c[k].i || String(k).split('|')[0]), q: c[k].q, opts: c[k].x || [] };
+    });
     if (!arr.length) { e.preventDefault(); return; }
     cartField.value = JSON.stringify(arr);
     // Remember this order (device-local) + contact info for next time.
