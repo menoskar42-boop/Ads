@@ -68,6 +68,9 @@ const GUARDED = [
   ['/staff', 'staff'],
   // The owner's own: billing, the plan, the page identity, the currencies and
   // the payment keys behind them.
+  // The five-step setup reaches the identity, the payment keys and the store's
+  // public link — owner's ground, not a role's.
+  ['/setup', 'owner'],
   ['/profile', 'owner'],
   ['/features', 'owner'],
   ['/company', 'owner'],
