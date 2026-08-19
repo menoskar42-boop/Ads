@@ -184,13 +184,17 @@
       <% if (company.page_type === 'portfolio') { %>
       <!-- Portfolio services -->
       <div class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
-        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🧩</span> نصوص الخدمات الثلاث</h3>
-        <p class="text-gray-400 text-sm">عدّل عنوان ووصف كل خدمة. اتركها فارغة لاستخدام النص الافتراضي.</p>
-        <% var svcDefaults = [
-             ['service1_title','service1_desc','الاستشارات','استشارات استراتيجية مخصصة لأهداف عملك ونموه'],
-             ['service2_title','service2_desc','الابتكار','حلول تقنية متطورة تحقق نتائج حقيقية وملموسة'],
-             ['service3_title','service3_desc','الدعم','فرق متخصصة جاهزة لدعمك على مدار الساعة طوال الأسبوع']
-           ]; %>
+        <h3 class="font-bold text-gray-800 flex items-center gap-2"><span class="text-lg">🧩</span> نصوص الخدمات الستة</h3>
+        <%# الصفحة العامة بتعرض ٦ كروت من زمان، واللوحة كانت بتعدّل ٣ — يعني
+            نص الخدمات كان كلام افتراضي معروض على صفحة التاجر باسمه ومش قادر
+            يغيّره. والنص الرمادي هنا هو **نفس** اللي هيظهر لو الخانة فضلت
+            فاضية (من preset المهنة)، مش مثال تاني. %>
+        <p class="text-gray-400 text-sm">عدّل عنوان ووصف كل خدمة. اتركها فارغة والنص الرمادي هو اللي هيظهر للزائر.</p>
+        <% var __svc = (typeof preset !== 'undefined' && preset && preset.services) || [];
+           var svcDefaults = [1,2,3,4,5,6].map(function(i){
+             var d = __svc[i-1] || { title: 'خدمة ' + i, desc: '' };
+             return ['service' + i + '_title', 'service' + i + '_desc', d.title, d.desc];
+           }); %>
         <% svcDefaults.forEach(function(s, i){ %>
           <div class="border border-gray-100 rounded-xl p-4 space-y-2">
             <div class="text-xs font-bold text-gray-400">خدمة <%= i + 1 %></div>
