@@ -155,6 +155,11 @@ catch (e) {
     saved: false, err: null, progress: null, series: [],
     activities: require('../src/nutrition/engine').ACTIVITY_KEYS,
     goals: require('../src/nutrition/engine').GOAL_KEYS,
+    // The medical profile (backlog 84). Nothing recorded here, so the page
+    // renders the "no restrictions on file" branch rather than a green tick.
+    dietStyles: Object.keys(require('../src/nutrition/safety').DIETS),
+    stages: Object.keys(require('../src/nutrition/safety').STAGE_KCAL),
+    planScan: { state: 'no_rules', hits: [] },
   }, { filename: file, root: VIEWS });
 
   const owner = draw(P.permsFor({}));

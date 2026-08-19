@@ -253,6 +253,37 @@ async function ensureNutritionSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_nut_diary ON nutrition_diary (patient_id, on_date);
+      /* دفتر أكل حقيقي (backlog 84).
+       *
+       * What was here was a tick: the plan said "grilled chicken 150g" and the
+       * patient pressed done. That answers "did you follow the plan" and
+       * nothing else — and people eat things that are NOT on the plan, which is
+       * the entire problem a dietitian is solving. A diary of ticks shows a
+       * perfect week for a patient who gained two kilos.
+       *
+       * So an entry can now be a food with a quantity, or a line the patient
+       * typed. The old ticks keep working: item_id and done are untouched.
+       */
+      ALTER TABLE nutrition_diary ADD COLUMN IF NOT EXISTS food_id  INTEGER REFERENCES nutrition_foods(id) ON DELETE SET NULL;
+      ALTER TABLE nutrition_diary ADD COLUMN IF NOT EXISTS grams    NUMERIC(7,1);
+      ALTER TABLE nutrition_diary ADD COLUMN IF NOT EXISTS free_text TEXT;
+      ALTER TABLE nutrition_diary ADD COLUMN IF NOT EXISTS kind     TEXT NOT NULL DEFAULT 'tick';  -- tick | ate
+      CREATE INDEX IF NOT EXISTS idx_nut_diary_ate ON nutrition_diary (patient_id, on_date, kind);
+
+      /* حساسية وأمراض وأدوية وتفضيلات (backlog 84).
+       *
+       * The practice stored a patient's height, weight and goal and nothing
+       * about what would harm them — so a plan could hand a peanut allergy a
+       * peanut and no screen would notice. See src/nutrition/safety.js for what
+       * the matching does and, more importantly, what it refuses to claim.
+       */
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS allergies    TEXT;
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS conditions   TEXT;
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS medications  TEXT;
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS avoid_foods  TEXT;
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS diet_style   TEXT NOT NULL DEFAULT 'none';
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS stage        TEXT NOT NULL DEFAULT 'none';
+      ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS budget       TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_diary_one ON nutrition_diary (patient_id, on_date, item_id);
     `);
   } finally {

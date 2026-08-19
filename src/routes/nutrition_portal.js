@@ -23,6 +23,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const E = require('../nutrition/engine');
+const diary = require('../nutrition/diary');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -181,7 +182,9 @@ async function load(companyId, patientId, onDate) {
     'SELECT * FROM nutrition_plan_items WHERE plan_id=$1 AND company_id=$2 ORDER BY sort_order, id',
     [p.id, companyId])).rows : [];
   const ticks = p ? (await pool.query(
-    'SELECT item_id, done FROM nutrition_diary WHERE patient_id=$1 AND on_date=$2 AND company_id=$3',
+    // Ticks only: the diary now also holds what was eaten, and those rows have
+    // no plan item to tick.
+    "SELECT item_id, done FROM nutrition_diary WHERE patient_id=$1 AND on_date=$2 AND company_id=$3 AND kind='tick'",
     [patientId, onDate, companyId])).rows : [];
   return {
     patient: patient.rows[0] || null,
@@ -211,10 +214,43 @@ router.get('/', async (req, res) => {
         WHERE patient_id=$1 AND company_id=$2 AND weight_kg IS NOT NULL
         ORDER BY taken_on DESC, id DESC LIMIT 1`, [req.patientId, req.practice.id])).rows[0] || null;
 
+    // ── The real diary (backlog 84) ─────────────────────────────────────
+    //
+    // What the patient ATE, not what they ticked. Rows carry their food when
+    // one was picked, and nothing when the patient typed a line — so the day's
+    // totals come back with a count of what they could NOT account for. A
+    // total that quietly drops the free-text lines under-counts, and the
+    // patient looks compliant on the screen the dietitian is reading.
+    let ate = [];
+    try {
+      ate = (await pool.query(
+        `SELECT dr.id, dr.meal, dr.grams, dr.free_text, dr.created_at,
+                f.id AS food_id, f.name AS food_name, f.kcal, f.protein_g, f.carbs_g, f.fat_g
+           FROM nutrition_diary dr
+           LEFT JOIN nutrition_foods f ON f.id = dr.food_id
+          WHERE dr.patient_id=$1 AND dr.company_id=$2 AND dr.on_date=$3 AND dr.kind='ate'
+          ORDER BY dr.created_at`, [req.patientId, req.practice.id, day])).rows
+        .map((r) => Object.assign({}, r, {
+          food: r.food_id ? { kcal: r.kcal, protein_g: r.protein_g, carbs_g: r.carbs_g, fat_g: r.fat_g } : null,
+        }));
+    } catch (e) { console.error('[nutrition diary read]', e.message); }
+
+    // The practice's food list, for picking instead of typing.
+    let foods = [];
+    try {
+      foods = (await pool.query(
+        `SELECT id, name, serving_desc, serving_g FROM nutrition_foods
+          WHERE company_id=$1 AND is_active=true ORDER BY name LIMIT 400`, [req.practice.id])).rows;
+    } catch (e) { console.error('[nutrition foods]', e.message); }
+
     res.render('nutrition_portal/today', {
       ...d, day, meals: E.MEALS, byMeal,
       planTotals: E.totals(d.items),
       eatenTotals: E.totals(eaten),
+      ate, foods,
+      ateByMeal: diary.byMeal(ate),
+      ateTotals: diary.dayTotals(ate),
+      diaryMeals: diary.MEALS,
       lastWeight,
       loggedToday: lastWeight && String(lastWeight.taken_on).slice(0, 10) === day,
       saved: req.query.saved === '1', err: req.query.err || null,
@@ -246,6 +282,51 @@ router.post('/tick', async (req, res) => {
       // owns.id — the row the ownership query above actually confirmed.
       [req.practice.id, req.patientId, day, String(b.meal || 'breakfast').slice(0, 20), owns.id]);
   } catch (e) { console.error('[nutrition tick]', e.message); }
+  res.redirect('/portal');
+});
+
+/**
+ * سجّل أكلة — the entry that makes the diary a diary.
+ *
+ * A food from the practice's list with a quantity, or a line the patient typed.
+ * Nothing is defaulted: a known food with no grams is refused rather than
+ * counted at some invented portion, because an invented portion becomes a
+ * calorie total somebody makes a decision from.
+ */
+router.post('/ate', async (req, res) => {
+  const day = today();
+  const entry = diary.readEntry(req.body);
+  if (!entry.ok) return res.redirect('/portal?err=' + entry.why);
+  try {
+    // The food, if one was named, must be this practice's. An id from a form is
+    // not a fact — and this list is per-practice.
+    let foodId = null;
+    if (entry.foodId) {
+      const f = (await pool.query(
+        'SELECT id FROM nutrition_foods WHERE id=$1 AND company_id=$2 AND is_active=true',
+        [entry.foodId, req.practice.id])).rows[0];
+      if (!f) return res.redirect('/portal?err=food');
+      foodId = f.id;
+    }
+    await pool.query(
+      `INSERT INTO nutrition_diary (company_id, patient_id, on_date, meal, kind, food_id, grams, free_text, done)
+       VALUES ($1,$2,$3,$4,'ate',$5,$6,$7,true)`,
+      [req.practice.id, req.patientId, day, entry.meal, foodId, entry.grams, entry.text]);
+  } catch (e) {
+    console.error('[nutrition ate]', e.message);
+    return res.redirect('/portal?err=save');
+  }
+  res.redirect('/portal?saved=1');
+});
+
+// A diary entry is the patient's own record: they may remove what they wrote,
+// and only what they wrote.
+router.post('/ate/:id(\\d+)/delete', async (req, res) => {
+  try {
+    await pool.query(
+      "DELETE FROM nutrition_diary WHERE id=$1 AND patient_id=$2 AND company_id=$3 AND kind='ate'",
+      [parseInt(req.params.id, 10), req.patientId, req.practice.id]);
+  } catch (e) { console.error('[nutrition ate delete]', e.message); }
   res.redirect('/portal');
 });
 
