@@ -1,0 +1,93 @@
+<%- include('_layout_top', { tab: 'desk', pageTitle: 'الاستقبال' }) %>
+
+<%# The whole screen is one question and one answer. Everything that is not the
+    answer is small, grey, and below it. %>
+
+<h1 class="text-xl font-black mb-3">🎫 الاستقبال</h1>
+
+<form method="get" action="/gym/desk" class="flex gap-2 mb-4">
+  <%# autofocus so a QR scanner (which types the code and presses Enter) works
+      with nobody touching the screen at all. %>
+  <input name="q" value="<%= q %>" autofocus autocomplete="off"
+         placeholder="امسح الكود أو اكتب الاسم / الموبايل"
+         class="fld flex-1 rounded-xl px-4 py-3 text-base" />
+  <button class="accent-bg font-black rounded-xl px-6 py-3 text-sm">دوّر</button>
+</form>
+
+<% if (done === 'in') { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-emerald-500 text-black">✅ اتسجّل دخوله.</div>
+<% } else if (done === 'already') { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-neutral-800 text-neutral-200">ℹ️ ده داخل النهارده خلاص — مافيش تسجيل تاني.</div>
+<% } else if (done === 'undone') { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-neutral-800 text-neutral-200">↩️ اتلغى تسجيل الدخول.</div>
+<% } %>
+<% if (err === 'expired') { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-red-600 text-white">⛔ الاشتراك مش شغّال — مايتسجّلش دخول قبل التجديد.</div>
+<% } else if (err === 'late') { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-amber-500 text-black">التراجع بيبقى في أول <%= UNDO_MINUTES %> دقيقة بس — عدّلها من التقارير.</div>
+<% } else if (err === 'gone') { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-amber-500 text-black">مامشيش. جرّب تاني.</div>
+<% } %>
+
+<% if (!q) { %>
+  <div class="card rounded-2xl p-8 text-center text-neutral-500 text-sm">
+    امسح كارت العضو أو اكتب اسمه أو رقمه — والنتيجة هتظهر هنا على طول.
+  </div>
+<% } else if (!rows.length) { %>
+  <div class="card rounded-2xl p-8 text-center">
+    <div class="text-lg font-black text-amber-400 mb-1">مالقيناش حد بالبيانات دي</div>
+    <p class="text-neutral-500 text-sm">جرّب الرقم كامل، أو الاسم من غير ألقاب.</p>
+    <a href="/gym/members" class="inline-block mt-3 text-xs font-bold text-neutral-300 underline">افتح قائمة الأعضاء</a>
+  </div>
+<% } else { rows.forEach(function (r) { var m = r.member; %>
+  <div class="card rounded-2xl p-5 mb-3">
+    <%# The verdict first, at the size the desk reads across a counter. %>
+    <div class="rounded-xl px-4 py-3 mb-3 font-black text-lg text-center
+      <%= r.alert.tone === 'ok' ? 'bg-emerald-500 text-black'
+          : r.alert.tone === 'warn' ? 'bg-amber-500 text-black' : 'bg-red-600 text-white' %>">
+      <%= r.status.state === 'active' ? 'الاشتراك شغّال'
+          : r.status.state === 'expiring' ? ('بيخلص خلال ' + r.status.daysLeft + ' يوم')
+          : r.status.state === 'expired' ? 'الاشتراك خلص'
+          : r.status.state === 'frozen' ? 'الاشتراك متجمّد'
+          : r.status.state === 'none' ? 'مافيش اشتراك' : 'مش قادر أتأكد من الاشتراك' %>
+    </div>
+
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <div>
+        <div class="font-black text-lg"><%= m.name %></div>
+        <div class="text-xs text-neutral-400" dir="ltr"><%= m.phone || '' %><%= m.code ? (' · ' + m.code) : '' %></div>
+        <% if (m.latest && m.latest.plan_name) { %>
+          <div class="text-xs text-neutral-500 mt-0.5"><%= m.latest.plan_name %><%= m.latest.end_date ? (' · لغاية ' + String(m.latest.end_date).slice(0,10)) : '' %></div>
+        <% } %>
+      </div>
+      <% if (r.today) { %><span class="text-xs bg-neutral-800 text-neutral-300 rounded-full px-3 py-1">داخل النهارده</span><% } %>
+    </div>
+
+    <%# Three buttons. Not four: every extra one is a decision at a counter with
+        somebody waiting, and the fourth is always the one pressed by mistake. %>
+    <div class="flex flex-wrap gap-2">
+      <% if (!r.today) { %>
+        <form method="post" action="/gym/desk/checkin">
+          <input type="hidden" name="member_id" value="<%= m.id %>" />
+          <input type="hidden" name="q" value="<%= q %>" />
+          <button <%= r.mayEnter ? '' : 'disabled' %>
+            class="font-black rounded-xl px-6 py-3 text-sm <%= r.mayEnter ? 'accent-bg' : 'bg-neutral-800 text-neutral-500 cursor-not-allowed' %>">
+            تسجيل دخول
+          </button>
+        </form>
+      <% } else if (r.canUndo) { %>
+        <form method="post" action="/gym/desk/undo">
+          <input type="hidden" name="attendance_id" value="<%= r.today.id %>" />
+          <input type="hidden" name="q" value="<%= q %>" />
+          <button class="font-black rounded-xl px-6 py-3 text-sm bg-neutral-800 text-neutral-200">↩️ تراجع</button>
+        </form>
+      <% } %>
+      <a href="/gym/members?q=<%= encodeURIComponent(m.phone || m.name) %>"
+         class="font-black rounded-xl px-6 py-3 text-sm bg-neutral-800 text-neutral-200">تجديد الاشتراك</a>
+      <a href="/gym/members/<%= m.id %>"
+         class="font-black rounded-xl px-6 py-3 text-sm bg-neutral-800 text-neutral-200">افتح الملف</a>
+    </div>
+  </div>
+<% }); } %>
+
+<%- include('_layout_bottom') %>
