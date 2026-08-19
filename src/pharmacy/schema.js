@@ -343,6 +343,63 @@ async function ensurePharmacySchema() {
       ALTER TABLE pharmacy_staff ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2) DEFAULT 0;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_staff_username ON pharmacy_staff (lower(username));
 
+      /* أوامر الشراء (backlog 81).
+       *
+       * The order that goes to the supplier, and the record of what came back.
+       * Two things are deliberately NOT here:
+       *
+       *  · no received column — an order is received when its lines say so,
+       *    and a stored flag is how a corrected line keeps claiming otherwise;
+       *  · no total — it is the lines' cost, and a stored total is a second
+       *    answer that can disagree with the first.
+       *
+       * The name and the cost are stored AS ORDERED: a supplier's price
+       * changing next month must not rewrite what this order asked for. Same
+       * rule as the furniture quote.
+       */
+      CREATE TABLE IF NOT EXISTS pharmacy_po (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        supplier    TEXT,
+        status      TEXT NOT NULL DEFAULT 'draft',   -- draft | sent | cancelled
+        note        TEXT,
+        created_by  TEXT,
+        sent_at     TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_po_company ON pharmacy_po (company_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS pharmacy_po_items (
+        id            SERIAL PRIMARY KEY,
+        po_id         INTEGER NOT NULL REFERENCES pharmacy_po(id) ON DELETE CASCADE,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        medicine_id   INTEGER NOT NULL REFERENCES medicines(id),
+        name_at_order TEXT,
+        qty_ordered   INTEGER NOT NULL DEFAULT 0,
+        qty_received  INTEGER NOT NULL DEFAULT 0,
+        cost          NUMERIC(10,2),
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_po_items ON pharmacy_po_items (po_id);
+      -- One line per medicine per order: two lines for the same medicine make
+      -- «what is still owed» a question with two answers.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pharm_po_item_uniq ON pharmacy_po_items (po_id, medicine_id);
+      -- Every receipt, so a pharmacy can see what arrived when and from whom —
+      -- the line's running total alone cannot answer "the second delivery was
+      -- short".
+      CREATE TABLE IF NOT EXISTS pharmacy_po_receipts (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        po_id       INTEGER NOT NULL REFERENCES pharmacy_po(id) ON DELETE CASCADE,
+        item_id     INTEGER NOT NULL REFERENCES pharmacy_po_items(id) ON DELETE CASCADE,
+        qty         INTEGER NOT NULL,
+        batch_no    TEXT,
+        expiry      DATE,
+        cost        NUMERIC(10,2),
+        received_by TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pharm_po_receipts ON pharmacy_po_receipts (po_id, created_at);
+
       -- Per-pharmacy settings (online store toggle, delivery, hours…).
       CREATE TABLE IF NOT EXISTS pharmacy_settings (
         company_id INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,

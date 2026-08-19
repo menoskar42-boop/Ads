@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('ph.po.new') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; width:100%; background:#fff; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'purchases' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <h1 class="text-xl font-extrabold mb-1"><%= t('ph.po.new') %></h1>
+  <p class="text-sm text-gray-500 mb-5 leading-relaxed"><%= t('ph.po.new_sub') %></p>
+
+  <form method="POST" action="/pharmacy/purchases/new" class="space-y-4">
+    <div class="bg-white border border-gray-100 rounded-2xl p-4 grid sm:grid-cols-2 gap-3">
+      <label><span class="lbl"><%= t('ph.po.supplier') %></span><input name="supplier" maxlength="120" class="fld" /></label>
+      <label><span class="lbl"><%= t('ph.po.note') %></span><input name="note" maxlength="500" class="fld" /></label>
+    </div>
+
+    <% if (!suggestions.length) { %>
+      <div class="bg-white border border-gray-100 rounded-2xl p-8 text-center text-gray-400 text-sm"><%= t('ph.po.no_suggest') %></div>
+    <% } else { %>
+      <div class="bg-white border border-gray-100 rounded-2xl overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-gray-500 text-xs">
+            <tr>
+              <th class="text-start px-3 py-2"><%= t('ph.po.medicine') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.po.available') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.po.min') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.po.qty') %></th>
+              <th class="text-start px-3 py-2"><%= t('ph.po.cost') %></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% suggestions.forEach(function (r) { %>
+              <tr class="border-t border-gray-100">
+                <td class="px-3 py-2 font-semibold text-gray-800">
+                  <%= r.name %>
+                  <input type="hidden" name="medicine_id" value="<%= r.medicine_id %>" />
+                  <input type="hidden" name="name" value="<%= r.name %>" />
+                </td>
+                <td class="px-3 py-2 text-gray-600"><%= r.available %></td>
+                <td class="px-3 py-2 text-gray-400"><%= r.min_qty %></td>
+                <td class="px-3 py-2 w-24"><input name="qty" type="number" min="0" value="<%= r.suggest_qty %>" class="fld" /></td>
+                <td class="px-3 py-2 w-28"><input name="cost" type="number" step="0.01" min="0" value="<%= r.cost == null ? '' : r.cost %>" class="fld" /></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-gray-500"><%= t('ph.po.zero_hint') %></p>
+      <button class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 py-2.5 text-sm"><%= t('ph.po.create') %></button>
+    <% } %>
+  </form>
+</main>
+</body></html>
