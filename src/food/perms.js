@@ -55,6 +55,10 @@ const GUARDED = [
   ['/outlet', 'menu'],
   ['/category', 'menu'],
   ['/item', 'menu'],
+  // The till takes orders, so it belongs to whoever takes orders. The floor
+  // plan is menu work — laying out the room, not working it.
+  ['/pos', 'orders'],
+  ['/tables', 'menu'],
   ['/coupons', 'marketing'],
   ['/ai', 'marketing'],
   ['/reports', 'finance'],

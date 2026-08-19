@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.pos.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; width:100%; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'pos' }) %>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <h1 class="text-xl font-extrabold mb-1"><%= t('food.pos.title') %></h1>
+  <p class="text-sm text-gray-500 mb-4"><%= t('food.pos.sub') %></p>
+
+  <% if (saved) { %>
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm mb-4">
+      <%= t('food.pos.sent') %><% if (newOrderId) { %> — #<%= newOrderId %><% } %>
+    </div>
+  <% } %>
+  <% if (err) { %><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm mb-4"><%= t('food.pos.err.' + err) %></div><% } %>
+
+  <div class="grid lg:grid-cols-3 gap-4">
+    <!-- المنيو -->
+    <section class="lg:col-span-2 space-y-4">
+      <% if (!outlets.length) { %>
+        <div class="bg-white border border-gray-100 rounded-2xl p-8 text-center text-gray-400 text-sm"><%= t('food.pos.no_menu') %></div>
+      <% } %>
+      <% outlets.forEach(function (o) { %>
+        <div class="bg-white border border-gray-100 rounded-2xl p-4">
+          <h2 class="font-bold text-gray-800 mb-3"><%= o.name_ar || o.name %></h2>
+          <% if (!o.items.length) { %>
+            <p class="text-sm text-gray-400"><%= t('food.pos.no_items') %></p>
+          <% } else { %>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <% o.items.forEach(function (it) { %>
+                <button type="button" class="pos-add text-start rounded-xl border border-gray-200 hover:border-orange-300 p-3"
+                        data-id="<%= it.id %>" data-name="<%= it.name_ar || it.name %>" data-price="<%= Number(it.price) %>"
+                        data-opts="<%= (it.options && it.options.length) ? encodeURIComponent(JSON.stringify(it.options)) : '' %>">
+                  <div class="font-bold text-sm leading-tight"><%= it.name_ar || it.name %></div>
+                  <div class="text-xs text-orange-700 font-bold mt-1"><%= Number(it.price).toFixed(2) %></div>
+                </button>
+              <% }); %>
+            </div>
+          <% } %>
+        </div>
+      <% }); %>
+    </section>
+
+    <!-- الطلب -->
+    <aside class="bg-white border border-gray-100 rounded-2xl p-4 h-fit lg:sticky lg:top-4">
+      <form method="post" action="/food/pos/create" id="posForm" class="space-y-3">
+        <input type="hidden" name="cart" id="posCart" />
+        <div>
+          <span class="lbl"><%= t('orders.type') %></span>
+          <div class="flex gap-2 flex-wrap">
+            <% ['dine_in','pickup','delivery'].forEach(function (ty, i) { %>
+              <label class="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-bold cursor-pointer">
+                <input type="radio" name="order_type" value="<%= ty %>" <%= i === 0 ? 'checked' : '' %> class="pos-type" />
+                <%= t('orders.type.' + ty) %>
+              </label>
+            <% }); %>
+          </div>
+        </div>
+
+        <div id="posTableBox">
+          <span class="lbl"><%= t('food.tbl.nav') %></span>
+          <select name="table_id" class="fld">
+            <option value=""><%= t('food.pos.pick_table') %></option>
+            <% floor.forEach(function (tb) { %>
+              <option value="<%= tb.id %>" <%= tb.state === 'busy' ? 'data-busy="1"' : '' %>>
+                <%= tb.name %><%= tb.state === 'busy' ? ' — ' + t('food.tbl.state.busy') : '' %>
+              </option>
+            <% }); %>
+          </select>
+        </div>
+
+        <label><span class="lbl"><%= t('food.pos.customer') %></span><input name="customer_name" maxlength="100" class="fld" /></label>
+        <label><span class="lbl"><%= t('common.phone') %></span><input name="phone" maxlength="30" dir="ltr" class="fld" /></label>
+        <label><span class="lbl"><%= t('common.notes') %></span><input name="notes" maxlength="500" class="fld" /></label>
+
+        <div id="posLines" class="space-y-2 border-t border-gray-100 pt-3"></div>
+        <p id="posEmpty" class="text-sm text-gray-400 text-center py-4"><%= t('food.pos.empty') %></p>
+
+        <div class="flex items-center justify-between font-extrabold border-t border-gray-100 pt-3">
+          <span><%= t('orders.total') %></span><span id="posTotal">0.00</span>
+        </div>
+        <button class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl py-3 text-sm"><%= t('food.pos.send') %></button>
+      </form>
+    </aside>
+  </div>
+</main>
+
+<!-- اختيارات الصنف -->
+<div id="posOpt" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/50" id="posOptOverlay"></div>
+  <div class="absolute inset-x-0 bottom-0 sm:inset-y-0 sm:end-0 sm:inset-x-auto w-full sm:max-w-md bg-white shadow-2xl flex flex-col max-h-[85vh] sm:max-h-none">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <h2 id="posOptTitle" class="font-extrabold"></h2>
+      <button type="button" id="posOptClose" class="h-9 w-9 rounded-full hover:bg-gray-100">✕</button>
+    </div>
+    <div id="posOptBody" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+    <div class="border-t border-gray-100 p-4 space-y-2">
+      <p id="posOptWarn" class="hidden text-sm text-red-600 font-bold bg-red-50 rounded-xl px-3 py-2"></p>
+      <button type="button" id="posOptDone" class="w-full bg-orange-600 text-white rounded-xl py-2.5 font-bold"><%= t('pharmacy.admin.add') %></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // The till's cart lives in this page only — nothing is stored between
+  // orders, because a till that remembers last night's basket is a till that
+  // charges somebody for it.
+  var cart = {};
+  var lines = document.getElementById('posLines');
+  var empty = document.getElementById('posEmpty');
+  var totalEl = document.getElementById('posTotal');
+  var cartField = document.getElementById('posCart');
+  var tableBox = document.getElementById('posTableBox');
+
+  function key(id, opts) { return opts && opts.length ? id + '|' + opts.slice().sort(function (a, b) { return a - b; }).join(',') : String(id); }
+  function money(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+
+  function render() {
+    lines.innerHTML = '';
+    var keys = Object.keys(cart), total = 0;
+    empty.style.display = keys.length ? 'none' : '';
+    keys.forEach(function (k) {
+      var it = cart[k];
+      total += it.p * it.q;
+      var row = document.createElement('div');
+      row.className = 'flex items-center gap-2 text-sm';
+      row.innerHTML = '<span class="flex-1 min-w-0"><span class="font-bold"></span><span class="text-xs text-gray-500 block"></span></span>'
+        + '<button type="button" data-m="' + k + '" class="h-7 w-7 rounded-full border border-gray-200">−</button>'
+        + '<span class="w-6 text-center font-bold qv"></span>'
+        + '<button type="button" data-p="' + k + '" class="h-7 w-7 rounded-full border border-gray-200">+</button>'
+        + '<span class="w-16 text-end font-bold pv"></span>';
+      row.querySelector('.font-bold').textContent = it.n;
+      row.querySelector('.text-xs').textContent = it.d || '';
+      row.querySelector('.qv').textContent = it.q;
+      row.querySelector('.pv').textContent = money(it.p * it.q);
+      lines.appendChild(row);
+    });
+    totalEl.textContent = money(total);
+    cartField.value = JSON.stringify(Object.keys(cart).map(function (k) {
+      return { id: cart[k].i, q: cart[k].q, opts: cart[k].x };
+    }));
+  }
+
+  lines.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t.dataset.p) cart[t.dataset.p].q += 1;
+    else if (t.dataset.m) { cart[t.dataset.m].q -= 1; if (cart[t.dataset.m].q <= 0) delete cart[t.dataset.m]; }
+    else return;
+    render();
+  });
+
+  var modal = document.getElementById('posOpt');
+  var body = document.getElementById('posOptBody');
+  var title = document.getElementById('posOptTitle');
+  var warn = document.getElementById('posOptWarn');
+  var current = null, groups = [];
+
+  function close() { modal.classList.add('hidden'); }
+  document.getElementById('posOptClose').addEventListener('click', close);
+  document.getElementById('posOptOverlay').addEventListener('click', close);
+
+  function add(b, opts, delta, label) {
+    var k = key(b.dataset.id, opts);
+    if (!cart[k]) cart[k] = { i: Number(b.dataset.id), n: b.dataset.name, p: Number(b.dataset.price) + (delta || 0), q: 0, x: opts || [], d: label || '' };
+    cart[k].q += 1;
+    render();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.pos-add'), function (b) {
+    b.addEventListener('click', function () {
+      var raw = b.dataset.opts;
+      try { groups = JSON.parse(decodeURIComponent(raw)); } catch (e) { groups = []; }
+      if (!groups.length) { add(b, [], 0, ''); return; }
+      current = b;
+      title.textContent = b.dataset.name;
+      warn.classList.add('hidden');
+      body.innerHTML = '';
+      groups.forEach(function (g) {
+        var single = Number(g.max) === 1;
+        var wrap = document.createElement('div');
+        var h = document.createElement('div');
+        h.className = 'font-bold text-sm mb-1';
+        h.textContent = g.name + (g.required ? ' *' : '');
+        wrap.appendChild(h);
+        (g.values || []).forEach(function (v) {
+          var lab = document.createElement('label');
+          lab.className = 'flex items-center justify-between gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm mb-1';
+          var inp = document.createElement('input');
+          inp.type = single ? 'radio' : 'checkbox';
+          inp.name = 'pg' + g.id;
+          inp.value = v.id;
+          inp.dataset.g = g.id;
+          inp.dataset.delta = v.delta;
+          inp.dataset.label = v.name;
+          var left = document.createElement('span');
+          left.appendChild(inp);
+          left.appendChild(document.createTextNode(' ' + v.name));
+          lab.appendChild(left);
+          var right = document.createElement('span');
+          right.className = 'text-xs font-bold text-orange-700';
+          right.textContent = Number(v.delta) ? (Number(v.delta) > 0 ? '+' : '') + money(Number(v.delta)) : '';
+          lab.appendChild(right);
+          wrap.appendChild(lab);
+        });
+        body.appendChild(wrap);
+      });
+      modal.classList.remove('hidden');
+    });
+  });
+
+  document.getElementById('posOptDone').addEventListener('click', function () {
+    var picked = [], delta = 0, names = [], bad = null;
+    groups.forEach(function (g) {
+      var boxes = body.querySelectorAll('input[data-g="' + g.id + '"]:checked');
+      var min = g.required ? Math.max(1, Number(g.min) || 0) : (Number(g.min) || 0);
+      var max = Number(g.max) || 0;
+      if (boxes.length < min) bad = bad || g.name;
+      if (max > 0 && boxes.length > max) bad = bad || g.name;
+      Array.prototype.forEach.call(boxes, function (bx) {
+        picked.push(Number(bx.value)); delta += Number(bx.dataset.delta) || 0; names.push(bx.dataset.label);
+      });
+    });
+    if (bad) { warn.textContent = bad; warn.classList.remove('hidden'); return; }
+    add(current, picked, delta, names.join(' · '));
+    close();
+  });
+
+  function syncType() {
+    var checked = document.querySelector('.pos-type:checked');
+    var ty = checked ? checked.value : 'dine_in';
+    tableBox.style.display = ty === 'dine_in' ? '' : 'none';
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.pos-type'), function (r) { r.addEventListener('change', syncType); });
+  syncType();
+  render();
+})();
+</script>
+</body></html>

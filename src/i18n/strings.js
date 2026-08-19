@@ -654,6 +654,19 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'قرّب يخلص',
     'pharmacy.admin.barcode': 'الباركود',
+    // ── الطاولات ونقطة البيع ──────────────────────────────────────────────
+    'food.tbl.nav':'الطاولات','food.tbl.title':'الطاولات',
+    'food.tbl.sub':'الطاولة مالهاش حالة محفوظة: هي مشغولة لما يكون عليها طلب لسه ما خلصش، وفاضية لما مايكونش. فمفيش طاولة بتفضل «مشغولة» بعد ما الناس مشيت.',
+    'food.tbl.none':'مفيش طاولات مسجّلة.','food.tbl.add':'أضف طاولة','food.tbl.name':'اسم/رقم الطاولة',
+    'food.tbl.seats':'كرسي','food.tbl.area':'المنطقة','food.tbl.outlet':'الفرع',
+    'food.tbl.total':'الكل','food.tbl.free':'فاضية','food.tbl.busy':'مشغولة',
+    'food.tbl.state.free':'فاضية','food.tbl.state.busy':'مشغولة','food.tbl.saved':'اتحفظ.',
+    'food.tbl.err.name':'اكتب اسم أو رقم للطاولة.','food.tbl.err.save':'مااتحفظش — جرّب تاني.',
+    'food.pos.nav':'الكاشير','food.pos.title':'نقطة البيع','food.pos.sub':'اكتب الطلب وابعته للمطبخ على طول. نفس أسعار المنيو ونفس الإضافات.',
+    'food.pos.empty':'مفيش أصناف في الطلب.','food.pos.send':'ابعت للمطبخ','food.pos.sent':'الطلب راح للمطبخ.',
+    'food.pos.customer':'اسم العميل','food.pos.pick_table':'اختار طاولة','food.pos.no_menu':'مفيش فروع مفعّلة.','food.pos.no_items':'مفيش أصناف متاحة.',
+    'food.pos.err.empty':'الطلب فاضي.','food.pos.err.table':'اختار طاولة للطلب اللي في المطعم.',
+    'food.pos.err.option':'في اختيار مش مظبوط.','food.pos.err.save':'الطلب مااتسجّلش — جرّب تاني.',
     // ── أنواع الطلب والإضافات ─────────────────────────────────────────────
     'orders.type':'نوع الطلب','orders.type.delivery':'توصيل','orders.type.pickup':'استلام من المحل','orders.type.dine_in':'في المطعم',
     'orders.table':'رقم الترابيزة','orders.opt_required':'لازم تختار من','orders.opt_max':'أقصى اختيارات من',
@@ -2959,6 +2972,19 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'Running low',
     'pharmacy.admin.barcode': 'Barcode',
+    // ── Tables and point of sale ──────────────────────────────────────────
+    'food.tbl.nav':'Tables','food.tbl.title':'Tables',
+    'food.tbl.sub':'A table has no stored status: it is busy when an unfinished order is on it and free when none is. So no table stays \u201coccupied\u201d after the guests have left.',
+    'food.tbl.none':'No tables yet.','food.tbl.add':'Add a table','food.tbl.name':'Table name or number',
+    'food.tbl.seats':'seats','food.tbl.area':'Area','food.tbl.outlet':'Branch',
+    'food.tbl.total':'All','food.tbl.free':'Free','food.tbl.busy':'Busy',
+    'food.tbl.state.free':'Free','food.tbl.state.busy':'Busy','food.tbl.saved':'Saved.',
+    'food.tbl.err.name':'Enter a name or number for the table.','food.tbl.err.save':'It was not saved \u2014 try again.',
+    'food.pos.nav':'Till','food.pos.title':'Point of sale','food.pos.sub':'Ring up an order and send it straight to the kitchen. Same menu prices, same options.',
+    'food.pos.empty':'No items on this order.','food.pos.send':'Send to the kitchen','food.pos.sent':'The order went to the kitchen.',
+    'food.pos.customer':'Customer name','food.pos.pick_table':'Pick a table','food.pos.no_menu':'No active branches.','food.pos.no_items':'No available items.',
+    'food.pos.err.empty':'The order is empty.','food.pos.err.table':'Pick a table for a dine-in order.',
+    'food.pos.err.option':'One of the choices is not right.','food.pos.err.save':'The order was not saved \u2014 try again.',
     // ── Order types and modifiers ─────────────────────────────────────────
     'orders.type':'Order type','orders.type.delivery':'Delivery','orders.type.pickup':'Pickup','orders.type.dine_in':'Dine in',
     'orders.table':'Table number','orders.opt_required':'You must choose from','orders.opt_max':'Maximum choices from',
