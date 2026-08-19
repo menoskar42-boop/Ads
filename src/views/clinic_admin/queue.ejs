@@ -1,8 +1,12 @@
 <%- include('head', { title: t('clinic.page.queue'), tab: 'queue' }) %>
 <%
   function fmtTime(t){ if(!t) return '—'; try { return new Date(t).toLocaleTimeString(LOC,{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Cairo'}); } catch(e){ return ''; } }
-  var STLABEL = { waiting:'في الانتظار', in_room:'في الكشف', done:'تمّت', cancelled:'ملغى' };
-  var STCLS = { waiting:'bg-amber-100 text-amber-700', in_room:'bg-blue-100 text-blue-700', done:'bg-emerald-100 text-emerald-700', cancelled:'bg-slate-100 text-slate-500' };
+  // From the dictionary, so the English page is English and a new status shows
+  // up as a missing key in the checks rather than as blank text on a screen.
+  function stLabel(st){ return t('q.st.' + st); }
+  var STCLS = { waiting:'bg-amber-100 text-amber-700', in_room:'bg-blue-100 text-blue-700',
+    done:'bg-emerald-100 text-emerald-700', no_show:'bg-red-100 text-red-700',
+    cancelled:'bg-slate-100 text-slate-500' };
   var waiting = visits.filter(function(v){return v.status==='waiting';}).length;
   var inroom = visits.filter(function(v){return v.status==='in_room';}).length;
   var done = visits.filter(function(v){return v.status==='done';}).length;
@@ -51,36 +55,69 @@
   </div>
 
   <div class="lg:col-span-2">
+    <% if (typeof err !== 'undefined' && err) { %>
+      <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm mb-4"><%= t('q.err.' + err) %></div>
+    <% } %>
+
     <% if (!visits.length) { %>
       <div class="bg-white border border-slate-200 rounded-2xl p-8 text-center text-slate-500"><%= t('q.empty') %> <%= date ? t('q.on_day') : t('q.on_today') %>.</div>
     <% } else { %>
-    <div class="space-y-2.5">
-      <% visits.forEach(function(v, i){ %>
-      <div class="bg-white border <%= v.is_urgent && v.status==='waiting' ? 'border-red-200' : 'border-slate-200' %> rounded-2xl p-4 flex items-center gap-3 flex-wrap">
-        <div class="w-8 h-8 rounded-lg bg-slate-100 grid place-items-center text-sm font-black text-slate-500"><%= i+1 %></div>
-        <div class="min-w-0 flex-1">
-          <div class="font-bold text-slate-900 flex items-center gap-2">
-            <% if (v.patient_id) { %><a href="/clinic/patients/<%= v.patient_id %>" class="hover:text-brand-600"><%= v.patient_name || 'مريض' %></a><% } else { %><%= v.patient_name || 'مريض' %><% } %>
-            <% if (v.is_urgent) { %><span class="text-[10px] bg-red-100 text-red-600 rounded px-1.5 py-0.5 font-bold"><%= t('q.urgent') %></span><% } %>
+      <%# Doctor by doctor: one flat list of twenty names cannot answer "who is
+          next for Dr Ahmed", which is the only question this screen is asked. %>
+      <% groups.forEach(function (g) { %>
+        <div class="mb-5">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <h2 class="font-extrabold text-slate-900">
+              <%= g.doctor_name || t('q.no_doctor') %><% if (g.room) { %> <span class="text-sm font-bold text-slate-500">· <%= t('q.room') %> <%= g.room %></span><% } %>
+            </h2>
+            <span class="text-xs text-slate-500"><%= g.waiting %> <%= t('q.waiting') %><% if (g.inRoom) { %> · <%= g.inRoom %> <%= t('q.in_room') %><% } %></span>
           </div>
-          <div class="text-xs text-slate-500">
-            <%= fmtTime(v.arrival_at) %><%= v.doctor_name?(' · '+v.doctor_name):'' %><%= v.visit_type_name?(' · '+v.visit_type_name):'' %>
+
+          <div class="space-y-2.5">
+            <% g.visits.forEach(function (v, i) { var acts = actionsFor(v.status); %>
+              <div class="bg-white border <%= v.is_urgent && v.status==='waiting' ? 'border-red-200' : 'border-slate-200' %> rounded-2xl p-4 flex items-center gap-3 flex-wrap">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 grid place-items-center text-sm font-black text-slate-500"><%= i+1 %></div>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-slate-900 flex items-center gap-2">
+                    <% if (v.patient_id) { %><a href="/clinic/patients/<%= v.patient_id %>" class="hover:text-brand-600"><%= v.patient_name || t('q.a_patient') %></a><% } else { %><%= v.patient_name || t('q.a_patient') %><% } %>
+                    <% if (v.is_urgent) { %><span class="text-[10px] bg-red-100 text-red-600 rounded px-1.5 py-0.5 font-bold"><%= t('q.urgent') %></span><% } %>
+                  </div>
+                  <div class="text-xs text-slate-500">
+                    <%= fmtTime(v.arrival_at) %><%= v.visit_type_name?(' · '+v.visit_type_name):'' %>
+                    <%# A visit that closed because it was moved says so, from the
+                        stored link — not from guessing at a note. %>
+                    <% if (v.rescheduled_to) { %>
+                      · <span class="text-brand-600 font-bold"><%= t('q.moved_to') %> <%= new Date(v.rescheduled_to).toLocaleString(LOC) %></span>
+                    <% } %>
+                  </div>
+                </div>
+                <span class="text-xs rounded-full px-2.5 py-1 font-bold <%= STCLS[v.status] %>"><%= stLabel(v.status) %></span>
+
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <% if (acts.indexOf('in_room') >= 0) { %>
+                    <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="in_room" /><button class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.call_in') %></button></form>
+                  <% } %>
+                  <% if (acts.indexOf('done') >= 0) { %>
+                    <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="done" /><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.complete') %></button></form>
+                  <% } %>
+                  <% if (acts.indexOf('no_show') >= 0) { %>
+                    <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="no_show" /><button class="text-xs bg-red-50 text-red-700 hover:bg-red-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.no_show') %></button></form>
+                  <% } %>
+                  <% if (acts.indexOf('reschedule') >= 0) { %>
+                    <form method="post" action="/clinic/visits/<%= v.id %>/reschedule" class="inline flex items-center gap-1">
+                      <input type="datetime-local" name="when" required class="border border-slate-200 rounded-lg px-2 py-1 text-xs" />
+                      <button class="text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.reschedule') %></button>
+                    </form>
+                  <% } %>
+                  <% if (acts.indexOf('cancelled') >= 0) { %>
+                    <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="cancelled" /><button class="text-xs text-slate-400 hover:text-red-600 px-2 py-1.5"><%= t('q.cancel') %></button></form>
+                  <% } %>
+                </div>
+              </div>
+            <% }); %>
           </div>
         </div>
-        <span class="text-xs rounded-full px-2.5 py-1 font-bold <%= STCLS[v.status] %>"><%= STLABEL[v.status] %></span>
-        <div class="flex items-center gap-1.5">
-          <% if (v.status==='waiting') { %>
-            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="in_room" /><button class="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.call_in') %></button></form>
-          <% } else if (v.status==='in_room') { %>
-            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="done" /><button class="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-2.5 py-1.5 font-bold"><%= t('q.complete') %></button></form>
-          <% } %>
-          <% if (v.status!=='cancelled' && v.status!=='done') { %>
-            <form method="post" action="/clinic/visits/<%= v.id %>/status" class="inline"><input type="hidden" name="status" value="cancelled" /><button class="text-xs text-slate-400 hover:text-red-600 px-2 py-1.5"><%= t('q.cancel') %></button></form>
-          <% } %>
-        </div>
-      </div>
       <% }); %>
-    </div>
     <% } %>
   </div>
 </div>

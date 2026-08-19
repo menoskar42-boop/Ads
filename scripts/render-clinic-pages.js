@@ -986,12 +986,47 @@ const FIXTURES = {
     saved: true, test: null,
   }),
 
-  queue: () => ({
-    tab: 'queue',
-    visits: [], doctors: [doctor], patients: [patient],
-    visitTypes: [{ id: 1, name: 'Consultation', price: 150, duration_min: 20 }],
-    date: '2026-08-03', saved: false,
-  }),
+  // The calendar, with a working-hours window, an appointment outside it, and
+  // one booked with no time at all — the two rows a naive grid loses.
+  calendar: () => {
+    const cal = require('../src/clinic/calendar');
+    const days = ['2026-08-19'];
+    const grid = cal.layout({
+      days,
+      doctors: [{ id: doctor.id, name: doctor.name, room: '2' }],
+      schedules: [{ doctor_id: doctor.id, day_of_week: cal.cairoWeekday(days[0]), start_time: '09:00', end_time: '17:00', is_active: true }],
+      appointments: [
+        { id: 1, doctor_id: doctor.id, slot_at: '2026-08-19T08:00:00Z', patient_name: patient.name, status: 'confirmed' },
+        { id: 2, doctor_id: doctor.id, slot_at: '2026-08-19T18:30:00Z', patient_name: 'Mona Adel', status: 'pending' },
+        { id: 3, doctor_id: null, slot_at: null, patient_name: 'Ali', status: 'pending', day_hint: days[0], doctor_name: null },
+      ],
+    });
+    return { tab: 'calendar', grid, view: 'day', anchor: days[0], days, isEmptyDay: cal.isEmptyDay };
+  },
+
+  // The queue is grouped by doctor now (backlog 83), and the fixture carries a
+  // visit in every state — including one that closed because it was moved, so
+  // the "moved to" line is rendered rather than assumed.
+  queue: () => {
+    const q = require('../src/clinic/queue');
+    const visits = [
+      { id: 1, patient_id: 12, patient_name: patient.name, doctor_id: doctor.id, doctor_name: doctor.name,
+        room: '2', status: 'waiting', arrival_at: NOW, is_urgent: true, visit_type_name: 'Consultation' },
+      { id: 2, patient_id: null, patient_name: 'Mona Adel', doctor_id: doctor.id, doctor_name: doctor.name,
+        room: '2', status: 'in_room', arrival_at: NOW, is_urgent: false },
+      { id: 3, patient_id: null, patient_name: 'Ali', doctor_id: null, doctor_name: null,
+        room: null, status: 'no_show', arrival_at: null, is_urgent: false },
+      { id: 4, patient_id: null, patient_name: 'Hoda', doctor_id: null, doctor_name: null,
+        room: null, status: 'cancelled', arrival_at: NOW, rescheduled_to: NOW },
+    ];
+    return {
+      tab: 'queue',
+      visits, doctors: [doctor], patients: [patient],
+      visitTypes: [{ id: 1, name: 'Consultation', price: 150, duration_min: 20 }],
+      groups: q.byDoctor(visits), actionsFor: q.actionsFor,
+      date: '2026-08-03', saved: false, err: 'past',
+    };
+  },
 
   // The access log: rendered here because it is the one screen a clinic owner
   // opens when something went wrong, and a crash on it would be found then.

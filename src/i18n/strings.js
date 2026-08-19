@@ -1220,6 +1220,18 @@ const strings = {
     'fld.session_no': 'رقم الجلسة',
 
     // Queue — the screen a clinic keeps open all day.
+    // الطابور بأزراره الخمسة، ومرتّب بالطبيب والغرفة (البند ٨٣).
+    'q.st.waiting':'في الانتظار','q.st.in_room':'في الكشف','q.st.done':'تمّت',
+    'q.st.no_show':'لم يحضر','q.st.cancelled':'ملغى',
+    'q.no_show':'لم يحضر','q.reschedule':'إعادة جدولة','q.moved_to':'اتأجّل إلى',
+    'q.no_doctor':'من غير طبيب محدد','q.room':'غرفة','q.a_patient':'مريض',
+    'q.err.required':'اكتب الميعاد الجديد.','q.err.invalid':'الميعاد ده مش مفهوم.',
+    'q.err.past':'الميعاد الجديد لازم يكون في المستقبل.','q.err.state':'الزيارة دي مش في الانتظار.',
+    'q.err.save':'مااتحفظش — جرّب تاني.',
+    'clinic.nav.calendar':'التقويم',
+    'cal.day':'يوم','cal.week':'أسبوع','cal.empty':'مفيش مواعيد في اليوم ده.',
+    'cal.free':'مفيش حجوزات','cal.no_hours':'مواعيد العمل مش متسجّلة',
+    'cal.outside':'بره مواعيد الطبيب','cal.unscheduled':'محجوز من غير ميعاد محدد',
     'q.title': 'طابور المرضى',
     'q.show': 'عرض',
     'q.sorted': 'الترتيب حسب وقت الوصول — الحالات العاجلة أولاً',
@@ -3574,6 +3586,18 @@ const strings = {
 
     // Queue. "Check in" and "Call in" are the words used at a real reception
     // desk; the room state is "In room", not "Under examination".
+    // The queue's five buttons, grouped by doctor and room (backlog 83).
+    'q.st.waiting':'Waiting','q.st.in_room':'With the doctor','q.st.done':'Done',
+    'q.st.no_show':'No show','q.st.cancelled':'Cancelled',
+    'q.no_show':'No show','q.reschedule':'Reschedule','q.moved_to':'Moved to',
+    'q.no_doctor':'No doctor assigned','q.room':'Room','q.a_patient':'Patient',
+    'q.err.required':'Enter the new time.','q.err.invalid':'That time could not be read.',
+    'q.err.past':'The new time must be in the future.','q.err.state':'That visit is not waiting.',
+    'q.err.save':'It was not saved \u2014 try again.',
+    'clinic.nav.calendar':'Calendar',
+    'cal.day':'Day','cal.week':'Week','cal.empty':'Nothing booked on this day.',
+    'cal.free':'No bookings','cal.no_hours':'Working hours not recorded',
+    'cal.outside':'Outside the doctor\u2019s hours','cal.unscheduled':'Booked with no set time',
     'q.title': 'Patient queue',
     'q.show': 'Show',
     'q.sorted': 'Ordered by arrival time — urgent cases first',

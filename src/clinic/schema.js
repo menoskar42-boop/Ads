@@ -184,6 +184,14 @@ async function ensureClinicSchema() {
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_clinic_visits_company ON clinic_visits (company_id, visit_date, status);
+      -- Rescheduling is one action: this visit ends and a new appointment
+      -- exists. The link is stored so the queue can say WHY the visit closed —
+      -- deriving that from a note string is how a screen starts lying.
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS rescheduled_to      TIMESTAMPTZ;
+      ALTER TABLE clinic_visits ADD COLUMN IF NOT EXISTS rescheduled_appt_id INTEGER;
+      -- Which room this doctor is in. The queue is worked doctor by doctor and
+      -- the room is what reception says out loud.
+      ALTER TABLE clinic_doctors ADD COLUMN IF NOT EXISTS room TEXT;
       -- Specialty-specific readings that have no vitals column of their own
       -- (LMP, blood sugar, pain scale, visual acuity…). Kept as JSON so adding
       -- a field for a new specialty is one line in specialties.js rather than a

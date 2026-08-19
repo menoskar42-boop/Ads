@@ -12,6 +12,8 @@ const { ownerGuard, ref } = require('../lib/tenant_scope');
 const audit = require('../lib/audit');
 const clinicPerms = require('../clinic/perms');
 const clinicBoard = require('../clinic/board');
+const clinicQueue = require('../clinic/queue');
+const clinicCalendar = require('../clinic/calendar');
 const flow = require('../lib/order_flow');
 const booking = require('../clinic/booking');
 const money = require('../lib/money');
@@ -377,7 +379,7 @@ router.get('/queue', async (req, res) => {
   try {
     const [visits, docs, vtypes, patients] = await Promise.all([
       pool.query(
-        `SELECT v.*, p.name AS patient_name, p.phone AS patient_phone, d.name AS doctor_name, vt.name AS visit_type_name
+        `SELECT v.*, p.name AS patient_name, p.phone AS patient_phone, d.name AS doctor_name, d.room, vt.name AS visit_type_name
          FROM clinic_visits v
          LEFT JOIN clinic_patients p ON p.id = v.patient_id
          LEFT JOIN clinic_doctors d ON d.id = v.doctor_id
@@ -393,9 +395,105 @@ router.get('/queue', async (req, res) => {
     res.render('clinic_admin/queue', {
       company: req.company, tab: 'queue',
       visits: visits.rows, doctors: docs.rows, visitTypes: vtypes.rows, patients: patients.rows,
+      // Worked doctor by doctor, because "who is next for Dr Ahmed" is the only
+      // question this screen is ever asked.
+      groups: clinicQueue.byDoctor(visits.rows),
+      actionsFor: clinicQueue.actionsFor,
       date: date || '', saved: req.query.saved === '1',
+      err: ['invalid', 'past', 'required', 'state', 'save'].includes(String(req.query.err || '')) ? req.query.err : null,
     });
   } catch (e) { console.error('[clinic queue]', e.message); res.status(500).send('error'); }
+});
+
+/**
+ * إعادة الجدولة — one action, not two.
+ *
+ * Reception's answer to "I can't wait, can I come tomorrow?" used to be to
+ * cancel the visit and hope somebody rebooked. The appointment quietly did not
+ * exist, and the patient believed it did. So: this visit closes AND the new
+ * appointment is created, inside one transaction, or neither happens.
+ */
+router.post('/visits/:id/reschedule', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const when = clinicQueue.parseWhen((req.body || {}).when, new Date());
+  if (!when.ok) return res.redirect('/clinic/queue?err=' + when.why);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const v = (await client.query(
+      `SELECT v.*, p.name AS patient_name, p.phone AS patient_phone
+         FROM clinic_visits v LEFT JOIN clinic_patients p ON p.id = v.patient_id
+        WHERE v.id=$1 AND v.company_id=$2 FOR UPDATE OF v`, [id, cid])).rows[0];
+    if (!v) { await client.query('ROLLBACK'); return res.redirect('/clinic/queue'); }
+    // Only a visit still in the waiting room can be moved to another day.
+    if (!clinicQueue.actionsFor(v.status).includes('reschedule')) {
+      await client.query('ROLLBACK');
+      return res.redirect('/clinic/queue?err=state');
+    }
+    const appt = (await client.query(
+      `INSERT INTO clinic_appointments (company_id, doctor_id, patient_name, patient_phone, slot_at, status, notes)
+       VALUES ($1,$2,$3,$4,$5,'confirmed',$6) RETURNING id`,
+      [cid, v.doctor_id, v.patient_name || 'مريض', v.patient_phone || '', when.at,
+        'أُعيدت الجدولة من طابور ' + (v.visit_date || '')]
+    )).rows[0];
+    await client.query(
+      `UPDATE clinic_visits SET status='cancelled', rescheduled_to=$3, rescheduled_appt_id=$4, updated_at=now()
+        WHERE id=$1 AND company_id=$2`,
+      [id, cid, when.at, appt.id]
+    );
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[clinic reschedule]', e.message);
+    return res.redirect('/clinic/queue?err=save');
+  } finally { client.release(); }
+  res.redirect('/clinic/queue?saved=1');
+});
+
+/**
+ * التقويم — a day, or a week, with each doctor's hours drawn on it.
+ *
+ * The clinic had a list of appointments and no way to see a day, so nobody
+ * could answer the two questions a calendar is for: is this doctor free at
+ * five, and is anything booked for a time they do not work. See
+ * src/clinic/calendar.js for the two things it refuses to lose.
+ */
+router.get('/calendar', async (req, res) => {
+  const cid = req.company.id;
+  const view = req.query.view === 'week' ? 'week' : 'day';
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '')
+    ? req.query.date : clinicCalendar.cairoDate(new Date());
+  const days = clinicCalendar.daysFor(anchor, view);
+  try {
+    const [docs, scheds, appts] = await Promise.all([
+      pool.query('SELECT id, name, room FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order, id', [cid]),
+      pool.query('SELECT doctor_id, day_of_week, start_time, end_time, is_active FROM clinic_doctor_schedules WHERE company_id=$1', [cid]),
+      pool.query(
+        `SELECT a.id, a.doctor_id, a.slot_at, a.patient_name, a.patient_phone, a.status, d.name AS doctor_name
+           FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id = a.doctor_id
+          WHERE a.company_id=$1 AND a.status IN ('pending','confirmed')
+            AND (a.slot_at IS NULL
+              OR ((a.slot_at AT TIME ZONE 'Africa/Cairo')::date BETWEEN $2::date AND $3::date))
+          ORDER BY a.slot_at NULLS LAST, a.id`,
+        [cid, days[0], days[days.length - 1]]
+      ),
+    ]);
+    const grid = clinicCalendar.layout({
+      days, doctors: docs.rows, schedules: scheds.rows,
+      // An appointment with no time belongs to the day being looked at, so it
+      // is in front of somebody instead of being dropped for lacking a slot.
+      appointments: appts.rows.map((a) => Object.assign({}, a, { day_hint: days[0] })),
+    });
+    res.render('clinic_admin/calendar', {
+      company: req.company, tab: 'calendar',
+      grid, view, anchor, days,
+      isEmptyDay: clinicCalendar.isEmptyDay,
+    });
+  } catch (e) {
+    console.error('[clinic calendar]', e.message);
+    res.redirect('/clinic/queue');
+  }
 });
 
 // Add a walk-in / registered patient to today's queue.
@@ -434,7 +532,10 @@ router.post('/visits', async (req, res) => {
   res.redirect('/clinic/queue?saved=1');
 });
 
-const VISIT_FLOW = ['waiting', 'in_room', 'done', 'cancelled'];
+// `no_show` sits right after `waiting` on purpose: waiting → no_show is a
+// forward move and allowed, while in_room → no_show is backwards and refused —
+// a patient the doctor has already seen did not fail to turn up.
+const VISIT_FLOW = ['waiting', 'no_show', 'in_room', 'done', 'cancelled'];
 router.post('/visits/:id/status', async (req, res) => {
   const st = VISIT_FLOW.includes(req.body.status) ? req.body.status : null;
   const back = req.body.back === 'file' && req.body.patient_id
