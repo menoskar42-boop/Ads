@@ -3,6 +3,14 @@
   <h1 class="text-2xl font-black mb-1">رفع دراسة جديدة</h1>
   <p class="text-slate-400 text-sm mb-5">اختر ملفات DICOM للدراسة (CT/MRI). كل الملفات بتترفع لدراسة واحدة.</p>
   <% if (error) { %><div class="bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl px-4 py-2 mb-4 text-sm"><%= error %></div><% } %>
+  <%# الملفات اللي اتشالت من الرفعة، بأسمائها. رفعة بتاخد ٢٩٨ من ٣٠٠ من غير
+      ما تقول أنهي اتنين هي رفعة ناقصة في صمت. %>
+  <% if (typeof skipped !== 'undefined' && skipped && skipped.length) { %>
+  <div class="bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded-xl px-4 py-2 mb-4 text-sm">
+    اتشال <%= skipped.length %> ملف مش DICOM من الرفعة:
+    <span dir="ltr" class="text-amber-300/80"><%= skipped.slice(0, 10).join(' · ') %></span>
+  </div>
+  <% } %>
 
   <form method="POST" action="/radiology/upload" enctype="multipart/form-data" class="card rounded-2xl p-5 grid gap-4 max-w-2xl">
     <div>

@@ -23,6 +23,18 @@
       <% if (__ord) { %>
       <div class="text-xs mt-2"><span class="px-2 py-1 rounded-lg <%= __ord[0] %>"><%= __ord[1] %></span></div>
       <% } %>
+      <%# الضغط اتسجّل ساعة الرفع. الطبيب يعرف من دلوقتي إن العارض مش هيفكّ
+          الصور دي — بدل ما يستنى تحميل الشرايح عشان يلاقيها كلها رسالة خطأ. %>
+      <% if (study.compression) { %>
+      <div class="text-xs mt-2"><span class="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300">
+        ⚠️ الصور مضغوطة (<span dir="ltr"><%= study.compression %></span>) — العارض المدمج بيفكّ غير المضغوط بس، فالشرايح مش هتتعرض هنا. التقرير بالـAI كمان محتاج صور متعروضة.
+      </span></div>
+      <% } %>
+      <% if (study.skipped_files) { %>
+      <div class="text-xs mt-2"><span class="px-2 py-1 rounded-lg bg-slate-500/15 text-slate-300">
+        ملفات مش DICOM اتشالت وقت الرفع: <span dir="ltr"><%= study.skipped_files %></span>
+      </span></div>
+      <% } %>
     </div>
     <form method="POST" action="/radiology/study/<%= study.id %>/delete" onsubmit="return confirm('حذف الدراسة وكل شرائحها؟')">
       <button class="text-xs border border-rose-500/40 text-rose-400 rounded-lg px-3 py-1.5 hover:bg-rose-500/10">حذف الدراسة</button>
@@ -78,6 +90,19 @@
       </div>
       <% } %>
     </div>
+    <%# حدّ التحليل اليومي، معروض قبل الضغط. «مش قادرين نتأكد» حالة تالتة
+        بتتقال بصوتها — لا «تمام» ولا «خلص». %>
+    <% if (typeof money !== 'undefined' && money) { %>
+      <div class="text-[11px] mb-2 <%= money.ok ? 'text-slate-500' : 'text-amber-300' %>">
+        <% if (money.spent === null) { %>
+          ⚠️ مش قادرين نقرا مصروف النهاردة على التحليل — التوليد موقوف لحد ما نقدر.
+        <% } else if (!money.ok) { %>
+          ⚠️ وصلت لحدّ التحليل اليومي (<span dir="ltr"><%= money.cap %>$</span>). التقارير القديمة كلها لسه متاحة.
+        <% } else { %>
+          حدّ التحليل اليومي: <span dir="ltr"><%= money.spent %>$ / <%= money.cap %>$</span>
+        <% } %>
+      </div>
+    <% } %>
     <div id="radReportOut" class="text-sm text-slate-200 whitespace-pre-line" style="display:none"></div>
     <div id="radReportMsg" class="text-xs text-slate-400" style="display:none"></div>
   </div>

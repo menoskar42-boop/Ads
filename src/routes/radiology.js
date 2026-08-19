@@ -11,6 +11,8 @@ const uploads = require('../lib/uploads');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const deident = require('../radiology/deident');
+const intake = require('../radiology/intake');
+const budget = require('../radiology/budget');
 const sliceOrder = require('../radiology/slice_order');
 const audit = require('../lib/audit');
 
@@ -18,6 +20,9 @@ const audit = require('../lib/audit');
 const REASONS = {
   not_dicom: 'فيه ملف مش DICOM سليم (مش لاقي علامة DICM في أوله). ارفع ملفات الدراسة زي ما طلعت من الجهاز.',
   unsupported_syntax: 'فيه ملف بصيغة نقل DICOM قديمة (big-endian أو مضغوطة الهيدر) مش قادرين نقرا هيدرها — ومن غير ما نقراه مانقدرش نشيل اسم المريض منه، فمابنخزّنهوش.',
+  // مفيش ولا ملف DICOM في اللي اترفع — سبب تاني خالص عن «فيه ملف بايظ»،
+  // والطبيب لازم يعرف إنه رفع المجلد الغلط مش إن ملف واحد وقّع الدراسة.
+  no_dicom: 'مفيش ولا ملف DICOM في اللي اترفع. الملفات اللي جوّه مجلد الدراسة عادةً من غير امتداد أو بامتداد ‎.dcm — ارفعها زي ما طلعت من الجهاز.',
 };
 const { Pool } = require('pg');
 const { loginLimiter } = require('../middleware/rateLimit');
@@ -158,7 +163,7 @@ router.get('/audit', requireDoctor, async (req, res) => {
 });
 
 /* ── Upload a study ────────────────────────────────────────────────────────── */
-router.get('/upload', requireDoctor, (req, res) => res.render('radiology/upload', { error: null }));
+router.get('/upload', requireDoctor, (req, res) => res.render('radiology/upload', { error: null, skipped: [] }));
 // The byte check matters more here than anywhere: these files are parsed as
 // DICOM and de-identified slice by slice, and a file that is not DICOM either
 // crashes that or slips through unredacted. 'DICM' sits at offset 128, after
@@ -167,7 +172,7 @@ const uploadStudy = uploads.guard(upload.array('dicom', 600), 'dicom');
 router.post('/upload', requireDoctor, uploadStudy, async (req, res) => {
   const files = req.files || [];
   const cleanup = () => files.forEach((f) => { try { fs.unlinkSync(f.path); } catch (e) {} });
-  if (!files.length) { cleanup(); return res.render('radiology/upload', { error: 'اختر ملفات DICOM.' }); }
+  if (!files.length) { cleanup(); return res.render('radiology/upload', { error: 'اختر ملفات DICOM.', skipped: [] }); }
   const b = req.body || {};
   const modality = ['CT', 'MRI'].includes(b.modality) ? b.modality : 'CT';
   const client = await pool.connect();
@@ -193,20 +198,40 @@ router.post('/upload', requireDoctor, uploadStudy, async (req, res) => {
     // the file picker's order, and a file picker sorts IM1, IM10, IM11, IM2. The
     // radiologist then scrolls through the body in the wrong sequence and
     // nothing looks broken.
-    const loaded = [];
+    //
+    // والفرق اللي اتضاف (البند ٨٨): مجلد الدراسة اللي بيطلع من الجهاز فيه
+    // `DICOMDIR` و`Thumbs.db` وملفات مش شرايح. الرفعة كانت بتترفض كلها
+    // بسببهم، والرسالة ماكانتش بتقول أنهي ملف. دلوقتي:
+    //   · اللي مش DICOM أصلاً بيتشال **باسمه** — مالوش هيدر فيه هوية.
+    //   · اللي DICOM وهيدره مش مقروء بيوقّف الرفعة كلها — ده بالظبط اللي
+    //     إزالة الهوية موجودة عشانه.
+    const seen = [];
     for (const f of files) {
+      const name = (f.originalname || '').slice(0, 200);
       const bytes = fs.readFileSync(f.path);
+      if (!intake.isDicom(bytes)) { seen.push({ name, dicom: false, ok: false }); continue; }
       const clean = deident.deidentify(bytes);
-      if (!clean.ok) {
-        // Refuse rather than store a header we could not read. That is the
-        // whole point: an unreadable header is the case this exists to stop.
-        await client.query('ROLLBACK');
-        cleanup();
-        return res.render('radiology/upload', { error: REASONS[clean.reason] || REASONS.not_dicom });
-      }
-      clean.removed.forEach((r) => { if (!stripped.includes(r)) stripped.push(r); });
-      loaded.push({ buf: bytes, name: (f.originalname || '').slice(0, 200) });
+      seen.push({
+        name, dicom: true, ok: !!clean.ok, reason: clean.reason,
+        compression: clean.ok ? intake.compressionOf(clean.transferSyntax) : null,
+        buf: bytes, removed: clean.removed || [],
+      });
     }
+    const plan = intake.planUpload(seen);
+    if (plan.refuse) {
+      await client.query('ROLLBACK');
+      cleanup();
+      const base = REASONS[plan.reason] || REASONS.not_dicom;
+      return res.render('radiology/upload', {
+        // اسم الملف بيتقال — عشان الطبيب يشيله هو، مش يفضل يخمّن.
+        error: base + (plan.badFile ? ` (الملف: ${plan.badFile})` : ''),
+        skipped: plan.skipped,
+      });
+    }
+    const loaded = plan.keep.map((r) => {
+      r.removed.forEach((x) => { if (!stripped.includes(x)) stripped.push(x); });
+      return { buf: r.buf, name: r.name };
+    });
     const { order, basis } = sliceOrder.sortSlices(loaded);
     for (let i = 0; i < order.length; i++) {
       const sl = loaded[order[i]];
@@ -215,18 +240,27 @@ router.post('/upload', requireDoctor, uploadStudy, async (req, res) => {
         [studyId, i, sl.name, sl.buf, sl.buf.length]
       );
     }
-    await client.query('UPDATE rad_studies SET deidentified = $1, slice_order = $2 WHERE id = $3',
-      [stripped.join(', ') || 'none', basis, studyId]);
+    await client.query(
+      `UPDATE rad_studies
+          SET deidentified = $1, slice_order = $2, num_slices = $4,
+              compression = $5, skipped_files = $6
+        WHERE id = $3`,
+      [stripped.join(', ') || 'none', basis, studyId, order.length,
+        // الضغط بيتسجّل ساعة الرفع عشان صفحة الدراسة تقول من الأول إن
+        // العارض مش هيفكّها — بدل ما الطبيب يكتشف ده بعد ما يحمّل ٣٠٠ شريحة.
+        plan.compressed.join(', ') || null,
+        plan.skipped.length ? plan.skipped.slice(0, 20).join(', ') : null]);
     await client.query('COMMIT');
     cleanup();
     radLog(req, { entity: 'study', entityId: studyId, action: 'create',
-      meta: { slices: order.length, modality, slice_order: basis, deidentified: stripped.length } });
+      meta: { slices: order.length, modality, slice_order: basis, deidentified: stripped.length,
+        skipped: plan.skipped.length, compressed: plan.compressed.join(',') || null } });
     res.redirect('/radiology/dashboard?saved=1');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     cleanup();
     console.error('[rad upload]', e.message);
-    res.render('radiology/upload', { error: 'تعذّر رفع الدراسة، حاول تاني.' });
+    res.render('radiology/upload', { error: 'تعذّر رفع الدراسة، حاول تاني.', skipped: [] });
   } finally { client.release(); }
 });
 
@@ -238,7 +272,11 @@ router.get('/study/:id', requireDoctor, async (req, res) => {
     if (!study) return res.redirect('/radiology/dashboard');
     const reports = (await pool.query('SELECT * FROM rad_reports WHERE study_id=$1 ORDER BY created_at DESC', [study.id])).rows;
     radLog(req, { entity: 'study', entityId: study.id, action: 'view' });
-    res.render('radiology/study', { study, reports });
+    // الميزانية بتتعرض قبل ما الطبيب يضغط، مش بعد ما يترفض: «باقي لك ١.٢٠$»
+    // معلومة، و«اتمنعت» من غير رقم إحباط.
+    const money = budget.verdict(
+      await budget.spentToday(pool, req.session.radDoctorId), budget.dailyCap(), 0);
+    res.render('radiology/study', { study, reports, money });
   } catch (e) { console.error('[rad study]', e.message); res.redirect('/radiology/dashboard'); }
 });
 /* ── Sign off a report ─────────────────────────────────────────────────────
@@ -319,7 +357,26 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
     if (hit && hit.reply) {
       // Identical request → return the saved report with no model call and no
       // duplicate DB row (the same report is already stored from last time).
+      // ومابيتحسبش على السقف كمان: مفيش مكالمة للنموذج، فمفيش فلوس اتصرفت.
       return res.json({ ok: true, report: hit.reply, cached: true });
+    }
+
+    // ── سقف تكلفة الـAI (البند ٨٨) ─────────────────────────────────────────
+    //
+    // المصروف بيتحسب من صفوف التقارير نفسها، مش من عدّاد بيبوظ أول ما تقرير
+    // يتمسح. واللي مااتقراش بيقفل مش بيفتح: سقف بيسمح لما يعمى مش سقف.
+    const cap = budget.dailyCap();
+    const spent = await budget.spentToday(pool, req.session.radDoctorId);
+    const est = budget.estimateFor(Array.isArray(images) ? images.length : 0);
+    const money = budget.verdict(spent, cap, est);
+    if (!money.ok) {
+      return res.status(429).json({
+        ok: false,
+        error: money.why === 'unknown'
+          ? 'مش قادرين نتأكد من مصروف النهاردة على التحليل، فمابنكملش. جرّب بعد شوية.'
+          : `وصلت لحدّ التحليل اليومي (${money.cap}$). اتصرف النهاردة ${money.spent}$ — التقارير المعتمَدة والقديمة كلها لسه متاحة.`,
+        why: money.why,
+      });
     }
 
     const out = await generateReport({
@@ -332,6 +389,11 @@ router.post('/study/:id/report', requireDoctor, express.json({ limit: '16mb' }),
     // Rough cost estimate (gpt-4o pricing); best-effort only.
     const u = out.usage || {};
     const cost = +(((u.prompt_tokens || 0) * 2.5 + (u.completion_tokens || 0) * 10) / 1e6).toFixed(4);
+    // اللي اتصرف فعلاً بيتكتب في جدول الاستهلاك كمان — هو ده اللي السقف
+    // بيقراه بكرة. من غير السطر ده السقف بيحرس نص الفاتورة.
+    await pool.query(
+      'INSERT INTO rad_ai_usage (doctor_id, study_id, kind, cost_usd) VALUES ($1,$2,$3,$4)',
+      [req.session.radDoctorId, studyId, 'report', cost]).catch((e) => console.error('[rad usage]', e.message));
     const newReport = await pool.query(
       'INSERT INTO rad_reports (study_id, model_name, focus, report_text, cost_usd) VALUES ($1,$2,$3,$4,$5) RETURNING id',
       [studyId, out.model, focus || null, out.text, cost]
@@ -360,6 +422,21 @@ router.post('/study/:id/chat', requireDoctor, express.json({ limit: '8mb' }), as
   try {
     const study = (await pool.query('SELECT * FROM rad_studies WHERE id=$1 AND doctor_id=$2', [studyId, req.session.radDoctorId])).rows[0];
     if (!study) return res.status(404).json({ ok: false, error: 'الدراسة غير موجودة.' });
+    // نفس السقف: السؤال بصورة بيتكلّف زي التقرير تقريباً، فلو اليوم خلص
+    // بيتقال، مش بيتبعت.
+    const money = budget.verdict(
+      await budget.spentToday(pool, req.session.radDoctorId),
+      budget.dailyCap(),
+      budget.estimateFor(((req.body && req.body.images) || []).length));
+    if (!money.ok) {
+      return res.status(429).json({
+        ok: false,
+        error: money.why === 'unknown'
+          ? 'مش قادرين نتأكد من مصروف النهاردة على التحليل، فمابنكملش. جرّب بعد شوية.'
+          : `وصلت لحدّ التحليل اليومي (${money.cap}$).`,
+        why: money.why,
+      });
+    }
     const prior = (await pool.query('SELECT report_text FROM rad_reports WHERE study_id=$1 ORDER BY created_at DESC LIMIT 1', [studyId])).rows[0];
     const { chatAboutStudy } = require('../lib/rad_ai');
     const out = await chatAboutStudy({
@@ -370,6 +447,13 @@ router.post('/study/:id/chat', requireDoctor, express.json({ limit: '8mb' }), as
       question: (req.body && req.body.question) || '',
       images: (req.body && req.body.images) || [],
     });
+    // نفس الحساب بتاع التقرير، على نفس النموذج — والشات بقى بيتسجّل بتكلفته
+    // بدل ما يكون مصروف مالوش أثر.
+    const cu = out.usage || {};
+    const chatCost = +(((cu.prompt_tokens || 0) * 2.5 + (cu.completion_tokens || 0) * 10) / 1e6).toFixed(4);
+    await pool.query(
+      'INSERT INTO rad_ai_usage (doctor_id, study_id, kind, cost_usd) VALUES ($1,$2,$3,$4)',
+      [req.session.radDoctorId, studyId, 'chat', chatCost]).catch((e) => console.error('[rad usage]', e.message));
     res.json({ ok: true, answer: out.text || 'مفيش إجابة، حاول تاني.' });
   } catch (e) {
     console.error('[rad chat]', e.status || '', e.message);
