@@ -176,6 +176,48 @@ async function ensureFoodSchema() {
       ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS taken_by TEXT;
       CREATE INDEX IF NOT EXISTS idx_food_orders_table ON food_orders (table_id, status);
 
+      /* مخزون المكوّنات وتكلفة الطبق (backlog 82).
+       *
+       * A restaurant does not run out of burgers, it runs out of buns — and it
+       * loses money on a dish, not on an order. Stock was tracked per menu item
+       * (which nobody counts) and cost was not tracked at all, so neither
+       * question could be asked.
+       *
+       * food_stock_moves is the claim that makes the deduction happen exactly
+       * once. The unique index is on (order_id, kind): a retried request, a
+       * double-tapped cancel or two instances racing all write one row. Without
+       * it the kitchen's stock drifts every busy night, in the direction nobody
+       * notices until they are counting.
+       */
+      CREATE TABLE IF NOT EXISTS food_ingredients (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        unit          TEXT NOT NULL DEFAULT 'g',
+        stock_qty     NUMERIC(12,3) NOT NULL DEFAULT 0,
+        cost_per_unit NUMERIC(12,4),
+        min_qty       NUMERIC(12,3) NOT NULL DEFAULT 0,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_food_ingredients ON food_ingredients (company_id, is_active);
+      CREATE TABLE IF NOT EXISTS food_recipes (
+        id            SERIAL PRIMARY KEY,
+        item_id       INTEGER NOT NULL REFERENCES food_items(id) ON DELETE CASCADE,
+        ingredient_id INTEGER NOT NULL REFERENCES food_ingredients(id) ON DELETE CASCADE,
+        qty           NUMERIC(12,3) NOT NULL DEFAULT 0
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_food_recipe_uniq ON food_recipes (item_id, ingredient_id);
+      CREATE TABLE IF NOT EXISTS food_stock_moves (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        order_id   INTEGER NOT NULL REFERENCES food_orders(id) ON DELETE CASCADE,
+        kind       TEXT NOT NULL,          -- consume | restore
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_food_stock_move_once ON food_stock_moves (order_id, kind);
+
       CREATE TABLE IF NOT EXISTS food_order_events (
         id SERIAL PRIMARY KEY,
         order_id INTEGER REFERENCES food_orders(id) ON DELETE CASCADE,

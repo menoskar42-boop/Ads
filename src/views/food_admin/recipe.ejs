@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.rec.title') %> — <%= item.name_ar || item.name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; width:100%; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'menu' }) %>
+
+<main class="max-w-3xl mx-auto px-4 py-6 space-y-5">
+  <div>
+    <h1 class="text-xl font-extrabold mb-1"><%= t('food.rec.title') %> — <%= item.name_ar || item.name %></h1>
+    <p class="text-sm text-gray-500 leading-relaxed"><%= t('food.rec.sub') %></p>
+  </div>
+
+  <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm"><%= t('food.ing.saved') %></div><% } %>
+  <% if (err) { %><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm"><%= t('food.rec.err.' + err) %></div><% } %>
+
+  <%# An unknown cost is shown as unknown. A margin computed from a recipe with
+      one unpriced ingredient looks healthy and is not. %>
+  <div class="bg-white border border-gray-100 rounded-2xl p-4 grid sm:grid-cols-3 gap-3 text-center">
+    <div>
+      <div class="text-xs text-gray-500"><%= t('food.rec.price') %></div>
+      <div class="font-extrabold text-lg"><%= Number(item.price).toFixed(2) %></div>
+    </div>
+    <div>
+      <div class="text-xs text-gray-500"><%= t('food.rec.cost') %></div>
+      <div class="font-extrabold text-lg <%= cost === null ? 'text-gray-400' : '' %>">
+        <%= cost === null ? t('food.rec.unknown') : Number(cost).toFixed(2) %>
+      </div>
+    </div>
+    <div>
+      <div class="text-xs text-gray-500"><%= t('food.rec.margin') %></div>
+      <div class="font-extrabold text-lg <%= margin === null ? 'text-gray-400' : (margin.profit >= 0 ? 'text-emerald-700' : 'text-red-600') %>">
+        <% if (margin === null) { %><%= t('food.rec.unknown') %>
+        <% } else { %><%= Number(margin.profit).toFixed(2) %><% if (margin.percent !== null) { %> <span class="text-xs">(<%= margin.percent %>%)</span><% } %><% } %>
+      </div>
+    </div>
+  </div>
+  <% if (cost === null) { %>
+    <p class="text-xs text-gray-500"><%= t('food.rec.why_unknown') %></p>
+  <% } %>
+
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-3"><%= t('food.rec.lines') %></h2>
+    <% if (!recipe.length) { %>
+      <p class="text-sm text-gray-400 py-3 text-center"><%= t('food.rec.none') %></p>
+    <% } else { %>
+      <div class="divide-y divide-gray-100 mb-3">
+        <% recipe.forEach(function (r) { %>
+          <div class="py-2 flex items-center justify-between gap-2 text-sm">
+            <span class="font-semibold"><%= r.name %></span>
+            <div class="flex items-center gap-3">
+              <span class="text-gray-600"><%= Number(r.qty) %> <%= r.unit %></span>
+              <span class="text-xs <%= r.cost_per_unit == null ? 'text-gray-400' : 'text-gray-500' %>">
+                <%= r.cost_per_unit == null ? t('food.rec.unknown') : (Number(r.cost_per_unit) * Number(r.qty)).toFixed(3) %>
+              </span>
+              <form method="post" action="/food/item/<%= item.id %>/recipe/<%= r.id %>/delete">
+                <button class="text-xs text-gray-400 hover:text-red-600">✕</button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <% if (!ingredients.length) { %>
+      <p class="text-xs text-gray-500"><%= t('food.rec.no_ingredients') %> <a href="/food/ingredients" class="text-orange-700 font-bold hover:underline"><%= t('food.ing.nav') %></a></p>
+    <% } else { %>
+      <form method="post" action="/food/item/<%= item.id %>/recipe" class="grid sm:grid-cols-3 gap-2 items-end border-t border-dashed border-gray-200 pt-3">
+        <label><span class="lbl"><%= t('food.ing.name') %></span>
+          <select name="ingredient_id" class="fld">
+            <% ingredients.forEach(function (i) { %><option value="<%= i.id %>"><%= i.name %> (<%= i.unit %>)</option><% }); %>
+          </select></label>
+        <label><span class="lbl"><%= t('food.rec.qty') %></span><input name="qty" type="number" step="0.001" min="0.001" class="fld" required /></label>
+        <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-4 py-2 text-sm"><%= t('pharmacy.admin.add') %></button>
+      </form>
+    <% } %>
+  </section>
+
+  <a href="/food/menu" class="inline-block text-sm text-gray-500 hover:underline">← <%= t('food.admin.menu') %></a>
+</main>
+</body></html>

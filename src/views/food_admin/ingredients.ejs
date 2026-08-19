@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" dir="<%= dir %>">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title><%= t('food.ing.title') %> — <%= company.company_name %></title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Cairo', sans-serif; }
+  .fld { border:1px solid #d1d5db; border-radius:8px; padding:6px 8px; font-size:.85rem; background:#fff; width:100%; }
+  .lbl { font-size:.7rem; color:#6b7280; margin-bottom:2px; display:block; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+<%- include('nav', { active: 'ingredients' }) %>
+
+<main class="max-w-4xl mx-auto px-4 py-6 space-y-5">
+  <div>
+    <h1 class="text-xl font-extrabold mb-1"><%= t('food.ing.title') %></h1>
+    <p class="text-sm text-gray-500 leading-relaxed"><%= t('food.ing.sub') %></p>
+  </div>
+
+  <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm"><%= t('food.ing.saved') %></div><% } %>
+  <% if (err) { %><div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 text-sm"><%= t('food.ing.err.' + err) %></div><% } %>
+
+  <% if (low.length) { %>
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+      <h2 class="font-bold text-amber-900 text-sm mb-2"><%= t('food.ing.low') %></h2>
+      <div class="flex flex-wrap gap-2">
+        <% low.forEach(function (r) { %>
+          <span class="bg-white border border-amber-200 rounded-full px-3 py-1 text-xs font-bold">
+            <%= r.name %>: <%= Number(r.stock_qty) %> <%= r.unit %>
+          </span>
+        <% }); %>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (!rows.length) { %>
+    <div class="bg-white border border-gray-100 rounded-2xl p-8 text-center text-gray-400 text-sm"><%= t('food.ing.none') %></div>
+  <% } else { %>
+    <div class="bg-white border border-gray-100 rounded-2xl overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs">
+          <tr>
+            <th class="text-start px-3 py-2"><%= t('food.ing.name') %></th>
+            <th class="text-start px-3 py-2"><%= t('food.ing.unit') %></th>
+            <th class="text-start px-3 py-2"><%= t('food.ing.stock') %></th>
+            <th class="text-start px-3 py-2"><%= t('food.ing.cost') %></th>
+            <th class="text-start px-3 py-2"><%= t('food.ing.min') %></th>
+            <th class="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function (r) { %>
+            <tr class="border-t border-gray-100">
+              <form method="post" action="/food/ingredients/save">
+                <input type="hidden" name="id" value="<%= r.id %>" />
+                <td class="px-3 py-2"><input name="name" value="<%= r.name %>" class="fld" /></td>
+                <td class="px-3 py-2 w-24"><input name="unit" value="<%= r.unit %>" class="fld" /></td>
+                <td class="px-3 py-2 w-28"><input name="stock_qty" type="number" step="0.001" value="<%= Number(r.stock_qty) %>" class="fld" /></td>
+                <td class="px-3 py-2 w-28">
+                  <input name="cost_per_unit" type="number" step="0.0001" value="<%= r.cost_per_unit == null ? '' : Number(r.cost_per_unit) %>"
+                         placeholder="<%= t('food.ing.unknown') %>" class="fld" />
+                </td>
+                <td class="px-3 py-2 w-24"><input name="min_qty" type="number" step="0.001" value="<%= Number(r.min_qty) %>" class="fld" /></td>
+                <td class="px-3 py-2 whitespace-nowrap">
+                  <button class="bg-orange-600 text-white font-bold rounded-lg px-3 py-1.5 text-xs"><%= t('pharmacy.admin.save') %></button>
+                  <button formaction="/food/ingredients/<%= r.id %>/remove" formnovalidate data-confirm="<%= t('common.tap_confirm') %>"
+                          class="bg-red-50 text-red-600 font-bold rounded-lg px-2 py-1.5 text-xs">✕</button>
+                </td>
+              </form>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
+  <section class="bg-white border border-gray-100 rounded-2xl p-4">
+    <h2 class="font-bold text-gray-800 mb-1"><%= t('food.ing.add') %></h2>
+    <p class="text-xs text-gray-500 mb-3"><%= t('food.ing.cost_hint') %></p>
+    <form method="post" action="/food/ingredients/save" class="grid sm:grid-cols-6 gap-2 items-end">
+      <label class="sm:col-span-2"><span class="lbl"><%= t('food.ing.name') %></span><input name="name" maxlength="80" class="fld" required /></label>
+      <label><span class="lbl"><%= t('food.ing.unit') %></span><input name="unit" value="g" maxlength="20" class="fld" /></label>
+      <label><span class="lbl"><%= t('food.ing.stock') %></span><input name="stock_qty" type="number" step="0.001" value="0" class="fld" /></label>
+      <label><span class="lbl"><%= t('food.ing.cost') %></span><input name="cost_per_unit" type="number" step="0.0001" placeholder="<%= t('food.ing.unknown') %>" class="fld" /></label>
+      <div class="flex gap-2">
+        <label class="flex-1"><span class="lbl"><%= t('food.ing.min') %></span><input name="min_qty" type="number" step="0.001" value="0" class="fld" /></label>
+        <button class="bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg px-4 py-2 text-sm h-fit"><%= t('pharmacy.admin.add') %></button>
+      </div>
+    </form>
+  </section>
+</main>
+</body></html>

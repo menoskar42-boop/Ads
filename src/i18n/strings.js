@@ -654,6 +654,20 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'قرّب يخلص',
     'pharmacy.admin.barcode': 'الباركود',
+    // ── مخزون المكوّنات وتكلفة الطبق ──────────────────────────────────────
+    'food.ing.nav':'المكوّنات','food.ing.title':'مخزون المكوّنات',
+    'food.ing.sub':'المطعم مابيخلصش منه «برجر»، بيخلص منه عيش. سجّل المكوّنات وكمياتها، والنظام بينزّلها لوحده مع كل طلب ويرجّعها لو الطلب اتلغى.',
+    'food.ing.none':'مفيش مكوّنات مسجّلة.','food.ing.add':'أضف مكوّن','food.ing.name':'المكوّن','food.ing.unit':'الوحدة',
+    'food.ing.stock':'الرصيد','food.ing.cost':'تكلفة الوحدة','food.ing.min':'الحد الأدنى','food.ing.low':'قرّب يخلص',
+    'food.ing.unknown':'غير معروفة','food.ing.saved':'اتحفظ.',
+    'food.ing.cost_hint':'سيب خانة التكلفة فاضية لو لسه ماسعّرتش المكوّن — الصفر معناه «ببلاش» وده بيطلّع ربح مش حقيقي.',
+    'food.ing.err.name':'اكتب اسم المكوّن.','food.ing.err.save':'مااتحفظش — جرّب تاني.',
+    'food.rec.title':'مكوّنات الطبق','food.rec.sub':'كمية كل مكوّن في الطبق الواحد. منها بتتحسب التكلفة والربح.',
+    'food.rec.lines':'المكوّنات','food.rec.none':'مافيش مكوّنات للطبق ده لسه.','food.rec.qty':'الكمية في الطبق',
+    'food.rec.price':'سعر البيع','food.rec.cost':'التكلفة','food.rec.margin':'الربح','food.rec.unknown':'غير معروف',
+    'food.rec.why_unknown':'في مكوّن على الأقل من غير تكلفة، فالتكلفة كلها «غير معروفة» — أهون من رقم ناقص اللحمة وباين كويس.',
+    'food.rec.no_ingredients':'سجّل المكوّنات الأول من صفحة','food.rec.err.qty':'اكتب كمية أكبر من صفر.',
+    'food.rec.err.ingredient':'المكوّن ده مش بتاعك.','food.rec.err.save':'مااتحفظش — جرّب تاني.',
     // ── الطاولات ونقطة البيع ──────────────────────────────────────────────
     'food.tbl.nav':'الطاولات','food.tbl.title':'الطاولات',
     'food.tbl.sub':'الطاولة مالهاش حالة محفوظة: هي مشغولة لما يكون عليها طلب لسه ما خلصش، وفاضية لما مايكونش. فمفيش طاولة بتفضل «مشغولة» بعد ما الناس مشيت.',
@@ -2972,6 +2986,20 @@ const strings = {
 
     'pharmacy.admin.stock_low': 'Running low',
     'pharmacy.admin.barcode': 'Barcode',
+    // ── Ingredient stock and dish cost ────────────────────────────────────
+    'food.ing.nav':'Ingredients','food.ing.title':'Ingredient stock',
+    'food.ing.sub':'A restaurant does not run out of burgers, it runs out of buns. Record the ingredients and their quantities and the system takes them off with every order \u2014 and puts them back if it is cancelled.',
+    'food.ing.none':'No ingredients recorded.','food.ing.add':'Add an ingredient','food.ing.name':'Ingredient','food.ing.unit':'Unit',
+    'food.ing.stock':'On hand','food.ing.cost':'Cost per unit','food.ing.min':'Minimum','food.ing.low':'Running low',
+    'food.ing.unknown':'unknown','food.ing.saved':'Saved.',
+    'food.ing.cost_hint':'Leave the cost empty if you have not priced the ingredient yet \u2014 zero means \u201cfree\u201d and produces a profit that is not real.',
+    'food.ing.err.name':'Enter the ingredient name.','food.ing.err.save':'It was not saved \u2014 try again.',
+    'food.rec.title':'Dish recipe','food.rec.sub':'How much of each ingredient goes into one portion. The cost and the profit are computed from it.',
+    'food.rec.lines':'Ingredients','food.rec.none':'No ingredients for this dish yet.','food.rec.qty':'Quantity per portion',
+    'food.rec.price':'Selling price','food.rec.cost':'Cost','food.rec.margin':'Profit','food.rec.unknown':'unknown',
+    'food.rec.why_unknown':'At least one ingredient has no cost, so the whole cost is \u201cunknown\u201d \u2014 better than a number that leaves out the meat and looks healthy.',
+    'food.rec.no_ingredients':'Record the ingredients first on','food.rec.err.qty':'Enter a quantity greater than zero.',
+    'food.rec.err.ingredient':'That ingredient is not yours.','food.rec.err.save':'It was not saved \u2014 try again.',
     // ── Tables and point of sale ──────────────────────────────────────────
     'food.tbl.nav':'Tables','food.tbl.title':'Tables',
     'food.tbl.sub':'A table has no stored status: it is busy when an unfinished order is on it and free when none is. So no table stays \u201coccupied\u201d after the guests have left.',
