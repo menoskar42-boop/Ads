@@ -387,6 +387,10 @@ ul{ list-style:none; }
 .faq-q{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:18px; text-align:start; padding:24px 4px; font-family:var(--font-display); font-weight:500; font-size:clamp(1.05rem,1.6vw,1.22rem); color:var(--ink); }
 .faq-q .ic{ flex:none; width:32px; height:32px; border-radius:50%; border:1.5px solid var(--line); display:grid; place-items:center; transition:.35s; position:relative; }
 .faq-q .ic::before, .faq-q .ic::after{ content:""; position:absolute; background:var(--primary); border-radius:2px; transition:.35s; }
+.pf-ba{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0; }
+.pf-ba figure{ margin:0; }
+.pf-ba img{ width:100%; border-radius:10px; display:block; }
+.pf-ba figcaption{ text-align:center; font-size:.82rem; color:var(--muted); margin-top:6px; font-weight:600; }
 .faq-q .ic::before{ width:13px; height:2px; }
 .faq-q .ic::after{ width:2px; height:13px; }
 .faq-item.open .faq-q .ic{ background:var(--primary); border-color:var(--primary); transform:rotate(180deg); }
@@ -782,7 +786,22 @@ ul{ list-style:none; }
         <form method="dialog" class="pf-close"><button aria-label="إغلاق">✕</button></form>
         <h3><%= item.title %></h3>
         <% if (item.client_name) { %><p class="pf-client"><%= item.client_name %></p><% } %>
-        <% if (item.image_url) { %><img src="<%= item.image_url %>" alt="<%= item.image_alt || item.title %>" loading="lazy" /><% } %>
+        <%# «قبل» و«بعد» جنب بعض — بس لما الاتنين موجودين. صورة لوحدها مش
+            مقارنة، والكلمة تحت كل صورة عشان محدش يقرا الترتيب بالعكس. %>
+        <% if (item.before_image_url && item.image_url) { %>
+          <div class="pf-ba">
+            <figure>
+              <img src="<%= item.before_image_url %>" alt="قبل — <%= item.image_alt || item.title %>" loading="lazy" />
+              <figcaption>قبل</figcaption>
+            </figure>
+            <figure>
+              <img src="<%= item.image_url %>" alt="بعد — <%= item.image_alt || item.title %>" loading="lazy" />
+              <figcaption>بعد</figcaption>
+            </figure>
+          </div>
+        <% } else if (item.image_url) { %>
+          <img src="<%= item.image_url %>" alt="<%= item.image_alt || item.title %>" loading="lazy" />
+        <% } %>
         <% if (item.problem) { %><h4>المشكلة</h4><p><%= item.problem %></p><% } %>
         <% if (item.solution) { %><h4>اللي عملناه</h4><p><%= item.solution %></p><% } %>
         <% if (item.result) { %><h4>النتيجة</h4><p><%= item.result %></p><% } %>

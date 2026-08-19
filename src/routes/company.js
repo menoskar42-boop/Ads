@@ -145,6 +145,12 @@ function makeMediaUploader(prefix) {
 
 const uploadLogo = uploads.guard(makeUploader('logo').single('logo_file'), 'image');
 const uploadItemImage = uploads.guard(makeUploader('item').single('image_file'), 'image');
+// «قبل» و«بعد» في نموذج واحد (البند ٩٠): العمود `before_image_url` كان موجود
+// في المخطط ومفيش أي شاشة بتكتبه — نفس شكل الغلطة اللي في كتالوج موبيليا.
+const uploadItemImages = uploads.guard(makeUploader('item').fields([
+  { name: 'image_file', maxCount: 1 },
+  { name: 'before_image_file', maxCount: 1 },
+]), 'image');
 const uploadProductImage = uploads.guard(makeUploader('product').single('image_file'), 'image');
 const uploadProductMedia = uploads.guard(makeMediaUploader('product').fields([
   { name: 'image_file', maxCount: 1 },
@@ -588,7 +594,13 @@ router.get('/dashboard', requireLogin, async (req, res) => {
 /* ─── PROFILE ────────────────────────────────────────────── */
 router.get('/profile', requireLogin, async (req, res) => {
   const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]);
-  res.render('company/profile', { company: result.rows[0], session: req.session, success: null, error: null });
+  const c = result.rows[0] || {};
+  // نفس الـpreset اللي الصفحة العامة بتقع عليه — فالنص الرمادي في اللوحة هو
+  // بالظبط اللي الزائر هيشوفه لو الخانة فضلت فاضية، مش مثال تاني.
+  res.render('company/profile', {
+    company: c, session: req.session, success: null, error: null,
+    preset: getPreset(c.profession),
+  });
 });
 
 router.post('/profile', requireLogin, (req, res) => {
@@ -601,6 +613,7 @@ router.post('/profile', requireLogin, (req, res) => {
           session: req.session,
           success: null,
           error: message,
+          preset: getPreset((result.rows[0] || {}).profession),
         });
       } catch (renderErr) {
         console.error('[POST /profile] render fallback failed:', renderErr);
@@ -669,6 +682,8 @@ router.post('/profile', requireLogin, (req, res) => {
            show_about=$24, show_services=$25, show_portfolio=$26,
            service1_title=$27, service1_desc=$28, service2_title=$29, service2_desc=$30,
            service3_title=$31, service3_desc=$32,
+           service4_title=$45, service4_desc=$46, service5_title=$47, service5_desc=$48,
+           service6_title=$49, service6_desc=$50,
            hero_text_color=$33, hero_btn_bg=$34, hero_btn_text=$35,
            social_facebook=$36, social_instagram=$37, social_linkedin=$38, social_twitter=$39,
            social_tiktok=$40, social_youtube=$41, social_threads=$42, social_website=$43,
@@ -688,6 +703,9 @@ router.post('/profile', requireLogin, (req, res) => {
           socialFacebook, socialInstagram, socialLinkedin, socialTwitter,
           socialTiktok, socialYoutube, socialThreads, socialWebsite,
           clean(req.body.profession) || null,
+          // الستة كلهم — الصفحة العامة بتعرض ٦ كروت، فاللوحة لازم تعدّلهم ٦.
+          svc('service4_title'), svc('service4_desc'), svc('service5_title'), svc('service5_desc'),
+          svc('service6_title'), svc('service6_desc'),
         ]
       );
       req.session.companyName = company_name;
@@ -697,6 +715,7 @@ router.post('/profile', requireLogin, (req, res) => {
       return res.render('company/profile', {
         company: result.rows[0],
         session: req.session,
+        preset: getPreset(result.rows[0].profession),
         success: 'Profile updated successfully.',
         error: null,
       });
@@ -762,7 +781,7 @@ router.get('/portfolio/add', requireLogin, (req, res) => res.redirect('/company/
 router.get('/categories/add', requireLogin, (req, res) => res.redirect('/company/categories'));
 
 router.post('/portfolio/add', requireLogin, (req, res) => {
-  uploadItemImage(req, res, async (uploadErr) => {
+  uploadItemImages(req, res, async (uploadErr) => {
     const renderError = async (message) => {
       try {
         const result = await pool.query(
@@ -786,7 +805,9 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
       return renderError(`Upload failed: ${uploadErr.message}`);
     }
 
-    console.log('[POST /portfolio/add] file:', req.file?.filename, 'body:', Object.keys(req.body));
+    const afterFile = req.files && req.files.image_file && req.files.image_file[0];
+    const beforeFile = req.files && req.files.before_image_file && req.files.before_image_file[0];
+    console.log('[POST /portfolio/add] file:', afterFile && afterFile.filename, 'body:', Object.keys(req.body));
     const { description, image_url, order_index } = req.body;
     // `required` in the form is a hint to a browser, not a rule. A direct POST
     // (or a browser with JS disabled on a patched form) was storing items with
@@ -794,18 +815,27 @@ router.post('/portfolio/add', requireLogin, (req, res) => {
     const title = String(req.body.title || '').trim();
     if (!title) return renderError('العنوان مطلوب — العمل من غير عنوان بيظهر في صفحتك باسم Untitled.');
     if (title.length > 120) return renderError('العنوان طويل — خلّيه ١٢٠ حرف على الأكثر.');
-    const finalImageUrl = req.file ? `/uploads/${req.file.filename}` : (image_url || null);
-    if (req.file) { await compressImage(req.file.path); }
+    const finalImageUrl = afterFile ? `/uploads/${afterFile.filename}` : (image_url || null);
+    if (afterFile) { await compressImage(afterFile.path); }
+    // صورة «قبل» بتتخزّن بس لما يكون فيه صورة «بعد» تقارنها بيها — صورة
+    // لوحدها مش مقارنة، والصفحة مش هتعرف تعرضها كـ«قبل» جنب إيه.
+    let beforeUrl = null;
+    if (beforeFile) {
+      await compressImage(beforeFile.path);
+      if (finalImageUrl) beforeUrl = `/uploads/${beforeFile.filename}`;
+      else removeUpload(`/uploads/${beforeFile.filename}`);
+    }
 
     try {
       const cs = caseStudyFields(req.body);
       await pool.query(
         `INSERT INTO portfolio_items (company_id, title, description, image_url, order_index,
-           image_alt, project_url, category, client_name, problem, solution, result, is_featured)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+           image_alt, project_url, category, client_name, problem, solution, result, is_featured,
+           before_image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [req.session.companyId, title, description, finalImageUrl, parseInt(order_index) || 0,
           cs.image_alt, cs.project_url, cs.category, cs.client_name, cs.problem, cs.solution,
-          cs.result, cs.is_featured]
+          cs.result, cs.is_featured, beforeUrl]
       );
       console.log('[POST /portfolio/add] success');
       return res.redirect('/company/portfolio');
@@ -821,10 +851,11 @@ router.post('/portfolio/delete/:id', requireLogin, async (req, res) => {
   // the upload on disk forever — invisible, and growing with every correction
   // a merchant makes (which was the only way to fix a typo before /edit).
   const gone = await pool.query(
-    'DELETE FROM portfolio_items WHERE id = $1 AND company_id = $2 RETURNING image_url',
+    'DELETE FROM portfolio_items WHERE id = $1 AND company_id = $2 RETURNING image_url, before_image_url',
     [req.params.id, req.session.companyId]
   );
-  if (gone.rows.length) removeUpload(gone.rows[0].image_url);
+  // الصورتين مع بعض — «قبل» كانت هتفضل على القرص للأبد بعد ما صفّها يتمسح.
+  if (gone.rows.length) { removeUpload(gone.rows[0].image_url); removeUpload(gone.rows[0].before_image_url); }
   res.redirect('/company/portfolio');
 });
 
@@ -834,7 +865,7 @@ router.post('/portfolio/delete/:id', requireLogin, async (req, res) => {
  * a project down for a while without losing it.
  */
 router.post('/portfolio/edit/:id', requireLogin, (req, res) => {
-  uploadItemImage(req, res, async (uploadErr) => {
+  uploadItemImages(req, res, async (uploadErr) => {
     const back = (q) => res.redirect('/company/portfolio' + (q || ''));
     if (uploadErr) return back('?error=upload');
 
@@ -845,17 +876,20 @@ router.post('/portfolio/edit/:id', requireLogin, (req, res) => {
     // the same statement, so a guessed id belonging to another company matches
     // nothing rather than being fetched and then checked.
     const cur = await pool.query(
-      'SELECT image_url FROM portfolio_items WHERE id = $1 AND company_id = $2',
+      'SELECT image_url, before_image_url FROM portfolio_items WHERE id = $1 AND company_id = $2',
       [req.params.id, req.session.companyId]
     );
     if (!cur.rows.length) return res.status(404).redirect('/company/portfolio');
 
+    const afterFile = req.files && req.files.image_file && req.files.image_file[0];
+    const beforeFile = req.files && req.files.before_image_file && req.files.before_image_file[0];
+
     let imageUrl = cur.rows[0].image_url;
     const pasted = String(req.body.image_url || '').trim();
-    if (req.file) {
-      await compressImage(req.file.path);
+    if (afterFile) {
+      await compressImage(afterFile.path);
       const old = imageUrl;
-      imageUrl = `/uploads/${req.file.filename}`;
+      imageUrl = `/uploads/${afterFile.filename}`;
       removeUpload(old);                       // replaced, so the old file is dead
     } else if (pasted && pasted !== imageUrl) {
       const old = imageUrl;
@@ -863,15 +897,29 @@ router.post('/portfolio/edit/:id', requireLogin, (req, res) => {
       removeUpload(old);
     }
 
+    let beforeUrl = cur.rows[0].before_image_url || null;
+    if (beforeFile) {
+      await compressImage(beforeFile.path);
+      const old = beforeUrl;
+      beforeUrl = `/uploads/${beforeFile.filename}`;
+      removeUpload(old);
+    } else if (req.body.remove_before === '1') {
+      // مسح صريح: التاجر شال المقارنة، والملف بيروح معاها.
+      removeUpload(beforeUrl);
+      beforeUrl = null;
+    }
+    // نفس القاعدة بتاعة الإضافة: «قبل» من غير «بعد» مش مقارنة.
+    if (!imageUrl && beforeUrl) { removeUpload(beforeUrl); beforeUrl = null; }
+
     const cs = caseStudyFields(req.body);
     await pool.query(
       `UPDATE portfolio_items SET title=$1, description=$2, image_url=$3, order_index=$4,
          image_alt=$5, project_url=$6, category=$7, client_name=$8, problem=$9,
-         solution=$10, result=$11, is_featured=$12
+         solution=$10, result=$11, is_featured=$12, before_image_url=$15
        WHERE id=$13 AND company_id=$14`,
       [title, req.body.description || null, imageUrl, parseInt(req.body.order_index) || 0,
         cs.image_alt, cs.project_url, cs.category, cs.client_name, cs.problem, cs.solution,
-        cs.result, cs.is_featured, req.params.id, req.session.companyId]
+        cs.result, cs.is_featured, req.params.id, req.session.companyId, beforeUrl]
     );
     return back('?saved=1');
   });

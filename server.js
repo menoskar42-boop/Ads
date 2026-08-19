@@ -1267,6 +1267,18 @@ async function initDb() {
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service2_desc TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service3_title TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS service3_desc TEXT;
+      /* الخدمات من ٤ لـ٦ (البند ٩٠).
+       *
+       * صفحة البورتفوليو العامة بتعرض **ستة** كروت خدمات من زمان، واللوحة
+       * كانت بتعدّل تلاتة بس — يعني نص الخدمات على صفحة التاجر كان نص
+       * الافتراضي بتاع المهنة، ومحدش يقدر يغيّره: كلام مش بتاعه معروض على
+       * صفحته باسمه. */
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service4_title TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service4_desc TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service5_title TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service5_desc TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service6_title TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS service6_desc TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_text_color TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_bg TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS hero_btn_text TEXT;
