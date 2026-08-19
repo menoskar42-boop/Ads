@@ -1020,6 +1020,27 @@ async function initDb() {
         UNIQUE (company_id, customer_id)
       );
       CREATE INDEX IF NOT EXISTS idx_abandoned_carts ON abandoned_carts (company_id, updated_at DESC);
+      -- Automatic cart recovery (backlog 80). The reminder's own state lives on
+      -- the cart, so the claim that stops a double-send is one UPDATE on the
+      -- row being sent — not a second table that can disagree with this one.
+      ALTER TABLE abandoned_carts ADD COLUMN IF NOT EXISTS reminder_state    TEXT;
+      ALTER TABLE abandoned_carts ADD COLUMN IF NOT EXISTS reminder_at       TIMESTAMPTZ;
+      ALTER TABLE abandoned_carts ADD COLUMN IF NOT EXISTS reminder_attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE abandoned_carts ADD COLUMN IF NOT EXISTS reminder_error    TEXT;
+      CREATE INDEX IF NOT EXISTS idx_abandoned_due ON abandoned_carts (reminder_state, updated_at);
+      -- Off by default, like every other merchant feature: sending marketing
+      -- from a shop's name is the shop's decision, never ours.
+      CREATE TABLE IF NOT EXISTS cart_recovery_settings (
+        company_id    INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        enabled       BOOLEAN NOT NULL DEFAULT false,
+        delay_minutes INTEGER NOT NULL DEFAULT 60,
+        cooldown_days INTEGER NOT NULL DEFAULT 7,
+        max_attempts  INTEGER NOT NULL DEFAULT 2,
+        subject       TEXT,
+        body          TEXT,
+        coupon_code   TEXT,
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
       -- Store analytics (competitor phase 29): one row per storefront page view,
       -- with the referrer host bucketed to a traffic source. Fire-and-forget
       -- insert; used for visits/conversion/top-source dashboards.
@@ -1665,4 +1686,17 @@ setInterval(() => {
 const subscriptions = require('./src/lib/subscriptions');
 setInterval(() => { subscriptions.runDueRenewals().catch(() => {}); }, 60 * 60 * 1000).unref();
 subscriptions.runDueRenewals().catch(() => {}); // once on boot
+
+// Abandoned-cart reminders (backlog 80). Every 15 minutes, because the shortest
+// delay a merchant may set is 15 — checking hourly would turn "remind after 15
+// minutes" into "remind after up to an hour", which is not what the screen says.
+//
+// Running often is safe by construction: each cart is claimed with a
+// compare-and-swap before its email leaves, so an extra tick — or a second
+// instance — sends nothing twice. See src/shop/cart_recovery_job.js.
+const cartRecoveryJob = require('./src/shop/cart_recovery_job');
+const cartRecoveryPool = new (require('pg').Pool)({ connectionString: process.env.DATABASE_URL });
+setInterval(() => {
+  cartRecoveryJob.runDue(cartRecoveryPool).catch((e) => console.error('[cart_recovery]', e.message));
+}, 15 * 60 * 1000).unref();
 

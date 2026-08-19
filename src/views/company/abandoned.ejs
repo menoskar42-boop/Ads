@@ -1,44 +1,134 @@
 <% pageTitle = 'سلات متروكة'; activePage = 'abandoned'; %>
 <%- include('_layout_top') %>
-  <div class="bg-white rounded-2xl shadow-sm p-6 max-w-3xl">
-    <h2 class="text-xl font-bold text-gray-800 mb-1">🛒 سلات متروكة</h2>
-    <p class="text-gray-500 text-sm mb-5">عملاء وصلوا لصفحة الدفع وما كمّلوش الطلب (من 30 دقيقة فأكثر). ذكّرهم على واتساب.</p>
+<%#
+  Two halves, and the difference between them is the whole point of this page:
 
-    <% if (!carts.length) { %>
-      <p class="text-sm text-gray-400 text-center py-8">مفيش سلات متروكة حالياً. كله بيكمّل طلبه 👍</p>
-    <% } else { %>
-      <div class="space-y-3">
-        <% carts.forEach(function(a){
-             var phone = (a.customer_phone || '').replace(/[^0-9]/g,'');
-             var waNum = (company.whatsapp_number || phone);
-             var msg = 'أهلاً ' + (a.customer_name || '') + '، لاحظنا إنك سيبت طلبك من غير ما تكمّله (' + (a.items_summary || '') + '). محتاج مساعدة تكمّل؟';
-             var intlPhone = phone.length <= 11 ? ('20' + phone.replace(/^0/, '')) : phone;
-             var waHref = phone ? ('https://wa.me/' + intlPhone + '?text=' + encodeURIComponent(msg)) : null;
-        %>
-        <div class="border border-gray-200 rounded-xl p-4">
-          <div class="flex items-start justify-between gap-3 flex-wrap">
-            <div class="min-w-0">
-              <div class="font-bold text-gray-800"><%= a.customer_name || 'عميل' %></div>
-              <div class="text-xs text-gray-500" dir="ltr"><%= a.customer_phone || a.customer_email || '—' %></div>
-              <div class="text-sm text-gray-600 mt-1"><%= a.items_summary || '' %></div>
-            </div>
-            <div class="text-left shrink-0">
-              <div class="text-emerald-600 font-bold"><%= Number(a.total).toFixed(2) %> ج</div>
-              <div class="text-xs text-gray-400"><%= a.item_count %> صنف · <%= new Date(a.updated_at).toLocaleString('ar-EG') %></div>
-            </div>
-          </div>
-          <% if (waHref) { %>
-          <a href="<%= waHref %>" target="_blank" rel="nofollow noopener"
-             class="inline-flex items-center gap-2 mt-3 bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2z"/></svg>
-            ذكّره على واتساب
-          </a>
-          <% } else { %>
-            <div class="text-xs text-gray-400 mt-2">مفيش رقم واتساب لهذا العميل.</div>
-          <% } %>
-        </div>
-        <% }); %>
-      </div>
+  · The automatic half — email — really does leave on its own once the merchant
+    switches it on.
+  · The manual half — WhatsApp — is a link that opens the conversation with the
+    message written. It is NOT automatic, and this page says so in plain words
+    rather than letting a merchant assume their carts are being chased.
+%>
+<% var __cur = (typeof cur === 'function') ? cur : function () { return ''; }; %>
+<% var __LOC = (typeof LOC !== 'undefined' && LOC) ? LOC : 'ar-EG'; %>
+
+  <div class="max-w-3xl space-y-5">
+
+    <% if (saved) { %>
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-4 py-2.5 text-sm font-bold"><%= t('cr.saved') %></div>
     <% } %>
+    <% if (typeof err !== 'undefined' && err) { %>
+      <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-4 py-2.5 text-sm font-bold"><%= t('cr.save_failed') %></div>
+    <% } %>
+
+    <!-- The automatic reminder -->
+    <div class="bg-white rounded-2xl shadow-sm p-6 brand-border">
+      <h2 class="text-lg font-bold text-gray-800 mb-1"><%= t('cr.auto_title') %></h2>
+      <p class="text-gray-500 text-sm mb-4"><%= t('cr.auto_sub') %></p>
+
+      <form method="post" action="/company/abandoned/settings" class="space-y-4">
+        <label class="flex items-center gap-2 text-sm font-bold text-gray-700">
+          <input type="checkbox" name="enabled" <%= settings.enabled ? 'checked' : '' %> class="w-4 h-4" />
+          <%= t('cr.enable') %>
+        </label>
+
+        <div class="grid sm:grid-cols-3 gap-3">
+          <label class="text-xs font-bold text-gray-600"><%= t('cr.delay') %>
+            <input name="delay_minutes" type="number" min="15" max="10080" value="<%= settings.delayMinutes %>"
+                   class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            <span class="block text-gray-400 font-normal mt-1"><%= t('cr.delay_hint') %></span>
+          </label>
+          <label class="text-xs font-bold text-gray-600"><%= t('cr.cooldown') %>
+            <input name="cooldown_days" type="number" min="1" max="90" value="<%= settings.cooldownDays %>"
+                   class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            <span class="block text-gray-400 font-normal mt-1"><%= t('cr.cooldown_hint') %></span>
+          </label>
+          <label class="text-xs font-bold text-gray-600"><%= t('cr.attempts') %>
+            <input name="max_attempts" type="number" min="1" max="3" value="<%= settings.maxAttempts %>"
+                   class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+            <span class="block text-gray-400 font-normal mt-1"><%= t('cr.attempts_hint') %></span>
+          </label>
+        </div>
+
+        <label class="block text-xs font-bold text-gray-600"><%= t('cr.subject') %>
+          <input name="subject" maxlength="160" value="<%= settings.subject %>" placeholder="<%= defaults.subject %>"
+                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="block text-xs font-bold text-gray-600"><%= t('cr.body') %>
+          <textarea name="body" rows="4" maxlength="2000" placeholder="<%= defaults.body %>"
+                    class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"><%= settings.body %></textarea>
+          <span class="block text-gray-400 font-normal mt-1"><%= t('cr.vars') %></span>
+        </label>
+        <label class="block text-xs font-bold text-gray-600"><%= t('cr.coupon') %>
+          <input name="coupon_code" maxlength="40" value="<%= settings.couponCode %>" dir="ltr"
+                 class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+          <span class="block text-gray-400 font-normal mt-1"><%= t('cr.coupon_hint') %></span>
+        </label>
+
+        <button class="brand-bg text-white font-bold rounded-xl px-6 py-2.5 text-sm"><%= t('common.save') %></button>
+      </form>
+
+      <%# The honest sentence. Nothing on this page sends WhatsApp by itself. %>
+      <p class="text-xs text-gray-500 mt-4 leading-relaxed border-t border-gray-100 pt-3"><%= t('cr.whatsapp_manual') %></p>
+    </div>
+
+    <!-- The carts -->
+    <div class="bg-white rounded-2xl shadow-sm p-6">
+      <h2 class="text-lg font-bold text-gray-800 mb-1">🛒 <%= t('cr.title') %></h2>
+      <p class="text-gray-500 text-sm mb-5"><%= t('cr.sub') %></p>
+
+      <% if (!carts.length) { %>
+        <p class="text-sm text-gray-400 text-center py-8"><%= t('cr.none') %></p>
+      <% } else { %>
+        <div class="space-y-3">
+          <% carts.forEach(function(a){
+               var phone = (a.customer_phone || '').replace(/[^0-9]/g,'');
+               var msg = t('cr.wa_msg_1') + ' ' + (a.customer_name || '') + t('cr.wa_msg_2') + ' (' + (a.items_summary || '') + '). ' + t('cr.wa_msg_3');
+               var intlPhone = phone.length <= 11 ? ('20' + phone.replace(/^0/, '')) : phone;
+               var waHref = phone ? ('https://wa.me/' + intlPhone + '?text=' + encodeURIComponent(msg)) : null;
+               var st = a.reminderState;
+               var tone = st === 'sent' ? 'bg-emerald-100 text-emerald-800'
+                        : st === 'failed' ? 'bg-red-100 text-red-800'
+                        : st === 'sending' ? 'bg-sky-100 text-sky-800'
+                        : 'bg-gray-100 text-gray-600';
+          %>
+          <div class="border border-gray-200 rounded-xl p-4">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+              <div class="min-w-0">
+                <div class="font-bold text-gray-800"><%= a.customer_name || t('cr.a_customer') %></div>
+                <div class="text-xs text-gray-500" dir="ltr"><%= a.customer_phone || a.customer_email || '—' %></div>
+                <div class="text-sm text-gray-600 mt-1"><%= a.items_summary || '' %></div>
+              </div>
+              <div class="text-left shrink-0">
+                <div class="text-emerald-600 font-bold"><%= Number(a.total).toFixed(2) %> <%= __cur(company) %></div>
+                <div class="text-xs text-gray-400"><%= a.item_count %> <%= t('cr.items') %> · <%= new Date(a.updated_at).toLocaleString(__LOC) %></div>
+              </div>
+            </div>
+
+            <%# The state of the automatic reminder for THIS cart, and the reason
+                when there is one. A merchant asking "why wasn't this one sent?"
+                gets the answer here instead of guessing. %>
+            <div class="flex items-center gap-2 flex-wrap mt-3">
+              <span class="text-xs font-bold rounded-full px-2.5 py-1 <%= tone %>"><%= t('cr.state.' + st) %></span>
+              <span class="text-xs text-gray-500"><%= t('cr.why.' + a.verdict.why) %></span>
+              <% if (st === 'failed' && a.reminder_error) { %>
+                <span class="text-xs text-red-700 font-mono" dir="ltr"><%= a.reminder_error %></span>
+              <% } %>
+            </div>
+
+            <% if (waHref) { %>
+            <a href="<%= waHref %>" target="_blank" rel="nofollow noopener"
+               class="inline-flex items-center gap-2 mt-3 bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-lg hover:bg-green-700 transition">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2z"/></svg>
+              <%= t('cr.wa_btn') %>
+            </a>
+            <% } else { %>
+              <div class="text-xs text-gray-400 mt-2"><%= t('cr.no_phone') %></div>
+            <% } %>
+          </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
   </div>
 <%- include('_layout_bottom') %>

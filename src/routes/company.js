@@ -11,6 +11,7 @@ const requireLogin = require('../middleware/auth');
 const demoMode = require('../lib/demo_mode');
 const shopPerms = require('../shop/perms');
 const shopSetup = require('../shop/setup');
+const cartRecovery = require('../shop/cart_recovery');
 const orderReversal = require('../lib/order_reversal');
 const money = require('../lib/money');
 const codes = require('../lib/codes');
@@ -1353,7 +1354,8 @@ router.get('/marketing', requireLogin, requireShop, async (req, res) => {
   try {
     const c = (await pool.query('SELECT slug, fb_pixel_id, tiktok_pixel_id, ga4_id, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0];
     res.render('company/marketing', { company: c, session: req.session,
-      saved: req.query.saved === '1', saveError: req.query.error === 'save' });
+      saved: req.query.saved === '1',
+      err: req.query.err === 'save' ? 'save' : null, saveError: req.query.error === 'save' });
   } catch (e) { console.error('[marketing]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/marketing', requireLogin, requireShop, async (req, res) => {
@@ -1508,7 +1510,7 @@ router.post('/currencies/:id/delete', requireLogin, requireShop, async (req, res
 // and gets a ready WhatsApp reminder link (uses their store whatsapp_number).
 router.get('/abandoned', requireLogin, requireShop, async (req, res) => {
   try {
-    const company = (await pool.query('SELECT slug, whatsapp_number FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
+    const company = (await pool.query('SELECT slug, whatsapp_number, company_name, currency FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
     // Only surface carts idle for 30+ minutes (give the buyer time to finish).
     const rows = (await pool.query(
       `SELECT a.*, c.email AS customer_email
@@ -1517,8 +1519,59 @@ router.get('/abandoned', requireLogin, requireShop, async (req, res) => {
         ORDER BY a.updated_at DESC LIMIT 100`,
       [req.session.companyId]
     )).rows;
-    res.render('company/abandoned', { carts: rows, company, session: req.session });
+    // The automatic side (backlog 80). A missing settings row is the default —
+    // switched off — so a shop that never opened this page sends nothing.
+    let settingsRow = null;
+    try {
+      settingsRow = (await pool.query('SELECT * FROM cart_recovery_settings WHERE company_id=$1', [req.session.companyId])).rows[0] || null;
+    } catch (e) { console.error('[abandoned settings]', e.message); }
+    const settings = cartRecovery.settingsFrom(settingsRow);
+    const now = new Date();
+    // Every cart carries its own verdict, so the page can say WHY a particular
+    // one has not been messaged instead of leaving the merchant guessing.
+    const carts = rows.map((a) => Object.assign({}, a, {
+      reminderState: cartRecovery.stateOf(a),
+      verdict: cartRecovery.isDue(a, settings, now),
+      dueAt: cartRecovery.dueAt(a, settings),
+    }));
+    res.render('company/abandoned', {
+      carts, company, session: req.session, settings,
+      defaults: { subject: cartRecovery.DEFAULT_SUBJECT, body: cartRecovery.DEFAULT_BODY },
+      saved: req.query.saved === '1',
+    });
   } catch (e) { console.error('[abandoned]', e.message); res.redirect('/company/dashboard'); }
+});
+
+// Saving the automatic reminder's settings. Nothing here sends anything: the
+// job is the only thing that sends, so a merchant cannot be told "تم الإرسال"
+// by a page that only wrote a row.
+router.post('/abandoned/settings', requireLogin, requireShop, async (req, res) => {
+  const b = req.body || {};
+  // Read through the same clamps the job reads, so what the page shows back is
+  // exactly what will be used — not the raw number somebody typed.
+  const s = cartRecovery.settingsFrom({
+    enabled: b.enabled === 'on' || b.enabled === '1' || b.enabled === 'true',
+    delay_minutes: b.delay_minutes, cooldown_days: b.cooldown_days, max_attempts: b.max_attempts,
+    subject: b.subject, body: b.body, coupon_code: b.coupon_code,
+  });
+  try {
+    await pool.query(
+      `INSERT INTO cart_recovery_settings
+         (company_id, enabled, delay_minutes, cooldown_days, max_attempts, subject, body, coupon_code, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+       ON CONFLICT (company_id) DO UPDATE SET
+         enabled=EXCLUDED.enabled, delay_minutes=EXCLUDED.delay_minutes,
+         cooldown_days=EXCLUDED.cooldown_days, max_attempts=EXCLUDED.max_attempts,
+         subject=EXCLUDED.subject, body=EXCLUDED.body, coupon_code=EXCLUDED.coupon_code,
+         updated_at=now()`,
+      [req.session.companyId, s.enabled, s.delayMinutes, s.cooldownDays, s.maxAttempts, s.subject, s.body, s.couponCode]
+    );
+  } catch (e) {
+    // A save that did not happen must not answer with «اتحفظ».
+    console.error('[abandoned settings save]', e.message);
+    return res.redirect('/company/abandoned?err=save');
+  }
+  res.redirect('/company/abandoned?saved=1');
 });
 
 /* ─── SALES REPORTS (phase 22) ───────────────────────────── */
