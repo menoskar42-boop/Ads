@@ -12,6 +12,7 @@ const { Pool } = require('pg');
 const requireLogin = require('../middleware/auth');
 const push = require('../lib/push');
 const { compressImage } = require('../lib/media');
+const DESK = require('../gym/desk');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -113,6 +114,116 @@ router.get('/', async (req, res) => {
 });
 
 /* ── Members + memberships ─────────────────────────────────────────────────── */
+/* ── The front desk ─────────────────────────────────────────────────────────
+ *
+ * One box, one answer, three buttons. Somebody is standing there and the queue
+ * is behind them: the desk types (or scans) whatever they have — a code, a
+ * phone, a name — and the screen says whether this person may come in, in a
+ * colour readable from across a counter.
+ *
+ * The undo matters as much as the check-in. A mis-scan at a busy desk is
+ * normal; making the fix require the reports screen is what teaches people to
+ * ignore the software.
+ */
+router.get('/desk', async (req, res) => {
+  const cid = req.company.id;
+  const term = String(req.query.q || '').trim();
+  const what = DESK.classify(term);
+  try {
+    let members = [];
+    if (what.kind !== 'empty') {
+      const withStatus = `
+        SELECT m.*,
+          (SELECT row_to_json(x) FROM (
+             SELECT ms.end_date, ms.status, ms.plan_name, ms.frozen_at FROM gym_memberships ms
+             WHERE ms.member_id=m.id AND ms.company_id=m.company_id
+             ORDER BY (ms.status='active') DESC, ms.end_date DESC LIMIT 1) x) AS latest,
+          (SELECT row_to_json(y) FROM (
+             SELECT a.id, a.checked_in_at FROM gym_attendance a
+             WHERE a.member_id=m.id AND a.company_id=m.company_id
+               AND a.day = (now() AT TIME ZONE 'Africa/Cairo')::date
+             ORDER BY a.id DESC LIMIT 1) y) AS today
+        FROM gym_members m WHERE m.company_id=$1 AND `;
+      if (what.kind === 'code') {
+        members = (await pool.query(withStatus + 'lower(btrim(m.code))=lower(btrim($2)) LIMIT 8', [cid, what.value])).rows;
+        // A scanner and a keyboard produce the same string; if the code matched
+        // nothing, the same characters might still be a name or a phone.
+        if (!members.length) {
+          members = (await pool.query(withStatus + "(m.name ILIKE $2 OR regexp_replace(coalesce(m.phone,''),'[^0-9]','','g') = $3) LIMIT 8",
+            [cid, '%' + what.value + '%', DESK.digits(what.value)])).rows;
+        }
+      } else if (what.kind === 'phone') {
+        members = (await pool.query(withStatus + "regexp_replace(coalesce(m.phone,''),'[^0-9]','','g') = $2 LIMIT 8", [cid, what.value])).rows;
+      } else {
+        members = (await pool.query(withStatus + 'm.name ILIKE $2 ORDER BY m.name LIMIT 8', [cid, '%' + what.value + '%'])).rows;
+      }
+    }
+    const now = new Date();
+    const rows = members.map((m) => {
+      const status = DESK.statusOf(m.latest, now);
+      return {
+        member: m, status, alert: DESK.alertFor(status), mayEnter: DESK.mayEnter(status),
+        today: m.today || null, canUndo: DESK.canUndo(m.today, now),
+      };
+    });
+    res.render('gym_admin/desk', {
+      company: req.company, tab: 'desk', q: term, rows,
+      // Codes the server chose — this screen echoes nothing from the address bar.
+      UNDO_MINUTES: DESK.UNDO_MINUTES,
+      done: ['in', 'already', 'undone'].includes(req.query.done) ? req.query.done : null,
+      err: ['expired', 'gone', 'late'].includes(req.query.err) ? req.query.err : null,
+    });
+  } catch (e) { console.error('[gym desk]', e.message); res.status(500).send('error'); }
+});
+
+router.post('/desk/checkin', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt((req.body || {}).member_id, 10);
+  const back = '/gym/desk?q=' + encodeURIComponent(String((req.body || {}).q || ''));
+  if (!Number.isInteger(id)) return res.redirect(back);
+  try {
+    // The membership decides, not the button: a page left open while somebody's
+    // subscription lapsed must not let them in on a stale render.
+    const m = (await pool.query(
+      `SELECT ms.end_date, ms.status, ms.frozen_at FROM gym_memberships ms
+        JOIN gym_members mm ON mm.id = ms.member_id AND mm.company_id = ms.company_id
+        WHERE ms.member_id=$1 AND ms.company_id=$2
+        ORDER BY (ms.status='active') DESC, ms.end_date DESC LIMIT 1`, [id, cid])).rows[0];
+    if (!DESK.mayEnter(DESK.statusOf(m, new Date()))) return res.redirect(back + '&err=expired');
+    // One row per member per day, decided by the index — two taps of the same
+    // card are one visit, and the second tap says so instead of failing.
+    const ins = await pool.query(
+      `INSERT INTO gym_attendance (company_id, member_id, day)
+       SELECT $1,$2,(now() AT TIME ZONE 'Africa/Cairo')::date
+        WHERE EXISTS (SELECT 1 FROM gym_members WHERE id=$2 AND company_id=$1)
+       ON CONFLICT (company_id, member_id, day) DO NOTHING RETURNING id`, [cid, id]);
+    return res.redirect(back + '&done=' + (ins.rows[0] ? 'in' : 'already'));
+  } catch (e) {
+    console.error('[gym desk checkin]', e.message);
+    return res.redirect(back + '&err=gone');
+  }
+});
+
+router.post('/desk/undo', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt((req.body || {}).attendance_id, 10);
+  const back = '/gym/desk?q=' + encodeURIComponent(String((req.body || {}).q || ''));
+  if (!Number.isInteger(id)) return res.redirect(back);
+  try {
+    // Only the tap that just happened, and only this gym's row. Past that
+    // window it is not an undo, it is editing attendance history.
+    const del = await pool.query(
+      `DELETE FROM gym_attendance
+        WHERE id=$1 AND company_id=$2
+          AND checked_in_at >= now() - ($3 || ' minutes')::interval
+        RETURNING id`, [id, cid, DESK.UNDO_MINUTES]);
+    return res.redirect(back + (del.rows[0] ? '&done=undone' : '&err=late'));
+  } catch (e) {
+    console.error('[gym desk undo]', e.message);
+    return res.redirect(back + '&err=gone');
+  }
+});
+
 router.get('/members', async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim();
