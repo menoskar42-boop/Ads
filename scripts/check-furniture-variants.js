@@ -179,10 +179,47 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   check('وصفحة الفاتورة بتقول الخيار اللي اتباع', /it\.variant_name/.test(detail));
 }
 
-/* ── ٨. الكلام باللغتين ─────────────────────────────────────────────────── */
+/* ── ٨. البيعة من شاشة واحدة ────────────────────────────────────────────── */
+{
+  // البيعة في المعرض كانت أربع شاشات: كارت عميل، فاتورة، ميعاد تسليم، وأمر
+  // تصنيع. اللي بيخلّي جمعهم في شاشة واحدة **صح** مش إن الخانات في نفس
+  // الصفحة — إنهم في **معاملة واحدة**: «الفاتورة اتحفظت والميعاد لأ» أسوأ من
+  // إن الحفظ يفشل كله.
+  const sales = code('src/routes/furniture_sales.js');
+  const post = (sales.match(/router\.post\('\/',[\s\S]*?\n\}\);/) || [''])[0];
+  check('العميل الجديد بيتكتب جوّه معاملة الفاتورة',
+    /INSERT INTO furniture_customers/.test(post)
+    && post.indexOf('INSERT INTO furniture_customers') > post.indexOf("BEGIN")
+    && post.indexOf('INSERT INTO furniture_customers') < post.indexOf("COMMIT"));
+  check('ونفس الموبايل مابيعملش كارت تاني',
+    /FROM furniture_customers WHERE company_id=\$1 AND phone=\$2/.test(post));
+  check('والتسليم والتصنيع على نفس الـclient',
+    /schedule\(client, cid/.test(post) && /P\.createOrder\(client, cid/.test(post));
+  check('وفشل أي واحد فيهم بيرجّع الفاتورة كمان',
+    /furnitureCode = 'delivery'/.test(post) && /furnitureCode = 'production'/.test(post)
+    && /ROLLBACK/.test(sales));
+  check('والاتنين ورا أعلام أقسامهم (الميزة اختيارية)',
+    /flags\.has\('delivery'\)/.test(post) && /flags\.has\('production'\)/.test(post));
+  check('وأمر التصنيع مربوط بسطر الفاتورة فمابيتكرّرش',
+    /saleItemId: l\.item_id/.test(post));
+
+  const prod = code('src/furniture/production.js');
+  check('والتكرار ممنوع من القاعدة نفسها مش من الشاشة',
+    /ON CONFLICT DO NOTHING/.test(prod));
+  const schema = raw('src/furniture/schema.js');
+  check('وفيه فهرس فريد على سطر الفاتورة',
+    /CREATE UNIQUE INDEX IF NOT EXISTS idx_furn_mo_item[\s\S]{0,160}?sale_item_id\)/.test(schema));
+
+  const view = raw('src/views/furniture_admin/sales.ejs');
+  check('والشاشة مابتعرضش قسم مقفول',
+    /flags && flags\.has\('delivery'\)/.test(view) && /flags && flags\.has\('production'\)/.test(view));
+}
+
+/* ── ٩. الكلام باللغتين ─────────────────────────────────────────────────── */
 {
   const keys = ['fn2.v.options', 'fn2.v.plain', 'fn2.v.err.spec', 'fn2.v.err.delta', 'fn2.v.no_specs',
-    'fn2.f.width_cm', 'fn2.f.material', 'fn2.f.finish'];
+    'fn2.f.width_cm', 'fn2.f.material', 'fn2.f.finish',
+    'fn2.sa.one.more', 'fn2.sa.one.new_customer_hint', 'fn2.sa.err.delivery', 'fn2.sa.err.bad_line'];
   const missing = keys.filter((k) => !strings.ar[k] || !strings.en[k]);
   check('كل مفاتيح الشاشة موجودة بالعربي والإنجليزي', missing.length === 0, missing.join(', ') || 'تمام');
 }

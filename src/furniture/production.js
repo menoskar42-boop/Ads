@@ -185,6 +185,33 @@ async function issue(pool, companyId, orderId) {
 }
 
 /**
+ * Raise one order. Takes a `db` that may be a pool OR a transaction client,
+ * because the usual caller is the invoice screen: an order raised on its own
+ * connection can fail while the invoice it belongs to succeeds, and then the
+ * showroom is looking at a bedroom nobody was told to build.
+ *
+ * `saleItemId` is what makes it safe to press twice. The unique index on
+ * (company_id, sale_item_id) means the second press writes nothing rather than
+ * queueing the same wardrobe again — and `ON CONFLICT DO NOTHING` reports that
+ * honestly instead of raising an error the screen would have to invent words
+ * for.
+ */
+async function createOrder(db, companyId, o) {
+  const r = await db.query(
+    `INSERT INTO furniture_production_orders
+       (company_id, product_id, variant_id, product_name, variant_name,
+        sale_id, sale_item_id, qty, due_date, note, branch_id)
+     SELECT $1, p.id, $3, p.name, $4, $5, $6, $7, $8, $9, $10
+       FROM furniture_products p WHERE p.id=$2 AND p.company_id=$1
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [companyId, o.productId, o.variantId || null, o.variantName || null,
+      o.saleId || null, o.saleItemId || null, Math.max(0, Number(o.qty) || 1),
+      o.dueDate || null, o.note || null, o.branchId || null]);
+  return r.rows[0] || null;
+}
+
+/**
  * What the screen should say about an order beyond its status.
  *
  * Finishing a piece whose timber never came off the shelf is allowed — a
@@ -212,4 +239,4 @@ function tally(orders, ref) {
   return t;
 }
 
-module.exports = { STATUSES, OPEN, NEXT, canMove, lateOf, planFor, issue, notesFor, tally, today, round3 };
+module.exports = { STATUSES, OPEN, NEXT, canMove, createOrder, lateOf, planFor, issue, notesFor, tally, today, round3 };

@@ -64,6 +64,59 @@
       </div>
     </div>
 
+    <%# ── العميل الجديد والتسليم والتصنيع من نفس الشاشة (البند ٨٦) ────────
+        البيعة كانت أربع شاشات. الكل هنا بيتكتب في **معاملة واحدة** مع
+        الفاتورة — «الفاتورة اتحفظت والميعاد لأ» هي الحالة اللي مش مسموحة. %>
+    <details class="border border-stone-200 rounded-2xl px-4 py-3">
+      <summary class="text-xs font-bold text-stone-600 cursor-pointer"><%= t('fn2.sa.one.more') %></summary>
+
+      <div class="grid sm:grid-cols-3 gap-3 mt-3">
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.sa.one.new_customer') %>
+          <input name="new_customer_name" maxlength="120" placeholder="<%= t('fn2.sa.one.new_customer_ph') %>"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.f.phone') %>
+          <input name="new_customer_phone" maxlength="30" dir="ltr"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.f.address') %>
+          <input name="new_customer_address" maxlength="200"
+                 class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+      </div>
+      <p class="text-[11px] text-stone-400 mt-1"><%= t('fn2.sa.one.new_customer_hint') %></p>
+
+      <%# الأقسام المقفولة مابتظهرش هنا أصلاً — الميزة اختيارية، مش مخفية بـCSS. %>
+      <% if (flags && flags.has('delivery')) { %>
+      <div class="grid sm:grid-cols-3 gap-3 mt-3 border-t border-stone-100 pt-3">
+        <label class="text-xs font-bold text-stone-600 flex items-center gap-2 sm:col-span-3">
+          <input type="checkbox" name="book_delivery" value="1" class="rounded" />
+          <%= t('fn2.sa.one.book_delivery') %>
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.date') %>
+          <input type="date" name="delivery_date" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.fee') %>
+          <input name="delivery_fee" type="number" min="0" <%- 'step="0.01"' %> class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-stone-600"><%= t('fn2.dl.kind') %>
+          <select name="delivery_kind" class="mt-1 w-full border border-stone-200 rounded-xl px-3 py-2 text-sm bg-white">
+            <option value="delivery"><%= t('fn2.dl.k.delivery') %></option>
+            <option value="install"><%= t('fn2.dl.k.install') %></option>
+          </select>
+        </label>
+      </div>
+      <% } %>
+
+      <% if (flags && flags.has('production')) { %>
+      <label class="text-xs font-bold text-stone-600 flex items-center gap-2 mt-3 border-t border-stone-100 pt-3">
+        <input type="checkbox" name="make_production" value="1" class="rounded" />
+        <%= t('fn2.sa.one.make_production') %>
+      </label>
+      <p class="text-[11px] text-stone-400 mt-1"><%= t('fn2.sa.one.make_production_hint') %></p>
+      <% } %>
+    </details>
+
     <div class="flex gap-2 flex-wrap items-center">
       <button type="button" onclick="addLine()" class="text-xs text-brand-700 font-bold px-3 py-2 rounded-xl bg-brand-50 hover:bg-brand-100"><%= t('fn2.po.add_line') %></button>
       <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-6 py-2 text-sm"><%= t('fn2.sa.create') %></button>
