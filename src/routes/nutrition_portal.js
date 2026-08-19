@@ -103,6 +103,70 @@ router.post('/logout', (req, res) => {
 // ── Everything below needs a patient ─────────────────────────────────────────
 router.use(requirePatient);
 
+/**
+ * …and, where the practice charges for the portal, a paid period.
+ *
+ * Mounted once so a page added later is covered by where it lives. Three things
+ * it deliberately does NOT do:
+ *
+ *   · it does not run at all for a practice that has not switched charging on
+ *     (the default, and the owner's standing rule);
+ *   · it does not lock somebody out because a read failed or a date could not
+ *     be parsed — a patient is looking at their own medical plan, and "unknown"
+ *     is the wrong thing to fail closed on;
+ *   · it never blocks LOGOUT, or the page that explains the situation, because
+ *     a screen you cannot leave or understand is worse than a closed one.
+ */
+const SUB = require('../nutrition/subscription');
+const SUB_FREE = ['/subscription', '/logout'];
+router.use(async (req, res, next) => {
+  if (SUB_FREE.some((p) => req.path === p || req.path.startsWith(p + '/'))) return next();
+  try {
+    const [pref, pat, sub] = await Promise.all([
+      pool.query('SELECT subscription_enabled, subscription_price, subscription_months, subscription_since FROM nutrition_settings WHERE company_id=$1', [req.practice.id]),
+      pool.query('SELECT id, created_at FROM nutrition_patients WHERE id=$1 AND company_id=$2', [req.patientId, req.practice.id]),
+      pool.query(
+        `SELECT * FROM nutrition_subscriptions WHERE patient_id=$1 AND company_id=$2 AND status='paid'
+          ORDER BY ends_on DESC LIMIT 1`, [req.patientId, req.practice.id]),
+    ]);
+    const verdict = SUB.access(pref.rows[0], pat.rows[0], sub.rows[0], new Date());
+    res.locals.subAccess = verdict;
+    if (!verdict.allowed) return res.redirect('/portal/subscription');
+  } catch (e) {
+    // Fail OPEN, loudly in the log and silently on the screen.
+    console.error('[portal subscription gate]', e.message);
+  }
+  next();
+});
+
+// The page the gate sends people to — and the only one it never guards.
+router.get('/subscription', async (req, res) => {
+  try {
+    const [pref, sub] = await Promise.all([
+      pool.query('SELECT * FROM nutrition_settings WHERE company_id=$1', [req.practice.id]),
+      pool.query(
+        'SELECT * FROM nutrition_subscriptions WHERE patient_id=$1 AND company_id=$2 ORDER BY ends_on DESC LIMIT 1',
+        [req.patientId, req.practice.id]),
+    ]);
+    const settings = pref.rows[0] || {};
+    // The ways this practice already accepts money. This screen does not invent
+    // a payment method of its own — the merchant configured theirs once.
+    let pay = { methods: [], instructions: null };
+    try {
+      pay = await require('../lib/payment_methods')
+        .loadPaymentMethods(pool, req.practice, res.locals.t || ((k) => k));
+    } catch (e) { console.error('[portal pay methods]', e.message); }
+    res.render('nutrition_portal/subscription', {
+      settings,
+      price: SUB.priceOf(settings),
+      months: Math.max(1, parseInt(settings.subscription_months, 10) || 1),
+      sub: sub.rows[0] || null,
+      state: SUB.stateOf(sub.rows[0], new Date()),
+      methods: pay.methods, instructions: pay.instructions,
+    });
+  } catch (e) { console.error('[portal subscription]', e.message); res.status(500).send('error'); }
+});
+
 /** The patient's row, their active plan and its lines. Always scoped by BOTH
  *  the session's patient id and the practice — never by a request parameter. */
 async function load(companyId, patientId, onDate) {

@@ -20,6 +20,7 @@ const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const M = require('../lib/money');
+const SUB = require('../nutrition/subscription');
 
 // A clinical figure that was typed but could not be read is not a blank. Both
 // used to come back as `null`: «٧٥» on an Arabic keyboard, «75 كجم», and an
@@ -32,7 +33,7 @@ const bad = (v) => String(v == null ? '' : v).trim() !== '' && !M.read(v).ok;
 // Codes the server chose. Printing `req.query.err` would let a link write the
 // words on a dietitian's screen.
 const NT_ERRORS = ['required', 'save', 'empty', 'unreadable', 'login_taken',
-  'no_name', 'username', 'line', 'not_empty'];
+  'no_name', 'username', 'line', 'not_empty', 'subs_off'];
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 const text = (v, max) => String(v || '').trim().slice(0, max) || null;
 
@@ -277,6 +278,67 @@ router.post('/patients/:id(\\d+)/lab/:lid(\\d+)/delete', async (req, res) => {
 // here: "Save as PDF" is in every print dialogue on every platform, and a
 // server-side PDF renderer would be a large dependency producing a worse
 // result — no selectable Arabic text, no reflow, one more thing to break.
+// ── Paid portal access (roadmap phase 6) ─────────────────────────────────────
+//
+// A renewal is a NEW ROW, never an edit: what somebody paid for and when is the
+// kind of history that gets asked about later, and an UPDATE erases it.
+router.post('/patients/:id(\\d+)/subscription', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  const b = req.body || {};
+  const settings = await P.settings(pool, cid);
+  if (!settings || !settings.subscription_enabled) {
+    // Charging is off for this practice; creating a paid period would be a
+    // charge nobody switched on.
+    return res.redirect('/nutrition/patients/' + id + '?err=subs_off');
+  }
+  const months = Math.min(36, Math.max(1, parseInt(b.months, 10) || parseInt(settings.subscription_months, 10) || 1));
+  const price = b.price != null && String(b.price).trim() !== ''
+    ? SUB.priceOf({ subscription_price: b.price })
+    : SUB.priceOf(settings);
+  const starts = date(b.starts_on) || new Date().toISOString().slice(0, 10);
+  const ends = SUB.endOf(starts, months);
+  if (!ends) return res.redirect('/nutrition/patients/' + id + '?err=unreadable');
+  const paid = b.paid === '1';
+  try {
+    await pool.query(
+      `INSERT INTO nutrition_subscriptions
+         (company_id, patient_id, price, months, starts_on, ends_on, status, method, paid_at, note)
+       SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+        WHERE EXISTS (SELECT 1 FROM nutrition_patients WHERE id=$2 AND company_id=$1)`,
+      [cid, id, price, months, starts, ends, paid ? 'paid' : 'unpaid',
+        text(b.method, 30), paid ? new Date() : null, text(b.note, 200)]
+    );
+    audit.log(pool, req, { entity: 'subscription', patientId: id, action: 'create',
+      meta: { months, price, paid } });
+  } catch (e) {
+    console.error('[nutrition subscription]', e.message);
+    return res.redirect('/nutrition/patients/' + id + '?err=save');
+  }
+  res.redirect('/nutrition/patients/' + id + '?saved=1');
+});
+
+// Marking an unpaid period as paid — the money arrived by whatever method the
+// practice already offers, and this records WHICH.
+router.post('/patients/:id(\\d+)/subscription/:subId(\\d+)/paid', async (req, res) => {
+  const cid = req.company.id;
+  const id = parseInt(req.params.id, 10);
+  try {
+    // Scoped and stateful in one statement: an already-paid period cannot be
+    // paid twice, and a row from another practice cannot be touched at all.
+    await pool.query(
+      `UPDATE nutrition_subscriptions SET status='paid', paid_at=now(), method=COALESCE($4, method)
+        WHERE id=$1 AND company_id=$2 AND patient_id=$3 AND status='unpaid'`,
+      [parseInt(req.params.subId, 10), cid, id, text((req.body || {}).method, 30)]
+    );
+    audit.log(pool, req, { entity: 'subscription', patientId: id, action: 'paid' });
+  } catch (e) {
+    console.error('[nutrition subscription paid]', e.message);
+    return res.redirect('/nutrition/patients/' + id + '?err=save');
+  }
+  res.redirect('/nutrition/patients/' + id + '?saved=1');
+});
+
 router.get('/patients/:id(\\d+)/report', async (req, res) => {
   try {
     const data = await P.file(pool, req.company.id, parseInt(req.params.id, 10));
@@ -366,16 +428,32 @@ router.post('/settings', async (req, res) => {
     await pool.query(
       `INSERT INTO nutrition_settings
          (company_id, practice_name, about, address, phone, whatsapp, hours,
-          booking_enabled, protein_per_kg, fat_percent, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+          booking_enabled, protein_per_kg, fat_percent,
+          subscription_enabled, subscription_price, subscription_months, subscription_since, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+               -- Stamped the FIRST time charging is switched on. It is what the
+               -- grace period for existing patients is measured from, so it must
+               -- not move every time the price is edited.
+               CASE WHEN $11 THEN COALESCE((SELECT subscription_since FROM nutrition_settings WHERE company_id=$1), CURRENT_DATE) ELSE NULL END,
+               now())
        ON CONFLICT (company_id) DO UPDATE SET
          practice_name=EXCLUDED.practice_name, about=EXCLUDED.about, address=EXCLUDED.address,
          phone=EXCLUDED.phone, whatsapp=EXCLUDED.whatsapp, hours=EXCLUDED.hours,
          booking_enabled=EXCLUDED.booking_enabled, protein_per_kg=EXCLUDED.protein_per_kg,
-         fat_percent=EXCLUDED.fat_percent, updated_at=now()`,
+         fat_percent=EXCLUDED.fat_percent,
+         subscription_enabled=EXCLUDED.subscription_enabled,
+         subscription_price=EXCLUDED.subscription_price,
+         subscription_months=EXCLUDED.subscription_months,
+         subscription_since=EXCLUDED.subscription_since,
+         updated_at=now()`,
       [req.company.id, text(b.practice_name, 120), text(b.about, 1500), text(b.address, 200),
         text(b.phone, 30), text(b.whatsapp, 30), text(b.hours, 200),
-        b.booking_enabled === '1', protein, fat]);
+        b.booking_enabled === '1', protein, fat,
+        // Charging is off unless the practice says so, and the price is clamped
+        // for the same reason the macros are: a typo here bills a patient.
+        b.subscription_enabled === '1',
+        SUB.priceOf({ subscription_price: b.subscription_price }),
+        Math.min(36, Math.max(1, parseInt(b.subscription_months, 10) || 1))]);
   } catch (e) {
     console.error('[nutrition settings save]', e.message);
     return res.redirect('/nutrition/settings?err=save');

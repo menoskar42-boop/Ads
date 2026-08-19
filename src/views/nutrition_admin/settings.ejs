@@ -35,6 +35,31 @@
     </div>
   </div>
 
+  <%# Charging for the portal. OFF by default, and the wording says plainly what
+      switching it on does to the patients already using it — a feature that
+      locks people out has to be described before it is enabled, not after. %>
+  <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
+    <h2 class="font-bold text-slate-800 mb-3 text-sm"><%= t('nt.set.sub_title') %></h2>
+    <label class="text-xs font-bold text-slate-600 flex items-center gap-2 mb-3">
+      <input type="checkbox" name="subscription_enabled" value="1" <%= settings.subscription_enabled ? 'checked' : '' %> class="rounded" />
+      <%= t('nt.set.sub_on') %>
+    </label>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.set.sub_price') %>
+        <input name="subscription_price" inputmode="decimal" value="<%= settings.subscription_price || '' %>"
+               class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-slate-600"><%= t('nt.set.sub_months') %>
+        <input name="subscription_months" inputmode="numeric" value="<%= settings.subscription_months || 1 %>"
+               class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+      </label>
+    </div>
+    <p class="text-xs text-slate-500 mt-3"><%= t('nt.set.sub_hint') %></p>
+    <p class="text-xs text-slate-500 mt-1"><%= t('nt.set.sub_pay_hint') %>
+      <a href="/accounting/payments" class="text-brand-700 font-bold underline"><%= t('pay.link') %></a>
+    </p>
+  </div>
+
   <div class="bg-white rounded-2xl shadow-sm p-5">
     <h2 class="font-bold text-slate-800 mb-1 text-sm"><%= t('nt.set.defaults') %></h2>
     <p class="text-xs text-slate-500 mb-3"><%= t('nt.set.defaults_hint') %></p>

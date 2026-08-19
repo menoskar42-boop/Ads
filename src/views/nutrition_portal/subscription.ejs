@@ -1,0 +1,63 @@
+<%- include('head', { title: t('np.sub.title') }) %>
+
+<%# The page a patient lands on when the practice charges for the portal and the
+    period has ended. It has one job: say what happened and how to fix it, in
+    the practice's own payment methods. It never says "pay us" — the money goes
+    to the dietitian, by the ways the dietitian already accepts. %>
+
+<h1 class="text-xl font-black text-slate-900 mb-1"><%= t('np.sub.title') %></h1>
+
+<% var st = (state && state.state) || 'none'; %>
+<% if (st === 'active') { %>
+  <div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-4 text-sm text-emerald-800">
+    <%= t('np.sub.active') %><% if (state.daysLeft != null) { %> — <%= t('np.sub.days_left').replace('%s', state.daysLeft) %><% } %>
+  </div>
+  <a href="/portal" class="inline-block bg-slate-900 text-white font-bold rounded-xl px-5 py-2.5 text-sm"><%= t('np.sub.back') %></a>
+<% } else { %>
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 mb-4 text-sm text-amber-900">
+    <%= st === 'expired' ? t('np.sub.expired') : t('np.sub.needed') %>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm p-5 mb-4">
+    <div class="text-sm text-slate-500 mb-1"><%= t('np.sub.price_label') %></div>
+    <div class="text-2xl font-black text-slate-900">
+      <%= Number(price).toLocaleString(LOC) %> <%= cur(company) %>
+      <span class="text-sm font-bold text-slate-400">/ <%= t('np.sub.months').replace('%s', months) %></span>
+    </div>
+  </div>
+
+  <h2 class="font-bold text-slate-700 text-sm mb-2"><%= t('np.sub.how') %></h2>
+  <div class="bg-white rounded-2xl shadow-sm divide-y divide-slate-100 mb-4">
+    <% (methods || []).forEach(function (m) { %>
+      <div class="p-4 flex items-center justify-between gap-3 text-sm">
+        <div>
+          <div class="font-bold text-slate-800"><%= m.label %></div>
+          <% if (m.detail) { %><div class="text-slate-500 text-xs mt-0.5" dir="ltr"><%= m.detail %></div><% } %>
+        </div>
+        <% if (m.url) { %>
+          <a href="<%= safeUrl(m.url) %>" target="_blank" rel="noopener"
+             class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-2 text-xs whitespace-nowrap"><%= t('np.sub.pay_now') %></a>
+        <% } %>
+      </div>
+    <% }); %>
+  </div>
+
+  <% if (typeof instructions !== 'undefined' && instructions) { %>
+    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm text-slate-700 whitespace-pre-line mb-4"><%= instructions %></div>
+  <% } %>
+
+  <%# The confirmation is the dietitian's, not ours: we cannot see a transfer
+      land, and a portal that unlocks itself on the patient's say-so is not a
+      paid subscription. %>
+  <p class="text-xs text-slate-500 mb-4"><%= t('np.sub.after_pay') %></p>
+  <% if (settings && settings.whatsapp) { %>
+    <a href="https://wa.me/<%= String(settings.whatsapp).replace(/[^0-9]/g, '') %>" target="_blank" rel="noopener"
+       class="inline-block bg-emerald-600 text-white font-bold rounded-xl px-5 py-2.5 text-sm"><%= t('np.sub.tell_clinic') %></a>
+  <% } %>
+<% } %>
+
+<form method="post" action="/portal/logout" class="mt-6">
+  <button class="text-xs text-slate-400 underline"><%= t('np.nav.logout') %></button>
+</form>
+
+</main></body></html>

@@ -41,6 +41,14 @@ async function ensureNutritionSchema() {
         fat_percent    NUMERIC(5,2) NOT NULL DEFAULT 25,
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      -- Paid portal access (roadmap phase 6). OFF by default: charging patients
+      -- is the practice's decision, not a default somebody discovers.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS subscription_enabled BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS subscription_price NUMERIC(10,2) NOT NULL DEFAULT 0;
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS subscription_months INTEGER NOT NULL DEFAULT 1;
+      -- WHEN the practice started charging. Patients who were already using the
+      -- portal get a grace period measured from this, not from their own start.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS subscription_since DATE;
 
       -- The practice's own staff: an assistant with a scale, somebody on the
       -- phone. Small practices, which is exactly why this matters — the
@@ -213,6 +221,26 @@ async function ensureNutritionSchema() {
       -- so it is kept apart from the plan itself: the plan is what was
       -- prescribed, this is what happened, and merging them loses the gap that
       -- the whole follow-up is about.
+      -- One paid period per patient. Renewals are new rows, so the history of
+      -- what somebody paid for stays readable — an UPDATE would erase it.
+      CREATE TABLE IF NOT EXISTS nutrition_subscriptions (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id  INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        price       NUMERIC(10,2) NOT NULL DEFAULT 0,
+        months      INTEGER NOT NULL DEFAULT 1,
+        starts_on   DATE NOT NULL DEFAULT CURRENT_DATE,
+        ends_on     DATE NOT NULL,
+        -- unpaid → paid → (expires by date) · cancelled
+        status      TEXT NOT NULL DEFAULT 'unpaid',
+        method      TEXT,                       -- cash | instapay | wallet | gateway | …
+        paid_at     TIMESTAMPTZ,
+        note        TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS nutrition_subs_idx
+        ON nutrition_subscriptions(company_id, patient_id, ends_on DESC);
+
       CREATE TABLE IF NOT EXISTS nutrition_diary (
         id         SERIAL PRIMARY KEY,
         company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

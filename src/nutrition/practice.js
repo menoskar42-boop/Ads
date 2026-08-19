@@ -53,7 +53,7 @@ async function file(pool, companyId, patientId) {
     'SELECT * FROM nutrition_patients WHERE id=$1 AND company_id=$2', [patientId, companyId])).rows[0];
   if (!patient) return null;
 
-  const [meas, labs, plans, login, prefs] = await Promise.all([
+  const [meas, labs, plans, login, prefs, subs] = await Promise.all([
     pool.query(
       `SELECT * FROM nutrition_measurements WHERE patient_id=$1 AND company_id=$2
         ORDER BY taken_on DESC, id DESC LIMIT 200`, [patientId, companyId]),
@@ -68,11 +68,22 @@ async function file(pool, companyId, patientId) {
       'SELECT id, login, is_active, last_login_at FROM nutrition_patient_users WHERE patient_id=$1 AND company_id=$2',
       [patientId, companyId]),
     settings(pool, companyId),
+    // Newest first: the current period is the one the dietitian is looking at,
+    // and the older rows are the history a renewal must not have erased.
+    pool.query(
+      `SELECT * FROM nutrition_subscriptions WHERE patient_id=$1 AND company_id=$2
+        ORDER BY ends_on DESC, id DESC LIMIT 24`, [patientId, companyId]),
   ]);
 
   const latest = meas.rows[0] || null;
+  const SUB = require('./subscription');
+  const currentSub = subs.rows.find((x) => x.status === 'paid') || subs.rows[0] || null;
   return {
     patient,
+    subscriptions: subs.rows,
+    subscription: currentSub,
+    subState: SUB.stateOf(currentSub, new Date()),
+    subAccess: SUB.access(prefs, patient, currentSub, new Date()),
     measurements: meas.rows,
     labs: labs.rows,
     plans: plans.rows,

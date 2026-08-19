@@ -274,6 +274,58 @@
     </button>
   </form>
   <p class="text-[11px] text-slate-400 mt-2"><%= t('nt.pu.reset_hint') %></p>
+
+  <%# The paid period, shown only where the practice charges. A renewal adds a
+      row; the older ones stay, because "what did they pay for and when" is
+      exactly the question that gets asked months later. %>
+  <% if (settings && settings.subscription_enabled) { %>
+    <div class="border-t border-slate-100 mt-4 pt-4">
+      <div class="flex items-center gap-2 mb-2">
+        <h3 class="font-bold text-slate-700 text-sm"><%= t('nt.sub.title') %></h3>
+        <% var __ss = (typeof subState !== 'undefined' && subState) ? subState.state : 'none'; %>
+        <span class="text-xs rounded-full px-2 py-0.5 <%= __ss === 'active' ? 'bg-emerald-100 text-emerald-800' : __ss === 'expired' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500' %>">
+          <%= t('nt.sub.state_' + (__ss === 'active' ? 'active' : __ss === 'expired' ? 'expired' : __ss === 'unpaid' ? 'unpaid' : 'none')) %><%
+            if (__ss === 'active' && subState.daysLeft != null) { %> · <%= t('nt.sub.days').replace('%s', subState.daysLeft) %><% } %>
+        </span>
+        <% if (typeof subAccess !== 'undefined' && subAccess && subAccess.reason === 'grace') { %>
+          <span class="text-xs bg-sky-100 text-sky-800 rounded-full px-2 py-0.5"><%= t('nt.sub.grace').replace('%s', subAccess.graceLeft) %></span>
+        <% } %>
+      </div>
+
+      <% (typeof subscriptions !== 'undefined' ? subscriptions : []).slice(0, 6).forEach(function (sb) { %>
+        <div class="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-slate-50 last:border-0">
+          <span class="text-slate-600"><%= String(sb.starts_on).slice(0,10) %> → <%= String(sb.ends_on).slice(0,10) %></span>
+          <span class="text-slate-800 font-bold"><%= Number(sb.price).toLocaleString(LOC) %> <%= cur(company) %></span>
+          <% if (sb.status === 'unpaid') { %>
+            <form method="post" action="/nutrition/patients/<%= patient.id %>/subscription/<%= sb.id %>/paid">
+              <button class="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1 font-bold"><%= t('nt.sub.mark_paid') %></button>
+            </form>
+          <% } else { %>
+            <span class="text-emerald-700 font-bold"><%= t('nt.sub.paid') %><%= sb.method ? (' · ' + sb.method) : '' %></span>
+          <% } %>
+        </div>
+      <% }); %>
+
+      <form method="post" action="/nutrition/patients/<%= patient.id %>/subscription" class="flex flex-wrap gap-2 items-end mt-3">
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.sub.months') %>
+          <input name="months" inputmode="numeric" value="<%= settings.subscription_months || 1 %>"
+                 class="mt-1 w-24 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.sub.price') %>
+          <input name="price" inputmode="decimal" value="<%= settings.subscription_price || '' %>"
+                 class="mt-1 w-28 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-slate-600"><%= t('nt.sub.method') %>
+          <input name="method" maxlength="30" placeholder="<%= t('nt.sub.method_ph') %>"
+                 class="mt-1 w-32 border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        </label>
+        <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5 pb-2">
+          <input type="checkbox" name="paid" value="1" class="rounded" /> <%= t('nt.sub.paid_now') %>
+        </label>
+        <button class="bg-slate-800 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('nt.sub.add') %></button>
+      </form>
+    </div>
+  <% } %>
 </div>
 <% } %>
 
