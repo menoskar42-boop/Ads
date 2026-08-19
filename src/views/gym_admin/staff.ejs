@@ -1,0 +1,88 @@
+<%- include('_layout_top', { tab: 'staff', pageTitle: 'الموظفين' }) %>
+
+<h1 class="text-xl font-black mb-1">👥 الموظفين</h1>
+<p class="text-neutral-500 text-sm mb-4">
+  الصف هنا اسم في الوردية. الصف اللي ليه اسم دخول بقى **حساب** — ومعظم الناس
+  مش محتاجين حساب أصلاً.
+</p>
+
+<% if (saved) { %><div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-emerald-500 text-black">اتحفظ.</div><% } %>
+<% if (err) { %>
+  <div class="rounded-2xl px-4 py-3 mb-4 text-sm font-bold bg-amber-500 text-black">
+    <%= err === 'no_name' ? 'اكتب الاسم الأول.'
+        : err === 'username' ? 'اسم الدخول ده مستخدم قبل كده — اختار غيره.'
+        : 'مامشيش. جرّب تاني.' %>
+  </div>
+<% } %>
+
+<div class="card rounded-2xl p-5 mb-5">
+  <h2 class="font-bold text-sm mb-3">ضيف واحد جديد</h2>
+  <form method="post" action="/gym/staff/add" class="flex flex-wrap gap-2 items-end">
+    <label class="text-xs font-bold text-neutral-400 flex-1 min-w-[160px]">الاسم
+      <input name="name" maxlength="120" required class="fld mt-1 w-full rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <label class="text-xs font-bold text-neutral-400">الدور
+      <select name="perm_role" class="fld mt-1 rounded-xl px-3 py-2 text-sm">
+        <% roles.forEach(function (r) { %>
+          <option value="<%= r %>"><%= { manager:'مدير', reception:'استقبال', cashier:'كاشير', trainer:'مدرّب' }[r] || r %></option>
+        <% }); %>
+      </select>
+    </label>
+    <label class="text-xs font-bold text-neutral-400">الموبايل
+      <input name="phone" maxlength="30" dir="ltr" class="fld mt-1 rounded-xl px-3 py-2 text-sm" />
+    </label>
+    <button class="accent-bg font-black rounded-xl px-6 py-2.5 text-sm">إضافة</button>
+  </form>
+</div>
+
+<% if (!staff.length) { %>
+  <div class="card rounded-2xl p-8 text-center text-neutral-500 text-sm">مفيش موظفين لسه.</div>
+<% } %>
+
+<% staff.forEach(function (s) { %>
+  <div class="card rounded-2xl p-5 mb-3">
+    <div class="flex items-center justify-between gap-3 mb-3">
+      <div>
+        <div class="font-black"><%= s.name %></div>
+        <div class="text-xs text-neutral-500"><%= s.phone || '' %></div>
+      </div>
+      <form method="post" action="/gym/staff/<%= s.id %>/delete" onsubmit="return confirm('تشيل <%= s.name %>؟')">
+        <button class="text-xs text-neutral-500 hover:text-red-400 font-bold">شيل</button>
+      </form>
+    </div>
+
+    <%# What the role can reach, said plainly — the owner is choosing what
+        somebody may see, so the screen has to show it rather than name a role
+        and hope. %>
+    <div class="text-[11px] text-neutral-500 mb-3">
+      <% var __r = ROLES[s.perm_role] || {}; var __lbl = { desk:'الاستقبال', members:'الأعضاء', classes:'الكلاسات', pos:'نقطة البيع', finance:'الفلوس والتقارير', settings:'الإعدادات', staff:'الموظفين' }; %>
+      <% Object.keys(__lbl).forEach(function (k) { %>
+        <span class="inline-block rounded-full px-2 py-0.5 mb-1 <%= __r[k] ? 'bg-emerald-900 text-emerald-300' : 'bg-neutral-900 text-neutral-600' %>"><%= (__r[k] ? '✓ ' : '✕ ') + __lbl[k] %></span>
+      <% }); %>
+    </div>
+
+    <form method="post" action="/gym/staff/<%= s.id %>/login" class="flex flex-wrap gap-2 items-end">
+      <label class="text-xs font-bold text-neutral-400">اسم الدخول
+        <input name="username" maxlength="60" dir="ltr" value="<%= s.username || '' %>"
+               class="fld mt-1 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-neutral-400">كلمة سر جديدة
+        <input name="password" type="password" autocomplete="new-password" placeholder="سيبها فاضية = زي ما هي"
+               class="fld mt-1 rounded-xl px-3 py-2 text-sm" />
+      </label>
+      <label class="text-xs font-bold text-neutral-400">الدور
+        <select name="perm_role" class="fld mt-1 rounded-xl px-3 py-2 text-sm">
+          <% roles.forEach(function (r) { %>
+            <option value="<%= r %>" <%= s.perm_role === r ? 'selected' : '' %>><%= { manager:'مدير', reception:'استقبال', cashier:'كاشير', trainer:'مدرّب' }[r] || r %></option>
+          <% }); %>
+        </select>
+      </label>
+      <label class="text-xs font-bold text-neutral-400 flex items-center gap-1.5 pb-2">
+        <input type="checkbox" name="login_enabled" value="1" <%= s.login_enabled ? 'checked' : '' %> class="rounded" /> يقدر يدخل
+      </label>
+      <button class="accent-bg font-black rounded-xl px-5 py-2.5 text-sm">حفظ</button>
+    </form>
+  </div>
+<% }); %>
+
+<%- include('_layout_bottom') %>

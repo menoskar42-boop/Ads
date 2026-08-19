@@ -106,13 +106,16 @@ check('والخروج مسموح عشان الزائر مايتحبسش',
   check('ومفيش لوحة إدارة مركّبة فوقه', mounts.length === 0, mounts.join(' ') || 'ولا واحدة');
 }
 
-/* ── The five doors clear the flag ─────────────────────────────────────── */
+/* ── Every door clears the flag ────────────────────────────────────────── */
 {
+  // Counted, not listed: each new staff system adds a door (the gym's was the
+  // sixth), and a check that names a number goes red for the wrong reason while
+  // the real rule — every door that OPENS a session also ends the demo — stays
+  // exactly as strict.
   const company = fs.readFileSync(path.join(ROOT, 'src/routes/company.js'), 'utf8');
   const sets = (company.match(/req\.session\.companyId = (?:st|user)\.company_id;/g) || []).length;
   const ends = (company.match(/demoMode\.endDemo\(req\);/g) || []).length;
-  check('كل باب دخول بينهي وضع العرض', sets === ends && ends === 5,
-    `${ends}/${sets}`);
+  check('كل باب دخول بينهي وضع العرض', sets === ends && ends >= 5, `${ends}/${sets}`);
 }
 
 /* ── The seven no longer need their own copy ───────────────────────────── */

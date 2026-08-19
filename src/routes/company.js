@@ -175,6 +175,12 @@ router.use((req, res, next) => {
     if (open) return next();
     return res.redirect('/nutrition');
   }
+  // And the gym's shift: the owner's pages hold the billing and the page
+  // settings, and reception has no business in either.
+  if (req.session && req.session.gymStaffId) {
+    if (open) return next();
+    return res.redirect('/gym');
+  }
   next();
 });
 
@@ -330,6 +336,33 @@ router.post('/login', loginLimiter, async (req, res) => {
         // /food picks the landing screen from the role — the kitchen tablet
         // may not open the orders list at all.
         return res.redirect('/food');
+      }
+      // Gym shift staff (reception / cashier / trainer / manager). Same door
+      // again — the scope comes from the row, never from the URL.
+      const gymR = await pool.query(
+        `SELECT gs.*, c.company_name, c.theme_color, c.slug
+         FROM gym_staff gs JOIN companies c ON c.id = gs.company_id
+         WHERE lower(gs.username) = $1 AND gs.login_enabled = true
+           AND gs.is_active = true AND c.is_active = true`,
+        [email]
+      );
+      if (gymR.rows.length) {
+        const st = gymR.rows[0];
+        const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
+        if (!ok) return renderLogin({ error: LOGIN_FAILED });
+        req.session.companyId = st.company_id;
+        demoMode.endDemo(req);
+        // Its own session key: one staff session must never be read as another
+        // system's role.
+        req.session.gymStaffId = st.id;
+        req.session.gymRole = st.perm_role || 'reception';
+        req.session.staffName = st.name || st.username;
+        req.session.companyName = st.company_name;
+        req.session.themeColor = st.theme_color;
+        req.session.companySlug = st.slug;
+        req.session.adminLang = 'ar';
+        // The landing screen follows the role — a trainer may not open the desk.
+        return res.redirect('/gym/home');
       }
       // The dietitian's practice staff (assistant / reception).
       const nutriR = await pool.query(
