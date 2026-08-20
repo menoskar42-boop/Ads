@@ -83,6 +83,8 @@ const integerOrNull = (v) => {
   const n = numberOrNull(v);
   return n == null || !Number.isInteger(n) ? null : n;
 };
+const metaText = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 160);
+const jsonLd = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
 function common(req, extra = {}) {
   return {
@@ -90,6 +92,10 @@ function common(req, extra = {}) {
     baseUrl: BASE_URL,
     providers: listProviders(),
     csrfToken: req.session?.dealsCsrfToken || '',
+    metaDescription: metaText(extra.metaDescription, req.app.locals.settings?.site_description || 'اختيارات شراء موصى بها من Deals'),
+    noindex: false,
+    structuredData: [],
+    jsonLd,
     ...extra,
   };
 }
@@ -130,7 +136,17 @@ app.get('/', async (req, res, next) => {
       `SELECT * FROM deals_articles WHERE is_published = true
        ORDER BY published_at DESC NULLS LAST, created_at DESC LIMIT 3`
     )).rows;
-    res.render('home', common(req, { products, articles, title: req.app.locals.settings.site_name }));
+    res.render('home', common(req, {
+      products, articles, title: req.app.locals.settings.site_name,
+      metaDescription: 'اختيارات منتجات وأدلة شراء مختصرة تساعدك على المقارنة واتخاذ قرار أذكى.',
+      structuredData: [{
+        '@context': 'https://schema.org', '@type': 'WebSite', name: req.app.locals.settings.site_name,
+        url: BASE_URL, inLanguage: 'ar', potentialAction: { '@type': 'SearchAction', target: `${BASE_URL}/search?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
+      }, {
+        '@context': 'https://schema.org', '@type': 'ItemList', name: 'منتجات مختارة',
+        itemListElement: products.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE_URL}/product/${encodeURIComponent(p.slug)}`, name: p.title })),
+      }],
+    }));
   } catch (e) { next(e); }
 });
 
@@ -144,7 +160,14 @@ app.get('/category/:slug', async (req, res, next) => {
        WHERE p.category_id = $1 AND p.is_published = true
        ORDER BY p.is_featured DESC, p.created_at DESC`, [category.id]
     )).rows;
-    res.render('listing', common(req, { products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}`, canonicalPath: `/category/${encodeURIComponent(category.slug)}` }));
+    res.render('listing', common(req, {
+      products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}`,
+      canonicalPath: `/category/${encodeURIComponent(category.slug)}`, metaDescription: metaText(category.description, `منتجات مختارة في تصنيف ${category.name}.`),
+      structuredData: [{ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'الرئيسية', item: BASE_URL },
+        { '@type': 'ListItem', position: 2, name: category.name, item: `${BASE_URL}/category/${encodeURIComponent(category.slug)}` },
+      ] }, { '@context': 'https://schema.org', '@type': 'ItemList', name: category.name, itemListElement: products.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE_URL}/product/${encodeURIComponent(p.slug)}`, name: p.title })) }],
+    }));
   } catch (e) { next(e); }
 });
 
@@ -157,7 +180,7 @@ app.get('/search', async (req, res, next) => {
        WHERE p.is_published = true AND (p.title ILIKE $1 OR p.short_description ILIKE $1 OR p.brand ILIKE $1)
        ORDER BY p.is_featured DESC, p.created_at DESC`, [`%${q}%`]
     )).rows : [];
-    res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}`, canonicalPath: '/search' }));
+    res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}`, canonicalPath: '/search', noindex: true, metaDescription: 'ابحث في المنتجات المختارة على Deals.' }));
   } catch (e) { next(e); }
 });
 
@@ -169,7 +192,18 @@ app.get('/product/:slug', async (req, res, next) => {
        WHERE p.slug = $1 AND p.is_published = true`, [req.params.slug]
     )).rows[0];
     if (!product) return res.status(404).render('error', common(req, { status: 404, message: 'المنتج غير موجود' }));
-    res.render('product', common(req, { product, title: `${product.title} — ${req.app.locals.settings.site_name}` }));
+    const productSchema = {
+      '@context': 'https://schema.org', '@type': 'Product', name: product.title,
+      description: metaText(product.short_description || product.full_description, product.title),
+      url: `${BASE_URL}/product/${encodeURIComponent(product.slug)}`,
+      image: product.image_url ? [product.image_url] : undefined,
+      brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+      category: product.category_name || undefined,
+      offers: product.current_price != null ? { '@type': 'Offer', priceCurrency: product.currency || 'EGP', price: Number(product.current_price).toFixed(2), availability: product.availability && /غير|نفد|out/i.test(product.availability) ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', url: product.affiliate_url } : undefined,
+    };
+    if (product.rating != null && product.review_count > 0) productSchema.aggregateRating = { '@type': 'AggregateRating', ratingValue: Number(product.rating), reviewCount: Number(product.review_count) };
+    Object.keys(productSchema).forEach((key) => productSchema[key] === undefined && delete productSchema[key]);
+    res.render('product', common(req, { product, title: `${product.title} — ${req.app.locals.settings.site_name}`, metaDescription: metaText(product.short_description || product.full_description, `${product.title} — تفاصيل ومعلومات قبل الشراء.`), structuredData: [productSchema, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'الرئيسية', item: BASE_URL }, ...(product.category_name ? [{ '@type': 'ListItem', position: 2, name: product.category_name, item: `${BASE_URL}/category/${encodeURIComponent(product.category_slug)}` }] : []), { '@type': 'ListItem', position: product.category_name ? 3 : 2, name: product.title, item: `${BASE_URL}/product/${encodeURIComponent(product.slug)}` }] }] }));
   } catch (e) { next(e); }
 });
 
@@ -177,15 +211,16 @@ app.get('/article/:slug', async (req, res, next) => {
   try {
     const article = (await pool.query('SELECT * FROM deals_articles WHERE slug = $1 AND is_published = true', [req.params.slug])).rows[0];
     if (!article) return res.status(404).render('error', common(req, { status: 404, message: 'المقال غير موجود' }));
-    res.render('article', common(req, { article, title: `${article.title} — ${req.app.locals.settings.site_name}` }));
+    res.render('article', common(req, { article, title: `${article.title} — ${req.app.locals.settings.site_name}`, metaDescription: metaText(article.excerpt, article.title), structuredData: [{ '@context': 'https://schema.org', '@type': 'Article', headline: article.title, description: metaText(article.excerpt, article.title), url: `${BASE_URL}/article/${encodeURIComponent(article.slug)}`, datePublished: article.published_at || article.created_at, dateModified: article.updated_at || article.created_at, image: article.cover_image_url ? [article.cover_image_url] : undefined, author: { '@type': 'Organization', name: req.app.locals.settings.site_name } }] }));
   } catch (e) { next(e); }
 });
 
-app.get('/about', (req, res) => res.render('legal', common(req, { title: 'عن Deals', heading: 'عن Deals', body: 'Deals منصة محتوى واكتشاف منتجات. نحن لا نبيع المنتجات ولا ننفذ الدفع أو الشحن أو المرتجعات.' })));
-app.get('/affiliate-disclosure', (req, res) => res.render('legal', common(req, { title: 'إفصاح Affiliate', heading: 'إفصاح Affiliate', body: 'As an Amazon Associate I earn from qualifying purchases. قد نحصل على عمولة عند شراء منتج من خلال بعض الروابط، دون تكلفة إضافية عليك.' })));
-app.get('/privacy', (req, res) => res.render('legal', common(req, { title: 'سياسة الخصوصية', heading: 'سياسة الخصوصية', body: 'نستخدم البيانات اللازمة لتشغيل الموقع وتحسينه. لا نطلب بيانات دفع، ولا ننفذ عمليات شراء داخل Deals.' })));
-app.get('/terms', (req, res) => res.render('legal', common(req, { title: 'الشروط', heading: 'الشروط والأحكام', body: 'المعلومات والأسعار والتوافر قد تتغير لدى المتجر الخارجي. يجب مراجعة تفاصيل المنتج النهائية على موقع البائع قبل الشراء.' })));
-app.get('/contact', (req, res) => res.render('legal', common(req, { title: 'تواصل معنا', heading: 'تواصل معنا', body: 'للاستفسارات أو تصحيح محتوى، استخدم قناة التواصل المعتمدة لدى مالك Deals.' })));
+const legalPage = (req, res, title, heading, body) => res.render('legal', common(req, { title, heading, body, noindex: true, metaDescription: `${heading} — Deals` }));
+app.get('/about', (req, res) => legalPage(req, res, 'عن Deals', 'عن Deals', 'Deals منصة محتوى واكتشاف منتجات. نحن لا نبيع المنتجات ولا ننفذ الدفع أو الشحن أو المرتجعات.'));
+app.get('/affiliate-disclosure', (req, res) => legalPage(req, res, 'إفصاح Affiliate', 'إفصاح Affiliate', 'As an Amazon Associate I earn from qualifying purchases. قد نحصل على عمولة عند شراء منتج من خلال بعض الروابط، دون تكلفة إضافية عليك.'));
+app.get('/privacy', (req, res) => legalPage(req, res, 'سياسة الخصوصية', 'سياسة الخصوصية', 'نستخدم البيانات اللازمة لتشغيل الموقع وتحسينه. لا نطلب بيانات دفع، ولا ننفذ عمليات شراء داخل Deals.'));
+app.get('/terms', (req, res) => legalPage(req, res, 'الشروط', 'الشروط والأحكام', 'المعلومات والأسعار والتوافر قد تتغير لدى المتجر الخارجي. يجب مراجعة تفاصيل المنتج النهائية على موقع البائع قبل الشراء.'));
+app.get('/contact', (req, res) => legalPage(req, res, 'تواصل معنا', 'تواصل معنا', 'للاستفسارات أو تصحيح محتوى، استخدم قناة التواصل المعتمدة لدى مالك Deals.'));
 
 app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${BASE_URL}/sitemap.xml\n`));
 app.get('/sitemap.xml', async (req, res, next) => {
@@ -195,11 +230,14 @@ app.get('/sitemap.xml', async (req, res, next) => {
       pool.query('SELECT slug FROM deals_categories WHERE is_published = true'),
       pool.query('SELECT slug, updated_at FROM deals_articles WHERE is_published = true'),
     ]);
-    const urls = ['', 'about', 'affiliate-disclosure', 'privacy', 'terms', 'contact',
-      ...products.rows.map((p) => `product/${encodeURIComponent(p.slug)}`),
-      ...categories.rows.map((c) => `category/${encodeURIComponent(c.slug)}`),
-      ...articles.rows.map((a) => `article/${encodeURIComponent(a.slug)}`)];
-    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${BASE_URL}/${u}</loc></url>`).join('')}</urlset>`);
+    const escapeXml = (value) => String(value).replace(/[<>&'"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char]));
+    const urls = [
+      { path: '', updatedAt: null },
+      ...products.rows.map((p) => ({ path: `product/${encodeURIComponent(p.slug)}`, updatedAt: p.updated_at })),
+      ...categories.rows.map((c) => ({ path: `category/${encodeURIComponent(c.slug)}`, updatedAt: null })),
+      ...articles.rows.map((a) => ({ path: `article/${encodeURIComponent(a.slug)}`, updatedAt: a.updated_at || a.published_at })),
+    ];
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${escapeXml(`${BASE_URL}/${u.path}`)}</loc>${u.updatedAt ? `<lastmod>${new Date(u.updatedAt).toISOString()}</lastmod>` : ''}</url>`).join('')}</urlset>`);
   } catch (e) { next(e); }
 });
 
