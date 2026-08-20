@@ -131,21 +131,21 @@
       <% if (allImages.length === 0) { %>
         <div class="w-full aspect-square bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300"><%= t('common.image') %></div>
       <% } else { %>
-        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" fetchpriority="high" decoding="async" class="w-full aspect-square object-cover rounded-2xl mb-3 <%= __on('zoom') ? 'cursor-zoom-in' : '' %>" <%= __on('zoom') ? 'onclick=odvOpenZoom()' : '' %> <%= __on('zoom') ? 'title=اضغط للتكبير' : '' %> />
+        <img id="mainImage" src="<%= allImages[0].url %>" alt="<%= pName %>" fetchpriority="high" decoding="async" class="w-full aspect-square object-cover rounded-2xl mb-3 <%= __on('zoom') ? 'cursor-zoom-in' : '' %>" <%= __on('zoom') ? 'onclick=odvOpenZoom()' : '' %> <%= __on('zoom') ? 'title="' + t('sf.p.zoom') + '"' : '' %> />
         <% if (allImages.length > 1) { %>
           <div class="grid grid-cols-5 gap-2" id="thumbRow">
             <% allImages.forEach((img, i) => { %>
-              <img src="<%= img.url %>" alt="<%= pName %> — صورة <%= i + 1 %>" data-idx="<%= i %>" loading="lazy" decoding="async" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 <%= i === 0 ? 'border-gray-800' : 'border-transparent' %> hover:border-gray-300" onclick="odvSetImg(<%= i %>)" />
+              <img src="<%= img.url %>" alt="<%= pName %> — <%= t('sf.p.image') %> <%= i + 1 %>" data-idx="<%= i %>" loading="lazy" decoding="async" class="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-80 transition border-2 <%= i === 0 ? 'border-gray-800' : 'border-transparent' %> hover:border-gray-300" onclick="odvSetImg(<%= i %>)" />
             <% }) %>
           </div>
         <% } %>
 
         <!-- Zoom lightbox (phase 3): fullscreen, click-to-zoom, prev/next, swipe, keyboard -->
         <div id="odvLightbox" class="fixed inset-0 z-[100] bg-black/90 hidden items-center justify-center" onclick="odvCloseZoom(event)">
-          <button type="button" class="absolute top-4 end-4 text-white/90 text-3xl leading-none w-10 h-10" aria-label="إغلاق" onclick="odvCloseZoom()">✕</button>
+          <button type="button" class="absolute top-4 end-4 text-white/90 text-3xl leading-none w-10 h-10" aria-label="<%= t('sf.p.close') %>" onclick="odvCloseZoom()">✕</button>
           <% if (allImages.length > 1) { %>
-            <button type="button" class="absolute start-3 top-1/2 -translate-y-1/2 text-white/90 text-5xl leading-none w-12 h-12" aria-label="السابق" onclick="event.stopPropagation();odvNav(-1)">‹</button>
-            <button type="button" class="absolute end-3 top-1/2 -translate-y-1/2 text-white/90 text-5xl leading-none w-12 h-12" aria-label="التالي" onclick="event.stopPropagation();odvNav(1)">›</button>
+            <button type="button" class="absolute start-3 top-1/2 -translate-y-1/2 text-white/90 text-5xl leading-none w-12 h-12" aria-label="<%= t('sf.p.prev') %>" onclick="event.stopPropagation();odvNav(-1)">‹</button>
+            <button type="button" class="absolute end-3 top-1/2 -translate-y-1/2 text-white/90 text-5xl leading-none w-12 h-12" aria-label="<%= t('sf.p.next') %>" onclick="event.stopPropagation();odvNav(1)">›</button>
           <% } %>
           <img id="odvLightboxImg" alt="<%= pName %>" class="max-w-[92vw] max-h-[88vh] object-contain transition-transform duration-200" style="cursor:zoom-in" onclick="event.stopPropagation();odvToggleZoom()" />
         </div>
@@ -191,7 +191,7 @@
 
       <% if (product.video_url) { %>
         <video src="<%= product.video_url %>" controls preload="metadata" playsinline
-          class="w-full rounded-2xl mt-3 bg-black" aria-label="<%= pName %> — فيديو">
+          class="w-full rounded-2xl mt-3 bg-black" aria-label="<%= pName %> — <%= t('sf.p.video') %>">
         </video>
       <% } %>
     </div>
@@ -206,18 +206,20 @@
       <div class="mb-4">
         <div class="text-3xl font-black brand-text" data-base="<%= __dealPrice %>">
           <% if (__deal) { %><span class="text-lg text-gray-400 line-through font-bold me-2"><%= __basePrice.toFixed(2) %></span><% } %>
-          <span id="pPriceVal"><%= __dealPrice.toFixed(2) %></span> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || 'كجم' %></span><% } %>
+          <span id="pPriceVal"><%= __dealPrice.toFixed(2) %></span> <%= company.currency || 'EGP' %><% if (product.sale_type === 'weight') { %> <span class="text-base font-bold text-gray-400">/ <%= product.weight_unit || t('sf.p.kg') %></span><% } %>
           <% if (__deal) { %><span class="text-sm bg-rose-100 text-rose-600 rounded-lg px-2 py-1 ms-1 font-bold">-<%= __deal.discount_pct %>%</span><% } %>
         </div>
         <% if (__deal && __deal.ends_at) { %>
-        <div class="mt-2 inline-flex items-center gap-1.5 bg-gray-900 text-white text-xs font-bold rounded-lg px-3 py-1.5">⏳ ينتهي العرض خلال <span id="dealCountdown" data-ends="<%= new Date(__deal.ends_at).toISOString() %>">—</span></div>
+        <div class="mt-2 inline-flex items-center gap-1.5 bg-gray-900 text-white text-xs font-bold rounded-lg px-3 py-1.5">⏳ <%= t('sf.p.deal_ends') %> <span id="dealCountdown" data-ends="<%= new Date(__deal.ends_at).toISOString() %>">—</span></div>
         <script>
         (function(){
           var el=document.getElementById('dealCountdown'); if(!el) return;
+          var U=<%- jsonLd({ d: t('sf.t.d'), h: t('sf.t.h'), m: t('sf.t.m'), s: t('sf.t.s') }) %>;
           var ends=new Date(el.dataset.ends).getTime();
-          function tick(){ var d=ends-Date.now(); if(d<=0){ el.textContent='انتهى'; return; }
+          function tick(){ var d=ends-Date.now(); if(d<=0){ el.textContent=<%- jsonLd(t('sf.p.deal_over')) %>; return; }
             var h=Math.floor(d/3.6e6), m=Math.floor(d%3.6e6/6e4), s=Math.floor(d%6e4/1000);
-            var dd=Math.floor(h/24); el.textContent=(dd>0?dd+'ي ':'')+(h%24)+'س '+m+'د '+s+'ث'; }
+            var dd=Math.floor(h/24);
+            el.textContent=(dd>0?dd+U.d+' ':'')+(h%24)+U.h+' '+m+U.m+' '+s+U.s; }
           tick(); setInterval(tick,1000);
         })();
         </script>
@@ -241,19 +243,19 @@
           <% if (typeof variants !== 'undefined' && variants.length) { %>
             <input type="hidden" name="variant_id" id="variantInput" value="" />
             <div class="mb-4">
-              <div class="text-sm font-semibold text-gray-600 mb-2">اختر الخيار</div>
+              <div class="text-sm font-semibold text-gray-600 mb-2"><%= t('sf.p.pick_option') %></div>
               <div class="flex flex-wrap gap-2" id="variantRow">
                 <% variants.forEach(function(v){ %>
                   <button type="button" class="variant-opt inline-block border border-gray-300 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-500 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                    data-id="<%= v.id %>" data-delta="<%= Number(v.price_delta) %>" data-stock="<%= v.stock %>" data-image="<%= v.image_url || '' %>" <%= v.stock <= 0 ? 'disabled' : '' %>><%= v.label %><%= v.stock <= 0 ? ' (نفد)' : '' %></button>
+                    data-id="<%= v.id %>" data-delta="<%= Number(v.price_delta) %>" data-stock="<%= v.stock %>" data-image="<%= v.image_url || '' %>" <%= v.stock <= 0 ? 'disabled' : '' %>><%= v.label %><%= v.stock <= 0 ? ' (' + t('sf.p.sold_out') + ')' : '' %></button>
                 <% }); %>
               </div>
-              <p id="variantHint" class="text-xs text-amber-600 mt-2">اختر خيار قبل الإضافة للسلة.</p>
+              <p id="variantHint" class="text-xs text-amber-600 mt-2"><%= t('sf.p.pick_first') %></p>
             </div>
           <% } %>
           <% if (sizeList.length) { %>
             <div class="mb-4">
-              <div class="text-sm font-semibold text-gray-600 mb-2">اختر المقاس</div>
+              <div class="text-sm font-semibold text-gray-600 mb-2"><%= t('sf.p.pick_size') %></div>
               <div class="flex flex-wrap gap-2">
                 <% sizeList.forEach(function(sz, i){ %>
                   <label class="cursor-pointer">
@@ -267,19 +269,19 @@
           <div class="flex items-center gap-3">
             <input type="number" name="quantity" value="1" min="1" max="<%= product.stock %>"
               class="w-20 border border-gray-200 rounded-xl px-3 py-2.5 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-            <% if (product.sale_type === 'weight') { %><span class="text-sm text-gray-500"><%= product.weight_unit || 'كجم' %></span><% } %>
+            <% if (product.sale_type === 'weight') { %><span class="text-sm text-gray-500"><%= product.weight_unit || t('sf.p.kg') %></span><% } %>
             <button type="submit" id="addBtn" class="brand-btn text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow flex-1">
               <%= t('public.add_to_cart') %>
             </button>
           </div>
-          <button type="submit" name="buy_now" value="1" class="w-full mt-2 bg-amber-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-amber-600 transition shadow">⚡ اشترِ الآن</button>
+          <button type="submit" name="buy_now" value="1" class="w-full mt-2 bg-amber-500 text-white font-bold px-6 py-3 rounded-xl hover:bg-amber-600 transition shadow">⚡ <%= t('sf.p.buy_now') %></button>
         </form>
         <% if (__on('whatsapp_order') && company.whatsapp_number) { %>
-        <a href="https://wa.me/<%= company.whatsapp_number %>?text=<%= encodeURIComponent('السلام عليكم، حابب أطلب: ' + pName + ' — السعر: ' + Number(product.price).toFixed(2) + ' ' + (company.currency || 'ج')) %>"
+        <a href="https://wa.me/<%= company.whatsapp_number %>?text=<%= encodeURIComponent(t('sf.p.wa_text') + pName + t('sf.p.wa_price') + Number(product.price).toFixed(2) + ' ' + (company.currency || 'ج')) %>"
            target="_blank" rel="nofollow noopener"
            class="w-full mt-2 flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition shadow">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.02c-.24.68-1.42 1.31-1.95 1.36-.53.05-1.02.24-3.43-.72-2.9-1.15-4.76-4.12-4.9-4.31-.14-.19-1.17-1.56-1.17-2.97 0-1.41.74-2.11 1-2.4.26-.29.57-.36.76-.36.19 0 .38 0 .55.01.18.01.42-.07.65.5.24.58.81 2 .88 2.14.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.17-.29.38-.42.51-.14.14-.28.29-.12.57.16.28.72 1.18 1.54 1.91 1.06.94 1.95 1.24 2.23 1.38.28.14.44.12.6-.07.17-.19.69-.8.87-1.08.18-.28.36-.23.61-.14.25.09 1.6.76 1.87.9.28.14.46.21.53.33.07.12.07.68-.17 1.36z"/></svg>
-          اطلب على واتساب
+          <%= t('sf.p.wa_order') %>
         </a>
         <% } %>
         <% if (__on('subscriptions') && product.subscribable) {
@@ -290,7 +292,7 @@
           <input type="hidden" name="product_id" value="<%= product.id %>" />
           <input type="hidden" name="quantity" value="1" />
           <button type="submit" class="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-indigo-700 transition shadow">
-            🔁 اشترك — يوصلك كل <%= Number(product.sub_interval_days) || 30 %> يوم<% if (__subPct > 0) { %> (وفّر <%= __subPct %>% · <%= __subUnit %> <%= company.currency || 'ج' %>)<% } %>
+            🔁 <%= t('sf.p.subscribe') %> — <%= t('sf.p.sub_every') %> <%= Number(product.sub_interval_days) || 30 %> <%= t('sf.p.sub_day') %><% if (__subPct > 0) { %> (<%= t('sf.p.sub_save') %> <%= __subPct %>% · <%= __subUnit %> <%= company.currency || 'ج' %>)<% } %>
           </button>
         </form>
         <% } %>
@@ -327,12 +329,12 @@
         <!-- Out of stock → notify me when back (phase 18) -->
         <div class="mt-auto bg-gray-50 border border-gray-200 rounded-2xl p-4">
           <% if (typeof notified !== 'undefined' && notified) { %>
-            <div class="text-emerald-600 text-sm font-bold">تمام! هنبلّغك على الإيميل أول ما المنتج يتوفّر ✅</div>
+            <div class="text-emerald-600 text-sm font-bold"><%= t('sf.p.notify_ok') %> ✅</div>
           <% } else { %>
-            <div class="text-sm font-semibold text-gray-700 mb-2">المنتج نفد — عايز نبلّغك أول ما يرجع؟</div>
+            <div class="text-sm font-semibold text-gray-700 mb-2"><%= t('sf.p.notify_ask') %></div>
             <form method="post" action="/shop/<%= company.slug %>/product/<%= product.id %>/notify-stock" class="flex gap-2">
-              <input type="email" name="email" required placeholder="إيميلك" dir="ltr" class="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
-              <button class="bg-gray-800 text-white font-bold rounded-xl px-4 py-2.5 text-sm whitespace-nowrap">أبلغني</button>
+              <input type="email" name="email" required placeholder="<%= t('sf.p.your_email') %>" dir="ltr" class="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              <button class="bg-gray-800 text-white font-bold rounded-xl px-4 py-2.5 text-sm whitespace-nowrap"><%= t('sf.p.notify_me') %></button>
             </form>
           <% } %>
         </div>
@@ -348,17 +350,17 @@
     function starRow(n){ var s=''; for(var i=1;i<=5;i++){ s += (i <= Math.round(n)) ? '★' : '☆'; } return s; }
   %>
   <section id="reviews" class="mt-8 border-t border-gray-100 pt-6">
-    <h2 class="text-xl font-extrabold text-gray-900 mb-4">تقييمات العملاء</h2>
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4"><%= t('sf.p.reviews') %></h2>
 
     <% if (reviewSent) { %>
-      <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">شكراً! تم نشر تقييمك ✅</div>
+      <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm"><%= t('sf.p.review_thanks') %> ✅</div>
     <% } %>
 
     <div class="grid sm:grid-cols-3 gap-6 mb-6">
       <div class="text-center sm:text-start">
         <div class="text-4xl font-black text-gray-900"><%= __rc ? __avg.toFixed(1) : '—' %></div>
         <div class="text-amber-400 text-lg leading-none mt-1"><%= starRow(__avg) %></div>
-        <div class="text-xs text-gray-500 mt-1"><%= __rc %> تقييم</div>
+        <div class="text-xs text-gray-500 mt-1"><%= __rc %> <%= t('sf.p.rating') %></div>
       </div>
       <div class="sm:col-span-2 space-y-1.5">
         <% for (var s = 5; s >= 1; s--) { var n = (reviewBreakdown && reviewBreakdown[s]) || 0; var pct = __rc ? Math.round(n / __rc * 100) : 0; %>
@@ -373,14 +375,14 @@
 
     <% if (canReview) { %>
       <form method="post" action="/shop/<%= company.slug %>/product/<%= product.id %>/review" class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-6">
-        <div class="font-bold text-gray-800 text-sm mb-2">اكتب تقييمك (إنت اشتريت المنتج ده ✓)</div>
+        <div class="font-bold text-gray-800 text-sm mb-2"><%= t('sf.p.write_review') %> (<%= t('sf.p.bought_only') %> ✓)</div>
         <div class="mb-2" id="starPick" dir="ltr" style="font-size:26px;color:#f59e0b;cursor:pointer;user-select:none;display:inline-flex;gap:2px">
           <% for (var i = 1; i <= 5; i++) { %><span data-v="<%= i %>">☆</span><% } %>
         </div>
         <input type="hidden" name="rating" id="ratingInput" value="0" required />
-        <input name="title" maxlength="120" placeholder="عنوان (اختياري)" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2" />
-        <textarea name="body" rows="3" maxlength="1500" placeholder="رأيك في المنتج…" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2"></textarea>
-        <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2 text-sm hover:bg-indigo-800">نشر التقييم</button>
+        <input name="title" maxlength="120" placeholder="<%= t('sf.p.title_opt') %>" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2" />
+        <textarea name="body" rows="3" maxlength="1500" placeholder="<%= t('sf.p.your_opinion') %>" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm mb-2"></textarea>
+        <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2 text-sm hover:bg-indigo-800"><%= t('sf.p.publish_review') %></button>
       </form>
       <script>
       (function(){
@@ -398,7 +400,7 @@
     <% } %>
 
     <% if (!reviews.length) { %>
-      <p class="text-gray-400 text-sm">لسه مفيش تقييمات — كن أول من يقيّم بعد الشراء.</p>
+      <p class="text-gray-400 text-sm"><%= t('sf.p.no_reviews') %></p>
     <% } else { %>
       <div class="space-y-4">
         <% reviews.forEach(function(r){ %>
@@ -406,7 +408,7 @@
             <div class="flex items-center gap-2 mb-1">
               <span class="text-amber-400 text-sm leading-none"><%= starRow(r.rating) %></span>
               <span class="font-bold text-gray-800 text-sm"><%= r.author %></span>
-              <% if (r.verified) { %><span class="text-[10px] bg-emerald-50 text-emerald-600 rounded px-1.5 py-0.5">شراء موثّق</span><% } %>
+              <% if (r.verified) { %><span class="text-[10px] bg-emerald-50 text-emerald-600 rounded px-1.5 py-0.5"><%= t('sf.p.verified') %></span><% } %>
             </div>
             <% if (r.title) { %><div class="font-semibold text-gray-800 text-sm"><%= r.title %></div><% } %>
             <% if (r.body) { %><div class="text-sm text-gray-600 mt-0.5 whitespace-pre-line"><%= r.body %></div><% } %>
@@ -420,22 +422,22 @@
   <!-- Q&A (phase 17) -->
   <% if (__on('qa')) { %>
   <section id="qa" class="mt-8 border-t border-gray-100 pt-6">
-    <h2 class="text-xl font-extrabold text-gray-900 mb-4">أسئلة وأجوبة</h2>
-    <% if (typeof asked !== 'undefined' && asked) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm">اتبعت سؤالك — هيتم الرد قريباً ✅</div><% } %>
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4"><%= t('sf.p.qa') %></h2>
+    <% if (typeof asked !== 'undefined' && asked) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-4 text-sm"><%= t('sf.p.q_sent') %> ✅</div><% } %>
     <form method="post" action="/shop/<%= company.slug %>/product/<%= product.id %>/question" class="bg-gray-50 border border-gray-200 rounded-2xl p-4 mb-5 grid gap-2">
-      <% if (!customerId) { %><input name="author_name" maxlength="60" placeholder="اسمك (اختياري)" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" /><% } %>
-      <textarea name="question" rows="2" required maxlength="500" placeholder="اسأل عن المنتج…" class="border border-gray-200 rounded-xl px-3 py-2 text-sm"></textarea>
-      <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2 text-sm w-fit">اسأل</button>
+      <% if (!customerId) { %><input name="author_name" maxlength="60" placeholder="<%= t('sf.p.your_name_opt') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm" /><% } %>
+      <textarea name="question" rows="2" required maxlength="500" placeholder="<%= t('sf.p.ask_about') %>" class="border border-gray-200 rounded-xl px-3 py-2 text-sm"></textarea>
+      <button class="bg-indigo-700 text-white font-bold rounded-xl px-6 py-2 text-sm w-fit"><%= t('sf.p.ask') %></button>
     </form>
     <% if (!questions.length) { %>
-      <p class="text-gray-400 text-sm">لسه مفيش أسئلة — اسأل أول سؤال.</p>
+      <p class="text-gray-400 text-sm"><%= t('sf.p.no_q') %></p>
     <% } else { %>
       <div class="space-y-4">
         <% questions.forEach(function(q){ %>
         <div class="border-b border-gray-100 pb-3 last:border-0">
           <div class="text-sm font-bold text-gray-800">❓ <%= q.question %></div>
-          <div class="text-xs text-gray-400"><%= q.author_name || 'زائر' %></div>
-          <% if (q.answer) { %><div class="mt-1.5 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-700"><span class="text-emerald-600 font-bold">↳ رد البائع:</span> <%= q.answer %></div><% } %>
+          <div class="text-xs text-gray-400"><%= q.author_name || t('sf.p.visitor') %></div>
+          <% if (q.answer) { %><div class="mt-1.5 bg-gray-50 rounded-xl px-3 py-2 text-sm text-gray-700"><span class="text-emerald-600 font-bold">↳ <%= t('sf.p.seller_reply') %>:</span> <%= q.answer %></div><% } %>
         </div>
         <% }); %>
       </div>
@@ -446,15 +448,15 @@
   <!-- Recommendations (phase 5) -->
   <% if (__on('recommendations') && typeof recommended !== 'undefined' && recommended.length) { %>
   <section class="mt-8 border-t border-gray-100 pt-6">
-    <h2 class="text-xl font-extrabold text-gray-900 mb-4">قد يعجبك أيضاً</h2>
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4"><%= t('sf.p.you_may_like') %></h2>
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
       <% recommended.forEach(function(r){ %>
         <a href="/shop/<%= company.slug %>/product/<%= r.id %>" class="block group">
           <div class="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-1.5">
-            <% if (r.image) { %><img src="<%= r.image %>" alt="<%= r.name %>" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition" /><% } else { %><div class="w-full h-full flex items-center justify-center text-gray-300 text-xs">صورة</div><% } %>
+            <% if (r.image) { %><img src="<%= r.image %>" alt="<%= r.name %>" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition" /><% } else { %><div class="w-full h-full flex items-center justify-center text-gray-300 text-xs"><%= t('sf.p.image') %></div><% } %>
           </div>
           <div class="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug"><%= r.name %></div>
-          <div class="text-xs font-bold text-emerald-600 mt-0.5"><%= Number(r.price).toLocaleString('ar-EG') %> ج</div>
+          <div class="text-xs font-bold text-emerald-600 mt-0.5"><%= Number(r.price).toLocaleString(LOC) %> <%= company.currency || 'ج' %></div>
         </a>
       <% }); %>
     </div>
@@ -464,7 +466,7 @@
   <!-- Recently viewed (phase 7) — client-side, last 10 products in this browser -->
   <% if (__on('recently_viewed')) { %>
   <section id="recentViewed" class="mt-8 border-t border-gray-100 pt-6" hidden>
-    <h2 class="text-xl font-extrabold text-gray-900 mb-4">شوهدت مؤخراً</h2>
+    <h2 class="text-xl font-extrabold text-gray-900 mb-4"><%= t('sf.p.recently_viewed') %></h2>
     <div id="recentGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3"></div>
   </section>
   <script>
@@ -476,8 +478,8 @@
     var others = list.filter(function (x) { return x && x.id !== cur.id; }).slice(0, 10);
     if (others.length) {
       document.getElementById('recentGrid').innerHTML = others.map(function (r) {
-        var img = r.image ? '<img src="' + esc(r.image) + '" loading="lazy" class="w-full h-full object-cover">' : '<div class="w-full h-full flex items-center justify-center text-gray-300 text-xs">صورة</div>';
-        return '<a href="' + esc(r.url) + '" class="block group"><div class="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-1.5">' + img + '</div><div class="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug">' + esc(r.name) + '</div><div class="text-xs font-bold text-emerald-600 mt-0.5">' + Number(r.price).toLocaleString('ar-EG') + ' ج</div></a>';
+        var img = r.image ? '<img src="' + esc(r.image) + '" loading="lazy" class="w-full h-full object-cover">' : '<div class="w-full h-full flex items-center justify-center text-gray-300 text-xs">' + <%- jsonLd(t('sf.p.image')) %> + '</div>';
+        return '<a href="' + esc(r.url) + '" class="block group"><div class="aspect-square rounded-xl overflow-hidden bg-gray-100 mb-1.5">' + img + '</div><div class="text-xs font-semibold text-gray-800 line-clamp-2 leading-snug">' + esc(r.name) + '</div><div class="text-xs font-bold text-emerald-600 mt-0.5">' + Number(r.price).toLocaleString(<%- jsonLd(LOC) %>) + ' <%= company.currency || "ج" %></div></a>';
       }).join('');
       document.getElementById('recentViewed').hidden = false;
     }

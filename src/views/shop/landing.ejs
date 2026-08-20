@@ -40,39 +40,39 @@
       <h1 class="text-2xl font-extrabold text-gray-900 mb-2"><%= pName %></h1>
       <div class="flex items-baseline gap-3 mb-4">
         <span class="text-3xl font-black text-emerald-600"><%= showPrice.toFixed(2) %> <span class="text-lg"><%= cur %></span></span>
-        <% if (oldPrice) { %><span class="text-gray-400 line-through text-lg"><%= oldPrice.toFixed(2) %></span><span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">خصم <%= deal.discount_pct %>%</span><% } %>
+        <% if (oldPrice) { %><span class="text-gray-400 line-through text-lg"><%= oldPrice.toFixed(2) %></span><span class="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full"><%= deal.discount_pct %>% <%= t('sf.ld.discount') %></span><% } %>
       </div>
       <% if (product.description) { %><p class="text-gray-600 leading-relaxed mb-5 whitespace-pre-line"><%= product.description %></p><% } %>
 
       <!-- trust badges -->
       <div class="grid grid-cols-3 gap-2 mb-5 text-center">
-        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">🚚</div><div class="text-xs text-gray-500 mt-1">شحن لكل المحافظات</div></div>
-        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">💵</div><div class="text-xs text-gray-500 mt-1">الدفع عند الاستلام</div></div>
-        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">↩️</div><div class="text-xs text-gray-500 mt-1">استبدال سهل</div></div>
+        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">🚚</div><div class="text-xs text-gray-500 mt-1"><%= t('sf.ld.ship') %></div></div>
+        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">💵</div><div class="text-xs text-gray-500 mt-1"><%= t('sf.ld.cod') %></div></div>
+        <div class="bg-gray-50 rounded-xl p-3"><div class="text-xl">↩️</div><div class="text-xs text-gray-500 mt-1"><%= t('sf.ld.return') %></div></div>
       </div>
 
       <% if (product.stock > 0) { %>
       <form method="POST" action="/shop/<%= company.slug %>/cart/add">
         <input type="hidden" name="product_id" value="<%= product.id %>" />
         <input type="hidden" name="quantity" value="1" />
-        <button type="submit" name="buy_now" value="1" class="w-full bg-amber-500 text-white font-black text-lg px-6 py-4 rounded-xl hover:bg-amber-600 transition shadow-lg">⚡ اطلب الآن — الدفع عند الاستلام</button>
+        <button type="submit" name="buy_now" value="1" class="w-full bg-amber-500 text-white font-black text-lg px-6 py-4 rounded-xl hover:bg-amber-600 transition shadow-lg">⚡ <%= t('sf.ld.order_now') %> — <%= t('sf.ld.order_cod') %></button>
       </form>
       <% if (company.whatsapp_number) { %>
-      <a href="https://wa.me/<%= company.whatsapp_number %>?text=<%= encodeURIComponent('حابب أطلب: ' + pName + ' — ' + showPrice.toFixed(2) + ' ' + cur) %>" target="_blank" rel="nofollow noopener"
+      <a href="https://wa.me/<%= company.whatsapp_number %>?text=<%= encodeURIComponent(t('sf.p.wa_text') + pName + ' — ' + showPrice.toFixed(2) + ' ' + cur) %>" target="_blank" rel="nofollow noopener"
          class="mt-2 w-full flex items-center justify-center gap-2 bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38c1.45.79 3.08 1.21 4.79 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2z"/></svg>
-        اطلب على واتساب
+        <%= t('sf.ld.wa') %>
       </a>
       <% } %>
       <% } else { %>
-      <div class="w-full bg-gray-100 text-gray-500 font-bold text-center px-6 py-4 rounded-xl">نفد المخزون حالياً</div>
+      <div class="w-full bg-gray-100 text-gray-500 font-bold text-center px-6 py-4 rounded-xl"><%= t('sf.ld.sold_out') %></div>
       <% } %>
     </div>
   </div>
 
   <% if (typeof reviews !== 'undefined' && reviews.length) { %>
   <div class="bg-white rounded-2xl shadow-sm p-5 mt-4">
-    <h2 class="font-bold text-gray-800 mb-3">آراء العملاء</h2>
+    <h2 class="font-bold text-gray-800 mb-3"><%= t('sf.ld.reviews') %></h2>
     <div class="space-y-3">
       <% reviews.slice(0,4).forEach(function(r){ %>
       <div class="border-b border-gray-100 pb-3 last:border-0">
@@ -84,7 +84,7 @@
   </div>
   <% } %>
 
-  <p class="text-center text-xs text-gray-400 mt-6">مدعوم بواسطة <a href="https://oscardevs.com" class="text-indigo-600 font-semibold">OscarDevs</a></p>
+  <p class="text-center text-xs text-gray-400 mt-6"><%= t('sf.ld.powered') %> <a href="https://oscardevs.com" class="text-indigo-600 font-semibold">OscarDevs</a></p>
 </main>
 </body>
 </html>

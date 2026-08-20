@@ -3,6 +3,7 @@
 <head>
 <%- include('../partials/ads_loader') %>
   <% var displayCompanyName = pickContent(company, 'company_name', company.content_i18n) || company.company_name; %>
+  <% var _cur = company.currency || 'ج'; %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,follow" />
@@ -54,13 +55,13 @@
     <input type="hidden" name="idem_token" value="<%= idemToken %>" />
     <% if (typeof savedAddresses !== 'undefined' && savedAddresses.length) { %>
     <div>
-      <label class="block text-sm font-semibold text-gray-600 mb-1.5">📍 عنوان محفوظ (اختياري)</label>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">📍 <%= t('sf.co.saved_addr') %></label>
       <select id="savedAddrPick" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white">
-        <option value="">— اكتب عنوان جديد —</option>
+        <option value="">— <%= t('sf.co.new_addr') %> —</option>
         <% savedAddresses.forEach(function(a){ %>
           <option value="<%= a.id %>"
             data-name="<%= a.recipient_name || '' %>" data-phone="<%= a.phone || '' %>" data-gov="<%= a.governorate || '' %>"
-            data-addr="<%= [a.governorate,a.city,a.street,a.apartment].filter(Boolean).join('، ') %>"><%= (a.label||'عنوان') + ' — ' + [a.governorate,a.city].filter(Boolean).join('، ') %></option>
+            data-addr="<%= [a.governorate,a.city,a.street,a.apartment].filter(Boolean).join('، ') %>"><%= (a.label||t('sf.co.addr')) + ' — ' + [a.governorate,a.city].filter(Boolean).join('، ') %></option>
         <% }); %>
       </select>
       <script>
@@ -77,18 +78,18 @@
     <% } %>
     <% if (typeof shippingZones !== 'undefined' && shippingZones.length) { %>
     <div>
-      <label class="block text-sm font-semibold text-gray-600 mb-1.5">المحافظة (للشحن) *</label>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('sf.co.gov') %> *</label>
       <select name="shipping_zone" id="shipZoneSel" required class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200">
-        <option value="">اختر المحافظة</option>
+        <option value=""><%= t('sf.co.gov_pick') %></option>
         <% shippingZones.forEach(function(z){ %>
-          <option value="<%= z.governorate %>" data-cost="<%= Number(z.cost)||0 %>" data-free-over="<%= z.free_over ? Number(z.free_over) : '' %>"><%= z.governorate %> — <%= Number(z.cost)===0 ? 'شحن مجاني' : (Number(z.cost)+' ج') %><%= z.free_over ? (' (مجاني فوق '+Number(z.free_over)+' ج)') : '' %><%= z.eta_days ? (' · '+z.eta_days) : '' %></option>
+          <option value="<%= z.governorate %>" data-cost="<%= Number(z.cost)||0 %>" data-free-over="<%= z.free_over ? Number(z.free_over) : '' %>"><%= z.governorate %> — <%= Number(z.cost)===0 ? t('sf.co.free_ship') : (Number(z.cost)+' '+_cur) %><%= z.free_over ? (' (' + t('sf.co.free_over') + ' '+Number(z.free_over)+' '+_cur+')') : '' %><%= z.eta_days ? (' · '+z.eta_days) : '' %></option>
         <% }); %>
       </select>
     </div>
     <% } %>
     <div>
-      <label class="block text-sm font-semibold text-gray-600 mb-1.5">كوبون خصم (اختياري)</label>
-      <input type="text" name="coupon_code" maxlength="40" placeholder="لو معاك كود خصم اكتبه هنا" dir="ltr"
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('sf.co.coupon') %></label>
+      <input type="text" name="coupon_code" maxlength="40" placeholder="<%= t('sf.co.coupon_ph') %>" dir="ltr"
         class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-200" />
     </div>
     <%# الولاء (البند ٩١): كل رقم هنا من إعداد المتجر — «كل ١٠٠ نقطة = ١ ج»
@@ -98,13 +99,13 @@
        var _lpc = (company.currency || 'ج'); %>
     <% if (_lp.enabled && typeof customerPoints !== 'undefined' && customerPoints >= _lp.redeemPer) { %>
     <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-      <label class="block text-sm font-semibold text-indigo-700 mb-1.5">⭐ عندك <%= customerPoints %> نقطة (= <%= (customerPoints/_lp.redeemPer).toFixed(2) %> <%= _lpc %>)</label>
+      <label class="block text-sm font-semibold text-indigo-700 mb-1.5">⭐ <%= t('sf.co.points_have') %> <%= customerPoints %> <%= t('sf.co.points_word') %> (= <%= (customerPoints/_lp.redeemPer).toFixed(2) %> <%= _lpc %>)</label>
       <div class="flex items-center gap-2">
-        <input type="number" name="redeem_points" min="0" max="<%= customerPoints %>" step="<%= _lp.redeemPer %>" placeholder="عدد النقاط اللي تستخدمها" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        <span class="text-xs text-gray-500">كل <%= _lp.redeemPer %> نقطة = 1 <%= _lpc %></span>
+        <input type="number" name="redeem_points" min="0" max="<%= customerPoints %>" step="<%= _lp.redeemPer %>" placeholder="<%= t('sf.co.points_ph') %>" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+        <span class="text-xs text-gray-500"><%= t('sf.co.points_rate') %> <%= _lp.redeemPer %> <%= t('sf.co.points_word') %> = 1 <%= _lpc %></span>
       </div>
       <% if (_lp.maxPercent < 100) { %>
-        <p class="text-[11px] text-gray-500 mt-1">أقصى خصم بالنقاط: <%= _lp.maxPercent %>٪ من الطلب</p>
+        <p class="text-[11px] text-gray-500 mt-1"><%= t('sf.co.points_max') %>: <%= _lp.maxPercent %>٪ <%= t('sf.co.points_of') %></p>
       <% } %>
     </div>
     <% } %>
@@ -112,16 +113,16 @@
     <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
       <label class="flex items-center gap-2 text-sm font-semibold text-emerald-700 cursor-pointer">
         <input type="checkbox" name="use_wallet" value="1" class="w-4 h-4" />
-        استخدم رصيد المحفظة (<%= Number(customerWallet).toFixed(2) %> ج)
+        <%= t('sf.co.use_wallet') %> (<%= Number(customerWallet).toFixed(2) %> <%= _cur %>)
       </label>
-      <p class="text-xs text-gray-500 mt-1">هيتخصم من الإجمالي حسب المتاح في محفظتك.</p>
+      <p class="text-xs text-gray-500 mt-1"><%= t('sf.co.wallet_hint') %></p>
     </div>
     <% } %>
     <div>
-      <label class="block text-sm font-semibold text-gray-600 mb-1.5">طريقة الدفع</label>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5"><%= t('sf.co.pay_method') %></label>
       <div class="flex flex-wrap gap-2">
-        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="cod" checked /> عند الاستلام (كاش)</label>
-        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="wallet" /> محفظة (فودافون كاش…)</label>
+        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="cod" checked /> <%= t('sf.co.cod') %></label>
+        <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="wallet" /> <%= t('sf.co.wallet_vf') %></label>
         <label class="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer"><input type="radio" name="payment_method" value="instapay" /> InstaPay</label>
       </div>
     </div>
@@ -179,7 +180,7 @@
     <!-- Order summary — lets the customer review the total before confirming -->
     <% if (typeof orderLines !== 'undefined' && orderLines.length) { var __cur = (company.currency || 'ج'); %>
     <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4">
-      <div class="font-bold text-gray-800 text-sm mb-3">ملخص الطلب</div>
+      <div class="font-bold text-gray-800 text-sm mb-3"><%= t('sf.co.summary') %></div>
       <div class="space-y-1.5 text-sm">
         <% orderLines.forEach(function(l){ %>
         <div class="flex items-center justify-between gap-2 text-gray-600">
@@ -189,11 +190,11 @@
         <% }); %>
       </div>
       <div class="border-t border-gray-200 mt-3 pt-3 space-y-1.5 text-sm">
-        <div class="flex items-center justify-between text-gray-600"><span>المجموع الفرعي</span><span id="sumSubtotal" class="font-semibold"><%= Number(orderSubtotal).toFixed(2) %> <%= __cur %></span></div>
-        <div class="flex items-center justify-between text-gray-600"><span>الشحن</span><span id="sumShipping">يُحدَّد بعد اختيار المحافظة</span></div>
-        <div class="flex items-center justify-between text-base font-black text-gray-900 pt-1"><span>الإجمالي</span><span id="sumTotal"><%= Number(orderSubtotal).toFixed(2) %> <%= __cur %></span></div>
+        <div class="flex items-center justify-between text-gray-600"><span><%= t('sf.co.subtotal') %></span><span id="sumSubtotal" class="font-semibold"><%= Number(orderSubtotal).toFixed(2) %> <%= __cur %></span></div>
+        <div class="flex items-center justify-between text-gray-600"><span><%= t('sf.co.shipping') %></span><span id="sumShipping"><%= t('sf.co.after_gov') %></span></div>
+        <div class="flex items-center justify-between text-base font-black text-gray-900 pt-1"><span><%= t('sf.co.total') %></span><span id="sumTotal"><%= Number(orderSubtotal).toFixed(2) %> <%= __cur %></span></div>
       </div>
-      <p class="text-[11px] text-gray-400 mt-2">الكوبون والنقاط ورصيد المحفظة بيتخصموا عند تأكيد الطلب.</p>
+      <p class="text-[11px] text-gray-400 mt-2"><%= t('sf.co.note') %></p>
     </div>
     <script>
     (function(){
@@ -210,7 +211,7 @@
           ship = (!isNaN(freeOver) && freeOver > 0 && sub >= freeOver) ? 0 : cost;
           known = true;
         } else if (!sel) { known = true; }
-        if (shipEl) shipEl.textContent = known ? (ship === 0 ? 'مجاني' : fmt(ship)) : 'يُحدَّد بعد اختيار المحافظة';
+        if (shipEl) shipEl.textContent = known ? (ship === 0 ? <%- jsonLd(t('sf.co.free')) %> : fmt(ship)) : <%- jsonLd(t('sf.co.after_gov')) %>;
         if (totEl) totEl.textContent = fmt(sub + (known ? ship : 0));
       }
       if (sel) sel.addEventListener('change', recalc);
