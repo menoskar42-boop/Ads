@@ -34,6 +34,7 @@ type Project = {
   color: string;
   foreground: string;
   kind: 'app' | 'identity' | 'campaign' | 'digital';
+  appPath?: string;
 };
 
 const projects: Project[] = [
@@ -48,6 +49,19 @@ const projects: Project[] = [
     color: '#d7f26b',
     foreground: '#101b2b',
     kind: 'app',
+  },
+  {
+    id: 'mizan',
+    title: 'مِيزان',
+    titleEn: 'Mizan — product discovery',
+    category: 'تجارب رقمية',
+    year: '2026',
+    description: 'منصة عربية تساعدك على اكتشاف المنتجات ومقارنتها قبل اتخاذ قرار الشراء.',
+    result: 'قرار شراء أهدأ وأوضح',
+    color: '#f2c94c',
+    foreground: '#101b2b',
+    kind: 'app',
+    appPath: '/amazon-eg-discovery/',
   },
   {
     id: 'sifr',
@@ -393,9 +407,15 @@ function ProjectModal({ project, onClose }: { project: Project; onClose: () => v
             <div className="flex justify-between py-3"><span className="text-[#101b2b]/50">السنة</span><b>{project.year}</b></div>
           </div>
         </div>
-        <a href="#contact" onClick={onClose} className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#101b2b] px-5 py-3 text-sm font-bold text-[#d7f26b]" data-testid="link-project-contact">
-          نريد شيئاً كهذا <ArrowUpLeft size={17} />
-        </a>
+        {project.appPath ? (
+          <a href={project.appPath} onClick={onClose} className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#101b2b] px-5 py-3 text-sm font-bold text-[#d7f26b]" data-testid="link-project-app">
+            افتح التطبيق <ArrowUpLeft size={17} />
+          </a>
+        ) : (
+          <a href="#contact" onClick={onClose} className="mt-8 inline-flex items-center gap-2 rounded-full bg-[#101b2b] px-5 py-3 text-sm font-bold text-[#d7f26b]" data-testid="link-project-contact">
+            نريد شيئاً كهذا <ArrowUpLeft size={17} />
+          </a>
+        )}
       </div>
     </div>
   );

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/amazon-eg-discovery/"
+title = "Amazon Egypt Discovery"
+description = "منصة مستقلة لاكتشاف ومقارنة منتجات Amazon.eg مع محتوى تحريري أصلي، بدون سلة أو دفع أو إدارة طلبات."
+version = "1.0.0"
+id = "artifacts/amazon-eg-discovery"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/amazon-eg-discovery/" ]
+localPort = 20360
+
+[services.development]
+run = "pnpm --filter @workspace/amazon-eg-discovery run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/amazon-eg-discovery", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/amazon-eg-discovery/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20360"
+BASE_PATH = "/amazon-eg-discovery/"
