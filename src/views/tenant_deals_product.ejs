@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= product.title %> — <%= company.company_name %></title>
+  <meta name="description" content="<%= (product.short_description || product.full_description || product.title).slice(0, 160) %>" />
+  <%- include('partials/seo_meta', {
+    title: product.title + ' — ' + company.company_name,
+    description: (product.short_description || product.full_description || product.title).slice(0, 160),
+    canonical: canonicalCompanyUrl(company.slug) + '/product/' + encodeURIComponent(product.slug),
+    ogImage: product.image_url || company.logo_url || (siteOrigin + '/og-default.png'),
+    siteLogo: company.logo_url || ''
+  }) %>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tw.css" />
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <header class="bg-white border-b border-slate-100"><div class="max-w-5xl mx-auto px-4 py-5"><a href="/" class="font-black text-xl text-teal-700"><%= company.company_name %></a></div></header>
+  <main class="max-w-5xl mx-auto px-4 py-12">
+    <a href="/" class="text-sm text-slate-500 hover:text-teal-700">← العودة للمنتجات</a>
+    <article class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mt-5 grid md:grid-cols-2">
+      <div class="bg-slate-50 min-h-80 flex items-center justify-center p-6">
+        <% if (product.image_url) { %><img src="<%= product.image_url %>" alt="<%= product.title %>" class="max-h-96 w-full object-contain" /><% } else { %><span class="text-slate-400">لا توجد صورة</span><% } %>
+      </div>
+      <div class="p-7 md:p-10">
+        <% if (product.brand) { %><p class="text-sm text-teal-700 font-bold mb-2"><%= product.brand %></p><% } %>
+        <h1 class="text-3xl font-black mb-4"><%= product.title %></h1>
+        <% if (product.full_description || product.short_description) { %><p class="text-slate-600 leading-8 whitespace-pre-line mb-6"><%= product.full_description || product.short_description %></p><% } %>
+        <% if (product.current_price != null) { %><p class="text-2xl font-black mb-6"><%= Number(product.current_price).toFixed(2) %> <%= product.currency || 'EGP' %></p><% } %>
+        <a href="<%= product.affiliate_url %>" target="_blank" rel="nofollow sponsored noopener noreferrer" class="block text-center bg-teal-700 hover:bg-teal-800 text-white rounded-xl px-5 py-4 font-bold">شاهد المنتج على Amazon</a>
+        <p class="text-xs text-slate-400 mt-4">قد يتغير السعر والتوافر على Amazon. يتم فتح الموقع الخارجي بعد ضغطك على الزر.</p>
+      </div>
+    </article>
+  </main>
+  <footer class="bg-white border-t border-slate-100 py-8 text-center text-xs text-slate-500">
+    As an Amazon Associate I earn from qualifying purchases.
+  </footer>
+</body>
+</html>

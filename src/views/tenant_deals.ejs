@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= company.company_name %></title>
+  <meta name="description" content="<%= (company.description || 'اختيارات ومنتجات موصى بها من Deals').slice(0, 160) %>" />
+  <%- include('partials/seo_meta', {
+    title: company.company_name,
+    description: (company.description || 'اختيارات ومنتجات موصى بها من Deals').slice(0, 160),
+    canonical: canonicalCompanyUrl(company.slug),
+    ogImage: company.logo_url || (siteOrigin + '/og-default.png'),
+    siteLogo: company.logo_url || ''
+  }) %>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tw.css" />
+  <style>
+    * { font-family: Cairo, sans-serif; }
+    :root { --brand: <%= company.theme_color || '#0f766e' %>; }
+    .brand-bg { background: var(--brand); }
+    .brand-text { color: var(--brand); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <header class="bg-white border-b border-slate-100">
+    <div class="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between gap-4">
+      <a href="/" class="flex items-center gap-3">
+        <% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="<%= company.company_name %>" class="w-11 h-11 rounded-xl object-contain" /><% } %>
+        <span class="text-xl font-black brand-text"><%= company.company_name %></span>
+      </a>
+      <span class="text-xs text-slate-500">اختيارات شراء من Amazon.eg</span>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-12">
+    <section class="rounded-3xl bg-slate-900 text-white px-6 py-12 md:px-12 mb-10">
+      <p class="text-sm text-teal-300 font-bold mb-3">DEALS</p>
+      <h1 class="text-3xl md:text-5xl font-black leading-tight mb-4"><%= company.company_name %></h1>
+      <p class="text-slate-300 max-w-2xl leading-8"><%= company.description || 'اختيارات أصلية ومراجعات مختصرة تساعدك تلاقي المنتج المناسب.' %></p>
+    </section>
+
+    <section>
+      <div class="flex items-end justify-between mb-5">
+        <div><h2 class="text-2xl font-black">منتجات مختارة</h2><p class="text-sm text-slate-500 mt-1">اضغط على المنتج للانتقال إلى Amazon.</p></div>
+        <span class="text-sm text-slate-500"><%= dealsProductCount %> منتج</span>
+      </div>
+      <% if (!dealsProducts.length) { %>
+        <div class="bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-400">سيتم إضافة المنتجات قريبًا.</div>
+      <% } else { %>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <% dealsProducts.forEach(p => { %>
+            <article class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-lg transition">
+              <% if (p.image_url) { %><a href="/product/<%= encodeURIComponent(p.slug) %>"><img src="<%= p.image_url %>" alt="<%= p.title %>" class="w-full h-56 object-cover" loading="lazy" /></a><% } %>
+              <div class="p-5">
+                <% if (p.category) { %><span class="text-xs font-bold brand-text"><%= p.category %></span><% } %>
+                <h3 class="font-black text-lg mt-1 mb-2"><a href="/product/<%= encodeURIComponent(p.slug) %>" class="hover:brand-text"><%= p.title %></a></h3>
+                <% if (p.short_description) { %><p class="text-sm text-slate-500 leading-7 mb-4"><%= p.short_description %></p><% } %>
+                <% if (p.current_price != null) { %><p class="font-black mb-4"><%= Number(p.current_price).toFixed(2) %> <%= p.currency || 'EGP' %></p><% } %>
+                <a href="<%= p.affiliate_url %>" target="_blank" rel="nofollow sponsored noopener noreferrer" class="brand-bg text-white rounded-xl px-4 py-3 text-sm font-bold block text-center">شاهد المنتج على Amazon</a>
+              </div>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+  </main>
+
+  <footer class="bg-white border-t border-slate-100 mt-10 py-8 text-center text-xs text-slate-500">
+    <p class="mb-2">As an Amazon Associate I earn from qualifying purchases.</p>
+    <p>Deals لا يبيع المنتجات ولا يتولى الدفع أو الشحن أو المرتجعات.</p>
+  </footer>
+</body>
+</html>

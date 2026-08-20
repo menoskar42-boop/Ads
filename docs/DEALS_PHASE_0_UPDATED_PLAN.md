@@ -290,15 +290,23 @@ Credentials: NOT VERIFIED
 Phase 1: BLOCKED pending explicit approval and account verification
 ```
 
-## 10. نقطة التوقف الإلزامية
+## 10. قرار الانتقال إلى التنفيذ اليدوي
+
+بناءً على ظهور صفحة Creators API داخل الحساب، لكن عدم توفر Product API access للحساب حاليًا، تم اعتماد مسارين للمنتجات:
+
+- `MANUAL` — فعال الآن.
+- `AMAZON_API` — معطل ويظهر مستقبلًا كخيار يتطلب الأهلية.
+
+سيعمل Deals بالكامل بالمنتجات اليدوية، ولن يعتمد تشغيل الموقع على Amazon API.
+
+المسار اليدوي سيحفظ فقط أقل البيانات اللازمة، وسيستخدم Affiliate URL يتم إدخاله يدويًا من لوحة Associates. لن يتم توليد Credentials أو روابط API، ولن يحدث Scraping.
+
+## 11. نقطة التوقف الحالية
 
 بعد حفظ هذا الملف:
 
-- لا تبدأ Phase 1.
-- لا تكتب كودًا.
-- لا تنشئ جداول.
-- لا تنشئ API services.
-- لا تنشئ Admin Browser.
 - لا تضف Amazon integration.
-- لا تعدل الموقع الحالي.
-- انتظر موافقة صريحة وتعليمات الحساب بعد انتهاء المراجعة.
+- لا تستخدم PA-API 5.
+- لا تنفذ Scraping.
+- لا تعدل صفحات الموقع الرئيسي وظيفيًا خارج مسار tenant الجديد.
+- بعد اكتمال Manual Product Workflow، توقف قبل تنفيذ Amazon API.

@@ -1,0 +1,1 @@
+- [Deals manual-first architecture](deals-manual-first.md) — independent subdomain; manual products work without Amazon API, which remains an optional future source.
