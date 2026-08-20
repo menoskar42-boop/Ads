@@ -36,6 +36,7 @@ const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
 const shopFeatures = require('../lib/shop_features');
+const loyaltyRules = require('../shop/loyalty');
 const push = require('../lib/push');
 const indexnow = require('../lib/indexnow');
 
@@ -1776,14 +1777,31 @@ router.post('/shipping/:id/delete', requireLogin, requireShop, async (req, res) 
 router.get('/features', requireLogin, requireShop, async (req, res) => {
   try {
     const flags = await shopFeatures.getFeatures(req.session.companyId);
+    // معدّلات الولاء (البند ٩١): كانت متصلّبة في راوت الطلب، فالتاجر كان بيدّي
+    // خصم ١٪ على كل بيعة من غير ما يشوفه ولا يقدر يغيّره.
+    const co = (await pool.query(
+      'SELECT loyalty_earn_per, loyalty_redeem_per, loyalty_max_percent FROM companies WHERE id=$1',
+      [req.session.companyId])).rows[0] || {};
     res.render('company/features', {
       features: shopFeatures.FEATURES, flags, session: req.session, saved: req.query.saved === '1',
+      loyalty: loyaltyRules.settingsFrom(co, flags.loyalty),
     });
   } catch (e) { console.error('[features]', e.message); res.redirect('/company/dashboard'); }
 });
 router.post('/features', requireLogin, requireShop, async (req, res) => {
-  try { await shopFeatures.setFeatures(req.session.companyId, req.body || {}); }
-  catch (e) {
+  try {
+    await shopFeatures.setFeatures(req.session.companyId, req.body || {});
+    // نفس المقصّ اللي في `settingsFrom` — الرقم المستحيل بيتقصّ هنا كمان عشان
+    // اللي اتخزّن يبقى هو اللي هيتحسب، مش رقم بيتصلّح كل مرة عند القراية.
+    const clean = loyaltyRules.settingsFrom({
+      loyalty_earn_per: (req.body || {}).loyalty_earn_per,
+      loyalty_redeem_per: (req.body || {}).loyalty_redeem_per,
+      loyalty_max_percent: (req.body || {}).loyalty_max_percent,
+    }, true);
+    await pool.query(
+      'UPDATE companies SET loyalty_earn_per=$1, loyalty_redeem_per=$2, loyalty_max_percent=$3 WHERE id=$4',
+      [clean.earnPer, clean.redeemPer, clean.maxPercent, req.session.companyId]);
+  } catch (e) {
     console.error('[features save]', e.message);
     return res.redirect('/company/features?error=save');
   }

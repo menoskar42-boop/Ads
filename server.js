@@ -966,6 +966,15 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_product_questions ON product_questions (product_id, is_approved);
       -- Loyalty points (Amazon roadmap phase 19).
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS loyalty_points INTEGER NOT NULL DEFAULT 0;
+      -- معدّلات الولاء (البند ٩١). كانت متصلّبة في راوت الطلب: نقطة لكل
+      -- جنيه و١٠٠ نقطة بجنيه — يعني كل تاجر على المنصّة بيدّي خصم ١٪ على كل
+      -- بيعة من غير ما يختاره ولا يشوفه. الافتراضي هنا هو نفس الأرقام دي
+      -- بالظبط، فمفيش متجر هيلاقي معدّله اتغيّر. التشغيل نفسه فاضل مكانه
+      -- الوحيد (company_features.loyalty) — مفتاحين لنفس الحاجة معناه إن حد
+      -- هيقفل واحد ويفتكر إنها اتقفلت.
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS loyalty_earn_per NUMERIC(6,2) NOT NULL DEFAULT 1;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS loyalty_redeem_per INTEGER NOT NULL DEFAULT 100;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS loyalty_max_percent NUMERIC(5,2) NOT NULL DEFAULT 100;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_redeemed INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE orders ADD COLUMN IF NOT EXISTS points_earned INTEGER NOT NULL DEFAULT 0;
       -- Order status tracking (Amazon roadmap phase 15).
