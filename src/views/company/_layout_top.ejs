@@ -9,6 +9,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/tw.css" />
+  <%# لوحة التاجر كتطبيق يتثبّت (البند ٩١). `use-credentials` مقصودة: المانيفست
+      بيتجاب من غير كوكيز افتراضياً، وبدونها السيرفر مش هيعرف التاجر ده مين
+      فالتطبيق هيتثبّت باسم عام بدل اسم المتجر. %>
+  <link rel="manifest" href="/company/manifest.webmanifest" crossorigin="use-credentials" />
+  <meta name="theme-color" content="<%= session.themeColor || '#2563eb' %>" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" href="/logo-192.png" />
   <style>
     * { font-family: 'Cairo', sans-serif; }
     :root { --brand: <%= session.themeColor || '#2563eb' %>; }
