@@ -1,0 +1,404 @@
+ده البرومبت الأول فقط. هدفه أن Claude يفهم المشروع بالكامل ويضع الخطة، بدون كتابة أي كود.
+
+IMPORTANT CONSTRAINTS:
+
+* Never rewrite entire existing files
+* Always use str_replace for edits to existing files
+* Add new features one at a time
+* For files over 200 lines: insert code sections only,
+    never full file replacement
+* If a task is complex, break it into steps and
+    confirm after each step
+
+PROJECT DISCOVERY AND ARCHITECTURE UNDERSTANDING
+
+I want you to understand the complete business idea and technical direction of a new affiliate-commerce website before writing any code.
+
+IMPORTANT:
+This is a DISCOVERY AND PLANNING phase only.
+
+DO NOT:
+
+* Write code
+* Create files
+* Modify files
+* Install packages
+* Start implementation
+* Build UI
+* Make API calls
+* Assume that a specific Amazon API is available
+* Assume that any Amazon API capability exists without verifying it from official Amazon documentation
+
+Your job in this phase is to fully understand the project, identify technical and policy requirements, identify risks, and propose the minimum-cost MVP architecture.
+
+1. BUSINESS IDEA
+
+I want to build a professional affiliate-commerce website focused initially on Amazon Egypt, Amazon.eg.
+
+The website will NOT be a traditional online store.
+
+I will not own inventory.
+I will not process payments.
+I will not handle shipping.
+I will not handle product returns.
+I will not provide customer service for orders placed on Amazon.
+
+The website’s purpose is:
+
+1. Discover products from Amazon.
+2. Display selected products on my own website.
+3. Provide useful original content around those products.
+4. Allow visitors to compare or explore products.
+5. When the visitor decides to buy, send the visitor to Amazon through my affiliate tracking link.
+6. If the visitor makes an eligible purchase according to Amazon’s affiliate rules, I may receive a commission.
+
+The website should therefore be treated as an affiliate product discovery and comparison platform, NOT as an e-commerce store.
+
+2. AMAZON EGYPT FIRST
+
+The initial target marketplace is:
+
+Amazon.eg
+
+The affiliate program is:
+
+Amazon Associates / Amazon Affiliate Program for Amazon.eg.
+
+I understand that I need an approved affiliate account and appropriate tagged affiliate links.
+
+However, DO NOT assume the exact API product, API name, authentication method, eligibility requirements, rate limits, or available product fields.
+
+You must identify what official Amazon.eg documentation says is currently available for affiliate-related APIs and product data integration.
+
+In particular, investigate conceptually:
+
+* What official Amazon API is available for Amazon.eg affiliates?
+* Whether product images can be retrieved.
+* Whether product titles can be retrieved.
+* Whether product descriptions or product features can be retrieved.
+* Whether current price information can be retrieved.
+* Whether availability information can be retrieved.
+* Whether product URLs can be generated with my affiliate tracking information.
+* Whether there are restrictions on caching Amazon product data.
+* Whether there are restrictions on displaying Amazon prices.
+* Whether there are restrictions on modifying or rewriting Amazon product descriptions.
+* Whether there are requirements for refreshing price and availability data.
+* Whether the API requires an approved Associates account.
+* Whether there are minimum sales or account requirements before API access.
+* Whether there are specific attribution or disclosure requirements.
+
+Use official Amazon documentation wherever possible.
+
+If something cannot be verified, explicitly mark it as “UNKNOWN / NEEDS VERIFICATION” instead of guessing.
+
+3. WEBSITE CONCEPT
+
+The website should feel like a modern product discovery platform.
+
+Example:
+
+A visitor searches for:
+
+“Best wireless headphones”
+
+The website can show product cards containing information that Amazon officially allows us to display.
+
+A product card may conceptually contain:
+
+* Product image
+* Product name
+* Key specifications
+* Original editorial summary
+* Current Amazon price, only if permitted and technically supported
+* Availability, only if permitted and technically supported
+* Rating/review information, only if permitted
+* “View on Amazon” or “Buy on Amazon” button
+
+When the visitor clicks the button, the visitor leaves my website and goes to Amazon using my affiliate tracking link.
+
+The actual transaction happens on Amazon.
+
+4. ORIGINAL CONTENT AND SEO
+
+SEO is extremely important.
+
+I do NOT want to simply copy Amazon’s product descriptions and publish them unchanged.
+
+Instead, the website should potentially add original editorial content such as:
+
+* Original product summaries
+* Buying guides
+* Comparisons
+* Pros and cons
+* Who the product is suitable for
+* Who should avoid it
+* Product comparisons
+* Category guides
+* “Best products for…” articles
+* Helpful explanations
+* Original analysis
+
+However, do not assume that Amazon allows us to modify, reproduce, or transform every piece of Amazon-provided content.
+
+First identify what Amazon’s affiliate policies allow.
+
+The goal is to create genuine value for users and avoid creating thousands of thin pages that simply duplicate Amazon product information.
+
+5. DYNAMIC AMAZON DATA
+
+One of the major reasons for using an official API is to avoid manually maintaining:
+
+* Prices
+* Product images
+* Product information
+* Availability
+* Amazon URLs
+
+For example:
+
+If Amazon changes a product price from 5,000 EGP to 4,500 EGP, the website should ideally be able to display the updated information according to Amazon’s API and policy requirements.
+
+But this must be designed according to Amazon’s actual API rules.
+
+Do not design a caching system until you understand Amazon’s rules regarding caching and refreshing product data.
+
+6. FUTURE MULTI-MARKETPLACE DIRECTION
+
+The first version should focus ONLY on Amazon Egypt.
+
+However, the architecture should not make it impossible to add other marketplaces later.
+
+Potential future marketplaces could include:
+
+* Amazon US
+* Amazon UK
+* Amazon UAE
+* eBay
+* AliExpress
+* Walmart
+* Other affiliate networks
+
+But DO NOT implement these now.
+
+The MVP must remain focused on Amazon Egypt.
+
+The future architecture should simply make it possible to add additional affiliate providers later without rebuilding the entire application.
+
+7. IMPORTANT BUSINESS MODEL
+
+The website does not charge the customer.
+
+The customer buys from Amazon.
+
+The website earns affiliate commission from eligible purchases according to the affiliate program.
+
+Therefore:
+
+Customer
+↓
+My Website
+↓
+Affiliate Tracking Link
+↓
+Amazon.eg
+↓
+Customer purchases on Amazon
+↓
+Amazon handles payment, shipping and returns
+↓
+Affiliate commission is attributed according to Amazon’s rules
+
+8. RETURNS
+
+The website is not the seller.
+
+If a customer purchases a product from Amazon and later wants to return it, the return process belongs to Amazon and the seller according to Amazon’s policies.
+
+The website should not create its own order-management or return-management system for Amazon purchases.
+
+Do not build:
+
+* Shopping cart
+* Checkout
+* Payment gateway
+* Shipping system
+* Order fulfillment
+* Return management
+* Inventory management
+
+unless there is a future business requirement unrelated to Amazon affiliate sales.
+
+9. MVP PRINCIPLE
+
+I want the cheapest and simplest professional architecture possible.
+
+Do not over-engineer this project.
+
+Avoid:
+
+* Microservices
+* Redis
+* Message queues
+* Background worker systems
+* Kubernetes
+* Complex event-driven architecture
+* Unnecessary abstractions
+* Autonomous AI agents
+* Complex recommendation engines
+* Unnecessary third-party services
+
+The initial website should be simple, maintainable, fast, SEO-friendly, and scalable enough for a portfolio/client presentation.
+
+10. AI FEATURES
+
+AI may eventually be used to help create original editorial content, comparisons, summaries, and SEO content.
+
+However, AI should NOT be allowed to automatically generate thousands of pages without quality control.
+
+Do not design an expensive autonomous AI content-generation system.
+
+If AI is proposed, explain the minimum-cost implementation.
+
+11. SEO REQUIREMENTS
+
+The future website should be designed with strong technical SEO in mind.
+
+Consider:
+
+* Server-side rendering or another SEO-friendly rendering strategy
+* Clean URLs
+* Metadata
+* Canonical URLs
+* Structured data where appropriate
+* XML sitemap
+* Robots.txt
+* Internal linking
+* Category pages
+* Product pages
+* Editorial content
+* Fast loading
+* Mobile-first design
+* Original useful content
+
+But do not implement anything yet.
+
+First determine the architecture.
+
+12. IMPORTANT AMAZON COMPLIANCE
+
+Amazon compliance is more important than convenience.
+
+The future implementation must respect Amazon’s current:
+
+* Associates Operating Agreement
+* Associates Program Policies
+* Trademark requirements
+* Affiliate link requirements
+* Product data requirements
+* Price display requirements
+* Image usage requirements
+* Disclosure requirements
+* API requirements
+* Data refresh requirements
+* Content requirements
+
+Do not suggest a technical implementation that violates Amazon’s rules just because it is easier to build.
+
+If a proposed feature creates a compliance risk, clearly identify it.
+
+13. WHAT I WANT FROM YOU NOW
+
+At this stage, give me ONLY a project discovery report.
+
+Your response must contain:
+
+A. Your understanding of the business idea
+
+Explain the idea in your own words so I can verify that you understood it correctly.
+
+B. Recommended MVP
+
+Tell me exactly what should exist in Version 1 and what should NOT exist.
+
+C. Recommended architecture
+
+Recommend a simple architecture suitable for a low-cost professional MVP.
+
+Do not write code.
+
+D. Amazon integration requirements
+
+Explain what needs to be verified before implementation.
+
+Clearly separate:
+
+* Confirmed facts
+* Assumptions
+* Unknowns
+* Items requiring official Amazon documentation verification
+
+E. Data model concept
+
+Describe the main entities we will probably need, such as:
+
+* Products
+* Categories
+* Affiliate links
+* Editorial content
+* Users/admin, if necessary
+
+Do not create database schemas yet.
+
+F. SEO strategy
+
+Explain how the website can create genuine SEO value instead of becoming a collection of copied Amazon product pages.
+
+G. User journey
+
+Explain the complete journey from:
+
+Search
+→ Product discovery
+→ Product page
+→ Editorial information
+→ Amazon button
+→ Amazon
+→ Eligible purchase
+→ Affiliate attribution
+
+H. Future expansion
+
+Explain how Amazon Egypt can later be extended to other affiliate marketplaces without over-engineering Version 1.
+
+I. Risks
+
+List the most important technical, SEO, business, and Amazon policy risks.
+
+J. Implementation phases
+
+Create a minimal sequence of development phases.
+
+For example:
+
+Phase 1: Foundation
+Phase 2: Amazon integration
+Phase 3: Product catalog
+Phase 4: Product pages
+Phase 5: SEO
+Phase 6: Admin/content management
+Phase 7: Testing and compliance
+
+But change the phases if you believe there is a better approach.
+
+For every phase, explain:
+
+* Goal
+* What will be built
+* What will NOT be built
+* Dependencies
+* Definition of done
+
+DO NOT IMPLEMENT ANYTHING YET.
+
+At the end, ask me to approve the architecture and phase plan before moving to Phase 1.
+
