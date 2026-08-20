@@ -21,11 +21,11 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', true);
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; form-action 'self'; base-uri 'self'; frame-ancestors 'self'");
   if (req.path.startsWith('/admin')) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   next();
 });
@@ -36,6 +36,20 @@ app.use(session({
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: 'lax', secure: process.env.DEALS_COOKIE_SECURE === 'true', maxAge: 8 * 60 * 60 * 1000 },
 }));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+
+const loginAttempts = new Map();
+app.use((req, res, next) => {
+  if (!req.session.dealsCsrfToken) req.session.dealsCsrfToken = crypto.randomBytes(24).toString('hex');
+  if (req.path.startsWith('/admin') && req.method === 'POST') {
+    const submitted = String(req.body?._csrf || req.get('x-csrf-token') || '');
+    if (!submitted || submitted.length !== req.session.dealsCsrfToken.length ||
+        !crypto.timingSafeEqual(Buffer.from(submitted), Buffer.from(req.session.dealsCsrfToken))) {
+      return res.status(403).render('error', common(req, { status: 403, message: 'انتهت صلاحية النموذج. أعد تحميل الصفحة وحاول مرة أخرى.' }));
+    }
+  }
+  next();
+});
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -66,6 +80,7 @@ function common(req, extra = {}) {
     site: req.app.locals.settings || { site_name: 'Deals', site_description: 'اختيارات شراء موصى بها', theme_color: '#0f766e' },
     baseUrl: BASE_URL,
     providers: listProviders(),
+    csrfToken: req.session?.dealsCsrfToken || '',
     ...extra,
   };
 }
@@ -113,7 +128,7 @@ app.get('/category/:slug', async (req, res, next) => {
        WHERE p.category_id = $1 AND p.is_published = true
        ORDER BY p.is_featured DESC, p.created_at DESC`, [category.id]
     )).rows;
-    res.render('listing', common(req, { products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}` }));
+    res.render('listing', common(req, { products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}`, canonicalPath: `/category/${encodeURIComponent(category.slug)}` }));
   } catch (e) { next(e); }
 });
 
@@ -126,7 +141,7 @@ app.get('/search', async (req, res, next) => {
        WHERE p.is_published = true AND (p.title ILIKE $1 OR p.short_description ILIKE $1 OR p.brand ILIKE $1)
        ORDER BY p.is_featured DESC, p.created_at DESC`, [`%${q}%`]
     )).rows : [];
-    res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}` }));
+    res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}`, canonicalPath: '/search' }));
   } catch (e) { next(e); }
 });
 
@@ -178,6 +193,13 @@ app.get('/admin/login', (req, res) => {
 });
 app.post('/admin/login', async (req, res, next) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const recent = (loginAttempts.get(ip) || []).filter((time) => now - time < 15 * 60 * 1000);
+    if (recent.length >= 5) {
+      res.setHeader('Retry-After', '900');
+      return res.status(429).render('admin/login', common(req, { title: 'دخول إدارة Deals', error: 'محاولات كثيرة. حاول بعد دقائق.' }));
+    }
     const email = txt(req.body.email, 240)?.toLowerCase();
     const configuredEmail = String(process.env.DEALS_ADMIN_EMAIL || process.env.ADMIN_EMAIL || '').toLowerCase();
     const configuredPassword = process.env.DEALS_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
@@ -189,8 +211,11 @@ app.post('/admin/login', async (req, res, next) => {
       && submittedPassword.length === expectedPassword.length
       && crypto.timingSafeEqual(submittedPassword, expectedPassword);
     if (!email || !configuredEmail || email !== configuredEmail || !passwordMatches) {
+      recent.push(now);
+      loginAttempts.set(ip, recent);
       return res.status(401).render('admin/login', common(req, { title: 'دخول إدارة Deals', error: 'بيانات الدخول غير صحيحة.' }));
     }
+    loginAttempts.delete(ip);
     req.session.dealsAdmin = { email };
     res.redirect('/admin');
   } catch (e) { next(e); }
