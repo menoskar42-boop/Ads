@@ -1,0 +1,278 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+# DEALS PROJECT ARCHITECTURE DECISION
+
+We have now confirmed from the official Amazon Associates Egypt Creators API page that:
+
+- Amazon Associates Egypt is available.
+- Creators API exists for the Egypt marketplace.
+- Amazon.eg is supported.
+- Access to the Product API requires an approved Associates account.
+- The current page states that at least 10 qualifying sales within the last 30 days are required for Product API access.
+- Our account is not currently eligible for Creators API access.
+- We therefore do NOT have API Credentials yet.
+
+However, we do NOT want to stop development.
+
+The project will support TWO product acquisition methods from the beginning:
+
+1. MANUAL PRODUCT ENTRY
+2. AMAZON CREATORS API
+
+The website must work completely using Manual Product Entry even when the API is unavailable.
+
+The API must be designed as a future data source, not as a dependency.
+
+---
+
+# IMPORTANT PRODUCT ARCHITECTURE
+
+The application should conceptually support:
+
+Product Source:
+- MANUAL
+- AMAZON_API
+
+For now:
+
+MANUAL = ACTIVE
+AMAZON_API = DISABLED / NOT CONFIGURED
+
+Later:
+
+AMAZON_API = ENABLED when valid credentials and eligibility are available.
+
+Do NOT attempt to call Amazon API now.
+
+Do NOT create fake API credentials.
+
+Do NOT use PA-API 5.
+
+Do NOT scrape Amazon.
+
+Do NOT bypass Amazon API requirements.
+
+---
+
+# PRODUCT MODEL
+
+Design the product structure so a manually created Amazon product can later be replaced or synchronized with API data without redesigning the product system.
+
+At minimum the product concept should support:
+
+- internal product ID
+- source
+- Amazon ASIN when available
+- title
+- slug
+- short description
+- full description
+- brand
+- category
+- product image
+- additional images if needed
+- current price
+- currency
+- Amazon product URL
+- affiliate URL
+- rating if available
+- review count if available
+- availability if available
+- featured status
+- published status
+- created date
+- updated date
+
+Do NOT add unnecessary fields.
+
+Keep the MVP lean.
+
+---
+
+# MANUAL ADMIN WORKFLOW
+
+Build the future system around this workflow:
+
+Admin Dashboard
+→ Products
+→ Add Product
+→ Select source: Manual
+→ Enter Amazon product information
+→ Enter Amazon affiliate URL
+→ Upload or provide product image according to the project's approved image strategy
+→ Save
+→ Publish
+
+The public website should display the product normally.
+
+The visitor clicks the product CTA and is sent to Amazon through the affiliate URL.
+
+Do not implement automatic Amazon API synchronization yet.
+
+---
+
+# FUTURE API WORKFLOW
+
+Design the architecture so later we can add:
+
+Admin Dashboard
+→ Products
+→ Add from Amazon
+→ Search Amazon.eg
+→ Creators API
+→ Select product
+→ Import product data
+→ Save as product
+→ Publish
+
+This is FUTURE functionality only.
+
+Do not build the actual Amazon API integration during this task.
+
+Instead, create only the minimum clean abstraction needed so Manual and API products can coexist later.
+
+Avoid over-engineering.
+
+---
+
+# IMPORTANT SEPARATION
+
+Do not make the UI dependent on Amazon API.
+
+The public Deals website must continue working if:
+
+- Amazon API is unavailable
+- Credentials are missing
+- API access is revoked
+- Amazon API is temporarily unavailable
+
+Manual products must remain fully functional.
+
+---
+
+# ADMIN UI
+
+Prepare the Admin UI so the product source can eventually be selected:
+
+Source:
+- Manual
+- Amazon API
+
+For now, Amazon API should appear as:
+
+"Coming soon / API access required"
+
+or be hidden behind a feature flag.
+
+Do NOT make a fake API search interface.
+
+---
+
+# AMAZON AFFILIATE LINK
+
+Manual products must support an Amazon affiliate URL.
+
+The Admin should be able to paste the affiliate URL generated from Amazon Associates.
+
+Do NOT attempt to generate credentials or API links automatically.
+
+Do NOT scrape product pages.
+
+---
+
+# DATABASE
+
+Only create the minimum database changes required for the Manual Product workflow.
+
+Do not create unnecessary API tables.
+
+If a source field is needed, use a simple enum/string such as:
+
+MANUAL
+AMAZON_API
+
+Do not build queues, background jobs, Redis, workers, microservices, or unnecessary abstractions.
+
+---
+
+# DEVELOPMENT STRATEGY
+
+Build in this order:
+
+STEP 1:
+Review the existing project structure.
+
+STEP 2:
+Identify the minimum changes needed to support Products with Manual source.
+
+STEP 3:
+Implement Manual Product creation and management.
+
+STEP 4:
+Implement public product display.
+
+STEP 5:
+Implement Amazon affiliate CTA/link handling.
+
+STEP 6:
+Add the minimum abstraction or feature flag needed for future Amazon API integration.
+
+STOP after these steps.
+
+Do NOT implement Amazon API yet.
+
+Do NOT install an Amazon API SDK yet unless it is absolutely required for the architecture. Prefer not installing it at this stage.
+
+---
+
+# DOMAIN
+
+The project will run on:
+
+deals.oscardevs.com
+
+This is an independent Deals application.
+
+Do not modify the main oscardevs.com website.
+
+---
+
+# MVP PRINCIPLE
+
+The immediate goal is:
+
+"Launch a useful Deals website with manually managed Amazon Egypt affiliate products."
+
+The future goal is:
+
+"Add Amazon Creators API as a second product source when the account becomes eligible."
+
+The architecture must allow the second goal without rebuilding the first.
+
+---
+
+# STOP CONDITION
+
+Before writing code:
+
+1. Inspect the existing project.
+2. Explain briefly what already exists.
+3. Identify the minimum files that need modification.
+4. Propose the smallest implementation plan.
+
+Then implement only the Manual Product workflow and the minimal API-ready architecture.
+
+Do not start unrelated features.
+
+Do not redesign the entire application.
+
+Do not rewrite existing files.
+
+END.
