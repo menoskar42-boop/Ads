@@ -1,0 +1,588 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only,
+  never full file replacement
+- If a task is complex, break it into steps and
+  confirm after each step
+
+# AMAZON EGYPT ACCOUNT + CREATORS API VERIFICATION
+# OFFICIAL AMAZON RESEARCH ONLY
+
+We have completed Phase 0.
+
+Do NOT start Phase 1.
+
+Do NOT write production code.
+
+Do NOT create the Amazon integration.
+
+Do NOT create the Product Browser.
+
+Do NOT create database tables.
+
+Do NOT modify the existing website.
+
+Your ONLY task is to investigate the actual Amazon Egypt Associates account and determine exactly what is available to us.
+
+The objective is to remove as many UNKNOWN / NEEDS VERIFICATION items from Phase 0 as possible.
+
+---
+
+# 1. ACCOUNT CONTEXT
+
+The project is:
+
+Deals
+
+Domain:
+
+deals.oscardevs.com
+
+Initial marketplace:
+
+Amazon Egypt / Amazon.eg
+
+The owner is currently registering an Amazon Associates Egypt account.
+
+The intended business model is:
+
+Deals
+↓
+Original product content
+↓
+Product recommendation
+↓
+Amazon.eg Special Link
+↓
+Amazon handles checkout, payment, shipping and returns
+↓
+Potential affiliate commission
+
+---
+
+# 2. FIRST PRIORITY
+
+Determine the CURRENT official Amazon process for an Amazon Egypt Associates account.
+
+Verify:
+
+1. How the Associates Egypt account is approved.
+2. What information is required during application.
+3. Whether a website must already contain content before approval.
+4. Whether the website needs to be live.
+5. What minimum content or traffic requirements exist, if any.
+6. Whether a newly created website can apply.
+7. Whether social media accounts can be used.
+8. Whether a mobile application is required or optional.
+9. Whether the account can be used for Amazon.eg only.
+10. Whether separate applications are required for other Amazon marketplaces.
+
+Do NOT guess.
+
+---
+
+# 3. CREATOR API ACCESS
+
+Determine exactly how the owner can obtain access to the CURRENT Amazon Creators API.
+
+Verify:
+
+- Where Creators API access is requested.
+- Whether access is automatically available.
+- Whether approval is required.
+- Whether the Associates account must meet certain requirements first.
+- Whether there is a minimum number of qualifying sales.
+- Whether there is a minimum account age.
+- Whether there is a minimum traffic requirement.
+- Whether API credentials are separate from Associates credentials.
+- Where API credentials are generated.
+- Which credentials are required.
+- Whether Amazon Egypt accounts can obtain those credentials.
+- Whether Amazon.eg is supported.
+
+IMPORTANT:
+
+Do not rely on old PA-API requirements without confirming that they still apply to Creators API.
+
+Clearly distinguish:
+
+OLD PA-API REQUIREMENTS
+
+from:
+
+CURRENT CREATORS API REQUIREMENTS
+
+---
+
+# 4. AMAZON EGYPT MARKETPLACE
+
+Verify specifically whether Creators API currently supports:
+
+Amazon.eg
+
+Do NOT assume that because Amazon Egypt appears in Associates Central, it automatically means Creators API supports it.
+
+Find official confirmation for:
+
+- Marketplace
+- Country
+- Domain
+- Marketplace identifier, if one exists
+- API endpoint, if one exists
+- Search
+- Product lookup
+- Product links
+- Affiliate tracking
+
+If there is no official public documentation confirming a specific item, mark:
+
+UNKNOWN
+
+---
+
+# 5. PRODUCT SEARCH
+
+Determine whether the current Creators API can search Amazon Egypt.
+
+We specifically want to know whether our future Admin tool can do:
+
+Amazon Egypt
+↓
+Category
+↓
+Optional keyword
+↓
+Search
+↓
+Product results
+
+Verify:
+
+- Keyword search
+- Category/search index
+- Browse
+- ASIN lookup
+- Pagination
+- Sorting
+- Result limits
+- Product details
+
+Do NOT build this functionality yet.
+
+---
+
+# 6. PRODUCT INFORMATION
+
+Determine exactly which fields Creators API can return for Amazon.eg.
+
+Create a table:
+
+| Field | Amazon.eg supported? | Official source | Notes |
+|---|---|---|---|
+| Product title | | | |
+| ASIN | | | |
+| Product URL | | | |
+| Main image | | | |
+| Additional images | | | |
+| Brand | | | |
+| Category | | | |
+| Features | | | |
+| Description | | | |
+| Price | | | |
+| Currency | | | |
+| Availability | | | |
+| Rating | | | |
+| Review count | | | |
+| Customer reviews | | | |
+
+Use only:
+
+CONFIRMED
+
+NOT SUPPORTED
+
+UNKNOWN
+
+---
+
+# 7. PRICE
+
+This is extremely important.
+
+We want the future Admin interface to be able to display Amazon product results and, if permitted, sort them:
+
+Price: Low to High
+
+Price: High to Low
+
+This sorting would be PRIVATE and ADMIN-ONLY.
+
+It would NOT be shown to public visitors.
+
+Determine from current official Amazon documentation whether this is allowed.
+
+Also verify:
+
+- Can current Amazon.eg prices be retrieved?
+- Can prices be displayed?
+- Can prices be stored?
+- How long can prices be stored?
+- How often must prices be refreshed?
+- Can prices be cached?
+- Can prices be sorted inside an internal Admin tool?
+- Are there restrictions on public price comparison?
+- Are there restrictions on price comparison inside an Admin tool?
+- Are EGP prices available?
+
+Do NOT infer permission from technical possibility.
+
+We need both:
+
+TECHNICAL SUPPORT
+
+and
+
+POLICY PERMISSION
+
+---
+
+# 8. PRODUCT IMAGES
+
+Verify:
+
+- Can Amazon.eg product images be returned?
+- Can they be displayed inside the Admin?
+- Can they be displayed publicly?
+- Can they be stored?
+- Can they be cached?
+- Can they be resized?
+- Do image URLs expire?
+- How often must they be refreshed?
+
+Again:
+
+Separate technical availability from policy permission.
+
+---
+
+# 9. PRODUCT DETAILS
+
+We want the Admin to eventually be able to click:
+
+View Details
+
+and see the product information available from Amazon.
+
+Verify whether the API supports enough data for:
+
+- Images
+- Product title
+- Price
+- Brand
+- Features
+- Description
+- Availability
+- ASIN
+- Amazon URL
+- Other product attributes
+
+Do NOT build it yet.
+
+---
+
+# 10. AFFILIATE LINKS
+
+Verify exactly how Amazon Egypt affiliate links should be generated.
+
+Determine:
+
+- Associate Tag
+- Tracking ID
+- Special Link format
+- Whether product links can be generated automatically
+- Whether Creators API generates affiliate URLs
+- Whether affiliate parameters must be added separately
+- Whether direct Amazon product URLs can be used
+- Whether redirects are allowed
+- Whether link shorteners are allowed
+- Whether cloaking is prohibited
+- Whether the user must explicitly click the link
+
+Provide the safest official implementation.
+
+---
+
+# 11. COMMISSION
+
+Verify the current Amazon Egypt Associates commission structure.
+
+Determine:
+
+- Current commission rates
+- Product categories
+- Any special rates
+- Whether rates vary by category
+- Whether there are qualifying conditions
+- Whether there are exclusions
+
+Use current official Amazon Egypt sources.
+
+Do not use old affiliate-rate tables from third-party websites.
+
+---
+
+# 12. PAYMENT
+
+Verify:
+
+- Payment methods available to Amazon Egypt Associates
+- Minimum payout threshold
+- Payment currency
+- Payment schedule
+- Bank transfer availability
+- Any required bank information
+- Any tax-related requirements
+
+Do not provide financial or tax assumptions.
+
+Use official Amazon information.
+
+---
+
+# 13. TAX INFORMATION
+
+The owner is currently completing the Amazon Associates Egypt tax section.
+
+Determine from official Amazon documentation:
+
+- Why Amazon requests tax information.
+- Whether an Egyptian individual can register.
+- Whether a tax card is required.
+- Whether a national ID is sufficient for identity verification.
+- Whether Amazon requires a tax identification number.
+- Whether "Individual" versus "Business" changes API or Associates eligibility.
+- Whether being an employee affects Amazon Associates registration.
+- Whether Amazon reports affiliate income to Egyptian authorities.
+- What Amazon specifically requires from Egyptian Associates.
+
+IMPORTANT:
+
+Do NOT give Egyptian legal or tax advice unless supported by an official Egyptian source.
+
+Separate:
+
+Amazon's requirements
+
+from:
+
+Egyptian tax law.
+
+---
+
+# 14. EMPLOYEE / GOVERNMENT EMPLOYEE ISSUE
+
+The owner has stated that he is employed by a government-related employer in Egypt.
+
+Do NOT determine whether the activity is legally permitted based only on Amazon policy.
+
+Instead:
+
+1. Determine what Amazon requires.
+2. Identify whether Amazon asks about employment status.
+3. Identify whether Amazon prohibits employees from participating.
+4. Do NOT claim that Egyptian employment law permits or prohibits it unless verified through official Egyptian legal sources.
+
+If this requires legal advice:
+
+Clearly state:
+
+LEGAL REVIEW REQUIRED
+
+---
+
+# 15. CONTACT AMAZON SUPPORT
+
+This is important.
+
+Determine whether the Amazon Egypt Associates account provides an official way to contact Amazon Associates Support regarding:
+
+- Creators API
+- Amazon.eg marketplace
+- API eligibility
+- Product Advertising / Creators API
+- Affiliate links
+- Account eligibility
+
+If an official support/contact mechanism is available:
+
+Document exactly where it is located.
+
+If Replit has no ability to actually submit the question through the authenticated Amazon account, DO NOT pretend that a message was sent.
+
+Instead:
+
+Prepare the exact support questions that the owner should send.
+
+---
+
+# 16. PREPARE A SUPPORT MESSAGE
+
+Create a concise official-support message in English that asks Amazon:
+
+Subject:
+
+Amazon Egypt Associates and Creators API Eligibility
+
+Message:
+
+Hello Amazon Associates Support,
+
+I have an active Amazon Associates Egypt account and I am building a product discovery and editorial website targeting Amazon.eg customers.
+
+I would like to confirm the current availability and eligibility requirements for the Amazon Creators API for Amazon.eg.
+
+Could you please confirm:
+
+1. Is Creators API currently available for Amazon Associates Egypt?
+2. Is Amazon.eg supported for product search and product lookup?
+3. How can an Amazon Egypt Associate obtain Creators API credentials?
+4. Are there minimum qualifying sales or account requirements before API access is granted?
+5. Which product fields are available for Amazon.eg, including product title, ASIN, images, price, currency, availability, brand and features?
+6. Can current Amazon.eg prices be displayed on an affiliate website?
+7. Can price data be used for sorting products inside a private Admin interface?
+8. What are the current rules for storing or caching price and image data?
+9. Can product images returned by Creators API be displayed on the affiliate website?
+10. Are there any Amazon.eg-specific restrictions that differ from other Amazon marketplaces?
+11. Are there any additional approvals required for Creators API access?
+
+Thank you.
+
+---
+
+# 17. OFFICIAL SOURCES ONLY
+
+Prioritize:
+
+- Amazon Associates Central
+- Amazon Egypt Associates
+- Amazon Creators API documentation
+- Amazon Associates Operating Agreement
+- Amazon Associates Program Policies
+- Amazon Support
+- Official Egyptian government sources only when discussing Egyptian tax or employment law
+
+Do NOT rely on:
+
+- Reddit
+- YouTube
+- random blogs
+- affiliate marketing blogs
+- outdated tutorials
+- old PA-API guides
+
+for final conclusions.
+
+---
+
+# 18. REPORT FORMAT
+
+At the end, create a clear report with:
+
+## 1. What Amazon officially confirms
+
+## 2. What Amazon Egypt specifically supports
+
+## 3. Creators API eligibility
+
+## 4. How to obtain API credentials
+
+## 5. Product search capabilities
+
+## 6. Product detail capabilities
+
+## 7. Images
+
+## 8. Prices
+
+## 9. Admin-only price sorting
+
+## 10. Affiliate links
+
+## 11. Commission
+
+## 12. Payment
+
+## 13. Tax information
+
+## 14. Account requirements
+
+## 15. Employment-related Amazon requirements
+
+## 16. Amazon Support contact method
+
+## 17. Exact questions that still need Amazon's direct answer
+
+## 18. Recommended next step
+
+---
+
+# 19. EVIDENCE STANDARD
+
+For every important claim:
+
+Provide:
+
+- Official URL
+- Page/document title
+- Relevant section if available
+- Date checked
+
+If the information comes from old PA-API documentation:
+
+Clearly label it:
+
+LEGACY / PA-API
+
+Do not present legacy information as current Creators API information.
+
+---
+
+# 20. NO IMPLEMENTATION
+
+Do NOT modify the website.
+
+Do NOT modify the database.
+
+Do NOT create packages.
+
+Do NOT create Amazon services.
+
+Do NOT create API routes.
+
+Do NOT create UI.
+
+Do NOT create Product Browser.
+
+Do NOT start Phase 1.
+
+This is a research and verification task only.
+
+---
+
+# 21. FINAL STOP
+
+After completing this investigation:
+
+STOP.
+
+Do NOT continue to Phase 1.
+
+Do NOT start coding.
+
+Wait for my explicit instruction.
+
+The next development phase will only begin after we review this Amazon verification report and decide what is actually supported.
+
+END TASK.
