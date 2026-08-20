@@ -1,0 +1,4 @@
+<article class="product-card">
+  <a href="/product/<%= encodeURIComponent(p.slug) %>" class="product-image"><% if (p.image_url) { %><img src="<%= p.image_url %>" alt="<%= p.title %>" loading="lazy"><% } else { %><span>لا توجد صورة</span><% } %></a>
+  <div class="product-body"><% if (p.category_name) { %><small class="category"><%= p.category_name %></small><% } %><h3><a href="/product/<%= encodeURIComponent(p.slug) %>"><%= p.title %></a></h3><p><%= p.short_description || '' %></p><% if (p.current_price != null) { %><strong class="price"><%= Number(p.current_price).toFixed(2) %> <%= p.currency || 'EGP' %></strong><% } %><a class="button small" href="<%= p.affiliate_url %>" target="_blank" rel="sponsored noopener noreferrer">شاهد على Amazon ↗</a></div>
+</article>
