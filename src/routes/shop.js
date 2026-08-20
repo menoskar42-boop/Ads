@@ -9,6 +9,7 @@ const push = require('../lib/push');
 const reviews = require('../lib/reviews');
 const recommendations = require('../lib/recommendations');
 const shopFeatures = require('../lib/shop_features');
+const loyalty = require('../shop/loyalty');
 const deals = require('../lib/deals');
 const shipping = require('../lib/shipping');
 const { loadPaymentMethods } = require('../lib/payment_methods');
@@ -262,7 +263,10 @@ router.get('/:slug/checkout', async (req, res) => {
       payment,
       shippingZones: zones,
       savedAddresses,
-      customerPoints,
+      // الميزة المقفولة بتتقفل هنا **وعلى السيرفر** وقت الكتابة كمان — الشاشة
+      // لوحدها مش قفل.
+      customerPoints: feat.loyalty === false ? 0 : customerPoints,
+      loyaltyCfg: loyalty.settingsFrom(company, feat.loyalty),
       customerWallet: feat.gift_cards === false ? 0 : customerWallet,
       customerId: req.session.customerId || null,
       orderLines,
@@ -384,17 +388,22 @@ router.post('/:slug/checkout', async (req, res) => {
       }
     }
     let afterDiscount = Math.max(0, +(total - discountAmount).toFixed(2));
-    // Loyalty points redemption (phase 19): 100 points = 1 currency unit.
+    // ثمن البضاعة بعد الخصم — ده اللي النقاط بتتكسب عليه. الشحن ورصيد
+    // المحفظة بيتحسبوا بعد كده ومالهمش دعوة بالكسب.
+    const goodsTotal = afterDiscount;
+
+    // الولاء (البند ٩١): الحسبة والمعدّلات في `src/shop/loyalty.js`، والميزة
+    // بتتقفل **هنا** كمان مش على الشاشة بس — الزرار اللي بيخفي الخانة ويسيب
+    // الكتابة بتصرف نقاط مش زرار.
+    const feat = await shopFeatures.getFeatures(company.id);
+    const loyaltyCfg = loyalty.settingsFrom(company, feat.loyalty);
     let pointsRedeemed = 0, pointsDiscount = 0;
-    if (customerId) {
+    if (customerId && loyaltyCfg.enabled) {
       const cust = (await client.query('SELECT loyalty_points FROM customers WHERE id=$1 FOR UPDATE', [customerId])).rows[0];
-      const wantRedeem = Math.max(0, parseInt(req.body.redeem_points, 10) || 0);
-      if (cust && wantRedeem > 0) {
-        const usablePoints = Math.min(wantRedeem, cust.loyalty_points, Math.floor(afterDiscount) * 100);
-        pointsDiscount = Math.floor(usablePoints / 100);
-        pointsRedeemed = pointsDiscount * 100;
-        afterDiscount = Math.max(0, +(afterDiscount - pointsDiscount).toFixed(2));
-      }
+      const got = loyalty.redeemFor(req.body.redeem_points, cust && cust.loyalty_points, afterDiscount, loyaltyCfg);
+      pointsRedeemed = got.points;
+      pointsDiscount = got.discount;
+      afterDiscount = Math.max(0, +(afterDiscount - pointsDiscount).toFixed(2));
     }
     // Shipping (phase 12): cost by governorate, free over threshold.
     //
@@ -426,7 +435,8 @@ router.post('/:slug/checkout', async (req, res) => {
     // the amount owed. Locked FOR UPDATE so two concurrent orders can't both
     // spend the same balance. Never goes below zero, never exceeds the total.
     let walletUsed = 0;
-    if (customerId && String(req.body.use_wallet) === '1') {
+    // ونفس القاعدة على المحفظة: القفل بيقفل الكتابة مش العرض بس.
+    if (customerId && feat.gift_cards !== false && String(req.body.use_wallet) === '1') {
       const w = (await client.query('SELECT wallet_balance FROM customers WHERE id=$1 FOR UPDATE', [customerId])).rows[0];
       const bal = Number((w && w.wallet_balance) || 0);
       if (bal > 0) {
@@ -437,8 +447,10 @@ router.post('/:slug/checkout', async (req, res) => {
       }
     }
     const finalTotal = +(orderTotal - walletUsed).toFixed(2);
-    // Loyalty earning (phase 19): 1 point per currency unit of the amount actually paid.
-    const pointsEarned = customerId ? Math.floor(finalTotal) : 0;
+    // الكسب على **البضاعة**: مش على الشحن (فلوس بتروح للمندوب)، ومابيقلّش لما
+    // العميل يدفع من محفظته (المحفظة طريقة دفع مش خصم — البضاعة اتباعت بنفس
+    // القيمة). واللي اتصرف نقاط عليه مابيتكسبش تاني.
+    const pointsEarned = customerId ? loyalty.earnFor(Math.max(0, goodsTotal - pointsDiscount), loyaltyCfg) : 0;
     const paymentMethod = ['cod', 'card', 'wallet', 'instapay'].includes(req.body.payment_method) ? req.body.payment_method : 'cod';
 
     const orderInsert = await client.query(

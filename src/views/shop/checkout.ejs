@@ -91,13 +91,21 @@
       <input type="text" name="coupon_code" maxlength="40" placeholder="لو معاك كود خصم اكتبه هنا" dir="ltr"
         class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-200" />
     </div>
-    <% if (typeof customerPoints !== 'undefined' && customerPoints >= 100) { %>
+    <%# الولاء (البند ٩١): كل رقم هنا من إعداد المتجر — «كل ١٠٠ نقطة = ١ ج»
+        كانت مكتوبة في القالب، فالتاجر اللي بيغيّر معدّله كان العميل بيقراله
+        رقم تاني عن اللي هيتحسب فعلاً. %>
+    <% var _lp = (typeof loyaltyCfg !== 'undefined' && loyaltyCfg) ? loyaltyCfg : { enabled: true, redeemPer: 100, maxPercent: 100 };
+       var _lpc = (company.currency || 'ج'); %>
+    <% if (_lp.enabled && typeof customerPoints !== 'undefined' && customerPoints >= _lp.redeemPer) { %>
     <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-      <label class="block text-sm font-semibold text-indigo-700 mb-1.5">⭐ عندك <%= customerPoints %> نقطة (= <%= (customerPoints/100).toFixed(2) %> ج)</label>
+      <label class="block text-sm font-semibold text-indigo-700 mb-1.5">⭐ عندك <%= customerPoints %> نقطة (= <%= (customerPoints/_lp.redeemPer).toFixed(2) %> <%= _lpc %>)</label>
       <div class="flex items-center gap-2">
-        <input type="number" name="redeem_points" min="0" max="<%= customerPoints %>" step="100" placeholder="عدد النقاط اللي تستخدمها" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
-        <span class="text-xs text-gray-500">كل 100 نقطة = 1 ج</span>
+        <input type="number" name="redeem_points" min="0" max="<%= customerPoints %>" step="<%= _lp.redeemPer %>" placeholder="عدد النقاط اللي تستخدمها" class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+        <span class="text-xs text-gray-500">كل <%= _lp.redeemPer %> نقطة = 1 <%= _lpc %></span>
       </div>
+      <% if (_lp.maxPercent < 100) { %>
+        <p class="text-[11px] text-gray-500 mt-1">أقصى خصم بالنقاط: <%= _lp.maxPercent %>٪ من الطلب</p>
+      <% } %>
     </div>
     <% } %>
     <% if (typeof customerWallet !== 'undefined' && customerWallet > 0) { %>

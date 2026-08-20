@@ -24,6 +24,35 @@
       </label>
       <% }); %>
 
+      <%# معدّلات الولاء (البند ٩١). كانت متصلّبة في راوت الطلب: نقطة لكل جنيه
+          و١٠٠ نقطة بجنيه — يعني خصم ١٪ على كل بيعة، من غير ما التاجر يختاره
+          ولا يشوفه. الأرقام اللي هنا هي نفسها اللي كانت شغّالة. %>
+      <% var _l = (typeof loyalty !== 'undefined' && loyalty) ? loyalty : { earnPer: 1, redeemPer: 100, maxPercent: 100, enabled: true }; %>
+      <div class="border border-gray-200 rounded-xl px-4 py-3 <%= _l.enabled ? '' : 'opacity-60' %>">
+        <div class="font-bold text-gray-800 text-sm mb-1">معدّل نقاط الولاء</div>
+        <p class="text-xs text-gray-400 mb-3">
+          <% if (!_l.enabled) { %>نقاط الولاء مقفولة فوق — الأرقام دي مش شغّالة دلوقتي.
+          <% } else { %>النقاط بتتحسب على ثمن البضاعة بعد الخصم — مش على الشحن، ومابتقلّش لما العميل يدفع من محفظته.<% } %>
+        </p>
+        <div class="grid sm:grid-cols-3 gap-3">
+          <label class="text-xs font-bold text-gray-600">نقاط لكل 1 من العملة
+            <input type="number" name="loyalty_earn_per" min="0" max="100" step="0.25" value="<%= _l.earnPer %>"
+                   class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+          <label class="text-xs font-bold text-gray-600">نقاط تساوي 1 من العملة
+            <input type="number" name="loyalty_redeem_per" min="1" max="100000" step="1" value="<%= _l.redeemPer %>"
+                   class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+          <label class="text-xs font-bold text-gray-600">أقصى نسبة من الطلب بالنقاط (٪)
+            <input type="number" name="loyalty_max_percent" min="0" max="100" step="1" value="<%= _l.maxPercent %>"
+                   class="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+          </label>
+        </div>
+        <p class="text-[11px] text-gray-500 mt-2">
+          بالإعداد ده: كل 100 من العملة مشتريات = <%= (100 * _l.earnPer).toFixed(0) %> نقطة، وبتتصرف بـ<%= ((100 * _l.earnPer) / _l.redeemPer).toFixed(2) %> من العملة (خصم <%= ((_l.earnPer / _l.redeemPer) * 100).toFixed(2) %>٪).
+        </p>
+      </div>
+
       <div class="pt-4">
         <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition shadow">حفظ</button>
       </div>
