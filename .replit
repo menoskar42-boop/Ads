@@ -48,7 +48,7 @@ externalPort = 3000
 exposeLocalhost = true
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "vm"
 build = ["sh", "-c", "npm install && (cd mybible && npm install && npm run build)"]
 run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true npm start"]
 
