@@ -154,6 +154,8 @@ function base(over) {
     showAds: true,
     ads: { enabled: true, publisherId: 'ca-pub-3132188303904900', slots: { pageBottom: '6' } },
     canonicalCompanyUrl: (s) => `https://${s}.oscardevs.com`,
+    // نفس المساعد اللي الميدل‌وير بيحطّه — القالب بيقرا خط الثيم منه.
+    shopFont: (c) => require('../src/shop/themes').fontOf(c),
     siteLogo: null, siteManifest: null, siteAppName: 'النشاط التجريبي',
     modules: {}, session: {}, req: { query: {} }, pickContent,
     jsonLd: (o) => JSON.stringify(o)

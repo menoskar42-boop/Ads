@@ -1,4 +1,5 @@
 const { canonicalCompanyUrl, companyPageUrl, isProductionHost } = require('../lib/urls');
+const shopThemes = require('../shop/themes');
 
 module.exports = (req, res, next) => {
   res.locals.canonicalCompanyUrl = (slug) => canonicalCompanyUrl(slug, req);
@@ -7,5 +8,8 @@ module.exports = (req, res, next) => {
   // as the canonical of every doctor page. Joining is done here, once.
   res.locals.companyPageUrl = (slug, sub) => companyPageUrl(slug, req, sub);
   res.locals.isProductionHost = isProductionHost(req);
+  // خط عناوين الثيم (البند ٩١). بيتحطّ هنا عشان القالب مايعملش `require`
+  // — الـEJS مالوش `require` أصلاً، والقالب اللي بيحاول بيقع وقت العرض.
+  res.locals.shopFont = (company) => shopThemes.fontOf(company);
   next();
 };

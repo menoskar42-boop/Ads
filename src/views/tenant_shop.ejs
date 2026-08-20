@@ -30,10 +30,14 @@
     siteAppName: displayName
   }) %>
   <%- include('partials/company_jsonld', { company: company }) %>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <%# خط العناوين بتاع الثيم (البند ٩١). بيتحمّل **لما يتختار بس** — تحميل ستة
+      خطوط على كل زيارة عشان واحد منهم شغّال بيبطّأ صفحة كل متجر. %>
+  <% var __font = shopFont(company); %>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=<%= __font.google %>&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/shop.css" />
   <style>
     :root {
+      --display: <%= __font.css %>;
       --primary: <%= company.theme_color %>;
       --primary-d: color-mix(in srgb, <%= company.theme_color %> 78%, #000);
       --primary-l: color-mix(in srgb, <%= company.theme_color %> 12%, #fff);

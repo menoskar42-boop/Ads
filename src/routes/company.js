@@ -37,6 +37,7 @@ const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');
 const { compressImage, compressVideo } = require('../lib/media');
 const shopFeatures = require('../lib/shop_features');
 const loyaltyRules = require('../shop/loyalty');
+const shopThemes = require('../shop/themes');
 const push = require('../lib/push');
 const indexnow = require('../lib/indexnow');
 
@@ -1831,6 +1832,53 @@ router.get('/manifest.webmanifest', async (req, res) => {
     console.error('[company manifest]', e.message);
     res.status(404).json({ error: 'not found' });
   }
+});
+
+/* ─── مكتبة الثيمات (البند ٩١) ──────────────────────────────────────────
+ *
+ * التخصيص كان موجود: تسع خانات لون فاضية قدام واحد بيبيع هدوم. والنتيجة إن
+ * أغلب المتاجر فضلت على الأزرق الافتراضي.
+ *
+ * الثيم هنا **بيتطبّق على خانات التاجر نفسها** مش بيقعد فوقها كطبقة. الطبقة
+ * كانت هتخلّق سؤال «مين بيكسب: الثيم ولا اللون اللي كتبه؟» وإجابته بتبقى
+ * مخفية في الكود. لما الثيم بيكتب في خاناته، مافيش أسبقية أصلاً: شايف كل
+ * لون، ويقدر يعدّله بعدين، وتعديله بيفضل لحد ما يطبّق ثيم تاني بإيده.
+ */
+router.get('/themes', requireLogin, requireShop, async (req, res) => {
+  try {
+    const company = (await pool.query('SELECT * FROM companies WHERE id=$1', [req.session.companyId])).rows[0] || {};
+    // اللي هيتغيّر فعلاً لكل ثيم على المتجر ده — الشاشة بتقوله قبل ما يضغط.
+    const diffs = {};
+    shopThemes.KEYS.forEach((k) => { diffs[k] = shopThemes.diffFor(k, company); });
+    res.render('company/themes', {
+      pageTitle: 'ثيمات المتجر', session: req.session,
+      themes: shopThemes.THEMES, fonts: shopThemes.FONTS,
+      current: company.shop_theme || null, company, diffs,
+      saved: req.query.saved === '1',
+      err: ['pick', 'save'].includes(req.query.err) ? req.query.err : null,
+    });
+  } catch (e) { console.error('[themes]', e.message); res.redirect('/company/dashboard'); }
+});
+
+router.post('/themes', requireLogin, requireShop, async (req, res) => {
+  const key = String((req.body || {}).theme || '');
+  const vals = shopThemes.valuesFor(key);
+  // مفتاح مش من عندنا بيترفض — مابيتحوّلش للافتراضي وكأن التاجر اختاره.
+  if (!vals) return res.redirect('/company/themes?err=pick');
+  try {
+    await pool.query(
+      `UPDATE companies SET theme_color=$1, color_accent=$2, hero_card1_color=$3, hero_card2_color=$4,
+              hero_text_color=$5, hero_btn_bg=$6, hero_btn_text=$7, shop_font=$8, shop_theme=$9
+        WHERE id=$10`,
+      [vals.theme_color, vals.color_accent, vals.hero_card1_color, vals.hero_card2_color,
+        vals.hero_text_color, vals.hero_btn_bg, vals.hero_btn_text, vals.shop_font, key,
+        req.session.companyId]);
+    req.session.themeColor = vals.theme_color;
+  } catch (e) {
+    console.error('[themes save]', e.message);
+    return res.redirect('/company/themes?err=save');
+  }
+  res.redirect('/company/themes?saved=1');
 });
 
 router.get('/features', requireLogin, requireShop, async (req, res) => {
