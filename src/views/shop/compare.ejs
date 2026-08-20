@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex,nofollow" />
-  <title>مقارنة المنتجات — <%= company.company_name %></title>
+  <title><%= t('sf.cmp.title') %> — <%= company.company_name %></title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/tw.css" />
   <style>* { font-family: 'Cairo', sans-serif; }</style>
@@ -14,17 +14,17 @@
 <header class="bg-white shadow-sm">
   <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
     <a href="<%= canonicalCompanyUrl(company.slug) %>" class="font-bold text-gray-800"><%= company.company_name %></a>
-    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="text-sm text-indigo-600 font-bold">‹ المتجر</a>
+    <a href="<%= canonicalCompanyUrl(company.slug) %>" class="text-sm text-indigo-600 font-bold">‹ <%= t('sf.cmp.store') %></a>
   </div>
 </header>
 
 <main class="max-w-5xl mx-auto px-4 py-8">
-  <h1 class="text-2xl font-bold text-gray-800 mb-6">مقارنة المنتجات</h1>
+  <h1 class="text-2xl font-bold text-gray-800 mb-6"><%= t('sf.cmp.title') %></h1>
 
   <% if (!products.length) { %>
     <div class="bg-white rounded-2xl shadow-sm p-10 text-center text-gray-500">
-      <p class="mb-2">مفيش منتجات للمقارنة.</p>
-      <p class="text-sm">ارجع للمتجر واختار «قارن» على منتجين أو أكتر.</p>
+      <p class="mb-2"><%= t('sf.cmp.empty') %></p>
+      <p class="text-sm"><%= t('sf.cmp.empty_hint') %></p>
     </div>
   <% } else {
       function pn(p){ return p.name_ar || p.name; }
@@ -34,7 +34,7 @@
       <table class="w-full text-sm text-right min-w-[520px]">
         <tbody>
           <tr class="border-b border-gray-100">
-            <th class="p-3 text-gray-400 font-medium w-28">المنتج</th>
+            <th class="p-3 text-gray-400 font-medium w-28"><%= t('sf.cmp.product') %></th>
             <% products.forEach(function(p){ %>
             <td class="p-3 text-center align-top">
               <a href="/shop/<%= company.slug %>/product/<%= p.id %>">
@@ -46,23 +46,23 @@
             </td>
             <% }); %>
           </tr>
-          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium">السعر</th>
-            <% products.forEach(function(p){ %><td class="p-3 text-center font-black text-emerald-600"><%= Number(p.price).toLocaleString('ar-EG') %> ج</td><% }); %>
+          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium"><%= t('sf.cmp.price') %></th>
+            <% products.forEach(function(p){ %><td class="p-3 text-center font-black text-emerald-600"><%= Number(p.price).toLocaleString(LOC) %> <%= company.currency || 'ج' %></td><% }); %>
           </tr>
-          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium">التوفّر</th>
-            <% products.forEach(function(p){ %><td class="p-3 text-center <%= p.stock>0?'text-green-600':'text-red-500' %>"><%= p.stock>0 ? 'متوفر' : 'نفد' %></td><% }); %>
+          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium"><%= t('sf.cmp.stock') %></th>
+            <% products.forEach(function(p){ %><td class="p-3 text-center <%= p.stock>0?'text-green-600':'text-red-500' %>"><%= p.stock>0 ? t('sf.cmp.in') : t('sf.cmp.out') %></td><% }); %>
           </tr>
-          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium">التقييم</th>
+          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium"><%= t('sf.cmp.rating') %></th>
             <% products.forEach(function(p){ %><td class="p-3 text-center text-amber-400"><%= Number(p.review_count)>0 ? (stars(p.avg_rating)+' ('+p.review_count+')') : '—' %></td><% }); %>
           </tr>
-          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium">التصنيف</th>
+          <tr class="border-b border-gray-100"><th class="p-3 text-gray-400 font-medium"><%= t('sf.cmp.category') %></th>
             <% products.forEach(function(p){ %><td class="p-3 text-center text-gray-600"><%= p.category_name || '—' %></td><% }); %>
           </tr>
-          <tr><th class="p-3 text-gray-400 font-medium align-top">الوصف</th>
+          <tr><th class="p-3 text-gray-400 font-medium align-top"><%= t('sf.cmp.desc') %></th>
             <% products.forEach(function(p){ %><td class="p-3 text-gray-600 text-xs align-top"><%= (p.description_ar || p.description || '').slice(0,160) %></td><% }); %>
           </tr>
           <tr><th class="p-3"></th>
-            <% products.forEach(function(p){ %><td class="p-3 text-center"><a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="inline-block bg-indigo-700 text-white text-xs font-bold rounded-xl px-4 py-2">عرض المنتج</a></td><% }); %>
+            <% products.forEach(function(p){ %><td class="p-3 text-center"><a href="/shop/<%= company.slug %>/product/<%= p.id %>" class="inline-block bg-indigo-700 text-white text-xs font-bold rounded-xl px-4 py-2"><%= t('sf.cmp.open') %></a></td><% }); %>
           </tr>
         </tbody>
       </table>

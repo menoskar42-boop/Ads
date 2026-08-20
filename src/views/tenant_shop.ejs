@@ -7,11 +7,13 @@
   <% var cur = company.currency || 'EGP'; %>
   <% var catIcons = ['📱','👕','🏠','💄','⚽','🎮','📚','🍔','🚗','👶','🎧','⌚']; %>
   <% var isDelta = company.slug === 'delta'; %>
-  <% var defaultPromos = ['🚀 شحن سريع لكل المحافظات','💳 الدفع عند الاستلام متاح','🎁 عروض وخصومات مستمرة','⚡ تسوّق آمن 100%']; %>
+  <%# النص الافتراضي بلغة الزائر (البند ٩١) — كان عربي متكتوب في القالب،
+      فالمتجر اللي بيبيع لزبون إنجليزي كان بيوريه شريط عربي فوق الصفحة. %>
+  <% var defaultPromos = [t('sf.promo.ship'), t('sf.promo.cod'), t('sf.promo.deals'), t('sf.promo.safe')]; %>
   <% var promoItems = (company.promo_text && company.promo_text.trim()) ? company.promo_text.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean) : defaultPromos; %>
-  <% var heroHeadline = company.hero_headline || 'كل اللي محتاجه في مكان واحد'; %>
-  <% var heroSub = company.hero_subtext || displayDesc || 'منتجات مختارة بعناية، أسعار مناسبة، وتوصيل سريع وآمن.'; %>
-  <% var heroCta = company.hero_cta_text || 'تسوّق الآن'; %>
+  <% var heroHeadline = company.hero_headline || t('sf.hero.headline'); %>
+  <% var heroSub = company.hero_subtext || displayDesc || t('sf.hero.sub'); %>
+  <% var heroCta = company.hero_cta_text || t('sf.hero.cta'); %>
   <% var heroBanners1 = (banners || []).filter(function(b){ return b.slot === 'hero1'; }); %>
   <% var heroBanners2 = (banners || []).filter(function(b){ return b.slot === 'hero2'; }); %>
   <% var sectionBanners = (banners || []).filter(function(b){ return !b.slot || b.slot === 'section'; }); %>
@@ -108,8 +110,8 @@
 <% if (__curFeatOn && typeof storeCurrencies !== 'undefined' && storeCurrencies.length) { %>
 <!-- Multi-currency display switcher (phase 33) -->
 <div style="display:flex;justify-content:flex-end;max-width:1100px;margin:8px auto 0;padding:0 16px">
-  <select id="odvCurSel" aria-label="العملة" style="border:1px solid #e5e7eb;border-radius:10px;padding:5px 10px;font-size:13px;background:#fff;color:#374151">
-    <option value="__base" data-rate="1" data-sym="<%= cur %>"><%= cur %> (الأساسية)</option>
+  <select id="odvCurSel" aria-label="<%= t('sf.cur.label') %>" style="border:1px solid #e5e7eb;border-radius:10px;padding:5px 10px;font-size:13px;background:#fff;color:#374151">
+    <option value="__base" data-rate="1" data-sym="<%= cur %>"><%= cur %> (<%= t('sf.cur.base') %>)</option>
     <% storeCurrencies.forEach(function(c){ %>
       <option value="<%= c.code %>" data-rate="<%= Number(c.rate) %>" data-sym="<%= c.symbol %>"><%= c.code %> (<%= c.symbol %>)</option>
     <% }); %>
@@ -162,7 +164,7 @@
     </div>
     <% } %>
     <div class="hero-content">
-      <div class="hero-tag"><span class="pulse"></span> أهلاً بك في متجر <%= displayName %></div>
+      <div class="hero-tag"><span class="pulse"></span> <%= t('sf.hero.welcome') %> <%= displayName %></div>
       <h1><%= heroHeadline %></h1>
       <p><%= heroSub %></p>
       <div class="hero-cta-row">
@@ -183,9 +185,9 @@
           <% }) %>
         </div>
       <% } else { %>
-        <div class="label">تشكيلة مميزة</div>
-        <h2>منتجات<br>وصلت حديثاً</h2>
-        <span class="price-strip">تصفّح الجديد</span>
+        <div class="label"><%= t('sf.card.new_label') %></div>
+        <h2><%- t('sf.card.new_title') %></h2>
+        <span class="price-strip"><%= t('sf.card.new_strip') %></span>
         <div class="arrow">←</div>
       <% } %>
     </div>
@@ -199,9 +201,9 @@
           <% }) %>
         </div>
       <% } else { %>
-        <div class="label">دفع آمن</div>
-        <h2>الدفع عند<br>الاستلام</h2>
-        <span class="price-strip">+ شحن سريع</span>
+        <div class="label"><%= t('sf.card.pay_label') %></div>
+        <h2><%- t('sf.card.pay_title') %></h2>
+        <span class="price-strip"><%= t('sf.card.pay_strip') %></span>
         <div class="arrow">←</div>
       <% } %>
     </div>
@@ -218,13 +220,13 @@
       <div class="flash-bolt">⚡</div>
       <div>
         <div class="flash-title">
-          <% if (currentSearch) { %>نتائج: "<%= currentSearch %>"<% } else { %>كل المنتجات<% } %>
+          <% if (currentSearch) { %><%= t('sf.list.results') %>: "<%= currentSearch %>"<% } else { %><%= t('sf.list.all') %><% } %>
         </div>
-        <div class="flash-sub">اكتشف تشكيلتنا واطلب بسهولة</div>
+        <div class="flash-sub"><%= t('sf.list.sub') %></div>
       </div>
     </div>
     <div class="countdown">
-      <span>عروض تنتهي خلال</span>
+      <span><%= t('sf.deals.ends_in') %></span>
       <div class="countdown-box" id="cd-h">12</div><span>:</span>
       <div class="countdown-box" id="cd-m">34</div><span>:</span>
       <div class="countdown-box" id="cd-s">56</div>
@@ -235,20 +237,20 @@
   <form class="shop-filters" method="GET" action="<%= canonicalCompanyUrl(company.slug) %>" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;padding:10px 12px;background:#fff;border:1px solid #eef0f2;border-radius:14px">
     <% if (currentSearch) { %><input type="hidden" name="q" value="<%= currentSearch %>" /><% } %>
     <% if (currentCategory) { %><input type="hidden" name="category" value="<%= currentCategory %>" /><% } %>
-    <label style="font-size:13px;font-weight:700;color:#374151">ترتيب</label>
+    <label style="font-size:13px;font-weight:700;color:#374151"><%= t('sf.filter.sort') %></label>
     <select name="sort" onchange="this.form.submit()" style="border:1px solid #e5e7eb;border-radius:10px;padding:6px 10px;font-size:13px;background:#fff">
-      <option value="">الأحدث</option>
-      <option value="price_asc" <%= shopFilters.sort==='price_asc'?'selected':'' %>>الأرخص</option>
-      <option value="price_desc" <%= shopFilters.sort==='price_desc'?'selected':'' %>>الأغلى</option>
-      <option value="best" <%= shopFilters.sort==='best'?'selected':'' %>>الأكثر مبيعاً</option>
+      <option value=""><%= t('sf.filter.newest') %></option>
+      <option value="price_asc" <%= shopFilters.sort==='price_asc'?'selected':'' %>><%= t('sf.filter.cheapest') %></option>
+      <option value="price_desc" <%= shopFilters.sort==='price_desc'?'selected':'' %>><%= t('sf.filter.priciest') %></option>
+      <option value="best" <%= shopFilters.sort==='best'?'selected':'' %>><%= t('sf.filter.bestseller') %></option>
     </select>
     <span style="width:1px;height:22px;background:#eef0f2"></span>
-    <label style="font-size:13px;font-weight:700;color:#374151">السعر</label>
-    <input type="number" name="min" value="<%= shopFilters.min %>" placeholder="من<%= shopPriceRange.max ? (' ' + shopPriceRange.min) : '' %>" min="0" inputmode="numeric" style="width:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;font-size:13px" />
-    <input type="number" name="max" value="<%= shopFilters.max %>" placeholder="إلى<%= shopPriceRange.max ? (' ' + shopPriceRange.max) : '' %>" min="0" inputmode="numeric" style="width:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;font-size:13px" />
-    <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:#374151;font-weight:600;cursor:pointer"><input type="checkbox" name="instock" value="1" onchange="this.form.submit()" <%= shopFilters.instock?'checked':'' %> /> متوفر فقط</label>
-    <button type="submit" style="background:var(--brand,#4f46e5);color:#fff;border:none;border-radius:10px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer">تطبيق</button>
-    <% if (_hasFilter) { %><a href="<%= canonicalCompanyUrl(company.slug) %>" style="font-size:13px;color:#6b7280;text-decoration:underline">مسح الكل</a><% } %>
+    <label style="font-size:13px;font-weight:700;color:#374151"><%= t('sf.filter.price') %></label>
+    <input type="number" name="min" value="<%= shopFilters.min %>" placeholder="<%= t('sf.filter.from') %><%= shopPriceRange.max ? (' ' + shopPriceRange.min) : '' %>" min="0" inputmode="numeric" style="width:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;font-size:13px" />
+    <input type="number" name="max" value="<%= shopFilters.max %>" placeholder="<%= t('sf.filter.to') %><%= shopPriceRange.max ? (' ' + shopPriceRange.max) : '' %>" min="0" inputmode="numeric" style="width:78px;border:1px solid #e5e7eb;border-radius:10px;padding:6px 8px;font-size:13px" />
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;color:#374151;font-weight:600;cursor:pointer"><input type="checkbox" name="instock" value="1" onchange="this.form.submit()" <%= shopFilters.instock?'checked':'' %> /> <%= t('sf.filter.instock') %></label>
+    <button type="submit" style="background:var(--brand,#4f46e5);color:#fff;border:none;border-radius:10px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer"><%= t('sf.filter.apply') %></button>
+    <% if (_hasFilter) { %><a href="<%= canonicalCompanyUrl(company.slug) %>" style="font-size:13px;color:#6b7280;text-decoration:underline"><%= t('sf.filter.clear') %></a><% } %>
   </form>
   <% } %>
 
@@ -285,7 +287,7 @@
             <div class="pc-img" style="background-image:url('<%= p.image_url || '' %>'); background-color: var(--line-soft);"></div>
             <% if (p.stock <= 0) { %><div class="pc-badge out"><%= t('public.out_of_stock') %></div>
             <% } else if (disc > 0) { %><div class="pc-badge">-<%= disc %>%</div><% } %>
-            <% if (dealEnds) { %><div class="pc-badge" style="inset-inline-start:8px;inset-inline-end:auto;background:#111827;" data-deal-ends="<%= new Date(dealEnds).toISOString() %>">⏳ <span class="deal-cd">عرض</span></div><% } %>
+            <% if (dealEnds) { %><div class="pc-badge" style="inset-inline-start:8px;inset-inline-end:auto;background:#111827;" data-deal-ends="<%= new Date(dealEnds).toISOString() %>">⏳ <span class="deal-cd"><%= t('sf.card.view') %></span></div><% } %>
           </a>
           <% if (__on('wishlist')) { %>
           <button class="pc-fav" type="button" aria-label="favorite" data-fav="<%= p.id %>">
@@ -294,7 +296,7 @@
           <% } %>
           <% if (__on('compare')) { %>
           <label class="pc-compare" style="position:absolute;top:8px;inset-inline-start:8px;display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.9);border-radius:8px;padding:3px 7px;font-size:11px;font-weight:700;color:#374151;cursor:pointer;z-index:5;">
-            <input type="checkbox" class="cmp-box" data-cmp="<%= p.id %>" data-name="<%= (p.name_ar||p.name) %>" style="width:14px;height:14px;" /> قارن
+            <input type="checkbox" class="cmp-box" data-cmp="<%= p.id %>" data-name="<%= (p.name_ar||p.name) %>" style="width:14px;height:14px;" /> <%= t('sf.compare') %>
           </label>
           <% } %>
           <div class="pc-info">
@@ -328,8 +330,8 @@
 <section class="cats">
   <div class="section-head">
     <div>
-      <h2 class="section-title">تسوّق حسب التصنيف</h2>
-      <div class="section-sub">اكتشف منتجاتنا في كل قسم</div>
+      <h2 class="section-title"><%= t('sf.cats.title') %></h2>
+      <div class="section-sub"><%= t('sf.cats.sub') %></div>
     </div>
     <a href="<%= canonicalCompanyUrl(company.slug) %>" class="view-all"><%= t('public.all_categories') %> ←</a>
   </div>
@@ -349,19 +351,19 @@
 <section class="trust-bar">
   <div class="trust-item">
     <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 18a3 3 0 1 0 6 0M13 18a3 3 0 1 0 6 0M16 18V6h-3l-3 4H7v8M16 18H7"/></svg></div>
-    <div class="trust-text"><h3>شحن سريع</h3><p>توصيل لكل المحافظات</p></div>
+    <div class="trust-text"><h3><%= t('sf.usp.ship') %></h3><p><%= t('sf.usp.ship_sub') %></p></div>
   </div>
   <div class="trust-item">
     <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg></div>
-    <div class="trust-text"><h3>إرجاع سهل</h3><p>استبدال خلال أيام</p></div>
+    <div class="trust-text"><h3><%= t('sf.usp.return') %></h3><p><%= t('sf.usp.return_sub') %></p></div>
   </div>
   <div class="trust-item">
     <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-    <div class="trust-text"><h3>دفع آمن</h3><p>الدفع عند الاستلام</p></div>
+    <div class="trust-text"><h3><%= t('sf.usp.pay') %></h3><p><%= t('sf.usp.pay_sub') %></p></div>
   </div>
   <div class="trust-item">
     <div class="trust-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
-    <div class="trust-text"><h3>دعم متواصل</h3><p>في خدمتك دائماً</p></div>
+    <div class="trust-text"><h3><%= t('sf.usp.support') %></h3><p><%= t('sf.usp.support_sub') %></p></div>
   </div>
 </section>
 <% } %>
@@ -370,8 +372,8 @@
 <!-- Demo: app download (Delta showcase only) -->
 <section class="app-cta">
   <div class="app-cta-content">
-    <h2>حمّل تطبيق <%= displayName %><br>واحصل على <span class="accent">15%</span> خصم</h2>
-    <p>تسوّق أسرع، تتبع طلباتك، واستلم إشعارات عروض حصرية مباشرة على جوالك.</p>
+    <h2><%= t('sf.app.title') %> <%= displayName %><br><%= t('sf.app.title2') %> <span class="accent">15%</span> <%= t('sf.app.discount') %></h2>
+    <p><%= t('sf.app.sub') %></p>
     <div class="app-stores">
       <a href="#" class="app-badge"><img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" loading="lazy" decoding="async" width="135" height="40" /></a>
       <a href="#" class="app-badge"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" loading="lazy" decoding="async" width="135" height="40" /></a>
@@ -380,11 +382,11 @@
   <div class="phone-mockup">
     <div class="phone">
       <div class="phone-screen">
-        <div class="phone-top">صباح الخير ☀</div>
-        <div class="phone-mid">15%<br>خصم<br>اليوم!</div>
+        <div class="phone-top"><%= t('sf.app.morning') %> ☀</div>
+        <div class="phone-mid">15%<br><%= t('sf.app.today') %></div>
         <div class="phone-bottom">
           <div class="phone-icon">🛍</div>
-          <div><div style="font-size:0.75rem;opacity:0.8">سلتك جاهزة</div><div style="font-weight:700;font-size:0.95rem">184.50 <%= cur %></div></div>
+          <div><div style="font-size:0.75rem;opacity:0.8"><%= t('sf.app.cart_ready') %></div><div style="font-weight:700;font-size:0.95rem">184.50 <%= cur %></div></div>
         </div>
       </div>
     </div>
@@ -397,17 +399,17 @@
 <!-- Contact -->
 <% if (company.show_contact !== false) { %>
 <section class="shop-contact" id="contact">
-  <h2 class="section-title">تواصل معنا</h2>
+  <h2 class="section-title"><%= t('sf.contact.title') %></h2>
   <% if (company.contact_phone || company.contact_whatsapp || company.contact_email || company.contact_address) { %>
     <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:18px;">
-      <% if (company.contact_whatsapp) { %><a href="https://wa.me/<%= company.contact_whatsapp.replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#DCFFE4;color:#00794F;font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">💬 واتساب</a><% } %>
+      <% if (company.contact_whatsapp) { %><a href="https://wa.me/<%= company.contact_whatsapp.replace(/[^0-9]/g,'') %>" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;background:#DCFFE4;color:#00794F;font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">💬 <%= t('sf.whatsapp') %></a><% } %>
       <% if (company.contact_phone) { %><a href="tel:<%= company.contact_phone.replace(/[^0-9+]/g,'') %>" style="display:inline-flex;align-items:center;gap:8px;background:var(--primary-l);color:var(--primary);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">📞 <%= company.contact_phone %></a><% } %>
       <% if (company.contact_email) { %><a href="mailto:<%= company.contact_email %>" style="display:inline-flex;align-items:center;gap:8px;background:var(--line-soft);color:var(--ink-2);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">✉️ <%= company.contact_email %></a><% } %>
       <% if (company.contact_address) { %><span style="display:inline-flex;align-items:center;gap:8px;background:var(--line-soft);color:var(--ink-2);font-weight:700;font-size:0.85rem;padding:10px 18px;border-radius:100px;">📍 <%= company.contact_address %></span><% } %>
     </div>
   <% } %>
   <div class="shop-contact-card">
-    <% if (typeof sent !== 'undefined' && sent) { %><div class="form-note ok">✓ تم إرسال رسالتك بنجاح</div><% } %>
+    <% if (typeof sent !== 'undefined' && sent) { %><div class="form-note ok">✓ <%= t('sf.contact.sent') %></div><% } %>
     <% if (typeof contactError !== 'undefined' && contactError) { %><div class="form-note err"><%= contactError %></div><% } %>
     <form method="POST" action="/contact/<%= company.slug %>">
       <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;height:0;width:0;overflow:hidden;">
@@ -416,11 +418,11 @@
       <input type="hidden" name="ft" value="<%= Date.now() %>" />
       <div class="row2">
         <input type="text" name="sender_name" placeholder="<%= t('common.name') %>" required />
-        <input type="email" name="sender_email" placeholder="<%= t('common.email') || 'البريد الإلكتروني' %>" />
+        <input type="email" name="sender_email" placeholder="<%= t('sf.contact.email') %>" />
       </div>
-      <input type="tel" name="sender_phone" placeholder="رقم الهاتف (اختياري)" maxlength="30" />
-      <textarea name="message" rows="4" placeholder="رسالتك..." required maxlength="5000"></textarea>
-      <button type="submit">إرسال الرسالة</button>
+      <input type="tel" name="sender_phone" placeholder="<%= t('sf.contact.phone') %>" maxlength="30" />
+      <textarea name="message" rows="4" placeholder="<%= t('sf.contact.msg') %>" required maxlength="5000"></textarea>
+      <button type="submit"><%= t('sf.contact.send') %></button>
     </form>
   </div>
 </section>
@@ -435,41 +437,41 @@
         <div class="logo-mark"><% if (company.logo_url) { %><img src="<%= company.logo_url %>" alt="" loading="lazy" decoding="async" /><% } else { %><%= (displayName||' ').charAt(0) %><% } %></div>
         <span><%= displayName %></span>
       </div>
-      <% if (displayDesc) { %><p class="footer-tag"><%= displayDesc %></p><% } else { %><p class="footer-tag">متجرك الموثوق لكل ما تحتاجه — منتجات مختارة وتوصيل سريع.</p><% } %>
+      <% if (displayDesc) { %><p class="footer-tag"><%= displayDesc %></p><% } else { %><p class="footer-tag"><%= t('sf.foot.tagline') %></p><% } %>
       <div style="margin-top:14px"><%- include('partials/social_icons', { company: company }) %></div>
     </div>
     <div class="footer-col">
-      <h3>التسوّق</h3>
+      <h3><%= t('sf.foot.shopping') %></h3>
       <ul>
-        <li><a href="<%= canonicalCompanyUrl(company.slug) %>">كل المنتجات</a></li>
-        <li><a href="#products">المنتجات</a></li>
+        <li><a href="<%= canonicalCompanyUrl(company.slug) %>"><%= t('sf.list.all') %></a></li>
+        <li><a href="#products"><%= t('sf.foot.products') %></a></li>
         <li><a href="/shop/<%= company.slug %>/cart"><%= t('public.cart') %></a></li>
       </ul>
     </div>
     <div class="footer-col">
-      <h3>حسابي</h3>
+      <h3><%= t('sf.foot.account') %></h3>
       <ul>
-        <li><a href="/customer/login"><%= t('common.login') || 'تسجيل الدخول' %></a></li>
-        <li><a href="/customer/orders"><%= t('customer.my_orders') || 'طلباتي' %></a></li>
+        <li><a href="/customer/login"><%= t('sf.foot.login') %></a></li>
+        <li><a href="/customer/orders"><%= t('sf.foot.orders') %></a></li>
       </ul>
     </div>
     <div class="footer-col">
-      <h3>المساعدة</h3>
+      <h3><%= t('sf.foot.help') %></h3>
       <ul>
-        <li><a href="#contact">تواصل معنا</a></li>
+        <li><a href="#contact"><%= t('sf.contact.title') %></a></li>
       </ul>
     </div>
   </div>
   <div class="footer-bottom">
-    <div>© <%= new Date().getFullYear() %> <%= company.company_name %>. جميع الحقوق محفوظة.</div>
-    <div>صُنع بواسطة OscarDevs</div>
+    <div>© <%= new Date().getFullYear() %> <%= company.company_name %>. <%= t('sf.foot.rights') %>.</div>
+    <div><%= t('sf.foot.made_by') %> OscarDevs</div>
   </div>
 </footer>
 
 <!-- Toast -->
 <div class="toast" id="toast">
   <div class="toast-icon">✓</div>
-  <div id="toastMsg">تمت الإضافة للسلة</div>
+  <div id="toastMsg"><%= t('sf.toast.added') %></div>
 </div>
 
 <script>
@@ -481,11 +483,11 @@
   var slug = window.SHOP_SLUG || '';
   var t = null, lastQ = '', activeIdx = -1, items = [];
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function money(v) { try { return Number(v).toLocaleString('ar-EG'); } catch (e) { return v; } }
+  function money(v) { try { return Number(v).toLocaleString(<%- jsonLd(LOC) %>); } catch (e) { return v; } }
   function hide() { box.hidden = true; box.innerHTML = ''; input.setAttribute('aria-expanded', 'false'); activeIdx = -1; }
   function render(list) {
     items = list;
-    if (!list.length) { box.innerHTML = '<div style="padding:14px;color:#6b7280;font-size:14px">مفيش منتجات بالاسم ده — جرّب كلمة أقصر</div>'; box.hidden = false; input.setAttribute('aria-expanded', 'true'); return; }
+    if (!list.length) { box.innerHTML = '<div style="padding:14px;color:#6b7280;font-size:14px">' + <%- jsonLd(t('sf.search.none') + ' — ' + t('sf.search.hint')) %> + '</div>'; box.hidden = false; input.setAttribute('aria-expanded', 'true'); return; }
     box.innerHTML = list.map(function (it, i) {
       var img = it.image ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex:0 0 auto">' : '<div style="width:44px;height:44px;border-radius:8px;background:#f3f4f6;flex:0 0 auto"></div>';
       return '<a href="/shop/' + encodeURIComponent(slug) + '/product/' + it.id + '" role="option" data-i="' + i + '" style="display:flex;gap:10px;align-items:center;padding:9px 12px;text-decoration:none;color:#111827;border-bottom:1px solid #f3f4f6">' + img + '<span style="flex:1;font-size:14px;font-weight:600">' + esc(it.name) + '</span><span style="color:#059669;font-weight:700;font-size:13px;white-space:nowrap">' + money(it.price) + ' ج</span></a>';
@@ -520,7 +522,7 @@
 })();
 </script>
 <% if (__on('compare')) { %>
-<a href="#" id="cmpBar" style="display:none;position:fixed;inset-inline:0;bottom:0;z-index:70;background:#111827;color:#fff;text-align:center;padding:12px;font-weight:800;text-decoration:none;">قارن (<span id="cmpN">0</span>) ←</a>
+<a href="#" id="cmpBar" style="display:none;position:fixed;inset-inline:0;bottom:0;z-index:70;background:#111827;color:#fff;text-align:center;padding:12px;font-weight:800;text-decoration:none;"><%= t('sf.compare') %> (<span id="cmpN">0</span>) ←</a>
 <script>
 // Product compare (phase 9): persist selection in localStorage, show a bar at 2+.
 (function () {
@@ -537,7 +539,7 @@
   document.querySelectorAll('.cmp-box').forEach(function (b) {
     b.addEventListener('change', function () {
       var ids = load(), id = +b.dataset.cmp, i = ids.indexOf(id);
-      if (b.checked) { if (i < 0) { if (ids.length >= 4) { b.checked = false; alert('أقصى 4 منتجات للمقارنة'); return; } ids.push(id); } }
+      if (b.checked) { if (i < 0) { if (ids.length >= 4) { b.checked = false; alert(<%- jsonLd(t('sf.compare.max')) %>); return; } ids.push(id); } }
       else if (i >= 0) ids.splice(i, 1);
       save(ids); refresh();
     });
