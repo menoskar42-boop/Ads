@@ -1192,6 +1192,33 @@ async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_deals_company ON deals (company_id, is_active);
       CREATE INDEX IF NOT EXISTS idx_deals_product ON deals (product_id, is_active);
+      CREATE TABLE IF NOT EXISTS deals_products (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        source TEXT NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'AMAZON_API')),
+        asin TEXT,
+        title TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        short_description TEXT,
+        full_description TEXT,
+        brand TEXT,
+        category TEXT,
+        image_url TEXT,
+        current_price NUMERIC(10,2),
+        currency TEXT DEFAULT 'EGP',
+        amazon_product_url TEXT,
+        affiliate_url TEXT NOT NULL,
+        rating NUMERIC(2,1),
+        review_count INTEGER,
+        availability TEXT,
+        is_featured BOOLEAN NOT NULL DEFAULT false,
+        is_published BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, slug)
+      );
+      CREATE INDEX IF NOT EXISTS idx_deals_products_public
+        ON deals_products (company_id, is_published, is_featured, created_at DESC);
       -- Coupons (Amazon roadmap phase 11).
       CREATE TABLE IF NOT EXISTS coupons (
         id               SERIAL PRIMARY KEY,
@@ -1616,6 +1643,52 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
     }, 30 * 60 * 1000).unref();
   } else {
     console.warn('[co-host] MYBIBLE_UPSTREAM set but mybible/dist/index.cjs missing — build mybible first');
+  }
+}
+
+// ===== Co-hosted Deals affiliate app: auto-launch on the same VM =====
+// Deals is a separate Express process. With no DEALS_UPSTREAM this block is
+// inert and the existing OscarDevs application is unchanged.
+if (process.env.DEALS_UPSTREAM) {
+  const dealsEntry = path.join(__dirname, 'deals', 'app.js');
+  if (fs.existsSync(dealsEntry)) {
+    const dealsPort = process.env.DEALS_PORT || '5002';
+    const dealsEnv = Object.assign({}, process.env, {
+      NODE_ENV: process.env.NODE_ENV || 'production',
+      PORT: dealsPort,
+      DEALS_PORT: dealsPort,
+      DEALS_PUBLIC_URL: process.env.DEALS_PUBLIC_URL || 'https://deals.oscardevs.com',
+    });
+    let dealsRestarts = 0;
+    let dealsShuttingDown = false;
+    let dealsChild = null;
+    const launchDeals = () => {
+      const startedAt = Date.now();
+      dealsChild = require('child_process').spawn(process.execPath, [dealsEntry], {
+        cwd: path.join(__dirname, 'deals'),
+        stdio: 'inherit',
+        env: dealsEnv,
+      });
+      dealsChild.on('exit', (code, signal) => {
+        if (dealsShuttingDown) return;
+        if (Date.now() - startedAt > 60000) dealsRestarts = 0;
+        const delay = Math.min(30000, 1000 * Math.pow(2, dealsRestarts));
+        dealsRestarts += 1;
+        console.error(`[co-host] deals exited (code=${code} signal=${signal}) — restarting in ${delay}ms`);
+        setTimeout(launchDeals, delay);
+      });
+      dealsChild.on('error', (err) => console.error('[co-host] deals spawn error:', err));
+    };
+    const shutdownDeals = () => {
+      dealsShuttingDown = true;
+      if (dealsChild) { try { dealsChild.kill(); } catch (_) {} }
+    };
+    process.once('SIGTERM', shutdownDeals);
+    process.once('SIGINT', shutdownDeals);
+    launchDeals();
+    console.log('🛍️ Co-hosted Deals launched on 127.0.0.1:' + dealsPort);
+  } else {
+    console.warn('[co-host] DEALS_UPSTREAM set but deals/app.js is missing');
   }
 }
 
