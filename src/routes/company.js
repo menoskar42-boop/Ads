@@ -1774,6 +1774,65 @@ router.post('/shipping/:id/delete', requireLogin, requireShop, async (req, res) 
 });
 
 /* ─── STORE FEATURE FLAGS (phase 21) ─────────────────────── */
+/* ─── لوحة التاجر كتطبيق يتثبّت (البند ٩١) ───────────────────────────────
+ *
+ * الـPush كان شغّال من قبل كده، إنما مافيش مانيفست للوحة — يعني «تطبيق»
+ * التاجر كان لينك في المتصفّح.
+ *
+ * تلات قرارات مقصودة:
+ *
+ * ١) **المانيفست بيتجاب بالكوكيز** (`crossorigin="use-credentials"` في
+ *    القالب). من غيرها المتصفح بيجيبه من غير جلسة، والسيرفر مايعرفش التاجر ده
+ *    مين — فالتطبيق بيتثبّت باسم عام على تليفون صاحب المتجر.
+ *
+ * ٢) **`scope` و`start_url` جوّه `/company/`** — التطبيق بيفتح على لوحته، ولو
+ *    ضغط لينك بره اللوحة بيفتح في المتصفح العادي، مش جوّه شباك التطبيق.
+ *
+ * ٣) **مافيش مانيفست للّي مش داخل.** ٤٠٤ أوضح من مانيفست باسم «Oscardevs»
+ *    بيخلي الجهاز يثبّت أيقونة مالهاش معنى.
+ */
+router.get('/manifest.webmanifest', async (req, res) => {
+  if (!req.session || !req.session.companyId) return res.status(404).json({ error: 'not found' });
+  try {
+    const c = (await pool.query(
+      'SELECT company_name, logo_url, theme_color FROM companies WHERE id=$1',
+      [req.session.companyId])).rows[0];
+    if (!c) return res.status(404).json({ error: 'not found' });
+    const icon = c.logo_url || '/logo-192.png';
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    // مانيفست شخصي — مايتخزّنش على بروكسي مشترك.
+    res.setHeader('Cache-Control', 'private, max-age=600');
+    res.json({
+      name: (c.company_name || 'المتجر') + ' — لوحة التحكم',
+      short_name: String(c.company_name || 'لوحتي').slice(0, 12),
+      description: 'إدارة ' + (c.company_name || 'المتجر') + ': الطلبات والمنتجات والرسايل.',
+      start_url: '/company/dashboard',
+      scope: '/company/',
+      id: '/company/',
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#ffffff',
+      theme_color: c.theme_color || '#2563eb',
+      lang: 'ar',
+      dir: 'rtl',
+      icons: [
+        { src: icon, sizes: 'any', type: 'image/png', purpose: 'any' },
+        { src: icon, sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: icon, sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: icon, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+      shortcuts: [
+        { name: 'الأوردرات', url: '/company/orders' },
+        { name: 'الرسايل', url: '/company/messages' },
+        { name: 'المنتجات', url: '/company/products' },
+      ],
+    });
+  } catch (e) {
+    console.error('[company manifest]', e.message);
+    res.status(404).json({ error: 'not found' });
+  }
+});
+
 router.get('/features', requireLogin, requireShop, async (req, res) => {
   try {
     const flags = await shopFeatures.getFeatures(req.session.companyId);
