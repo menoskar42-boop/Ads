@@ -1,0 +1,6 @@
+<%- include('partials/header', { canonicalPath: '/product/' + encodeURIComponent(product.slug), title: product.title + ' — ' + site.site_name, ogType: 'product', ogImage: product.image_url }) %>
+<article class="detail">
+  <div class="detail-image"><% if (product.image_url) { %><img src="<%= product.image_url %>" alt="<%= product.title %>"><% } else { %><span>لا توجد صورة</span><% } %></div>
+  <div class="detail-copy"><% if (product.category_name) { %><a class="category" href="/category/<%= encodeURIComponent(product.category_slug) %>"><%= product.category_name %></a><% } %><h1><%= product.title %></h1><p class="muted">قد يتغير السعر والتوافر لدى المتجر الخارجي. راجع التفاصيل النهائية قبل الشراء.</p><% if (product.full_description || product.short_description) { %><div class="long-copy"><%= product.full_description || product.short_description %></div><% } %><% if (product.current_price != null) { %><strong class="big-price"><%= Number(product.current_price).toFixed(2) %> <%= product.currency || 'EGP' %></strong><% } %><a class="button wide" href="<%= product.affiliate_url %>" target="_blank" rel="sponsored noopener noreferrer">شاهد المنتج على Amazon ↗</a><p class="tiny">هذا الرابط قد يكون رابطًا تابعًا. Deals لا يبيع المنتج ولا يتولى الدفع أو الشحن أو المرتجعات.</p></div>
+</article>
+<%- include('partials/footer') %>

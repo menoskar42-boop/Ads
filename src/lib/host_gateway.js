@@ -14,6 +14,7 @@
 // gateway is a no-op and OscarDevs behaves exactly as before. Enable per host:
 //   MYBIBLE_UPSTREAM=http://127.0.0.1:5001         (production mybible.*)
 //   MYBIBLE2_UPSTREAM=http://127.0.0.1:5002         (optional staging mybible2.*)
+//   DEALS_UPSTREAM=http://127.0.0.1:5002            (deals.oscardevs.com)
 'use strict';
 const http = require('http');
 const https = require('https');
@@ -29,6 +30,8 @@ function loadRoutes() {
     // same upstream unless a separate staging process is given.
     routes['mybible2.oscardevs.com'] = process.env.MYBIBLE2_UPSTREAM || mb;
   }
+  const deals = process.env.DEALS_UPSTREAM;
+  if (deals) routes['deals.oscardevs.com'] = deals;
   return routes;
 }
 

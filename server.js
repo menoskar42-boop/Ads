@@ -1646,6 +1646,52 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
   }
 }
 
+// ===== Co-hosted Deals affiliate app: auto-launch on the same VM =====
+// Deals is a separate Express process. With no DEALS_UPSTREAM this block is
+// inert and the existing OscarDevs application is unchanged.
+if (process.env.DEALS_UPSTREAM) {
+  const dealsEntry = path.join(__dirname, 'deals', 'app.js');
+  if (fs.existsSync(dealsEntry)) {
+    const dealsPort = process.env.DEALS_PORT || '5002';
+    const dealsEnv = Object.assign({}, process.env, {
+      NODE_ENV: process.env.NODE_ENV || 'production',
+      PORT: dealsPort,
+      DEALS_PORT: dealsPort,
+      DEALS_PUBLIC_URL: process.env.DEALS_PUBLIC_URL || 'https://deals.oscardevs.com',
+    });
+    let dealsRestarts = 0;
+    let dealsShuttingDown = false;
+    let dealsChild = null;
+    const launchDeals = () => {
+      const startedAt = Date.now();
+      dealsChild = require('child_process').spawn(process.execPath, [dealsEntry], {
+        cwd: path.join(__dirname, 'deals'),
+        stdio: 'inherit',
+        env: dealsEnv,
+      });
+      dealsChild.on('exit', (code, signal) => {
+        if (dealsShuttingDown) return;
+        if (Date.now() - startedAt > 60000) dealsRestarts = 0;
+        const delay = Math.min(30000, 1000 * Math.pow(2, dealsRestarts));
+        dealsRestarts += 1;
+        console.error(`[co-host] deals exited (code=${code} signal=${signal}) — restarting in ${delay}ms`);
+        setTimeout(launchDeals, delay);
+      });
+      dealsChild.on('error', (err) => console.error('[co-host] deals spawn error:', err));
+    };
+    const shutdownDeals = () => {
+      dealsShuttingDown = true;
+      if (dealsChild) { try { dealsChild.kill(); } catch (_) {} }
+    };
+    process.once('SIGTERM', shutdownDeals);
+    process.once('SIGINT', shutdownDeals);
+    launchDeals();
+    console.log('🛍️ Co-hosted Deals launched on 127.0.0.1:' + dealsPort);
+  } else {
+    console.warn('[co-host] DEALS_UPSTREAM set but deals/app.js is missing');
+  }
+}
+
 // Run schema migration in background — does not block startup.
 // After the core tables are ready, ensure the pharmacy module's tables and
 // demo pharmacy exist (additive, idempotent — safe on every boot).

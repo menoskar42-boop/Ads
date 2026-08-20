@@ -1,0 +1,3 @@
+<%- include('partials/header', { canonicalPath: '/article/' + encodeURIComponent(article.slug), title: article.title + ' — ' + site.site_name, ogType: 'article', ogImage: article.cover_image_url }) %>
+<article class="article"><span class="eyebrow">BUYING GUIDE</span><h1><%= article.title %></h1><p class="muted"><%= article.excerpt || '' %></p><div class="long-copy"><%= article.body %></div></article>
+<%- include('partials/footer') %>
