@@ -23,6 +23,7 @@ const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/
 const paymob = require('../lib/gateways/paymob');
 const { getEnabledModules } = require('../clinic/modules');
 const { sendWhatsApp, renderTemplate } = require('../lib/whatsapp');
+const { rateLimit: _rl, clientIp: _cip } = require('../middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -1522,7 +1523,6 @@ async function validateFoodCoupon(db, companyId, code, subtotal) {
 
 // Live coupon check for the cart drawer. Rate-limited per tenant+IP so it can't
 // be abused as an oracle to brute-force a merchant's private coupon codes.
-const { rateLimit: _rl, clientIp: _cip } = require('../middleware/rateLimit');
 const _couponLimiter = _rl({ name: 'coupon', windowMs: 60000, max: 20, keyFn: (req) => ((req.tenant && req.tenant.id) || 't') + '|' + _cip(req) });
 router.get('/order/coupon-check', _couponLimiter, foodOrderGuard, async (req, res) => {
   const subtotal = Number(req.query.subtotal) || 0;
