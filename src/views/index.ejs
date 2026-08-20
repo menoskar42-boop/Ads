@@ -1,13 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
 <%- include('partials/ads_loader') %>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oscardevs Ads – Smart Advertising Platform</title>
-  <meta name="description" content="Oscardevs Ads is a multi-tenant SaaS advertising platform that gives every business its own branded landing page." />
-  <meta property="og:title" content="Oscardevs Ads – Smart Advertising Platform" />
-  <meta property="og:description" content="Oscardevs Ads is a multi-tenant SaaS advertising platform that gives every business its own branded landing page." />
+  <% var homeTitle = 'OscarDevs — صفحات ومواقع رقمية جاهزة لنشاطك'; %>
+  <% var homeDescription = 'أنشئ صفحة رقمية أو متجرًا إلكترونيًا احترافيًا لنشاطك مع أدوات جاهزة للتسويق وإدارة العملاء.'; %>
+  <title><%= homeTitle %></title>
+  <meta name="description" content="<%= homeDescription %>" />
+  <%- include('partials/seo_meta', { title: homeTitle, description: homeDescription, ogImage: siteOrigin + '/og-default.png' }) %>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/tw.css" />
