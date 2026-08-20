@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Ads Portfolio"
+description = "موقع وكالة إعلانية حديث يعرض خدمات Ads وأعمالها الرقمية، مع صفحة من أعمالنا وإضافة مشروع ويب جديد بشكل بارز."
+version = "1.0.0"
+id = "artifacts/ads-portfolio"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21077
+
+[services.development]
+run = "pnpm --filter @workspace/ads-portfolio run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ads-portfolio", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ads-portfolio/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21077"
+BASE_PATH = "/"
