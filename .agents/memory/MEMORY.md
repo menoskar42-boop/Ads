@@ -1,0 +1,1 @@
+- [Canonical SEO URLs](canonical-seo.md) — preserve tenant hosts and paths in canonical and structured-data URLs.
