@@ -74,6 +74,15 @@ const safeUrl = (v) => {
   return value && /^https?:\/\//i.test(value) ? value : null;
 };
 const bool = (v) => v === '1' || v === 'on' || v === 'true';
+const numberOrNull = (v) => {
+  if (v == null || String(v).trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const integerOrNull = (v) => {
+  const n = numberOrNull(v);
+  return n == null || !Number.isInteger(n) ? null : n;
+};
 
 function common(req, extra = {}) {
   return {
@@ -100,7 +109,14 @@ app.use(async (req, _res, next) => {
   next();
 });
 
-app.get('/healthz', (_req, res) => res.json({ ok: true, service: 'deals' }));
+app.get('/healthz', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, service: 'deals', database: 'ok' });
+  } catch (e) {
+    res.status(503).json({ ok: false, service: 'deals', database: 'unavailable' });
+  }
+});
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'logo.svg')));
 
 app.get('/', async (req, res, next) => {
@@ -260,8 +276,8 @@ app.post('/admin/products', requireAdmin, upload.single('image_file'), async (re
     const affiliateUrl = safeUrl(req.body.affiliate_url);
     if (!title || !affiliateUrl) throw new Error('العنوان ورابط Affiliate مطلوبان');
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : safeUrl(req.body.image_url);
-    const price = req.body.current_price === '' ? null : Number(req.body.current_price);
-    const originalPrice = req.body.original_price === '' ? null : Number(req.body.original_price);
+    const price = numberOrNull(req.body.current_price);
+    const originalPrice = numberOrNull(req.body.original_price);
     await pool.query(
       `INSERT INTO deals_catalog_products
        (source, external_id, title, slug, short_description, full_description, brand, category_id,
@@ -269,10 +285,10 @@ app.post('/admin/products', requireAdmin, upload.single('image_file'), async (re
         rating, review_count, availability, is_featured, is_published)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [req.body.source || 'MANUAL', txt(req.body.external_id, 80), title, slugify(req.body.slug || title),
-        txt(req.body.short_description, 400), txt(req.body.full_description, 8000), txt(req.body.brand, 120),
-        req.body.category_id || null, imageUrl, Number.isFinite(price) ? price : null, txt(req.body.currency, 8) || 'EGP',
-        Number.isFinite(originalPrice) ? originalPrice : null, safeUrl(req.body.amazon_product_url), affiliateUrl,
-        req.body.rating === '' ? null : Number(req.body.rating), req.body.review_count === '' ? null : parseInt(req.body.review_count, 10),
+         txt(req.body.short_description, 400), txt(req.body.full_description, 8000), txt(req.body.brand, 120),
+         req.body.category_id || null, imageUrl, price, txt(req.body.currency, 8) || 'EGP',
+         originalPrice, safeUrl(req.body.amazon_product_url), affiliateUrl,
+         numberOrNull(req.body.rating), integerOrNull(req.body.review_count),
         txt(req.body.availability, 120), bool(req.body.is_featured), bool(req.body.is_published)],
     );
     res.redirect('/admin');
@@ -300,15 +316,15 @@ app.post('/admin/products/:id/edit', requireAdmin, upload.single('image_file'), 
     const affiliateUrl = safeUrl(req.body.affiliate_url);
     if (!title || !affiliateUrl) throw new Error('العنوان ورابط Affiliate مطلوبان');
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : (safeUrl(req.body.image_url) || current.image_url);
-    const price = req.body.current_price === '' ? null : Number(req.body.current_price);
+    const price = numberOrNull(req.body.current_price);
     await pool.query(
       `UPDATE deals_catalog_products SET title=$1,slug=$2,short_description=$3,full_description=$4,
        brand=$5,category_id=$6,image_url=$7,current_price=$8,currency=$9,original_price=$10,
        amazon_product_url=$11,affiliate_url=$12,availability=$13,is_featured=$14,is_published=$15,updated_at=now()
        WHERE id=$16`,
       [title, slugify(req.body.slug || title), txt(req.body.short_description, 400), txt(req.body.full_description, 8000),
-        txt(req.body.brand, 120), req.body.category_id || null, imageUrl, Number.isFinite(price) ? price : null,
-        txt(req.body.currency, 8) || 'EGP', req.body.original_price === '' ? null : Number(req.body.original_price),
+         txt(req.body.brand, 120), req.body.category_id || null, imageUrl, price,
+         txt(req.body.currency, 8) || 'EGP', numberOrNull(req.body.original_price),
         safeUrl(req.body.amazon_product_url), affiliateUrl, txt(req.body.availability, 120),
         bool(req.body.is_featured), bool(req.body.is_published), req.params.id]
     );

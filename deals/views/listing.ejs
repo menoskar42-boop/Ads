@@ -1,4 +1,4 @@
-<%- include('partials/header', { canonicalPath: reqPath || '' }) %>
+<%- include('partials/header', { canonicalPath: (typeof canonicalPath !== 'undefined' && canonicalPath) ? canonicalPath : '' }) %>
 <section class="page-title"><span class="eyebrow">DISCOVER</span><h1><%= heading %></h1><p><%= description || 'منتجات مختارة بعناية.' %></p></section>
 <% if (!products.length) { %><div class="empty">لا توجد نتائج منشورة حاليًا.</div><% } else { %><section class="cards"><% products.forEach(p => { %><%- include('partials/product_card', { p }) %><% }) %></section><% } %>
 <%- include('partials/footer') %>
