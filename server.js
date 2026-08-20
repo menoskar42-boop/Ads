@@ -972,6 +972,12 @@ async function initDb() {
       -- بالظبط، فمفيش متجر هيلاقي معدّله اتغيّر. التشغيل نفسه فاضل مكانه
       -- الوحيد (company_features.loyalty) — مفتاحين لنفس الحاجة معناه إن حد
       -- هيقفل واحد ويفتكر إنها اتقفلت.
+      -- مكتبة الثيمات (البند ٩١). الثيم بيتطبّق **على خانات التاجر نفسها**،
+      -- فالعمودين دول للذاكرة والخط بس: أنهي ثيم اتطبّق آخر مرة، وأنهي خط
+      -- شغّال. مافيش هنا نسخة تانية من الألوان — نسختين معناها سؤال «مين
+      -- بيكسب» وإجابته بتبقى مخفية عن اللي دفع فلوس عشان يتحكّم في شكل متجره.
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS shop_theme TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS shop_font TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS loyalty_earn_per NUMERIC(6,2) NOT NULL DEFAULT 1;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS loyalty_redeem_per INTEGER NOT NULL DEFAULT 100;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS loyalty_max_percent NUMERIC(5,2) NOT NULL DEFAULT 100;

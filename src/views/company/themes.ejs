@@ -1,0 +1,63 @@
+<%
+  pageTitle = 'ثيمات المتجر';
+  activePage = 'themes';
+%>
+<%- include('_layout_top') %>
+
+  <div class="bg-white rounded-2xl shadow-sm p-6">
+    <h2 class="text-xl font-bold text-gray-800 mb-1">ثيمات المتجر</h2>
+    <p class="text-gray-500 text-sm mb-5">
+      الثيم بيكتب ألوانه <b>في خانات متجرك</b> — يعني بعد ما تطبّقه تقدر تعدّل أي لون فيه من صفحة المحتوى، وتعديلك بيفضل.
+      ومابيلمسش الاسم ولا الشعار ولا المنتجات ولا المميزات.
+    </p>
+
+    <% if (saved) { %>
+    <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 mb-5 text-sm">الثيم اتطبّق على متجرك ✅</div>
+    <% } %>
+    <% if (err) { %>
+    <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm">
+      <%= err === 'pick' ? 'اختار ثيم من اللي تحت.' : 'الحفظ ما تمّش. جرّب تاني.' %>
+    </div>
+    <% } %>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <% themes.forEach(function(t){ var d = diffs[t.key]; var f = fonts[t.font]; %>
+      <form method="POST" action="/company/themes"
+            class="border rounded-2xl overflow-hidden <%= current === t.key ? 'border-2 border-gray-800' : 'border-gray-200' %>">
+        <input type="hidden" name="theme" value="<%= t.key %>" />
+
+        <%# المعاينة مرسومة **من نفس القيم** اللي هتتكتب — مش صورة لثيم ممكن
+            يكون اتغيّر. أي فرق بين المعاينة والنتيجة هو كدب صغير بيتكرّر. %>
+        <div style="background: linear-gradient(135deg, <%= t.theme_color %>, <%= t.hero_card1_color %>); padding:18px; color: <%= t.hero_text_color %>">
+          <div style="font-weight:900; font-size:1.05rem"><%= t.name %></div>
+          <div style="font-size:0.72rem; opacity:.85"><%= t.for %></div>
+          <div style="margin-top:12px; display:inline-block; background: <%= t.hero_btn_bg %>; color: <%= t.hero_btn_text %>; font-weight:800; font-size:0.72rem; padding:6px 14px; border-radius:100px">اشتري دلوقتي</div>
+        </div>
+
+        <div class="p-4">
+          <div class="flex items-center gap-1.5 mb-2">
+            <% [t.theme_color, t.color_accent, t.hero_card1_color, t.hero_card2_color].forEach(function(c){ %>
+              <span title="<%= c %>" style="width:22px;height:22px;border-radius:6px;background:<%= c %>;border:1px solid rgba(0,0,0,.08)"></span>
+            <% }); %>
+            <span class="text-[11px] text-gray-400 ms-auto">خط: <%= t.font %></span>
+          </div>
+
+          <%# الشاشة بتقول إيه اللي هيتكتب قبل ما يتكتب. %>
+          <% if (current === t.key) { %>
+            <p class="text-xs text-emerald-700 font-bold mb-2">الثيم الشغّال دلوقتي</p>
+          <% } else if (d && d.changed.length) { %>
+            <p class="text-xs text-gray-500 mb-2">هيغيّر <%= d.changed.length %> إعداد لون/خط في متجرك.</p>
+          <% } else { %>
+            <p class="text-xs text-gray-500 mb-2">ألوانك دلوقتي نفس الثيم ده.</p>
+          <% } %>
+
+          <button type="submit" class="w-full brand-bg text-white font-bold px-4 py-2.5 rounded-xl hover:opacity-90 transition text-sm">
+            <%= current === t.key ? 'طبّقه تاني' : 'طبّق الثيم' %>
+          </button>
+        </div>
+      </form>
+      <% }); %>
+    </div>
+  </div>
+
+<%- include('_layout_bottom') %>

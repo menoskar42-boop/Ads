@@ -73,6 +73,8 @@ const GUARDED = [
   ['/setup', 'owner'],
   ['/profile', 'owner'],
   ['/features', 'owner'],
+  // شكل الصفحة اللي باسم التاجر — زي الهوية بالظبط، مش شغل موظف.
+  ['/themes', 'owner'],
   ['/company', 'owner'],
   ['/landing', 'owner'],
   ['/currencies', 'owner'],
