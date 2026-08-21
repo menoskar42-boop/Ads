@@ -4,11 +4,11 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<% var __brand = ' | OscarDevs'; var __pageTitle = (article.title.length + __brand.length <= 60) ? (article.title + __brand) : article.title; %>
-<title><%= __pageTitle %></title>
-<meta name="description" content="<%= (article.metaDescription || article.excerpt).slice(0, 160) %>" />
-<%# og:*/twitter:* come solely from seo_meta below — avoid duplicate/conflicting tags. %>
-<%- include('../partials/seo_meta', { title: __pageTitle, description: (article.metaDescription || article.excerpt).slice(0, 160), ogType: 'article', articleDate: article.date }) %>
+<% var __brand = ' | OscarDevs'; var pageTitle = (article.title.length + __brand.length <= 60) ? (article.title + __brand) : article.title; %>
+<% var pageDescription = (article.metaDescription || article.excerpt).slice(0, 160); %>
+<title><%= pageTitle %></title>
+<meta name="description" content="<%= pageDescription %>" />
+<%- include('../partials/seo_meta', { title: pageTitle, description: pageDescription, ogType: 'article', articleDate: article.date }) %>
 <script type="application/ld+json">
 <%- jsonLd({
   "@context": "https://schema.org",
