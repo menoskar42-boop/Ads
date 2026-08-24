@@ -213,6 +213,48 @@ async function ensureSokroSchema() {
       CREATE UNIQUE INDEX IF NOT EXISTS sokro_one_open_booking
         ON sokro_bookings(user_id, conversation_id)
         WHERE status IN ('collecting','reviewing','ready_for_confirmation','confirmed');
+
+      -- Opt-in business channels and phone calls. Provider credentials stay in
+      -- environment/vault; these tables contain identifiers and delivery state.
+      CREATE TABLE IF NOT EXISTS sokro_channel_accounts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(provider, external_id)
+      );
+      CREATE TABLE IF NOT EXISTS sokro_channel_messages (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES sokro_users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        external_message_id TEXT UNIQUE NOT NULL,
+        sender TEXT,
+        body TEXT,
+        direction TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_phone_calls (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        external_id TEXT UNIQUE,
+        to_number TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'requested',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_consent_audit (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        event TEXT NOT NULL,
+        task_id INTEGER REFERENCES sokro_tasks(id) ON DELETE SET NULL,
+        permissions JSONB NOT NULL DEFAULT '[]',
+        domains JSONB NOT NULL DEFAULT '[]',
+        outcome TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_consent_audit_user_idx ON sokro_consent_audit(user_id, id DESC);
     `);
     console.log('Sokro schema ready.');
   } finally {

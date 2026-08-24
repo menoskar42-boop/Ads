@@ -262,7 +262,7 @@ app.locals.assetVersion = Date.now();
 
 app.use(compression());
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
 app.use(cookieParser());
 
 // NeuroPilot daily-push external trigger — mounted BEFORE tenant routing so it

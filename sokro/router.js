@@ -26,6 +26,11 @@ const realtime = require('./realtime');
 const content = require('./content');
 const booking = require('./booking');
 const bookingStore = booking.store;
+const whatsappCloud = require('./channels/whatsapp-cloud');
+const phone = require('./channels/phone');
+const audit = require('./audit');
+const timeParser = require('./time-parser');
+const bookingProviders = require('./booking/providers');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -41,6 +46,33 @@ const DESC = 'Sokro وكيل ذكاء اصطناعي عربي (AI agent) ينف�
 // Health + API smoke check (mobile app / uptime probes hit these).
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env: config.env }));
 router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features: config.features }));
+
+// ── Business WhatsApp Cloud API ─────────────────────────────────────────────
+router.get('/api/channels/whatsapp/webhook', (req, res) => {
+  if (!process.env.SOKRO_WHATSAPP_VERIFY_TOKEN || String(req.query['hub.verify_token'] || '') !== String(process.env.SOKRO_WHATSAPP_VERIFY_TOKEN)) return res.sendStatus(403);
+  res.type('text/plain').send(String(req.query['hub.challenge'] || ''));
+});
+router.post('/api/channels/whatsapp/webhook', async (req, res) => {
+  try {
+    if (process.env.SOKRO_WHATSAPP_APP_SECRET && !whatsappCloud.verifySignature(req.rawBody || JSON.stringify(req.body || {}), req.headers['x-hub-signature-256'])) return res.sendStatus(403);
+    const messages = whatsappCloud.incoming(req.body);
+    for (const m of messages) {
+      if (!m.messageId || !m.phoneId || !m.text) continue;
+      const account = (await pool.query('SELECT user_id FROM sokro_channel_accounts WHERE provider=$1 AND external_id=$2', ['whatsapp_cloud', m.phoneId])).rows[0];
+      if (!account) continue;
+      const fresh = (await pool.query(
+        `INSERT INTO sokro_channel_messages (user_id,provider,external_message_id,sender,body,direction)
+         VALUES ($1,'whatsapp_cloud',$2,$3,$4,'inbound') ON CONFLICT (external_message_id) DO NOTHING RETURNING id`,
+        [account.user_id, m.messageId, m.from, m.text]
+      )).rows[0];
+      if (fresh) {
+        const conv = await memory.createConversation(account.user_id, 'WhatsApp');
+        await memory.addMessage(conv.id, 'user', m.text);
+      }
+    }
+    res.sendStatus(200);
+  } catch (e) { console.error('[sokro] whatsapp webhook:', e.message); res.sendStatus(500); }
+});
 
 // ── SEO: subdomain-specific robots.txt + sitemap ────────────────────────────
 // The landing page ('/') is real content → indexable. Everything else on this
@@ -327,6 +359,7 @@ async function executePlan(ctx, goal, taskId, plan, res, convId) {
   const summary = s && s.summary;
   // Semantic success = technically ok AND the goal was actually achieved.
   const ok = techOk && (s ? s.achieved !== false : true);
+  try { await audit.record(ctx.userId, 'execution', { taskId, permissions: permissions.forPlan(plan, registry).required, outcome: ok ? 'success' : 'failed' }); } catch (_) {}
   await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary, achieved: ok } });
   if (convId && summary) { try { await memory.addMessageFor(ctx.userId, convId, 'assistant', summary); } catch (_) {} }
   res.json({ ok, taskId, conversationId: convId || null, plan: plan.steps, results, summary, achieved: ok });
@@ -366,6 +399,7 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     ctx.allowedDomains = domains;
     await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
     if (perms.requiresConsent) {
+      try { await audit.record(req.sokroUser.id, 'consent_requested', { taskId: task.id, permissions: perms.required, domains }); } catch (_) {}
       return res.json({ ok: true, taskId: task.id, conversationId: convId, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, domains, sites: writeGuard.consentLine(domains), message: plan.message || null });
     }
     if (!plan.steps || !plan.steps.length) {
@@ -400,6 +434,7 @@ router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
     if (!taskPerms.requiresConsent) {
       return res.status(409).json({ ok: false, error: 'task does not require consent' });
     }
+    try { await audit.record(req.sokroUser.id, 'consent_granted', { taskId: t.id, permissions: taskPerms.required, domains: require('./lib/writeGuard').domainsOf(t.plan), outcome: 'granted' }); } catch (_) {}
     // Sensitive-action confirmation (the user just approved a pay/delete step —
     // by voice or button): resume the operate step and let it press the button.
     if (req.body && req.body.confirmSensitive) {
@@ -535,13 +570,20 @@ router.post('/api/schedule', auth.requireAuth, async (req, res) => {
   if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
   // A moment («فكّرني الساعة ٥») or a rhythm («كل ساعة»). A time that already
   // passed is a typo, and saying so beats firing immediately.
-  const task = await scheduler.create(req.sokroUser.id, goal,
-    { runAt: b.runAt || b.at, everyMinutes: b.everyMinutes }, b.title);
+  const when = { runAt: b.runAt || b.at, everyMinutes: b.everyMinutes };
+  Object.assign(when, { whenText: b.whenText || b.when, timezone: b.timezone });
+  const task = await scheduler.create(req.sokroUser.id, goal, when, b.title);
   if (task && task.error) {
     return res.status(400).json({ ok: false, error: task.error,
       message: task.error === 'past' ? 'الميعاد ده عدّى خلاص — اكتب وقت جاي.' : 'مش فاهم الوقت ده. اكتبه كتاريخ وساعة.' });
   }
   res.json({ ok: true, task });
+});
+
+// Natural-language reminder parsing is deterministic and never guesses a date.
+router.post('/api/schedule/parse', auth.requireAuth, (req, res) => {
+  const out = timeParser.parseNatural(String((req.body || {}).text || ''));
+  res.status(out.error ? 400 : 200).json({ ok: !out.error, ...out });
 });
 
 // ── Meeting agenda: built one point at a time ────────────────────────────────
@@ -628,6 +670,71 @@ router.post('/api/booking/turn', auth.requireAuth, async (req, res) => {
     console.error('[sokro] booking turn:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Submit only after a confirmed booking has been atomically claimed. A provider
+// timeout leaves it in `submitting`, which is intentionally not retryable.
+router.post('/api/booking/:id([0-9]+)/submit', auth.requireAuth, async (req, res) => {
+  if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, error: 'explicit confirmation required' });
+  try {
+    const id = parseInt(req.params.id, 10);
+    const bookingRow = (await pool.query('SELECT * FROM sokro_bookings WHERE id=$1 AND user_id=$2', [id, req.sokroUser.id])).rows[0];
+    if (!bookingRow || bookingRow.status !== 'confirmed') return res.status(409).json({ ok: false, error: 'booking is not confirmed or is already being processed' });
+    const claimed = await bookingStore.claimForSubmit(req.sokroUser.id, id, bookingRow.confirmed_fingerprint);
+    if (!claimed) return res.status(409).json({ ok: false, error: 'booking was already claimed' });
+    const result = await bookingProviders.submit(claimed);
+    if (result.uncertain) return res.status(502).json({ ok: false, uncertain: true, error: result.error, message: 'النتيجة غير مؤكدة؛ لن أعيد الإرسال تلقائيًا.' });
+    await bookingStore.finishSubmit(req.sokroUser.id, id, result.ok, result);
+    try { await audit.record(req.sokroUser.id, 'booking_submit', { permissions: ['submit'], outcome: result.ok ? 'success' : 'failed' }); } catch (_) {}
+    res.status(result.ok ? 200 : 502).json({ ok: result.ok, result });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Consent audit and optional external channels ─────────────────────────────
+router.get('/api/audit/consent', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, entries: await audit.list(req.sokroUser.id, req.query.limit) });
+});
+router.post('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
+  const id = String((req.body || {}).phoneNumberId || '').trim();
+  if (!id) return res.status(400).json({ ok: false, error: 'phoneNumberId required' });
+  await pool.query(`INSERT INTO sokro_channel_accounts (user_id,provider,external_id) VALUES ($1,'whatsapp_cloud',$2)
+    ON CONFLICT (provider,external_id) DO UPDATE SET user_id=EXCLUDED.user_id`, [req.sokroUser.id, id]);
+  res.json({ ok: true, phoneNumberId: id, configured: whatsappCloud.configured() });
+});
+router.post('/api/channels/whatsapp/send', auth.requireAuth, async (req, res) => {
+  if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, requiresConsent: true, error: 'explicit confirmation required' });
+  const to = String(req.body.to || '').trim(), text = String(req.body.text || '').trim();
+  if (!to || !text) return res.status(400).json({ ok: false, error: 'to and text required' });
+  try {
+    const out = await whatsappCloud.send(to, text);
+    await pool.query(`INSERT INTO sokro_channel_messages (user_id,provider,external_message_id,sender,body,direction)
+      VALUES ($1,'whatsapp_cloud',$2,$3,$4,'outbound') ON CONFLICT DO NOTHING`,
+      [req.sokroUser.id, (out.messages && out.messages[0] && out.messages[0].id) || 'wa-' + Date.now(), process.env.SOKRO_WHATSAPP_PHONE_ID, text]);
+    await audit.record(req.sokroUser.id, 'whatsapp_send', { permissions: ['social', 'submit'], outcome: 'success' });
+    res.json({ ok: true, messageId: out.messages && out.messages[0] && out.messages[0].id });
+  } catch (e) { res.status(503).json({ ok: false, error: e.message }); }
+});
+router.post('/api/calls', auth.requireAuth, async (req, res) => {
+  if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, requiresConsent: true, error: 'explicit confirmation required' });
+  const to = String(req.body.to || '').trim();
+  if (!/^\+?[0-9()\-\s]{8,20}$/.test(to)) return res.status(400).json({ ok: false, error: 'valid phone number required' });
+  if (!phone.configured()) return res.status(503).json({ ok: false, error: 'phone provider is not configured' });
+  try {
+    const row = (await pool.query(`INSERT INTO sokro_phone_calls (user_id,provider,to_number) VALUES ($1,'twilio',$2) RETURNING id`, [req.sokroUser.id, to])).rows[0];
+    const out = await phone.call(to, `${config.origin}/api/calls/${row.id}/twiml`, `${config.origin}/api/calls/status`);
+    await pool.query('UPDATE sokro_phone_calls SET external_id=$2,status=$3,updated_at=now() WHERE id=$1', [row.id, out.id, out.status || 'queued']);
+    await audit.record(req.sokroUser.id, 'phone_call', { permissions: ['submit'], outcome: 'requested' });
+    res.json({ ok: true, callId: row.id, status: out.status });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+router.post('/api/calls/status', async (req, res) => {
+  const sid = String(req.body && (req.body.CallSid || req.body.callSid) || '');
+  if (!sid) return res.sendStatus(400);
+  await pool.query('UPDATE sokro_phone_calls SET status=$2,updated_at=now() WHERE external_id=$1', [sid, String(req.body.CallStatus || 'unknown')]);
+  res.sendStatus(204);
+});
+router.post('/api/calls/:id([0-9]+)/twiml', (_req, res) => {
+  res.type('text/xml').send('<Response><Say language="ar-SA">مرحبًا، هذه مكالمة من سوكرو.</Say><Hangup/></Response>');
 });
 
 // ── The inbox a reminder lands in ────────────────────────────────────────────

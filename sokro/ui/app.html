@@ -159,6 +159,8 @@
           بتتخزّن متشفّرة (AES-256) على السيرفر. سوكرو بيستخدمها وقت التنفيذ بس، ومابتتبعتش للذكاء الاصطناعي ولا بتظهر تاني.
         </div>
       </div>
+       <button id="auditBtn" type="button" class="no" style="width:100%;margin-top:10px">سجل الموافقات الحساسة</button>
+       <div id="auditList" style="max-height:150px;overflow:auto;margin-top:6px;font-size:12px;color:#9aa3b2"></div>
       <label class="lbl2">جيميل (Gmail API)</label>
       <div id="gmailBox" style="display:flex;align-items:center;gap:10px;font-size:13px;color:#6b7280">
         <span id="gmailState">جارٍ الفحص…</span>
@@ -224,7 +226,7 @@
     return false;
   }
   async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
-  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); refreshSecrets(); }
+  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); refreshSecrets(); refreshAudit(); }
   // The browser chip says what is actually true, and keeps saying it: the
   // extension can be connected mid-session (or its tab closed), and a chip that
   // only checks once is the same lie with a timestamp.
@@ -315,6 +317,20 @@
       else{ s.textContent='مش مربوط'; a.textContent='اربط جيميل ←'; a.classList.remove('hidden'); }
     }catch(e){ s.textContent='—'; }
   }
+  async function refreshAudit(){
+    var box=$('#auditList'); if(!box) return;
+    try{
+      var d=await (await fetch('/api/audit/consent?limit=20')).json();
+      box.textContent='';
+      if(!d||!d.ok||!d.entries.length){ box.textContent='لا توجد موافقات مسجلة.'; return; }
+      d.entries.forEach(function(x){
+        var row=document.createElement('div');
+        row.style.cssText='padding:5px 0;border-bottom:1px solid rgba(255,255,255,.08)';
+        row.textContent=(x.event||'إجراء')+' — '+(x.outcome||'بانتظار النتيجة')+' — '+new Date(x.created_at).toLocaleString('ar');
+        box.appendChild(row);
+      });
+    }catch(e){ box.textContent='تعذّر تحميل السجل.'; }
+  }
   async function saveSettingsForm(){
     var patch={ assistantName:$('#setName').value.trim()||'Selena', personality:$('#setPersona').value, voice:$('#setVoice').value, lang:$('#setLang').value };
     var btn=$('#setSave'), orig=btn.textContent; btn.disabled=true; btn.textContent='…';
@@ -344,6 +360,7 @@
   $('#mute').onclick=function(){ speakAloud=!speakAloud; $('#mute').textContent=speakAloud?'🔊':'🔈'; $('#mute').title=speakAloud?'إيقاف القراءة بصوت':'قراءة الرد بصوت'; try{ localStorage.setItem('sokro_speak', speakAloud?'1':'0'); }catch(e){} if(!speakAloud) stopSpeaking(); };
   $('#setSave').onclick=saveSettingsForm;
   $('#setClose').onclick=function(){ $('#settings').classList.add('hidden'); };
+  $('#auditBtn').onclick=refreshAudit;
   $('#settings').addEventListener('click',function(e){ if(e.target.id==='settings') $('#settings').classList.add('hidden'); });
   $('#authToggle').onclick=function(){ mode=mode==='login'?'signup':'login';
     $('#name').classList.toggle('hidden',mode==='login');

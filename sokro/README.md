@@ -103,12 +103,32 @@ sokro/
 10. Scheduler / Watchers ✅ — one-shot reminders and a delivery inbox
 11. Reports ✅
 12. Voice + UI ✅ — browser-status chip, reminders bell, secrets form
-13. Docs + Deploy + "من أعمالنا" card ← **current**
+13. Docs + Deploy + "من أعمالنا" card ✅
+14. Business channels, booking handoff, audit trail ✅
 
-### Next
-- WhatsApp Cloud API (the extension path ships today; the API needs a business
-  account + an approved template).
-- Natural-language times for reminders (the API takes an explicit `runAt`).
+### Optional external configuration
+- WhatsApp Web remains available through the extension. WhatsApp Cloud uses
+  `SOKRO_WHATSAPP_TOKEN`, `SOKRO_WHATSAPP_PHONE_ID`, `SOKRO_WHATSAPP_VERIFY_TOKEN`,
+  and `SOKRO_WHATSAPP_APP_SECRET`; register the phone ID per Sokro account through
+  `/api/channels/whatsapp/account`. The webhook is `/api/channels/whatsapp/webhook`.
+- Phone calls use Twilio when `SOKRO_TWILIO_ACCOUNT_SID`, `SOKRO_TWILIO_AUTH_TOKEN`,
+  and `SOKRO_TWILIO_FROM` are configured. Calling always requires
+  `confirmSensitive: true`; no provider configuration means no call is attempted.
+- Confirmed bookings can be handed to an explicitly configured
+  `SOKRO_BOOKING_PROVIDER_URL` (optional bearer token:
+  `SOKRO_BOOKING_PROVIDER_TOKEN`). A provider timeout leaves the booking in
+  `submitting` and is never retried automatically.
+- Reminders accept `whenText` plus an optional IANA `timezone`, for example
+  `فكرني بكرة الساعة 5`; ambiguous dates are rejected. `/api/schedule/parse`
+  previews the deterministic interpretation.
+- `/api/audit/consent` and the Settings screen show the user's sensitive-action
+  consent and outcome history. Values, tokens, and credentials are never stored
+  in the audit rows.
+
+Checks:
+
+- `node scripts/check-sokro-six.js`
+- `node scripts/check-sokro-concurrency.js` (uses the configured development DB)
 
 ## Run (dev)
 

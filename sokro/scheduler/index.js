@@ -13,6 +13,7 @@ const registry = require('../registry');
 const permissions = require('../permissions');
 const memory = require('../memory');
 const settings = require('../settings');
+const timeParser = require('../time-parser');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -26,6 +27,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
  */
 function parseWhen(opts) {
   const o = opts && typeof opts === 'object' ? opts : { everyMinutes: opts };
+  if (o.whenText || o.when) return timeParser.parseNatural(o.whenText || o.when, new Date(), o.timezone);
   const at = o.runAt || o.at;
   if (at) {
     const t = new Date(at);

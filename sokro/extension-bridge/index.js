@@ -45,9 +45,14 @@ async function nextWait(userId, holdMs = 25000) {
 // Extension side: claim the oldest pending command for this user.
 async function next(userId) {
   const r = (await pool.query(
-    `UPDATE sokro_ext_commands SET status='running'
-     WHERE id = (SELECT id FROM sokro_ext_commands WHERE user_id=$1 AND status='pending' ORDER BY id LIMIT 1)
-     RETURNING id, kind, input`,
+    `WITH candidate AS (
+       SELECT id FROM sokro_ext_commands
+        WHERE user_id=$1 AND status='pending' ORDER BY id LIMIT 1
+        FOR UPDATE SKIP LOCKED
+     )
+     UPDATE sokro_ext_commands AS c SET status='running'
+      FROM candidate WHERE c.id = candidate.id
+      RETURNING c.id, c.kind, c.input`,
     [userId]
   )).rows[0];
   return r || null;
