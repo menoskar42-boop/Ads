@@ -79,7 +79,15 @@ function guard(options) {
   return function csrfGuard(req, res, next) {
     if (SAFE.has(req.method)) return next();
     const p = req.path || '';
-    if (exempt.some((e) => p === e || p.endsWith(e))) return next();
+    // مطابقة تامة، مش `endsWith`.
+    //
+    // `p.endsWith(e)` كانت معناها إن **أي** مسار بينتهي بمسار مستثنى بيعدّي:
+    // `/evil/shop/pay/paymob/callback` بينتهي بـ`/shop/pay/paymob/callback`،
+    // فالحارس كله بيتخطّى على مسار المهاجم بيختاره هو. والاستثناء المفروض
+    // يكون للكولباك بتاع بوابة الدفع بالظبط، مش لأي حاجة شبهه.
+    //
+    // والشرطة في الآخر مسموحة عشان `/x/` و`/x` نفس المسار عند إكسبريس.
+    if (exempt.some((e) => p === e || p === e + '/')) return next();
 
     const from = originHostOf(req);
     if (!from) return next();            // not a page in a browser — see above
