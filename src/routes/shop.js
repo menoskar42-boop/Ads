@@ -4,7 +4,7 @@ const router = express.Router();
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const { canonicalCompanyUrl } = require('../lib/urls');
+const { canonicalCompanyUrl, companyPageUrl } = require('../lib/urls');
 const push = require('../lib/push');
 const reviews = require('../lib/reviews');
 const recommendations = require('../lib/recommendations');
@@ -760,6 +760,7 @@ router.get('/:slug/product/:id', async (req, res) => {
       notified: req.query.notified === '1',
       customerId: req.session.customerId || null,
       recommended,
+      canonical: companyPageUrl(company.slug, req, `shop/${slug}/product/${productId}`),
       noindex: thin,
       showAds: !thin, // product detail is content — but no ads on thin/noindex pages
     });

@@ -1225,7 +1225,7 @@ router.get('/order', pharmacyOrderGuard, async (req, res) => {
     res.render('tenant_pharmacy_order', {
       company, item, settings: req.pharmacySettings, noindex: true, done: false, order: null,
       error: req.query.e || null, payment,
-      canonical: 'https://' + company.slug + '.oscardevs.com/',
+      canonical: canonicalCompanyUrl(company.slug),
     });
   } catch (e) { console.error('order form error:', e.message); res.status(500).send('Error.'); }
 });
@@ -1277,7 +1277,7 @@ router.post('/order', pharmacyOrderGuard, async (req, res) => {
     res.render('tenant_pharmacy_order', {
       company, item: null, settings: req.pharmacySettings, noindex: true, done: true,
       order: { id: ord.id, name: inv.name_ar, qty, total, token }, payment,
-      canonical: 'https://' + company.slug + '.oscardevs.com/',
+      canonical: canonicalCompanyUrl(company.slug),
     });
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -1397,7 +1397,7 @@ router.get('/order/track/:token', async (req, res) => {
       company: req.tenant, order, items, noindex: true, payment,
       pushKey: push.publicKey(),
       canPayOnline, payUrl: '/order/pharmacy/pay/' + order.track_token,
-      canonical: 'https://' + req.tenant.slug + '.oscardevs.com/',
+      canonical: canonicalCompanyUrl(req.tenant.slug),
     });
   } catch (e) { console.error('track error:', e.message); res.status(500).send('Error.'); }
 });

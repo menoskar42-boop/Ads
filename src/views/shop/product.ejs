@@ -11,7 +11,7 @@
   <% var __pTitle = pName + (((pName.length + __sep.length + displayCompanyName.length) <= 60) ? (__sep + displayCompanyName) : ''); %>
   <title><%= __pTitle %></title>
   <meta name="description" content="<%= pDesc.slice(0,150) %>" />
-  <% var productUrl = siteOrigin + '/shop/' + company.slug + '/product/' + product.id; %>
+  <% var productUrl = (typeof canonical !== 'undefined' && canonical) ? canonical : (siteOrigin + '/shop/' + company.slug + '/product/' + product.id); %>
   <% if (typeof noindex !== 'undefined' && noindex) { %><meta name="robots" content="noindex,follow" /><% } %>
   <%# Shared social/app metadata stack (canonical, og, twitter, favicons, GA) —
       the product's own <title>, meta description and Product JSON-LD stay below. %>

@@ -1219,6 +1219,33 @@ async function initDb() {
       );
       CREATE INDEX IF NOT EXISTS idx_deals_company ON deals (company_id, is_active);
       CREATE INDEX IF NOT EXISTS idx_deals_product ON deals (product_id, is_active);
+      CREATE TABLE IF NOT EXISTS deals_products (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        source TEXT NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'AMAZON_API')),
+        asin TEXT,
+        title TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        short_description TEXT,
+        full_description TEXT,
+        brand TEXT,
+        category TEXT,
+        image_url TEXT,
+        current_price NUMERIC(10,2),
+        currency TEXT DEFAULT 'EGP',
+        amazon_product_url TEXT,
+        affiliate_url TEXT NOT NULL,
+        rating NUMERIC(2,1),
+        review_count INTEGER,
+        availability TEXT,
+        is_featured BOOLEAN NOT NULL DEFAULT false,
+        is_published BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, slug)
+      );
+      CREATE INDEX IF NOT EXISTS idx_deals_products_public
+        ON deals_products (company_id, is_published, is_featured, created_at DESC);
       -- Coupons (Amazon roadmap phase 11).
       CREATE TABLE IF NOT EXISTS coupons (
         id               SERIAL PRIMARY KEY,
