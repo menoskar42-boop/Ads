@@ -29,6 +29,62 @@ async function addMessage(conversationId, role, content) {
   await pool.query('UPDATE sokro_conversations SET updated_at = now() WHERE id = $1', [conversationId]);
   return m;
 }
+// Ownership-safe write used by HTTP/channel entry points. INSERT ... SELECT
+// makes the ownership check and insert one database statement, so a caller
+// cannot append to a conversation it does not own.
+async function addMessageFor(userId, conversationId, role, content) {
+  const m = (await pool.query(
+    `INSERT INTO sokro_messages (conversation_id, role, content)
+     SELECT id, $3, $4 FROM sokro_conversations
+      WHERE id = $1 AND user_id = $2
+     RETURNING *`,
+    [conversationId, userId, role, String(content)]
+  )).rows[0];
+  if (!m) return null;
+  await pool.query(
+    'UPDATE sokro_conversations SET updated_at = now() WHERE id = $1 AND user_id = $2',
+    [conversationId, userId]
+  );
+  return m;
+}
+// Record a user/assistant turn atomically. The advisory lock closes the small
+// race where two identical client retries both read the same previous turn.
+async function addTurnFor(userId, conversationId, userContent, assistantContent) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const own = (await client.query(
+      'SELECT 1 FROM sokro_conversations WHERE id = $1 AND user_id = $2 FOR UPDATE',
+      [conversationId, userId]
+    )).rows[0];
+    if (!own) { await client.query('ROLLBACK'); return null; }
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [String(conversationId)]);
+    const last = (await client.query(
+      'SELECT role, content FROM sokro_messages WHERE conversation_id = $1 ORDER BY id DESC LIMIT 2',
+      [conversationId]
+    )).rows.reverse();
+    if (last.length === 2 && last[0].role === 'user' && last[0].content === String(userContent)
+        && last[1].role === 'assistant' && last[1].content === String(assistantContent)) {
+      await client.query('COMMIT');
+      return { duplicate: true };
+    }
+    await client.query(
+      'INSERT INTO sokro_messages (conversation_id, role, content) VALUES ($1, $2, $3), ($1, $4, $5)',
+      [conversationId, 'user', String(userContent), 'assistant', String(assistantContent)]
+    );
+    await client.query(
+      'UPDATE sokro_conversations SET updated_at = now() WHERE id = $1 AND user_id = $2',
+      [conversationId, userId]
+    );
+    await client.query('COMMIT');
+    return { duplicate: false };
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    throw e;
+  } finally {
+    client.release();
+  }
+}
 async function getMessages(conversationId, limit = 20) {
   // Most recent `limit`, returned in chronological order.
   const rows = (await pool.query(
@@ -92,7 +148,7 @@ async function buildContextWindow(conversationId, limit = 20) {
 }
 
 module.exports = {
-  createConversation, listConversations, addMessage, getMessages, getMessagesFor,
+  createConversation, listConversations, addMessage, addMessageFor, addTurnFor, getMessages, getMessagesFor,
   getContext, mergeContext,
   createTask, updateTask, logStep, getHistory,
   buildContextWindow,

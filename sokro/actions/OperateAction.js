@@ -401,6 +401,18 @@ async function run(ctx, input) {
       // Auto-handle native JS dialogs (alert/confirm/beforeunload) so a modal never
       // freezes the loop waiting for a human click.
       page.on('dialog', (d) => { try { d.dismiss(); } catch (_) {} });
+      // Re-check every HTTP request, including redirects and subresources. A
+      // hostname can change its DNS answer after the initial URL validation;
+      // request interception prevents the browser from following an unsafe
+      // redirect or loading an internal target.
+      await page.route('**/*', async (route) => {
+        const requestUrl = route.request().url();
+        if (/^https?:\/\//i.test(requestUrl)) {
+          try { await assertSafeUrl(requestUrl); }
+          catch (_) { return route.abort('blockedbyclient'); }
+        }
+        await route.continue();
+      });
 
       try { await page.goto(url, { waitUntil: 'load', timeout: 30000 }); }
       catch (e) { const alt = wwwVariant(url); if (alt && alt !== url) await page.goto(alt, { waitUntil: 'load', timeout: 30000 }); else throw e; }

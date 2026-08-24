@@ -328,7 +328,7 @@ async function executePlan(ctx, goal, taskId, plan, res, convId) {
   // Semantic success = technically ok AND the goal was actually achieved.
   const ok = techOk && (s ? s.achieved !== false : true);
   await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary, achieved: ok } });
-  if (convId && summary) { try { await memory.addMessage(convId, 'assistant', summary); } catch (_) {} }
+  if (convId && summary) { try { await memory.addMessageFor(ctx.userId, convId, 'assistant', summary); } catch (_) {} }
   res.json({ ok, taskId, conversationId: convId || null, plan: plan.steps, results, summary, achieved: ok });
 }
 
@@ -342,6 +342,9 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     // Resolve (or start) a conversation so the whole exchange is remembered.
     let convId = (req.body && req.body.conversationId) || null;
     if (!convId) convId = (await memory.createConversation(req.sokroUser.id, goal.slice(0, 60))).id;
+    else if (!(await memory.getMessagesFor(req.sokroUser.id, convId, 1))) {
+      return res.status(403).json({ ok: false, error: 'conversation not found' });
+    }
     // Pull the recent turns BEFORE recording the new one, so the planner has the
     // conversation context (follow-up questions like "و كمان بالإنجليزي") without
     // duplicating the current goal it appends itself.
@@ -350,7 +353,7 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
       const prev = await memory.getMessagesFor(req.sokroUser.id, convId, 8);
       if (Array.isArray(prev)) recentContext = prev.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 1500) }));
     } catch (_) {}
-    await memory.addMessage(convId, 'user', goal);
+    await memory.addMessageFor(req.sokroUser.id, convId, 'user', goal);
     const task = await memory.createTask(req.sokroUser.id, goal, convId);
     const ctx = sokroCtx(req.sokroUser.id, task.id, prefs);
     const plan = await planner.plan(ctx, goal, recentContext);
@@ -368,7 +371,7 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     if (!plan.steps || !plan.steps.length) {
       await memory.updateTask(task.id, { status: 'failed' });
       const msg = plan.message || null;
-      if (msg) { try { await memory.addMessage(convId, 'assistant', msg); } catch (_) {} }
+      if (msg) { try { await memory.addMessageFor(req.sokroUser.id, convId, 'assistant', msg); } catch (_) {} }
       return res.json({ ok: false, taskId: task.id, conversationId: convId, plan: [], message: msg });
     }
     return await executePlan(ctx, goal, task.id, plan, res, convId);
@@ -381,18 +384,28 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
 // Resume a paused task after the user grants (voice) consent.
 router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
   try {
-    const t = (await pool.query('SELECT id, goal, plan, conversation_id FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
+    if (!(req.body && req.body.confirmSensitive === true)) {
+      return res.status(403).json({ ok: false, error: 'explicit confirmation required' });
+    }
+    const t = (await pool.query(
+      `UPDATE sokro_tasks
+          SET status = 'running', updated_at = now()
+        WHERE id = $1 AND user_id = $2 AND status = 'awaiting_consent'
+        RETURNING id, goal, plan, conversation_id`,
+      [parseInt(req.params.taskId, 10), req.sokroUser.id]
+    )).rows[0];
     if (!t) return res.status(404).json({ ok: false, error: 'task not found' });
     if (!t.plan || !Array.isArray(t.plan.steps)) return res.status(400).json({ ok: false, error: 'task has no plan' });
+    const taskPerms = permissions.forPlan(t.plan, registry);
+    if (!taskPerms.requiresConsent) {
+      return res.status(409).json({ ok: false, error: 'task does not require consent' });
+    }
     // Sensitive-action confirmation (the user just approved a pay/delete step —
     // by voice or button): resume the operate step and let it press the button.
     if (req.body && req.body.confirmSensitive) {
       t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { resume: true, confirmSensitive: true }); } });
     }
     // Proceed despite a predicted-failure warning (user chose "كمّل بأي حال").
-    if (req.body && req.body.proceed) {
-      t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { proceed: true }); } });
-    }
     const prefs = await settings.get(req.sokroUser.id);
     const resumeCtx = sokroCtx(req.sokroUser.id, t.id, prefs);
     // The same allowlist on resume: the consent that was given was for THESE
@@ -433,8 +446,9 @@ router.post('/api/vision', auth.requireAuth, async (req, res) => {
     let convId = (req.body && req.body.conversationId) || null;
     try {
       if (!convId) convId = (await memory.createConversation(req.sokroUser.id, (text || 'صورة').slice(0, 60))).id;
-      await memory.addMessage(convId, 'user', '[صورة] ' + text);
-      if (out && out.text) await memory.addMessage(convId, 'assistant', out.text);
+      else if (!(await memory.getMessagesFor(req.sokroUser.id, convId, 1))) return res.status(403).json({ ok: false, error: 'conversation not found' });
+      await memory.addMessageFor(req.sokroUser.id, convId, 'user', '[صورة] ' + text);
+      if (out && out.text) await memory.addMessageFor(req.sokroUser.id, convId, 'assistant', out.text);
     } catch (_) {}
     res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
   } catch (e) { console.error('[sokro] vision:', e.message); res.status(500).json({ ok: false, error: e.message }); }
@@ -466,8 +480,9 @@ router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, as
     let convId = (req.body && req.body.conversationId) || null;
     try {
       if (!convId) convId = (await memory.createConversation(req.sokroUser.id, name.slice(0, 60))).id;
-      await memory.addMessage(convId, 'user', '[ملف: ' + name + '] ' + promptText);
-      if (out && out.text) await memory.addMessage(convId, 'assistant', out.text);
+      else if (!(await memory.getMessagesFor(req.sokroUser.id, convId, 1))) return res.status(403).json({ ok: false, error: 'conversation not found' });
+      await memory.addMessageFor(req.sokroUser.id, convId, 'user', '[ملف: ' + name + '] ' + promptText);
+      if (out && out.text) await memory.addMessageFor(req.sokroUser.id, convId, 'assistant', out.text);
     } catch (_) {}
     res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
   } catch (e) { console.error('[sokro] file:', e.message); res.status(500).json({ ok: false, error: e.message }); }
@@ -583,6 +598,8 @@ router.post('/api/booking/turn', auth.requireAuth, async (req, res) => {
     let conversationId = (req.body && req.body.conversationId) || null;
     if (!conversationId) {
       conversationId = (await memory.createConversation(req.sokroUser.id, text.slice(0, 60))).id;
+    } else if (!(await memory.getMessagesFor(req.sokroUser.id, conversationId, 1))) {
+      return res.status(403).json({ ok: false, error: 'conversation not found' });
     }
     let current = await bookingStore.open(req.sokroUser.id, conversationId);
     if (!current) {
@@ -602,6 +619,7 @@ router.post('/api/booking/turn', auth.requireAuth, async (req, res) => {
       fingerprint: out.state.confirmed_fingerprint === null ? '' : out.state.confirmed_fingerprint,
     });
     if (!saved) return res.status(404).json({ ok: false, error: 'booking not found' });
+    await memory.addTurnFor(req.sokroUser.id, conversationId, text, out.say || '');
     res.json({
       ok: true, booking: saved, conversationId, say: out.say,
       done: out.done, answer: out.answer || null,
