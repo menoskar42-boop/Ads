@@ -4,10 +4,12 @@ import { Router } from "../core/router.js";
 import { Speech } from "../core/speech.js";
 import { Sfx } from "../core/audio.js";
 import { gameTopbar, shuffle, showCheer, finishActivity, examplePhrase } from "./common.js";
+import { judge, hintFor } from "./traceJudge.js";
 
 const TRACE_COUNT = 6;
 const RES = 300; // دقّة داخلية ثابتة
-const THRESHOLD = 0.62; // نسبة التغطية المطلوبة (أعلى كي لا يكتمل قبل إتمام الشكل)
+// الحكم على «كتب الحرف صح» في `traceJudge.js` — مفصول عشان الحارس يشغّله
+// بنفسه بأرقام حقيقية بدل ما يقرا الملف ويفترض إنه بيعمل اللي مكتوب فيه.
 
 export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, focus, returnLesson, lessonTitle }) {
   const ds = getDataset(datasetKey);
@@ -124,7 +126,11 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       dctx.fillStyle = dctx.strokeStyle;
       dot(last); // أثر فوري عند مجرّد اللمس
       Sfx.pop();
-      checkCoverage(); // قد تكتمل النقطة بضغطة واحدة (مثل نقطة ذ/خ)
+      // الحكم مابيتاخدش والإيد لسه على الشاشة.
+      //
+      // كانت بتتنادى هنا كمان، فالحرف بيتحكم عليه «صح» وسط أول ضغطة قبل ما
+      // الطفل يخلّص شكله أصلاً — والنتيجة إن الطفل بيتعلّم إن نصّ الحرف كفاية.
+      // (النقطة بتاعة ذ/خ لسه شغّالة: بتتحكم في `end` بعد رفع الإصبع مباشرةً.)
     }
     function move(e) {
       if (!drawing) return;
@@ -140,16 +146,38 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
       if (!drawing) return;
       drawing = false;
       checkCoverage();
+      if (!done) hintAfterStroke();
+    }
+
+    /**
+     * تلات إجابات مش اتنين.
+     *
+     * قبل كده كان فيه «صح» وسكوت. والسكوت أسوأ إجابة للطفل: هو رسم حاجة،
+     * والتطبيق ماردّش، فمش عارف يكمّل ولا يمسح ولا إيه المشكلة. والأهم إن
+     * اللي شخبط والّي لسه مكمّلش كانوا بياخدوا نفس السكوت — وهما محتاجين
+     * كلام مختلف تماماً.
+     */
+    function hintAfterStroke() {
+      const msg = hintFor(measure());
+      if (msg) showHint(msg);
+    }
+
+    /** مسحة واحدة بتطلّع الرقمين، والحكم بيتاخد في `traceJudge.js`. */
+    function measure() {
+      const dData = dctx.getImageData(0, 0, RES, RES).data;
+      let covered = 0, drawn = 0;
+      for (let p = 3; p < dData.length; p += 4) {
+        if (dData[p] <= 40) continue;       // بكسل الطفل ماحطّش عليه حبر
+        drawn++;
+        if (maskData[p] > 40) covered++;    // ووقع جوّه الحرف
+      }
+      return judge(covered, drawn, maskTotal);
     }
 
     function checkCoverage() {
       if (done || maskTotal === 0) return;
-      const dData = dctx.getImageData(0, 0, RES, RES).data;
-      let covered = 0;
-      for (let p = 3; p < dData.length; p += 4) {
-        if (maskData[p] > 40 && dData[p] > 40) covered++;
-      }
-      if (covered / maskTotal >= THRESHOLD) {
+      const m = measure();
+      if (m.ok) {
         done = true;
         paintGuide("#34d399");
         Sfx.correct();
@@ -169,13 +197,24 @@ export function renderTrace({ regionId, regionIndex, datasetKey, lang, title, fo
     draw.addEventListener("touchmove", move, { passive: false });
     draw.addEventListener("touchend", end);
 
+    // سطر بيتكلّم مع الطفل وهو بيرسم (بيفضل فاضي لحد ما يكون فيه حاجة تتقال).
+    const hint = document.createElement("div");
+    hint.style.cssText = "min-height:26px;margin-top:10px;text-align:center;font-weight:800;color:#6d28d9";
+    stage.appendChild(hint);
+    let hintTimer = null;
+    function showHint(text) {
+      hint.textContent = text;
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(() => { hint.textContent = ""; }, 3500);
+    }
+
     // أدوات
     const tools = document.createElement("div");
     tools.style.cssText = "margin-top:14px;display:flex;gap:12px;justify-content:center";
     const clearBtn = document.createElement("button");
     clearBtn.className = "candy-btn";
     clearBtn.textContent = "🧽 امسح";
-    clearBtn.addEventListener("click", () => { Sfx.tap(); dctx.clearRect(0, 0, RES, RES); });
+    clearBtn.addEventListener("click", () => { Sfx.tap(); dctx.clearRect(0, 0, RES, RES); hint.textContent = ""; });
     const sayBtn = document.createElement("button");
     sayBtn.className = "candy-btn";
     sayBtn.textContent = `🔊 ${noun}`;
