@@ -34,7 +34,14 @@ function heuristicPlan(goal, names, extConnected) {
   // واضغط..." even when the LLM planner fumbles and returns nothing, so the request
   // never dead-ends with "مش قادر أحدّد المطلوب".
   const domainRe = /\b((?:[a-z0-9-]+\.)+(?:com|net|org|io|eg|co|me|app|store|shop|dev|ai|gov|edu|sa|ae)(?:\.[a-z]{2})?)(\/[^\s]*)?/i;
-  const dm = String(goal).match(domainRe);
+  // الهدف بيتقصّ قبل الريجيكس.
+  //
+  // مراجعة خارجية قالت إن الريجيكس ده «ReDoS» بتراجع كارثي. اتقاس فعلاً:
+  // النقطة فاصل صريح فمافيش انفجار أسّي — الزمن **تربيعي** لا أكتر (٢٠ ألف
+  // مقطع منقّط ≈ ١٫٥ ثانية، و٥ آلاف ≈ ٨٠ مللي). فالعلاج مش إعادة كتابة
+  // الريجيكس وكأنه متفجّر، ده إن المدخل يتحدّد — والهدف اللي طوله أكتر من
+  // ٢ كيلو مش هدف أصلاً، وأي حسبة عليه ضياع وقت مهما كان شكل الريجيكس.
+  const dm = String(goal).slice(0, 2000).match(domainRe);
   const interactWords = ['افتح', 'اضغط', 'دوس', 'حدد', 'فلتر', 'اختار', 'ادخل', 'روح', 'صفّي', 'اعمل فلتر', 'open', 'click', 'filter', 'select', 'go to', 'operate'];
   // A named site: with the extension → operate inside it; WITHOUT it → a site-scoped
   // web search (works with no browser).

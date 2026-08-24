@@ -85,6 +85,23 @@ check('الامتداد من النوع المعلن',
 check('ونوع مش في القايمة بياخد الافتراضي مش امتداد العميل',
   uploads.extname({ mimetype: 'text/html', originalname: 'x.html' }, '.bin') === '.bin');
 
+// والقاعدة دي لازم تكون مطبّقة في **كل** رافع في الكود، مش في واحد.
+// كانت مكسورة في `makeMediaUploader` (رافع صور وفيديو المنتج): بياخد الامتداد
+// من `path.extname(file.originalname)` — يعني من اسم الملف اللي العميل باعته —
+// جنب رافع تاني في نفس الملف بيعمل الصح. PNG مرفوعة باسم `x.jpg` كانت بتتحفظ
+// `.jpg` وتتقدّم بـ`image/jpeg`، فالمتصفّح بيتلغبط والكاش بيتلوّث.
+{
+  const src = fs.readFileSync(path.join(ROOT, 'src/routes/company.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, p) => p + m.slice(p.length).replace(/[^\n]/g, ' '));
+  const namers = src.match(/filename: \(req, file, cb\) => \{[\s\S]*?\}/g) || [];
+  check('كل الرافعين بياخدوا الامتداد من النوع المعلن',
+    namers.length >= 2 && namers.every((n) => /uploads\.extname\(file/.test(n)),
+    namers.length + ' رافع');
+  check('ومفيش رافع بيقرا امتداد من اسم الملف بتاع العميل',
+    !/path\.extname\(file\.originalname\)/.test(src));
+}
+
 /* ── The middleware refuses, deletes, and answers ──────────────────────── */
 {
   const tmp = path.join(require('os').tmpdir(), 'upl-check-' + Date.now() + '.png');

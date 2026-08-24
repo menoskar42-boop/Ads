@@ -125,7 +125,14 @@ function makeMediaUploader(prefix) {
   const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
+      // نفس قاعدة `makeUploader` فوق، وكانت مكسورة هنا: الامتداد بيتاخد من
+      // **النوع اللي الفلتر عدّاه**، مش من `originalname` — النص ده بتاع
+      // العميل، وهو اللي بيخلّي ملف يقعد في `public/uploads` باسم
+      // `product-7-1699.html`. الكسرة هنا مكنتش نظرية: بورتريه PNG اترفع
+      // باسم `x.jpg` بيتحفظ `.jpg` ويتقدّم بـ`image/jpeg`، فالمتصفّح بيتلغبط
+      // والكاش بيتلوّث. (كل الأنواع اللي الفلتر بيقبلها ليها امتداد في
+      // `EXT_FOR_MIME` — اتفحصت واحدة واحدة.)
+      const ext = uploads.extname(file, '.bin');
       const kind = file.fieldname === 'video_file' ? `${prefix}-video` : prefix;
       cb(null, `${kind}-${req.session.companyId}-${Date.now()}${ext}`);
     },
