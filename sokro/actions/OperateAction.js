@@ -7,6 +7,7 @@
 // steps. Uses the server browser (Playwright) — one page kept open across steps.
 const { register } = require('./_registry');
 const browserState = require('../lib/browserState');
+const { assertSafeUrl } = require('../lib/urlGuard');
 
 // Per-user "last position" so a follow-up run can CONTINUE from where the previous
 // one stopped (input.resume) instead of starting over from the homepage. In-memory
@@ -506,8 +507,13 @@ async function run(ctx, input) {
             await target.fill(String(dec.text || ''), { timeout: 8000 });
           } else if (dec.action === 'scroll') {
             await page.evaluate(function () { window.scrollBy(0, window.innerHeight); });
-          } else if (dec.action === 'goto' && /^https?:\/\//.test(dec.url || '')) {
-            await page.goto(dec.url, { waitUntil: 'load', timeout: 20000 });
+           } else if (dec.action === 'goto' && /^https?:\/\//.test(dec.url || '')) {
+             const safeUrl = await assertSafeUrl(dec.url);
+             if (ctx.allowedDomains && ctx.allowedDomains.length) {
+               const host = new URL(safeUrl).hostname.toLowerCase().replace(/^www\./, '');
+               if (!ctx.allowedDomains.includes(host)) throw new Error('الموقع ده خارج المواقع المسموح بها');
+             }
+             await page.goto(safeUrl, { waitUntil: 'load', timeout: 20000 });
           } else { break; }
           // ── Verify the step actually took effect ──
           await settlePage(page);
@@ -582,7 +588,7 @@ async function run(ctx, input) {
 register({
   name: 'operate',
   description: 'Drive a browser toward a goal like an Operator: open a page then click/type/scroll/navigate step-by-step until the goal is done. Verifies each step, handles cookie/consent popups, retries with fallback selectors, and reloads/rolls back if a page gets stuck. Use for tasks that need real interaction inside a site (apply filters, click into a specific item, read what appears). input.url = start page, input.goal = what to accomplish. input.resume=true continues from where the previous run stopped.',
-  permissions: ['browser'],
+  permissions: ['browser', 'submit'],
   // Never repeated: the operator CLICKS inside a live site, so a failure can sit
   // on either side of a button that already did something.
   retryable: false,

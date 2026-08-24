@@ -56,7 +56,7 @@ async function next(userId) {
 // Extension side: post a command's result back.
 async function result(userId, id, output, error) {
   await pool.query(
-    "UPDATE sokro_ext_commands SET status=$3, output=$4::jsonb, error=$5 WHERE id=$1 AND user_id=$2",
+    "UPDATE sokro_ext_commands SET status=$3, output=$4::jsonb, error=$5 WHERE id=$1 AND user_id=$2 AND status='running'",
     [parseInt(id, 10), userId, error ? 'error' : 'done', JSON.stringify(output || null), error || null]
   );
 }

@@ -49,8 +49,8 @@ async function create(userId, goal, opts, title) {
     )).rows[0];
   }
   return (await pool.query(
-    `INSERT INTO sokro_scheduled_tasks (user_id, goal, kind, title, every_minutes, next_run_at)
-     VALUES ($1,$2,'recurring',$3,$4, now() + ($4 || ' minutes')::interval) RETURNING *`,
+     `INSERT INTO sokro_scheduled_tasks (user_id, goal, kind, title, every_minutes, next_run_at)
+      VALUES ($1,$2,'recurring',$3,$4, now() + make_interval(mins => $4)) RETURNING *`,
     [userId, String(goal), title || null, when.everyMinutes]
   )).rows[0];
 }
@@ -94,8 +94,22 @@ async function remove(userId, id) {
 
 // Run all due tasks (called by the cron endpoint). Returns how many ran.
 async function runDue(limit = 10) {
+  // Claim in the same statement that selects. A plain SELECT ... FOR UPDATE
+  // would release its lock as soon as the query ends, before the async planner
+  // work below finishes, allowing a second cron request to run the same row.
   const due = (await pool.query(
-    'SELECT * FROM sokro_scheduled_tasks WHERE active AND next_run_at <= now() ORDER BY next_run_at LIMIT $1',
+    `WITH due AS (
+      SELECT id FROM sokro_scheduled_tasks
+       WHERE active AND next_run_at <= now()
+       ORDER BY next_run_at
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED
+    )
+    UPDATE sokro_scheduled_tasks AS s
+       SET next_run_at = now() + interval '1 hour'
+      FROM due
+     WHERE s.id = due.id
+    RETURNING s.*`,
     [limit]
   )).rows;
   for (const s of due) {

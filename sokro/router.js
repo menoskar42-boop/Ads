@@ -24,6 +24,8 @@ const scheduler = require('./scheduler');
 const extBridge = require('./extension-bridge');
 const realtime = require('./realtime');
 const content = require('./content');
+const booking = require('./booking');
+const bookingStore = booking.store;
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -404,7 +406,8 @@ router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
 });
 
 // Voice → text (Whisper).
-router.post('/api/voice', auth.requireAuth, (req, res) => uploadAudio(req, res, async () => {
+router.post('/api/voice', auth.requireAuth, (req, res) => uploadAudio(req, res, async (err) => {
+  if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ ok: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'audio too large' : err.message });
   if (!req.file) return res.status(400).json({ ok: false, error: 'audio required' });
   try { res.json({ ok: true, text: await voice.transcribe(req.file.buffer, req.file.originalname || 'audio.webm') }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
@@ -440,7 +443,8 @@ router.post('/api/vision', auth.requireAuth, async (req, res) => {
 // File → answer: the user attaches a document / zip / text file (📎). We extract
 // its readable content (text + any images inside) server-side and let the model
 // use it. Images alone go through /api/vision instead.
-router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, async () => {
+router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, async (err) => {
+  if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ ok: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'file too large' : err.message });
   if (!req.file) return res.status(400).json({ ok: false, error: 'file required' });
   const name = req.file.originalname || 'file';
   const promptText = String((req.body && req.body.text) || '').trim();
@@ -544,7 +548,7 @@ router.post('/api/agenda', auth.requireAuth, async (req, res) => {
 
 // One point. The duplicate answer is a real answer — «دي عندي خلاص» is useful,
 // a silently ignored tap is not.
-router.post('/api/agenda/:id(\d+)/items', auth.requireAuth, async (req, res) => {
+router.post('/api/agenda/:id([0-9]+)/items', auth.requireAuth, async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
   const parsed = agenda.parseAdd(text) || text;   // «ضيف بند: كذا» or the bare point
   const out = await agendaStore.addItem(req.sokroUser.id, parseInt(req.params.id, 10), parsed);
@@ -555,19 +559,57 @@ router.post('/api/agenda/:id(\d+)/items', auth.requireAuth, async (req, res) => 
   res.json({ ok: true, added: true, item: out.item });
 });
 
-router.post('/api/agenda/:id(\d+)/items/:itemId(\d+)/done', auth.requireAuth, async (req, res) => {
+router.post('/api/agenda/:id([0-9]+)/items/:itemId([0-9]+)/done', auth.requireAuth, async (req, res) => {
   await agendaStore.setDone(req.sokroUser.id, req.params.itemId, (req.body || {}).done !== false);
   res.json({ ok: true });
 });
 
-router.delete('/api/agenda/:id(\d+)/items/:itemId(\d+)', auth.requireAuth, async (req, res) => {
+router.delete('/api/agenda/:id([0-9]+)/items/:itemId([0-9]+)', auth.requireAuth, async (req, res) => {
   await agendaStore.removeItem(req.sokroUser.id, parseInt(req.params.id, 10), req.params.itemId);
   res.json({ ok: true });
 });
 
-router.post('/api/agenda/:id(\d+)/close', auth.requireAuth, async (req, res) => {
+router.post('/api/agenda/:id([0-9]+)/close', auth.requireAuth, async (req, res) => {
   await agendaStore.close(req.sokroUser.id, parseInt(req.params.id, 10));
   res.json({ ok: true });
+});
+
+// Structured booking flow. It collects and confirms details deterministically;
+// it does not submit anything to an external provider.
+router.post('/api/booking/turn', auth.requireAuth, async (req, res) => {
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ ok: false, error: 'text required' });
+  try {
+    let conversationId = (req.body && req.body.conversationId) || null;
+    if (!conversationId) {
+      conversationId = (await memory.createConversation(req.sokroUser.id, text.slice(0, 60))).id;
+    }
+    let current = await bookingStore.open(req.sokroUser.id, conversationId);
+    if (!current) {
+      const kind = booking.detectKind(text);
+      if (!kind) return res.status(400).json({ ok: false, error: 'booking type not understood' });
+      current = await bookingStore.create(req.sokroUser.id, conversationId, kind, {});
+    }
+    const out = await booking.turn({
+      userId: req.sokroUser.id,
+      llm: require('./llm'),
+      memory,
+      log: () => {},
+    }, current, text);
+    const saved = await bookingStore.save(req.sokroUser.id, current.id, {
+      fields: out.state.fields,
+      status: out.state.status,
+      fingerprint: out.state.confirmed_fingerprint === null ? '' : out.state.confirmed_fingerprint,
+    });
+    if (!saved) return res.status(404).json({ ok: false, error: 'booking not found' });
+    res.json({
+      ok: true, booking: saved, conversationId, say: out.say,
+      done: out.done, answer: out.answer || null,
+    });
+  } catch (e) {
+    console.error('[sokro] booking turn:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ── The inbox a reminder lands in ────────────────────────────────────────────
