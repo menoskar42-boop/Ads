@@ -94,6 +94,28 @@ function showBubble(text) {
   overlay.textContent = text;
 }
 
+/**
+ * سبب رفض الميكروفون، بجملة بتقول للأب يعمل إيه.
+ *
+ * الشكل القديم كان `catch (e)` بيبلع `e.name` ويطلع «مقدرتش أفتح الميكروفون»
+ * على أربع حالات مختلفة تماماً — والأب اللي بيقرا الجملة دي مايعرفش يدّي إذن،
+ * ولا يوصّل ميكروفون، ولا يفتح التطبيق من لينك آمن. الجملة اللي مابتقولش
+ * الخطوة الجاية زيّها زي مفيش جملة.
+ */
+function micProblem(err) {
+  const name = (err && (err.name || err.message)) || "";
+  if (/NotAllowed|Permission|Security/i.test(name)) {
+    return "الميكروفون مقفول 🙈 افتح إعدادات المتصفّح واسمح للموقع بالميكروفون.";
+  }
+  if (/NotFound|Devices/i.test(name)) {
+    return "مالقيتش ميكروفون في الجهاز 🙈";
+  }
+  if (/NotReadable|Track|Aborted/i.test(name)) {
+    return "الميكروفون مشغول في تطبيق تاني 🙈 اقفله وجرّب تاني.";
+  }
+  return "مقدرتش أفتح الميكروفون 🙈 جرّب تاني.";
+}
+
 async function toggleListen() {
   if (listening) {
     stopListening();
@@ -101,20 +123,44 @@ async function toggleListen() {
   }
   if (!assistantAvailable()) return;
   noteActivity();
-  // ميزو يرحّب بالعامية، ثم يبدأ الاستماع بعد لحظة (تشغيل موثوق لا يعتمد على انتهاء النطق)
+
+  // الميكروفون بيتطلب **جوّه ضغطة الطفل نفسها**.
+  //
+  // الشكل القديم كان بيرحّب الأول وبينادي `getUserMedia` بعد ثانية ونص جوّه
+  // `setTimeout`. سفاري على الآيفون بتربط إذن الميكروفون بإيماءة المستخدم:
+  // بعد ما الإيماءة تخلص، الطلب بيترفض — فالزرار كان بيرد «مقدرتش أفتح
+  // الميكروفون» في كل مرة على الآيفون، وميزو بيرحّب وبعدين يفشل.
+  //
+  // فالطلب بقى أول حاجة، والترحيب بعده. والتيار بيفضل مفتوح لحد ما التسجيل
+  // يبدأ — عشان الإذن ياخد مرة واحدة مش مرتين.
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      // إعدادات تساعد على التقاط صوت الطفل الخافت بوضوح (تضخيم + تنقية)
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
+  } catch (e) {
+    setState("idle", micProblem(e));
+    setTimeout(() => showBubble(""), 4000);
+    return;
+  }
+
+  // ميزو يرحّب بالعامية، والتسجيل بيبدأ بعد لحظة — والإذن خلاص في إيدنا.
   if (mizo) { mizo.setMood("happy"); mizo.startTalking(1600); }
   showBubble(INVITE + " 🎤");
   Speech.mizo(INVITE);
-  setTimeout(() => { if (!listening) beginRecording(); }, 1500);
+  setTimeout(() => {
+    if (listening) { stream.getTracks().forEach((t) => t.stop()); return; }
+    beginRecording(stream);
+  }, 1500);
 }
 
-async function beginRecording() {
-  if (!assistantAvailable() || listening) return;
+async function beginRecording(stream) {
+  if (!assistantAvailable() || listening) {
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    return;
+  }
   try {
-    // إعدادات تساعد على التقاط صوت الطفل الخافت بوضوح (تضخيم + تنقية)
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
     chunks = [];
     const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
     recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -131,8 +177,9 @@ async function beginRecording() {
     // حدّ أقصى ٦ ثوانٍ ثم نتوقّف تلقائياً
     setTimeout(() => { if (listening) stopListening(); }, 6000);
   } catch (e) {
-    setState("idle", "مقدرتش أفتح الميكروفون 🙈");
-    setTimeout(() => showBubble(""), 2500);
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    setState("idle", micProblem(e));
+    setTimeout(() => showBubble(""), 4000);
   }
 }
 
