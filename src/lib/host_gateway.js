@@ -38,6 +38,9 @@ function loadRoutes() {
 // Stream one request through to the upstream app untouched, and pipe the reply
 // back. `publicHost` is forwarded as the Host header so the upstream app sees
 // its real public domain (keeps its session cookie bound to mybible.*).
+// ٣٠ ثانية: أطول من أي صفحة معقولة، وأقصر بكتير من «للأبد».
+const UPSTREAM_TIMEOUT_MS = 30000;
+
 function proxy(req, res, targetBase, publicHost) {
   let base;
   try { base = new URL(targetBase); } catch (_e) {
@@ -56,14 +59,26 @@ function proxy(req, res, targetBase, publicHost) {
     method: req.method,
     path: req.originalUrl,
     headers,
+    // مهلة.
+    //
+    // من غيرها، لو التطبيق المستضاف علّق (مش وقع — **علّق**)، الطلب بيفضل
+    // مفتوح للأبد: العميل مستني، والاتصال محجوز عندنا، والاتصالات دي بتتراكم
+    // لحد ما السيرفر مايقدرش يستقبل. الوقوع بيتعالج (`error` تحت)؛ التعليق
+    // مكنش ليه علاج.
+    timeout: UPSTREAM_TIMEOUT_MS,
   }, (upRes) => {
     res.writeHead(upRes.statusCode || 502, upRes.headers);
     upRes.pipe(res);
   });
+  // `timeout` بتطلق الحدث بس مابتقفلش الاتصال — القفل لازم يتعمل بالإيد،
+  // وإلا الاتصال بيفضل محجوز واحنا فاكرين إننا خلاص منه.
+  upstream.on('timeout', () => { upstream.destroy(new Error('upstream timeout')); });
   upstream.on('error', () => {
     if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('التطبيق المستضاف مؤقتاً غير متاح — حاول تاني بعد لحظات.');
   });
+  // ولو العميل مشي، مانفضلش شادّين على الاتصال بتاع فوق.
+  res.on('close', () => { if (!res.writableEnded) upstream.destroy(); });
   req.pipe(upstream);                              // raw request body, untouched
 }
 
