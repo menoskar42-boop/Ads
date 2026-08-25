@@ -80,6 +80,16 @@ body.running { background: var(--bg-run); }
   letter-spacing: -0.5px;
   word-break: break-word;
 }
+/* اسم التطبيق **مايتقطعش**.
+   `.brand` شايله عنصرين: اسم الموقع (`h1`) والمهمة اللي المستخدم كتبها
+   (`#timerTitle`). `word-break: break-word` صح للتانية — المستخدم ممكن
+   يكتب كلمة طويلة — وغلط للأول: على ٣٩٠px كان بيطلع «NeuroPilo / t».
+   الاسم بيصغّر بدل ما يتقطّع. */
+h1.brand {
+  word-break: normal;
+  overflow-wrap: normal;
+  font-size: clamp(1.5rem, 7vw, 2.25rem);
+}
 .tagline { color: var(--muted); font-size: 1rem; margin-top: -8px; }
 
 .icon-btn {
@@ -436,3 +446,21 @@ html.dark .place-del { background: #3A2624; color: #E88B7F; }
 .apk-promo-text { font-size: .88rem; line-height: 1.9; margin: 0 0 12px; opacity: .92; }
 .apk-promo-note { font-size: .72rem; line-height: 1.7; margin: 10px 0 0; opacity: .55; }
 .apk-promo.hidden { display: none; }
+
+
+/* ── قسم «إيه ده» تحت الأداة: مرئي للزائر زي ما هو للزاحف ──────────── */
+.about-app {
+  text-align: start;
+  margin: 34px auto 8px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line, rgba(0,0,0,.08));
+  max-width: 640px;
+  line-height: 1.9;
+  font-size: .95rem;
+}
+.about-app h2 { font-size: 1.15rem; margin: 0 0 .5em; }
+.about-app h3 { font-size: 1rem; margin: 1.3em 0 .35em; }
+.about-app p { margin: 0 0 .8em; }
+.about-app ul, .about-app ol { margin: 0; padding-inline-start: 1.3em; }
+.about-app li { margin: .3em 0; }
+.about-app .muted { color: var(--muted); font-size: .88rem; margin-top: 1.2em; }

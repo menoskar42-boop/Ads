@@ -31,7 +31,8 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "playwright-core": "^1.61.1"
   },
   "optionalDependencies": {
     "@replit/object-storage": "^1.0.0",
