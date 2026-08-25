@@ -9,7 +9,6 @@
 <title><%= pageTitle %></title>
 <meta name="description" content="<%= pageDescription %>" />
 <%- include('../partials/seo_meta', { title: pageTitle, description: pageDescription }) %>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"الأسئلة الشائعة","item":"<%= siteOrigin %>/faq"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/tw.css" />
 <style>* { font-family: 'Cairo', sans-serif; }</style>
@@ -28,6 +27,9 @@
   </div>
 </header>
 
+<%# BreadcrumbList اتشال من هنا: الـpartial `breadcrumbs` بيطلّعه بالفعل،
+    فالصفحة كانت بتنشر الكيان مرتين. جوجل بتشترط واحد لكل صفحة، وتكراره
+    بيخلّي أي اختلاف بينهم تناقض في نفس الصفحة. %>
 <main class="max-w-4xl mx-auto px-4 py-10">
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'الأسئلة الشائعة' } ] }) %>
   <header class="text-center mb-10">

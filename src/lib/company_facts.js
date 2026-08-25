@@ -65,6 +65,29 @@ const DELIVERY_SCOPE = 'من اعتماد التصميم الأولي، للأن
  */
 const PROJECTS_DELIVERED = { value: 50, prefix: '+', sourced: false };
 
+/**
+ * بيانات النشاط (NAP) — نسخة واحدة.
+ *
+ * كانت متكتوبة مرتين في سكيمة مختلفة بنفس الـ`@id`: `seo_meta.ejs` كاتبة
+ * «5 شارع العادلي» و`company_facts.ejs` كاتبة «5 ش العادلي». نفس الكيان
+ * بعنوانين — وده بالظبط اللي `docs/BUSINESS_INFO.md` بيمنعه («متطابقة
+ * حرفياً»)، ولإن الاتنين بنفس المعرّف، اللي بيقرا السكيمة بيلاقي كيان
+ * واحد بيقول حاجتين.
+ *
+ * الصيغة المعتمدة هي اللي في `BUSINESS_INFO.md` بالحرف.
+ */
+const ORG = {
+  name: 'OscarDevs',
+  phone: '+201552406406',
+  phoneLocal: '01552406406',
+  email: 'contact@oscardevs.com',
+  streetAddress: '5 ش العادلي، حي شركة فريال',
+  addressLocality: 'أسيوط',
+  addressRegion: 'أسيوط',
+  postalCode: '71111',
+  addressCountry: 'EG',
+};
+
 /** جملة العرض المجاني — نص واحد، عشان مايتكتبش بصيغتين. */
 function freeOfferLine() {
   return `مجاناً لمدة ${arabicNumber(FREE_MONTHS)} شهور — لفترة محدودة`;
@@ -74,6 +97,7 @@ function freeOfferLine() {
 function facts() {
   return {
     updated: FACTS_UPDATED,
+    org: ORG,
     systemsCount: SYSTEMS_COUNT,
     systemsCountAr: arabicNumber(SYSTEMS_COUNT),
     freeMonths: FREE_MONTHS,
@@ -87,6 +111,7 @@ function facts() {
 }
 
 module.exports = {
+  ORG,
   FACTS_UPDATED,
   SYSTEMS_COUNT,
   DELIVERY_DAYS,
