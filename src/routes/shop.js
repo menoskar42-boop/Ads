@@ -26,6 +26,31 @@ async function loadShopCompany(slug) {
   return r.rows[0] || null;
 }
 
+/**
+ * الموجود فعلاً لمفتاح سلة.
+ *
+ * المفتاح بياخد تلات أشكال: `12` · `12|v34` (خيار) · `12|لارج` (مقاس قديم).
+ * بيرجع رقم، أو **`null` لما مانقدرش نتأكّد** — والفرق ده مقصود: «مش متأكّد»
+ * مش «صفر»، والصفر بيمسح سطر من سلة العميل.
+ */
+async function availableFor(companyId, key) {
+  const [idPart, rest] = String(key).split('|');
+  const productId = parseInt(idPart, 10);
+  if (!Number.isFinite(productId)) return null;
+  if (rest && /^v\d+$/.test(rest)) {
+    const v = (await pool.query(
+      `SELECT v.stock FROM product_variants v
+         JOIN products p ON p.id = v.product_id
+        WHERE v.id=$1 AND v.product_id=$2 AND v.is_active=true AND p.company_id=$3`,
+      [parseInt(rest.slice(1), 10), productId, companyId])).rows[0];
+    return v ? Number(v.stock) : null;
+  }
+  const p = (await pool.query(
+    'SELECT stock FROM products WHERE id=$1 AND company_id=$2 AND is_active = true',
+    [productId, companyId])).rows[0];
+  return p ? Number(p.stock) : null;
+}
+
 function getCart(req, slug) {
   if (!req.session.carts) req.session.carts = {};
   if (!req.session.carts[slug]) req.session.carts[slug] = {};
@@ -150,19 +175,54 @@ router.get('/:slug/cart', async (req, res) => {
   }
 });
 
+/**
+ * تعديل الكميات من صفحة السلة.
+ *
+ * كان بيكتب الرقم اللي جاي من الفورم في الجلسة على طول: `cart[key] = qty`.
+ * يعني `9999` من قطعة الموجود منها اتنين بتتخزّن عادي، والصفحة تحسب إجمالي
+ * لطلب مستحيل، والعميل يكتشف الحقيقة في آخر خطوة.
+ *
+ * الكتابة في الطلب نفسه كانت بتفحص المخزون (`check-negative-stock`) — بس
+ * «الرقم بيتصلّح بعدين» مش نفس «الصفحة بتقول الحقيقة دلوقتي».
+ *
+ * فالتعديل بقى بيتقصّ على **الموجود فعلاً**، ولو اتقص العميل بيتقاله ليه.
+ */
 router.post('/:slug/cart/update', async (req, res) => {
   const { slug } = req.params;
   const cart = getCart(req, slug);
+  const wanted = new Map();
   for (const field of Object.keys(req.body)) {
     const m = field.match(/^q_(\d+)$/);
     if (!m) continue;
     const key = req.body['k_' + m[1]];
-    if (!key) continue;
+    if (!key || typeof key !== 'string') continue;
     const qty = parseInt(req.body[field], 10);
-    if (!Number.isFinite(qty) || qty <= 0) delete cart[key];
-    else cart[key] = qty;
+    if (!Number.isFinite(qty) || qty <= 0) { delete cart[key]; continue; }
+    // سقف عاقل قبل أي استعلام: الرقم الخيالي مايوصلش لقاعدة البيانات أصلاً.
+    wanted.set(key, Math.min(qty, 999));
   }
-  res.redirect(`/shop/${slug}/cart`);
+
+  let trimmed = false;
+  if (wanted.size) {
+    try {
+      const company = await loadShopCompany(slug);
+      if (!company) return res.redirect(`/shop/${slug}/cart`);
+      for (const [key, qty] of wanted) {
+        const avail = await availableFor(company.id, key);
+        // `null` = مش قادرين نتأكّد (صنف اتشال، أو قراية فشلت). ساعتها
+        // مابنكتبش رقم جديد — بنسيب اللي كان، والطلب هو اللي هيحكم.
+        if (avail === null) continue;
+        const use = Math.min(qty, avail);
+        if (use <= 0) { delete cart[key]; trimmed = true; continue; }
+        if (use < qty) trimmed = true;
+        cart[key] = use;
+      }
+    } catch (e) {
+      console.error('[cart update]', e.message);
+      for (const [key, qty] of wanted) cart[key] = qty;   // مانوقفش السلة على قراية فشلت
+    }
+  }
+  res.redirect(`/shop/${slug}/cart` + (trimmed ? '?errorCode=stock' : ''));
 });
 
 router.post('/:slug/cart/remove', (req, res) => {

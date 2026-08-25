@@ -18,6 +18,14 @@ const health = require('./health');
 const gamify = require('./gamify');
 const twin = require('./twin');
 const kpush = require('./push');
+// حدّ المعدّل على الدخول والتسجيل.
+//
+// كاكيبو منتج مستقل بجلسة مستقلة — وكان الجزء الوحيد في المنصّة اللي باب
+// دخوله مفتوح بلا حد. يعني تخمين كلمة سر بالجملة (credential stuffing) كان
+// ينفع عليه، مهما كان باقي المنصّة محمي.
+const { loginLimiter, rateLimit } = require('../middleware/rateLimit');
+// التسجيل أوسع شوية من الدخول: الأب بيسجّل مرة، بس مايتقفلش عليه لو غلط.
+const signupLimiter = rateLimit({ name: 'kkb-signup', windowMs: 60 * 60000, max: 8 });
 let compressImage = null;
 try { compressImage = require('../lib/media').compressImage; } catch (e) { /* optional */ }
 
@@ -135,7 +143,7 @@ router.get('/', (req, res) => {
   });
 });
 
-router.post('/signup', async (req, res) => {
+router.post('/signup', signupLimiter, async (req, res) => {
   const b = req.body || {};
   const email = String(b.email || '').trim().toLowerCase();
   const password = String(b.password || '');
@@ -152,7 +160,7 @@ router.post('/signup', async (req, res) => {
   } catch (e) { console.error('[kkb signup]', e.message); res.render('kakeibo/login', { mode: 'signup', error: t('auth.err_email') }); }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   const b = req.body || {};
   const email = String(b.email || '').trim().toLowerCase();
   const password = String(b.password || '');

@@ -55,8 +55,13 @@ module.exports = function createPgSessionStore(session, pool) {
     }
 
     touch(sid, sess, cb) {
+      // بيرد `null` للطلب دايماً — تمديد الجلسة اللي فشل مش سبب كافي إن
+      // الصفحة تقع. بس **بيتكتب في اللوج**: الشكل القديم كان بيبلع الخطأ
+      // تماماً، يعني قاعدة بيانات واقعة تحت بتفضل ساكتة لحد ما حاجة أكبر
+      // تقع، ومحدش يعرف إن العلامة كانت هنا.
       pool.query('UPDATE user_sessions SET expire = $2 WHERE sid = $1', [sid, this._expireAt(sess)])
-        .then(() => cb && cb(null)).catch(() => cb && cb(null));
+        .then(() => cb && cb(null))
+        .catch((e) => { console.error('[session touch]', e.message); if (cb) cb(null); });
     }
   }
 

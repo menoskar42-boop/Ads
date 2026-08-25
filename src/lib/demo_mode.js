@@ -93,7 +93,17 @@ function endDemo(req) {
  * Logging out is the one write a demo session must keep: without it the visitor
  * is stuck in read-only until the cookie expires.
  */
-const ALWAYS_ALLOWED = ['/company/logout'];
+// الخروج **مش كتابة**.
+//
+// كانت القايمة فيها `/company/logout` بس، فالجلسة التجريبية اللي فتحت
+// `/admin` أو `/customer` أو كاكيبو مكنش ينفع تخرج منها أصلاً — الحارس
+// بيوقف كل POST، والخروج POST. شاشة مالكش منها باب أسوأ من شاشة مقفولة.
+const ALWAYS_ALLOWED = [
+  '/company/logout',
+  '/admin/logout',
+  '/customer/logout',
+  '/logout',            // كاكيبو (بيتقدّم على نطاقه الفرعي)
+];
 
 function guard() {
   return function demoGuard(req, res, next) {
