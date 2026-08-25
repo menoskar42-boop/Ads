@@ -267,6 +267,15 @@ async function ensureSokroSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS sokro_phone_events (
+        id SERIAL PRIMARY KEY,
+        call_id INTEGER NOT NULL REFERENCES sokro_phone_calls(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        payload JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_phone_events_call_idx ON sokro_phone_events(call_id, id);
       CREATE TABLE IF NOT EXISTS sokro_consent_audit (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,

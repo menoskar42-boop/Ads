@@ -1,4 +1,5 @@
 'use strict';
+const crypto = require('crypto');
 
 function configured() {
   return !!(process.env.SOKRO_TWILIO_ACCOUNT_SID && process.env.SOKRO_TWILIO_AUTH_TOKEN && process.env.SOKRO_TWILIO_FROM);
@@ -15,4 +16,12 @@ async function call(to, callbackUrl, statusCallback) {
   if (!r.ok) throw new Error(body.message || `phone provider ${r.status}`);
   return { id: body.sid, status: body.status };
 }
-module.exports = { configured, call };
+function verifySignature(url, params, signature) {
+  const token = process.env.SOKRO_TWILIO_AUTH_TOKEN;
+  if (!token || !signature) return false;
+  const data = String(url) + Object.keys(params || {}).sort().map(k => k + String(params[k])).join('');
+  const expected = crypto.createHmac('sha1', token).update(data).digest('base64');
+  const a = Buffer.from(expected), b = Buffer.from(String(signature));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+module.exports = { configured, call, verifySignature };
