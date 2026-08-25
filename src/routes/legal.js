@@ -82,6 +82,39 @@ router.get('/company-facts', (req, res) => {
   res.render('legal/company_facts');
 });
 
+/* ── «اشتراك ثابت ولا عمولة؟» (البند ٦٤) ─────────────────────────────────
+ *
+ * القاعدة المكتوبة في الخطة على البند ده: **كل رقم لازم يتأكّد من الكود
+ * والأسعار الفعلية قبل النشر**. فالصفحة مابتكتبش رقم بإيدها — بتقرا
+ * `pricing.js`، نفس الملف اللي الاتناشر صفحة قطاع بيسعّروا منه.
+ *
+ * وقرار تاني مقصود: **مافيش اسم منافس ولا سعر منافس على الصفحة.** أسعار
+ * المنصّات بتتغيّر، ونشر رقم عن شركة تانية ممكن يكون غلط النهاردة أو بكرة —
+ * وده ادعاء مضلّل عند أدسنس، وحاجة القارئ اللي بيقارن مش بيصدّقها أصلاً.
+ * فالمقارنة بين **نماذج التسعير**، والقارئ بيحسب بأرقامه هو. (نفس صيغة
+ * مقالات «أفضل برنامج» في البند ٩٥.)
+ */
+const SYSTEM_LABELS = {
+  portfolio: 'بورتفوليو', shop: 'متجر إلكتروني', pharmacy: 'صيدلية',
+  clinic: 'عيادة', orders: 'مطعم وطلبات', gym: 'جيم', nutrition: 'عيادة تغذية',
+  furniture: 'معرض موبيليا', workshop: 'ورشة سيارات', hall: 'قاعة أفراح',
+  nursery: 'حضانة', installments: 'تقسيط',
+};
+router.get('/compare', (req, res) => {
+  const { PRICES, FREE_MONTHS, arabicNumber } = require('../lib/pricing');
+  const rows = Object.keys(PRICES)
+    .map((k) => ({ key: k, label: SYSTEM_LABELS[k] || k, ...PRICES[k] }))
+    .sort((a, b) => a.monthly - b.monthly);
+  const monthly = rows.map((r) => r.monthly);
+  const buys = rows.map((r) => r.buy);
+  res.render('legal/compare', {
+    rows, arabicNumber, FREE_MONTHS,
+    systemCount: rows.length,
+    minMonthly: Math.min(...monthly), maxMonthly: Math.max(...monthly),
+    minBuy: Math.min(...buys), maxBuy: Math.max(...buys),
+  });
+});
+
 router.get('/contact', (req, res) => {
   // Ads off on /contact. It is a form and a phone number — under the word count
   // AdSense expects on a monetised page — and leaving the loader in would let
@@ -192,6 +225,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/help',     priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/our-work', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/company-facts', priority: '0.7', changefreq: 'monthly', lastmod: today },
+    { loc: '/compare', priority: '0.7', changefreq: 'monthly', lastmod: today },
     ...Object.keys(SECTORS).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/workshop', priority: '0.8', changefreq: 'monthly', lastmod: today },
