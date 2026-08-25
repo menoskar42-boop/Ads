@@ -39,7 +39,12 @@ const check = (label, ok, extra) => {
 // The static list in the sitemap route.
 const legal = fs.readFileSync(path.join(ROOT, 'src/routes/legal.js'), 'utf8');
 const block = (legal.match(/router\.get\('\/sitemap\.xml'[\s\S]*?const urls = \[([\s\S]*?)\n\s*\];/) || [])[1] || '';
-const listed = [...block.matchAll(/\{\s*loc:\s*'([^']+)'/g)].map((m) => m[1]);
+const listed = [...block.matchAll(/\{\s*loc:\s*(?:'([^']+)'|([A-Z_][A-Z0-9_]*))/g)].map((m) => {
+  if (m[1]) return m[1];
+  // `loc: WORKSHOP_LANDING` — اقرا قيمة الثابت من نفس الملف بدل ما تتخطّاه.
+  const v = new RegExp('const ' + m[2] + " = '([^']+)'").exec(legal);
+  return v ? v[1] : m[2];
+});
 check('the sitemap has a static URL list', listed.length > 0, `${listed.length} رابط`);
 
 // Which template answers each path. Only paths with a fixed template are here;
@@ -53,7 +58,7 @@ const PAGE = {
   '/our-work': 'legal/our_work.ejs',
   '/apply': 'apply/form.ejs',
   '/dental': 'landing/dental.ejs',
-  '/workshop': 'landing/workshop.ejs',
+  '/car-workshop-management-egypt': 'landing/workshop.ejs',
   '/blog': 'blog/index.ejs',
 };
 const LOCALS = {
@@ -92,7 +97,7 @@ if (unknown.length) console.log(`ℹ️  ${unknown.length} مسار مش متغ�
 // is a page nobody will find. /workshop was added this session and would have
 // been easy to build and forget.
 {
-  const shouldBeListed = ['/dental', '/workshop', '/our-work', '/faq', '/help'];
+  const shouldBeListed = ['/dental', '/car-workshop-management-egypt', '/our-work', '/faq', '/help'];
   const missing = shouldBeListed.filter((p) => !listed.includes(p));
   check('كل صفحة قطاعية/محتوى مدرجة في السايت‌ماب', missing.length === 0, missing.join(' '));
 }
@@ -101,6 +106,75 @@ if (unknown.length) console.log(`ℹ️  ${unknown.length} مسار مش متغ�
 {
   const redirecting = listed.filter((l) => /^\/view\//.test(l));
   check('مفيش روابط /view/ في السايت‌ماب (بتعمل redirect)', redirecting.length === 0, redirecting.join(' '));
+}
+
+// ── مسار في السايت‌ماب بيخطفه mount أسبق منه ──────────────────────────────
+//
+// الغلطة اللي كتبت الفحص ده: `/workshop` كان صفحة قطاعية كاملة في
+// `legal.js` ومدرجة هنا، لكن `app.use('/workshop', workshop_admin)` متسجّل
+// قبل الراوتر ده في server.js — فـExpress بيدّي المسار للأدمن، والزائر
+// وجوجل بيوصلوا `/company/login` بـ`noindex,nofollow`. مافيش خطأ ولا لوج:
+// الصفحة بتختفي بالسكوت وهي «موجودة» في الكود.
+//
+// `check-route-order` بيقارن `app.use` بـ`app.use` بس، فالشكل ده عدّى منه.
+{
+  const server = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+  const legalMount = server.search(/app\.use\((?:[^)]*\b)?legalRouter/);
+  const mounts = [...server.matchAll(/app\.use\('(\/[^']+)'/g)]
+    .filter((m) => legalMount === -1 || m.index < legalMount)
+    .map((m) => m[1]);
+  // مسار له `app.use` أسبق مش مشكلة في حد ذاته — الراوتر بتاعه بيخدمه
+  // (`/research` و`/radiology` كده). المشكلة لما **الاتنين** يدّعوا نفس
+  // المسار: legal.js كاتب له صفحة، وmount أسبق بياخده منه.
+  const declared = new Set([...legal.matchAll(/router\.get\('(\/[^']*)'/g)].map((m) => m[1]));
+  const shadowed = listed.filter((loc) =>
+    loc.startsWith('/') && declared.has(loc)
+    && mounts.some((mt) => loc === mt || loc.startsWith(mt + '/')));
+  check('مفيش صفحة في legal.js بيخطفها mount أسبق',
+    shadowed.length === 0,
+    shadowed.length
+      ? shadowed.join(' ') + ' — legal.js بيرسمها وserver.js بيدّي المسار لراوتر تاني قبله'
+      : mounts.length + ' mount اتفحصوا');
+}
+
+// ── الديمو مايدخلش السايت‌ماب ولا الفهرس ─────────────────────────────────
+//
+// كان الشرط `slug === page_type`، وده بيمسك عشرة ديمو ويفوّت `petra`
+// و`delta` — نوعهم `shop` مش اسمهم. فمتجرين عيّنة بمنتجات وأسعار مخترعة
+// كانوا في السايت‌ماب، **وبيتأرشفوا وعليهم إعلانات** لأن بوابة `shop` في
+// tenant.js كانت بتعدّ المنتجات وبس. القايمة الوحيدة هي `isDemoSlug`.
+{
+  const { DEMO_SLUGS, isDemoSlug } = require('../src/lib/demo_mode');
+  const legalSrc = legal;
+  const tenant = fs.readFileSync(path.join(ROOT, 'src/routes/tenant.js'), 'utf8');
+
+  check('السايت‌ماب بيستبعد الديمو من `isDemoSlug` مش بمقارنة بالاسم',
+    /if \(isDemoSlug\(row\.slug\)\) continue;/.test(legalSrc)
+    && !/row\.slug === '(?:pharmacy|clinic|orders|gym)'/.test(legalSrc));
+
+  check('وبوابة الفهرسة في tenant.js بتقفل على كل ديمو',
+    /if \(isDemoSlug\(company\.slug\)\) indexable = false;/.test(tenant));
+
+  // الديمو اللي اسمه مش على اسم نوعه هو اللي وقع قبل كده — يتذكر بالاسم.
+  const offType = ['petra', 'delta'].filter((sl) => !isDemoSlug(sl));
+  check('و`petra`/`delta` جوّه قايمة الديمو',
+    offType.length === 0, offType.join(' ') || DEMO_SLUGS.size + ' سلج');
+}
+
+// ── روابط التينانت في السايت‌ماب = الكانونيكال بالحرف ────────────────────
+//
+// صفحة المنتج كانونيكالها على سب دومين التاجر، والسايت‌ماب كان بيدرجها على
+// الدومين الرئيسي (`/shop/<slug>/product/<id>`) — يعني بيقول لجوجل «افهرس
+// ده» والصفحة بتقوله «الأصل مكان تاني». غلطة رقم ٢ في سجل الأخطاء.
+{
+  const block2 = (legal.match(/router\.get\('\/sitemap\.xml'[\s\S]*?\n\}\);/) || [''])[0];
+  check('صفحات المنتجات بتتدرج على سب دومين التاجر',
+    /loc: 'https:\/\/' \+ row\.slug \+ '\.' \+ BASE_DOMAIN \+ '\/shop\/'/.test(block2)
+    && !/loc: '\/shop\/' \+ row\.slug/.test(block2),
+    'الكانونيكال على السب دومين — السايت‌ماب لازم يدرج نفسه');
+
+  check('وصفحة التاجر الرئيسية بنفس شكل `canonicalCompanyUrl` (بلا سلاش)',
+    /loc: 'https:\/\/' \+ row\.slug \+ '\.' \+ BASE_DOMAIN,/.test(block2));
 }
 
 console.log(fail ? `\n${fail} مشكلة — noindex والسايت‌ماب ما يجتمعوش.` : '\nالسايت‌ماب متسق مع الفهرسة.');

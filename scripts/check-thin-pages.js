@@ -97,7 +97,15 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   check('والخدمات جزء من القياس', /nutritionSettings && nutritionSettings\.services\]/.test(route));
   check('ومفيش قياس بطول الحروف في بوابة العيادة',
     !/about >= 60\) && company\.slug !== 'nutrition'/.test(route));
-  check('والعيادة التجريبية لسه بره الفهرس', /company\.slug !== 'nutrition'/.test(route));
+  // الاستثناء بالاسم (`slug !== 'nutrition'`) اتشال عمداً واتبدل ببوابة
+  // واحدة بتقرا `isDemoSlug` لكل الأنواع — لأن الطريقة القديمة فاتت
+  // `petra` و`delta` (نوعهم shop مش اسمهم). الشرط اللي بيهمّنا هو النتيجة:
+  // عيادة التغذية التجريبية بره الفهرس. فبنتأكد من البوابة الجديدة نفسها،
+  // ومن إن السلج لسه في القايمة.
+  const { isDemoSlug } = require('../src/lib/demo_mode');
+  check('والعيادة التجريبية لسه بره الفهرس',
+    /if \(isDemoSlug\(company\.slug\)\) indexable = false;/.test(route) && isDemoSlug('nutrition'),
+    'البوابة المركزية + السلج في `DEMO_SLUGS`');
 }
 
 /* ── ٤. الخانة الجديدة متخزّنة وبتتحفظ ─────────────────────────────────── */

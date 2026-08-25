@@ -51,7 +51,19 @@ router.get('/dental', (req, res) => {
 // strongest sales opportunity on the site and said to give it a full page of
 // its own rather than a card among twelve — the argument every workshop has
 // ("I never agreed to that") is a message that sells itself.
-router.get('/workshop', (req, res) => {
+//
+// ⚠️ العنوان **مش** `/workshop`.
+//
+// `app.use('/workshop', workshop_admin)` في server.js متسجّل **قبل** الراوتر
+// ده، فكان بيخطف المسار كله: الصفحة القطاعية دي — وهي index,follow ومدرجة في
+// السايت‌ماب وفي `llms.txt` وعليها عشر روابط داخلية بنص «ورش السيارات» —
+// كانت بتوصّل الزائر وجوجل على `/company/login` بـ`noindex,nofollow`.
+// صفحة بيع كاملة كانت مش موجودة عملياً من يوم ما اتكتبت.
+//
+// والعنوان الجديد على وزن التسع صفحات القطاعية التانية
+// (`<نشاط>-management-egypt`) وفيه الكلمة اللي الناس بتدوّر بيها فعلاً.
+const WORKSHOP_LANDING = '/car-workshop-management-egypt';
+router.get(WORKSHOP_LANDING, (req, res) => {
   res.render('landing/workshop');
 });
 
@@ -62,6 +74,7 @@ router.get('/workshop', (req, res) => {
 // already worked this way; these are the rest, driven by one content module so
 // the words per sector stay that sector's own.
 const { SECTORS, othersOf } = require('../lib/sector_landings');
+const { isDemoSlug } = require('../lib/demo_mode');
 for (const slug of Object.keys(SECTORS)) {
   router.get('/' + slug, (req, res) => {
     const sector = Object.assign({ slug }, SECTORS[slug]);
@@ -228,7 +241,7 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/compare', priority: '0.7', changefreq: 'monthly', lastmod: today },
     ...Object.keys(SECTORS).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
-    { loc: '/workshop', priority: '0.8', changefreq: 'monthly', lastmod: today },
+    { loc: WORKSHOP_LANDING, priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/radiology', priority: '0.6', changefreq: 'monthly', lastmod: today }, // OncoScan public landing (index,follow)
     // Standalone "من أعمالنا" apps on their own subdomains — both are fully
@@ -253,6 +266,9 @@ router.get('/sitemap.xml', async (req, res) => {
         (SELECT COUNT(*) FROM pharmacy_inventory piv WHERE piv.company_id = c.id) AS stock_count,
         (SELECT COUNT(*) FROM clinic_doctors cd WHERE cd.company_id = c.id AND cd.is_active = true) AS doc_count,
         (SELECT COUNT(*) FROM gym_plans gp WHERE gp.company_id = c.id AND gp.is_active = true) AS plan_count,
+        (SELECT COUNT(*) FROM food_items fi
+          JOIN food_outlets fo ON fo.id = fi.outlet_id
+          WHERE fo.company_id = c.id AND fo.is_active = true AND fi.is_available = true) AS food_count,
         (SELECT COALESCE(char_length(trim(ns.about)), 0) FROM nutrition_settings ns
           WHERE ns.company_id = c.id) AS nutri_about_len,
         (SELECT COALESCE(char_length(trim(ws.about)), 0) FROM workshop_settings ws
@@ -272,21 +288,25 @@ router.get('/sitemap.xml', async (req, res) => {
     for (const row of r.rows) {
       // Same quality gate tenant.js uses, per page type, so the sitemap never
       // points crawlers at a page that renders noindex.
-      // Demo tenants (slug === page_type) are samples — never list them.
-      if (row.page_type === 'pharmacy' && row.slug === 'pharmacy') continue;
-      if (row.page_type === 'clinic' && row.slug === 'clinic') continue;
-      if (row.page_type === 'orders' && row.slug === 'orders') continue;
-      if (row.page_type === 'gym' && row.slug === 'gym') continue;
-      if (row.page_type === 'nutrition' && row.slug === 'nutrition') continue;
-      if (row.page_type === 'furniture' && row.slug === 'furniture') continue;
-      if (row.page_type === 'workshop' && row.slug === 'workshop') continue;
-      if (row.page_type === 'hall' && row.slug === 'hall') continue;
-      if (row.page_type === 'nursery' && row.slug === 'nursery') continue;
-      if (row.page_type === 'installments' && row.slug === 'installments') continue;
+      //
+      // الديمو: القايمة الوحيدة الصح هي `isDemoSlug` — نفس اللي tenant.js
+      // بيقراها. كان الشرط هنا `slug === page_type`، وده بيمسك عشرة
+      // ديمو **ويفوّت اللي مش اسمه على اسم نوعه**: `petra` و`delta`
+      // نوعهم `shop`. فمتجرين عيّنة بمنتجات وأسعار مخترعة كانوا في
+      // السايت‌ماب بكل صفحات منتجاتهم. و`robots.txt` بيحجب `/demo/`
+      // بينما السايت‌ماب بيدلّ على نفس المحتوى من الباب التاني.
+      if (isDemoSlug(row.slug)) continue;
       const ok = row.page_type === 'shop'
         ? Number(row.prod_count) >= 3
         : row.page_type === 'pharmacy'
         ? Number(row.stock_count) >= 3
+        // المطاعم كان مالهاش فرع هنا خالص، فكانت بتقع على قاعدة البورتفوليو
+        // تحت (وصف ≥١٢٠ حرف) بينما tenant.js بيبوّبها على عدد الأصناف.
+        // يعني مطعم كاتب وصف طويل ومنيوه فاضي كان يتدرج في السايت‌ماب
+        // وصفحته بترسم noindex — بالظبط التناقض اللي الفحص ده بيمنعه.
+        // الفرع كان مستخبي لأن الذكر الوحيد لـ'orders' كان سطر تخطّي الديمو.
+        : row.page_type === 'orders'
+        ? Number(row.food_count) >= 3
         : row.page_type === 'clinic'
         ? (Number(row.doc_count) >= 1 && Number(row.desc_len) >= 40)
         : row.page_type === 'gym'
@@ -314,7 +334,9 @@ router.get('/sitemap.xml', async (req, res) => {
         ? (Number(row.desc_len) >= 40 || Number(row.inst_about_len) >= 60)
         : (Number(row.pf_count) >= 2 || Number(row.desc_len) >= 120);
       if (!ok) continue;
-      urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/', priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
+      // بالظبط زي ما `canonicalCompanyUrl` بيكتبه — من غير سلاش في الآخر.
+      // القاعدة الذهبية رقم ٨: السايت‌ماب يدرج الكانونيكال نفسه، مش شكل تاني منه.
+      urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN, priority: '0.6', changefreq: 'weekly', lastmod: ymd(row.created_at) });
       if (row.page_type === 'shop') indexableShops.add(row.slug);
     }
     // Active products of indexable shops — helps Google index product pages.
@@ -326,7 +348,11 @@ router.get('/sitemap.xml', async (req, res) => {
     );
     for (const row of p.rows) {
       if (!indexableShops.has(row.slug)) continue;
-      urls.push({ loc: '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: ymd(row.created_at) });
+      // صفحة المنتج كانونيكالها على سب دومين التاجر
+      // (`https://<slug>.oscardevs.com/shop/<slug>/product/<id>`)، والسايت‌ماب
+      // كان بيدرجها على الدومين الرئيسي — يعني بيقول لجوجل «افهرس ده» وهي
+      // بتقوله «لأ، الأصل مكان تاني». نفس الغلطة رقم ٢ في سجل الأخطاء.
+      urls.push({ loc: 'https://' + row.slug + '.' + BASE_DOMAIN + '/shop/' + row.slug + '/product/' + row.id, priority: '0.5', changefreq: 'weekly', lastmod: ymd(row.created_at) });
     }
   } catch (_) { /* DB optional for sitemap */ }
 
@@ -391,7 +417,7 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [الأسئلة الشائعة](${SITE_ORIGIN}/faq): إجابات عن أكثر الأسئلة تكراراً.`);
   lines.push(`- [دليل الاستخدام](${SITE_ORIGIN}/help): خطوات الاشتراك والتفعيل وشرح لوحة التحكم لكل نوع صفحة.`);
   lines.push(`- [نظام عيادات الأسنان](${SITE_ORIGIN}/dental): صفحة النظام المتخصّص لعيادات الأسنان — خريطة أسنان FDI، خطط علاج لكل سن، مخطط لثة، تعليق على الأشعة، تقسيط وتذكير واتساب.`);
-  lines.push(`- [نظام ورش السيارات](${SITE_ORIGIN}/workshop): صفحة النظام المتخصّص لورش السيارات — ملف لكل عربية، أمر شغل بعرض سعر يوافق عليه العميل قبل التنفيذ، قطع غيار وعمالة بالتكلفة، وتذكير صيانة بالكيلومترات وبالشهور.`);
+  lines.push(`- [نظام ورش السيارات](${SITE_ORIGIN}${WORKSHOP_LANDING}): صفحة النظام المتخصّص لورش السيارات — ملف لكل عربية، أمر شغل بعرض سعر يوافق عليه العميل قبل التنفيذ، قطع غيار وعمالة بالتكلفة، وتذكير صيانة بالكيلومترات وبالشهور.`);
   lines.push(`- [من أعمالنا](${SITE_ORIGIN}/our-work): تطبيقات ويب وموبايل طوّرها فريق OscarDevs.`);
   // Individual, citable entries for each showcased app — an LLM gets a real URL
   // + description per app instead of names buried in one line.
