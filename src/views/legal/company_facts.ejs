@@ -18,30 +18,26 @@
      be able to state a plain fact about us. This page is the plain facts, and
      the JSON-LD below says the same thing in the same words — a page and its
      structured data that disagree are worse than either alone. */
+  // ⛔ الصفحة دي **مابتعرّفش** الـOrganization تاني.
+  //
+  // كانت بتكتب كيان كامل بنفس الـ`@id` اللي في `seo_meta.ejs` — وببيانات
+  // مختلفة («5 ش العادلي» هنا و«5 شارع العادلي» هناك). كيان واحد بعنوانين
+  // أسوأ من كيان بعنوان ناقص، وده اللي التعليق فوق نفسه بيحذّر منه.
+  //
+  // التعريف الوحيد في `seo_meta.ejs` وبيقرا الـNAP من `facts.org`. اللي
+  // هنا **صفحة** بتشاور على الكيان وبتقول اتحدّثت إمتى.
   var __facts = {
     '@context': 'https://schema.org',
-    '@type': 'Organization',
-    // نفس تاريخ اللي معروض للقارئ فوق — مصدر واحد.
+    '@type': 'WebPage',
+    '@id': siteOrigin + '/company-facts',
+    name: 'حقائق عن OscarDevs',
+    url: siteOrigin + '/company-facts',
     dateModified: facts.updated,
-    '@id': siteOrigin + '#organization',
-    name: 'OscarDevs',
-    url: siteOrigin,
-    telephone: '+201552406406',
-    email: 'contact@oscardevs.com',
-    areaServed: [{ '@type': 'Country', name: 'مصر' }],
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: '5 ش العادلي، حي شركة فريال',
-      addressLocality: 'أسيوط',
-      addressRegion: 'أسيوط',
-      postalCode: '71111',
-      addressCountry: 'EG',
-    },
-    knowsLanguage: ['ar', 'en'],
+    about: { '@id': siteOrigin + '#organization' },
+    isPartOf: { '@id': siteOrigin + '#website' },
   };
 %>
 <script type="application/ld+json"><%- jsonLd(__facts) %></script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"حقائق عن OscarDevs","item":"<%= siteOrigin %>/company-facts"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/tw.css" />
 <style>
@@ -69,6 +65,9 @@
   </div>
 </header>
 
+<%# BreadcrumbList اتشال من هنا: الـpartial `breadcrumbs` بيطلّعه بالفعل،
+    فالصفحة كانت بتنشر الكيان مرتين. جوجل بتشترط واحد لكل صفحة، وتكراره
+    بيخلّي أي اختلاف بينهم تناقض في نفس الصفحة. %>
 <main class="max-w-4xl mx-auto px-4 py-10">
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'حقائق عن OscarDevs' } ] }) %>
   <article class="prose bg-white rounded-2xl shadow p-6 sm:p-10">

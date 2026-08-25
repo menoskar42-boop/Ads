@@ -86,7 +86,17 @@
   gtag('config', '<%= __ga %>');
 </script>
 <% } %>
-<% if (!__tenantLogo) { %>
+<%
+  // `facts` بييجي من `res.locals` في السيرفر، لكن الـpartial ده بيتضمّن
+  // كمان من قوالب التجّار اللي بترندر في فحوص بلوكالز خاصة بيها. تاجر
+  // من غير لوجو كان بيدخل الفرع ده ويطلّع ReferenceError.
+  //
+  // الحراسة بـ`typeof` هي نفس النمط المستعمل في كل الملف — والبلوك
+  // مابيتكتبش أصلاً من غير مصدر بيانات، بدل ما نكتب NAP احتياطي هنا
+  // ونرجع لنفس مشكلة العنوانين.
+  var __org = (typeof facts !== 'undefined' && facts && facts.org) ? facts.org : null;
+%>
+<% if (!__tenantLogo && __org) { %>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -99,21 +109,21 @@
       "logo": "<%= siteOrigin %>/logo.png",
       "image": "<%= siteOrigin %>/logo.png",
       "description": "منصّة حلول رقمية متكاملة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، وأنظمة إدارة جاهزة للعيادات والصيدليات والمطاعم والجيم وعيادات التغذية ومعارض الموبيليا وورش السيارات وقاعات الأفراح والحضانات والبيع بالتقسيط، وتطبيقات ويب وموبايل.",
-      "email": "contact@oscardevs.com",
-      "telephone": "+201552406406",
+      "email": "<%= __org.email %>",
+      "telephone": "<%= __org.phone %>",
       "areaServed": ["مصر", "العالم العربي"],
       "address": {
         "@type": "PostalAddress",
-        "streetAddress": "5 شارع العادلي، حي شركة فريال",
-        "addressLocality": "أسيوط",
-        "addressRegion": "أسيوط",
-        "postalCode": "71111",
+        "streetAddress": "<%= __org.streetAddress %>",
+        "addressLocality": "<%= __org.addressLocality %>",
+        "addressRegion": "<%= __org.addressRegion %>",
+        "postalCode": "<%= __org.postalCode %>",
         "addressCountry": "EG"
       },
       "contactPoint": {
         "@type": "ContactPoint",
-        "telephone": "+201552406406",
-        "email": "contact@oscardevs.com",
+        "telephone": "<%= __org.phone %>",
+        "email": "<%= __org.email %>",
         "contactType": "customer service",
         "availableLanguage": ["ar", "en"]
       },

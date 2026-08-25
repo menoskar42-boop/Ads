@@ -157,5 +157,67 @@ const f = CF.facts();
     missing.length === 0, missing.join(', ') || pages.length + ' قالب');
 }
 
+/* ── ٨. كيان واحد في السكيمة، وNAP واحد ──────────────────────────────── */
+{
+  // بيانات النشاط كانت متكتوبة مرتين بنفس الـ`@id` وبصيغتين مختلفتين
+  // («5 ش العادلي» و«5 شارع العادلي»). كيان واحد بعنوانين أسوأ من كيان
+  // ناقص — اللي بيقرا السكيمة بيلاقيه بيقول حاجتين.
+  const meta = raw('src/views/partials/seo_meta.ejs');
+  check('الـNAP في السكيمة بيتقرا من المصدر مش مكتوب بالإيد',
+    /var __org = \(typeof facts !== 'undefined'/.test(meta)
+    && /__org\.streetAddress/.test(meta) && /__org\.phone/.test(meta)
+    && !/5 شارع العادلي/.test(meta) && !/\+201552406406/.test(meta));
+
+  // والبلوك مابيتكتبش أصلاً من غير مصدر — بدل NAP احتياطي مكتوب هنا
+  // يرجّعنا لنفس مشكلة العنوانين.
+  check('ومفيش عنوان احتياطي مكتوب في القالب',
+    /!__tenantLogo && __org/.test(meta));
+
+  const page = raw('src/views/legal/company_facts.ejs');
+  check('وصفحة الحقائق مابتعرّفش Organization تاني',
+    !/'@type': 'Organization'/.test(page) && /'@type': 'WebPage'/.test(page)
+    && /about: \{ '@id': siteOrigin \+ '#organization' \}/.test(page),
+    'بتشاور على الكيان بدل ما تعيد تعريفه');
+
+  // والصيغة المعتمدة هي اللي في BUSINESS_INFO.md بالحرف.
+  const info = raw('docs/BUSINESS_INFO.md');
+  const nap = [CF.ORG.streetAddress, CF.ORG.postalCode, CF.ORG.phoneLocal];
+  const off = nap.filter((v) => !info.includes(v));
+  check('وبيطابق `BUSINESS_INFO.md` بالحرف', off.length === 0, off.join(' | ') || nap.join(' · '));
+}
+
+/* ── ٩. مفيش كيان مكرّر في نفس الصفحة ────────────────────────────────── */
+{
+  // خمس صفحات كانت بتطلّع `BreadcrumbList` مرتين: واحد مكتوب في الصفحة
+  // وواحد من الـpartial. جوجل بتشترط واحد لكل صفحة، وتكراره بيخلّي أي
+  // اختلاف بينهم تناقض جوّه نفس الصفحة.
+  const ejs = (() => { try { return require('ejs'); } catch { return null; } })();
+  if (!ejs) { console.log('⏭️  ejs مش متثبّت — فحص تكرار الكيانات اتخطّى'); }
+  else {
+    const { base } = require('./seo-audit');
+    const VIEWS = path.join(ROOT, 'src/views');
+    const PAGES = {
+      'legal/contact.ejs': { sent: false, error: null, showAds: false },
+      'legal/faq.ejs': {}, 'legal/about.ejs': {}, 'legal/help.ejs': {},
+      'legal/company_facts.ejs': {},
+    };
+    const dupes = [];
+    for (const [f, extra] of Object.entries(PAGES)) {
+      const full = path.join(VIEWS, f);
+      const html = ejs.render(fs.readFileSync(full, 'utf8'),
+        base(Object.assign({ canonicalUrl: 'https://oscardevs.com/x' }, extra)),
+        { filename: full, root: VIEWS });
+      const json = JSON.stringify([...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+        .map((m) => JSON.parse(m[1])));
+      for (const type of ['Organization', 'BreadcrumbList']) {
+        const n = (json.match(new RegExp('"@type":"' + type + '"', 'g')) || []).length;
+        if (n > 1) dupes.push(`${f}: ${type} ×${n}`);
+      }
+    }
+    check('مفيش Organization ولا BreadcrumbList مكرّر في أي صفحة',
+      dupes.length === 0, dupes.join(' · ') || Object.keys(PAGES).length + ' صفحة');
+  }
+}
+
 console.log(fail ? `\n⚠️  ${fail} مخالفة.` : '\nالحقائق من مصدر واحد.');
 process.exit(fail ? 1 : 0);
