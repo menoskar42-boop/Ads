@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<%- include('../partials/ads_loader') %>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<%
+  var __title = 'اشتراك ثابت ولا عمولة على كل بيعة؟ إزاي تقارن';
+  var __desc = 'مقارنة بين نماذج تسعير منصّات المتاجر في مصر: عمولة على كل بيعة، اشتراك ثابت، وشراء كامل. احسبها بأرقامك، وشوف بنغطّي إيه وإيه اللي لسه.';
+%>
+<title><%= __title %></title>
+<meta name="description" content="<%= __desc %>" />
+<%- include('../partials/seo_meta', { title: __title, description: __desc }) %>
+<link rel="stylesheet" href="/css/tw.css" />
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet" />
+<style>
+  body{font-family:'Cairo',sans-serif}
+  .prose h2{font-size:1.35rem;font-weight:900;color:#1e1b4b;margin:2rem 0 .6rem}
+  .prose h3{font-size:1.05rem;font-weight:800;color:#312e81;margin:1.2rem 0 .4rem}
+  .prose p,.prose li{color:#334155;line-height:1.9}
+  .prose ul{margin:.5rem 1.2rem;list-style:disc}
+  .prose table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  .prose th,.prose td{border:1px solid #e2e8f0;padding:.6rem .7rem;text-align:start;vertical-align:top}
+  .prose th{background:#f8fafc;font-weight:800;color:#1e1b4b}
+</style>
+</head>
+<body class="bg-slate-50">
+<header class="bg-white shadow-sm">
+  <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+    <a href="/" class="font-black text-lg text-indigo-800">OscarDevs</a>
+    <nav class="text-sm text-gray-500 flex gap-3 flex-wrap">
+      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/company-facts" class="hover:text-indigo-700">حقائق عننا</a>
+      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/faq" class="hover:text-indigo-700">الأسئلة الشائعة</a>
+      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-8 prose">
+  <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'اشتراك ولا عمولة؟' } ] }) %>
+  <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mb-2"><%= __title %></h1>
+  <p class="text-slate-500 mb-6">
+    الصفحة دي <strong>مش مقارنة بينا وبين شركة باسمها</strong>. أسعار المنصّات بتتغيّر،
+    ونشر رقم عن حد تاني ممكن يكون غلط النهاردة أو بكرة — فالمقارنة هنا بين
+    <strong>نماذج التسعير نفسها</strong>، وبأرقامنا إحنا المكتوبة في الكود.
+  </p>
+
+  <h2>التلات نماذج اللي هتلاقيها في السوق</h2>
+  <table>
+    <tr><th>النموذج</th><th>بتدفع إيه</th><th>بيناسب مين</th><th>الخطر فيه</th></tr>
+    <tr>
+      <td><b>عمولة على كل بيعة</b></td>
+      <td>نسبة من كل طلب (زايد رسوم دفع أحياناً)</td>
+      <td>اللي لسه مابيبيعش كتير — التكلفة صفر لو مافيش مبيعات</td>
+      <td>بتكبر مع نجاحك. كل ما تبيع أكتر، تدفع أكتر — على نفس الخدمة</td>
+    </tr>
+    <tr>
+      <td><b>اشتراك شهري ثابت</b></td>
+      <td>رقم واحد كل شهر مهما بعت</td>
+      <td>اللي مبيعاته ثابتة أو بتكبر</td>
+      <td>بتدفعه حتى في الشهر اللي مابعتش فيه</td>
+    </tr>
+    <tr>
+      <td><b>شراء كامل</b></td>
+      <td>مرة واحدة، والنظام بقى بتاعك</td>
+      <td>اللي ناوي يفضل سنين</td>
+      <td>مبلغ أكبر في الأول، والتحديثات والدعم بيبقوا اتفاق منفصل</td>
+    </tr>
+  </table>
+
+  <h2>احسبها بورقة وقلم — الحسبة أبسط ما تتخيّل</h2>
+  <p>خد مبيعاتك المتوقّعة في الشهر واضربها في نسبة العمولة، وقارن الناتج بالاشتراك الثابت:</p>
+  <ul>
+    <li>مبيعات <b>٢٠ ألف</b> شهرياً بعمولة ٣٪ = <b>٦٠٠ ج</b> في الشهر.</li>
+    <li>مبيعات <b>٥٠ ألف</b> بنفس النسبة = <b>١٥٠٠ ج</b>.</li>
+    <li>مبيعات <b>١٠٠ ألف</b> = <b>٣٠٠٠ ج</b> — على نفس الخدمة بالظبط.</li>
+  </ul>
+  <p>
+    النسبة اللي فوق <b>مثال للحسبة مش رقم منصّة معيّنة</b> — حطّ مكانها النسبة المكتوبة في
+    عقدك إنت. والمقارنة الصح بتبقى على <b>سنة</b> مش على شهر، لأن العمولة بتكبر مع
+    الموسم والاشتراك لأ.
+  </p>
+
+  <h2>أرقامنا إحنا</h2>
+  <p>
+    دي مقروءة من نفس الملف اللي الموقع كله بيسعّر منه (<code>src/lib/pricing.js</code>)،
+    عشان مايبقاش فيه سعر في صفحة وسعر تاني في صفحة.
+  </p>
+  <ul>
+    <li><b>مفيش عمولة على المبيعات.</b> اللي بتبيعه بيوصلك — الاشتراك تكلفتنا إحنا، مش نسبة من شغلك.</li>
+    <li><b>أول <%= arabicNumber(FREE_MONTHS) %> شهور مجاناً بالكامل</b> على كل الأنظمة.</li>
+    <li>بعدها: اشتراك شهري من <b><%= arabicNumber(minMonthly) %> ج</b> (البورتفوليو) لـ<b><%= arabicNumber(maxMonthly) %> ج</b> (العيادة)، حسب النظام.</li>
+    <li>أو <b>شراء كامل</b> من <b><%= arabicNumber(minBuy) %> ج</b> لـ<b><%= arabicNumber(maxBuy) %> ج</b> — تملكه ومش بتدفع بعده.</li>
+    <li><b><%= arabicNumber(systemCount) %> نظام</b> جاهزين، وكل واحد متخصّص لنشاطه.</li>
+  </ul>
+
+  <table>
+    <tr><th>النظام</th><th>اشتراك شهري</th><th>شراء كامل</th></tr>
+    <% rows.forEach(function(r){ %>
+    <tr><td><%= r.label %></td><td><%= arabicNumber(r.monthly) %> ج</td><td><%= arabicNumber(r.buy) %> ج</td></tr>
+    <% }); %>
+  </table>
+
+  <h2>الحاجة اللي فعلاً بتفرّقنا</h2>
+  <p>
+    مش السعر — ده رقم أي حد يقدر يغيّره بكرة. اللي بيفرّق إن اللي بتاخده
+    <b>مش منشئ متاجر عام</b>: هو متجر <b>+ نظام إدارة متخصّص لنفس النشاط</b> في منتج واحد.
+  </p>
+  <ul>
+    <li>الصيدلية بتاخد تنبيهات صلاحية على مستوى <b>التشغيلة</b> وقراءة باركود العلب المصرية — مش «منتجات» عامة.</li>
+    <li>المطعم بياخد مناطق توصيل برسومها، وإضافات بيتحسب سعرها على السيرفر، وتكلفة الطبق من مكوّناته.</li>
+    <li>العيادة بتاخد طابور وتقويم بيمنع تعارض الحجز، وملف مريض بيقول مين كتب كل سطر وامتى.</li>
+    <li>الجيم بياخد شاشة استقبال بخانة واحدة بتقبل الكود والماسح والموبايل.</li>
+  </ul>
+  <p>
+    ومعاهم حاجة تانية: <b>الموقع على نطاقك إنت</b>، وبياناتك بتخرج معاك.
+  </p>
+
+  <h2>وإيه اللي إحنا <em>مش</em> بنعمله</h2>
+  <p>عشان المقارنة تبقى مقارنة:</p>
+  <ul>
+    <li><b>مفيش تطبيق موبايل أصلي (Native)</b> على المتاجر. اللوحة والمتجر بيتثبّتوا كتطبيق ويب (PWA)، وده مش نفس الحاجة.</li>
+    <li><b>مفيش ربط بـGoogle Merchant ولا Snapchat</b> لحد دلوقتي — بيكسل ميتا وتيك توك وGA4 موجودين.</li>
+    <li><b>مفيش شبكة مندوبين بتاعتنا.</b> فيه ربط شحن، بس التوصيل شغلك أو شغل شركة بتتعاقد معاها.</li>
+    <li><b>مفيش سوق (Marketplace)</b> بيجيبلك زوّار. الزوّار بتجيبهم إنت — إحنا بنجهّز الموقع عشان جوجل يلاقيه.</li>
+    <li>واللي لسه تحت التطوير مكتوب على صفحة كل نظام، مش مخبّي.</li>
+  </ul>
+
+  <h2>خمس أسئلة اسألها لأي منصّة (وإحنا كمان)</h2>
+  <ol class="list-decimal" style="margin:.5rem 1.4rem">
+    <li><b>«بتاخدوا نسبة من مبيعاتي؟»</b> ولو أيوه، كام بالظبط، ومحسوبة على إيه — قبل الشحن ولا بعده؟</li>
+    <li><b>«الدومين باسم مين؟»</b> لو باسم المنصّة، إنت مستأجر مش مالك.</li>
+    <li><b>«لو مشيت، بخرج ببياناتي إزاي؟»</b> لازم يكون فيه تصدير للمنتجات والطلبات والعملاء.</li>
+    <li><b>«السعر ده شامل إيه، وإيه اللي بيتحاسب عليه زيادة؟»</b> (رسوم دفع · مساحة · مستخدمين · دعم).</li>
+    <li><b>«وريني الميزة دي شغّالة على حساب حقيقي.»</b> مش على شريحة عرض.</li>
+  </ol>
+  <p>
+    والسؤال الخامس ده تقدر تشغّله علينا دلوقتي:
+    <a href="https://pharmacy.oscardevs.com/" target="_blank" rel="noopener">الصيدلية التجريبية</a> شغّالة،
+    وصفحات الأنظمة فيها اللي بنغطّيه واللي لسه.
+  </p>
+
+  <h2>الخلاصة</h2>
+  <p>
+    مافيش نموذج تسعير «أحسن» — فيه نموذج بيناسب حجمك. العمولة أرحم وإنت بتبدأ،
+    والاشتراك الثابت بيبقى أرخص لما المبيعات تكبر، والشراء الكامل بيبقى منطقي لو
+    ناوي تفضل سنين. اعمل الحسبة بأرقامك على سنة، واسأل الخمس أسئلة، وقرّر بنفسك.
+  </p>
+  <p>
+    <a href="/apply" class="inline-block bg-indigo-700 text-white font-bold rounded-xl px-6 py-3 mt-2 no-underline">ابدأ من هنا</a>
+  </p>
+</main>
+
+<footer class="text-center text-gray-400 text-xs py-8">© <%= new Date().getFullYear() %> OscarDevs</footer>
+</body>
+</html>

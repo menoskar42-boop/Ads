@@ -80,6 +80,22 @@ const PAGES = {
   dental:  { file: 'landing/dental.ejs',locals: {} },
   workshop:{ file: 'landing/workshop.ejs', locals: {} },
   facts:   { file: 'legal/company_facts.ejs', locals: {} },
+  // «اشتراك ثابت ولا عمولة؟» (البند ٦٤). الأرقام بتتقرا من `pricing.js` زي
+  // الصفحة نفسها بالظبط — فلو حد غيّر سعر في مكان واحد، الفحص بيرسم الصفحة
+  // بالسعر الجديد ويقارن، مش بنسخة متجمّدة هنا.
+  compare: { file: 'legal/compare.ejs', locals: (() => {
+    const { PRICES, FREE_MONTHS, arabicNumber } = require('../src/lib/pricing');
+    const labels = { portfolio: 'بورتفوليو', shop: 'متجر إلكتروني', pharmacy: 'صيدلية',
+      clinic: 'عيادة', orders: 'مطعم وطلبات', gym: 'جيم', nutrition: 'عيادة تغذية',
+      furniture: 'معرض موبيليا', workshop: 'ورشة سيارات', hall: 'قاعة أفراح',
+      nursery: 'حضانة', installments: 'تقسيط' };
+    const rows = Object.keys(PRICES).map((k) => ({ key: k, label: labels[k] || k, ...PRICES[k] }))
+      .sort((a, b) => a.monthly - b.monthly);
+    const m = rows.map((r) => r.monthly), b = rows.map((r) => r.buy);
+    return { rows, arabicNumber, FREE_MONTHS, systemCount: rows.length,
+      minMonthly: Math.min(...m), maxMonthly: Math.max(...m),
+      minBuy: Math.min(...b), maxBuy: Math.max(...b) };
+  })() },
   // One entry per sector reference page: same template, different words. A
   // shared template makes it cheap to ship nine doorway pages by accident, so
   // every one of them is audited, not just the first.
