@@ -1,5 +1,6 @@
 const { canonicalCompanyUrl, companyPageUrl, isProductionHost } = require('../lib/urls');
 const shopThemes = require('../shop/themes');
+const companyFacts = require('../lib/company_facts');
 
 module.exports = (req, res, next) => {
   res.locals.canonicalCompanyUrl = (slug) => canonicalCompanyUrl(slug, req);
@@ -11,5 +12,8 @@ module.exports = (req, res, next) => {
   // خط عناوين الثيم (البند ٩١). بيتحطّ هنا عشان القالب مايعملش `require`
   // — الـEJS مالوش `require` أصلاً، والقالب اللي بيحاول بيقع وقت العرض.
   res.locals.shopFont = (company) => shopThemes.fontOf(company);
+  // قاموس الحقائق: عدد الأنظمة والعرض ووقت التسليم من مصدر واحد.
+  // EJS مافيهاش `require`، فالمرور الوحيد هو `res.locals`.
+  res.locals.facts = companyFacts.facts();
   next();
 };

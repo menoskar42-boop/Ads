@@ -39,15 +39,15 @@
 
     <div class="stats-bar">
       <div class="stat">
-        <div class="stat-num"><span>12</span></div>
+        <div class="stat-num"><span><%= facts.systemsCount %></span></div>
         <div class="stat-label">أنظمة جاهزة لكل نشاط</div>
       </div>
       <div class="stat">
-        <div class="stat-num">+<span>50</span></div>
+        <div class="stat-num"><%= facts.projectsDelivered.prefix %><span><%= facts.projectsDelivered.value %></span></div>
         <div class="stat-label">مشروع تم تسليمه</div>
       </div>
       <div class="stat">
-        <div class="stat-num"><span>7</span> أيام</div>
+        <div class="stat-num"><span><%= facts.deliveryDays %></span> أيام</div>
         <div class="stat-label">وقت التسليم</div>
       </div>
     </div>
@@ -79,7 +79,7 @@
         <li><span class="feature-check">✦</span> دومين وهوستنج السنة الأولى</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">سعر السوق في مصر: <s>٥٬٠٠٠–١٥٬٠٠٠ ج</s> — <strong>عندنا أرخص ٦–١٩ ضعف</strong></div>
         <div class="pricing-after">السعر بعد انتهاء العرض (على النطاق الفرعي):</div>
         <div class="price-options">
@@ -116,7 +116,7 @@
         <li><span class="feature-check">✦</span> خريطة الموقع والـ SEO</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">سعر السوق في مصر: <s>١٠٬٠٠٠–٣٠٬٠٠٠ ج</s> — <strong>عندنا أرخص ٤–١٢ ضعف</strong></div>
         <div class="pricing-after">السعر بعد انتهاء العرض (على النطاق الفرعي):</div>
         <div class="price-options">
@@ -153,7 +153,7 @@
         <li><span class="feature-check">✦</span> حسابات موظفين وصلاحيات وعمولات</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           السوق: <s>٥٠٠–١٬٥٠٠ ج/شهر</s> — <strong>عندنا أرخص ٣–٨ أضعاف</strong><br />
           شراء كامل: <s>٥٬٠٠٠–١٢٬٠٠٠ ج</s> + صيانة سنوية — <strong>عندنا ٤٬٤٩٩ ج بدون صيانة</strong>
@@ -194,7 +194,7 @@
         <li><span class="feature-check">✦</span> SEO وظهور في جوجل + مشاركة واتساب</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           السوق: <s>٥٩٩–٢٬٤٩٩ ج/شهر</s> — <strong>عندنا أرخص ٣–١٢ ضعف</strong><br />
           شراء كامل: <s>٦٬٠٠٠–١٢٬٠٠٠ ج</s> — <strong>عندنا ٤٬٩٩٩ ج</strong>
@@ -236,7 +236,7 @@
         <li><span class="feature-check">✦</span> SEO وظهور في جوجل + مشاركة واتساب</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           السوق: <s>٣٠٠–١٬٥٠٠ ج/شهر</s> — <strong>عندنا أرخص ٢–١٢ ضعف</strong><br />
           شراء كامل: <s>٥٬٠٠٠–٩٬٠٠٠ ج</s> — <strong>عندنا ٣٬٤٩٩ ج</strong>
@@ -277,7 +277,7 @@
         <li><span class="feature-check">✦</span> SEO وظهور في جوجل + مشاركة واتساب + تطبيق قابل للتثبيت</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           السوق: <s>٣٥٠–٢٬٤٩٩ ج/شهر</s> — <strong>عندنا أرخص ٢–١٧ ضعف</strong><br />
           <strong>ومحدش في السوق بيبيعه ملك — كلهم إيجار شهري. عندنا شراء كامل ٣٬٩٩٩ ج</strong>
@@ -319,7 +319,7 @@
         <li><span class="feature-check">✦</span> صفحة عامة لعيادتك على نطاق فرعي خاص</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           أنظمة إدارة عيادات التغذية: <s>٦٠٠–٢٬٠٠٠ ج/شهر</s> — <strong>عندنا أرخص ٤–١٣ ضعف</strong>
         </div>
@@ -366,7 +366,7 @@
         <li><span class="feature-check">✦</span> تقارير ومصروفات + طباعة وتصدير Excel</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           أنظمة إدارة مصانع/معارض الموبيليا في مصر: <s>٨٠٠–٢٬٥٠٠ ج/شهر</s> — <strong>عندنا أرخص ٥–١٧ ضعف</strong><br />
           شراء كامل: <s>١٥٬٠٠٠–٤٠٬٠٠٠ ج</s> + صيانة سنوية — <strong>عندنا ٣٬٩٩٩ ج بدون صيانة</strong>
@@ -413,7 +413,7 @@
         <li><span class="feature-check">✦</span> صفحة عامة للورشة بزرار اتصال وواتساب</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           أنظمة إدارة ورش السيارات: <s>٦٠٠–٢٬٢٠٠ ج/شهر</s> — <strong>عندنا أرخص ٤–١٥ ضعف</strong><br />
           شراء كامل: <s>١٢٬٠٠٠–٣٥٬٠٠٠ ج</s> + صيانة سنوية — <strong>عندنا ٣٬٤٩٩ ج بدون صيانة</strong>
@@ -461,7 +461,7 @@
         <li><span class="feature-check">✦</span> نسبة التحويل: من كل ١٠ سألوا، كام حجزوا فعلاً</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           أنظمة إدارة القاعات: <s>٧٠٠–٢٬٥٠٠ ج/شهر</s> — <strong>عندنا أرخص ٤–١٦ ضعف</strong><br />
           شراء كامل: <s>١٢٬٠٠٠–٣٥٬٠٠٠ ج</s> + صيانة سنوية — <strong>عندنا ٣٬٧٩٩ ج بدون صيانة</strong>
@@ -506,7 +506,7 @@
         <li><span class="feature-check">✦</span> نفس النظام بيشتغل <strong>مركز دروس</strong> بضغطة — بيقول «طالب» و«مجموعة» بدل «طفل» و«فصل»</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           أنظمة إدارة الحضانات: <s>٥٠٠–٢٬٠٠٠ ج/شهر</s> — <strong>عندنا أرخص ٣–١٣ ضعف</strong><br />
           شراء كامل: <s>١٠٬٠٠٠–٣٠٬٠٠٠ ج</s> + صيانة سنوية — <strong>عندنا ٣٬٤٩٩ ج بدون صيانة</strong>
@@ -552,7 +552,7 @@
         <li><span class="feature-check">✦</span> أول ما الأقساط تخلص، <strong>العملية بتتقفل لوحدها</strong> — عمرك ما تطالب حد خلّص</li>
       </ul>
       <div class="service-price">
-        <div class="free-badge">🎉 مجاناً لمدة ٦ شهور — لفترة محدودة</div>
+        <div class="free-badge">🎉 <%= facts.freeOffer %></div>
         <div class="price-compare">
           أنظمة تحصيل الأقساط: <s>٤٠٠–١٬٥٠٠ ج/شهر</s> — <strong>عندنا أرخص ٤–١٥ ضعف</strong><br />
           شراء كامل: <s>٨٬٠٠٠–٢٥٬٠٠٠ ج</s> + صيانة سنوية — <strong>عندنا ٢٬٤٩٩ ج بدون صيانة</strong>

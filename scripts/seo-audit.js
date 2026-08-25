@@ -48,6 +48,10 @@ const latest = ARTICLES.slice().sort((a, b) => b.date.localeCompare(a.date)).sli
 function base(extra) {
   return Object.assign({
     siteOrigin: SITE,
+    // قاموس الحقائق: القوالب بتقراه من `res.locals` في السيرفر، فالفحص
+    // لازم يديها **نفس المصدر** مش نسخة متجمّدة — وإلا الفحص بيرندر
+    // أرقام غير اللي الموقع بينشرها.
+    facts: require('../src/lib/company_facts').facts(),
     canonicalUrl: SITE + '/',
     assetVersion: '1',
     ads: { enabled: true, publisherId: 'ca-pub-3132188303904900', slots: {
