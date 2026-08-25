@@ -25,15 +25,21 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
  * happened, and the user turns the reminders off. So a one-shot is its own kind
  * and deactivates itself when it runs.
  */
-function parseWhen(opts) {
+// `now` معامل عشان الدالة تبقى قابلة للاختبار.
+//
+// كانت بتقرا الساعة من جوّاها (`new Date()` و`Date.now()`)، فاختبار
+// «الوقت الماضي مرفوض» على نص زي «اليوم الساعة ٥» كان بينجح أو يفشل
+// **حسب الساعة اللي بتشغّل فيها الفحص** — عدّى الصبح وفشل بالليل.
+// فحص بيقلب بالساعة أسوأ من مفيش فحص: بيدرّب اللي بيقراه إنه يتجاهله.
+function parseWhen(opts, now = new Date()) {
   const o = opts && typeof opts === 'object' ? opts : { everyMinutes: opts };
-  if (o.whenText || o.when) return timeParser.parseNatural(o.whenText || o.when, new Date(), o.timezone);
+  if (o.whenText || o.when) return timeParser.parseNatural(o.whenText || o.when, now, o.timezone);
   const at = o.runAt || o.at;
   if (at) {
     const t = new Date(at);
     if (!Number.isFinite(t.getTime())) return { error: 'bad_time' };
     // A time in the past is a typo, not a reminder that fires immediately.
-    if (t.getTime() < Date.now() - 60000) return { error: 'past' };
+    if (t.getTime() < now.getTime() - 60000) return { error: 'past' };
     return { kind: 'once', runAt: t };
   }
   const mins = Math.min(Math.max(parseInt(o.everyMinutes, 10) || 60, 5), 7 * 24 * 60); // 5min..7days
