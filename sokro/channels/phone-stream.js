@@ -25,7 +25,7 @@ async function saveText(callId, userId, role, text) {
   await event(callId, userId, role === 'user' ? 'transcript_user' : 'transcript_assistant', { text });
 }
 function toolList() {
-  return realtime.tools().filter(x => x.name !== 'end_call');
+  return realtime.tools();
 }
 
 function attach(wss) {
@@ -33,6 +33,8 @@ function attach(wss) {
     const callId = Number(claims.callId);
     const userId = Number(claims.sub);
     let streamSid = null, pending = null, openai = null;
+    const ownedCall = (await pool.query('SELECT id FROM sokro_phone_calls WHERE id=$1 AND user_id=$2', [callId, userId]).catch(() => ({ rows: [] }))).rows[0];
+    if (!ownedCall) return twilio.close();
     const prefs = await settings.get(userId).catch(() => ({}));
     await event(callId, userId, 'stream_connected', {});
     try {
@@ -51,6 +53,11 @@ function attach(wss) {
         let m; try { m = JSON.parse(raw.toString()); } catch (_) { return; }
         await event(callId, userId, m.type || 'openai_event', m);
         if (m.type === 'response.function_call_arguments.done') {
+          if (m.name === 'end_call') {
+            await event(callId, userId, 'user_requested_hangup', {});
+            if (openai) openai.close();
+            return twilio.close();
+          }
           const action = registry.get(m.name);
           let args = {}; try { args = JSON.parse(m.arguments || '{}'); } catch (_) {}
           if (!action) return;
