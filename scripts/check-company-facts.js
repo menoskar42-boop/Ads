@@ -162,11 +162,12 @@ const f = CF.facts();
   // بيانات النشاط كانت متكتوبة مرتين بنفس الـ`@id` وبصيغتين مختلفتين
   // («5 ش العادلي» و«5 شارع العادلي»). كيان واحد بعنوانين أسوأ من كيان
   // ناقص — اللي بيقرا السكيمة بيلاقيه بيقول حاجتين.
-  const meta = raw('src/views/partials/seo_meta.ejs');
+  const meta = code('src/views/partials/seo_meta.ejs');
   check('الـNAP في السكيمة بيتقرا من المصدر مش مكتوب بالإيد',
     /var __org = \(typeof facts !== 'undefined'/.test(meta)
-    && /__org\.streetAddress/.test(meta) && /__org\.phone/.test(meta)
-    && !/5 شارع العادلي/.test(meta) && !/\+201552406406/.test(meta));
+    && /__org\.addressLocality/.test(meta) && /__org\.phone/.test(meta)
+    && /__org\.email/.test(meta)
+    && !/العادلي/.test(meta) && !/\+201552406406/.test(meta));
 
   // والبلوك مابيتكتبش أصلاً من غير مصدر — بدل NAP احتياطي مكتوب هنا
   // يرجّعنا لنفس مشكلة العنوانين.
@@ -181,9 +182,31 @@ const f = CF.facts();
 
   // والصيغة المعتمدة هي اللي في BUSINESS_INFO.md بالحرف.
   const info = raw('docs/BUSINESS_INFO.md');
-  const nap = [CF.ORG.streetAddress, CF.ORG.postalCode, CF.ORG.phoneLocal];
+  const nap = [CF.ORG.addressLocality, CF.ORG.phoneLocal];
   const off = nap.filter((v) => !info.includes(v));
   check('وبيطابق `BUSINESS_INFO.md` بالحرف', off.length === 0, off.join(' | ') || nap.join(' · '));
+
+  /* ── عنوان الشارع ماينشرش (قرار المالك) ───────────────────────────────
+   *
+   * مقر الشركة هو سكن المالك، وكان منشور بالكامل على `/company-facts`
+   * وفي سكيمة الـOrganization على **كل صفحة**. الشغل كله أونلاين فما
+   * كانش بيخدم زائر، وكان بيدّي عنوان بيت لأي حد.
+   *
+   * المحافظة باقية: بتخدم السيو المحلّي ومابتدلّش على سكن. */
+  check('مفيش عنوان شارع ولا رقم بريدي في المصدر',
+    !CF.ORG.streetAddress && !CF.ORG.postalCode,
+    'قرار المالك — المقر سكن');
+
+  // `code()` مش `raw()`: التعليقات اللي بتشرح **ليه** العنوان اتشال
+  // بتذكره بالضرورة، ومايصحّش تفشّل الفحص. اللي بيهمّنا النص المنشور.
+  const leaks = ['src/views/legal/company_facts.ejs', 'src/views/partials/seo_meta.ejs',
+    'src/views/legal/contact.ejs', 'src/views/home.ejs']
+    .filter((f) => /العادلي|فريال|71111/.test(code(f)));
+  check('ومش مكتوب بالإيد في أي قالب عام',
+    leaks.length === 0, leaks.join(', ') || '4 قوالب اتفحصوا');
+
+  check('والمحافظة باقية للسيو المحلّي',
+    CF.ORG.addressLocality === 'أسيوط' && CF.ORG.addressCountry === 'EG');
 }
 
 /* ── ٩. مفيش كيان مكرّر في نفس الصفحة ────────────────────────────────── */
