@@ -62,6 +62,15 @@ router.use(async (req, res, next) => {
 });
 
 /* ─── LOGIN ─────────────────────────────────────────────── */
+// `/admin` من غير مسار: يودّي على الدخول (أو اللوحة لو داخل بالفعل).
+//
+// كان مافيش راوت للجذر خالص، فـ`/admin` كان بيقع على ٤٠٤ الموقع — المالك
+// بيكتب العنوان الطبيعي ويلاقي «الصفحة غير موجودة». نفس نمط
+// `app.get('/company')` في server.js. اختبار QA الحي مسكها.
+router.get('/', (req, res) => {
+  res.redirect(req.session && req.session.adminId ? '/admin/dashboard' : '/admin/login');
+});
+
 router.get('/login', (req, res) => {
   if (req.session.adminId) return res.redirect('/admin/dashboard');
   res.render('admin/login', { error: null });

@@ -26,7 +26,15 @@ const SITE = 'https://oscardevs.com';
 // Bing truncated our titles, so 60 is a hard ceiling, not a preference. The
 // description range is the one search engines actually render.
 const TITLE_MAX = 60;
-const DESC_MIN = 70;
+// الحد الأدنى كان ٧٠ بينما القاعدة الذهبية رقم ٢ في `SEO_MISTAKES_LOG.md`
+// و`BING_WEBMASTER_HELP.md` بيقولوا **١٥٠–١٦٠**. الفرق ده خلّى ٤٢ صفحة
+// (٢٩ مقال + المدوّنة والأسئلة والدليل والتواصل) تعدّي الفحص بوصف من ٨٨
+// لـ١٣٨ حرف — الفحص كان بيقول «سليم» وهو بيقيس قاعدة تانية غير المكتوبة.
+//
+// الحارس اللي أوسع من القاعدة اللي بيحرسها مابيمنعش الانحراف — بيوثّقه.
+// ١٤٠ فيها هامش بسيط تحت النطاق عشان جملة عربية سليمة ما تتكسرش عشان
+// حرفين، بس مافيهاش مساحة لوصف نصّه ضايع من نتيجة البحث.
+const DESC_MIN = 140;
 const DESC_MAX = 160;
 // AdSense treats a page with ads and almost no content as low-value. 250 words
 // is well under any page we intend to monetise and well over a bare form.

@@ -1,13 +1,10 @@
-/* محتوى لمحرّكات البحث: مخفيّ بصريًّا لكنه موجود في DOM للزواحف */
-.seo-fallback {
-  position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
+/* ⛔ كان هنا `.seo-fallback` — كلاس بيخفي نص عن الزائر ويسيبه للزاحف.
+   البلوك اللي كان بيستعمله اتشال (غلطة #8 في `docs/SEO_MISTAKES_LOG.md`:
+   cloaking)، لكن الكلاس نفسه فضل في الملف — يعني الأداة لسه موجودة وأي
+   تعديل جاي ممكن يرجّع نفس الغلطة بسطر واحد. اتشال.
+
+   المحتوى اللي الزاحف بيقراه دلوقتي هو نفسه اللي الأب بيقراه: قسم
+   `.splash-parents` تحت زرار البداية. */
 
 /* ===== المتغيّرات والأساسيات ===== */
 :root {
@@ -54,11 +51,74 @@ button { font-family: inherit; cursor: pointer; border: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* مش `center`: مع محتوى أطول من الشاشة، الفليكس بيقصّ من فوق ومايتوصّلش
+     له بالتمرير. `flex-start` + `margin-block: auto` على الشعار بيوسّط
+     شاشة البداية زي ما هي، ويسيب اللي تحتها يتمرّر عادي. */
+  justify-content: flex-start;
   text-align: center;
   background: linear-gradient(160deg, #8be9ff 0%, #7c5fe6 55%, #5b3fb5 100%);
-  overflow: hidden;
+  /* كان `hidden`. الصفحة كانت ٢٦ كلمة مرئية وفي السايت‌ماب كصفحة قابلة
+     للفهرسة — صفحة رقيقة. والحل مايكونش نص مخفي (دي غلطة #8 بالظبط)،
+     فالمحتوى اتحط ظاهر تحت الزرار والصفحة بقت بتتمرّر عشان يوصله. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   z-index: 50;
+}
+/* الغلاف بياخد شاشة كاملة ويوسّط اللي جوّاه — فالبداية زي ما كانت بالظبط،
+   والمحتوى بيبدأ بعد الطيّة. `svh` مش `vh` عشان شريط المتصفّح في الموبايل
+   مايقصّش الزرار. */
+.splash-hero {
+  position: relative;
+  min-height: 100svh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+@supports not (min-height: 100svh) {
+  .splash-hero { min-height: 100vh; }
+}
+
+/* ── قسم الأهل: مرئي للزائر وللزاحف بنفس النص ──────────────────────── */
+.splash-parents {
+  width: min(680px, 92vw);
+  padding: 22px 20px 34px;
+  color: #eef0ff;
+  font-size: clamp(14px, 3.6vw, 16px);
+  line-height: 1.9;
+  text-align: start;
+}
+.splash-parents h2 {
+  font-size: clamp(17px, 4.4vw, 21px);
+  color: #fff;
+  margin: 0 0 .5em;
+}
+.splash-parents h3 {
+  font-size: clamp(15px, 4vw, 17px);
+  color: var(--c-yellow);
+  margin: 1.2em 0 .3em;
+}
+.splash-parents p { margin: 0 0 .7em; }
+.splash-parents ul { margin: 0; padding-inline-start: 1.2em; }
+.splash-parents li { margin: .25em 0; }
+/* تحت الطيّة مباشرة وفوق السحاب: في المنتصف كانت السحابة المتحرّكة بتعدّي
+   من فوقه فيبقى مش مقروء. */
+.splash-scroll-cue {
+  position: absolute;
+  inset-block-end: 2.5svh;
+  inset-inline: 0;
+  z-index: 3;
+  margin: 0;
+  color: #f2ecff;
+  font-size: clamp(13px, 3.4vw, 15px);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, .45);
+  animation: bob 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-scroll-cue { animation: none; }
 }
 .splash-sun {
   position: absolute;
