@@ -20,19 +20,25 @@ check('الوقت الطبيعي يحترم المنطقة الزمنية', () =
 });
 check('الوقت الغامض مرفوض', () => assert.equal(time.parseNatural('فكرني الساعة 5').error, 'date_required'));
 check('الوقت الماضي مرفوض', () => assert.equal(scheduler.parseWhen({ whenText: 'اليوم الساعة 5', timezone: 'Asia/Amman' }).error, 'past'));
+// الاختبارين دول اتكتبوا على الشكل القديم للواتساب (مفتاح واحد من متغيّر
+// بيئة). بقى **لكل مستخدم مفاتيحه**، فالنداء بياخد المفتاح كمُعامل — والقاعدة
+// اللي بيختبروها هي هي: التوقيع المزوّر بيترفض، والحساب المش متظبّط مابيدّعيش.
 check('توقيع WhatsApp لا يقبل توقيعًا مزورًا', () => {
-  const old = process.env.SOKRO_WHATSAPP_APP_SECRET; process.env.SOKRO_WHATSAPP_APP_SECRET = 'test';
   const raw = Buffer.from('{"x":1}');
-  const good = 'sha256=' + crypto.createHmac('sha256', 'test').update(raw).digest('hex');
-  assert(wa.verifySignature(raw, good)); assert(!wa.verifySignature(raw, 'sha256=bad'));
-  process.env.SOKRO_WHATSAPP_APP_SECRET = old;
+  const secret = 'test';
+  const good = 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  assert(wa.verifySignature(secret, raw, good));
+  assert(!wa.verifySignature(secret, raw, 'sha256=bad'));
+  // ومفتاح تاني مايفتحش نفس التوقيع، ومن غير مفتاح بيترفض (مش بيعدّي).
+  assert(!wa.verifySignature('other', raw, good));
+  assert(!wa.verifySignature('', raw, good));
 });
 check('WhatsApp غير المهيأ لا يدعي النجاح', () => {
-  const a = process.env.SOKRO_WHATSAPP_TOKEN, b = process.env.SOKRO_WHATSAPP_PHONE_ID;
-  delete process.env.SOKRO_WHATSAPP_TOKEN; delete process.env.SOKRO_WHATSAPP_PHONE_ID;
-  assert.equal(wa.configured(), false);
-  if (a === undefined) delete process.env.SOKRO_WHATSAPP_TOKEN; else process.env.SOKRO_WHATSAPP_TOKEN = a;
-  if (b === undefined) delete process.env.SOKRO_WHATSAPP_PHONE_ID; else process.env.SOKRO_WHATSAPP_PHONE_ID = b;
+  // الحساب الناقص مش جاهز — ومفيش متغيّر بيئة يخلّيه جاهز.
+  assert.equal(wa.ready(null), false);
+  assert.equal(wa.ready({ phoneNumberId: '123' }), false);
+  assert.equal(wa.ready({ token: 'x'.repeat(30) }), false);
+  assert.equal(wa.ready({ phoneNumberId: '123', token: 'x'.repeat(30) }), true);
 });
 check('موصل الحجز غير المهيأ لا يعيد نجاحًا وهميًا', async () => assert.equal((await booking.submit({ kind: 'hotel', fields: {} })).ok, false));
 check('تأكيد الحجز لا يقبل كلمة غير صريحة', () => assert.equal(flow.readAnswer('غيّر التاريخ وبعدين ابعت'), 'unclear'));
