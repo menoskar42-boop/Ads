@@ -50,6 +50,7 @@ try {
   compression = () => (req, res, next) => next();
 }
 const express = require('express');
+const http = require('http');
 // Express 4 does not understand promises: when an async handler rejects, res is
 // never written and the request hangs with no response at all (the visitor gets
 // a spinner until the browser gives up). About 120 handlers in this app await
@@ -309,6 +310,7 @@ app.all('/api/subscriptions/run-daily', async (req, res) => {
 // JWT-cookie auth — not express-session — so the body parsers + cookieParser
 // above are all it needs; it stays fully isolated from the OscarDevs pipeline.
 const sokroRouter = require('./sokro/router');
+const sokroStream = require('./sokro/channels/phone-stream');
 app.use((req, res, next) => {
   const rawHost = req.headers['x-tenant-host'] || req.hostname || req.headers.host || '';
   const host = String(rawHost).split(':')[0].toLowerCase();
@@ -1579,7 +1581,19 @@ async function initDb() {
 }
 
 // Start immediately so Replit can detect the open port
-app.listen(PORT, '0.0.0.0', () => {
+const httpServer = http.createServer(app);
+const sokroWss = new (require('ws').WebSocketServer)({ noServer: true });
+sokroStream.attach(sokroWss);
+httpServer.on('upgrade', (req, socket, head) => {
+  const host = String(req.headers['x-tenant-host'] || req.headers.host || '').split(':')[0].toLowerCase();
+  const pathname = new URL(req.url, 'http://internal').pathname;
+  if (!host.startsWith('sokro.') || pathname !== '/api/calls/stream') return socket.destroy();
+  const token = new URL(req.url, 'http://internal').searchParams.get('token');
+  const claims = require('./sokro/auth').verify(String(token || ''));
+  if (!claims || claims.purpose !== 'phone_stream' || !claims.sub || !claims.callId) return socket.destroy();
+  sokroWss.handleUpgrade(req, socket, head, ws => sokroWss.emit('connection', ws, req, claims));
+});
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
 });
 

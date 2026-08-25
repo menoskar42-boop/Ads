@@ -777,20 +777,48 @@ router.post('/api/calls', auth.requireAuth, async (req, res) => {
   if (!phone.configured()) return res.status(503).json({ ok: false, error: 'phone provider is not configured' });
   try {
     const row = (await pool.query(`INSERT INTO sokro_phone_calls (user_id,provider,to_number) VALUES ($1,'twilio',$2) RETURNING id`, [req.sokroUser.id, to])).rows[0];
-    const out = await phone.call(to, `${config.origin}/api/calls/${row.id}/twiml`, `${config.origin}/api/calls/status`);
+    // The stream URL carries a short-lived signed capability. A phone number
+    // or Twilio CallSid alone is not an identity and must never bind a stream.
+    const streamToken = auth.sign({ sub: req.sokroUser.id, callId: row.id, purpose: 'phone_stream' }, 3600);
+    const twimlUrl = `${config.origin}/api/calls/${row.id}/twiml?token=${encodeURIComponent(streamToken)}`;
+    const out = await phone.call(to, twimlUrl, `${config.origin}/api/calls/status`);
     await pool.query('UPDATE sokro_phone_calls SET external_id=$2,status=$3,updated_at=now() WHERE id=$1', [row.id, out.id, out.status || 'queued']);
     await audit.record(req.sokroUser.id, 'phone_call', { permissions: ['submit'], outcome: 'requested' });
     res.json({ ok: true, callId: row.id, status: out.status });
   } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 router.post('/api/calls/status', async (req, res) => {
+  if (process.env.SOKRO_TWILIO_AUTH_TOKEN) {
+    const url = `${config.origin}/api/calls/status`;
+    if (!phone.verifySignature(url, req.body || {}, req.headers['x-twilio-signature'])) return res.sendStatus(403);
+  }
   const sid = String(req.body && (req.body.CallSid || req.body.callSid) || '');
   if (!sid) return res.sendStatus(400);
   await pool.query('UPDATE sokro_phone_calls SET status=$2,updated_at=now() WHERE external_id=$1', [sid, String(req.body.CallStatus || 'unknown')]);
   res.sendStatus(204);
 });
-router.post('/api/calls/:id([0-9]+)/twiml', (_req, res) => {
-  res.type('text/xml').send('<Response><Say language="ar-SA">مرحبًا، هذه مكالمة من سوكرو.</Say><Hangup/></Response>');
+router.post('/api/calls/:id([0-9]+)/twiml', async (req, res) => {
+  const claims = auth.verify(String(req.query.token || ''));
+  const id = Number(req.params.id);
+  if (!claims || claims.purpose !== 'phone_stream' || Number(claims.callId) !== id || !claims.sub) return res.sendStatus(403);
+  const row = (await pool.query('SELECT id FROM sokro_phone_calls WHERE id=$1 AND user_id=$2', [id, claims.sub])).rows[0];
+  if (!row) return res.sendStatus(404);
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  const streamUrl = `wss://${host}/api/calls/stream?token=${encodeURIComponent(String(req.query.token))}`;
+  const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  res.type('text/xml').send(`<Response><Say language="ar-SA">مرحبًا، معك سوكرو. كيف أساعدك؟</Say><Connect><Stream url="${esc(streamUrl)}"/></Connect></Response>`);
+});
+router.post('/api/calls/:id([0-9]+)/hangup', auth.requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const row = (await pool.query('SELECT external_id,status FROM sokro_phone_calls WHERE id=$1 AND user_id=$2', [id, req.sokroUser.id])).rows[0];
+  if (!row) return res.sendStatus(404);
+  if (!row.external_id) return res.status(409).json({ ok: false, error: 'call has not been created by provider' });
+  try {
+    const out = await phone.hangup(row.external_id);
+    await pool.query('UPDATE sokro_phone_calls SET status=$2,updated_at=now() WHERE id=$1 AND user_id=$3', [id, out.status || 'completed', req.sokroUser.id]);
+    await audit.record(req.sokroUser.id, 'phone_hangup', { permissions: ['submit'], outcome: 'requested' });
+    res.json({ ok: true, status: out.status });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
 // ── The inbox a reminder lands in ────────────────────────────────────────────

@@ -531,15 +531,15 @@ router.get('/', async (req, res) => {
   else if (company.page_type === 'shop') indexable = activeProductCount >= 3;
   // The demo pharmacy (slug 'pharmacy') is a sample, not a real business —
   // keep it out of the index; real customer pharmacies index once they have stock.
-  else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3 && company.slug !== 'pharmacy';
+  else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3;
   // Demo orders merchant (slug 'orders') stays out of the index like the demo pharmacy.
-  else if (company.page_type === 'orders') indexable = foodItemCount >= 3 && company.slug !== 'orders';
+  else if (company.page_type === 'orders') indexable = foodItemCount >= 3;
   // A clinic indexes once it has a real doctor + a description; the demo clinic
   // (slug 'clinic') stays out of the index like the other demos.
-  else if (company.page_type === 'clinic') indexable = clinicDoctors.length >= 1 && descLen >= 40 && company.slug !== 'clinic';
+  else if (company.page_type === 'clinic') indexable = clinicDoctors.length >= 1 && descLen >= 40;
   // A gym indexes once it has plans + a description; the demo gym (slug 'gym')
   // stays out of the index like the other demos.
-  else if (company.page_type === 'gym') indexable = gymPlans.length >= 1 && descLen >= 40 && company.slug !== 'gym';
+  else if (company.page_type === 'gym') indexable = gymPlans.length >= 1 && descLen >= 40;
   // A furniture showroom has no public page yet — the back-office is phase 1 and
   // the storefront is not built. Without this it falls through to the generic
   // portfolio view below and, with a long enough description, indexes as a page
@@ -549,33 +549,33 @@ router.get('/', async (req, res) => {
   // what it claimed. Now there is a real showroom page, so it earns the same
   // kind of gate as the others: enough pieces to be worth landing on.
   else if (company.page_type === 'furniture') {
-    indexable = furnitureProducts.length >= 3 && company.slug !== 'furniture';
+    indexable = furnitureProducts.length >= 3;
   }
   // Same shape as the workshop's: a hall page is about the hall, and one that
   // says nothing has no business in the index.
   else if (company.page_type === 'hall') {
     const hAbout = hallSettings && hallSettings.about ? hallSettings.about.trim().length : 0;
-    indexable = (descLen >= 40 || hAbout >= 60) && company.slug !== 'hall';
+    indexable = (descLen >= 40 || hAbout >= 60);
   }
   // Same gate again for a nursery: a parent landing from a search must find
   // something that answers "who are you", and a page that says nothing is thin
   // content whatever it is about.
   else if (company.page_type === 'nursery') {
     const nAbout = nurserySettings && nurserySettings.about ? nurserySettings.about.trim().length : 0;
-    indexable = (descLen >= 40 || nAbout >= 60) && company.slug !== 'nursery';
+    indexable = (descLen >= 40 || nAbout >= 60);
   }
   // Same gate again. The instalments page is thin by design, so it only earns
   // the index once the shop has actually said who it is and what it sells.
   else if (company.page_type === 'installments') {
     const iAbout = instSettings && instSettings.about ? instSettings.about.trim().length : 0;
-    indexable = (descLen >= 40 || iAbout >= 60) && company.slug !== 'installments';
+    indexable = (descLen >= 40 || iAbout >= 60);
   }
   // A workshop has no catalogue to count, so the gate is the same as the
   // clinic's: does the page actually say anything? A page that cannot answer
   // why somebody clicked it has no business in the index.
   else if (company.page_type === 'workshop') {
     const wAbout = workshopSettings && workshopSettings.about ? workshopSettings.about.trim().length : 0;
-    indexable = (descLen >= 40 || wAbout >= 60) && company.slug !== 'workshop';
+    indexable = (descLen >= 40 || wAbout >= 60);
   }
   // Same gate as the clinic's: a practice page with no description and nothing
   // written about the practice shows a visitor nothing, and indexing it would
@@ -591,9 +591,23 @@ router.get('/', async (req, res) => {
     const nw = tenantWords.enough(
       [company.description, nutritionSettings && nutritionSettings.about,
         nutritionSettings && nutritionSettings.services], 0, 40);
-    indexable = nw.ok && company.slug !== 'nutrition';
+    indexable = nw.ok;
   }
   else indexable = portfolio.length >= 2 || descLen >= 120;
+
+  // بوابة الديمو الواحدة — تسري على **كل** الأنواع.
+  //
+  // كان كل نوع بيستثني الديمو بتاعه بالاسم (`slug !== 'clinic'`… إحدى عشر
+  // مرة)، والنوعين الوحيدين اللي اتنسيوا هما اللي فيهم ديمو مليان فعلاً:
+  // `shop` (petra و delta) و `portfolio`. النتيجة إن متجر ديمو بعشر منتجات
+  // مخترعة بأسعارها كان **بيتأرشف وعليه إعلانات** — محتوى عيّنة معروض على
+  // إنه متجر حقيقي، وده مخالفة لجوجل ولأدسنس مع بعض.
+  //
+  // `isDemoSlug` هي القايمة الوحيدة الصح (`src/lib/demo_mode.js`)، فبتتقرا
+  // مرة هنا. أي ديمو جديد يتضاف هناك بيبقى مستثنى تلقائياً — مافيش سطر
+  // ينتسي تاني.
+  if (isDemoSlug(company.slug)) indexable = false;
+
   const noindex = !indexable || hasFilter;
   // AdSense: never show ads on genuinely thin pages (filtered views still have
   // real content, so only true thinness suppresses ads).
@@ -755,7 +769,9 @@ router.get('/doctor/:slug', clinicGuard, async (req, res) => {
     if (!doctor) return res.redirect('/');
     const clinicSettings = (await pool.query('SELECT * FROM clinic_settings WHERE company_id=$1', [company.id])).rows[0] || null;
     const clinicDoctors = (await pool.query('SELECT id,slug,name,specialty FROM clinic_doctors WHERE company_id=$1 AND is_active=true ORDER BY sort_order,id', [company.id])).rows;
-    const indexable = !!(doctor.bio && doctor.bio.trim().length >= 40) && company.slug !== 'clinic';
+    // صفحة الطبيب بوابتها لوحدها (مش داخلة في بوابة صفحة التينانت فوق)،
+    // فبتقرا نفس قايمة الديمو صراحةً — أطبّاء العيادة النموذجية مخترعين.
+    const indexable = !!(doctor.bio && doctor.bio.trim().length >= 40) && !isDemoSlug(company.slug);
     res.locals.showAds = false; // medical page — never serve ads (AdSense policy)
     res.render('tenant_clinic_doctor', { company, doctor, clinicSettings, clinicDoctors, noindex: !indexable, sent: req.query.sent === '1' });
   } catch (e) { console.error('Doctor page:', e.message); res.redirect('/'); }
