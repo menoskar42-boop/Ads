@@ -4,7 +4,7 @@ const router = express.Router();
 // Public, unauthenticated, and both of these write rows or send mail — so both
 // are throttled. Per-instance only (Autoscale runs several), but that still
 // raises the cost of a spam run by orders of magnitude.
-const { rateLimit } = require('../middleware/rateLimit');
+const { rateLimit , clientIp } = require('../middleware/rateLimit');
 const applyLimiter = rateLimit({ name: 'apply', windowMs: 60 * 60000, max: 5 });
 // The status lookup is the sharper one: it answers a question about somebody
 // else's application from an email address alone, so it is capped hard enough
@@ -115,7 +115,9 @@ router.post('/apply', applyLimiter, async (req, res) => {
     if (dupSlug.rows.length || dupCompany.rows.length) return render('الاسم المختصر للرابط محجوز أو قيد المراجعة — اختر اسماً آخر.');
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim().slice(0, 80);
+    // نفس القراية المشتركة: العنوان المتسجّل على الطلب لازم يكون اللي إحنا
+    // شفناه، مش اللي المُرسِل كتبه في هيدر.
+    const ip = String(clientIp(req) || '').slice(0, 80);
     const ua = String(req.headers['user-agent'] || '').slice(0, 300);
 
     const trackToken = newTrackToken();
