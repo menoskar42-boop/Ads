@@ -75,17 +75,65 @@
 
   <!-- شاشة البداية -->
   <div id="splash" class="splash">
-    <div class="splash-sun">☀️</div>
-    <div class="splash-logo">🦁</div>
-    <div id="splashMizo" class="splash-mizo" aria-hidden="true"></div>
-    <h1 class="splash-title">عالم الاستكشاف السحري</h1>
-    <p class="splash-sub">Safari Kids Adventure</p>
-    <button id="startBtn" class="big-start-btn">▶ ابدأ المغامرة</button>
-    <div class="splash-clouds" aria-hidden="true">
-      <span class="cloud c1">☁️</span>
-      <span class="cloud c2">☁️</span>
-      <span class="cloud c3">☁️</span>
+    <!-- شاشة البداية جوّه غلاف بطول الشاشة بالظبط: بتفضل متوسّطة زي ما كانت،
+         واللي تحتها يبدأ بعد الطيّة. الغلاف مالوش منطق في app.js — الأزرار
+         والعناصر لسه بتتقرا بالـid. -->
+    <div class="splash-hero">
+      <div class="splash-sun">☀️</div>
+      <div class="splash-logo">🦁</div>
+      <div id="splashMizo" class="splash-mizo" aria-hidden="true"></div>
+      <h1 class="splash-title">عالم الاستكشاف السحري</h1>
+      <p class="splash-sub">Safari Kids Adventure</p>
+      <button id="startBtn" class="big-start-btn">▶ ابدأ المغامرة</button>
+      <div class="splash-clouds" aria-hidden="true">
+        <span class="cloud c1">☁️</span>
+        <span class="cloud c2">☁️</span>
+        <span class="cloud c3">☁️</span>
+      </div>
+      <p class="splash-scroll-cue">لولي الأمر: اعرف التطبيق بيعلّم إيه <span aria-hidden="true">▾</span></p>
     </div>
+
+    <!-- النص ده **مرئي للزائر** بالتمرير — مش بلوك للزواحف. البلوك المخفي
+         القديم كان cloaking واتشال (غلطة #8 في سجل أخطاء السيو)، والصفحة
+         بعده فضلت ٢٦ كلمة: صفحة رقيقة في السايت‌ماب. اللي هنا كلام حقيقي
+         الأب محتاجه قبل ما يدّي موبايله لابنه. -->
+    <section class="splash-parents">
+      <h2>عالم الاستكشاف السحري — تطبيق تعليمي للأطفال من ٣ لـ ٦ سنين</h2>
+      <p>
+        لعبة مغامرات بيتنقّل فيها الطفل مع صديقه «ميزو» بين محطّات، كل محطّة
+        بتدرّب مهارة واحدة. كل حاجة بالصوت وبالصورة، فالطفل اللي لسه مابيقراش
+        يقدر يلعب لوحده من غير ما حد يقرا له التعليمات.
+      </p>
+
+      <h3>بيتعلّم إيه؟</h3>
+      <ul>
+        <li><strong>الحروف العربية:</strong> شكل الحرف وصوته، والكتابة بالإصبع على الشاشة.</li>
+        <li><strong>الحروف الإنجليزية:</strong> نفس الطريقة — تعرّف على الحرف ثم كتابته.</li>
+        <li><strong>الأرقام والعدّ:</strong> من ١ لـ ١٠ بالربط بين الرقم والكمية.</li>
+        <li><strong>أول خطوة في القراءة:</strong> تركيب الحرف مع الحركة، وكلمات قصيرة.</li>
+        <li><strong>الألوان والأشكال:</strong> تمييز وتسمية.</li>
+        <li><strong>الحيوانات وأصواتها.</strong></li>
+      </ul>
+
+      <h3>لولي الأمر</h3>
+      <ul>
+        <li><strong>مجاني بالكامل</strong> ومن غير تسجيل ولا حساب.</li>
+        <li><strong>مفيش إعلانات</strong> ولا مشتريات داخل التطبيق.</li>
+        <li>بيشتغل من المتصفّح على الموبايل أو التابلت — مافيش تحميل.</li>
+        <li>التقدّم بيتحفظ على الجهاز نفسه، ومابيتبعتش لأي مكان.</li>
+      </ul>
+
+      <h3>إزاي يبدأ؟</h3>
+      <p>
+        اضغط «ابدأ المغامرة» فوق، واختار المحطّة اللي عايز طفلك يبدأ بيها.
+        مفيش ترتيب إجباري — كل محطّة قايمة بذاتها، وينفع يرجع لأي واحدة في
+        أي وقت. الجلسة المناسبة في السن ده حوالي ١٠ لـ ١٥ دقيقة.
+      </p>
+
+      <p>
+        التطبيق من تطوير <a href="https://oscardevs.com/our-work" style="color:var(--c-yellow)">OscarDevs</a>.
+      </p>
+    </section>
   </div>
 
   <!-- الحاوية الرئيسية للتطبيق -->

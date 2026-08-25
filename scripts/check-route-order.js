@@ -34,6 +34,23 @@ const PAIRS = [
     + 'هيوديه على صفحة تسجيل دخول مش معاه حساب فيها.'],
 ];
 
+// ── كل راوتر محمي له مدخل على جذره ────────────────────────────────────
+//
+// `/admin` مكانش له `router.get('/')` خالص، فالعنوان الطبيعي اللي المالك
+// بيكتبه كان بيقع على ٤٠٤ الموقع — مش خطر أمني، لكنه بيقول للي بيكتبه
+// «الصفحة مش موجودة» وهي موجودة. اختبار QA الحي مسكها.
+{
+  const ROOTS = [
+    ['src/routes/admin.js', '/admin', '/admin/login'],
+  ];
+  for (const [file, mount, target] of ROOTS) {
+    const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    const hasRoot = /router\.get\('\/',/.test(src) && src.includes(target);
+    check(`${mount} له مدخل على جذره`, hasRoot,
+      `${file} مالوش router.get('/') بيوَدّي على ${target} — العنوان بيرجّع ٤٠٤.`);
+  }
+}
+
 for (const [publicPath, guardedPath, why] of PAIRS) {
   const pub = src.indexOf(`app.use('${publicPath}'`);
   const guard = src.indexOf(`app.use('${guardedPath}'`);

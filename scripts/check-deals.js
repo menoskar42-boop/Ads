@@ -160,6 +160,19 @@ const db = raw('deals/db.js');
     /canonicalPath: null/.test(raw('deals/views/error.ejs'))
     && /_canon !== null/.test(raw('deals/views/partials/header.ejs')));
 
+  // ٤٠٤ بصفحة الموقع، مش برد Express الافتراضي.
+  //
+  // مكان الـcatch-all لازم يكون بعد كل الراوتس وقبل معالج الأخطاء —
+  // ومن غيره Express بيردّ «Cannot GET /whatever»: نص إنجليزي خام بلا
+  // هيدر ولا لغة الموقع، وبيقول للزائر إن ورا ده Express.
+  {
+    const catchAll = appCode.indexOf('app.use((req, res) => {');
+    const errHandler = appCode.indexOf('app.use((err, req, res, _next)');
+    check('أي مسار مجهول في Deals بيرجّع ٤٠٤ بصفحة الموقع',
+      catchAll !== -1 && errHandler !== -1 && catchAll < errHandler,
+      catchAll === -1 ? 'مفيش catch-all' : 'قبل معالج الأخطاء');
+  }
+
   check('و/admin عليه X-Robots-Tag noindex',
     /req\.path\.startsWith\('\/admin'\)\)\s*res\.setHeader\('X-Robots-Tag'/.test(appCode));
 }

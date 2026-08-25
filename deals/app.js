@@ -508,6 +508,19 @@ app.post('/admin/articles/:id/delete', requireAdmin, async (req, res, next) => {
   try { await pool.query('DELETE FROM deals_articles WHERE id=$1', [req.params.id]); res.redirect('/admin'); } catch (e) { next(e); }
 });
 
+// أي مسار مجهول = ٤٠٤ بصفحة الموقع.
+//
+// مكانه هنا مقصود: **بعد** كل الراوتس وقبل معالج الأخطاء. من غيره كان
+// Express بيردّ بصفحته الافتراضية «Cannot GET /whatever» — نص إنجليزي خام
+// بلا هيدر ولا فوتر ولا لغة الموقع، وبيكشف إن ورا ده Express. واختبار QA
+// الحي مسكها بالظبط كده على `/nothing-here`.
+app.use((req, res) => {
+  res.status(404).render('error', common(req, {
+    status: 404,
+    message: 'الصفحة اللي بتدوّر عليها مش موجودة على Deals.',
+  }));
+});
+
 app.use((err, req, res, _next) => {
   console.error('[deals]', err.stack || err.message);
   if (res.headersSent) return;
