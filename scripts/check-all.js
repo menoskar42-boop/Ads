@@ -43,6 +43,12 @@ const CHECKS = [
   ['check-upstream-bounds','مفيش انتظار بلا مهلة ولا مدخل بلا حد'],
   ['check-audit-followups','اللي اتعمل صح في مكان معمول صح في كل مكان'],
   ['check-sokro-whatsapp','كل مستخدم بيبعت من رقم واتساب بتاعه هو'],
+  // تلات فحوص كانوا موجودين في `scripts/` **ومش مسجّلين هنا** — واحد منهم
+  // (`check-sokro-six`) كان واقع من غير ما حد ياخد باله، لأنه بيختبر شكل
+  // الواتساب القديم. الفحص اللي مش في القايمة دي فحص بيسوّس.
+  ['check-sokro-six',       'فحوص سوكرو الجديدة (وقت · حجز · قنوات)'],
+  ['check-sokro-security',  'أمن سوكرو (SSRF والصلاحيات)'],
+  ['check-clinic-i18n',     'قاموس العيادة باللغتين'],
   ['check-compare-page','صفحة المقارنة بأرقامنا من الكود وبلا اسم منافس'],
   ['check-trace-judge','«كتب الحرف صح» عن كتابة مش عن شخبطة'],
   ['check-kid-mic','ميكروفون الأطفال بيتطلب وقت الضغطة، والرفض بيقول سببه'],
@@ -163,6 +169,36 @@ const CHECKS = [
 ];
 
 let failed = 0;
+/* ── الفحص اللي مش في القايمة دي فحص بيسوّس ──────────────────────────────
+ *
+ * حصلت فعلاً: `check-sokro-six` كان موجود في `scripts/` ومش مسجّل هنا، فقعد
+ * **واقع** من غير ما حد ياخد باله — لأنه بيختبر شكل الواتساب القديم بعد ما
+ * الشكل اتغيّر. فحص محدش بيشغّله مش حماية، ده ملف بيدّي إحساس بالحماية.
+ *
+ * فالقايمة بتتقارن بالمجلّد نفسه قبل أي حاجة.
+ */
+const fs = require('fs');
+const EXEMPT = new Set([
+  'check-all',                 // ده أنا
+  'check-sokro-concurrency',   // بيكتب في قاعدة بيانات حيّة — اختياري بقرار
+]);
+{
+  const listed = new Set(CHECKS.map(([n]) => n));
+  const files = fs.readdirSync(__dirname).filter((f) => /\.js$/.test(f))
+    .map((f) => f.replace(/\.js$/, ''));
+  // اليتيم: ملف `check-*` موجود ومش مسجّل.
+  const orphans = files.filter((n) => /^check-/.test(n) && !EXEMPT.has(n) && !listed.has(n));
+  // والشبح: اسم مسجّل ومالوش ملف (بأي بادئة — فيه فحوص اسمها `seo-audit`
+  // و`render-*` مش `check-*`).
+  const ghosts = [...listed].filter((n) => !files.includes(n));
+  if (orphans.length || ghosts.length) {
+    if (orphans.length) console.log('❌ فحوص موجودة ومش مسجّلة: ' + orphans.join(', '));
+    if (ghosts.length) console.log('❌ فحوص مسجّلة ومش موجودة: ' + ghosts.join(', '));
+    console.log('\nسجّلها في CHECKS أو شيلها — الفحص اللي محدش بيشغّله بيسوّس.');
+    process.exit(1);
+  }
+}
+
 let skipped = 0;
 for (const [name, what] of CHECKS) {
   process.stdout.write(name.padEnd(24));
