@@ -5,14 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <title><%= (typeof title !== 'undefined' && title) ? title : site.site_name %></title>
-  <meta name="description" content="<%= (site.site_description || '').slice(0, 160) %>">
-  <link rel="canonical" href="<%= baseUrl %><%= (typeof canonicalPath !== 'undefined' && canonicalPath) ? canonicalPath : '' %>">
+  <meta name="description" content="<%= metaDescription || (site.site_description || '').slice(0, 160) %>">
+  <meta name="robots" content="<%= noindex ? 'noindex,follow' : 'index,follow' %>">
+  <% const _canon = (typeof canonicalPath === 'undefined') ? '' : canonicalPath; %>
+  <% if (_canon !== null) { %><link rel="canonical" href="<%= baseUrl %><%= _canon %>"><% } %>
   <meta property="og:type" content="<%= (typeof ogType !== 'undefined' && ogType) ? ogType : 'website' %>">
   <meta property="og:title" content="<%= (typeof title !== 'undefined' && title) ? title : site.site_name %>">
   <meta property="og:description" content="<%= (site.site_description || '').slice(0, 160) %>">
-  <meta property="og:url" content="<%= baseUrl %><%= (typeof canonicalPath !== 'undefined' && canonicalPath) ? canonicalPath : '' %>">
+  <meta property="og:url" content="<%= baseUrl %><%= _canon || '' %>">
   <meta property="og:image" content="<%= (typeof ogImage !== 'undefined' && ogImage) ? ogImage : (site.logo_url || baseUrl + '/logo.svg') %>">
+  <meta property="og:site_name" content="<%= site.site_name %>">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="/styles.css">
+  <% (structuredData || []).forEach((item) => { %><script type="application/ld+json"><%- jsonLd(item) %></script><% }) %>
 </head>
 <body>
   <header class="topbar">

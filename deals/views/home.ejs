@@ -1,10 +1,10 @@
-<%- include('partials/header', { canonicalPath: '' }) %>
+<%- include('partials/header', { canonicalPath: '', title: title, metaDescription: metaDescription }) %>
 <section class="hero">
   <div><span class="eyebrow">DEALS / SMART SHOPPING</span><h1>اختيارات أفضل،<br><em>شراء أذكى.</em></h1><p>منتجات مختارة وأدلة شراء مختصرة تساعدك تقارن وتقرر. الشراء يتم على المتجر الخارجي فقط.</p><a class="button" href="#products">استكشف المنتجات</a></div>
   <div class="hero-card"><span>اختيارات اليوم</span><strong><%= products.length %></strong><small>منتج متاح</small></div>
 </section>
 <section id="products" class="section-head"><div><span class="eyebrow">CURATED PICKS</span><h2>منتجات مختارة</h2></div><a href="/search">عرض الكل ←</a></section>
 <% if (!products.length) { %><div class="empty">لم تتم إضافة منتجات منشورة بعد.</div><% } else { %>
-<section class="cards"><% products.forEach(p => { %><%- include('partials/product_card', { p }) %><% }) %></section><% } %>
+<%- include('partials/disclosure') %><section class="cards"><% products.forEach(p => { %><%- include('partials/product_card', { p }) %><% }) %></section><% } %>
 <% if (articles.length) { %><section class="section-head"><div><span class="eyebrow">BUYING GUIDES</span><h2>أدلة ونصائح</h2></div></section><section class="articles"><% articles.forEach(a => { %><a href="/article/<%= encodeURIComponent(a.slug) %>" class="article-card"><h3><%= a.title %></h3><p><%= a.excerpt || '' %></p><span>اقرأ الدليل ←</span></a><% }) %></section><% } %>
 <%- include('partials/footer') %>

@@ -9,6 +9,12 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { pool, initDealsDb } = require('./db');
 const { listProviders, assertProviderAllowed } = require('./providers');
+const { checkAffiliateUrl } = require('./affiliate');
+// وحدتين مشتركتين من المنصّة الأساسية. Deals عملية مستقلة، بس هي جوّه نفس
+// الريبو — فمفيش سبب تعيد كتابة قراية العنوان ولا فحص بايتات الملف، خصوصاً إن
+// النسختين اللي كانت هنا كانوا فيهم نفس الغلطتين اللي المنصّة صلّحتهم.
+const uploads = require('../src/lib/uploads');
+const { clientIp } = require('../src/middleware/rateLimit');
 
 const app = express();
 const PORT = Number(process.env.DEALS_PORT || 5002);
@@ -42,23 +48,33 @@ const loginAttempts = new Map();
 app.use((req, res, next) => {
   if (!req.session.dealsCsrfToken) req.session.dealsCsrfToken = crypto.randomBytes(24).toString('hex');
   if (req.path.startsWith('/admin') && req.method === 'POST') {
-    const submitted = String(req.body?._csrf || req.get('x-csrf-token') || '');
-    if (!submitted || submitted.length !== req.session.dealsCsrfToken.length ||
-        !crypto.timingSafeEqual(Buffer.from(submitted), Buffer.from(req.session.dealsCsrfToken))) {
+    // المقارنة بالبايتات مش بالحروف: نص فيه حرف عربي واحد طوله حرف واحد
+    // لكن بايتاته اتنين، و timingSafeEqual بترمي RangeError لو الطولين
+    // مختلفين — يعني توكن مزوّد بحروف عربية كان بيطلّع 500 بدل 403.
+    const submitted = Buffer.from(String(req.body?._csrf || req.get('x-csrf-token') || ''));
+    const expected = Buffer.from(String(req.session.dealsCsrfToken));
+    if (!submitted.length || submitted.length !== expected.length ||
+        !crypto.timingSafeEqual(submitted, expected)) {
       return res.status(403).render('error', common(req, { status: 403, message: 'انتهت صلاحية النموذج. أعد تحميل الصفحة وحاول مرة أخرى.' }));
     }
   }
   next();
 });
 
-const upload = multer({
+// الرفع: الامتداد من **النوع اللي اتفحص**، والملف نفسه بيتقرا من بايتاته.
+//
+// الشكل القديم كان بياخد الامتداد من `file.originalname` والنوع من
+// `file.mimetype` — والاتنين بيكتبهم اللي بيرفع. يعني ملف مش صورة يتحفظ في
+// `/uploads` باسم وامتداد يخلّي المتصفّح يتعامل معاه غلط. `uploads.guard`
+// بيقرا أول بايتات الملف ويرفض اللي نوعه مش نوعه.
+const upload = uploads.guard(multer({
   storage: multer.diskStorage({
     destination: uploadDir,
-    filename: (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(5).toString('hex')}${path.extname(file.originalname).toLowerCase()}`),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(5).toString('hex')}${uploads.extname(file, '.bin')}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => cb(null, /^image\/(png|jpeg|jpg|gif|webp)$/.test(file.mimetype)),
-});
+}).single('image_file'), 'image');
 
 const txt = (v, max) => {
   const value = String(v == null ? '' : v).trim();
@@ -83,6 +99,8 @@ const integerOrNull = (v) => {
   const n = numberOrNull(v);
   return n == null || !Number.isInteger(n) ? null : n;
 };
+const metaText = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 160);
+const jsonLd = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
 function common(req, extra = {}) {
   return {
@@ -90,8 +108,21 @@ function common(req, extra = {}) {
     baseUrl: BASE_URL,
     providers: listProviders(),
     csrfToken: req.session?.dealsCsrfToken || '',
+    metaDescription: metaText(extra.metaDescription, req.app.locals.settings?.site_description || 'اختيارات شراء موصى بها من Deals'),
+    noindex: false,
+    structuredData: [],
+    jsonLd,
     ...extra,
   };
+}
+
+// خطأ إدخال ≠ خطأ سيرفر.
+//
+// كان `throw new Error('العنوان ورابط Affiliate مطلوبان')` بيروح لـ `next(e)`
+// وبيطلع صفحة 500 مكتوب فيها "حدث خطأ مؤقت. حاول مرة أخرى" — يعني النظام
+// بيكدب على الأدمن: ده مش خطأ مؤقت وإعادة المحاولة مش هتصلّح حاجة.
+function badInput(req, res, message) {
+  return res.status(400).render('error', common(req, { status: 400, message }));
 }
 
 function requireAdmin(req, res, next) {
@@ -130,7 +161,17 @@ app.get('/', async (req, res, next) => {
       `SELECT * FROM deals_articles WHERE is_published = true
        ORDER BY published_at DESC NULLS LAST, created_at DESC LIMIT 3`
     )).rows;
-    res.render('home', common(req, { products, articles, title: req.app.locals.settings.site_name }));
+    res.render('home', common(req, {
+      products, articles, title: req.app.locals.settings.site_name,
+      metaDescription: 'اختيارات منتجات وأدلة شراء مختصرة تساعدك على المقارنة واتخاذ قرار أذكى.',
+      structuredData: [{
+        '@context': 'https://schema.org', '@type': 'WebSite', name: req.app.locals.settings.site_name,
+        url: BASE_URL, inLanguage: 'ar', potentialAction: { '@type': 'SearchAction', target: `${BASE_URL}/search?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
+      }, {
+        '@context': 'https://schema.org', '@type': 'ItemList', name: 'منتجات مختارة',
+        itemListElement: products.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE_URL}/product/${encodeURIComponent(p.slug)}`, name: p.title })),
+      }],
+    }));
   } catch (e) { next(e); }
 });
 
@@ -144,7 +185,14 @@ app.get('/category/:slug', async (req, res, next) => {
        WHERE p.category_id = $1 AND p.is_published = true
        ORDER BY p.is_featured DESC, p.created_at DESC`, [category.id]
     )).rows;
-    res.render('listing', common(req, { products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}`, canonicalPath: `/category/${encodeURIComponent(category.slug)}` }));
+    res.render('listing', common(req, {
+      products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}`,
+      canonicalPath: `/category/${encodeURIComponent(category.slug)}`, metaDescription: metaText(category.description, `منتجات مختارة في تصنيف ${category.name}.`),
+      structuredData: [{ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'الرئيسية', item: BASE_URL },
+        { '@type': 'ListItem', position: 2, name: category.name, item: `${BASE_URL}/category/${encodeURIComponent(category.slug)}` },
+      ] }, { '@context': 'https://schema.org', '@type': 'ItemList', name: category.name, itemListElement: products.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE_URL}/product/${encodeURIComponent(p.slug)}`, name: p.title })) }],
+    }));
   } catch (e) { next(e); }
 });
 
@@ -157,7 +205,7 @@ app.get('/search', async (req, res, next) => {
        WHERE p.is_published = true AND (p.title ILIKE $1 OR p.short_description ILIKE $1 OR p.brand ILIKE $1)
        ORDER BY p.is_featured DESC, p.created_at DESC`, [`%${q}%`]
     )).rows : [];
-    res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}`, canonicalPath: '/search' }));
+    res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}`, canonicalPath: '/search', noindex: true, metaDescription: 'ابحث في المنتجات المختارة على Deals.' }));
   } catch (e) { next(e); }
 });
 
@@ -169,7 +217,31 @@ app.get('/product/:slug', async (req, res, next) => {
        WHERE p.slug = $1 AND p.is_published = true`, [req.params.slug]
     )).rows[0];
     if (!product) return res.status(404).render('error', common(req, { status: 404, message: 'المنتج غير موجود' }));
-    res.render('product', common(req, { product, title: `${product.title} — ${req.app.locals.settings.site_name}` }));
+    // ── السكيمة: مافيهاش سعر ولا تقييم. ودي حاجة مقصودة ───────────────────
+    //
+    // `offers.price` كان بيتنشر لجوجل من سعر **متكتوب بالإيد** في اللوحة،
+    // ومافيش عمود بيقول اتشاف امتى ولا حاجة بتشيله لما يقدم. وده بيكسر شرطين
+    // مع بعض: أمازون بتشترط إن سعرها يتعرض من بياناتها ويتحدّث أو يتشال في ٢٤
+    // ساعة، وجوجل بتعامل `offers` على إنه **ادعاء** — وسعر غلط في البيانات
+    // المهيكلة بيجيب عقوبة يدوية.
+    //
+    // و`aggregateRating` كان بياخد تقييم أمازون ويقدّمه على إنه تقييم
+    // **موقعنا**. مرفوض من الاتنين: أمازون بتمنع إعادة نشر محتوى التقييمات،
+    // وجوجل بتشترط إن التقييم يكون لمحتوى مستضاف عندك.
+    //
+    // السعر لسه بيتعرض **للقارئ** على الصفحة ومعاه إنه ممكن يكون اتغيّر —
+    // الفرق إننا مابنقولش لجوجل إنه رقم مؤكَّد. ولما واجهة أمازون تتفتح
+    // وتجيب السعر بقاعدة تحديثه، ساعتها `offers` يرجع.
+    const productSchema = {
+      '@context': 'https://schema.org', '@type': 'Product', name: product.title,
+      description: metaText(product.short_description || product.full_description, product.title),
+      url: `${BASE_URL}/product/${encodeURIComponent(product.slug)}`,
+      image: product.image_url ? [product.image_url] : undefined,
+      brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+      category: product.category_name || undefined,
+    };
+    Object.keys(productSchema).forEach((key) => productSchema[key] === undefined && delete productSchema[key]);
+    res.render('product', common(req, { product, title: `${product.title} — ${req.app.locals.settings.site_name}`, metaDescription: metaText(product.short_description || product.full_description, `${product.title} — تفاصيل ومعلومات قبل الشراء.`), structuredData: [productSchema, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'الرئيسية', item: BASE_URL }, ...(product.category_name ? [{ '@type': 'ListItem', position: 2, name: product.category_name, item: `${BASE_URL}/category/${encodeURIComponent(product.category_slug)}` }] : []), { '@type': 'ListItem', position: product.category_name ? 3 : 2, name: product.title, item: `${BASE_URL}/product/${encodeURIComponent(product.slug)}` }] }] }));
   } catch (e) { next(e); }
 });
 
@@ -177,15 +249,82 @@ app.get('/article/:slug', async (req, res, next) => {
   try {
     const article = (await pool.query('SELECT * FROM deals_articles WHERE slug = $1 AND is_published = true', [req.params.slug])).rows[0];
     if (!article) return res.status(404).render('error', common(req, { status: 404, message: 'المقال غير موجود' }));
-    res.render('article', common(req, { article, title: `${article.title} — ${req.app.locals.settings.site_name}` }));
+    res.render('article', common(req, { article, title: `${article.title} — ${req.app.locals.settings.site_name}`, metaDescription: metaText(article.excerpt, article.title), structuredData: [{ '@context': 'https://schema.org', '@type': 'Article', headline: article.title, description: metaText(article.excerpt, article.title), url: `${BASE_URL}/article/${encodeURIComponent(article.slug)}`, datePublished: article.published_at || article.created_at, dateModified: article.updated_at || article.created_at, image: article.cover_image_url ? [article.cover_image_url] : undefined, author: { '@type': 'Organization', name: req.app.locals.settings.site_name } }] }));
   } catch (e) { next(e); }
 });
 
-app.get('/about', (req, res) => res.render('legal', common(req, { title: 'عن Deals', heading: 'عن Deals', body: 'Deals منصة محتوى واكتشاف منتجات. نحن لا نبيع المنتجات ولا ننفذ الدفع أو الشحن أو المرتجعات.' })));
-app.get('/affiliate-disclosure', (req, res) => res.render('legal', common(req, { title: 'إفصاح Affiliate', heading: 'إفصاح Affiliate', body: 'As an Amazon Associate I earn from qualifying purchases. قد نحصل على عمولة عند شراء منتج من خلال بعض الروابط، دون تكلفة إضافية عليك.' })));
-app.get('/privacy', (req, res) => res.render('legal', common(req, { title: 'سياسة الخصوصية', heading: 'سياسة الخصوصية', body: 'نستخدم البيانات اللازمة لتشغيل الموقع وتحسينه. لا نطلب بيانات دفع، ولا ننفذ عمليات شراء داخل Deals.' })));
-app.get('/terms', (req, res) => res.render('legal', common(req, { title: 'الشروط', heading: 'الشروط والأحكام', body: 'المعلومات والأسعار والتوافر قد تتغير لدى المتجر الخارجي. يجب مراجعة تفاصيل المنتج النهائية على موقع البائع قبل الشراء.' })));
-app.get('/contact', (req, res) => res.render('legal', common(req, { title: 'تواصل معنا', heading: 'تواصل معنا', body: 'للاستفسارات أو تصحيح محتوى، استخدم قناة التواصل المعتمدة لدى مالك Deals.' })));
+// الصفحات السياسية: **تتأرشف**، وكل واحدة كانونيكال لنفسها.
+//
+// كانت كلها `noindex` وكانت كلها `canonicalPath: ''` — يعني الخمس صفحات
+// بيقولوا لجوجل "الأصل بتاعي هو الصفحة الرئيسية". ده غلطين مع بعض:
+// إفصاح الأفيلييت اللي أمازون بتطلبه ظاهر وواضح كان محجوب عن الفهرس،
+// وسياسة الخصوصية اللي أدسنس بتشترطها كمان. والكانونيكال الغلط بيخلّي
+// جوجل يشيل الصفحات دي من الفهرس أصلاً ويعتبرها نسخة من الرئيسية.
+const LEGAL_PAGES = {
+  '/about': {
+    title: 'عن Deals — من نحن وكيف نختار',
+    heading: 'عن Deals',
+    metaDescription: 'Deals منصة محتوى ومقارنة منتجات: نراجع ونرشّح من زاوية الاستخدام والقيمة، والشراء نفسه يتم لدى المتجر الخارجي. لا بيع ولا دفع ولا شحن ولا مرتجعات داخل الموقع.',
+    body: [
+      'Deals منصة محتوى واكتشاف منتجات. مهمتنا أن نختصر عليك وقت المقارنة: نجمع المنتج مع وصف عملي ونقاط المقارنة التي تهم فعلًا في الاستخدام اليومي، ثم نحيلك إلى المتجر الخارجي لإتمام الشراء.',
+      'نحن لا نبيع المنتجات، ولا ننفذ الدفع أو الشحن أو المرتجعات، ولا نملك مخزونًا. أي عملية شراء تتم بالكامل لدى المتجر الخارجي وتخضع لشروطه وسياساته.',
+      'المحتوى مكتوب من زاوية الاستخدام والقيمة، ولا يُكتب مقابل مقال مدفوع. الأسعار والتوافر مملوكان للمتجر الخارجي وقد يتغيران في أي وقت، لذلك التفاصيل النهائية تُراجع هناك قبل الشراء.',
+    ],
+  },
+  '/affiliate-disclosure': {
+    title: 'إفصاح Affiliate — Deals',
+    heading: 'إفصاح Affiliate',
+    metaDescription: 'إفصاح كامل عن روابط الأفيلييت في Deals: بعض الروابط تحقق لنا عمولة عند الشراء من المتجر الخارجي، دون أي تكلفة إضافية عليك ودون أي تأثير على ما نرشّحه.',
+    body: [
+      'As an Amazon Associate I earn from qualifying purchases.',
+      'بعض الروابط في Deals روابط تابعة (affiliate). إذا اشتريت منتجًا عبر أحد هذه الروابط فقد نحصل على عمولة من المتجر الخارجي، دون أي تكلفة إضافية عليك ودون أي فرق في السعر الذي تدفعه.',
+      'العمولة لا تغيّر ما نرشّحه: الترتيب والاختيار يعتمدان على مدى مناسبة المنتج للاستخدام، لا على نسبة العمولة. وكل رابط تابع في الموقع يحمل السمة rel="sponsored" ليكون واضحًا للمتصفح ولمحركات البحث.',
+      'Deals لا يبيع المنتجات ولا يتولى الدفع أو الشحن أو المرتجعات. البيع والدعم بعد الشراء مسؤولية المتجر الخارجي وحده.',
+    ],
+  },
+  '/privacy': {
+    title: 'سياسة الخصوصية — Deals',
+    heading: 'سياسة الخصوصية',
+    metaDescription: 'ما الذي يجمعه Deals ولماذا: بيانات تشغيل أساسية فقط، بدون بيانات دفع وبدون أي عملية شراء داخل الموقع، مع شرح الكوكيز والجهات الخارجية وكيفية التواصل معنا.',
+    body: [
+      'نجمع الحد الأدنى اللازم لتشغيل الموقع: بيانات الزيارة الفنية (نوع المتصفح، الصفحة المطلوبة، وقت الطلب) وكوكي جلسة تقني لتشغيل لوحة الإدارة. لا نطلب بيانات دفع ولا تُنفَّذ أي عملية شراء داخل Deals.',
+      'لا نبيع بياناتك ولا نشاركها لأغراض تسويقية. عند الضغط على رابط منتج تنتقل إلى موقع المتجر الخارجي، ومن تلك اللحظة تسري سياسة خصوصية ذلك المتجر — بما في ذلك ما يسجّله من زيارتك عبر الرابط التابع.',
+      'قد نستخدم أدوات قياس أو إعلانات من جهات خارجية، وهذه الجهات قد تستخدم كوكيز خاصة بها. يمكنك ضبط الكوكيز أو حظرها من إعدادات متصفحك، وقد يؤثر ذلك على بعض وظائف الموقع.',
+      'لأي استفسار عن بياناتك أو طلب حذف، استخدم صفحة تواصل معنا.',
+    ],
+  },
+  '/terms': {
+    title: 'الشروط والأحكام — Deals',
+    heading: 'الشروط والأحكام',
+    metaDescription: 'شروط استخدام Deals: الموقع للمحتوى والمقارنة والإحالة فقط، والأسعار والتوافر مملوكة للمتجر الخارجي وقد تتغير، والشراء نفسه يخضع لشروط ذلك المتجر وحده.',
+    body: [
+      'استخدامك لـ Deals يعني موافقتك على هذه الشروط. الموقع مخصص للمحتوى والمقارنة والإحالة فقط، ولا يتم داخله أي بيع أو دفع أو شحن أو استرجاع.',
+      'الأسعار والتوافر والمواصفات مملوكة للمتجر الخارجي وقد تتغير في أي وقت دون إشعار. ما يظهر على Deals قد لا يكون محدَّثًا لحظيًا، والتفاصيل النهائية المعتمدة هي المعروضة على صفحة المنتج لدى البائع وقت الشراء.',
+      'نبذل جهدًا معقولًا لدقة المحتوى، لكننا لا نضمن خلوّه من الأخطاء ولا نتحمل مسؤولية قرار شراء اتُّخذ بناءً عليه. أي نزاع يخص المنتج أو التسليم أو الإرجاع يُحلّ مع المتجر الخارجي.',
+      'محتوى الموقع مملوك لـ Deals ما لم يُذكر غير ذلك. إذا لاحظت خطأ أو محتوى يحتاج تصحيحًا، أبلغنا عبر صفحة تواصل معنا وسنراجعه.',
+    ],
+  },
+  '/contact': {
+    title: 'تواصل معنا — Deals',
+    heading: 'تواصل معنا',
+    metaDescription: 'كيف تراسل فريق Deals: تصحيح معلومة عن منتج، رابط لم يعد يعمل، سؤال يخص الخصوصية، أو ملاحظة على المحتوى — وما يفيد إرساله في الرسالة لتسريع الرد عليك.',
+    body: [
+      'نرحّب بأي ملاحظة على المحتوى: سعر أو مواصفة تحتاج تصحيحًا، رابط لم يعد يعمل، أو منتج ترى أنه يستحق المراجعة.',
+      'لتسريع الرد، أرسل رابط الصفحة على Deals وما لاحظته تحديدًا. لطلبات الخصوصية (استفسار أو حذف بيانات) اذكر ذلك صراحة في الرسالة.',
+      'للتواصل: contact@deals.oscardevs.com — ننظر في الرسائل ونصحّح ما يثبت أنه خطأ. لا نتلقى طلبات شراء أو استفسارات عن شحن أو إرجاع، فهذه تُوجَّه إلى المتجر الخارجي الذي أتممت الشراء لديه.',
+    ],
+  },
+};
+Object.entries(LEGAL_PAGES).forEach(([routePath, page]) => {
+  app.get(routePath, (req, res) => res.render('legal', common(req, {
+    title: page.title,
+    heading: page.heading,
+    body: page.body,
+    canonicalPath: routePath,
+    noindex: false,
+    metaDescription: page.metaDescription,
+  })));
+});
 
 app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: ${BASE_URL}/sitemap.xml\n`));
 app.get('/sitemap.xml', async (req, res, next) => {
@@ -195,11 +334,17 @@ app.get('/sitemap.xml', async (req, res, next) => {
       pool.query('SELECT slug FROM deals_categories WHERE is_published = true'),
       pool.query('SELECT slug, updated_at FROM deals_articles WHERE is_published = true'),
     ]);
-    const urls = ['', 'about', 'affiliate-disclosure', 'privacy', 'terms', 'contact',
-      ...products.rows.map((p) => `product/${encodeURIComponent(p.slug)}`),
-      ...categories.rows.map((c) => `category/${encodeURIComponent(c.slug)}`),
-      ...articles.rows.map((a) => `article/${encodeURIComponent(a.slug)}`)];
-    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${BASE_URL}/${u}</loc></url>`).join('')}</urlset>`);
+    const escapeXml = (value) => String(value).replace(/[<>&'"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char]));
+    const urls = [
+      { path: '', updatedAt: null },
+      ...products.rows.map((p) => ({ path: `product/${encodeURIComponent(p.slug)}`, updatedAt: p.updated_at })),
+      ...categories.rows.map((c) => ({ path: `category/${encodeURIComponent(c.slug)}`, updatedAt: null })),
+      ...articles.rows.map((a) => ({ path: `article/${encodeURIComponent(a.slug)}`, updatedAt: a.updated_at || a.published_at })),
+      // الصفحات السياسية بقت تتأرشف، فلازم تكون في السايت‌ماب — سايت‌ماب
+      // فيه صفحة noindex غلطة، وصفحة index مش في السايت‌ماب فرصة ضايعة.
+      ...Object.keys(LEGAL_PAGES).map((routePath) => ({ path: routePath.replace(/^\//, ''), updatedAt: null })),
+    ];
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((u) => `<url><loc>${escapeXml(`${BASE_URL}/${u.path}`)}</loc>${u.updatedAt ? `<lastmod>${new Date(u.updatedAt).toISOString()}</lastmod>` : ''}</url>`).join('')}</urlset>`);
   } catch (e) { next(e); }
 });
 
@@ -209,8 +354,15 @@ app.get('/admin/login', (req, res) => {
 });
 app.post('/admin/login', async (req, res, next) => {
   try {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    // العنوان من القراية المشتركة، مش `req.ip`.
+    //
+    // `trust proxy` مفتوح فوق، يعني `req.ip` بيتقرا من `X-Forwarded-For` —
+    // واللي بيكتبه هو **اللي بيحاول**. فبدل خمس محاولات كل ربع ساعة، كان
+    // بيبعت هيدر مختلف كل مرة ويجرّب كلمات السر بلا حد.
+    const ip = clientIp(req) || 'unknown';
     const now = Date.now();
+    // وسقف للخريطة نفسها: من غيره اللي بينتحل العنوان بيملاها.
+    if (loginAttempts.size > 5000) loginAttempts.clear();
     const recent = (loginAttempts.get(ip) || []).filter((time) => now - time < 15 * 60 * 1000);
     if (recent.length >= 5) {
       res.setHeader('Retry-After', '900');
@@ -269,12 +421,14 @@ app.post('/admin/categories/:id/delete', requireAdmin, async (req, res, next) =>
   try { await pool.query('DELETE FROM deals_categories WHERE id=$1', [req.params.id]); res.redirect('/admin'); } catch (e) { next(e); }
 });
 
-app.post('/admin/products', requireAdmin, upload.single('image_file'), async (req, res, next) => {
+app.post('/admin/products', requireAdmin, upload, async (req, res, next) => {
   try {
     assertProviderAllowed(req.body.source || 'MANUAL');
     const title = txt(req.body.title, 180);
-    const affiliateUrl = safeUrl(req.body.affiliate_url);
-    if (!title || !affiliateUrl) throw new Error('العنوان ورابط Affiliate مطلوبان');
+    const link = checkAffiliateUrl(req.body.affiliate_url);
+    if (!title) return badInput(req, res, 'عنوان المنتج مطلوب.');
+    if (!link.ok) return badInput(req, res, link.error);
+    const affiliateUrl = link.url;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : safeUrl(req.body.image_url);
     const price = numberOrNull(req.body.current_price);
     const originalPrice = numberOrNull(req.body.original_price);
@@ -308,13 +462,15 @@ app.get('/admin/products/:id/edit', requireAdmin, async (req, res, next) => {
     res.render('admin/edit_product', common(req, { product: product.rows[0], categories: categories.rows, title: 'تعديل منتج' }));
   } catch (e) { next(e); }
 });
-app.post('/admin/products/:id/edit', requireAdmin, upload.single('image_file'), async (req, res, next) => {
+app.post('/admin/products/:id/edit', requireAdmin, upload, async (req, res, next) => {
   try {
     const current = (await pool.query('SELECT * FROM deals_catalog_products WHERE id=$1', [req.params.id])).rows[0];
     if (!current) return res.redirect('/admin');
     const title = txt(req.body.title, 180);
-    const affiliateUrl = safeUrl(req.body.affiliate_url);
-    if (!title || !affiliateUrl) throw new Error('العنوان ورابط Affiliate مطلوبان');
+    const link = checkAffiliateUrl(req.body.affiliate_url);
+    if (!title) return badInput(req, res, 'عنوان المنتج مطلوب.');
+    if (!link.ok) return badInput(req, res, link.error);
+    const affiliateUrl = link.url;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : (safeUrl(req.body.image_url) || current.image_url);
     const price = numberOrNull(req.body.current_price);
     await pool.query(
