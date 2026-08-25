@@ -70,6 +70,7 @@ async function execute(ctx, plan, opts = {}) {
         const v = validate(action, result);
         if (v.valid) break;
         if (attempt > retries) {
+          if (!result || typeof result !== 'object') result = {};
           result.ok = false;
           result.error = result.error || v.reason;
           // Say it out loud. A step that was tried once, on purpose, is not the

@@ -213,6 +213,71 @@ async function ensureSokroSchema() {
       CREATE UNIQUE INDEX IF NOT EXISTS sokro_one_open_booking
         ON sokro_bookings(user_id, conversation_id)
         WHERE status IN ('collecting','reviewing','ready_for_confirmation','confirmed');
+
+      -- Opt-in business channels and phone calls. Provider credentials stay in
+      -- environment/vault; these tables contain identifiers and delivery state.
+      CREATE TABLE IF NOT EXISTS sokro_channel_accounts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(provider, external_id)
+      );
+      -- ── واتساب لكل مستخدم بحسابه هو (قرار المالك ٢٠٢٦-٠٨-٢٠) ──────────
+      --
+      -- الشكل الأول كان بيقرا التوكن ورقم الهاتف من متغيّرات بيئة: **رقم
+      -- واحد للمنصّة كلها**. يعني كل مستخدمي سوكرو بيبعتوا من نفس الرقم،
+      -- ومحدش فيهم يقدر يربط رقمه هو.
+      --
+      -- المفاتيح **مشفّرة** في العمودين دول (نفس خزنة secrets/vault.js
+      -- اللي بتشفّر بيانات دخول المواقع) — مش في متغيّر بيئة. ومتغيّر بيئة
+      -- أصلاً مايقدرش يحمل مفتاح مختلف لكل مستخدم.
+      ALTER TABLE sokro_channel_accounts ADD COLUMN IF NOT EXISTS token_enc TEXT;
+      ALTER TABLE sokro_channel_accounts ADD COLUMN IF NOT EXISTS app_secret_enc TEXT;
+      ALTER TABLE sokro_channel_accounts ADD COLUMN IF NOT EXISTS verify_token TEXT;
+      -- ويب هوك خاص بكل حساب.
+      --
+      -- ميتا بتنادي رابط واحد للمنصّة كلها، وتوقيع الطلب بيتحقّق بمفتاح
+      -- **التطبيق اللي بعته** — وكل مستخدم عنده تطبيقه. فمن غير ما نعرف
+      -- الحساب الأول، مانقدرش نتحقّق من التوقيع؛ ومن غير ما نتحقّق، مانقدرش
+      -- نصدّق الجسم اللي فيه رقم الحساب. الحلقة دي بتتكسر بتوكن عشوائي في
+      -- المسار نفسه: المسار بيقول الحساب، والحساب بيدّي المفتاح.
+      ALTER TABLE sokro_channel_accounts ADD COLUMN IF NOT EXISTS webhook_token TEXT;
+      ALTER TABLE sokro_channel_accounts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_sokro_channel_hook
+        ON sokro_channel_accounts (webhook_token) WHERE webhook_token IS NOT NULL;
+      CREATE TABLE IF NOT EXISTS sokro_channel_messages (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES sokro_users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        external_message_id TEXT UNIQUE NOT NULL,
+        sender TEXT,
+        body TEXT,
+        direction TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_phone_calls (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL,
+        external_id TEXT UNIQUE,
+        to_number TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'requested',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sokro_consent_audit (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        event TEXT NOT NULL,
+        task_id INTEGER REFERENCES sokro_tasks(id) ON DELETE SET NULL,
+        permissions JSONB NOT NULL DEFAULT '[]',
+        domains JSONB NOT NULL DEFAULT '[]',
+        outcome TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_consent_audit_user_idx ON sokro_consent_audit(user_id, id DESC);
     `);
     console.log('Sokro schema ready.');
   } finally {

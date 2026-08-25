@@ -24,6 +24,14 @@ const scheduler = require('./scheduler');
 const extBridge = require('./extension-bridge');
 const realtime = require('./realtime');
 const content = require('./content');
+const booking = require('./booking');
+const bookingStore = booking.store;
+const whatsappCloud = require('./channels/whatsapp-cloud');
+const waAccount = require('./channels/whatsapp-account');
+const phone = require('./channels/phone');
+const audit = require('./audit');
+const timeParser = require('./time-parser');
+const bookingProviders = require('./booking/providers');
 const path = require('path');
 const multer = require('multer');
 const uploadAudio = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } }).single('audio');
@@ -39,6 +47,53 @@ const DESC = 'Sokro وكيل ذكاء اصطناعي عربي (AI agent) ينف�
 // Health + API smoke check (mobile app / uptime probes hit these).
 router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env: config.env }));
 router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features: config.features }));
+
+// ── Business WhatsApp Cloud API ─────────────────────────────────────────────
+// ── ويب هوك واتساب: مسار لكل حساب ───────────────────────────────────────────
+//
+// التوكن في المسار هو اللي بيقول **الحساب ده بتاع مين** — وده مش تسهيل، ده
+// الطريقة الوحيدة. ميتا بتوقّع الطلب بمفتاح **التطبيق اللي بعته**، وكل مستخدم
+// عنده تطبيقه هو. فمن غير ما نعرف الحساب مانقدرش نجيب المفتاح نتحقّق بيه، ومن
+// غير ما نتحقّق مانقدرش نصدّق الجسم اللي جوّاه رقم الحساب.
+//
+// (المسار القديم من غير توكن اتشال: كان بيتحقّق بمفتاح واحد من متغيّر بيئة —
+// يعني رقم واحد للمنصّة كلها.)
+router.get('/api/channels/whatsapp/webhook/:token([0-9a-f]{48})', async (req, res) => {
+  try {
+    const acc = await waAccount.byWebhookToken(pool, req.params.token);
+    if (!acc) return res.sendStatus(403);
+    if (!whatsappCloud.verifyToken(acc.verifyToken, req.query['hub.verify_token'])) return res.sendStatus(403);
+    res.type('text/plain').send(String(req.query['hub.challenge'] || ''));
+  } catch (e) { console.error('[sokro] whatsapp verify:', e.message); res.sendStatus(500); }
+});
+router.post('/api/channels/whatsapp/webhook/:token([0-9a-f]{48})', async (req, res) => {
+  try {
+    const acc = await waAccount.byWebhookToken(pool, req.params.token);
+    if (!acc) return res.sendStatus(403);
+    // مفتاح التطبيق مش موجود = الطلب بيترفض. الحساب اللي مادخّلش مفتاحه
+    // مايستقبلش رسايل — أأمن من إنه يستقبل أي حاجة من أي حد.
+    const raw = req.rawBody || JSON.stringify(req.body || {});
+    if (!whatsappCloud.verifySignature(acc.appSecret, raw, req.headers['x-hub-signature-256'])) {
+      return res.sendStatus(403);
+    }
+    for (const m of whatsappCloud.incoming(req.body)) {
+      if (!m.messageId || !m.text) continue;
+      // ورقم الحساب في الجسم لازم يطابق الحساب بتاع التوكن — عشان حساب
+      // مايقدرش يكتب رسايل في خانة حساب تاني.
+      if (m.phoneId && String(m.phoneId) !== String(acc.phoneNumberId)) continue;
+      const fresh = (await pool.query(
+        `INSERT INTO sokro_channel_messages (user_id,provider,external_message_id,sender,body,direction)
+         VALUES ($1,'whatsapp_cloud',$2,$3,$4,'inbound') ON CONFLICT (external_message_id) DO NOTHING RETURNING id`,
+        [acc.userId, m.messageId, m.from, m.text]
+      )).rows[0];
+      if (fresh) {
+        const conv = await memory.createConversation(acc.userId, 'WhatsApp');
+        await memory.addMessage(conv.id, 'user', m.text);
+      }
+    }
+    res.sendStatus(200);
+  } catch (e) { console.error('[sokro] whatsapp webhook:', e.message); res.sendStatus(500); }
+});
 
 // ── SEO: subdomain-specific robots.txt + sitemap ────────────────────────────
 // The landing page ('/') is real content → indexable. Everything else on this
@@ -325,8 +380,9 @@ async function executePlan(ctx, goal, taskId, plan, res, convId) {
   const summary = s && s.summary;
   // Semantic success = technically ok AND the goal was actually achieved.
   const ok = techOk && (s ? s.achieved !== false : true);
+  try { await audit.record(ctx.userId, 'execution', { taskId, permissions: permissions.forPlan(plan, registry).required, outcome: ok ? 'success' : 'failed' }); } catch (_) {}
   await memory.updateTask(taskId, { status: ok ? 'done' : 'failed', result: { summary, achieved: ok } });
-  if (convId && summary) { try { await memory.addMessage(convId, 'assistant', summary); } catch (_) {} }
+  if (convId && summary) { try { await memory.addMessageFor(ctx.userId, convId, 'assistant', summary); } catch (_) {} }
   res.json({ ok, taskId, conversationId: convId || null, plan: plan.steps, results, summary, achieved: ok });
 }
 
@@ -340,6 +396,9 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     // Resolve (or start) a conversation so the whole exchange is remembered.
     let convId = (req.body && req.body.conversationId) || null;
     if (!convId) convId = (await memory.createConversation(req.sokroUser.id, goal.slice(0, 60))).id;
+    else if (!(await memory.getMessagesFor(req.sokroUser.id, convId, 1))) {
+      return res.status(403).json({ ok: false, error: 'conversation not found' });
+    }
     // Pull the recent turns BEFORE recording the new one, so the planner has the
     // conversation context (follow-up questions like "و كمان بالإنجليزي") without
     // duplicating the current goal it appends itself.
@@ -348,7 +407,7 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
       const prev = await memory.getMessagesFor(req.sokroUser.id, convId, 8);
       if (Array.isArray(prev)) recentContext = prev.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 1500) }));
     } catch (_) {}
-    await memory.addMessage(convId, 'user', goal);
+    await memory.addMessageFor(req.sokroUser.id, convId, 'user', goal);
     const task = await memory.createTask(req.sokroUser.id, goal, convId);
     const ctx = sokroCtx(req.sokroUser.id, task.id, prefs);
     const plan = await planner.plan(ctx, goal, recentContext);
@@ -361,12 +420,13 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
     ctx.allowedDomains = domains;
     await memory.updateTask(task.id, { plan, status: perms.requiresConsent ? 'awaiting_consent' : 'running' });
     if (perms.requiresConsent) {
+      try { await audit.record(req.sokroUser.id, 'consent_requested', { taskId: task.id, permissions: perms.required, domains }); } catch (_) {}
       return res.json({ ok: true, taskId: task.id, conversationId: convId, intent: plan.intent, plan: plan.steps, permissions: perms, requiresConsent: true, domains, sites: writeGuard.consentLine(domains), message: plan.message || null });
     }
     if (!plan.steps || !plan.steps.length) {
       await memory.updateTask(task.id, { status: 'failed' });
       const msg = plan.message || null;
-      if (msg) { try { await memory.addMessage(convId, 'assistant', msg); } catch (_) {} }
+      if (msg) { try { await memory.addMessageFor(req.sokroUser.id, convId, 'assistant', msg); } catch (_) {} }
       return res.json({ ok: false, taskId: task.id, conversationId: convId, plan: [], message: msg });
     }
     return await executePlan(ctx, goal, task.id, plan, res, convId);
@@ -379,18 +439,29 @@ router.post('/api/run', auth.requireAuth, async (req, res) => {
 // Resume a paused task after the user grants (voice) consent.
 router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
   try {
-    const t = (await pool.query('SELECT id, goal, plan, conversation_id FROM sokro_tasks WHERE id = $1 AND user_id = $2', [parseInt(req.params.taskId, 10), req.sokroUser.id])).rows[0];
+    if (!(req.body && req.body.confirmSensitive === true)) {
+      return res.status(403).json({ ok: false, error: 'explicit confirmation required' });
+    }
+    const t = (await pool.query(
+      `UPDATE sokro_tasks
+          SET status = 'running', updated_at = now()
+        WHERE id = $1 AND user_id = $2 AND status = 'awaiting_consent'
+        RETURNING id, goal, plan, conversation_id`,
+      [parseInt(req.params.taskId, 10), req.sokroUser.id]
+    )).rows[0];
     if (!t) return res.status(404).json({ ok: false, error: 'task not found' });
     if (!t.plan || !Array.isArray(t.plan.steps)) return res.status(400).json({ ok: false, error: 'task has no plan' });
+    const taskPerms = permissions.forPlan(t.plan, registry);
+    if (!taskPerms.requiresConsent) {
+      return res.status(409).json({ ok: false, error: 'task does not require consent' });
+    }
+    try { await audit.record(req.sokroUser.id, 'consent_granted', { taskId: t.id, permissions: taskPerms.required, domains: require('./lib/writeGuard').domainsOf(t.plan), outcome: 'granted' }); } catch (_) {}
     // Sensitive-action confirmation (the user just approved a pay/delete step —
     // by voice or button): resume the operate step and let it press the button.
     if (req.body && req.body.confirmSensitive) {
       t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { resume: true, confirmSensitive: true }); } });
     }
     // Proceed despite a predicted-failure warning (user chose "كمّل بأي حال").
-    if (req.body && req.body.proceed) {
-      t.plan.steps.forEach((s) => { if (s.action === 'operate') { s.input = Object.assign({}, s.input, { proceed: true }); } });
-    }
     const prefs = await settings.get(req.sokroUser.id);
     const resumeCtx = sokroCtx(req.sokroUser.id, t.id, prefs);
     // The same allowlist on resume: the consent that was given was for THESE
@@ -404,7 +475,8 @@ router.post('/api/run/:taskId/execute', auth.requireAuth, async (req, res) => {
 });
 
 // Voice → text (Whisper).
-router.post('/api/voice', auth.requireAuth, (req, res) => uploadAudio(req, res, async () => {
+router.post('/api/voice', auth.requireAuth, (req, res) => uploadAudio(req, res, async (err) => {
+  if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ ok: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'audio too large' : err.message });
   if (!req.file) return res.status(400).json({ ok: false, error: 'audio required' });
   try { res.json({ ok: true, text: await voice.transcribe(req.file.buffer, req.file.originalname || 'audio.webm') }); }
   catch (e) { res.status(500).json({ ok: false, error: e.message }); }
@@ -430,8 +502,9 @@ router.post('/api/vision', auth.requireAuth, async (req, res) => {
     let convId = (req.body && req.body.conversationId) || null;
     try {
       if (!convId) convId = (await memory.createConversation(req.sokroUser.id, (text || 'صورة').slice(0, 60))).id;
-      await memory.addMessage(convId, 'user', '[صورة] ' + text);
-      if (out && out.text) await memory.addMessage(convId, 'assistant', out.text);
+      else if (!(await memory.getMessagesFor(req.sokroUser.id, convId, 1))) return res.status(403).json({ ok: false, error: 'conversation not found' });
+      await memory.addMessageFor(req.sokroUser.id, convId, 'user', '[صورة] ' + text);
+      if (out && out.text) await memory.addMessageFor(req.sokroUser.id, convId, 'assistant', out.text);
     } catch (_) {}
     res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
   } catch (e) { console.error('[sokro] vision:', e.message); res.status(500).json({ ok: false, error: e.message }); }
@@ -440,7 +513,8 @@ router.post('/api/vision', auth.requireAuth, async (req, res) => {
 // File → answer: the user attaches a document / zip / text file (📎). We extract
 // its readable content (text + any images inside) server-side and let the model
 // use it. Images alone go through /api/vision instead.
-router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, async () => {
+router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, async (err) => {
+  if (err) return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ ok: false, error: err.code === 'LIMIT_FILE_SIZE' ? 'file too large' : err.message });
   if (!req.file) return res.status(400).json({ ok: false, error: 'file required' });
   const name = req.file.originalname || 'file';
   const promptText = String((req.body && req.body.text) || '').trim();
@@ -462,8 +536,9 @@ router.post('/api/file', auth.requireAuth, (req, res) => uploadFile(req, res, as
     let convId = (req.body && req.body.conversationId) || null;
     try {
       if (!convId) convId = (await memory.createConversation(req.sokroUser.id, name.slice(0, 60))).id;
-      await memory.addMessage(convId, 'user', '[ملف: ' + name + '] ' + promptText);
-      if (out && out.text) await memory.addMessage(convId, 'assistant', out.text);
+      else if (!(await memory.getMessagesFor(req.sokroUser.id, convId, 1))) return res.status(403).json({ ok: false, error: 'conversation not found' });
+      await memory.addMessageFor(req.sokroUser.id, convId, 'user', '[ملف: ' + name + '] ' + promptText);
+      if (out && out.text) await memory.addMessageFor(req.sokroUser.id, convId, 'assistant', out.text);
     } catch (_) {}
     res.json({ ok: true, answer: (out && out.text) || '', conversationId: convId });
   } catch (e) { console.error('[sokro] file:', e.message); res.status(500).json({ ok: false, error: e.message }); }
@@ -516,13 +591,20 @@ router.post('/api/schedule', auth.requireAuth, async (req, res) => {
   if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
   // A moment («فكّرني الساعة ٥») or a rhythm («كل ساعة»). A time that already
   // passed is a typo, and saying so beats firing immediately.
-  const task = await scheduler.create(req.sokroUser.id, goal,
-    { runAt: b.runAt || b.at, everyMinutes: b.everyMinutes }, b.title);
+  const when = { runAt: b.runAt || b.at, everyMinutes: b.everyMinutes };
+  Object.assign(when, { whenText: b.whenText || b.when, timezone: b.timezone });
+  const task = await scheduler.create(req.sokroUser.id, goal, when, b.title);
   if (task && task.error) {
     return res.status(400).json({ ok: false, error: task.error,
       message: task.error === 'past' ? 'الميعاد ده عدّى خلاص — اكتب وقت جاي.' : 'مش فاهم الوقت ده. اكتبه كتاريخ وساعة.' });
   }
   res.json({ ok: true, task });
+});
+
+// Natural-language reminder parsing is deterministic and never guesses a date.
+router.post('/api/schedule/parse', auth.requireAuth, (req, res) => {
+  const out = timeParser.parseNatural(String((req.body || {}).text || ''));
+  res.status(out.error ? 400 : 200).json({ ok: !out.error, ...out });
 });
 
 // ── Meeting agenda: built one point at a time ────────────────────────────────
@@ -544,7 +626,7 @@ router.post('/api/agenda', auth.requireAuth, async (req, res) => {
 
 // One point. The duplicate answer is a real answer — «دي عندي خلاص» is useful,
 // a silently ignored tap is not.
-router.post('/api/agenda/:id(\d+)/items', auth.requireAuth, async (req, res) => {
+router.post('/api/agenda/:id([0-9]+)/items', auth.requireAuth, async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
   const parsed = agenda.parseAdd(text) || text;   // «ضيف بند: كذا» or the bare point
   const out = await agendaStore.addItem(req.sokroUser.id, parseInt(req.params.id, 10), parsed);
@@ -555,19 +637,160 @@ router.post('/api/agenda/:id(\d+)/items', auth.requireAuth, async (req, res) => 
   res.json({ ok: true, added: true, item: out.item });
 });
 
-router.post('/api/agenda/:id(\d+)/items/:itemId(\d+)/done', auth.requireAuth, async (req, res) => {
+router.post('/api/agenda/:id([0-9]+)/items/:itemId([0-9]+)/done', auth.requireAuth, async (req, res) => {
   await agendaStore.setDone(req.sokroUser.id, req.params.itemId, (req.body || {}).done !== false);
   res.json({ ok: true });
 });
 
-router.delete('/api/agenda/:id(\d+)/items/:itemId(\d+)', auth.requireAuth, async (req, res) => {
+router.delete('/api/agenda/:id([0-9]+)/items/:itemId([0-9]+)', auth.requireAuth, async (req, res) => {
   await agendaStore.removeItem(req.sokroUser.id, parseInt(req.params.id, 10), req.params.itemId);
   res.json({ ok: true });
 });
 
-router.post('/api/agenda/:id(\d+)/close', auth.requireAuth, async (req, res) => {
+router.post('/api/agenda/:id([0-9]+)/close', auth.requireAuth, async (req, res) => {
   await agendaStore.close(req.sokroUser.id, parseInt(req.params.id, 10));
   res.json({ ok: true });
+});
+
+// Structured booking flow. It collects and confirms details deterministically;
+// it does not submit anything to an external provider.
+router.post('/api/booking/turn', auth.requireAuth, async (req, res) => {
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ ok: false, error: 'text required' });
+  try {
+    let conversationId = (req.body && req.body.conversationId) || null;
+    if (!conversationId) {
+      conversationId = (await memory.createConversation(req.sokroUser.id, text.slice(0, 60))).id;
+    } else if (!(await memory.getMessagesFor(req.sokroUser.id, conversationId, 1))) {
+      return res.status(403).json({ ok: false, error: 'conversation not found' });
+    }
+    let current = await bookingStore.open(req.sokroUser.id, conversationId);
+    if (!current) {
+      const kind = booking.detectKind(text);
+      if (!kind) return res.status(400).json({ ok: false, error: 'booking type not understood' });
+      current = await bookingStore.create(req.sokroUser.id, conversationId, kind, {});
+    }
+    const out = await booking.turn({
+      userId: req.sokroUser.id,
+      llm: require('./llm'),
+      memory,
+      log: () => {},
+    }, current, text);
+    const saved = await bookingStore.save(req.sokroUser.id, current.id, {
+      fields: out.state.fields,
+      status: out.state.status,
+      fingerprint: out.state.confirmed_fingerprint === null ? '' : out.state.confirmed_fingerprint,
+    });
+    if (!saved) return res.status(404).json({ ok: false, error: 'booking not found' });
+    await memory.addTurnFor(req.sokroUser.id, conversationId, text, out.say || '');
+    res.json({
+      ok: true, booking: saved, conversationId, say: out.say,
+      done: out.done, answer: out.answer || null,
+    });
+  } catch (e) {
+    console.error('[sokro] booking turn:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Submit only after a confirmed booking has been atomically claimed. A provider
+// timeout leaves it in `submitting`, which is intentionally not retryable.
+router.post('/api/booking/:id([0-9]+)/submit', auth.requireAuth, async (req, res) => {
+  if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, error: 'explicit confirmation required' });
+  try {
+    const id = parseInt(req.params.id, 10);
+    const bookingRow = (await pool.query('SELECT * FROM sokro_bookings WHERE id=$1 AND user_id=$2', [id, req.sokroUser.id])).rows[0];
+    if (!bookingRow || bookingRow.status !== 'confirmed') return res.status(409).json({ ok: false, error: 'booking is not confirmed or is already being processed' });
+    const claimed = await bookingStore.claimForSubmit(req.sokroUser.id, id, bookingRow.confirmed_fingerprint);
+    if (!claimed) return res.status(409).json({ ok: false, error: 'booking was already claimed' });
+    const result = await bookingProviders.submit(claimed);
+    if (result.uncertain) return res.status(502).json({ ok: false, uncertain: true, error: result.error, message: 'النتيجة غير مؤكدة؛ لن أعيد الإرسال تلقائيًا.' });
+    await bookingStore.finishSubmit(req.sokroUser.id, id, result.ok, result);
+    try { await audit.record(req.sokroUser.id, 'booking_submit', { permissions: ['submit'], outcome: result.ok ? 'success' : 'failed' }); } catch (_) {}
+    res.status(result.ok ? 200 : 502).json({ ok: result.ok, result });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ── Consent audit and optional external channels ─────────────────────────────
+router.get('/api/audit/consent', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, entries: await audit.list(req.sokroUser.id, req.query.limit) });
+});
+// ── ربط حساب واتساب المستخدم ────────────────────────────────────────────────
+//
+// كل مستخدم بيدخل بيانات تطبيقه هو من إعداداته. المفاتيح بتتشفّر في الخزنة،
+// والتوكن **مابيرجعش أبداً** للشاشة بعد الحفظ.
+router.get('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, account: await waAccount.status(pool, req.sokroUser.id, config.origin) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.post('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
+  try {
+    const out = await waAccount.save(pool, req.sokroUser.id, req.body || {});
+    if (!out.ok) {
+      const why = {
+        phone_id: 'رقم Phone Number ID لازم يكون أرقام بس (من لوحة ميتا).',
+        token: 'التوكن قصير أوي — انسخه كامل من لوحة ميتا.',
+        vault: 'الخزنة المشفّرة مش متظبّطة على السيرفر، والمفاتيح مش هتتخزّن بالنضيف. ظبّط SOKRO_SECRET_KEY الأول.',
+      }[out.error] || 'مقدرتش أحفظ البيانات.';
+      return res.status(400).json({ ok: false, error: out.error, message: why });
+    }
+    res.json({ ok: true, account: await waAccount.status(pool, req.sokroUser.id, config.origin) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.delete('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
+  try {
+    await waAccount.disconnect(pool, req.sokroUser.id);
+    res.json({ ok: true, account: await waAccount.status(pool, req.sokroUser.id, config.origin) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.post('/api/channels/whatsapp/send', auth.requireAuth, async (req, res) => {
+  if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, requiresConsent: true, error: 'explicit confirmation required' });
+  const to = String(req.body.to || '').trim(), text = String(req.body.text || '').trim();
+  if (!to || !text) return res.status(400).json({ ok: false, error: 'to and text required' });
+  try {
+    // بحساب المستخدم نفسه — مش برقم منصّة مشترك.
+    const creds = await waAccount.creds(pool, req.sokroUser.id);
+    if (!whatsappCloud.ready(creds)) {
+      return res.status(409).json({ ok: false, error: 'not_connected',
+        message: 'اربط رقم واتساب بتاعك من الإعدادات الأول.' });
+    }
+    const out = await whatsappCloud.send(creds, to, text);
+    await pool.query(`INSERT INTO sokro_channel_messages (user_id,provider,external_message_id,sender,body,direction)
+      VALUES ($1,'whatsapp_cloud',$2,$3,$4,'outbound') ON CONFLICT DO NOTHING`,
+      [req.sokroUser.id, (out.messages && out.messages[0] && out.messages[0].id) || 'wa-' + Date.now(), creds.phoneNumberId, text]);
+    await audit.record(req.sokroUser.id, 'whatsapp_send', { permissions: ['social', 'submit'], outcome: 'success' });
+    res.json({ ok: true, messageId: out.messages && out.messages[0] && out.messages[0].id });
+  } catch (e) {
+    // نافذة الـ٢٤ ساعة قفلت: ده مش «فشل إرسال» — ده «محتاج قالب معتمد».
+    const closed = e.metaCode === 470 || e.metaCode === 131047;
+    res.status(503).json({ ok: false, error: closed ? 'window_closed' : 'send_failed',
+      message: closed
+        ? 'عدّى ٢٤ ساعة على آخر رسالة من العميل — ميتا مابتسمحش برسالة حرّة بعدها، محتاج قالب معتمد.'
+        : e.message });
+  }
+});
+router.post('/api/calls', auth.requireAuth, async (req, res) => {
+  if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, requiresConsent: true, error: 'explicit confirmation required' });
+  const to = String(req.body.to || '').trim();
+  if (!/^\+?[0-9()\-\s]{8,20}$/.test(to)) return res.status(400).json({ ok: false, error: 'valid phone number required' });
+  if (!phone.configured()) return res.status(503).json({ ok: false, error: 'phone provider is not configured' });
+  try {
+    const row = (await pool.query(`INSERT INTO sokro_phone_calls (user_id,provider,to_number) VALUES ($1,'twilio',$2) RETURNING id`, [req.sokroUser.id, to])).rows[0];
+    const out = await phone.call(to, `${config.origin}/api/calls/${row.id}/twiml`, `${config.origin}/api/calls/status`);
+    await pool.query('UPDATE sokro_phone_calls SET external_id=$2,status=$3,updated_at=now() WHERE id=$1', [row.id, out.id, out.status || 'queued']);
+    await audit.record(req.sokroUser.id, 'phone_call', { permissions: ['submit'], outcome: 'requested' });
+    res.json({ ok: true, callId: row.id, status: out.status });
+  } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
+});
+router.post('/api/calls/status', async (req, res) => {
+  const sid = String(req.body && (req.body.CallSid || req.body.callSid) || '');
+  if (!sid) return res.sendStatus(400);
+  await pool.query('UPDATE sokro_phone_calls SET status=$2,updated_at=now() WHERE external_id=$1', [sid, String(req.body.CallStatus || 'unknown')]);
+  res.sendStatus(204);
+});
+router.post('/api/calls/:id([0-9]+)/twiml', (_req, res) => {
+  res.type('text/xml').send('<Response><Say language="ar-SA">مرحبًا، هذه مكالمة من سوكرو.</Say><Hangup/></Response>');
 });
 
 // ── The inbox a reminder lands in ────────────────────────────────────────────

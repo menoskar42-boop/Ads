@@ -4,11 +4,12 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<% var __contactTitle = 'اتصل بنا | OscarDevs — رد خلال 24 ساعة'; var __contactDesc = 'تواصل مع فريق OscarDevs عبر البريد، واتساب، أو نموذج الاتصال المباشر. نرد على استفسارك خلال 24 ساعة عمل.'; %>
-<title><%= __contactTitle %></title>
-<meta name="description" content="<%= __contactDesc %>" />
-<%- include('../partials/seo_meta', { title: __contactTitle, description: __contactDesc }) %>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"ContactPage","name":"اتصل بنا — OscarDevs","url":"<%= siteOrigin %>/contact","mainEntity":{"@id":"<%= siteOrigin %>#organization"}}</script>
+<% var pageTitle = 'اتصل بنا | OscarDevs — رد خلال 24 ساعة'; var pageDescription = 'تواصل مع فريق OscarDevs عبر البريد، واتساب، أو نموذج الاتصال المباشر. نرد على استفسارك خلال 24 ساعة عمل.'; %>
+<% var supportEmail = 'contact@oscardevs.com'; var supportPhone = '+201552406406'; %>
+<title><%= pageTitle %></title>
+<meta name="description" content="<%= pageDescription %>" />
+<%- include('../partials/seo_meta', { title: pageTitle, description: pageDescription }) %>
+<script type="application/ld+json"><%- jsonLd({"@context":"https://schema.org","@type":"ContactPage","name":pageTitle,"description":pageDescription,"url":siteOrigin + "/contact","email":supportEmail,"telephone":supportPhone,"mainEntity":{"@id":siteOrigin + "#organization"}}) %></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"اتصل بنا","item":"<%= siteOrigin %>/contact"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/tw.css" />
@@ -36,12 +37,12 @@
     <p class="text-gray-500 mb-8">عندك سؤال أو طلب خاص؟ اختر الطريقة الأنسب — هنرجعلك خلال ٢٤ ساعة عمل.</p>
 
     <div class="grid sm:grid-cols-3 gap-4 mb-10">
-      <a href="mailto:contact@oscardevs.com" class="border border-gray-200 rounded-2xl p-5 hover:shadow-md transition block text-center">
+      <a href="mailto:<%= supportEmail %>" class="border border-gray-200 rounded-2xl p-5 hover:shadow-md transition block text-center">
         <div class="text-3xl mb-2">✉️</div>
         <div class="font-bold text-gray-800">البريد الإلكتروني</div>
-        <div class="text-xs text-gray-500 mt-1 break-all">contact@oscardevs.com</div>
+        <div class="text-xs text-gray-500 mt-1 break-all"><%= supportEmail %></div>
       </a>
-      <a href="https://wa.me/201552406406" target="_blank" rel="noopener" class="border border-gray-200 rounded-2xl p-5 hover:shadow-md transition block text-center">
+      <a href="https://wa.me/<%= supportPhone.replace(/[^0-9]/g, '') %>" target="_blank" rel="noopener" class="border border-gray-200 rounded-2xl p-5 hover:shadow-md transition block text-center">
         <div class="text-3xl mb-2">💬</div>
         <div class="font-bold text-gray-800">واتساب</div>
         <div class="text-xs text-gray-500 mt-1">رد سريع خلال ساعات العمل</div>

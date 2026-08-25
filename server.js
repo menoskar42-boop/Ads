@@ -163,10 +163,18 @@ const neuroStatic = express.static(neuroDir, {
 function sendNeuroIndex(res) {
   fs.readFile(path.join(neuroDir, 'index.html'), 'utf8', (err, html) => {
     if (err) return res.status(500).type('text/plain').send('NeuroPilot failed to load.');
+    // `/g` — مش اختيارية.
+    //
+    // `replace` بنص عادي بتبدّل **أول** وجود بس. و`index.html` بيشاور على
+    // `app.js` تلات مرات، فاتنين منهم كانوا بيفضلوا من غير رقم نسخة: بعد أي
+    // نشر، المتصفّح بيجيب واحد جديد واتنين من الكاش القديم — وده أسوأ من
+    // مفيش نسخ خالص، لأن الملفات بتبقى من نسختين مختلفتين مع بعض.
+    const stamp = (name) =>
+      new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![?\\w])', 'g');
     const out = html
-      .replace('/styles.css', '/styles.css?v=' + NEURO_VERSION)
-      .replace('/native.js', '/native.js?v=' + NEURO_VERSION)
-      .replace('/app.js', '/app.js?v=' + NEURO_VERSION);
+      .replace(stamp('/styles.css'), '/styles.css?v=' + NEURO_VERSION)
+      .replace(stamp('/native.js'), '/native.js?v=' + NEURO_VERSION)
+      .replace(stamp('/app.js'), '/app.js?v=' + NEURO_VERSION);
     res.type('html').set('Cache-Control', 'no-cache').send(out);
   });
 }
@@ -262,7 +270,7 @@ app.locals.assetVersion = Date.now();
 
 app.use(compression());
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = Buffer.from(buf); } }));
 app.use(cookieParser());
 
 // NeuroPilot daily-push external trigger — mounted BEFORE tenant routing so it

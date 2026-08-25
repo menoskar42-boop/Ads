@@ -121,8 +121,10 @@ const half = () => ({ kind: 'restaurant', status: 'collecting', fields: { place:
     /* ── And the write that must happen once ──────────────────────────── */
     {
       const st = fs.readFileSync(path.join(ROOT, 'sokro/booking/store.js'), 'utf8');
-      check('الإرسال بيتحجز في نفس الجملة اللي بتفحص الحالة',
-        /SET status='submitted'[\s\S]{0,200}WHERE id=\$1 AND user_id=\$2 AND status='confirmed' AND confirmed_fingerprint=\$3/.test(st));
+      check('الإرسال بيتحجز ذريًا قبل الاتصال بالمزود',
+        /SET status='submitting'[\s\S]{0,200}WHERE id=\$1 AND user_id=\$2 AND status='confirmed' AND confirmed_fingerprint=\$3/.test(st));
+      check('والنتيجة المؤكدة فقط تنهي الحجز كمُرسل',
+        /finishSubmit[\s\S]{0,200}status = ok \? 'submitted' : 'failed'/.test(st));
       check('والتعديل بيمسح البصمة القديمة صراحةً', /WHEN \$6 = '' THEN NULL/.test(st));
       const schema = fs.readFileSync(path.join(ROOT, 'sokro/schema.js'), 'utf8');
       check('والبصمة متخزّنة مع الحجز', /confirmed_fingerprint TEXT/.test(schema));

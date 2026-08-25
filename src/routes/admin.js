@@ -17,7 +17,10 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://oscardevs.com';
 
-const RESERVED_SLUGS = ['admin', 'company', 'view', 'api', 'public', 'static', 'shop', 'customer', 'contact', 'uploads'];
+// القايمة المشتركة (`src/lib/reserved_slugs.js`). كانت هنا نسخة أقصر من اللي
+// في `apply.js`، فالأدمن كان يقدر يعمل شركة اسمها `legal` — و`legal.oscardevs.com`
+// تبقى موقع تاجر بدل صفحة الشروط.
+const { isReserved } = require('../lib/reserved_slugs');
 const SLUG_REGEX = /^[a-z0-9-]+$/;
 
 // Free trial + referral reward, in months. Both sides of a referral get the
@@ -212,7 +215,7 @@ router.post('/companies/add', requireAdmin, async (req, res) => {
   if (!SLUG_REGEX.test(slug)) {
     return renderError('Slug must contain only lowercase letters, numbers, and hyphens.');
   }
-  if (RESERVED_SLUGS.includes(slug)) {
+  if (isReserved(slug)) {
     return renderError(`The slug "${slug}" is reserved. Please choose another.`);
   }
 
@@ -281,7 +284,7 @@ router.post('/companies/:id/edit', requireAdmin, async (req, res) => {
   const { company_name, slug, description, theme_color, is_active } = req.body;
   const page_type = PAGE_TYPES.includes(req.body.page_type) ? req.body.page_type : 'portfolio';
   try {
-    if (!SLUG_REGEX.test(slug) || RESERVED_SLUGS.includes(slug)) {
+    if (!SLUG_REGEX.test(slug) || isReserved(slug)) {
       const result = await pool.query('SELECT * FROM companies WHERE id = $1', [req.params.id]);
       return res.render('admin/companies/edit', {
         session: adminSession(req),

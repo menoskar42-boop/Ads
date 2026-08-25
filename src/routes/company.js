@@ -30,7 +30,10 @@ const PAGE_ERRORS = {
                 negative: 'مش ممكن تطبّق التغيير (المخزون هيبقى سالب أو المنتج مش موجود).',
                 save: 'تعذّر حفظ التغيير.' },
 };
-const pageError = (page, code) => PAGE_ERRORS[page][String(code || '')] || null;
+// `PAGE_ERRORS[page]` لصفحة مش في الخريطة بترجع `undefined`، والقراءة منها
+// بترمي وتوقّع الطلب. التلات نداءات الموجودة كلها بمفاتيح صحيحة، فمافيش
+// عطل النهاردة — بس ده فخ بيستنى رابع نداء بمفتاح جديد.
+const pageError = (page, code) => (PAGE_ERRORS[page] || {})[String(code || '')] || null;
 
 const { canonicalCompanyUrl } = require('../lib/urls');
 const { PROFESSIONS, getPreset } = require('../lib/portfolio_presets');

@@ -103,12 +103,57 @@ sokro/
 10. Scheduler / Watchers ✅ — one-shot reminders and a delivery inbox
 11. Reports ✅
 12. Voice + UI ✅ — browser-status chip, reminders bell, secrets form
-13. Docs + Deploy + "من أعمالنا" card ← **current**
+13. Docs + Deploy + "من أعمالنا" card ✅ ← **current**
+14. Business channels, booking handoff, audit trail ✅ — WhatsApp Cloud is
+    **per user**: each person connects their own Meta app from Settings, and
+    the keys live in the encrypted vault, not in environment variables.
 
 ### Next
-- WhatsApp Cloud API (the extension path ships today; the API needs a business
-  account + an approved template).
-- Natural-language times for reminders (the API takes an explicit `runAt`).
+
+Written down because the README's job is to say what the code does *and does
+not* do yet:
+
+- **Message templates.** Meta closes the conversation 24 hours after the
+  customer's last message; after that only an approved template goes through.
+  Sokro reports Meta's refusal honestly (`window_closed`) but cannot yet
+  submit or send templates.
+- **Media messages.** Text only, both directions. An incoming image is
+  recorded as an unread message with no body.
+- **An inbox screen.** Incoming messages land in the conversation memory;
+  there is no thread view to read and reply from yet.
+- **Per-account rate limiting on the webhook.** The signature check is the
+  only gate today.
+
+### Optional external configuration
+- WhatsApp Web remains available through the extension. **WhatsApp Cloud needs
+  no environment variables at all** — each user connects their own Meta app from
+  Settings (Phone Number ID, access token, app secret, verify token). Tokens are
+  encrypted with the same vault as site credentials and are never returned to the
+  browser after they are saved; if the vault is not configured the save is
+  **refused** rather than storing a key in plaintext.
+  Each account gets its **own** webhook path,
+  `/api/channels/whatsapp/webhook/<token>`, shown in Settings. It has to be
+  per-account: Meta signs each delivery with the app secret of the app that sent
+  it, so the path is what identifies whose secret to verify against — the body
+  cannot be trusted before the signature is checked.
+- Phone calls use Twilio when `SOKRO_TWILIO_ACCOUNT_SID`, `SOKRO_TWILIO_AUTH_TOKEN`,
+  and `SOKRO_TWILIO_FROM` are configured. Calling always requires
+  `confirmSensitive: true`; no provider configuration means no call is attempted.
+- Confirmed bookings can be handed to an explicitly configured
+  `SOKRO_BOOKING_PROVIDER_URL` (optional bearer token:
+  `SOKRO_BOOKING_PROVIDER_TOKEN`). A provider timeout leaves the booking in
+  `submitting` and is never retried automatically.
+- Reminders accept `whenText` plus an optional IANA `timezone`, for example
+  `فكرني بكرة الساعة 5`; ambiguous dates are rejected. `/api/schedule/parse`
+  previews the deterministic interpretation.
+- `/api/audit/consent` and the Settings screen show the user's sensitive-action
+  consent and outcome history. Values, tokens, and credentials are never stored
+  in the audit rows.
+
+Checks:
+
+- `node scripts/check-sokro-six.js`
+- `node scripts/check-sokro-concurrency.js` (uses the configured development DB)
 
 ## Run (dev)
 

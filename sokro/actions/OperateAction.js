@@ -7,6 +7,7 @@
 // steps. Uses the server browser (Playwright) — one page kept open across steps.
 const { register } = require('./_registry');
 const browserState = require('../lib/browserState');
+const { assertSafeUrl } = require('../lib/urlGuard');
 
 // Per-user "last position" so a follow-up run can CONTINUE from where the previous
 // one stopped (input.resume) instead of starting over from the homepage. In-memory
@@ -400,6 +401,18 @@ async function run(ctx, input) {
       // Auto-handle native JS dialogs (alert/confirm/beforeunload) so a modal never
       // freezes the loop waiting for a human click.
       page.on('dialog', (d) => { try { d.dismiss(); } catch (_) {} });
+      // Re-check every HTTP request, including redirects and subresources. A
+      // hostname can change its DNS answer after the initial URL validation;
+      // request interception prevents the browser from following an unsafe
+      // redirect or loading an internal target.
+      await page.route('**/*', async (route) => {
+        const requestUrl = route.request().url();
+        if (/^https?:\/\//i.test(requestUrl)) {
+          try { await assertSafeUrl(requestUrl); }
+          catch (_) { return route.abort('blockedbyclient'); }
+        }
+        await route.continue();
+      });
 
       try { await page.goto(url, { waitUntil: 'load', timeout: 30000 }); }
       catch (e) { const alt = wwwVariant(url); if (alt && alt !== url) await page.goto(alt, { waitUntil: 'load', timeout: 30000 }); else throw e; }
@@ -506,8 +519,13 @@ async function run(ctx, input) {
             await target.fill(String(dec.text || ''), { timeout: 8000 });
           } else if (dec.action === 'scroll') {
             await page.evaluate(function () { window.scrollBy(0, window.innerHeight); });
-          } else if (dec.action === 'goto' && /^https?:\/\//.test(dec.url || '')) {
-            await page.goto(dec.url, { waitUntil: 'load', timeout: 20000 });
+           } else if (dec.action === 'goto' && /^https?:\/\//.test(dec.url || '')) {
+             const safeUrl = await assertSafeUrl(dec.url);
+             if (ctx.allowedDomains && ctx.allowedDomains.length) {
+               const host = new URL(safeUrl).hostname.toLowerCase().replace(/^www\./, '');
+               if (!ctx.allowedDomains.includes(host)) throw new Error('الموقع ده خارج المواقع المسموح بها');
+             }
+             await page.goto(safeUrl, { waitUntil: 'load', timeout: 20000 });
           } else { break; }
           // ── Verify the step actually took effect ──
           await settlePage(page);
@@ -582,7 +600,7 @@ async function run(ctx, input) {
 register({
   name: 'operate',
   description: 'Drive a browser toward a goal like an Operator: open a page then click/type/scroll/navigate step-by-step until the goal is done. Verifies each step, handles cookie/consent popups, retries with fallback selectors, and reloads/rolls back if a page gets stuck. Use for tasks that need real interaction inside a site (apply filters, click into a specific item, read what appears). input.url = start page, input.goal = what to accomplish. input.resume=true continues from where the previous run stopped.',
-  permissions: ['browser'],
+  permissions: ['browser', 'submit'],
   // Never repeated: the operator CLICKS inside a live site, so a failure can sit
   // on either side of a button that already did something.
   retryable: false,

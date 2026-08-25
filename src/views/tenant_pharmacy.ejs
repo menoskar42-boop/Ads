@@ -16,7 +16,7 @@
   var __showImages = !(pharmacySettings && pharmacySettings.show_images === false);
   var __wa = pharmacySettings && pharmacySettings.whatsapp ? String(pharmacySettings.whatsapp).replace(/[^0-9]/g, '') : '';
   var __otherLang = lang === 'ar' ? 'en' : 'ar';
-  var __phCanon = (typeof canonicalCompanyUrl === 'function') ? canonicalCompanyUrl(company.slug) : ('https://' + company.slug + '.oscardevs.com/');
+  var __phCanon = canonicalCompanyUrl(company.slug);
   var __pageNoindex = (typeof noindex !== 'undefined' && noindex);
   var __hasGeo = pharmacySettings && pharmacySettings.lat != null && pharmacySettings.lng != null;
   var __mapUrl = __hasGeo ? ('https://www.google.com/maps/search/?api=1&query=' + Number(pharmacySettings.lat) + ',' + Number(pharmacySettings.lng)) : null;

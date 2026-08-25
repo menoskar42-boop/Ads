@@ -29,11 +29,9 @@ const BUSINESS_TYPES = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gy
   'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'];
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
-const RESERVED_SLUGS = new Set([
-  'admin', 'api', 'apply', 'company', 'customer', 'shop', 'view',
-  'public', 'css', 'js', 'uploads', 'legal', 'login', 'logout',
-  'dashboard', 'settings', 'www', 'mail', 'root', 'static', 'assets',
-]);
+// القايمة المشتركة — كانت هنا نسخة، وواحدة أقصر في `admin.js`، وكل واحدة
+// بتحمي من اللي التانية بتسيبه.
+const { isReserved } = require('../lib/reserved_slugs');
 
 // Referral codes are short, uppercase and unambiguous — they get typed and read
 // aloud, so keep the accepted shape narrow.
@@ -99,7 +97,7 @@ router.post('/apply', applyLimiter, async (req, res) => {
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
   if (!BUSINESS_TYPES.includes(values.business_type)) return render('اختر نوع الموقع.');
-  if (!SLUG_RE.test(values.preferred_slug) || RESERVED_SLUGS.has(values.preferred_slug)) {
+  if (!SLUG_RE.test(values.preferred_slug) || isReserved(values.preferred_slug)) {
     return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
   }
   if (password.length < 8) return render('كلمة المرور يجب ألا تقل عن 8 أحرف.');
@@ -183,7 +181,7 @@ router.get('/apply/success', (req, res) => {
 router.get('/apply/check-slug', async (req, res) => {
   const slug = String(req.query.slug || '').trim().toLowerCase().slice(0, 40);
   if (!slug) return res.json({ available: false, reason: 'empty' });
-  if (!SLUG_RE.test(slug) || RESERVED_SLUGS.has(slug)) {
+  if (!SLUG_RE.test(slug) || isReserved(slug)) {
     return res.json({ available: false, reason: 'invalid' });
   }
   try {

@@ -4,9 +4,11 @@
 <%- include('../partials/ads_loader') %>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>الأسئلة الشائعة — OscarDevs</title>
-<meta name="description" content="إجابات سريعة عن أسعار ومدّة تنفيذ المواقع، طرق الدفع، إدارة الموقع، والدعم في OscarDevs." />
-<%- include('../partials/seo_meta', { title: 'الأسئلة الشائعة — OscarDevs', description: 'إجابات سريعة عن أسعار ومدّة تنفيذ المواقع، طرق الدفع، إدارة الموقع، والدعم في OscarDevs.' }) %>
+<% var pageTitle = 'الأسئلة الشائعة — OscarDevs'; %>
+<% var pageDescription = 'إجابات سريعة عن أسعار ومدّة تنفيذ المواقع، طرق الدفع، إدارة الموقع، والدعم في OscarDevs.'; %>
+<title><%= pageTitle %></title>
+<meta name="description" content="<%= pageDescription %>" />
+<%- include('../partials/seo_meta', { title: pageTitle, description: pageDescription }) %>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"الأسئلة الشائعة","item":"<%= siteOrigin %>/faq"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/tw.css" />

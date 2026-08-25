@@ -74,12 +74,21 @@ async function save(userId, id, { fields, status, site, fingerprint }) {
 async function claimForSubmit(userId, id, fingerprint) {
   const r = await db().query(
     `UPDATE sokro_bookings
-        SET status='submitted', submitted_at=now(), updated_at=now()
+        SET status='submitting', updated_at=now()
       WHERE id=$1 AND user_id=$2 AND status='confirmed' AND confirmed_fingerprint=$3
       RETURNING *`,
     [id, userId, fingerprint]
   );
   return r.rows[0] || null;
 }
+async function finishSubmit(userId, id, ok, result) {
+  const status = ok ? 'submitted' : 'failed';
+  const r = await db().query(
+    `UPDATE sokro_bookings SET status=$3, submitted_at=CASE WHEN $3='submitted' THEN now() ELSE submitted_at END,
+       updated_at=now() WHERE id=$1 AND user_id=$2 AND status='submitting' RETURNING *`,
+    [id, userId, status]
+  );
+  return r.rows[0] || null;
+}
 
-module.exports = { open, create, save, claimForSubmit, OPEN };
+module.exports = { open, create, save, claimForSubmit, finishSubmit, OPEN };
