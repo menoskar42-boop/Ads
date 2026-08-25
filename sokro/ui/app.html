@@ -159,6 +159,27 @@
           بتتخزّن متشفّرة (AES-256) على السيرفر. سوكرو بيستخدمها وقت التنفيذ بس، ومابتتبعتش للذكاء الاصطناعي ولا بتظهر تاني.
         </div>
       </div>
+      <!-- واتساب: كل مستخدم برقمه هو. التوكن بيتبعت مرة واحدة ومابيرجعش —
+           الشاشة بتعرف «متوصّل ولا لأ» وآخر أربع أرقام وخلاص. -->
+      <label class="lbl2">واتساب (WhatsApp Cloud API)</label>
+      <div id="waBox" style="font-size:13px;color:#9aa3b2">
+        <div id="waState" style="margin-bottom:8px">…</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input id="waPhoneId" class="fld" style="margin:0" placeholder="Phone Number ID (أرقام بس، من لوحة ميتا)" maxlength="32" inputmode="numeric" />
+          <input id="waToken" class="fld" style="margin:0" type="password" placeholder="Access Token" autocomplete="new-password" />
+          <input id="waSecret" class="fld" style="margin:0" type="password" placeholder="App Secret (للتحقّق من الرسايل الجاية)" autocomplete="new-password" />
+          <input id="waVerify" class="fld" style="margin:0" placeholder="Verify Token (إنت بتخترعه وبتكتبه في ميتا كمان)" maxlength="64" />
+          <div style="display:flex;gap:6px">
+            <button id="waSave" type="button" class="btn" style="flex:1;padding:10px 14px">احفظ واربط</button>
+            <button id="waOff" type="button" class="no" style="padding:10px 14px">افصل</button>
+          </div>
+        </div>
+        <div id="waHook" style="margin-top:6px;font-size:12px;color:#6b7280"></div>
+        <div style="margin-top:6px;font-size:12px;color:#6b7280">
+          المفاتيح بتتخزّن متشفّرة، ومابتظهرش تاني بعد الحفظ. والرقم اللي هتربطه لازم يكون <b>مش مسجّل على تطبيق واتساب</b> —
+          بعد الربط بتبعت وترد من هنا مش من التليفون.
+        </div>
+      </div>
        <button id="auditBtn" type="button" class="no" style="width:100%;margin-top:10px">سجل الموافقات الحساسة</button>
        <div id="auditList" style="max-height:150px;overflow:auto;margin-top:6px;font-size:12px;color:#9aa3b2"></div>
       <label class="lbl2">جيميل (Gmail API)</label>
@@ -225,8 +246,37 @@
     }catch(e){}
     return false;
   }
+  // واتساب: الحالة بتتقرا من السيرفر، والتوكن مابيتقراش أبداً.
+  async function refreshWhatsApp(){
+    var st=$('#waState'), hook=$('#waHook');
+    try{
+      var d=await (await fetch('/api/channels/whatsapp/account')).json();
+      var a=(d&&d.account)||{};
+      if(!a.vault){ st.innerHTML='<b style="color:#f59e0b">الخزنة المشفّرة مش متظبّطة على السيرفر</b> — المفاتيح مش هتتحفظ.'; }
+      else if(a.connected){ st.innerHTML='<b style="color:#22c55e">متوصّل</b> — رقم '+(a.phoneTail||'')+(a.hasAppSecret?'':' · <span style="color:#f59e0b">من غير App Secret: الرسايل الجاية مش هتتقبل</span>'); }
+      else { st.textContent='مش متوصّل.'; }
+      hook.innerHTML = a.webhookUrl
+        ? 'رابط الويب هوك بتاعك (الزقه في ميتا): <code style="direction:ltr;display:inline-block;word-break:break-all">'+a.webhookUrl.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</code>'
+        : '';
+    }catch(e){ st.textContent='مقدرتش أقرا حالة الواتساب.'; }
+  }
+  document.addEventListener('click', async function(ev){
+    if(ev.target && ev.target.id==='waSave'){
+      var body={ phoneNumberId:$('#waPhoneId').value.trim(), token:$('#waToken').value, appSecret:$('#waSecret').value, verifyToken:$('#waVerify').value.trim() };
+      var r=await (await fetch('/api/channels/whatsapp/account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+      if(!r.ok){ $('#waState').innerHTML='<b style="color:#ef4444">'+((r.message||r.error||'مقدرتش أحفظ').replace(/</g,'&lt;'))+'</b>'; return; }
+      $('#waToken').value=''; $('#waSecret').value='';   // مايفضلش في الشاشة
+      refreshWhatsApp();
+    }
+    if(ev.target && ev.target.id==='waOff'){
+      await fetch('/api/channels/whatsapp/account',{method:'DELETE'});
+      $('#waPhoneId').value=''; $('#waToken').value=''; $('#waSecret').value=''; $('#waVerify').value='';
+      refreshWhatsApp();
+    }
+  });
+
   async function loadSettings(){ try{ var r=await fetch('/api/settings'); var d=await r.json(); if(d.ok) SETTINGS=d.settings; }catch(e){} }
-  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); refreshSecrets(); refreshAudit(); }
+  function openSettings(){ $('#setName').value=SETTINGS.assistantName||''; $('#setPersona').value=SETTINGS.personality||'professional'; $('#setVoice').value=SETTINGS.voice||'female'; $('#setLang').value=SETTINGS.lang||'egyptian'; $('#settings').classList.remove('hidden'); refreshGmail(); refreshSecrets(); refreshAudit(); refreshWhatsApp(); }
   // The browser chip says what is actually true, and keeps saying it: the
   // extension can be connected mid-session (or its tab closed), and a chip that
   // only checks once is the same lie with a timestamp.

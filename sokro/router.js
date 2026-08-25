@@ -27,6 +27,7 @@ const content = require('./content');
 const booking = require('./booking');
 const bookingStore = booking.store;
 const whatsappCloud = require('./channels/whatsapp-cloud');
+const waAccount = require('./channels/whatsapp-account');
 const phone = require('./channels/phone');
 const audit = require('./audit');
 const timeParser = require('./time-parser');
@@ -48,25 +49,45 @@ router.get('/health', (_req, res) => res.json({ ok: true, service: 'sokro', env:
 router.get('/api/ping', (_req, res) => res.json({ ok: true, pong: true, features: config.features }));
 
 // ── Business WhatsApp Cloud API ─────────────────────────────────────────────
-router.get('/api/channels/whatsapp/webhook', (req, res) => {
-  if (!process.env.SOKRO_WHATSAPP_VERIFY_TOKEN || String(req.query['hub.verify_token'] || '') !== String(process.env.SOKRO_WHATSAPP_VERIFY_TOKEN)) return res.sendStatus(403);
-  res.type('text/plain').send(String(req.query['hub.challenge'] || ''));
-});
-router.post('/api/channels/whatsapp/webhook', async (req, res) => {
+// ── ويب هوك واتساب: مسار لكل حساب ───────────────────────────────────────────
+//
+// التوكن في المسار هو اللي بيقول **الحساب ده بتاع مين** — وده مش تسهيل، ده
+// الطريقة الوحيدة. ميتا بتوقّع الطلب بمفتاح **التطبيق اللي بعته**، وكل مستخدم
+// عنده تطبيقه هو. فمن غير ما نعرف الحساب مانقدرش نجيب المفتاح نتحقّق بيه، ومن
+// غير ما نتحقّق مانقدرش نصدّق الجسم اللي جوّاه رقم الحساب.
+//
+// (المسار القديم من غير توكن اتشال: كان بيتحقّق بمفتاح واحد من متغيّر بيئة —
+// يعني رقم واحد للمنصّة كلها.)
+router.get('/api/channels/whatsapp/webhook/:token([0-9a-f]{48})', async (req, res) => {
   try {
-    if (process.env.SOKRO_WHATSAPP_APP_SECRET && !whatsappCloud.verifySignature(req.rawBody || JSON.stringify(req.body || {}), req.headers['x-hub-signature-256'])) return res.sendStatus(403);
-    const messages = whatsappCloud.incoming(req.body);
-    for (const m of messages) {
-      if (!m.messageId || !m.phoneId || !m.text) continue;
-      const account = (await pool.query('SELECT user_id FROM sokro_channel_accounts WHERE provider=$1 AND external_id=$2', ['whatsapp_cloud', m.phoneId])).rows[0];
-      if (!account) continue;
+    const acc = await waAccount.byWebhookToken(pool, req.params.token);
+    if (!acc) return res.sendStatus(403);
+    if (!whatsappCloud.verifyToken(acc.verifyToken, req.query['hub.verify_token'])) return res.sendStatus(403);
+    res.type('text/plain').send(String(req.query['hub.challenge'] || ''));
+  } catch (e) { console.error('[sokro] whatsapp verify:', e.message); res.sendStatus(500); }
+});
+router.post('/api/channels/whatsapp/webhook/:token([0-9a-f]{48})', async (req, res) => {
+  try {
+    const acc = await waAccount.byWebhookToken(pool, req.params.token);
+    if (!acc) return res.sendStatus(403);
+    // مفتاح التطبيق مش موجود = الطلب بيترفض. الحساب اللي مادخّلش مفتاحه
+    // مايستقبلش رسايل — أأمن من إنه يستقبل أي حاجة من أي حد.
+    const raw = req.rawBody || JSON.stringify(req.body || {});
+    if (!whatsappCloud.verifySignature(acc.appSecret, raw, req.headers['x-hub-signature-256'])) {
+      return res.sendStatus(403);
+    }
+    for (const m of whatsappCloud.incoming(req.body)) {
+      if (!m.messageId || !m.text) continue;
+      // ورقم الحساب في الجسم لازم يطابق الحساب بتاع التوكن — عشان حساب
+      // مايقدرش يكتب رسايل في خانة حساب تاني.
+      if (m.phoneId && String(m.phoneId) !== String(acc.phoneNumberId)) continue;
       const fresh = (await pool.query(
         `INSERT INTO sokro_channel_messages (user_id,provider,external_message_id,sender,body,direction)
          VALUES ($1,'whatsapp_cloud',$2,$3,$4,'inbound') ON CONFLICT (external_message_id) DO NOTHING RETURNING id`,
-        [account.user_id, m.messageId, m.from, m.text]
+        [acc.userId, m.messageId, m.from, m.text]
       )).rows[0];
       if (fresh) {
-        const conv = await memory.createConversation(account.user_id, 'WhatsApp');
+        const conv = await memory.createConversation(acc.userId, 'WhatsApp');
         await memory.addMessage(conv.id, 'user', m.text);
       }
     }
@@ -694,25 +715,60 @@ router.post('/api/booking/:id([0-9]+)/submit', auth.requireAuth, async (req, res
 router.get('/api/audit/consent', auth.requireAuth, async (req, res) => {
   res.json({ ok: true, entries: await audit.list(req.sokroUser.id, req.query.limit) });
 });
+// ── ربط حساب واتساب المستخدم ────────────────────────────────────────────────
+//
+// كل مستخدم بيدخل بيانات تطبيقه هو من إعداداته. المفاتيح بتتشفّر في الخزنة،
+// والتوكن **مابيرجعش أبداً** للشاشة بعد الحفظ.
+router.get('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, account: await waAccount.status(pool, req.sokroUser.id, config.origin) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 router.post('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
-  const id = String((req.body || {}).phoneNumberId || '').trim();
-  if (!id) return res.status(400).json({ ok: false, error: 'phoneNumberId required' });
-  await pool.query(`INSERT INTO sokro_channel_accounts (user_id,provider,external_id) VALUES ($1,'whatsapp_cloud',$2)
-    ON CONFLICT (provider,external_id) DO UPDATE SET user_id=EXCLUDED.user_id`, [req.sokroUser.id, id]);
-  res.json({ ok: true, phoneNumberId: id, configured: whatsappCloud.configured() });
+  try {
+    const out = await waAccount.save(pool, req.sokroUser.id, req.body || {});
+    if (!out.ok) {
+      const why = {
+        phone_id: 'رقم Phone Number ID لازم يكون أرقام بس (من لوحة ميتا).',
+        token: 'التوكن قصير أوي — انسخه كامل من لوحة ميتا.',
+        vault: 'الخزنة المشفّرة مش متظبّطة على السيرفر، والمفاتيح مش هتتخزّن بالنضيف. ظبّط SOKRO_SECRET_KEY الأول.',
+      }[out.error] || 'مقدرتش أحفظ البيانات.';
+      return res.status(400).json({ ok: false, error: out.error, message: why });
+    }
+    res.json({ ok: true, account: await waAccount.status(pool, req.sokroUser.id, config.origin) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+router.delete('/api/channels/whatsapp/account', auth.requireAuth, async (req, res) => {
+  try {
+    await waAccount.disconnect(pool, req.sokroUser.id);
+    res.json({ ok: true, account: await waAccount.status(pool, req.sokroUser.id, config.origin) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 router.post('/api/channels/whatsapp/send', auth.requireAuth, async (req, res) => {
   if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, requiresConsent: true, error: 'explicit confirmation required' });
   const to = String(req.body.to || '').trim(), text = String(req.body.text || '').trim();
   if (!to || !text) return res.status(400).json({ ok: false, error: 'to and text required' });
   try {
-    const out = await whatsappCloud.send(to, text);
+    // بحساب المستخدم نفسه — مش برقم منصّة مشترك.
+    const creds = await waAccount.creds(pool, req.sokroUser.id);
+    if (!whatsappCloud.ready(creds)) {
+      return res.status(409).json({ ok: false, error: 'not_connected',
+        message: 'اربط رقم واتساب بتاعك من الإعدادات الأول.' });
+    }
+    const out = await whatsappCloud.send(creds, to, text);
     await pool.query(`INSERT INTO sokro_channel_messages (user_id,provider,external_message_id,sender,body,direction)
       VALUES ($1,'whatsapp_cloud',$2,$3,$4,'outbound') ON CONFLICT DO NOTHING`,
-      [req.sokroUser.id, (out.messages && out.messages[0] && out.messages[0].id) || 'wa-' + Date.now(), process.env.SOKRO_WHATSAPP_PHONE_ID, text]);
+      [req.sokroUser.id, (out.messages && out.messages[0] && out.messages[0].id) || 'wa-' + Date.now(), creds.phoneNumberId, text]);
     await audit.record(req.sokroUser.id, 'whatsapp_send', { permissions: ['social', 'submit'], outcome: 'success' });
     res.json({ ok: true, messageId: out.messages && out.messages[0] && out.messages[0].id });
-  } catch (e) { res.status(503).json({ ok: false, error: e.message }); }
+  } catch (e) {
+    // نافذة الـ٢٤ ساعة قفلت: ده مش «فشل إرسال» — ده «محتاج قالب معتمد».
+    const closed = e.metaCode === 470 || e.metaCode === 131047;
+    res.status(503).json({ ok: false, error: closed ? 'window_closed' : 'send_failed',
+      message: closed
+        ? 'عدّى ٢٤ ساعة على آخر رسالة من العميل — ميتا مابتسمحش برسالة حرّة بعدها، محتاج قالب معتمد.'
+        : e.message });
+  }
 });
 router.post('/api/calls', auth.requireAuth, async (req, res) => {
   if (!(req.body && req.body.confirmSensitive === true)) return res.status(403).json({ ok: false, requiresConsent: true, error: 'explicit confirmation required' });

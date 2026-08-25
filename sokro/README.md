@@ -103,14 +103,39 @@ sokro/
 10. Scheduler / Watchers ✅ — one-shot reminders and a delivery inbox
 11. Reports ✅
 12. Voice + UI ✅ — browser-status chip, reminders bell, secrets form
-13. Docs + Deploy + "من أعمالنا" card ✅
-14. Business channels, booking handoff, audit trail ✅
+13. Docs + Deploy + "من أعمالنا" card ✅ ← **current**
+14. Business channels, booking handoff, audit trail ✅ — WhatsApp Cloud is
+    **per user**: each person connects their own Meta app from Settings, and
+    the keys live in the encrypted vault, not in environment variables.
+
+### Next
+
+Written down because the README's job is to say what the code does *and does
+not* do yet:
+
+- **Message templates.** Meta closes the conversation 24 hours after the
+  customer's last message; after that only an approved template goes through.
+  Sokro reports Meta's refusal honestly (`window_closed`) but cannot yet
+  submit or send templates.
+- **Media messages.** Text only, both directions. An incoming image is
+  recorded as an unread message with no body.
+- **An inbox screen.** Incoming messages land in the conversation memory;
+  there is no thread view to read and reply from yet.
+- **Per-account rate limiting on the webhook.** The signature check is the
+  only gate today.
 
 ### Optional external configuration
-- WhatsApp Web remains available through the extension. WhatsApp Cloud uses
-  `SOKRO_WHATSAPP_TOKEN`, `SOKRO_WHATSAPP_PHONE_ID`, `SOKRO_WHATSAPP_VERIFY_TOKEN`,
-  and `SOKRO_WHATSAPP_APP_SECRET`; register the phone ID per Sokro account through
-  `/api/channels/whatsapp/account`. The webhook is `/api/channels/whatsapp/webhook`.
+- WhatsApp Web remains available through the extension. **WhatsApp Cloud needs
+  no environment variables at all** — each user connects their own Meta app from
+  Settings (Phone Number ID, access token, app secret, verify token). Tokens are
+  encrypted with the same vault as site credentials and are never returned to the
+  browser after they are saved; if the vault is not configured the save is
+  **refused** rather than storing a key in plaintext.
+  Each account gets its **own** webhook path,
+  `/api/channels/whatsapp/webhook/<token>`, shown in Settings. It has to be
+  per-account: Meta signs each delivery with the app secret of the app that sent
+  it, so the path is what identifies whose secret to verify against — the body
+  cannot be trusted before the signature is checked.
 - Phone calls use Twilio when `SOKRO_TWILIO_ACCOUNT_SID`, `SOKRO_TWILIO_AUTH_TOKEN`,
   and `SOKRO_TWILIO_FROM` are configured. Calling always requires
   `confirmSensitive: true`; no provider configuration means no call is attempted.
