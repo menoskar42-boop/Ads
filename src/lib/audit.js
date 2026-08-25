@@ -60,11 +60,19 @@ const SCHEMA = `
     ON ${TABLE} (system, actor_id, created_at DESC);
 `;
 
-/** The client's address, as far as we can honestly tell behind a proxy. */
+/**
+ * The client's address, as far as we can honestly tell behind a proxy.
+ *
+ * كانت بتاخد **أول** عنصر في `X-Forwarded-For` — واللي بيكتبه العميل بنفسه.
+ * يعني سجل الوصول للبيانات الطبية كان بيسجّل العنوان اللي المُرسِل اختاره،
+ * وسجل بيسجّل كلام المتّهم مش سجل. بقت من القراية المشتركة.
+ */
 function ipOf(req) {
-  const fwd = req && req.headers && req.headers['x-forwarded-for'];
-  const first = typeof fwd === 'string' ? fwd.split(',')[0].trim() : null;
-  return (first || (req && req.ip) || '').slice(0, 60) || null;
+  try {
+    return String(require('../middleware/rateLimit').clientIp(req) || '').slice(0, 60) || null;
+  } catch (e) {
+    return (req && req.ip ? String(req.ip) : '').slice(0, 60) || null;
+  }
 }
 
 /**

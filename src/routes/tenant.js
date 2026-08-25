@@ -23,7 +23,7 @@ const { createGatewayPayment, loadPaySettings, gatewayReady } = require('../lib/
 const paymob = require('../lib/gateways/paymob');
 const { getEnabledModules } = require('../clinic/modules');
 const { sendWhatsApp, renderTemplate } = require('../lib/whatsapp');
-const { rateLimit: _rl, clientIp: _cip } = require('../middleware/rateLimit');
+const { rateLimit: _rl, clientIp, clientIp: _cip } = require('../middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -1554,7 +1554,11 @@ router.post('/order/food/ai', foodOrderGuard, async (req, res) => {
   if (!message) return res.status(400).json({ ok: false, error: say('اكتب رسالتك.', 'Type your message.') });
 
   // Rate limit: 12 messages/min per (tenant, ip).
-  const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+  //
+  // العنوان من `clientIp` المشترك، مش من **أول** عنصر في `X-Forwarded-For`.
+  // الشكل القديم كان بيقرا اللي العميل بنفسه بيكتبه، فالحدّ ده كان بيتخطّى
+  // بسطر في الطلب — والشات ده بيكلّف فلوس على كل نداء.
+  const ip = clientIp(req);
   if (!aiRateOk(company.id + '|' + ip, 12)) {
     return res.status(429).json({ ok: false, error: say('محاولات كتير بسرعة، استنى شوية.', 'Too many messages, please slow down.') });
   }

@@ -89,6 +89,18 @@ const ip = (headers, peer) => RL.clientIp({ headers, socket: { remoteAddress: pe
   const rl = code('src/middleware/rateLimit.js');
   check('ومفيش قراية لأول عنصر في السلسلة',
     !/split\(','\)\[0\]/.test(rl));
+
+  // والقاعدة دي لازم تكون في **كل** مكان بيقرا عنوان، مش في الوحدة بس.
+  // كان فيه تلات أماكن تانية بتاخد أول عنصر بإيدها: حدّ شات الذكاء
+  // الاصطناعي (وده بيكلّف فلوس على كل نداء)، وعنوان طلب التقديم، وسجل
+  // الوصول للبيانات الطبية — سجل بيسجّل كلام المتّهم مش سجل.
+  const readers = ['src/routes/tenant.js', 'src/routes/apply.js', 'src/lib/audit.js'];
+  const raw = readers.filter((f) => /x-forwarded-for'\]([\s\S]{0,80})split\(','\)\[0\]/.test(code(f)));
+  check('ومفيش ملف تاني بيقرا العنوان بإيده', raw.length === 0, raw.join(', ') || 'كلهم على القراية المشتركة');
+  check('وحدّ شات الذكاء الاصطناعي على القراية المشتركة',
+    /const ip = clientIp\(req\);/.test(code('src/routes/tenant.js')));
+  check('وسجل الوصول كمان',
+    /require\('\.\.\/middleware\/rateLimit'\)\.clientIp\(req\)/.test(code('src/lib/audit.js')));
   check('والقراية دي هي اللي حدّ الدخول بيستعملها',
     /clientIp\(req\)/.test(rl) && /keyFn: \(req\) =>[\s\S]*clientIp\(req\)/.test(rl));
 }
