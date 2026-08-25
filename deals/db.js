@@ -69,13 +69,11 @@ async function initDealsDb() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
-    CREATE TABLE IF NOT EXISTS deals_admin_users (
-      id SERIAL PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
+    -- مافيش جدول مستخدمين للإدارة هنا بقصد: الدخول بيتحقّق من
+    -- DEALS_ADMIN_EMAIL/DEALS_ADMIN_PASSWORD فقط (deals/app.js). كان في جدول
+    -- deals_admin_users فاضي ومالوش أي قارئ في الكود — جدول هاشات كلمات سر
+    -- محدّش بيكتب فيه ولا بيقرا منه هو سطح هجوم مجاني، فاتشال. أي رجوع
+    -- لمستخدمين متعدّدين لازم يجي مع كود دخول بيقرا من الجدول فعلاً.
 
     INSERT INTO deals_categories (name, slug, description)
     VALUES

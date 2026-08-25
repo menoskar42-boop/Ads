@@ -5,6 +5,6 @@
 </section>
 <section id="products" class="section-head"><div><span class="eyebrow">CURATED PICKS</span><h2>منتجات مختارة</h2></div><a href="/search">عرض الكل ←</a></section>
 <% if (!products.length) { %><div class="empty">لم تتم إضافة منتجات منشورة بعد.</div><% } else { %>
-<section class="cards"><% products.forEach(p => { %><%- include('partials/product_card', { p }) %><% }) %></section><% } %>
+<%- include('partials/disclosure') %><section class="cards"><% products.forEach(p => { %><%- include('partials/product_card', { p }) %><% }) %></section><% } %>
 <% if (articles.length) { %><section class="section-head"><div><span class="eyebrow">BUYING GUIDES</span><h2>أدلة ونصائح</h2></div></section><section class="articles"><% articles.forEach(a => { %><a href="/article/<%= encodeURIComponent(a.slug) %>" class="article-card"><h3><%= a.title %></h3><p><%= a.excerpt || '' %></p><span>اقرأ الدليل ←</span></a><% }) %></section><% } %>
 <%- include('partials/footer') %>

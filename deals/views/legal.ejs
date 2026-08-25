@@ -1,3 +1,7 @@
-<%- include('partials/header', { canonicalPath: '', title: title, metaDescription: metaDescription, noindex: noindex }) %>
-<article class="legal"><span class="eyebrow">DEALS</span><h1><%= heading %></h1><p><%= body %></p></article>
+<%- include('partials/header', { canonicalPath: canonicalPath, title: title, metaDescription: metaDescription, noindex: noindex }) %>
+<article class="legal">
+  <span class="eyebrow">DEALS</span>
+  <h1><%= heading %></h1>
+  <% (Array.isArray(body) ? body : [body]).forEach((para) => { %><p><%= para %></p><% }) %>
+</article>
 <%- include('partials/footer') %>
