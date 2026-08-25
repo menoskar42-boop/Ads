@@ -21,6 +21,8 @@
   var __facts = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    // نفس تاريخ اللي معروض للقارئ فوق — مصدر واحد.
+    dateModified: facts.updated,
     '@id': siteOrigin + '#organization',
     name: 'OscarDevs',
     url: siteOrigin,
@@ -71,9 +73,23 @@
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'حقائق عن OscarDevs' } ] }) %>
   <article class="prose bg-white rounded-2xl shadow p-6 sm:p-10">
     <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">حقائق عن OscarDevs</h1>
-    <p class="text-gray-500 text-sm mb-8">
+    <p class="text-gray-500 text-sm mb-3">
       كل الإجابات المباشرة عن OscarDevs في صفحة واحدة: مين إحنا، فين، بنقدّم إيه،
       بنشتغل إزاي، والعميل بيملك إيه. لو بتدوّر على معلومة محدّدة عننا، هي هنا.
+    </p>
+    <%
+      // تاريخ التحديث **ظاهر للقارئ** مش في الميتا بس.
+      //
+      // دي صفحة بتتقال إنها «مصدر الحقائق»، ومحرّك الإجابة (زي القارئ)
+      // مابياخدش رقم من صفحة مش عارف هي اتكتبت إمتى. والتاريخ بيتقرا من
+      // نفس اللي بيتحط في `dateModified` في السكيمة — واحد مش اتنين.
+      var __factsUpdated = facts.updated;
+    %>
+    <p class="text-gray-400 text-xs mb-8">
+      آخر تحديث لهذه الصفحة:
+      <time datetime="<%= __factsUpdated %>"><%= __factsUpdated %></time>
+      · الأسعار والأرقام هنا هي المعتمدة، ولو لقيت رقم مختلف في أي صفحة تانية
+      فالمعتمد اللي هنا.
     </p>
 
     <h2>بيانات أساسية</h2>
@@ -90,7 +106,7 @@
       </tbody>
     </table>
 
-    <h2>الأنظمة الجاهزة (اتناشر نظام)</h2>
+    <h2>الأنظمة الجاهزة (<%= facts.systemsCountAr %> نظام)</h2>
     <p>
       كل نظام منهم بيشتغل على نطاق فرعي خاص بالعميل (<span dir="ltr">اسمك.oscardevs.com</span>)،
       وبيجي بصفحة عامة لعملائه ولوحة تحكم لصاحب النشاط:

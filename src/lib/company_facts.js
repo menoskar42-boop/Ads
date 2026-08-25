@@ -35,6 +35,17 @@
 
 const { PRICES, FREE_MONTHS, arabicNumber } = require('./pricing');
 
+/**
+ * آخر مرة الحقائق نفسها اتغيّرت — **مش** تاريخ النهاردة.
+ *
+ * `new Date()` كان هيخلّي الصفحة تقول «آخر تحديث: النهاردة» كل يوم، وهي
+ * ماتغيّرتش من شهور. ده ادعاء، ومحرّك الإجابة اللي بيقارن التاريخ
+ * بالمحتوى بيخسر ثقته في الصفحة كلها.
+ *
+ * غيّره **بإيدك** لما تغيّر رقم من الأرقام اللي تحت.
+ */
+const FACTS_UPDATED = '2026-08-25';
+
 /** عدد الأنظمة الجاهزة — محسوب من قايمة الأسعار، مش مكتوب. */
 const SYSTEMS_COUNT = Object.keys(PRICES).length;
 
@@ -62,6 +73,7 @@ function freeOfferLine() {
 /** الحقائق اللي القوالب بتقراها. */
 function facts() {
   return {
+    updated: FACTS_UPDATED,
     systemsCount: SYSTEMS_COUNT,
     systemsCountAr: arabicNumber(SYSTEMS_COUNT),
     freeMonths: FREE_MONTHS,
@@ -75,6 +87,7 @@ function facts() {
 }
 
 module.exports = {
+  FACTS_UPDATED,
   SYSTEMS_COUNT,
   DELIVERY_DAYS,
   DELIVERY_SCOPE,

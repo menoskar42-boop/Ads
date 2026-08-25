@@ -35,6 +35,10 @@ const check = (label, ok, extra) => {
   if (!ok) fail++;
 };
 const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+// شيل التعليقات قبل أي بحث عن **كود**: تعليق بيشرح ليه حاجة ممنوعة
+// مايصحّش يفشّل الفحص. (`new Date()` مذكورة في تعليق يشرح ليه اتشالت.)
+const code = (rel) => raw(rel).replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
 
 const CF = require('../src/lib/company_facts');
 const { PRICES } = require('../src/lib/pricing');
@@ -113,6 +117,44 @@ const f = CF.facts();
   const faq = raw('src/views/legal/faq.ejs');
   check('و`/faq` بتفرّق بين الجاهز والمخصّص',
     /أسبوع لأسبوعين/.test(faq) && /فوراً/.test(faq));
+}
+
+/* ── ٦. صفحة الحقائق مؤهّلة تتقُبس ────────────────────────────────────── */
+{
+  const page = raw('src/views/legal/company_facts.ejs');
+
+  check('صفحة الحقائق بتقرا عدد الأنظمة من المصدر',
+    /facts\.systemsCountAr/.test(page) && !/اتناشر نظام/.test(page),
+    'كانت مكتوبة «اتناشر» بالإيد');
+
+  // تاريخ التحديث **ظاهر للقارئ**، مش في الميتا بس. صفحة بتقول إنها
+  // مرجع الحقائق ومش قايلة اتكتبت إمتى مابتتقُبسش بثقة.
+  check('وفيها تاريخ تحديث ظاهر',
+    /آخر تحديث لهذه الصفحة/.test(page) && /<time datetime=/.test(page));
+
+  check('والتاريخ ده نفسه في `dateModified` بالسكيمة',
+    /dateModified: facts\.updated/.test(page));
+
+  // والتاريخ ثابت يتحدّث بالإيد — `new Date()` كان هيقول «اتحدّثت
+  // النهاردة» كل يوم وهي ماتغيّرتش، وده ادعاء بيكسر ثقة الصفحة كلها.
+  const src = code('src/lib/company_facts.js');
+  check('والتاريخ ثابت مش `new Date()`',
+    /const FACTS_UPDATED = '\d{4}-\d{2}-\d{2}'/.test(src) && !/new Date\(\)/.test(src),
+    CF.FACTS_UPDATED);
+
+  check('وبتقول صراحةً إنها المعتمدة لو رقم اختلف',
+    /فالمعتمد اللي هنا/.test(page));
+}
+
+/* ── ٧. كل صفحة بيع بتوصّل لمصدر الحقائق ─────────────────────────────── */
+{
+  // توصية الجيو: كل صفحة نظام لازم يكون فيها طريق لصفحة الحقائق، عشان
+  // اللي بيقرا (أو المحرّك) يلاقي الأرقام المعتمدة من أي مدخل.
+  const pages = ['src/views/landing/sector.ejs', 'src/views/landing/dental.ejs',
+    'src/views/landing/workshop.ejs'];
+  const missing = pages.filter((f) => !/href="\/company-facts"/.test(raw(f)));
+  check('كل صفحة قطاعية بتلينك صفحة الحقائق',
+    missing.length === 0, missing.join(', ') || pages.length + ' قالب');
 }
 
 console.log(fail ? `\n⚠️  ${fail} مخالفة.` : '\nالحقائق من مصدر واحد.');
