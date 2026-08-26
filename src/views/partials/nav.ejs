@@ -1,6 +1,14 @@
 <nav>
-  <a href="/ar/" class="nav-logo" style="display:inline-flex;align-items:center;gap:10px;text-decoration:none;">
-    <img src="/logo.png" alt="OscarDevs" width="56" height="56" style="border-radius:10px;display:block;" onerror="this.style.display='none'" />
+  <a href="/ar" class="nav-logo" style="display:inline-flex;align-items:center;gap:10px;text-decoration:none;">
+    <%# اللوجو كان PNG بـ١٠٢٤×١٠٢٤ و٦٢٤ كيلو — معروض في ٥٦×٥٦.
+        يعني كل زائر بينزّل ٦٢٤ كيلو عشان مربع صغير في الهيدر، وده أكبر
+        أصل في الصفحة كلها (رصده فحص الأداء الخارجي).
+        بقى ٥١٢×٥١٢: WebP ١٨ك للمتصفح، وPNG ٩٣ك للي مايدعمهاش — والسكيمة
+        بتفضل على PNG لأنها الأوسع دعماً في البيانات المنظّمة. %>
+    <picture>
+      <source srcset="/logo.webp" type="image/webp" />
+      <img src="/logo.png" alt="OscarDevs" width="56" height="56" style="border-radius:10px;display:block;" onerror="this.style.display='none'" />
+    </picture>
     <span class="nav-logo-text">Oscar<span>Devs</span></span>
   </a>
   <ul class="nav-links">

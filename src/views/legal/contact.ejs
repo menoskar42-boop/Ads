@@ -18,9 +18,9 @@
 
 <header class="bg-white shadow-sm">
   <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-    <a href="/ar/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <a href="/ar" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
     <nav class="text-sm text-gray-500 flex gap-3 flex-wrap">
-      <a href="/ar/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/ar" class="hover:text-indigo-700">الرئيسية</a>
       <a href="/ar/about" class="hover:text-indigo-700">من نحن</a>
       <a href="/ar/blog" class="hover:text-indigo-700">المدوّنة</a>
       <a href="/ar/faq" class="hover:text-indigo-700">الأسئلة الشائعة</a>
@@ -73,20 +73,20 @@
       </div>
       <div class="grid sm:grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم *</label>
-          <input type="text" name="name" required maxlength="100" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <label for="contact-name" class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم *</label>
+          <input id="contact-name" type="text" name="name" required maxlength="100" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         </div>
         <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1.5">البريد الإلكتروني</label>
-          <input type="email" name="email" maxlength="150" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <label for="contact-email" class="block text-sm font-semibold text-gray-700 mb-1.5">البريد الإلكتروني</label>
+          <input id="contact-email" type="email" name="email" maxlength="150" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         </div>
         <div class="sm:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-1.5">رقم الهاتف</label>
-          <input type="tel" name="phone" maxlength="30" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          <label for="contact-phone" class="block text-sm font-semibold text-gray-700 mb-1.5">رقم الهاتف</label>
+          <input id="contact-phone" type="tel" name="phone" maxlength="30" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         </div>
         <div class="sm:col-span-2">
-          <label class="block text-sm font-semibold text-gray-700 mb-1.5">الرسالة *</label>
-          <textarea name="message" rows="6" required maxlength="5000" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"></textarea>
+          <label for="contact-message" class="block text-sm font-semibold text-gray-700 mb-1.5">الرسالة *</label>
+          <textarea id="contact-message" name="message" rows="6" required maxlength="5000" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"></textarea>
         </div>
       </div>
       <button type="submit" class="bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
