@@ -144,7 +144,7 @@
         </div>
       </div>
       <div>
-        <label for="apply-preferred_slug" class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم المختصر للرابط *</label>
+        <label for="slugInput" class="block text-sm font-semibold text-gray-700 mb-1.5">الاسم المختصر للرابط *</label>
         <%# It said "/view/" — a path that exists but 301s to the subdomain. The
             canonical everywhere in this codebase is <slug>.oscardevs.com
             (docs/SEO_MISTAKES_LOG.md #1), the activation email quotes that
@@ -152,7 +152,7 @@
             them the redirecting path was telling them their address is
             something it is not. %>
         <div class="flex" dir="ltr">
-          <input id="apply-preferred_slug" type="text" name="preferred_slug" id="slugInput" value="<%= values.preferred_slug || '' %>" required maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?"
+          <input type="text" name="preferred_slug" id="slugInput" value="<%= values.preferred_slug || '' %>" required maxlength="40" pattern="[a-z0-9][a-z0-9-]{0,38}[a-z0-9]?"
             class="flex-1 border border-gray-200 rounded-l-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
           <span class="inline-flex items-center px-3 rounded-r-xl bg-gray-100 text-gray-500 text-sm border border-r-0 border-gray-200">.oscardevs.com</span>
         </div>

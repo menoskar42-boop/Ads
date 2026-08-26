@@ -29,9 +29,10 @@
   var __facts = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
-    '@id': siteOrigin + '/company-facts',
+    // بلا prefix كان بيدّي الكيان معرّف على عنوان بيتحوّل ٣٠١.
+    '@id': publicUrl('/company-facts'),
     name: 'حقائق عن OscarDevs',
-    url: siteOrigin + '/company-facts',
+    url: publicUrl('/company-facts'),
     dateModified: facts.updated,
     about: { '@id': siteOrigin + '#organization' },
     isPartOf: { '@id': siteOrigin + '#website' },

@@ -22,7 +22,9 @@
   "inLanguage": "ar",
   "isAccessibleForFree": true,
   "description": __desc,
-  "url": (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') + '/research',
+  // نفس غلطة radiology: كان بلا prefix اللغة فبيشاور على عنوان بيتحوّل.
+  "url": (typeof publicUrl !== 'undefined') ? publicUrl('/research')
+    : ((typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') + '/ar/research'),
   "featureList": ["فحص البيانات الناقصة", "كشف التكرارات", "التحقق من المعادلات", "المديات الطبية", "أخطاء الوحدات", "القيم الشاذّة", "الجاهزية الإحصائية"],
   "provider": { "@type": "Organization", "name": "OscarDevs", "url": (typeof siteOrigin !== 'undefined' ? siteOrigin : 'https://oscardevs.com') }
 }) %>

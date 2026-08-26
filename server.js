@@ -618,6 +618,26 @@ app.use('/food', foodAdminRouter);
 app.use('/clinic', clinicAdminRouter);
 app.use('/gym', require('./src/routes/gym_admin'));
 app.use('/furniture', require('./src/routes/furniture_admin'));
+/* ── `/workshop` المجرّد للزائر غير المسجّل ──────────────────────────────
+ *
+ * `/workshop` هو **لوحة تحكم** الورشة، فالزائر غير المسجّل كان بيتحوّل
+ * على `/company/login`. مراجعة الجيو الخارجية سجّلت ده P0: عنوان شكله
+ * تسويقي بيوَدّي على بوابة دخول داخلية، والزاحف بيوصل لمسار محجوب في
+ * `robots.txt`.
+ *
+ * اللي بيكتب `/workshop` وهو مش داخل غالباً عايز **صفحة البيع**، فبيروح
+ * لها. واللي داخل بيكمّل شغله عادي. والمسارات الأعمق (`/workshop/jobs`)
+ * بتفضل على الدخول — دي عناوين إدارية حقيقية صاحبها ممكن يكون حافظها.
+ *
+ * ⚠️ **٣٠٢ مش ٣٠١ عن قصد.** الوجهة بتعتمد على حالة الجلسة، و٣٠١ بيتخزّن
+ * في المتصفح **للأبد**: صاحب الورشة اللي دخل هنا وهو خارج هيتحوّل على
+ * صفحة البيع حتى بعد ما يسجّل دخوله. `no-store` بيمنع التخزين ده تماماً.
+ */
+app.get('/workshop', (req, res, next) => {
+  if (req.session && req.session.companyId) return next();
+  res.set('Cache-Control', 'no-store');
+  return res.redirect(302, langRoutes.withLang('/car-workshop-management-egypt', 'ar'));
+});
 app.use('/workshop', require('./src/routes/workshop_admin'));
 app.use('/einvoice', require('./src/routes/einvoice_admin'));
 app.use('/hall', require('./src/routes/hall_admin'));
