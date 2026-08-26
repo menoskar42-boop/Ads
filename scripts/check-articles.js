@@ -49,23 +49,23 @@ const titles = [...registry.matchAll(/title:\s*'([^']+)'/g)].map((m) => m[1]);
  * سليمة في المقالات مكسورة، وأول واحد يشغّله كان هيصلّح روابط شغّالة.
  * الفحص اللي بيبلّغ عن غلط مش موجود بيتقفل بعد تلات مرات.
  */
-function knownPaths() {
-  const files = ['server.js'].concat(
-    fs.readdirSync(path.join(ROOT, 'src/routes')).map((f) => 'src/routes/' + f));
-  const src = files.map(read).join('\n');
-  const out = new Set(
-    [...src.matchAll(/\.(?:get|use)\(\s*'(\/[a-zA-Z0-9/_-]*)'/g)].map((m) => m[1]));
-  // الصفحات القطاعية: `for (const slug of Object.keys(SECTORS))`.
-  for (const m of read('src/lib/sector_landings.js').matchAll(/^ {2}'([a-z0-9-]+)':/gm)) {
-    out.add('/' + m[1]);
-  }
-  // وصفحة الورشة متعرّفة في ثابت، والحرفي فوق مابيشوفهاش.
-  const w = /const WORKSHOP_LANDING = '([^']+)'/.exec(read('src/routes/legal.js'));
-  if (w) out.add(w[1]);
-  return out;
-}
+/**
+ * المسارات الموجودة فعلاً — **من المصدر الواحد**.
+ *
+ * ⚠️ النسخة الأولى كانت بتقرا `.get('/path')` الحرفي من ملفات التوجيه
+ * وبتضيف `SECTORS` بالإيد. النتيجة إنها مكانتش بتعرف صفحات **الخدمات**
+ * (اللي بتتسجّل بحلقة زي القطاعات بالظبط) — فمقال بيلينك
+ * `/ar/crm-development-egypt` كان بيترفض على إنه رابط مكسور، وهو سليم.
+ *
+ * الفحص اللي بيبلّغ عن غلط مش موجود بيتقفل بعد تلات مرات. فالقايمة بقت
+ * `langRoutes.publicPaths()` — نفس اللي الميدل‌وير والسايت‌ماب بيقروا
+ * منها، فأي نوع صفحات جديد بيدخل هنا لوحده.
+ */
+const langRoutes = require('../src/lib/lang_routes');
+const paths = langRoutes.publicPaths();
+// `/privacy` و`/terms` صفحات حقيقية بس `noindex` وبره القايمة عن قصد.
+for (const p of ['/privacy', '/terms']) paths.add(p);
 
-const paths = knownPaths();
 const articleSlugs = new Set(slugs);
 
 // ── ١) كل رابط داخلي بيوصل ──────────────────────────────────────────────
