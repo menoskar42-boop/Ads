@@ -82,6 +82,8 @@ function base(extra) {
 
 const { SECTORS, othersOf } = require('../src/lib/sector_landings');
 const { SERVICES, othersOf: otherServices, READY_SYSTEMS } = require('../src/lib/services');
+const gulfPages = require('../src/lib/gulf_pages');
+const markets = require('../src/lib/markets');
 
 const PAGES = {
   home: {
@@ -137,6 +139,28 @@ const PAGES = {
       readySystemsAr: require('../src/lib/pricing').arabicNumber(READY_SYSTEMS),
     },
   }])),
+  /* وصفحات الخليج — قالب مشترك تالت، وأربع صفحات مفهرسة كانت **بره
+   * الفحص خالص**. قراءة مانوس للـHTML المنشور هي اللي كشفت إن الأربعة
+   * كانوا بيعلنوا `hreflang="en"` و`x-default` على نفسهم — عيب في
+   * الميتا عاش لأن مافيش فحص بيرندر الصفحات دي أصلاً. */
+  ...Object.fromEntries(gulfPages.pages().map((p) => {
+    const g = gulfPages.build(p.market, p.topic);
+    const price = g.type ? markets.priceOf(g.type, p.market) : null;
+    return [p.path.slice(1).replace(/\//g, '_'), {
+      file: 'landing/gulf.ejs',
+      locals: {
+        page: g,
+        freeMonths: require('../src/lib/pricing').FREE_MONTHS,
+        monthly: price ? price.monthly : null,
+        buy: price ? price.buy : null,
+        demoUrl: g.demo ? 'https://' + g.demo + '.oscardevs.com/' : null,
+        lang: 'en', dir: 'ltr', langPrefix: '/en',
+        hreflang: gulfPages.alternatesFor(p.path),
+        hreflangDefault: null,
+        canonicalUrl: SITE + p.path,
+      },
+    }];
+  })),
   research:{ file: 'research/upload.ejs', locals: { aiEnabled: false, error: null, showAds: false }, noAds: true },
   help:    { file: 'legal/help.ejs',    locals: {} },
   blog_index: {

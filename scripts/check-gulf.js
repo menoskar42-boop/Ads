@@ -83,9 +83,12 @@ check('وأسعار الخليج معلّمة إنها اجتهاد مش قيا�
         siteOrigin: SITE, canonicalUrl: SITE + p.path,
         publicUrl: (x) => SITE + langRoutes.withLang(x || '/', 'ar'),
         lang: 'en', dir: 'ltr', langPrefix: '/en',
-        hreflang: langRoutes.liveLangs()
-          .filter((l) => langRoutes.pagesOf(l).has(rest))
-          .map((l) => ({ lang: langRoutes.LANGS[l].hreflang, path: langRoutes.withLang(rest, l) })),
+        /* ⚠️ **من `alternatesFor` مش محسوبة هنا تاني.** السطور اللي كانت
+         * هنا كانت بتعيد بناء منطق `lang_prefix` بإيدها — فالفحص كان
+         * بيرندر بمدخلات بيصنعها بنفسه ويتأكد منها، يعني بيختبر نفسه مش
+         * الموقع. ولما الوسم اتغيّر لـ`en-SA`/`en-AE` الفحص فضل أخضر. */
+        hreflang: gulf.alternatesFor(p.path),
+        hreflangDefault: null,
         facts: require('../src/lib/company_facts').facts(),
         pricing, assetVersion: '1', t: (k) => k, termsVersion: '1.3',
         ads: { enabled: false, publisherId: '', slots: {} }, showAds: false,
@@ -120,10 +123,19 @@ check('وأسعار الخليج معلّمة إنها اجتهاد مش قيا�
       'ده اللي بيمنع ادعاء التوافق مع ZATCA/Nphies — وهو أقوى حاجة في الصفحة.');
     check(`[${tag}] وفيه زر تبديل للعربي`, r.switchLink,
       'قرار المالك: زر ظاهر بدل تحويل تلقائي بالـIP.');
-    check(`[${tag}] hreflang بيعلن الإنجليزي بس`,
-      r.hreflang.includes('en') && !r.hreflang.includes('ar'),
-      `أعلن ${JSON.stringify(r.hreflang)}. الصفحة دي مالهاش نسخة عربية — `
-      + 'و`hreflang` بيعلن نسخة مش موجودة بيوَدّي الزاحف على ٤٠٤.');
+    /* المجموعة إقليمية: `en-SA` و`en-AE` بيسردوا بعض، مفيش وسم عربي
+     * (مافيش نسخة عربية للصفحة دي)، **ومفيش `x-default`** — قراءة مانوس
+     * للـHTML المنشور لقت الأربع صفحات بتعلن `en` و`x-default` على
+     * نفسها، يعني كل واحدة بتقول إنها هي النسخة الوحيدة وهي الافتراضي. */
+    const expected = gulf.alternatesFor(p.path).map((a) => a.lang).sort();
+    check(`[${tag}] hreflang إقليمي ومتبادل`,
+      JSON.stringify(r.hreflang.filter((h) => h !== 'x-default').sort()) === JSON.stringify(expected),
+      `أعلن ${JSON.stringify(r.hreflang)} والمفروض ${JSON.stringify(expected)}.`);
+    check(`[${tag}] مفيش نسخة عربية معلَنة`, !r.hreflang.some((h) => /^ar\b/.test(h)),
+      'الصفحة دي مالهاش نسخة عربية — وإعلان نسخة مش موجودة بيوَدّي الزاحف على ٤٠٤.');
+    check(`[${tag}] ومفيش x-default`, !r.hreflang.includes('x-default'),
+      'مافيش في المجموعة دي صفحة بلا استهداف إقليمي، والافتراضي المخترع '
+      + 'بيخلّي صفحة السعودية وصفحة الإمارات تتنافسوا على نفس المكان.');
   }
   await browser.close();
 

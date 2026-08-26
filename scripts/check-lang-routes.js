@@ -232,6 +232,45 @@ function run(host, method, url) {
   check('و`x-default` موجود', /hreflang="x-default"/.test(meta),
     'جوجل بتستخدمه لما مافيش لغة مطابقة للزائر.');
 
+  /* ── ٩-ب) مجموعة hreflang لازم تكون متبادلة وبلا وسم مكرّر ───────────
+   *
+   * قراءة مانوس للـHTML المنشور لقت الأربع صفحات خليج كلها بتقول
+   * `hreflang="en"` على نفسها و`x-default` على نفسها. يعني صفحة السعودية
+   * وصفحة الإمارات كل واحدة بتعلن إنها النسخة الإنجليزية الوحيدة وإنها
+   * الافتراضي — مش مجموعة، دول مرشّحين لنفس المكان.
+   *
+   * السبب في الكود كان سطر واحد: `x-default` كان مكتوب من `hreflang[0]`
+   * بالإيد، فأي صفحة بتوصل هنا بتعلن نفسها افتراضي. */
+  check('`x-default` مش مكتوب من `hreflang[0]` بالإيد',
+    !/hreflang="x-default"[^>]*hreflang\[0\]/.test(meta),
+    'كل صفحة في المجموعة هتعلن نفسها الافتراضي — والافتراضي بيبقى اتنين.');
+  check('و`x-default` بيتكتب بشرط', /typeof hreflangDefault !== 'undefined'/.test(meta),
+    'مجموعة الخليج مافيهاش صفحة بلا استهداف إقليمي، فماينفعش نخترع واحدة.');
+
+  const gulfPages = require('../src/lib/gulf_pages');
+  const gp = gulfPages.pages();
+  let bad = [];
+  for (const p of gp) {
+    const alts = gulfPages.alternatesFor(p.path);
+    if (!alts) { bad.push(p.path + ': مالهاش بدائل'); continue; }
+    // متبادلة: الصفحة نفسها لازم تكون عضو في مجموعتها.
+    if (!alts.some((a) => a.path === p.path)) bad.push(p.path + ': مش عضو في مجموعتها');
+    // وسم مكرّر = صفحتين على نفس المكان.
+    const tags = alts.map((a) => a.lang);
+    if (new Set(tags).size !== tags.length) bad.push(p.path + ': وسم مكرّر ' + tags.join('،'));
+    // ووسم بلا إقليم (`en` مجرّد) بيرجّعنا للغلطة الأصلية.
+    const plain = tags.filter((t) => !/^[a-z]{2}-[A-Z]{2}$/.test(t));
+    if (plain.length) bad.push(p.path + ': وسم بلا إقليم ' + plain.join('،'));
+  }
+  check('مجموعة الخليج متبادلة وكل عضو بوسم إقليمي فريد', bad.length === 0,
+    bad.join(' | ') || gp.length + ' صفحة');
+
+  // ولازم كمان الصفحة تسرد **كل** أسواق موضوعها، مش نفسها بس.
+  const markets = new Set(gp.map((p) => p.market));
+  const short = gp.filter((p) => (gulfPages.alternatesFor(p.path) || []).length !== markets.size);
+  check('وبتسرد كل أسواق موضوعها', short.length === 0,
+    short.map((p) => p.path).join('، ') || markets.size + ' سوق');
+
   /* ── ١٠) `/workshop` المجرّد مايوَدّيش على بوابة دخول ──────────────────
    *
    * مراجعة الجيو سجّلته P0: عنوان شكله تسويقي بيحوّل على `/company/login`
