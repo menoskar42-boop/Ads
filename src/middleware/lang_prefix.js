@@ -26,6 +26,7 @@
 
 const { LANGS, DEFAULT_LANG, publicPaths, pagesOf, stripLang, liveLangs, withLang } = require('../lib/lang_routes');
 const { extractSubdomain } = require('./tenant');
+const gulfPages = require('../lib/gulf_pages');
 
 module.exports = function langPrefix() {
   // بتتحسب مرة واحدة عند الإقلاع — القايمة مشتقّة من ملفات ثابتة.
@@ -81,9 +82,22 @@ module.exports = function langPrefix() {
        * الفرق مهم: `/ar/about` مالهاش نسخة إنجليزية، و`/en/sa/...` مالهاش
        * نسخة عربية. `hreflang` بيعلن نسخة مش موجودة بيوَدّي الزاحف على
        * ٤٠٤، وجوجل بتتجاهل المجموعة كلها لما البدائل ماتتطابقش. */
-      res.locals.hreflang = LIVE
-        .filter((l) => PAGES[l] && PAGES[l].has(rest))
-        .map((l) => ({ lang: LANGS[l].hreflang, path: withLang(rest, l) }));
+      /* صفحات الخليج مجموعتها **إقليمية مش لغوية**: `/en/sa/T` و
+       * `/en/ae/T` نفس اللغة وسوقين مختلفين، فالوسم `en-SA`/`en-AE`
+       * والاتنين بيسردوا بعض. تفاصيل السبب في `gulf_pages.alternatesFor`.
+       * ومفيش `x-default` هنا — مافيش فيهم صفحة بلا استهداف إقليمي. */
+      const gulfAlts = gulfPages.alternatesFor(req.path);
+      if (gulfAlts) {
+        res.locals.hreflang = gulfAlts;
+        res.locals.hreflangDefault = null;
+      } else {
+        res.locals.hreflang = LIVE
+          .filter((l) => PAGES[l] && PAGES[l].has(rest))
+          .map((l) => ({ lang: LANGS[l].hreflang, path: withLang(rest, l) }));
+        // العربي هو أصل الموقع، فهو الافتراضي لأي زائر لغته مش في المجموعة.
+        res.locals.hreflangDefault = res.locals.hreflang.length
+          ? res.locals.hreflang[0].path : null;
+      }
       // بنعيد كتابة العنوان عشان الراوترات تشوف المسار الأصلي.
       req.url = rest + (req.url.slice(req.path.length) || '');
       return next();
