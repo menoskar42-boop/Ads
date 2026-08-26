@@ -99,6 +99,11 @@ for (const slug of Object.keys(SECTORS)) {
  */
 const { SERVICES, othersOf: otherServices, READY_SYSTEMS } = require('../lib/services');
 const langRoutes = require('../lib/lang_routes');
+const contactValidate = require('../lib/contact_validate');
+/* وجهة التحويل بعد إرسال النموذج — **بالـprefix**.
+ * `/contact` بقى بيتحوّل ٣٠١ على `/ar/contact`، فتحويل النموذج عليه كان
+ * بيعمل تحويلتين ورا بعض على كل إرسال. */
+const CONTACT = langRoutes.withLang('/contact', langRoutes.DEFAULT_LANG);
 // بتتحسب مرة واحدة عند التحميل — القايمة مشتقّة من ملفات ثابتة.
 const PUBLIC_PATHS = langRoutes.publicPaths();
 const { arabicNumber } = require('../lib/pricing');
@@ -172,11 +177,17 @@ router.post('/contact', contactLimiter, async (req, res) => {
   const message = String(req.body.message || '').trim().slice(0, 5000);
   // Honeypot: a hidden field real users never fill. If a bot fills it, pretend
   // success (so it won't retry) but drop the message silently.
-  if (String(req.body.website || '').trim()) return res.redirect('/contact?sent=1');
+  if (String(req.body.website || '').trim()) return res.redirect(CONTACT + '?sent=1');
   // Link-flood: legitimate enquiries rarely contain 3+ URLs; spam almost always does.
   const linkCount = (message.match(/https?:\/\/|www\.|\bmega\.nz\b|t\.me\//gi) || []).length;
-  if (linkCount >= 3) return res.redirect('/contact?sent=1');
-  if (!name || !message) return res.redirect('/contact?error=' + encodeURIComponent('الاسم والرسالة مطلوبان'));
+  if (linkCount >= 3) return res.redirect(CONTACT + '?sent=1');
+  /* التحقّق الحقيقي — `src/lib/contact_validate.js`.
+   *
+   * كان الشرط هنا `!name || !message` بس، يعني إيميل `not-an-email` وتليفون
+   * `abc` بيتحفظوا وبيرجّعوا رسالة نجاح (مسكها فحص QA خارجي). العميل اللي
+   * يغلط في رقمه بيشوف «تم الإرسال» ويستنّى رد عمره ما هييجي. */
+  const v = contactValidate.validate({ name, email, phone, message });
+  if (!v.ok) return res.redirect(CONTACT + '?error=' + encodeURIComponent(v.error));
   try {
     // Repeat-sender spam: a bot walks past the honeypot and the link filter by
     // sending short, link-free "what's your price" notes from one address every
@@ -184,26 +195,26 @@ router.post('/contact', contactLimiter, async (req, res) => {
     // Cap any single address at 2 messages per 30 days. A real prospect who
     // needs a third follow-up has our phone and WhatsApp on the same page;
     // burying their enquiry under bot noise costs us far more than this does.
-    if (email) {
+    if (v.value.email) {
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS n FROM contact_messages
           WHERE lower(sender_email) = lower($1) AND created_at > NOW() - INTERVAL '30 days'`,
-        [email]
+        [v.value.email]
       );
       if (rows[0] && rows[0].n >= 2) {
-        console.warn('[POST /contact] repeat sender throttled:', email);
-        return res.redirect('/contact?sent=1'); // look successful so the bot stops retrying
+        console.warn('[POST /contact] repeat sender throttled:', v.value.email);
+        return res.redirect(CONTACT + '?sent=1'); // look successful so the bot stops retrying
       }
     }
     await pool.query(
       `INSERT INTO contact_messages (company_id, sender_name, sender_email, sender_phone, message)
        VALUES (NULL, $1, $2, $3, $4)`,
-      [name, email || null, phone || null, message]
+      [v.value.name, v.value.email, v.value.phone, v.value.message]
     );
-    res.redirect('/contact?sent=1');
+    res.redirect(CONTACT + '?sent=1');
   } catch (err) {
     console.error('[POST /contact] error:', err);
-    res.redirect('/contact?error=' + encodeURIComponent('حدث خطأ، حاول مرة أخرى لاحقاً.'));
+    res.redirect(CONTACT + '?error=' + encodeURIComponent('حدث خطأ، حاول مرة أخرى لاحقاً.'));
   }
 });
 
