@@ -4,6 +4,9 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
 const codes = require('../lib/codes');
+/* تصنيف نوع النشاط من قاموس واحد. كانت هنا سلسلة بتغطّي تلات أنواع
+ * بس، وأي حاجة تانية بتتسجّل في CRM «بورتفوليو» — تسعة من اتناشر. */
+const businessTypes = require('../lib/business_types');
 // كل أنواع النشاط اللي الأدمن يقدر يختارها. كانت مكتوبة مرتين بالإيد وناقصها
 // nursery و installments، فأي شركة من النوعين دول كانت بتترمي على portfolio
 // من غير أي رسالة — الحضانة تطلع صفحة أعمال. مصدر واحد دلوقتي،
@@ -599,7 +602,7 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
           `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
            VALUES ($1, $2, $3, $4, $5, 'طلب تسجيل', 'converted', $6, CURRENT_DATE + 3)`,
           [app.full_name, app.phone, app.email, app.business_name,
-           app.business_type === 'shop' ? 'متجر' : app.business_type === 'pharmacy' ? 'صيدلية' : app.business_type === 'orders' ? 'مطاعم/طلبات' : 'بورتفوليو',
+           businessTypes.crmCategoryOf(app.business_type),
            `اتفعّل الحساب — ${app.preferred_slug}`]
         );
       } else {

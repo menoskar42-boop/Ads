@@ -36,7 +36,7 @@
       <%- R('الهاتف', app.phone, true) %>
       <%- R('الدولة', app.country) %>
       <%- R('اسم النشاط', app.business_name) %>
-      <%- R('نوع الموقع', app.business_type === 'shop' ? 'متجر إلكتروني' : 'بورتفوليو') %>
+      <%- R('نوع الموقع', businessLabel(app.business_type)) %>
       <%- R('الـslug المقترح', '/view/' + app.preferred_slug, true) %>
       <div class="pt-3">
         <div class="text-xs text-gray-400 font-semibold mb-1">وصف النشاط</div>

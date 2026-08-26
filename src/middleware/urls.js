@@ -1,6 +1,7 @@
 const { canonicalCompanyUrl, companyPageUrl, isProductionHost } = require('../lib/urls');
 const shopThemes = require('../shop/themes');
 const companyFacts = require('../lib/company_facts');
+const businessTypes = require('../lib/business_types');
 
 module.exports = (req, res, next) => {
   res.locals.canonicalCompanyUrl = (slug) => canonicalCompanyUrl(slug, req);
@@ -15,5 +16,10 @@ module.exports = (req, res, next) => {
   // قاموس الحقائق: عدد الأنظمة والعرض ووقت التسليم من مصدر واحد.
   // EJS مافيهاش `require`، فالمرور الوحيد هو `res.locals`.
   res.locals.facts = companyFacts.facts();
+  /* اسم نوع النشاط. قوالب الأدمن كانت بتكتب
+   * `business_type === 'shop' ? 'متجر' : 'بورتفوليو'` — يعني إحدى عشر نوع
+   * بيتعرضوا «بورتفوليو» في لوحة الأدمن. و EJS مالوش `require`، فالمرور
+   * الوحيد هو `res.locals`. */
+  res.locals.businessLabel = (t) => businessTypes.labelOf(t);
   next();
 };
