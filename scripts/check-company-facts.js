@@ -152,7 +152,10 @@ const f = CF.facts();
   // اللي بيقرا (أو المحرّك) يلاقي الأرقام المعتمدة من أي مدخل.
   const pages = ['src/views/landing/sector.ejs', 'src/views/landing/dental.ejs',
     'src/views/landing/workshop.ejs'];
-  const missing = pages.filter((f) => !/href="\/company-facts"/.test(raw(f)));
+  // الـprefix اختياري في الفحص: الصفحات العامة بقت على `/ar/…` بعد
+  // تقسيم اللغة، والفحص ده معنيّ بإن **الرابط موجود** مش بشكل الـprefix.
+  // (وجود الـprefix نفسه بيتفحص في `check-lang-routes`.)
+  const missing = pages.filter((f) => !/href="(?:\/(?:ar|en))?\/company-facts"/.test(raw(f)));
   check('كل صفحة قطاعية بتلينك صفحة الحقائق',
     missing.length === 0, missing.join(', ') || pages.length + ' قالب');
 }

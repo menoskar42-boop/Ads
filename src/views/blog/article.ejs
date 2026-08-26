@@ -43,11 +43,11 @@
 
 <header class="bg-white shadow-sm">
   <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
-    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <a href="/ar/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
     <nav class="text-sm text-gray-500 flex gap-4">
-      <a href="/blog" class="hover:text-indigo-700">المدوّنة</a>
-      <a href="/about" class="hover:text-indigo-700">من نحن</a>
-      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+      <a href="/ar/blog" class="hover:text-indigo-700">المدوّنة</a>
+      <a href="/ar/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/ar/contact" class="hover:text-indigo-700">اتصل بنا</a>
     </nav>
   </div>
 </header>
@@ -56,7 +56,7 @@
   <%- include('../partials/breadcrumbs', { crumbs: [ { label: 'الرئيسية', href: '/' }, { label: 'المدوّنة', href: '/blog' }, { label: article.title } ] }) %>
   <article class="bg-white rounded-2xl shadow p-6 sm:p-10">
     <div class="text-xs text-gray-400 mb-3 flex items-center gap-3 flex-wrap">
-      <a href="/blog" class="hover:text-indigo-700">← كل المقالات</a>
+      <a href="/ar/blog" class="hover:text-indigo-700">← كل المقالات</a>
       <span>·</span>
       <span>نُشر في <time datetime="<%= article.date %>"><%= article.date %></time></span>
       <span>·</span>
@@ -113,14 +113,14 @@
       <div class="w-14 h-14 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-extrabold text-lg flex-shrink-0">OD</div>
       <div class="text-sm">
         <div class="font-bold text-gray-900 mb-1">فريق OscarDevs</div>
-        <p class="text-gray-600 leading-relaxed m-0">فريق متخصّص في تصميم وتطوير المواقع للسوق العربي، بخبرة عملية في بناء أكثر من عشرات المواقع للمشاريع الصغيرة والمتوسطة. كل مقالاتنا مكتوبة بناءً على مواقف حقيقية واجهناها مع عملائنا. <a href="/about" class="text-indigo-700 underline">اعرف المزيد عنّا</a>.</p>
+        <p class="text-gray-600 leading-relaxed m-0">فريق متخصّص في تصميم وتطوير المواقع للسوق العربي، بخبرة عملية في بناء أكثر من عشرات المواقع للمشاريع الصغيرة والمتوسطة. كل مقالاتنا مكتوبة بناءً على مواقف حقيقية واجهناها مع عملائنا. <a href="/ar/about" class="text-indigo-700 underline">اعرف المزيد عنّا</a>.</p>
       </div>
     </section>
 
     <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center">
       <h3 class="font-extrabold text-gray-900 text-lg mb-2">جاهز تطبّق اللي قريته؟</h3>
       <p class="text-gray-600 text-sm mb-4">قدّم طلبك على منصّتنا وابدأ خطوتك الأولى نحو موقع احترافي.</p>
-      <a href="/apply" class="inline-block bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-800 transition shadow">قدّم الآن</a>
+      <a href="/ar/apply" class="inline-block bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-800 transition shadow">قدّم الآن</a>
     </div>
   </article>
 
@@ -139,7 +139,7 @@
         }
       %>
       <% _rel.forEach(function(a){ %>
-        <a href="/blog/<%= a.slug %>" class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition border border-gray-100 block">
+        <a href="/ar/blog/<%= a.slug %>" class="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition border border-gray-100 block">
           <div class="text-xs text-gray-400 mb-1.5"><%= a.date %></div>
           <h4 class="font-bold text-gray-900 leading-snug mb-1.5"><%= a.title %></h4>
           <p class="text-xs text-gray-500 leading-relaxed"><%= a.excerpt %></p>
@@ -147,7 +147,7 @@
       <% }) %>
     </div>
     <div class="text-center mt-5">
-      <a href="/blog" class="inline-block text-indigo-700 font-bold text-sm hover:underline">كل المقالات ←</a>
+      <a href="/ar/blog" class="inline-block text-indigo-700 font-bold text-sm hover:underline">كل المقالات ←</a>
     </div>
   </section>
 </main>

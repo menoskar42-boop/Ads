@@ -5,6 +5,17 @@
   var __desc    = (typeof description !== 'undefined' && description) ? description : '';
   var __canon   = (typeof canonical   !== 'undefined' && canonical)   ? canonical   : canonicalUrl;
 %>
+<%# بدائل اللغة. بتتحط من `lang_prefix` للصفحات العامة اللي تحت prefix
+    لغة بس — صفحات المستأجرين ولوحات التحكم مالهاش نسخ لغوية بروابط
+    مستقلة، وكتابة `hreflang` عليها كانت هتعلن نسخة مش موجودة.
+
+    والـ`x-default` بتوَدّي على العربي لأنه لغة الموقع الأصلية. %>
+<% if (typeof hreflang !== 'undefined' && hreflang && hreflang.length) { %>
+<% hreflang.forEach(function (h) { %>
+<link rel="alternate" hreflang="<%= h.lang %>" href="<%= siteOrigin + h.path %>" />
+<% }); %>
+<link rel="alternate" hreflang="x-default" href="<%= siteOrigin + hreflang[0].path %>" />
+<% } %>
 <% if (typeof process !== 'undefined' && process.env && process.env.GOOGLE_SITE_VERIFICATION) { %>
 <meta name="google-site-verification" content="<%= process.env.GOOGLE_SITE_VERIFICATION %>" />
 <% } %>

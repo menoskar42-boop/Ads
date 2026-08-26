@@ -81,3 +81,8 @@ async function tenantMiddleware(req, res, next) {
 }
 
 module.exports = tenantMiddleware;
+// `extractSubdomain` هو التعريف الوحيد لـ«ده سَبدومين مستأجر ولا الدومين
+// الأساسي». `lang_prefix` محتاجه عشان مايحوّلش صفحة تاجر على `/ar/` —
+// وده كان هيكسر الصفحة الرئيسية لكل تاجر عندنا مرة واحدة. نسخة تانية من
+// نفس المنطق كانت هتفترق عن دي أول ما يتضاف دومين أساسي جديد.
+module.exports.extractSubdomain = extractSubdomain;
