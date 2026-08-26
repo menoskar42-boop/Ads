@@ -39,6 +39,8 @@ const CHROME = process.env.CHROME_PATH
 const PAGES = [
   ['legal/contact.ejs', 'نموذج التواصل'],
   ['apply/form.ejs', 'نموذج التقديم'],
+  // فحص QA خارجي فضل يبلّغ عن الصفحة دي بعد ما الاتنين فوق اتصلّحوا.
+  ['company/login.ejs', 'بوابة الدخول'],
 ];
 
 /** الحقول اللي مالهاش label بالتصميم. */
@@ -90,6 +92,25 @@ function locals() {
       }
       return { total: fields.length, bad };
     }, [...EXEMPT]);
+    /* ⚠️ ومعرّف مكرّر على نفس الحقل.
+     *
+     * حصلت فعلاً: الربط الآلي حطّ `id="apply-preferred_slug"` على حقل
+     * كان عنده `id="slugInput"` خلاص. المتصفح بياخد الأول ويرمي التاني،
+     * فالجافاسكريبت اللي بيدوّر على `slugInput` (فحص توفّر الاسم) وقع في
+     * صمت — الـlabel اتظبط والميزة اتكسرت. */
+    const dupIds = await page.evaluate(() => {
+      const seen = {};
+      const bad = [];
+      for (const el of document.querySelectorAll('[id]')) {
+        if (seen[el.id]) bad.push(el.id);
+        seen[el.id] = true;
+      }
+      return bad;
+    });
+    if (dupIds.length) {
+      console.log(`❌ ${label} — معرّف مكرّر: ${dupIds.join('، ')}`);
+      failed += 1;
+    }
     await page.close();
 
     const ok = r.bad.length === 0;

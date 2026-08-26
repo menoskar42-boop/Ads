@@ -232,5 +232,28 @@ function run(host, method, url) {
   check('و`x-default` موجود', /hreflang="x-default"/.test(meta),
     'جوجل بتستخدمه لما مافيش لغة مطابقة للزائر.');
 
+  /* ── ١٠) `/workshop` المجرّد مايوَدّيش على بوابة دخول ──────────────────
+   *
+   * مراجعة الجيو سجّلته P0: عنوان شكله تسويقي بيحوّل على `/company/login`
+   * — وده مسار محجوب في `robots.txt`، فالزاحف بيوصل لحيطة.
+   *
+   * ⚠️ والتحويل لازم يبقى **٣٠٢ مش ٣٠١**: الوجهة بتعتمد على حالة الجلسة،
+   * و٣٠١ بيتخزّن في المتصفح للأبد — يعني صاحب الورشة اللي دخل وهو خارج
+   * هيتحوّل على صفحة البيع حتى بعد ما يسجّل دخوله. */
+  const srv = read('server.js').replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const wsGet = srv.indexOf("app.get('/workshop'");
+  const wsUse = srv.indexOf("app.use('/workshop'");
+  check('`/workshop` المجرّد ليه راوت قبل ماونت اللوحة',
+    wsGet > 0 && wsGet < wsUse,
+    'من غيره الزائر غير المسجّل بيتحوّل على بوابة دخول داخلية.');
+  check('وبيوَدّي على صفحة البيع مش على الدخول',
+    /redirect\(302, langRoutes\.withLang\('\/car-workshop-management-egypt'/.test(srv),
+    'الوجهة لازم تكون الصفحة العامة.');
+  check('وبـ٣٠٢ + `no-store` مش ٣٠١',
+    /Cache-Control', 'no-store'/.test(srv) && !/redirect\(301, langRoutes\.withLang\('\/car-workshop/.test(srv),
+    '٣٠١ هيتخزّن في متصفح صاحب الورشة ويحوّله على صفحة البيع بعد ما يدخل.');
+  check('واللي داخل بيكمّل عادي', /if \(req\.session && req\.session\.companyId\) return next\(\);/.test(srv.slice(wsGet, wsGet + 400)),
+    'من غير الشرط ده، صاحب الورشة مش هيقدر يفتح لوحته خالص.');
+
   process.exit(failed ? 1 : 0);
 })();

@@ -461,6 +461,24 @@ const LOGIN_FAILED = 'البريد الإلكتروني أو كلمة المرو
   + 'لو لسه مستني الموافقة على طلبك، تابعه من صفحة «متابعة الطلب».';
 
 const { loginLimiter } = require('../middleware/rateLimit');
+/* ── حسابات الديمو مايدخلوش بكلمة سر ─────────────────────────────────────
+ *
+ * كلمات سر شركات الديمو كانت في `src/db/seed.js` واتمسحت من الشجرة، بس
+ * **لسه في تاريخ Git** — واللي بيقرا التاريخ كان يقدر يدخل بيها ويكتب،
+ * لأن الدخول العادي بيلغّي وضع القراءة فقط.
+ *
+ * الرسالة بتوَدّي على الديمو نفسه، فاللي وصل هنا بالغلط بيلاقي طريقه.
+ */
+/* ⚠️ الرفض بيرجع **نفس جملة الفشل العامة** — مش رسالة مخصّصة.
+ *
+ * أول نسخة كانت بتقول «ده حساب عرض، افتح الديمو من كذا». مفيدة للزائر،
+ * بس بتفرّق عن رسالة الفشل العادية — يعني بتكشف إن الإيميل ده **موجود**
+ * في النظام. اللي بيجرّب إيميلات عشوائية بيقدر يميّز اللي موجود من اللي
+ * مش موجود من غير ما يعرف كلمة سر. (مسكها `check-login-leak`.)
+ *
+ * الإرشاد اتنقل لصفحة الدخول نفسها كنص ثابت ظاهر للكل — نفس الفايدة،
+ * وصفر تسريب. */
+
 router.post('/login', loginLimiter, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const password = String(req.body.password || '');
@@ -491,6 +509,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       );
       if (staffR.rows.length) {
         const st = staffR.rows[0];
+        // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+        if (demoMode.isDemoLogin(st.slug)) return renderLogin({ error: LOGIN_FAILED });
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
@@ -517,6 +537,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       );
       if (clinicR.rows.length) {
         const st = clinicR.rows[0];
+        // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+        if (demoMode.isDemoLogin(st.slug)) return renderLogin({ error: LOGIN_FAILED });
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
@@ -543,6 +565,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       );
       if (foodR.rows.length) {
         const st = foodR.rows[0];
+        // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+        if (demoMode.isDemoLogin(st.slug)) return renderLogin({ error: LOGIN_FAILED });
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
@@ -571,6 +595,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       );
       if (shopR.rows.length) {
         const st = shopR.rows[0];
+        // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+        if (demoMode.isDemoLogin(st.slug)) return renderLogin({ error: LOGIN_FAILED });
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
@@ -597,6 +623,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       );
       if (gymR.rows.length) {
         const st = gymR.rows[0];
+        // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+        if (demoMode.isDemoLogin(st.slug)) return renderLogin({ error: LOGIN_FAILED });
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
@@ -623,6 +651,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       );
       if (nutriR.rows.length) {
         const st = nutriR.rows[0];
+        // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+        if (demoMode.isDemoLogin(st.slug)) return renderLogin({ error: LOGIN_FAILED });
         const ok = st.password_hash && await bcrypt.compare(password, st.password_hash);
         if (!ok) return renderLogin({ error: LOGIN_FAILED });
         req.session.companyId = st.company_id;
@@ -660,6 +690,8 @@ router.post('/login', loginLimiter, async (req, res) => {
       return renderLogin({ error: LOGIN_FAILED });
     }
     const user = result.rows[0];
+    // حساب عرض: مافيش دخول بكلمة سر عليه، مهما كانت صح.
+    if (demoMode.isDemoLogin(user.slug)) return renderLogin({ error: LOGIN_FAILED });
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
       return renderLogin({ error: LOGIN_FAILED });

@@ -167,6 +167,43 @@ const PAGES = [
     `${handmade.join('، ')} لسه بيركّبوا \`siteOrigin + "/"...\`. `
     + 'الدالة الواحدة هي اللي بتمنع رجوع الغلطة من قالب جديد.');
 
+  /* ── ٢ب) ومفيش أي قالب في المستودع بيركّب عنوان صفحة عامة بإيده ───────
+   *
+   * القاعدة اللي فوق بتفحص قالبين بس. لكن نفس الغلطة كانت في **أربع
+   * صفحات تانية** اتكشفت بعد النشر:
+   *
+   *   · `radiology/landing.ejs` — كانونيكال على `/radiology` بلا prefix،
+   *     يعني الصفحة بتقول إن نسختها الأصلية عنوان بيرجّعك لها هي نفسها.
+   *   · `research/upload.ejs`   — نفس الحاجة في `url` بتاع السكيمة.
+   *   · `legal/company_facts.ejs` — `@id` و`url` للكيان.
+   *
+   * التقارير الخارجية مسكت واحدة منهم بس. المسح ده بيمسك الأربعة وأي
+   * واحدة جاية — بيمشي على كل القوالب ويدوّر على `siteOrigin + '/…'`
+   * لمسار **موجود في قايمة الصفحات العامة**.
+   *
+   * الأصول (`/og-default.png`) والمسارات المش عامة (`/apply/status`)
+   * مستثناة: مالهاش نسخ لغوية أصلاً. */
+  const publicSet = langRoutes.publicPaths();
+  const handBuilt = [];
+  (function walk(dir) {
+    for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, f.name);
+      if (f.isDirectory()) { walk(full); continue; }
+      if (!f.name.endsWith('.ejs')) continue;
+      const txt = fs.readFileSync(full, 'utf8').replace(/<%#[\s\S]*?%>/g, ' ')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+      for (const m of txt.matchAll(/siteOrigin[^;\n]{0,40}\+\s*'(\/[a-z0-9/-]+)'/g)) {
+        if (publicSet.has(m[1])) {
+          handBuilt.push(`${path.relative(ROOT, full)} → ${m[1]}`);
+        }
+      }
+    }
+  }(path.join(ROOT, 'src/views')));
+  check('مفيش قالب بيركّب عنوان صفحة عامة بإيده', handBuilt.length === 0,
+    handBuilt.join('\n   ') + '\n   العنوان المركّب بالإيد بيفضل بلا prefix بعد '
+    + 'تقسيم اللغة — فالصفحة بتشاور على عنوان بيتحوّل عليها هي نفسها. '
+    + 'استخدم `publicUrl(path)`.');
+
   // ── ٣) و`publicUrl` متوفّرة في السيرفر ──────────────────────────────
 
   const server = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8')
