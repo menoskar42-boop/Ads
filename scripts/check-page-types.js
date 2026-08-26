@@ -164,13 +164,24 @@ for (const f of ['src/views/admin/companies/add.ejs', 'src/views/admin/companies
 
   // The summary blockquote states a count. A count that disagrees with the list
   // under it is a source that contradicts itself in its own one-line summary.
+  //
+  // The count is no longer a word typed into the file — it is interpolated from
+  // `company_facts` (itself computed from `pricing.js`), so the check is now:
+  // does the summary READ the count instead of stating one? A hand-typed number
+  // word anywhere in that line is the regression.
   const WORDS = { 8: 'تمانية', 9: 'تسعة', 10: 'عشرة', 11: 'حداشر', 12: 'اتناشر', 13: 'تلتاشر' };
-  const quote = (llms.match(/lines\.push\('>([^']*)'\)/) || ['', ''])[1];
-  const stale = Object.entries(WORDS).filter(([n, w]) => Number(n) !== TYPES.length && quote.includes(w));
-  check(`the llms.txt summary says ${TYPES.length} (${WORDS[TYPES.length] || TYPES.length})`,
-    stale.length === 0 && (!WORDS[TYPES.length] || quote.includes(WORDS[TYPES.length])),
-    stale.length ? `it says "${stale[0][1]}" and there are ${TYPES.length}`
-      : `expected the word "${WORDS[TYPES.length]}" in the summary line`);
+  const quote = (llms.match(/lines\.push\(`>[^`]*`\)/) || ['', ''])[0];
+  const typed = Object.entries(WORDS).filter(([, w]) => quote.includes(w));
+  check('the llms.txt summary reads the count instead of stating one',
+    /systemsCountAr/.test(quote) && typed.length === 0,
+    typed.length ? `the count "${typed[0][1]}" is typed into the summary — read it from facts`
+      : 'expected ${companyFacts.facts().systemsCountAr} in the summary line');
+
+  // ...and it must say plainly that /dental is a specialisation, not an extra
+  // system. `llms.txt` listed dental as a system page beside a count of twelve,
+  // so an answer engine reading it could not tell whether there are 12 or 13.
+  check('and llms.txt says dental is inside the clinic system, not a 13th',
+    /مش نظام إضافي/.test(llms) && /جوّه نظام العيادة/.test(llms));
 }
 
 console.log(failed ? `\n⚠️  ${failed} مشكلة — نوع نشاط ناقص في مكان ما.`
