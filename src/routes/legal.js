@@ -87,6 +87,28 @@ for (const slug of Object.keys(SECTORS)) {
   });
 }
 
+/* ── خط التطوير المخصّص (قرار المالك ٢٠٢٦-٠٨-٢٦) ────────────────────────
+ *
+ * تلات صفحات خدمة: تطوير مخصّص · CRM · SaaS. مصدر كلامها
+ * `src/lib/services.js` بنفس مبدأ الصفحات القطاعية.
+ *
+ * ⚠️ **دي خدمات مش أنظمة.** العدد اللي بيتقال في الرئيسية و`llms.txt`
+ * وصفحة الحقائق هو عدد الأنظمة الجاهزة (من `PRICES`) — والتلاتة دول
+ * مالهمش علاقة بيه. كل صفحة بتقول ده بنفسها في قسم التسعير عشان محرّك
+ * الإجابة ما يجمعش ١٢ + ٣ ويطلع بـ١٥.
+ */
+const { SERVICES, othersOf: otherServices, READY_SYSTEMS } = require('../lib/services');
+const { arabicNumber } = require('../lib/pricing');
+for (const slug of Object.keys(SERVICES)) {
+  router.get('/' + slug, (req, res) => {
+    res.render('landing/service', {
+      service: Object.assign({ slug }, SERVICES[slug]),
+      others: otherServices(slug),
+      readySystemsAr: arabicNumber(READY_SYSTEMS),
+    });
+  });
+}
+
 // One page a model can quote a fact off. The external GEO review scored our
 // entity clarity 7/10 and "likely to be cited" 4/10: everything about us was
 // spread across marketing copy, so answering "where are they, what do they
@@ -241,6 +263,8 @@ router.get('/sitemap.xml', async (req, res) => {
     { loc: '/company-facts', priority: '0.7', changefreq: 'monthly', lastmod: today },
     { loc: '/compare', priority: '0.7', changefreq: 'monthly', lastmod: today },
     ...Object.keys(SECTORS).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
+    // خدمات التطوير المخصّص — مش أنظمة جاهزة، بس صفحات مفهرسة زيها.
+    ...Object.keys(SERVICES).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: WORKSHOP_LANDING, priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
@@ -417,6 +441,16 @@ router.get('/llms.txt', (req, res) => {
   lines.push('## صفحات الأنظمة (صفحة مرجعية لكل نظام)');
   for (const [slug, sec] of Object.entries(SECTORS)) {
     lines.push(`- [${sec.title.split('—')[0].trim()}](${SITE_ORIGIN}/${slug}): ${sec.desc}`);
+  }
+  lines.push('');
+  // خط التطوير المخصّص. **مفصول عن قايمة الأنظمة عن قصد** ومعاه جملة
+  // بتقول إنه خدمة مش نظام — عشان اللي بيقرا الملف ما يجمعش التلاتة
+  // على الاتناشر ويقول خمستاشر نظام. نفس مشكلة «١٢ ولا ١٣» اللي
+  // اتصلّحت فوق، وبتتكرّر بالظبط كده لو الفصل مش مكتوب.
+  lines.push('## خدمات التطوير المخصّص (خدمات — مش أنظمة جاهزة)');
+  lines.push(`> **توضيح للعدّ:** التلات صفحات دي **خدمات تطوير**، مش أنظمة جاهزة. عدد الأنظمة الجاهزة فضل ${companyFacts.facts().systemsCountAr} زي ما هو مكتوب فوق. الفرق: النظام الجاهز ليه سعر ثابت وتشغيل فوري، والخدمة سعرها بيتحدّد بعد وثيقة نطاق مكتوبة.`);
+  for (const [slug, sv] of Object.entries(SERVICES)) {
+    lines.push(`- [${sv.title.split('—')[0].trim()}](${SITE_ORIGIN}/${slug}): ${sv.desc}`);
   }
   lines.push('');
   lines.push('## صفحات أساسية');

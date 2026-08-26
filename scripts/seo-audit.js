@@ -74,6 +74,7 @@ function base(extra) {
 }
 
 const { SECTORS, othersOf } = require('../src/lib/sector_landings');
+const { SERVICES, othersOf: otherServices, READY_SYSTEMS } = require('../src/lib/services');
 
 const PAGES = {
   home: {
@@ -117,6 +118,16 @@ const PAGES = {
       sector: Object.assign({ slug }, SECTORS[slug]),
       others: othersOf(slug),
       demoUrl: 'https://' + SECTORS[slug].demo + '.oscardevs.com/',
+    },
+  }])),
+  // وخدمات التطوير المخصّص — قالب مشترك تاني، فكل واحدة بتتفحص لوحدها
+  // لنفس السبب: قالب مشترك بيخلّي شحن تلات صفحات doorway رخيص بالغلط.
+  ...Object.fromEntries(Object.keys(SERVICES).map((slug) => [slug, {
+    file: 'landing/service.ejs',
+    locals: {
+      service: Object.assign({ slug }, SERVICES[slug]),
+      others: otherServices(slug),
+      readySystemsAr: require('../src/lib/pricing').arabicNumber(READY_SYSTEMS),
     },
   }])),
   research:{ file: 'research/upload.ejs', locals: { aiEnabled: false, error: null, showAds: false }, noAds: true },
