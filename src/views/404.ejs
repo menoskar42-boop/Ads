@@ -32,11 +32,26 @@
     <% } else { %>
       <p class="text-gray-500 mb-8">الصفحة اللي بتدور عليها مش موجودة. جرّب الروابط التالية:</p>
     <% } %>
-    <div class="flex flex-wrap items-center justify-center gap-3">
-      <a href="/" class="inline-block bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-800 transition shadow">الرئيسية</a>
-      <a href="/blog" class="inline-block bg-gray-100 text-gray-700 font-bold px-6 py-2.5 rounded-xl hover:bg-gray-200 transition">المدوّنة</a>
-      <a href="/about" class="inline-block bg-gray-100 text-gray-700 font-bold px-6 py-2.5 rounded-xl hover:bg-gray-200 transition">من نحن</a>
-      <a href="/contact" class="inline-block bg-gray-100 text-gray-700 font-bold px-6 py-2.5 rounded-xl hover:bg-gray-200 transition">اتصل بنا</a>
+    <%# الروابط كانت `/` و`/blog` و`/about` بلا prefix — يعني كل رابط في
+        صفحة الخطأ نفسه بيعمل تحويلة ٣٠١. والزائر اللي وصل هنا أصلاً تايه،
+        فآخر حاجة يحتاجها قفزة زيادة.
+
+        ومراجعتان خارجيتان طلبوا نفس الحاجة: صفحة الخطأ لازم تدّي مسار
+        للمنتج مش رسالة «مش موجودة» وخلاص. الأنظمة تحت هي المسار ده. %>
+    <div class="flex flex-wrap items-center justify-center gap-3 mb-8">
+      <a href="/ar" class="inline-block bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl hover:bg-indigo-800 transition shadow">الرئيسية</a>
+      <a href="/ar/blog" class="inline-block bg-gray-100 text-gray-700 font-bold px-6 py-2.5 rounded-xl hover:bg-gray-200 transition">المدوّنة</a>
+      <a href="/ar/about" class="inline-block bg-gray-100 text-gray-700 font-bold px-6 py-2.5 rounded-xl hover:bg-gray-200 transition">من نحن</a>
+      <a href="/ar/contact" class="inline-block bg-gray-100 text-gray-700 font-bold px-6 py-2.5 rounded-xl hover:bg-gray-200 transition">اتصل بنا</a>
+    </div>
+
+    <div class="border-t border-gray-200 pt-7">
+      <p class="text-gray-500 text-sm mb-4">أو روح على النظام اللي بتدوّر عليه:</p>
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        <% (typeof errorSectors !== 'undefined' && errorSectors ? errorSectors : []).forEach(function (x) { %>
+        <a href="/ar/<%= x.slug %>" class="inline-block bg-white border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-full hover:border-indigo-300 hover:text-indigo-700 transition"><%= x.label %></a>
+        <% }); %>
+      </div>
     </div>
   </div>
 </body>
