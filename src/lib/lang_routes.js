@@ -131,4 +131,21 @@ function stripLang(p) {
   return { lang: m[1], rest: m[2] || '/' };
 }
 
-module.exports = { LANGS, DEFAULT_LANG, liveLangs, publicPaths, pagesOf, withLang, stripLang };
+/**
+ * كل الصفحات العامة كعناوين كاملة **بالـprefix** — لكل لغة شغّالة.
+ *
+ * ⚠️ اتكتبت لأن رابط ping-indexnow اليدوي كان بيبني
+ * `SITE_ORIGIN + '/about'` بإيده — يعني بيبعت لمحرّكات البحث عناوين
+ * بتتحوّل ٣٠١. تبليغ محرّك بعنوان بيتحوّل بيضيّع الغرض من التبليغ.
+ */
+function publicUrls(origin) {
+  const out = [];
+  for (const lang of liveLangs()) {
+    for (const p of pagesOf(lang)) out.push(origin + withLang(p, lang));
+  }
+  return out;
+}
+
+module.exports = {
+  LANGS, DEFAULT_LANG, liveLangs, publicPaths, pagesOf, publicUrls, withLang, stripLang,
+};
