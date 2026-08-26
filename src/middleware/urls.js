@@ -3,6 +3,14 @@ const shopThemes = require('../shop/themes');
 const companyFacts = require('../lib/company_facts');
 const businessTypes = require('../lib/business_types');
 
+/* بتتحسب مرة واحدة عند التحميل — مشتقّة من قايمة الأنظمة نفسها، فأي نظام
+ * جديد بيظهر في صفحة الخطأ لوحده. */
+const { SECTORS } = require('../lib/sector_landings');
+const errorSectors = Object.keys(SECTORS).map((slug) => ({
+  slug,
+  label: SECTORS[slug].title.split('—')[0].trim(),
+}));
+
 module.exports = (req, res, next) => {
   res.locals.canonicalCompanyUrl = (slug) => canonicalCompanyUrl(slug, req);
   // For anything UNDER a company's site. Templates used to concatenate onto the
@@ -21,5 +29,9 @@ module.exports = (req, res, next) => {
    * بيتعرضوا «بورتفوليو» في لوحة الأدمن. و EJS مالوش `require`، فالمرور
    * الوحيد هو `res.locals`. */
   res.locals.businessLabel = (t) => businessTypes.labelOf(t);
+  /* الأنظمة اللي بتتعرض في صفحة الخطأ. الزائر اللي وصل ٤٠٤ تايه، والمسار
+   * الوحيد اللي كان قدّامه «الرئيسية». مراجعتان خارجيتان طلبوا مسار
+   * للمنتج بدل رسالة خطأ عارية. */
+  res.locals.errorSectors = errorSectors;
   next();
 };
