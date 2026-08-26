@@ -36,14 +36,23 @@ const { SERVICES } = require('./services');
  * عليه — الطلب بيرجع ٤٠٤ بدل ما يرندر عربي تحت `/en/`.
  */
 const LANGS = {
-  ar: { dir: 'rtl', hreflang: 'ar', live: true },
-  en: { dir: 'ltr', hreflang: 'en', live: false },
+  ar: { dir: 'rtl', hreflang: 'ar' },
+  en: { dir: 'ltr', hreflang: 'en' },
 };
 
 const DEFAULT_LANG = 'ar';
 
-/** اللغات اللي ليها صفحات فعلاً دلوقتي. */
-const liveLangs = () => Object.keys(LANGS).filter((l) => LANGS[l].live);
+/**
+ * اللغات اللي ليها صفحات فعلاً — **محسوبة مش معلَن عنها**.
+ *
+ * كان فيه علم `live: true/false` بيتحط بالإيد. ده كان بيشتغل لما الإنجليزي
+ * كان فاضي تماماً، بس علم بيتحط بالإيد بيقدر يتحط غلط: حد يفتحه وهو فاضي،
+ * أو ينساه مقفول بعد ما يكتب المحتوى.
+ *
+ * دلوقتي اللغة «شغّالة» لو **عندها صفحات**. مافيش صفحات = مافيش لغة،
+ * ومفيش `hreflang` بيعلن نسخة مش موجودة. الحساب من الواقع مش من نيّة.
+ */
+const liveLangs = () => Object.keys(LANGS).filter((l) => pagesOf(l).size > 0);
 
 /**
  * الصفحات العامة القابلة للفهرسة — **محسوبة مش مكتوبة**.
@@ -65,6 +74,26 @@ function publicPaths() {
   for (const s of Object.keys(SERVICES)) out.add('/' + s);
   for (const a of ARTICLES) out.add('/blog/' + a.slug);
   return out;
+}
+
+/**
+ * صفحات اللغة دي.
+ *
+ * العربي = كل الصفحات العامة (الموقع أصله عربي). الإنجليزي = صفحات
+ * الخليج بس — **مش ترجمة للموقع**. الصفحات العامة العربية عربي ثابت في
+ * القالب (صفر `t()`)، فنسخة إنجليزية منها دلوقتي هتبقى نص عربي تحت رابط
+ * إنجليزي: محتوى مكرّر و`hreflang` بيكدب مع بعض.
+ *
+ * فالإنجليزي مفتوح على **اللي اتكتب بالإنجليزي فعلاً** وبس.
+ */
+function pagesOf(lang) {
+  if (lang === 'ar') return publicPaths();
+  if (lang === 'en') {
+    const { pages } = require('./gulf_pages');
+    // المسار جوّه `pagesOf` بيبقى من غير prefix اللغة — `/sa/...`.
+    return new Set(pages().map((p) => p.path.replace(/^\/en/, '')));
+  }
+  return new Set();
 }
 
 /**
@@ -102,4 +131,4 @@ function stripLang(p) {
   return { lang: m[1], rest: m[2] || '/' };
 }
 
-module.exports = { LANGS, DEFAULT_LANG, liveLangs, publicPaths, withLang, stripLang };
+module.exports = { LANGS, DEFAULT_LANG, liveLangs, publicPaths, pagesOf, withLang, stripLang };
