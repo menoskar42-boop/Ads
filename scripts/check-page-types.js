@@ -33,14 +33,23 @@ const applySrc = read('src/routes/apply.js');
 // Named constant first — the list used to be inlined at both call sites, and
 // naming it is what stops the two copies drifting. The inline forms are still
 // accepted so this keeps working if it is ever written that way again.
-const m = /const BUSINESS_TYPES = \[([^\]]+)\]/.exec(applySrc)
-  || /\[((?:\s*'[a-z_]+'\s*,?)+)\]\.includes\(req\.body\.business_type\)/.exec(applySrc)
-  || /\[((?:\s*'[a-z_]+'\s*,?)+)\]\.includes\(req\.query\.type\)/.exec(applySrc);
-if (!m) {
-  console.log('❌ could not find the business_type whitelist in src/routes/apply.js');
+/* القايمة بقت بتتقرا من `src/lib/business_types.js` — القاموس الواحد.
+ *
+ * كانت متكتوبة حرفياً هنا وفي `apply.js`، والمراجعة الخارجية كشفت إن
+ * فيه نسخة تالتة ناقصة في `admin.js` وقوالب الأدمن كانت بتصنّف تسعة من
+ * اتناشر نوع «بورتفوليو». الفحص بيقرا من نفس المصدر اللي الكود بيقرا
+ * منه، وبيتأكد إن `apply.js` فعلاً بيستخدمه مش نسخة تانية. */
+const inline = /const BUSINESS_TYPES = \[([^\]]+)\]/.exec(applySrc);
+if (inline) {
+  console.log('❌ `apply.js` لسه فيه قايمة أنواع مكتوبة بالإيد — '
+    + 'لازم يقرا من `src/lib/business_types.js` عشان مايبقاش فيه نسختين.');
   process.exit(1);
 }
-const TYPES = m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+if (!/require\(['"]\.\.\/lib\/business_types['"]\)/.test(applySrc)) {
+  console.log('❌ `apply.js` مش بيقرا من `src/lib/business_types.js`.');
+  process.exit(1);
+}
+const TYPES = require('../src/lib/business_types').KEYS;
 console.log('page types: ' + TYPES.join(', ') + '\n');
 
 // ── 1. The public application form must offer every one of them ─────────────
@@ -62,14 +71,37 @@ for (const f of ['src/views/admin/companies/add.ejs', 'src/views/admin/companies
     + 'Missing: ' + missing.join(', '));
 }
 
-// ── 3. The CRM must not file a new vertical under "portfolio" ───────────────
+/* ── 3. الـCRM مايصنّفش أي نوع تحت «بورتفوليو» ───────────────────────────
+ *
+ * كان الفحص بيدوّر على `business_type === '<نوع>'` في `apply.js` — يعني
+ * بيتأكد إن **السلسلة** فيها فرع لكل نوع. ده كان صح وقتها، بس بيقيس
+ * الشكل مش السلوك: `admin.js` كان فيه سلسلة تانية بتلات أنواع بس،
+ * والفحص مكانش بيشوفها أصلاً. (كشفتها مراجعة كود خارجية.)
+ *
+ * دلوقتي الفحص **بينده الدالة** على كل نوع ويشوف بترجّع إيه. ده بيمسك
+ * الحالة دي بغض النظر عن شكل الكود، وبيمسك كمان أي نوع جديد يتضاف
+ * لـ`TYPES` من غير ما يتسجّل في القاموس. */
 {
-  // Every type except the portfolio default needs its own branch.
-  const missing = TYPES.filter((t) => t !== 'portfolio'
-    && !new RegExp(`business_type === '${t}'`).test(applySrc));
-  check('the CRM categorises every type', missing.length === 0,
-    'A lead for this vertical is filed as "بورتفوليو" and the follow-up goes\n   '
-    + 'to the wrong list. Missing: ' + missing.join(', '));
+  const businessTypes = require('../src/lib/business_types');
+  const fallback = businessTypes.crmCategoryOf('portfolio');
+  const wrong = TYPES.filter((t) => t !== 'portfolio'
+    && businessTypes.crmCategoryOf(t) === fallback);
+  check('the CRM categorises every type', wrong.length === 0,
+    `A lead for this vertical is filed as "${fallback}" and the follow-up goes\n   `
+    + 'to the wrong list. Wrong: ' + wrong.join(', '));
+
+  const unlabelled = TYPES.filter((t) => !businessTypes.TYPES[t]);
+  check('every type is in the dictionary', unlabelled.length === 0,
+    'These fall through to their raw key on screen: ' + unlabelled.join(', '));
+
+  // ولا حتة كود تانية بتصنّف بنفسها.
+  for (const f of ['src/routes/admin.js', 'src/routes/apply.js']) {
+    const src = read(f).replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+    check(`${f} has no hand-written type chain`,
+      !/business_type === '[a-z]+' \?/.test(src),
+      'A second chain drifts from the first — that is exactly how nine of the\n   '
+      + 'twelve ended up filed as portfolio.');
+  }
 }
 
 // ── 4. Anything the home page links to must be a real type ──────────────────

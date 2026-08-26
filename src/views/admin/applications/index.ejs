@@ -32,7 +32,7 @@
               <div class="flex items-center gap-2 mb-0.5">
                 <span class="font-semibold text-gray-800 truncate"><%= a.business_name %></span>
                 <span class="text-xs text-gray-400">·</span>
-                <span class="text-xs text-gray-500"><%= a.business_type === 'shop' ? 'متجر' : 'بورتفوليو' %></span>
+                <span class="text-xs text-gray-500"><%= businessLabel(a.business_type) %></span>
                 <span class="text-xs text-gray-400">·</span>
                 <span class="text-xs text-gray-500"><%= a.preferred_slug %></span>
               </div>

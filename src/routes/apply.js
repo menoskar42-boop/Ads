@@ -25,13 +25,15 @@ const TERMS_VERSION = '1.0';
 // prefill and once for the POST validation — so a vertical could be accepted on
 // submit but impossible to arrive pre-selected, or the reverse, with nothing to
 // notice. One list, both uses.
-const BUSINESS_TYPES = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym',
-  'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'];
+/* القايمة من القاموس الواحد — كانت متكتوبة هنا ومتكرّرة في أماكن تانية
+ * بمستويات اكتمال مختلفة. */
+const BUSINESS_TYPES = require('../lib/business_types').KEYS;
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
 // القايمة المشتركة — كانت هنا نسخة، وواحدة أقصر في `admin.js`، وكل واحدة
 // بتحمي من اللي التانية بتسيبه.
 const { isReserved } = require('../lib/reserved_slugs');
+const businessTypes = require('../lib/business_types');
 
 // Referral codes are short, uppercase and unambiguous — they get typed and read
 // aloud, so keep the accepted shape narrow.
@@ -149,17 +151,7 @@ router.post('/apply', applyLimiter, async (req, res) => {
 
     // أضِف مقدّم الطلب تلقائياً للـCRM كعميل «مهتم» (متابعة النهارده) — fire-and-forget
     // ولا يعطّل الطلب. dedup بالرقم عشان ما يتكرّرش لو موجود.
-    const crmCategory = values.business_type === 'shop' ? 'متجر'
-      : values.business_type === 'pharmacy' ? 'صيدلية'
-      : values.business_type === 'clinic' ? 'عيادة'
-      : values.business_type === 'orders' ? 'مطاعم/طلبات'
-      : values.business_type === 'gym' ? 'جيم/لياقة'
-      : values.business_type === 'furniture' ? 'موبيليا/ورشة'
-      : values.business_type === 'nutrition' ? 'تغذية علاجية'
-      : values.business_type === 'workshop' ? 'ورش سيارات'
-      : values.business_type === 'hall' ? 'قاعات أفراح'
-      : values.business_type === 'nursery' ? 'حضانات/مراكز دروس'
-      : values.business_type === 'installments' ? 'بيع بالتقسيط' : 'بورتفوليو';
+    const crmCategory = businessTypes.crmCategoryOf(values.business_type);
     pool.query(
       `INSERT INTO crm_leads (name, phone, email, business_name, category, source, status, notes, next_followup)
        SELECT $1, $2, $3, $4, $5, 'طلب تسجيل', 'interested', $6, CURRENT_DATE
