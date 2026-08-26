@@ -53,6 +53,9 @@ function base(extra) {
     // أرقام غير اللي الموقع بينشرها.
     facts: require('../src/lib/company_facts').facts(),
     canonicalUrl: SITE + '/',
+    // نفس helper السيرفر — الفحص لازم يرندر بنفس العناوين اللي بتتنشر.
+    publicUrl: (p) => SITE + require('../src/lib/lang_routes')
+      .withLang(p || '/', 'ar'),
     assetVersion: '1',
     ads: { enabled: true, publisherId: 'ca-pub-3132188303904900', slots: {
       homeTop: '1', homeMid: '2', homeBottom: '3',

@@ -476,10 +476,25 @@ app.use((req, res, next) => {
 // from this single object so OscarDevs' AdSense account serves the lot.
 const adsConfig = require('./src/config/ads');
 const pricing = require('./src/lib/pricing');
+const langRoutes = require('./src/lib/lang_routes');
 app.use((req, res, next) => {
   const origin = process.env.SITE_ORIGIN || 'https://oscardevs.com';
   res.locals.siteOrigin = origin;
   res.locals.canonicalUrl = origin + req.originalUrl.split('?')[0].split('#')[0];
+  /* عنوان كامل لصفحة عامة **بالـprefix الصح**.
+   *
+   * ⚠️ اتضاف عشان غلطة اتكشفت في مراجعة خارجية للكود: الـBreadcrumb في
+   * `sector.ejs` كان بيبني `siteOrigin + '/' + slug` بإيده — يعني بيعلن
+   * `/clinic-management-egypt` بينما الـcanonical على نفس الصفحة
+   * `/ar/clinic-management-egypt`. تضارب بين البيانات المنظّمة والصفحة.
+   *
+   * القالب مايبنيش عنوان بإيده تاني — بينده الدالة دي.
+   *
+   * بتقرا `res.locals.lang` **وقت النداء** مش دلوقتي: الميدل‌وير ده بيشتغل
+   * قبل `lang_prefix` اللي بيحدّد اللغة، فالقراءة المتأخرة هي اللي بتخلّيه
+   * يشوف القيمة الصح وقت الرندر. */
+  res.locals.publicUrl = (p) => origin
+    + langRoutes.withLang(p || '/', res.locals.lang || langRoutes.DEFAULT_LANG);
   res.locals.ads = adsConfig;
   // Views could not read the query string, so a shared banner (e.g. the clinic's
   // "the save failed") had to be threaded through every render call by hand —

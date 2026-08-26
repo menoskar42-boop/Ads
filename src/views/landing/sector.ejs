@@ -26,7 +26,7 @@
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "description": s.desc,
-  "url": siteOrigin + "/" + s.slug,
+  "url": publicUrl("/" + s.slug),
   "inLanguage": "ar",
   "publisher": { "@id": siteOrigin + "#organization" },
   "areaServed": { "@type": "Country", "name": "مصر" },
@@ -51,7 +51,7 @@
   }),
 }) %>
 </script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= siteOrigin %>/"},{"@type":"ListItem","position":2,"name":"<%= s.title.split('—')[0].trim() %>","item":"<%= siteOrigin %>/<%= s.slug %>"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"الرئيسية","item":"<%= publicUrl("/") %>"},{"@type":"ListItem","position":2,"name":"<%= s.title.split('—')[0].trim() %>","item":"<%= publicUrl("/" + s.slug) %>"}]}</script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <style>
   *{box-sizing:border-box;font-family:'Cairo',sans-serif}
