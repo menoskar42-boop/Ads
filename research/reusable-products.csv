@@ -1,0 +1,21 @@
+id,candidate,type,score,relevance,main_risk
+1,Odoo,Product/platform,88,"Integrated CRM, sales, inventory, accounting; Studio; cloud/on-prem",Cost and implementation complexity; Arabic output still needs testing
+2,ERPNext,Product/platform,84,Open-source ERP modules and extensibility,Local ZATCA/RTL configuration and support
+3,Zoho One/CRM + Inventory,Product suite,79,"Broad CRM, automation and inventory patterns",Cross-app packaging; local Arabic depth
+4,Rewaa,Product,76,"Saudi retail POS, barcode, stock and branches (guide signal)",Retail-first; booking/follow-up depth and vendor lock-in
+5,Foodics,Product,75,Saudi restaurant POS and operational workflows (guide signal),Restaurant specialization; CRM/booking portability
+6,Snad,Product,74,Saudi Arabic ERP/POS/accounting/inventory positioning,Vendor claims; independent reviews and price verification gaps
+7,Daftra,Product,72,"Arabic accounting, invoicing and business operations",Booking/branch workflow depth not established
+8,Qoyod,Product,71,Saudi accounting/e-invoicing candidate,"Limited evidence for CRM, booking and inventory breadth"
+9,Wafeq,Product,70,Arabic/Gulf accounting and invoicing candidate,Workflow breadth and review evidence gaps
+10,Salla,Product,69,"Saudi/Arabic commerce, orders and fulfillment patterns",E-commerce-centric; appointment and internal CRM gaps
+11,Zid,Product,68,"Saudi commerce, catalog, order and branch-adjacent patterns",Custom CRM/booking and RTL edge cases
+12,HubSpot CRM,Product,66,"Strong pipeline, tasks and follow-up model",Arabic UI/local tax and inventory require additions
+13,Pipedrive,Product,64,Clear sales pipeline and follow-up UX,No native inventory/booking core
+14,Salesforce,Product/platform,63,Highly configurable CRM and automation,"Expensive, over-complex for SMB; Arabic/local setup"
+15,Dolibarr,Product/platform,62,Open-source CRM/ERP modules and low-cost deployment,"UX, RTL polish and local compliance effort"
+16,Laravel CRM Order (SagorIslamOfficial),Demo/code,76,Concrete orders/customers/products/payments; modern Laravel/React stack,"No demonstrated RTL, booking, branch or production controls"
+17,CRM & ERP Workflow (albertusjuan),Demo/code,73,Visual CRM→ERP→inventory workflow and integration concepts,Demo claims; dependency/integration maintenance
+18,RTL GitHub topic / Arabic tour system,Demo/code,72,"Search result indicates bilingual tour bookings, payments and multi-currency","Topic listing, unclear repository maturity/license"
+19,TemplateMonster RTL admin templates,UI template,66,Explicit low-cost RTL admin starting points; ~$14–$37 search evidence,"UI only; no domain logic, tests or integrations"
+20,ThemeForest booking/inventory templates,UI template,65,Booking and inventory dashboard references; ~$14–$69 search evidence,"Theme licensing, accessibility, RTL quality and backend absent"

@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "JaiscMZ1ALyC_u92iYaEH"
+uri = "file://research/notes.md"
+type = "text"
+title = "OscarDevs Research Notes"
+description = "Running research plan and evidence log for the business opportunity pipeline."
+
+[[outputs]]
+id = "9jN72H_loHuzkpS31EefN"
+uri = "file://research/oscardevs-business-research.md"
+type = "text"
+title = "OscarDevs Business Research Report"
+description = "Evidence-based synthesis covering problem discovery, SaaS selection, competition, public buying signals, reusable products, operating model, SEO, and the 90-day validation plan."
+
+[[outputs]]
+id = "slNZodhsJxLIJDxYByQNR"
+uri = "file://research/public-buying-signals.csv"
+type = "table"
+title = "Public Buying Signals CSV"
+description = "32 attributable public signals across Egypt, Saudi Arabia, and the UAE; no private contact data."
+
+[[outputs]]
+id = "C__MvTrbHQ9Pi8Gs3Z2Tj"
+uri = "file://research/competitive-matrix.csv"
+type = "table"
+title = "Competitive Matrix CSV"
+description = "27 alternatives across CRM, WhatsApp, commerce, booking, ERP, POS, and inventory workflows."
