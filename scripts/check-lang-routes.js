@@ -107,6 +107,26 @@ function run(host, method, url) {
    * الفحص بيقرا `server.js` نفسه: كل راوت لصفحة عامة لازم يكون **بعد**
    * تسجيل الميدل‌وير. */
 
+  /* ── ١د) مفيش رابط داخلي على `/ar/` (اللي بيتحوّل) ────────────────────
+   *
+   * بعد ما `/ar/` بقى تحويلة، كل رابط «الرئيسية» في الموقع كان لسه بيشاور
+   * عليها — تسعتاشر ملف. الزائر مش هيلاحظ، بس كل نقرة بتعدّي على تحويلة،
+   * وجوجل بتحسبها رابط داخلي لعنوان مش نهائي. */
+  const viewsDir = path.join(ROOT, 'src/views');
+  const stale = [];
+  (function walk(dir) {
+    for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, f.name);
+      if (f.isDirectory()) walk(full);
+      else if (f.name.endsWith('.ejs') && /href="\/ar\/"/.test(fs.readFileSync(full, 'utf8'))) {
+        stale.push(path.relative(ROOT, full));
+      }
+    }
+  }(viewsDir));
+  check('مفيش رابط داخلي على `/ar/`', stale.length === 0,
+    `${stale.length} ملف: ${stale.slice(0, 5).join('، ')}${stale.length > 5 ? ' …' : ''}. `
+    + 'الشكل النهائي `/ar` من غير سلاش.');
+
   const server = read('server.js');
   const mwAt = server.indexOf("require('./src/middleware/lang_prefix')");
   check('`lang_prefix` متسجّل في `server.js`', mwAt > 0, 'مش لاقيه.');
