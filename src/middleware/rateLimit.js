@@ -106,14 +106,51 @@ const _sweep = setInterval(() => {
 }, 5 * 60000);
 if (_sweep.unref) _sweep.unref();
 
-// Login limiter: key on the TARGETED account (email/username) so guessing a
-// single account is capped regardless of source IP (unspoofable), combined with
-// the client IP to also slow mass attempts. 12 tries / 10 min.
-const loginLimiter = rateLimit({
-  name: 'login',
-  windowMs: 10 * 60000,
-  max: 12,
-  keyFn: (req) => String((req.body && (req.body.email || req.body.username)) || '').toLowerCase().trim() + '|' + clientIp(req),
+/* ── حدّ محاولات الدخول: **بوكتين مستقلين** ─────────────────────────────
+ *
+ * التعليق اللي كان هنا بيقول إن المفتاح مربوط بالحساب «بغض النظر عن الـIP»،
+ * لكن الكود كان بيعمل `email + '|' + ip`. يعني الاتنين مع بعض في مفتاح
+ * واحد — فتغيير الـIP بيفتح بوكت **جديد** بالكامل لنفس الحساب.
+ *
+ * النتيجة إن حساب واحد ينفع يتجرّب من عشر عناوين بمية وعشرين محاولة، وكل
+ * واحدة «تحت الحد». وده بالظبط شكل الهجمة اللي الحد ده اتعمل يمنعها،
+ * وكشفتها مراجعة كود خارجية.
+ *
+ * الصح بوكتين لازم **الاتنين** يعدّوا:
+ *   · بوكت الحساب — بيقف تخمين حساب واحد مهما كان مصدره.
+ *   · بوكت الـIP — بيقف رشّ عناوين كتير من مصدر واحد.
+ *
+ * والبريد بيتخزّن **مبصوم** مش خام: مفاتيح الذاكرة بتظهر في أي dump أو
+ * تشخيص، ومافيش سبب يخلّي بريد عميل موجود فيها.
+ */
+const crypto = require('crypto');
+
+/** بصمة قصيرة للبريد — مفتاح ثابت الطول بلا بيانات شخصية. */
+const accountKey = (req) => {
+  const raw = String((req.body && (req.body.email || req.body.username)) || '')
+    .toLowerCase().trim();
+  if (!raw) return 'anon';
+  return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 24);
+};
+
+const byAccount = rateLimit({
+  name: 'login-account', windowMs: 10 * 60000, max: 12, keyFn: accountKey,
+});
+const byIp = rateLimit({
+  name: 'login-ip', windowMs: 10 * 60000, max: 30, keyFn: (req) => clientIp(req),
 });
 
-module.exports = { rateLimit, loginLimiter, clientIp, MAX_KEYS, _buckets: buckets };
+/** الاتنين لازم يعدّوا. أول واحد يرفض بيرد ومابيكمّلش. */
+function loginLimiter(req, res, next) {
+  byAccount(req, res, (err) => {
+    if (err) return next(err);
+    if (res.headersSent) return undefined;
+    return byIp(req, res, next);
+  });
+}
+
+module.exports = {
+  rateLimit, loginLimiter, clientIp, MAX_KEYS, _buckets: buckets,
+  // مكشوفين للفحص عشان يقدر يتأكد إن كل واحد بيشتغل لوحده.
+  _byAccount: byAccount, _byIp: byIp, _accountKey: accountKey,
+};
