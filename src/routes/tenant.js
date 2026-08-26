@@ -147,6 +147,8 @@ router.get('/', async (req, res) => {
   let products = [];
   let categories = [];
   let activeProductCount = 0;
+  let dealsProducts = [];
+  let dealsProductCount = 0;
   let shopPriceRange = { min: 0, max: 0 };
   let shopFilters = { sort: '', min: '', max: '', instock: false };
   if (company.page_type === 'shop') {
@@ -199,6 +201,17 @@ router.get('/', async (req, res) => {
         instock: inStockOnly,
       };
     } catch (err) { console.error('Products query error:', err.message); }
+  }
+  if (company.page_type === 'deals') {
+    try {
+      dealsProducts = (await pool.query(
+        `SELECT * FROM deals_products
+         WHERE company_id = $1 AND is_published = true
+         ORDER BY is_featured DESC, created_at DESC`,
+        [company.id]
+      )).rows;
+      dealsProductCount = dealsProducts.length;
+    } catch (err) { console.error('Deals products query error:', err.message); }
   }
 
   // Pharmacy tenants load their live inventory (joined to the shared medicine
@@ -493,7 +506,8 @@ router.get('/', async (req, res) => {
   }
 
   let view;
-  if (company.page_type === 'shop') view = 'tenant_shop';
+  if (company.page_type === 'deals') view = 'tenant_deals';
+  else if (company.page_type === 'shop') view = 'tenant_shop';
   else if (company.page_type === 'pharmacy') view = 'tenant_pharmacy';
   else if (company.page_type === 'orders') view = 'tenant_orders';
   else if (company.page_type === 'clinic') view = 'tenant_clinic';
@@ -513,7 +527,8 @@ router.get('/', async (req, res) => {
   const descLen = (company.description || '').trim().length;
   const hasFilter = Boolean((req.query.q || '').trim()) || Number.isFinite(parseInt(req.query.category, 10));
   let indexable;
-  if (company.page_type === 'shop') indexable = activeProductCount >= 3;
+  if (company.page_type === 'deals') indexable = dealsProductCount >= 3 && descLen >= 40;
+  else if (company.page_type === 'shop') indexable = activeProductCount >= 3;
   // The demo pharmacy (slug 'pharmacy') is a sample, not a real business —
   // keep it out of the index; real customer pharmacies index once they have stock.
   else if (company.page_type === 'pharmacy') indexable = pharmacyStockCount >= 3;
@@ -655,6 +670,8 @@ router.get('/', async (req, res) => {
     sampleContent: isDemoSlug(company.slug),
     isPageOwner: Boolean(req.session && req.session.companyId === company.id),
     products,
+    dealsProducts,
+    dealsProductCount,
     categories,
     banners,
     pharmacyItems,
@@ -706,6 +723,33 @@ router.get('/', async (req, res) => {
     contactError: ['1', 'taken', 'past', 'far', 'closed'].includes(String(req.query.error || ''))
       ? req.query.error : null,
   });
+});
+
+// ── Deals product detail (manual affiliate catalogue) ────────────────────────
+function dealsGuard(req, res, next) {
+  if (!req.tenant || req.tenant.page_type !== 'deals') return res.redirect('/');
+  next();
+}
+
+router.get('/product/:slug', dealsGuard, async (req, res) => {
+  const company = req.tenant;
+  try {
+    const product = (await pool.query(
+      `SELECT * FROM deals_products
+       WHERE company_id = $1 AND slug = $2 AND is_published = true`,
+      [company.id, String(req.params.slug || '').slice(0, 120)]
+    )).rows[0];
+    if (!product) return res.redirect('/');
+    res.locals.showAds = false;
+    res.render('tenant_deals_product', {
+      company,
+      product,
+      noindex: false,
+    });
+  } catch (err) {
+    console.error('Deals product detail error:', err.message);
+    res.redirect('/');
+  }
 });
 
 // ── Clinic tenant public routes ─────────────────────────────────────────────

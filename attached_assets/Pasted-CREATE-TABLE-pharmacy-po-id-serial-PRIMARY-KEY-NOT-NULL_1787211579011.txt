@@ -1,0 +1,540 @@
+CREATE TABLE "pharmacy_po" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"supplier" text,
+	"status" text DEFAULT 'draft' NOT NULL,
+	"note" text,
+	"created_by" text,
+	"sent_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "cart_recovery_settings" (
+	"company_id" integer PRIMARY KEY NOT NULL,
+	"enabled" boolean DEFAULT false NOT NULL,
+	"delay_minutes" integer DEFAULT 60 NOT NULL,
+	"cooldown_days" integer DEFAULT 7 NOT NULL,
+	"max_attempts" integer DEFAULT 2 NOT NULL,
+	"subject" text,
+	"body" text,
+	"coupon_code" text,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "pharmacy_po_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"po_id" integer NOT NULL,
+	"company_id" integer NOT NULL,
+	"medicine_id" integer NOT NULL,
+	"name_at_order" text,
+	"qty_ordered" integer DEFAULT 0 NOT NULL,
+	"qty_received" integer DEFAULT 0 NOT NULL,
+	"cost" numeric(10, 2),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "food_item_option_values" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"option_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"price_delta" numeric(10, 2) DEFAULT '0' NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL
+);
+CREATE TABLE "pharmacy_transfers" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"from_company_id" integer NOT NULL,
+	"to_company_id" integer NOT NULL,
+	"medicine_id" integer NOT NULL,
+	"name_at_send" text,
+	"qty" integer NOT NULL,
+	"status" text DEFAULT 'in_transit' NOT NULL,
+	"lines" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"note" text,
+	"sent_by" text,
+	"received_by" text,
+	"settled_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "pharmacy_branch_links" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"linked_company_id" integer NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"responded_at" timestamp with time zone
+);
+CREATE TABLE "pharmacy_po_receipts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"po_id" integer NOT NULL,
+	"item_id" integer NOT NULL,
+	"qty" integer NOT NULL,
+	"batch_no" text,
+	"expiry" date,
+	"cost" numeric(10, 2),
+	"received_by" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "food_ingredients" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"unit" text DEFAULT 'g' NOT NULL,
+	"stock_qty" numeric(12, 3) DEFAULT '0' NOT NULL,
+	"cost_per_unit" numeric(12, 4),
+	"min_qty" numeric(12, 3) DEFAULT '0' NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "shop_staff" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"username" text,
+	"password_hash" text,
+	"perm_role" text DEFAULT 'orders' NOT NULL,
+	"phone" text,
+	"login_enabled" boolean DEFAULT false NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "food_item_options" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"item_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"required" boolean DEFAULT false NOT NULL,
+	"min_select" integer DEFAULT 0 NOT NULL,
+	"max_select" integer DEFAULT 0 NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL
+);
+CREATE TABLE "rad_ai_usage" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"doctor_id" integer NOT NULL,
+	"study_id" integer,
+	"kind" text NOT NULL,
+	"cost_usd" numeric(10, 4) DEFAULT '0' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "food_tables" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"outlet_id" integer,
+	"name" text NOT NULL,
+	"seats" integer DEFAULT 0 NOT NULL,
+	"area" text,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "food_recipes" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"item_id" integer NOT NULL,
+	"ingredient_id" integer NOT NULL,
+	"qty" numeric(12, 3) DEFAULT '0' NOT NULL
+);
+CREATE TABLE "food_zones" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"outlet_id" integer,
+	"name" text NOT NULL,
+	"fee" numeric(10, 2) DEFAULT '0' NOT NULL,
+	"min_order" numeric(10, 2) DEFAULT '0' NOT NULL,
+	"free_over" numeric(10, 2),
+	"eta_min" integer,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "furniture_quotes" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"lead_id" integer,
+	"customer_id" integer,
+	"quote_date" date DEFAULT CURRENT_DATE NOT NULL,
+	"valid_until" date,
+	"subtotal" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"tax" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"total" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"status" text DEFAULT 'draft' NOT NULL,
+	"note" text,
+	"branch_id" integer,
+	"sale_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "furniture_leads" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"phone" text,
+	"phone_key" text,
+	"source" text,
+	"interest" text,
+	"status" text DEFAULT 'new' NOT NULL,
+	"note" text,
+	"branch_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "food_stock_moves" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"order_id" integer NOT NULL,
+	"kind" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "gym_staff" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"username" text,
+	"password_hash" text,
+	"perm_role" text DEFAULT 'reception' NOT NULL,
+	"phone" text,
+	"login_enabled" boolean DEFAULT false NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "furniture_product_variants" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"product_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"code" text,
+	"price_delta" numeric(12, 2) DEFAULT '0' NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "furniture_quote_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"quote_id" integer NOT NULL,
+	"product_id" integer,
+	"name" text,
+	"qty" numeric(14, 3) DEFAULT '1' NOT NULL,
+	"unit_price" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"total" numeric(14, 2) DEFAULT '0' NOT NULL,
+	"variant_id" integer,
+	"variant_name" text
+);
+CREATE TABLE "furniture_production_orders" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"product_id" integer,
+	"variant_id" integer,
+	"product_name" text NOT NULL,
+	"variant_name" text,
+	"sale_id" integer,
+	"qty" numeric(12, 2) DEFAULT '1' NOT NULL,
+	"status" text DEFAULT 'queued' NOT NULL,
+	"due_date" date,
+	"note" text,
+	"materials_issued_at" timestamp with time zone,
+	"started_at" timestamp with time zone,
+	"done_at" timestamp with time zone,
+	"branch_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"sale_item_id" integer
+);
+CREATE TABLE "nutrition_appointments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"patient_id" integer,
+	"patient_name" text NOT NULL,
+	"patient_phone" text NOT NULL,
+	"slot_at" timestamp with time zone NOT NULL,
+	"note" text,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "nutrition_templates" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"name" text NOT NULL,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "nutrition_checkins" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"patient_id" integer NOT NULL,
+	"on_date" date DEFAULT CURRENT_DATE NOT NULL,
+	"water_glasses" integer,
+	"sleep_hours" numeric(4, 1),
+	"steps" integer,
+	"mood" text,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "nutrition_messages" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"patient_id" integer NOT NULL,
+	"sender" text NOT NULL,
+	"author_name" text,
+	"body" text NOT NULL,
+	"read_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "sokro_notifications" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"source" text DEFAULT 'schedule' NOT NULL,
+	"title" text,
+	"body" text,
+	"meta" jsonb,
+	"read_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "nutrition_template_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"template_id" integer NOT NULL,
+	"food_id" integer,
+	"food_name" text,
+	"meal" text DEFAULT 'breakfast' NOT NULL,
+	"grams" numeric(7, 2) DEFAULT '100' NOT NULL,
+	"note" text,
+	"sort_order" integer DEFAULT 0 NOT NULL
+);
+CREATE TABLE "nutrition_subscriptions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"company_id" integer NOT NULL,
+	"patient_id" integer NOT NULL,
+	"price" numeric(10, 2) DEFAULT '0' NOT NULL,
+	"months" integer DEFAULT 1 NOT NULL,
+	"starts_on" date DEFAULT CURRENT_DATE NOT NULL,
+	"ends_on" date NOT NULL,
+	"status" text DEFAULT 'unpaid' NOT NULL,
+	"method" text,
+	"paid_at" timestamp with time zone,
+	"note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "sokro_agendas" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"title" text DEFAULT 'الأجندة' NOT NULL,
+	"when_at" timestamp with time zone,
+	"status" text DEFAULT 'open' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "sokro_agenda_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"agenda_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"text" text NOT NULL,
+	"item_key" text NOT NULL,
+	"position" integer DEFAULT 1 NOT NULL,
+	"done" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE "sokro_bookings" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"conversation_id" integer,
+	"kind" text NOT NULL,
+	"status" text DEFAULT 'collecting' NOT NULL,
+	"fields" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"site" text,
+	"confirmed_fingerprint" text,
+	"confirmed_at" timestamp with time zone,
+	"submitted_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE "sokro_scheduled_tasks" ALTER COLUMN "every_minutes" DROP NOT NULL;
+ALTER TABLE "food_order_items" ADD COLUMN "options" jsonb DEFAULT '[]'::jsonb NOT NULL;
+ALTER TABLE "food_outlets" ADD COLUMN "allow_delivery" boolean DEFAULT true NOT NULL;
+ALTER TABLE "food_outlets" ADD COLUMN "allow_pickup" boolean DEFAULT false NOT NULL;
+ALTER TABLE "food_outlets" ADD COLUMN "allow_dine_in" boolean DEFAULT false NOT NULL;
+ALTER TABLE "food_orders" ADD COLUMN "order_type" text DEFAULT 'delivery' NOT NULL;
+ALTER TABLE "food_orders" ADD COLUMN "table_no" text;
+ALTER TABLE "food_orders" ADD COLUMN "table_id" integer;
+ALTER TABLE "food_orders" ADD COLUMN "source" text DEFAULT 'online' NOT NULL;
+ALTER TABLE "food_orders" ADD COLUMN "taken_by" text;
+ALTER TABLE "food_orders" ADD COLUMN "zone_id" integer;
+ALTER TABLE "food_orders" ADD COLUMN "zone_name" text;
+ALTER TABLE "food_orders" ADD COLUMN "driver_id" integer;
+ALTER TABLE "food_orders" ADD COLUMN "assigned_at" timestamp with time zone;
+ALTER TABLE "sokro_scheduled_tasks" ADD COLUMN "kind" text DEFAULT 'recurring' NOT NULL;
+ALTER TABLE "sokro_scheduled_tasks" ADD COLUMN "title" text;
+ALTER TABLE "clinic_doctors" ADD COLUMN "room" text;
+ALTER TABLE "clinic_visits" ADD COLUMN "rescheduled_to" timestamp with time zone;
+ALTER TABLE "clinic_visits" ADD COLUMN "rescheduled_appt_id" integer;
+ALTER TABLE "abandoned_carts" ADD COLUMN "reminder_state" text;
+ALTER TABLE "abandoned_carts" ADD COLUMN "reminder_at" timestamp with time zone;
+ALTER TABLE "abandoned_carts" ADD COLUMN "reminder_attempts" integer DEFAULT 0 NOT NULL;
+ALTER TABLE "abandoned_carts" ADD COLUMN "reminder_error" text;
+ALTER TABLE "gym_members" ADD COLUMN "parq" jsonb;
+ALTER TABLE "gym_members" ADD COLUMN "parq_at" timestamp with time zone;
+ALTER TABLE "gym_members" ADD COLUMN "parq_note" text;
+ALTER TABLE "gym_settings" ADD COLUMN "booking_members_only" boolean DEFAULT false NOT NULL;
+ALTER TABLE "gym_bookings" ADD COLUMN "token" text;
+ALTER TABLE "gym_bookings" ADD COLUMN "promoted_at" timestamp with time zone;
+ALTER TABLE "gym_bookings" ADD COLUMN "moved_at" timestamp with time zone;
+ALTER TABLE "rad_studies" ADD COLUMN "compression" text;
+ALTER TABLE "rad_studies" ADD COLUMN "skipped_files" text;
+ALTER TABLE "companies" ADD COLUMN "shop_theme" text;
+ALTER TABLE "companies" ADD COLUMN "shop_font" text;
+ALTER TABLE "companies" ADD COLUMN "loyalty_earn_per" numeric(6, 2) DEFAULT '1' NOT NULL;
+ALTER TABLE "companies" ADD COLUMN "loyalty_redeem_per" integer DEFAULT 100 NOT NULL;
+ALTER TABLE "companies" ADD COLUMN "loyalty_max_percent" numeric(5, 2) DEFAULT '100' NOT NULL;
+ALTER TABLE "companies" ADD COLUMN "consent_mode" text DEFAULT 'off' NOT NULL;
+ALTER TABLE "companies" ADD COLUMN "fb_capi_token_enc" text;
+ALTER TABLE "companies" ADD COLUMN "service4_title" text;
+ALTER TABLE "companies" ADD COLUMN "service4_desc" text;
+ALTER TABLE "companies" ADD COLUMN "service5_title" text;
+ALTER TABLE "companies" ADD COLUMN "service5_desc" text;
+ALTER TABLE "companies" ADD COLUMN "service6_title" text;
+ALTER TABLE "companies" ADD COLUMN "service6_desc" text;
+ALTER TABLE "furniture_products" ADD COLUMN "width_cm" numeric(8, 2);
+ALTER TABLE "furniture_products" ADD COLUMN "depth_cm" numeric(8, 2);
+ALTER TABLE "furniture_products" ADD COLUMN "height_cm" numeric(8, 2);
+ALTER TABLE "furniture_products" ADD COLUMN "material" text;
+ALTER TABLE "furniture_products" ADD COLUMN "finish" text;
+ALTER TABLE "furniture_sales" ADD COLUMN "track_token" text;
+ALTER TABLE "furniture_sale_items" ADD COLUMN "variant_id" integer;
+ALTER TABLE "furniture_sale_items" ADD COLUMN "variant_name" text;
+ALTER TABLE "nutrition_patients" ADD COLUMN "allergies" text;
+ALTER TABLE "nutrition_patients" ADD COLUMN "conditions" text;
+ALTER TABLE "nutrition_patients" ADD COLUMN "medications" text;
+ALTER TABLE "nutrition_patients" ADD COLUMN "avoid_foods" text;
+ALTER TABLE "nutrition_patients" ADD COLUMN "diet_style" text DEFAULT 'none' NOT NULL;
+ALTER TABLE "nutrition_patients" ADD COLUMN "stage" text DEFAULT 'none' NOT NULL;
+ALTER TABLE "nutrition_patients" ADD COLUMN "budget" text;
+ALTER TABLE "nutrition_settings" ADD COLUMN "subscription_enabled" boolean DEFAULT false NOT NULL;
+ALTER TABLE "nutrition_settings" ADD COLUMN "subscription_price" numeric(10, 2) DEFAULT '0' NOT NULL;
+ALTER TABLE "nutrition_settings" ADD COLUMN "subscription_months" integer DEFAULT 1 NOT NULL;
+ALTER TABLE "nutrition_settings" ADD COLUMN "subscription_since" date;
+ALTER TABLE "nutrition_settings" ADD COLUMN "services" text;
+ALTER TABLE "nutrition_settings" ADD COLUMN "work_days" text;
+ALTER TABLE "nutrition_settings" ADD COLUMN "work_from" text;
+ALTER TABLE "nutrition_settings" ADD COLUMN "work_to" text;
+ALTER TABLE "nutrition_settings" ADD COLUMN "slot_minutes" integer;
+ALTER TABLE "nutrition_settings" ADD COLUMN "messages_enabled" boolean DEFAULT false NOT NULL;
+ALTER TABLE "nutrition_settings" ADD COLUMN "messages_reply_note" text;
+ALTER TABLE "nutrition_foods" ADD COLUMN "fiber_g" numeric(6, 2);
+ALTER TABLE "nutrition_foods" ADD COLUMN "sodium_mg" numeric(9, 2);
+ALTER TABLE "nutrition_foods" ADD COLUMN "potassium_mg" numeric(9, 2);
+ALTER TABLE "nutrition_foods" ADD COLUMN "calcium_mg" numeric(9, 2);
+ALTER TABLE "nutrition_foods" ADD COLUMN "iron_mg" numeric(8, 2);
+ALTER TABLE "nutrition_foods" ADD COLUMN "vit_d_ug" numeric(8, 2);
+ALTER TABLE "nutrition_foods" ADD COLUMN "vit_b12_ug" numeric(8, 2);
+ALTER TABLE "furniture_deliveries" ADD COLUMN "receipt_code" text;
+ALTER TABLE "furniture_deliveries" ADD COLUMN "receipt_confirmed_at" timestamp with time zone;
+ALTER TABLE "furniture_deliveries" ADD COLUMN "receipt_method" text;
+ALTER TABLE "furniture_deliveries" ADD COLUMN "receipt_by" text;
+ALTER TABLE "nutrition_diary" ADD COLUMN "food_id" integer;
+ALTER TABLE "nutrition_diary" ADD COLUMN "grams" numeric(7, 1);
+ALTER TABLE "nutrition_diary" ADD COLUMN "free_text" text;
+ALTER TABLE "nutrition_diary" ADD COLUMN "kind" text DEFAULT 'tick' NOT NULL;
+ALTER TABLE "pharmacy_po" ADD CONSTRAINT "pharmacy_po_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "cart_recovery_settings" ADD CONSTRAINT "cart_recovery_settings_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_po_items" ADD CONSTRAINT "pharmacy_po_items_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_po_items" ADD CONSTRAINT "pharmacy_po_items_medicine_id_fkey" FOREIGN KEY ("medicine_id") REFERENCES "public"."medicines"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "pharmacy_po_items" ADD CONSTRAINT "pharmacy_po_items_po_id_fkey" FOREIGN KEY ("po_id") REFERENCES "public"."pharmacy_po"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_item_option_values" ADD CONSTRAINT "food_item_option_values_option_id_fkey" FOREIGN KEY ("option_id") REFERENCES "public"."food_item_options"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_transfers" ADD CONSTRAINT "pharmacy_transfers_from_company_id_fkey" FOREIGN KEY ("from_company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_transfers" ADD CONSTRAINT "pharmacy_transfers_medicine_id_fkey" FOREIGN KEY ("medicine_id") REFERENCES "public"."medicines"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "pharmacy_transfers" ADD CONSTRAINT "pharmacy_transfers_to_company_id_fkey" FOREIGN KEY ("to_company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_branch_links" ADD CONSTRAINT "pharmacy_branch_links_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_branch_links" ADD CONSTRAINT "pharmacy_branch_links_linked_company_id_fkey" FOREIGN KEY ("linked_company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_po_receipts" ADD CONSTRAINT "pharmacy_po_receipts_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_po_receipts" ADD CONSTRAINT "pharmacy_po_receipts_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."pharmacy_po_items"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "pharmacy_po_receipts" ADD CONSTRAINT "pharmacy_po_receipts_po_id_fkey" FOREIGN KEY ("po_id") REFERENCES "public"."pharmacy_po"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_ingredients" ADD CONSTRAINT "food_ingredients_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "shop_staff" ADD CONSTRAINT "shop_staff_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_item_options" ADD CONSTRAINT "food_item_options_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."food_items"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "rad_ai_usage" ADD CONSTRAINT "rad_ai_usage_doctor_id_fkey" FOREIGN KEY ("doctor_id") REFERENCES "public"."rad_doctors"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_tables" ADD CONSTRAINT "food_tables_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_tables" ADD CONSTRAINT "food_tables_outlet_id_fkey" FOREIGN KEY ("outlet_id") REFERENCES "public"."food_outlets"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_recipes" ADD CONSTRAINT "food_recipes_ingredient_id_fkey" FOREIGN KEY ("ingredient_id") REFERENCES "public"."food_ingredients"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_recipes" ADD CONSTRAINT "food_recipes_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."food_items"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_zones" ADD CONSTRAINT "food_zones_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_zones" ADD CONSTRAINT "food_zones_outlet_id_fkey" FOREIGN KEY ("outlet_id") REFERENCES "public"."food_outlets"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_quotes" ADD CONSTRAINT "furniture_quotes_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "public"."furniture_branches"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_quotes" ADD CONSTRAINT "furniture_quotes_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_quotes" ADD CONSTRAINT "furniture_quotes_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "public"."furniture_customers"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_quotes" ADD CONSTRAINT "furniture_quotes_lead_id_fkey" FOREIGN KEY ("lead_id") REFERENCES "public"."furniture_leads"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_quotes" ADD CONSTRAINT "furniture_quotes_sale_id_fkey" FOREIGN KEY ("sale_id") REFERENCES "public"."furniture_sales"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_leads" ADD CONSTRAINT "furniture_leads_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "public"."furniture_branches"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_leads" ADD CONSTRAINT "furniture_leads_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_stock_moves" ADD CONSTRAINT "food_stock_moves_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "food_stock_moves" ADD CONSTRAINT "food_stock_moves_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "public"."food_orders"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "gym_staff" ADD CONSTRAINT "gym_staff_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_product_variants" ADD CONSTRAINT "furniture_product_variants_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_product_variants" ADD CONSTRAINT "furniture_product_variants_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "public"."furniture_products"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_quote_items" ADD CONSTRAINT "furniture_quote_items_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_quote_items" ADD CONSTRAINT "furniture_quote_items_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "public"."furniture_products"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_quote_items" ADD CONSTRAINT "furniture_quote_items_quote_id_fkey" FOREIGN KEY ("quote_id") REFERENCES "public"."furniture_quotes"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_quote_items" ADD CONSTRAINT "furniture_quote_items_variant_id_fkey" FOREIGN KEY ("variant_id") REFERENCES "public"."furniture_product_variants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_production_orders" ADD CONSTRAINT "furniture_production_orders_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "public"."furniture_branches"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_production_orders" ADD CONSTRAINT "furniture_production_orders_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "furniture_production_orders" ADD CONSTRAINT "furniture_production_orders_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "public"."furniture_products"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_production_orders" ADD CONSTRAINT "furniture_production_orders_sale_id_fkey" FOREIGN KEY ("sale_id") REFERENCES "public"."furniture_sales"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_production_orders" ADD CONSTRAINT "furniture_production_orders_variant_id_fkey" FOREIGN KEY ("variant_id") REFERENCES "public"."furniture_product_variants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "nutrition_appointments" ADD CONSTRAINT "nutrition_appointments_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_appointments" ADD CONSTRAINT "nutrition_appointments_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "public"."nutrition_patients"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "nutrition_templates" ADD CONSTRAINT "nutrition_templates_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_checkins" ADD CONSTRAINT "nutrition_checkins_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_checkins" ADD CONSTRAINT "nutrition_checkins_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "public"."nutrition_patients"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_messages" ADD CONSTRAINT "nutrition_messages_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_messages" ADD CONSTRAINT "nutrition_messages_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "public"."nutrition_patients"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sokro_notifications" ADD CONSTRAINT "sokro_notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."sokro_users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_template_items" ADD CONSTRAINT "nutrition_template_items_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_template_items" ADD CONSTRAINT "nutrition_template_items_food_id_fkey" FOREIGN KEY ("food_id") REFERENCES "public"."nutrition_foods"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "nutrition_template_items" ADD CONSTRAINT "nutrition_template_items_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "public"."nutrition_templates"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_subscriptions" ADD CONSTRAINT "nutrition_subscriptions_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "nutrition_subscriptions" ADD CONSTRAINT "nutrition_subscriptions_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "public"."nutrition_patients"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sokro_agendas" ADD CONSTRAINT "sokro_agendas_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."sokro_users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sokro_agenda_items" ADD CONSTRAINT "sokro_agenda_items_agenda_id_fkey" FOREIGN KEY ("agenda_id") REFERENCES "public"."sokro_agendas"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sokro_agenda_items" ADD CONSTRAINT "sokro_agenda_items_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."sokro_users"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "sokro_bookings" ADD CONSTRAINT "sokro_bookings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."sokro_users"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "idx_pharm_po_company" ON "pharmacy_po" USING btree ("company_id","created_at" DESC NULLS FIRST);
+CREATE UNIQUE INDEX "idx_pharm_po_item_uniq" ON "pharmacy_po_items" USING btree ("po_id","medicine_id");
+CREATE INDEX "idx_pharm_po_items" ON "pharmacy_po_items" USING btree ("po_id");
+CREATE INDEX "idx_food_option_values" ON "food_item_option_values" USING btree ("option_id");
+CREATE INDEX "idx_pharm_transfer_from" ON "pharmacy_transfers" USING btree ("from_company_id","created_at" DESC NULLS FIRST);
+CREATE INDEX "idx_pharm_transfer_to" ON "pharmacy_transfers" USING btree ("to_company_id","status","created_at" DESC NULLS FIRST);
+CREATE UNIQUE INDEX "idx_pharm_link_pair" ON "pharmacy_branch_links" USING btree (LEAST(company_id, linked_company_id),GREATEST(company_id, linked_company_id));
+CREATE INDEX "idx_pharm_po_receipts" ON "pharmacy_po_receipts" USING btree ("po_id","created_at");
+CREATE INDEX "idx_food_ingredients" ON "food_ingredients" USING btree ("company_id","is_active");
+CREATE INDEX "idx_shop_staff_company" ON "shop_staff" USING btree ("company_id");
+CREATE UNIQUE INDEX "idx_shop_staff_username" ON "shop_staff" USING btree (lower(username)) WHERE (username IS NOT NULL);
+CREATE INDEX "idx_food_item_options" ON "food_item_options" USING btree ("item_id");
+CREATE INDEX "idx_rad_usage_day" ON "rad_ai_usage" USING btree ("doctor_id","created_at");
+CREATE INDEX "idx_food_tables" ON "food_tables" USING btree ("company_id","is_active");
+CREATE UNIQUE INDEX "idx_food_recipe_uniq" ON "food_recipes" USING btree ("item_id","ingredient_id");
+CREATE INDEX "idx_food_zones" ON "food_zones" USING btree ("company_id","is_active");
+CREATE UNIQUE INDEX "idx_furn_quote_one_sale" ON "furniture_quotes" USING btree ("sale_id") WHERE (sale_id IS NOT NULL);
+CREATE INDEX "idx_furn_quotes" ON "furniture_quotes" USING btree ("company_id","status","quote_date" DESC NULLS FIRST);
+CREATE UNIQUE INDEX "idx_furn_lead_phone" ON "furniture_leads" USING btree ("company_id","phone_key") WHERE ((phone_key IS NOT NULL) AND (phone_key <> ''::text));
+CREATE INDEX "idx_furn_leads" ON "furniture_leads" USING btree ("company_id","status","created_at" DESC NULLS FIRST);
+CREATE UNIQUE INDEX "idx_food_stock_move_once" ON "food_stock_moves" USING btree ("order_id","kind");
+CREATE INDEX "idx_gym_staff_company" ON "gym_staff" USING btree ("company_id");
+CREATE UNIQUE INDEX "idx_gym_staff_username" ON "gym_staff" USING btree (lower(username)) WHERE (username IS NOT NULL);
+CREATE INDEX "idx_furn_variants" ON "furniture_product_variants" USING btree ("company_id","product_id");
+CREATE INDEX "idx_furn_quote_items" ON "furniture_quote_items" USING btree ("quote_id");
+CREATE INDEX "idx_furn_mo" ON "furniture_production_orders" USING btree ("company_id","status");
+CREATE UNIQUE INDEX "idx_furn_mo_item" ON "furniture_production_orders" USING btree ("company_id","sale_item_id") WHERE (sale_item_id IS NOT NULL);
+CREATE INDEX "idx_furn_mo_sale" ON "furniture_production_orders" USING btree ("company_id","sale_id");
+CREATE INDEX "idx_nut_appts" ON "nutrition_appointments" USING btree ("company_id","slot_at");
+CREATE INDEX "idx_nut_appts_open" ON "nutrition_appointments" USING btree ("company_id","status","slot_at");
+CREATE INDEX "idx_nut_templates" ON "nutrition_templates" USING btree ("company_id","name");
+CREATE UNIQUE INDEX "idx_nut_checkin_day" ON "nutrition_checkins" USING btree ("patient_id","on_date");
+CREATE INDEX "idx_nut_messages" ON "nutrition_messages" USING btree ("company_id","patient_id","created_at");
+CREATE INDEX "sokro_notif_unread_idx" ON "sokro_notifications" USING btree ("user_id","read_at","id" DESC NULLS FIRST);
+CREATE INDEX "idx_nut_template_items" ON "nutrition_template_items" USING btree ("template_id","sort_order");
+CREATE INDEX "nutrition_subs_idx" ON "nutrition_subscriptions" USING btree ("company_id","patient_id","ends_on" DESC NULLS FIRST);
+CREATE UNIQUE INDEX "sokro_agenda_item_once" ON "sokro_agenda_items" USING btree ("agenda_id","item_key");
+CREATE INDEX "sokro_agenda_items_idx" ON "sokro_agenda_items" USING btree ("agenda_id","position");
+CREATE UNIQUE INDEX "sokro_one_open_booking" ON "sokro_bookings" USING btree ("user_id","conversation_id") WHERE (status = ANY (ARRAY['collecting'::text, 'reviewing'::text, 'ready_for_confirmation'::text, 'confirmed'::text]));
+ALTER TABLE "food_orders" ADD CONSTRAINT "food_orders_driver_id_fkey" FOREIGN KEY ("driver_id") REFERENCES "public"."food_staff"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "food_orders" ADD CONSTRAINT "food_orders_table_id_fkey" FOREIGN KEY ("table_id") REFERENCES "public"."food_tables"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "food_orders" ADD CONSTRAINT "food_orders_zone_id_fkey" FOREIGN KEY ("zone_id") REFERENCES "public"."food_zones"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "furniture_sale_items" ADD CONSTRAINT "furniture_sale_items_variant_id_fkey" FOREIGN KEY ("variant_id") REFERENCES "public"."furniture_product_variants"("id") ON DELETE set null ON UPDATE no action;
+ALTER TABLE "nutrition_diary" ADD CONSTRAINT "nutrition_diary_food_id_fkey" FOREIGN KEY ("food_id") REFERENCES "public"."nutrition_foods"("id") ON DELETE set null ON UPDATE no action;
+CREATE INDEX "idx_food_orders_driver" ON "food_orders" USING btree ("driver_id","status");
+CREATE INDEX "idx_food_orders_table" ON "food_orders" USING btree ("table_id","status");
+CREATE INDEX "idx_abandoned_due" ON "abandoned_carts" USING btree ("reminder_state","updated_at");
+CREATE UNIQUE INDEX "idx_gym_booking_token" ON "gym_bookings" USING btree ("token") WHERE (token IS NOT NULL);
+CREATE UNIQUE INDEX "idx_furn_sales_token" ON "furniture_sales" USING btree ("track_token");
+CREATE INDEX "idx_nut_diary_ate" ON "nutrition_diary" USING btree ("patient_id","on_date","kind");

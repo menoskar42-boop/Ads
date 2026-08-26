@@ -252,6 +252,196 @@ async function requireShop(req, res, next) {
   }
 }
 
+async function requireDeals(req, res, next) {
+  if (!req.session.companyId) return res.redirect('/company/login');
+  try {
+    const r = await pool.query('SELECT page_type FROM companies WHERE id = $1', [req.session.companyId]);
+    if (!r.rows.length || r.rows[0].page_type !== 'deals') {
+      return res.status(404).render('404', { subdomain: null });
+    }
+    next();
+  } catch (err) {
+    console.error('requireDeals error:', err);
+    res.status(500).send('Error.');
+  }
+}
+
+function dealsText(value, max) {
+  const text = String(value == null ? '' : value).trim();
+  return text ? text.slice(0, max) : null;
+}
+
+function dealsSlug(value) {
+  const slug = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 110);
+  return slug || `product-${Date.now()}`;
+}
+
+async function loadDealsForm(req, res, product, error) {
+  const company = (await pool.query(
+    'SELECT * FROM companies WHERE id = $1 AND page_type = $2',
+    [req.session.companyId, 'deals']
+  )).rows[0];
+  return res.render('company/deals_product_form', {
+    company,
+    product,
+    error: error || null,
+    session: req.session,
+  });
+}
+
+router.get('/deals-products', requireLogin, requireDeals, async (req, res) => {
+  try {
+    const [products, company] = await Promise.all([
+      pool.query(
+        `SELECT * FROM deals_products
+         WHERE company_id = $1 ORDER BY is_published DESC, is_featured DESC, created_at DESC`,
+        [req.session.companyId]
+      ),
+      pool.query('SELECT * FROM companies WHERE id = $1', [req.session.companyId]),
+    ]);
+    res.render('company/deals_products', {
+      products: products.rows,
+      company: company.rows[0],
+      session: req.session,
+    });
+  } catch (err) {
+    console.error('[GET /deals-products] error:', err);
+    res.status(500).send('Error loading Deals products.');
+  }
+});
+
+router.get('/deals-products/add', requireLogin, requireDeals, (req, res) =>
+  loadDealsForm(req, res, null, null)
+);
+
+router.post('/deals-products/add', requireLogin, requireDeals, (req, res) => {
+  uploadProductImage(req, res, async (uploadErr) => {
+    const body = req.body || {};
+    const renderError = (message) => loadDealsForm(req, res, body, message);
+    if (uploadErr) return renderError(`Upload failed: ${uploadErr.message}`);
+
+    const title = dealsText(body.title, 180);
+    const affiliateUrl = dealsText(body.affiliate_url, 1000);
+    if (!title || !affiliateUrl) return renderError('العنوان ورابط الأفلييت مطلوبان.');
+    if (!/^https?:\/\//i.test(affiliateUrl)) return renderError('رابط الأفلييت يجب أن يبدأ بـ http أو https.');
+
+    const imageFile = req.file;
+    const imageUrl = imageFile ? `/uploads/${imageFile.filename}` : dealsText(body.image_url, 1000);
+    if (imageFile) await compressImage(imageFile.path);
+
+    const source = body.source === 'AMAZON_API' ? 'AMAZON_API' : 'MANUAL';
+    if (source === 'AMAZON_API') return renderError('Amazon API غير متاح حاليًا. استخدم الإدخال اليدوي.');
+
+    const product = {
+      ...body,
+      source,
+      title,
+      slug: dealsSlug(body.slug || title),
+      image_url: imageUrl,
+      affiliate_url: affiliateUrl,
+    };
+    try {
+      await pool.query(
+        `INSERT INTO deals_products
+          (company_id, source, asin, title, slug, short_description, full_description,
+           brand, category, image_url, current_price, currency, amazon_product_url,
+           affiliate_url, rating, review_count, availability, is_featured, is_published)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+        [
+          req.session.companyId, source, dealsText(body.asin, 40), title, product.slug,
+          dealsText(body.short_description, 400), dealsText(body.full_description, 6000),
+          dealsText(body.brand, 120), dealsText(body.category, 120), imageUrl,
+          body.current_price === '' ? null : Number(body.current_price),
+          dealsText(body.currency, 8) || 'EGP', dealsText(body.amazon_product_url, 1000),
+          affiliateUrl, body.rating === '' ? null : Number(body.rating),
+          body.review_count === '' ? null : parseInt(body.review_count, 10),
+          dealsText(body.availability, 120), body.is_featured === '1', body.is_published === '1',
+        ]
+      );
+      res.redirect('/company/deals-products');
+    } catch (err) {
+      console.error('[POST /deals-products/add] error:', err);
+      return renderError('تعذر حفظ المنتج. تأكد أن الـ slug غير مكرر.');
+    }
+  });
+});
+
+router.get('/deals-products/:id/edit', requireLogin, requireDeals, async (req, res) => {
+  const product = (await pool.query(
+    'SELECT * FROM deals_products WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  )).rows[0];
+  if (!product) return res.redirect('/company/deals-products');
+  return loadDealsForm(req, res, product, null);
+});
+
+router.post('/deals-products/:id/edit', requireLogin, requireDeals, (req, res) => {
+  uploadProductImage(req, res, async (uploadErr) => {
+    const body = req.body || {};
+    const current = (await pool.query(
+      'SELECT * FROM deals_products WHERE id = $1 AND company_id = $2',
+      [req.params.id, req.session.companyId]
+    )).rows[0];
+    if (!current) return res.redirect('/company/deals-products');
+    const renderError = (message) => loadDealsForm(req, res, { ...current, ...body }, message);
+    if (uploadErr) return renderError(`Upload failed: ${uploadErr.message}`);
+
+    const title = dealsText(body.title, 180);
+    const affiliateUrl = dealsText(body.affiliate_url, 1000);
+    if (!title || !affiliateUrl) return renderError('العنوان ورابط الأفلييت مطلوبان.');
+    if (!/^https?:\/\//i.test(affiliateUrl)) return renderError('رابط الأفلييت يجب أن يبدأ بـ http أو https.');
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : (dealsText(body.image_url, 1000) || current.image_url);
+    if (req.file) await compressImage(req.file.path);
+    const source = 'MANUAL';
+    try {
+      await pool.query(
+        `UPDATE deals_products SET
+          source=$1, asin=$2, title=$3, slug=$4, short_description=$5, full_description=$6,
+          brand=$7, category=$8, image_url=$9, current_price=$10, currency=$11,
+          amazon_product_url=$12, affiliate_url=$13, rating=$14, review_count=$15,
+          availability=$16, is_featured=$17, is_published=$18, updated_at=now()
+         WHERE id=$19 AND company_id=$20`,
+        [
+          source, dealsText(body.asin, 40), title, dealsSlug(body.slug || title),
+          dealsText(body.short_description, 400), dealsText(body.full_description, 6000),
+          dealsText(body.brand, 120), dealsText(body.category, 120), imageUrl,
+          body.current_price === '' ? null : Number(body.current_price),
+          dealsText(body.currency, 8) || 'EGP', dealsText(body.amazon_product_url, 1000),
+          affiliateUrl, body.rating === '' ? null : Number(body.rating),
+          body.review_count === '' ? null : parseInt(body.review_count, 10),
+          dealsText(body.availability, 120), body.is_featured === '1', body.is_published === '1',
+          req.params.id, req.session.companyId,
+        ]
+      );
+      res.redirect('/company/deals-products');
+    } catch (err) {
+      console.error('[POST /deals-products/edit] error:', err);
+      return renderError('تعذر حفظ المنتج. تأكد أن الـ slug غير مكرر.');
+    }
+  });
+});
+
+router.post('/deals-products/:id/toggle-published', requireLogin, requireDeals, async (req, res) => {
+  await pool.query(
+    'UPDATE deals_products SET is_published = NOT is_published, updated_at = now() WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/deals-products');
+});
+
+router.post('/deals-products/:id/delete', requireLogin, requireDeals, async (req, res) => {
+  await pool.query(
+    'DELETE FROM deals_products WHERE id = $1 AND company_id = $2',
+    [req.params.id, req.session.companyId]
+  );
+  res.redirect('/company/deals-products');
+});
+
 /* ─── LOGIN ─────────────────────────────────────────────── */
 router.get('/login', (req, res) => {
   if (req.session.companyId) return res.redirect('/company/dashboard');

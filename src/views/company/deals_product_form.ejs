@@ -1,0 +1,87 @@
+<%
+  pageTitle = product && product.id ? 'تعديل منتج Deals' : 'إضافة منتج Deals';
+  activePage = 'deals-products';
+%>
+<%- include('_layout_top') %>
+
+<div class="bg-white rounded-2xl shadow-sm p-6 max-w-3xl">
+  <h2 class="text-xl font-bold text-gray-800 mb-1"><%= product && product.id ? 'تعديل منتج' : 'إضافة منتج يدوي' %></h2>
+  <p class="text-sm text-gray-400 mb-6">أدخل بيانات المنتج والرابط الذي أنشأته من Amazon Associates.</p>
+
+  <% if (error) { %><div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-5 text-sm"><%= error %></div><% } %>
+
+  <form method="POST" action="<%= product && product.id ? `/company/deals-products/${product.id}/edit` : '/company/deals-products/add' %>" enctype="multipart/form-data" class="space-y-5">
+    <div>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">مصدر المنتج</label>
+      <select name="source" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm">
+        <option value="MANUAL" selected>Manual — إدخال يدوي</option>
+        <option value="AMAZON_API" disabled>Amazon API — Coming soon / API access required</option>
+      </select>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">اسم المنتج *</label>
+        <input name="title" required maxlength="180" value="<%= product && product.title || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">Slug</label>
+        <input name="slug" maxlength="120" value="<%= product && product.slug || '' %>" placeholder="يُنشأ تلقائيًا" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">ASIN (اختياري)</label>
+        <input name="asin" maxlength="40" value="<%= product && product.asin || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">وصف قصير</label>
+        <textarea name="short_description" rows="3" maxlength="400" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm"><%= product && product.short_description || '' %></textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">الوصف الكامل</label>
+        <textarea name="full_description" rows="3" maxlength="6000" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm"><%= product && product.full_description || '' %></textarea>
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">العلامة التجارية</label><input name="brand" maxlength="120" value="<%= product && product.brand || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">التصنيف</label><input name="category" maxlength="120" value="<%= product && product.category || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">التوافر</label><input name="availability" maxlength="120" value="<%= product && product.availability || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">السعر الحالي (اختياري)</label><input name="current_price" type="number" min="0" step="0.01" value="<%= product && product.current_price || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">العملة</label><input name="currency" maxlength="8" value="<%= product && product.currency || 'EGP' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">عدد التقييمات (اختياري)</label><input name="review_count" type="number" min="0" step="1" value="<%= product && product.review_count || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-gray-600 mb-1.5">صورة المنتج</label>
+      <% if (product && product.image_url) { %><img src="<%= product.image_url %>" alt="" class="w-24 h-24 rounded-xl object-cover mb-3" /><% } %>
+      <input type="file" name="image_file" accept="image/png,image/jpeg,image/gif,image/webp" class="block w-full text-sm text-gray-600 mb-2" />
+      <input name="image_url" value="<%= product && product.image_url || '' %>" placeholder="أو رابط صورة https://..." class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+    </div>
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">رابط Amazon المباشر</label><input name="amazon_product_url" type="url" value="<%= product && product.amazon_product_url || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+      <div><label class="block text-sm font-semibold text-gray-600 mb-1.5">Affiliate URL *</label><input name="affiliate_url" type="url" required value="<%= product && product.affiliate_url || '' %>" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" /></div>
+    </div>
+
+    <div class="flex flex-wrap gap-5 text-sm text-gray-700">
+      <label class="flex items-center gap-2"><input type="checkbox" name="is_featured" value="1" <%= product && product.is_featured ? 'checked' : '' %> /> منتج مميز</label>
+      <label class="flex items-center gap-2"><input type="checkbox" name="is_published" value="1" <%= product && product.is_published ? 'checked' : '' %> /> نشر على الموقع</label>
+    </div>
+
+    <div class="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs text-gray-500">
+      المصدر الحالي: <strong>MANUAL</strong>. خيار Amazon API مؤجل حتى يصبح الحساب مؤهلًا.
+    </div>
+
+    <div class="flex items-center gap-3 pt-2">
+      <button type="submit" class="brand-bg text-white font-bold px-6 py-3 rounded-xl shadow-md">حفظ المنتج</button>
+      <a href="/company/deals-products" class="text-gray-500 hover:text-gray-700 text-sm">إلغاء</a>
+    </div>
+  </form>
+</div>
+
+<%- include('_layout_bottom') %>

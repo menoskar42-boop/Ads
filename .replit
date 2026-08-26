@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "postgresql-16", "python-base-3.13"]
+modules = ["nodejs-20", "postgresql-16"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -26,13 +26,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=false npm run dev"
 waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [[ports]]
 localPort = 5000
@@ -57,9 +57,6 @@ exposeLocalhost = true
 
 [deployment]
 deploymentTarget = "vm"
-# Build BOTH apps at deploy time. Without this, mybible/dist is never rebuilt and
-# the deploy ships a stale bundle (old lecture data, missing fixes). The mybible
-# build script rm's dist first, so this always produces a fresh frontend+server.
 build = ["sh", "-c", "npm install && (cd mybible && npm install && npm run build)"]
 run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true npm start"]
 

@@ -874,6 +874,33 @@ async function initDb() {
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS deals_products (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        source TEXT NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'AMAZON_API')),
+        asin TEXT,
+        title TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        short_description TEXT,
+        full_description TEXT,
+        brand TEXT,
+        category TEXT,
+        image_url TEXT,
+        current_price NUMERIC(10,2),
+        currency TEXT DEFAULT 'EGP',
+        amazon_product_url TEXT,
+        affiliate_url TEXT NOT NULL,
+        rating NUMERIC(2,1),
+        review_count INTEGER,
+        availability TEXT,
+        is_featured BOOLEAN NOT NULL DEFAULT false,
+        is_published BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, slug)
+      );
+      CREATE INDEX IF NOT EXISTS idx_deals_products_public
+        ON deals_products (company_id, is_published, is_featured, created_at DESC);
       CREATE TABLE IF NOT EXISTS customers (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,

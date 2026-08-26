@@ -11,7 +11,7 @@ const businessTypes = require('../lib/business_types');
 // nursery و installments، فأي شركة من النوعين دول كانت بتترمي على portfolio
 // من غير أي رسالة — الحضانة تطلع صفحة أعمال. مصدر واحد دلوقتي،
 // وscripts/check-page-types.js بيتأكد إنه مكتمل.
-const PAGE_TYPES = ['shop', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym',
+const PAGE_TYPES = ['shop', 'deals', 'portfolio', 'pharmacy', 'orders', 'clinic', 'gym',
   'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'];
 const { sendApplicationApproved } = require('../lib/mailer');
 const QRCode = require('qrcode');
