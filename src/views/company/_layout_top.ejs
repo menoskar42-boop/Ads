@@ -298,4 +298,85 @@
            class="font-semibold text-amber-800 underline hover:no-underline">شوف صفحة العميل ←</a>
         <a href="/" class="text-amber-700 hover:underline">رجوع للموقع</a>
       </div>
+
+      <%# التقاط العميل — **بعد** ما يشوف، مش قبل.
+          الديمو مفتوح بالكامل من غير الفورم ده؛ ده عرض مش بوابة. والزرار
+          بيتقفل ويفضل مقفول للجلسة، عشان اللي مش مهتم مايتزنقش كل صفحة. %>
+      <div id="demoLead" class="border-b border-slate-200 bg-white px-4 py-2.5 text-sm" dir="rtl" hidden>
+        <div class="max-w-5xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span class="font-semibold text-slate-800">عايز واحد زيه لنشاطك؟</span>
+          <span class="text-slate-500 hidden sm:inline">سيب رقمك ونكلّمك — من غير التزام.</span>
+          <form id="demoLeadForm" class="flex flex-wrap items-center gap-2 grow">
+            <label class="sr-only" for="dlName">اسمك</label>
+            <input id="dlName" name="name" required maxlength="120" placeholder="اسمك"
+                   class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm w-32 grow sm:grow-0">
+            <label class="sr-only" for="dlPhone">رقم الموبايل</label>
+            <input id="dlPhone" name="phone" required inputmode="tel" maxlength="24" placeholder="٠١٠٠٠٠٠٠٠٠٠"
+                   class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm w-40 grow sm:grow-0" dir="ltr">
+            <label class="sr-only" for="dlBiz">اسم نشاطك (اختياري)</label>
+            <input id="dlBiz" name="business" maxlength="160" placeholder="اسم نشاطك (اختياري)"
+                   class="border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm w-44 grow sm:grow-0">
+            <button type="submit" id="dlSend"
+                    class="bg-brand-600 text-white font-semibold rounded-lg px-3.5 py-1.5 text-sm">كلّموني</button>
+          </form>
+          <button type="button" id="dlClose" class="text-slate-400 hover:text-slate-600 text-xs">مش دلوقتي</button>
+          <p id="dlMsg" class="w-full text-sm" hidden></p>
+        </div>
+      </div>
+      <script>
+      (function () {
+        var box = document.getElementById('demoLead');
+        if (!box) return;
+        var KEY = 'od_demo_lead_done';
+        // sessionStorage مش localStorage: «مش دلوقتي» تخصّ الزيارة دي.
+        // اللي يرجع بكرة يشوفه تاني — ومش هيتلاحق للأبد.
+        try { if (sessionStorage.getItem(KEY)) return; } catch (e) { /* متصفّح قافل التخزين */ }
+        box.hidden = false;
+
+        var form = document.getElementById('demoLeadForm');
+        var msg = document.getElementById('dlMsg');
+        var send = document.getElementById('dlSend');
+
+        function say(text, ok) {
+          msg.textContent = text;
+          msg.className = 'w-full text-sm ' + (ok ? 'text-emerald-700' : 'text-red-600');
+          msg.hidden = false;
+        }
+
+        document.getElementById('dlClose').addEventListener('click', function () {
+          try { sessionStorage.setItem(KEY, '1'); } catch (e) { /* ولا يهمّك */ }
+          box.hidden = true;
+        });
+
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          send.disabled = true;
+          send.textContent = 'ثانية…';
+          var body = new URLSearchParams(new FormData(form)).toString();
+          fetch('/demo/lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body,
+          }).then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
+            .then(function (d) {
+              if (d && d.ok) {
+                // نجاح = الطلب اتقبل. مابنقولش «هنكلّمك خلال ساعة» —
+                // ده وعد بميعاد محدّش ضامنه.
+                try { sessionStorage.setItem(KEY, '1'); } catch (e) { /* */ }
+                form.hidden = true;
+                say('تمام، وصلنا رقمك. هنكلّمك.', true);
+              } else {
+                say((d && d.error) || 'حصلت مشكلة. جرّب تاني.', false);
+                send.disabled = false;
+                send.textContent = 'كلّموني';
+              }
+            })
+            .catch(function () {
+              say('مافيش اتصال. جرّب تاني.', false);
+              send.disabled = false;
+              send.textContent = 'كلّموني';
+            });
+        });
+      })();
+      </script>
     <% } %>

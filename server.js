@@ -74,6 +74,7 @@ const tenantRouter = require('./src/routes/tenant');
 const companyRouter = require('./src/routes/company');
 const { safeJson } = require('./src/lib/safe_json');
 const demoMode = require('./src/lib/demo_mode');
+const demoLead = require('./src/lib/demo_lead');
 const csrfGuard = require('./src/middleware/csrf');
 // shared_pool (fetched above) makes every new Pool() for this connection string
 // share one bounded pool, so this doesn't add connections.
@@ -536,6 +537,44 @@ app.get('/demo/:slug', async (req, res) => {
   } catch (e) {
     console.error('[demo] failed to open demo session:', e.message);
     return res.redirect('/');
+  }
+});
+
+/* التقاط عميل من جوّه الديمو.
+ *
+ * الديمو **مش مقفول**: الزائر بيدخل ويجرّب من غير أي فورم. ده مقصود —
+ * بوابة قبل الديمو بتصفّي اللي لسه مش مقتنع، يعني بتفقد بالظبط اللي
+ * الديمو اتعمل عشانه. الفورم بيظهر **جوّه** اللوحة وبعد ما يشوف، واختياري.
+ *
+ * والـlead بيتسجّل ومعاه **أنهي ديمو جرّبه** (`category` + `source`)، عشان
+ * أول جملة في المكالمة تبقى «شفت إنك جرّبت نظام الصيدلية» مش «مهتم بإيه؟».
+ */
+app.post('/demo/lead', async (req, res) => {
+  // مقفول على جلسة ديمو حقيقية: من غير الشرط ده الراوت بيبقى فورم مفتوح
+  // لأي حد يحشي بيه جدول العملاء.
+  if (!req.session || !req.session.demoReadOnly) return res.status(403).json({ ok: false });
+
+  const parsed = demoLead.leadFrom(req.body, req.session.demoSlug);
+  if (!parsed.ok) return res.status(400).json({ ok: false, error: parsed.error });
+
+  const L = parsed.lead;
+  try {
+    // نفس نمط `apply.js`: التكرار بيتمنع **جوّه جملة الإدخال** مش بقراءة
+    // قبلها — قراءة ثم كتابة بيسيبوا فتحة لطلبين في نفس اللحظة.
+    const r = await pool.query(
+      `INSERT INTO crm_leads (name, phone, business_name, category, source, status, notes)
+       SELECT $1, $2, $3, $4, $5, $6, $7
+        WHERE NOT EXISTS (SELECT 1 FROM crm_leads WHERE phone = $2)
+       RETURNING id`,
+      [L.name, L.phone, L.business_name, L.category, L.source, L.status, L.notes]
+    );
+    // مافيش صف = الرقم مسجّل قبل كده. للزائر ده نجاح: هو سابلنا رقمه فعلاً،
+    // ومش شغله إن فيه صف قديم. رسالة «مسجّل قبل كده» كانت هتبان زي رفض.
+    return res.json({ ok: true, saved: r.rows.length > 0 });
+  } catch (e) {
+    console.error('[demo-lead] insert failed:', e.message);
+    // الفشل بيتقال، مابيتخفيش ورا «تم». الزائر لازم يعرف إن رقمه مااتسجّلش.
+    return res.status(500).json({ ok: false, error: 'حصلت مشكلة مؤقتة. جرّب تاني أو كلّمنا على واتساب.' });
   }
 });
 
