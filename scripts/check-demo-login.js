@@ -1,0 +1,127 @@
+#!/usr/bin/env node
+/**
+ * حساب شركة عرض مايدخلش بكلمة سر — من أي باب.
+ *
+ * ── المشكلة اللي بيقفلها ───────────────────────────────────────────────
+ *
+ * الديمو نفسه مفتوح بلا كلمة سر (`/demo/<slug>`) وبيدّي جلسة **قراءة
+ * فقط** محروسة على السيرفر. ده كويس ومقصود.
+ *
+ * لكن شركات الديمو ليها كمان حسابات عادية، وكلمات سرها كانت مكتوبة في
+ * `src/db/seed.js` واتمسحت من الشجرة — **بس لسه في تاريخ Git**.
+ *
+ * واللي بيدخل من `/company/login` بحساب ديمو كان بياخد صلاحية **كتابة
+ * كاملة**، لأن الدخول العادي بينده `endDemo(req)` اللي بيلغّي وضع القراءة
+ * فقط. يعني الباب الآمن قدّامه، والباب المفتوح وراه.
+ *
+ * ── ليه القفل أحسن من تدوير كلمات السر ─────────────────────────────────
+ *
+ * التدوير بيقفل الباب **مرة واحدة**، وأي تسريب جديد بيفتحه تاني، وتاريخ
+ * Git مايتمسحش. القفل بيخلّي كلمة السر **بلا معنى**: حتى لو حد عرفها،
+ * الكود رافض.
+ *
+ * ── ⚠️ والترتيب هو اللي بيشتغل ─────────────────────────────────────────
+ *
+ * القفل لازم يبقى **قبل** أي كتابة في الجلسة. أول نسخة منه اتحطّت بعد
+ * `req.session.companyId = ...` — يعني الجلسة كانت بتاخد معرّف الشركة
+ * وبعدين الطلب يترفض. الرفض بيرجع رد، بس الجلسة اتلمست.
+ *
+ * Usage: node scripts/check-demo-login.js
+ */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.join(__dirname, '..');
+
+let failed = 0;
+const check = (label, ok, why) => {
+  console.log((ok ? '✅ ' : '❌ ') + label + (ok ? '' : '\n   ' + why));
+  if (!ok) failed += 1;
+};
+
+const raw = fs.readFileSync(path.join(ROOT, 'src/routes/company.js'), 'utf8');
+/* تجريد التعليقات — التعليق اللي بيشرح القفل مالوش ذنب، ودي سابع مرة
+ * الملاحظة دي تتكتب في المشروع. */
+const src = raw.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+
+// نعزل راوت الدخول.
+const start = src.indexOf("router.post('/login'");
+check('راوت الدخول موجود', start > -1, 'مش لاقيه في `company.js`.');
+const after = src.indexOf("router.", start + 40);
+const login = src.slice(start, after > start ? after : src.length);
+
+// ── ١) كل فرع دخول عليه قفل ────────────────────────────────────────────
+//
+// الراوت فيه سبع فروع (مالك + ست أنواع موظفين)، وكل واحد بيقدر يفتح
+// جلسة. فرع واحد بلا قفل بيكفي.
+
+const endDemo = (login.match(/demoMode\.endDemo\(req\)/g) || []).length;
+const blocks = (login.match(/demoMode\.isDemoLogin\(/g) || []).length;
+check(`عدد الأقفال (${blocks}) = عدد فروع الدخول (${endDemo})`,
+  blocks >= endDemo && endDemo > 0,
+  'كل فرع بينده `endDemo` هو فرع بيفتح جلسة كتابة — ولازم يكون قبله قفل. '
+  + 'فرع واحد بلا قفل بيخلّي الباب كله مفتوح.');
+
+// ── ٢) والقفل قبل أي كتابة في الجلسة ───────────────────────────────────
+//
+// دي القاعدة اللي الفحص اتكتب عشانها.
+
+const lines = login.split('\n');
+const problems = [];
+for (let i = 0; i < lines.length; i += 1) {
+  if (!/demoMode\.isDemoLogin\(/.test(lines[i])) continue;
+  // بندوّر لورا على أقرب `rows[0]` وبنتأكد إن مافيش `req.session.` بينهم.
+  let j = i - 1;
+  while (j >= 0 && !/rows\[0\]/.test(lines[j])) {
+    if (/req\.session\.\w+\s*=/.test(lines[j])) {
+      problems.push(`سطر ${i + 1}: فيه كتابة في الجلسة قبل القفل`);
+      break;
+    }
+    j -= 1;
+  }
+}
+check('كل قفل قبل أي كتابة في الجلسة', problems.length === 0,
+  problems.join(' · ') + '\n   الرفض بيرجع رد، بس الجلسة تبقى اتلمست خلاص.');
+
+// ── ٣) والقفل بينده القايمة الواحدة ────────────────────────────────────
+
+check('القفل بيقرا من `demo_mode` مش من قايمة تانية',
+  /demoMode\.isDemoLogin/.test(login) && !/slug === '(petra|pharmacy|clinic)'/.test(login),
+  'سلَج مكتوب بالإيد معناه إن الديمو الجاي هيتنسى.');
+
+// ── ٤) والسلوك نفسه ────────────────────────────────────────────────────
+
+const demoMode = require('../src/lib/demo_mode');
+for (const slug of demoMode.DEMO_SLUGS) {
+  check(`  ${slug} مرفوض`, demoMode.isDemoLogin(slug) === true, '');
+}
+for (const slug of ['hand', 'petraa', '', null, 'PHARMACY-real']) {
+  check(`  «${slug}» مش مرفوض (عميل حقيقي)`, demoMode.isDemoLogin(slug) === false,
+    'رفض عميل حقيقي بيمنعه من الدخول لبياناته.');
+}
+// الكابيتال: السلَجات بتتخزّن small، والدالة بتـlowercase.
+check('  والمقارنة مش حسّاسة لحالة الحروف',
+  demoMode.isDemoLogin('PHARMACY') === true,
+  'سلَج بحروف كبيرة كان هيعدّي القفل.');
+
+// ── ٥) والرسالة بتوَدّي على الديمو ─────────────────────────────────────
+//
+// اللي وصل هنا بالغلط لازم يلاقي طريقه — مش رسالة رفض عمياء.
+
+check('رسالة الرفض بتدّي رابط الديمو', /demo\/\$\{slug\}/.test(raw),
+  'الرفض من غير بديل بيسيب الزائر واقف.');
+
+// ── ٦) والديمو نفسه لسه مفتوح بلا كلمة سر ──────────────────────────────
+//
+// القفل ده مقصود إنه يقفل **الباب التاني** — مش إنه يقفل الديمو.
+
+const server = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+const demoRoute = server.slice(server.indexOf("app.get('/demo/:slug'"));
+check('`/demo/:slug` لسه بيفتح من غير كلمة سر',
+  !/password/i.test(demoRoute.slice(0, 1400)),
+  'الديمو المقصود إنه مفتوح — القفل على الدخول العادي بس.');
+check('وبيحطّ وضع القراءة فقط', /demoReadOnly = true/.test(demoRoute.slice(0, 1400)),
+  'من غيره الزائر بياخد لوحة تحكم كتابة.');
+
+process.exit(failed ? 1 : 0);
