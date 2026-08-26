@@ -1,0 +1,144 @@
+<%
+  /* صفحة سوق خليجي — إنجليزي أصلي مش ترجمة.
+     الكلام من `src/lib/gulf_pages.js`، والفروق بين السعودية والإمارات
+     حقيقية (ضريبة · عطلة الأسبوع · نظام الفوترة) مش اسم بلد بيتبدّل.
+     ودي الغلطة رقم ٧ في docs/SEO_MISTAKES_LOG.md: صفحة doorway. */
+  var g = page;
+%>
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title><%= g.title %></title>
+<meta name="description" content="<%= g.desc %>" />
+<%- include('../partials/seo_meta', { title: g.title, description: g.desc }) %>
+<script type="application/ld+json">
+<%- jsonLd({
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": g.title,
+  "description": g.desc,
+  "url": siteOrigin + g.path,
+  "inLanguage": "en",
+  "provider": { "@id": siteOrigin + "#organization" },
+  "areaServed": { "@type": "Country", "name": g.marketName },
+}) %>
+</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"OscarDevs","item":"<%= siteOrigin %><%= g.path.split('/').slice(0,3).join('/') %>"},{"@type":"ListItem","position":2,"name":"<%= g.title %>","item":"<%= siteOrigin %><%= g.path %>"}]}</script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;font-family:'Inter',system-ui,sans-serif}
+  body{margin:0;background:#0f172a;color:#e2e8f0;line-height:1.75}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px}
+  a{color:#38bdf8}
+  .hero{background:linear-gradient(160deg,#0f172a,#1e293b 60%,#134e4a);padding:64px 0 56px}
+  .hero h1{font-size:clamp(1.7rem,4.5vw,2.6rem);margin:0 0 14px;color:#fff;line-height:1.3}
+  .hero p{font-size:1.05rem;color:#cbd5e1;max-width:62ch;margin:0 0 24px}
+  .who{color:#94a3b8;font-size:.95rem;margin:0 0 26px;max-width:60ch}
+  .cta{display:inline-block;background:#f59e0b;color:#0f172a;font-weight:800;text-decoration:none;padding:14px 30px;border-radius:14px}
+  .cta.ghost{background:transparent;color:#e2e8f0;border:1.5px solid #475569;margin-inline-start:10px}
+  section{padding:52px 0;border-top:1px solid #1e293b}
+  h2{font-size:clamp(1.3rem,3.2vw,1.8rem);color:#fff;margin:0 0 10px}
+  .lead{color:#94a3b8;margin:0 0 26px;max-width:65ch}
+  .pain{background:#111c30;border-inline-start:4px solid #2dd4bf;border-radius:14px;padding:18px 22px;margin-bottom:16px}
+  .pain b{color:#fff;display:block;margin-bottom:4px}
+  .pain span{color:#94a3b8;font-size:.95rem}
+  .facts{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .fact{background:#111c30;border:1px solid #1e293b;border-radius:16px;padding:18px}
+  .fact b{display:block;color:#2dd4bf;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+  .fact span{color:#e2e8f0;font-weight:600}
+  .honest{background:#1a1410;border:1px solid #78350f;border-radius:16px;padding:22px 26px}
+  .honest h2{color:#fbbf24;margin-bottom:14px}
+  .honest li{color:#fde68a;margin-bottom:10px}
+  .price{background:#111c30;border:1px solid #334155;border-radius:16px;padding:22px 26px;color:#cbd5e1}
+  .foot{padding:40px 0 60px;text-align:center;color:#64748b;font-size:.9rem}
+  .switch{display:inline-block;background:#111c30;border:1px solid #334155;border-radius:999px;padding:7px 16px;font-size:.85rem;text-decoration:none;margin-bottom:22px}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <%# زر تبديل ظاهر — **مش تحويل تلقائي بالـIP**. جوجل بتحذّر من التحويل
+        الآلي حسب البلد، والزاحف بيدخل من أمريكا فبيشوف نسخة واحدة بس. %>
+    <a href="/ar" class="switch">🌐 بالعربية — السوق المصري</a>
+    <h1><%= g.h1 %></h1>
+    <p><%- g.lead %></p>
+    <p class="who"><b>Who it is for:</b> <%= g.forWho %></p>
+    <a href="/ar/contact" class="cta">Book a scoping call</a>
+    <% if (g.demo) { %><a href="<%= demoUrl %>" target="_blank" rel="nofollow" class="cta ghost">Open the live demo</a><% } %>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <h2>What this is built around</h2>
+      <p class="lead">Not a feature list — the things that actually cost you money.</p>
+      <% g.problems.forEach(function (p) { %>
+      <div class="pain"><b><%= p[0] %></b><span><%- p[1] %></span></div>
+      <% }); %>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Built for <%= g.marketName %>, specifically</h2>
+      <p class="lead">These are not cosmetic differences — each one changes what the software has to do.</p>
+      <div class="facts">
+        <div class="fact"><b>VAT</b><span><%= g.local.vat %></span></div>
+        <div class="fact"><b>Weekend</b><span><%= g.local.weekend %></span></div>
+        <div class="fact"><b>Pricing</b><span>In <%= g.currency %></span></div>
+        <div class="fact"><b>E-invoicing</b><span><%= g.local.eInvoice %></span></div>
+      </div>
+      <p class="lead" style="margin-top:22px"><%= g.local.note %></p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="honest">
+        <h2>What this does not do</h2>
+        <p style="color:#fcd34d;margin:0 0 14px">Every vendor lists what their product does. This is the other half — and it is the half that decides whether we are a fit.</p>
+        <ul>
+          <% g.honest.forEach(function (h) { %><li><%- h %></li><% }); %>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Pricing</h2>
+      <div class="price">
+        <% if (g.type) { %>
+        <p style="margin:0 0 10px"><b style="color:#fff">Free for the first <%= freeMonths %> months.</b>
+        After that: <b style="color:#fff"><%= monthly %> <%= g.currency %>/month</b>, or buy it outright for
+        <b style="color:#fff"><%= buy %> <%= g.currency %></b> and pay nothing after.</p>
+        <p style="margin:0;color:#94a3b8;font-size:.92rem">No commission on your sales, in either case.</p>
+        <% } else { %>
+        <p style="margin:0 0 10px"><b style="color:#fff">There is no fixed price for custom work — and that is deliberate.</b>
+        The price is a result of the scope, and the scope is not knowable before we sit on your workflow.</p>
+        <ol style="margin:0;color:#cbd5e1">
+          <li>A scoping session — <b style="color:#fff">at no charge</b> — that produces a written document.</li>
+          <li>The scope is split into phases, each priced <b style="color:#fff">at a fixed amount</b> before it starts.</li>
+          <li>Anything outside the scope is quoted separately before it is built.</li>
+        </ol>
+        <% } %>
+      </div>
+      <p style="margin-top:22px"><a href="/ar/contact" class="cta">Book a scoping call</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <a href="/ar">OscarDevs</a> · <a href="/ar/contact">Contact</a> ·
+    <a href="/ar/company-facts">Company facts</a>
+    <p style="margin-top:14px">Built and supported from Assiut, Egypt — working online with clients across the region.</p>
+  </div>
+</footer>
+
+</body>
+</html>

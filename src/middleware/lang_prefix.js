@@ -24,12 +24,16 @@
  * مكرّر و`hreflang` بيكدب في نفس الوقت.
  */
 
-const { LANGS, DEFAULT_LANG, publicPaths, stripLang, liveLangs, withLang } = require('../lib/lang_routes');
+const { LANGS, DEFAULT_LANG, publicPaths, pagesOf, stripLang, liveLangs, withLang } = require('../lib/lang_routes');
 const { extractSubdomain } = require('./tenant');
 
 module.exports = function langPrefix() {
   // بتتحسب مرة واحدة عند الإقلاع — القايمة مشتقّة من ملفات ثابتة.
   const PUBLIC = publicPaths();
+  /* صفحات كل لغة على حدة. العربي كل الصفحات العامة، والإنجليزي صفحات
+   * الخليج بس — مش ترجمة للموقع. التفاصيل في `lang_routes.pagesOf`. */
+  const PAGES = Object.fromEntries(Object.keys(LANGS).map((l) => [l, pagesOf(l)]));
+  const LIVE = liveLangs();
 
   return function (req, res, next) {
     // ⚠️ **دي أهم سطر في الملف.**
@@ -52,28 +56,34 @@ module.exports = function langPrefix() {
       /* `/ar/` → `/ar`. الشكل المعتمد من غير سلاش (شوف `withLang`).
        * من غير التحويل ده الاتنين بيردّوا ٢٠٠، والسايت‌ماب والـcanonical
        * بيختلفوا — وجوجل بتشوف صفحتين بنفس المحتوى. */
-      if (meta.live && req.path === `/${lang}/`) {
+      const pages = PAGES[lang];
+      /* `/ar/` → `/ar`. الشكل المعتمد من غير سلاش (شوف `withLang`).
+       * من غير التحويل ده الاتنين بيردّوا ٢٠٠، والسايت‌ماب والـcanonical
+       * بيختلفوا — وجوجل بتشوف صفحتين بنفس المحتوى. */
+      if (pages && pages.size && req.path === `/${lang}/`) {
         return res.redirect(301, `/${lang}` + req.url.slice(req.path.length));
       }
-      // prefix متعرّف بس لسه مافيش محتوى تحته → نسيبه من غير ما نعيد
-      // كتابة العنوان، فمايطابقش أي راوت وبيوصل للـ٤٠٤ الموجود أصلاً.
-      // `next('router')` على مستوى `app` سلوكه مش مضمون، والـ٤٠٤ الطبيعي
-      // أوضح وبيرندر نفس الصفحة اللي أي رابط غلط بيرندرها.
-      if (!meta.live) return next();
-      // مسار مش صفحة عامة تحت prefix لغة = مالوش وجود (مثلاً
-      // `/ar/company/login` — لوحات التحكم مش بتتقسّم بلغة في الرابط).
-      if (!PUBLIC.has(rest)) return next();
+      /* المسار مش صفحة في اللغة دي → نسيبه من غير ما نعيد كتابة العنوان،
+       * فمايطابقش أي راوت وبيوصل للـ٤٠٤ الموجود أصلاً. (`next('router')`
+       * على مستوى `app` سلوكه مش مضمون، والـ٤٠٤ الطبيعي أوضح.)
+       *
+       * ده بيغطّي تلات حالات مرة واحدة: لغة مالهاش صفحات خالص · مسار
+       * إداري تحت prefix لغة (`/ar/company/login`) · وصفحة عربية اتطلبت
+       * بالإنجليزي (`/en/about` — مافيش ترجمة، والـ٤٠٤ أصدق من نص عربي
+       * تحت رابط إنجليزي). */
+      if (!(pages && pages.has(rest))) return next();
       res.locals.lang = lang;
       res.locals.dir = meta.dir;
       res.locals.langPrefix = '/' + lang;
-      // بدائل اللغة للصفحة دي. دلوقتي العربي بس شغّال، فالمخرج بيبقى
-      // سطرين: `ar` و`x-default` — والاتنين على نفس العنوان. ده صحيح
-      // وصادق: بيقول «فيه نسخة عربية، وهي الافتراضية». أول ما الإنجليزي
-      // يبقى `live` بيظهر لوحده من غير ما حد يفتكر الملف ده.
-      res.locals.hreflang = liveLangs().map((l) => ({
-        lang: LANGS[l].hreflang,
-        path: withLang(rest, l),
-      }));
+      /* ⚠️ **البدائل للّغات اللي فيها الصفحة دي فعلاً** — مش لكل لغة
+       * شغّالة في الموقع.
+       *
+       * الفرق مهم: `/ar/about` مالهاش نسخة إنجليزية، و`/en/sa/...` مالهاش
+       * نسخة عربية. `hreflang` بيعلن نسخة مش موجودة بيوَدّي الزاحف على
+       * ٤٠٤، وجوجل بتتجاهل المجموعة كلها لما البدائل ماتتطابقش. */
+      res.locals.hreflang = LIVE
+        .filter((l) => PAGES[l] && PAGES[l].has(rest))
+        .map((l) => ({ lang: LANGS[l].hreflang, path: withLang(rest, l) }));
       // بنعيد كتابة العنوان عشان الراوترات تشوف المسار الأصلي.
       req.url = rest + (req.url.slice(req.path.length) || '');
       return next();

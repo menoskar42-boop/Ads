@@ -49,6 +49,7 @@ const MARKETS = {
     code: 'EG',
     name: 'مصر',
     nameEn: 'Egypt',
+    shortEn: 'Egypt',
     lang: 'ar',
     currency: 'EGP',
     currencyAr: 'ج',
@@ -60,6 +61,8 @@ const MARKETS = {
     code: 'SA',
     name: 'السعودية',
     nameEn: 'Saudi Arabia',
+    // الاسم المختصر للميتا — العنوان والوصف محدودين بالطول.
+    shortEn: 'Saudi Arabia',
     lang: 'en',
     currency: 'SAR',
     currencyAr: 'ر.س',
@@ -71,6 +74,10 @@ const MARKETS = {
     code: 'AE',
     name: 'الإمارات',
     nameEn: 'United Arab Emirates',
+    // «the UAE» هو الشكل الطبيعي بالإنجليزي، و«United Arab Emirates» عشرين
+    // حرف — فرق تمن حروف عن السعودية بيخلّي وصف واحد يعدّي حد الستين
+    // في سوق ويقصّر في التاني.
+    shortEn: 'the UAE',
     lang: 'en',
     currency: 'AED',
     currencyAr: 'د.إ',

@@ -62,9 +62,9 @@ const TOPICS = {
     type: 'clinic',
     demo: 'clinic',
     title: (m) => `Clinic Management Software in ${m.nameEn}`,
-    desc: (m, l) => `Clinic management software for ${m.nameEn}: online booking, `
-      + `per-doctor pages, patient records and invoicing with ${l.vat} VAT — priced in `
-      + `${m.currencyEn}, with a live demo you can open now.`,
+    desc: (m, l) => `Clinic management software for ${m.shortEn}: 24-hour booking, `
+      + `a page per doctor, patient records, and invoicing with ${l.vat} VAT. `
+      + `Priced in ${m.currencyEn}, with a live demo.`,
     h1: (m) => `Clinic software for ${m.nameEn} — booked while the clinic is closed`,
     lead: () => 'Most clinics do not lose patients at the consultation. They lose them at '
       + 'the phone call nobody answered. This is a booking-first clinic system: the patient '
@@ -100,9 +100,9 @@ const TOPICS = {
     type: null, // خدمة — مالهاش سعر ثابت
     demo: null,
     title: (m) => `Custom Software Development in ${m.nameEn}`,
-    desc: (m) => `Custom software development for companies in ${m.nameEn}: a paid-for-free `
-      + `scoping session, a written scope with screens and roles, fixed price per phase, and `
-      + `full ownership of the code on handover.`,
+    desc: (m) => `Custom software development for ${m.shortEn}: a free scoping `
+      + `session, a written scope with screens and roles, a fixed price per phase, `
+      + `and you own the code.`,
     h1: () => 'Custom software — with a written scope before you pay anything',
     lead: () => 'Projects do not fail on technology. They fail on a scope nobody wrote down, '
       + 'and a price that changed after the client had already committed. We start with the '

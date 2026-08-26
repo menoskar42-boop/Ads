@@ -117,6 +117,32 @@ for (const slug of Object.keys(SERVICES)) {
   });
 }
 
+/* ── صفحات الخليج بالإنجليزي (قرار المالك ٢٠٢٦-٠٨-٢٦) ────────────────────
+ *
+ * السعودية والإمارات، بالإنجليزي وبأسعار سوقها. الكلام من
+ * `src/lib/gulf_pages.js` والفروق بين السوقين حقيقية — ضريبة، عطلة
+ * الأسبوع، نظام الفوترة — مش اسم بلد بيتبدّل في نفس النص.
+ *
+ * ⚠️ المسارات هنا **من غير prefix اللغة** (`/sa/...`) لأن `lang_prefix`
+ * بيشيله قبل ما الراوتر يشوف الطلب. الزائر بيشوف `/en/sa/...`.
+ */
+const gulfPages = require('../lib/gulf_pages');
+const markets = require('../lib/markets');
+for (const p of gulfPages.pages()) {
+  const bare = p.path.replace(/^\/en/, '');
+  router.get(bare, (req, res) => {
+    const g = gulfPages.build(p.market, p.topic);
+    const price = g.type ? markets.priceOf(g.type, p.market) : null;
+    res.render('landing/gulf', {
+      page: g,
+      freeMonths: require('../lib/pricing').FREE_MONTHS,
+      monthly: price ? price.monthly : null,
+      buy: price ? price.buy : null,
+      demoUrl: g.demo ? 'https://' + g.demo + '.' + BASE_DOMAIN + '/' : null,
+    });
+  });
+}
+
 // One page a model can quote a fact off. The external GEO review scored our
 // entity clarity 7/10 and "likely to be cited" 4/10: everything about us was
 // spread across marketing copy, so answering "where are they, what do they
@@ -279,6 +305,10 @@ router.get('/sitemap.xml', async (req, res) => {
     ...Object.keys(SECTORS).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
     // خدمات التطوير المخصّص — مش أنظمة جاهزة، بس صفحات مفهرسة زيها.
     ...Object.keys(SERVICES).map((slug) => ({ loc: '/' + slug, priority: '0.8', changefreq: 'monthly', lastmod: today })),
+    /* صفحات الخليج الإنجليزية. **بمساراتها الكاملة** (`/en/sa/...`) مش
+     * زي اللي فوق: دول بيتحطّ عليهم prefix اللغة الافتراضي في `absLoc`،
+     * ودول عندهم prefix خاص بيهم أصلاً. */
+    ...gulfPages.pages().map((p) => ({ loc: p.path, priority: '0.7', changefreq: 'monthly', lastmod: today })),
     { loc: '/dental',   priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: WORKSHOP_LANDING, priority: '0.8', changefreq: 'monthly', lastmod: today },
     { loc: '/research', priority: '0.7', changefreq: 'monthly', lastmod: today },
@@ -409,6 +439,8 @@ router.get('/sitemap.xml', async (req, res) => {
    */
   const absLoc = (loc) => {
     if (loc.startsWith('http')) return loc;
+    // المسار اللي عليه prefix لغة خلاص (صفحات الخليج) بيعدّي زي ما هو.
+    if (/^\/(ar|en)(\/|$)/.test(loc)) return SITE_ORIGIN + loc;
     return SITE_ORIGIN + (PUBLIC_PATHS.has(loc) ? langRoutes.withLang(loc, langRoutes.DEFAULT_LANG) : loc);
   };
 
