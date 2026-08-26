@@ -375,10 +375,47 @@ section { padding: 110px 60px; position: relative; }
 
 .service-cta {
   margin-top: 28px; width: 100%; padding: 14px;
-  border-radius: 14px; border: none;
+  border-radius: 14px;
   font-family: 'Cairo',sans-serif; font-weight: 800;
   font-size: 1rem; cursor: none;
   transition: all 0.3s; position: relative; z-index: 1;
+
+  /* ⚠️ **الافتراضي لازم يبقى زرار كامل الشكل.**
+   *
+   * كان `border: none` وبلا خلفية — يعني أي كارت مالوش ستايل قطاعي بيطلع
+   * زراره **نص شفاف** جنب زرار مليان في الكارت اللي جنبه. وده كان حاصل
+   * في تسعة كروت من خمستاشر: `clinic` و`orders` (ليهم لون كارت بس مالهمش
+   * قاعدة CTA) وسبعة كروت مالهمش كلاس قطاعي أصلاً.
+   *
+   * الحل مش إني أضيف تسع قواعد — الحل إن الافتراضي يبقى صح، فالكارت
+   * الجاي يطلع مظبوط من غير ما حد يفتكر يضيف له قاعدة. */
+  background: rgba(0,245,212,0.12);
+  color: #00f5d4;
+  border: 1px solid rgba(0,245,212,0.35);
+}
+.service-cta:hover {
+  background: #00f5d4; color: #04231f;
+  box-shadow: 0 10px 30px rgba(0,245,212,0.4);
+}
+
+/* Clinic: medical blue — الكارت كان بلونه والزرار بلا لون. */
+.service-card.clinic .service-cta {
+  background: rgba(56,189,248,0.12); color: #38bdf8;
+  border: 1px solid rgba(56,189,248,0.35);
+}
+.service-card.clinic .service-cta:hover {
+  background: #38bdf8; color: #04202b;
+  box-shadow: 0 10px 30px rgba(56,189,248,0.4);
+}
+
+/* Orders: warm amber — نفس الحالة. */
+.service-card.orders .service-cta {
+  background: rgba(251,146,60,0.12); color: #fb923c;
+  border: 1px solid rgba(251,146,60,0.35);
+}
+.service-card.orders .service-cta:hover {
+  background: #fb923c; color: #2b1402;
+  box-shadow: 0 10px 30px rgba(251,146,60,0.4);
 }
 .service-card.portfolio .service-cta {
   background: rgba(79,70,229,0.2); color: #a5b4fc;
@@ -638,4 +675,47 @@ footer {
   .testi-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; }
   .testi-track { animation: none; }
   .testi-card { scroll-snap-align: center; }
+}
+
+/* الأربع أنظمة اللي كانت بلا كلاس قطاعي خالص — زرارها كان بيطلع
+   بالافتراضي وسط كروت كل واحدة بلونها. كل لون مختار من طبيعة الشغل. */
+
+/* Workshop: أزرق فولاذي — عدّة وورشة. */
+.service-card.workshop .service-cta {
+  background: rgba(148,163,184,0.14); color: #cbd5e1;
+  border: 1px solid rgba(148,163,184,0.38);
+}
+.service-card.workshop .service-cta:hover {
+  background: #94a3b8; color: #0b1220;
+  box-shadow: 0 10px 30px rgba(148,163,184,0.35);
+}
+
+/* Hall: ذهبي — قاعات ومناسبات. */
+.service-card.hall .service-cta {
+  background: rgba(245,158,11,0.12); color: #fbbf24;
+  border: 1px solid rgba(245,158,11,0.35);
+}
+.service-card.hall .service-cta:hover {
+  background: #f59e0b; color: #2a1a00;
+  box-shadow: 0 10px 30px rgba(245,158,11,0.4);
+}
+
+/* Nursery: وردي هادي — حضانات. */
+.service-card.nursery .service-cta {
+  background: rgba(244,114,182,0.12); color: #f472b6;
+  border: 1px solid rgba(244,114,182,0.35);
+}
+.service-card.nursery .service-cta:hover {
+  background: #f472b6; color: #2b0716;
+  box-shadow: 0 10px 30px rgba(244,114,182,0.4);
+}
+
+/* Installments: بنفسجي — تحصيل وأقساط. */
+.service-card.installments .service-cta {
+  background: rgba(167,139,250,0.12); color: #a78bfa;
+  border: 1px solid rgba(167,139,250,0.35);
+}
+.service-card.installments .service-cta:hover {
+  background: #a78bfa; color: #150b2b;
+  box-shadow: 0 10px 30px rgba(167,139,250,0.4);
 }
