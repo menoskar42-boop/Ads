@@ -1,0 +1,14 @@
+week,objective,actions,exit_criteria,owner_time_assumption
+1,Recruit interviews,contact only public businesses after consent; 5 owner interviews,5 completed interviews,4h
+2,Map workflow,observe lead to booking/order process; quantify delays,3 repeated workflow patterns,5h
+3,Test message,show clickable workflow and pricing cards,5/10 say problem is urgent,4h
+4,Secure design partners,offer reversible paid pilot,2 signed pilot agreements,5h
+5,Prototype inbox,build conversation assignment and customer timeline,no production integrations yet,8h
+6,Prototype booking/order,model availability and order states,3 users complete test flow,8h
+7,Prototype branch view,role permissions and owner rollup,2 branches represented in test data,6h
+8,Compliance review,consent opt-out export retention checklist,counsel/qualified reviewer feedback,4h
+9,Paid pilot 1,install with manual import and weekly review,first payment and weekly usage,6h
+10,Paid pilot 2,repeat in different vertical,second payment or clear rejection reason,6h
+11,Retention test,measure weekly active staff and follow-up completion,70% weekly active target is hypothesis,4h
+12,Decision,compare evidence to kill/continue thresholds,continue only with 3 paid pilots or strong unmet pain,4h
+13,Package,write onboarding and implementation boundary,repeatable pilot offer,4h

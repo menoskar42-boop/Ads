@@ -1,0 +1,218 @@
+[
+  {
+    "key": "mastercard-egypt-sme",
+    "title": "Mastercard SME Confidence Index: Egyptian SMEs embrace digital payments and innovation",
+    "url": "https://www.mastercard.com/news/eemea/en/newsroom/press-releases/en/2025-1/february/mastercard-sme-confidence-index-egyptian-smes-embrace-digital-payments-and-innovation-for-sustainable-growth",
+    "date": "2025-02-20",
+    "tier": 2,
+    "evidence": "research/sources/problem-05-mastercard-egypt.md"
+  },
+  {
+    "key": "oecd-d4sme-2025",
+    "title": "SME digitalisation for competitiveness: The 2025 OECD D4SME Survey",
+    "url": "https://www.oecd.org/content/dam/oecd/en/publications/reports/2025/04/sme-digitalisation-for-competitiveness_3116862a/197e3077-en.pdf",
+    "date": "2025-04",
+    "tier": 1,
+    "evidence": "research/sources/problem-06-oecd-sme-digitalisation.md"
+  },
+  {
+    "key": "whatsapp-state-business-messaging",
+    "title": "State of Business Messaging",
+    "url": "https://whatsappbusiness.com/resources/resource-library/state-of-business-messaging/",
+    "date": "2026 page; publication date verify",
+    "tier": 3,
+    "evidence": "research/sources/problem-04-whatsapp-business-messaging.md"
+  },
+  {
+    "key": "uae-ministry-smes",
+    "title": "Entrepreneurship and SMEs",
+    "url": "https://www.moet.gov.ae/en/entrepreneurs-and-smes",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/growth-02-uae-smes.md"
+  },
+  {
+    "key": "uae-digital-transformation",
+    "title": "Digital transformation: Official UAE platform",
+    "url": "https://u.ae/en/about-the-uae/digital-uae/digital-transformation",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/growth-03-uae-digital-transformation.md"
+  },
+  {
+    "key": "google-seo-starter",
+    "title": "SEO Starter Guide",
+    "url": "https://developers.google.com/search/docs/fundamentals/seo-starter-guide",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/growth-04-google-seo-starter.md"
+  },
+  {
+    "key": "google-structured-data",
+    "title": "Introduction to structured data",
+    "url": "https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/growth-05-google-structured-data.md"
+  },
+  {
+    "key": "google-search-console",
+    "title": "How to use Search Console",
+    "url": "https://developers.google.com/search/docs/monitor-debug/search-console-start",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/growth-06-google-search-console.md"
+  },
+  {
+    "key": "salla-plans",
+    "title": "Salla plans",
+    "url": "https://salla.com/en/plans",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-15-salla-plans.md"
+  },
+  {
+    "key": "zid-pricing",
+    "title": "Zid pricing",
+    "url": "https://www.zid.sa/en/pricing",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-14-zid-pricing.md"
+  },
+  {
+    "key": "zatca-einvoice",
+    "title": "Saudi E-Invoicing (Fatoorah)",
+    "url": "https://www.zatca.gov.sa/en/E-Invoicing/Pages/default.aspx",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-08-zatca-einvoice.md"
+  },
+  {
+    "key": "egypt-pdpc",
+    "title": "Egypt Personal Data Protection Center",
+    "url": "https://pdpc.gov.eg/",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-09-egypt-pdpc.md"
+  },
+  {
+    "key": "uae-pdpl",
+    "title": "UAE Federal Decree by Law Concerning Protection of Personal Data",
+    "url": "https://uaelegislation.gov.ae/en/legislations/1972",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-10-uae-pdpl.md"
+  },
+  {
+    "key": "hubspot-pricing",
+    "title": "HubSpot pricing",
+    "url": "https://www.hubspot.com/pricing",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-04-hubspot-pricing.md"
+  },
+  {
+    "key": "wati-pricing",
+    "title": "WATI pricing",
+    "url": "https://www.wati.io/pricing/",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-05-wati-pricing.md"
+  },
+  {
+    "key": "respond-pricing",
+    "title": "respond.io pricing",
+    "url": "https://respond.io/pricing",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-06-respond-pricing.md"
+  },
+  {
+    "key": "foodics-pricing",
+    "title": "Foodics UAE pricing",
+    "url": "https://www.foodics.com/foodics-pricing-uae/",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-07-foodics-pricing.md"
+  },
+  {
+    "key": "odoo-crm",
+    "title": "Odoo CRM",
+    "url": "https://www.odoo.com/page/crm",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-11-odoo-crm.md"
+  },
+  {
+    "key": "shopify-enterprise",
+    "title": "Shopify enterprise commerce",
+    "url": "https://www.shopify.com/enterprise",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/saas-13-shopify.md"
+  },
+  {
+    "key": "odoo-capterra",
+    "title": "Odoo Capterra listing",
+    "url": "https://www.capterra.ae/software/135618/odoo",
+    "date": "accessed 2026-08-26",
+    "tier": 2,
+    "evidence": "research/sources/products-01-odoo-capterra.md"
+  },
+  {
+    "key": "snad-saudi-guide",
+    "title": "Snad Saudi business software guide",
+    "url": "https://www.snad.io/en/best",
+    "date": "accessed 2026-08-26",
+    "tier": 3,
+    "evidence": "research/sources/products-02-snad-saudi-guide.md"
+  },
+  {
+    "key": "crm-order-github",
+    "title": "Laravel CRM Order",
+    "url": "https://github.com/SagorIslamOfficial/crm-order",
+    "date": "accessed 2026-08-26",
+    "tier": 3,
+    "evidence": "research/sources/products-03-crm-order-github.md"
+  },
+  {
+    "key": "aramco-digital-news",
+    "title": "Aramco Digital news",
+    "url": "https://www.aramcodigital.com/news",
+    "date": "2026-08-12 and 2026-02-25",
+    "tier": 1,
+    "evidence": "research/sources/signals-01-aramco-digital-news.md"
+  },
+  {
+    "key": "uae-essential-goods-platform",
+    "title": "UAE Essential Goods Prices Platform",
+    "url": "https://www.moet.gov.ae/en/essential-goods-prices-platform",
+    "date": "accessed 2026-08-26",
+    "tier": 1,
+    "evidence": "research/sources/signals-02-uae-essential-goods-platform.md"
+  },
+  {
+    "key": "lucky-series-b",
+    "title": "Lucky fintech raises Series B",
+    "url": "https://egyptinnovate.com/en/news/lucky-fintech-raises-23-million-in-series-b-round-to-support-expansion-across-north-africa",
+    "date": "2026-04-07",
+    "tier": 2,
+    "evidence": "research/sources/signals-03-lucky-egyptinnovate.md"
+  },
+  {
+    "key": "uae-space-platform",
+    "title": "UAE Space Agency launches digital customer platform",
+    "url": "https://space.gov.ae/en/media-center/news/9/10/2025/uae-space-agency-launches-innovative-digital-platform-for-customer-services-at-gitex-global-2025",
+    "date": "2025-09-10",
+    "tier": 1,
+    "evidence": "research/sources/signals-04-uae-space-platform.md"
+  },
+  {
+    "key": "pif-humain",
+    "title": "PIF launches Humain",
+    "url": "https://www.pif.gov.sa/en/news-and-insights/press-releases/2025/pif-launches-humain-to-lead-ai-era/",
+    "date": "2025-05-13",
+    "tier": 1,
+    "evidence": "research/sources/signals-05-humain.md"
+  }
+]

@@ -1,0 +1,173 @@
+Source: https://developers.google.com/search/docs/monitor-debug/search-console-start
+Title: How To Use Search Console | Google Search Central  |  Documentation  |  Google for Developers
+Fetched: 2026-08-26T10:31:32.703Z
+
+[Skip to main content](https://developers.google.com/search/docs/monitor-debug/search-console-start#main-content)
+
+[![Google Search Central](https://developers.google.com/static/search/images/google-search-central-logo.svg)](https://developers.google.com/search)
+
+- [GoogleSearch Central](https://developers.google.com/search)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/search/docs/monitor-debug/search-console-start)
+- [Deutsch](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=de)
+- [Español](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=es)
+- [Español – América Latina](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=es-419)
+- [Français](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=fr)
+- [Indonesia](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=id)
+- [Italiano](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=it)
+- [Polski](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=pl)
+- [Português – Brasil](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=vi)
+- [Türkçe](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=tr)
+- [Русский](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=ru)
+- [العربيّة](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=ar)
+- [हिंदी](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=hi)
+- [ภาษาไทย](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=th)
+- [中文 – 简体](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=zh-tw)
+- [日本語](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=ja)
+- [한국어](https://developers.google.com/search/docs/monitor-debug/search-console-start?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fsearch%2Fdocs%2Fmonitor-debug%2Fsearch-console-start&prompt=select_account)
+
+- [Documentation](https://developers.google.com/search/docs)
+
+[Search Console](https://goo.gle/searchconsole)
+
+- On this page
+- [Helpful reports for SEO specialists, digital marketers, and site administrators](https://developers.google.com/search/docs/monitor-debug/search-console-start#helpful-reports-for-seo-specialists,-digital-marketers,-and-site-administrators)
+- [Helpful reports for web developers](https://developers.google.com/search/docs/monitor-debug/search-console-start#helpful-reports-for-web-developers)
+
+- [Home](https://developers.google.com/)
+- [Search Central](https://developers.google.com/search)
+- [Documentation](https://developers.google.com/search/docs)
+
+
+
+ Send feedback
+
+
+
+- On this page
+- [Helpful reports for SEO specialists, digital marketers, and site administrators](https://developers.google.com/search/docs/monitor-debug/search-console-start#helpful-reports-for-seo-specialists,-digital-marketers,-and-site-administrators)
+- [Helpful reports for web developers](https://developers.google.com/search/docs/monitor-debug/search-console-start#helpful-reports-for-web-developers)
+
+# Get started with Search Console
+
+[Search Console](https://goo.gle/searchconsole) is a tool from
+Google that can help anyone with a website to understand how they are performing on Google Search,
+and what they can do to improve their appearance on search to bring more relevant traffic to their
+websites.
+
+Search Console provides information on [how Google crawls, indexes, and serves websites](https://developers.google.com/search/docs/fundamentals/how-search-works).
+This can help website owners to monitor and optimize Search performance.
+
+There is no need to sign in to the tool every day. If new issues are found by Google on your site,
+you'll receive an email from Search Console alerting you. But you might want to check your account
+around once every month, or when you make changes to the site's content, to make sure the data is
+stable. Learn more about [managing your site with Search Console](https://support.google.com/webmasters/answer/6258314).
+
+To get started, follow these steps:
+
+1. **Verify site ownership**. Get access to all of the information Search Console makes available.
+    Learn more about [how to verify your site ownership](https://support.google.com/webmasters/answer/9008080).
+2. **Make sure Google can find and read your pages**. The
+    [Index coverage report](https://support.google.com/webmasters/answer/7440203)
+    gives you an overview of all the pages Google indexed or tried to index in your website.
+    Review the list available and try to fix page errors and warnings.
+3. **Consider submitting a sitemap to Search Console**. Pages from your site can be discovered
+    by Google without this step. However, submitting a sitemap using Search Console might speed up
+    your site's discovery. If you decide to submit it through the tool, you'll be able to monitor
+    information related to it. Learn more about the
+    [Sitemaps report](https://support.google.com/webmasters/answer/7451001).
+4. **Monitor your site's performance**. The [Search performance report](https://support.google.com/webmasters/answer/7576553)
+    shows how much traffic you're getting from Google Search, including breakdowns by queries,
+    pages, and countries. For each of those breakdowns, you can see trends for impressions, clicks,
+    and other metrics. If your traffic is going down, consider
+    [debugging the traffic drop](https://developers.google.com/search/docs/monitor-debug/debugging-search-traffic-drops),
+    which can help you prioritize your efforts.
+
+If you'd like to learn Search Console more in-depth, there are broadly two areas you could focus on. We provide here a list of reports
+that would be most relevant to web developers and those that would be most relevant to SEO specialists, digital marketers,
+and site administrators. While the groups have several intersection points, it's still useful to try and provide
+the most relevant reports for each group.
+
+## Helpful reports for SEO specialists, digital marketers, and site administrators
+
+The following list includes the most useful Search Console reports to help you manage various aspects of
+how Google Search indexes, crawls, and serves your site.
+
+- **Learn if your site has any Google Search manual actions issued against it**. If a site has a manual action,
+some or all of that site may not be shown in Google Search results. The [Manual\\
+Actions report](https://support.google.com/webmasters/answer/9044175) shows any issues, in which section of your site, and where to learn more about it.
+- **Temporarily hide pages from Google Search**. The [Removals tool](https://support.google.com/webmasters/answer/9689846)
+is a way to quickly remove content on your site from Google Search results. A successful request lasts
+only about six months, to allow time for you to find a solution to either allow
+the content to be seen or to remove it permanently.
+- **Tell Google about a site migration**. If you move your website from one domain or subdomain to another,
+the [Change of Address tool](https://support.google.com/webmasters/answer/9370220) tells Google about your change,
+and helps to migrate your Google Search results from your old site to your new site.
+- **Review issues with your structured data implementation**. The
+[Rich result status reports](https://support.google.com/webmasters/answer/7552505)
+show what structured data Google could or couldn't read from your site. You'll find details on
+errors that prevent showing your pages as rich results, warnings that might limit your appearance,
+and information on how to debug and fix issues.
+
+## Helpful reports for web developers
+
+The following reports can help developers build websites that are healthy, findable, and
+optimized for Google Search.
+
+- **Understand site-wide Search indexing issues**. The
+[Index Coverage report](https://support.google.com/webmasters/answer/7440203)
+shows which pages have errors, warnings, or are excluded from Search. In addition, it shows the
+number of impressions the website pages accrued on Google Search, which helps understanding how
+issues might have affected your organic traffic.
+- **Debug page-level Search indexing issues**. The
+[URL Inspection tool](https://support.google.com/webmasters/answer/9012289)
+provides the current index status of website pages and options to test a live URL, to ask Google
+to crawl a specific page, and to view detailed information about the page's loaded resources and
+other information.
+- **Find and fix threats affecting your site**. The
+[Security Issues report](https://support.google.com/webmasters/answer/9044101)
+report shows warnings when Google finds that a website might have been hacked, or used in ways
+that could potentially harm a visitor or their device.
+- **Make sure your website provides a great page experience to your users**. The
+[Core Web Vitals report](https://support.google.com/webmasters/answer/9205520)
+shows how pages perform based on real world usage data, sometimes called field data.
+
+[Get a full list of Search Console reports and tools](https://support.google.com/webmasters/answer/9133276)
+
+
+
+ Send feedback
+
+
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2025-12-10 UTC.
+
+
+Need to tell us more?
+
+
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2025-12-10 UTC."\],\[\],\["Search Console helps website owners understand and improve their Google Search performance. Key actions include verifying site ownership, ensuring Google can access pages via the Index Coverage report, and optionally submitting a sitemap. The Search Performance report monitors traffic trends, allowing debugging of drops. The tool also offers reports for SEO specialists to manage manual actions, removals, site migrations, and rich results. Developers can use it to understand indexing, debug page issues, check for security threats, and monitor user page experience.\\n"\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API

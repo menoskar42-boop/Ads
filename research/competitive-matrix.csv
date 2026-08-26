@@ -1,0 +1,28 @@
+alternative,market_category,whatsapp_crm,booking,orders,inventory_branches,price_status
+Salla,Saudi/GCC commerce,Partial/integrations,Limited,Strong,Strong,"**Published:** Free Basic; SAR 990/yr Plus; SAR 2,990/yr Pro"
+Zid,Saudi commerce platform,Partial/integrations,Limited,Strong,Strong,Quote; verify official plan
+Foodics,Saudi/UAE/Egypt restaurant POS,Partial,Limited,Strong,Strong,Quote (UAE result says tailored quote)
+Fresha,Global beauty booking/POS,Partial,Strong,Partial,Partial,Freemium/usage; local amount verify
+Booksy,Global beauty booking,Partial,Strong,Partial,Limited,Quote/market-dependent
+Mindbody,Global fitness/wellness,Partial,Strong,Partial,Partial,Quote
+Calendly,Global scheduling,No native CRM depth,Strong,No,No,Published global plans; local tax/amount verify
+Setmore,Global scheduling,Partial,Strong,No,No,Freemium/paid; local amount verify
+Zoho CRM/Bookings/Inventory,"Global, regional availability",Partial/integration,Strong via Bookings,Partial,Strong via Inventory,Published global plans; local VAT/currency verify
+HubSpot,Global CRM,Via partners/integration,Partial,Partial,No,Freemium + paid; local amount verify
+Salesforce,Global CRM,Via partner/integration,Partial,Partial,No,Quote/edition-dependent
+Odoo,"Global ERP, strong partner ecosystem",Via WhatsApp/partners,Strong via apps,Strong,Strong,Published/partner-dependent; local deployment verify
+Shopify,Global commerce,Via apps,Via apps,Strong,Strong,Published global plans; gateway/tax fit verify
+WooCommerce,Global/open-source commerce,Via plugins,Via plugins,Strong,Via plugins,Software often free; hosting/plugins/implementation variable
+Square,US/selected markets POS,Partial,Partial,Strong,Strong,Published in supported markets; Egypt/Saudi/UAE availability verify
+Loyverse,Global SMB POS,Partial,Strong-ish via add-ons,Strong,Strong,Freemium/paid add-ons; local compliance verify
+Lightspeed,Global retail/restaurant POS,Partial,Partial,Strong,Strong,Quote/edition-dependent
+QuickBooks Online,Global accounting,No native workflow depth,No,Partial,Partial,Published global plans; country edition/tax verify
+Xero,Global accounting,No native workflow depth,No,Partial,Partial,Published global plans; country edition/tax verify
+Oracle NetSuite,Enterprise ERP,Via integrations,Via integrations,Strong,Strong,Quote
+Microsoft Dynamics 365,Global CRM/ERP,Via integrations,Partial,Strong,Strong,Published modules/quote; local partner verify
+WhatsApp Business Platform + partner inbox,Global messaging infrastructure,Strong,Custom,Custom,Custom,Usage/conversation + partner fees; not a complete vertical suite
+respond.io,Omnichannel inbox/automation,Strong,Custom/integration,Custom/integration,Custom/integration,Published global tiers; local amount verify
+WATI,WhatsApp CRM/automation,Strong,Custom/integration,Custom/integration,Custom/integration,Published global tiers; local amount verify
+SleekFlow,Omnichannel WhatsApp CRM,Strong,Custom/integration,Custom/integration,Custom/integration,Quote/plan-dependent
+Interakt,WhatsApp commerce/CRM,Strong,Custom/integration,Strong-ish,Custom,Published global tiers; local amount verify
+Gupshup,WhatsApp API/messaging,Strong infrastructure,Custom,Custom,Custom,Usage/quote
