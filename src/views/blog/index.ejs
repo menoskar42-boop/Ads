@@ -35,11 +35,11 @@
 
 <header class="bg-white shadow-sm">
   <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-    <a href="/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
+    <a href="/ar/" class="text-xl font-extrabold text-indigo-700">OscarDevs</a>
     <nav class="text-sm text-gray-500 flex gap-4">
-      <a href="/" class="hover:text-indigo-700">الرئيسية</a>
-      <a href="/about" class="hover:text-indigo-700">من نحن</a>
-      <a href="/contact" class="hover:text-indigo-700">اتصل بنا</a>
+      <a href="/ar/" class="hover:text-indigo-700">الرئيسية</a>
+      <a href="/ar/about" class="hover:text-indigo-700">من نحن</a>
+      <a href="/ar/contact" class="hover:text-indigo-700">اتصل بنا</a>
     </nav>
   </div>
 </header>
@@ -55,7 +55,7 @@
 
   <div class="grid sm:grid-cols-2 gap-6">
     <% articles.forEach(function(a){ %>
-      <a href="/blog/<%= a.slug %>" class="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition p-6 border border-gray-100">
+      <a href="/ar/blog/<%= a.slug %>" class="group bg-white rounded-2xl shadow-sm hover:shadow-lg transition p-6 border border-gray-100">
         <div class="text-xs text-gray-400 mb-2 flex items-center gap-3">
           <time><%= a.date %></time>
           <span>·</span>

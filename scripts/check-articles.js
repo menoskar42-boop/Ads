@@ -74,11 +74,21 @@ const DIR = 'src/views/blog/articles';
 const bodies = fs.readdirSync(path.join(ROOT, DIR)).filter((f) => f.endsWith('.ejs'));
 let links = 0;
 let broken = 0;
+const unprefixed = [];
+const NO_PREFIX = new Set(['/privacy', '/terms']);
 for (const file of bodies) {
   const html = read(DIR + '/' + file);
   for (const m of html.matchAll(/href="(\/[^"?#]*)/g)) {
     // بنشيل السلاش الأخير: `/about/` و`/about` نفس الصفحة عندنا.
-    const p = m[1].replace(/\/$/, '') || '/';
+    // وبنشيل prefix اللغة كمان: الصفحات العامة بقت على `/ar/…`، والفحص
+    // بيتأكد من **الصفحة** مش من الـprefix. رابط من غير prefix بيتمسك
+    // في القاعدة اللي تحت — عشان رابط بيتحوّل ٣٠١ مش رابط سليم.
+    let p = m[1].replace(/\/$/, '') || '/';
+    const pref = /^\/(ar|en)(\/.*)?$/.exec(p);
+    // `/privacy` و`/terms` مقصود إنهم `noindex,follow` وبره السايت‌ماب،
+    // فمش صفحات عامة ومالهمش نسخة لغوية — الـprefix عليهم غلط مش صح.
+    if (!pref) { if (!NO_PREFIX.has(p)) unprefixed.push(`${file}: ${p}`); }
+    else { p = pref[2] || '/'; }
     links += 1;
     if (p.startsWith('/blog/')) {
       if (!articleSlugs.has(p.slice(6))) {
@@ -90,6 +100,18 @@ for (const file of bodies) {
   }
 }
 if (!broken) console.log(`✅ ${links} رابط داخلي في ${bodies.length} مقال — كلهم بيوصلوا`);
+
+/* ── رابط من غير prefix لغة = رابط بيتحوّل ٣٠١ ──────────────────────────
+ *
+ * `/about` شغّال، بس بيتحوّل. الزائر مش هيلاحظ؛ جوجل هتلاحظ: تحويلة جوّه
+ * الموقع بتضيّع جزء من قوة الرابط وبتبطّأ الزحف. والأسوأ إن كل مقال جديد
+ * هيتكتب بالعادة القديمة لو مفيش حاجة بتقول لأ. */
+if (unprefixed.length) {
+  fail(`رابط من غير prefix اللغة (بيتحوّل ٣٠١ بدل ما يوصل على طول): ${unprefixed.slice(0, 8).join(' · ')}`
+    + (unprefixed.length > 8 ? ` … و${unprefixed.length - 8} غيرهم` : ''));
+} else {
+  console.log('✅ وكل رابط عليه prefix اللغة — مفيش تحويلة داخلية');
+}
 
 // ── ٢) مفيش سلَج ولا عنوان مكرّر ────────────────────────────────────────
 

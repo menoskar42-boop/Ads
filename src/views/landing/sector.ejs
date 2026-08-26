@@ -91,7 +91,7 @@
     <h1><%= s.h1 %></h1>
     <p><%- s.lead %></p>
     <p class="who"><b>لمين؟</b> <%= s.forWho %></p>
-    <a href="/apply?type=<%= s.type %>" class="cta">اطلب النظام</a>
+    <a href="/ar/apply?type=<%= s.type %>" class="cta">اطلب النظام</a>
     <a href="<%= demoUrl %>" target="_blank" rel="nofollow" class="cta ghost">شوف نموذج حي</a>
   </div>
 </header>
@@ -134,11 +134,11 @@
       <p class="lead">
         تقديم الطلب مجاني. <%= pricing.priceLine(s.type) %>
         <strong>ومافيش عمولة على مبيعاتك</strong> في كل الحالات.
-        الأسعار كلها في <a href="/company-facts">صفحة الحقائق</a>،
-        ولو بتقارن بين <a href="/compare">اشتراك ثابت وعمولة على كل بيعة</a>
+        الأسعار كلها في <a href="/ar/company-facts">صفحة الحقائق</a>،
+        ولو بتقارن بين <a href="/ar/compare">اشتراك ثابت وعمولة على كل بيعة</a>
         فيه صفحة بتحسبها بأرقامك.
       </p>
-      <a href="/apply?type=<%= s.type %>" class="cta">اطلب النظام</a>
+      <a href="/ar/apply?type=<%= s.type %>" class="cta">اطلب النظام</a>
     </div>
   </section>
 
@@ -156,10 +156,10 @@
       <h2>أنظمة تانية</h2>
       <p class="lead">لو نشاطك مش ده، غالباً ليه نظام مخصّص عندنا.</p>
       <div class="other">
-        <% others.forEach(function (o) { %><a href="/<%= o.slug %>"><%= o.label %></a><% }); %>
-        <a href="/dental">عيادات الأسنان</a>
-        <a href="/car-workshop-management-egypt">ورش السيارات</a>
-        <a href="/">كل الأنظمة</a>
+        <% others.forEach(function (o) { %><a href="/ar/<%= o.slug %>"><%= o.label %></a><% }); %>
+        <a href="/ar/dental">عيادات الأسنان</a>
+        <a href="/ar/car-workshop-management-egypt">ورش السيارات</a>
+        <a href="/ar/">كل الأنظمة</a>
       </div>
     </div>
   </section>
@@ -167,8 +167,8 @@
 
 <footer class="foot">
   <div class="wrap">
-    <a href="/">OscarDevs</a> · <a href="/apply?type=<%= s.type %>">اطلب النظام</a> ·
-    <a href="/company-facts">حقائق عننا</a> · <a href="/contact">تواصل معنا</a>
+    <a href="/ar/">OscarDevs</a> · <a href="/ar/apply?type=<%= s.type %>">اطلب النظام</a> ·
+    <a href="/ar/company-facts">حقائق عننا</a> · <a href="/ar/contact">تواصل معنا</a>
   </div>
 </footer>
 

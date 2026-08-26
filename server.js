@@ -626,6 +626,15 @@ app.use('/admin', adminRouter);
 app.use('/shop', shopRouter);
 app.use('/customer', customerRouter);
 
+/* ── اللغة في الرابط (قرار المالك ٢٠٢٦-٠٨-٢٦) ────────────────────────────
+ *
+ * الصفحات العامة بقت على `/ar/…`، والروابط القديمة بتتحوّل ٣٠١ عليها.
+ * لازم يبقى **قبل** الراوترات العامة عشان يعيد كتابة العنوان قبل ما
+ * يشوفوه، و**بعد** الجلسة والـi18n. تفاصيل القرار والحدود في
+ * `src/middleware/lang_prefix.js` و`src/lib/lang_routes.js`.
+ */
+app.use(require('./src/middleware/lang_prefix')());
+
 // Public content routes (apply form, legal pages, blog, sitemap) — before tenant middleware
 app.use('/', applyRouter);
 app.use('/', legalRouter);

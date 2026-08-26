@@ -98,6 +98,9 @@ for (const slug of Object.keys(SECTORS)) {
  * الإجابة ما يجمعش ١٢ + ٣ ويطلع بـ١٥.
  */
 const { SERVICES, othersOf: otherServices, READY_SYSTEMS } = require('../lib/services');
+const langRoutes = require('../lib/lang_routes');
+// بتتحسب مرة واحدة عند التحميل — القايمة مشتقّة من ملفات ثابتة.
+const PUBLIC_PATHS = langRoutes.publicPaths();
 const { arabicNumber } = require('../lib/pricing');
 for (const slug of Object.keys(SERVICES)) {
   router.get('/' + slug, (req, res) => {
@@ -381,13 +384,30 @@ router.get('/sitemap.xml', async (req, res) => {
     }
   } catch (_) { /* DB optional for sitemap */ }
 
+  /**
+   * المسار النسبي بيتحوّل لعنوان كامل — **وبياخد prefix اللغة**.
+   *
+   * ⚠️ ده أهم سطر في السايت‌ماب بعد التقسيم الجديد: `/about` بقى بيتحوّل
+   * ٣٠١ على `/ar/about`، فسايت‌ماب بيدرج `/about` بيوَدّي كل زاحف على
+   * تحويلة. وجوجل بتقول صراحةً إن السايت‌ماب لازم يدرج **العنوان
+   * النهائي** — العنوان اللي بيتحوّل مش عنوان قابل للفهرسة.
+   *
+   * والمسار اللي مش في قايمة الصفحات العامة بيفضل زي ما هو: ده معناه
+   * إن حد ضاف صفحة للسايت‌ماب من غير ما يسجّلها في `lang_routes`،
+   * و`check-lang-routes` بيمسك الحالة دي.
+   */
+  const absLoc = (loc) => {
+    if (loc.startsWith('http')) return loc;
+    return SITE_ORIGIN + (PUBLIC_PATHS.has(loc) ? langRoutes.withLang(loc, langRoutes.DEFAULT_LANG) : loc);
+  };
+
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.send(
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
     urls.map(u =>
-      `  <url>\n    <loc>${u.loc.startsWith('http') ? u.loc : SITE_ORIGIN + u.loc}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+      `  <url>\n    <loc>${absLoc(u.loc)}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     ).join('\n') +
     '\n</urlset>\n'
   );
@@ -485,7 +505,19 @@ router.get('/llms.txt', (req, res) => {
   lines.push(`- [الشروط والأحكام](${SITE_ORIGIN}/terms)`);
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.send(lines.join('\n') + '\n');
+  /* الروابط الداخلية في `llms.txt` بتاخد prefix اللغة — في مكان واحد.
+   *
+   * الملف ده هو اللي محرّكات الإجابة بتقرا منه العناوين. لو فضل بيدرج
+   * `/about` بعد ما بقت تحويلة ٣٠١، كل رابط بنقدّمه لمحرّك الإجابة
+   * بيبقى تحويلة — وبعضهم بيسيب التحويلة أصلاً. الاستبدال هنا مرة
+   * واحدة على النص كله أأمن من تعديل سبعتاشر سطر بالإيد ونسيان واحد. */
+  const ORIGIN_RE = new RegExp(
+    '(' + SITE_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(/[a-zA-Z0-9/_-]*)', 'g');
+  const body = lines.join('\n').replace(ORIGIN_RE, (m, origin, raw) => {
+    const p = raw.replace(/\/$/, '') || '/';
+    return origin + (PUBLIC_PATHS.has(p) ? langRoutes.withLang(p, langRoutes.DEFAULT_LANG) : raw);
+  });
+  res.send(body + '\n');
 });
 
 module.exports = router;
