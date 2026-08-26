@@ -1871,6 +1871,26 @@ initDb()
   // and can never crash boot. A daily timer keeps a long-running instance
   // up to date without anyone editing the code.
   .then(() => { syncMedicinesSafe(); })
+  /* ── تبليغ IndexNow عند النشر اللي بيغيّر صفحات ────────────────────────
+   *
+   * بيانات Bing Webmaster الحقيقية أظهرت **صفر URL مرسلة خلال آخر اتناشر
+   * ساعة**: التكامل موجود من زمان، ومحدّش بينده عليه غير رابط أدمن يدوي.
+   *
+   * ⚠️ **مش بيبعت مع كل إقلاع.** `submitOnce` بتخزّن بصمة قايمة العناوين
+   * في قاعدة البيانات، فالإقلاع اللي القايمة فيه زي ما هي مابيبعتش خالص.
+   * الإرسال بيحصل لما نشر يزوّد صفحة أو يشيلها — وده بالظبط اللي IndexNow
+   * اتعملت عشانه.
+   *
+   * والفشل مابيوقّفش الإقلاع: البصمة مابتتسجّلش غير بعد نجاح، فالمحاولة
+   * بتتعاد في الإقلاع الجاي لوحدها. */
+  .then(async () => {
+    const indexnow = require('./src/lib/indexnow');
+    const urls = langRoutes.publicUrls(process.env.SITE_ORIGIN || 'https://oscardevs.com');
+    const r = await indexnow.submitOnce(pool, urls, 'public-pages');
+    if (r.body === 'unchanged') console.log(`[IndexNow] ${urls.length} عنوان — ما اتغيّرش، مافيش إرسال`);
+    else if (r.status >= 200 && r.status < 300) console.log(`[IndexNow] اتبعت ${urls.length} عنوان (${r.status})`);
+    else if (r.status !== 0) console.warn('[IndexNow] الإرسال فشل:', r.status, r.body);
+  })
   .catch(err => console.error('DB init warning:', err.message));
 
 setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();

@@ -257,17 +257,13 @@ if (INDEXNOW_KEY) {
 router.get('/admin/seo/ping-indexnow', async (req, res) => {
   if (!req.session || !req.session.adminId) return res.status(401).send('Unauthorized');
   if (!INDEXNOW_KEY) return res.status(400).send('INDEXNOW_KEY env var not set');
-  const urls = [
-    SITE_ORIGIN + '/',
-    SITE_ORIGIN + '/about',
-    SITE_ORIGIN + '/company-facts',
-    ...Object.keys(SECTORS).map((slug) => SITE_ORIGIN + '/' + slug),
-    SITE_ORIGIN + '/contact',
-    SITE_ORIGIN + '/faq',
-    SITE_ORIGIN + '/help',
-    SITE_ORIGIN + '/blog',
-    ...ARTICLES.map(a => SITE_ORIGIN + '/blog/' + a.slug),
-  ];
+  /* ⚠️ القايمة كانت متكتوبة بالإيد **بلا prefix اللغة** — يعني بنبلّغ
+   * محرّكات البحث بعناوين بتتحوّل ٣٠١، وده بيضيّع الغرض من التبليغ.
+   * وكانت ناقصة صفحات الخدمات والخليج كمان.
+   *
+   * دلوقتي من `langRoutes.publicUrls` — نفس المصدر اللي السايت‌ماب
+   * والميدل‌وير بيقروا منه. */
+  const urls = langRoutes.publicUrls(SITE_ORIGIN);
   try {
     const c = await pool.query("SELECT slug FROM companies WHERE is_active = true");
     for (const row of c.rows) urls.push('https://' + row.slug + '.' + BASE_DOMAIN + '/');
