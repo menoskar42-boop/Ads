@@ -26,10 +26,11 @@
     </p>
 
     <div class="hero-actions">
-      <a href="https://wa.me/201552406406?text=عايز أحجز عرض ١٥ دقيقة" target="_blank" rel="noopener" style="text-decoration:none">
-        <button class="btn-primary">
-          💬 احجز عرض ١٥ دقيقة
-        </button>
+      <%# كان `<a><button>` — عنصرين تفاعليين متداخلين. الكيبورد بيقف على
+          الاتنين، وقارئ الشاشة بيعلنهم مرتين، والسلوك مش قياسي. الرابط
+          هو اللي بيعمل الفعل فعلاً، فهو اللي فضل — بنفس شكل الزرار. %>
+      <a href="https://wa.me/201552406406?text=عايز أحجز عرض ١٥ دقيقة" target="_blank" rel="noopener" class="btn-primary btn-as-link">
+        💬 احجز عرض ١٥ دقيقة
       </a>
       <button class="btn-ghost" onclick="document.getElementById('services').scrollIntoView({behavior:'smooth'})">
         اختر الحل المناسب لنشاطك
@@ -735,12 +736,8 @@
       تواصل معنا دلوقتي والاستشارة الأولى مجانًا.
     </p>
     <div class="cta-actions reveal">
-      <a href="https://wa.me/201552406406?text=عايز أعمل موقع" target="_blank" style="text-decoration:none">
-        <button class="btn-primary">💬 تواصل على واتساب</button>
-      </a>
-      <a href="mailto:contact&#64;oscardevs.com" style="text-decoration:none">
-        <button class="btn-ghost">📧 ارسل إيميل</button>
-      </a>
+      <a href="https://wa.me/201552406406?text=عايز أعمل موقع" target="_blank" rel="noopener" class="btn-primary btn-as-link">💬 تواصل على واتساب</a>
+      <a href="mailto:contact&#64;oscardevs.com" class="btn-ghost btn-as-link">📧 ارسل إيميل</a>
     </div>
   </div>
 </section>
