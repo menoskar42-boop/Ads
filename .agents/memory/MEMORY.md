@@ -1,2 +1,3 @@
 - [Canonical SEO URLs](canonical-seo.md) — preserve tenant hosts and paths in canonical and structured-data URLs.
 - [Phone stream identity](phone-stream-identity.md) — bind voice media streams to short-lived signed capabilities plus database ownership checks.
+- [BranchFlow opportunity](branchflow-opportunity.md) — validate a focused Arabic branch-operations workflow before building a full SaaS.
