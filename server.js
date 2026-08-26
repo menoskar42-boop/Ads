@@ -280,28 +280,26 @@ app.use(cookieParser());
 // external scheduler (cron-job.org / UptimeRobot): the reliable way to fire the
 // push on scale-to-zero hosting (Replit Autoscale sleeps → internal cron won't
 // run). Protected by PUSH_CRON_SECRET; disabled (503) until that secret is set.
+/* مفاتيح الـcron: هيدر بس، مقارنة ثابتة الزمن، وأخطاء بلا تسريب.
+ * كان السر مقبول في الـquery — يعني متسجّل في كل access log للأبد. */
+const cronAuth = require('./src/lib/cron_auth');
+
 app.all('/api/neuropilot/run-daily', async (req, res) => {
-  const secret = process.env.PUSH_CRON_SECRET || '';
-  if (!secret) return res.status(503).json({ ok: false, error: 'PUSH_CRON_SECRET not set' });
-  const provided = req.query.key || req.get('x-cron-key') || '';
-  if (provided !== secret) return res.status(403).json({ ok: false, error: 'bad key' });
+  if (!cronAuth.guard(req, res)) return;
   try {
     const r = await neuroPush.sendDaily({ force: 'force' in req.query });
     res.json(r);
-  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  } catch (e) { cronAuth.fail(res, e, 'neuropilot-cron'); }
 });
 
 // Subscriptions daily renewal — external trigger (reliable on scale-to-zero).
 // Same secret as the push cron. Point cron-job.org at this once a day.
 app.all('/api/subscriptions/run-daily', async (req, res) => {
-  const secret = process.env.PUSH_CRON_SECRET || '';
-  if (!secret) return res.status(503).json({ ok: false, error: 'PUSH_CRON_SECRET not set' });
-  const provided = req.query.key || req.get('x-cron-key') || '';
-  if (provided !== secret) return res.status(403).json({ ok: false, error: 'bad key' });
+  if (!cronAuth.guard(req, res)) return;
   try {
     const r = await require('./src/lib/subscriptions').runDueRenewals();
     res.json({ ok: true, ...r });
-  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  } catch (e) { cronAuth.fail(res, e, 'subscriptions-cron'); }
 });
 
 // ===== Sokro (sokro.oscardevs.com) — AI Operating System, host-routed =====
