@@ -19,7 +19,57 @@ body {
   color: var(--white);
   font-family: 'Cairo', sans-serif;
   overflow-x: hidden;
-  cursor: none;
+}
+
+/* ⚠️ **إخفاء المؤشر مشروط بجهاز عنده مؤشر فعلاً.**
+ *
+ * كان `cursor: none` على `body` من غير شرط. على اللمس مافيش مؤشر أصلاً
+ * فالقاعدة بلا معنى، لكن على أي جهاز المؤشر المخصّص فيه مابيشتغلش (جافا
+ * سكريبت اتعطّل، متصفح قديم، قارئ شاشة) الزائر بيفضل **من غير مؤشر
+ * خالص** — الصفحة بتبقى غير قابلة للاستخدام وهو مش فاهم ليه.
+ *
+ * `hover: hover` و`pointer: fine` بيحصروها على ماوس حقيقي. */
+@media (hover: hover) and (pointer: fine) {
+  body { cursor: none; }
+}
+
+/* ── التركيز بالكيبورد ──────────────────────────────────────────────────
+ *
+ * مكانش فيه ولا قاعدة `:focus-visible` في الملف كله. يعني اللي بيتنقّل
+ * بالـTab — أو بيستخدم قارئ شاشة — مش شايف هو فين. وإخفاء المؤشر فوق كان
+ * بيضاعف المشكلة.
+ *
+ * `:focus-visible` بتظهر للكيبورد بس، فالماوس مابيشوفش إطار على كل نقرة. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* الرابط اللي شكله زرار — بدل `<a><button>` المتداخلين. */
+.btn-as-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none;
+}
+
+/* ── الحركة المخفّضة ────────────────────────────────────────────────────
+ *
+ * اللي مضبّط جهازه على تقليل الحركة عنده سبب (دوار، صداع نصفي، تشتّت).
+ * الصفحة فيها ظهور تدريجي ومؤشر بيتحرّك مع الماوس باستمرار. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .cursor, .cursor-follower { display: none !important; }
+  body { cursor: auto !important; }
 }
 
 /* Custom Cursor */

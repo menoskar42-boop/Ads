@@ -792,12 +792,36 @@ router.get('/crm', requireAdmin, async (req, res) => {
       contacted: '(last_contacted_at IS NULL), last_contacted_at DESC',
     }[sort];
 
-    const r = await pool.query(`SELECT * FROM crm_leads ${where} ORDER BY ${orderBy}`, params);
+    /* ── ترقيم الصفحات ────────────────────────────────────────────────
+     *
+     * كان `SELECT * FROM crm_leads` بلا حد، و`SELECT * FROM crm_activities`
+     * — **كل تفاعلات كل العملاء** — في كل زيارة للصفحة. مع مية عميل
+     * اتسجّلوا لسه ومع كل دفعة جاية، الاستعلامين دول بيكبروا خطياً
+     * والذاكرة معاهم. كشفتها مراجعة كود خارجية.
+     *
+     * التفاعلات بقت **لعملاء الصفحة دي بس** — ودي اللي كانت أخطر، لأن
+     * جدول التفاعلات بيكبر أسرع من جدول العملاء بكتير. */
+    const PER_PAGE = 50;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
 
-    // سجل تفاعلات كل عميل (Timeline).
-    const acts = await pool.query('SELECT * FROM crm_activities ORDER BY created_at DESC');
+    const totalRow = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM crm_leads ${where}`, params);
+    const totalLeads = (totalRow.rows[0] && totalRow.rows[0].n) || 0;
+    const pages = Math.max(1, Math.ceil(totalLeads / PER_PAGE));
+    const offset = (Math.min(page, pages) - 1) * PER_PAGE;
+
+    const r = await pool.query(
+      `SELECT * FROM crm_leads ${where} ORDER BY ${orderBy} LIMIT ${PER_PAGE} OFFSET ${offset}`,
+      params);
+
+    // سجل تفاعلات عملاء الصفحة دي بس.
+    const ids = r.rows.map((l) => l.id);
     const actMap = {};
-    acts.rows.forEach((a) => { (actMap[a.lead_id] = actMap[a.lead_id] || []).push(a); });
+    if (ids.length) {
+      const acts = await pool.query(
+        'SELECT * FROM crm_activities WHERE lead_id = ANY($1) ORDER BY created_at DESC', [ids]);
+      acts.rows.forEach((a) => { (actMap[a.lead_id] = actMap[a.lead_id] || []).push(a); });
+    }
     const leads = r.rows.map((l) => ({ ...l, wa: waNumber(l.phone), activities: actMap[l.id] || [] }));
 
     const counts = await pool.query('SELECT status, COUNT(*)::int AS n FROM crm_leads GROUP BY status');
@@ -838,6 +862,11 @@ router.get('/crm', requireAdmin, async (req, res) => {
       currentPriority: priority || '',
       currentDue: due || '',
       currentSort: sort,
+      // ترقيم الصفحات — الصفحة بتعرض ٥٠ عميل، وده لازم يبان للأدمن.
+      page: Math.min(page, pages),
+      pages,
+      perPage: PER_PAGE,
+      totalLeads,
       session: adminSession(req),
       activePage: 'crm',
     });

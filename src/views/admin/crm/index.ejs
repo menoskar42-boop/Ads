@@ -260,6 +260,37 @@
   <% }); %>
   </div>
   <div id="noResults" class="hidden bg-white rounded-2xl shadow-sm p-6 text-center text-gray-400 mb-6">مفيش نتيجة مطابقة للبحث.</div>
+
+  <%# ── شريط الصفحات ────────────────────────────────────────────────────
+      الصفحة كانت بتسحب **كل** العملاء وكل تفاعلاتهم في كل زيارة. بقت ٥٠
+      في الصفحة، ولازم ده يبان — الأدمن اللي شايف ٥٠ وهو عنده ٣٠٠ لازم
+      يعرف. والفلاتر بتتحفظ في الروابط عشان التنقّل مايضيّعهاش. %>
+  <% if (typeof pages !== 'undefined' && pages > 1) {
+       var pageUrl = function (p) {
+         var parts = ['page=' + p];
+         if (currentFilter) parts.push('status=' + encodeURIComponent(currentFilter));
+         if (currentCategory) parts.push('category=' + encodeURIComponent(currentCategory));
+         if (currentPriority) parts.push('priority=' + encodeURIComponent(currentPriority));
+         if (currentDue) parts.push('due=' + encodeURIComponent(currentDue));
+         if (currentSort) parts.push('sort=' + encodeURIComponent(currentSort));
+         return "/admin/crm?" + parts.join("&");
+       }; %>
+  <nav class="bg-white rounded-2xl shadow-sm p-4 mb-6 flex flex-wrap items-center justify-between gap-3" aria-label="صفحات العملاء">
+    <span class="text-sm text-gray-500">
+      صفحة <b class="text-gray-800"><%= page %></b> من <b class="text-gray-800"><%= pages %></b>
+      · <b class="text-gray-800"><%= totalLeads %></b> عميل إجمالاً
+      · <%= perPage %> في الصفحة
+    </span>
+    <div class="flex items-center gap-2">
+      <% if (page > 1) { %>
+        <a href="<%= pageUrl(page - 1) %>" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg px-4 py-2 text-sm">← السابق</a>
+      <% } %>
+      <% if (page < pages) { %>
+        <a href="<%= pageUrl(page + 1) %>" class="bg-gray-800 hover:bg-gray-900 text-white font-bold rounded-lg px-4 py-2 text-sm">التالي →</a>
+      <% } %>
+    </div>
+  </nav>
+  <% } %>
 <% } %>
 
 <!-- ====== أدوات الإدارة (قابلة للطي) ====== -->
