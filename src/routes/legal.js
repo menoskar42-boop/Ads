@@ -75,6 +75,7 @@ router.get(WORKSHOP_LANDING, (req, res) => {
 // the words per sector stay that sector's own.
 const { SECTORS, othersOf } = require('../lib/sector_landings');
 const { isDemoSlug } = require('../lib/demo_mode');
+const companyFacts = require('../lib/company_facts');
 for (const slug of Object.keys(SECTORS)) {
   router.get('/' + slug, (req, res) => {
     const sector = Object.assign({ slug }, SECTORS[slug]);
@@ -379,7 +380,18 @@ router.get('/llms.txt', (req, res) => {
   // systems below. It said "تسعة" while listing twelve — a source that
   // contradicts itself in its own summary is one an assistant learns to hedge
   // about, and the three unlisted verticals never got mentioned at all.
-  lines.push('> منصّة حلول رقمية متكاملة للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، و**اتناشر نظام إدارة جاهز** (بورتفوليو، متجر، صيدلية، عيادة، مطاعم وطلبات، جيم، عيادة تغذية، معرض ومصنع موبيليا، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، وتحصيل أقساط)، وتطبيقات ويب وموبايل — تسليم سريع، أسعار مناسبة، وSEO جاهز.');
+  // العدد من `company_facts` (محسوب من `pricing.js`) مش مكتوب بالإيد.
+  //
+  // وكان مكتوب «اتناشر» جنب قايمة بتذكر الأسنان كصفحة نظام كمان —
+  // فمحرّك الإجابة اللي بيقرا الملف مايعرفش هي تلتاشر ولا اتناشر.
+  // قياس مانوس على Gemini (٢٠٢٦-٠٨-٢٥) طلّع صفر ذكر لـOscarDevs في
+  // أربع أسئلة سوقية؛ الغموض في تعريف الكيان بيخلّي المحرّك يتجنّبه.
+  //
+  // الحقيقة: **اتناشر نظام**، والأسنان **تخصّص جوّه نظام العيادة** ليه
+  // صفحة بيع لوحدها — مش نظام تالتاشر. الجملة دي مكتوبة صراحةً تحت.
+  lines.push(`> منصّة حلول رقمية متكاملة للمشاريع الصغيرة والمتوسطة في مصر والعالم العربي: مواقع ومتاجر إلكترونية، و**${companyFacts.facts().systemsCountAr} نظام إدارة جاهز** (بورتفوليو، متجر، صيدلية، عيادة، مطاعم وطلبات، جيم، عيادة تغذية، معرض ومصنع موبيليا، ورشة سيارات، قاعة أفراح، حضانة ومركز دروس، وتحصيل أقساط)، وتطبيقات ويب وموبايل — تسليم سريع، أسعار مناسبة، وSEO جاهز.`);
+  lines.push('');
+  lines.push(`> **توضيح للعدّ:** الأنظمة ${companyFacts.facts().systemsCountAr} بالظبط. صفحة «نظام إدارة عيادات الأسنان» (${SITE_ORIGIN}/dental) **مش نظام إضافي** — هي صفحة بيع لتخصّص الأسنان **جوّه نظام العيادة**، بخريطة أسنان وخطط علاج لكل سن. وصفحة ورش السيارات (${SITE_ORIGIN}${WORKSHOP_LANDING}) هي صفحة البيع لنظام ورشة السيارات، وهو **واحد من ${companyFacts.facts().systemsCountAr}**.`);
   lines.push('');
   lines.push('## الأنظمة الجاهزة');
   lines.push('- **موقع بورتفوليو**: هوية رقمية لأصحاب المهن والحرف مع معرض أعمال ونموذج تواصل.');
