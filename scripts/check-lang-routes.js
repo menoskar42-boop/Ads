@@ -36,6 +36,7 @@ const check = (label, ok, why) => {
 };
 
 const langRoutes = require('../src/lib/lang_routes');
+const PUBLIC_SET = langRoutes.publicPaths();
 const makeMw = require('../src/middleware/lang_prefix');
 const mw = makeMw();
 
@@ -56,7 +57,7 @@ function run(host, method, url) {
   //
   // ٣٠٢ بتقول لجوجل «القديم هو الأصل» فبتفضل مفهرساه — ونضيّع النقل كله.
 
-  for (const [from, to] of [['/about', '/ar/about'], ['/', '/ar/'],
+  for (const [from, to] of [['/about', '/ar/about'], ['/', '/ar'],
     ['/blog/local-seo-egypt', '/ar/blog/local-seo-egypt'],
     ['/pharmacy-management-egypt', '/ar/pharmacy-management-egypt'],
     ['/crm-development-egypt', '/ar/crm-development-egypt']]) {
@@ -70,6 +71,53 @@ function run(host, method, url) {
   const q = await run('oscardevs.com', 'GET', '/apply?type=workshop');
   check('الـquery بتعدّي مع التحويل', q.kind === 'redirect' && q.to === '/ar/apply?type=workshop',
     `اللي حصل: ${JSON.stringify(q)} — ضياعها معناه إن الزائر بيوصل لنموذج فاضي.`);
+
+  /* ── ١ب) مفيش سلسلة تحويلات، ومفيش نسختين للجذر ─────────────────────
+   *
+   * تقرير السيو الخارجي بعد النشر مسك التلاتة دول كـP0:
+   *   · `/` كان بيتحوّل على `/ar/` واللي بيتحوّل على `/ar` — تحويلتين.
+   *   · السايت‌ماب كان بيدرج `/ar/` (اللي بيتحوّل) مش `/ar` (النهائي).
+   *   · `hreflang` و`x-default` على `/ar/` بينما `canonical` على `/ar`.
+   * كلهم من سبب واحد: `withLang('/')` كانت بتحط سلاش. */
+
+  check('`withLang` بترجّع الجذر من غير سلاش',
+    langRoutes.withLang('/', 'ar') === '/ar',
+    `بترجّع «${langRoutes.withLang('/', 'ar')}». السلاش بيخلق نسخة تانية `
+    + 'من الصفحة الرئيسية، والسايت‌ماب و`hreflang` بيدرجوها بدل النهائية.');
+
+  const root = await run('oscardevs.com', 'GET', '/');
+  check('`/` بتتحوّل على `/ar` **مرة واحدة**',
+    root.kind === 'redirect' && root.to === '/ar',
+    `بتوَدّي على «${root.to}» — لو فيها سلاش يبقى فيه تحويلة تانية بعدها.`);
+
+  const slash = await run('oscardevs.com', 'GET', '/ar/');
+  check('`/ar/` بتتحوّل ٣٠١ على `/ar`',
+    slash.kind === 'redirect' && slash.code === 301 && slash.to === '/ar',
+    `اللي حصل: ${JSON.stringify(slash)} — من غير كده الاتنين بيردّوا ٢٠٠ `
+    + 'وجوجل بتشوف صفحتين بنفس المحتوى.');
+
+  /* ── ١ج) الصفحات اللي كانت متسجّلة قبل الميدل‌وير ────────────────────
+   *
+   * `/radiology` و`/research` كانوا مسجّلين **قبل** `lang_prefix` في
+   * `server.js`. النتيجة: `/ar/radiology` بيرجع ٤٠٤ (الراوتر عدّى قبل ما
+   * العنوان يتعاد كتابته) و`/radiology` بيرد ٢٠٠ فمابيتحوّلش — نسختين،
+   * والسايت‌ماب بيدرج اللي بيرجع ٤٠٤. مسكها تقرير السيو وتقرير الجيو
+   * والـQA التلاتة.
+   *
+   * الفحص بيقرا `server.js` نفسه: كل راوت لصفحة عامة لازم يكون **بعد**
+   * تسجيل الميدل‌وير. */
+
+  const server = read('server.js');
+  const mwAt = server.indexOf("require('./src/middleware/lang_prefix')");
+  check('`lang_prefix` متسجّل في `server.js`', mwAt > 0, 'مش لاقيه.');
+  const late = [];
+  for (const m of server.matchAll(/app\.use\('(\/[a-z-]+)',\s*require\(/g)) {
+    if (!PUBLIC_SET.has(m[1])) continue;
+    if (m.index < mwAt) late.push(m[1]);
+  }
+  check('كل راوت صفحة عامة متسجّل **بعد** الميدل‌وير', late.length === 0,
+    `«${late.join('، ')}» متسجّلين قبله — يعني نسخة تحت \`/ar/\` بترجع ٤٠٤ `
+    + 'ونسخة بلا prefix بترد ٢٠٠. دي بالظبط اللي حصلت مع radiology و research.');
 
   // ── ٢) صفحات المستأجرين مالهاش دعوة بالتحويل ─────────────────────────
 

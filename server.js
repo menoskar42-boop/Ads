@@ -615,9 +615,7 @@ app.use('/nursery', require('./src/routes/nursery_admin'));
 app.use('/qastly/s', require('./src/routes/installments_public'));
 app.use('/qastly', require('./src/routes/installments_admin'));
 app.use('/nutrition', require('./src/routes/nutrition_admin'));
-app.use('/radiology', require('./src/routes/radiology'));
 // Research Data Auditor — standalone AI tool, no DB tables, stateless.
-app.use('/research', require('./src/routes/research_auditor'));
 
 // Super admin panel must be before tenant middleware too
 app.use('/admin', adminRouter);
@@ -638,6 +636,17 @@ app.use(require('./src/middleware/lang_prefix')());
 // Public content routes (apply form, legal pages, blog, sitemap) — before tenant middleware
 app.use('/', applyRouter);
 app.use('/', legalRouter);
+/* ⚠️ **الاتنين دول لازم يبقوا بعد `lang_prefix`** — وكانوا قبله.
+ *
+ * الأثر كان صفحتين مفهرستين بالغلط: `/ar/radiology` و`/ar/research` كانوا
+ * بيرجعوا ٤٠٤ (الميدل‌وير بيعيد كتابة العنوان لـ`/radiology` بس الراوتر
+ * كان خلاص عدّى)، و`/radiology` بلا prefix كان بيرد ٢٠٠ فمااتحوّلش —
+ * يعني نسختين من نفس الصفحة، والسايت‌ماب بيدرج اللي بيرجع ٤٠٤.
+ *
+ * ودي كانت أول ملاحظة P0 في تقريري السيو والجيو الخارجيين بعد النشر. */
+app.use('/radiology', require('./src/routes/radiology'));
+// Research Data Auditor — standalone AI tool, no DB tables, stateless.
+app.use('/research', require('./src/routes/research_auditor'));
 app.use('/', blogRouter);
 
 // Tenant detection: runs on every non-company request

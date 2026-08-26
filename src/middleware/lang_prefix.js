@@ -49,6 +49,12 @@ module.exports = function langPrefix() {
 
     if (lang) {
       const meta = LANGS[lang];
+      /* `/ar/` → `/ar`. الشكل المعتمد من غير سلاش (شوف `withLang`).
+       * من غير التحويل ده الاتنين بيردّوا ٢٠٠، والسايت‌ماب والـcanonical
+       * بيختلفوا — وجوجل بتشوف صفحتين بنفس المحتوى. */
+      if (meta.live && req.path === `/${lang}/`) {
+        return res.redirect(301, `/${lang}` + req.url.slice(req.path.length));
+      }
       // prefix متعرّف بس لسه مافيش محتوى تحته → نسيبه من غير ما نعيد
       // كتابة العنوان، فمايطابقش أي راوت وبيوصل للـ٤٠٤ الموجود أصلاً.
       // `next('router')` على مستوى `app` سلوكه مش مضمون، والـ٤٠٤ الطبيعي
@@ -79,8 +85,11 @@ module.exports = function langPrefix() {
       // بيتبعت POST على `/apply`، فتحويله كان هيفقد بيانات العميل.
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       const qs = req.url.slice(req.path.length);
-      const to = (req.path === '/' ? `/${DEFAULT_LANG}/` : `/${DEFAULT_LANG}${req.path}`) + qs;
-      return res.redirect(301, to);
+      /* `withLang` هي مصدر الشكل النهائي — مش سطر بيبنيه بإيده هنا.
+       * السطر اللي كان هنا بيحط سلاش على الجذر (`/ar/`)، و`/ar/` بيتحوّل
+       * على `/ar` — يعني تحويلتين ورا بعض على الصفحة الرئيسية. وسلسلة
+       * التحويلات دي كانت في تقرير السيو الخارجي كـP0. */
+      return res.redirect(301, withLang(req.path, DEFAULT_LANG) + qs);
     }
 
     return next();
