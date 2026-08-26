@@ -44,21 +44,32 @@ const { ARTICLES } = require('../src/routes/blog_articles');
 
 const commercial = [...Object.keys(SECTORS).map((s) => '/' + s),
   '/car-workshop-management-egypt', '/dental'];
+// خدمات التطوير المخصّص — صفحات جديدة، بتتفحص في الجزء الرابع.
+const services = Object.keys(SERVICES).map((s) => '/' + s);
+const arPages = [...commercial, ...services];
 
-const missing = commercial.filter(
+const missing = arPages.filter(
   (p) => !doc.includes('https://oscardevs.com/ar' + p)
 );
-check(`الـ${commercial.length} صفحة تجارية كلها في البرومبت بعنوان /ar/`,
+check(`الـ${arPages.length} صفحة تجارية وخدمية كلها في البرومبت بعنوان /ar/`,
   missing.length === 0,
-  `ناقص: ${missing.join('، ')}. قطاع اتضاف في الكود ومادخلش قايمة الفحص، `
-  + 'فمانوس هيطلب فهرسة لكل حاجة ماعدا الجديد — وهو أكتر واحد محتاجها.');
+  `ناقص: ${missing.join('، ')}. قطاع أو خدمة اتضافت في الكود ومادخلتش قايمة `
+  + 'الفحص، فمانوس هيطلب فهرسة لكل حاجة ماعدا الجديد — وهو أكتر واحد محتاجها.');
+
+// وصفحات الخليج بمساراتها الكاملة — دي مالهاش prefix عربي أصلاً.
+const gulfMissing = gulfPages.pages()
+  .filter((g) => !doc.includes('https://oscardevs.com' + g.path));
+check(`الـ${gulfPages.pages().length} صفحة خليج في البرومبت بمسارها الكامل`,
+  gulfMissing.length === 0,
+  `ناقص: ${gulfMissing.map((g) => g.path).join('، ')}. دي أحدث صفحات عندنا `
+  + 'وأقلّهم فرصة إن جوجل تلاقيها لوحدها.');
 
 // والعكس: مفيش رابط في البرومبت مابقاش موجود في الكود.
 const listed = [...doc.matchAll(/https:\/\/oscardevs\.com\/ar(\/[a-z0-9-]+)/g)]
   .map((m) => m[1]);
-const stale = [...new Set(listed)].filter((p) => !commercial.includes(p));
+const stale = [...new Set(listed)].filter((p) => !arPages.includes(p));
 check('مفيش صفحة في البرومبت اتشالت من الكود', stale.length === 0,
-  `${stale.join('، ')} مذكورة في البرومبت ومش موجودة كصفحة قطاع. `
+  `${stale.join('، ')} مذكورة في البرومبت ومش موجودة كصفحة قطاع ولا خدمة. `
   + 'مانوس هيفحص رابط بيرد ٤٠٤ ويحسبه مشكلة فهرسة.');
 
 // وماينفعش رابط بلا prefix في قايمة الفحص — دي بالظبط غلطة الفحص السابق.
