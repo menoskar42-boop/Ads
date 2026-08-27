@@ -152,7 +152,13 @@ router.get('/api/llm/test', auth.requireAuth, async (_req, res) => {
 });
 
 // ── Auth API (mobile + web) ──────────────────────────────────────────────────
-const COOKIE = { httpOnly: true, sameSite: 'lax', secure: config.env === 'production', path: '/', maxAge: 7 * 24 * 3600 * 1000 };
+/* `secure` بيتحدّد من **العنوان الفعلي** مش من `NODE_ENV`.
+ *
+ * نفس سبب التعديل في `auth/index.js`: الموقع الحي بيرجّع
+ * `env: "development"`، فالكوكي كان بينزل من غير `Secure` على موقع
+ * HTTPS. العنوان بيقول الحقيقة عن البروتوكول؛ متغيّر البيئة بيقول
+ * اللي حد افتكر يكتبه. */
+const COOKIE = { httpOnly: true, sameSite: 'lax', secure: /^https:/i.test(config.origin), path: '/', maxAge: 7 * 24 * 3600 * 1000 };
 
 router.post('/api/auth/signup', loginLimiter, async (req, res) => {
   try {
