@@ -19,8 +19,6 @@ import { liturgies, type Liturgy } from '@/lib/liturgy-content';
 import { agpeyaHoursFull, type AgpeyaHourFull } from '@/lib/agpeya-content';
 import { commentaryFathers, type CommentaryFather, type CommentaryBook, type CommentarySection } from '@/lib/commentary-content';
 import { saintsData, saintCategories, type Saint } from '@/lib/saints-content';
-import { katameroSeasons, type KatamerosSeason, type KatamerosDay } from '@/lib/katameros-content';
-import { getLectionaryForDate, type ReadingRef } from '@/lib/coptic-lectionary';
 import { hymnsCategoriesData, type HymnsCategory, type Hymn } from '@/lib/hymns-content';
 import {
   saintsVideos,
@@ -50,6 +48,8 @@ import {
   type BookChapter,
 } from '@/lib/orthodox-books-content';
 import { apocryphaBooks, type ApocryphaBook } from '@/lib/apocrypha-content';
+import { getLectionaryForDate, type ReadingRef } from '@/lib/coptic-lectionary';
+import { katameroSeasons, type KatamerosSeason, type KatamerosDay } from '@/lib/katameros-content';
 import { RemoteDeuteroReader } from '@/components/RemoteDeuteroReader';
 import { fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import {
@@ -501,7 +501,7 @@ function AgpeyaSection() {
           <div>
             <p className="text-sm font-bold text-blue-800 dark:text-blue-200 mb-1">نصوص طقسية أصيلة — مُحمَّلة مباشرةً على موقعنا</p>
             <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-              صلوات الأجبية السبع محمّلة بالكامل داخل الموقع — تراث طقسي قبطي أرثوذكسي قديم متاح للقراءة دون أي روابط خارجية.
+              صلوات الأجبية السبع مضمّنة للقراءة داخل الموقع — محتوى طقسي قبطي أرثوذكسي مدمج دون الاعتماد على روابط خارجية.
             </p>
           </div>
         </div>
@@ -667,7 +667,7 @@ function LiturgySection() {
 
         <div className="mt-4 pt-3 border-t border-border/30">
           <span className="text-xs text-muted-foreground opacity-70">
-            🔓 نص طقسي قبطي أرثوذكسي قديم — ملك عام — مُحمَّل مباشرةً على الموقع
+            🔓 نص طقسي قبطي أرثوذكسي — محتوى مضمّن للقراءة
           </span>
         </div>
       </div>
@@ -681,7 +681,7 @@ function LiturgySection() {
         <h2 className="font-display text-xl font-bold text-foreground">الخولاجي المقدس والقداسات الإلهية</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-5">
-        القداسات الإلهية الثلاثة المعتمدة في الكنيسة القبطية الأرثوذكسية — اختر قداساً لقراءة نصه كاملاً مباشرةً على الموقع.
+        ثلاثة نصوص مدمجة للقداسات الإلهية في الكنيسة القبطية الأرثوذكسية — اختر نصًا للقراءة داخل الموقع.
       </p>
 
       <div className="space-y-4 mb-5">
@@ -746,9 +746,9 @@ function LiturgySection() {
         <div className="flex items-start gap-2">
           <span className="text-lg">🔓</span>
           <div>
-            <p className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-1">نصوص طقسية أصيلة — مُحمَّلة مباشرةً على موقعنا</p>
+            <p className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-1">نصوص طقسية مضمّنة للقراءة</p>
             <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
-              نصوص القداسات الثلاثة محمّلة بالكامل داخل الموقع — تراث طقسي قبطي أرثوذكسي قديم متاح للقراءة دون أي روابط خارجية.
+              نصوص مدمجة للقداسات الثلاثة متاحة للقراءة داخل الموقع. يُرجى الرجوع إلى النص الكنسي المعتمد عند الاستخدام الطقسي.
             </p>
           </div>
         </div>
@@ -902,7 +902,7 @@ function HymnsSection() {
         <h2 className="font-display text-xl font-bold text-foreground">ألحان قبطية أرثوذكسية</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-5">
-        الألحان القبطية تراث روحي عريق يمتد لآلاف السنين — نصوص كاملة بالعربية للقراءة مباشرة من التراث الطقسي القبطي الأرثوذكسي.
+        الألحان القبطية تراث روحي عريق — مختارات عربية مضمّنة للقراءة من التراث الطقسي القبطي الأرثوذكسي.
       </p>
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -938,6 +938,128 @@ function HymnsSection() {
 }
 
 function DailyLectionarySection() {
+  const [date, setDate] = useState(() => new Date());
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  const formatApiDate = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const dateKey = formatApiDate(date);
+  const formatDateAr = (value: Date) =>
+    value.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['orthodox-katameros', dateKey],
+    queryFn: () => api.orthodox.getKatamerosDay(dateKey),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const moveDay = (amount: number) => {
+    setDate(current => {
+      const next = new Date(current);
+      next.setDate(next.getDate() + amount);
+      return next;
+    });
+    setExpandedKey(null);
+  };
+
+  const readingCards = data?.readings ?? [];
+
+  return (
+    <div className="space-y-4" dir="rtl" data-testid="katameros-live-section">
+      <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-3">
+        <Button variant="ghost" size="sm" onClick={() => moveDay(-1)} className="text-amber-700" aria-label="اليوم السابق">
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+        <div className="text-center">
+          <div className="text-lg font-bold text-amber-900">{data?.title || 'قراءات اليوم'}</div>
+          <div className="text-xs text-amber-600">{formatDateAr(date)}</div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => moveDay(1)} className="text-amber-700" aria-label="اليوم التالي">
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/20 p-3 text-sm text-green-800 dark:text-green-200">
+        <div className="flex items-center justify-between gap-3">
+          <span>القراءات والنصوص من St-Takla.org مباشرةً</span>
+          {data?.sourcePageUrl && (
+            <a href={data.sourcePageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2 whitespace-nowrap" data-testid="katameros-source-link">
+              فتح المصدر <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+        {data?.title && <p className="text-xs mt-1 opacity-80">{data.title}</p>}
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+          <span>جاري تحميل قراءات St-Takla...</span>
+        </div>
+      )}
+
+      {isError && (
+        <div className="rounded-xl border-2 border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-4 text-center">
+          <p className="font-bold text-orange-800 dark:text-orange-300 mb-2">تعذر تحميل القطمارس من St-Takla</p>
+          <p className="text-sm text-orange-700 dark:text-orange-400 mb-3">لن نعرض نصًا محليًا بديلًا غير موثوق.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>إعادة المحاولة</Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && readingCards.length === 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-center text-sm text-orange-800">
+          لم يرجع St-Takla قراءات قابلة للعرض لهذا اليوم.
+        </div>
+      )}
+
+      {readingCards.map(reading => {
+        const isExpanded = expandedKey === reading.id;
+        return (
+          <Card
+            key={reading.id}
+            className="overflow-hidden border border-amber-100 shadow-sm cursor-pointer"
+            onClick={() => setExpandedKey(current => current === reading.id ? null : reading.id)}
+            data-testid={`katameros-live-reading-${reading.id}`}
+          >
+            <div className="flex items-center justify-between gap-3 p-3 bg-white">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-amber-600 font-medium whitespace-nowrap">{reading.label}</span>
+                <span className="text-sm font-semibold text-gray-800 truncate">{reading.reference}</span>
+              </div>
+              {isExpanded
+                ? <ChevronUp className="w-4 h-4 text-amber-500 shrink-0" />
+                : <ChevronDown className="w-4 h-4 text-amber-400 shrink-0" />}
+            </div>
+            {isExpanded && reading.status === 'ok' && reading.verses.length > 0 && (
+              <div className="px-4 pb-4 pt-1 bg-amber-50 border-t border-amber-100 space-y-1 max-h-[32rem] overflow-y-auto" data-testid={`katameros-live-verses-${reading.id}`}>
+                {reading.verses.map(verse => (
+                  <p key={`${verse.chapter}-${verse.verse}`} className="text-sm text-gray-700 leading-relaxed">
+                    <span className="text-amber-600 font-bold ml-1 text-xs">{verse.chapter}:{verse.verse}</span>
+                    {verse.text}
+                  </p>
+                ))}
+                <a href={reading.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-green-700 underline mt-2" onClick={event => event.stopPropagation()}>
+                  مصدر النص في St-Takla <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+            {isExpanded && (reading.status !== 'ok' || reading.verses.length === 0) && (
+              <div className="px-4 pb-3 pt-2 bg-amber-50 border-t border-amber-100 text-xs text-orange-700 text-center">
+                النص غير متاح من St-Takla لهذا الرابط حاليًا.
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function LegacyDailyLectionarySection() {
   const [date, setDate] = useState(() => new Date());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [readingTexts, setReadingTexts] = useState<Record<string, { chapter: number; verse: number; text: string }[]>>({});
@@ -1459,7 +1581,7 @@ function SaintsVideosSection() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground opacity-60 mt-3">
-            📖 مصدر السير: السنكسار القبطي الأرثوذكسي — تراث طقسي قديم ملك عام مُحمَّل مباشرةً
+            📖 سير ومعلومات مضمّنة للقراءة — يُرجى الرجوع إلى المصدر الكنسي عند التحقق
           </p>
         </div>
       </div>
@@ -1474,7 +1596,7 @@ function SaintsVideosSection() {
         <h2 className="font-display text-xl font-bold text-foreground">سير القديسين والشهداء الأقباط</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        سير القديسين والشهداء الأقباط مُحمَّلة مباشرةً للقراءة على الموقع — مستقاة من السنكسار القبطي الأرثوذكسي (تراث ملك عام).
+        سير القديسين والشهداء الأقباط مضمّنة للقراءة داخل الموقع — محتوى تعليمي مستقى من التراث الكنسي.
       </p>
 
       {/* ── قسم السير المدمجة ── */}
@@ -1537,7 +1659,7 @@ function SaintsVideosSection() {
           <div className="flex items-start gap-2">
             <span className="text-base">📖</span>
             <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
-              جميع السير مصدرها السنكسار القبطي الأرثوذكسي — تراث طقسي كنسي مكتوب منذ القرن الثالث الميلادي — ملك عام مُحمَّل مباشرةً للقراءة.
+              السير المعروضة مادة تعليمية مضمّنة وليست إصدارًا نقديًا أو حكمًا قانونيًا على مصدر النصوص وحقوق ترجمتها.
             </p>
           </div>
         </Card>
@@ -2336,7 +2458,7 @@ function BibleCommentarySection() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground opacity-60 mt-3">
-            🔓 تراث آبائي مسيحي — القرون 2–5 م — ملك عام مُحمَّل مباشرةً
+             🔓 مادة آبائية تعليمية مضمّنة — تحتاج مراجعة المصدر والترجمة
           </p>
         </div>
       </div>
@@ -2351,7 +2473,7 @@ function BibleCommentarySection() {
         <h2 className="font-display text-xl font-bold text-foreground">تفاسير آباء الكنيسة</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        تفاسير من آباء الكنيسة في القرون الأولى (القرن 2–5 م) — تراث مسيحي قديم ملك عام مُحمَّل مباشرةً للقراءة على الموقع.
+         مواد تعليمية عربية منسوبة إلى آباء الكنيسة في القرون الأولى — مضمّنة للقراءة، وليست بديلًا عن النصوص المحققة أو الترجمات المنشورة.
       </p>
 
       {/* فلتر العهد */}
@@ -2416,9 +2538,9 @@ function BibleCommentarySection() {
         <div className="flex items-start gap-2">
           <span className="text-lg">🔓</span>
           <div>
-            <p className="text-sm font-bold text-amber-800 dark:text-amber-200 mb-1">تراث آبائي أصيل — مُحمَّل مباشرةً</p>
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-200 mb-1">محتوى آبائي تعليمي مضمّن</p>
             <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-              تفاسير آباء الكنيسة الكبار (أثناسيوس، كيرلس، يوحنا الذهبي الفم، باسيليوس، أوريجانوس) — تراث مسيحي من القرون الأولى متاح للقراءة مباشرةً بدون أي روابط خارجية.
+              ملخصات ومواد تعليمية منسوبة إلى آباء الكنيسة الكبار، متاحة للقراءة داخل الموقع. لا نعرضها هنا بوصفها نصوصًا كاملة أو تحقيقًا نقديًا.
             </p>
           </div>
         </div>
@@ -2662,7 +2784,7 @@ function BookReaderSection() {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${c.badge}`}>{book.category}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
-                          🔓 ملك عام
+                          🔓 مادة تراثية مضمّنة — الترجمة وحقوق النشر بحاجة إلى توثيق
                         </span>
                         <span className="text-xs text-muted-foreground">{book.chapters.length} فصل</span>
                       </div>
@@ -2684,7 +2806,7 @@ function BookReaderSection() {
             <p className="text-sm font-bold text-green-800 dark:text-green-200 mb-1">نصوص في الملك العام — مُحمَّلة على موقعنا</p>
             <p className="text-xs text-green-700 dark:text-green-300 leading-relaxed">
               جميع الكتب المعروضة نصوص مسيحية قديمة (القرن الأول — السابع الميلادي) في الملك العام.
-              تم تحميل نصوصها مباشرةً على هذا الموقع للقراءة دون أي روابط خارجية.
+              النصوص مضمّنة داخل الموقع للقراءة دون الاعتماد على روابط خارجية.
             </p>
           </div>
         </div>
@@ -3552,13 +3674,7 @@ export default function Orthodox() {
             </TabsContent>
 
             <TabsContent value="katameros">
-              <div className="space-y-6">
-                <DailyLectionarySection />
-                <div className="border-t border-amber-200 pt-4">
-                  <h3 className="text-sm font-semibold text-amber-700 mb-3 text-right" dir="rtl">الكتامارس — قراءات المواسم</h3>
-                  <KatamarosSection />
-                </div>
-              </div>
+              <DailyLectionarySection />
             </TabsContent>
 
             <TabsContent value="saints">

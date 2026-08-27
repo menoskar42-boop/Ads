@@ -201,6 +201,25 @@ export const api = {
       if (!res.ok) throw new Error('Failed to fetch synaxarium');
       return res.json() as Promise<{ copticDate: string; entries: { title: string; url: string; anchor: string }[] }>;
     },
+    getKatamerosDay: (date: string) =>
+      fetchApi<{
+        status: string;
+        source: string;
+        date: string;
+        sourcePageUrl: string;
+        sourceIndexUrl: string;
+        title: string;
+        readings: Array<{
+          id: string;
+          section: string;
+          label: string;
+          reference: string;
+          sourceUrl: string;
+          verses: Array<{ chapter: number; verse: number; text: string }>;
+          status: 'ok' | 'unavailable';
+          error?: string;
+        }>;
+      }>(`/orthodox/katameros?date=${encodeURIComponent(date)}`),
   },
   dailyVerse: {
     get: () => fetchApi<DailyVerse | null>('/daily-verse'),

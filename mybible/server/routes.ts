@@ -13,6 +13,7 @@ import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service"
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
 import { fetchTodaySynaxarium } from "./orthodox-service";
+import { getStTaklaKatamerosDay } from "./katameros-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
 import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification, getLastSendError } from "./push-notifications";
@@ -61,6 +62,26 @@ export async function registerRoutes(
     } catch (err) {
       console.error('[orthodox] Synaxarium route error:', err);
       res.status(500).json({ copticDate: '', entries: [] });
+    }
+  });
+
+  // ── Orthodox: St-Takla Katameros proxy ───────────────────────────────────
+  app.get('/api/orthodox/katameros', async (req, res) => {
+    const date = String(req.query.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ status: 'error', message: 'التاريخ مطلوب بصيغة YYYY-MM-DD' });
+    }
+    try {
+      const data = await getStTaklaKatamerosDay(date);
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.json({ status: 'ok', source: 'St-Takla.org', ...data });
+    } catch (error: any) {
+      console.error('[orthodox] Katameros route error:', error?.message || error);
+      return res.status(503).json({
+        status: 'error',
+        source: 'St-Takla.org',
+        message: 'تعذر تحميل قراءات القطمارس من St-Takla حاليًا',
+      });
     }
   });
 
@@ -2151,41 +2172,42 @@ ${excludedStr}
     return null;
   }
 
-  // GET /api/daily-readings — يُعيد القراءات الخمس مع نصوصها لليوم الحالي
+  // GET /api/daily-readings — compatibility shape for the liturgy display.
+  // The source is the same verified St-Takla Katameros page used by Orthodox.
   app.get('/api/daily-readings', async (_req, res) => {
     try {
       const today = new Date();
-      const { day, month } = gregorianToCopticServer(today);
-      const copticDate = `${day} ${MONTH_NAMES[month] ?? 'توت'}`;
-      const feastKey = getFeastKey(today);
-      const feastReading = feastKey ? serverLectionary[feastKey] : undefined;
-      const resolved = feastReading
-        ? { reading: feastReading, exact: true, sourceKey: feastKey as string }
-        : getServerLectionary(month, day);
-      const lectionary = resolved.reading;
-
-      const [pauline, catholic, praxis, psalm, gospel] = await Promise.all([
-        fetchReadingText(lectionary.pauline),
-        fetchReadingText(lectionary.catholic),
-        fetchReadingText(lectionary.praxis),
-        fetchReadingText(lectionary.psalm),
-        fetchReadingText(lectionary.gospel),
-      ]);
-
-      // exact=false يعني إن دي أقرب قراءة سابقة مش قراءة اليوم نفسه. الشاشة
-      // لازم تقول كده بوضوح — عرض قراءة يوم تاني كأنها قراءة النهاردة في قدّاس
-      // أسوأ بكتير من إننا نقول إنها غير مؤكدة.
-      const sourceDay = /^\d+-\d+$/.test(resolved.sourceKey)
-        ? `${resolved.sourceKey.split('-')[1]} ${MONTH_NAMES[parseInt(resolved.sourceKey.split('-')[0], 10)] ?? ''}`.trim()
-        : resolved.sourceKey;
+      const date = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0'),
+        String(today.getDate()).padStart(2, '0'),
+      ].join('-');
+      const day = await getStTaklaKatamerosDay(date);
+      const toSlides = (reading: typeof day.readings[number] | undefined, emptyTitle: string) => ({
+        title: reading?.reference || emptyTitle,
+        slides: reading?.status === 'ok'
+          ? [reading.verses.map(verse => `${verse.chapter}:${verse.verse} ${verse.text}`).join('\n')]
+          : [],
+      });
+      const findSection = (section: string) => day.readings.find(reading => reading.section === section);
+      const synaxariumReadings = day.readings.filter(reading => reading.section === 'synaxarium');
+      const psalm = synaxariumReadings.find(reading => /مزامير|مزمور/.test(reading.reference));
+      const gospel = synaxariumReadings.find(reading => !/مزامير|مزمور/.test(reading.reference));
       res.json({
-        copticDate, pauline, catholic, praxis, psalm, gospel,
-        exact: resolved.exact,
-        sourceDay,
+        copticDate: day.title,
+        pauline: toSlides(findSection('pauline'), 'البولس'),
+        catholic: toSlides(findSection('catholic'), 'الكاثوليكون'),
+        praxis: toSlides(findSection('praxis'), 'الإبركسيس'),
+        psalm: toSlides(psalm, 'المزمور'),
+        gospel: toSlides(gospel, 'الإنجيل'),
+        exact: true,
+        sourceDay: day.date,
+        source: 'St-Takla.org',
+        sourceUrl: day.sourcePageUrl,
       });
     } catch (err) {
       console.error('daily-readings error:', err);
-      res.status(500).json({ error: 'فشل جلب القراءات' });
+      res.status(503).json({ error: 'فشل جلب قراءات St-Takla' });
     }
   });
 
