@@ -133,6 +133,38 @@ export interface AiResponse {
   remainingRequests?: number;
 }
 
+export interface DeuteroSourceBook {
+  id: number;
+  name: string;
+  bookOrder: number;
+  chaptersCount: number;
+}
+
+export interface DeuteroSourceVerse {
+  verse: number;
+  text: string;
+}
+
+export interface DeuteroSourceStatus {
+  available: boolean;
+  reason?: string;
+  repositoryUrl: string;
+  sourceUrl: string;
+  manifestUrl: string;
+  branch: string;
+  checkedAt: string;
+}
+
+export interface DeuteroSourceCatalog {
+  status: DeuteroSourceStatus;
+  books: DeuteroSourceBook[];
+}
+
+export interface DeuteroSourceChapter {
+  catalog: DeuteroSourceCatalog;
+  verses: DeuteroSourceVerse[];
+}
+
 export const api = {
   user: {
     get: () => fetchApi<User>('/user'),
@@ -225,5 +257,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ query }),
       }),
+  },
+
+  deuteroSource: {
+    getCatalog: () => fetchApi<DeuteroSourceCatalog>('/deutero/source'),
+    getChapter: (bookId: number, chapter: number) =>
+      fetchApi<DeuteroSourceChapter>(`/deutero/source/books/${bookId}/chapters/${chapter}`),
   },
 };

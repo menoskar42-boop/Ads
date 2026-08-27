@@ -16,6 +16,7 @@ import { fetchTodaySynaxarium } from "./orthodox-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
 import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification, getLastSendError } from "./push-notifications";
+import { getDeuteroSourceCatalog, getDeuteroSourceChapter } from "./github-deutero";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -252,6 +253,124 @@ export async function registerRoutes(
   app.get('/api/deutero/status', async (_req, res) => {
     try { res.json({ status: 'ok', ...(await deuteroStatus()) }); }
     catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
+  });
+
+  // مصدر حي عام من GitHub — لا يُخزّن النص في قاعدة MyBible.
+  app.get('/api/deutero/source', async (_req, res) => {
+    try {
+      const catalog = await getDeuteroSourceCatalog();
+      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
+      res.json(catalog);
+    } catch (e: any) {
+      console.error('[deutero-source] catalog route error:', e.message);
+      res.set('Cache-Control', 'no-store');
+      res.json({
+        status: {
+          available: false,
+          reason: 'source-unavailable',
+          repositoryUrl: 'https://github.com/aymhenry/Bible-for-Windows',
+          sourceUrl: 'https://github.com/aymhenry/Bible-for-Windows/blob/main/DataFiles/BibleMan02.bib',
+          manifestUrl: 'https://github.com/aymhenry/Bible-for-Windows/blob/main/code/modBasicData.au3',
+          branch: 'main',
+          checkedAt: new Date().toISOString(),
+        },
+        books: [],
+      });
+    }
+  });
+
+  app.get('/api/deutero/source/status', async (_req, res) => {
+    try {
+      const catalog = await getDeuteroSourceCatalog();
+      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
+      return res.json(catalog.status);
+    } catch (e: any) {
+      console.error('[deutero-source] status route error:', e.message);
+      return res.status(503).json({ available: false, reason: 'source-unavailable' });
+    }
+  });
+
+  app.get('/api/deutero/source/books', async (_req, res) => {
+    try {
+      const catalog = await getDeuteroSourceCatalog();
+      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
+      return res.json(catalog);
+    } catch (e: any) {
+      console.error('[deutero-source] books route error:', e.message);
+      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
+    }
+  });
+
+  app.get('/api/deutero/source/books/:bookId/chapters', async (req, res) => {
+    const bookId = Number(req.params.bookId);
+    if (!Number.isInteger(bookId) || bookId < 67 || bookId > 73) {
+      return res.status(400).json({ message: 'Invalid source book' });
+    }
+
+    try {
+      const catalog = await getDeuteroSourceCatalog();
+      if (!catalog.status.available) {
+        res.set('Cache-Control', 'no-store');
+        return res.json({ ...catalog, chapters: [] });
+      }
+      const book = catalog.books.find((item) => item.id === bookId);
+      if (!book) return res.status(404).json({ message: 'Book not found in public source' });
+      res.set('Cache-Control', 'public, max-age=60');
+      return res.json({
+        status: catalog.status,
+        book,
+        chapters: Array.from({ length: book.chaptersCount }, (_, index) => index + 1),
+      });
+    } catch (e: any) {
+      console.error('[deutero-source] chapters route error:', e.message);
+      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
+    }
+  });
+
+  app.get('/api/deutero/source/books/:bookId/chapters/:chapter', async (req, res) => {
+    const bookId = Number(req.params.bookId);
+    const chapter = Number(req.params.chapter);
+    if (!Number.isInteger(bookId) || !Number.isInteger(chapter) || bookId < 67 || bookId > 73 || chapter < 1) {
+      return res.status(400).json({ message: 'Invalid source book or chapter' });
+    }
+
+    try {
+      const result = await getDeuteroSourceChapter(bookId, chapter);
+      if (!result.catalog.status.available) {
+        res.set('Cache-Control', 'no-store');
+      } else if (!result.verses.length) {
+        return res.status(404).json({ message: 'Chapter not found in public source' });
+      } else {
+        res.set('Cache-Control', 'public, max-age=60');
+      }
+      return res.json(result);
+    } catch (e: any) {
+      console.error('[deutero-source] chapter route error:', e.message);
+      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
+    }
+  });
+
+  app.get('/api/deutero/source/:bookId/:chapter', async (req, res) => {
+    const bookId = Number(req.params.bookId);
+    const chapter = Number(req.params.chapter);
+    if (!Number.isInteger(bookId) || !Number.isInteger(chapter) || bookId < 67 || bookId > 73 || chapter < 1) {
+      return res.status(400).json({ message: 'Invalid source book or chapter' });
+    }
+
+    try {
+      const result = await getDeuteroSourceChapter(bookId, chapter);
+      if (!result.catalog.status.available) {
+        res.set('Cache-Control', 'no-store');
+      } else if (!result.verses.length) {
+        return res.status(404).json({ message: 'Chapter not found in public source' });
+      } else {
+        res.set('Cache-Control', 'public, max-age=60');
+      }
+      return res.json(result);
+    } catch (e: any) {
+      console.error('[deutero-source] chapter route error:', e.message);
+      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
+    }
   });
 
   /* بحث عن مصدر — قراءة من مصادر عامة، فمفيش مفتاح. بياخد وقت (بيجيب
