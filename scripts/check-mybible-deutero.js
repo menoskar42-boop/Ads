@@ -136,5 +136,66 @@ for (const f of files) {
 }
 check(`ملفات النص سليمة (${files.length} ملف)`, bad.length === 0, bad.join(' | '));
 
+/* ── ٧) النسختين مايفترقوش ──────────────────────────────────────────────
+ *
+ * النص عايش في مكانين: `apocrypha-content.ts` (اللي قسم أرثوذوكسيات
+ * بيعرض منه) وملفات `data/deutero/*.json` (اللي بتتستورد للقاعدة عشان
+ * البحث وخطط القراءة وقراءات الجروبات توصلها).
+ *
+ * نسختين بالإيد بيفترقوا: حد يصلّح غلطة مطبعية في واحدة، والتانية تفضل
+ * بالغلط. عشان كده الـJSON **مولَّد** من الـTS بسكريبت، والفحص ده بيعيد
+ * التوليد ويقارن — لو فيه فرق، يبقى حد عدّل نسخة من غير التانية.
+ *
+ * المصدر الوحيد للتحرير هو `apocrypha-content.ts`. */
+{
+  const { execFileSync } = require('child_process');
+  const dir = path.join(MB, 'data', 'deutero');
+  const before = {};
+  for (const f of fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => x.endsWith('.json')) : []) {
+    before[f] = fs.readFileSync(path.join(dir, f), 'utf8');
+  }
+  let regenerated = true;
+  try {
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-deutero-from-apocrypha.js'), '--write'],
+      { encoding: 'utf8', stdio: 'pipe' });
+  } catch (e) { regenerated = false; }
+
+  if (!regenerated) {
+    check('الـJSON بيتولّد من المصدر', false,
+      'سكريبت التوليد وقع — يمكن esbuild مش منزّل. من غيره الفحص مش قادر '
+      + 'يتأكد إن النسختين متطابقين.');
+  } else {
+    const after = fs.readdirSync(dir).filter((x) => x.endsWith('.json'));
+    const drifted = after.filter((f) => before[f] !== fs.readFileSync(path.join(dir, f), 'utf8'));
+    const added = after.filter((f) => !(f in before));
+    check('ملفات الاستيراد متطابقة مع مصدرها',
+      drifted.length === 0 && added.length === 0,
+      [...drifted.map((f) => f + ': اتغيّر'), ...added.map((f) => f + ': جديد')].join(' | ')
+      + ' — عدّل `apocrypha-content.ts` وشغّل '
+      + '`node scripts/build-deutero-from-apocrypha.js --write`.');
+  }
+}
+
+/* ── ٨) والنسبة الغلط ماتتنقلش ─────────────────────────────────────────
+ *
+ * ترويسة `apocrypha-content.ts` بتنسب النص لفان دايك ١٨٦٥ — وفان دايك
+ * استبعدت الأسفار دي (وده سبب إن الموقع ٦٦ سفر). النسبة دي غير صحيحة،
+ * وملفات الاستيراد ماينفعش تنقلها كأنها حقيقة. */
+{
+  const dir = path.join(MB, 'data', 'deutero');
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => x.endsWith('.json')) : [];
+  const bad = files.filter((f) => {
+    try {
+      const d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const src = String(d.source || '');
+      // ينفع يذكر فان دايك — بس **كتنبيه** إن النسبة دي غلط، مش كإسناد.
+      return /فان\s*دايك|فاندايك/.test(src) && !/غير صحيحة|محتاج تحقّق/.test(src);
+    } catch (_) { return true; }
+  });
+  check('مفيش ملف بينسب النص لفان دايك كإسناد', bad.length === 0,
+    bad.join('، ') + ' — فان دايك ماترجمتش الأسفار دي، ونقل النسبة دي '
+    + 'بيخلّي غلط الملف الأصلي حقيقة في القاعدة.');
+}
+
 console.log(failed ? `\n❌ ${failed} مشكلة` : '\n✅ استيراد الأسفار القانونية الثانية سليم');
 process.exit(failed ? 1 : 0);
