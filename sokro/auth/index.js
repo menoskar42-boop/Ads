@@ -7,15 +7,29 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
-// Never ship a KNOWN default secret to production — that would let anyone forge
-// tokens. If no secret is configured in production we fall back to a random
-// per-boot key (unguessable; sessions just don't survive a restart) instead of
-// the shared dev string. Set SOKRO_JWT_SECRET (or SESSION_SECRET) to persist.
+/* Never a KNOWN default secret — anyone who can read this file could forge a
+ * token for any user id. When nothing is configured we use a random per-boot
+ * key: unguessable, and the only cost is that sessions don't survive a restart.
+ * Set SOKRO_JWT_SECRET (or SESSION_SECRET) to persist them.
+ *
+ * ── ليه اتشال شرط `NODE_ENV` من هنا ────────────────────────────────────
+ *
+ * كان مكتوب: `NODE_ENV === 'production' ? RANDOM_FALLBACK : 'sokro-dev-secret-change-me'`.
+ * الفكرة إن النص الثابت للتطوير بس. بس اختبار خارجي (٢٠٢٦-٠٨-٢٧) قرا
+ * `/health` على **الموقع الحي** ولقاه بيرجّع `"env":"development"` —
+ * يعني `NODE_ENV` مش متظبّط في النشر، والفرع «التطوير» هو اللي شغّال
+ * في الإنتاج.
+ *
+ * ساعتها الحماية الوحيدة الفاضلة هي إن `SESSION_SECRET` متظبّط. لو مش
+ * متظبّط، السيرفر بيوقّع كل توكن دخول بنص **موجود في المستودع** — وأي
+ * حد يقدر يزوّر توكن لأي مستخدم، ويزوّر كمان توكن `phone_stream`.
+ *
+ * والدرس مش «اظبط NODE_ENV». الدرس إن **الأمان ماينفعش يبقى معلّق على
+ * متغيّر بيئة يتنسى**. الفرع الخطر اتشال خالص: مافيش نص ثابت أصلاً،
+ * فالنسيان بقى تكلفته جلسات بتنتهي مع كل إعادة تشغيل، مش انتحال هوية. */
 const RANDOM_FALLBACK = crypto.randomBytes(32).toString('hex');
 function tokenSecret() {
-  const s = process.env.SOKRO_JWT_SECRET || process.env.SESSION_SECRET;
-  if (s) return s;
-  return process.env.NODE_ENV === 'production' ? RANDOM_FALLBACK : 'sokro-dev-secret-change-me';
+  return process.env.SOKRO_JWT_SECRET || process.env.SESSION_SECRET || RANDOM_FALLBACK;
 }
 
 function b64url(buf) {
