@@ -50,6 +50,7 @@ import {
   type BookChapter,
 } from '@/lib/orthodox-books-content';
 import { apocryphaBooks, type ApocryphaBook } from '@/lib/apocrypha-content';
+import { RemoteDeuteroReader } from '@/components/RemoteDeuteroReader';
 import { fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import {
   synaxariumMonths,
@@ -3585,7 +3586,7 @@ export default function Orthodox() {
             </TabsContent>
 
             <TabsContent value="apocrypha">
-              <ApocryphaSection />
+              <RemoteDeuteroReader />
             </TabsContent>
 
             <TabsContent value="tafseer">

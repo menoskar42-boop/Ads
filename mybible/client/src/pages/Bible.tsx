@@ -22,7 +22,6 @@ import { SEOHead } from '@/components/SEOHead';
 import { TafsirText } from '@/components/TafsirText';
 import { YouTubeCard } from '@/components/YouTubeCard';
 import { saveHighlightedVerse, removeHighlightedVerse } from '@/lib/saved-verses';
-import { RemoteDeuteroReader } from '@/components/RemoteDeuteroReader';
 
 type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink' | 'orange';
 
@@ -493,8 +492,6 @@ export default function Bible() {
             )}
           </TabsContent>
         </Tabs>}
-
-        {bibleViewMode === 'browse' && <RemoteDeuteroReader />}
 
         {bibleViewMode === 'browse' && selectedBook && (
           <motion.div
