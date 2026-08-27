@@ -7,7 +7,7 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
-import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, importDeuteroFromGitHub, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
+import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
 import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
@@ -254,121 +254,24 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
   });
 
-  // مصدر حي عام من GitHub — لا يُخزّن النص في قاعدة MyBible.
-  app.get('/api/deutero/source', async (_req, res) => {
+  // مصدر حي من St-Takla — لا يُخزّن النص في قاعدة MyBible.
+  app.get('/api/deutero/sttakla', async (_req, res) => {
     try {
-      const catalog = await getDeuteroSourceCatalog();
-      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
-      res.json(catalog);
-    } catch (e: any) {
-      console.error('[deutero-source] catalog route error:', e.message);
-      res.set('Cache-Control', 'no-store');
-      res.json({
-        status: {
-          available: false,
-          reason: 'source-unavailable',
-          repositoryUrl: 'https://github.com/aymhenry/Bible-for-Windows',
-          sourceUrl: 'https://github.com/aymhenry/Bible-for-Windows/blob/main/DataFiles/BibleMan02.bib',
-          manifestUrl: 'https://github.com/aymhenry/Bible-for-Windows/blob/main/code/modBasicData.au3',
-          branch: 'main',
-          checkedAt: new Date().toISOString(),
-        },
-        books: [],
-      });
-    }
-  });
-
-  app.get('/api/deutero/source/status', async (_req, res) => {
-    try {
-      const catalog = await getDeuteroSourceCatalog();
-      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
-      return res.json(catalog.status);
-    } catch (e: any) {
-      console.error('[deutero-source] status route error:', e.message);
-      return res.status(503).json({ available: false, reason: 'source-unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/books', async (_req, res) => {
-    try {
-      const catalog = await getDeuteroSourceCatalog();
+      const catalog = await getStTaklaCatalog();
       res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
       return res.json(catalog);
     } catch (e: any) {
-      console.error('[deutero-source] books route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/books/:bookId/chapters', async (req, res) => {
-    const bookId = Number(req.params.bookId);
-    if (!Number.isInteger(bookId) || bookId < 67 || bookId > 73) {
-      return res.status(400).json({ message: 'Invalid source book' });
-    }
-
-    try {
-      const catalog = await getDeuteroSourceCatalog();
-      if (!catalog.status.available) {
-        res.set('Cache-Control', 'no-store');
-        return res.json({ ...catalog, chapters: [] });
-      }
-      const book = catalog.books.find((item) => item.id === bookId);
-      if (!book) return res.status(404).json({ message: 'Book not found in public source' });
-      res.set('Cache-Control', 'public, max-age=60');
-      return res.json({
-        status: catalog.status,
-        book,
-        chapters: Array.from({ length: book.chaptersCount }, (_, index) => index + 1),
+      console.error('[st-takla] catalog route error:', e.message);
+      return res.status(503).json({
+        status: {
+          available: false,
+          sourceName: 'الترجمة اليسوعية القديمة 1877 — St-Takla.org',
+          sourceUrl: 'https://st-takla.org/',
+          checkedAt: new Date().toISOString(),
+          reason: 'source-unavailable',
+        },
+        books: [],
       });
-    } catch (e: any) {
-      console.error('[deutero-source] chapters route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/books/:bookId/chapters/:chapter', async (req, res) => {
-    const bookId = Number(req.params.bookId);
-    const chapter = Number(req.params.chapter);
-    if (!Number.isInteger(bookId) || !Number.isInteger(chapter) || bookId < 67 || bookId > 73 || chapter < 1) {
-      return res.status(400).json({ message: 'Invalid source book or chapter' });
-    }
-
-    try {
-      const result = await getDeuteroSourceChapter(bookId, chapter);
-      if (!result.catalog.status.available) {
-        res.set('Cache-Control', 'no-store');
-      } else if (!result.verses.length) {
-        return res.status(404).json({ message: 'Chapter not found in public source' });
-      } else {
-        res.set('Cache-Control', 'public, max-age=60');
-      }
-      return res.json(result);
-    } catch (e: any) {
-      console.error('[deutero-source] chapter route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/:bookId/:chapter', async (req, res) => {
-    const bookId = Number(req.params.bookId);
-    const chapter = Number(req.params.chapter);
-    if (!Number.isInteger(bookId) || !Number.isInteger(chapter) || bookId < 67 || bookId > 73 || chapter < 1) {
-      return res.status(400).json({ message: 'Invalid source book or chapter' });
-    }
-
-    try {
-      const result = await getDeuteroSourceChapter(bookId, chapter);
-      if (!result.catalog.status.available) {
-        res.set('Cache-Control', 'no-store');
-      } else if (!result.verses.length) {
-        return res.status(404).json({ message: 'Chapter not found in public source' });
-      } else {
-        res.set('Cache-Control', 'public, max-age=60');
-      }
-      return res.json(result);
-    } catch (e: any) {
-      console.error('[deutero-source] chapter route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
     }
   });
 
@@ -381,8 +284,6 @@ export async function registerRoutes(
 
   /* استيراد من رابط API خارجي. نفس المفتاح، ونفس كل الفحوص — الرابط
    * بيتحوّل لملف الأول عشان مايلفّش حول أي بوّابة. */
-  /* استيراد من مصدر GitHub للقاعدة — الوصلة اللي بتخلّي الأسفار تدخل
-   * البحث وقراءات الجروبات، مش تتعرض في قارئ منفصل بس. */
   /* استكشاف بنية صفحة سانت تكلا — صفحة واحدة، عشان المستخرِج يتكتب
    * على شكل حقيقي مش على تخمين. */
   app.get('/api/deutero/sttakla/probe', async (req, res) => {
@@ -423,16 +324,6 @@ export async function registerRoutes(
       console.error('[st-takla] import route error:', e.message);
       res.status(502).json({ status: 'error', message: 'تعذر استيراد السفر من St-Takla' });
     }
-  });
-
-  app.post('/api/deutero/import-github', async (req, res) => {
-    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
-    const b = req.body || {};
-    const out = await importDeuteroFromGitHub(
-      String(b.book || '').trim(), Number(b.sourceBookId),
-      String(b.source || '').trim(), b.confirmedByChurch === true,
-    );
-    res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
   });
 
   app.post('/api/deutero/import-url', async (req, res) => {

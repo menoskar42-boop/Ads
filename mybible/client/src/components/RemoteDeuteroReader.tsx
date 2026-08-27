@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, Github, Loader2 } from 'lucide-react';
+import { AlertCircle, BookOpen, ExternalLink, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ export function RemoteDeuteroReader() {
   const [selectedChapter, setSelectedChapter] = useState(1);
 
   const catalogQuery = useQuery({
-    queryKey: ['deutero-source-catalog'],
+    queryKey: ['deutero-sttakla-catalog'],
     queryFn: api.deuteroSource.getCatalog,
     staleTime: 60_000,
     refetchInterval: 60_000,
@@ -39,7 +39,7 @@ export function RemoteDeuteroReader() {
   }, [selectedBook, selectedChapter]);
 
   const chapterQuery = useQuery({
-    queryKey: ['deutero-source-chapter', selectedBook?.id, selectedChapter],
+    queryKey: ['deutero-sttakla-chapter', selectedBook?.id, selectedChapter],
     queryFn: () => api.deuteroSource.getChapter(selectedBook!.id, selectedChapter),
     enabled: !!selectedBook && !!catalog?.status.available,
     staleTime: 60_000,
@@ -74,18 +74,18 @@ export function RemoteDeuteroReader() {
                 الأسفار القانونية الثانية
               </h2>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                مصدر حي من الملفات العامة في GitHub — يظهر طالما المصدر متاح للعامة
+                النص من الترجمة اليسوعية القديمة 1877 عبر موقع St-Takla.org
               </p>
             </div>
           </div>
           <a
-            href={catalog.status.repositoryUrl}
+            href={catalog.status.sourceUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:hover:bg-background"
-            aria-label="فتح مصدر الأسفار على GitHub"
+            aria-label="فتح مصدر الأسفار على St-Takla"
           >
-            <Github className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4" />
             المصدر
           </a>
         </div>
@@ -170,15 +170,14 @@ export function RemoteDeuteroReader() {
         )}
 
         <div className="border-t pt-3 text-center text-xs leading-5 text-muted-foreground">
-          النص معروض مباشرة من المصدر العام ولا يُخزّن في قاعدة بيانات MyBible. المصدر العام لا يعني
-          وجود ترخيص لإعادة النشر؛{' '}
+           النص معروض مباشرة من مصدر St-Takla ولا يُخزّن في قاعدة بيانات MyBible.{' '}
           <a
-            href={catalog.status.repositoryUrl}
+             href={catalog.status.sourceUrl}
             target="_blank"
             rel="noreferrer"
             className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400"
           >
-            عرض المستودع على GitHub
+             فتح المصدر على St-Takla
           </a>
         </div>
       </div>

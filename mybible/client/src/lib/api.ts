@@ -147,11 +147,9 @@ export interface DeuteroSourceVerse {
 
 export interface DeuteroSourceStatus {
   available: boolean;
-  reason?: string;
-  repositoryUrl: string;
+  sourceName: string;
   sourceUrl: string;
-  manifestUrl: string;
-  branch: string;
+  reason?: string;
   checkedAt: string;
 }
 
@@ -161,7 +159,10 @@ export interface DeuteroSourceCatalog {
 }
 
 export interface DeuteroSourceChapter {
-  catalog: DeuteroSourceCatalog;
+  book: DeuteroSourceBook;
+  chapter: number;
+  source: string;
+  sourceUrl: string;
   verses: DeuteroSourceVerse[];
 }
 
@@ -260,8 +261,8 @@ export const api = {
   },
 
   deuteroSource: {
-    getCatalog: () => fetchApi<DeuteroSourceCatalog>('/deutero/source'),
+    getCatalog: () => fetchApi<DeuteroSourceCatalog>('/deutero/sttakla'),
     getChapter: (bookId: number, chapter: number) =>
-      fetchApi<DeuteroSourceChapter>(`/deutero/source/books/${bookId}/chapters/${chapter}`),
+      fetchApi<DeuteroSourceChapter>(`/deutero/sttakla/books/${bookId}/chapters/${chapter}`),
   },
 };
