@@ -91,6 +91,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const [tafsirTitle, setTafsirTitle] = useState('');
   const [tafsirText, setTafsirText] = useState<string | null>(null);
   const [tafsirLoading, setTafsirLoading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
 
   const openTafsir = async (type: 'intro' | 'verse' | 'chapter', verseNum?: number) => {
     setTafsirOpen(true);
@@ -129,7 +130,8 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // الأسفار القانونية الثانية محتواها مخزّن محلياً (apocrypha-content) وليس في الـ API
+  // الأسفار القانونية الثانية تُقرأ من مصدر St-Takla المباشر، لا من جدول الكتب
+  // الأساسي. نحتفظ ببيانات apocryphaBook فقط لمعرفة عدد الإصحاحات عند التنقل.
   const isDeutero = DEUTEROCANONICAL_BOOKS.has(currentBook);
   const apocryphaBook = isDeutero ? apocryphaBooks.find(b => b.name === currentBook) : undefined;
 
@@ -149,19 +151,42 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
 
   useEffect(() => {
     const loadVerses = async () => {
+      setSourceError(null);
+      setVerses([]);
       try {
-        // الأسفار القانونية الثانية — تُحمّل من المحتوى المحلي
+        // الأسفار القانونية الثانية — تُحمّل من St-Takla بنفس القارئ المستخدم
+        // في قسم أرثوذوكسيات. اسم حكمة سليمان مختلف في كتالوج المصدر.
         if (isDeutero) {
-          const ch = apocryphaBook?.chapters.find(c => c.chapter === currentChapter);
-          setVerses((ch?.verses || []).map(v => ({ id: `${currentBook}-${currentChapter}-${v.verse}`, verse: v.verse, text: v.text })));
+          const sourceName = currentBook === 'حكمة سليمان' ? 'الحكمة' : currentBook;
+          const catalog = await api.deuteroSource.getCatalog();
+          const sourceBook = catalog.books.find(book => book.name === sourceName);
+          if (!sourceBook) {
+            setSourceError('مصدر هذا السفر غير متاح حاليًا من St-Takla.');
+            setLoading(false);
+            return;
+          }
+          const chapterData = await api.deuteroSource.getChapter(sourceBook.id, currentChapter);
+          setVerses(chapterData.verses.map(v => ({
+            id: `${currentBook}-${currentChapter}-${v.verse}`,
+            verse: v.verse,
+            text: v.text,
+          })));
+          if (chapterData.verses.length === 0) {
+            setSourceError('لا توجد آيات متاحة لهذا الإصحاح في مصدر St-Takla حاليًا.');
+          }
           setLoading(false);
           return;
         }
         if (!allBooks) return;
         const book = allBooks.find((b: any) => b.name === currentBook);
-        if (!book) { setLoading(false); return; }
+        if (!book) {
+          setSourceError('لم يُعثر على هذا السفر في مصدر النص.');
+          setLoading(false);
+          return;
+        }
         const data = await api.verses.getByBook(book.id, currentChapter);
         setVerses(data);
+        if (data.length === 0) setSourceError('لا توجد آيات متاحة لهذا الإصحاح حاليًا.');
         if (assignmentId !== null) {
           fetch(`/api/groups/${groupCode}/assignments/${assignmentId}/open`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -169,13 +194,15 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
           }).catch(() => {});
         }
       } catch {
-        toast.error('فشل تحميل الآيات');
+        setSourceError(isDeutero
+          ? 'تعذر تحميل نص السفر من St-Takla حاليًا. حاول مرة أخرى.'
+          : 'تعذر تحميل نص الإصحاح حاليًا. حاول مرة أخرى.');
       } finally {
         setLoading(false);
       }
     };
     loadVerses();
-  }, [currentBook, currentChapter, allBooks]);
+  }, [currentBook, currentChapter, allBooks, isDeutero]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -315,7 +342,12 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
           </div>
         </div>
         <div className="space-y-3">
-          {verses.map((v: any) => (
+          {sourceError ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-muted-foreground">
+              <AlertTriangle className="h-8 w-8 text-amber-500" />
+              <p className="text-sm">{sourceError}</p>
+            </div>
+          ) : verses.map((v: any) => (
             <div key={v.id} className="flex gap-2 items-start border-b border-border/30 pb-2 last:border-0">
               <p className="flex-1 text-xl leading-loose font-display">
                 <span className="text-primary font-bold ml-1">{v.verse}</span>
@@ -343,7 +375,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
             السابق
           </Button>
         )}
-        <Button onClick={handleFinishReading} disabled={completing} className="h-14 text-base font-bold flex-1 min-w-0" size="lg" data-testid="button-finish-reading">
+        <Button onClick={handleFinishReading} disabled={completing || verses.length === 0 || !!sourceError} className="h-14 text-base font-bold flex-1 min-w-0" size="lg" data-testid="button-finish-reading">
           {completing ? <Loader2 className="w-4 h-4 animate-spin ml-1 shrink-0" /> : <Check className="w-4 h-4 ml-1 shrink-0" />}
           <span className="truncate">{hasNext ? 'اكتملت ← التالي' : 'اكتملت القراءة ✅'}</span>
         </Button>
