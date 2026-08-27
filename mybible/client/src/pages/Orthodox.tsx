@@ -942,7 +942,7 @@ function DailyLectionarySection() {
   const [readingTexts, setReadingTexts] = useState<Record<string, { chapter: number; verse: number; text: string }[]>>({});
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
 
-  const { reading, copticDate } = getLectionaryForDate(date);
+  const { reading, copticDate, exact: readingIsForToday, actualFor } = getLectionaryForDate(date);
 
   const readingCards: { key: string; label: string; icon: string; ref: ReadingRef }[] = [
     { key: 'pauline',  label: 'رسالة بولس',   icon: '✉️', ref: reading.pauline },
@@ -1006,6 +1006,24 @@ function DailyLectionarySection() {
           <ChevronLeft className="w-4 h-4" />
         </Button>
       </div>
+
+      {/* ── تنبيه: دي مش قراءات اليوم ──────────────────────────────────────
+          القطمارس عندنا ١٠٢ يوم من ٣٦٦. قبل كده كانت قراءات أقرب يوم سابق
+          بتتعرض **بعنوان تاريخ النهارده** من غير أي تنبيه — وده بيدّي
+          معلومة غلط بثقة لحد بيحضّر قراءات القداس. */}
+      {!readingIsForToday && (
+        <div className="rounded-xl border-2 border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-4">
+          <div className="font-bold text-orange-800 dark:text-orange-300 mb-1">
+            ⚠️ قراءات {copticDate} مش متسجّلة عندنا
+          </div>
+          <p className="text-sm text-orange-700 dark:text-orange-400 leading-7">
+            {actualFor
+              ? <>اللي تحت ده قراءات <strong>{actualFor}</strong> — معروض للاطّلاع بس.
+                  <strong> ماتعتمدش عليه كقراءات النهارده</strong>، راجع القطمارس المطبوع.</>
+              : <>اللي تحت قراءات عامة مش مرتبطة باليوم. راجع القطمارس المطبوع.</>}
+          </p>
+        </div>
+      )}
 
       {/* Reading cards */}
       {readingCards.map(({ key, label, icon, ref }) => {
