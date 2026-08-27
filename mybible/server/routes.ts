@@ -7,7 +7,7 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
-import { deuteroStatus, importDeuteroFromFile, importAllDeutero } from "./deutero";
+import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources } from "./deutero";
 import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
@@ -251,6 +251,13 @@ export async function registerRoutes(
   // تشخيص: إيه الموجود فعلاً في القاعدة. للقراءة، فمفيش مفتاح.
   app.get('/api/deutero/status', async (_req, res) => {
     try { res.json({ status: 'ok', ...(await deuteroStatus()) }); }
+    catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
+  });
+
+  /* بحث عن مصدر — قراءة من مصادر عامة، فمفيش مفتاح. بياخد وقت (بيجيب
+   * قوايم أسفار كل ترجمة عربية)، فمايتنداش إلا لما نكون بندوّر فعلاً. */
+  app.get('/api/deutero/sources', async (_req, res) => {
+    try { res.json({ status: 'ok', ...(await probeSources()) }); }
     catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
   });
 
