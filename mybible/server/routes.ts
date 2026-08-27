@@ -14,6 +14,13 @@ import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-t
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
 import { fetchTodaySynaxarium } from "./orthodox-service";
 import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katameros-service";
+import {
+  getStTaklaSectionCatalogs,
+  getStTaklaSectionBrowse,
+  getStTaklaSectionArticle,
+  isStTaklaSectionKey,
+  type StTaklaSectionKey,
+} from "./st-takla-sections-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
 import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification, getLastSendError } from "./push-notifications";
@@ -81,6 +88,69 @@ export async function registerRoutes(
         status: 'error',
         source: 'St-Takla.org',
         message: 'تعذر تحميل قراءات القطمارس من St-Takla حاليًا',
+      });
+    }
+  });
+
+  // ── Orthodox: St-Takla reference sections proxy ───────────────────────────
+  app.get('/api/orthodox/sttakla/sections', async (_req, res) => {
+    try {
+      const sections = await getStTaklaSectionCatalogs();
+      res.set('Cache-Control', 'public, max-age=900');
+      return res.json({ source: 'St-Takla.org', sections });
+    } catch (error: any) {
+      console.error('[orthodox] St-Takla sections catalog error:', error?.message || error);
+      return res.status(503).json({
+        source: 'St-Takla.org',
+        message: 'تعذر تحميل أقسام St-Takla حاليًا',
+        sections: [],
+      });
+    }
+  });
+
+  app.get('/api/orthodox/sttakla/sections/:section/browse', async (req, res) => {
+    const section = String(req.params.section);
+    const browseId = String(req.query.key || '');
+    const query = String(req.query.q || '');
+    if (!isStTaklaSectionKey(section)) {
+      return res.status(400).json({ message: 'قسم St-Takla غير صالح' });
+    }
+    if (!browseId) {
+      return res.status(400).json({ message: 'مفتاح التصفح مطلوب' });
+    }
+    try {
+      const data = await getStTaklaSectionBrowse(section, browseId, query);
+      res.set('Cache-Control', 'public, max-age=900');
+      return res.json(data);
+    } catch (error: any) {
+      console.error('[orthodox] St-Takla browse error:', error?.message || error);
+      return res.status(503).json({
+        source: 'St-Takla.org',
+        section,
+        message: 'تعذر تحميل هذا القسم من St-Takla حاليًا',
+        items: [],
+      });
+    }
+  });
+
+  app.get('/api/orthodox/sttakla/sections/:section/article', async (req, res) => {
+    const section = String(req.params.section);
+    const sourceUrl = String(req.query.url || '');
+    if (!isStTaklaSectionKey(section)) {
+      return res.status(400).json({ message: 'قسم St-Takla غير صالح' });
+    }
+    if (!sourceUrl) {
+      return res.status(400).json({ message: 'رابط المقال مطلوب' });
+    }
+    try {
+      const data = await getStTaklaSectionArticle(section as StTaklaSectionKey, sourceUrl);
+      res.set('Cache-Control', 'public, max-age=900');
+      return res.json(data);
+    } catch (error: any) {
+      console.error('[orthodox] St-Takla article error:', error?.message || error);
+      return res.status(503).json({
+        source: 'St-Takla.org',
+        message: 'تعذر تحميل المقال من St-Takla حاليًا',
       });
     }
   });

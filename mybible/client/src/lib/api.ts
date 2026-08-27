@@ -166,6 +166,46 @@ export interface DeuteroSourceChapter {
   verses: DeuteroSourceVerse[];
 }
 
+export type StTaklaSectionKey = 'ritual' | 'bible' | 'calendar';
+
+export interface StTaklaBrowseLink {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export interface StTaklaSectionCatalog {
+  key: StTaklaSectionKey;
+  title: string;
+  description: string;
+  sourceUrl: string;
+  browse: StTaklaBrowseLink[];
+  status: 'ok' | 'unavailable';
+  error?: string;
+}
+
+export interface StTaklaSectionItem {
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface StTaklaSectionArticle {
+  section: StTaklaSectionKey;
+  title: string;
+  content: string;
+  source: 'St-Takla.org';
+  sourceUrl: string;
+}
+
+export interface StTaklaSectionBrowseResponse {
+  section: StTaklaSectionKey;
+  source: 'St-Takla.org';
+  sourceUrl: string;
+  items: StTaklaSectionItem[];
+  article?: StTaklaSectionArticle;
+}
+
 export const api = {
   user: {
     get: () => fetchApi<User>('/user'),
@@ -277,6 +317,19 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ query }),
       }),
+  },
+
+  stTakla: {
+    getSections: () =>
+      fetchApi<{ source: 'St-Takla.org'; sections: StTaklaSectionCatalog[] }>('/orthodox/sttakla/sections'),
+    browse: (section: StTaklaSectionKey, key: string, query = '') =>
+      fetchApi<StTaklaSectionBrowseResponse>(
+        `/orthodox/sttakla/sections/${section}/browse?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}`,
+      ),
+    article: (section: StTaklaSectionKey, url: string) =>
+      fetchApi<StTaklaSectionArticle>(
+        `/orthodox/sttakla/sections/${section}/article?url=${encodeURIComponent(url)}`,
+      ),
   },
 
   deuteroSource: {

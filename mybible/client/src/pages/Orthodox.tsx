@@ -51,6 +51,7 @@ import { apocryphaBooks, type ApocryphaBook } from '@/lib/apocrypha-content';
 import { getLectionaryForDate, type ReadingRef } from '@/lib/coptic-lectionary';
 import { katameroSeasons, type KatamerosSeason, type KatamerosDay } from '@/lib/katameros-content';
 import { RemoteDeuteroReader } from '@/components/RemoteDeuteroReader';
+import { StTaklaSections } from '@/components/StTaklaSections';
 import { fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import {
   synaxariumMonths,
@@ -3535,7 +3536,7 @@ const ORTHODOX_DEDICATED_ROUTES: Record<string, string> = {
 // التابات الصالحة كقيم لـ :tab في /orthodox/:tab
 const ORTHODOX_VALID_TABS = new Set([
   'deacon', 'hymns', 'katameros', 'saints', 'creed', 'history',
-  'books', 'qa', 'figures', 'apocrypha', 'tafseer', 'maps', 'pope-qa',
+  'books', 'qa', 'figures', 'apocrypha', 'tafseer', 'maps', 'pope-qa', 'st-takla',
 ]);
 
 export default function Orthodox() {
@@ -3652,6 +3653,12 @@ export default function Orthodox() {
                 أسئلة البابا
               </TabsTrigger>
             </TabsList>
+            <TabsList className="w-full grid grid-cols-1 mb-6 h-10">
+              <TabsTrigger value="st-takla" className="text-sm py-1.5" data-testid="tab-st-takla">
+                <BookText className="w-3 h-3 ml-1" />
+                مراجع St-Takla
+              </TabsTrigger>
+            </TabsList>
 
             <TabsContent value="synaxarium">
               <SynaxariumSection />
@@ -3715,6 +3722,10 @@ export default function Orthodox() {
 
             <TabsContent value="pope-qa">
               <PopeShenoudaQASection />
+            </TabsContent>
+
+            <TabsContent value="st-takla">
+              <StTaklaSections />
             </TabsContent>
           </Tabs>
         </motion.div>
