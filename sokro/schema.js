@@ -306,6 +306,49 @@ async function ensureSokroSchema() {
        * بيبقى تلاتة وكل مكالمة بتسأل عن مين فيهم، وهو نفس الرقم. */
       CREATE UNIQUE INDEX IF NOT EXISTS sokro_contacts_user_phone_uidx
         ON sokro_contacts(user_id, phone_hint, search_name);
+      /* اشتراكات الـPush — ده اللي بيخلّي سوكرو **يرنّ** مش يستنّى.
+       *
+       * الاشتراك مرتبط بالمتصفح مش بالمستخدم: نفس الشخص على الموبايل
+       * والابتوب = صفّين. فمفيش UNIQUE على `user_id` — الرن بيروح لكل
+       * أجهزته، وهو يرد من اللي في إيده.
+       *
+       * و`endpoint` هو المفتاح الحقيقي: لو نفس الجهاز اشترك تاني (بعد
+       * مسح البيانات أو إعادة تثبيت) بيرجع بنفس الـendpoint، فالتحديث
+       * أصحّ من صف جديد. */
+      CREATE TABLE IF NOT EXISTS sokro_push_subs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_ok_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS sokro_push_subs_user_idx ON sokro_push_subs(user_id);
+
+      /* نداء واحد = صف واحد.
+       *
+       * الرن مش إشعار: الإشعار بيتقري وخلاص، والنداء **بيتردّ عليه أو
+       * بيتفوّت**. والفرق ده لازم يكون محفوظ عشان الواجهة تعرف تفرّق بين
+       * «فيه نداء مستني» و«نداء عدّى من ساعتين» — الرن على حاجة عدّت
+       * وقتها أسوأ من إنه مايرنّش.
+       *
+       * `brief` هو اللي المساعد هيتكلم فيه أول ما ترد — من غيره النداء
+       * بيفتح مكالمة فاضية والمستخدم يقول «نعم؟». */
+      CREATE TABLE IF NOT EXISTS sokro_rings (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        reason TEXT NOT NULL,
+        brief TEXT NOT NULL,
+        meta JSONB NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        answered_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS sokro_rings_pending_idx
+        ON sokro_rings(user_id, status, id DESC);
       CREATE TABLE IF NOT EXISTS sokro_consent_audit (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,

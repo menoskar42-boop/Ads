@@ -30,6 +30,8 @@ const whatsappCloud = require('./channels/whatsapp-cloud');
 const waAccount = require('./channels/whatsapp-account');
 const phone = require('./channels/phone');
 const audit = require('./audit');
+const push = require('./push');
+const rings = require('./rings');
 const timeParser = require('./time-parser');
 const bookingProviders = require('./booking/providers');
 const path = require('path');
@@ -827,6 +829,46 @@ router.post('/api/calls/:id([0-9]+)/hangup', auth.requireAuth, async (req, res) 
   } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
 
+// ── Push + النداء ────────────────────────────────────────────────────────────
+// `/api/push/key` عام عن قصد: المفتاح العام **معلَن** بطبيعته (المتصفح
+// بيبعته للخدمة)، وحجبه وراء تسجيل دخول بيمنع تسجيل الاشتراك قبل ما
+// المستخدم يخلص أول دخول من غير أي مكسب أمني.
+router.get('/api/push/key', (_req, res) => res.json({ ok: true, key: push.publicKey(), configured: push.configured() }));
+router.post('/api/push/subscribe', auth.requireAuth, async (req, res) => {
+  const out = await push.subscribe(req.sokroUser.id, req.body && req.body.subscription, req.headers['user-agent']);
+  res.status(out.ok ? 200 : 400).json(out);
+});
+router.delete('/api/push/subscribe', auth.requireAuth, async (req, res) => {
+  const gone = await push.unsubscribe(req.sokroUser.id, (req.body && req.body.endpoint) || '');
+  res.json({ ok: true, removed: gone });
+});
+router.get('/api/push/devices', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, devices: await push.devices(req.sokroUser.id) });
+});
+
+// النداء المستني — الواجهة بتسأل عنه عند الفتح وبعد كل رن.
+router.get('/api/rings/pending', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, ring: await rings.pending(req.sokroUser.id) });
+});
+router.post('/api/rings/:id([0-9]+)/answer', auth.requireAuth, async (req, res) => {
+  const r = await rings.answer(req.sokroUser.id, req.params.id);
+  if (!r) return res.status(404).json({ ok: false, error: 'النداء مش مستني — يمكن اتفوّت أو اترد عليه' });
+  res.json({ ok: true, ring: r });
+});
+router.post('/api/rings/:id([0-9]+)/decline', auth.requireAuth, async (req, res) => {
+  res.json({ ok: true, declined: await rings.decline(req.sokroUser.id, req.params.id) });
+});
+
+/* اختبار الرن — المستخدم يتأكد إن الإذن والاشتراك شغّالين قبل ما
+ * يعتمد عليه. من غيره، أول رن حقيقي هو الاختبار — ولو فشل، المستخدم
+ * مش هيعرف إلا لما يكون فات عليه حاجة. */
+router.post('/api/rings/test', auth.requireAuth, async (req, res) => {
+  res.json(await rings.create(req.sokroUser.id, {
+    reason: 'test',
+    brief: 'ده اختبار للرن. لو سمعتني، يبقى كل حاجة شغّالة.',
+  }));
+});
+
 // ── The inbox a reminder lands in ────────────────────────────────────────────
 router.get('/api/notifications', auth.requireAuth, async (req, res) => {
   const rows = await scheduler.notifications(req.sokroUser.id, req.query.limit);
@@ -901,12 +943,30 @@ router.get('/sw.js', (_req, res) => {
   // App-shell service worker for installability. Network-first (so a redeploy is
   // picked up immediately), with a cached fallback when offline.
   res.type('application/javascript').set('Cache-Control', 'no-cache').send(
-    "const C='sokro-v1';" +
+    "const C='sokro-v2';" +
     "self.addEventListener('install',e=>self.skipWaiting());" +
     "self.addEventListener('activate',e=>self.clients.claim());" +
     "self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;" +
     "if(e.request.url.indexOf('/api/')>-1)return;" +
-    "e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)));});"
+    "e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)));});" +
+    /* الرن. `requireInteraction` بيخلّي الإشعار يفضل على الشاشة بدل ما
+     * يختفي بعد ثواني — النداء المفروض يستنى الرد مش يعدّي. و`renotify`
+     * مع `tag` ثابت: النداء الجديد بيحلّ محل القديم على الشاشة بدل ما
+     * يتكوّم فوقه (نفس منطق «نداء واحد مستني» في السيرفر). */
+    "self.addEventListener('push',e=>{let d={};try{d=e.data?e.data.json():{}}catch(_){}" +
+    "if(d.kind!=='ring')return;" +
+    "e.waitUntil(self.registration.showNotification(d.title||'سوكرو بيتصل بيك',{" +
+    "body:d.body||'',icon:'/sokro-icon.svg',badge:'/sokro-icon.svg'," +
+    "tag:'sokro-ring',renotify:true,requireInteraction:true,vibrate:[200,100,200,100,200]," +
+    "data:{url:d.url||'/app'}}));});" +
+    /* الضغط على الإشعار: **لو التطبيق مفتوح خلاص نركّز عليه** بدل ما
+     * نفتح تبويب تاني. تبويبين مفتوحين على نفس الحساب معناهم مكالمتين
+     * ممكن يبدأوا مع بعض على نفس النداء. */
+    "self.addEventListener('notificationclick',e=>{e.notification.close();" +
+    "const u=(e.notification.data&&e.notification.data.url)||'/app';" +
+    "e.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(function(cs){" +
+    "for(const c of cs){if(c.url.indexOf('/app')>-1&&'focus' in c){c.postMessage({kind:'ring-open',url:u});return c.focus();}}" +
+    "return self.clients.openWindow(u);}));});"
   );
 });
 
