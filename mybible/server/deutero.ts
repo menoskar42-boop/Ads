@@ -34,15 +34,42 @@ function getDb() {
   return drizzle(new Pool({ connectionString: process.env.DATABASE_URL }), { schema });
 }
 
-/** الأسفار القانونية الثانية المعتمدة قبطياً، وترتيبها بعد الـ٦٦. */
-export const DEUTERO_BOOKS: { name: string; order: number; chapters: number }[] = [
+/**
+ * الأسفار القانونية الثانية في التقليد القبطي الأرثوذكسي.
+ *
+ * ── ⚠️ القايمة دي مسألة كنسية، مش قرار برمجي ────────────────────────────
+ *
+ * `needsChurchReview: true` معناها إن السفر ده **مذكور في قوايم قبطية**
+ * بس ورودُه وشكله بيختلف من طبعة لطبعة. الكود مايقدرش يحسم ده، والحسم
+ * بتاع الكنيسة مش بتاعنا — فالأسفار دي **مابتتستوردش** لحد ما تتراجع.
+ *
+ * السبعة الأولانيين بيتفق عليهم كل الطبعات القبطية العربية اللي بتطبع
+ * «الأسفار القانونية الثانية».
+ *
+ * وملاحظتين على الشكل بتفرق في الترقيم:
+ *   · **باروخ**: بيتطبع غالباً ٦ إصحاحات، السادس فيهم «رسالة إرميا».
+ *     في طبعات تانية الرسالة سفر مستقل. راجع طبعتك قبل الاستيراد.
+ *   · **إضافات دانيال وأستير**: في الطبعات القبطية بتتحط **جوّه** السفر
+ *     نفسه مش سفر مستقل — يعني ملف دانيال بيبقى فيه إصحاحات زيادة، مش
+ *     سفر جديد. عشان كده مش في القايمة دي.
+ */
+export const DEUTERO_BOOKS: {
+  name: string; order: number; chapters: number; needsChurchReview?: boolean; note?: string;
+}[] = [
   { name: 'طوبيا', order: 67, chapters: 14 },
   { name: 'يهوديت', order: 68, chapters: 16 },
   { name: 'الحكمة', order: 69, chapters: 19 },
   { name: 'يشوع بن سيراخ', order: 70, chapters: 51 },
-  { name: 'باروخ', order: 71, chapters: 6 },
+  { name: 'باروخ', order: 71, chapters: 6, note: 'الإصحاح ٦ = رسالة إرميا في أغلب الطبعات العربية' },
   { name: 'المكابيين الأول', order: 72, chapters: 16 },
   { name: 'المكابيين الثاني', order: 73, chapters: 15 },
+  // تحت السطر ده: واردة في قوايم قبطية بس بتختلف من طبعة لطبعة.
+  { name: 'المكابيين الثالث', order: 74, chapters: 7, needsChurchReview: true,
+    note: 'وارد في قوايم قبطية وبيغيب في طبعات — راجع الكنيسة قبل الإدراج' },
+  { name: 'صلاة منسى', order: 75, chapters: 1, needsChurchReview: true,
+    note: 'بيتطبع أحياناً كملحق مش كسفر' },
+  { name: 'المزمور ١٥١', order: 76, chapters: 1, needsChurchReview: true,
+    note: 'بيتحط عادةً في آخر المزامير مش كسفر مستقل' },
 ];
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'deutero');
@@ -76,7 +103,20 @@ export async function deuteroStatus() {
     });
   }
   const missing = names.filter((n) => !books.some((b) => b.name === n));
-  return { books: out, missingBooks: missing, dataDir: DATA_DIR, filesOnDisk: listFiles() };
+  return {
+    books: out, missingBooks: missing, dataDir: DATA_DIR, filesOnDisk: listFiles(),
+    // القايمة نفسها بترجع عشان تتراجع من غير ما حد يفتح الكود.
+    canon: DEUTERO_BOOKS.map((b) => ({
+      name: b.name, chapters: b.chapters,
+      needsChurchReview: !!b.needsChurchReview, note: b.note || null,
+    })),
+    /* ⚠️ حقيقة بتفرق للقارئ: **فان دايك مافيهاش الأسفار دي أصلاً**
+     * (ترجمة ١٨٦٥ استبعدتها)، والموقع كله فان دايك. يعني أي نص هييجي
+     * للأسفار دي هيبقى **من ترجمة تانية**، وأسلوبه هيبان مختلف. ده طبيعي
+     * في الطبعات العربية، بس لازم يتكتب على الصفحة عشان القارئ مايستغربش. */
+    translationNote: 'نص الموقع فان دايك، وهي ماترجمتش الأسفار القانونية الثانية. '
+      + 'كل سفر منها بيتخزّن مع مصدره، والمصدر بيتعرض للقارئ.',
+  };
 }
 
 function listFiles(): string[] {
@@ -101,6 +141,15 @@ export async function importDeuteroFromFile(fileName: string) {
 
   const meta = DEUTERO_BOOKS.find((b) => b.name === data.book);
   if (!meta) return { ok: false, error: `«${data.book}» مش في قايمة الأسفار القانونية الثانية` };
+  /* السفر اللي لسه محتاج حسم كنسي مابيتنشرش بضغطة.
+   *
+   * ورود السفر في القانون مسألة كنسية، والكود مايقدرش يحسمها. الاستيراد
+   * بيطلب إقرار صريح (`confirmedByChurch: true` في الملف) عشان اللي
+   * بيضيفه يكون واخد باله إنه بيقرّر حاجة مش تقنية. */
+  if (meta.needsChurchReview && (data as any).confirmedByChurch !== true) {
+    return { ok: false, error: `«${meta.name}» محتاج مراجعة كنسية — ${meta.note || ''}. `
+      + 'ضيف `"confirmedByChurch": true` في الملف بعد ما تتأكد.' };
+  }
   if (!data.source || !String(data.source).trim()) {
     // المصدر إلزامي: نص مقدّس من غير مصدر معروف مايتنشرش.
     return { ok: false, error: 'الملف لازم يحتوي `source` — المصدر اللي النص اتجاب منه' };
@@ -155,6 +204,123 @@ export async function importDeuteroFromFile(fileName: string) {
     chapters: chapterNums.sort((a, b) => a - b),
     versesImported: inserted, source: data.source,
   };
+}
+
+/* ── البحث عن مصدر: السيرفر بيدوّر، مش إحنا ────────────────────────────────
+ *
+ * بيئة التطوير عندنا الشبكة فيها محجوبة، والنشر لأ (بيجيب `arabicsv.json`
+ * من getbible وقت الزرع). فبدل ما نخمّن أي ترجمة فيها الأسفار القانونية
+ * الثانية، الراوت ده **بيسأل** من على السيرفر ويرجّع الإجابة.
+ *
+ * وبيرجّع **أسماء الأسفار زي ما هي في المصدر** مش حكم بنعم/لأ: أسماء
+ * الأسفار بتتكتب بأشكال مختلفة («الحكمة» · «حكمة سليمان» · «سفر الحكمة»)،
+ * ومطابقة حرفية كانت هتقول «مفيش» على ترجمة فيها السفر باسم تاني. */
+export async function probeSources() {
+  const out: any = { checked: [], errors: [] };
+  try {
+    const r = await fetch('https://api.getbible.net/v2/translations.json');
+    if (!r.ok) throw new Error('translations.json ' + r.status);
+    const all: any = await r.json();
+    const arabic = Object.values(all).filter((t: any) =>
+      String(t.lang || '').toLowerCase().startsWith('ar') ||
+      /arab/i.test(String(t.language || '')));
+    out.arabicTranslations = arabic.map((t: any) => ({
+      abbreviation: t.abbreviation, translation: t.translation, lang: t.lang,
+    }));
+
+    // ولكل ترجمة عربية: نجيب قايمة أسفارها ونشوف العدد والأسماء.
+    for (const t of arabic as any[]) {
+      const ab = t.abbreviation;
+      try {
+        const br = await fetch(`https://api.getbible.net/v2/${encodeURIComponent(ab)}/books.json`);
+        if (!br.ok) { out.errors.push(`${ab}: books.json ${br.status}`); continue; }
+        const books: any = await br.json();
+        const names = (Array.isArray(books) ? books : Object.values(books))
+          .map((b: any) => b && (b.name || b.nr)).filter(Boolean);
+        out.checked.push({
+          abbreviation: ab, translation: t.translation,
+          bookCount: names.length,
+          // ٦٦ = بروتستانتي (مفيش قانونية ثانية). أكتر = فيه زيادة تستحق النظر.
+          hasExtraBooks: names.length > 66,
+          bookNames: names,
+        });
+      } catch (e: any) { out.errors.push(`${ab}: ${e.message}`); }
+    }
+  } catch (e: any) { out.errors.push('translations: ' + e.message); }
+  return out;
+}
+
+/* ── الاستيراد من رابط ────────────────────────────────────────────────────
+ *
+ * ⚠️ **SSRF**: الراوت ده بيخلّي السيرفر يجيب رابط بياخده من المستخدم. من
+ * غير حراسة، حد يبعت `http://127.0.0.1:5000/...` أو عنوان بيانات السحابة
+ * والسيرفر يجيبهوله. الحراسة هنا: https بس، وممنوع أي عنوان داخلي.
+ *
+ * ومحدّش غير صاحب المفتاح بيقدر ينده الراوت أصلاً — بس الحراسة مابتتشالش
+ * عشان كده: المفتاح ممكن يتسرّب، والطبقتين مع بعض. */
+const PRIVATE_HOST = /^(localhost$|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|172\.(1[6-9]|2\d|3[01])\.)/i;
+
+function checkUrl(raw: string): { ok: true; url: URL } | { ok: false; error: string } {
+  let u: URL;
+  try { u = new URL(raw); } catch (_) { return { ok: false, error: 'رابط غير صالح' }; }
+  if (u.protocol !== 'https:') return { ok: false, error: 'https بس' };
+  if (PRIVATE_HOST.test(u.hostname)) return { ok: false, error: 'عنوان داخلي ممنوع' };
+  return { ok: true, url: u };
+}
+
+/* توحيد الشكل. الـAPI الخارجي مش هيطلّع بالضرورة نفس أسماء حقولنا،
+ * فالتوحيد بيقبل الأشكال المتوقّعة **من غير تخمين للمحتوى**: لو الآية
+ * مالهاش رقم أو نص، بترتفض — مابنخترعش ترقيم. */
+function normalizePayload(raw: any, bookName: string): DeuteroFile | { error: string } {
+  const chaptersRaw = Array.isArray(raw) ? raw : (raw && (raw.chapters || raw.data));
+  if (!Array.isArray(chaptersRaw) || !chaptersRaw.length) return { error: 'مفيش إصحاحات في الرد' };
+  const chapters: DeuteroFile['chapters'] = [];
+  for (const c of chaptersRaw) {
+    const num = Number(c && (c.chapter ?? c.number ?? c.ch));
+    const vs = (c && (c.verses || c.data)) || [];
+    if (!num || !Array.isArray(vs) || !vs.length) return { error: `إصحاح ${c && (c.chapter ?? '?')} فاضي أو بلا رقم` };
+    const verses = [];
+    for (const v of vs) {
+      const n = Number(v && (v.verse ?? v.number ?? v.v));
+      const t = String((v && (v.text ?? v.t)) || '').trim();
+      if (!n || !t) return { error: `آية ناقصة في إصحاح ${num}` };
+      verses.push({ verse: n, text: t });
+    }
+    chapters.push({ chapter: num, verses });
+  }
+  return { book: bookName, source: String((raw && raw.source) || ''), chapters };
+}
+
+export async function importDeuteroFromUrl(bookName: string, rawUrl: string, source: string, confirmed = false) {
+  const g = checkUrl(rawUrl);
+  if (!g.ok) return { ok: false, error: g.error };
+  if (!source || !String(source).trim()) {
+    return { ok: false, error: 'source مطلوب — اسم الترجمة/الطبعة، مش الرابط لوحده' };
+  }
+  let raw: any;
+  try {
+    const r = await fetch(g.url.toString(), { headers: { accept: 'application/json' } });
+    if (!r.ok) return { ok: false, error: `الرابط رجّع ${r.status}` };
+    const body = await r.text();
+    if (body.length > 8 * 1024 * 1024) return { ok: false, error: 'الرد أكبر من ٨ ميجا' };
+    raw = JSON.parse(body);
+  } catch (e: any) { return { ok: false, error: 'فشل الجلب: ' + e.message }; }
+
+  const norm = normalizePayload(raw, bookName);
+  if ('error' in norm) return { ok: false, error: norm.error };
+  norm.source = String(source).trim() + ' — عبر ' + g.url.origin + g.url.pathname;
+  if (confirmed) (norm as any).confirmedByChurch = true;
+
+  /* بيتكتب في ملف الأول وبعدين يتستورد بنفس المسار.
+   *
+   * كده الاستيراد من رابط **مابيلفّش** حول أي فحص في مسار الملفات
+   * (المصدر إلزامي · بوّابة المراجعة الكنسية · المسح المحصور)، والملف
+   * بيفضل موجود كأثر لللي اتستورد فعلاً. */
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = bookName + '.json';
+  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(norm, null, 2) + '\n', 'utf8');
+  const out = await importDeuteroFromFile(file);
+  return { ...out, fetchedFrom: g.url.toString() };
 }
 
 /** استيراد كل الملفات الموجودة — بيرجّع نتيجة كل ملف على حدة. */

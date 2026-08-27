@@ -580,9 +580,36 @@ function gregorianToCopticLocal(date: Date): { day: number; month: number; year:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// البحث عن أقرب قراءة للتاريخ المحدد
+// قراءات اليوم — والصدق لما ماتكونش موجودة
 // ─────────────────────────────────────────────────────────────────────────────
-export function getLectionaryForDate(date: Date): { reading: DayLectionary; label: string; copticDate: string } {
+//
+// ── الغلطة اللي الدالة دي اتعدّلت بعدها ──────────────────────────────────────
+//
+// الدالة كانت لما ماتلاقيش قراءات لليوم **بترجّع قراءات أقرب يوم سابق**
+// وبتسمّيها بتاريخ النهارده. والواجهة بتكتب فوقها «قراءة اليوم — ١٥ بابه»
+// وهي بتاعت ٨ بابه.
+//
+// والأرقام بتقول إن دي مش حالة نادرة: **١٠٢ يوم بس من ٣٦٦ عندهم قراءات**
+// (بشنس وبؤونة كاملين، وباقي الشهور ٤ أو ٥ أيام لكل شهر). يعني **٢٦٤ يوم
+// في السنة** كانوا بيعرضوا قراءات يوم تاني بعنوان تاريخ النهارده.
+//
+// وده أخطر من النقص: النقص بيبان، والاستبدال الصامت **مابيبانش** — حد
+// بيحضّر قراءات القداس بياخدها ويمشي بيها. وموقع كنسي بيدّي قراءة غلط
+// بثقة أسوأ من موقع بيقول «مش عندي».
+//
+// `exact: false` معناها: **دي مش قراءات اليوم**. والواجهة لازم تقولها
+// للمستخدم بدل ما تعرضها كأنها بتاعته.
+export interface LectionaryResult {
+  reading: DayLectionary;
+  label: string;
+  copticDate: string;
+  /** `true` = اليوم ده مسجّل فعلاً. `false` = دي قراءات يوم تاني/افتراضية. */
+  exact: boolean;
+  /** التاريخ القبطي اللي القراءات دي بتاعته فعلاً — لما `exact` تكون false. */
+  actualFor: string | null;
+}
+
+export function getLectionaryForDate(date: Date): LectionaryResult {
   const { day, month } = gregorianToCopticLocal(date);
 
   // الأشهر القبطية
@@ -593,37 +620,50 @@ export function getLectionaryForDate(date: Date): { reading: DayLectionary; labe
   const monthName = monthNames[month] ?? 'توت';
   const copticDate = `${day} ${monthName}`;
 
-  // بحث مباشر في اليوم
+  // اليوم ده مسجّل؟ دي الحالة الوحيدة اللي بنقول فيها «قراءة اليوم».
   const key = `${month}-${day}`;
   if (dailyReadings[key]) {
-    return { reading: dailyReadings[key], label: copticDate, copticDate };
+    return { reading: dailyReadings[key], label: copticDate, copticDate, exact: true, actualFor: copticDate };
   }
 
-  // أقرب إدخال في نفس الشهر (أقرب يوم سابق)
-  const keysInMonth = Object.keys(dailyReadings)
-    .filter(k => k.startsWith(`${month}-`))
-    .map(k => parseInt(k.split('-')[1]))
-    .sort((a, b) => b - a);
+  /* مش مسجّل. بنرجّع أقرب يوم سابق **كمرجع للاطّلاع** — مش كقراءات
+   * النهارده — و`exact: false` بتخلّي الواجهة تقول ده بصريح العبارة.
+   * سيبناه بدل ما نرجّع فاضي عشان الصفحة ماتبقاش خالية، بس الفرق إنه
+   * بيتعرض **باسم يومه الحقيقي** مش باسم النهارده. */
+  const nearest = (m: number, maxDay: number): { d: number } | null => {
+    const days = Object.keys(dailyReadings)
+      .filter(k => k.startsWith(`${m}-`))
+      .map(k => parseInt(k.split('-')[1]))
+      .filter(d => d <= maxDay)
+      .sort((a, b) => b - a);
+    return days.length ? { d: days[0] } : null;
+  };
 
-  for (const d of keysInMonth) {
-    if (d <= day) {
-      return { reading: dailyReadings[`${month}-${d}`], label: copticDate, copticDate };
-    }
+  const sameMonth = nearest(month, day);
+  if (sameMonth) {
+    return {
+      reading: dailyReadings[`${month}-${sameMonth.d}`],
+      label: copticDate, copticDate, exact: false,
+      actualFor: `${sameMonth.d} ${monthName}`,
+    };
   }
 
-  // أقرب إدخال في الشهر السابق
   const prevMonth = month === 1 ? 13 : month - 1;
-  const keysInPrev = Object.keys(dailyReadings)
-    .filter(k => k.startsWith(`${prevMonth}-`))
-    .map(k => parseInt(k.split('-')[1]))
-    .sort((a, b) => b - a);
-
-  if (keysInPrev.length > 0) {
-    const d = keysInPrev[0];
-    return { reading: dailyReadings[`${prevMonth}-${d}`], label: copticDate, copticDate };
+  const prev = nearest(prevMonth, 30);
+  if (prev) {
+    return {
+      reading: dailyReadings[`${prevMonth}-${prev.d}`],
+      label: copticDate, copticDate, exact: false,
+      actualFor: `${prev.d} ${monthNames[prevMonth] ?? ''}`.trim(),
+    };
   }
 
-  return { reading: defaultReading, label: copticDate, copticDate };
+  return { reading: defaultReading, label: copticDate, copticDate, exact: false, actualFor: null };
+}
+
+/** كام يوم مسجّل فعلاً — عشان أي صفحة تقدر تقول التغطية من غير ما تعدّ بنفسها. */
+export function lectionaryCoverage(): { days: number; total: number } {
+  return { days: Object.keys(dailyReadings).length, total: 366 };
 }
 
 export { feasts, dailyReadings };

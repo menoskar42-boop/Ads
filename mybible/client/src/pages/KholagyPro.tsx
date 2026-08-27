@@ -339,10 +339,20 @@ function SectionReader({ liturgy, section, sectionIdx, basePath }: {
               <div className="flex items-center gap-2 mb-3">
                 <BookOpen className="w-4 h-4 text-amber-600 flex-shrink-0" />
                 <span className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                  قراءة اليوم — {todayLectionary.copticDate}
+                  {todayLectionary.exact
+                    ? <>قراءة اليوم — {todayLectionary.copticDate}</>
+                    : <>قراءة {todayLectionary.actualFor ?? 'عامة'} — مش قراءة اليوم</>}
                 </span>
                 <span className="text-xs text-amber-600 dark:text-amber-400 mr-auto">{todayRef.label}</span>
               </div>
+              {/* ── تنبيه: القراءة دي مش بتاعت النهارده ────────────────────
+                  الخولاجي كان بيكتب «قراءة اليوم» على قراءات يوم تاني في
+                  ٢٦٤ يوم من ٣٦٦. الشماس بياخدها ويقراها في القداس. */}
+              {!todayLectionary.exact && (
+                <p className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-2 leading-6">
+                  ⚠️ قراءات {todayLectionary.copticDate} مش متسجّلة — ده للاطّلاع بس، راجع القطمارس المطبوع.
+                </p>
+              )}
               {readingLoading ? (
                 <p className="text-sm text-amber-700 dark:text-amber-400 animate-pulse">جاري التحميل…</p>
               ) : readingVerses.length > 0 ? (
