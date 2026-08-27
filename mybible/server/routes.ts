@@ -13,7 +13,7 @@ import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service"
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
 import { fetchTodaySynaxarium } from "./orthodox-service";
-import { getStTaklaKatamerosDay } from "./katameros-service";
+import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katameros-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
 import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification, getLastSendError } from "./push-notifications";
@@ -2184,28 +2184,7 @@ ${excludedStr}
         String(today.getDate()).padStart(2, '0'),
       ].join('-');
       const day = await getStTaklaKatamerosDay(date);
-      const toSlides = (reading: typeof day.readings[number] | undefined, emptyTitle: string) => ({
-        title: reading?.reference || emptyTitle,
-        slides: reading?.status === 'ok'
-          ? [reading.verses.map(verse => `${verse.chapter}:${verse.verse} ${verse.text}`).join('\n')]
-          : [],
-      });
-      const findSection = (section: string) => day.readings.find(reading => reading.section === section);
-      const synaxariumReadings = day.readings.filter(reading => reading.section === 'synaxarium');
-      const psalm = synaxariumReadings.find(reading => /مزامير|مزمور/.test(reading.reference));
-      const gospel = synaxariumReadings.find(reading => !/مزامير|مزمور/.test(reading.reference));
-      res.json({
-        copticDate: day.title,
-        pauline: toSlides(findSection('pauline'), 'البولس'),
-        catholic: toSlides(findSection('catholic'), 'الكاثوليكون'),
-        praxis: toSlides(findSection('praxis'), 'الإبركسيس'),
-        psalm: toSlides(psalm, 'المزمور'),
-        gospel: toSlides(gospel, 'الإنجيل'),
-        exact: true,
-        sourceDay: day.date,
-        source: 'St-Takla.org',
-        sourceUrl: day.sourcePageUrl,
-      });
+      res.json(toDailyReadingsCompatibility(day));
     } catch (err) {
       console.error('daily-readings error:', err);
       res.status(503).json({ error: 'فشل جلب قراءات St-Takla' });

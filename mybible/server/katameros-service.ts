@@ -131,7 +131,7 @@ function sectionForHeading(text: string): ReadingSection | null {
   return SECTION_LABELS.find(({ aliases }) => aliases.some((alias) => normalized === alias))?.section ?? null;
 }
 
-function parseDayLinks(html: string): { title: string; sourceUrl: string; readings: Omit<KatamerosReading, 'verses' | 'status' | 'error'>[] } {
+export function parseDayLinks(html: string): { title: string; sourceUrl: string; readings: Omit<KatamerosReading, 'verses' | 'status' | 'error'>[] } {
   const sourceUrl = STTAKLA_KATAMEROS_URL;
   const headingMatch = html.match(/<p\b[^>]*>\s*([\s\S]*?)\s*<\/p>/gi)?.find((tag) => {
     const text = htmlToText(tag);
@@ -167,7 +167,7 @@ function parseDayLinks(html: string): { title: string; sourceUrl: string; readin
   return { title, sourceUrl, readings };
 }
 
-function parseReadingVerses(html: string): KatamerosVerse[] {
+export function parseReadingVerses(html: string): KatamerosVerse[] {
   const verses: KatamerosVerse[] = [];
   const versePattern = /<sup\b[^>]*>\s*([0-9٠-٩]+)\s*<\/sup>/gi;
 
@@ -233,4 +233,55 @@ export async function getStTaklaKatamerosDay(dateValue: string): Promise<Katamer
   };
   dayCache.set(date.key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
   return value;
+}
+
+export interface DailyReadingsCompatibility {
+  copticDate: string;
+  pauline: { title: string; slides: string[] };
+  catholic: { title: string; slides: string[] };
+  praxis: { title: string; slides: string[] };
+  psalm: { title: string; slides: string[] };
+  gospel: { title: string; slides: string[] };
+  exact: true;
+  sourceDay: string;
+  source: 'St-Takla.org';
+  sourceUrl: string;
+}
+
+/**
+ * الشكل القديم الذي تحتاجه شاشة عرض القداس.
+ * يبقى التحويل هنا بجانب مصدر القطمارس حتى لا تعيد الشاشة استخدام
+ * بيانات محلية أو تخمن قراءة بديلة عند غيابها.
+ */
+export function toDailyReadingsCompatibility(day: KatamerosDay): DailyReadingsCompatibility {
+  const toSlides = (reading: KatamerosReading | undefined, emptyTitle: string) => ({
+    title: reading?.reference || emptyTitle,
+    slides: reading?.status === 'ok'
+      ? [reading.verses.map(verse => `${verse.chapter}:${verse.verse} ${verse.text}`).join('\n')]
+      : [],
+  });
+  const findSection = (section: KatamerosReading['section']) =>
+    day.readings.find(reading => reading.section === section);
+  const synaxariumReadings = day.readings.filter(reading => reading.section === 'synaxarium');
+  const psalm = synaxariumReadings.find(reading => /مزامير|مزمور/.test(reading.reference));
+  const gospel = synaxariumReadings.find(reading => !/مزامير|مزمور/.test(reading.reference));
+
+  return {
+    copticDate: day.title,
+    pauline: toSlides(findSection('pauline'), 'البولس'),
+    catholic: toSlides(findSection('catholic'), 'الكاثوليكون'),
+    praxis: toSlides(findSection('praxis'), 'الإبركسيس'),
+    psalm: toSlides(psalm, 'المزمور'),
+    gospel: toSlides(gospel, 'الإنجيل'),
+    exact: true,
+    sourceDay: day.date,
+    source: 'St-Takla.org',
+    sourceUrl: day.sourcePageUrl,
+  };
+}
+
+/** للاختبارات ولتفريغ بيانات اليوم بعد تغيير المصدر أثناء التطوير. */
+export function clearKatamerosCache(): void {
+  dayCache.clear();
+  pageCache.clear();
 }
