@@ -197,6 +197,19 @@
   <a id="extlink" class="hidden" href="/ext" target="_blank" rel="noopener" title="حالة المتصفّح">🧩 المتصفح</a>
   <button id="bell" type="button" title="تذكيراتك">🔔 <span id="bellCount">0</span></button>
   <audio id="rtaudio" autoplay></audio>
+  <!-- شاشة النداء الوارد. مخفية دايماً إلا لما يكون فيه نداء **مستني**
+       فعلاً — شاشة مكالمة على نداء عدّى أسوأ من إن الرن مايجيش. -->
+  <div id="ringScreen" class="hidden" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#0b1020,#131c3d);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:28px;text-align:center">
+    <div style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#5b6cff,#22d3ee);display:flex;align-items:center;justify-content:center;font-size:2.6rem;animation:ringPulse 1.4s ease-in-out infinite">📞</div>
+    <div style="font-size:1.35rem;font-weight:900;color:#eef1ff">سوكرو بيتصل بيك</div>
+    <div id="ringBrief" style="max-width:460px;color:#aebbff;line-height:1.9;font-size:1rem"></div>
+    <div style="display:flex;gap:18px;margin-top:8px">
+      <button id="ringDecline" type="button" style="width:70px;height:70px;border-radius:50%;border:0;background:#ff5b6c;color:#fff;font-size:1.6rem;cursor:pointer">✕</button>
+      <button id="ringAnswer" type="button" style="width:70px;height:70px;border-radius:50%;border:0;background:#22c55e;color:#fff;font-size:1.6rem;cursor:pointer">📞</button>
+    </div>
+    <style>@keyframes ringPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(91,108,255,.55)}50%{transform:scale(1.06);box-shadow:0 0 0 26px rgba(91,108,255,0)}}
+      @media (prefers-reduced-motion:reduce){#ringScreen div[style*=ringPulse]{animation:none}}</style>
+  </div>
   <div id="dock" class="dock hidden">
     <div class="status" id="status">اكتب طلبك… أو اضغط 📞 لمكالمة صوتية</div>
     <div id="pendbar" class="hidden"></div>
@@ -791,15 +804,17 @@
   };
 
   // ---------- realtime live call (OpenAI Realtime API over WebRTC) ----------
-  var rtPc=null, rtStream=null, rtDc=null, rtOn=false, rtBusy=false, rtMuted=false;
+  var rtPc=null, rtStream=null, rtDc=null, rtOn=false, rtBusy=false, rtMuted=false, rtBrief=null;
   function applyMute(){ try{ if(rtStream) rtStream.getAudioTracks().forEach(function(t){ t.enabled=!rtMuted; }); }catch(e){}
     var b=$('#callmute'); if(b){ b.textContent=rtMuted?'🔇':'🎙️'; b.title=rtMuted?'إلغاء الكتم':'اكتم الميكروفون'; b.style.background=rtMuted?'#ff5b6c':'#1f2a44'; } }
   function setCall(on){ rtOn=on; $('#call').textContent=on?'⏹️':'📞'; $('#call').style.background=on?'#ff5b6c':'linear-gradient(135deg,#5b6cff,#22d3ee)';
     $('#callmute').classList.toggle('hidden',!on); if(!on){ rtMuted=false; applyMute(); }
     setStatus(on?'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك':'اكتب طلبك… أو اضغط 📞 لمكالمة صوتية'); }
-  async function startRealtime(){
+  // `brief` = اللي المساعد يقوله **أول ما المكالمة تفتح**، بدل ما يستنى
+  // المستخدم يتكلم. ده الفرق بين «سوكرو رنّ» و«سوكرو رنّ وقال ليه».
+  async function startRealtime(brief){
     if(rtPc||rtBusy) return; // guard: a double-tap must not open two overlapping calls
-    rtBusy=true;
+    rtBusy=true; rtBrief=brief||null;
     try{
       setStatus('🎙️ بيطلب إذن المايك…');
       rtStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}).catch(function(){ throw new Error('محتاج إذن الميكروفون'); });
@@ -815,6 +830,14 @@
         else if(s==='disconnected'){ setStatus('⚠️ الاتصال بيتقطّع…'); } };
       rtStream.getTracks().forEach(function(t){ rtPc.addTrack(t,rtStream); });
       rtDc=rtPc.createDataChannel('oai-events'); rtDc.onmessage=onRtEvent;
+      /* الـbrief بيتبعت **بعد ما القناة تفتح** مش قبلها.
+       * الإرسال على قناة لسه بتتفتح بيضيع من غير خطأ — والنتيجة مكالمة
+       * بتفتح ساكتة والمستخدم يقول «ألو؟» على مساعد هو اللي نده عليه. */
+      rtDc.onopen=function(){ if(!rtBrief) return;
+        try{ rtDc.send(JSON.stringify({type:'response.create',response:{instructions:
+          'ابدأ الكلام فوراً من غير ما تستنى المستخدم يتكلم. إنت اللي اتصلت بيه. قول بالعامية المصرية وباختصار: '+rtBrief}})); }
+        catch(e){}
+        rtBrief=null; };
       var offer=await rtPc.createOffer(); await rtPc.setLocalDescription(offer);
       var r=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',body:offer.sdp,headers:{Authorization:'Bearer '+sd.clientSecret,'Content-Type':'application/sdp'}});
       if(!r.ok){ addMsg('ai','تعذّر الاتصال بالمكالمة ('+r.status+').'); endRealtime(); return; }
@@ -822,7 +845,7 @@
       setCall(true);
     }catch(e){ addMsg('ai','تعذّر بدء المكالمة: '+e.message); endRealtime(); }
   }
-  function endRealtime(){ rtBusy=false; try{rtDc&&rtDc.close();}catch(e){} try{rtPc&&rtPc.close();}catch(e){} try{rtStream&&rtStream.getTracks().forEach(function(t){t.stop();});}catch(e){} try{var rt=$('#rtaudio'); if(rt){ rt.srcObject=null; }}catch(e){} rtPc=null;rtStream=null;rtDc=null; setCall(false); }
+  function endRealtime(){ rtBusy=false; rtBrief=null; try{rtDc&&rtDc.close();}catch(e){} try{rtPc&&rtPc.close();}catch(e){} try{rtStream&&rtStream.getTracks().forEach(function(t){t.stop();});}catch(e){} try{var rt=$('#rtaudio'); if(rt){ rt.srcObject=null; }}catch(e){} rtPc=null;rtStream=null;rtDc=null; setCall(false); }
   // Voice command to hang up: the model can't close the WebRTC (it's on the
   // client), so we detect end-phrases in the user's own transcript and end here.
   function isEndCall(t){
@@ -933,10 +956,90 @@
   $('#call').onclick=function(){ if(rtOn||rtPc||rtBusy){ endRealtime(); } else { startRealtime(); } };
   $('#callmute').onclick=function(){ rtMuted=!rtMuted; applyMute(); setStatus(rtMuted?'🔇 الميكروفون مكتوم — اضغط 🔇 للرجوع':'🟢 مكالمة مباشرة — اتكلم عادي، هو بيسمعك'); };
 
+  // ---------- الرن: سوكرو بيتصل بيك ----------
+  //
+  // ده الجزء اللي بيحوّل سوكرو من شات بتفتحه لمساعد **بيرجعلك**.
+  var ringCurrent=null;
+
+  function b64ToU8(s){ var pad='='.repeat((4-s.length%4)%4);
+    var raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+    var out=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i); return out; }
+
+  /* تسجيل الاشتراك **مابيطلبش الإذن لوحده**.
+   *
+   * طلب إذن الإشعارات أول ما الصفحة تفتح أسوأ حاجة ممكن تعملها: المتصفحات
+   * بتعاقب عليه، والمستخدم بيرفض من غير ما يعرف الطلب على إيه. فالدالة
+   * دي بتسجّل بس لو الإذن **متاخد خلاص**، والطلب بيحصل من زرار صريح. */
+  async function pushRegister(ask){
+    try{
+      if(!('serviceWorker' in navigator)||!('PushManager' in window)) return {ok:false,reason:'المتصفح مابيدعمش'};
+      var k=await (await fetch('/api/push/key')).json();
+      if(!k.ok||!k.configured||!k.key) return {ok:false,reason:'الرن مش متظبّط على السيرفر'};
+      var perm=Notification.permission;
+      if(perm==='default'&&ask) perm=await Notification.requestPermission();
+      if(perm!=='granted') return {ok:false,reason:perm==='denied'?'الإذن مرفوض من المتصفح':'محتاج إذن'};
+      var reg=await navigator.serviceWorker.ready;
+      var sub=await reg.pushManager.getSubscription();
+      if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64ToU8(k.key)});
+      var r=await (await fetch('/api/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({subscription:sub.toJSON()})})).json();
+      return r.ok?{ok:true}:{ok:false,reason:r.error||'السيرفر رفض الاشتراك'};
+    }catch(e){ return {ok:false,reason:e.message}; }
+  }
+
+  function showRing(ring){
+    if(!ring||ringCurrent) return;          // نداء واحد على الشاشة
+    /* والمكالمة شغّالة = مفيش شاشة نداء.
+     * `ring_user` متاحة للموديل جوّه المكالمة الحيّة، فلو ناداها وهو
+     * بيتكلم معاك أصلاً، شاشة «سوكرو بيتصل بيك» هتغطّي المكالمة اللي
+     * إنت فيها. الرد بيتقال بالصوت، والنداء بيتقفل. */
+    if(rtOn||rtPc){ fetch('/api/rings/'+ring.id+'/answer',{method:'POST'}).catch(function(){}); return; }
+    ringCurrent=ring;
+    $('#ringBrief').textContent=ring.brief||'';
+    $('#ringScreen').classList.remove('hidden');
+  }
+  function hideRing(){ ringCurrent=null; $('#ringScreen').classList.add('hidden'); }
+
+  async function checkRing(){
+    try{ var d=await (await fetch('/api/rings/pending')).json(); if(d.ok&&d.ring) showRing(d.ring); }
+    catch(e){}
+  }
+
+  $('#ringAnswer').onclick=async function(){
+    if(!ringCurrent) return;
+    var id=ringCurrent.id;
+    /* الشاشة بتتقفل **بعد** ما السيرفر يقبل الرد.
+     * لو اتقفلت الأول والرد فشل (النداء اتفوّت أو الشبكة قطعت)، المستخدم
+     * بيبقى فاكر إنه رد على حاجة ماحصلتش. */
+    var d=await (await fetch('/api/rings/'+id+'/answer',{method:'POST'})).json().catch(function(){return{ok:false};});
+    if(!d.ok){ hideRing(); addMsg('ai','النداء ده مابقاش مستني — يمكن اتفوّت.'); return; }
+    hideRing();
+    addMsg('ai','📞 '+(d.ring.brief||''));
+    startRealtime(d.ring.brief);
+  };
+  $('#ringDecline').onclick=async function(){
+    if(!ringCurrent) return; var id=ringCurrent.id; hideRing();
+    try{ await fetch('/api/rings/'+id+'/decline',{method:'POST'}); }catch(e){}
+  };
+
+  /* الـservice worker بيبعت رسالة لما المستخدم يضغط الإشعار والتطبيق
+   * مفتوح. من غيرها، الضغط بيركّز التبويب وبس والشاشة ماتظهرش. */
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.addEventListener('message',function(e){
+      if(e.data&&e.data.kind==='ring-open') checkRing();
+    });
+  }
+  // والرجوع للتطبيق بعد ما كان في الخلفية: نداء يمكن يكون جه والتطبيق مقفول.
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) checkRing(); });
+
   // ---------- init ----------
   (async function(){
     try{ var r=await fetch('/api/auth/me'); var d=await r.json(); if(d.ok) showApp(d.user); else showAuth(); }
     catch(e){ showAuth(); }
+    /* التسجيل من غير سؤال: لو الإذن متاخد من قبل بيتجدّد الاشتراك بصمت،
+     * ولو لأ مابيحصلش حاجة. الطلب الصريح بيحصل من إعدادات المستخدم. */
+    pushRegister(false);
+    checkRing();
   })();
 })();
 </script>

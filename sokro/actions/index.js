@@ -10,5 +10,6 @@ require('./FillSubmitAction');
 require('./NavigateSiteAction');
 require('./OperateAction');
 require('./WhatsAppAction');
+require('./RingUserAction');
 
 module.exports = require('./_registry');
