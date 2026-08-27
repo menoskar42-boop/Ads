@@ -7,6 +7,7 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
+import { deuteroStatus, importDeuteroFromFile, importAllDeutero } from "./deutero";
 import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
@@ -228,6 +229,38 @@ export async function registerRoutes(
       status: result.started ? 'accepted' : 'error',
       message: result.message
     });
+  });
+
+  /* ── الأسفار القانونية الثانية ─────────────────────────────────────────
+   *
+   * ⚠️ **بمفتاح، مش زي `/api/seed/verses` اللي فوق.**
+   *
+   * الراوت اللي فوقه مكتوب جنبه «no auth required»، يعني أي حد يقدر يشغّل
+   * إعادة استيراد الكتاب كله. ده حمل تقيل على القاعدة بضغطة من أي حد،
+   * وماينفعش أنسخ النمط ده في راوت **بيكتب** نص مقدّس.
+   *
+   * المفتاح `MYBIBLE_SEED_KEY`. ولو مش متظبّط، الراوت **مقفول** — مش
+   * مفتوح. الإعداد الناقص مايفتحش باب. */
+  const seedKeyOk = (req: any) => {
+    const want = process.env.MYBIBLE_SEED_KEY || '';
+    if (!want) return false;
+    const got = String(req.headers['x-seed-key'] || req.query.key || '');
+    return got.length === want.length && require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  };
+
+  // تشخيص: إيه الموجود فعلاً في القاعدة. للقراءة، فمفيش مفتاح.
+  app.get('/api/deutero/status', async (_req, res) => {
+    try { res.json({ status: 'ok', ...(await deuteroStatus()) }); }
+    catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
+  });
+
+  app.post('/api/deutero/import', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
+    try {
+      const file = String((req.query.file as string) || '').trim();
+      const out = file ? await importDeuteroFromFile(file) : await importAllDeutero();
+      res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
+    } catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
   });
 
   // Status endpoint for verse import job
