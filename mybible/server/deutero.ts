@@ -157,6 +157,50 @@ export async function importDeuteroFromFile(fileName: string) {
   };
 }
 
+/* ── البحث عن مصدر: السيرفر بيدوّر، مش إحنا ────────────────────────────────
+ *
+ * بيئة التطوير عندنا الشبكة فيها محجوبة، والنشر لأ (بيجيب `arabicsv.json`
+ * من getbible وقت الزرع). فبدل ما نخمّن أي ترجمة فيها الأسفار القانونية
+ * الثانية، الراوت ده **بيسأل** من على السيرفر ويرجّع الإجابة.
+ *
+ * وبيرجّع **أسماء الأسفار زي ما هي في المصدر** مش حكم بنعم/لأ: أسماء
+ * الأسفار بتتكتب بأشكال مختلفة («الحكمة» · «حكمة سليمان» · «سفر الحكمة»)،
+ * ومطابقة حرفية كانت هتقول «مفيش» على ترجمة فيها السفر باسم تاني. */
+export async function probeSources() {
+  const out: any = { checked: [], errors: [] };
+  try {
+    const r = await fetch('https://api.getbible.net/v2/translations.json');
+    if (!r.ok) throw new Error('translations.json ' + r.status);
+    const all: any = await r.json();
+    const arabic = Object.values(all).filter((t: any) =>
+      String(t.lang || '').toLowerCase().startsWith('ar') ||
+      /arab/i.test(String(t.language || '')));
+    out.arabicTranslations = arabic.map((t: any) => ({
+      abbreviation: t.abbreviation, translation: t.translation, lang: t.lang,
+    }));
+
+    // ولكل ترجمة عربية: نجيب قايمة أسفارها ونشوف العدد والأسماء.
+    for (const t of arabic as any[]) {
+      const ab = t.abbreviation;
+      try {
+        const br = await fetch(`https://api.getbible.net/v2/${encodeURIComponent(ab)}/books.json`);
+        if (!br.ok) { out.errors.push(`${ab}: books.json ${br.status}`); continue; }
+        const books: any = await br.json();
+        const names = (Array.isArray(books) ? books : Object.values(books))
+          .map((b: any) => b && (b.name || b.nr)).filter(Boolean);
+        out.checked.push({
+          abbreviation: ab, translation: t.translation,
+          bookCount: names.length,
+          // ٦٦ = بروتستانتي (مفيش قانونية ثانية). أكتر = فيه زيادة تستحق النظر.
+          hasExtraBooks: names.length > 66,
+          bookNames: names,
+        });
+      } catch (e: any) { out.errors.push(`${ab}: ${e.message}`); }
+    }
+  } catch (e: any) { out.errors.push('translations: ' + e.message); }
+  return out;
+}
+
 /** استيراد كل الملفات الموجودة — بيرجّع نتيجة كل ملف على حدة. */
 export async function importAllDeutero() {
   const files = listFiles();
