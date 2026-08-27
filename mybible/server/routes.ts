@@ -7,7 +7,7 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
-import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, importDeuteroFromGitHub, stTaklaProbe } from "./deutero";
+import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, importDeuteroFromGitHub, stTaklaProbe, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
 import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
@@ -392,6 +392,38 @@ export async function registerRoutes(
       const out = await stTaklaProbe(String(req.query.url || ''));
       res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
     } catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
+  });
+
+  // قراءة إصحاح من St-Takla عبر قائمة روابط ثابتة — لا يقبل URL من المستخدم.
+  app.get('/api/deutero/sttakla/books/:bookId/chapters/:chapter', async (req, res) => {
+    const bookId = Number(req.params.bookId);
+    const chapter = Number(req.params.chapter);
+    if (!Number.isInteger(bookId) || !Number.isInteger(chapter)) {
+      return res.status(400).json({ status: 'error', message: 'رقم السفر والإصحاح غير صالح' });
+    }
+    try {
+      const out = await getStTaklaChapter(bookId, chapter);
+      res.set('Cache-Control', out.ok ? 'public, max-age=300' : 'no-store');
+      res.status(out.ok ? 200 : 404).json({ status: out.ok ? 'ok' : 'error', ...out });
+    } catch (e: any) {
+      console.error('[st-takla] chapter route error:', e.message);
+      res.status(502).json({ status: 'error', message: 'تعذر الاتصال بمصدر St-Takla' });
+    }
+  });
+
+  // استيراد سفر كامل من St-Takla — محمي بمفتاح، وبفاصل زمني بين الصفحات.
+  app.post('/api/deutero/import-sttakla', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
+    const b = req.body || {};
+    try {
+      const out = await importDeuteroFromStTakla(
+        String(b.book || '').trim(), Number(b.sourceBookId), b.confirmedByChurch === true,
+      );
+      res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
+    } catch (e: any) {
+      console.error('[st-takla] import route error:', e.message);
+      res.status(502).json({ status: 'error', message: 'تعذر استيراد السفر من St-Takla' });
+    }
   });
 
   app.post('/api/deutero/import-github', async (req, res) => {

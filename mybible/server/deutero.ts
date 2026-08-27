@@ -27,6 +27,7 @@ import { eq, and, inArray } from 'drizzle-orm';
 import pg from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import { TextDecoder } from 'node:util';
 import * as schema from '../shared/schema';
 
 const { Pool } = pg;
@@ -425,9 +426,167 @@ export async function importDeuteroFromGitHub(
  *    لروابط ولا تحميل قسم.
  */
 const STTAKLA_UA =
-  'OscarDevs-MyBible/1.0 (+https://mybible.oscardevs.com; استيراد لمرة واحدة للأسفار القانونية الثانية — ترجمة يسوعية 1877 ملك عام)';
+  'OscarDevs-MyBible/1.0 (+https://mybible.oscardevs.com)';
 const POLITE_DELAY_MS = 2000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const STTAKLA_BOOKS: Record<number, {
+  name: string;
+  chapters: number;
+  path: string;
+}> = {
+  67: {
+    name: 'طوبيا', chapters: 14,
+    path: '17-Tobit/Sefr-Tobiet-Chapter-{chapter}.html',
+  },
+  68: {
+    name: 'يهوديت', chapters: 16,
+    path: '18-Judith/Sefr-Yahodet-Chapter-{chapter}.html',
+  },
+  69: {
+    name: 'الحكمة', chapters: 19,
+    path: '25-Wisdom-of-Solomon/Sefr-El-Hekma-Chapter-{chapter}.html',
+  },
+  70: {
+    name: 'يشوع بن سيراخ', chapters: 51,
+    path: '26-Sirach/Sefr-Yashou3-Ibn-Sirakh-Chapter-{chapter}.html',
+  },
+  71: {
+    name: 'باروخ', chapters: 6,
+    path: '30-Baruch/Nobowet-Barookh-Chapter-{chapter}.html',
+  },
+  72: {
+    name: 'المكابيين الأول', chapters: 16,
+    path: '45-First-of-Maccabees/Makabyeen-Awal-Chapter-{chapter}.html',
+  },
+  73: {
+    name: 'المكابيين الثاني', chapters: 15,
+    path: '46-Seond-of-Maccabees/Makabieen-Thany-Chapter-{chapter}.html',
+  },
+};
+const STTAKLA_BASE = 'https://st-takla.org/pub_oldtest/Arabic-Old-Testament-Books/';
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(Number(dec)));
+}
+
+function htmlToText(value: string): string {
+  return decodeHtmlEntities(
+    value
+      .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' '),
+  ).replace(/\s+/g, ' ').trim();
+}
+
+function decodeStTaklaHtml(bytes: Uint8Array, contentType: string): string {
+  const charset = (contentType.match(/charset\s*=\s*["']?([\w.-]+)/i) || [])[1] || '';
+  const label = /^(windows-1256|cp1256|iso-8859-6)$/i.test(charset) ? 'windows-1256' : 'utf-8';
+  return new TextDecoder(label).decode(bytes);
+}
+
+function parseStTaklaVerses(html: string): { verse: number; text: string }[] {
+  const start = html.search(/<div\b[^>]*\bid\s*=\s*["']bodytext["']/i);
+  if (start < 0) return [];
+  const body = html.slice(start);
+  const verses: { verse: number; text: string }[] = [];
+  const paragraphPattern = /<p\b[^>]*>\s*(?:<b\b[^>]*>)?([\s\S]*?)(?:<\/b\s*>)?\s*<\/p>/gi;
+  for (const match of body.matchAll(paragraphPattern)) {
+    const text = htmlToText(match[1]);
+    const numbered = text.match(/^([0-9٠-٩]+)\s+([\s\S]+)$/);
+    if (!numbered) continue;
+    const verse = Number(numbered[1].replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+    if (Number.isInteger(verse) && verse > 0 && numbered[2].trim()) {
+      verses.push({ verse, text: numbered[2].trim() });
+    }
+  }
+  return verses;
+}
+
+function stTaklaUrl(sourceBookId: number, chapter: number): {
+  book: typeof STTAKLA_BOOKS[number];
+  url: string;
+} | { error: string } {
+  const book = STTAKLA_BOOKS[sourceBookId];
+  if (!book) return { error: 'السفر غير موجود في مصدر St-Takla' };
+  if (!Number.isInteger(chapter) || chapter < 1 || chapter > book.chapters) {
+    return { error: `الإصحاح لازم يكون بين 1 و${book.chapters}` };
+  }
+  return {
+    book,
+    url: STTAKLA_BASE + book.path.replace('{chapter}', String(chapter).padStart(2, '0')),
+  };
+}
+
+async function fetchStTaklaChapter(sourceBookId: number, chapter: number) {
+  const target = stTaklaUrl(sourceBookId, chapter);
+  if ('error' in target) return { ok: false, error: target.error };
+  const response = await fetch(target.url, {
+    headers: {
+      'user-agent': STTAKLA_UA,
+      accept: 'text/html,application/xhtml+xml',
+    },
+  });
+  if (!response.ok) return { ok: false, error: `St-Takla رجّع ${response.status}` };
+  const html = decodeStTaklaHtml(new Uint8Array(await response.arrayBuffer()), response.headers.get('content-type') || '');
+  const verses = parseStTaklaVerses(html);
+  if (!verses.length) return { ok: false, error: 'لم أجد آيات مرقمة في صفحة St-Takla' };
+  return {
+    ok: true,
+    book: { id: sourceBookId, name: target.book.name, chapters: target.book.chapters },
+    chapter,
+    source: 'الترجمة اليسوعية القديمة 1877 — عبر St-Takla.org',
+    sourceUrl: target.url,
+    verses,
+  };
+}
+
+export async function getStTaklaChapter(sourceBookId: number, chapter: number) {
+  return fetchStTaklaChapter(sourceBookId, chapter);
+}
+
+export async function importDeuteroFromStTakla(
+  bookName: string, sourceBookId: number, confirmed = false,
+) {
+  const meta = DEUTERO_BOOKS.find((b) => b.name === bookName);
+  if (!meta) return { ok: false, error: `«${bookName}» مش في قايمة الأسفار القانونية الثانية` };
+  const target = STTAKLA_BOOKS[sourceBookId];
+  if (!target || target.name !== meta.name) {
+    return { ok: false, error: 'السفر المختار لا يطابق رقم سفر St-Takla' };
+  }
+
+  const chapters: DeuteroFile['chapters'] = [];
+  for (let chapter = 1; chapter <= target.chapters; chapter++) {
+    const result = await fetchStTaklaChapter(sourceBookId, chapter);
+    if (!result.ok) {
+      return { ok: false, error: `فشل إصحاح ${chapter}: ${result.error}`, fetched: chapters.length };
+    }
+    chapters.push({ chapter, verses: result.verses });
+    if (chapter < target.chapters) await sleep(POLITE_DELAY_MS);
+  }
+
+  const payload: any = {
+    book: meta.name,
+    source: 'الترجمة اليسوعية القديمة 1877 — عبر St-Takla.org',
+    sourceUrl: `${STTAKLA_BASE}${target.path.replace('{chapter}', '01')}`,
+    chapters,
+  };
+  if (confirmed) payload.confirmedByChurch = true;
+
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = `${meta.name}.json`;
+  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(payload, null, 2) + '\n', 'utf8');
+  return { ...(await importDeuteroFromFile(file)), sourceUrl: payload.sourceUrl };
+}
 
 /* استكشاف بنية الصفحة — **قبل** ما نكتب أي مستخرِج.
  *
@@ -442,7 +601,7 @@ export async function stTaklaProbe(url: string) {
   }
   const r = await fetch(g.url.toString(), { headers: { 'user-agent': STTAKLA_UA } });
   if (!r.ok) return { ok: false, error: `الصفحة رجّعت ${r.status}` };
-  const html = await r.text();
+  const html = decodeStTaklaHtml(new Uint8Array(await r.arrayBuffer()), r.headers.get('content-type') || '');
   const tags: Record<string, number> = {};
   for (const m of html.matchAll(/<(\w+)([^>]*)>/g)) {
     const cls = (m[2].match(/class="([^"]*)"/) || [])[1] || '';
