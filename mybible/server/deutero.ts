@@ -323,6 +323,138 @@ export async function importDeuteroFromUrl(bookName: string, rawUrl: string, sou
   return { ...out, fetchedFrom: g.url.toString() };
 }
 
+/* ── الوصلة: من مُحلِّل GitHub للقاعدة ────────────────────────────────────
+ *
+ * `github-deutero.ts` بيعرف **يقرا ويحلّل** ملف `.bib` من المستودع العام.
+ * والوحدة دي بتعرف **تتحقّق وتخزّن**. الدالة دي بتوصّل الاتنين.
+ *
+ * ── ليه التخزين مش الجلب الحي ──────────────────────────────────────────
+ *
+ * القارئ الحي بيعرض النص وبس. والمطلوب أكتر من العرض: قراءات جروبات
+ * مدارس الأحد والبحث وخطط القراءة كلهم بيمرّوا على `bible_books` —
+ * `/api/reading-text` بينده `getBookByName`، و`/api/books` بيقرا من نفس
+ * الجدول. نص مش في الجدول ده **مش موجود** بالنسبة لكل ده.
+ *
+ * وفيه سبب تاني أهم: الجلب الحي معناه إن **أي حد يقدر يعدّل المستودع
+ * يقدر يغيّر نص مقدّس على الموقع**، وإن المستودع لو اتمسح النص يختفي.
+ * التخزين بيثبّت النص اللي وافقنا عليه.
+ *
+ * ── والمصدر ────────────────────────────────────────────────────────────
+ *
+ * المستودع مابيقولش اسم الترجمة. وسانت تكلا بيقولوا إن نص الأسفار
+ * القانونية الثانية عندهم من **الترجمة اليسوعية القديمة ١٨٧٧** (ملك عام).
+ * الأرجح إن نص المستودع هو نفسه — **بس ده فرض**، فالمصدر بيتكتب من
+ * اللي بيستورد ومابيتخمّنش هنا.
+ */
+export async function importDeuteroFromGitHub(
+  bookName: string, sourceBookId: number, source: string, confirmed = false,
+) {
+  if (!source || !String(source).trim()) {
+    return { ok: false, error: 'source مطلوب — اسم الترجمة، مش «GitHub»' };
+  }
+  const meta = DEUTERO_BOOKS.find((b) => b.name === bookName);
+  if (!meta) return { ok: false, error: `«${bookName}» مش في القايمة` };
+
+  const gh = require('./github-deutero');
+  const catalog = await gh.getDeuteroSourceCatalog();
+  if (!catalog.status.available) {
+    return { ok: false, error: 'المصدر مش متاح: ' + (catalog.status.reason || 'unknown') };
+  }
+  const srcBook = catalog.books.find((b: any) => b.id === sourceBookId);
+  if (!srcBook) {
+    return { ok: false, error: `sourceBookId=${sourceBookId} مش في المصدر`,
+      available: catalog.books.map((b: any) => ({ id: b.id, name: b.name, chapters: b.chaptersCount })) };
+  }
+
+  /* بنجيب **كل** إصحاحات السفر قبل ما نكتب أي حاجة.
+   *
+   * لو كتبنا إصحاح إصحاح وانقطع الجلب في النص، السفر بيبقى نصّه من
+   * المصدر الجديد ونصّه من القديم — وحد بيقرا مايعرفش. الجلب الكامل
+   * الأول معناه إن الفشل بيسيب القاعدة زي ما هي. */
+  const chapters: DeuteroFile['chapters'] = [];
+  for (let ch = 1; ch <= srcBook.chaptersCount; ch++) {
+    const out = await gh.getDeuteroSourceChapter(srcBook.id, ch);
+    const verses = (out.verses || [])
+      .filter((v: any) => v && v.verse && String(v.text || '').trim())
+      .map((v: any) => ({ verse: v.verse, text: String(v.text).trim() }));
+    if (!verses.length) {
+      return { ok: false, error: `إصحاح ${ch} رجع فاضي من المصدر — الاستيراد اتوقف قبل ما يكتب حاجة`,
+        fetched: chapters.length };
+    }
+    chapters.push({ chapter: ch, verses });
+  }
+
+  const payload: any = {
+    book: meta.name,
+    source: String(source).trim() + ' — عبر ' + catalog.status.repositoryUrl,
+    chapters,
+  };
+  if (confirmed) payload.confirmedByChurch = true;
+
+  // نفس مسار الملفات: مافيش بوّابة بتتلفّ، والملف بيفضل أثر للّي اتخزّن.
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = meta.name + '.json';
+  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(payload, null, 2) + '\n', 'utf8');
+  const res = await importDeuteroFromFile(file);
+  return { ...res, sourceRepo: catalog.status.repositoryUrl, sourceBook: srcBook.name };
+}
+
+/* ── سانت تكلا: جلب مرّة واحدة، بشروطهم ───────────────────────────────────
+ *
+ * ── الأساس ─────────────────────────────────────────────────────────────
+ *
+ * النص **مش ملكهم**: صفحتهم بتقول بالحرف إن الأسفار القانونية الثانية
+ * عندهم «من الترجمة اليسوعية القديمة 1877 م.» — ترجمة عمرها ١٤٨ سنة،
+ * ملكية عامة. هم مستضيفين زينا.
+ *
+ * وشروطهم المنشورة بتقول: «نحن لا نطلب منك عدم النقل أو الاستفادة
+ * بالمقالات» — بشرط **ذكر اسم الموقع والرابط الأصلي**. والنقل الجماعي
+ * موصوف بإنه «غير مُستحَب» — كراهة مش منع.
+ *
+ * ── فالتنفيذ بيحترم اللي طلبوه بالظبط ──────────────────────────────────
+ *
+ *   ١. **مرة واحدة ونخزّن** — مش جلب متكرر مع كل زائر. ده اللي بيخلّي
+ *      الحمل عليهم سبع صفحات مش سبع صفحات × كل قارئ.
+ *   ٢. **مهلة بين الطلبات** — صفحة كل ثانيتين. مافيش تفريغ متوازي.
+ *   ٣. **`User-Agent` بيقول إحنا مين** ومعاه رابطنا — يعرفوا مين بيقرا
+ *      ويقدروا يوصلوا لنا. الإخفاء هو اللي بيبقى تعدّي.
+ *   ٤. **المصدر والرابط بيتخزّنوا مع النص** ويظهروا للقارئ — ده شرطهم
+ *      المكتوب، وهو نفسه اللي القارئ محتاجه عشان يعرف بيقرا إيه.
+ *
+ * ⛔ ومافيش زحف: الروابط بتتحدّد بالإيد، صفحة السفر بس. مافيش تتبّع
+ *    لروابط ولا تحميل قسم.
+ */
+const STTAKLA_UA =
+  'OscarDevs-MyBible/1.0 (+https://mybible.oscardevs.com; استيراد لمرة واحدة للأسفار القانونية الثانية — ترجمة يسوعية 1877 ملك عام)';
+const POLITE_DELAY_MS = 2000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* استكشاف بنية الصفحة — **قبل** ما نكتب أي مستخرِج.
+ *
+ * كتابة مستخرِج بتخمين شكل الـHTML بتطلّع نص مقطوع أو مخلوط بعناصر
+ * الصفحة، وده في نص مقدّس مش وارد. الدالة دي بتجيب **صفحة واحدة**
+ * وترجّع إحصاء بنيتها عشان المستخرِج يتكتب على شكل حقيقي. */
+export async function stTaklaProbe(url: string) {
+  const g = checkUrl(url);
+  if (!g.ok) return { ok: false, error: g.error };
+  if (!/(^|\.)st-takla\.org$/i.test(g.url.hostname)) {
+    return { ok: false, error: 'الرابط لازم يكون على st-takla.org' };
+  }
+  const r = await fetch(g.url.toString(), { headers: { 'user-agent': STTAKLA_UA } });
+  if (!r.ok) return { ok: false, error: `الصفحة رجّعت ${r.status}` };
+  const html = await r.text();
+  const tags: Record<string, number> = {};
+  for (const m of html.matchAll(/<(\w+)([^>]*)>/g)) {
+    const cls = (m[2].match(/class="([^"]*)"/) || [])[1] || '';
+    const key = m[1].toLowerCase() + (cls ? '.' + cls.split(/\s+/)[0] : '');
+    tags[key] = (tags[key] || 0) + 1;
+  }
+  const top = Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 25);
+  // عيّنة صغيرة من وسط الصفحة عشان نشوف شكل الآية — مش نص للنشر.
+  const mid = html.slice(Math.floor(html.length / 2), Math.floor(html.length / 2) + 1200);
+  return { ok: true, url: g.url.toString(), bytes: html.length, topTags: top, sample: mid };
+}
+
 /** استيراد كل الملفات الموجودة — بيرجّع نتيجة كل ملف على حدة. */
 export async function importAllDeutero() {
   const files = listFiles();

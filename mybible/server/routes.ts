@@ -7,7 +7,7 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
-import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl } from "./deutero";
+import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, importDeuteroFromGitHub, stTaklaProbe } from "./deutero";
 import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
@@ -382,6 +382,28 @@ export async function registerRoutes(
 
   /* استيراد من رابط API خارجي. نفس المفتاح، ونفس كل الفحوص — الرابط
    * بيتحوّل لملف الأول عشان مايلفّش حول أي بوّابة. */
+  /* استيراد من مصدر GitHub للقاعدة — الوصلة اللي بتخلّي الأسفار تدخل
+   * البحث وقراءات الجروبات، مش تتعرض في قارئ منفصل بس. */
+  /* استكشاف بنية صفحة سانت تكلا — صفحة واحدة، عشان المستخرِج يتكتب
+   * على شكل حقيقي مش على تخمين. */
+  app.get('/api/deutero/sttakla/probe', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
+    try {
+      const out = await stTaklaProbe(String(req.query.url || ''));
+      res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
+    } catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
+  });
+
+  app.post('/api/deutero/import-github', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
+    const b = req.body || {};
+    const out = await importDeuteroFromGitHub(
+      String(b.book || '').trim(), Number(b.sourceBookId),
+      String(b.source || '').trim(), b.confirmedByChurch === true,
+    );
+    res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
+  });
+
   app.post('/api/deutero/import-url', async (req, res) => {
     if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     const b = req.body || {};
