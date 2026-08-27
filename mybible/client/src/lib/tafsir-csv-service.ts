@@ -129,18 +129,7 @@ export async function fetchChapterTafsir(bookName: string, chapter: number): Pro
   }
 }
 
-/** 'verse' = تفسير الآية نفسها · 'chapter' = تفسير الإصحاح كبديل. */
-export type TafsirScope = 'verse' | 'chapter' | null;
-
-let lastVerseScope: TafsirScope = null;
-
-/** نطاق آخر تفسير آية اترجّع — الواجهة بتقراه عشان توضّح إنه تفسير الإصحاح. */
-export function getLastVerseTafsirScope(): TafsirScope {
-  return lastVerseScope;
-}
-
 export async function fetchVerseTafsir(bookName: string, chapter: number, verse: number): Promise<string | null> {
-  lastVerseScope = null;
   try {
     const csvName = getCSVFileName(bookName);
     if (!csvName) return null;
@@ -148,8 +137,9 @@ export async function fetchVerseTafsir(bookName: string, chapter: number, verse:
     const response = await fetch(`/api/tafsir/verse/${encodeURIComponent(csvName)}/${chapter}/${verse}`);
     if (!response.ok) return null;
     const data = await response.json();
-    lastVerseScope = (data.scope as TafsirScope) ?? null;
-    return data.tafsir || null;
+    // دفاع إضافي في العميل: حتى لو أعاد خادم قديم/وسيط نصًا أوسع،
+    // لا نعرضه داخل زر «تفسير الآية».
+    return data.scope === 'verse' && data.tafsir ? data.tafsir : null;
   } catch (e) {
     console.log("Verse tafsir fetch error:", e);
     return null;

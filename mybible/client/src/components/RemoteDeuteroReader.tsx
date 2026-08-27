@@ -9,9 +9,7 @@ import {
   fetchChapterTafsir,
   fetchVerseTafsir,
   getLastChapterTafsirReason,
-  getLastVerseTafsirScope,
   type TafsirMissingReason,
-  type TafsirScope,
 } from '@/lib/tafsir-csv-service';
 import { TafsirText } from '@/components/TafsirText';
 
@@ -22,7 +20,6 @@ export function RemoteDeuteroReader() {
   const [tafsirVerse, setTafsirVerse] = useState<number | null>(null);
   const [tafsirText, setTafsirText] = useState<string | null>(null);
   const [tafsirLoading, setTafsirLoading] = useState(false);
-  const [tafsirScope, setTafsirScope] = useState<TafsirScope>(null);
   const [tafsirReason, setTafsirReason] = useState<TafsirMissingReason>(null);
 
   const catalogQuery = useQuery({
@@ -65,7 +62,6 @@ export function RemoteDeuteroReader() {
     setTafsirView(type);
     setTafsirVerse(type === 'verse' ? verse ?? null : null);
     setTafsirText(null);
-    setTafsirScope(null);
     setTafsirReason(null);
     setTafsirLoading(true);
 
@@ -77,7 +73,6 @@ export function RemoteDeuteroReader() {
         setTafsirReason(getLastChapterTafsirReason());
       } else if (verse !== undefined) {
         setTafsirText(await fetchVerseTafsir(selectedBook.name, selectedChapter, verse));
-        setTafsirScope(getLastVerseTafsirScope());
       }
     } finally {
       setTafsirLoading(false);
@@ -281,11 +276,6 @@ export function RemoteDeuteroReader() {
               </div>
             ) : tafsirText ? (
               <>
-                {tafsirView === 'verse' && tafsirScope === 'chapter' && (
-                  <p className="mb-3 text-center text-xs text-muted-foreground" data-testid="deutero-tafsir-scope-note">
-                    لا يوجد تفسير مخصوص لهذه الآية؛ المعروض هو تفسير الإصحاح {selectedChapter} كله.
-                  </p>
-                )}
                 <div className="whitespace-pre-wrap rounded-lg bg-white/70 p-4 text-lg leading-loose dark:bg-background/40" data-testid="deutero-tafsir-content">
                   <TafsirText text={tafsirText} />
                 </div>
