@@ -2,3 +2,4 @@
 - [Phone stream identity](phone-stream-identity.md) — bind voice media streams to short-lived signed capabilities plus database ownership checks.
 - [BranchFlow opportunity](branchflow-opportunity.md) — validate a focused Arabic branch-operations workflow before building a full SaaS.
 - [Deployment dev dependencies](deployment-dev-deps.md) — production environment installs may omit build tools unless deployment installs explicitly include dev dependencies.
+- [Deuterocanonical group reading](deutero-group-reading.md) — group readers must fetch every deuterocanonical chapter from the verified St-Takla source, not incomplete local copies.

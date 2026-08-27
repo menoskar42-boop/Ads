@@ -92,6 +92,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   const [tafsirText, setTafsirText] = useState<string | null>(null);
   const [tafsirLoading, setTafsirLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
 
   const openTafsir = async (type: 'intro' | 'verse' | 'chapter', verseNum?: number) => {
     setTafsirOpen(true);
@@ -152,6 +153,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
   useEffect(() => {
     const loadVerses = async () => {
       setSourceError(null);
+      setSourceUrl(null);
       setVerses([]);
       try {
         // الأسفار القانونية الثانية — تُحمّل من St-Takla بنفس القارئ المستخدم
@@ -166,6 +168,7 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
             return;
           }
           const chapterData = await api.deuteroSource.getChapter(sourceBook.id, currentChapter);
+          setSourceUrl(chapterData.sourceUrl);
           setVerses(chapterData.verses.map(v => ({
             id: `${currentBook}-${currentChapter}-${v.verse}`,
             verse: v.verse,
@@ -330,6 +333,17 @@ function InlineChapterReader({ bookName: initialBookName, chapter: initialChapte
               <span className="text-xs text-muted-foreground">{currentIdx + 1} / {navSchedule.length}</span>
             )}
           </div>
+          {isDeutero && sourceUrl && (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mb-3 block text-xs text-muted-foreground underline underline-offset-2 hover:text-primary"
+              data-testid="deutero-reading-source"
+            >
+              المصدر: St-Takla.org
+            </a>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" className="gap-1.5 text-sm h-10" onClick={() => openTafsir('intro')} data-testid="button-book-intro">
               <BookOpen className="w-4 h-4 text-indigo-500" />
