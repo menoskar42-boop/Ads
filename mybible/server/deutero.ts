@@ -550,6 +550,47 @@ async function fetchStTaklaChapter(sourceBookId: number, chapter: number) {
   };
 }
 
+let stTaklaCatalogCache: {
+  expiresAt: number;
+  value: {
+    status: {
+      available: boolean;
+      sourceName: string;
+      sourceUrl: string;
+      checkedAt: string;
+      reason?: string;
+    };
+    books: { id: number; name: string; bookOrder: number; chaptersCount: number }[];
+  };
+} | null = null;
+
+export async function getStTaklaCatalog() {
+  if (stTaklaCatalogCache && stTaklaCatalogCache.expiresAt > Date.now()) {
+    return stTaklaCatalogCache.value;
+  }
+
+  const books = Object.entries(STTAKLA_BOOKS).map(([id, book]) => ({
+    id: Number(id),
+    name: book.name,
+    bookOrder: Number(id),
+    chaptersCount: book.chapters,
+  }));
+  const checkedAt = new Date().toISOString();
+  const first = await fetchStTaklaChapter(67, 1);
+  const value = {
+    status: {
+      available: first.ok,
+      sourceName: 'الترجمة اليسوعية القديمة 1877 — St-Takla.org',
+      sourceUrl: 'https://st-takla.org/pub_Deuterocanon/Deuterocanon-Apocrypha_El-Asfar_El-Kanoneya_El-Tanya__0-index_.html',
+      checkedAt,
+      ...(first.ok ? {} : { reason: first.error }),
+    },
+    books: first.ok ? books : [],
+  };
+  stTaklaCatalogCache = { expiresAt: Date.now() + 60_000, value };
+  return value;
+}
+
 export async function getStTaklaChapter(sourceBookId: number, chapter: number) {
   return fetchStTaklaChapter(sourceBookId, chapter);
 }
