@@ -250,6 +250,79 @@ export async function probeSources() {
   return out;
 }
 
+/* ── الاستيراد من رابط ────────────────────────────────────────────────────
+ *
+ * ⚠️ **SSRF**: الراوت ده بيخلّي السيرفر يجيب رابط بياخده من المستخدم. من
+ * غير حراسة، حد يبعت `http://127.0.0.1:5000/...` أو عنوان بيانات السحابة
+ * والسيرفر يجيبهوله. الحراسة هنا: https بس، وممنوع أي عنوان داخلي.
+ *
+ * ومحدّش غير صاحب المفتاح بيقدر ينده الراوت أصلاً — بس الحراسة مابتتشالش
+ * عشان كده: المفتاح ممكن يتسرّب، والطبقتين مع بعض. */
+const PRIVATE_HOST = /^(localhost$|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|172\.(1[6-9]|2\d|3[01])\.)/i;
+
+function checkUrl(raw: string): { ok: true; url: URL } | { ok: false; error: string } {
+  let u: URL;
+  try { u = new URL(raw); } catch (_) { return { ok: false, error: 'رابط غير صالح' }; }
+  if (u.protocol !== 'https:') return { ok: false, error: 'https بس' };
+  if (PRIVATE_HOST.test(u.hostname)) return { ok: false, error: 'عنوان داخلي ممنوع' };
+  return { ok: true, url: u };
+}
+
+/* توحيد الشكل. الـAPI الخارجي مش هيطلّع بالضرورة نفس أسماء حقولنا،
+ * فالتوحيد بيقبل الأشكال المتوقّعة **من غير تخمين للمحتوى**: لو الآية
+ * مالهاش رقم أو نص، بترتفض — مابنخترعش ترقيم. */
+function normalizePayload(raw: any, bookName: string): DeuteroFile | { error: string } {
+  const chaptersRaw = Array.isArray(raw) ? raw : (raw && (raw.chapters || raw.data));
+  if (!Array.isArray(chaptersRaw) || !chaptersRaw.length) return { error: 'مفيش إصحاحات في الرد' };
+  const chapters: DeuteroFile['chapters'] = [];
+  for (const c of chaptersRaw) {
+    const num = Number(c && (c.chapter ?? c.number ?? c.ch));
+    const vs = (c && (c.verses || c.data)) || [];
+    if (!num || !Array.isArray(vs) || !vs.length) return { error: `إصحاح ${c && (c.chapter ?? '?')} فاضي أو بلا رقم` };
+    const verses = [];
+    for (const v of vs) {
+      const n = Number(v && (v.verse ?? v.number ?? v.v));
+      const t = String((v && (v.text ?? v.t)) || '').trim();
+      if (!n || !t) return { error: `آية ناقصة في إصحاح ${num}` };
+      verses.push({ verse: n, text: t });
+    }
+    chapters.push({ chapter: num, verses });
+  }
+  return { book: bookName, source: String((raw && raw.source) || ''), chapters };
+}
+
+export async function importDeuteroFromUrl(bookName: string, rawUrl: string, source: string, confirmed = false) {
+  const g = checkUrl(rawUrl);
+  if (!g.ok) return { ok: false, error: g.error };
+  if (!source || !String(source).trim()) {
+    return { ok: false, error: 'source مطلوب — اسم الترجمة/الطبعة، مش الرابط لوحده' };
+  }
+  let raw: any;
+  try {
+    const r = await fetch(g.url.toString(), { headers: { accept: 'application/json' } });
+    if (!r.ok) return { ok: false, error: `الرابط رجّع ${r.status}` };
+    const body = await r.text();
+    if (body.length > 8 * 1024 * 1024) return { ok: false, error: 'الرد أكبر من ٨ ميجا' };
+    raw = JSON.parse(body);
+  } catch (e: any) { return { ok: false, error: 'فشل الجلب: ' + e.message }; }
+
+  const norm = normalizePayload(raw, bookName);
+  if ('error' in norm) return { ok: false, error: norm.error };
+  norm.source = String(source).trim() + ' — عبر ' + g.url.origin + g.url.pathname;
+  if (confirmed) (norm as any).confirmedByChurch = true;
+
+  /* بيتكتب في ملف الأول وبعدين يتستورد بنفس المسار.
+   *
+   * كده الاستيراد من رابط **مابيلفّش** حول أي فحص في مسار الملفات
+   * (المصدر إلزامي · بوّابة المراجعة الكنسية · المسح المحصور)، والملف
+   * بيفضل موجود كأثر لللي اتستورد فعلاً. */
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const file = bookName + '.json';
+  fs.writeFileSync(path.join(DATA_DIR, file), JSON.stringify(norm, null, 2) + '\n', 'utf8');
+  const out = await importDeuteroFromFile(file);
+  return { ...out, fetchedFrom: g.url.toString() };
+}
+
 /** استيراد كل الملفات الموجودة — بيرجّع نتيجة كل ملف على حدة. */
 export async function importAllDeutero() {
   const files = listFiles();
