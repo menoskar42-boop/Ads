@@ -276,6 +276,36 @@ async function ensureSokroSchema() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS sokro_phone_events_call_idx ON sokro_phone_events(call_id, id);
+      /* دفتر جهات الاتصال — الرقم **مشفّر** زي أي سر.
+       *
+       * الرقم مش بيانات المستخدم، ده بيانات **طرف تالت** ما اختارش يدّيهالنا.
+       * فبيتخزّن بنفس معاملة كلمات السر (AES-256-GCM في `secrets/vault`)،
+       * ومابيرجعش خام في أي رد API.
+       *
+       * `search_name` هو الاسم **مطبّعاً** (بلا تشكيل، بألف موحّدة، حروف
+       * صغيرة). العربي بيتكتب بأكتر من شكل — «أحمد» و«احمد» نفس الشخص،
+       * والبحث اللي بيفرّق بينهم بيقول «مش موجود» على حد موجود.
+       *
+       * ومفيش UNIQUE على الاسم عن قصد: تكرار الاسم **حالة حقيقية** لازم
+       * تتحفظ عشان البحث يقدر يقول «غامض» بدل ما يخمّن. */
+      CREATE TABLE IF NOT EXISTS sokro_contacts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
+        display_name TEXT NOT NULL,
+        search_name TEXT NOT NULL,
+        relation TEXT,
+        phone_enc TEXT NOT NULL,
+        phone_hint TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'manual',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS sokro_contacts_user_idx ON sokro_contacts(user_id, search_name);
+      /* نفس الرقم لنفس المستخدم مايتكرّرش. الاستيراد من ملف بيتعاد كتير
+       * (ملف اتصدّر تاني، ولا اتبعت مرتين) — من غير القيد دي، «أحمد»
+       * بيبقى تلاتة وكل مكالمة بتسأل عن مين فيهم، وهو نفس الرقم. */
+      CREATE UNIQUE INDEX IF NOT EXISTS sokro_contacts_user_phone_uidx
+        ON sokro_contacts(user_id, phone_hint, search_name);
       CREATE TABLE IF NOT EXISTS sokro_consent_audit (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES sokro_users(id) ON DELETE CASCADE,
