@@ -146,6 +146,41 @@ const check = (label, ok, extra) => {
     check('unknown and malformed tokens are indistinguishable', badBody === junkBody);
     check('neither leaks that the token was well-formed', !/تمت الموافقة|قيد المراجعة/.test(badBody + junkBody));
 
+    /* ── الرد واحد، بس بيقول للعميل الصح ───────────────────────────────
+     *
+     * الرد الموحّد مقصود: التوكن هو كلمة السر، ورد مختلف على «موجود بس
+     * انتهت صلاحيته» بيقول للّي بيجرّب إن التوكن ده حقيقي. ده يفضل.
+     *
+     * اللي كان غلط هو **النص**: «مفيش طلب مسجّل بهذا البريد». العميل جه
+     * من رابط وماكتبش بريد أصلاً — والفرع ده أثبتناه إنه مايتفتحش غير من
+     * مسار التوكن (نموذج البريد بقى بيبعت مش بيجاوب، فبيمرّر `sent`
+     * من غير `result`). فالرسالة كانت بتوَدّي العميل يراجع حاجة ماعملهاش.
+     *
+     * الفحص بيقفل الاتنين مع بعض: مايرجعش للنص الغلط، ولا يفرّق الرد. */
+    check('the broken-link card does not blame an email nobody typed',
+      !/مفيش طلب مسجّل بهذا البريد/.test(badBody),
+      'العميل وصل من رابط — الرسالة دي بتخليه يدوّر في حتة مالهاش لازمة.');
+    check('and it names the link as the problem',
+      /الرابط ده مش شغّال/.test(badBody),
+      'من غير سبب واضح العميل مش عارف يعمل إيه بعد كده.');
+    check('the valid-token page never shows the broken-link card',
+      !/الرابط ده مش شغّال/.test(goodBody));
+
+    /* وانتهاء الصلاحية بيتفلتر **في SQL** مش في JS. لو اتنقل لفرع في
+     * الكود (`if (row.expired) …`) يبقى فيه رد تاني ممكن يتولد — وساعتها
+     * الرد مايبقاش موحّد مهما كان النص. الشرط جوّه نفس الـWHERE معناه إن
+     * الصف المنتهي مابيرجعش أصلاً، فهو نفس «مش موجود» بالظبط. */
+    const tokenSql = (db.queries.find((q) => /FROM signup_applications sa/.test(q[0])) || [''])[0];
+    check('expiry is filtered in the same query, not in a second branch',
+      /track_expires_at/.test(tokenSql) && /WHERE[\s\S]*track_expires_at/.test(tokenSql),
+      'صف منتهي لازم يرجع فاضي زي المش موجود — مش يوصل للكود ويترندر رد تاني.');
+    const routeSrc = require('fs')
+      .readFileSync(path.join(ROOT, 'src/routes/apply.js'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+    check('and the route has no separate "expired" answer',
+      !/(منتهي|منتهية|expired)/i.test(routeSrc),
+      'أي رد مخصوص لـ«انتهت صلاحيته» بيأكّد للّي بيجرّب إن التوكن حقيقي.');
+
     // ── AdSense: this is a form, so no ad unit may load ────────────────────
     check('the token never appears in a canonical tag',
       !new RegExp('rel="canonical"[^>]*' + TOKEN).test(goodBody)
