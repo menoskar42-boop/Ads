@@ -34,15 +34,42 @@ function getDb() {
   return drizzle(new Pool({ connectionString: process.env.DATABASE_URL }), { schema });
 }
 
-/** الأسفار القانونية الثانية المعتمدة قبطياً، وترتيبها بعد الـ٦٦. */
-export const DEUTERO_BOOKS: { name: string; order: number; chapters: number }[] = [
+/**
+ * الأسفار القانونية الثانية في التقليد القبطي الأرثوذكسي.
+ *
+ * ── ⚠️ القايمة دي مسألة كنسية، مش قرار برمجي ────────────────────────────
+ *
+ * `needsChurchReview: true` معناها إن السفر ده **مذكور في قوايم قبطية**
+ * بس ورودُه وشكله بيختلف من طبعة لطبعة. الكود مايقدرش يحسم ده، والحسم
+ * بتاع الكنيسة مش بتاعنا — فالأسفار دي **مابتتستوردش** لحد ما تتراجع.
+ *
+ * السبعة الأولانيين بيتفق عليهم كل الطبعات القبطية العربية اللي بتطبع
+ * «الأسفار القانونية الثانية».
+ *
+ * وملاحظتين على الشكل بتفرق في الترقيم:
+ *   · **باروخ**: بيتطبع غالباً ٦ إصحاحات، السادس فيهم «رسالة إرميا».
+ *     في طبعات تانية الرسالة سفر مستقل. راجع طبعتك قبل الاستيراد.
+ *   · **إضافات دانيال وأستير**: في الطبعات القبطية بتتحط **جوّه** السفر
+ *     نفسه مش سفر مستقل — يعني ملف دانيال بيبقى فيه إصحاحات زيادة، مش
+ *     سفر جديد. عشان كده مش في القايمة دي.
+ */
+export const DEUTERO_BOOKS: {
+  name: string; order: number; chapters: number; needsChurchReview?: boolean; note?: string;
+}[] = [
   { name: 'طوبيا', order: 67, chapters: 14 },
   { name: 'يهوديت', order: 68, chapters: 16 },
   { name: 'الحكمة', order: 69, chapters: 19 },
   { name: 'يشوع بن سيراخ', order: 70, chapters: 51 },
-  { name: 'باروخ', order: 71, chapters: 6 },
+  { name: 'باروخ', order: 71, chapters: 6, note: 'الإصحاح ٦ = رسالة إرميا في أغلب الطبعات العربية' },
   { name: 'المكابيين الأول', order: 72, chapters: 16 },
   { name: 'المكابيين الثاني', order: 73, chapters: 15 },
+  // تحت السطر ده: واردة في قوايم قبطية بس بتختلف من طبعة لطبعة.
+  { name: 'المكابيين الثالث', order: 74, chapters: 7, needsChurchReview: true,
+    note: 'وارد في قوايم قبطية وبيغيب في طبعات — راجع الكنيسة قبل الإدراج' },
+  { name: 'صلاة منسى', order: 75, chapters: 1, needsChurchReview: true,
+    note: 'بيتطبع أحياناً كملحق مش كسفر' },
+  { name: 'المزمور ١٥١', order: 76, chapters: 1, needsChurchReview: true,
+    note: 'بيتحط عادةً في آخر المزامير مش كسفر مستقل' },
 ];
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'deutero');
@@ -76,7 +103,20 @@ export async function deuteroStatus() {
     });
   }
   const missing = names.filter((n) => !books.some((b) => b.name === n));
-  return { books: out, missingBooks: missing, dataDir: DATA_DIR, filesOnDisk: listFiles() };
+  return {
+    books: out, missingBooks: missing, dataDir: DATA_DIR, filesOnDisk: listFiles(),
+    // القايمة نفسها بترجع عشان تتراجع من غير ما حد يفتح الكود.
+    canon: DEUTERO_BOOKS.map((b) => ({
+      name: b.name, chapters: b.chapters,
+      needsChurchReview: !!b.needsChurchReview, note: b.note || null,
+    })),
+    /* ⚠️ حقيقة بتفرق للقارئ: **فان دايك مافيهاش الأسفار دي أصلاً**
+     * (ترجمة ١٨٦٥ استبعدتها)، والموقع كله فان دايك. يعني أي نص هييجي
+     * للأسفار دي هيبقى **من ترجمة تانية**، وأسلوبه هيبان مختلف. ده طبيعي
+     * في الطبعات العربية، بس لازم يتكتب على الصفحة عشان القارئ مايستغربش. */
+    translationNote: 'نص الموقع فان دايك، وهي ماترجمتش الأسفار القانونية الثانية. '
+      + 'كل سفر منها بيتخزّن مع مصدره، والمصدر بيتعرض للقارئ.',
+  };
 }
 
 function listFiles(): string[] {
@@ -101,6 +141,15 @@ export async function importDeuteroFromFile(fileName: string) {
 
   const meta = DEUTERO_BOOKS.find((b) => b.name === data.book);
   if (!meta) return { ok: false, error: `«${data.book}» مش في قايمة الأسفار القانونية الثانية` };
+  /* السفر اللي لسه محتاج حسم كنسي مابيتنشرش بضغطة.
+   *
+   * ورود السفر في القانون مسألة كنسية، والكود مايقدرش يحسمها. الاستيراد
+   * بيطلب إقرار صريح (`confirmedByChurch: true` في الملف) عشان اللي
+   * بيضيفه يكون واخد باله إنه بيقرّر حاجة مش تقنية. */
+  if (meta.needsChurchReview && (data as any).confirmedByChurch !== true) {
+    return { ok: false, error: `«${meta.name}» محتاج مراجعة كنسية — ${meta.note || ''}. `
+      + 'ضيف `"confirmedByChurch": true` في الملف بعد ما تتأكد.' };
+  }
   if (!data.source || !String(data.source).trim()) {
     // المصدر إلزامي: نص مقدّس من غير مصدر معروف مايتنشرش.
     return { ok: false, error: 'الملف لازم يحتوي `source` — المصدر اللي النص اتجاب منه' };
