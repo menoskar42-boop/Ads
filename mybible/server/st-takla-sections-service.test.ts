@@ -123,6 +123,15 @@ describe('St-Takla section source service', () => {
 
     const result = await getStTaklaSectionBrowse('bible', 'letter-1');
     assert.deepEqual(result.items.map(item => item.title), ['أب | أبو | أبي', 'آب']);
+
+    const secondPage = await getStTaklaSectionBrowse('bible', 'letter-1', '', 2, 1);
+    assert.deepEqual(secondPage.items.map(item => item.title), ['آب']);
+    assert.deepEqual(secondPage.pagination, {
+      page: 2,
+      pageSize: 1,
+      totalItems: 2,
+      totalPages: 2,
+    });
   });
 
   it('returns calendar content and article content only from validated St-Takla URLs', async () => {
@@ -201,6 +210,29 @@ describe('St-Takla section API contracts', () => {
     assert.equal(result.body.source, 'St-Takla.org');
     assert.deepEqual(result.body.sections.map((section: any) => section.key), ['ritual', 'bible', 'calendar']);
     assert.ok(result.body.sections.every((section: any) => section.sourceUrl.startsWith('https://st-takla.org/')));
+  });
+
+  it('passes pagination parameters through the Bible dictionary API', async () => {
+    globalThis.fetch = async input => {
+      const url = String(input);
+      if (url.includes('Kamous-Al-Engeel-index')) return response(bibleIndex);
+      if (url.includes('01_A/A_WORD.html')) {
+        return response('<ol><li><a href="A_001.html">أب | أبو | أبي</a></li><li><a href="A_002.html">آب</a></li></ol>');
+      }
+      throw new Error(`unexpected URL ${url}`);
+    };
+
+    const result = await requestJson(
+      `${baseUrl}/api/orthodox/sttakla/sections/bible/browse?key=letter-1&page=2&pageSize=1`,
+    );
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body.items.map((item: any) => item.title), ['آب']);
+    assert.deepEqual(result.body.pagination, {
+      page: 2,
+      pageSize: 1,
+      totalItems: 2,
+      totalPages: 2,
+    });
   });
 
   it('returns an explicit unavailable response when the upstream article fails', async () => {

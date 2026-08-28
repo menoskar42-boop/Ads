@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowRight, BookOpen, CalendarDays, Church, ExternalLink, Library, RefreshCw, Search } from 'lucide-react';
+import { AlertCircle, ArrowRight, BookOpen, CalendarDays, Church, ChevronLeft, ChevronRight, ExternalLink, Library, RefreshCw, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,6 +103,7 @@ export function StTaklaSections() {
   const [selectedBrowseKey, setSelectedBrowseKey] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
+  const [browsePage, setBrowsePage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<StTaklaSectionItem | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<StTaklaSectionArticle | null>(null);
   const [browseArticleDismissed, setBrowseArticleDismissed] = useState(false);
@@ -138,8 +139,8 @@ export function StTaklaSections() {
   }, [selectedCatalog, selectedBrowseKey]);
 
   const browseQuery = useQuery({
-    queryKey: ['sttakla-section-browse', selectedSectionKey, selectedBrowseKey, submittedQuery],
-    queryFn: () => api.stTakla.browse(selectedSectionKey!, selectedBrowseKey!, submittedQuery),
+    queryKey: ['sttakla-section-browse', selectedSectionKey, selectedBrowseKey, submittedQuery, browsePage],
+    queryFn: () => api.stTakla.browse(selectedSectionKey!, selectedBrowseKey!, submittedQuery, browsePage),
     enabled: Boolean(selectedSectionKey && selectedBrowseKey && selectedCatalog?.status === 'ok'),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
@@ -156,6 +157,7 @@ export function StTaklaSections() {
   });
 
   const browseArticle = browseQuery.data?.article;
+  const pagination = browseQuery.data?.pagination;
   const article = selectedArticle ?? articleQuery.data ?? (!selectedItem && !browseArticleDismissed ? browseArticle : undefined);
   const isArticleView = Boolean(selectedItem || article);
   const isArticleLoading = Boolean(selectedItem && articleQuery.isLoading);
@@ -166,6 +168,7 @@ export function StTaklaSections() {
     setSelectedBrowseKey(catalog.browse[0]?.id ?? null);
     setSearchInput('');
     setSubmittedQuery('');
+    setBrowsePage(1);
     setSelectedItem(null);
     setSelectedArticle(null);
     setBrowseArticleDismissed(false);
@@ -175,6 +178,7 @@ export function StTaklaSections() {
     setSelectedBrowseKey(key);
     setSearchInput('');
     setSubmittedQuery('');
+    setBrowsePage(1);
     setSelectedItem(null);
     setSelectedArticle(null);
     setBrowseArticleDismissed(false);
@@ -308,6 +312,7 @@ export function StTaklaSections() {
                 onSubmit={(event) => {
                   event.preventDefault();
                   setSubmittedQuery(searchInput.trim());
+                   setBrowsePage(1);
                   setSelectedItem(null);
                   setSelectedArticle(null);
                   setBrowseArticleDismissed(false);
@@ -415,7 +420,7 @@ export function StTaklaSections() {
               </Button>
             </div>
           ) : browseQuery.data?.items.length ? (
-            <div className="divide-y divide-border/70" data-testid="sttakla-browse-results">
+            <div className="divide-y divide-border/70" aria-busy={browseQuery.isFetching} data-testid="sttakla-browse-results">
               {browseQuery.data.items.map((item) => (
                 <button
                   key={item.id}
@@ -431,11 +436,50 @@ export function StTaklaSections() {
                   <ArrowRight className="h-4 w-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-hover:-translate-x-1" aria-hidden="true" />
                 </button>
               ))}
-              <div className="flex items-center justify-between gap-3 bg-muted/15 px-5 py-3">
-                <p className="text-xs text-muted-foreground">
-                  {submittedQuery ? `نتائج البحث عن «${submittedQuery}»` : 'مداخل من الفهرس العام'}
-                </p>
-                <SourceLink href={browseQuery.data.sourceUrl} />
+              <div className="space-y-3 bg-muted/15 px-5 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {submittedQuery ? `نتائج البحث عن «${submittedQuery}»` : 'مداخل من الفهرس العام'}
+                  </p>
+                  <SourceLink href={browseQuery.data.sourceUrl} />
+                </div>
+                {pagination ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3" data-testid="sttakla-pagination">
+                    <p className="text-xs text-muted-foreground">
+                      {pagination.totalItems} مدخلًا · صفحة {pagination.page} من {pagination.totalPages}
+                    </p>
+                    {pagination.totalPages > 1 ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1"
+                          onClick={() => setBrowsePage(page => Math.max(1, page - 1))}
+                          disabled={pagination.page <= 1 || browseQuery.isFetching}
+                          aria-label="الصفحة السابقة"
+                          data-testid="sttakla-pagination-previous"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                          السابق
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1"
+                          onClick={() => setBrowsePage(page => Math.min(pagination.totalPages, page + 1))}
+                          disabled={pagination.page >= pagination.totalPages || browseQuery.isFetching}
+                          aria-label="الصفحة التالية"
+                          data-testid="sttakla-pagination-next"
+                        >
+                          التالي
+                          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (

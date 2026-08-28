@@ -112,6 +112,8 @@ export async function registerRoutes(
     const section = String(req.params.section);
     const browseId = String(req.query.key || '');
     const query = String(req.query.q || '');
+    const page = Number(req.query.page || 1);
+    const pageSize = Number(req.query.pageSize || 40);
     if (!isStTaklaSectionKey(section)) {
       return res.status(400).json({ message: 'قسم St-Takla غير صالح' });
     }
@@ -119,7 +121,7 @@ export async function registerRoutes(
       return res.status(400).json({ message: 'مفتاح التصفح مطلوب' });
     }
     try {
-      const data = await getStTaklaSectionBrowse(section, browseId, query);
+      const data = await getStTaklaSectionBrowse(section, browseId, query, page, pageSize);
       res.set('Cache-Control', 'public, max-age=900');
       return res.json(data);
     } catch (error: any) {

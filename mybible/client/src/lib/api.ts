@@ -190,6 +190,13 @@ export interface StTaklaSectionItem {
   url: string;
 }
 
+export interface StTaklaPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 export interface StTaklaSectionArticle {
   section: StTaklaSectionKey;
   title: string;
@@ -203,6 +210,7 @@ export interface StTaklaSectionBrowseResponse {
   source: 'St-Takla.org';
   sourceUrl: string;
   items: StTaklaSectionItem[];
+  pagination?: StTaklaPagination;
   article?: StTaklaSectionArticle;
 }
 
@@ -322,9 +330,9 @@ export const api = {
   stTakla: {
     getSections: () =>
       fetchApi<{ source: 'St-Takla.org'; sections: StTaklaSectionCatalog[] }>('/orthodox/sttakla/sections'),
-    browse: (section: StTaklaSectionKey, key: string, query = '') =>
+    browse: (section: StTaklaSectionKey, key: string, query = '', page = 1, pageSize = 40) =>
       fetchApi<StTaklaSectionBrowseResponse>(
-        `/orthodox/sttakla/sections/${section}/browse?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}`,
+        `/orthodox/sttakla/sections/${section}/browse?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`,
       ),
     article: (section: StTaklaSectionKey, url: string) =>
       fetchApi<StTaklaSectionArticle>(

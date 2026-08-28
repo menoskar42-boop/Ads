@@ -2,6 +2,8 @@ const ST_TAKLA_ORIGIN = 'https://st-takla.org';
 const ST_TAKLA_USER_AGENT = 'MyBible-StTakla-Sections/1.0 (+https://st-takla.org/)';
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const ARTICLE_MAX_LENGTH = 24000;
+const DEFAULT_PAGE_SIZE = 40;
+const MAX_PAGE_SIZE = 100;
 
 export type StTaklaSectionKey = 'ritual' | 'bible' | 'calendar';
 
@@ -25,6 +27,13 @@ export interface StTaklaSectionItem {
   id: string;
   title: string;
   url: string;
+}
+
+export interface StTaklaPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface StTaklaSectionArticle {
@@ -287,11 +296,14 @@ export async function getStTaklaSectionBrowse(
   key: StTaklaSectionKey,
   browseId: string,
   query = '',
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
 ): Promise<{
   section: StTaklaSectionKey;
   source: 'St-Takla.org';
   sourceUrl: string;
   items: StTaklaSectionItem[];
+  pagination?: StTaklaPagination;
   article?: StTaklaSectionArticle;
 }> {
   const catalog = await getStTaklaSectionCatalog(key);
@@ -317,11 +329,22 @@ export async function getStTaklaSectionBrowse(
   const items = parseSectionItems(key, html, sectionDefinition(key), browse.url).filter(item =>
     !normalizedQuery || item.title.toLocaleLowerCase('ar').includes(normalizedQuery),
   );
+  const safePageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(Number(pageSize) || DEFAULT_PAGE_SIZE)));
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / safePageSize));
+  const safePage = Math.min(totalPages, Math.max(1, Math.floor(Number(page) || 1)));
+  const start = (safePage - 1) * safePageSize;
   return {
     section: key,
     source: 'St-Takla.org',
     sourceUrl: browse.url,
-    items,
+    items: items.slice(start, start + safePageSize),
+    pagination: {
+      page: safePage,
+      pageSize: safePageSize,
+      totalItems,
+      totalPages,
+    },
   };
 }
 
