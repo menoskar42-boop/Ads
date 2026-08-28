@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { eq } from "drizzle-orm";
+import { fileURLToPath } from "node:url";
 import * as schema from "../shared/schema";
 
 const { Pool } = pg;
@@ -39,12 +40,28 @@ interface GetBibleData {
   books: Record<string, GetBibleBook>;
 }
 
-interface ImportedVerse {
+export interface ImportedVerse {
   id: number;
   bookName: string;
   chapter: number;
   verse: number;
   text: string;
+}
+
+export interface StoredVerseFields {
+  bookName: string;
+  chapter: number;
+  verse: number;
+  verseText: string;
+}
+
+export function toStoredVerseFields(verse: ImportedVerse): StoredVerseFields {
+  return {
+    bookName: verse.bookName,
+    chapter: verse.chapter,
+    verse: verse.verse,
+    verseText: verse.text,
+  };
 }
 
 const bookMapping: Record<number, { arabicName: string; testament: 'old' | 'new'; chaptersCount: number }> = {
@@ -215,7 +232,10 @@ async function importVerses(bibleData: GetBibleData, bookIdMap: Map<number, numb
   return verseMap;
 }
 
-async function createEmotionMappings(verseMap: Map<string, ImportedVerse>) {
+export async function createEmotionMappings(
+  verseMap: Map<string, ImportedVerse>,
+  database: typeof db = db,
+) {
   console.log('😊 Creating emotion-verse mappings...');
   
   const emotionMappings: Record<string, string[]> = {
@@ -245,7 +265,7 @@ async function createEmotionMappings(verseMap: Map<string, ImportedVerse>) {
     ],
   };
   
-  const emotions = await db.select().from(schema.emotions);
+  const emotions = await database.select().from(schema.emotions);
   
   for (const emotion of emotions) {
     const verseRefs = emotionMappings[emotion.name] || [];
@@ -255,12 +275,9 @@ async function createEmotionMappings(verseMap: Map<string, ImportedVerse>) {
       const verse = verseMap.get(ref);
       if (verse) {
         try {
-          await db.insert(schema.emotionVerses).values({
+          await database.insert(schema.emotionVerses).values({
             emotionId: emotion.id,
-            bookName: verse.bookName,
-            chapter: verse.chapter,
-            verse: verse.verse,
-            verseText: verse.text,
+            ...toStoredVerseFields(verse),
           });
           mapped++;
         } catch (e) {
@@ -274,7 +291,10 @@ async function createEmotionMappings(verseMap: Map<string, ImportedVerse>) {
   console.log('✓ Emotion mappings created');
 }
 
-async function createTopicMappings(verseMap: Map<string, ImportedVerse>) {
+export async function createTopicMappings(
+  verseMap: Map<string, ImportedVerse>,
+  database: typeof db = db,
+) {
   console.log('📚 Creating topic-verse mappings...');
   
   const topicMappings: Record<string, string[]> = {
@@ -300,7 +320,7 @@ async function createTopicMappings(verseMap: Map<string, ImportedVerse>) {
     ],
   };
   
-  const topics = await db.select().from(schema.topics);
+  const topics = await database.select().from(schema.topics);
   
   for (const topic of topics) {
     const verseRefs = topicMappings[topic.name] || [];
@@ -310,12 +330,9 @@ async function createTopicMappings(verseMap: Map<string, ImportedVerse>) {
       const verse = verseMap.get(ref);
       if (verse) {
         try {
-          await db.insert(schema.topicVerses).values({
+          await database.insert(schema.topicVerses).values({
             topicId: topic.id,
-            bookName: verse.bookName,
-            chapter: verse.chapter,
-            verse: verse.verse,
-            verseText: verse.text,
+            ...toStoredVerseFields(verse),
           });
           mapped++;
         } catch (e) {
@@ -343,7 +360,7 @@ async function createDailyVerse(verseMap: Map<string, ImportedVerse>) {
   }
 }
 
-async function importBible() {
+export async function importBible() {
   console.log('🌍 Starting full Arabic Bible import (Smith & Van Dyke)...\n');
   
   try {
@@ -373,6 +390,8 @@ async function importBible() {
   }
 }
 
-importBible()
-  .then(() => process.exit(0))
-  .catch(() => process.exit(1));
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  importBible()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
+}

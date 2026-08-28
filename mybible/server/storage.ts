@@ -194,7 +194,12 @@ export class DatabaseStorage implements IStorage {
   private db: ReturnType<typeof drizzle>;
   private churchNumColumnEnsured = false;
 
-  constructor() {
+  constructor(database?: ReturnType<typeof drizzle>) {
+    if (database) {
+      this.db = database;
+      return;
+    }
+
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
     });
