@@ -8,6 +8,13 @@ interface TafsirEntry {
   tafsir: string;
 }
 
+/** المصدر المعلن للسلسلة العربية الموجودة في ملفات التفسير. */
+export const TAFSIR_SOURCE = {
+  name: 'تفسير الكتاب المقدس — القمص أنطونيوس فكري',
+  publisher: 'St-Takla.org',
+  url: 'https://st-takla.org/pub_Bible-Interpretations/Tafseer-Al-Keta-Al-Mokadas-index-2-Father-Antonios-Fekry.html',
+} as const;
+
 const tafsirCache: Record<string, TafsirEntry[]> = {};
 const cacheOrder: string[] = [];
 const MAX_CACHE_SIZE = 5;
@@ -361,7 +368,7 @@ function chapterTafsir(
   return chapterEntries[chapterEntries.length - 1].tafsir;
 }
 
-function extractVerseTafsir(fullText: string, verse: number, chapter?: number): string | null {
+export function extractVerseTafsir(fullText: string, verse: number, chapter?: number): string | null {
   interface VerseSection {
     startVerse: number;
     endVerse: number;

@@ -8,7 +8,7 @@ import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
 import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
-import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
+import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile, TAFSIR_SOURCE } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
@@ -72,8 +72,16 @@ export async function registerRoutes(
     }
 
     try {
+      const month = Number(req.query.month);
+      const day = Number(req.query.day);
+      if (hasMonth && (!Number.isInteger(month) || !Number.isInteger(day))) {
+        return res.status(400).json({
+          source: 'copticchurch.net',
+          message: 'الشهر واليوم القبطيان يجب أن يكونا أرقامًا صحيحة',
+        });
+      }
       const data = hasMonth && hasDay
-        ? await fetchSynaxariumDay(Number(req.query.month), Number(req.query.day))
+        ? await fetchSynaxariumDay(month, day)
         : await fetchTodaySynaxarium();
       res.set('Cache-Control', 'public, max-age=21600');
       res.json(data);
@@ -672,7 +680,7 @@ export async function registerRoutes(
     try {
       const csvName = decodeURIComponent(req.params.csvName);
       const intro = getBookIntro(csvName);
-      res.json({ tafsir: intro });
+      res.json({ tafsir: intro, source: TAFSIR_SOURCE });
     } catch (error) {
       console.error('[tafsir] book-intro error:', error);
       res.status(500).json({ message: 'Failed to fetch book intro' });
@@ -687,7 +695,7 @@ export async function registerRoutes(
       // نرجّع السبب عشان الواجهة تقول للمستخدم إيه اللي ناقص بالظبط بدل
       // رسالة «لا يوجد تفسير» اللي مش بتفرّق بين سفر مش متحمّل وإصحاح ناقص.
       const reason = tafsir ? null : hasBookFile(csvName) ? 'chapter-missing' : 'book-missing';
-      res.json({ tafsir, reason });
+      res.json({ tafsir, reason, source: TAFSIR_SOURCE });
     } catch (error) {
       console.error('[tafsir] chapter error:', error);
       res.status(500).json({ message: 'Failed to fetch chapter tafsir' });
@@ -706,6 +714,7 @@ export async function registerRoutes(
         tafsir: verseText,
         scope: verseText ? 'verse' : null,
         reason: verseText ? null : 'verse-missing',
+        source: TAFSIR_SOURCE,
       });
     } catch (error) {
       console.error('[tafsir] verse error:', error);

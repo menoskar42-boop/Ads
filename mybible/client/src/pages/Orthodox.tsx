@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type SynaxariumEntry as LiveSynaxariumEntry } from '@/lib/api';
 import { SEOHead } from '@/components/SEOHead';
 import { usePageTracker } from '@/hooks/usePageTracker';
 import { useExitTracker } from '@/hooks/useExitTracker';
@@ -55,13 +55,7 @@ import { StTaklaSections } from '@/components/StTaklaSections';
 import { fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import {
   synaxariumMonths,
-  getTodaySynaxarium,
-  getDayEntries,
   gregorianToCoptic,
-  entryTypeIcon,
-  type SynaxariumMonth,
-  type SynaxariumDay,
-  type SynaxariumEntry,
 } from '@/lib/synaxarium-content';
 
 function YouTubeEmbed({ videoId, title, onClose }: { videoId: string; title: string; onClose: () => void }) {
@@ -86,10 +80,7 @@ function YouTubeEmbed({ videoId, title, onClose }: { videoId: string; title: str
 }
 
 // ── السنكسار القبطي المدمج ────────────────────────────────────────────────────
-const COPTIC_MONTH_NAMES = ['توت','بابه','هاتور','كيهك','طوبه','أمشير','برمهات','برمودة','بشنس','بؤونة','أبيب','مسرى','النسيء'];
-
 function SynaxariumSection() {
-  const today = getTodaySynaxarium();
   const todayCoptic = gregorianToCoptic(new Date());
 
   // حالة التصفح: null = عرض اليوم، 'months' = قائمة الشهور، {monthId} = أيام الشهر
@@ -99,10 +90,21 @@ function SynaxariumSection() {
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
 
   const currentMonth = synaxariumMonths.find(m => m.id === selectedMonth);
-  const currentDayEntries = getDayEntries(selectedMonth, selectedDay);
+  const activeMonth = view === 'today' ? todayCoptic.month : selectedMonth;
+  const activeDay = view === 'today' ? todayCoptic.day : selectedDay;
+  const {
+    data: liveDay,
+    isLoading: liveDayLoading,
+    isError: liveDayError,
+  } = useQuery({
+    queryKey: ['orthodox-synaxarium', activeMonth, activeDay],
+    queryFn: () => api.orthodox.getSynaxariumDay(activeMonth, activeDay),
+    enabled: view === 'today' || view === 'detail',
+    staleTime: 6 * 60 * 60 * 1000,
+  });
 
-  function renderEntryCard(entry: SynaxariumEntry, i: number) {
-    const key = `${selectedMonth}-${selectedDay}-${i}`;
+  function renderEntryCard(entry: LiveSynaxariumEntry, i: number) {
+    const key = entry.id || `${activeMonth}-${activeDay}-${i}`;
     const isOpen = expandedEntry === key;
     return (
       <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
@@ -111,11 +113,11 @@ function SynaxariumSection() {
           onClick={() => setExpandedEntry(isOpen ? null : key)}
         >
           <div className="flex items-start gap-3">
-            <span className="text-xl flex-shrink-0 mt-0.5">{entryTypeIcon[entry.type]}</span>
+            <BookOpen className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-display font-bold text-foreground text-lg leading-snug">{entry.name}</p>
-                <Badge variant="secondary" className="text-xs">{entry.type}</Badge>
+                <p className="font-display font-bold text-foreground text-lg leading-snug">{entry.title}</p>
+                <Badge variant="secondary" className="text-xs">سنكسار</Badge>
               </div>
               <AnimatePresence>
                 {isOpen && (
@@ -129,6 +131,18 @@ function SynaxariumSection() {
                   </motion.p>
                 )}
               </AnimatePresence>
+              {isOpen && entry.url && (
+                <a
+                  href={entry.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-3"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  فتح المصدر
+                </a>
+              )}
             </div>
             {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />}
           </div>
@@ -137,15 +151,42 @@ function SynaxariumSection() {
     );
   }
 
+  function renderLiveEntries() {
+    if (liveDayLoading) {
+      return (
+        <Card className="p-6 flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          جاري تحميل السنكسار من المصدر...
+        </Card>
+      );
+    }
+    if (liveDayError) {
+      return (
+        <Card className="p-6 text-center">
+          <p className="text-muted-foreground">تعذر تحميل السنكسار من المصدر حاليًا.</p>
+          <p className="text-xs text-muted-foreground mt-1">حاول تحديث الصفحة بعد قليل.</p>
+        </Card>
+      );
+    }
+    if (!liveDay?.entries.length) {
+      return <p className="text-center text-muted-foreground py-8">لا توجد بيانات لهذا اليوم.</p>;
+    }
+    return (
+      <div className="space-y-3">
+        {liveDay.entries.map((entry, i) => renderEntryCard(entry, i))}
+      </div>
+    );
+  }
+
   // ── عرض اليوم الحالي ─────────────────────────────────────────────────────
-  if (view === 'today' && today) {
+  if (view === 'today') {
     return (
       <div dir="rtl">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-amber-500" />
             <h2 className="font-display text-xl font-bold text-foreground">
-              {today.copticDate.day} {COPTIC_MONTH_NAMES[today.copticDate.month - 1]} {today.copticDate.year} م.ق
+              {liveDay?.copticDate || 'سنكسار اليوم'}
             </h2>
           </div>
           <Button size="sm" variant="outline" onClick={() => setView('months')}>
@@ -153,11 +194,9 @@ function SynaxariumSection() {
             <ChevronLeft className="w-4 h-4 mr-1" />
           </Button>
         </div>
-        <div className="space-y-3">
-          {today.day.entries.map((entry, i) => renderEntryCard(entry, i))}
-        </div>
+        {renderLiveEntries()}
         <p className="text-sm text-center text-muted-foreground mt-4">
-          اضغط على أي مدخل لقراءة السيرة الكاملة • مدمج داخل الموقع
+          اضغط على أي مدخل لقراءة النص • من المصدر القبطي الموثوق
         </p>
       </div>
     );
@@ -236,12 +275,7 @@ function SynaxariumSection() {
           <span className="text-muted-foreground">/</span>
           <span className="font-semibold">{selectedDay} {currentMonth?.arabicName}</span>
         </div>
-        <div className="space-y-3">
-          {currentDayEntries.length > 0
-            ? currentDayEntries.map((entry, i) => renderEntryCard(entry, i))
-            : <p className="text-center text-muted-foreground py-8">لا توجد بيانات لهذا اليوم</p>
-          }
-        </div>
+        {renderLiveEntries()}
       </div>
     );
   }

@@ -72,8 +72,12 @@ function pageUrl(month: number, day: number): string {
 }
 
 function parseCopticDate(text: string): string {
-  const match = text.match(/(?:السنكسار(?:\s+مس[رى]?|\s+اليوم)?|سنكسار اليوم)[^#\n-]*-?\s*([^\n<]+)/i);
-  return match?.[1]?.replace(/\\-/g, '-').trim() || text.trim();
+  const cleaned = text
+    .replace(/^\s*السنكسار\s*/i, '')
+    .replace(/^\s*اليوم\s*/i, '')
+    .replace(/\\-/g, '-')
+    .trim();
+  return cleaned || text.trim();
 }
 
 function parseEntryHeading(text: string): { id: string; title: string } | null {
@@ -99,7 +103,11 @@ export function parseSynaxariumDay(
 
   const entries = headingMatches.map((heading, index) => {
     const nextStart = headingMatches[index + 1]?.start ?? html.length;
-    const description = htmlToText(html.slice(heading.end, nextStart));
+    const footerStart = html.search(/<footer\b/i);
+    const contentEnd = footerStart >= heading.end
+      ? Math.min(nextStart, footerStart)
+      : nextStart;
+    const description = htmlToText(html.slice(heading.end, contentEnd));
     const anchor = heading.id;
     return {
       id: `${month}-${day}-${anchor}`,
