@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowRight, BookOpen, CalendarDays, Church, ChevronLeft, ChevronRight, ExternalLink, Library, RefreshCw, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation, useSearch } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -98,12 +99,51 @@ function UnavailableCatalog({ catalog }: { catalog: StTaklaSectionCatalog }) {
   );
 }
 
+const ST_TAKLA_ROUTE = '/orthodox/st-takla';
+const ST_TAKLA_SECTION_KEYS = new Set<StTaklaSectionKey>(['ritual', 'bible', 'calendar']);
+
+function parseStTaklaLocation(location: string): {
+  section: StTaklaSectionKey | null;
+  browse: string | null;
+  page: number;
+  query: string;
+} {
+  const queryString = location.split('?')[1]?.split('#')[0] ?? '';
+  const params = new URLSearchParams(queryString);
+  const sectionValue = params.get('section');
+  const pageValue = Number(params.get('page') || 1);
+
+  return {
+    section: sectionValue && ST_TAKLA_SECTION_KEYS.has(sectionValue as StTaklaSectionKey)
+      ? sectionValue as StTaklaSectionKey
+      : null,
+    browse: params.get('browse')?.trim() || null,
+    page: Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1,
+    query: params.get('q')?.trim().slice(0, 80) || '',
+  };
+}
+
+function buildStTaklaUrl(state: {
+  section: StTaklaSectionKey;
+  browse: string;
+  page: number;
+  query: string;
+}): string {
+  const params = new URLSearchParams({
+    section: state.section,
+    browse: state.browse,
+    page: String(Math.max(1, Math.floor(state.page))),
+  });
+  if (state.query) params.set('q', state.query);
+  return `${ST_TAKLA_ROUTE}?${params.toString()}`;
+}
+
 export function StTaklaSections() {
-  const [selectedSectionKey, setSelectedSectionKey] = useState<StTaklaSectionKey | null>(null);
-  const [selectedBrowseKey, setSelectedBrowseKey] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState('');
-  const [submittedQuery, setSubmittedQuery] = useState('');
-  const [browsePage, setBrowsePage] = useState(1);
+  const [location, navigate] = useLocation();
+  const search = useSearch();
+  const currentLocation = search ? `${location}?${search}` : location;
+  const locationState = useMemo(() => parseStTaklaLocation(currentLocation), [currentLocation]);
+  const [searchInput, setSearchInput] = useState(locationState.query);
   const [selectedItem, setSelectedItem] = useState<StTaklaSectionItem | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<StTaklaSectionArticle | null>(null);
   const [browseArticleDismissed, setBrowseArticleDismissed] = useState(false);
@@ -117,26 +157,20 @@ export function StTaklaSections() {
   });
 
   const catalogs = useMemo(() => sectionsQuery.data?.sections ?? [], [sectionsQuery.data]);
+  const selectedSectionKey = useMemo<StTaklaSectionKey | null>(() => {
+    const requested = catalogs.find((catalog) => catalog.key === locationState.section);
+    return requested?.key ?? catalogs.find((catalog) => catalog.status === 'ok')?.key ?? catalogs[0]?.key ?? null;
+  }, [catalogs, locationState.section]);
   const selectedCatalog = useMemo(
     () => catalogs.find((catalog) => catalog.key === selectedSectionKey) ?? null,
     [catalogs, selectedSectionKey],
   );
-
-  useEffect(() => {
-    if (!catalogs.length) return;
-    if (!selectedSectionKey || !catalogs.some((catalog) => catalog.key === selectedSectionKey)) {
-      const firstAvailable = catalogs.find((catalog) => catalog.status === 'ok') ?? catalogs[0];
-      setSelectedSectionKey(firstAvailable.key);
-    }
-  }, [catalogs, selectedSectionKey]);
-
-  useEffect(() => {
-    if (!selectedCatalog) return;
-    const firstBrowseKey = selectedCatalog.browse[0]?.id ?? null;
-    if (!selectedBrowseKey || !selectedCatalog.browse.some((link) => link.id === selectedBrowseKey)) {
-      setSelectedBrowseKey(firstBrowseKey);
-    }
-  }, [selectedCatalog, selectedBrowseKey]);
+  const selectedBrowseKey = useMemo(
+    () => selectedCatalog?.browse.find((link) => link.id === locationState.browse)?.id ?? selectedCatalog?.browse[0]?.id ?? null,
+    [selectedCatalog, locationState.browse],
+  );
+  const submittedQuery = locationState.query;
+  const browsePage = locationState.page;
 
   const browseQuery = useQuery({
     queryKey: ['sttakla-section-browse', selectedSectionKey, selectedBrowseKey, submittedQuery, browsePage],
@@ -163,25 +197,55 @@ export function StTaklaSections() {
   const isArticleLoading = Boolean(selectedItem && articleQuery.isLoading);
   const articleError = Boolean(selectedItem && articleQuery.isError);
 
-  const selectSection = (catalog: StTaklaSectionCatalog) => {
-    setSelectedSectionKey(catalog.key);
-    setSelectedBrowseKey(catalog.browse[0]?.id ?? null);
-    setSearchInput('');
-    setSubmittedQuery('');
-    setBrowsePage(1);
+  useEffect(() => {
+    setSearchInput(submittedQuery);
     setSelectedItem(null);
     setSelectedArticle(null);
     setBrowseArticleDismissed(false);
+  }, [currentLocation, submittedQuery]);
+
+  useEffect(() => {
+    if (!catalogs.length || !selectedSectionKey || !selectedBrowseKey || location !== ST_TAKLA_ROUTE) return;
+    const canonicalUrl = buildStTaklaUrl({
+      section: selectedSectionKey,
+      browse: selectedBrowseKey,
+      page: browsePage,
+      query: submittedQuery,
+    });
+    const isCanonical = locationState.section === selectedSectionKey
+      && locationState.browse === selectedBrowseKey
+      && locationState.page === browsePage
+      && locationState.query === submittedQuery;
+    if (!isCanonical) navigate(canonicalUrl, { replace: true });
+  }, [catalogs.length, selectedBrowseKey, selectedSectionKey, browsePage, submittedQuery, location, currentLocation, navigate]);
+
+  useEffect(() => {
+    if (!pagination || pagination.page === browsePage || !selectedSectionKey || !selectedBrowseKey) return;
+    navigate(buildStTaklaUrl({
+      section: selectedSectionKey,
+      browse: selectedBrowseKey,
+      page: pagination.page,
+      query: submittedQuery,
+    }), { replace: true });
+  }, [pagination?.page, browsePage, selectedSectionKey, selectedBrowseKey, submittedQuery, navigate]);
+
+  const selectSection = (catalog: StTaklaSectionCatalog) => {
+    setSelectedItem(null);
+    setSelectedArticle(null);
+    setBrowseArticleDismissed(false);
+    const firstBrowse = catalog.browse[0]?.id;
+    if (firstBrowse) {
+      navigate(buildStTaklaUrl({ section: catalog.key, browse: firstBrowse, page: 1, query: '' }), { replace: true });
+    }
   };
 
   const selectBrowseLink = (key: string) => {
-    setSelectedBrowseKey(key);
-    setSearchInput('');
-    setSubmittedQuery('');
-    setBrowsePage(1);
     setSelectedItem(null);
     setSelectedArticle(null);
     setBrowseArticleDismissed(false);
+    if (selectedSectionKey) {
+      navigate(buildStTaklaUrl({ section: selectedSectionKey, browse: key, page: 1, query: '' }), { replace: true });
+    }
   };
 
   const openArticle = (item: StTaklaSectionItem) => {
@@ -194,6 +258,16 @@ export function StTaklaSections() {
     setSelectedItem(null);
     setSelectedArticle(null);
     if (browseArticle) setBrowseArticleDismissed(true);
+  };
+
+  const goToBrowsePage = (page: number) => {
+    if (!selectedSectionKey || !selectedBrowseKey) return;
+    navigate(buildStTaklaUrl({
+      section: selectedSectionKey,
+      browse: selectedBrowseKey,
+      page,
+      query: submittedQuery,
+    }), { replace: true });
   };
 
   if (sectionsQuery.isLoading) {
@@ -311,11 +385,17 @@ export function StTaklaSections() {
                 className="flex w-full max-w-md gap-2"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  setSubmittedQuery(searchInput.trim());
-                   setBrowsePage(1);
                   setSelectedItem(null);
                   setSelectedArticle(null);
                   setBrowseArticleDismissed(false);
+                   if (selectedSectionKey && selectedBrowseKey) {
+                     navigate(buildStTaklaUrl({
+                       section: selectedSectionKey,
+                       browse: selectedBrowseKey,
+                       page: 1,
+                       query: searchInput.trim(),
+                     }), { replace: true });
+                   }
                 }}
                 role="search"
                 aria-label={`البحث في ${selectedCatalog.title}`}
@@ -455,7 +535,7 @@ export function StTaklaSections() {
                           variant="outline"
                           size="sm"
                           className="h-8 gap-1"
-                          onClick={() => setBrowsePage(page => Math.max(1, page - 1))}
+                          onClick={() => goToBrowsePage(pagination.page - 1)}
                           disabled={pagination.page <= 1 || browseQuery.isFetching}
                           aria-label="الصفحة السابقة"
                           data-testid="sttakla-pagination-previous"
@@ -468,7 +548,7 @@ export function StTaklaSections() {
                           variant="outline"
                           size="sm"
                           className="h-8 gap-1"
-                          onClick={() => setBrowsePage(page => Math.min(pagination.totalPages, page + 1))}
+                          onClick={() => goToBrowsePage(pagination.page + 1)}
                           disabled={pagination.page >= pagination.totalPages || browseQuery.isFetching}
                           aria-label="الصفحة التالية"
                           data-testid="sttakla-pagination-next"
