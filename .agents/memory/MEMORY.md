@@ -4,3 +4,4 @@
 - [Deployment dev dependencies](deployment-dev-deps.md) — production environment installs may omit build tools unless deployment installs explicitly include dev dependencies.
 - [Deuterocanonical group reading](deutero-group-reading.md) — group readers must fetch every deuterocanonical chapter from the verified St-Takla source, not incomplete local copies.
 - [Katameros source](katameros-sttakla.md) — date-specific readings come from St-Takla’s today page and linked today_bible pages, with no local fallback.
+- [MyBible preview build](mybible-preview-build.md) — the root preview serves MyBible from its compiled child bundle, so rebuild before live verification.

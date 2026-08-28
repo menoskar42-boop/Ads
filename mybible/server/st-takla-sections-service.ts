@@ -94,8 +94,12 @@ function normalizeText(value: string): string {
   return htmlToText(value).replace(/\s+/g, ' ').trim();
 }
 
-function absoluteStTaklaUrl(href: string, definition: typeof SECTION_DEFINITIONS[StTaklaSectionKey]): string {
-  const url = new URL(decodeHtmlEntities(href), definition.indexUrl);
+function absoluteStTaklaUrl(
+  href: string,
+  definition: typeof SECTION_DEFINITIONS[StTaklaSectionKey],
+  baseUrl = definition.indexUrl,
+): string {
+  const url = new URL(decodeHtmlEntities(href), baseUrl);
   if (url.hostname !== 'st-takla.org' && url.hostname !== 'www.st-takla.org') {
     throw new Error('رابط St-Takla غير مسموح به');
   }
@@ -161,20 +165,28 @@ function uniqueLinks(links: StTaklaBrowseLink[]): StTaklaBrowseLink[] {
   return [...new Map(links.map(link => [link.url, link])).values()];
 }
 
+function withoutHash(url: string): string {
+  const parsed = new URL(url);
+  parsed.hash = '';
+  return parsed.toString();
+}
+
 function parseBrowseLinks(key: StTaklaSectionKey, html: string, definition: typeof SECTION_DEFINITIONS[StTaklaSectionKey]): StTaklaBrowseLink[] {
   const links: StTaklaBrowseLink[] = [];
   for (const anchor of extractAnchors(html)) {
+    const rawHref = anchor.href.trim();
+    if (!rawHref || rawHref.startsWith('#') || /^javascript:/i.test(rawHref)) continue;
     let url: string;
     try {
-      url = absoluteStTaklaUrl(anchor.href, definition);
+      url = absoluteStTaklaUrl(rawHref, definition);
     } catch {
       continue;
     }
     const path = new URL(url).pathname;
-    if (key === 'ritual' && /Coptic-Church-Rituals-Lexicon__\d+-.+\.html$/i.test(path)) {
-      links.push({ id: `letter-${links.length + 1}`, label: anchor.text.slice(0, 2), url });
+    if (key === 'ritual' && /Coptic-Church-Rituals-Lexicon__\d+-.+\.html$/i.test(path) && !path.includes('__00-index')) {
+      links.push({ id: `letter-${links.length + 1}`, label: anchor.text.trim(), url });
     } else if (key === 'bible' && /\d{2}_[A-Z]+\/[^/]+_WORD\.html$/i.test(path)) {
-      links.push({ id: `letter-${links.length + 1}`, label: anchor.text.slice(0, 2), url });
+      links.push({ id: `letter-${links.length + 1}`, label: anchor.text.trim(), url });
     } else if (key === 'calendar' && /\/\d{2}-.+\.html$/i.test(path) && !path.includes('00-Al-Natiga')) {
       const fileName = path.split('/').pop() ?? '';
       const month = fileName.match(/^(\d{2})-/)?.[1] ?? String(links.length + 1);
@@ -184,13 +196,19 @@ function parseBrowseLinks(key: StTaklaSectionKey, html: string, definition: type
   return uniqueLinks(links).map((link, index) => ({ ...link, id: key === 'calendar' ? link.id : `letter-${index + 1}` }));
 }
 
-function parseSectionItems(key: StTaklaSectionKey, html: string, definition: typeof SECTION_DEFINITIONS[StTaklaSectionKey]): StTaklaSectionItem[] {
+function parseSectionItems(
+  key: StTaklaSectionKey,
+  html: string,
+  definition: typeof SECTION_DEFINITIONS[StTaklaSectionKey],
+  currentUrl: string,
+): StTaklaSectionItem[] {
   if (key === 'calendar') return [];
   const items: StTaklaSectionItem[] = [];
+  const currentPage = withoutHash(currentUrl);
   for (const anchor of extractAnchors(html)) {
     let url: string;
     try {
-      url = absoluteStTaklaUrl(anchor.href, definition);
+      url = absoluteStTaklaUrl(anchor.href, definition, currentUrl);
     } catch {
       continue;
     }
@@ -198,18 +216,20 @@ function parseSectionItems(key: StTaklaSectionKey, html: string, definition: typ
     const isItem = key === 'ritual'
       ? path.endsWith('.html') && !path.includes('Lexicon__') && !path.includes('Orthodox-Rites')
       : /\d{2}_[A-Z]+\/[^/]+\.html$/i.test(path);
-    if (!isItem || url === definition.indexUrl || !anchor.text || anchor.text.length > 120) continue;
+    if (!isItem || withoutHash(url) === currentPage || withoutHash(url) === withoutHash(definition.indexUrl) || !anchor.text || anchor.text.length > 120) continue;
     items.push({ id: url, title: anchor.text, url });
   }
   return [...new Map(items.map(item => [item.url, item])).values()];
 }
 
 function parseArticleTitle(html: string, fallback: string): string {
+  const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i)?.[1];
+  const headingText = normalizeText(heading || '');
+  if (headingText) return headingText;
   const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1];
   const normalized = normalizeText(title || '').replace(/\s*[|｜-]\s*St-Takla\.org.*$/i, '').trim();
   if (normalized && !/^St-Takla\.org$/i.test(normalized)) return normalized;
-  const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i)?.[1];
-  return normalizeText(heading || '') || fallback;
+  return fallback;
 }
 
 function parseArticleContent(html: string): string {
@@ -219,6 +239,7 @@ function parseArticleContent(html: string): string {
     .map(match => normalizeText(match[2]))
     .filter(text => text.length >= 12)
     .filter(text => !/^St-Takla\.org/.test(text))
+    .filter(text => !/^(صورة في موقع الأنبا تكلا|St-Takla\.org Image)/.test(text))
     .filter(text => !/^(اذهب|اضغط هنا|شارك|تابعنا|فهرس)/.test(text));
   const content = [...new Set(paragraphs)].join('\n\n').trim();
   return content.slice(0, ARTICLE_MAX_LENGTH);
@@ -293,7 +314,7 @@ export async function getStTaklaSectionBrowse(
     };
   }
   const normalizedQuery = query.trim().slice(0, 80).toLocaleLowerCase('ar');
-  const items = parseSectionItems(key, html, sectionDefinition(key)).filter(item =>
+  const items = parseSectionItems(key, html, sectionDefinition(key), browse.url).filter(item =>
     !normalizedQuery || item.title.toLocaleLowerCase('ar').includes(normalizedQuery),
   );
   return {

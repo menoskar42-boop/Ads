@@ -44,6 +44,8 @@ function requestJson(url: string): Promise<{ status: number; body: any }> {
 }
 
 const ritualIndex = `
+  <a href="#1nav">طقس</a>
+  <a href="/Coptic-Faith-Creed-Dogma/Coptic-Rite-n-Ritual-Taks-Al-Kanisa/Dictionary-of-Coptic-Ritual-Terms/Coptic-Church-Rituals-Lexicon__00-index.html">الفهرس</a>
   <a href="${ritualPrefix}Coptic-Church-Rituals-Lexicon__01-Alef.html">أ</a>
   <a href="${ritualPrefix}Coptic-Church-Rituals-Lexicon__02-Beh.html">ب</a>
 `;
@@ -106,12 +108,29 @@ describe('St-Takla section source service', () => {
     assert.match(result.sourceUrl, /Lexicon__01-Alef/);
   });
 
+  it('does not expose the Bible letter page itself as a dictionary entry', async () => {
+    globalThis.fetch = async input => {
+      const url = String(input);
+      if (url.includes('Kamous-Al-Engeel-index')) return response(bibleIndex);
+      if (url.includes('01_A/A_WORD.html')) {
+        return response(`
+          <a href="https://st-takla.org${biblePrefix}01_A/A_WORD.html">https://st-takla.org${biblePrefix}01_A/A_WORD.html</a>
+          <ol><li><a href="A_001.html">أب | أبو | أبي</a></li><li><a href="A_002.html">آب</a></li></ol>
+        `);
+      }
+      throw new Error(`unexpected URL ${url}`);
+    };
+
+    const result = await getStTaklaSectionBrowse('bible', 'letter-1');
+    assert.deepEqual(result.items.map(item => item.title), ['أب | أبو | أبي', 'آب']);
+  });
+
   it('returns calendar content and article content only from validated St-Takla URLs', async () => {
     globalThis.fetch = async input => {
       const url = String(input);
       if (url.includes('00-Al-Natiga-Al-Keptia-Current-Year-index')) return response(calendarIndex);
       if (url.includes('01-January')) {
-        return response('<title>يناير | St-Takla.org</title><div id="bodytext"><p>أعياد وأصوام شهر يناير ومناسباته.</p></div>');
+        return response('<title>يناير | St-Takla.org</title><div id="bodytext"><h1>شهر يناير</h1><p>أعياد وأصوام شهر يناير ومناسباته.</p></div>');
       }
       if (url.includes('Khozb__Bread')) {
         return response('<title>خبز | St-Takla.org</title><div id="bodytext"><p>شرح مصطلح الخبز في الطقس والكتاب المقدس.</p></div>');
@@ -120,7 +139,7 @@ describe('St-Takla section source service', () => {
     };
 
     const calendar = await getStTaklaSectionBrowse('calendar', 'month-1');
-    assert.equal(calendar.article?.title, 'يناير');
+    assert.equal(calendar.article?.title, 'شهر يناير');
     assert.match(calendar.article?.content ?? '', /أعياد وأصوام/);
 
     const article = await getStTaklaSectionArticle('ritual', `https://st-takla.org${ritualPrefix}Khozb__Bread.html`);
