@@ -91,7 +91,7 @@ function cleanRubricText(text: string, seasonalLitany: SeasonalLitanyType = 'wea
         continue;
       }
       // باقي سطور الكتلة الموسمية (تواريخ، شرح) → تُحذف
-      if (season !== 'none') continue;
+      continue;
     }
 
     // ── تسميات الأدوار المستقلة (الكاهن: / الشعب:) ─────────────────

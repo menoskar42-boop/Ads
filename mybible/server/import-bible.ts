@@ -39,6 +39,14 @@ interface GetBibleData {
   books: Record<string, GetBibleBook>;
 }
 
+interface ImportedVerse {
+  id: number;
+  bookName: string;
+  chapter: number;
+  verse: number;
+  text: string;
+}
+
 const bookMapping: Record<number, { arabicName: string; testament: 'old' | 'new'; chaptersCount: number }> = {
   1: { arabicName: 'التكوين', testament: 'old', chaptersCount: 50 },
   2: { arabicName: 'الخروج', testament: 'old', chaptersCount: 40 },
@@ -158,10 +166,10 @@ async function importBooks(): Promise<Map<number, number>> {
   return bookIdMap;
 }
 
-async function importVerses(bibleData: GetBibleData, bookIdMap: Map<number, number>): Promise<Map<string, number>> {
+async function importVerses(bibleData: GetBibleData, bookIdMap: Map<number, number>): Promise<Map<string, ImportedVerse>> {
   console.log('📜 Importing Bible verses...');
   
-  const verseIdMap = new Map<string, number>();
+  const verseMap = new Map<string, ImportedVerse>();
   let totalVerses = 0;
   
   for (const [bookNrStr, book] of Object.entries(bibleData.books)) {
@@ -188,7 +196,13 @@ async function importVerses(bibleData: GetBibleData, bookIdMap: Map<number, numb
         }).returning();
         
         const verseKey = `${bookNr}:${chapterNum}:${verse.verse}`;
-        verseIdMap.set(verseKey, result[0].id);
+        verseMap.set(verseKey, {
+          id: result[0].id,
+          bookName: bookInfo.arabicName,
+          chapter: chapterNum,
+          verse: verse.verse,
+          text: verse.text,
+        });
         bookVerseCount++;
         totalVerses++;
       }
@@ -198,10 +212,10 @@ async function importVerses(bibleData: GetBibleData, bookIdMap: Map<number, numb
   }
   
   console.log(`✓ Imported ${totalVerses} verses total`);
-  return verseIdMap;
+  return verseMap;
 }
 
-async function createEmotionMappings(verseIdMap: Map<string, number>) {
+async function createEmotionMappings(verseMap: Map<string, ImportedVerse>) {
   console.log('😊 Creating emotion-verse mappings...');
   
   const emotionMappings: Record<string, string[]> = {
@@ -238,12 +252,15 @@ async function createEmotionMappings(verseIdMap: Map<string, number>) {
     let mapped = 0;
     
     for (const ref of verseRefs) {
-      const verseId = verseIdMap.get(ref);
-      if (verseId) {
+      const verse = verseMap.get(ref);
+      if (verse) {
         try {
           await db.insert(schema.emotionVerses).values({
             emotionId: emotion.id,
-            verseId,
+            bookName: verse.bookName,
+            chapter: verse.chapter,
+            verse: verse.verse,
+            verseText: verse.text,
           });
           mapped++;
         } catch (e) {
@@ -257,7 +274,7 @@ async function createEmotionMappings(verseIdMap: Map<string, number>) {
   console.log('✓ Emotion mappings created');
 }
 
-async function createTopicMappings(verseIdMap: Map<string, number>) {
+async function createTopicMappings(verseMap: Map<string, ImportedVerse>) {
   console.log('📚 Creating topic-verse mappings...');
   
   const topicMappings: Record<string, string[]> = {
@@ -290,12 +307,15 @@ async function createTopicMappings(verseIdMap: Map<string, number>) {
     let mapped = 0;
     
     for (const ref of verseRefs) {
-      const verseId = verseIdMap.get(ref);
-      if (verseId) {
+      const verse = verseMap.get(ref);
+      if (verse) {
         try {
           await db.insert(schema.topicVerses).values({
             topicId: topic.id,
-            verseId,
+            bookName: verse.bookName,
+            chapter: verse.chapter,
+            verse: verse.verse,
+            verseText: verse.text,
           });
           mapped++;
         } catch (e) {
@@ -309,14 +329,14 @@ async function createTopicMappings(verseIdMap: Map<string, number>) {
   console.log('✓ Topic mappings created');
 }
 
-async function createDailyVerse(verseIdMap: Map<string, number>) {
+async function createDailyVerse(verseMap: Map<string, ImportedVerse>) {
   console.log('⭐ Setting daily verse...');
   
-  const john316Id = verseIdMap.get('43:3:16');
+  const john316 = verseMap.get('43:3:16');
   
-  if (john316Id) {
+  if (john316) {
     await db.insert(schema.dailyVerses).values({
-      verseId: john316Id,
+      verseId: john316.id,
       date: new Date(),
     });
     console.log('  ✓ Daily verse set to John 3:16');

@@ -506,7 +506,7 @@ export class DatabaseStorage implements IStorage {
   async getUserHighlights(userId: string): Promise<Array<HighlightedVerse & { verse: BibleVerse, book: BibleBook }>> {
     const result = await this.db.execute(
       sql`SELECT 
-            h.id, h.user_id as "userId", h.verse_id as "verseId", 
+            h.id, h.user_id as "userId", h.member_key as "memberKey", h.verse_id as "verseId",
             h.color, h.note, h.created_at as "createdAt",
             v.id as verse_id, v.book_id as verse_book_id, v.chapter as verse_chapter, 
             v.verse as verse_verse, v.text as verse_text,
@@ -523,6 +523,7 @@ export class DatabaseStorage implements IStorage {
     return (result.rows as any[]).map(row => ({
       id: row.id,
       userId: row.userId,
+      memberKey: row.memberKey,
       verseId: row.verseId,
       color: row.color,
       note: row.note,

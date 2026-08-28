@@ -527,7 +527,18 @@ function stTaklaUrl(sourceBookId: number, chapter: number): {
   };
 }
 
-async function fetchStTaklaChapter(sourceBookId: number, chapter: number) {
+type StTaklaChapterResult =
+  | {
+      ok: true;
+      book: { id: number; name: string; chapters: number };
+      chapter: number;
+      source: string;
+      sourceUrl: string;
+      verses: { verse: number; text: string }[];
+    }
+  | { ok: false; error: string };
+
+async function fetchStTaklaChapter(sourceBookId: number, chapter: number): Promise<StTaklaChapterResult> {
   const target = stTaklaUrl(sourceBookId, chapter);
   if ('error' in target) return { ok: false, error: target.error };
   const response = await fetch(target.url, {
