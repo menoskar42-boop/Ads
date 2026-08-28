@@ -130,7 +130,14 @@ async function fetchHtml(url: string): Promise<string> {
       },
     });
     if (!response.ok) throw new Error(`St-Takla رجّع ${response.status}`);
-    const html = await response.text();
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const charset = response.headers.get('content-type')?.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1]?.toLowerCase();
+    let html: string;
+    try {
+      html = new TextDecoder(charset === 'windows-1256' || charset === 'cp1256' ? 'windows-1256' : 'utf-8').decode(bytes);
+    } catch {
+      html = new TextDecoder('utf-8').decode(bytes);
+    }
     htmlCache.set(url, { expiresAt: Date.now() + CACHE_TTL_MS, html });
     return html;
   } finally {
