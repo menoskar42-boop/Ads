@@ -12,7 +12,7 @@ import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, get
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
-import { fetchTodaySynaxarium } from "./orthodox-service";
+import { fetchSynaxariumDay, fetchTodaySynaxarium } from "./orthodox-service";
 import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katameros-service";
 import {
   getStTaklaSectionCatalogs,
@@ -61,14 +61,29 @@ export async function registerRoutes(
   });
 
   // ── Orthodox: Synaxarium proxy ──────────────────────────────────────────
-  app.get('/api/orthodox/synaxarium', async (_req, res) => {
+  app.get('/api/orthodox/synaxarium', async (req, res) => {
+    const hasMonth = req.query.month !== undefined;
+    const hasDay = req.query.day !== undefined;
+    if (hasMonth !== hasDay) {
+      return res.status(400).json({
+        source: 'copticchurch.net',
+        message: 'الشهر واليوم القبطي مطلوبان معًا',
+      });
+    }
+
     try {
-      const data = await fetchTodaySynaxarium();
+      const data = hasMonth && hasDay
+        ? await fetchSynaxariumDay(Number(req.query.month), Number(req.query.day))
+        : await fetchTodaySynaxarium();
       res.set('Cache-Control', 'public, max-age=21600');
       res.json(data);
     } catch (err) {
       console.error('[orthodox] Synaxarium route error:', err);
-      res.status(500).json({ copticDate: '', entries: [] });
+      res.status(503).json({
+        source: 'copticchurch.net',
+        message: 'تعذر تحميل السنكسار من المصدر حاليًا',
+        entries: [],
+      });
     }
   });
 

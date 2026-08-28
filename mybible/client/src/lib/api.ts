@@ -106,6 +106,24 @@ export interface Topic {
   icon: string;
 }
 
+export interface SynaxariumEntry {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  anchor: string;
+}
+
+export interface SynaxariumDay {
+  copticDate: string;
+  entries: SynaxariumEntry[];
+  fetchedAt: number;
+  source: 'copticchurch.net';
+  sourceUrl: string;
+  month?: number;
+  day?: number;
+}
+
 export interface EmotionTopicVerse {
   id: number;
   bookId: number;
@@ -244,11 +262,10 @@ export const api = {
   },
 
   orthodox: {
-    getSynaxarium: async () => {
-      const res = await fetch('/api/orthodox/synaxarium');
-      if (!res.ok) throw new Error('Failed to fetch synaxarium');
-      return res.json() as Promise<{ copticDate: string; entries: { title: string; url: string; anchor: string }[] }>;
-    },
+    getSynaxarium: () =>
+      fetchApi<SynaxariumDay>('/orthodox/synaxarium'),
+    getSynaxariumDay: (month: number, day: number) =>
+      fetchApi<SynaxariumDay>(`/orthodox/synaxarium?month=${month}&day=${day}`),
     getKatamerosDay: (date: string) =>
       fetchApi<{
         status: string;
