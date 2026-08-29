@@ -31,11 +31,7 @@ import {
   type OccasionTag,
   type SeasonalLitanyType,
 } from '@/lib/liturgy-occasion';
-import {
-  getTodaySynaxarium,
-  entryTypeIcon,
-  type SynaxariumEntry,
-} from '@/lib/synaxarium-content';
+import { api, type SynaxariumDay } from '@/lib/api';
 import {
   getHymnsForOccasion,
   type Hymn,
@@ -104,6 +100,8 @@ export default function LiturgyControl() {
         return [...prelude, ...readingSlides, ...postlude];
       }
     }
+    // لا نعرض الشريحة الطقسية المحلية بدل قصص السنكسار الحي عند تعذر المصدر.
+    if (_readingType === 'synaxar') return [];
     return getSplitSlidesForSection(session.liturgyType, session.sectionKey, session.occasion, session.seasonalLitany);
   })();
   const currentSlide = currentSlides[session.slideIndex];
@@ -133,16 +131,31 @@ export default function LiturgyControl() {
   // النهاردة في قدّاس أسوأ بكتير من إننا نقول إنها تقريبية ومحتاجة مراجعة.
   const [readingsExact, setReadingsExact] = useState(true);
   const [readingsSourceDay, setReadingsSourceDay] = useState<string | null>(null);
+  const [synaxariumDay, setSynaxariumDay] = useState<SynaxariumDay | null>(null);
+  const [synaxariumLoading, setSynaxariumLoading] = useState(true);
+  const [synaxariumError, setSynaxariumError] = useState<string | null>(null);
 
-  // جلب الجلسة والقراءات اليومية معاً عند الفتح
+  // جلب الجلسة والقراءات اليومية والسنكسار الحي معاً عند الفتح
   useEffect(() => {
+    const synaxariumPromise = api.orthodox.getSynaxarium()
+      .then(day => ({ day, error: null as string | null }))
+      .catch(error => ({
+        day: null,
+        error: error instanceof Error ? error.message : 'تعذر تحميل السنكسار',
+      }));
+
     Promise.all([
       fetch('/api/liturgy-session').then(async r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
       fetch('/api/daily-readings').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([data, readings]) => {
+      synaxariumPromise,
+    ]).then(([data, readings, synaxariumResult]) => {
+      setSynaxariumLoading(false);
+      setSynaxariumDay(synaxariumResult.day);
+      setSynaxariumError(synaxariumResult.error);
+
       if (!params?.slot && data.slot) {
         navigate(`/liturgy-control/${data.slot}`, { replace: true });
       }
@@ -159,24 +172,28 @@ export default function LiturgyControl() {
       const initialMode: 'script' | 'arabic' = data.copticMode === 'arabic' ? 'arabic' : 'script';
       copticModeRef.current = initialMode;
       setCopticMode(initialMode);
-      let readingsOverride = data.readingsOverride ?? null;
+      // لا نحتفظ بسنكسار قديم من الجلسة إذا تعذر المصدر الحالي.
+      const storedReadings = (data.readingsOverride ?? {}) as Partial<DailyReadingSlides>;
+      const { synaxar: _storedSynaxar, ...storedWithoutSynaxar } = storedReadings;
+      let readingsOverride = Object.keys(storedWithoutSynaxar).length
+        ? storedWithoutSynaxar as DailyReadingSlides
+        : null;
+
       if (readings) {
         const { copticDate: cd, exact, sourceDay, ...override } = readings as
           { copticDate: string; exact?: boolean; sourceDay?: string } & DailyReadingSlides;
-        readingsOverride = override as DailyReadingSlides;
+        const { synaxar: _dailySynaxar, ...cleanOverride } = override;
+        readingsOverride = cleanOverride as DailyReadingSlides;
         setCopticDate(cd);
         setReadingsExact(exact !== false);
         setReadingsSourceDay(sourceDay ?? null);
       }
-      // السنكسار الحقيقي — يُملأ من بيانات الموقع (لا يحتاج خادماً)
-      const synaxToday = getTodaySynaxarium();
-      if (synaxToday) {
-        const { month, day } = synaxToday;
-        const synaxSlides = day.entries.map((e: SynaxariumEntry) => {
-          const icon = entryTypeIcon[e.type] ?? '✝️';
-          return `${icon} ${e.name}\n\n${e.description}`;
-        });
-        const synaxTitle = `سنكسار ${month.arabicName} — يوم ${day.day}`;
+
+      // السنكسار الحي هو المصدر الوحيد لمحتوى السنكسار في الجلسة.
+      if (synaxariumResult.day?.entries.length) {
+        const synaxSlides = synaxariumResult.day.entries.map(entry =>
+          `✝️ ${entry.title}\n\n${entry.description}`,
+        );
         readingsOverride = {
           ...(readingsOverride ?? {
             pauline:  { title: '', slides: [] },
@@ -185,7 +202,10 @@ export default function LiturgyControl() {
             psalm:    { title: '', slides: [] },
             gospel:   { title: '', slides: [] },
           }),
-          synaxar: { title: synaxTitle, slides: synaxSlides },
+          synaxar: {
+            title: `سنكسار ${synaxariumResult.day.copticDate}`,
+            slides: synaxSlides,
+          },
         } as DailyReadingSlides;
       }
       const merged = { ...data, slideIndex: safeIdx, copticMode: initialMode, readingsOverride, occasion, seasonalLitany };
@@ -226,12 +246,17 @@ export default function LiturgyControl() {
 
   const allSections = getSectionsForLiturgy(session.liturgyType);
   const currentSectionIdx = allSections.findIndex(s => s.sectionKey === session.sectionKey);
+  const liveSynaxariumAvailable = Boolean(_activeReadings?.synaxar?.slides?.length);
+  function getControlSlides(sectionKey: string): LiturgySlide[] {
+    if (getReadingType(sectionKey) === 'synaxar' && !liveSynaxariumAvailable) return [];
+    return getSplitSlidesForSection(session.liturgyType, sectionKey, session.occasion, session.seasonalLitany);
+  }
   const nextSection = allSections.slice(currentSectionIdx + 1).find(s => {
-    const slides = getSplitSlidesForSection(session.liturgyType, s.sectionKey, session.occasion, session.seasonalLitany);
+    const slides = getControlSlides(s.sectionKey);
     return slides.length > 0;
   }) ?? null;
   const prevSection = allSections.slice(0, currentSectionIdx).reverse().find(s => {
-    const slides = getSplitSlidesForSection(session.liturgyType, s.sectionKey, session.occasion, session.seasonalLitany);
+    const slides = getControlSlides(s.sectionKey);
     return slides.length > 0;
   }) ?? null;
   const isLastSlide = !session.deaconOverride && session.slideIndex >= currentSlides.length - 1;
@@ -644,7 +669,7 @@ export default function LiturgyControl() {
             <h2 className="text-sm font-bold text-gray-300 mb-3">الأقسام</h2>
             <div className="space-y-1">
               {getSectionsForLiturgy(session.liturgyType).map(sec => {
-                const slides = getSplitSlidesForSection(session.liturgyType, sec.sectionKey, session.occasion, session.seasonalLitany);
+                const slides = getControlSlides(sec.sectionKey);
                 return (
                   <button
                     key={sec.sectionKey}
@@ -810,6 +835,42 @@ export default function LiturgyControl() {
               <span className="text-xs text-emerald-300 font-bold">{copticDate}</span>
             </div>
           )}
+
+          {/* السنكسار الحي */}
+          <Card className="bg-gray-900 border-gray-700 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-gray-300">السنكسار اليومي</h2>
+                <p className="text-[11px] text-gray-500 mt-1">المصدر الحي من CopticChurch</p>
+              </div>
+              {synaxariumLoading && (
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" aria-label="جارٍ تحميل السنكسار" />
+              )}
+            </div>
+            {synaxariumLoading ? (
+              <p className="text-xs text-gray-500 mt-3">جارٍ تحميل قصص اليوم...</p>
+            ) : synaxariumError ? (
+              <p className="text-xs text-red-300 mt-3">
+                تعذر تحميل السنكسار من المصدر. لن تُستخدم بيانات محلية بديلة.
+              </p>
+            ) : synaxariumDay?.entries.length ? (
+              <div className="flex items-center justify-between gap-3 mt-3">
+                <span className="text-xs text-emerald-300">
+                  {synaxariumDay.copticDate} — {synaxariumDay.entries.length} قصص
+                </span>
+                <a
+                  href={synaxariumDay.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-400 hover:text-blue-300 underline"
+                >
+                  فتح المصدر
+                </a>
+              </div>
+            ) : (
+              <p className="text-xs text-amber-300 mt-3">لا توجد قصص متاحة لهذا اليوم.</p>
+            )}
+          </Card>
 
           {/* تحذير: القراءات المعروضة مش قراءات اليوم نفسه */}
           {copticDate && !readingsExact && (
