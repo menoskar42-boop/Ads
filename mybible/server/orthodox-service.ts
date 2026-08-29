@@ -172,28 +172,22 @@ export async function fetchSynaxariumDay(month: number, day: number): Promise<To
   return value;
 }
 
+export function parseTodaySynaxariumTarget(html: string): { month: number; day: number } {
+  // الفهرس يستخدم روابط نسبية، وقد يضيف anchor للقصة الأولى؛ لا نعتمد على
+  // نص العنوان أو على كون الرابط مطلقاً حتى لا يعود اليوم بلا قصص.
+  const match = html.match(
+    /href=["'](?:https?:\/\/www\.copticchurch\.net)?\/synaxarium\/(\d+)_(\d+)\.html\?lang=ar(?:#[^"']*)?["']/i,
+  );
+  if (!match) throw new Error('لم يُعثر على رابط سنكسار اليوم في صفحة المصدر');
+  return { month: Number(match[1]), day: Number(match[2]) };
+}
+
 export async function fetchTodaySynaxarium(): Promise<TodaySynaxarium> {
   if (indexCache.expiresAt > Date.now()) return indexCache.value;
 
   const html = await fetchHtml(SYNAXARIUM_INDEX_URL);
-  const dateMatch = html.match(/سنكسار اليوم[\s\S]*?مس[رى][^<\n]*?(\d+)/i);
-  const entries: SynaxariumEntry[] = [];
-  const linkRegex = /href="(https:\/\/www\.copticchurch\.net\/synaxarium\/[^"]*lang=ar[^"]*)"[^>]*>([^<]+)<\/a>/gi;
-  for (const match of html.matchAll(linkRegex)) {
-    const url = match[1];
-    const title = htmlToText(match[2]);
-    const anchor = url.match(/#(\d+)$/)?.[1] || '';
-    if (title && url) {
-      entries.push({ id: `today-${entries.length + 1}`, title, description: '', url, anchor });
-    }
-  }
-  const value: TodaySynaxarium = {
-    copticDate: dateMatch?.[0]?.replace(/.*سنكسار اليوم\s*/i, '').trim() || '',
-    entries,
-    fetchedAt: Date.now(),
-    source: 'copticchurch.net',
-    sourceUrl: SYNAXARIUM_INDEX_URL,
-  };
+  const { month, day } = parseTodaySynaxariumTarget(html);
+  const value = await fetchSynaxariumDay(month, day);
   indexCache.value = value;
   indexCache.expiresAt = Date.now() + CACHE_TTL;
   return value;

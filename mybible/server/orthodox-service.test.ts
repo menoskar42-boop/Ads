@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSynaxariumDay } from './orthodox-service';
+import { parseSynaxariumDay, parseTodaySynaxariumTarget } from './orthodox-service';
 
 test('Synaxarium parser returns structured source-linked daily entries', () => {
   const html = `
@@ -40,5 +40,21 @@ test('Synaxarium parser fails explicitly when the upstream page has no entries',
   assert.throws(
     () => parseSynaxariumDay('<h1>السنكسار مسرى 22</h1>', 'https://example.test', 12, 22),
     /لم يُعثر على مدخلات سنكسار/,
+  );
+});
+
+test('today index parser resolves relative Arabic month/day links', () => {
+  const result = parseTodaySynaxariumTarget(`
+    <h4>سنكسار اليوم - مسرى 22</h4>
+    <a href="/synaxarium/12_22.html?lang=ar#1">نياحة ميخا النبى</a>
+  `);
+
+  assert.deepEqual(result, { month: 12, day: 22 });
+});
+
+test('today index parser fails instead of returning an empty local payload', () => {
+  assert.throws(
+    () => parseTodaySynaxariumTarget('<h4>سنكسار اليوم - مسرى 22</h4>'),
+    /لم يُعثر على رابط سنكسار اليوم/,
   );
 });

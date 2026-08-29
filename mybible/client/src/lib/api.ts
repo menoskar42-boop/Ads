@@ -263,7 +263,7 @@ export const api = {
 
   orthodox: {
     getSynaxarium: () =>
-      fetchApi<SynaxariumDay>('/orthodox/synaxarium'),
+      fetchApi<SynaxariumDay>('/orthodox/synaxarium', { cache: 'no-store' }),
     getSynaxariumDay: (month: number, day: number) =>
       fetchApi<SynaxariumDay>(`/orthodox/synaxarium?month=${month}&day=${day}`),
     getKatamerosDay: (date: string) =>
