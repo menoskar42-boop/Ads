@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, BookText, ChevronLeft, ExternalLink, Loader2 } from 'lucide-react';
+import { AlertCircle, BookOpen, BookText, ExternalLink, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import {
   fetchBookIntro,
@@ -246,37 +247,52 @@ export function RemoteDeuteroReader() {
           </p>
         )}
 
-        {tafsirView && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/10" dir="rtl">
-            <div className="mb-4 flex items-center justify-between gap-3 border-b border-emerald-200 pb-3 dark:border-emerald-900/60">
-              <h3 className="font-display text-base font-bold text-foreground">
-                {tafsirView === 'intro'
-                  ? `مقدمة عن سفر ${selectedBook?.name}`
-                  : tafsirView === 'verse'
-                    ? `تفسير ${selectedBook?.name} ${selectedChapter}:${tafsirVerse}`
-                    : `تفسير ${selectedBook?.name} — الإصحاح ${selectedChapter}`}
-              </h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="shrink-0 gap-1 text-xs text-muted-foreground"
-                onClick={() => setTafsirView(null)}
-                data-testid="deutero-close-tafsir"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                رجوع للآيات
-              </Button>
-            </div>
+        <div className="border-t pt-3 text-center text-xs leading-5 text-muted-foreground">
+           النص معروض مباشرة من مصدر St-Takla ولا يُخزّن في قاعدة بيانات MyBible.{' '}
+          <a
+             href={catalog.status.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400"
+          >
+             فتح المصدر على St-Takla
+          </a>
+        </div>
+      </div>
 
+      <Dialog
+        open={!!tafsirView}
+        onOpenChange={(open) => {
+          if (!open) setTafsirView(null);
+        }}
+      >
+        <DialogContent
+          className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden"
+          dir="rtl"
+          data-testid="deutero-tafsir-dialog"
+        >
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-right font-display text-base">
+              {tafsirView === 'intro'
+                ? `مقدمة عن سفر ${selectedBook?.name}`
+                : tafsirView === 'verse'
+                  ? `تفسير ${selectedBook?.name} ${selectedChapter}:${tafsirVerse}`
+                  : `تفسير ${selectedBook?.name} — الإصحاح ${selectedChapter}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-1 py-4">
             {tafsirLoading ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin text-emerald-700" />
                 جاري تحميل التفسير...
               </div>
             ) : tafsirText ? (
               <>
-                <div className="whitespace-pre-wrap rounded-lg bg-white/70 p-4 text-lg leading-loose dark:bg-background/40" data-testid="deutero-tafsir-content">
+                <div
+                  className="rounded-lg bg-muted/30 p-4 text-lg leading-loose"
+                  data-testid="deutero-tafsir-content"
+                >
                   <TafsirText text={tafsirText} />
                 </div>
                 <p className="mt-3 text-center text-xs text-muted-foreground">
@@ -284,7 +300,7 @@ export function RemoteDeuteroReader() {
                 </p>
               </>
             ) : (
-              <div className="py-8 text-center text-muted-foreground" data-testid="deutero-no-tafsir">
+              <div className="py-10 text-center text-muted-foreground" data-testid="deutero-no-tafsir">
                 <BookText className="mx-auto mb-2 h-8 w-8 opacity-40" />
                 <p className="text-sm font-medium">
                   {tafsirReason === 'chapter-missing'
@@ -300,20 +316,8 @@ export function RemoteDeuteroReader() {
               </div>
             )}
           </div>
-        )}
-
-        <div className="border-t pt-3 text-center text-xs leading-5 text-muted-foreground">
-           النص معروض مباشرة من مصدر St-Takla ولا يُخزّن في قاعدة بيانات MyBible.{' '}
-          <a
-             href={catalog.status.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400"
-          >
-             فتح المصدر على St-Takla
-          </a>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

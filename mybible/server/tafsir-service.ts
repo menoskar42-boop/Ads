@@ -40,7 +40,42 @@ function getTafsirPartsDir(): string {
   return path.resolve(process.cwd(), "client", "public", "tafsir-parts");
 }
 
-function parseCSV(text: string): TafsirEntry[] {
+/**
+ * Removes St-Takla's navigation chrome from imported commentary.
+ *
+ * The importer intentionally keeps the source text as plain text, but the
+ * source page also contains the chapter index and links to other commentaries.
+ * Those links are not part of the explanation and can otherwise be returned
+ * as if they were tafsir content.
+ */
+export function stripTafsirNavigation(text: string): string {
+  const lines = text.split("\n");
+  const footerIndex = lines.findIndex((line) => {
+    const normalized = line.replace(/^[\u0022\u201c\u201d]+|[\u0022\u201c\u201d]+$/g, "").trim();
+    return (
+      /^←\s*تفاسير أصحاحات/u.test(normalized) ||
+      /^تفاسير أسفار الكتاب المقدس/u.test(normalized)
+    );
+  });
+
+  let cleaned = (footerIndex >= 0 ? lines.slice(0, footerIndex) : lines).join("\n");
+
+  // Some pages put a short "other commentaries" link between two explanation
+  // sections instead of placing it in the final footer.
+  cleaned = cleaned
+    .replace(
+      /(?:^|\n)\s*←\s*\n\s*وستجد\s*\n\s*تفاسير أخرى\s*\n\s*هنا في\s*\n\s*\(\d+\)\s*(?=\n|$)/gu,
+      "\n",
+    )
+    .replace(
+      /(?:^|\n)\s*←[^\n]*(?:تفاسير أخرى|موقع الأنبا تكلا)[^\n]*(?=\n|$)/gu,
+      "",
+    );
+
+  return cleaned.trim();
+}
+
+export function parseCSV(text: string): TafsirEntry[] {
   const entries: TafsirEntry[] = [];
   // بعض الملفات فيها BOM في أولها وسطور بنهايات CRLF
   const lines = text.replace(/^﻿/, "").replace(/\r\n/g, "\n").split("\n");
@@ -63,14 +98,14 @@ function parseCSV(text: string): TafsirEntry[] {
 
   const flush = () => {
     if (!cur) return;
-    const tafsir = cur.parts
+    const tafsir = stripTafsirNavigation(cur.parts
       .join("\n")
       .replace(/^"/, "")        // علامة الفتح
       .replace(/"$/, "")        // علامة الإقفال لو الملف سليم
       .replace(/""/g, '"')      // تنصيص مهروب جوّه الحقل
       // بقايا RTF زي \'a1 — في ترويسات المدى بتلعب دور شرطة الفصل
       .replace(/\\'[0-9a-fA-F]{2}/g, "-")
-      .trim();
+      .trim());
     if (tafsir) {
       entries.push({ book: cur.book, chapter: cur.chapter, verse: cur.verse, tafsir });
     }
@@ -477,6 +512,31 @@ export function extractVerseTafsir(fullText: string, verse: number, chapter?: nu
     });
   }
 
+  // St-Takla also uses the compact Arabic form "ع21، 22:" for a verse
+  // subsection. It is especially common in the deuterocanonical commentary.
+  const compactVersePattern =
+    /(?:^|\n)\s*ع\s*\(?(\d+)(?:\s*(?:[-–،,]|و)\s*(\d+))?\s*\)?\s*[:：]/gu;
+
+  while ((match = compactVersePattern.exec(fullText)) !== null) {
+    const verseNum = parseInt(match[1], 10);
+    const verseEnd = match[2] ? parseInt(match[2], 10) : verseNum;
+    if (isNaN(verseNum) || verseNum < 1 || verseNum > 200) continue;
+
+    const alreadyCovered = sections.some(
+      (s) => Math.abs(s.startIndex - match!.index) < 5
+    );
+    if (alreadyCovered) continue;
+
+    const actualStart = match.index + (match[0].match(/^[\n\s]*/)?.[0].length || 0);
+    sections.push({
+      startVerse: verseNum,
+      endVerse: verseEnd,
+      startIndex: actualStart,
+      headerEnd: match.index + match[0].length,
+      isPrimary: false,
+    });
+  }
+
   sections.sort((a, b) => a.startIndex - b.startIndex);
 
   // NOTE: do NOT short-circuit here when sections.length === 0.
@@ -672,6 +732,9 @@ function verseTafsirRaw(
   //   Use a Set to avoid rescanning the same blob twice.
   const seenBlobs = new Set(verseEntries.map((e) => e.tafsir));
   for (const entry of chapterEntries) {
+    // The chapter-level row uses "(chapter:1)" as a wrapper around the whole
+    // page, not as proof that verse 1 has its own commentary.
+    if (entry.verse === 0 && verse === 1) continue;
     if (!entry.tafsir || seenBlobs.has(entry.tafsir)) continue;
     seenBlobs.add(entry.tafsir);
     const extracted = extractVerseTafsir(entry.tafsir, verse, chapter);
@@ -681,6 +744,8 @@ function verseTafsirRaw(
   // ── Step 3: Fallback — return any chapter entry whose FIRST range header
   //   covers the verse (handles blobs where extractVerseTafsir finds nothing)
   for (const entry of chapterEntries) {
+    // As above, "(chapter:1)" on the chapter-level row is only a wrapper.
+    if (entry.verse === 0 && verse === 1) continue;
     if (!entry.tafsir) continue;
     const m = HEADER_RE.exec(entry.tafsir);
     if (!m) continue;
