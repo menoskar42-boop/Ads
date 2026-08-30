@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   extractVerseTafsir,
+  fetchLiveMissingChapter,
   getChapterTafsir,
   getVerseTafsir,
   parseCSV,
@@ -131,4 +132,24 @@ test('Tobit verses 21–22 and 23 use their own source sections', () => {
 
 test('Tobit verse without a source section is unavailable, not chapter fallback', () => {
   assert.equal(getVerseTafsir('طوبيا', 4, 1), null);
+});
+
+test('fetches a known missing chapter from the current St-Takla URL', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    '<div id="bodytext"><h1>تفسير العدد 19</h1><p>فريضة البقرة الحمراء من مصدر St-Takla.</p><!-- footer with contacts -->',
+    { headers: { 'content-type': 'text/html; charset=utf-8' } },
+  );
+
+  try {
+    const result = await fetchLiveMissingChapter('عدد', 19);
+    assert.match(result?.tafsir ?? '', /فريضة البقرة الحمراء/u);
+    assert.match(result?.sourceUrl ?? '', /Chapter-19\.html$/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('does not invent a live URL for an unknown missing chapter', async () => {
+  assert.equal(await fetchLiveMissingChapter('عدد', 999), null);
 });

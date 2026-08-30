@@ -8,7 +8,7 @@ import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
 import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
-import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile, TAFSIR_SOURCE } from "./tafsir-service";
+import { fetchLiveMissingChapter, getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile, TAFSIR_SOURCE } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
@@ -687,15 +687,29 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/tafsir/chapter/:csvName/:chapter', (req, res) => {
+  app.get('/api/tafsir/chapter/:csvName/:chapter', async (req, res) => {
     try {
       const csvName = decodeURIComponent(req.params.csvName);
       const chapter = parseInt(req.params.chapter, 10);
-      const tafsir = getChapterTafsir(csvName, chapter);
+      let tafsir = getChapterTafsir(csvName, chapter);
+      let source = TAFSIR_SOURCE;
+      let origin: 'local' | 'live' | 'unavailable' = tafsir ? 'local' : 'unavailable';
+      if (!tafsir) {
+        try {
+          const live = await fetchLiveMissingChapter(csvName, chapter);
+          if (live) {
+            tafsir = live.tafsir;
+            source = { ...TAFSIR_SOURCE, url: live.sourceUrl };
+            origin = 'live';
+          }
+        } catch (error) {
+          console.warn(`[tafsir] live fallback unavailable for ${csvName}:${chapter}:`, error);
+        }
+      }
       // نرجّع السبب عشان الواجهة تقول للمستخدم إيه اللي ناقص بالظبط بدل
       // رسالة «لا يوجد تفسير» اللي مش بتفرّق بين سفر مش متحمّل وإصحاح ناقص.
       const reason = tafsir ? null : hasBookFile(csvName) ? 'chapter-missing' : 'book-missing';
-      res.json({ tafsir, reason, source: TAFSIR_SOURCE });
+      res.json({ tafsir, reason, origin, source });
     } catch (error) {
       console.error('[tafsir] chapter error:', error);
       res.status(500).json({ message: 'Failed to fetch chapter tafsir' });

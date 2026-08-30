@@ -8,16 +8,32 @@ interface TafsirEntry {
   tafsir: string;
 }
 
-/** المصدر المعلن للسلسلة العربية الموجودة في ملفات التفسير. */
+/** المصدر المعلن للنصوص العربية المأخوذة من فهارس St-Takla المختلفة. */
 export const TAFSIR_SOURCE = {
-  name: 'تفسير الكتاب المقدس — القمص أنطونيوس فكري',
+  name: 'تفاسير الكتاب المقدس العربية',
   publisher: 'St-Takla.org',
-  url: 'https://st-takla.org/pub_Bible-Interpretations/Tafseer-Al-Keta-Al-Mokadas-index-2-Father-Antonios-Fekry.html',
-} as const;
+  url: 'https://st-takla.org/pub_Bible-Interpretations/',
+};
+
+/**
+ * روابط الصفحات الحالية للإصحاحات التي لم تعد روابطها القديمة في الفهرس
+ * المحلي تعمل بعد أن غيّر St-Takla بنية عناوينه. لا نحفظ النص الناتج على
+ * القرص؛ يُجلب عند الطلب ويُحتفظ به مؤقتًا في الذاكرة.
+ */
+const LIVE_MISSING_CHAPTER_URLS: Record<string, Record<number, string>> = {
+  'عدد': {
+    19: 'https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/04-Sefr-El-Adad/Tafseer-Sefr-El-3adad__01-Chapter-19.html',
+  },
+  'حزقيال': {
+    3: 'https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/31-Sefr-Hazkyal/Tafseer-Sefr-Hazkial__01-Chapter-03.html',
+  },
+};
 
 const tafsirCache: Record<string, TafsirEntry[]> = {};
 const cacheOrder: string[] = [];
 const MAX_CACHE_SIZE = 5;
+const liveChapterCache = new Map<string, { expiresAt: number; tafsir: string; sourceUrl: string }>();
+const LIVE_CHAPTER_CACHE_TTL = 15 * 60 * 1000;
 
 function evictCache() {
   while (cacheOrder.length > MAX_CACHE_SIZE) {
@@ -73,6 +89,101 @@ export function stripTafsirNavigation(text: string): string {
     );
 
   return cleaned.trim();
+}
+
+function decodeLiveHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;?|&#160;|&#xA0;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, decimal) => String.fromCodePoint(Number(decimal)));
+}
+
+function extractLiveChapterText(html: string): string {
+  const bodyStart = html.search(/<div\b[^>]*\bid\s*=\s*["']bodytext["']/i);
+  if (bodyStart < 0) return '';
+
+  const footerStart = html.indexOf('<!-- footer with contacts -->', bodyStart);
+  let fragment = html.slice(bodyStart, footerStart >= 0 ? footerStart : undefined)
+    .replace(/<tr\b[^>]*id=["']hidethis["'][^>]*>[\s\S]*?<\/tr>/i, '')
+    .replace(/<table\b[^>]*>[\s\S]*?(?:St-Takla\.org Image|صورة في موقع الأنبا تكلا)[\s\S]*?<\/table>/gi, '');
+
+  const text = decodeLiveHtmlEntities(
+    fragment
+      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+      .replace(/<img\b[^>]*>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(?:p|div|h[1-6]|tr|li|table|form|hr)>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, ''),
+  )
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter((line) =>
+      line.length > 0 &&
+      !/^St-Takla\.org Image:/i.test(line) &&
+      !/صورة في موقع الأنبا تكلا/.test(line) &&
+      !/موقع الأنبا تكلا هيمانوت لمؤلفين آخرين/.test(line),
+    )
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return stripTafsirNavigation(text)
+    .replace(/^اضغط هنا لإظهار الفهرس\s*/u, '')
+    .trim();
+}
+
+export async function fetchLiveMissingChapter(
+  csvName: string,
+  chapter: number,
+): Promise<{ tafsir: string; sourceUrl: string } | null> {
+  const sourceUrl = LIVE_MISSING_CHAPTER_URLS[csvName]?.[chapter];
+  if (!sourceUrl) return null;
+
+  const cacheKey = `${csvName}:${chapter}`;
+  const cached = liveChapterCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { tafsir: cached.tafsir, sourceUrl: cached.sourceUrl };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(sourceUrl, {
+      signal: controller.signal,
+      headers: {
+        'user-agent': 'MyBible tafsir reader (source attribution: St-Takla.org)',
+        accept: 'text/html,application/xhtml+xml',
+        'accept-language': 'ar,en;q=0.8',
+      },
+    });
+    if (!response.ok) throw new Error(`St-Takla رجّع ${response.status}`);
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') ?? '';
+    const charset = contentType.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1]?.toLowerCase();
+    let html: string;
+    try {
+      html = new TextDecoder(charset === 'windows-1256' || charset === 'cp1256' ? 'windows-1256' : 'utf-8').decode(bytes);
+    } catch {
+      html = new TextDecoder('utf-8').decode(bytes);
+    }
+
+    const tafsir = extractLiveChapterText(html);
+    if (tafsir.length < 20) throw new Error(`St-Takla لم يُرجع نصًا صالحًا لـ ${csvName} ${chapter}`);
+
+    const value = { expiresAt: Date.now() + LIVE_CHAPTER_CACHE_TTL, tafsir, sourceUrl };
+    liveChapterCache.set(cacheKey, value);
+    return { tafsir, sourceUrl };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function parseCSV(text: string): TafsirEntry[] {

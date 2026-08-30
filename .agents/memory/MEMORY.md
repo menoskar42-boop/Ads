@@ -6,4 +6,4 @@
 - [Katameros source](katameros-sttakla.md) — date-specific readings come from St-Takla’s today page and linked today_bible pages, with no local fallback.
 - [Synaxarium source](synaxarium-copticchurch.md) — daily Arabic Synaxarium text comes from validated month/day pages on copticchurch.net, with explicit unavailable states.
 - [MyBible preview build](mybible-preview-build.md) — the root preview serves MyBible from its compiled child bundle, so rebuild before live verification.
-- [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — navigation chrome can be embedded in exported text, and chapter wrapper rows are not verse-1 evidence.
+- [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — strip navigation, avoid chapter-wrapper inference, and use current live URLs when indexed pages move.

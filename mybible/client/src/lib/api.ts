@@ -55,6 +55,41 @@ export interface BibleVerse {
   book?: BibleBook;
 }
 
+export interface TafsirCoverageBook {
+  book: string;
+  expected: number;
+  present: number;
+  missing: number[];
+  fileMissing: boolean;
+  extra: number[];
+  substantive: number;
+  medianChars: number;
+}
+
+export interface TafsirCoverage {
+  books: TafsirCoverageBook[];
+  totals: {
+    expectedChapters: number;
+    presentChapters: number;
+    substantiveChapters: number;
+    missingBooks: number;
+  };
+  tafsirDir: string;
+  partsDir: string;
+  unknownFiles: { file: string; suggestion: string | null }[];
+}
+
+export interface TafsirChapterResponse {
+  tafsir: string | null;
+  reason: 'book-missing' | 'chapter-missing' | null;
+  origin: 'local' | 'live' | 'unavailable';
+  source: {
+    name: string;
+    publisher: string;
+    url: string;
+  };
+}
+
 export interface DailyVerse {
   id: number;
   verseId: number;
@@ -354,6 +389,15 @@ export const api = {
     article: (section: StTaklaSectionKey, url: string) =>
       fetchApi<StTaklaSectionArticle>(
         `/orthodox/sttakla/sections/${section}/article?url=${encodeURIComponent(url)}`,
+      ),
+  },
+
+  tafsir: {
+    getCoverage: (refresh = false) =>
+      fetchApi<TafsirCoverage>(`/tafsir/coverage${refresh ? '?refresh=1' : ''}`),
+    getChapter: (csvName: string, chapter: number) =>
+      fetchApi<TafsirChapterResponse>(
+        `/tafsir/chapter/${encodeURIComponent(csvName)}/${chapter}`,
       ),
   },
 
