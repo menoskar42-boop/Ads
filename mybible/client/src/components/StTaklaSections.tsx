@@ -259,6 +259,7 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
       setEmbeddedBrowse(key);
       setEmbeddedPage(1);
       setEmbeddedQuery('');
+      setSearchInput('');
     } else if (selectedSectionKey) {
       navigate(buildStTaklaUrl({ section: selectedSectionKey, browse: key, page: 1, query: '' }), { replace: true });
     }
@@ -408,7 +409,10 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
                   setSelectedItem(null);
                   setSelectedArticle(null);
                   setBrowseArticleDismissed(false);
-                   if (selectedSectionKey && selectedBrowseKey) {
+                    if (isEmbedded) {
+                      setEmbeddedQuery(searchInput.trim());
+                      setEmbeddedPage(1);
+                    } else if (selectedSectionKey && selectedBrowseKey) {
                      navigate(buildStTaklaUrl({
                        section: selectedSectionKey,
                        browse: selectedBrowseKey,
