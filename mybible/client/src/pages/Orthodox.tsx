@@ -788,6 +788,8 @@ function LiturgySection() {
           </div>
         </div>
       </Card>
+
+      <StTaklaSections embeddedSection="ritual" />
     </div>
   );
 }
@@ -1090,6 +1092,8 @@ function DailyLectionarySection() {
           </Card>
         );
       })}
+
+      <StTaklaSections embeddedSection="calendar" />
     </div>
   );
 }
@@ -2350,7 +2354,12 @@ function FiguresSection() {
 }
 
 function BibleCommentarySection() {
-  return <TafsirBrowser />;
+  return (
+    <div className="space-y-5">
+      <TafsirBrowser />
+      <StTaklaSections embeddedSection="bible" />
+    </div>
+  );
 }
 
 // ── المكتبة المدمجة — قارئ الكتب الأرثوذكسية ──────────────────────────────────
@@ -3339,7 +3348,7 @@ const ORTHODOX_DEDICATED_ROUTES: Record<string, string> = {
 // التابات الصالحة كقيم لـ :tab في /orthodox/:tab
 const ORTHODOX_VALID_TABS = new Set([
   'deacon', 'hymns', 'katameros', 'saints', 'creed', 'history',
-  'books', 'qa', 'figures', 'apocrypha', 'tafseer', 'maps', 'pope-qa', 'st-takla',
+  'books', 'qa', 'figures', 'apocrypha', 'tafseer', 'maps', 'pope-qa',
 ]);
 
 export default function Orthodox() {
@@ -3348,6 +3357,11 @@ export default function Orthodox() {
   const trackPath = params?.tab ? `/orthodox/${params.tab}` : '/orthodox';
   usePageTracker(trackPath);
   const [, navigate] = useLocation();
+  useEffect(() => {
+    if (params?.tab === 'st-takla') {
+      navigate('/orthodox/tafseer', { replace: true });
+    }
+  }, [navigate, params?.tab]);
   useExitTracker(trackPath);
 
   const navigateToTab = (newTab: string) => {
@@ -3456,13 +3470,6 @@ export default function Orthodox() {
                 أسئلة البابا
               </TabsTrigger>
             </TabsList>
-            <TabsList className="w-full grid grid-cols-1 mb-6 h-10">
-              <TabsTrigger value="st-takla" className="text-sm py-1.5" data-testid="tab-st-takla">
-                <BookText className="w-3 h-3 ml-1" />
-                مراجع St-Takla
-              </TabsTrigger>
-            </TabsList>
-
             <TabsContent value="synaxarium">
               <SynaxariumSection />
             </TabsContent>
@@ -3527,9 +3534,6 @@ export default function Orthodox() {
               <PopeShenoudaQASection />
             </TabsContent>
 
-            <TabsContent value="st-takla">
-              <StTaklaSections />
-            </TabsContent>
           </Tabs>
         </motion.div>
       </div>

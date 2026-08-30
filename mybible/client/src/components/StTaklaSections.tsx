@@ -138,12 +138,16 @@ function buildStTaklaUrl(state: {
   return `${ST_TAKLA_ROUTE}?${params.toString()}`;
 }
 
-export function StTaklaSections() {
+export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTaklaSectionKey } = {}) {
+  const isEmbedded = Boolean(embeddedSection);
   const [location, navigate] = useLocation();
   const search = useSearch();
   const currentLocation = search ? `${location}?${search}` : location;
   const locationState = useMemo(() => parseStTaklaLocation(currentLocation), [currentLocation]);
   const [searchInput, setSearchInput] = useState(locationState.query);
+  const [embeddedBrowse, setEmbeddedBrowse] = useState<string | null>(null);
+  const [embeddedPage, setEmbeddedPage] = useState(1);
+  const [embeddedQuery, setEmbeddedQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<StTaklaSectionItem | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<StTaklaSectionArticle | null>(null);
   const [browseArticleDismissed, setBrowseArticleDismissed] = useState(false);
@@ -156,21 +160,24 @@ export function StTaklaSections() {
     retry: 1,
   });
 
-  const catalogs = useMemo(() => sectionsQuery.data?.sections ?? [], [sectionsQuery.data]);
+  const catalogs = useMemo(
+    () => (sectionsQuery.data?.sections ?? []).filter((catalog) => !embeddedSection || catalog.key === embeddedSection),
+    [embeddedSection, sectionsQuery.data],
+  );
   const selectedSectionKey = useMemo<StTaklaSectionKey | null>(() => {
-    const requested = catalogs.find((catalog) => catalog.key === locationState.section);
+    const requested = catalogs.find((catalog) => catalog.key === (embeddedSection ?? locationState.section));
     return requested?.key ?? catalogs.find((catalog) => catalog.status === 'ok')?.key ?? catalogs[0]?.key ?? null;
-  }, [catalogs, locationState.section]);
+  }, [catalogs, embeddedSection, locationState.section]);
   const selectedCatalog = useMemo(
     () => catalogs.find((catalog) => catalog.key === selectedSectionKey) ?? null,
     [catalogs, selectedSectionKey],
   );
   const selectedBrowseKey = useMemo(
-    () => selectedCatalog?.browse.find((link) => link.id === locationState.browse)?.id ?? selectedCatalog?.browse[0]?.id ?? null,
-    [selectedCatalog, locationState.browse],
+    () => selectedCatalog?.browse.find((link) => link.id === (isEmbedded ? embeddedBrowse : locationState.browse))?.id ?? selectedCatalog?.browse[0]?.id ?? null,
+    [embeddedBrowse, isEmbedded, selectedCatalog, locationState.browse],
   );
-  const submittedQuery = locationState.query;
-  const browsePage = locationState.page;
+  const submittedQuery = isEmbedded ? embeddedQuery : locationState.query;
+  const browsePage = isEmbedded ? embeddedPage : locationState.page;
 
   const browseQuery = useQuery({
     queryKey: ['sttakla-section-browse', selectedSectionKey, selectedBrowseKey, submittedQuery, browsePage],
@@ -206,6 +213,7 @@ export function StTaklaSections() {
 
   useEffect(() => {
     if (!catalogs.length || !selectedSectionKey || !selectedBrowseKey || location !== ST_TAKLA_ROUTE) return;
+    if (isEmbedded) return;
     const canonicalUrl = buildStTaklaUrl({
       section: selectedSectionKey,
       browse: selectedBrowseKey,
@@ -217,17 +225,21 @@ export function StTaklaSections() {
       && locationState.page === browsePage
       && locationState.query === submittedQuery;
     if (!isCanonical) navigate(canonicalUrl, { replace: true });
-  }, [catalogs.length, selectedBrowseKey, selectedSectionKey, browsePage, submittedQuery, location, currentLocation, navigate]);
+  }, [catalogs.length, selectedBrowseKey, selectedSectionKey, browsePage, submittedQuery, location, currentLocation, navigate, isEmbedded]);
 
   useEffect(() => {
     if (!pagination || pagination.page === browsePage || !selectedSectionKey || !selectedBrowseKey) return;
+    if (isEmbedded) {
+      setEmbeddedPage(pagination.page);
+      return;
+    }
     navigate(buildStTaklaUrl({
       section: selectedSectionKey,
       browse: selectedBrowseKey,
       page: pagination.page,
       query: submittedQuery,
     }), { replace: true });
-  }, [pagination?.page, browsePage, selectedSectionKey, selectedBrowseKey, submittedQuery, navigate]);
+  }, [pagination?.page, browsePage, selectedSectionKey, selectedBrowseKey, submittedQuery, navigate, isEmbedded]);
 
   const selectSection = (catalog: StTaklaSectionCatalog) => {
     setSelectedItem(null);
@@ -243,7 +255,11 @@ export function StTaklaSections() {
     setSelectedItem(null);
     setSelectedArticle(null);
     setBrowseArticleDismissed(false);
-    if (selectedSectionKey) {
+    if (isEmbedded) {
+      setEmbeddedBrowse(key);
+      setEmbeddedPage(1);
+      setEmbeddedQuery('');
+    } else if (selectedSectionKey) {
       navigate(buildStTaklaUrl({ section: selectedSectionKey, browse: key, page: 1, query: '' }), { replace: true });
     }
   };
@@ -262,6 +278,10 @@ export function StTaklaSections() {
 
   const goToBrowsePage = (page: number) => {
     if (!selectedSectionKey || !selectedBrowseKey) return;
+    if (isEmbedded) {
+      setEmbeddedPage(page);
+      return;
+    }
     navigate(buildStTaklaUrl({
       section: selectedSectionKey,
       browse: selectedBrowseKey,
@@ -314,8 +334,8 @@ export function StTaklaSections() {
   }
 
   return (
-    <section className="mb-6 space-y-5" dir="rtl" data-testid="sttakla-sections">
-      <div className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-background to-teal-50/50 p-5 shadow-sm dark:border-amber-900/60 dark:from-amber-950/25 dark:via-background dark:to-teal-950/15">
+    <section className={`${isEmbedded ? 'mt-5' : 'mb-6'} space-y-5`} dir="rtl" data-testid={isEmbedded ? `sttakla-inline-${embeddedSection}` : 'sttakla-sections'}>
+      {!isEmbedded && <div className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50 via-background to-teal-50/50 p-5 shadow-sm dark:border-amber-900/60 dark:from-amber-950/25 dark:via-background dark:to-teal-950/15">
         <div className="relative flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-700 text-amber-50 shadow-sm dark:bg-amber-800">
             <Library className="h-6 w-6" aria-hidden="true" />
@@ -331,9 +351,9 @@ export function StTaklaSections() {
             </p>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="grid gap-3 md:grid-cols-[1.25fr_1fr_1fr]" data-testid="sttakla-section-catalogs">
+      {!isEmbedded && <div className="grid gap-3 md:grid-cols-[1.25fr_1fr_1fr]" data-testid="sttakla-section-catalogs">
         {catalogs.map((catalog, index) => {
           if (catalog.status === 'unavailable') return <UnavailableCatalog key={catalog.key} catalog={catalog} />;
 
@@ -366,16 +386,16 @@ export function StTaklaSections() {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {selectedCatalog?.status === 'unavailable' ? (
         <UnavailableCatalog catalog={selectedCatalog} />
       ) : selectedCatalog ? (
-        <Card className="overflow-hidden border-border/70 shadow-sm" data-testid="sttakla-browse-panel">
+        <Card className="overflow-hidden border-border/70 shadow-sm" data-testid={isEmbedded ? `sttakla-inline-panel-${embeddedSection}` : 'sttakla-browse-panel'}>
           <div className="border-b border-border/70 bg-muted/20 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">تصفح المصدر</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{isEmbedded ? 'مرجع مرتبط' : 'تصفح المصدر'}</p>
                 <h2 className="mt-1 font-display text-xl font-bold text-foreground">{selectedCatalog.title}</h2>
                 <div className="mt-2">
                   <SourceLink href={selectedCatalog.sourceUrl} />
