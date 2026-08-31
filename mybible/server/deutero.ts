@@ -425,9 +425,16 @@ export async function importDeuteroFromGitHub(
  * ⛔ ومافيش زحف: الروابط بتتحدّد بالإيد، صفحة السفر بس. مافيش تتبّع
  *    لروابط ولا تحميل قسم.
  */
+/* ⚠️ **ASCII بس.** هيدرات HTTP هي ByteString (Latin-1)، فأي حرف عربي
+ * بيفجّر الطلب قبل ما يخرج أصلاً:
+ *   «Cannot convert argument to a ByteString ... value of 1575»
+ * (١٥٧٥ = حرف «ا»). النسخة الأولى كانت بوصف عربي — والخطأ ظهر أول
+ * تشغيل حي. الرسالة اللي بتوصلهم لازم تفضل مفهومة، فالوصف بالإنجليزي
+ * والرابط هو اللي بيعرّف بينا. */
 const STTAKLA_UA =
-  'OscarDevs-MyBible/1.0 (+https://mybible.oscardevs.com)';
+  'OscarDevs-MyBible/1.0 (+https://mybible.oscardevs.com; one-time import of the deuterocanonical books; public-domain 1877 Jesuit Arabic translation; contact via site)';
 const POLITE_DELAY_MS = 2000;
+const STTAKLA_TIMEOUT_MS = 15000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const STTAKLA_BOOKS: Record<number, {
@@ -541,12 +548,29 @@ type StTaklaChapterResult =
 async function fetchStTaklaChapter(sourceBookId: number, chapter: number): Promise<StTaklaChapterResult> {
   const target = stTaklaUrl(sourceBookId, chapter);
   if ('error' in target) return { ok: false, error: target.error };
-  const response = await fetch(target.url, {
-    headers: {
-      'user-agent': STTAKLA_UA,
-      accept: 'text/html,application/xhtml+xml',
-    },
-  });
+  /* مهلة صريحة. سيراخ لوحده ٥١ إصحاح بيتجابوا واحد ورا التاني، فاتصال
+   * واحد متعلّق كان بيعلّق الاستيراد كله من غير نهاية ولا رسالة. */
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), STTAKLA_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(target.url, {
+      signal: controller.signal,
+      headers: {
+        'user-agent': STTAKLA_UA,
+        accept: 'text/html,application/xhtml+xml',
+      },
+    });
+  } catch (e: any) {
+    return {
+      ok: false,
+      error: e?.name === 'AbortError'
+        ? `St-Takla ما ردّش خلال ${STTAKLA_TIMEOUT_MS / 1000} ثانية`
+        : `تعذر الوصول لـSt-Takla: ${e?.message || e}`,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) return { ok: false, error: `St-Takla رجّع ${response.status}` };
   const html = decodeStTaklaHtml(new Uint8Array(await response.arrayBuffer()), response.headers.get('content-type') || '');
   const verses = parseStTaklaVerses(html);

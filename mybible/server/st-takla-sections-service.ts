@@ -1,5 +1,5 @@
 const ST_TAKLA_ORIGIN = 'https://st-takla.org';
-const ST_TAKLA_USER_AGENT = 'MyBible-StTakla-Sections/1.0 (+https://st-takla.org/)';
+const ST_TAKLA_USER_AGENT = 'MyBible-StTakla-Sections/1.0 (+https://mybible.oscardevs.com)';
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const ARTICLE_MAX_LENGTH = 24000;
 const DEFAULT_PAGE_SIZE = 40;
@@ -73,16 +73,49 @@ const SECTION_DEFINITIONS: Record<StTaklaSectionKey, {
 const htmlCache = new Map<string, { expiresAt: number; html: string }>();
 const catalogCache = new Map<StTaklaSectionKey, { expiresAt: number; value: StTaklaSectionCatalog }>();
 
+/* قاموس الكتاب المقدس لوحده آلاف المقالات، وكل واحد مفتاح جديد في
+ * `htmlCache`. المدخل المنتهي بيتقرا وما بيتمسحش، فالخريطة بتكبر ولا
+ * بتصغر أبداً — تسريب ذاكرة على سيرفر مشترك. السقف بيرمي الأقدم. */
+const MAX_HTML_CACHE_ENTRIES = 300;
+
+function putCappedHtml(key: string, value: { expiresAt: number; html: string }): void {
+  htmlCache.delete(key);
+  htmlCache.set(key, value);
+  while (htmlCache.size > MAX_HTML_CACHE_ENTRIES) {
+    const oldest = htmlCache.keys().next();
+    if (oldest.done) break;
+    htmlCache.delete(oldest.value);
+  }
+}
+
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>',
+};
+
+/** رقم الكود لحرف — و`null` لو الرقم برّه المدى بدل ما يرمي. */
+function codePointToChar(code: number): string | null {
+  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return null;
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return null;
+  }
+}
+
+/* مرور واحد، مش سلسلة `replace`. السلسلة كان فيها مشكلتين:
+ *  ١) `&amp;` بتتفك الأول، فـ`&amp;lt;` بتبقى `&lt;` وبعدين `<` —
+ *     فك مزدوج بيغيّر نص المقال.
+ *  ٢) `String.fromCodePoint` بترمي RangeError على كيان بايظ زي
+ *     `&#xFFFFFFFF;` — وصفحة واحدة فيها كده كانت بتوقّع القسم كله. */
 function decodeHtmlEntities(value: string): string {
-  return value
-    .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(Number(dec)));
+  return value.replace(
+    /&(?:#[xX]([0-9a-fA-F]+)|#(\d+)|([a-zA-Z][a-zA-Z0-9]*));/g,
+    (whole, hex, dec, name) => {
+      if (hex !== undefined) return codePointToChar(parseInt(hex, 16)) ?? whole;
+      if (dec !== undefined) return codePointToChar(Number(dec)) ?? whole;
+      return NAMED_ENTITIES[String(name).toLowerCase()] ?? whole;
+    },
+  );
 }
 
 function htmlToText(value: string): string {
@@ -118,13 +151,19 @@ function absoluteStTaklaUrl(
   return url.toString();
 }
 
+/* `Object.hasOwn` مش `in`: الـ`in` بيمشي على سلسلة البروتوتايب، فـ
+ * `'toString' in SECTION_DEFINITIONS` بترجع true. يعني
+ * `/sections/toString/browse` كان بيعدّي من الحارس، وبعدين
+ * `SECTION_DEFINITIONS['toString']` بترجّع دالة الأوبچكت — لا `indexUrl`
+ * ولا `pathPrefix` — والنتيجة ٥٠٣ برسالة «تعذر التحميل من St-Takla»
+ * بتلوم عليهم في غلطة عندنا. */
 function sectionDefinition(key: string): typeof SECTION_DEFINITIONS[StTaklaSectionKey] {
-  if (!(key in SECTION_DEFINITIONS)) throw new Error('قسم St-Takla غير معروف');
-  return SECTION_DEFINITIONS[key as StTaklaSectionKey];
+  if (!isStTaklaSectionKey(key)) throw new Error('قسم St-Takla غير معروف');
+  return SECTION_DEFINITIONS[key];
 }
 
 export function isStTaklaSectionKey(value: string): value is StTaklaSectionKey {
-  return value in SECTION_DEFINITIONS;
+  return Object.hasOwn(SECTION_DEFINITIONS, value);
 }
 
 async function fetchHtml(url: string): Promise<string> {
@@ -151,7 +190,7 @@ async function fetchHtml(url: string): Promise<string> {
     } catch {
       html = new TextDecoder('utf-8').decode(bytes);
     }
-    htmlCache.set(url, { expiresAt: Date.now() + CACHE_TTL_MS, html });
+    putCappedHtml(url, { expiresAt: Date.now() + CACHE_TTL_MS, html });
     return html;
   } finally {
     clearTimeout(timeout);

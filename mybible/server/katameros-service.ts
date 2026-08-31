@@ -1,7 +1,10 @@
 const STTAKLA_KATAMEROS_URL = 'https://st-takla.org/zJ/index.php/ar-readings-katamares';
 const STTAKLA_KATAMEROS_INDEX =
   'https://st-takla.org/zJ/index.php/ar-readings-katamares?view=reading-arabic&sm=3-8&c=&iday=&imonth=&iyear=&dbl=ar';
-const STTAKLA_UA = 'MyBible-Katameros/1.0 (+https://st-takla.org/)';
+/* الـUA بيعرّف بينا إحنا. النسخة الأولى كانت بتحط رابط st-takla نفسه،
+ * يعني بتقول لصاحب الموقع إن الزاحف ده بتاعه — ومحدش يقدر يوصلنا لو
+ * حب يسأل أو يمنع. وASCII بس: هيدرات HTTP هي ByteString. */
+const STTAKLA_UA = 'MyBible-Katameros/1.0 (+https://mybible.oscardevs.com)';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 type ReadingSection =
@@ -92,19 +95,45 @@ function parseDate(value: string): { key: string; year: number; month: number; d
   return { key: value, year, month, day };
 }
 
+/* الكاش بسقف. من غير السقف ده الخريطة بتكبر على طول: كل قراءة في كل
+ * يوم مفتاح جديد، والمدخل المنتهي صلاحيته بيتساب مكانه لأنه بيتقرا بس
+ * ما بيتمسحش. والموقع شغّال على نفس الـReserved VM بتاع أوسكار ديفز. */
+const MAX_CACHE_ENTRIES = 400;
+
+function putCapped<V>(map: Map<string, V>, key: string, value: V): void {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > MAX_CACHE_ENTRIES) {
+    const oldest = map.keys().next();
+    if (oldest.done) break;
+    map.delete(oldest.value);
+  }
+}
+
+/* مهلة صريحة: من غيرها اتصال متعلّق بـSt-Takla بيقفل الطلب من غير نهاية،
+ * وشاشة القداس بتنده `/api/daily-readings` وهي بتشتغل. */
+const FETCH_TIMEOUT_MS = 10000;
+
 async function fetchHtml(url: string): Promise<string> {
   const cached = pageCache.get(url);
   if (cached && cached.expiresAt > Date.now()) return cached.html;
-  const response = await fetch(url, {
-    headers: {
-      'user-agent': STTAKLA_UA,
-      accept: 'text/html,application/xhtml+xml',
-    },
-  });
-  if (!response.ok) throw new Error(`St-Takla رجّع ${response.status}`);
-  const html = await response.text();
-  pageCache.set(url, { expiresAt: Date.now() + CACHE_TTL_MS, html });
-  return html;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'user-agent': STTAKLA_UA,
+        accept: 'text/html,application/xhtml+xml',
+      },
+    });
+    if (!response.ok) throw new Error(`St-Takla رجّع ${response.status}`);
+    const html = await response.text();
+    putCapped(pageCache, url, { expiresAt: Date.now() + CACHE_TTL_MS, html });
+    return html;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function absoluteUrl(href: string): string {
@@ -231,7 +260,7 @@ export async function getStTaklaKatamerosDay(dateValue: string): Promise<Katamer
     title: parsed.title,
     readings,
   };
-  dayCache.set(date.key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
+  putCapped(dayCache, date.key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
   return value;
 }
 
@@ -241,6 +270,7 @@ export interface DailyReadingsCompatibility {
   catholic: { title: string; slides: string[] };
   praxis: { title: string; slides: string[] };
   psalm: { title: string; slides: string[] };
+  synaxar: { title: string; slides: string[] };
   gospel: { title: string; slides: string[] };
   exact: true;
   sourceDay: string;
@@ -262,9 +292,18 @@ export function toDailyReadingsCompatibility(day: KatamerosDay): DailyReadingsCo
   });
   const findSection = (section: KatamerosReading['section']) =>
     day.readings.find(reading => reading.section === section);
-  const synaxariumReadings = day.readings.filter(reading => reading.section === 'synaxarium');
-  const psalm = synaxariumReadings.find(reading => /مزامير|مزمور/.test(reading.reference));
-  const gospel = synaxariumReadings.find(reading => !/مزامير|مزمور/.test(reading.reference));
+
+  /* مزمور القداس وإنجيله الاتنين تحت عنوان «الإنجيل» في صفحة القطمارس —
+   * أول رابط هو المزمور والتاني هو الإنجيل. **مش** تحت «السنكسار»:
+   * السنكسار سيرة القديس، وروابطه مش `view=today_bible` أصلاً، فـ
+   * `parseDayLinks` ما بيسجّلش منه ولا قراءة واحدة. النسخة الأولى كانت
+   * بتقرا الاتنين من السنكسار، فكانت شاشة القداس بتطلع المزمور والإنجيل
+   * **فاضيين** مع `exact: true` — بتقول «دي قراءة النهارده» وهي مش عارضة
+   * حاجة. اللي بيقرا من القسم الصح هنا هو اللي بيتعرض. */
+  const gospelSection = day.readings.filter(reading => reading.section === 'gospel');
+  const psalm = gospelSection.find(reading => /مزامير|مزمور/.test(reading.reference));
+  const gospel = gospelSection.find(reading => !/مزامير|مزمور/.test(reading.reference))
+    ?? (psalm ? undefined : gospelSection[0]);
 
   return {
     copticDate: day.title,
@@ -272,6 +311,12 @@ export function toDailyReadingsCompatibility(day: KatamerosDay): DailyReadingsCo
     catholic: toSlides(findSection('catholic'), 'الكاثوليكون'),
     praxis: toSlides(findSection('praxis'), 'الإبركسيس'),
     psalm: toSlides(psalm, 'المزمور'),
+    /* `synaxar` لازم يبقى موجود حتى لو فاضي. الواجهة بتعرّف ست قراءات في
+     * `DailyReadingSlides` والسيرفر كان بيبعت خمسة، فـ
+     * `_activeReadings['synaxar']` كانت `undefined` — وشاشة القداس بتفرّق
+     * بين «مفيش سنكسار النهارده» (مفتاح بشرايح فاضية) و«التطبيق نسي
+     * الحقل» (مفيش مفتاح). المفتاح الناقص كان بيدّي الشكل التاني. */
+    synaxar: toSlides(findSection('synaxarium'), 'السنكسار'),
     gospel: toSlides(gospel, 'الإنجيل'),
     exact: true,
     sourceDay: day.date,

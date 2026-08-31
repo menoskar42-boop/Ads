@@ -74,8 +74,8 @@ describe('Katameros St-Takla parser', () => {
       readingLink('البولس', 'رومية 1:1-5', 'pauline'),
       readingLink('الكاثوليكون', 'يعقوب 1:1-4', 'catholic'),
       readingLink('الإبركسيس', 'أعمال 1:1-8', 'praxis'),
-      readingLink('السنكسار', 'مزمور 50', 'psalm'),
-      readingLink('السنكسار', 'إنجيل متى 5:1-12', 'gospel'),
+      readingLink('الإنجيل', 'مزمور 50', 'psalm'),
+      readingLink('الإنجيل', 'إنجيل متى 5:1-12', 'gospel'),
     ].join('\n')));
 
     assert.deepEqual(parsed.readings.map(reading => reading.section), [
@@ -84,12 +84,45 @@ describe('Katameros St-Takla parser', () => {
       'pauline',
       'catholic',
       'praxis',
-      'synaxarium',
-      'synaxarium',
+      'gospel',
+      'gospel',
     ]);
     assert.equal(parsed.readings[2].reference, 'رومية 1:1-5');
     assert.match(parsed.readings[2].sourceUrl, /view=today_bible&id=pauline/);
-    assert.equal(parsed.readings[5].label, 'السنكسار');
+    assert.equal(parsed.readings[5].label, 'الإنجيل');
+  });
+
+  /* السنكسار سيرة قديس، وروابطه مش `view=today_bible`. الاختبار ده هو اللي
+   * بيمسك الغلط الأصلي: النسخة الأولى كانت بتقرا المزمور والإنجيل من
+   * السنكسار، فلو حد رجّعها تاني الاتنين يرجعوا فاضيين. */
+  it('ignores synaxarium links and still fills the liturgy psalm and gospel', () => {
+    const parsed = parseDayLinks(dayHtml([
+      readingLink('البولس', 'عبرانيين 11:32', 'pauline'),
+      '<p>السنكسار</p><a href="?view=synaxarium&id=s1">استشهاد القديس مرقس</a>',
+      readingLink('الإنجيل', 'مزمور 116:15', 'psalm'),
+      readingLink('الإنجيل', 'يوحنا 12:24-26', 'gospel'),
+    ].join('\n')));
+
+    assert.equal(
+      parsed.readings.some(reading => reading.section === 'synaxarium'), false,
+      'رابط السنكسار مش قراءة كتابية ولا يتسجّل',
+    );
+
+    const body = toDailyReadingsCompatibility({
+      date: '2026-08-31',
+      sourcePageUrl: 'https://st-takla.org/day',
+      sourceIndexUrl: 'https://st-takla.org/index',
+      title: 'يوم تجريبي',
+      readings: parsed.readings.map(reading => ({
+        ...reading,
+        verses: [{ chapter: 1, verse: 1, text: 'نص' }],
+        status: 'ok' as const,
+      })),
+    });
+    assert.equal(body.psalm.title, 'مزمور 116:15');
+    assert.equal(body.gospel.title, 'يوحنا 12:24-26');
+    assert.equal(body.psalm.slides.length, 1);
+    assert.equal(body.gospel.slides.length, 1);
   });
 
   it('extracts Arabic numerals and resets the chapter at a boundary', () => {
@@ -191,8 +224,8 @@ describe('Katameros service and API contracts', () => {
           readingLink('البولس', 'رومية 1:1-2', 'pauline'),
           readingLink('الكاثوليكون', 'يعقوب 1:1-2', 'catholic'),
           readingLink('الإبركسيس', 'أعمال 1:1-2', 'praxis'),
-          readingLink('السنكسار', 'مزمور 50', 'psalm'),
-          readingLink('السنكسار', 'متى 5:1-2', 'gospel'),
+          readingLink('الإنجيل', 'مزمور 50', 'psalm'),
+          readingLink('الإنجيل', 'متى 5:1-2', 'gospel'),
         ].join('\n')));
       }
       if (url.includes('id=pauline')) return response(versePage('١', '١', 'نص البولس'));
@@ -214,6 +247,7 @@ describe('Katameros service and API contracts', () => {
       'catholic',
       'praxis',
       'psalm',
+      'synaxar',
       'source',
       'sourceDay',
       'sourceUrl',
