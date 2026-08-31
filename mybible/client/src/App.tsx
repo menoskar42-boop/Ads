@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect, type ComponentType } from 'react';
 import { maybeSendWelcome } from '@/lib/push-notifications';
-import { Switch, Route, useLocation } from 'wouter';
+import { Switch, Route, useLocation, type RouteComponentProps } from 'wouter';
 import { queryClient } from './lib/queryClient';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
@@ -9,48 +9,68 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Layout } from '@/components/layout/Layout';
 import { SEOHead } from '@/components/SEOHead';
 import Home from '@/pages/Home';
-import Bible from '@/pages/Bible';
-import Plans from '@/pages/Plans';
-import Emotions from '@/pages/Emotions';
-import Kids from '@/pages/Kids';
-import Service from '@/pages/Service';
-import Family from '@/pages/Family';
-import Highlights from '@/pages/Highlights';
-import Premium from '@/pages/Premium';
-import Search from '@/pages/Search';
-import About from '@/pages/About';
-import Privacy from '@/pages/Privacy';
-import Contact from '@/pages/Contact';
-import MinistryAuth from '@/pages/MinistryAuth';
-import Groups from '@/pages/Groups';
-import GroupCreate from '@/pages/GroupCreate';
-import GroupJoin from '@/pages/GroupJoin';
-import GroupInvite from '@/pages/GroupInvite';
-import GroupView from '@/pages/GroupView';
-import GroupMembers from '@/pages/GroupMembers';
-import GroupChat from '@/pages/GroupChat';
-import Churches from '@/pages/Churches';
-import ChurchView from '@/pages/ChurchView';
-import ChurchRequest from '@/pages/ChurchRequest';
-import AdminDashboard from '@/pages/AdminDashboard';
-import Terms from '@/pages/Terms';
-import Challenge from '@/pages/Challenge';
-import TopicPage from '@/pages/TopicPage';
-import VideoPage from '@/pages/VideoPage';
-import Orthodox from '@/pages/Orthodox';
-import OrthodoxAgpeya from '@/pages/OrthodoxAgpeya';
-import OrthodoxAgpeyaHour from '@/pages/OrthodoxAgpeyaHour';
-import OrthodoxSynaxarium from '@/pages/OrthodoxSynaxarium';
-import OrthodoxSynaxariumDay from '@/pages/OrthodoxSynaxariumDay';
-import LiturgyControl from '@/pages/LiturgyControl';
-import LiturgyDisplay from '@/pages/LiturgyDisplay';
-import Kholagy from '@/pages/Kholagy';
-import KholagyPro from '@/pages/KholagyPro';
-import ExitIntelligence from '@/pages/ExitIntelligence';
-import SharePage from '@/pages/SharePage';
-import NotFound from '@/pages/not-found';
-import Sitemap from '@/pages/Sitemap';
-import DailyVersePage from '@/pages/DailyVersePage';
+
+type PageModule = { default: ComponentType<RouteComponentProps> };
+
+function lazyPage(load: () => Promise<PageModule>): ComponentType<RouteComponentProps> {
+  const Page = lazy(load);
+  return function LazyPage(props: RouteComponentProps) {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex min-h-[40vh] items-center justify-center text-muted-foreground" role="status">
+            جارٍ تحميل الصفحة...
+          </div>
+        }
+      >
+        <Page {...props} />
+      </Suspense>
+    );
+  };
+}
+
+const Bible = lazyPage(() => import('@/pages/Bible'));
+const Plans = lazyPage(() => import('@/pages/Plans'));
+const Emotions = lazyPage(() => import('@/pages/Emotions'));
+const Kids = lazyPage(() => import('@/pages/Kids'));
+const Service = lazyPage(() => import('@/pages/Service'));
+const Family = lazyPage(() => import('@/pages/Family'));
+const Highlights = lazyPage(() => import('@/pages/Highlights'));
+const Premium = lazyPage(() => import('@/pages/Premium'));
+const Search = lazyPage(() => import('@/pages/Search'));
+const About = lazyPage(() => import('@/pages/About'));
+const Privacy = lazyPage(() => import('@/pages/Privacy'));
+const Contact = lazyPage(() => import('@/pages/Contact'));
+const MinistryAuth = lazyPage(() => import('@/pages/MinistryAuth'));
+const Groups = lazyPage(() => import('@/pages/Groups'));
+const GroupCreate = lazyPage(() => import('@/pages/GroupCreate'));
+const GroupJoin = lazyPage(() => import('@/pages/GroupJoin'));
+const GroupInvite = lazyPage(() => import('@/pages/GroupInvite'));
+const GroupView = lazyPage(() => import('@/pages/GroupView'));
+const GroupMembers = lazyPage(() => import('@/pages/GroupMembers'));
+const GroupChat = lazyPage(() => import('@/pages/GroupChat'));
+const Churches = lazyPage(() => import('@/pages/Churches'));
+const ChurchView = lazyPage(() => import('@/pages/ChurchView'));
+const ChurchRequest = lazyPage(() => import('@/pages/ChurchRequest'));
+const AdminDashboard = lazyPage(() => import('@/pages/AdminDashboard'));
+const Terms = lazyPage(() => import('@/pages/Terms'));
+const Challenge = lazyPage(() => import('@/pages/Challenge'));
+const TopicPage = lazyPage(() => import('@/pages/TopicPage'));
+const VideoPage = lazyPage(() => import('@/pages/VideoPage'));
+const Orthodox = lazyPage(() => import('@/pages/Orthodox'));
+const OrthodoxAgpeya = lazyPage(() => import('@/pages/OrthodoxAgpeya'));
+const OrthodoxAgpeyaHour = lazyPage(() => import('@/pages/OrthodoxAgpeyaHour'));
+const OrthodoxSynaxarium = lazyPage(() => import('@/pages/OrthodoxSynaxarium'));
+const OrthodoxSynaxariumDay = lazyPage(() => import('@/pages/OrthodoxSynaxariumDay'));
+const LiturgyControl = lazyPage(() => import('@/pages/LiturgyControl'));
+const LiturgyDisplay = lazyPage(() => import('@/pages/LiturgyDisplay'));
+const Kholagy = lazyPage(() => import('@/pages/Kholagy'));
+const KholagyPro = lazyPage(() => import('@/pages/KholagyPro'));
+const ExitIntelligence = lazyPage(() => import('@/pages/ExitIntelligence'));
+const SharePage = lazyPage(() => import('@/pages/SharePage'));
+const NotFound = lazyPage(() => import('@/pages/not-found'));
+const Sitemap = lazyPage(() => import('@/pages/Sitemap'));
+const DailyVersePage = lazyPage(() => import('@/pages/DailyVersePage'));
 
 // صفحات بدون Layout (ملء الشاشة)
 const FULL_SCREEN_ROUTES = ['/liturgy-display'];

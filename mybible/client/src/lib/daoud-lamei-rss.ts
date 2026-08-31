@@ -60,7 +60,7 @@ function chapterMatches(title: string, chapter: number): boolean {
   //    Capture all numbers after "إصحاح" on that segment
   const rangeMatch = title.match(/إصحاح\s*([\d\s\u0648و-]+)/);
   if (rangeMatch) {
-    const nums = rangeMatch[1].match(/\d+/g) || [];
+    const nums: string[] = rangeMatch[1].match(/\d+/g) ?? [];
     if (nums.includes(n)) return true;
   }
 

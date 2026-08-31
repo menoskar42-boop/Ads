@@ -3,3 +3,8 @@
 - [Phone stream identity](phone-stream-identity.md) — bind voice media streams to short-lived signed capabilities plus database ownership checks.
 - [BranchFlow opportunity](branchflow-opportunity.md) — validate a focused Arabic branch-operations workflow before building a full SaaS.
 - [Deployment dev dependencies](deployment-dev-deps.md) — production environment installs may omit build tools unless deployment installs explicitly include dev dependencies.
+- [Deuterocanonical group reading](deutero-group-reading.md) — group readers must fetch every deuterocanonical chapter from the verified St-Takla source, not incomplete local copies.
+- [Katameros source](katameros-sttakla.md) — date-specific readings come from St-Takla’s today page and linked today_bible pages, with no local fallback.
+- [Synaxarium source](synaxarium-copticchurch.md) — daily Arabic Synaxarium text comes from validated month/day pages on copticchurch.net, with explicit unavailable states.
+- [MyBible preview build](mybible-preview-build.md) — the root preview serves MyBible from its compiled child bundle, so rebuild before live verification.
+- [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — strip navigation, avoid chapter-wrapper inference, and use current live URLs when indexed pages move.

@@ -7,16 +7,23 @@ import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimi
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
-import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, importDeuteroFromGitHub, stTaklaProbe } from "./deutero";
-import { getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile } from "./tafsir-service";
+import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
+import { fetchLiveMissingChapter, getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile, TAFSIR_SOURCE } from "./tafsir-service";
 import { fetchDaoudLameiRss, clearDaoudLameiCache } from "./daoud-lamei-service";
 import { isTopicWorthy, extractKeywords, toSlug, buildTopicTitle } from "./seo-topics";
 import { getVideoSeoById, getAllVideoSeoEntries } from "./video-seo-data";
-import { fetchTodaySynaxarium } from "./orthodox-service";
+import { fetchSynaxariumDay, fetchTodaySynaxarium } from "./orthodox-service";
+import { getStTaklaKatamerosDay, toDailyReadingsCompatibility } from "./katameros-service";
+import {
+  getStTaklaSectionCatalogs,
+  getStTaklaSectionBrowse,
+  getStTaklaSectionArticle,
+  isStTaklaSectionKey,
+  type StTaklaSectionKey,
+} from "./st-takla-sections-service";
 import { recalculatePageScore } from "./metrics-service";
 import { detectExitReason } from "./exit-intelligence";
 import { sendWelcomeNotification, sendTestNotification, sendDailyVerseNotification, sendDailyGroupReadingNotification, getLastSendError } from "./push-notifications";
-import { getDeuteroSourceCatalog, getDeuteroSourceChapter } from "./github-deutero";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -54,14 +61,122 @@ export async function registerRoutes(
   });
 
   // ── Orthodox: Synaxarium proxy ──────────────────────────────────────────
-  app.get('/api/orthodox/synaxarium', async (_req, res) => {
+  app.get('/api/orthodox/synaxarium', async (req, res) => {
+    const hasMonth = req.query.month !== undefined;
+    const hasDay = req.query.day !== undefined;
+    if (hasMonth !== hasDay) {
+      return res.status(400).json({
+        source: 'copticchurch.net',
+        message: 'الشهر واليوم القبطي مطلوبان معًا',
+      });
+    }
+
     try {
-      const data = await fetchTodaySynaxarium();
+      const month = Number(req.query.month);
+      const day = Number(req.query.day);
+      if (hasMonth && (!Number.isInteger(month) || !Number.isInteger(day))) {
+        return res.status(400).json({
+          source: 'copticchurch.net',
+          message: 'الشهر واليوم القبطيان يجب أن يكونا أرقامًا صحيحة',
+        });
+      }
+      const data = hasMonth && hasDay
+        ? await fetchSynaxariumDay(month, day)
+        : await fetchTodaySynaxarium();
       res.set('Cache-Control', 'public, max-age=21600');
       res.json(data);
     } catch (err) {
       console.error('[orthodox] Synaxarium route error:', err);
-      res.status(500).json({ copticDate: '', entries: [] });
+      res.status(503).json({
+        source: 'copticchurch.net',
+        message: 'تعذر تحميل السنكسار من المصدر حاليًا',
+        entries: [],
+      });
+    }
+  });
+
+  // ── Orthodox: St-Takla Katameros proxy ───────────────────────────────────
+  app.get('/api/orthodox/katameros', async (req, res) => {
+    const date = String(req.query.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ status: 'error', message: 'التاريخ مطلوب بصيغة YYYY-MM-DD' });
+    }
+    try {
+      const data = await getStTaklaKatamerosDay(date);
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.json({ status: 'ok', source: 'St-Takla.org', ...data });
+    } catch (error: any) {
+      console.error('[orthodox] Katameros route error:', error?.message || error);
+      return res.status(503).json({
+        status: 'error',
+        source: 'St-Takla.org',
+        message: 'تعذر تحميل قراءات القطمارس من St-Takla حاليًا',
+      });
+    }
+  });
+
+  // ── Orthodox: St-Takla reference sections proxy ───────────────────────────
+  app.get('/api/orthodox/sttakla/sections', async (_req, res) => {
+    try {
+      const sections = await getStTaklaSectionCatalogs();
+      res.set('Cache-Control', 'public, max-age=900');
+      return res.json({ source: 'St-Takla.org', sections });
+    } catch (error: any) {
+      console.error('[orthodox] St-Takla sections catalog error:', error?.message || error);
+      return res.status(503).json({
+        source: 'St-Takla.org',
+        message: 'تعذر تحميل أقسام St-Takla حاليًا',
+        sections: [],
+      });
+    }
+  });
+
+  app.get('/api/orthodox/sttakla/sections/:section/browse', async (req, res) => {
+    const section = String(req.params.section);
+    const browseId = String(req.query.key || '');
+    const query = String(req.query.q || '');
+    const page = Number(req.query.page || 1);
+    const pageSize = Number(req.query.pageSize || 40);
+    if (!isStTaklaSectionKey(section)) {
+      return res.status(400).json({ message: 'قسم St-Takla غير صالح' });
+    }
+    if (!browseId) {
+      return res.status(400).json({ message: 'مفتاح التصفح مطلوب' });
+    }
+    try {
+      const data = await getStTaklaSectionBrowse(section, browseId, query, page, pageSize);
+      res.set('Cache-Control', 'public, max-age=900');
+      return res.json(data);
+    } catch (error: any) {
+      console.error('[orthodox] St-Takla browse error:', error?.message || error);
+      return res.status(503).json({
+        source: 'St-Takla.org',
+        section,
+        message: 'تعذر تحميل هذا القسم من St-Takla حاليًا',
+        items: [],
+      });
+    }
+  });
+
+  app.get('/api/orthodox/sttakla/sections/:section/article', async (req, res) => {
+    const section = String(req.params.section);
+    const sourceUrl = String(req.query.url || '');
+    if (!isStTaklaSectionKey(section)) {
+      return res.status(400).json({ message: 'قسم St-Takla غير صالح' });
+    }
+    if (!sourceUrl) {
+      return res.status(400).json({ message: 'رابط المقال مطلوب' });
+    }
+    try {
+      const data = await getStTaklaSectionArticle(section as StTaklaSectionKey, sourceUrl);
+      res.set('Cache-Control', 'public, max-age=900');
+      return res.json(data);
+    } catch (error: any) {
+      console.error('[orthodox] St-Takla article error:', error?.message || error);
+      return res.status(503).json({
+        source: 'St-Takla.org',
+        message: 'تعذر تحميل المقال من St-Takla حاليًا',
+      });
     }
   });
 
@@ -255,121 +370,24 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
   });
 
-  // مصدر حي عام من GitHub — لا يُخزّن النص في قاعدة MyBible.
-  app.get('/api/deutero/source', async (_req, res) => {
+  // مصدر حي من St-Takla — لا يُخزّن النص في قاعدة MyBible.
+  app.get('/api/deutero/sttakla', async (_req, res) => {
     try {
-      const catalog = await getDeuteroSourceCatalog();
-      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
-      res.json(catalog);
-    } catch (e: any) {
-      console.error('[deutero-source] catalog route error:', e.message);
-      res.set('Cache-Control', 'no-store');
-      res.json({
-        status: {
-          available: false,
-          reason: 'source-unavailable',
-          repositoryUrl: 'https://github.com/aymhenry/Bible-for-Windows',
-          sourceUrl: 'https://github.com/aymhenry/Bible-for-Windows/blob/main/DataFiles/BibleMan02.bib',
-          manifestUrl: 'https://github.com/aymhenry/Bible-for-Windows/blob/main/code/modBasicData.au3',
-          branch: 'main',
-          checkedAt: new Date().toISOString(),
-        },
-        books: [],
-      });
-    }
-  });
-
-  app.get('/api/deutero/source/status', async (_req, res) => {
-    try {
-      const catalog = await getDeuteroSourceCatalog();
-      res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
-      return res.json(catalog.status);
-    } catch (e: any) {
-      console.error('[deutero-source] status route error:', e.message);
-      return res.status(503).json({ available: false, reason: 'source-unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/books', async (_req, res) => {
-    try {
-      const catalog = await getDeuteroSourceCatalog();
+      const catalog = await getStTaklaCatalog();
       res.set('Cache-Control', catalog.status.available ? 'public, max-age=60' : 'no-store');
       return res.json(catalog);
     } catch (e: any) {
-      console.error('[deutero-source] books route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/books/:bookId/chapters', async (req, res) => {
-    const bookId = Number(req.params.bookId);
-    if (!Number.isInteger(bookId) || bookId < 67 || bookId > 73) {
-      return res.status(400).json({ message: 'Invalid source book' });
-    }
-
-    try {
-      const catalog = await getDeuteroSourceCatalog();
-      if (!catalog.status.available) {
-        res.set('Cache-Control', 'no-store');
-        return res.json({ ...catalog, chapters: [] });
-      }
-      const book = catalog.books.find((item) => item.id === bookId);
-      if (!book) return res.status(404).json({ message: 'Book not found in public source' });
-      res.set('Cache-Control', 'public, max-age=60');
-      return res.json({
-        status: catalog.status,
-        book,
-        chapters: Array.from({ length: book.chaptersCount }, (_, index) => index + 1),
+      console.error('[st-takla] catalog route error:', e.message);
+      return res.status(503).json({
+        status: {
+          available: false,
+          sourceName: 'الترجمة اليسوعية القديمة 1877 — St-Takla.org',
+          sourceUrl: 'https://st-takla.org/',
+          checkedAt: new Date().toISOString(),
+          reason: 'source-unavailable',
+        },
+        books: [],
       });
-    } catch (e: any) {
-      console.error('[deutero-source] chapters route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/books/:bookId/chapters/:chapter', async (req, res) => {
-    const bookId = Number(req.params.bookId);
-    const chapter = Number(req.params.chapter);
-    if (!Number.isInteger(bookId) || !Number.isInteger(chapter) || bookId < 67 || bookId > 73 || chapter < 1) {
-      return res.status(400).json({ message: 'Invalid source book or chapter' });
-    }
-
-    try {
-      const result = await getDeuteroSourceChapter(bookId, chapter);
-      if (!result.catalog.status.available) {
-        res.set('Cache-Control', 'no-store');
-      } else if (!result.verses.length) {
-        return res.status(404).json({ message: 'Chapter not found in public source' });
-      } else {
-        res.set('Cache-Control', 'public, max-age=60');
-      }
-      return res.json(result);
-    } catch (e: any) {
-      console.error('[deutero-source] chapter route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
-    }
-  });
-
-  app.get('/api/deutero/source/:bookId/:chapter', async (req, res) => {
-    const bookId = Number(req.params.bookId);
-    const chapter = Number(req.params.chapter);
-    if (!Number.isInteger(bookId) || !Number.isInteger(chapter) || bookId < 67 || bookId > 73 || chapter < 1) {
-      return res.status(400).json({ message: 'Invalid source book or chapter' });
-    }
-
-    try {
-      const result = await getDeuteroSourceChapter(bookId, chapter);
-      if (!result.catalog.status.available) {
-        res.set('Cache-Control', 'no-store');
-      } else if (!result.verses.length) {
-        return res.status(404).json({ message: 'Chapter not found in public source' });
-      } else {
-        res.set('Cache-Control', 'public, max-age=60');
-      }
-      return res.json(result);
-    } catch (e: any) {
-      console.error('[deutero-source] chapter route error:', e.message);
-      return res.status(503).json({ message: 'Public source is temporarily unavailable' });
     }
   });
 
@@ -382,8 +400,6 @@ export async function registerRoutes(
 
   /* استيراد من رابط API خارجي. نفس المفتاح، ونفس كل الفحوص — الرابط
    * بيتحوّل لملف الأول عشان مايلفّش حول أي بوّابة. */
-  /* استيراد من مصدر GitHub للقاعدة — الوصلة اللي بتخلّي الأسفار تدخل
-   * البحث وقراءات الجروبات، مش تتعرض في قارئ منفصل بس. */
   /* استكشاف بنية صفحة سانت تكلا — صفحة واحدة، عشان المستخرِج يتكتب
    * على شكل حقيقي مش على تخمين. */
   app.get('/api/deutero/sttakla/probe', async (req, res) => {
@@ -394,14 +410,36 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ status: 'error', message: e.message }); }
   });
 
-  app.post('/api/deutero/import-github', async (req, res) => {
+  // قراءة إصحاح من St-Takla عبر قائمة روابط ثابتة — لا يقبل URL من المستخدم.
+  app.get('/api/deutero/sttakla/books/:bookId/chapters/:chapter', async (req, res) => {
+    const bookId = Number(req.params.bookId);
+    const chapter = Number(req.params.chapter);
+    if (!Number.isInteger(bookId) || !Number.isInteger(chapter)) {
+      return res.status(400).json({ status: 'error', message: 'رقم السفر والإصحاح غير صالح' });
+    }
+    try {
+      const out = await getStTaklaChapter(bookId, chapter);
+      res.set('Cache-Control', out.ok ? 'public, max-age=300' : 'no-store');
+      res.status(out.ok ? 200 : 404).json({ status: out.ok ? 'ok' : 'error', ...out });
+    } catch (e: any) {
+      console.error('[st-takla] chapter route error:', e.message);
+      res.status(502).json({ status: 'error', message: 'تعذر الاتصال بمصدر St-Takla' });
+    }
+  });
+
+  // استيراد سفر كامل من St-Takla — محمي بمفتاح، وبفاصل زمني بين الصفحات.
+  app.post('/api/deutero/import-sttakla', async (req, res) => {
     if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     const b = req.body || {};
-    const out = await importDeuteroFromGitHub(
-      String(b.book || '').trim(), Number(b.sourceBookId),
-      String(b.source || '').trim(), b.confirmedByChurch === true,
-    );
-    res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
+    try {
+      const out = await importDeuteroFromStTakla(
+        String(b.book || '').trim(), Number(b.sourceBookId), b.confirmedByChurch === true,
+      );
+      res.status(out.ok ? 200 : 400).json({ status: out.ok ? 'ok' : 'error', ...out });
+    } catch (e: any) {
+      console.error('[st-takla] import route error:', e.message);
+      res.status(502).json({ status: 'error', message: 'تعذر استيراد السفر من St-Takla' });
+    }
   });
 
   app.post('/api/deutero/import-url', async (req, res) => {
@@ -642,22 +680,36 @@ export async function registerRoutes(
     try {
       const csvName = decodeURIComponent(req.params.csvName);
       const intro = getBookIntro(csvName);
-      res.json({ tafsir: intro });
+      res.json({ tafsir: intro, source: TAFSIR_SOURCE });
     } catch (error) {
       console.error('[tafsir] book-intro error:', error);
       res.status(500).json({ message: 'Failed to fetch book intro' });
     }
   });
 
-  app.get('/api/tafsir/chapter/:csvName/:chapter', (req, res) => {
+  app.get('/api/tafsir/chapter/:csvName/:chapter', async (req, res) => {
     try {
       const csvName = decodeURIComponent(req.params.csvName);
       const chapter = parseInt(req.params.chapter, 10);
-      const tafsir = getChapterTafsir(csvName, chapter);
+      let tafsir = getChapterTafsir(csvName, chapter);
+      let source = TAFSIR_SOURCE;
+      let origin: 'local' | 'live' | 'unavailable' = tafsir ? 'local' : 'unavailable';
+      if (!tafsir) {
+        try {
+          const live = await fetchLiveMissingChapter(csvName, chapter);
+          if (live) {
+            tafsir = live.tafsir;
+            source = { ...TAFSIR_SOURCE, url: live.sourceUrl };
+            origin = 'live';
+          }
+        } catch (error) {
+          console.warn(`[tafsir] live fallback unavailable for ${csvName}:${chapter}:`, error);
+        }
+      }
       // نرجّع السبب عشان الواجهة تقول للمستخدم إيه اللي ناقص بالظبط بدل
       // رسالة «لا يوجد تفسير» اللي مش بتفرّق بين سفر مش متحمّل وإصحاح ناقص.
       const reason = tafsir ? null : hasBookFile(csvName) ? 'chapter-missing' : 'book-missing';
-      res.json({ tafsir, reason });
+      res.json({ tafsir, reason, origin, source });
     } catch (error) {
       console.error('[tafsir] chapter error:', error);
       res.status(500).json({ message: 'Failed to fetch chapter tafsir' });
@@ -669,13 +721,15 @@ export async function registerRoutes(
       const csvName = decodeURIComponent(req.params.csvName);
       const chapter = parseInt(req.params.chapter, 10);
       const verse = parseInt(req.params.verse, 10);
-      // لو الآية مالهاش تفسير مخصوص، نرجّع تفسير الإصحاح **بعلامة scope** بدل
-      // ما نسيب المستخدم من غير حاجة. العلامة مش تفصيلة: عرض تفسير الإصحاح
-      // على إنه تفسير الآية هو نفس الغلط اللي كان بيعرض مقدمة السفر.
+      // تفسير الآية لا يجوز أن يسقط إلى تفسير الإصحاح أو السفر؛
+      // عرض نص أوسع على أنه تفسير للآية يضلل المستخدم.
       const verseText = getVerseTafsir(csvName, chapter, verse);
-      if (verseText) return res.json({ tafsir: verseText, scope: 'verse' });
-      const chapterText = getChapterTafsir(csvName, chapter);
-      res.json({ tafsir: chapterText, scope: chapterText ? 'chapter' : null });
+      res.json({
+        tafsir: verseText,
+        scope: verseText ? 'verse' : null,
+        reason: verseText ? null : 'verse-missing',
+        source: TAFSIR_SOURCE,
+      });
     } catch (error) {
       console.error('[tafsir] verse error:', error);
       res.status(500).json({ message: 'Failed to fetch verse tafsir' });
@@ -2229,41 +2283,21 @@ ${excludedStr}
     return null;
   }
 
-  // GET /api/daily-readings — يُعيد القراءات الخمس مع نصوصها لليوم الحالي
+  // GET /api/daily-readings — compatibility shape for the liturgy display.
+  // The source is the same verified St-Takla Katameros page used by Orthodox.
   app.get('/api/daily-readings', async (_req, res) => {
     try {
       const today = new Date();
-      const { day, month } = gregorianToCopticServer(today);
-      const copticDate = `${day} ${MONTH_NAMES[month] ?? 'توت'}`;
-      const feastKey = getFeastKey(today);
-      const feastReading = feastKey ? serverLectionary[feastKey] : undefined;
-      const resolved = feastReading
-        ? { reading: feastReading, exact: true, sourceKey: feastKey as string }
-        : getServerLectionary(month, day);
-      const lectionary = resolved.reading;
-
-      const [pauline, catholic, praxis, psalm, gospel] = await Promise.all([
-        fetchReadingText(lectionary.pauline),
-        fetchReadingText(lectionary.catholic),
-        fetchReadingText(lectionary.praxis),
-        fetchReadingText(lectionary.psalm),
-        fetchReadingText(lectionary.gospel),
-      ]);
-
-      // exact=false يعني إن دي أقرب قراءة سابقة مش قراءة اليوم نفسه. الشاشة
-      // لازم تقول كده بوضوح — عرض قراءة يوم تاني كأنها قراءة النهاردة في قدّاس
-      // أسوأ بكتير من إننا نقول إنها غير مؤكدة.
-      const sourceDay = /^\d+-\d+$/.test(resolved.sourceKey)
-        ? `${resolved.sourceKey.split('-')[1]} ${MONTH_NAMES[parseInt(resolved.sourceKey.split('-')[0], 10)] ?? ''}`.trim()
-        : resolved.sourceKey;
-      res.json({
-        copticDate, pauline, catholic, praxis, psalm, gospel,
-        exact: resolved.exact,
-        sourceDay,
-      });
+      const date = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0'),
+        String(today.getDate()).padStart(2, '0'),
+      ].join('-');
+      const day = await getStTaklaKatamerosDay(date);
+      res.json(toDailyReadingsCompatibility(day));
     } catch (err) {
       console.error('daily-readings error:', err);
-      res.status(500).json({ error: 'فشل جلب القراءات' });
+      res.status(503).json({ error: 'فشل جلب قراءات St-Takla' });
     }
   });
 

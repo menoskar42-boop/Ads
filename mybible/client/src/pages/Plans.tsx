@@ -936,7 +936,9 @@ export default function Plans() {
                   <TafsirText text={tafsirText} />
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">لا يوجد تفسير متاح حاليًا.</p>
+                <p className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">
+                  {tafsirDialogType === 'verse' ? 'لا يوجد تفسير خاص لهذه الآية حاليًا.' : 'لا يوجد تفسير متاح حاليًا.'}
+                </p>
               )}
               <Button variant="outline" onClick={() => setChapterSubView('verses')} className="mt-4 w-full border-primary text-primary font-semibold">
                 <ChevronLeft className="w-5 h-5 ml-1" />رجوع للآيات
@@ -1258,7 +1260,9 @@ export default function Plans() {
                     <TafsirText text={tafsirText} />
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">لا يوجد تفسير متاح حاليًا.</p>
+                  <p className="text-sm text-muted-foreground text-center p-4" data-testid="text-no-tafsir">
+                    {tafsirDialogType === 'verse' ? 'لا يوجد تفسير خاص لهذه الآية حاليًا.' : 'لا يوجد تفسير متاح حاليًا.'}
+                  </p>
                 )}
                 <Button variant="outline" onClick={() => setChapterSubView('verses')} className="mt-4 w-full border-primary text-primary font-semibold">
                   <ChevronLeft className="w-5 h-5 ml-1" />رجوع للآيات

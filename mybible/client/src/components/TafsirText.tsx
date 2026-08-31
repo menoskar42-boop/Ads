@@ -97,9 +97,18 @@ function parseTafsirText(rawText: string): TafsirSegment[] {
 
 interface TafsirTextProps {
   text: string;
+  sourceUrl?: string;
+  sourceLabel?: string;
 }
 
-export function TafsirText({ text }: TafsirTextProps) {
+const TAFSIR_SOURCE_URL =
+  'https://st-takla.org/pub_Bible-Interpretations/Tafseer-Al-Keta-Al-Mokadas-index-2-Father-Antonios-Fekry.html';
+
+export function TafsirText({
+  text,
+  sourceUrl = TAFSIR_SOURCE_URL,
+  sourceLabel = 'تفسير عربي منشور على St-Takla.org',
+}: TafsirTextProps) {
   const segments = useMemo(() => parseTafsirText(text), [text]);
 
   return (
@@ -111,6 +120,17 @@ export function TafsirText({ text }: TafsirTextProps) {
           <span key={i}>{seg.text}</span>
         )
       )}
+      <span className="block mt-4 pt-3 border-t border-border/50 text-xs text-muted-foreground">
+        المصدر:{' '}
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-primary hover:underline"
+        >
+          {sourceLabel}
+        </a>
+      </span>
     </>
   );
 }

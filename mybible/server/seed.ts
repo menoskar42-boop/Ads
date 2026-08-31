@@ -187,6 +187,7 @@ export async function seedDatabase() {
     // Seed Bible Verses
     console.log('📜 Seeding Bible verses...');
     const verseIds: number[] = [];
+    const seededVerseData = new Map<number, typeof sampleVersesData[number]>();
     for (const verseData of sampleVersesData) {
       const bookId = bookMap.get(verseData.bookName);
       if (bookId) {
@@ -197,6 +198,7 @@ export async function seedDatabase() {
           text: verseData.text,
         });
         verseIds.push(verse.id);
+        seededVerseData.set(verseIds.length - 1, verseData);
         console.log(`  ✓ Created verse: ${verseData.bookName} ${verseData.chapter}:${verseData.verse}`);
       }
     }
@@ -234,8 +236,15 @@ export async function seedDatabase() {
       const emotion = emotionsData.findIndex(e => e.name === mapping.emotionName);
       if (emotion !== -1 && emotionIds[emotion]) {
         for (const verseIndex of mapping.verseIndexes) {
-          if (verseIds[verseIndex]) {
-            await storage.addEmotionVerse(emotionIds[emotion], verseIds[verseIndex]);
+          const verseData = seededVerseData.get(verseIndex);
+          if (verseData && emotionIds[emotion]) {
+            await storage.addEmotionVerse({
+              emotionId: emotionIds[emotion],
+              bookName: verseData.bookName,
+              chapter: verseData.chapter,
+              verse: verseData.verse,
+              verseText: verseData.text,
+            });
           }
         }
         console.log(`  ✓ Mapped ${mapping.emotionName} to verses`);
@@ -256,8 +265,15 @@ export async function seedDatabase() {
       const topic = topicsData.findIndex(t => t.name === mapping.topicName);
       if (topic !== -1 && topicIds[topic]) {
         for (const verseIndex of mapping.verseIndexes) {
-          if (verseIds[verseIndex]) {
-            await storage.addTopicVerse(topicIds[topic], verseIds[verseIndex]);
+          const verseData = seededVerseData.get(verseIndex);
+          if (verseData && topicIds[topic]) {
+            await storage.addTopicVerse({
+              topicId: topicIds[topic],
+              bookName: verseData.bookName,
+              chapter: verseData.chapter,
+              verse: verseData.verse,
+              verseText: verseData.text,
+            });
           }
         }
         console.log(`  ✓ Mapped ${mapping.topicName} to verses`);

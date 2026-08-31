@@ -1,16 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, Github, Loader2 } from 'lucide-react';
+import { AlertCircle, BookOpen, BookText, ExternalLink, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
+import {
+  fetchBookIntro,
+  fetchChapterTafsir,
+  fetchVerseTafsir,
+  getLastChapterTafsirReason,
+  type TafsirMissingReason,
+} from '@/lib/tafsir-csv-service';
+import { TafsirText } from '@/components/TafsirText';
 
 export function RemoteDeuteroReader() {
   const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
   const [selectedChapter, setSelectedChapter] = useState(1);
+  const [tafsirView, setTafsirView] = useState<'intro' | 'chapter' | 'verse' | null>(null);
+  const [tafsirVerse, setTafsirVerse] = useState<number | null>(null);
+  const [tafsirText, setTafsirText] = useState<string | null>(null);
+  const [tafsirLoading, setTafsirLoading] = useState(false);
+  const [tafsirReason, setTafsirReason] = useState<TafsirMissingReason>(null);
 
   const catalogQuery = useQuery({
-    queryKey: ['deutero-source-catalog'],
+    queryKey: ['deutero-sttakla-catalog'],
     queryFn: api.deuteroSource.getCatalog,
     staleTime: 60_000,
     refetchInterval: 60_000,
@@ -38,8 +52,36 @@ export function RemoteDeuteroReader() {
     if (selectedChapter > selectedBook.chaptersCount) setSelectedChapter(1);
   }, [selectedBook, selectedChapter]);
 
+  useEffect(() => {
+    setTafsirView(null);
+    setTafsirText(null);
+    setTafsirVerse(null);
+  }, [selectedBookId, selectedChapter]);
+
+  const openTafsir = async (type: 'intro' | 'chapter' | 'verse', verse?: number) => {
+    if (!selectedBook) return;
+    setTafsirView(type);
+    setTafsirVerse(type === 'verse' ? verse ?? null : null);
+    setTafsirText(null);
+    setTafsirReason(null);
+    setTafsirLoading(true);
+
+    try {
+      if (type === 'intro') {
+        setTafsirText(await fetchBookIntro(selectedBook.name));
+      } else if (type === 'chapter') {
+        setTafsirText(await fetchChapterTafsir(selectedBook.name, selectedChapter));
+        setTafsirReason(getLastChapterTafsirReason());
+      } else if (verse !== undefined) {
+        setTafsirText(await fetchVerseTafsir(selectedBook.name, selectedChapter, verse));
+      }
+    } finally {
+      setTafsirLoading(false);
+    }
+  };
+
   const chapterQuery = useQuery({
-    queryKey: ['deutero-source-chapter', selectedBook?.id, selectedChapter],
+    queryKey: ['deutero-sttakla-chapter', selectedBook?.id, selectedChapter],
     queryFn: () => api.deuteroSource.getChapter(selectedBook!.id, selectedChapter),
     enabled: !!selectedBook && !!catalog?.status.available,
     staleTime: 60_000,
@@ -74,20 +116,46 @@ export function RemoteDeuteroReader() {
                 الأسفار القانونية الثانية
               </h2>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                مصدر حي من الملفات العامة في GitHub — يظهر طالما المصدر متاح للعامة
+                النص من الترجمة اليسوعية القديمة 1877 عبر موقع St-Takla.org
               </p>
             </div>
           </div>
           <a
-            href={catalog.status.repositoryUrl}
+            href={catalog.status.sourceUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-white hover:text-foreground dark:hover:bg-background"
-            aria-label="فتح مصدر الأسفار على GitHub"
+            aria-label="فتح مصدر الأسفار على St-Takla"
           >
-            <Github className="h-4 w-4" />
+            <ExternalLink className="h-4 w-4" />
             المصدر
           </a>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="border-emerald-300 bg-white/70 text-emerald-800 hover:bg-white dark:border-emerald-800 dark:bg-background/40 dark:text-emerald-300"
+            onClick={() => openTafsir('intro')}
+            data-testid="deutero-book-intro-tafsir"
+          >
+            <BookOpen className="ml-1 h-4 w-4" />
+            مقدمة عن السفر
+          </Button>
+          {selectedBook && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-emerald-300 bg-white/70 text-emerald-800 hover:bg-white dark:border-emerald-800 dark:bg-background/40 dark:text-emerald-300"
+              onClick={() => openTafsir('chapter')}
+              data-testid="deutero-chapter-tafsir"
+            >
+              <BookText className="ml-1 h-4 w-4" />
+              تفسير الإصحاح
+            </Button>
+          )}
         </div>
       </div>
 
@@ -154,12 +222,22 @@ export function RemoteDeuteroReader() {
             </div>
             <div className="space-y-4 font-display text-lg leading-loose md:text-xl">
               {chapterQuery.data.verses.map((verse) => (
-                <p key={verse.verse} data-testid={`deutero-source-verse-${verse.verse}`}>
-                  <span className="ml-2 font-bold text-emerald-700 dark:text-emerald-400">
-                    {verse.verse}
-                  </span>
-                  {verse.text}
-                </p>
+                <div key={verse.verse} className="flex items-start gap-2" data-testid={`deutero-source-verse-${verse.verse}`}>
+                  <p className="flex-1">
+                    <span className="ml-2 font-bold text-emerald-700 dark:text-emerald-400">
+                      {verse.verse}
+                    </span>
+                    {verse.text}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-1 shrink-0 whitespace-nowrap rounded px-2 py-1 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 hover:text-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                    onClick={() => openTafsir('verse', verse.verse)}
+                    data-testid={`deutero-verse-tafsir-${verse.verse}`}
+                  >
+                    تفسير الآية
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -170,18 +248,76 @@ export function RemoteDeuteroReader() {
         )}
 
         <div className="border-t pt-3 text-center text-xs leading-5 text-muted-foreground">
-          النص معروض مباشرة من المصدر العام ولا يُخزّن في قاعدة بيانات MyBible. المصدر العام لا يعني
-          وجود ترخيص لإعادة النشر؛{' '}
+           النص معروض مباشرة من مصدر St-Takla ولا يُخزّن في قاعدة بيانات MyBible.{' '}
           <a
-            href={catalog.status.repositoryUrl}
+             href={catalog.status.sourceUrl}
             target="_blank"
             rel="noreferrer"
             className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400"
           >
-            عرض المستودع على GitHub
+             فتح المصدر على St-Takla
           </a>
         </div>
       </div>
+
+      <Dialog
+        open={!!tafsirView}
+        onOpenChange={(open) => {
+          if (!open) setTafsirView(null);
+        }}
+      >
+        <DialogContent
+          className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden"
+          dir="rtl"
+          data-testid="deutero-tafsir-dialog"
+        >
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-right font-display text-base">
+              {tafsirView === 'intro'
+                ? `مقدمة عن سفر ${selectedBook?.name}`
+                : tafsirView === 'verse'
+                  ? `تفسير ${selectedBook?.name} ${selectedChapter}:${tafsirVerse}`
+                  : `تفسير ${selectedBook?.name} — الإصحاح ${selectedChapter}`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-1 py-4">
+            {tafsirLoading ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-700" />
+                جاري تحميل التفسير...
+              </div>
+            ) : tafsirText ? (
+              <>
+                <div
+                  className="rounded-lg bg-muted/30 p-4 text-lg leading-loose"
+                  data-testid="deutero-tafsir-content"
+                >
+                  <TafsirText text={tafsirText} />
+                </div>
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  المصدر: نص تفسير فعلي من صفحات St-Takla.org، وليس رابطًا أو محتوى مولّدًا.
+                </p>
+              </>
+            ) : (
+              <div className="py-10 text-center text-muted-foreground" data-testid="deutero-no-tafsir">
+                <BookText className="mx-auto mb-2 h-8 w-8 opacity-40" />
+                <p className="text-sm font-medium">
+                  {tafsirReason === 'chapter-missing'
+                    ? `لا يوجد تفسير مسجّل للإصحاح ${selectedChapter} حاليًا.`
+                    : tafsirReason === 'book-missing'
+                      ? `لا يوجد تفسير مضمّن لسفر ${selectedBook?.name} حاليًا.`
+                      : tafsirView === 'intro'
+                        ? 'لا توجد مقدمة تفسيرية متاحة لهذا السفر حاليًا.'
+                        : tafsirView === 'verse'
+                          ? 'لا يوجد تفسير متاح لهذه الآية حاليًا.'
+                          : 'لا يوجد تفسير متاح حاليًا.'}
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

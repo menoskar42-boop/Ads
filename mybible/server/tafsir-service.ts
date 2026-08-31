@@ -8,9 +8,32 @@ interface TafsirEntry {
   tafsir: string;
 }
 
+/** المصدر المعلن للنصوص العربية المأخوذة من فهارس St-Takla المختلفة. */
+export const TAFSIR_SOURCE = {
+  name: 'تفاسير الكتاب المقدس العربية',
+  publisher: 'St-Takla.org',
+  url: 'https://st-takla.org/pub_Bible-Interpretations/',
+};
+
+/**
+ * روابط الصفحات الحالية للإصحاحات التي لم تعد روابطها القديمة في الفهرس
+ * المحلي تعمل بعد أن غيّر St-Takla بنية عناوينه. لا نحفظ النص الناتج على
+ * القرص؛ يُجلب عند الطلب ويُحتفظ به مؤقتًا في الذاكرة.
+ */
+const LIVE_MISSING_CHAPTER_URLS: Record<string, Record<number, string>> = {
+  'عدد': {
+    19: 'https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/04-Sefr-El-Adad/Tafseer-Sefr-El-3adad__01-Chapter-19.html',
+  },
+  'حزقيال': {
+    3: 'https://st-takla.org/pub_Bible-Interpretations/Holy-Bible-Tafsir-01-Old-Testament/Father-Tadros-Yacoub-Malaty/31-Sefr-Hazkyal/Tafseer-Sefr-Hazkial__01-Chapter-03.html',
+  },
+};
+
 const tafsirCache: Record<string, TafsirEntry[]> = {};
 const cacheOrder: string[] = [];
 const MAX_CACHE_SIZE = 5;
+const liveChapterCache = new Map<string, { expiresAt: number; tafsir: string; sourceUrl: string }>();
+const LIVE_CHAPTER_CACHE_TTL = 15 * 60 * 1000;
 
 function evictCache() {
   while (cacheOrder.length > MAX_CACHE_SIZE) {
@@ -33,7 +56,137 @@ function getTafsirPartsDir(): string {
   return path.resolve(process.cwd(), "client", "public", "tafsir-parts");
 }
 
-function parseCSV(text: string): TafsirEntry[] {
+/**
+ * Removes St-Takla's navigation chrome from imported commentary.
+ *
+ * The importer intentionally keeps the source text as plain text, but the
+ * source page also contains the chapter index and links to other commentaries.
+ * Those links are not part of the explanation and can otherwise be returned
+ * as if they were tafsir content.
+ */
+export function stripTafsirNavigation(text: string): string {
+  const lines = text.split("\n");
+  const footerIndex = lines.findIndex((line) => {
+    const normalized = line.replace(/^[\u0022\u201c\u201d]+|[\u0022\u201c\u201d]+$/g, "").trim();
+    return (
+      /^←\s*تفاسير أصحاحات/u.test(normalized) ||
+      /^تفاسير أسفار الكتاب المقدس/u.test(normalized)
+    );
+  });
+
+  let cleaned = (footerIndex >= 0 ? lines.slice(0, footerIndex) : lines).join("\n");
+
+  // Some pages put a short "other commentaries" link between two explanation
+  // sections instead of placing it in the final footer.
+  cleaned = cleaned
+    .replace(
+      /(?:^|\n)\s*←\s*\n\s*وستجد\s*\n\s*تفاسير أخرى\s*\n\s*هنا في\s*\n\s*\(\d+\)\s*(?=\n|$)/gu,
+      "\n",
+    )
+    .replace(
+      /(?:^|\n)\s*←[^\n]*(?:تفاسير أخرى|موقع الأنبا تكلا)[^\n]*(?=\n|$)/gu,
+      "",
+    );
+
+  return cleaned.trim();
+}
+
+function decodeLiveHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;?|&#160;|&#xA0;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);/g, (_, decimal) => String.fromCodePoint(Number(decimal)));
+}
+
+function extractLiveChapterText(html: string): string {
+  const bodyStart = html.search(/<div\b[^>]*\bid\s*=\s*["']bodytext["']/i);
+  if (bodyStart < 0) return '';
+
+  const footerStart = html.indexOf('<!-- footer with contacts -->', bodyStart);
+  let fragment = html.slice(bodyStart, footerStart >= 0 ? footerStart : undefined)
+    .replace(/<tr\b[^>]*id=["']hidethis["'][^>]*>[\s\S]*?<\/tr>/i, '')
+    .replace(/<table\b[^>]*>[\s\S]*?(?:St-Takla\.org Image|صورة في موقع الأنبا تكلا)[\s\S]*?<\/table>/gi, '');
+
+  const text = decodeLiveHtmlEntities(
+    fragment
+      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+      .replace(/<img\b[^>]*>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(?:p|div|h[1-6]|tr|li|table|form|hr)>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\r/g, ''),
+  )
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter((line) =>
+      line.length > 0 &&
+      !/^St-Takla\.org Image:/i.test(line) &&
+      !/صورة في موقع الأنبا تكلا/.test(line) &&
+      !/موقع الأنبا تكلا هيمانوت لمؤلفين آخرين/.test(line),
+    )
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return stripTafsirNavigation(text)
+    .replace(/^اضغط هنا لإظهار الفهرس\s*/u, '')
+    .trim();
+}
+
+export async function fetchLiveMissingChapter(
+  csvName: string,
+  chapter: number,
+): Promise<{ tafsir: string; sourceUrl: string } | null> {
+  const sourceUrl = LIVE_MISSING_CHAPTER_URLS[csvName]?.[chapter];
+  if (!sourceUrl) return null;
+
+  const cacheKey = `${csvName}:${chapter}`;
+  const cached = liveChapterCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { tafsir: cached.tafsir, sourceUrl: cached.sourceUrl };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(sourceUrl, {
+      signal: controller.signal,
+      headers: {
+        'user-agent': 'MyBible tafsir reader (source attribution: St-Takla.org)',
+        accept: 'text/html,application/xhtml+xml',
+        'accept-language': 'ar,en;q=0.8',
+      },
+    });
+    if (!response.ok) throw new Error(`St-Takla رجّع ${response.status}`);
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') ?? '';
+    const charset = contentType.match(/charset\s*=\s*["']?([^;"'\s]+)/i)?.[1]?.toLowerCase();
+    let html: string;
+    try {
+      html = new TextDecoder(charset === 'windows-1256' || charset === 'cp1256' ? 'windows-1256' : 'utf-8').decode(bytes);
+    } catch {
+      html = new TextDecoder('utf-8').decode(bytes);
+    }
+
+    const tafsir = extractLiveChapterText(html);
+    if (tafsir.length < 20) throw new Error(`St-Takla لم يُرجع نصًا صالحًا لـ ${csvName} ${chapter}`);
+
+    const value = { expiresAt: Date.now() + LIVE_CHAPTER_CACHE_TTL, tafsir, sourceUrl };
+    liveChapterCache.set(cacheKey, value);
+    return { tafsir, sourceUrl };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function parseCSV(text: string): TafsirEntry[] {
   const entries: TafsirEntry[] = [];
   // بعض الملفات فيها BOM في أولها وسطور بنهايات CRLF
   const lines = text.replace(/^﻿/, "").replace(/\r\n/g, "\n").split("\n");
@@ -56,14 +209,14 @@ function parseCSV(text: string): TafsirEntry[] {
 
   const flush = () => {
     if (!cur) return;
-    const tafsir = cur.parts
+    const tafsir = stripTafsirNavigation(cur.parts
       .join("\n")
       .replace(/^"/, "")        // علامة الفتح
       .replace(/"$/, "")        // علامة الإقفال لو الملف سليم
       .replace(/""/g, '"')      // تنصيص مهروب جوّه الحقل
       // بقايا RTF زي \'a1 — في ترويسات المدى بتلعب دور شرطة الفصل
       .replace(/\\'[0-9a-fA-F]{2}/g, "-")
-      .trim();
+      .trim());
     if (tafsir) {
       entries.push({ book: cur.book, chapter: cur.chapter, verse: cur.verse, tafsir });
     }
@@ -361,7 +514,7 @@ function chapterTafsir(
   return chapterEntries[chapterEntries.length - 1].tafsir;
 }
 
-function extractVerseTafsir(fullText: string, verse: number, chapter?: number): string | null {
+export function extractVerseTafsir(fullText: string, verse: number, chapter?: number): string | null {
   interface VerseSection {
     startVerse: number;
     endVerse: number;
@@ -451,6 +604,31 @@ function extractVerseTafsir(fullText: string, verse: number, chapter?: number): 
     /(?:^|\n)\s*\(?(?:ال)?[أآ]ي[ةات]+\s*\(?\s*(\d+)(?:\s*(?:[-–]|\\'a1)\s*(\d+))?\s*\)?\s*[:：]/g;
 
   while ((match = versePattern.exec(fullText)) !== null) {
+    const verseNum = parseInt(match[1], 10);
+    const verseEnd = match[2] ? parseInt(match[2], 10) : verseNum;
+    if (isNaN(verseNum) || verseNum < 1 || verseNum > 200) continue;
+
+    const alreadyCovered = sections.some(
+      (s) => Math.abs(s.startIndex - match!.index) < 5
+    );
+    if (alreadyCovered) continue;
+
+    const actualStart = match.index + (match[0].match(/^[\n\s]*/)?.[0].length || 0);
+    sections.push({
+      startVerse: verseNum,
+      endVerse: verseEnd,
+      startIndex: actualStart,
+      headerEnd: match.index + match[0].length,
+      isPrimary: false,
+    });
+  }
+
+  // St-Takla also uses the compact Arabic form "ع21، 22:" for a verse
+  // subsection. It is especially common in the deuterocanonical commentary.
+  const compactVersePattern =
+    /(?:^|\n)\s*ع\s*\(?(\d+)(?:\s*(?:[-–،,]|و)\s*(\d+))?\s*\)?\s*[:：]/gu;
+
+  while ((match = compactVersePattern.exec(fullText)) !== null) {
     const verseNum = parseInt(match[1], 10);
     const verseEnd = match[2] ? parseInt(match[2], 10) : verseNum;
     if (isNaN(verseNum) || verseNum < 1 || verseNum > 200) continue;
@@ -665,6 +843,9 @@ function verseTafsirRaw(
   //   Use a Set to avoid rescanning the same blob twice.
   const seenBlobs = new Set(verseEntries.map((e) => e.tafsir));
   for (const entry of chapterEntries) {
+    // The chapter-level row uses "(chapter:1)" as a wrapper around the whole
+    // page, not as proof that verse 1 has its own commentary.
+    if (entry.verse === 0 && verse === 1) continue;
     if (!entry.tafsir || seenBlobs.has(entry.tafsir)) continue;
     seenBlobs.add(entry.tafsir);
     const extracted = extractVerseTafsir(entry.tafsir, verse, chapter);
@@ -674,6 +855,8 @@ function verseTafsirRaw(
   // ── Step 3: Fallback — return any chapter entry whose FIRST range header
   //   covers the verse (handles blobs where extractVerseTafsir finds nothing)
   for (const entry of chapterEntries) {
+    // As above, "(chapter:1)" on the chapter-level row is only a wrapper.
+    if (entry.verse === 0 && verse === 1) continue;
     if (!entry.tafsir) continue;
     const m = HEADER_RE.exec(entry.tafsir);
     if (!m) continue;
@@ -709,6 +892,9 @@ export const EXPECTED_CHAPTERS: Record<string, number> = {
   "تيطس": 3, "فليمون": 1, "عبرانيين": 13, "يعقوب": 5, "بطرس أولى": 5,
   "بطرس ثانية": 3, "يوحنا أولى": 5, "يوحنا ثانية": 1, "يوحنا ثالثة": 1,
   "يهوذا": 1, "رؤيا": 22,
+  "طوبيا": 14, "يهوديت": 16, "حكمة سليمان": 19,
+  "يشوع بن سيراخ": 51, "باروخ": 6,
+  "المكابيين الأول": 16, "المكابيين الثاني": 15,
 };
 
 export interface BookCoverage {

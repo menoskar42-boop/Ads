@@ -11,16 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type SynaxariumEntry as LiveSynaxariumEntry } from '@/lib/api';
 import { SEOHead } from '@/components/SEOHead';
 import { usePageTracker } from '@/hooks/usePageTracker';
 import { useExitTracker } from '@/hooks/useExitTracker';
 import { liturgies, type Liturgy } from '@/lib/liturgy-content';
 import { agpeyaHoursFull, type AgpeyaHourFull } from '@/lib/agpeya-content';
-import { commentaryFathers, type CommentaryFather, type CommentaryBook, type CommentarySection } from '@/lib/commentary-content';
 import { saintsData, saintCategories, type Saint } from '@/lib/saints-content';
-import { katameroSeasons, type KatamerosSeason, type KatamerosDay } from '@/lib/katameros-content';
-import { getLectionaryForDate, type ReadingRef } from '@/lib/coptic-lectionary';
 import { hymnsCategoriesData, type HymnsCategory, type Hymn } from '@/lib/hymns-content';
 import {
   saintsVideos,
@@ -50,16 +47,15 @@ import {
   type BookChapter,
 } from '@/lib/orthodox-books-content';
 import { apocryphaBooks, type ApocryphaBook } from '@/lib/apocrypha-content';
+import { getLectionaryForDate, type ReadingRef } from '@/lib/coptic-lectionary';
+import { katameroSeasons, type KatamerosSeason, type KatamerosDay } from '@/lib/katameros-content';
+import { RemoteDeuteroReader } from '@/components/RemoteDeuteroReader';
+import { StTaklaSections } from '@/components/StTaklaSections';
+import { TafsirBrowser } from '@/components/TafsirBrowser';
 import { fetchVerseTafsir, fetchChapterTafsir } from '@/lib/tafsir-csv-service';
 import {
   synaxariumMonths,
-  getTodaySynaxarium,
-  getDayEntries,
   gregorianToCoptic,
-  entryTypeIcon,
-  type SynaxariumMonth,
-  type SynaxariumDay,
-  type SynaxariumEntry,
 } from '@/lib/synaxarium-content';
 
 function YouTubeEmbed({ videoId, title, onClose }: { videoId: string; title: string; onClose: () => void }) {
@@ -84,10 +80,7 @@ function YouTubeEmbed({ videoId, title, onClose }: { videoId: string; title: str
 }
 
 // ── السنكسار القبطي المدمج ────────────────────────────────────────────────────
-const COPTIC_MONTH_NAMES = ['توت','بابه','هاتور','كيهك','طوبه','أمشير','برمهات','برمودة','بشنس','بؤونة','أبيب','مسرى','النسيء'];
-
 function SynaxariumSection() {
-  const today = getTodaySynaxarium();
   const todayCoptic = gregorianToCoptic(new Date());
 
   // حالة التصفح: null = عرض اليوم، 'months' = قائمة الشهور، {monthId} = أيام الشهر
@@ -97,10 +90,21 @@ function SynaxariumSection() {
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
 
   const currentMonth = synaxariumMonths.find(m => m.id === selectedMonth);
-  const currentDayEntries = getDayEntries(selectedMonth, selectedDay);
+  const activeMonth = view === 'today' ? todayCoptic.month : selectedMonth;
+  const activeDay = view === 'today' ? todayCoptic.day : selectedDay;
+  const {
+    data: liveDay,
+    isLoading: liveDayLoading,
+    isError: liveDayError,
+  } = useQuery({
+    queryKey: ['orthodox-synaxarium', activeMonth, activeDay],
+    queryFn: () => api.orthodox.getSynaxariumDay(activeMonth, activeDay),
+    enabled: view === 'today' || view === 'detail',
+    staleTime: 6 * 60 * 60 * 1000,
+  });
 
-  function renderEntryCard(entry: SynaxariumEntry, i: number) {
-    const key = `${selectedMonth}-${selectedDay}-${i}`;
+  function renderEntryCard(entry: LiveSynaxariumEntry, i: number) {
+    const key = entry.id || `${activeMonth}-${activeDay}-${i}`;
     const isOpen = expandedEntry === key;
     return (
       <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
@@ -109,11 +113,11 @@ function SynaxariumSection() {
           onClick={() => setExpandedEntry(isOpen ? null : key)}
         >
           <div className="flex items-start gap-3">
-            <span className="text-xl flex-shrink-0 mt-0.5">{entryTypeIcon[entry.type]}</span>
+            <BookOpen className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-display font-bold text-foreground text-lg leading-snug">{entry.name}</p>
-                <Badge variant="secondary" className="text-xs">{entry.type}</Badge>
+                <p className="font-display font-bold text-foreground text-lg leading-snug">{entry.title}</p>
+                <Badge variant="secondary" className="text-xs">سنكسار</Badge>
               </div>
               <AnimatePresence>
                 {isOpen && (
@@ -127,6 +131,18 @@ function SynaxariumSection() {
                   </motion.p>
                 )}
               </AnimatePresence>
+              {isOpen && entry.url && (
+                <a
+                  href={entry.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-3"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  فتح المصدر
+                </a>
+              )}
             </div>
             {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />}
           </div>
@@ -135,15 +151,42 @@ function SynaxariumSection() {
     );
   }
 
+  function renderLiveEntries() {
+    if (liveDayLoading) {
+      return (
+        <Card className="p-6 flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          جاري تحميل السنكسار من المصدر...
+        </Card>
+      );
+    }
+    if (liveDayError) {
+      return (
+        <Card className="p-6 text-center">
+          <p className="text-muted-foreground">تعذر تحميل السنكسار من المصدر حاليًا.</p>
+          <p className="text-xs text-muted-foreground mt-1">حاول تحديث الصفحة بعد قليل.</p>
+        </Card>
+      );
+    }
+    if (!liveDay?.entries.length) {
+      return <p className="text-center text-muted-foreground py-8">لا توجد بيانات لهذا اليوم.</p>;
+    }
+    return (
+      <div className="space-y-3">
+        {liveDay.entries.map((entry, i) => renderEntryCard(entry, i))}
+      </div>
+    );
+  }
+
   // ── عرض اليوم الحالي ─────────────────────────────────────────────────────
-  if (view === 'today' && today) {
+  if (view === 'today') {
     return (
       <div dir="rtl">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-amber-500" />
             <h2 className="font-display text-xl font-bold text-foreground">
-              {today.copticDate.day} {COPTIC_MONTH_NAMES[today.copticDate.month - 1]} {today.copticDate.year} م.ق
+              {liveDay?.copticDate || 'سنكسار اليوم'}
             </h2>
           </div>
           <Button size="sm" variant="outline" onClick={() => setView('months')}>
@@ -151,11 +194,9 @@ function SynaxariumSection() {
             <ChevronLeft className="w-4 h-4 mr-1" />
           </Button>
         </div>
-        <div className="space-y-3">
-          {today.day.entries.map((entry, i) => renderEntryCard(entry, i))}
-        </div>
+        {renderLiveEntries()}
         <p className="text-sm text-center text-muted-foreground mt-4">
-          اضغط على أي مدخل لقراءة السيرة الكاملة • مدمج داخل الموقع
+          اضغط على أي مدخل لقراءة النص • من المصدر القبطي الموثوق
         </p>
       </div>
     );
@@ -234,12 +275,7 @@ function SynaxariumSection() {
           <span className="text-muted-foreground">/</span>
           <span className="font-semibold">{selectedDay} {currentMonth?.arabicName}</span>
         </div>
-        <div className="space-y-3">
-          {currentDayEntries.length > 0
-            ? currentDayEntries.map((entry, i) => renderEntryCard(entry, i))
-            : <p className="text-center text-muted-foreground py-8">لا توجد بيانات لهذا اليوم</p>
-          }
-        </div>
+        {renderLiveEntries()}
       </div>
     );
   }
@@ -500,7 +536,7 @@ function AgpeyaSection() {
           <div>
             <p className="text-sm font-bold text-blue-800 dark:text-blue-200 mb-1">نصوص طقسية أصيلة — مُحمَّلة مباشرةً على موقعنا</p>
             <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-              صلوات الأجبية السبع محمّلة بالكامل داخل الموقع — تراث طقسي قبطي أرثوذكسي قديم متاح للقراءة دون أي روابط خارجية.
+              صلوات الأجبية السبع مضمّنة للقراءة داخل الموقع — محتوى طقسي قبطي أرثوذكسي مدمج دون الاعتماد على روابط خارجية.
             </p>
           </div>
         </div>
@@ -666,7 +702,7 @@ function LiturgySection() {
 
         <div className="mt-4 pt-3 border-t border-border/30">
           <span className="text-xs text-muted-foreground opacity-70">
-            🔓 نص طقسي قبطي أرثوذكسي قديم — ملك عام — مُحمَّل مباشرةً على الموقع
+            🔓 نص طقسي قبطي أرثوذكسي — محتوى مضمّن للقراءة
           </span>
         </div>
       </div>
@@ -680,7 +716,7 @@ function LiturgySection() {
         <h2 className="font-display text-xl font-bold text-foreground">الخولاجي المقدس والقداسات الإلهية</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-5">
-        القداسات الإلهية الثلاثة المعتمدة في الكنيسة القبطية الأرثوذكسية — اختر قداساً لقراءة نصه كاملاً مباشرةً على الموقع.
+        ثلاثة نصوص مدمجة للقداسات الإلهية في الكنيسة القبطية الأرثوذكسية — اختر نصًا للقراءة داخل الموقع.
       </p>
 
       <div className="space-y-4 mb-5">
@@ -745,13 +781,15 @@ function LiturgySection() {
         <div className="flex items-start gap-2">
           <span className="text-lg">🔓</span>
           <div>
-            <p className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-1">نصوص طقسية أصيلة — مُحمَّلة مباشرةً على موقعنا</p>
+            <p className="text-sm font-bold text-purple-800 dark:text-purple-200 mb-1">نصوص طقسية مضمّنة للقراءة</p>
             <p className="text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
-              نصوص القداسات الثلاثة محمّلة بالكامل داخل الموقع — تراث طقسي قبطي أرثوذكسي قديم متاح للقراءة دون أي روابط خارجية.
+              نصوص مدمجة للقداسات الثلاثة متاحة للقراءة داخل الموقع. يُرجى الرجوع إلى النص الكنسي المعتمد عند الاستخدام الطقسي.
             </p>
           </div>
         </div>
       </Card>
+
+      <StTaklaSections embeddedSection="ritual" />
     </div>
   );
 }
@@ -901,7 +939,7 @@ function HymnsSection() {
         <h2 className="font-display text-xl font-bold text-foreground">ألحان قبطية أرثوذكسية</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-5">
-        الألحان القبطية تراث روحي عريق يمتد لآلاف السنين — نصوص كاملة بالعربية للقراءة مباشرة من التراث الطقسي القبطي الأرثوذكسي.
+        الألحان القبطية تراث روحي عريق — مختارات عربية مضمّنة للقراءة من التراث الطقسي القبطي الأرثوذكسي.
       </p>
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -937,6 +975,130 @@ function HymnsSection() {
 }
 
 function DailyLectionarySection() {
+  const [date, setDate] = useState(() => new Date());
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  const formatApiDate = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const dateKey = formatApiDate(date);
+  const formatDateAr = (value: Date) =>
+    value.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['orthodox-katameros', dateKey],
+    queryFn: () => api.orthodox.getKatamerosDay(dateKey),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const moveDay = (amount: number) => {
+    setDate(current => {
+      const next = new Date(current);
+      next.setDate(next.getDate() + amount);
+      return next;
+    });
+    setExpandedKey(null);
+  };
+
+  const readingCards = data?.readings ?? [];
+
+  return (
+    <div className="space-y-4" dir="rtl" data-testid="katameros-live-section">
+      <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-3">
+        <Button variant="ghost" size="sm" onClick={() => moveDay(-1)} className="text-amber-700" aria-label="اليوم السابق">
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+        <div className="text-center">
+          <div className="text-lg font-bold text-amber-900">{data?.title || 'قراءات اليوم'}</div>
+          <div className="text-xs text-amber-600">{formatDateAr(date)}</div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => moveDay(1)} className="text-amber-700" aria-label="اليوم التالي">
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/20 p-3 text-sm text-green-800 dark:text-green-200">
+        <div className="flex items-center justify-between gap-3">
+          <span>القراءات والنصوص من St-Takla.org مباشرةً</span>
+          {data?.sourcePageUrl && (
+            <a href={data.sourcePageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2 whitespace-nowrap" data-testid="katameros-source-link">
+              فتح المصدر <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+        {data?.title && <p className="text-xs mt-1 opacity-80">{data.title}</p>}
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+          <span>جاري تحميل قراءات St-Takla...</span>
+        </div>
+      )}
+
+      {isError && (
+        <div className="rounded-xl border-2 border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-4 text-center">
+          <p className="font-bold text-orange-800 dark:text-orange-300 mb-2">تعذر تحميل القطمارس من St-Takla</p>
+          <p className="text-sm text-orange-700 dark:text-orange-400 mb-3">لن نعرض نصًا محليًا بديلًا غير موثوق.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>إعادة المحاولة</Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && readingCards.length === 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-center text-sm text-orange-800">
+          لم يرجع St-Takla قراءات قابلة للعرض لهذا اليوم.
+        </div>
+      )}
+
+      {readingCards.map(reading => {
+        const isExpanded = expandedKey === reading.id;
+        return (
+          <Card
+            key={reading.id}
+            className="overflow-hidden border border-amber-100 shadow-sm cursor-pointer"
+            onClick={() => setExpandedKey(current => current === reading.id ? null : reading.id)}
+            data-testid={`katameros-live-reading-${reading.id}`}
+          >
+            <div className="flex items-center justify-between gap-3 p-3 bg-white">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-amber-600 font-medium whitespace-nowrap">{reading.label}</span>
+                <span className="text-sm font-semibold text-gray-800 truncate">{reading.reference}</span>
+              </div>
+              {isExpanded
+                ? <ChevronUp className="w-4 h-4 text-amber-500 shrink-0" />
+                : <ChevronDown className="w-4 h-4 text-amber-400 shrink-0" />}
+            </div>
+            {isExpanded && reading.status === 'ok' && reading.verses.length > 0 && (
+              <div className="px-4 pb-4 pt-1 bg-amber-50 border-t border-amber-100 space-y-1 max-h-[32rem] overflow-y-auto" data-testid={`katameros-live-verses-${reading.id}`}>
+                {reading.verses.map(verse => (
+                  <p key={`${verse.chapter}-${verse.verse}`} className="text-sm text-gray-700 leading-relaxed">
+                    <span className="text-amber-600 font-bold ml-1 text-xs">{verse.chapter}:{verse.verse}</span>
+                    {verse.text}
+                  </p>
+                ))}
+                <a href={reading.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-green-700 underline mt-2" onClick={event => event.stopPropagation()}>
+                  مصدر النص في St-Takla <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+            {isExpanded && (reading.status !== 'ok' || reading.verses.length === 0) && (
+              <div className="px-4 pb-3 pt-2 bg-amber-50 border-t border-amber-100 text-xs text-orange-700 text-center">
+                النص غير متاح من St-Takla لهذا الرابط حاليًا.
+              </div>
+            )}
+          </Card>
+        );
+      })}
+
+      <StTaklaSections embeddedSection="calendar" />
+    </div>
+  );
+}
+
+function LegacyDailyLectionarySection() {
   const [date, setDate] = useState(() => new Date());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [readingTexts, setReadingTexts] = useState<Record<string, { chapter: number; verse: number; text: string }[]>>({});
@@ -1458,7 +1620,7 @@ function SaintsVideosSection() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground opacity-60 mt-3">
-            📖 مصدر السير: السنكسار القبطي الأرثوذكسي — تراث طقسي قديم ملك عام مُحمَّل مباشرةً
+            📖 سير ومعلومات مضمّنة للقراءة — يُرجى الرجوع إلى المصدر الكنسي عند التحقق
           </p>
         </div>
       </div>
@@ -1473,7 +1635,7 @@ function SaintsVideosSection() {
         <h2 className="font-display text-xl font-bold text-foreground">سير القديسين والشهداء الأقباط</h2>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        سير القديسين والشهداء الأقباط مُحمَّلة مباشرةً للقراءة على الموقع — مستقاة من السنكسار القبطي الأرثوذكسي (تراث ملك عام).
+        سير القديسين والشهداء الأقباط مضمّنة للقراءة داخل الموقع — محتوى تعليمي مستقى من التراث الكنسي.
       </p>
 
       {/* ── قسم السير المدمجة ── */}
@@ -1536,7 +1698,7 @@ function SaintsVideosSection() {
           <div className="flex items-start gap-2">
             <span className="text-base">📖</span>
             <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
-              جميع السير مصدرها السنكسار القبطي الأرثوذكسي — تراث طقسي كنسي مكتوب منذ القرن الثالث الميلادي — ملك عام مُحمَّل مباشرةً للقراءة.
+              السير المعروضة مادة تعليمية مضمّنة وليست إصدارًا نقديًا أو حكمًا قانونيًا على مصدر النصوص وحقوق ترجمتها.
             </p>
           </div>
         </Card>
@@ -2191,237 +2353,11 @@ function FiguresSection() {
   );
 }
 
-// ── تفاسير الكتاب المقدس ─────────────────────────────────────────────────────
 function BibleCommentarySection() {
-  const [selectedFather, setSelectedFather] = useState<CommentaryFather | null>(null);
-  const [selectedBook, setSelectedBook] = useState<CommentaryBook | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  const [testamentFilter, setTestamentFilter] = useState<'all' | 'old' | 'new'>('all');
-
-  const toggleSection = (id: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const openFather = (father: CommentaryFather) => {
-    setSelectedFather(father);
-    setSelectedBook(father.books[0] ?? null);
-    setExpandedSections(new Set());
-  };
-
-  const openBook = (book: CommentaryBook) => {
-    setSelectedBook(book);
-    setExpandedSections(new Set());
-  };
-
-  const filteredFathers = testamentFilter === 'all'
-    ? commentaryFathers
-    : commentaryFathers.filter(f =>
-        f.books.some(b => testamentFilter === 'old' ? b.testament === 'old' : b.testament === 'new')
-      );
-
-  // ── قارئ الكتاب المختار ─────────────────────────────────────────────────
-  if (selectedFather && selectedBook) {
-    return (
-      <div dir="rtl">
-        {/* شريط التنقل */}
-        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-          <Button size="sm" variant="ghost" onClick={() => { setSelectedFather(null); setSelectedBook(null); }} className="gap-1 text-xs h-7">
-            <ChevronDown className="w-3 h-3 rotate-90" />
-            التفاسير
-          </Button>
-          <span className="text-muted-foreground text-xs">/</span>
-          <Button size="sm" variant="ghost" onClick={() => setSelectedBook(selectedFather.books[0])} className="text-xs h-7">
-            {selectedFather.name.split(' ').slice(-2).join(' ')}
-          </Button>
-          <span className="text-muted-foreground text-xs">/</span>
-          <span className="text-xs font-medium">{selectedBook.bibleBook}</span>
-        </div>
-
-        {/* رأس الأب */}
-        <div className={`rounded-xl p-4 mb-4 ${selectedFather.colorBg} border ${selectedFather.colorBorder}`}>
-          <div className="flex items-start gap-3">
-            <span className="text-3xl flex-shrink-0">{selectedFather.icon}</span>
-            <div className="flex-1">
-              <h2 className="font-display font-bold text-foreground text-base">{selectedFather.name}</h2>
-              <p className="text-xs text-muted-foreground">{selectedFather.fullTitle}</p>
-              <Badge variant="outline" className={`text-xs mt-1.5 ${selectedFather.colorText} border-current`}>
-                {selectedFather.century}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        {/* اختيار الكتاب */}
-        {selectedFather.books.length > 1 && (
-          <div className="flex gap-2 flex-wrap mb-4">
-            {selectedFather.books.map(b => (
-              <button
-                key={b.id}
-                onClick={() => openBook(b)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  b.id === selectedBook.id
-                    ? `${selectedFather.colorBg} ${selectedFather.colorText} border-current font-bold`
-                    : 'border-border text-muted-foreground hover:border-foreground/40'
-                }`}
-              >
-                {b.bibleBook}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* أقسام التفسير */}
-        <div className="space-y-2 mb-5">
-          {selectedBook.sections.map((section, i) => (
-            <motion.div key={section.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card
-                className="overflow-hidden cursor-pointer hover:shadow-sm transition-shadow border border-border/60"
-                onClick={() => toggleSection(section.id)}
-                data-testid={`commentary-section-${section.id}`}
-              >
-                <div className="flex items-center justify-between gap-3 p-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-base font-bold text-foreground">{section.title}</p>
-                    {section.verses && (
-                      <p className="text-xs text-muted-foreground mt-0.5">📖 {section.verses}</p>
-                    )}
-                  </div>
-                  {expandedSections.has(section.id)
-                    ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
-                </div>
-                <AnimatePresence>
-                  {expandedSections.has(section.id) && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.22 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="px-4 pb-4 pt-0 border-t border-border/40">
-                        <p className="text-base leading-loose text-foreground whitespace-pre-line mt-3">
-                          {section.text}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* تنقل سريع بين الآباء */}
-        <div className="border-t border-border/30 pt-3">
-          <p className="text-xs text-muted-foreground mb-2">آباء آخرون:</p>
-          <div className="flex gap-2 flex-wrap">
-            {commentaryFathers.map(f => (
-              <button
-                key={f.id}
-                onClick={() => openFather(f)}
-                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                  f.id === selectedFather.id
-                    ? `${selectedFather.colorBg} ${selectedFather.colorText} border-current font-bold`
-                    : 'border-border text-muted-foreground hover:border-foreground/40'
-                }`}
-              >
-                {f.icon} {f.name.split(' ').slice(-2).join(' ')}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground opacity-60 mt-3">
-            🔓 تراث آبائي مسيحي — القرون 2–5 م — ملك عام مُحمَّل مباشرةً
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── القائمة الرئيسية ────────────────────────────────────────────────────
   return (
-    <div dir="rtl">
-      <div className="flex items-center gap-2 mb-1">
-        <BookOpen className="w-5 h-5 text-amber-500" />
-        <h2 className="font-display text-xl font-bold text-foreground">تفاسير آباء الكنيسة</h2>
-      </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        تفاسير من آباء الكنيسة في القرون الأولى (القرن 2–5 م) — تراث مسيحي قديم ملك عام مُحمَّل مباشرةً للقراءة على الموقع.
-      </p>
-
-      {/* فلتر العهد */}
-      <div className="flex gap-2 mb-4">
-        {([['all', 'الكل'], ['old', 'العهد القديم'], ['new', 'العهد الجديد']] as const).map(([val, label]) => (
-          <button
-            key={val}
-            onClick={() => setTestamentFilter(val)}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-              testamentFilter === val
-                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-300 font-bold'
-                : 'border-border text-muted-foreground hover:border-foreground/40'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-3 mb-5">
-        {filteredFathers.map((father, i) => (
-          <motion.div key={father.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
-            <Card
-              className={`overflow-hidden border ${father.colorBorder} cursor-pointer hover:shadow-md transition-shadow`}
-              onClick={() => openFather(father)}
-              data-testid={`commentator-${father.id}`}
-            >
-              <div className={`p-4 ${father.colorBg}`}>
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-white/60 dark:bg-black/20 flex items-center justify-center text-2xl flex-shrink-0">
-                    {father.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-display font-bold text-foreground text-lg">{father.name}</h3>
-                    <p className="text-sm text-muted-foreground">{father.fullTitle}</p>
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <Badge variant="outline" className={`text-xs ${father.colorText} border-current`}>
-                        {father.century}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-300">
-                        {father.books.length} كتاب مُدمج
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed line-clamp-2">{father.bio}</p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {father.books.map(b => (
-                        <span key={b.id} className="text-xs bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-full text-foreground/70">
-                          {b.bibleBook}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
-
-      <Card className="p-4 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
-        <div className="flex items-start gap-2">
-          <span className="text-lg">🔓</span>
-          <div>
-            <p className="text-sm font-bold text-amber-800 dark:text-amber-200 mb-1">تراث آبائي أصيل — مُحمَّل مباشرةً</p>
-            <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-              تفاسير آباء الكنيسة الكبار (أثناسيوس، كيرلس، يوحنا الذهبي الفم، باسيليوس، أوريجانوس) — تراث مسيحي من القرون الأولى متاح للقراءة مباشرةً بدون أي روابط خارجية.
-            </p>
-          </div>
-        </div>
-      </Card>
+    <div className="space-y-5">
+      <TafsirBrowser />
+      <StTaklaSections embeddedSection="bible" />
     </div>
   );
 }
@@ -2661,7 +2597,7 @@ function BookReaderSection() {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${c.badge}`}>{book.category}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
-                          🔓 ملك عام
+                          🔓 مادة تراثية مضمّنة — الترجمة وحقوق النشر بحاجة إلى توثيق
                         </span>
                         <span className="text-xs text-muted-foreground">{book.chapters.length} فصل</span>
                       </div>
@@ -2683,7 +2619,7 @@ function BookReaderSection() {
             <p className="text-sm font-bold text-green-800 dark:text-green-200 mb-1">نصوص في الملك العام — مُحمَّلة على موقعنا</p>
             <p className="text-xs text-green-700 dark:text-green-300 leading-relaxed">
               جميع الكتب المعروضة نصوص مسيحية قديمة (القرن الأول — السابع الميلادي) في الملك العام.
-              تم تحميل نصوصها مباشرةً على هذا الموقع للقراءة دون أي روابط خارجية.
+              النصوص مضمّنة داخل الموقع للقراءة دون الاعتماد على روابط خارجية.
             </p>
           </div>
         </div>
@@ -3421,6 +3357,11 @@ export default function Orthodox() {
   const trackPath = params?.tab ? `/orthodox/${params.tab}` : '/orthodox';
   usePageTracker(trackPath);
   const [, navigate] = useLocation();
+  useEffect(() => {
+    if (params?.tab === 'st-takla') {
+      navigate('/orthodox/tafseer', { replace: true });
+    }
+  }, [navigate, params?.tab]);
   useExitTracker(trackPath);
 
   const navigateToTab = (newTab: string) => {
@@ -3529,7 +3470,6 @@ export default function Orthodox() {
                 أسئلة البابا
               </TabsTrigger>
             </TabsList>
-
             <TabsContent value="synaxarium">
               <SynaxariumSection />
             </TabsContent>
@@ -3551,13 +3491,7 @@ export default function Orthodox() {
             </TabsContent>
 
             <TabsContent value="katameros">
-              <div className="space-y-6">
-                <DailyLectionarySection />
-                <div className="border-t border-amber-200 pt-4">
-                  <h3 className="text-sm font-semibold text-amber-700 mb-3 text-right" dir="rtl">الكتامارس — قراءات المواسم</h3>
-                  <KatamarosSection />
-                </div>
-              </div>
+              <DailyLectionarySection />
             </TabsContent>
 
             <TabsContent value="saints">
@@ -3585,7 +3519,7 @@ export default function Orthodox() {
             </TabsContent>
 
             <TabsContent value="apocrypha">
-              <ApocryphaSection />
+              <RemoteDeuteroReader />
             </TabsContent>
 
             <TabsContent value="tafseer">
@@ -3599,6 +3533,7 @@ export default function Orthodox() {
             <TabsContent value="pope-qa">
               <PopeShenoudaQASection />
             </TabsContent>
+
           </Tabs>
         </motion.div>
       </div>

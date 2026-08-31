@@ -55,6 +55,41 @@ export interface BibleVerse {
   book?: BibleBook;
 }
 
+export interface TafsirCoverageBook {
+  book: string;
+  expected: number;
+  present: number;
+  missing: number[];
+  fileMissing: boolean;
+  extra: number[];
+  substantive: number;
+  medianChars: number;
+}
+
+export interface TafsirCoverage {
+  books: TafsirCoverageBook[];
+  totals: {
+    expectedChapters: number;
+    presentChapters: number;
+    substantiveChapters: number;
+    missingBooks: number;
+  };
+  tafsirDir: string;
+  partsDir: string;
+  unknownFiles: { file: string; suggestion: string | null }[];
+}
+
+export interface TafsirChapterResponse {
+  tafsir: string | null;
+  reason: 'book-missing' | 'chapter-missing' | null;
+  origin: 'local' | 'live' | 'unavailable';
+  source: {
+    name: string;
+    publisher: string;
+    url: string;
+  };
+}
+
 export interface DailyVerse {
   id: number;
   verseId: number;
@@ -106,6 +141,24 @@ export interface Topic {
   icon: string;
 }
 
+export interface SynaxariumEntry {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  anchor: string;
+}
+
+export interface SynaxariumDay {
+  copticDate: string;
+  entries: SynaxariumEntry[];
+  fetchedAt: number;
+  source: 'copticchurch.net';
+  sourceUrl: string;
+  month?: number;
+  day?: number;
+}
+
 export interface EmotionTopicVerse {
   id: number;
   bookId: number;
@@ -147,11 +200,9 @@ export interface DeuteroSourceVerse {
 
 export interface DeuteroSourceStatus {
   available: boolean;
-  reason?: string;
-  repositoryUrl: string;
+  sourceName: string;
   sourceUrl: string;
-  manifestUrl: string;
-  branch: string;
+  reason?: string;
   checkedAt: string;
 }
 
@@ -161,8 +212,59 @@ export interface DeuteroSourceCatalog {
 }
 
 export interface DeuteroSourceChapter {
-  catalog: DeuteroSourceCatalog;
+  book: DeuteroSourceBook;
+  chapter: number;
+  source: string;
+  sourceUrl: string;
   verses: DeuteroSourceVerse[];
+}
+
+export type StTaklaSectionKey = 'ritual' | 'bible' | 'calendar';
+
+export interface StTaklaBrowseLink {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export interface StTaklaSectionCatalog {
+  key: StTaklaSectionKey;
+  title: string;
+  description: string;
+  sourceUrl: string;
+  browse: StTaklaBrowseLink[];
+  status: 'ok' | 'unavailable';
+  error?: string;
+}
+
+export interface StTaklaSectionItem {
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface StTaklaPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export interface StTaklaSectionArticle {
+  section: StTaklaSectionKey;
+  title: string;
+  content: string;
+  source: 'St-Takla.org';
+  sourceUrl: string;
+}
+
+export interface StTaklaSectionBrowseResponse {
+  section: StTaklaSectionKey;
+  source: 'St-Takla.org';
+  sourceUrl: string;
+  items: StTaklaSectionItem[];
+  pagination?: StTaklaPagination;
+  article?: StTaklaSectionArticle;
 }
 
 export const api = {
@@ -195,11 +297,29 @@ export const api = {
   },
 
   orthodox: {
-    getSynaxarium: async () => {
-      const res = await fetch('/api/orthodox/synaxarium');
-      if (!res.ok) throw new Error('Failed to fetch synaxarium');
-      return res.json() as Promise<{ copticDate: string; entries: { title: string; url: string; anchor: string }[] }>;
-    },
+    getSynaxarium: () =>
+      fetchApi<SynaxariumDay>('/orthodox/synaxarium', { cache: 'no-store' }),
+    getSynaxariumDay: (month: number, day: number) =>
+      fetchApi<SynaxariumDay>(`/orthodox/synaxarium?month=${month}&day=${day}`),
+    getKatamerosDay: (date: string) =>
+      fetchApi<{
+        status: string;
+        source: string;
+        date: string;
+        sourcePageUrl: string;
+        sourceIndexUrl: string;
+        title: string;
+        readings: Array<{
+          id: string;
+          section: string;
+          label: string;
+          reference: string;
+          sourceUrl: string;
+          verses: Array<{ chapter: number; verse: number; text: string }>;
+          status: 'ok' | 'unavailable';
+          error?: string;
+        }>;
+      }>(`/orthodox/katameros?date=${encodeURIComponent(date)}`),
   },
   dailyVerse: {
     get: () => fetchApi<DailyVerse | null>('/daily-verse'),
@@ -259,9 +379,31 @@ export const api = {
       }),
   },
 
+  stTakla: {
+    getSections: () =>
+      fetchApi<{ source: 'St-Takla.org'; sections: StTaklaSectionCatalog[] }>('/orthodox/sttakla/sections'),
+    browse: (section: StTaklaSectionKey, key: string, query = '', page = 1, pageSize = 40) =>
+      fetchApi<StTaklaSectionBrowseResponse>(
+        `/orthodox/sttakla/sections/${section}/browse?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}&page=${page}&pageSize=${pageSize}`,
+      ),
+    article: (section: StTaklaSectionKey, url: string) =>
+      fetchApi<StTaklaSectionArticle>(
+        `/orthodox/sttakla/sections/${section}/article?url=${encodeURIComponent(url)}`,
+      ),
+  },
+
+  tafsir: {
+    getCoverage: (refresh = false) =>
+      fetchApi<TafsirCoverage>(`/tafsir/coverage${refresh ? '?refresh=1' : ''}`),
+    getChapter: (csvName: string, chapter: number) =>
+      fetchApi<TafsirChapterResponse>(
+        `/tafsir/chapter/${encodeURIComponent(csvName)}/${chapter}`,
+      ),
+  },
+
   deuteroSource: {
-    getCatalog: () => fetchApi<DeuteroSourceCatalog>('/deutero/source'),
+    getCatalog: () => fetchApi<DeuteroSourceCatalog>('/deutero/sttakla'),
     getChapter: (bookId: number, chapter: number) =>
-      fetchApi<DeuteroSourceChapter>(`/deutero/source/books/${bookId}/chapters/${chapter}`),
+      fetchApi<DeuteroSourceChapter>(`/deutero/sttakla/books/${bookId}/chapters/${chapter}`),
   },
 };
