@@ -55,6 +55,9 @@ async function initDealsDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_deals_catalog_public
       ON deals_catalog_products (is_published, is_featured, created_at DESC);
+    ALTER TABLE deals_catalog_products
+      ADD COLUMN IF NOT EXISTS source_rank INTEGER,
+      ADD COLUMN IF NOT EXISTS price_checked_at TIMESTAMPTZ;
 
     CREATE TABLE IF NOT EXISTS deals_articles (
       id SERIAL PRIMARY KEY,
@@ -78,7 +81,9 @@ async function initDealsDb() {
     INSERT INTO deals_categories (name, slug, description)
     VALUES
       ('اختيارات المنزل', 'home-picks', 'أفكار عملية وأدوات منزلية نراجعها من زاوية الاستخدام والقيمة.'),
-      ('التقنية اليومية', 'everyday-tech', 'أدوات تقنية للاستخدام اليومي مع نقاط مقارنة واضحة قبل الشراء.')
+      ('التقنية اليومية', 'everyday-tech', 'أدوات تقنية للاستخدام اليومي مع نقاط مقارنة واضحة قبل الشراء.'),
+      ('العناية الشخصية', 'personal-care', 'منتجات عناية شخصية يومية نختارها من قوائم Amazon الأكثر مبيعًا.'),
+      ('أساسيات يومية', 'daily-essentials', 'احتياجات منزلية واستهلاكية عملية بأسعار بسيطة.')
     ON CONFLICT (slug) DO NOTHING;
 
     INSERT INTO deals_articles (title, slug, excerpt, body, is_published, published_at)
