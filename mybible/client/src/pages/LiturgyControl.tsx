@@ -582,7 +582,9 @@ export default function LiturgyControl() {
                     )}
                   </div>
                   <h3 className="text-sm text-gray-400 mb-2">{currentSlide.title}</h3>
-                  <p className="text-white text-sm font-serif whitespace-pre-line leading-relaxed line-clamp-6">
+                  <p className={`text-white text-sm font-serif whitespace-pre-line leading-relaxed ${
+                    _readingType === 'synaxar' ? 'break-words' : 'line-clamp-6'
+                  }`}>
                     {currentSlide.text}
                   </p>
                   {copticMode === 'script' && currentSlide.copticText && (
