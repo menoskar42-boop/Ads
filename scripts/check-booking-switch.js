@@ -63,6 +63,10 @@ for (const [label, re, table, redirect] of [
    * ساعتها الأحمر بيبقى كدب، وده أسوأ من مفيش فحص. */
   ['حجز العيادة', /router\.post\('\/book',\s*clinicGuard,[\s\S]*?\n\}\);/, 'clinic_settings', 'error=closed'],
   ['حجز كلاس الجيم', /router\.post\('\/book-class',[\s\S]*?\n\}\);/, 'gym_settings', 'bookerr=closed'],
+  /* الورشة اتضافت بعد العيادة والجيم بشهور، وشحنت **من غير** الزرار ده
+   * خالص: الورشة ماكانتش تقدر توقف الحجوزات لا وهي في أجازة ولا وهي
+   * مليانة. الفحص ده هو اللي بيمنع القطاع الجاي إنه يشحن ناقص كمان. */
+  ['حجز الورشة', /router\.post\('\/book',\s*workshopBookLimiter,[\s\S]*?\n\}\);/, 'workshop_settings', 'error=disabled'],
 ]) {
   const body = (tenant.match(re) || [''])[0];
   check(label + ': بيسأل قبل ما يكتب', new RegExp("bookingOpen\\('" + table + "'").test(body),
@@ -103,6 +107,16 @@ for (const [label, re, table, redirect] of [
   const clinicSettings = fs.readFileSync(path.join(ROOT, 'src/views/clinic_admin/settings.ejs'), 'utf8');
   check('والزرار لسه موجود في إعدادات الجيم', /name="booking_enabled"/.test(gymSettings));
   check('وفي إعدادات العيادة', /name="booking_enabled"/.test(clinicSettings));
+  const wshSettings = fs.readFileSync(path.join(ROOT, 'src/views/workshop_admin/settings.ejs'), 'utf8');
+  check('وفي إعدادات الورشة', /name="booking_enabled"/.test(wshSettings));
+
+  /* الزرار على الشاشة لوحده مش كفاية — لازم الراوت يحفظه. زرار بيتعرض
+   * وما بيتخزّنش أسوأ من مفيش زرار: التاجر بيقفل الحجز، بيشوف الشاشة
+   * بتقول مقفول، والحجوزات بتفضل جايالة. */
+  const wshRoute = fs.readFileSync(path.join(ROOT, 'src/routes/workshop_admin.js'), 'utf8');
+  check('وراوت إعدادات الورشة بيحفظه فعلاً',
+    /INSERT INTO workshop_settings[\s\S]{0,900}booking_enabled/.test(wshRoute)
+    && /b\.booking_enabled/.test(wshRoute));
 }
 
 console.log(fail

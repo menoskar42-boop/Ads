@@ -35,7 +35,21 @@
     </section>
   <% } else { %>
      <% if (error === 'invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 mb-5 text-sm">راجع الاسم ورقم الهاتف وبيانات السيارة والموعد، ثم حاول مرة أخرى.</div><% } %>
+     <% if (error === 'disabled') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 mb-5 text-sm">الورشة قفلت استقبال الحجوزات أونلاين. كلّمنا على طول ونظبّطلك ميعاد.</div><% } %>
      <% if (error === 'closed') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 mb-5 text-sm">الخانة التي اخترتها لم تعد متاحة. اختر موعدًا آخر من القائمة.</div><% } %>
+    <% if (typeof bookingOpen !== 'undefined' && !bookingOpen) { %>
+      <%# الورشة قافلة الحجز دلوقتي. الصفحة بتفضل موجودة وبتدّي طريق تاني
+          للتواصل — إخفاء كل حاجة بيخلّي الزائر يمشي. %>
+      <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-5 mb-5">
+        <p class="font-black mb-1">الحجز أونلاين مقفول حاليًا</p>
+        <p class="text-sm">كلّمنا على طول ونظبّطلك ميعاد.</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <% if (settings.phone) { %><a href="tel:<%= settings.phone %>" class="bg-slate-900 text-white font-bold rounded-xl px-5 py-2 text-sm">اتصل بنا</a><% } %>
+          <% if (settings.whatsapp) { %><a href="https://wa.me/<%= String(settings.whatsapp).replace(/[^0-9]/g, '') %>" target="_blank" rel="noopener" class="bg-emerald-500 text-white font-bold rounded-xl px-5 py-2 text-sm">واتساب</a><% } %>
+        </div>
+        <% if (settings.hours) { %><p class="text-xs mt-3 opacity-80">مواعيد العمل: <%= settings.hours %></p><% } %>
+      </div>
+    <% } else { %>
     <form method="post" action="/book" enctype="multipart/form-data" class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 space-y-5">
       <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -start-[9999px] opacity-0" />
       <div>
@@ -97,6 +111,7 @@
        <button <%= slots.length ? '' : 'disabled' %> class="w-full bg-brand-600 text-white font-black rounded-xl px-5 py-3 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">إرسال طلب الحجز</button>
       <p class="text-[11px] text-slate-400 text-center">الموعد لا يصبح مؤكدًا إلا بعد تواصل فريق <%= displayName %> معك.</p>
     </form>
+    <% } %>
   <% } %>
 </main>
  <section class="max-w-3xl mx-auto px-4 pb-8">
