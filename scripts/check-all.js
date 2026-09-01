@@ -88,6 +88,7 @@ const CHECKS = [
   ['check-upload-type',     'الملف المرفوع بيتفحص من بايتاته مش من كلام العميل'],
   ['check-receipt-privacy', 'إيصالات كاكيبو مابتتفتحش غير لصاحبها'],
   ['check-session-secret',  'مفيش سرّ جلسة افتراضي في الكود'],
+  ['check-admin-neutralize','حساب الأدمن الافتراضي القديم بيتقفل فعلاً مش بالصمت'],
   ['check-robots',          'robots.txt: كل بوت شايل قواعد المنع'],
   ['check-pharmacy-expiry', 'متابعة صلاحيات الصيدلية + صدق الادعاء'],
   ['check-gs1',             'باركود العلب المصرية (GS1 DataMatrix)'],

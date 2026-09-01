@@ -1628,10 +1628,27 @@ async function initDb() {
          ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
         [adminEmail, adminHash]
       );
-      // Neutralize any legacy default-credential admin left over from earlier
-      // boots (before this fix), unless it's the configured admin itself.
+      /* نشلّ حساب الأدمن الافتراضي القديم — **مانمسحوش**.
+       *
+       * كان `DELETE FROM admins WHERE email='admin@oscardevs.com'`، وده كان
+       * بيقع كل إقلاع بـ:
+       *   update or delete on table "admins" violates foreign key
+       * لأن `signup_applications.reviewer_id` بيشاور على `admins(id)`، فلو
+       * الحساب القديم راجع أي طلب المسح ممنوع. والخطأ كان بيتلمّ في
+       * `catch` كـ«DB init warning» — يعني **الحماية كانت فاشلة كل مرة
+       * والحساب الافتراضي فاضل موجود في الإنتاج**.
+       *
+       * والمسح مكانش الحل الصح أصلاً: لو نجح كنا هنفقد سجل مين راجع أنهي
+       * طلب. الحساب دلوقتي بياخد هاش عشوائي مالوش كلمة سر مقابلة، فمفيش
+       * دخول بيه أبداً، وسجل المراجعات بيفضل سليم. */
       if (adminEmail !== 'admin@oscardevs.com') {
-        await client.query('DELETE FROM admins WHERE email = $1', ['admin@oscardevs.com']);
+        const deadHash = await bcrypt.hash(require('crypto').randomBytes(32).toString('hex'), 10);
+        const r = await client.query(
+          'UPDATE admins SET password_hash = $1 WHERE email = $2 RETURNING id',
+          [deadHash, 'admin@oscardevs.com']);
+        if (r.rowCount) {
+          console.warn('[SECURITY] حساب الأدمن الافتراضي القديم admin@oscardevs.com اتشلّ (الدخول بيه مقفول).');
+        }
       }
     } else {
       console.warn('[SECURITY] ADMIN_EMAIL/ADMIN_PASSWORD not set — super-admin bootstrap skipped (no default account created). Set them as deployment secrets to enable admin login.');
