@@ -10,14 +10,18 @@
 <link rel="stylesheet" href="/css/tw.css" />
 <style>:root{--brand-50:238 244 248;--brand-100:214 229 239;--brand-200:173 201 221;--brand-300:126 167 198;--brand-400:81 133 172;--brand-500:55 107 145;--brand-600:43 85 117;--brand-700:34 66 92;--brand-800:26 50 69;--brand-900:18 35 47;}</style>
 <style>
-  body{font-family:'Cairo',sans-serif}
+  body{font-family:'Cairo',sans-serif;background:#f4f7fa}
+  a,button,input,select,textarea{transition:color .15s ease,background-color .15s ease,border-color .15s ease,transform .15s ease,box-shadow .15s ease}
+  a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgb(var(--brand-300));outline-offset:2px}
+  button:hover:not(:disabled),a:hover{transform:translateY(-1px)}
+  input,select,textarea{background:#fff}
   /* Wide tables become labelled cards on a phone. A mechanic checks a job from
      under a car, not from a desk, and sideways scrolling hides the column that
      matters. Add class="rt" and give each <td> a data-l. */
   @media (max-width: 639px) {
     table.rt, table.rt tbody, table.rt tr, table.rt td { display: block; width: 100%; }
     table.rt thead { display: none; }
-    table.rt tr { background:#fff; border:1px solid #d6e5ef; border-radius:1rem; padding:.5rem .75rem; margin-bottom:.6rem; }
+    table.rt tr { background:#fff; border:1px solid #d6e5ef; border-radius:1rem; padding:.5rem .75rem; margin-bottom:.6rem; box-shadow:0 2px 8px rgba(34,66,92,.04); }
     table.rt td { display:flex; align-items:center; gap:.5rem; padding:.35rem 0 !important; border:0 !important; text-align:start !important; }
     table.rt td::before { content: attr(data-l); flex:0 0 40%; color:#22425c; font-size:.7rem; font-weight:700; }
     table.rt td:not([data-l])::before { content: none; }
@@ -35,9 +39,10 @@
   var __nav = (typeof workshopNav !== 'undefined' ? workshopNav : []);
 %>
 <header class="bg-brand-600 text-white no-print">
-  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
-    <a href="/workshop" class="font-black text-lg flex items-center gap-2">
-      🔧 <span class="truncate max-w-[45vw] sm:max-w-none"><%= company.company_name %></span>
+  <div class="max-w-6xl mx-auto px-4 py-3 sm:py-3.5 flex items-center gap-3 flex-wrap">
+    <a href="/workshop" class="font-black text-lg flex items-center gap-2 min-w-0" aria-label="العودة إلى لوحة الورشة">
+      <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-white/15 text-xs tracking-tight">WS</span>
+      <span class="truncate max-w-[55vw] sm:max-w-none"><%= company.company_name %></span>
     </a>
     <nav class="hidden sm:flex items-center gap-1 text-sm ms-auto">
       <a href="/workshop" class="<%= __cls('dashboard') %>"><%= t('wsh.nav.dashboard') %></a>
@@ -48,12 +53,12 @@
     </nav>
     <% var __due = (typeof dueCount !== 'undefined' ? Number(dueCount) || 0 : 0); %>
     <% if (__due) { %>
-      <a href="/workshop/reminders" class="relative text-lg leading-none px-1" title="<%= t('wsh.nav.reminders') %>">⏰<span
+      <a href="/workshop/reminders" class="relative text-xs leading-none px-2 py-1.5 rounded-lg hover:bg-white/15" title="<%= t('wsh.nav.reminders') %>"><%= t('wsh.nav.reminders') %><span
         class="absolute -top-1 -end-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 leading-4"><%= __due > 99 ? '99+' : __due %></span></a>
     <% } %>
     <%- include('../partials/merchant_chips') %>
     <form method="post" action="/company/logout" class="ms-auto sm:ms-0">
-      <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5"><%= t('common.logout') %></button>
+      <button class="text-xs bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 font-bold"><%= t('common.logout') %></button>
     </form>
   </div>
 </header>
@@ -62,19 +67,19 @@
     the first thing anybody asks is "have we seen this one before?" — that
     question should never need a menu. %>
 <div class="bg-brand-50 border-b border-brand-100 no-print">
-  <form method="get" action="/workshop/vehicles" class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2 text-sm">
-    <span class="text-brand-800 font-bold whitespace-nowrap">🔎 <%= t('wsh.search.plate') %></span>
+  <form method="get" action="/workshop/vehicles" class="max-w-6xl mx-auto px-4 py-2.5 flex items-center gap-2 text-sm">
+    <span class="text-brand-800 font-bold whitespace-nowrap"><%= t('wsh.search.plate') %></span>
     <input name="q" value="<%= (typeof q !== 'undefined' && q) ? q : '' %>" placeholder="<%= t('wsh.search.hint') %>"
-      class="flex-1 border border-brand-200 rounded-lg px-3 py-1.5 bg-white min-w-0" />
-    <button class="bg-brand-600 text-white rounded-lg px-4 py-1.5 font-bold"><%= t('wsh.search.go') %></button>
+      aria-label="<%= t('wsh.search.plate') %>" class="flex-1 border border-brand-200 rounded-lg px-3 py-1.5 bg-white min-w-0" />
+    <button class="bg-brand-600 text-white rounded-lg px-4 py-1.5 font-bold whitespace-nowrap"><%= t('wsh.search.go') %></button>
   </form>
 </div>
 
 <nav class="sm:hidden bg-brand-700 text-white/90 overflow-x-auto no-print">
   <div class="flex gap-1 px-3 py-2 text-xs whitespace-nowrap">
-    <a href="/workshop" class="<%= __cls('dashboard') %>"><%= t('wsh.nav.dashboard') %></a>
+      <a href="/workshop" class="<%= __cls('dashboard') %>"><%= t('wsh.nav.dashboard') %></a>
     <% __nav.forEach(function(f){ %>
-      <a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.icon %> <%= f.label %></a>
+        <a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.label %></a>
     <% }); %>
     <a href="/workshop/settings" class="<%= __cls('settings') %>"><%= t('wsh.nav.settings') %></a>
   </div>

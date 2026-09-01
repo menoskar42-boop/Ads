@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <title><%= title %> — <%= job.business_name || job.company_name %></title>
+  <style>
+    :root{font-family:'Cairo',sans-serif;color:#263746;background:#f3f6f8;line-height:1.7;--ink:#263746;--brand:#2b5575;--brand-soft:#eaf1f6;--line:#dbe5eb;--surface:#fffdfa}
+    *{box-sizing:border-box}body{margin:0}.wrap{max-width:760px;margin:auto;padding:24px 16px 60px}
+    header{background:var(--brand);color:#fff;padding:25px 20px;border-radius:0 0 24px 24px;box-shadow:0 8px 24px rgba(43,85,117,.12)}
+    .brand{font-weight:900;font-size:20px;letter-spacing:-.02em}.muted{color:#6a7d89}.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px;margin-top:16px;box-shadow:0 5px 18px rgba(38,55,70,.035)}
+    .hero{display:flex;justify-content:space-between;gap:14px;align-items:start}.badge{display:inline-block;padding:5px 11px;border-radius:99px;background:var(--brand-soft);color:var(--brand);font-weight:800;font-size:12px;white-space:nowrap}
+    h1{font-size:25px;line-height:1.3;margin:5px 0;color:var(--ink)}h2{font-size:18px;line-height:1.4;margin:0 0 12px;color:var(--ink)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.label{font-size:11px;color:#72828d}.value{font-weight:800;color:var(--ink)}
+    table{width:100%;border-collapse:collapse;font-size:14px}td{padding:10px 0;border-bottom:1px solid #edf1f3}td:last-child{text-align:left;font-weight:bold;white-space:nowrap}
+    .finding{border-right:4px solid #d99d3f;padding:10px 12px;background:#fff9ed;border-radius:10px;margin-top:8px}.finding.urgent{border-color:#c95757;background:#fff3f2}
+    input{width:100%;padding:11px;border:1px solid #cfdde5;border-radius:10px;font:inherit;margin:8px 0;background:#fffdfa}input:focus{outline:3px solid #c5d8e5;outline-offset:1px}button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--brand);color:#fff;font:inherit;font-weight:800;cursor:pointer}button:hover{background:#234763;transform:translateY(-1px)}
+    .success{background:#e8f6ee;color:#17643d;border:1px solid #b8e0c9;padding:12px;border-radius:11px;font-weight:bold}
+    @media(max-width:560px){.wrap{padding-left:14px;padding-right:14px}.grid{grid-template-columns:1fr;gap:12px}.hero{display:block}.hero .badge{margin-top:12px}.card{padding:17px}h1{font-size:23px}}
+  </style>
+</head>
+<body>
+  <header><div class="wrap" style="padding:0 16px"><div class="brand"><%= job.business_name || job.company_name %></div><div style="opacity:.85;font-size:13px">متابعة أمر الصيانة من هاتفك</div></div></header>
+  <main class="wrap">
+    <% if (approved) { %><div class="success">تم تسجيل موافقتك بنجاح. سيبدأ المركز تنفيذ الأعمال المعتمدة.</div><% } %>
+     <section class="card hero">
+      <div><div class="muted">رقم أمر الشغل</div><h1><%= J.jobCode ? J.jobCode(job.job_id) : 'أمر الصيانة' %></h1><div class="muted"><%= [job.make,job.model,job.model_year].filter(Boolean).join(' ') %> · <bdi><%= job.plate %></bdi></div></div>
+      <span class="badge"><%= ({received:'تم الاستلام',quoted:'بانتظار الموافقة',approved:'تمت الموافقة',in_progress:'تحت التنفيذ',done:'جاهزة للمراجعة',delivered:'تم التسليم',cancelled:'ملغي'})[job.status] || job.status %></span>
+    </section>
+    <section class="card grid">
+      <div><div class="label">العميل</div><div class="value"><%= job.customer_name || '—' %></div></div>
+      <div><div class="label">الاستلام</div><div class="value"><%= new Date(job.received_at).toLocaleDateString('ar-EG') %></div></div>
+      <% if (job.promised_at) { %><div><div class="label">الموعد المتوقع</div><div class="value"><%= new Date(job.promised_at).toLocaleString('ar-EG', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) %></div></div><% } %>
+      <% if (job.diagnosis) { %><div><div class="label">التشخيص</div><div class="value"><%= job.diagnosis %></div></div><% } %>
+    </section>
+    <% if (job.complaint) { %><section class="card"><div class="label">طلبك عند الاستلام</div><p><%= job.complaint %></p></section><% } %>
+    <% if (inspection.length) { %>
+       <section class="card"><h2>نتيجة الفحص</h2>
+        <% inspection.filter(function(i){ return i.status !== 'not_checked'; }).forEach(function(i){ %>
+          <div class="finding <%= i.status === 'urgent' ? 'urgent' : '' %>"><b><%= i.check_name %></b><div style="font-size:13px"><%= i.status === 'good' ? 'سليم' : i.status === 'deferred' ? 'مؤجل' : i.status === 'urgent' ? 'يحتاج تدخلاً عاجلاً' : 'يحتاج متابعة' %><% if (i.note) { %> — <%= i.note %><% } %></div><% if (i.recommendation) { %><div style="font-size:12px;color:#6b7d80"><%= i.recommendation %></div><% } %></div>
+        <% }) %>
+      </section>
+    <% } %>
+    <% if (photos.length) { %>
+      <section class="card"><h2>صور السيارة</h2><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+        <% photos.forEach(function(photo){ %><figure style="margin:0"><img src="<%= photo.image_url %>" alt="<%= photo.caption || 'صورة السيارة' %>" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;background:#edf2f3"><figcaption class="muted" style="font-size:11px;margin-top:3px"><%= photo.caption || (photo.phase === 'after' ? 'بعد العمل' : 'عند الاستلام') %></figcaption></figure><% }) %>
+      </div></section>
+    <% } %>
+    <section class="card"><h2>التقدير الحالي</h2><table>
+      <% parts.forEach(function(p){ %><tr><td><%= p.name %> × <%= p.qty %></td><td><bdi><%= Number(p.qty*p.unit_price).toLocaleString('ar-EG') %></bdi> ج.م</td></tr><% }) %>
+      <% labour.forEach(function(l){ %><tr><td><%= l.description %></td><td><bdi><%= Number(l.amount).toLocaleString('ar-EG') %></bdi> ج.م</td></tr><% }) %>
+      <tr><td><b>الإجمالي</b></td><td><bdi><%= Number(totals.total).toLocaleString('ar-EG') %></bdi> ج.م</td></tr>
+    </table>
+    <% if (!job.approved_at && !['delivered','cancelled'].includes(job.status)) { %>
+      <form method="post" action="/workshop/status/<%= token %>/approve" style="margin-top:18px"><label class="label">اكتب اسمك لتأكيد موافقة عرض السعر</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على عرض السعر</button></form>
+    <% } else if (job.approved_at) { %><p class="muted">تم اعتماد العرض في <%= new Date(job.approved_at).toLocaleString('ar-EG') %>.</p><% } %>
+    </section>
+    <footer class="muted" style="text-align:center;font-size:12px;margin-top:24px"><%= job.address || '' %><% if (job.workshop_phone || job.company_phone) { %> · <bdi><%= job.workshop_phone || job.company_phone %></bdi><% } %></footer>
+  </main>
+</body>
+</html>

@@ -618,6 +618,8 @@ app.use('/food', foodAdminRouter);
 app.use('/clinic', clinicAdminRouter);
 app.use('/gym', require('./src/routes/gym_admin'));
 app.use('/furniture', require('./src/routes/furniture_admin'));
+// Public customer links must be mounted before the authenticated workshop panel.
+app.use('/workshop/status', require('./src/routes/workshop_public'));
 /* ── `/workshop` المجرّد للزائر غير المسجّل ──────────────────────────────
  *
  * `/workshop` هو **لوحة تحكم** الورشة، فالزائر غير المسجّل كان بيتحوّل

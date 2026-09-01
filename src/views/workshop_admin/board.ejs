@@ -1,0 +1,56 @@
+<%- include('head') %>
+<%
+  var labels = { received:'استلام', quoted:'عرض سعر', approved:'موافقة', in_progress:'تحت التنفيذ', done:'مراجعة وتسليم', delivered:'تم التسليم' };
+  var tones = { received:'border-slate-200', quoted:'border-amber-200', approved:'border-blue-200', in_progress:'border-violet-200', done:'border-emerald-200', delivered:'border-slate-200' };
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function dt(v){ try { return v ? new Date(v).toLocaleString(LOC, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'بدون موعد'; } catch(e){ return 'بدون موعد'; } }
+%>
+<div class="flex items-start justify-between gap-4 flex-wrap mb-6">
+  <div>
+    <div class="text-[11px] tracking-[.18em] text-brand-700 font-black">WORKSHOP CONTROL</div>
+    <h1 class="font-black text-2xl sm:text-3xl mt-1 text-slate-900">لوحة التشغيل اليومية</h1>
+    <p class="text-sm text-slate-500 mt-1 max-w-2xl">تابع كل أمر شغل من الاستلام إلى التسليم، واعرف السيارة التي تحتاج قرارًا الآن.</p>
+  </div>
+  <div class="flex gap-2 w-full sm:w-auto">
+    <a href="/workshop/appointments" class="flex-1 sm:flex-none text-center bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold hover:border-brand-300">المواعيد</a>
+    <a href="/workshop/jobs" class="flex-1 sm:flex-none text-center bg-brand-600 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-brand-700">أمر شغل جديد</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 items-start">
+  <% columns.forEach(function(column){ %>
+    <section class="bg-slate-100/80 rounded-2xl p-2.5 min-h-[260px] border-t-4 <%= tones[column.status] %>">
+      <div class="flex items-center justify-between px-1.5 py-1 mb-2">
+        <h2 class="font-black text-sm text-slate-800"><%= labels[column.status] || t('wsh.st.' + column.status) %></h2>
+        <span class="bg-white text-slate-500 text-xs font-black rounded-full min-w-7 text-center px-2 py-0.5" aria-label="عدد الأوامر"><%= column.jobs.length %></span>
+      </div>
+      <div class="space-y-2">
+        <% if (!column.jobs.length) { %>
+          <div class="rounded-xl border border-dashed border-slate-300 bg-white/60 p-4 text-center text-xs text-slate-400">لا توجد أوامر هنا</div>
+        <% } %>
+        <% column.jobs.forEach(function(job){ %>
+          <article class="bg-white rounded-xl border border-slate-200 p-3 shadow-sm hover:border-brand-200">
+            <div class="flex items-start justify-between gap-2">
+              <a href="/workshop/jobs/<%= job.id %>" class="font-black text-brand-700 text-sm hover:text-brand-900"><%= J.jobCode(job.id) %></a>
+              <% if (Number(job.findings)) { %><span class="text-[10px] font-bold text-rose-700 bg-rose-50 rounded-full px-2 py-0.5"><%= job.findings %> ملاحظات</span><% } %>
+            </div>
+            <div class="font-bold mt-2"><%= job.plate || 'بدون لوحة' %></div>
+            <div class="text-xs text-slate-500 truncate"><%= [job.make, job.model].filter(Boolean).join(' ') || 'بيانات السيارة ناقصة' %></div>
+            <div class="text-xs text-slate-600 mt-2"><%= job.customer_name || 'عميل غير مسجل' %></div>
+            <div class="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-100 text-[11px]">
+              <span class="<%= job.promised_at && new Date(job.promised_at) < new Date() && column.status !== 'delivered' ? 'text-rose-600 font-bold' : 'text-slate-500' %>"><%= dt(job.promised_at) %></span>
+              <span class="font-bold"><bdi><%= money(job.estimate_total) %></bdi> ج.م</span>
+            </div>
+            <form method="post" action="/workshop/jobs/<%= job.id %>/status" class="mt-2">
+              <label class="sr-only" for="job-status-<%= job.id %>">تحديث حالة أمر الشغل</label>
+              <select id="job-status-<%= job.id %>" name="status" class="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white" onchange="this.form.submit()">
+                <% J.FLOW.forEach(function(s){ %><option value="<%= s %>" <%= s === job.status ? 'selected' : '' %>><%= labels[s] || t('wsh.st.' + s) %></option><% }) %>
+              </select>
+            </form>
+          </article>
+        <% }) %>
+      </div>
+    </section>
+  <% }) %>
+</div>
+<%- include('foot') %>

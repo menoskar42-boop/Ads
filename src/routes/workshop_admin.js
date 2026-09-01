@@ -11,6 +11,12 @@ const { Pool } = require('pg');
 const { ref } = require('../lib/tenant_scope');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
+const {
+  INSPECTION_STATUSES,
+  ensureJobAccess,
+  ensureInspection,
+  logActivity,
+} = require('../workshop/operations');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -76,7 +82,7 @@ router.use(requireLogin, requireWorkshop);
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const cid = req.company.id;
-  const [open, promised, awaiting, dueRem, month, unpaid, low, recent] = await Promise.all([
+  const [open, promised, awaiting, dueRem, month, unpaid, low, appointmentsToday, recent] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int n FROM workshop_jobs WHERE company_id=$1 AND status = ANY($2)`,
       [cid, J.OPEN_STATUSES]),
     pool.query(`SELECT COUNT(*)::int n FROM workshop_jobs
@@ -97,6 +103,10 @@ router.get('/', async (req, res) => {
                  WHERE j.company_id=$1 AND j.status <> 'cancelled'`, [cid]),
     pool.query(`SELECT COUNT(*)::int n FROM workshop_parts
                  WHERE company_id=$1 AND is_active AND min_qty > 0 AND qty <= min_qty`, [cid]),
+    pool.query(`SELECT COUNT(*)::int n FROM workshop_appointments
+                  WHERE company_id=$1 AND status IN ('booked','confirmed')
+                    AND starts_at >= CURRENT_DATE
+                    AND starts_at < CURRENT_DATE + interval '1 day'`, [cid]),
     pool.query(`SELECT j.*, v.plate, v.make, v.model, c.name AS customer_name
                   FROM workshop_jobs j
                   LEFT JOIN workshop_vehicles v ON v.id = j.vehicle_id
@@ -107,11 +117,137 @@ router.get('/', async (req, res) => {
     title: req.t ? req.t('wsh.nav.dashboard') : 'Dashboard', tab: 'dashboard',
     stats: {
       open: open.rows[0].n, promised: promised.rows[0].n, awaiting: awaiting.rows[0].n,
-      dueRem: dueRem.rows[0].n, month: round2(month.rows[0].n),
+       dueRem: dueRem.rows[0].n, appointmentsToday: appointmentsToday.rows[0].n,
+       month: round2(month.rows[0].n),
       unpaid: round2(unpaid.rows[0].n), low: low.rows[0].n,
     },
     recent: recent.rows, J,
   });
+});
+
+// ── Operations board ──────────────────────────────────────────────────────────
+router.get('/board', requireFlag('board'), async (req, res) => {
+  const rows = await pool.query(
+    `SELECT j.id, j.status, j.complaint, j.promised_at, j.received_at,
+            v.plate, v.make, v.model, c.name AS customer_name,
+            t.name AS technician_name,
+            COALESCE((SELECT SUM(qty*unit_price) FROM workshop_job_parts WHERE job_id=j.id),0)
+              + COALESCE((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id),0)
+              - j.discount AS estimate_total,
+            (SELECT COUNT(*)::int FROM workshop_inspection_items i
+              WHERE i.job_id=j.id AND i.status IN ('attention','urgent')) AS findings
+       FROM workshop_jobs j
+       LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id
+       LEFT JOIN workshop_customers c ON c.id=j.customer_id
+       LEFT JOIN workshop_technicians t ON t.id=j.technician_id
+      WHERE j.company_id=$1 AND j.status <> 'cancelled'
+      ORDER BY COALESCE(j.promised_at, j.received_at), j.id`,
+    [req.company.id]
+  );
+  const columns = J.FLOW.map((status) => ({
+    status,
+    jobs: rows.rows.filter((job) => job.status === status),
+  }));
+  res.render('workshop_admin/board', {
+    title: 'لوحة التشغيل', tab: 'board', columns, J,
+    today: new Date().toISOString().slice(0, 10),
+  });
+});
+
+// ── Appointments ──────────────────────────────────────────────────────────────
+router.get('/appointments', requireFlag('appointments'), async (req, res) => {
+  const cid = req.company.id;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day || ''))
+    ? String(req.query.day) : new Date().toISOString().slice(0, 10);
+  const [rows, vehicles] = await Promise.all([
+    pool.query(
+      `SELECT a.*, v.plate, v.make, v.model, c.name AS customer_name,
+              c.phone AS customer_phone, j.id AS linked_job_id, j.status AS job_status
+         FROM workshop_appointments a
+         LEFT JOIN workshop_vehicles v ON v.id=a.vehicle_id
+         LEFT JOIN workshop_customers c ON c.id=a.customer_id
+         LEFT JOIN workshop_jobs j ON j.id=a.job_id
+        WHERE a.company_id=$1 AND a.starts_at::date=$2
+        ORDER BY a.starts_at`,
+      [cid, day]
+    ),
+    pool.query(
+      `SELECT v.id, v.plate, v.make, v.model, c.name AS customer_name, v.customer_id
+         FROM workshop_vehicles v
+         LEFT JOIN workshop_customers c ON c.id=v.customer_id
+        WHERE v.company_id=$1 AND v.is_active ORDER BY v.plate`,
+      [cid]
+    ),
+  ]);
+  const date = new Date(`${day}T12:00:00`);
+  const previous = new Date(date); previous.setDate(date.getDate() - 1);
+  const next = new Date(date); next.setDate(date.getDate() + 1);
+  res.render('workshop_admin/appointments', {
+    title: 'مواعيد الاستقبال', tab: 'appointments', appointments: rows.rows,
+    vehicles: vehicles.rows, day,
+    previous: previous.toISOString().slice(0, 10),
+    next: next.toISOString().slice(0, 10),
+  });
+});
+
+router.post('/appointments', requireFlag('appointments'), async (req, res) => {
+  const b = req.body || {}, cid = req.company.id, vehicleId = int(b.vehicle_id);
+  const starts = b.starts_at ? new Date(b.starts_at) : null;
+  if (!vehicleId || !starts || isNaN(starts)) return res.redirect('/workshop/appointments');
+  const vehicle = (await pool.query(
+    'SELECT id, customer_id FROM workshop_vehicles WHERE id=$1 AND company_id=$2 AND is_active',
+    [vehicleId, cid]
+  )).rows[0];
+  if (!vehicle) return res.redirect('/workshop/appointments');
+  const ends = b.ends_at ? new Date(b.ends_at) : null;
+  await pool.query(
+    `INSERT INTO workshop_appointments
+      (company_id, customer_id, vehicle_id, starts_at, ends_at, service_type, concern, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [cid, vehicle.customer_id, vehicle.id, starts, ends && !isNaN(ends) ? ends : null,
+      text(b.service_type, 120), text(b.concern, 500), text(b.notes, 500)]
+  );
+  res.redirect('/workshop/appointments?day=' + starts.toISOString().slice(0, 10));
+});
+
+router.post('/appointments/:id/status', requireFlag('appointments'), async (req, res) => {
+  const allowed = ['booked', 'confirmed', 'arrived', 'no_show', 'cancelled'];
+  const status = allowed.includes(String((req.body || {}).status)) ? String(req.body.status) : null;
+  if (status) await pool.query(
+    'UPDATE workshop_appointments SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3',
+    [status, int(req.params.id), req.company.id]
+  );
+  res.redirect('/workshop/appointments?day=' + encodeURIComponent(String(req.query.day || new Date().toISOString().slice(0, 10))));
+});
+
+router.post('/appointments/:id/convert', requireFlag('appointments'), async (req, res) => {
+  const cid = req.company.id, appointmentId = int(req.params.id);
+  const appointment = (await pool.query(
+    `SELECT a.*, v.id AS safe_vehicle_id, v.customer_id AS safe_customer_id
+       FROM workshop_appointments a
+       JOIN workshop_vehicles v ON v.id=a.vehicle_id AND v.company_id=a.company_id
+      WHERE a.id=$1 AND a.company_id=$2`, [appointmentId, cid]
+  )).rows[0];
+  if (!appointment || appointment.job_id) return res.redirect('/workshop/appointments');
+  const created = await pool.query(
+    `INSERT INTO workshop_jobs
+      (company_id, vehicle_id, customer_id, complaint, promised_at, tax_percent)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+    [cid, appointment.safe_vehicle_id, appointment.safe_customer_id,
+      appointment.concern || appointment.service_type || 'زيارة مجدولة',
+      appointment.starts_at, num(req.settings.tax_percent, 0)]
+  );
+  const jobId = created.rows[0].id;
+  await Promise.all([
+    pool.query(
+      `UPDATE workshop_appointments SET job_id=$1, status='arrived', updated_at=now()
+        WHERE id=$2 AND company_id=$3`, [jobId, appointmentId, cid]
+    ),
+    ensureJobAccess(pool, cid, jobId),
+    ensureInspection(pool, cid, jobId),
+  ]);
+  await logActivity(pool, cid, jobId, 'appointment_converted', 'تم تحويل الموعد إلى أمر شغل');
+  res.redirect('/workshop/jobs/' + jobId);
 });
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -281,6 +417,11 @@ router.post('/jobs', async (req, res) => {
      b.promised_at ? new Date(b.promised_at) : null,
      num(req.settings.tax_percent, 0), int(b.warranty_months, 0) || 0]
   );
+  await Promise.all([
+    ensureJobAccess(pool, cid, r.rows[0].id),
+    ensureInspection(pool, cid, r.rows[0].id),
+  ]);
+  await logActivity(pool, cid, r.rows[0].id, 'job_created', 'تم فتح أمر شغل جديد');
   // A newer odometer reading is worth keeping on the vehicle: every reminder is
   // computed from it, and this is the one moment somebody actually reads it.
   if (odo != null && (v.odometer == null || odo >= Number(v.odometer))) {
@@ -301,33 +442,88 @@ async function loadJob(cid, id) {
        LEFT JOIN workshop_technicians t ON t.id=j.technician_id
       WHERE j.id=$1 AND j.company_id=$2`, [id, cid])).rows[0];
   if (!job) return null;
-  const [parts, labour, photos, payments] = await Promise.all([
+  const [parts, labour, photos, payments, inspection, activity, access] = await Promise.all([
     pool.query('SELECT * FROM workshop_job_parts WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_job_labour WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_job_photos WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_payments WHERE company_id=$1 AND job_id=$2 ORDER BY paid_at', [cid, id]),
+    pool.query('SELECT * FROM workshop_inspection_items WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
+    pool.query('SELECT * FROM workshop_activity WHERE company_id=$1 AND job_id=$2 ORDER BY created_at DESC LIMIT 30', [cid, id]),
+    pool.query('SELECT token FROM workshop_job_access WHERE company_id=$1 AND job_id=$2', [cid, id]),
   ]);
-  return { job, parts: parts.rows, labour: labour.rows, photos: photos.rows, payments: payments.rows };
+  return {
+    job, parts: parts.rows, labour: labour.rows, photos: photos.rows, payments: payments.rows,
+    inspection: inspection.rows, activity: activity.rows, access: access.rows[0] || null,
+  };
 }
 
 router.get('/jobs/:id', async (req, res) => {
   const cid = req.company.id;
-  const data = await loadJob(cid, int(req.params.id));
+  const jobId = int(req.params.id);
+  const data = await loadJob(cid, jobId);
   if (!data) return res.redirect('/workshop/jobs');
+  await ensureJobAccess(pool, cid, jobId);
+  await ensureInspection(pool, cid, jobId);
+  // The first load happens before additive child rows are ensured. Reload so
+  // the page includes the access token and the default inspection checklist.
+  const freshData = await loadJob(cid, jobId);
   const [stock, techs] = await Promise.all([
     pool.query(`SELECT id, name, part_number, qty, avg_cost, sell_price FROM workshop_parts
                  WHERE company_id=$1 AND is_active ORDER BY name LIMIT 500`, [cid]),
     pool.query('SELECT id, name FROM workshop_technicians WHERE company_id=$1 AND is_active ORDER BY name', [cid]),
   ]);
   res.render('workshop_admin/job', {
-    title: J.jobCode(data.job.id), tab: 'jobs', ...data,
+    title: J.jobCode(freshData.job.id), tab: 'jobs', ...freshData,
     /* A code the server knows plus one number, never text from the URL. */
     err: String(req.query.err || '') === 'stock' ? 'stock' : null,
     errHave: Math.max(0, parseInt(req.query.have, 10) || 0),
     stock: stock.rows, technicians: techs.rows, J,
-    totals: J.jobTotals(data.job, data.parts, data.labour),
+     totals: J.jobTotals(freshData.job, freshData.parts, freshData.labour),
     labourRate: num(req.settings.labour_rate, 0),
+     inspectionStatuses: INSPECTION_STATUSES,
+     portalPath: data.access ? `/workshop/status/${data.access.token}` : null,
   });
+});
+
+router.post('/jobs/:id/inspection/items', requireFlag('inspections'), async (req, res) => {
+  const cid = req.company.id, id = int(req.params.id), b = req.body || {};
+  const exists = await pool.query('SELECT 1 FROM workshop_jobs WHERE id=$1 AND company_id=$2', [id, cid]);
+  if (!exists.rows.length) return res.redirect('/workshop/jobs');
+  const allowed = INSPECTION_STATUSES.includes(b.status) ? b.status : 'not_checked';
+  await pool.query(
+    `UPDATE workshop_inspection_items
+        SET status=$1, note=$2, recommendation=$3, estimated_amount=$4,
+            customer_visible=$5, updated_at=now()
+      WHERE id=$6 AND job_id=$7 AND company_id=$8`,
+    [allowed, text(b.note, 500), text(b.recommendation, 500),
+      b.estimated_amount === '' ? null : Math.max(0, num(b.estimated_amount, 0)),
+      b.customer_visible === '1', int(b.item_id), id, cid]
+  );
+  await logActivity(pool, cid, id, 'inspection_updated', `تم تحديث بند فحص إلى ${allowed}`);
+  res.redirect(`/workshop/jobs/${id}#inspection`);
+});
+
+router.post('/jobs/:id/inspection/promote/:itemId', requireFlag('inspections'), async (req, res) => {
+  const cid = req.company.id, id = int(req.params.id), itemId = int(req.params.itemId);
+  const exists = await pool.query('SELECT 1 FROM workshop_jobs WHERE id=$1 AND company_id=$2', [id, cid]);
+  if (!exists.rows.length) return res.redirect('/workshop/jobs');
+  const item = (await pool.query(
+    `SELECT * FROM workshop_inspection_items
+      WHERE id=$1 AND job_id=$2 AND company_id=$3`, [itemId, id, cid])).rows[0];
+  if (item && !item.promoted_at && (item.recommendation || Number(item.estimated_amount) > 0)) {
+    await pool.query(
+      `INSERT INTO workshop_job_labour
+        (company_id, job_id, description, hours, rate, amount)
+       VALUES ($1,$2,$3,0,0,$4)`,
+      [cid, id, item.recommendation || item.check_name, Math.max(0, num(item.estimated_amount, 0))]
+    );
+    await pool.query(
+      'UPDATE workshop_inspection_items SET promoted_at=now(), updated_at=now() WHERE id=$1 AND job_id=$2 AND company_id=$3',
+      [itemId, id, cid]
+    );
+    await logActivity(pool, cid, id, 'inspection_promoted', `تم تحويل ${item.check_name} إلى بند في عرض السعر`);
+  }
+  res.redirect(`/workshop/jobs/${id}#inspection`);
 });
 
 // Add a part to a job. Issuing stock and recording the line are one
@@ -441,6 +637,8 @@ router.post('/jobs/:id/approve', async (req, res) => {
       `UPDATE workshop_jobs SET status='approved', approved_at=now(), approved_by=$1, quote_total=$2
         WHERE id=$3 AND company_id=$4`,
       [text((req.body || {}).approved_by, 120) || data.job.customer_name, totals.total, id, cid]);
+    await logActivity(pool, cid, id, 'quote_approved',
+      `تم اعتماد عرض سعر بقيمة ${totals.total}`, text((req.body || {}).approved_by, 120) || data.job.customer_name);
   }
   res.redirect('/workshop/jobs/' + id);
 });
@@ -466,6 +664,7 @@ router.post('/jobs/:id/status', async (req, res) => {
   await pool.query(
     `UPDATE workshop_jobs SET status=$1${col ? `, ${col}=COALESCE(${col}, now())` : ''}
       WHERE id=$2 AND company_id=$3`, [status, id, cid]);
+  await logActivity(pool, cid, id, 'status_changed', `تغيرت الحالة إلى ${status}`);
 
   // Handover is what schedules the next visit, and what closes any reminder the
   // car came back for.
@@ -502,6 +701,7 @@ router.post('/jobs/:id/pay', async (req, res) => {
       await client.query('UPDATE workshop_jobs SET paid = paid + $1 WHERE id=$2 AND company_id=$3',
         [amount, id, cid]);
       await client.query('COMMIT');
+      await logActivity(pool, cid, id, 'payment_recorded', `تم تسجيل دفعة بقيمة ${amount}`);
     } catch (e) { await client.query('ROLLBACK'); console.error('[workshop pay]', e.message); }
     finally { client.release(); }
   }

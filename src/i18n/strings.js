@@ -1612,9 +1612,11 @@ const strings = {
     // نظام الموبيليا — القشرة (المرحلة صفر)
     // ── Car workshop (wsh.*) ──────────────────────────────────────────────
     'wsh.nav.dashboard':'لوحة التحكم','wsh.nav.settings':'الإعدادات',
-    'wsh.nav.jobs':'أوامر الشغل','wsh.nav.vehicles':'العربيات','wsh.nav.parts':'قطع الغيار',
+    'wsh.nav.jobs':'أوامر الشغل','wsh.nav.board':'لوحة التشغيل','wsh.nav.appointments':'المواعيد',
+    'wsh.nav.vehicles':'العربيات','wsh.nav.parts':'قطع الغيار',
     'wsh.nav.reminders':'تذكير الصيانة','wsh.nav.technicians':'الفنّيين','wsh.nav.invoices':'الفواتير',
     'wsh.nav.expenses':'المصروفات','wsh.nav.reports':'التقارير','wsh.nav.warranty':'الضمان',
+    'wsh.nav.inspections':'الفحص الرقمي','wsh.nav.customer_portal':'رابط العميل','wsh.nav.audit':'سجل النشاط',
     'wsh.search.plate':'دوّر بالرقم','wsh.search.hint':'رقم اللوحة أو اسم العميل أو التليفون','wsh.search.go':'بحث',
     'wsh.dash.open_jobs':'شغل مفتوح','wsh.dash.due_today':'موعود اليوم','wsh.dash.awaiting':'مستني موافقة العميل',
     'wsh.dash.due_reminders':'عربيات جه معادها','wsh.dash.month_revenue':'إيراد الشهر','wsh.dash.unpaid':'متبقّي على العملاء',
@@ -4384,9 +4386,11 @@ const strings = {
     // Furniture system — the shell (phase 0)
     // ── Car workshop (wsh.*) ──────────────────────────────────────────────
     'wsh.nav.dashboard':'Dashboard','wsh.nav.settings':'Settings',
-    'wsh.nav.jobs':'Job cards','wsh.nav.vehicles':'Vehicles','wsh.nav.parts':'Parts',
+     'wsh.nav.jobs':'Job cards','wsh.nav.board':'Operations board','wsh.nav.appointments':'Appointments',
+     'wsh.nav.vehicles':'Vehicles','wsh.nav.parts':'Parts',
     'wsh.nav.reminders':'Service reminders','wsh.nav.technicians':'Technicians','wsh.nav.invoices':'Invoices',
-    'wsh.nav.expenses':'Expenses','wsh.nav.reports':'Reports','wsh.nav.warranty':'Warranty',
+     'wsh.nav.expenses':'Expenses','wsh.nav.reports':'Reports','wsh.nav.warranty':'Warranty',
+     'wsh.nav.inspections':'Digital inspection','wsh.nav.customer_portal':'Customer link','wsh.nav.audit':'Activity log',
     'wsh.search.plate':'Find by plate','wsh.search.hint':'Plate, customer name or phone','wsh.search.go':'Search',
     'wsh.dash.open_jobs':'Open jobs','wsh.dash.due_today':'Promised today','wsh.dash.awaiting':'Awaiting approval',
     'wsh.dash.due_reminders':'Vehicles due','wsh.dash.month_revenue':'Revenue this month','wsh.dash.unpaid':'Outstanding',
