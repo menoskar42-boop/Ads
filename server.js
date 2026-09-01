@@ -92,6 +92,22 @@ const blogRouter = require('./src/routes/blog');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Bind the deployment port before loading the rest of the route graph. This
+// project co-hosts several apps and has a large synchronous require phase;
+// Replit's VM healthcheck can arrive while that phase is still running. The
+// temporary root response keeps the socket healthy during boot, then passes
+// through to the real homepage once all middleware has been registered.
+let appReady = false;
+const httpServer = http.createServer(app);
+app.get('/', (req, res, next) => {
+  if (!appReady) return res.status(200).type('text/plain').send('OK');
+  next();
+});
+httpServer.listen(PORT, '0.0.0.0', () => {
+  appReady = true;
+  console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
+});
+
 // Trust Cloudflare Worker proxy headers (X-Forwarded-Host, X-Forwarded-Proto)
 // so req.hostname reflects the original tenant subdomain (e.g. delta.oscardevs.com).
 app.set('trust proxy', true);
@@ -1646,8 +1662,6 @@ async function initDb() {
   }
 }
 
-// Start immediately so Replit can detect the open port
-const httpServer = http.createServer(app);
 const sokroWss = new (require('ws').WebSocketServer)({ noServer: true });
 sokroStream.attach(sokroWss);
 httpServer.on('upgrade', (req, socket, head) => {
@@ -1658,9 +1672,6 @@ httpServer.on('upgrade', (req, socket, head) => {
   const claims = require('./sokro/auth').verify(String(token || ''));
   if (!claims || claims.purpose !== 'phone_stream' || !claims.sub || !claims.callId) return socket.destroy();
   sokroWss.handleUpgrade(req, socket, head, ws => sokroWss.emit('connection', ws, req, claims));
-});
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Oscardevs Ads running on http://0.0.0.0:${PORT}`);
 });
 
 // ===== Co-hosted mybible: auto-launch on the same VM =====
