@@ -1,4 +1,7 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const payVault = require('../lib/pay_vault');
 const router = express.Router();
 const { Pool } = require('pg');
@@ -24,6 +27,7 @@ const paymob = require('../lib/gateways/paymob');
 const { getEnabledModules } = require('../clinic/modules');
 const { sendWhatsApp, renderTemplate } = require('../lib/whatsapp');
 const { rateLimit: _rl, clientIp, clientIp: _cip } = require('../middleware/rateLimit');
+const uploads = require('../lib/uploads');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -36,9 +40,72 @@ const workshopBookLimiter = _rl({
   keyFn: (req) => ((req.tenant && req.tenant.id) || 'workshop') + '|' + _cip(req),
 });
 
+const workshopUploadDir = path.join(__dirname, '../../public/uploads');
+if (!fs.existsSync(workshopUploadDir)) fs.mkdirSync(workshopUploadDir, { recursive: true });
+const workshopPhotoUpload = uploads.guard(multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, workshopUploadDir),
+    filename: (req, file, cb) => cb(null,
+      `workshop-book-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${uploads.extname(file, '.bin')}`),
+  }),
+  limits: { files: 3, fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\/(png|jpeg|jpg|gif|webp)$/i.test(file.mimetype)),
+}).array('issue_photos', 3), 'image');
+
 function workshopPhone(value) {
   const phone = String(value == null ? '' : value).replace(/[^\d+]/g, '').slice(0, 30);
   return phone.length >= 7 ? phone : '';
+}
+
+function cleanupWorkshopUploads(files) {
+  (files || []).forEach((file) => { if (file && file.path) { try { fs.unlinkSync(file.path); } catch (_) {} } });
+}
+
+function localDateTimeValue(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function workshopHours(hours) {
+  const match = String(hours || '').match(/(\d{1,2})(?::(\d{2}))?\s*(?:-|–|—|إلى|الى|حتى)\s*(\d{1,2})(?::(\d{2}))?/i);
+  if (!match) return { start: 9 * 60, end: 17 * 60 };
+  const start = Math.min(1439, Number(match[1]) * 60 + Number(match[2] || 0));
+  const end = Math.min(1439, Number(match[3]) * 60 + Number(match[4] || 0));
+  return end > start ? { start, end } : { start: 9 * 60, end: 17 * 60 };
+}
+
+async function workshopAvailableSlots(companyId, hours) {
+  const occupied = (await pool.query(
+    `SELECT starts_at, ends_at FROM workshop_appointments
+      WHERE company_id=$1 AND starts_at >= now()
+        AND starts_at < now() + interval '21 days'
+        AND status IN ('booked','confirmed','arrived')`, [companyId]
+  )).rows.map((row) => ({
+    start: new Date(row.starts_at),
+    end: row.ends_at ? new Date(row.ends_at) : new Date(new Date(row.starts_at).getTime() + 60 * 60 * 1000),
+  }));
+  const range = workshopHours(hours);
+  const now = new Date(Date.now() + 30 * 60 * 1000);
+  const slots = [];
+  for (let day = 0; day < 21 && slots.length < 80; day += 1) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + day);
+    for (let minutes = range.start; minutes < range.end && slots.length < 80; minutes += 60) {
+      const slot = new Date(date);
+      slot.setMinutes(minutes);
+      if (slot < now) continue;
+      const value = localDateTimeValue(slot);
+      const slotEnd = new Date(slot.getTime() + 60 * 60 * 1000);
+      if (occupied.some((booking) => slot < booking.end && slotEnd > booking.start)) continue;
+      slots.push({
+        value,
+        label: slot.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'short' })
+          + ' — ' + slot.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+  }
+  return slots;
 }
 
 router.get('/book', async (req, res, next) => {
@@ -46,19 +113,26 @@ router.get('/book', async (req, res, next) => {
   const settings = (await pool.query(
     'SELECT * FROM workshop_settings WHERE company_id=$1', [req.tenant.id]
   )).rows[0] || {};
+  const slots = await workshopAvailableSlots(req.tenant.id, settings.hours);
   res.render('workshop_public/book', {
     company: req.tenant, settings,
+    slots,
     booked: req.query.booked === '1',
     error: ['invalid', 'closed'].includes(String(req.query.error || '')) ? req.query.error : null,
   });
 });
 
-router.post('/book', workshopBookLimiter, async (req, res, next) => {
+router.post('/book', workshopBookLimiter, workshopPhotoUpload, async (req, res, next) => {
   if (!req.tenant || req.tenant.page_type !== 'workshop') return next();
   const b = req.body || {};
+  const uploadedFiles = req.files || [];
+  const photoUrls = uploadedFiles.map((file) => `/uploads/${file.filename}`);
   // A hidden field catches the common no-JS bot without punishing a real
   // customer; rate limiting remains the backstop for repeated submissions.
-  if (String(b.website || '').trim()) return res.redirect('/book?booked=0');
+  if (String(b.website || '').trim()) {
+    cleanupWorkshopUploads(uploadedFiles);
+    return res.redirect('/book?booked=0');
+  }
   const name = String(b.name || '').trim().slice(0, 120);
   const phone = workshopPhone(b.phone);
   const plate = String(b.plate || '').trim().slice(0, 30);
@@ -67,7 +141,16 @@ router.post('/book', workshopBookLimiter, async (req, res, next) => {
   if (!name || !phone || !plate || !concern || isNaN(starts)
       || starts < new Date(Date.now() + 30 * 60 * 1000)
       || starts > new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)) {
+    cleanupWorkshopUploads(uploadedFiles);
     return res.redirect('/book?error=invalid');
+  }
+  const settings = (await pool.query(
+    'SELECT hours FROM workshop_settings WHERE company_id=$1', [req.tenant.id]
+  )).rows[0] || {};
+  const available = await workshopAvailableSlots(req.tenant.id, settings.hours);
+  if (!available.some((slot) => slot.value === String(b.starts_at))) {
+    cleanupWorkshopUploads(uploadedFiles);
+    return res.redirect('/book?error=closed');
   }
   const client = await pool.connect();
   try {
@@ -107,16 +190,24 @@ router.post('/book', workshopBookLimiter, async (req, res, next) => {
           WHERE id=$4 AND company_id=$5`,
         [customer.id, make, model, vehicle.id, req.tenant.id]);
     }
-    await client.query(
+    const appointment = await client.query(
       `INSERT INTO workshop_appointments
         (company_id, customer_id, vehicle_id, starts_at, status, service_type, concern, notes, source)
        VALUES ($1,$2,$3,$4,'booked',$5,$6,$7,'public')`,
       [req.tenant.id, customer.id, vehicle.id, starts,
        String(b.service_type || '').trim().slice(0, 120) || 'طلب صيانة',
        concern, String(b.notes || '').trim().slice(0, 500) || null]);
+    for (const imageUrl of photoUrls) {
+      await client.query(
+        `INSERT INTO workshop_appointment_photos (company_id, appointment_id, image_url, caption)
+         VALUES ($1,$2,$3,$4)`,
+        [req.tenant.id, appointment.rows[0].id, imageUrl, 'صورة مرفقة مع طلب الحجز']
+      );
+    }
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
+    cleanupWorkshopUploads(uploadedFiles);
     console.error('[workshop public booking]', e.message);
     return res.redirect('/book?error=invalid');
   } finally { client.release(); }

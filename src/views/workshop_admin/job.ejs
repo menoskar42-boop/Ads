@@ -38,6 +38,7 @@
     <div class="text-end">
        <span class="inline-flex text-xs font-bold px-3 py-1 rounded-full bg-brand-100 text-brand-800"><%= t('wsh.st.' + job.status) %></span>
       <div class="text-xs text-slate-500 mt-2"><%= t('wsh.job.received') %>: <%= dt(job.received_at) %></div>
+       <a href="/workshop/jobs/<%= job.id %>/report" target="_blank" rel="noopener" class="inline-flex mt-2 text-xs text-brand-700 font-bold no-print">تقرير التسليم / طباعة PDF ↗</a>
       <% if (job.odometer_in != null) { %>
         <div class="text-xs text-slate-500"><%= t('wsh.job.odometer_in') %>: <%= Number(job.odometer_in).toLocaleString(LOC) %></div>
       <% } %>

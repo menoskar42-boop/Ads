@@ -379,6 +379,16 @@ async function ensureWorkshopSchema() {
         updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_appointments ON workshop_appointments (company_id, starts_at, status);
+      CREATE TABLE IF NOT EXISTS workshop_appointment_photos (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        appointment_id INTEGER NOT NULL REFERENCES workshop_appointments(id) ON DELETE CASCADE,
+        image_url      TEXT NOT NULL,
+        caption        TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_appointment_photos
+        ON workshop_appointment_photos (company_id, appointment_id);
     `);
 
     // ── Service reminders ────────────────────────────────────────────────────

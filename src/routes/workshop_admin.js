@@ -177,6 +177,8 @@ router.get('/appointments', requireFlag('appointments'), async (req, res) => {
     pool.query(
       `SELECT a.*, v.plate, v.make, v.model, c.name AS customer_name,
               c.phone AS customer_phone, j.id AS linked_job_id, j.status AS job_status
+               ,(SELECT COUNT(*)::int FROM workshop_appointment_photos ap
+                  WHERE ap.appointment_id=a.id AND ap.company_id=a.company_id) AS photo_count
          FROM workshop_appointments a
          LEFT JOIN workshop_vehicles v ON v.id=a.vehicle_id
          LEFT JOIN workshop_customers c ON c.id=a.customer_id
@@ -252,6 +254,10 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), async (req
       appointment.starts_at, num(req.settings.tax_percent, 0)]
   );
   const jobId = created.rows[0].id;
+  const appointmentPhotos = (await pool.query(
+    `SELECT image_url, caption FROM workshop_appointment_photos
+      WHERE appointment_id=$1 AND company_id=$2 ORDER BY id`, [appointmentId, cid]
+  )).rows;
   await Promise.all([
     pool.query(
       `UPDATE workshop_appointments SET job_id=$1, status='arrived', updated_at=now()
@@ -260,6 +266,10 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), async (req
     ensureJobAccess(pool, cid, jobId),
     ensureInspection(pool, cid, jobId),
     ensureQuality(pool, cid, jobId),
+    ...appointmentPhotos.map((photo) => pool.query(
+      `INSERT INTO workshop_job_photos (company_id, job_id, phase, image_url, caption)
+       VALUES ($1,$2,'before',$3,$4)`, [cid, jobId, photo.image_url, photo.caption]
+    )),
   ]);
   await logActivity(pool, cid, jobId, 'appointment_converted', 'تم تحويل الموعد إلى أمر شغل');
   res.redirect('/workshop/jobs/' + jobId);
@@ -509,6 +519,18 @@ router.get('/jobs/:id', async (req, res) => {
      portalPath: data.access ? `/workshop/status/${data.access.token}` : null,
      qualityReady: qualityReady(freshData.quality),
      canQualityOverride: Boolean(await managerIdentity(req, cid)),
+  });
+});
+
+router.get('/jobs/:id/report', async (req, res) => {
+  const cid = req.company.id, id = int(req.params.id);
+  const data = await loadJob(cid, id);
+  if (!data) return res.redirect('/workshop/jobs');
+  await ensureQuality(pool, cid, id);
+  const freshData = await loadJob(cid, id);
+  res.render('workshop_admin/report', {
+    title: `تقرير تسليم ${J.jobCode(id)}`, ...freshData, J,
+    totals: J.jobTotals(freshData.job, freshData.parts, freshData.labour),
   });
 });
 

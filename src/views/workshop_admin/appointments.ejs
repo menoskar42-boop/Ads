@@ -28,7 +28,7 @@
             <div class="bg-brand-50 text-brand-800 rounded-xl px-3 py-2 text-lg font-black whitespace-nowrap"><%= time(a.starts_at) %></div>
             <div>
               <div class="font-black"><%= a.plate || 'سيارة غير محددة' %> <span class="text-slate-400 font-normal"><%= [a.make,a.model].filter(Boolean).join(' ') %></span></div>
-              <div class="text-sm text-slate-500"><%= a.customer_name || 'عميل غير مسجل' %><% if (a.customer_phone) { %> · <span dir="ltr"><%= a.customer_phone %></span><% } %><% if (a.source === 'public') { %> · <span class="text-brand-700 font-bold">طلب من الرابط العام</span><% } %></div>
+               <div class="text-sm text-slate-500"><%= a.customer_name || 'عميل غير مسجل' %><% if (a.customer_phone) { %> · <span dir="ltr"><%= a.customer_phone %></span><% } %><% if (a.source === 'public') { %> · <span class="text-brand-700 font-bold">طلب من الرابط العام</span><% } %><% if (a.photo_count) { %> · <span class="text-amber-700 font-bold">📷 <%= a.photo_count %> صور</span><% } %></div>
             </div>
           </div>
           <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status === 'cancelled' ? 'bg-slate-100 text-slate-500' : a.status === 'arrived' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700' %>"><%= statusLabels[a.status] || a.status %></span>

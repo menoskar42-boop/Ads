@@ -34,8 +34,9 @@
       <a href="/" class="inline-block mt-4 text-sm font-bold underline">العودة إلى صفحة الورشة</a>
     </section>
   <% } else { %>
-    <% if (error === 'invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 mb-5 text-sm">راجع الاسم ورقم الهاتف وبيانات السيارة والموعد، ثم حاول مرة أخرى.</div><% } %>
-    <form method="post" action="/book" class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 space-y-5">
+     <% if (error === 'invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 mb-5 text-sm">راجع الاسم ورقم الهاتف وبيانات السيارة والموعد، ثم حاول مرة أخرى.</div><% } %>
+     <% if (error === 'closed') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 mb-5 text-sm">الخانة التي اخترتها لم تعد متاحة. اختر موعدًا آخر من القائمة.</div><% } %>
+    <form method="post" action="/book" enctype="multipart/form-data" class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 space-y-5">
       <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -start-[9999px] opacity-0" />
       <div>
         <h2 class="font-black text-xl">بيانات التواصل</h2>
@@ -69,23 +70,54 @@
       <div class="pt-2 border-t border-slate-100">
         <h2 class="font-black text-xl">تفاصيل الزيارة</h2>
       </div>
-      <label class="block text-sm font-bold">الموعد المفضل *
-        <input name="starts_at" type="datetime-local" required min="<%= minValue %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
-      </label>
+       <label class="block text-sm font-bold">اختر الموعد المتاح *
+         <% if (slots.length) { %>
+           <select name="starts_at" required class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1 bg-white">
+             <option value="">اختر اليوم والساعة</option>
+             <% slots.forEach(function(slot){ %><option value="<%= slot.value %>"><%= slot.label %></option><% }) %>
+           </select>
+           <span class="block text-xs text-slate-400 mt-1">المواعيد المعروضة حسب ساعات العمل والخانات المحجوزة حاليًا.</span>
+         <% } else { %>
+           <div class="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl px-3 py-2 mt-1 text-sm">لا توجد خانات متاحة للحجز الآن. تواصل معنا هاتفيًا.</div>
+         <% } %>
+       </label>
       <label class="block text-sm font-bold">نوع الخدمة
         <input name="service_type" maxlength="120" placeholder="مثال: صيانة دورية أو فرامل" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
       </label>
       <label class="block text-sm font-bold">ما المشكلة أو المطلوب؟ *
         <textarea name="concern" required maxlength="1000" rows="4" placeholder="اشرح العطل أو الخدمة التي تحتاجها" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea>
       </label>
+       <label class="block text-sm font-bold">صور المشكلة <span class="text-slate-400 font-normal">(اختياري، حتى 3 صور)</span>
+         <input name="issue_photos" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1 text-sm bg-white" />
+         <span class="block text-xs text-slate-400 mt-1">الصورة تساعد الفريق على تجهيز الاستقبال وقطع الغيار المناسبة.</span>
+       </label>
       <label class="block text-sm font-bold">ملاحظات إضافية
         <textarea name="notes" maxlength="500" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea>
       </label>
-      <button class="w-full bg-brand-600 text-white font-black rounded-xl px-5 py-3 hover:bg-brand-700">إرسال طلب الحجز</button>
+       <button <%= slots.length ? '' : 'disabled' %> class="w-full bg-brand-600 text-white font-black rounded-xl px-5 py-3 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">إرسال طلب الحجز</button>
       <p class="text-[11px] text-slate-400 text-center">الموعد لا يصبح مؤكدًا إلا بعد تواصل فريق <%= displayName %> معك.</p>
     </form>
   <% } %>
 </main>
+ <section class="max-w-3xl mx-auto px-4 pb-8">
+   <div class="grid sm:grid-cols-3 gap-3">
+     <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xl">✓</div><b class="block mt-2">فحص واضح</b><p class="text-xs text-slate-500 mt-1">نعرض نتيجة الفحص والتكلفة قبل بدء الأعمال.</p></div>
+     <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xl">🛡</div><b class="block mt-2">توثيق السيارة</b><p class="text-xs text-slate-500 mt-1">يمكن توثيق حالتها بالصور عند الاستلام والتسليم.</p></div>
+     <div class="bg-white border border-slate-200 rounded-2xl p-4"><div class="text-xl">↗</div><b class="block mt-2">متابعة من الهاتف</b><p class="text-xs text-slate-500 mt-1">يصلك رابط آمن لمتابعة الحالة والموافقة على العرض.</p></div>
+   </div>
+   <div class="bg-white border border-slate-200 rounded-2xl p-5 mt-4">
+     <h2 class="font-black text-xl">خدمات الورشة</h2>
+     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3 text-sm text-slate-700">
+       <span class="bg-slate-50 rounded-xl px-3 py-2">صيانة دورية</span><span class="bg-slate-50 rounded-xl px-3 py-2">فحص فرامل</span><span class="bg-slate-50 rounded-xl px-3 py-2">كهرباء السيارات</span><span class="bg-slate-50 rounded-xl px-3 py-2">تكييف</span><span class="bg-slate-50 rounded-xl px-3 py-2">عفشة وتعليق</span><span class="bg-slate-50 rounded-xl px-3 py-2">فحص قبل الشراء</span>
+     </div>
+   </div>
+   <div class="bg-white border border-slate-200 rounded-2xl p-5 mt-4">
+     <h2 class="font-black text-xl">أسئلة شائعة</h2>
+     <details class="border-b border-slate-100 py-3"><summary class="font-bold cursor-pointer">هل إرسال الطلب يعني أن الموعد مؤكد؟</summary><p class="text-sm text-slate-500 mt-2">لا، الطلب مبدئي وسيتواصل معك فريق الورشة لتأكيد الموعد.</p></details>
+     <details class="border-b border-slate-100 py-3"><summary class="font-bold cursor-pointer">هل أستطيع إرسال صور للعطل؟</summary><p class="text-sm text-slate-500 mt-2">نعم، يمكنك إرفاق حتى ثلاث صور واضحة مع الطلب.</p></details>
+     <details class="py-3"><summary class="font-bold cursor-pointer">أين توجد الورشة؟</summary><p class="text-sm text-slate-500 mt-2"><%= settings.address || 'سيتواصل معك الفريق لتأكيد تفاصيل الوصول.' %><% if (settings.address) { %> · <a class="text-brand-700 font-bold underline" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(settings.address) %>">فتح الخريطة</a><% } %></p></details>
+   </div>
+ </section>
 <footer class="text-center py-8 text-xs text-slate-400"><%= displayName %><% if (phone) { %> · <bdi><%= phone %></bdi><% } %></footer>
 </body>
 </html>
