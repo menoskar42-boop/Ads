@@ -289,17 +289,22 @@ router.post('/settings', async (req, res) => {
   await pool.query(
     `INSERT INTO workshop_settings
        (company_id, business_name, address, phone, whatsapp, about, hours,
-        tax_percent, labour_rate, service_km, service_months, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
+        tax_percent, labour_rate, service_km, service_months, booking_enabled, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
      ON CONFLICT (company_id) DO UPDATE SET
        business_name=EXCLUDED.business_name, address=EXCLUDED.address, phone=EXCLUDED.phone,
        whatsapp=EXCLUDED.whatsapp, about=EXCLUDED.about, hours=EXCLUDED.hours,
        tax_percent=EXCLUDED.tax_percent, labour_rate=EXCLUDED.labour_rate,
-       service_km=EXCLUDED.service_km, service_months=EXCLUDED.service_months, updated_at=now()`,
+       service_km=EXCLUDED.service_km, service_months=EXCLUDED.service_months,
+       booking_enabled=EXCLUDED.booking_enabled, updated_at=now()`,
     [cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
      text(b.about, 2000), text(b.hours, 120), Math.min(100, Math.max(0, num(b.tax_percent))),
      Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
-     Math.max(0, int(b.service_months, 6))]
+     Math.max(0, int(b.service_months, 6)),
+     /* خانة اختيار مش مختارة مابتتبعتش أصلاً في الفورم، فغيابها = مقفول.
+      * لازم تتحسب من وجود الحقل نفسه — لو قريناها بـ`!== false` كانت
+      * هتفضل مفتوحة على طول ومحدش يقدر يقفل. */
+     b.booking_enabled === '1' || b.booking_enabled === 'on']
   );
   const wanted = Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []);
   await saveFlags(pool, cid, wanted);

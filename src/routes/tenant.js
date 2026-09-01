@@ -113,12 +113,19 @@ router.get('/book', async (req, res, next) => {
   const settings = (await pool.query(
     'SELECT * FROM workshop_settings WHERE company_id=$1', [req.tenant.id]
   )).rows[0] || {};
-  const slots = await workshopAvailableSlots(req.tenant.id, settings.hours);
+  /* الصفحة بتفضل شغّالة وبتقول إن الحجز مقفول — مش ٤٠٤. الزائر اللي
+   * جاي من جوجل أو من لينك مبعوت لازم يلاقي مواعيد الورشة وتليفونها،
+   * مش صفحة مفقودة. والقفل الحقيقي على الـPOST. */
+  const bookingIsOpen = await bookingOpen('workshop_settings', req.tenant.id);
+  const slots = bookingIsOpen
+    ? await workshopAvailableSlots(req.tenant.id, settings.hours)
+    : [];
   res.render('workshop_public/book', {
     company: req.tenant, settings,
     slots,
+    bookingOpen: bookingIsOpen,
     booked: req.query.booked === '1',
-    error: ['invalid', 'closed'].includes(String(req.query.error || '')) ? req.query.error : null,
+    error: ['invalid', 'closed', 'disabled'].includes(String(req.query.error || '')) ? req.query.error : null,
   });
 });
 
@@ -126,6 +133,13 @@ router.post('/book', workshopBookLimiter, workshopPhotoUpload, async (req, res, 
   if (!req.tenant || req.tenant.page_type !== 'workshop') return next();
   const b = req.body || {};
   const uploadedFiles = req.files || [];
+  /* الزرار بيتسأل **على السيرفر**، قبل أي كتابة. إخفاء الفورم في القالب
+   * لوحده مش قفل — أي حد يقدر يبعت POST من غير الصفحة. وبنمسح الصور
+   * المرفوعة الأول عشان ورشة مقفولة ماتسيبش ملفات على الديسك. */
+  if (!await bookingOpen('workshop_settings', req.tenant.id)) {
+    cleanupWorkshopUploads(uploadedFiles);
+    return res.redirect('/book?error=disabled');
+  }
   const photoUrls = uploadedFiles.map((file) => `/uploads/${file.filename}`);
   // A hidden field catches the common no-JS bot without punishing a real
   // customer; rate limiting remains the backstop for repeated submissions.
