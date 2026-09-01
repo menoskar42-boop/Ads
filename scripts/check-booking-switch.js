@@ -56,7 +56,12 @@ const tenant = code('src/routes/tenant.js');
 
 /* ── Both public booking routes ask it, before anything else ───────────── */
 for (const [label, re, table, redirect] of [
-  ['حجز العيادة', /router\.post\('\/book',[\s\S]*?\n\}\);/, 'clinic_settings', 'error=closed'],
+  /* ⚠️ **لازم يتربط بالحارس بتاع العيادة بالاسم.** كان مكتوب
+   * `/router\.post\('\/book',…/` وخلاص — أول تطابق في الملف. ولما اتضاف
+   * راوت `/book` جديد **للورشة** فوق راوت العيادة، الحارس بقى يقيس
+   * الورشة ويقول إن العيادة مابتسألش — والعيادة سليمة طول الوقت.
+   * ساعتها الأحمر بيبقى كدب، وده أسوأ من مفيش فحص. */
+  ['حجز العيادة', /router\.post\('\/book',\s*clinicGuard,[\s\S]*?\n\}\);/, 'clinic_settings', 'error=closed'],
   ['حجز كلاس الجيم', /router\.post\('\/book-class',[\s\S]*?\n\}\);/, 'gym_settings', 'bookerr=closed'],
 ]) {
   const body = (tenant.match(re) || [''])[0];

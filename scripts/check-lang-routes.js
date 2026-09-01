@@ -44,11 +44,19 @@ const mw = makeMw();
 function run(host, method, url) {
   return new Promise((resolve) => {
     const req = { headers: { host }, hostname: host, method, url, path: url.split('?')[0] };
+    /* `siteOrigin` بيتحطّ في server.js قبل `lang_prefix` بكتير، والميدل‌وير
+     * بيبني الكانونيكال منه. لو سبناه فاضي هنا، الفحص بيقيس نفسه مش
+     * التطبيق: بيقول «مفيش كانونيكال» وهو موجود فعلاً في الشغل الحقيقي. */
     const res = {
-      locals: {},
+      locals: { siteOrigin: `https://${host}` },
       redirect: (code, to) => resolve({ kind: 'redirect', code, to }),
     };
-    mw(req, res, () => resolve({ kind: 'next', url: req.url, lang: res.locals.lang || null }));
+    mw(req, res, () => resolve({
+      kind: 'next', url: req.url, lang: res.locals.lang || null,
+      canonicalUrl: res.locals.canonicalUrl,
+      hreflang: res.locals.hreflang,
+      hreflangDefault: res.locals.hreflangDefault,
+    }));
   });
 }
 
@@ -57,7 +65,7 @@ function run(host, method, url) {
   //
   // ٣٠٢ بتقول لجوجل «القديم هو الأصل» فبتفضل مفهرساه — ونضيّع النقل كله.
 
-  for (const [from, to] of [['/about', '/ar/about'], ['/', '/ar'],
+  for (const [from, to] of [['/about', '/ar/about'],
     ['/blog/local-seo-egypt', '/ar/blog/local-seo-egypt'],
     ['/pharmacy-management-egypt', '/ar/pharmacy-management-egypt'],
     ['/crm-development-egypt', '/ar/crm-development-egypt']]) {
@@ -85,10 +93,36 @@ function run(host, method, url) {
     `بترجّع «${langRoutes.withLang('/', 'ar')}». السلاش بيخلق نسخة تانية `
     + 'من الصفحة الرئيسية، والسايت‌ماب و`hreflang` بيدرجوها بدل النهائية.');
 
+  /* الجذر `/` بيردّ ٢٠٠ — **مش** تحويلة.
+   *
+   * سبب تشغيلي مش سيو: مسبار جاهزية النشر على المنصّة بيضرب `/` وبيرفض
+   * أي رد غير ٢٠٠، والتحويلة ٣٠١ عنده مش «سليم». فالتحويلة كانت بتمنع
+   * الترقية. (`.agents/memory/deployment-healthcheck-status.md`)
+   *
+   * والسيو محفوظ بتلات شروط مع بعض، وكل واحد منهم متفحوص تحت:
+   *   ١. الكانونيكال على `/` بيوَدّي على `/ar` — فالمفهرس واحد.
+   *   ٢. `/` مش في السايت‌ماب — بندرج `/ar` بس.
+   *   ٣. `hreflang` كله على النسخة المسبوقة باللغة.
+   * من غير التلاتة دول `/` و`/ar` بيبقوا صفحتين بنفس المحتوى. */
   const root = await run('oscardevs.com', 'GET', '/');
-  check('`/` بتتحوّل على `/ar` **مرة واحدة**',
-    root.kind === 'redirect' && root.to === '/ar',
-    `بتوَدّي على «${root.to}» — لو فيها سلاش يبقى فيه تحويلة تانية بعدها.`);
+  check('`/` بتردّ ٢٠٠ (مسبار النشر بيرفض التحويلة)',
+    root.kind !== 'redirect',
+    `بتتحوّل على «${root.to}» — المسبار هيرفض الترقية والنشر هيقف.`);
+
+  check('كانونيكال `/` بيوَدّي على `/ar`',
+    typeof root.canonicalUrl === 'string' && /\/ar$/.test(root.canonicalUrl),
+    `الكانونيكال «${root.canonicalUrl}» — من غيره `
+    + '`/` و`/ar` بيبقوا نسختين بنفس المحتوى وجوجل بتختار واحدة بنفسها.');
+
+  check('`hreflang` على الجذر بيشاور على `/ar`',
+    Array.isArray(root.hreflang) && root.hreflang.length > 0
+      && root.hreflang.every((h) => /^\/ar/.test(h.path)),
+    `الـhreflang: ${JSON.stringify(root.hreflang)}`);
+
+  check('`/` مش مُدرَجة في السايت‌ماب',
+    !langRoutes.publicUrls('ar').some((u) => u === '/' || u === ''),
+    'إدراج الجذر المجرّد بيطلب من جوجل يفهرس النسخة اللي إحنا نفسنا '
+    + 'بنقول في الكانونيكال إنها مش الأصل.');
 
   const slash = await run('oscardevs.com', 'GET', '/ar/');
   check('`/ar/` بتتحوّل ٣٠١ على `/ar`',

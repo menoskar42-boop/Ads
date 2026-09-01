@@ -1861,6 +1861,14 @@ initDb()
    * بتتعاد في الإقلاع الجاي لوحدها. */
   .then(async () => {
     const indexnow = require('./src/lib/indexnow');
+    /* `pool` هنا كان بيتقرا من `const` جوّه `initDb()` — نطاق بلوك، فبرّه
+     * الدالة هو `ReferenceError: pool is not defined`. والنتيجة إن الـ
+     * `.catch` تحت كان بيبلعه كـ«DB init warning» في كل إقلاع، **وIndexNow
+     * ما اتبعتش ولا مرة** — يعني كل نشر بيزوّد صفحة أو يشيلها ماكانش
+     * بيتبلّغ لمحركات البحث أصلاً. `shared_pool` بيخلّي ده نفس الـpool
+     * بتاع التطبيق مش واحد جديد. */
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const urls = langRoutes.publicUrls(process.env.SITE_ORIGIN || 'https://oscardevs.com');
     const r = await indexnow.submitOnce(pool, urls, 'public-pages');
     if (r.body === 'unchanged') console.log(`[IndexNow] ${urls.length} عنوان — ما اتغيّرش، مافيش إرسال`);
