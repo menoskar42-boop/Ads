@@ -43,6 +43,12 @@ async function ensureWorkshopSchema() {
         -- vehicle can override it.
         service_km     INTEGER NOT NULL DEFAULT 5000,
         service_months INTEGER NOT NULL DEFAULT 6,
+        -- زرار الورشة تقفل بيه استقبال الحجوزات من الموقع العام.
+        -- مفتوح افتراضياً: ورشة لسه بتتظبط المفروض تستقبل، مش تفضل
+        -- مقفولة لحد ما حد ياخد باله. نفس اللي في العيادة والجيم.
+        -- (ولا باك-تيك في التعليق ده: إحنا جوّه template literal،
+        --  والباك-تيك بينهيه وبيكسر الملف كله.)
+        booking_enabled BOOLEAN NOT NULL DEFAULT true,
         updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
@@ -429,6 +435,15 @@ async function ensureWorkshopSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_expenses ON workshop_expenses (company_id, spent_on DESC);
+    `);
+
+    /* الورش اللي اتعملت قبل الزرار ده جدولها من غير العمود، و`CREATE
+     * TABLE IF NOT EXISTS` مابيزوّدش عمود على جدول موجود. من غير الـALTER
+     * دي `bookingOpen` بترمي، وهي بترجّع `true` عند الخطأ — فالزرار كان
+     * هيبان في الإعدادات وما يقفلش حاجة. */
+    await client.query(`
+      ALTER TABLE workshop_settings
+        ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true;
     `);
 
     console.log('Workshop schema ready.');
