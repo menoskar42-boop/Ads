@@ -12,6 +12,16 @@
     <%= t('wsh.err.stock').replace('{n}', errHave) %>
   </div>
 <% } %>
+<% if (typeof query !== 'undefined' && query.quality) { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 mt-3 text-sm no-print">
+    لا يمكن تسليم السيارة قبل اجتياز كل بنود قائمة الجودة.
+  </div>
+<% } %>
+<% if (typeof query !== 'undefined' && query.reserve === 'stock') { %>
+  <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 mt-3 text-sm no-print">
+    الكمية المطلوبة غير متاحة للحجز بعد خصم حجوزات أوامر الشغل الأخرى.
+  </div>
+<% } %>
 
 <div class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 mt-3 mb-5 shadow-sm">
   <div class="flex items-start justify-between gap-3 flex-wrap">
@@ -106,6 +116,32 @@
           class="border border-slate-200 rounded-xl px-3 py-2" placeholder="<%= t('wsh.part.qty') %>" />
         <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.job.add_part') %></button>
       </form>
+      <% } %>
+      <% if (flags.has('parts')) { %>
+      <div id="reservations" class="mt-5 pt-4 border-t border-slate-100 no-print">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <div><h3 class="font-black text-sm">حجز قطع لهذا الأمر</h3><p class="text-xs text-slate-500 mt-0.5">الحجز لا ينقص المخزون، لكنه يمنع حجز نفس الكمية لأمر آخر.</p></div>
+        </div>
+        <% if (partReservations.length) { %>
+          <div class="space-y-2 mb-3">
+            <% partReservations.forEach(function(r){ %>
+              <div class="flex items-center gap-2 text-xs bg-brand-50 rounded-lg px-3 py-2">
+                <span class="flex-1 font-bold"><%= r.name %><%= r.part_number ? ' — ' + r.part_number : '' %></span>
+                <span><%= Number(r.qty) %> محجوز</span>
+                <form method="post" action="/workshop/jobs/<%= job.id %>/parts/release/<%= r.id %>"><button class="text-rose-700 font-bold">تحرير</button></form>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+        <form method="post" action="/workshop/jobs/<%= job.id %>/parts/reserve" class="grid sm:grid-cols-[1fr_120px_auto] gap-2 text-sm">
+          <select name="part_id" required class="border border-slate-200 rounded-xl px-3 py-2">
+            <option value="">اختر قطعة للحجز</option>
+            <% stock.forEach(function(s){ %><option value="<%= s.id %>"><%= s.name %> — متاح فعليًا <%= Number(s.qty) %></option><% }) %>
+          </select>
+          <input name="qty" type="number" min="0.001" step="0.001" required placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2" />
+          <button class="bg-slate-900 text-white font-bold rounded-xl px-4 py-2">حجز القطعة</button>
+        </form>
+      </div>
       <% } %>
     </section>
 
@@ -206,6 +242,37 @@
       </div>
     </section>
     <% } %>
+
+    <section id="quality" class="bg-white rounded-2xl border <%= qualityReady ? 'border-emerald-200' : 'border-amber-200' %> p-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <h2 class="font-black text-slate-900">قائمة الجودة قبل التسليم</h2>
+          <p class="text-xs text-slate-500 mt-1">لا يتم تسليم السيارة حتى يراجع الفريق كل بند ويضع نتيجة واضحة.</p>
+        </div>
+        <span class="text-xs font-black rounded-full px-3 py-1 <%= qualityReady ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' %>">
+          <%= quality.filter(function(item){ return item.status === 'passed'; }).length %>/<%= quality.filter(function(item){ return item.required !== false; }).length %> ناجح
+        </span>
+      </div>
+      <div class="space-y-2">
+        <% var qualityLabels = {pending:'لم يُراجع', passed:'ناجح', failed:'يحتاج إعادة'}; %>
+        <% quality.forEach(function(item){ %>
+          <form method="post" action="/workshop/jobs/<%= job.id %>/quality" class="rounded-xl border border-slate-100 p-3">
+            <input type="hidden" name="check_id" value="<%= item.id %>" />
+            <div class="flex items-start gap-3 justify-between flex-wrap">
+              <div class="font-bold text-sm"><%= item.check_name %><% if (item.required !== false) { %> <span class="text-rose-500">*</span><% } %></div>
+              <select name="status" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                <% qualityStatuses.forEach(function(s){ %><option value="<%= s %>" <%= item.status === s ? 'selected' : '' %>><%= qualityLabels[s] %></option><% }) %>
+              </select>
+            </div>
+            <div class="grid sm:grid-cols-[1fr_1fr_auto] gap-2 mt-2">
+              <input name="note" value="<%= item.note || '' %>" placeholder="ملاحظة أو نتيجة الاختبار" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <input name="checked_by" value="<%= item.checked_by || '' %>" placeholder="اسم المراجع" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ</button>
+            </div>
+          </form>
+        <% }) %>
+      </div>
+    </section>
   </div>
 
   <!-- Money + status -->
@@ -250,6 +317,15 @@
             <label class="flex items-center gap-2 text-xs text-slate-600 mb-2">
               <input type="checkbox" name="allow_credit" value="1" /> <%= t('wsh.inv.due') %>: <bdi><%= money(totals.due) %></bdi>
             </label>
+          <% } %>
+          <% if (nextSt === 'delivered' && !qualityReady && canQualityOverride) { %>
+            <details class="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <summary class="font-black cursor-pointer">استثناء مدير — التسليم قبل اكتمال الجودة</summary>
+              <label class="block mt-2 font-bold">سبب الاستثناء (إلزامي)
+                <textarea name="quality_override_reason" required maxlength="500" rows="2" class="w-full mt-1 border border-amber-200 rounded-lg px-2.5 py-1.5 bg-white" placeholder="اكتب سبب قرار المدير بوضوح"></textarea>
+              </label>
+              <label class="flex items-center gap-2 mt-2"><input type="checkbox" name="quality_override" value="1" required /> أقرّ بأنني مدير وأتحمل قرار التسليم</label>
+            </details>
           <% } %>
           <button class="w-full bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5"><%= t('wsh.st.' + nextSt) %> →</button>
         </form>

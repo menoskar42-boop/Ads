@@ -16,6 +16,15 @@ const INSPECTION_DEFAULTS = [
 
 const INSPECTION_STATUSES = ['not_checked', 'good', 'attention', 'urgent', 'deferred'];
 
+const QUALITY_DEFAULTS = [
+  ['road_test', 'تجربة الطريق أو اختبار التشغيل'],
+  ['repair_verified', 'مراجعة الإصلاحات مقابل أمر الشغل'],
+  ['fluids_checked', 'مراجعة مستويات السوائل والتسريبات'],
+  ['safety_checked', 'فحص السلامة والفرامل والإطارات'],
+  ['handover_ready', 'السيارة نظيفة والمفاتيح والمستندات جاهزة'],
+];
+const QUALITY_STATUSES = ['pending', 'passed', 'failed'];
+
 function newToken() {
   return crypto.randomBytes(24).toString('base64url');
 }
@@ -55,6 +64,26 @@ async function ensureInspection(pool, companyId, jobId) {
   }
 }
 
+async function ensureQuality(pool, companyId, jobId) {
+  for (const [checkKey, checkName] of QUALITY_DEFAULTS) {
+    await pool.query(
+      `INSERT INTO workshop_quality_checks (company_id, job_id, check_key, check_name)
+       VALUES ($1,$2,$3,$4) ON CONFLICT (job_id, check_key) DO NOTHING`,
+      [companyId, jobId, checkKey, checkName]
+    );
+  }
+}
+
+function qualityReady(items) {
+  const required = (items || []).filter((item) => item.required !== false);
+  return required.length > 0 && required
+    .every((item) => item.status === 'passed');
+}
+
+function reservationAvailable(stockQty, reservedByOthers, ownReservation, wanted) {
+  return Number(stockQty || 0) - Number(reservedByOthers || 0) - Math.max(0, Number(wanted || 0) - Number(ownReservation || 0)) >= 0;
+}
+
 async function logActivity(pool, companyId, jobId, action, details, actorName) {
   try {
     await pool.query(
@@ -71,7 +100,12 @@ async function logActivity(pool, companyId, jobId, action, details, actorName) {
 module.exports = {
   INSPECTION_DEFAULTS,
   INSPECTION_STATUSES,
+  QUALITY_DEFAULTS,
+  QUALITY_STATUSES,
   ensureJobAccess,
   ensureInspection,
+  ensureQuality,
+  qualityReady,
+  reservationAvailable,
   logActivity,
 };

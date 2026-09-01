@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>احجز موعدًا — <%= settings.business_name || company.company_name %></title>
+  <meta name="description" content="احجز موعد صيانة لسيارتك مع <%= settings.business_name || company.company_name %>." />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tw.css" />
+  <style>*{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+<%
+  var displayName = settings.business_name || company.company_name;
+  var phone = settings.phone || '';
+  var minDate = new Date(Date.now() + 30 * 60 * 1000);
+  var minValue = new Date(minDate.getTime() - minDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+%>
+<header class="bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+  <div class="max-w-3xl mx-auto px-4 py-8 sm:py-12">
+    <a href="/" class="text-slate-300 text-sm hover:text-white">← <%= displayName %></a>
+    <div class="mt-8">
+      <div class="text-3xl mb-2">🔧</div>
+      <h1 class="text-3xl sm:text-4xl font-black">احجز موعد صيانة</h1>
+      <p class="text-slate-300 mt-2">املأ البيانات، وسنتواصل معك لتأكيد الموعد. الطلب مبدئي وليس تأكيدًا نهائيًا.</p>
+    </div>
+  </div>
+</header>
+<main class="max-w-3xl mx-auto px-4 py-8">
+  <% if (booked) { %>
+    <section class="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-6 mb-5">
+      <h2 class="font-black text-xl">تم استلام طلبك</h2>
+      <p class="text-sm mt-2">سجلنا بيانات سيارتك وطلب الصيانة. <%= phone ? 'سنتواصل معك على ' + phone + ' لتأكيد الموعد.' : 'سنتواصل معك قريبًا لتأكيد الموعد.' %></p>
+      <a href="/" class="inline-block mt-4 text-sm font-bold underline">العودة إلى صفحة الورشة</a>
+    </section>
+  <% } else { %>
+    <% if (error === 'invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 mb-5 text-sm">راجع الاسم ورقم الهاتف وبيانات السيارة والموعد، ثم حاول مرة أخرى.</div><% } %>
+    <form method="post" action="/book" class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 space-y-5">
+      <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="absolute -start-[9999px] opacity-0" />
+      <div>
+        <h2 class="font-black text-xl">بيانات التواصل</h2>
+        <p class="text-xs text-slate-500 mt-1">كل الحقول الأساسية تساعدنا نجهّز استقبال سيارتك.</p>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <label class="block text-sm font-bold">الاسم *
+          <input name="name" required maxlength="120" autocomplete="name" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        </label>
+        <label class="block text-sm font-bold">رقم الهاتف *
+          <input name="phone" required minlength="7" maxlength="30" inputmode="tel" autocomplete="tel" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        </label>
+      </div>
+      <div class="pt-2 border-t border-slate-100">
+        <h2 class="font-black text-xl">بيانات السيارة</h2>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <label class="block text-sm font-bold">رقم اللوحة *
+          <input name="plate" required maxlength="30" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        </label>
+        <label class="block text-sm font-bold">الماركة
+          <input name="make" maxlength="60" placeholder="مثال: Hyundai" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        </label>
+        <label class="block text-sm font-bold">الموديل
+          <input name="model" maxlength="60" placeholder="مثال: Elantra" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        </label>
+        <label class="block text-sm font-bold">سنة الصنع
+          <input name="model_year" type="number" min="1900" max="<%= new Date().getFullYear() + 1 %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        </label>
+      </div>
+      <div class="pt-2 border-t border-slate-100">
+        <h2 class="font-black text-xl">تفاصيل الزيارة</h2>
+      </div>
+      <label class="block text-sm font-bold">الموعد المفضل *
+        <input name="starts_at" type="datetime-local" required min="<%= minValue %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+      </label>
+      <label class="block text-sm font-bold">نوع الخدمة
+        <input name="service_type" maxlength="120" placeholder="مثال: صيانة دورية أو فرامل" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+      </label>
+      <label class="block text-sm font-bold">ما المشكلة أو المطلوب؟ *
+        <textarea name="concern" required maxlength="1000" rows="4" placeholder="اشرح العطل أو الخدمة التي تحتاجها" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea>
+      </label>
+      <label class="block text-sm font-bold">ملاحظات إضافية
+        <textarea name="notes" maxlength="500" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea>
+      </label>
+      <button class="w-full bg-brand-600 text-white font-black rounded-xl px-5 py-3 hover:bg-brand-700">إرسال طلب الحجز</button>
+      <p class="text-[11px] text-slate-400 text-center">الموعد لا يصبح مؤكدًا إلا بعد تواصل فريق <%= displayName %> معك.</p>
+    </form>
+  <% } %>
+</main>
+<footer class="text-center py-8 text-xs text-slate-400"><%= displayName %><% if (phone) { %> · <bdi><%= phone %></bdi><% } %></footer>
+</body>
+</html>

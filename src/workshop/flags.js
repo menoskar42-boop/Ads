@@ -17,6 +17,8 @@ const FLAGS = [
     desc: 'ملف كل عربية بتاريخها الكامل — تدوّر بالرقم وتلاقي كل حاجة اتعملت فيها.' },
   { key: 'parts', label: 'قطع الغيار', icon: '🔩', path: '/workshop/parts',
     desc: 'مخزون القطع بمتوسط تكلفة متحرّك، والحد الأدنى، وحركة الصرف.' },
+  { key: 'purchasing', label: 'الموردون والشراء', icon: '▤', path: '/workshop/purchasing',
+    desc: 'موردون وأوامر شراء واستلام جزئي يحدّث المخزون والتكلفة بدقة.' },
   { key: 'reminders', label: 'تذكير الصيانة', icon: '⏰', path: '/workshop/reminders',
     desc: 'العربيات اللي جه معادها — بالكيلومترات وبالشهور. دي اللي بترجّع العميل.' },
   { key: 'technicians', label: 'الفنّيين', icon: '👨‍🔧', path: '/workshop/technicians',
@@ -44,7 +46,7 @@ const FLAG_KEYS = FLAGS.map((f) => f.key);
 const OPTIONAL_KEYS = FLAGS.filter((f) => !f.core).map((f) => f.key);
 // A new workshop starts with the parts that make the product obviously useful
 // on day one; the rest are opt-in so the sidebar is not a wall.
-const DEFAULT_ON = ['parts', 'reminders', 'invoices', 'board', 'appointments', 'inspections', 'customer_portal', 'audit'];
+const DEFAULT_ON = ['parts', 'purchasing', 'reminders', 'invoices', 'board', 'appointments', 'inspections', 'customer_portal', 'audit'];
 
 /** Feature keys enabled for a company, as a Set. Core keys are always in it. */
 async function getFlags(pool, companyId) {

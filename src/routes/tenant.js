@@ -29,6 +29,100 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const DEFAULT_CONFIRM_TPL = 'مرحباً {name}، تم استلام حجزك في {clinic}{doctor}. سنؤكّد الموعد قريباً. شكراً لك.';
 
+const workshopBookLimiter = _rl({
+  name: 'workshop-public-booking',
+  windowMs: 10 * 60 * 1000,
+  max: 8,
+  keyFn: (req) => ((req.tenant && req.tenant.id) || 'workshop') + '|' + _cip(req),
+});
+
+function workshopPhone(value) {
+  const phone = String(value == null ? '' : value).replace(/[^\d+]/g, '').slice(0, 30);
+  return phone.length >= 7 ? phone : '';
+}
+
+router.get('/book', async (req, res, next) => {
+  if (!req.tenant || req.tenant.page_type !== 'workshop') return next();
+  const settings = (await pool.query(
+    'SELECT * FROM workshop_settings WHERE company_id=$1', [req.tenant.id]
+  )).rows[0] || {};
+  res.render('workshop_public/book', {
+    company: req.tenant, settings,
+    booked: req.query.booked === '1',
+    error: ['invalid', 'closed'].includes(String(req.query.error || '')) ? req.query.error : null,
+  });
+});
+
+router.post('/book', workshopBookLimiter, async (req, res, next) => {
+  if (!req.tenant || req.tenant.page_type !== 'workshop') return next();
+  const b = req.body || {};
+  // A hidden field catches the common no-JS bot without punishing a real
+  // customer; rate limiting remains the backstop for repeated submissions.
+  if (String(b.website || '').trim()) return res.redirect('/book?booked=0');
+  const name = String(b.name || '').trim().slice(0, 120);
+  const phone = workshopPhone(b.phone);
+  const plate = String(b.plate || '').trim().slice(0, 30);
+  const starts = new Date(String(b.starts_at || ''));
+  const concern = String(b.concern || '').trim().slice(0, 1000);
+  if (!name || !phone || !plate || !concern || isNaN(starts)
+      || starts < new Date(Date.now() + 30 * 60 * 1000)
+      || starts > new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)) {
+    return res.redirect('/book?error=invalid');
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let customer = (await client.query(
+      `SELECT id FROM workshop_customers
+        WHERE company_id=$1 AND phone=$2 AND is_active
+        ORDER BY id LIMIT 1 FOR UPDATE`, [req.tenant.id, phone])).rows[0];
+    if (!customer) {
+      customer = (await client.query(
+        `INSERT INTO workshop_customers (company_id, name, phone, whatsapp)
+         VALUES ($1,$2,$3,$3) RETURNING id`,
+        [req.tenant.id, name, phone])).rows[0];
+    } else {
+      await client.query(
+        `UPDATE workshop_customers SET name=$1, phone=$2
+          WHERE id=$3 AND company_id=$4`, [name, phone, customer.id, req.tenant.id]
+      );
+    }
+    const make = String(b.make || '').trim().slice(0, 60);
+    const model = String(b.model || '').trim().slice(0, 60);
+    const year = parseInt(b.model_year, 10);
+    let vehicle = (await client.query(
+      `SELECT id FROM workshop_vehicles
+        WHERE company_id=$1 AND LOWER(plate)=LOWER($2)
+        ORDER BY id LIMIT 1 FOR UPDATE`, [req.tenant.id, plate])).rows[0];
+    if (!vehicle) {
+      vehicle = (await client.query(
+        `INSERT INTO workshop_vehicles (company_id, customer_id, plate, make, model, model_year)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [req.tenant.id, customer.id, plate, make || null, model || null,
+         Number.isInteger(year) && year >= 1900 && year <= new Date().getFullYear() + 1 ? year : null])).rows[0];
+    } else {
+      await client.query(
+        `UPDATE workshop_vehicles SET customer_id=$1, make=COALESCE(NULLIF($2,''),make),
+                model=COALESCE(NULLIF($3,''),model)
+          WHERE id=$4 AND company_id=$5`,
+        [customer.id, make, model, vehicle.id, req.tenant.id]);
+    }
+    await client.query(
+      `INSERT INTO workshop_appointments
+        (company_id, customer_id, vehicle_id, starts_at, status, service_type, concern, notes, source)
+       VALUES ($1,$2,$3,$4,'booked',$5,$6,$7,'public')`,
+      [req.tenant.id, customer.id, vehicle.id, starts,
+       String(b.service_type || '').trim().slice(0, 120) || 'طلب صيانة',
+       concern, String(b.notes || '').trim().slice(0, 500) || null]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[workshop public booking]', e.message);
+    return res.redirect('/book?error=invalid');
+  } finally { client.release(); }
+  res.redirect('/book?booked=1');
+});
+
 // Fire-and-forget WhatsApp booking confirmation. Only sends if the clinic has
 // the whatsapp module enabled, activated it, and turned on auto-confirm. Any
 // failure is swallowed — booking must never depend on message delivery.

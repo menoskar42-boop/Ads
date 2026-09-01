@@ -773,8 +773,9 @@ async function initDb() {
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS portfolio_items (
+       );
+       ALTER TABLE company_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'manager';
+       CREATE TABLE IF NOT EXISTS portfolio_items (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id),
         title TEXT, description TEXT, image_url TEXT,

@@ -1,0 +1,110 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v || 0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  function poLabel(status){ return ({draft:'مسودة',ordered:'تم الطلب',partially_received:'استلام جزئي',received:'مستلم بالكامل',cancelled:'ملغي'})[status] || status; }
+  function poTone(status){ return status === 'received' ? 'bg-emerald-50 text-emerald-700' : status === 'cancelled' ? 'bg-slate-100 text-slate-500' : status === 'partially_received' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'; }
+%>
+<div class="flex items-start justify-between gap-4 flex-wrap mb-6">
+  <div>
+    <div class="text-[11px] tracking-[.18em] text-brand-700 font-black">PARTS SUPPLY</div>
+    <h1 class="font-black text-2xl sm:text-3xl mt-1 text-slate-900">الموردون وأوامر الشراء</h1>
+    <p class="text-sm text-slate-500 mt-1 max-w-2xl">أنشئ الطلب، أضف القطع، ثم سجّل الاستلام الفعلي. المخزون والتكلفة لا يتغيران قبل الاستلام.</p>
+  </div>
+  <a href="/workshop/parts" class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold hover:border-brand-300">المخزون</a>
+</div>
+
+<div class="grid lg:grid-cols-[.8fr_1.2fr] gap-5 items-start">
+  <div class="space-y-5">
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black text-lg text-slate-900">إضافة مورد</h2>
+      <form method="post" action="/workshop/suppliers" class="space-y-3 text-sm mt-4">
+        <input name="name" required placeholder="اسم المورد *" class="w-full border border-slate-200 rounded-xl px-3 py-2" />
+        <div class="grid sm:grid-cols-2 gap-2">
+          <input name="phone" dir="ltr" placeholder="الهاتف" class="border border-slate-200 rounded-xl px-3 py-2" />
+          <input name="whatsapp" dir="ltr" placeholder="واتساب" class="border border-slate-200 rounded-xl px-3 py-2" />
+        </div>
+        <input name="address" placeholder="العنوان" class="w-full border border-slate-200 rounded-xl px-3 py-2" />
+        <textarea name="note" rows="2" placeholder="ملاحظات المورد" class="w-full border border-slate-200 rounded-xl px-3 py-2"></textarea>
+        <button class="bg-brand-600 text-white font-bold rounded-xl px-5 py-2.5">حفظ المورد</button>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black text-lg text-slate-900">أمر شراء جديد</h2>
+      <% if (!suppliers.length) { %>
+        <p class="text-sm text-amber-700 bg-amber-50 rounded-xl p-3 mt-4">أضف موردًا أولًا حتى تستطيع إنشاء أمر شراء.</p>
+      <% } else { %>
+        <form method="post" action="/workshop/purchase-orders" class="space-y-3 text-sm mt-4">
+          <select name="supplier_id" required class="w-full border border-slate-200 rounded-xl px-3 py-2">
+            <option value="">اختر المورد *</option>
+            <% suppliers.forEach(function(s){ %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
+          </select>
+          <label class="block"><span class="text-xs font-bold text-slate-500">تاريخ التوريد المتوقع</span>
+            <input name="expected_on" type="date" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+          <textarea name="notes" rows="2" placeholder="ملاحظات الطلب" class="w-full border border-slate-200 rounded-xl px-3 py-2"></textarea>
+          <button class="bg-slate-900 text-white font-bold rounded-xl px-5 py-2.5">إنشاء أمر شراء</button>
+        </form>
+      <% } %>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black text-lg text-slate-900">الموردون الحاليون</h2>
+      <div class="space-y-2 mt-4">
+        <% if (!suppliers.length) { %><p class="text-sm text-slate-400">لا يوجد موردون بعد.</p><% } %>
+        <% suppliers.forEach(function(s){ %>
+          <div class="border border-slate-100 rounded-xl p-3">
+            <div class="font-bold"><%= s.name %></div>
+            <div class="text-xs text-slate-500 mt-1"><%= s.phone || s.whatsapp || 'لا يوجد رقم مسجل' %><%= s.address ? ' · ' + s.address : '' %></div>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  </div>
+
+  <section class="space-y-3">
+    <% if (!orders.length) { %>
+      <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center text-slate-500">لا توجد أوامر شراء بعد.</div>
+    <% } %>
+    <% orders.forEach(function(order){ var orderItems = itemsByOrder[order.id] || []; %>
+      <article class="bg-white rounded-2xl border border-slate-200 p-5">
+        <div class="flex items-start justify-between gap-3 flex-wrap">
+          <div><div class="text-xs text-slate-500">أمر شراء #<%= order.id %></div><h2 class="font-black text-lg mt-1"><%= order.supplier_name || 'مورد محذوف' %></h2></div>
+          <span class="text-xs font-bold rounded-full px-3 py-1 <%= poTone(order.status) %>"><%= poLabel(order.status) %></span>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mt-3">
+          <span><%= order.item_count %> أصناف</span><span>الإجمالي التقديري: <bdi><%= money(order.total) %></bdi> ج.م</span>
+          <% if (order.expected_on) { %><span>متوقع: <%= new Date(order.expected_on).toLocaleDateString(LOC) %></span><% } %>
+        </div>
+        <% if (order.notes) { %><p class="text-sm text-slate-600 mt-3"><%= order.notes %></p><% } %>
+        <% if (orderItems.length) { %>
+          <div class="mt-4 space-y-2">
+            <% orderItems.forEach(function(item){ %>
+              <div class="border border-slate-100 rounded-xl p-3">
+                <div class="flex items-center gap-2 text-sm"><span class="font-bold flex-1"><%= item.name %></span><span><%= Number(item.qty_received) %>/<%= Number(item.qty_ordered) %></span><span><bdi><%= money(item.unit_cost) %></bdi> ج.م</span></div>
+                <% if (['ordered','partially_received'].includes(order.status) && Number(item.qty_received) < Number(item.qty_ordered)) { %>
+                  <form method="post" action="/workshop/purchase-orders/<%= order.id %>/items/<%= item.id %>/receive" class="flex gap-2 mt-2">
+                    <input name="qty" type="number" min="0.001" step="0.001" max="<%= Number(item.qty_ordered) - Number(item.qty_received) %>" placeholder="كمية الاستلام" required class="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
+                    <button class="bg-emerald-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold">تسجيل استلام</button>
+                  </form>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+        <% if (!['received','cancelled'].includes(order.status)) { %>
+          <form method="post" action="/workshop/purchase-orders/<%= order.id %>/items" class="grid sm:grid-cols-[1fr_100px_110px_auto] gap-2 mt-4 pt-4 border-t border-slate-100">
+            <select name="part_id" required class="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm"><option value="">إضافة قطعة</option><% parts.forEach(function(p){ %><option value="<%= p.id %>"><%= p.name %> (<%= Number(p.qty) %>)</option><% }) %></select>
+            <input name="qty" type="number" min="0.001" step="0.001" required placeholder="الكمية" class="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
+            <input name="unit_cost" type="number" min="0" step="0.01" required placeholder="تكلفة الوحدة" class="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm" />
+            <button class="bg-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold">إضافة</button>
+          </form>
+        <% } %>
+        <div class="flex justify-end gap-2 mt-4">
+          <% if (order.status === 'draft' && orderItems.length) { %><form method="post" action="/workshop/purchase-orders/<%= order.id %>/status"><input type="hidden" name="status" value="ordered" /><button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">إرسال للمورد</button></form><% } %>
+          <% if (!['received','cancelled'].includes(order.status)) { %><form method="post" action="/workshop/purchase-orders/<%= order.id %>/status"><input type="hidden" name="status" value="cancelled" /><button class="text-xs text-rose-700 border border-rose-200 rounded-lg px-3 py-1.5 font-bold">إلغاء الأمر</button></form><% } %>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+</div>
+<%- include('foot') %>

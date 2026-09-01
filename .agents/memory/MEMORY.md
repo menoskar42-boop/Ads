@@ -7,3 +7,4 @@
 - [Synaxarium source](synaxarium-copticchurch.md) — daily Arabic Synaxarium text comes from validated month/day pages on copticchurch.net, with explicit unavailable states.
 - [MyBible preview build](mybible-preview-build.md) — the root preview serves MyBible from its compiled child bundle, so rebuild before live verification.
 - [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — strip navigation, avoid chapter-wrapper inference, and use current live URLs when indexed pages move.
+- [Workshop release controls](workshop-release-controls.md) — keep quality gates, stock reservations, purchase receipts, and public booking confirmation as separate events.
