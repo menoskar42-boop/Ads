@@ -29,6 +29,27 @@
   <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.vin') %></span>
     <input name="vin" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
 
+  <%# الرخصة فيها أربع أرقام الورشة بتنقلهم: اللوحة، الشاسيه، الموتور،
+      والعدّاد. التلاتة الأولانيين هما اللي بيثبتوا إن دي العربية دي لما
+      يحصل خلاف. العمود والراوت والترجمة كانوا موجودين من الأول — الناقص
+      كان الخانة نفسها، فرقم الموتور كان بيتسجّل فاضي دايماً. عميلة سألت
+      عنه بالاسم قبل ما تشترك. %>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.engine') %></span>
+    <input name="engine" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.gearbox') %></span>
+    <input name="gearbox" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.fuel') %></span>
+    <input name="fuel" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+  <%# تخصيص دورة الصيانة لعربية بعينها — الافتراضي بتاع الورشة في الإعدادات. %>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.service_km') %></span>
+    <input name="service_km" type="number" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+  <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.service_months') %></span>
+    <input name="service_months" type="number" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+
+  <label class="block sm:col-span-3"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.note') %></span>
+    <textarea name="note" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea></label>
+
   <%# The owner is typed on the same screen as the car. A car arrives with its
       owner standing there; sending the user to a second form to create the
       customer first is how half the vehicles end up with no owner at all. %>
