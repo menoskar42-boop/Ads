@@ -22,6 +22,25 @@ require('dotenv').config();
  * An `options` already in the URL is left alone: the owner's deployment wins
  * over a default this file assumes.
  */
+/* اسم بديل لرابط قاعدة البيانات: `APP_DATABASE_URL` بيغلب `DATABASE_URL`.
+ *
+ * ريبليت بقى **يمنع النشر** لو لقى سِرّ `DATABASE_URL` محطوط بالإيد —
+ * البانر بيقول «External database detected» والنشر بيترفض قبل ما يبدأ
+ * أصلاً. وهو بيحقن `DATABASE_URL` بتاعه لقاعدة الإنتاج بتاعته.
+ *
+ * ومسح السِرّ من غير الحتة دي كان معناه إن الموقع كله يتوصّل بقاعدة
+ * تانية فاضية: كل الشركات والتجّار والطلبات والحجوزات في القاعدة
+ * الحالية. فالحل إن الرابط بتاعنا يتخزّن باسم `APP_DATABASE_URL`، وده
+ * السطر اللي بيخلّي التسعة وسبعين ملف اللي بيقروا `DATABASE_URL` ياخدوه
+ * من غير ما يتلمس واحد فيهم.
+ *
+ * ⚠️ **لازم يفضل فوق بلوك التوقيت اللي تحته** — ده بيضيف `options` على
+ * الرابط، ولو اشتغل قبل التبديل كان هيضيفها على رابط ريبليت ويرميها.
+ * والاتنين لازم يفضلوا قبل أي `require` بيعمل `new Pool()`. */
+if (process.env.APP_DATABASE_URL) {
+  process.env.DATABASE_URL = process.env.APP_DATABASE_URL;
+}
+
 if (process.env.DATABASE_URL && !/[?&]options=/.test(process.env.DATABASE_URL)) {
   const sep = process.env.DATABASE_URL.includes('?') ? '&' : '?';
   process.env.DATABASE_URL += sep + 'options=' + encodeURIComponent('-c timezone=Africa/Cairo');
