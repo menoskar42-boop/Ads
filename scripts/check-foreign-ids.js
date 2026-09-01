@@ -229,6 +229,50 @@ for (const rel of ROUTERS) {
       if (new RegExp('EXISTS \\(SELECT 1 FROM [a-z_]+ WHERE id=\\$' + ph[1] + ' AND company_id=').test(st.sql)) {
         scoped += 1; continue;
       }
+
+      /* The transactional-lock form, which the workshop reservation route uses:
+       *
+       *   const job = (await client.query(
+       *     'SELECT id FROM workshop_jobs WHERE id=$1 AND company_id=$2 FOR UPDATE',
+       *     [jobId, cid])).rows[0];
+       *   ...
+       *   if (!job || ...) { await client.query('ROLLBACK'); return ...; }
+       *   await client.query(`INSERT INTO workshop_part_reservations ... `, [cid, partId, jobId, qty]);
+       *
+       * This is STRONGER than the three forms above — it holds a row lock for
+       * the length of the transaction, so the row cannot be moved to another
+       * company between the check and the write. Reporting it as naked failed
+       * correct work, and a guard that cries on correct code teaches the next
+       * reader that red means nothing.
+       *
+       * Two conditions, both required, so this stays narrow: the SELECT must
+       * lock THIS id against company_id, and the handler must actually refuse
+       * on the result. A lock nobody reads is not a check. */
+      const before2 = src.slice(0, st.index);
+      const argName = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(String(v).trim()) ? null : null;
+      const localName = (() => {
+        const raw = (st.args[Number(ph[1]) - 1] || '').trim();
+        return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(raw) ? raw : null;
+      })();
+      if (localName) {
+        const lockRe = new RegExp(
+          'WHERE id=\\$\\d+ AND company_id=\\$\\d+[^\'\`"]*FOR UPDATE[\'\`"]\\s*,\\s*\\[\\s*'
+          + localName + '\\s*,',
+        );
+        /* الرفض لازم يبقى **بين** القفل والكتابة — مش أي رفض في الملف.
+         * أول نسخة كانت بتدوّر في `before2` كله، فكانت بتلاقي
+         * `if (!x) … ROLLBACK` بتاع راوت تاني بعيد وتعدّي. جرّبتها بشيل
+         * الرفض من الراوت ده بالظبط — والحارس فضل أخضر. */
+        const lockAt = (() => {
+          let idx = -1, m2;
+          const g = new RegExp(lockRe.source, 'g');
+          while ((m2 = g.exec(before2)) !== null) idx = m2.index;
+          return idx;
+        })();
+        const between = lockAt >= 0 ? before2.slice(lockAt) : '';
+        const refuseRe = /if\s*\(\s*!\w+[\s\S]{0,300}?ROLLBACK/;
+        if (lockAt >= 0 && refuseRe.test(between)) { scoped += 1; continue; }
+      }
       naked.push(`${rel}:${st.at} ${st.table}.${col} ← ${arg.slice(0, 40)}`);
     }
   }

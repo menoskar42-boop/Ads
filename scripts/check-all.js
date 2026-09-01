@@ -15,6 +15,7 @@ const CHECKS = [
   // happened: src/pharmacy/schema.js stopped parsing, server.js requires it,
   // and the whole suite stayed green while the site would not boot.
   ['check-syntax',          'كل ملف بيتقرا فعلاً (الموقع بيقوم)'],
+  ['check-cdn-deps',        'حزمة من رابط خارجي ما توقّعش الموقع وقت الإقلاع'],
   ['check-i18n',            'القاموس ثنائي اللغة'],
   ['check-kakeibo-i18n',    'قاموس كاكيبو + توازن القوالب'],
   ['check-payday',          'فترة الراتب: البداية ≤ النهارده < الجاي'],

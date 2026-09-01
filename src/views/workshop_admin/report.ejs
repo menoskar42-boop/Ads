@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title><%= title %></title>
+  <style>
+    @page{size:A4;margin:14mm}*{box-sizing:border-box}body{font-family:Arial,"Tahoma",sans-serif;color:#17212b;margin:0;line-height:1.65;background:#fff}main{max-width:850px;margin:auto}.top{display:flex;justify-content:space-between;gap:20px;border-bottom:3px solid #265777;padding-bottom:18px}.muted{color:#687884;font-size:12px}.brand{font-size:24px;font-weight:800;color:#265777}h1{font-size:25px;margin:4px 0}h2{font-size:16px;margin:0 0 8px;color:#265777}.section{border:1px solid #dbe5eb;border-radius:12px;padding:14px;margin-top:14px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.label{font-size:11px;color:#687884}.value{font-weight:700}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid #e8eef1;text-align:right}th{background:#f2f6f8;color:#496170}.total{font-size:17px;font-weight:800;color:#265777}.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.photos img{width:100%;height:150px;object-fit:cover;border-radius:8px}.actions{display:flex;gap:8px;margin:16px 0}.actions button,.actions a{border:0;background:#265777;color:#fff;padding:9px 14px;border-radius:8px;text-decoration:none;font-weight:700;cursor:pointer}.check{display:flex;justify-content:space-between;border-bottom:1px solid #e8eef1;padding:6px 0}.passed{color:#157347}.failed{color:#b42318}@media print{.actions{display:none}.section{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="actions"><button onclick="window.print()">طباعة / حفظ PDF</button><a href="/workshop/jobs/<%= job.id %>">العودة لأمر الشغل</a></div>
+  <header class="top">
+    <div><div class="brand"><%= company && (company.company_name || company.name) || 'مركز الصيانة' %></div><div class="muted"><%= settings && (settings.address || settings.phone) || '' %></div></div>
+    <div style="text-align:left"><div class="muted">تقرير تسليم السيارة</div><h1><%= J.jobCode(job.id) %></h1><div class="muted"><%= new Date().toLocaleDateString('ar-EG') %></div></div>
+  </header>
+  <section class="section grid">
+    <div><div class="label">العميل</div><div class="value"><%= job.customer_name || '—' %></div></div>
+    <div><div class="label">السيارة</div><div class="value"><%= [job.make,job.model,job.model_year].filter(Boolean).join(' ') || '—' %></div></div>
+    <div><div class="label">رقم اللوحة</div><div class="value"><bdi><%= job.plate || '—' %></bdi></div></div>
+  </section>
+  <% if (job.complaint || job.diagnosis) { %><section class="section"><h2>الشكوى والتشخيص</h2><div><b>الشكوى:</b> <%= job.complaint || '—' %></div><div><b>التشخيص:</b> <%= job.diagnosis || '—' %></div></section><% } %>
+  <section class="section"><h2>الأعمال والقطع</h2><table><thead><tr><th>البيان</th><th>الكمية</th><th>القيمة</th></tr></thead><tbody>
+    <% parts.forEach(function(p){ %><tr><td><%= p.name %></td><td><%= p.qty %></td><td><bdi><%= Number(p.qty*p.unit_price).toLocaleString('ar-EG') %></bdi> ج.م</td></tr><% }) %>
+    <% labour.forEach(function(l){ %><tr><td><%= l.description %></td><td>—</td><td><bdi><%= Number(l.amount).toLocaleString('ar-EG') %></bdi> ج.م</td></tr><% }) %>
+  </tbody></table><p class="total">الإجمالي: <bdi><%= Number(totals.total).toLocaleString('ar-EG') %></bdi> ج.م · المدفوع: <bdi><%= Number(totals.paid).toLocaleString('ar-EG') %></bdi> · المتبقي: <bdi><%= Number(totals.due).toLocaleString('ar-EG') %></bdi></p></section>
+  <% if (quality.length) { %><section class="section"><h2>قائمة الجودة قبل التسليم</h2><% quality.forEach(function(item){ %><div class="check"><span><%= item.check_name %></span><b class="<%= item.status === 'passed' ? 'passed' : item.status === 'failed' ? 'failed' : '' %>"><%= item.status === 'passed' ? 'ناجح' : item.status === 'failed' ? 'يحتاج إعادة' : 'لم يُراجع' %></b></div><% }) %></section><% } %>
+  <% if (photos.length) { %><section class="section"><h2>صور السيارة</h2><div class="photos"><% photos.forEach(function(photo){ %><img src="<%= photo.image_url %>" alt="<%= photo.caption || 'صورة السيارة' %>" /><% }) %></div></section><% } %>
+  <section class="section"><h2>ملاحظات التسليم</h2><p><%= job.note || 'تم تسليم السيارة بعد مراجعة الأعمال وقائمة الجودة.' %></p><p class="muted">يُرجى الاحتفاظ بهذا التقرير للرجوع إلى تفاصيل الصيانة والضمان.</p></section>
+</main>
+</body>
+</html>

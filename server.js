@@ -618,6 +618,8 @@ app.use('/food', foodAdminRouter);
 app.use('/clinic', clinicAdminRouter);
 app.use('/gym', require('./src/routes/gym_admin'));
 app.use('/furniture', require('./src/routes/furniture_admin'));
+// Public customer links must be mounted before the authenticated workshop panel.
+app.use('/workshop/status', require('./src/routes/workshop_public'));
 /* ── `/workshop` المجرّد للزائر غير المسجّل ──────────────────────────────
  *
  * `/workshop` هو **لوحة تحكم** الورشة، فالزائر غير المسجّل كان بيتحوّل
@@ -771,8 +773,9 @@ async function initDb() {
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT now()
-      );
-      CREATE TABLE IF NOT EXISTS portfolio_items (
+       );
+       ALTER TABLE company_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'manager';
+       CREATE TABLE IF NOT EXISTS portfolio_items (
         id SERIAL PRIMARY KEY,
         company_id INTEGER REFERENCES companies(id),
         title TEXT, description TEXT, image_url TEXT,
@@ -1885,6 +1888,14 @@ initDb()
    * بتتعاد في الإقلاع الجاي لوحدها. */
   .then(async () => {
     const indexnow = require('./src/lib/indexnow');
+    /* `pool` هنا كان بيتقرا من `const` جوّه `initDb()` — نطاق بلوك، فبرّه
+     * الدالة هو `ReferenceError: pool is not defined`. والنتيجة إن الـ
+     * `.catch` تحت كان بيبلعه كـ«DB init warning» في كل إقلاع، **وIndexNow
+     * ما اتبعتش ولا مرة** — يعني كل نشر بيزوّد صفحة أو يشيلها ماكانش
+     * بيتبلّغ لمحركات البحث أصلاً. `shared_pool` بيخلّي ده نفس الـpool
+     * بتاع التطبيق مش واحد جديد. */
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const urls = langRoutes.publicUrls(process.env.SITE_ORIGIN || 'https://oscardevs.com');
     const r = await indexnow.submitOnce(pool, urls, 'public-pages');
     if (r.body === 'unchanged') console.log(`[IndexNow] ${urls.length} عنوان — ما اتغيّرش، مافيش إرسال`);

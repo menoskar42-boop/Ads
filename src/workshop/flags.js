@@ -9,16 +9,28 @@
 const FLAGS = [
   { key: 'jobs', label: 'أوامر الشغل', icon: '🧾', path: '/workshop/jobs', core: true,
     desc: 'استلام العربية، الشكوى، التشخيص، الشغل اللي اتعمل، والتسليم.' },
+  { key: 'board', label: 'لوحة التشغيل', icon: '▦', path: '/workshop/board',
+    desc: 'صورة لحظية لكل عربية: جديدة، في الفحص، تحت الشغل، جاهزة أو متأخرة.' },
+  { key: 'appointments', label: 'المواعيد', icon: '◷', path: '/workshop/appointments',
+    desc: 'جدول استقبال منظم وربط الموعد بأمر الشغل بدون إعادة إدخال البيانات.' },
   { key: 'vehicles', label: 'العربيات والعملاء', icon: '🚗', path: '/workshop/vehicles', core: true,
     desc: 'ملف كل عربية بتاريخها الكامل — تدوّر بالرقم وتلاقي كل حاجة اتعملت فيها.' },
   { key: 'parts', label: 'قطع الغيار', icon: '🔩', path: '/workshop/parts',
     desc: 'مخزون القطع بمتوسط تكلفة متحرّك، والحد الأدنى، وحركة الصرف.' },
+  { key: 'purchasing', label: 'الموردون والشراء', icon: '▤', path: '/workshop/purchasing',
+    desc: 'موردون وأوامر شراء واستلام جزئي يحدّث المخزون والتكلفة بدقة.' },
   { key: 'reminders', label: 'تذكير الصيانة', icon: '⏰', path: '/workshop/reminders',
     desc: 'العربيات اللي جه معادها — بالكيلومترات وبالشهور. دي اللي بترجّع العميل.' },
   { key: 'technicians', label: 'الفنّيين', icon: '👨‍🔧', path: '/workshop/technicians',
     desc: 'الفنّيين وتخصّصاتهم، ومستحقاتهم باليومية أو بنسبة من المصنعية.' },
   { key: 'photos', label: 'صور قبل وبعد', icon: '📷', path: '/workshop/jobs',
     desc: 'صور العربية وهي داخلة وخارجة — بتقفل أي خلاف على خربوشة.' },
+  { key: 'inspections', label: 'الفحص الرقمي', icon: '✓', path: '/workshop/jobs',
+    desc: 'قائمة فحص موحدة، ملاحظات وصور، وتحويل العيوب إلى بنود عرض سعر.' },
+  { key: 'customer_portal', label: 'رابط العميل', icon: '↗', path: '/workshop/jobs',
+    desc: 'العميل يتابع حالة عربيته ويوافق على العرض من رابط آمن على موبايله.' },
+  { key: 'audit', label: 'سجل النشاط', icon: '≡', path: '/workshop/jobs',
+    desc: 'سجل واضح للموافقات وتغييرات الحالة والمدفوعات داخل كل أمر شغل.' },
   { key: 'invoices', label: 'الفواتير والتحصيل', icon: '💵', path: '/workshop/invoices',
     desc: 'إجمالي كل أمر شغل، المدفوع والمتبقّي، وكشف حساب العميل.' },
   { key: 'expenses', label: 'المصروفات', icon: '💸', path: '/workshop/expenses',
@@ -34,21 +46,21 @@ const FLAG_KEYS = FLAGS.map((f) => f.key);
 const OPTIONAL_KEYS = FLAGS.filter((f) => !f.core).map((f) => f.key);
 // A new workshop starts with the parts that make the product obviously useful
 // on day one; the rest are opt-in so the sidebar is not a wall.
-const DEFAULT_ON = ['parts', 'reminders', 'invoices'];
+const DEFAULT_ON = ['parts', 'purchasing', 'reminders', 'invoices', 'board', 'appointments', 'inspections', 'customer_portal', 'audit'];
 
 /** Feature keys enabled for a company, as a Set. Core keys are always in it. */
 async function getFlags(pool, companyId) {
   const on = new Set(FLAGS.filter((f) => f.core).map((f) => f.key));
+  // New workflow features are enabled for existing workshops too. An explicit
+  // saved false still wins, so owners retain control from Settings.
+  DEFAULT_ON.forEach((k) => on.add(k));
   try {
     const r = await pool.query(
       'SELECT flag_key, enabled FROM workshop_flags WHERE company_id = $1', [companyId]
     );
-    if (!r.rows.length) {
-      DEFAULT_ON.forEach((k) => on.add(k));
-      return on;
-    }
     for (const row of r.rows) {
       if (row.enabled && FLAG_KEYS.includes(row.flag_key)) on.add(row.flag_key);
+      if (!row.enabled) on.delete(row.flag_key);
     }
   } catch (e) {
     // A flags read that fails must not lock the owner out of their own
@@ -77,7 +89,7 @@ async function saveFlags(pool, companyId, wanted) {
  */
 function localized(flags, t) {
   return flags
-    .filter((f) => f.key !== 'photos')
+    .filter((f) => !['photos', 'inspections', 'customer_portal', 'audit'].includes(f.key))
     .map((f) => ({
       key: f.key,
       path: f.path,

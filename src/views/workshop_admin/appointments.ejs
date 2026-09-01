@@ -1,0 +1,89 @@
+<%- include('head') %>
+<%
+  function time(v){ try { return new Date(v).toLocaleTimeString(LOC, {hour:'2-digit', minute:'2-digit'}); } catch(e){ return '—'; } }
+  var statusLabels = {booked:'محجوز', confirmed:'مؤكد', arrived:'وصل', no_show:'لم يحضر', cancelled:'ملغي'};
+%>
+<div class="flex items-start justify-between gap-4 flex-wrap mb-6">
+  <div>
+    <div class="text-[11px] tracking-[.18em] text-brand-700 font-black">RECEPTION DESK</div>
+    <h1 class="font-black text-2xl sm:text-3xl mt-1 text-slate-900">مواعيد الاستقبال</h1>
+    <p class="text-sm text-slate-500 mt-1 max-w-xl">رتّب دخول السيارات، حدّث الحالة، وحوّل الموعد إلى أمر شغل عند وصول العميل.</p>
+  </div>
+  <div class="flex items-center gap-2 text-sm w-full sm:w-auto">
+    <a href="/workshop/appointments?day=<%= previous %>" class="flex-1 sm:flex-none text-center bg-white border border-slate-200 rounded-xl px-3 py-2 hover:border-brand-300">اليوم السابق</a>
+    <span class="bg-brand-50 text-brand-800 rounded-xl px-3 py-2 font-bold whitespace-nowrap"><%= day %></span>
+    <a href="/workshop/appointments?day=<%= next %>" class="flex-1 sm:flex-none text-center bg-white border border-slate-200 rounded-xl px-3 py-2 hover:border-brand-300">اليوم التالي</a>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-[1.4fr_.8fr] gap-5 items-start">
+  <section class="space-y-3">
+    <% if (!appointments.length) { %>
+      <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center text-slate-500">لا توجد مواعيد في هذا اليوم.</div>
+    <% } %>
+    <% appointments.forEach(function(a){ %>
+      <article class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 hover:border-brand-200">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="bg-brand-50 text-brand-800 rounded-xl px-3 py-2 text-lg font-black whitespace-nowrap"><%= time(a.starts_at) %></div>
+            <div>
+              <div class="font-black"><%= a.plate || 'سيارة غير محددة' %> <span class="text-slate-400 font-normal"><%= [a.make,a.model].filter(Boolean).join(' ') %></span></div>
+               <div class="text-sm text-slate-500"><%= a.customer_name || 'عميل غير مسجل' %><% if (a.customer_phone) { %> · <span dir="ltr"><%= a.customer_phone %></span><% } %><% if (a.source === 'public') { %> · <span class="text-brand-700 font-bold">طلب من الرابط العام</span><% } %><% if (a.photo_count) { %> · <span class="text-amber-700 font-bold">📷 <%= a.photo_count %> صور</span><% } %></div>
+            </div>
+          </div>
+          <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= a.status === 'cancelled' ? 'bg-slate-100 text-slate-500' : a.status === 'arrived' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700' %>"><%= statusLabels[a.status] || a.status %></span>
+        </div>
+        <% if (a.service_type || a.concern) { %><p class="text-sm text-slate-700 mt-3"><b><%= a.service_type || 'الخدمة' %>:</b> <%= a.concern || 'بدون وصف' %></p><% } %>
+        <div class="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-100 flex-wrap">
+          <form method="post" action="/workshop/appointments/<%= a.id %>/status?day=<%= day %>" class="flex gap-2">
+            <label class="sr-only" for="appointment-status-<%= a.id %>">حالة الموعد</label>
+            <select id="appointment-status-<%= a.id %>" name="status" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+              <% Object.keys(statusLabels).forEach(function(s){ %><option value="<%= s %>" <%= s === a.status ? 'selected' : '' %>><%= statusLabels[s] %></option><% }) %>
+            </select>
+            <button class="text-xs bg-slate-100 rounded-lg px-3 py-1.5 font-bold">تحديث</button>
+          </form>
+          <% if (a.linked_job_id) { %>
+            <a href="/workshop/jobs/<%= a.linked_job_id %>" class="text-sm text-brand-700 font-bold">أمر <%= a.linked_job_id %> ←</a>
+          <% } else if (a.status !== 'cancelled') { %>
+            <form method="post" action="/workshop/appointments/<%= a.id %>/convert">
+              <button class="text-sm bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">تحويل لأمر شغل</button>
+            </form>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-5">
+     <div class="flex items-center justify-between gap-3">
+       <h2 class="font-black text-lg text-slate-900">حجز موعد جديد</h2>
+       <span class="text-[11px] font-bold text-brand-700 bg-brand-50 rounded-full px-2 py-1">استقبال</span>
+     </div>
+    <p class="text-xs text-slate-500 mt-1 mb-4">اختر سيارة مسجلة ليظهر تاريخها عند فتح أمر الشغل.</p>
+    <form method="post" action="/workshop/appointments" class="space-y-3 text-sm">
+      <label class="block"><span class="text-xs font-bold text-slate-500">السيارة *</span>
+        <select name="vehicle_id" required class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
+          <option value="">اختر السيارة</option>
+          <% vehicles.forEach(function(v){ %><option value="<%= v.id %>"><%= v.plate %> — <%= [v.make,v.model].filter(Boolean).join(' ') %><%= v.customer_name ? ' · ' + v.customer_name : '' %></option><% }) %>
+        </select>
+      </label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">موعد البداية *</span>
+        <input name="starts_at" type="datetime-local" required value="<%= day %>T09:00" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+      </label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">موعد النهاية المتوقع</span>
+        <input name="ends_at" type="datetime-local" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+      </label>
+       <label class="block"><span class="text-xs font-bold text-slate-500">نوع الخدمة</span>
+         <input name="service_type" placeholder="مثال: صيانة دورية أو فرامل" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+       </label>
+       <label class="block"><span class="text-xs font-bold text-slate-500">شكوى العميل أو المطلوب</span>
+         <textarea name="concern" rows="2" placeholder="ما الذي يحتاجه العميل؟" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea>
+       </label>
+       <label class="block"><span class="text-xs font-bold text-slate-500">ملاحظات الاستقبال</span>
+         <textarea name="notes" rows="2" placeholder="أي تفاصيل مهمة للفريق" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"></textarea>
+       </label>
+       <button class="w-full bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5 hover:bg-brand-700">حفظ الموعد</button>
+    </form>
+  </section>
+</div>
+<%- include('foot') %>

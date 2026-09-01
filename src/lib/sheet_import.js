@@ -3,7 +3,23 @@
 // The admin downloads a template in their own language, edits prices/data, and
 // uploads it back. Images are NEVER touched here (added from the website); an
 // existing image is preserved and only the row's price/data are updated.
-const XLSX = require('xlsx');            // still used for READING an upload
+/* ⚠️ استدعاء **اختياري ومتأخّر**، زي `compression` في server.js بالظبط.
+ *
+ * `xlsx` مش جاي من npm — جاي من رابط tarball على `cdn.sheetjs.com` في
+ * package.json. فأي بناء ما يوصلش للـCDN بيطلع من غير الحزمة، والاستدعاء
+ * على مستوى الموديول كان بيرمي `Cannot find module 'xlsx'` **وقت الإقلاع**.
+ * والنتيجة إن العملية ما بتسمعش أصلاً، ومسبار النشر بيشوف ٥٠٠ على `/`
+ * فيرفض الترقية — الموقع كله بيقع عشان ميزة استيراد إكسل.
+ *
+ * دلوقتي: الميزة دي بس هي اللي بتقف، والموقع بيقوم عادي. */
+let XLSX = null;
+function xlsx() {
+  if (XLSX === null) {
+    try { XLSX = require('xlsx'); }
+    catch (e) { XLSX = false; console.warn('[sheet_import] xlsx مش متسطّبة — قراءة ملفات الإكسل متوقّفة'); }
+  }
+  return XLSX || null;
+}
 const XW = require('./xlsx_write');       // writing: see the note in that file
 
 // Column sets per vertical. `key` is internal; `ar`/`en` are the header labels.
@@ -70,10 +86,12 @@ function parseSheet(pageType, buffer) {
   cols.forEach((c) => { headerMap[norm(c.ar)] = c.key; headerMap[norm(c.en)] = c.key; });
 
   let wb;
-  try { wb = XLSX.read(buffer, { type: 'buffer' }); } catch (e) { return []; }
+  const X = xlsx();
+  if (!X) return [];
+  try { wb = X.read(buffer, { type: 'buffer' }); } catch (e) { return []; }
   const ws = wb.Sheets[wb.SheetNames[0]];
   if (!ws) return [];
-  const grid = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+  const grid = X.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
   if (!grid.length) return [];
   const headers = grid[0].map((h) => headerMap[norm(h)] || null);
   const out = [];

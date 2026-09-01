@@ -3,23 +3,32 @@
   function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
   function d(v){ try { return new Date(v).toLocaleDateString(LOC, {day:'numeric',month:'short'}); } catch(e){ return ''; } }
   var cards = [
-    ['🧾', t('wsh.dash.open_jobs'),     stats.open,     '/workshop/jobs',      'text-brand-700'],
-    ['⏳', t('wsh.dash.awaiting'),      stats.awaiting, '/workshop/jobs?status=quoted', 'text-amber-600'],
-    ['📅', t('wsh.dash.due_today'),     stats.promised, '/workshop/jobs',      'text-rose-600'],
-    ['⏰', t('wsh.dash.due_reminders'), stats.dueRem,   '/workshop/reminders', 'text-emerald-700'],
+    [t('wsh.dash.open_jobs'),     stats.open,     '/workshop/jobs',      'text-brand-700', 'bg-brand-100'],
+    [t('wsh.dash.awaiting'),      stats.awaiting, '/workshop/jobs?status=quoted', 'text-amber-600', 'bg-amber-100'],
+    [t('wsh.dash.due_today'),     stats.promised, '/workshop/jobs',      'text-rose-600', 'bg-rose-100'],
+    [t('wsh.dash.due_reminders'), stats.dueRem,   '/workshop/reminders', 'text-emerald-700', 'bg-emerald-100'],
   ];
 %>
+<div class="flex items-end justify-between gap-4 flex-wrap mb-6">
+  <div>
+    <div class="text-[11px] tracking-[.18em] text-brand-700 font-black">WORKSHOP PULSE</div>
+    <h1 class="font-black text-2xl sm:text-3xl mt-1 text-slate-900">صورة الورشة اليوم</h1>
+    <p class="text-sm text-slate-500 mt-1">الأرقام التي تساعدك على معرفة أين يحتاج الفريق إلى تدخل.</p>
+  </div>
+  <a href="/workshop/jobs" class="bg-brand-600 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-brand-700">فتح أوامر الشغل</a>
+</div>
+
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
   <% cards.forEach(function(c){ %>
-    <a href="<%= c[3] %>" class="bg-white rounded-2xl border border-slate-200 p-4 hover:border-brand-300 transition">
-      <div class="text-xl"><%= c[0] %></div>
-      <div class="text-2xl font-black <%= c[4] %> mt-1"><%= c[2] %></div>
-      <div class="text-xs text-slate-500 font-semibold mt-0.5"><%= c[1] %></div>
+    <a href="<%= c[2] %>" class="bg-white rounded-2xl border border-slate-200 p-4 hover:border-brand-300">
+      <div class="w-2 h-2 rounded-full <%= c[4] %> mb-3"></div>
+      <div class="text-2xl font-black <%= c[3] %>"><%= c[1] %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-0.5"><%= c[0] %></div>
     </a>
   <% }) %>
 </div>
 
-<div class="grid sm:grid-cols-3 gap-3 mb-6">
+<div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
   <div class="bg-white rounded-2xl border border-slate-200 p-4">
     <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.dash.month_revenue') %></div>
     <div class="text-xl font-black text-emerald-700 mt-1"><bdi><%= money(stats.month) %></bdi></div>
@@ -28,7 +37,11 @@
     <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.dash.unpaid') %></div>
     <div class="text-xl font-black text-rose-600 mt-1"><bdi><%= money(stats.unpaid) %></bdi></div>
   </div>
-  <a href="/workshop/parts" class="bg-white rounded-2xl border border-slate-200 p-4 hover:border-brand-300 transition">
+  <a href="/workshop/appointments" class="bg-white rounded-2xl border border-slate-200 p-4 hover:border-brand-300">
+    <div class="text-xs text-slate-500 font-semibold">مواعيد اليوم</div>
+    <div class="text-xl font-black text-blue-700 mt-1"><%= stats.appointmentsToday || 0 %></div>
+  </a>
+  <a href="/workshop/parts" class="bg-white rounded-2xl border border-slate-200 p-4 hover:border-brand-300">
     <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.dash.low_parts') %></div>
     <div class="text-xl font-black <%= stats.low ? 'text-amber-600' : 'text-slate-400' %> mt-1"><%= stats.low %></div>
   </a>
@@ -41,7 +54,7 @@
 
 <% if (!recent.length) { %>
   <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
-    <div class="text-3xl mb-2">🔧</div>
+    <div class="mx-auto mb-3 h-1 w-12 rounded-full bg-brand-200"></div>
     <p class="text-slate-500 mb-4"><%= t('wsh.dash.none') %></p>
     <a href="/workshop/jobs" class="inline-block bg-brand-600 text-white font-bold rounded-xl px-5 py-2.5"><%= t('wsh.dash.new_job') %></a>
   </div>

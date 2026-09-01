@@ -10,7 +10,17 @@
 // audit that only counts truly-empty cells misses most of the real gaps.
 'use strict';
 
-const XLSX = require('xlsx');
+/* استدعاء اختياري ومتأخّر — `xlsx` جاية من CDN خارجي في package.json،
+ * وبناء ما يوصلش للـCDN كان بيمنع الموقع كله من الإقلاع. الشرح الكامل في
+ * `src/lib/sheet_import.js`. */
+let _XLSX = null;
+function XLSXlib() {
+  if (_XLSX === null) {
+    try { _XLSX = require('xlsx'); }
+    catch (e) { _XLSX = false; console.warn('[research] xlsx مش متسطّبة — قراءة الإكسل متوقّفة'); }
+  }
+  return _XLSX || null;
+}
 
 // The strings researchers actually type to mean "no value". Compared
 // case-insensitively after trimming. '0' is NOT here — zero is a real number.
@@ -62,9 +72,16 @@ function parseDataset(buffer, opts = {}) {
   if (!buffer || !buffer.length) {
     const e = new Error('الملف فارغ.'); e.code = 'EMPTY'; throw e;
   }
+  /* لو الحزمة مش متسطّبة، الرسالة تقول السبب الحقيقي — مش «ملف غير
+   * صالح» اللي بيخلّي المستخدم يفضل يجرّب ملفات سليمة. */
+  const X = XLSXlib();
+  if (!X) {
+    const e = new Error('قراءة ملفات الإكسل متوقّفة مؤقتاً على السيرفر.');
+    e.code = 'NO_XLSX'; throw e;
+  }
   let wb;
   try {
-    wb = XLSX.read(buffer, { type: 'buffer', cellDates: true, raw: false });
+    wb = X.read(buffer, { type: 'buffer', cellDates: true, raw: false });
   } catch (err) {
     const e = new Error('تعذّر قراءة الملف — تأكد إنه Excel أو CSV صالح.');
     e.code = 'UNREADABLE'; throw e;
@@ -75,7 +92,7 @@ function parseDataset(buffer, opts = {}) {
 
   // header:1 gives an array-of-arrays so we control header handling ourselves,
   // rather than letting XLSX silently rename duplicate headers.
-  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: false });
+  const aoa = X.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: false });
   // Guard the header row explicitly: an empty sheet, or a build of xlsx whose
   // reader returns nothing, must produce a clean "no data" error rather than a
   // cryptic "cannot read '0' of undefined".

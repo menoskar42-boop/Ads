@@ -103,7 +103,22 @@ module.exports = function langPrefix() {
       return next();
     }
 
-    // من غير prefix: الصفحة العامة بتتحوّل، وأي حاجة تانية بتعدّي.
+    // Healthchecks hit `/` and require a direct 200 response, so render the
+    // homepage there instead of redirecting. Its canonical remains `/ar`, which
+    // keeps the language-prefixed URL as the single indexable URL.
+    if (req.path === '/' && PUBLIC.has('/') && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.locals.lang = DEFAULT_LANG;
+      res.locals.dir = LANGS[DEFAULT_LANG].dir;
+      res.locals.langPrefix = '/' + DEFAULT_LANG;
+      res.locals.hreflang = [{ lang: LANGS[DEFAULT_LANG].hreflang, path: withLang('/', DEFAULT_LANG) }];
+      res.locals.hreflangDefault = withLang('/', DEFAULT_LANG);
+      if (res.locals.siteOrigin) {
+        res.locals.canonicalUrl = res.locals.siteOrigin + withLang('/', DEFAULT_LANG);
+      }
+      return next();
+    }
+
+    // Other unprefixed public pages redirect, and everything else passes through.
     if (PUBLIC.has(req.path)) {
       // GET و HEAD بس. تحويل POST بيضيّع الـbody — ونموذج التقديم
       // بيتبعت POST على `/apply`، فتحويله كان هيفقد بيانات العميل.

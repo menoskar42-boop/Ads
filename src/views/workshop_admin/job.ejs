@@ -5,19 +5,29 @@
   function forInput(v){ try { var d=new Date(v); return isNaN(d)?'':d.toISOString().slice(0,16); } catch(e){ return ''; } }
   var nextSt = J.nextStatus(job.status);
 %>
-<a href="/workshop/jobs" class="text-sm text-slate-500 no-print">← <%= t('wsh.common.back') %></a>
+<a href="/workshop/jobs" class="inline-flex items-center text-sm text-slate-500 hover:text-brand-700 no-print mb-1">← <%= t('wsh.common.back') %></a>
 
 <% if (typeof err !== 'undefined' && err === 'stock') { %>
   <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 mt-3 text-sm no-print">
     <%= t('wsh.err.stock').replace('{n}', errHave) %>
   </div>
 <% } %>
+<% if (typeof query !== 'undefined' && query.quality) { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl px-4 py-3 mt-3 text-sm no-print">
+    لا يمكن تسليم السيارة قبل اجتياز كل بنود قائمة الجودة.
+  </div>
+<% } %>
+<% if (typeof query !== 'undefined' && query.reserve === 'stock') { %>
+  <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 mt-3 text-sm no-print">
+    الكمية المطلوبة غير متاحة للحجز بعد خصم حجوزات أوامر الشغل الأخرى.
+  </div>
+<% } %>
 
-<div class="bg-white rounded-2xl border border-slate-200 p-5 mt-3 mb-5">
+<div class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 mt-3 mb-5 shadow-sm">
   <div class="flex items-start justify-between gap-3 flex-wrap">
     <div>
       <div class="text-xs text-slate-500 font-bold"><%= t('wsh.job.code') %></div>
-      <h1 class="font-black text-2xl"><%= J.jobCode(job.id) %></h1>
+       <h1 class="font-black text-2xl sm:text-3xl text-slate-900"><%= J.jobCode(job.id) %></h1>
       <p class="mt-2 text-sm">
         <a href="/workshop/vehicles/<%= job.vehicle_id %>" class="font-bold text-brand-700"><%= job.plate || '—' %></a>
         <span class="text-slate-500"><%= [job.make, job.model, job.model_year].filter(Boolean).join(' ') %></span>
@@ -26,8 +36,9 @@
         <% if (job.customer_phone) { %> · <span dir="ltr"><%= job.customer_phone %></span><% } %></p>
     </div>
     <div class="text-end">
-      <span class="text-xs font-bold px-3 py-1 rounded-full bg-brand-100 text-brand-800"><%= t('wsh.st.' + job.status) %></span>
+       <span class="inline-flex text-xs font-bold px-3 py-1 rounded-full bg-brand-100 text-brand-800"><%= t('wsh.st.' + job.status) %></span>
       <div class="text-xs text-slate-500 mt-2"><%= t('wsh.job.received') %>: <%= dt(job.received_at) %></div>
+       <a href="/workshop/jobs/<%= job.id %>/report" target="_blank" rel="noopener" class="inline-flex mt-2 text-xs text-brand-700 font-bold no-print">تقرير التسليم / طباعة PDF ↗</a>
       <% if (job.odometer_in != null) { %>
         <div class="text-xs text-slate-500"><%= t('wsh.job.odometer_in') %>: <%= Number(job.odometer_in).toLocaleString(LOC) %></div>
       <% } %>
@@ -46,7 +57,7 @@
       workshop. It is shown at the top, not buried in a tab. %>
   <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-3 text-sm">
     <% if (job.approved_at) { %>
-      <span class="text-emerald-700 font-bold">✓ <%= t('wsh.job.approve') %></span>
+      <span class="text-emerald-700 font-bold"><%= t('wsh.job.approve') %></span>
       <span class="text-slate-500"><%= t('wsh.job.approved_at') %> <%= dt(job.approved_at) %>
         <% if (job.approved_by) { %> — <%= job.approved_by %><% } %></span>
       <% if (job.quote_total != null) { %>
@@ -61,6 +72,12 @@
       <span class="text-xs text-slate-400"><%= t('wsh.inv.total') %>: <bdi><%= money(totals.total) %></bdi></span>
     <% } %>
   </div>
+  <% if (portalPath && flags.has('customer_portal')) { %>
+    <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap no-print">
+      <div><div class="text-sm font-black">رابط العميل الآمن</div><div class="text-xs text-slate-500 mt-1">ابعت للعميل الرابط ليتابع الحالة ويوافق على العرض من موبايله.</div></div>
+       <a href="<%= portalPath %>" target="_blank" rel="noopener" class="bg-slate-900 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-slate-800">فتح رابط العميل ↗</a>
+    </div>
+  <% } %>
 </div>
 
 <% if (typeof query !== 'undefined' && query.due) { %>
@@ -73,16 +90,16 @@
   <div class="lg:col-span-2 space-y-5">
 
     <!-- Parts -->
-    <section class="bg-white rounded-2xl border border-slate-200 p-5">
-      <h2 class="font-black mb-3">🔩 <%= t('wsh.job.parts') %></h2>
+      <section class="bg-white rounded-2xl border border-slate-200 p-5">
+       <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.parts') %></h2>
       <% if (!parts.length) { %><p class="text-slate-400 text-sm"><%= t('wsh.common.none') %></p><% } else { %>
-        <table class="w-full text-sm">
+        <table class="rt w-full text-sm">
           <tbody>
             <% parts.forEach(function(p){ %>
               <tr class="border-b border-slate-50">
-                <td class="py-1.5"><%= p.name %></td>
-                <td class="py-1.5 text-slate-500 text-center"><%= Number(p.qty) %>×</td>
-                <td class="py-1.5 text-end font-semibold"><bdi><%= money(Number(p.qty)*Number(p.unit_price)) %></bdi></td>
+                <td data-l="القطعة" class="py-1.5"><%= p.name %></td>
+                <td data-l="الكمية" class="py-1.5 text-slate-500 text-center"><%= Number(p.qty) %>×</td>
+                <td data-l="الإجمالي" class="py-1.5 text-end font-semibold"><bdi><%= money(Number(p.qty)*Number(p.unit_price)) %></bdi></td>
               </tr>
             <% }) %>
           </tbody>
@@ -101,19 +118,45 @@
         <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.job.add_part') %></button>
       </form>
       <% } %>
+      <% if (flags.has('parts')) { %>
+      <div id="reservations" class="mt-5 pt-4 border-t border-slate-100 no-print">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <div><h3 class="font-black text-sm">حجز قطع لهذا الأمر</h3><p class="text-xs text-slate-500 mt-0.5">الحجز لا ينقص المخزون، لكنه يمنع حجز نفس الكمية لأمر آخر.</p></div>
+        </div>
+        <% if (partReservations.length) { %>
+          <div class="space-y-2 mb-3">
+            <% partReservations.forEach(function(r){ %>
+              <div class="flex items-center gap-2 text-xs bg-brand-50 rounded-lg px-3 py-2">
+                <span class="flex-1 font-bold"><%= r.name %><%= r.part_number ? ' — ' + r.part_number : '' %></span>
+                <span><%= Number(r.qty) %> محجوز</span>
+                <form method="post" action="/workshop/jobs/<%= job.id %>/parts/release/<%= r.id %>"><button class="text-rose-700 font-bold">تحرير</button></form>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+        <form method="post" action="/workshop/jobs/<%= job.id %>/parts/reserve" class="grid sm:grid-cols-[1fr_120px_auto] gap-2 text-sm">
+          <select name="part_id" required class="border border-slate-200 rounded-xl px-3 py-2">
+            <option value="">اختر قطعة للحجز</option>
+            <% stock.forEach(function(s){ %><option value="<%= s.id %>"><%= s.name %> — متاح فعليًا <%= Number(s.qty) %></option><% }) %>
+          </select>
+          <input name="qty" type="number" min="0.001" step="0.001" required placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2" />
+          <button class="bg-slate-900 text-white font-bold rounded-xl px-4 py-2">حجز القطعة</button>
+        </form>
+      </div>
+      <% } %>
     </section>
 
     <!-- Labour -->
-    <section class="bg-white rounded-2xl border border-slate-200 p-5">
-      <h2 class="font-black mb-3">👨‍🔧 <%= t('wsh.job.labour') %></h2>
+      <section class="bg-white rounded-2xl border border-slate-200 p-5">
+       <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.labour') %></h2>
       <% if (!labour.length) { %><p class="text-slate-400 text-sm"><%= t('wsh.common.none') %></p><% } else { %>
-        <table class="w-full text-sm">
+        <table class="rt w-full text-sm">
           <tbody>
             <% labour.forEach(function(l){ %>
               <tr class="border-b border-slate-50">
-                <td class="py-1.5"><%= l.description %></td>
-                <td class="py-1.5 text-slate-500 text-center"><%= Number(l.hours) ? Number(l.hours) + ' h' : '' %></td>
-                <td class="py-1.5 text-end font-semibold"><bdi><%= money(l.amount) %></bdi></td>
+                <td data-l="الوصف" class="py-1.5"><%= l.description %></td>
+                <td data-l="الساعات" class="py-1.5 text-slate-500 text-center"><%= Number(l.hours) ? Number(l.hours) + ' h' : '' %></td>
+                <td data-l="الإجمالي" class="py-1.5 text-end font-semibold"><bdi><%= money(l.amount) %></bdi></td>
               </tr>
             <% }) %>
           </tbody>
@@ -134,8 +177,8 @@
     </section>
 
     <!-- Diagnosis + settings for this job -->
-    <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
-      <h2 class="font-black mb-3">📝 <%= t('wsh.job.diagnosis') %></h2>
+      <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
+       <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.diagnosis') %></h2>
       <form method="post" action="/workshop/jobs/<%= job.id %>/update" class="space-y-3 text-sm">
         <textarea name="diagnosis" rows="3" class="w-full border border-slate-200 rounded-xl px-3 py-2"><%= job.diagnosis || '' %></textarea>
         <div class="grid sm:grid-cols-4 gap-2">
@@ -164,12 +207,79 @@
         <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2"><%= t('wsh.common.save') %></button>
       </form>
     </section>
+
+    <% if (flags.has('inspections')) { %>
+    <section id="inspection" class="bg-white rounded-2xl border border-slate-200 p-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div><h2 class="font-black">الفحص الرقمي</h2><p class="text-xs text-slate-500 mt-1">سجّل نتيجة كل نقطة، وأظهر ما يحتاج إصلاحًا للعميل في الرابط الآمن.</p></div>
+        <span class="text-xs bg-slate-100 text-slate-600 rounded-full px-3 py-1 font-bold"><%= inspection.filter(function(i){ return i.status !== 'not_checked'; }).length %>/<%= inspection.length %> تم فحصها</span>
+      </div>
+      <div class="space-y-3">
+        <% var inspectionLabels = {not_checked:'لم يُفحص', good:'سليم', attention:'يحتاج متابعة', urgent:'عاجل', deferred:'مؤجل'}; %>
+        <% inspection.forEach(function(item){ %>
+          <form method="post" action="/workshop/jobs/<%= job.id %>/inspection/items" class="rounded-xl border <%= item.status === 'urgent' ? 'border-rose-200 bg-rose-50/40' : item.status === 'attention' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100' %> p-3">
+            <input type="hidden" name="item_id" value="<%= item.id %>" />
+            <div class="flex items-start justify-between gap-3">
+              <div><div class="text-[10px] text-brand-700 font-black"><%= item.system %></div><div class="font-bold text-sm"><%= item.check_name %></div><div class="text-[11px] text-slate-400 mt-0.5"><%= item.guidance || '' %></div></div>
+              <select name="status" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                <% inspectionStatuses.forEach(function(s){ %><option value="<%= s %>" <%= item.status === s ? 'selected' : '' %>><%= inspectionLabels[s] %></option><% }) %>
+              </select>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-2 mt-2">
+              <input name="note" value="<%= item.note || '' %>" placeholder="ملاحظة الفحص" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <input name="recommendation" value="<%= item.recommendation || '' %>" placeholder="التوصية / وصف الإصلاح" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <input name="estimated_amount" type="number" min="0" step="0.01" value="<%= item.estimated_amount == null ? '' : Number(item.estimated_amount) %>" placeholder="التكلفة التقديرية" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="customer_visible" value="1" <%= item.customer_visible ? 'checked' : '' %> /> يظهر للعميل في تقرير الفحص</label>
+            </div>
+            <div class="flex items-center justify-between gap-2 mt-2">
+              <button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ نتيجة الفحص</button>
+              <% if (item.promoted_at) { %><span class="text-[11px] text-emerald-700 font-bold">تمت إضافته للعرض</span>
+              <% } else if (item.recommendation || Number(item.estimated_amount) > 0) { %>
+                <button type="submit" formaction="/workshop/jobs/<%= job.id %>/inspection/promote/<%= item.id %>" class="text-xs text-brand-700 font-bold border border-brand-200 rounded-lg px-3 py-1.5 bg-white">تحويل لبند عرض السعر</button>
+              <% } %>
+            </div>
+          </form>
+        <% }) %>
+      </div>
+    </section>
+    <% } %>
+
+    <section id="quality" class="bg-white rounded-2xl border <%= qualityReady ? 'border-emerald-200' : 'border-amber-200' %> p-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <h2 class="font-black text-slate-900">قائمة الجودة قبل التسليم</h2>
+          <p class="text-xs text-slate-500 mt-1">لا يتم تسليم السيارة حتى يراجع الفريق كل بند ويضع نتيجة واضحة.</p>
+        </div>
+        <span class="text-xs font-black rounded-full px-3 py-1 <%= qualityReady ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' %>">
+          <%= quality.filter(function(item){ return item.status === 'passed'; }).length %>/<%= quality.filter(function(item){ return item.required !== false; }).length %> ناجح
+        </span>
+      </div>
+      <div class="space-y-2">
+        <% var qualityLabels = {pending:'لم يُراجع', passed:'ناجح', failed:'يحتاج إعادة'}; %>
+        <% quality.forEach(function(item){ %>
+          <form method="post" action="/workshop/jobs/<%= job.id %>/quality" class="rounded-xl border border-slate-100 p-3">
+            <input type="hidden" name="check_id" value="<%= item.id %>" />
+            <div class="flex items-start gap-3 justify-between flex-wrap">
+              <div class="font-bold text-sm"><%= item.check_name %><% if (item.required !== false) { %> <span class="text-rose-500">*</span><% } %></div>
+              <select name="status" class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white">
+                <% qualityStatuses.forEach(function(s){ %><option value="<%= s %>" <%= item.status === s ? 'selected' : '' %>><%= qualityLabels[s] %></option><% }) %>
+              </select>
+            </div>
+            <div class="grid sm:grid-cols-[1fr_1fr_auto] gap-2 mt-2">
+              <input name="note" value="<%= item.note || '' %>" placeholder="ملاحظة أو نتيجة الاختبار" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <input name="checked_by" value="<%= item.checked_by || '' %>" placeholder="اسم المراجع" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
+              <button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ</button>
+            </div>
+          </form>
+        <% }) %>
+      </div>
+    </section>
   </div>
 
   <!-- Money + status -->
   <aside class="space-y-5">
     <section class="bg-white rounded-2xl border border-slate-200 p-5 text-sm">
-      <h2 class="font-black mb-3">💵 <%= t('wsh.inv.title') %></h2>
+       <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.inv.title') %></h2>
       <dl class="space-y-1.5">
         <div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.parts_revenue') %></dt><dd><bdi><%= money(totals.partsRevenue) %></bdi></dd></div>
         <div class="flex justify-between"><dt class="text-slate-500"><%= t('wsh.inv.labour_revenue') %></dt><dd><bdi><%= money(totals.labourRevenue) %></bdi></dd></div>
@@ -198,7 +308,7 @@
     </section>
 
     <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
-      <h2 class="font-black mb-3">➡️ <%= t('wsh.job.status') %></h2>
+       <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.status') %></h2>
       <% if (nextSt) { %>
         <form method="post" action="/workshop/jobs/<%= job.id %>/status" class="mb-3">
           <input type="hidden" name="status" value="<%= nextSt %>" />
@@ -208,6 +318,15 @@
             <label class="flex items-center gap-2 text-xs text-slate-600 mb-2">
               <input type="checkbox" name="allow_credit" value="1" /> <%= t('wsh.inv.due') %>: <bdi><%= money(totals.due) %></bdi>
             </label>
+          <% } %>
+          <% if (nextSt === 'delivered' && !qualityReady && canQualityOverride) { %>
+            <details class="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <summary class="font-black cursor-pointer">استثناء مدير — التسليم قبل اكتمال الجودة</summary>
+              <label class="block mt-2 font-bold">سبب الاستثناء (إلزامي)
+                <textarea name="quality_override_reason" required maxlength="500" rows="2" class="w-full mt-1 border border-amber-200 rounded-lg px-2.5 py-1.5 bg-white" placeholder="اكتب سبب قرار المدير بوضوح"></textarea>
+              </label>
+              <label class="flex items-center gap-2 mt-2"><input type="checkbox" name="quality_override" value="1" required /> أقرّ بأنني مدير وأتحمل قرار التسليم</label>
+            </details>
           <% } %>
           <button class="w-full bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5"><%= t('wsh.st.' + nextSt) %> →</button>
         </form>
@@ -221,6 +340,20 @@
         <button class="bg-slate-200 font-bold rounded-xl px-4 py-2 text-sm"><%= t('wsh.common.save') %></button>
       </form>
     </section>
+    <% if (flags.has('audit')) { %>
+      <section class="bg-white rounded-2xl border border-slate-200 p-5">
+        <h2 class="font-black mb-3">سجل النشاط</h2>
+        <% if (!activity.length) { %><p class="text-xs text-slate-400">سيظهر هنا تاريخ التغييرات والموافقات والمدفوعات.</p><% } %>
+        <div class="space-y-3">
+          <% activity.forEach(function(entry){ %>
+            <div class="border-s border-brand-200 ps-3">
+              <div class="text-sm font-bold"><%= entry.details || entry.action %></div>
+              <div class="text-[11px] text-slate-400 mt-0.5"><%= entry.actor_name || 'النظام' %> · <%= dt(entry.created_at) %></div>
+            </div>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
   </aside>
 </div>
 <%- include('foot') %>

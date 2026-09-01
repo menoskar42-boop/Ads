@@ -154,6 +154,46 @@ async function ensureWorkshopSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_part_moves ON workshop_part_moves (company_id, part_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_suppliers (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        phone       TEXT,
+        whatsapp    TEXT,
+        address     TEXT,
+        note        TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_suppliers ON workshop_suppliers (company_id, is_active, name);
+
+      CREATE TABLE IF NOT EXISTS workshop_purchase_orders (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        supplier_id   INTEGER REFERENCES workshop_suppliers(id) ON DELETE SET NULL,
+        status        TEXT NOT NULL DEFAULT 'draft',
+        expected_on   DATE,
+        notes         TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_purchase_orders ON workshop_purchase_orders (company_id, status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_purchase_order_items (
+        id                SERIAL PRIMARY KEY,
+        company_id        INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        purchase_order_id INTEGER NOT NULL REFERENCES workshop_purchase_orders(id) ON DELETE CASCADE,
+        part_id           INTEGER NOT NULL REFERENCES workshop_parts(id) ON DELETE RESTRICT,
+        name              TEXT NOT NULL,
+        qty_ordered       NUMERIC(12,3) NOT NULL,
+        qty_received      NUMERIC(12,3) NOT NULL DEFAULT 0,
+        unit_cost         NUMERIC(12,2) NOT NULL DEFAULT 0,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (purchase_order_id, part_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_po_items ON workshop_purchase_order_items (company_id, purchase_order_id);
+
     `);
 
     // ── Job cards ────────────────────────────────────────────────────────────
@@ -192,6 +232,19 @@ async function ensureWorkshopSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs ON workshop_jobs (company_id, status, received_at DESC);
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs_vehicle ON workshop_jobs (company_id, vehicle_id);
+
+      CREATE TABLE IF NOT EXISTS workshop_part_reservations (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        part_id     INTEGER NOT NULL REFERENCES workshop_parts(id) ON DELETE CASCADE,
+        job_id      INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        qty         NUMERIC(12,3) NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'reserved',
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (part_id, job_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_reservations ON workshop_part_reservations (company_id, part_id, status);
 
       -- Parts used on a job. unit_cost is captured at the moment of issue, so a
       -- later price change cannot rewrite what an old job actually cost.
@@ -247,6 +300,95 @@ async function ensureWorkshopSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_job_photos ON workshop_job_photos (company_id, job_id);
+
+      CREATE TABLE IF NOT EXISTS workshop_job_access (
+        job_id       INTEGER PRIMARY KEY REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        token        TEXT NOT NULL UNIQUE,
+        last_viewed_at TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_job_access_company ON workshop_job_access (company_id, job_id);
+
+      CREATE TABLE IF NOT EXISTS workshop_inspection_items (
+        id               SERIAL PRIMARY KEY,
+        company_id       INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id           INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        system           TEXT NOT NULL,
+        check_name       TEXT NOT NULL,
+        guidance         TEXT,
+        status           TEXT NOT NULL DEFAULT 'not_checked',
+        note             TEXT,
+        recommendation   TEXT,
+        estimated_amount NUMERIC(12,2),
+        customer_visible BOOLEAN NOT NULL DEFAULT true,
+        promoted_at      TIMESTAMPTZ,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_inspection ON workshop_inspection_items (company_id, job_id, status);
+
+      -- Required final checks before a vehicle can be handed back. These are
+      -- separate from the customer-facing inspection: inspection finds work,
+      -- quality confirms the completed work is safe to release.
+      CREATE TABLE IF NOT EXISTS workshop_quality_checks (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id      INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        check_key   TEXT NOT NULL,
+        check_name  TEXT NOT NULL,
+        required    BOOLEAN NOT NULL DEFAULT true,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        note        TEXT,
+        checked_by  TEXT,
+        checked_at  TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (job_id, check_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_quality ON workshop_quality_checks (company_id, job_id, status);
+
+      CREATE TABLE IF NOT EXISTS workshop_activity (
+        id          BIGSERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id      INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
+        action      TEXT NOT NULL,
+        details     TEXT,
+        actor_name  TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_activity ON workshop_activity (company_id, job_id, created_at DESC);
+    `);
+
+    // ── Scheduling ───────────────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS workshop_appointments (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id  INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
+        vehicle_id   INTEGER REFERENCES workshop_vehicles(id) ON DELETE SET NULL,
+        job_id       INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
+        starts_at    TIMESTAMPTZ NOT NULL,
+        ends_at      TIMESTAMPTZ,
+        status       TEXT NOT NULL DEFAULT 'booked',
+        service_type TEXT,
+        concern      TEXT,
+        notes        TEXT,
+        source       TEXT NOT NULL DEFAULT 'staff',
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_appointments ON workshop_appointments (company_id, starts_at, status);
+      CREATE TABLE IF NOT EXISTS workshop_appointment_photos (
+        id             SERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        appointment_id INTEGER NOT NULL REFERENCES workshop_appointments(id) ON DELETE CASCADE,
+        image_url      TEXT NOT NULL,
+        caption        TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_appointment_photos
+        ON workshop_appointment_photos (company_id, appointment_id);
     `);
 
     // ── Service reminders ────────────────────────────────────────────────────
