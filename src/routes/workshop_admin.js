@@ -24,6 +24,10 @@ const {
   qualityReady,
   reservationAvailable,
   logActivity,
+  WORKSHOP_ROLE_LABELS,
+  MANAGEMENT_ROLES,
+  normalizeWorkshopRole,
+  workshopCan,
 } = require('../workshop/operations');
 
 const router = express.Router();
@@ -35,6 +39,25 @@ const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().sli
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+const WORKSHOP_SECTION_PERMISSIONS = {
+  board: 'view_board',
+  appointments: 'view_appointments',
+  customers: 'view_customers',
+  vehicles: 'view_vehicles',
+  jobs: 'view_jobs',
+  change_orders: 'view_change_orders',
+  floor: 'view_floor',
+  communications: 'view_communications',
+  warranty_claims: 'view_warranty_claims',
+  purchasing: 'view_purchasing',
+  parts: 'view_parts',
+  reminders: 'view_reminders',
+  technicians: 'view_technicians',
+  invoices: 'view_invoices',
+  expenses: 'view_expenses',
+  reports: 'view_reports',
+  warranty: 'view_warranty',
+};
 
 function keepWorkshopSecret(current, typed, clear) {
   if (clear === '1') return null;
@@ -176,17 +199,23 @@ function defaultWorkshopMessage(job, eventKey, portalPath) {
 }
 
 async function managerIdentity(req, companyId) {
+  if (req.workshopUser && Number(req.workshopUser.company_id) === Number(companyId)
+      && MANAGEMENT_ROLES.has(req.workshopRole)) {
+    return { name: req.workshopUser.email, role: req.workshopRole };
+  }
   const userId = req.session && int(req.session.companyUserId);
   if (!userId) return null;
   const user = (await pool.query(
     `SELECT email, role FROM company_users
       WHERE id=$1 AND company_id=$2`, [userId, companyId])).rows[0];
-  if (!user || !['owner', 'manager', 'admin'].includes(String(user.role || '').toLowerCase())) return null;
-  return { name: user.email, role: user.role };
+  const role = normalizeWorkshopRole(user && user.role);
+  if (!user || !MANAGEMENT_ROLES.has(role)) return null;
+  return { name: user.email, role };
 }
 
 function requireLogin(req, res, next) {
-  if (req.session && req.session.companyId) return next();
+  if (req.session && req.session.companyId
+      && (req.session.companyUserId || req.session.demoReadOnly)) return next();
   res.redirect('/company/login');
 }
 
@@ -205,7 +234,29 @@ async function requireWorkshop(req, res, next) {
     const flags = await getFlags(pool, c.id);
     req.flags = flags;
     res.locals.flags = flags;
-    res.locals.workshopNav = localized(FLAGS.filter((f) => flags.has(f.key)), res.locals.t);
+    const user = req.session && req.session.companyUserId
+      ? (await pool.query(
+        `SELECT id, company_id, email, role FROM company_users
+          WHERE id=$1 AND company_id=$2`,
+        [int(req.session.companyUserId), c.id]
+      )).rows[0]
+      : null;
+    req.workshopUser = user || null;
+    // Demo sessions intentionally have no company user and stay read-only.
+    req.workshopRole = req.session.demoReadOnly
+      ? 'demo'
+      : normalizeWorkshopRole(user && user.role);
+    const canWorkshop = (permission) => req.session.demoReadOnly
+      ? String(permission || '').startsWith('view_')
+      : workshopCan(req.workshopRole, permission);
+    req.canWorkshop = canWorkshop;
+    res.locals.workshopRole = req.workshopRole;
+    res.locals.workshopRoleLabel = req.session.demoReadOnly
+      ? 'عرض تجريبي للقراءة فقط'
+      : (WORKSHOP_ROLE_LABELS[req.workshopRole] || WORKSHOP_ROLE_LABELS.reception);
+    res.locals.canWorkshop = canWorkshop;
+    res.locals.workshopNav = localized(FLAGS.filter((f) => flags.has(f.key)), res.locals.t)
+      .filter((f) => canWorkshop(WORKSHOP_SECTION_PERMISSIONS[f.key] || 'view_dashboard'));
 
     const st = await pool.query('SELECT * FROM workshop_settings WHERE company_id = $1', [c.id]);
     req.settings = st.rows[0] || {};
@@ -236,24 +287,30 @@ function requireFlag(key) {
   return (req, res, next) => (req.flags && req.flags.has(key)) ? next() : res.redirect('/workshop');
 }
 
-async function requireWorkshopManager(req, res, next) {
-  try {
-    const actor = await managerIdentity(req, req.company.id);
-    if (!actor) {
-      return res.status(403).send(res.locals.t ? res.locals.t('wsh.err.manager') : 'هذه العملية متاحة لإدارة الورشة فقط.');
-    }
-    req.workshopActor = actor;
-    next();
-  } catch (e) {
-    console.error('[workshop manager guard]', e.message);
-    res.status(503).send(res.locals.t ? res.locals.t('wsh.err.unavailable') : 'تعذر التحقق من صلاحية المستخدم الآن.');
-  }
+function requireWorkshopPermission(permission) {
+  return (req, res, next) => {
+    if (req.session && req.session.demoReadOnly && req.method === 'GET') return next();
+    if (req.canWorkshop && req.canWorkshop(permission)) return next();
+    return res.status(403).send(
+      res.locals.t ? res.locals.t('wsh.err.role') : 'هذه العملية غير متاحة حسب دورك في الورشة.'
+    );
+  };
+}
+
+function requireAnyWorkshopPermission(...permissions) {
+  return (req, res, next) => {
+    if (req.session && req.session.demoReadOnly && req.method === 'GET') return next();
+    if (req.canWorkshop && permissions.some((permission) => req.canWorkshop(permission))) return next();
+    return res.status(403).send(
+      res.locals.t ? res.locals.t('wsh.err.role') : 'هذه العملية غير متاحة حسب دورك في الورشة.'
+    );
+  };
 }
 
 router.use(requireLogin, requireWorkshop);
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', requireWorkshopPermission('view_dashboard'), async (req, res) => {
   const cid = req.company.id;
   const [open, promised, awaiting, dueRem, month, unpaid, low, appointmentsToday, recent] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int n FROM workshop_jobs WHERE company_id=$1 AND status = ANY($2)`,
@@ -299,7 +356,7 @@ router.get('/', async (req, res) => {
 });
 
 // ── Operations board ──────────────────────────────────────────────────────────
-router.get('/board', requireFlag('board'), async (req, res) => {
+router.get('/board', requireFlag('board'), requireWorkshopPermission('view_board'), async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim().slice(0, 80);
   const status = J.STATUSES.includes(String(req.query.status)) ? String(req.query.status) : '';
@@ -364,7 +421,7 @@ router.get('/board', requireFlag('board'), async (req, res) => {
 });
 
 // ── Appointments ──────────────────────────────────────────────────────────────
-router.get('/appointments', requireFlag('appointments'), async (req, res) => {
+router.get('/appointments', requireFlag('appointments'), requireWorkshopPermission('view_appointments'), async (req, res) => {
   const cid = req.company.id;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day || ''))
     ? String(req.query.day) : new Date().toISOString().slice(0, 10);
@@ -401,7 +458,7 @@ router.get('/appointments', requireFlag('appointments'), async (req, res) => {
   });
 });
 
-router.post('/appointments', requireFlag('appointments'), async (req, res) => {
+router.post('/appointments', requireFlag('appointments'), requireWorkshopPermission('manage_appointments'), async (req, res) => {
   const b = req.body || {}, cid = req.company.id, vehicleId = int(b.vehicle_id);
   const starts = b.starts_at ? new Date(b.starts_at) : null;
   if (!vehicleId || !starts || isNaN(starts)) return res.redirect('/workshop/appointments');
@@ -421,7 +478,7 @@ router.post('/appointments', requireFlag('appointments'), async (req, res) => {
   res.redirect('/workshop/appointments?day=' + starts.toISOString().slice(0, 10));
 });
 
-router.post('/appointments/:id/status', requireFlag('appointments'), async (req, res) => {
+router.post('/appointments/:id/status', requireFlag('appointments'), requireWorkshopPermission('manage_appointments'), async (req, res) => {
   const allowed = ['booked', 'confirmed', 'arrived', 'no_show', 'cancelled'];
   const status = allowed.includes(String((req.body || {}).status)) ? String(req.body.status) : null;
   if (status) await pool.query(
@@ -431,7 +488,7 @@ router.post('/appointments/:id/status', requireFlag('appointments'), async (req,
   res.redirect('/workshop/appointments?day=' + encodeURIComponent(String(req.query.day || new Date().toISOString().slice(0, 10))));
 });
 
-router.post('/appointments/:id/convert', requireFlag('appointments'), async (req, res) => {
+router.post('/appointments/:id/convert', requireFlag('appointments'), requireWorkshopPermission('manage_appointments'), async (req, res) => {
   const cid = req.company.id, appointmentId = int(req.params.id);
   const appointment = (await pool.query(
     `SELECT a.*, v.id AS safe_vehicle_id, v.customer_id AS safe_customer_id
@@ -471,10 +528,14 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), async (req
 });
 
 // ── Settings ─────────────────────────────────────────────────────────────────
-router.get('/settings', async (req, res) => {
-  const [messageRow, paymentRow] = await Promise.all([
+router.get('/settings', requireWorkshopPermission('view_settings'), async (req, res) => {
+  const [messageRow, paymentRow, users] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),
+    pool.query(
+      'SELECT id, email, role, created_at FROM company_users WHERE company_id=$1 ORDER BY created_at, id',
+      [req.company.id]
+    ),
   ]);
   const payment = Object.assign({}, paymentRow || { gateway: 'none', cod_enabled: true });
   payment.gateway_secret_set = Boolean(payment.gateway_secret_enc || payment.gateway_secret);
@@ -486,10 +547,30 @@ router.get('/settings', async (req, res) => {
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
     messageSettings: workshopMessagingView(messageRow.rows[0]),
     payment, settingsError: req.query.err || '',
+    users: users.rows,
+    currentUserId: int(req.session.companyUserId),
+    roleLabels: WORKSHOP_ROLE_LABELS,
   });
 });
 
-router.post('/settings', async (req, res) => {
+router.post('/settings/users/:id/role', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  const id = int(req.params.id);
+  const role = normalizeWorkshopRole(req.body && req.body.role);
+  // A manager may delegate operational roles but cannot create another owner
+  // or demote the account currently being used to administer the workshop.
+  if (!id || !['manager', 'reception', 'technician'].includes(role)
+      || id === int(req.session.companyUserId)) {
+    return res.redirect('/workshop/settings?err=role_save');
+  }
+  await pool.query(
+    `UPDATE company_users SET role=$1
+      WHERE id=$2 AND company_id=$3 AND role NOT IN ('owner','admin')`,
+    [role, id, req.company.id]
+  );
+  res.redirect('/workshop/settings?saved=1');
+});
+
+router.post('/settings', requireWorkshopPermission('manage_settings'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
   await pool.query(
@@ -517,7 +598,7 @@ router.post('/settings', async (req, res) => {
   res.redirect('/workshop/settings?saved=1');
 });
 
-router.post('/settings/messages', async (req, res) => {
+router.post('/settings/messages', requireWorkshopPermission('manage_settings'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
   const current = (await pool.query(
@@ -559,7 +640,7 @@ router.post('/settings/messages', async (req, res) => {
   res.redirect('/workshop/settings?saved=1');
 });
 
-router.post('/settings/payments', async (req, res) => {
+router.post('/settings/payments', requireWorkshopPermission('manage_settings'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
   const cur = (await pool.query(
@@ -610,7 +691,7 @@ router.post('/settings/payments', async (req, res) => {
 });
 
 // ── Customers ────────────────────────────────────────────────────────────────
-router.get('/customers', requireFlag('customers'), async (req, res) => {
+router.get('/customers', requireFlag('customers'), requireWorkshopPermission('view_customers'), async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim().slice(0, 80);
   const view = ['active', 'inactive', 'all'].includes(String(req.query.view)) ? String(req.query.view) : 'active';
@@ -656,7 +737,7 @@ router.get('/customers', requireFlag('customers'), async (req, res) => {
   });
 });
 
-router.post('/customers', requireFlag('customers'), requireWorkshopManager, async (req, res) => {
+router.post('/customers', requireFlag('customers'), requireWorkshopPermission('manage_customers'), async (req, res) => {
   const b = req.body || {};
   const name = text(b.name, 120);
   if (name) {
@@ -669,7 +750,7 @@ router.post('/customers', requireFlag('customers'), requireWorkshopManager, asyn
   res.redirect(b.back || '/workshop/customers');
 });
 
-router.post('/customers/:id', requireFlag('customers'), requireWorkshopManager, async (req, res) => {
+router.post('/customers/:id', requireFlag('customers'), requireWorkshopPermission('manage_customers'), async (req, res) => {
   const b = req.body || {};
   const id = int(req.params.id);
   const name = text(b.name, 120);
@@ -684,7 +765,7 @@ router.post('/customers/:id', requireFlag('customers'), requireWorkshopManager, 
   res.redirect('/workshop/customers?saved=1');
 });
 
-router.post('/customers/:id/toggle', requireFlag('customers'), requireWorkshopManager, async (req, res) => {
+router.post('/customers/:id/toggle', requireFlag('customers'), requireWorkshopPermission('manage_customers'), async (req, res) => {
   await pool.query(
     `UPDATE workshop_customers SET is_active=NOT is_active
       WHERE id=$1 AND company_id=$2`,
@@ -693,7 +774,7 @@ router.post('/customers/:id/toggle', requireFlag('customers'), requireWorkshopMa
   res.redirect('/workshop/customers');
 });
 
-router.post('/customers/:id/delete', requireFlag('customers'), requireWorkshopManager, async (req, res) => {
+router.post('/customers/:id/delete', requireFlag('customers'), requireWorkshopPermission('manage_customers'), async (req, res) => {
   const client = await pool.connect();
   try {
     const cid = req.company.id;
@@ -734,7 +815,7 @@ router.post('/customers/:id/delete', requireFlag('customers'), requireWorkshopMa
 });
 
 // ── Vehicles ─────────────────────────────────────────────────────────────────
-router.get('/vehicles', async (req, res) => {
+router.get('/vehicles', requireWorkshopPermission('view_vehicles'), async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim().slice(0, 60);
   const params = [cid];
@@ -760,7 +841,7 @@ router.get('/vehicles', async (req, res) => {
   });
 });
 
-router.post('/vehicles', async (req, res) => {
+router.post('/vehicles', requireWorkshopPermission('manage_vehicles'), async (req, res) => {
   const b = req.body || {};
   const plate = text(b.plate, 30);
   if (!plate) return res.redirect('/workshop/vehicles');
@@ -789,7 +870,7 @@ router.post('/vehicles', async (req, res) => {
   res.redirect('/workshop/vehicles');
 });
 
-router.get('/vehicles/:id', async (req, res) => {
+router.get('/vehicles/:id', requireWorkshopPermission('view_vehicles'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const v = (await pool.query(
     `SELECT v.*, c.name AS customer_name, c.phone AS customer_phone, c.whatsapp AS customer_whatsapp
@@ -810,7 +891,7 @@ router.get('/vehicles/:id', async (req, res) => {
 });
 
 // ── Job cards ────────────────────────────────────────────────────────────────
-router.get('/jobs', async (req, res) => {
+router.get('/jobs', requireWorkshopPermission('view_jobs'), async (req, res) => {
   const cid = req.company.id;
   const status = J.STATUSES.includes(req.query.status) ? req.query.status : null;
   const params = [cid];
@@ -835,7 +916,7 @@ router.get('/jobs', async (req, res) => {
   });
 });
 
-router.post('/jobs', async (req, res) => {
+router.post('/jobs', requireWorkshopPermission('create_jobs'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
   const vehicleId = int(b.vehicle_id);
@@ -930,7 +1011,7 @@ async function loadJob(cid, id) {
   };
 }
 
-router.get('/jobs/:id', async (req, res) => {
+router.get('/jobs/:id', requireWorkshopPermission('view_jobs'), async (req, res) => {
   const cid = req.company.id;
   const jobId = int(req.params.id);
   const data = await loadJob(cid, jobId);
@@ -961,7 +1042,7 @@ router.get('/jobs/:id', async (req, res) => {
   });
 });
 
-router.get('/jobs/:id/report', async (req, res) => {
+router.get('/jobs/:id/report', requireWorkshopPermission('view_jobs'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const data = await loadJob(cid, id);
   if (!data) return res.redirect('/workshop/jobs');
@@ -974,7 +1055,7 @@ router.get('/jobs/:id/report', async (req, res) => {
 });
 
 // ── Change orders / estimate versions ───────────────────────────────────────
-router.get('/change-orders', requireFlag('change_orders'), async (req, res) => {
+router.get('/change-orders', requireFlag('change_orders'), requireWorkshopPermission('view_change_orders'), async (req, res) => {
   const cid = req.company.id;
   const [orders, jobs] = await Promise.all([
     pool.query(
@@ -1004,7 +1085,7 @@ router.get('/change-orders', requireFlag('change_orders'), async (req, res) => {
   });
 });
 
-router.post('/jobs/:id/change-orders', requireFlag('change_orders'), async (req, res) => {
+router.post('/jobs/:id/change-orders', requireFlag('change_orders'), requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.params.id), b = req.body || {};
   const job = (await pool.query(
     `SELECT j.id FROM workshop_jobs j WHERE j.id=$1 AND j.company_id=$2`, [jobId, cid])).rows[0];
@@ -1037,7 +1118,7 @@ router.post('/jobs/:id/change-orders', requireFlag('change_orders'), async (req,
   res.redirect(`/workshop/jobs/${jobId}#change-orders`);
 });
 
-router.post('/jobs/:id/estimates', requireFlag('change_orders'), async (req, res) => {
+router.post('/jobs/:id/estimates', requireFlag('change_orders'), requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.params.id);
   const data = await loadJob(cid, jobId);
   if (!data) return res.redirect('/workshop/jobs');
@@ -1062,7 +1143,7 @@ router.post('/jobs/:id/estimates', requireFlag('change_orders'), async (req, res
   res.redirect(`/workshop/jobs/${jobId}#change-orders`);
 });
 
-router.post('/change-orders/:id/status', requireFlag('change_orders'), async (req, res) => {
+router.post('/change-orders/:id/status', requireFlag('change_orders'), requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
   const cid = req.company.id, orderId = int(req.params.id), status = req.body && req.body.status;
   if (!['approved', 'rejected'].includes(status)) return res.redirect('/workshop/change-orders');
   const actor = (await managerIdentity(req, cid)) || { name: 'فريق الورشة' };
@@ -1081,7 +1162,7 @@ router.post('/change-orders/:id/status', requireFlag('change_orders'), async (re
 });
 
 // ── Floor, bays and actual technician time ──────────────────────────────────
-router.get('/floor', requireFlag('floor'), async (req, res) => {
+router.get('/floor', requireFlag('floor'), requireWorkshopPermission('view_floor'), async (req, res) => {
   const cid = req.company.id;
   const [bays, jobs, technicians, active] = await Promise.all([
     pool.query('SELECT * FROM workshop_work_bays WHERE company_id=$1 ORDER BY is_active DESC, name', [cid]),
@@ -1110,7 +1191,7 @@ router.get('/floor', requireFlag('floor'), async (req, res) => {
   });
 });
 
-router.post('/bays', requireFlag('floor'), async (req, res) => {
+router.post('/bays', requireFlag('floor'), requireWorkshopPermission('manage_bays'), async (req, res) => {
   const name = text(req.body && req.body.name, 80);
   if (name) await pool.query(
     `INSERT INTO workshop_work_bays (company_id, name, bay_type) VALUES ($1,$2,$3)`,
@@ -1118,7 +1199,7 @@ router.post('/bays', requireFlag('floor'), async (req, res) => {
   res.redirect('/workshop/floor');
 });
 
-router.post('/jobs/:id/bay', requireFlag('floor'), async (req, res) => {
+router.post('/jobs/:id/bay', requireFlag('floor'), requireWorkshopPermission('manage_bays'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.params.id), bayId = int(req.body && req.body.bay_id);
   await pool.query(
     `UPDATE workshop_jobs SET bay_id=$1 WHERE id=$2 AND company_id=$3
@@ -1127,7 +1208,7 @@ router.post('/jobs/:id/bay', requireFlag('floor'), async (req, res) => {
   res.redirect(req.get('referer') || '/workshop/floor');
 });
 
-router.post('/time/start', requireFlag('floor'), async (req, res) => {
+router.post('/time/start', requireFlag('floor'), requireWorkshopPermission('manage_time'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.body && req.body.job_id), techId = int(req.body && req.body.technician_id);
   const valid = (await pool.query(
     `SELECT j.id FROM workshop_jobs j
@@ -1148,7 +1229,7 @@ router.post('/time/start', requireFlag('floor'), async (req, res) => {
   res.redirect(req.get('referer') || '/workshop/floor');
 });
 
-router.post('/time/:id/stop', requireFlag('floor'), async (req, res) => {
+router.post('/time/:id/stop', requireFlag('floor'), requireWorkshopPermission('manage_time'), async (req, res) => {
   const cid = req.company.id, entryId = int(req.params.id);
   const row = (await pool.query(
     `UPDATE workshop_time_entries SET ended_at=now(), note=COALESCE($1,note)
@@ -1195,7 +1276,7 @@ async function prepareWorkshopMessage(companyId, jobId, eventKey) {
   return inserted;
 }
 
-router.get('/communications', requireFlag('communications'), async (req, res) => {
+router.get('/communications', requireFlag('communications'), requireWorkshopPermission('view_communications'), async (req, res) => {
   const cid = req.company.id;
   const [messages, jobs] = await Promise.all([
     pool.query(
@@ -1222,7 +1303,7 @@ router.get('/communications', requireFlag('communications'), async (req, res) =>
   });
 });
 
-router.post('/communications/prepare', requireFlag('communications'), async (req, res) => {
+router.post('/communications/prepare', requireFlag('communications'), requireWorkshopPermission('prepare_communications'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.body && req.body.job_id);
   const job = (await pool.query(
     `SELECT j.*, v.plate, c.name AS customer_name, c.phone AS customer_phone,
@@ -1251,13 +1332,13 @@ router.post('/communications/prepare', requireFlag('communications'), async (req
   res.redirect('/workshop/communications');
 });
 
-router.post('/communications/:id/send', requireFlag('communications'), async (req, res) => {
+router.post('/communications/:id/send', requireFlag('communications'), requireWorkshopPermission('send_communications'), async (req, res) => {
   const result = await deliverWorkshopMessage(req.company.id, int(req.params.id));
   const suffix = result.ok ? 'sent=1' : 'error=send';
   res.redirect((req.get('referer') || '/workshop/communications').split('?')[0] + '?' + suffix);
 });
 
-router.post('/communications/:id/retry', requireFlag('communications'), async (req, res) => {
+router.post('/communications/:id/retry', requireFlag('communications'), requireWorkshopPermission('send_communications'), async (req, res) => {
   const result = await deliverWorkshopMessage(req.company.id, int(req.params.id), true);
   const suffix = result.ok ? 'sent=1' : 'error=retry';
   res.redirect((req.get('referer') || '/workshop/communications').split('?')[0] + '?' + suffix);
@@ -1265,7 +1346,7 @@ router.post('/communications/:id/retry', requireFlag('communications'), async (r
 
 // This legacy endpoint is intentionally not a success transition. Opening a
 // deep link or clicking a button cannot prove delivery at the provider.
-router.post('/communications/:id/sent', requireFlag('communications'), async (req, res) => {
+router.post('/communications/:id/sent', requireFlag('communications'), requireWorkshopPermission('send_communications'), async (req, res) => {
   await pool.query(
     `UPDATE workshop_messages SET status='prepared', sent_at=NULL,
             error='manual send was not verified by a provider'
@@ -1274,7 +1355,7 @@ router.post('/communications/:id/sent', requireFlag('communications'), async (re
 });
 
 // ── Warranty returns / claims ───────────────────────────────────────────────
-router.get('/warranty-claims', requireFlag('warranty_claims'), async (req, res) => {
+router.get('/warranty-claims', requireFlag('warranty_claims'), requireWorkshopPermission('view_warranty_claims'), async (req, res) => {
   const cid = req.company.id;
   const [claims, jobs, returnJobs] = await Promise.all([
     pool.query(
@@ -1304,7 +1385,7 @@ router.get('/warranty-claims', requireFlag('warranty_claims'), async (req, res) 
   });
 });
 
-router.post('/warranty-claims', requireFlag('warranty_claims'), async (req, res) => {
+router.post('/warranty-claims', requireFlag('warranty_claims'), requireWorkshopPermission('manage_warranty_claims'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.body && req.body.original_job_id);
   const complaint = text(req.body && req.body.complaint, 1000);
   const original = (await pool.query(
@@ -1321,7 +1402,7 @@ router.post('/warranty-claims', requireFlag('warranty_claims'), async (req, res)
   res.redirect('/workshop/warranty-claims');
 });
 
-router.post('/warranty-claims/:id/return-job', requireFlag('warranty_claims'), async (req, res) => {
+router.post('/warranty-claims/:id/return-job', requireFlag('warranty_claims'), requireWorkshopPermission('manage_warranty_claims'), async (req, res) => {
   const cid = req.company.id, claimId = int(req.params.id);
   const claim = (await pool.query(
     `SELECT wc.*, j.technician_id
@@ -1349,7 +1430,7 @@ router.post('/warranty-claims/:id/return-job', requireFlag('warranty_claims'), a
   res.redirect('/workshop/warranty-claims');
 });
 
-router.post('/warranty-claims/:id', requireFlag('warranty_claims'), async (req, res) => {
+router.post('/warranty-claims/:id', requireFlag('warranty_claims'), requireWorkshopPermission('manage_warranty_claims'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id), b = req.body || {};
   const status = ['open','approved','rejected','resolved'].includes(b.status) ? b.status : 'open';
   await pool.query(
@@ -1365,7 +1446,7 @@ router.post('/warranty-claims/:id', requireFlag('warranty_claims'), async (req, 
   res.redirect('/workshop/warranty-claims');
 });
 
-router.post('/jobs/:id/quality', async (req, res) => {
+router.post('/jobs/:id/quality', requireWorkshopPermission('update_quality'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id), b = req.body || {};
   const exists = await pool.query('SELECT 1 FROM workshop_jobs WHERE id=$1 AND company_id=$2', [id, cid]);
   if (!exists.rows.length) return res.redirect('/workshop/jobs');
@@ -1384,7 +1465,7 @@ router.post('/jobs/:id/quality', async (req, res) => {
   res.redirect(`/workshop/jobs/${id}?quality_saved=1#quality`);
 });
 
-router.post('/jobs/:id/inspection/items', requireFlag('inspections'), async (req, res) => {
+router.post('/jobs/:id/inspection/items', requireFlag('inspections'), requireWorkshopPermission('update_inspection'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id), b = req.body || {};
   const exists = await pool.query('SELECT 1 FROM workshop_jobs WHERE id=$1 AND company_id=$2', [id, cid]);
   if (!exists.rows.length) return res.redirect('/workshop/jobs');
@@ -1402,7 +1483,7 @@ router.post('/jobs/:id/inspection/items', requireFlag('inspections'), async (req
   res.redirect(`/workshop/jobs/${id}#inspection`);
 });
 
-router.post('/jobs/:id/inspection/promote/:itemId', requireFlag('inspections'), async (req, res) => {
+router.post('/jobs/:id/inspection/promote/:itemId', requireFlag('inspections'), requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id), itemId = int(req.params.itemId);
   const exists = await pool.query('SELECT 1 FROM workshop_jobs WHERE id=$1 AND company_id=$2', [id, cid]);
   if (!exists.rows.length) return res.redirect('/workshop/jobs');
@@ -1426,7 +1507,7 @@ router.post('/jobs/:id/inspection/promote/:itemId', requireFlag('inspections'), 
 });
 
 // ── Purchasing and reservations ──────────────────────────────────────────────
-router.get('/purchasing', requireFlag('purchasing'), async (req, res) => {
+router.get('/purchasing', requireFlag('purchasing'), requireWorkshopPermission('view_purchasing'), async (req, res) => {
   const cid = req.company.id;
   const [suppliers, orders, items, parts, lowParts] = await Promise.all([
     pool.query('SELECT * FROM workshop_suppliers WHERE company_id=$1 AND is_active ORDER BY name', [cid]),
@@ -1463,7 +1544,7 @@ router.get('/purchasing', requireFlag('purchasing'), async (req, res) => {
   });
 });
 
-router.post('/suppliers', requireFlag('purchasing'), async (req, res) => {
+router.post('/suppliers', requireFlag('purchasing'), requireWorkshopPermission('manage_purchasing'), async (req, res) => {
   const b = req.body || {}, name = text(b.name, 160);
   if (name) {
     await pool.query(
@@ -1474,7 +1555,7 @@ router.post('/suppliers', requireFlag('purchasing'), async (req, res) => {
   res.redirect('/workshop/purchasing');
 });
 
-router.post('/purchase-orders', requireFlag('purchasing'), async (req, res) => {
+router.post('/purchase-orders', requireFlag('purchasing'), requireWorkshopPermission('manage_purchasing'), async (req, res) => {
   const b = req.body || {}, supplierId = int(b.supplier_id);
   const supplier = supplierId && (await pool.query(
     'SELECT id FROM workshop_suppliers WHERE id=$1 AND company_id=$2 AND is_active', [supplierId, req.company.id])).rows[0];
@@ -1486,7 +1567,7 @@ router.post('/purchase-orders', requireFlag('purchasing'), async (req, res) => {
   res.redirect('/workshop/purchasing');
 });
 
-router.post('/purchase-orders/:id/items', requireFlag('purchasing'), async (req, res) => {
+router.post('/purchase-orders/:id/items', requireFlag('purchasing'), requireWorkshopPermission('manage_purchasing'), async (req, res) => {
   const cid = req.company.id, poId = int(req.params.id), partId = int(req.body && req.body.part_id);
   const qty = Math.max(0, num(req.body && req.body.qty, 0));
   const unitCost = Math.max(0, num(req.body && req.body.unit_cost, 0));
@@ -1508,7 +1589,7 @@ router.post('/purchase-orders/:id/items', requireFlag('purchasing'), async (req,
   res.redirect('/workshop/purchasing');
 });
 
-router.post('/purchase-orders/:id/status', requireFlag('purchasing'), async (req, res) => {
+router.post('/purchase-orders/:id/status', requireFlag('purchasing'), requireWorkshopPermission('manage_purchasing'), async (req, res) => {
   const status = ['ordered', 'cancelled'].includes(req.body && req.body.status) ? req.body.status : null;
   if (status) await pool.query(
     `UPDATE workshop_purchase_orders SET status=$1, updated_at=now()
@@ -1517,7 +1598,7 @@ router.post('/purchase-orders/:id/status', requireFlag('purchasing'), async (req
   res.redirect('/workshop/purchasing');
 });
 
-router.post('/purchase-orders/:poId/items/:itemId/receive', requireFlag('purchasing'), async (req, res) => {
+router.post('/purchase-orders/:poId/items/:itemId/receive', requireFlag('purchasing'), requireWorkshopPermission('manage_purchasing'), async (req, res) => {
   const cid = req.company.id, poId = int(req.params.poId), itemId = int(req.params.itemId);
   const requested = Math.max(0, num(req.body && req.body.qty, 0));
   if (!requested) return res.redirect('/workshop/purchasing');
@@ -1570,7 +1651,7 @@ router.post('/purchase-orders/:poId/items/:itemId/receive', requireFlag('purchas
   res.redirect('/workshop/purchasing');
 });
 
-router.post('/jobs/:id/parts/reserve', requireFlag('parts'), async (req, res) => {
+router.post('/jobs/:id/parts/reserve', requireFlag('parts'), requireWorkshopPermission('reserve_parts'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.params.id), partId = int(req.body && req.body.part_id);
   const qty = Math.max(0, num(req.body && req.body.qty, 0));
   if (!partId || !qty) return res.redirect(`/workshop/jobs/${jobId}#reservations`);
@@ -1608,7 +1689,7 @@ router.post('/jobs/:id/parts/reserve', requireFlag('parts'), async (req, res) =>
   res.redirect(`/workshop/jobs/${jobId}#reservations`);
 });
 
-router.post('/jobs/:id/parts/release/:reservationId', requireFlag('parts'), async (req, res) => {
+router.post('/jobs/:id/parts/release/:reservationId', requireFlag('parts'), requireWorkshopPermission('release_parts'), async (req, res) => {
   await pool.query(
     `UPDATE workshop_part_reservations SET status='released', qty=0, updated_at=now()
       WHERE id=$1 AND job_id=$2 AND company_id=$3 AND status='reserved'`,
@@ -1619,7 +1700,7 @@ router.post('/jobs/:id/parts/release/:reservationId', requireFlag('parts'), asyn
 // Add a part to a job. Issuing stock and recording the line are one
 // transaction: a part that leaves the shelf without appearing on the job is
 // exactly how a workshop loses money it cannot trace.
-router.post('/jobs/:id/parts', requireFlag('parts'), async (req, res) => {
+router.post('/jobs/:id/parts', requireFlag('parts'), requireWorkshopPermission('manage_job_parts'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const b = req.body || {};
   const qty = Math.max(0, num(b.qty, 0));
@@ -1703,7 +1784,7 @@ router.post('/jobs/:id/parts', requireFlag('parts'), async (req, res) => {
   res.redirect('/workshop/jobs/' + id);
 });
 
-router.post('/jobs/:id/labour', async (req, res) => {
+router.post('/jobs/:id/labour', requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const b = req.body || {};
   const hours = Math.max(0, num(b.hours, 0));
@@ -1722,9 +1803,17 @@ router.post('/jobs/:id/labour', async (req, res) => {
   res.redirect('/workshop/jobs/' + id);
 });
 
-router.post('/jobs/:id/update', async (req, res) => {
+router.post('/jobs/:id/update', requireAnyWorkshopPermission('manage_job_details', 'update_technician_note', 'update_job_note'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const b = req.body || {};
+  if (!req.canWorkshop('manage_job_details')) {
+    await pool.query(
+      `UPDATE workshop_jobs SET technician_note=$1
+        WHERE id=$2 AND company_id=$3`,
+      [text(b.technician_note, 2000), id, cid]
+    );
+    return res.redirect('/workshop/jobs/' + id);
+  }
   await pool.query(
     `UPDATE workshop_jobs SET diagnosis=$1, note=$2, technician_note=$3,
             technician_id=CASE
@@ -1747,7 +1836,7 @@ router.post('/jobs/:id/update', async (req, res) => {
 
 // Record the customer's approval of the quote. The timestamp is the point:
 // "I never agreed to that" is the most common argument in a workshop.
-router.post('/jobs/:id/approve', async (req, res) => {
+router.post('/jobs/:id/approve', requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const data = await loadJob(cid, id);
   if (data) {
@@ -1765,10 +1854,18 @@ router.post('/jobs/:id/approve', async (req, res) => {
   res.redirect('/workshop/jobs/' + id);
 });
 
-router.post('/jobs/:id/status', async (req, res) => {
+router.post('/jobs/:id/status', requireWorkshopPermission('advance_job'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const status = J.STATUSES.includes((req.body || {}).status) ? req.body.status : null;
   if (!status) return res.redirect('/workshop/jobs/' + id);
+  // Reception can move the operational queue forward, but approval,
+  // cancellation, and delivery remain explicit management decisions.
+  if (!req.canWorkshop('manage_job_pricing')
+      && !['diagnosing', 'in_progress', 'done', 'ready_for_pickup'].includes(status)) {
+    return res.status(403).send(
+      res.locals.t ? res.locals.t('wsh.err.role') : 'هذه العملية غير متاحة حسب دورك في الورشة.'
+    );
+  }
 
   let data = await loadJob(cid, id);
   if (!data) return res.redirect('/workshop/jobs');
@@ -1778,6 +1875,11 @@ router.post('/jobs/:id/status', async (req, res) => {
   data = await loadJob(cid, id);
 
   if (status === 'delivered') {
+    if (!req.canWorkshop('deliver_job')) {
+      return res.status(403).send(
+        res.locals.t ? res.locals.t('wsh.err.manager') : 'تسليم السيارة متاح لإدارة الورشة فقط.'
+      );
+    }
     if (!qualityReady(data.quality)) {
       const b = req.body || {};
       const reason = text(b.quality_override_reason, 500);
@@ -1839,7 +1941,7 @@ router.post('/jobs/:id/status', async (req, res) => {
   res.redirect('/workshop/jobs/' + id);
 });
 
-router.post('/jobs/:id/pay', async (req, res) => {
+router.post('/jobs/:id/pay', requireWorkshopPermission('record_payment'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const amount = Math.max(0, num((req.body || {}).amount, 0));
   if (amount > 0) {
@@ -1861,7 +1963,7 @@ router.post('/jobs/:id/pay', async (req, res) => {
 });
 
 // ── Parts ────────────────────────────────────────────────────────────────────
-router.get('/parts', requireFlag('parts'), async (req, res) => {
+router.get('/parts', requireFlag('parts'), requireWorkshopPermission('view_parts'), async (req, res) => {
   const cid = req.company.id;
   const barcode = text(req.query && req.query.barcode, 80);
   const q = barcode || String(req.query.q || '').trim().slice(0, 60);
@@ -1887,7 +1989,7 @@ router.get('/parts', requireFlag('parts'), async (req, res) => {
   });
 });
 
-router.post('/parts', requireFlag('parts'), async (req, res) => {
+router.post('/parts', requireFlag('parts'), requireWorkshopPermission('manage_parts'), async (req, res) => {
   const b = req.body || {};
   const name = text(b.name, 120);
   if (name) {
@@ -1904,7 +2006,7 @@ router.post('/parts', requireFlag('parts'), async (req, res) => {
 
 // A hardware scanner acts like a keyboard: scan into this field and the
 // server takes the same scoped search path as a hand-entered part number.
-router.get('/parts/scan', requireFlag('barcodes'), async (req, res) => {
+router.get('/parts/scan', requireFlag('barcodes'), requireWorkshopPermission('view_parts'), async (req, res) => {
   const code = text(req.query && req.query.barcode, 80);
   res.redirect('/workshop/parts' + (code ? `?barcode=${encodeURIComponent(code)}` : ''));
 });
@@ -1913,7 +2015,7 @@ router.get('/parts/scan', requireFlag('barcodes'), async (req, res) => {
 // the average is what the shelf is actually worth, and pricing a job off the
 // newest invoice shows a margin the workshop does not have the moment prices
 // move.
-router.post('/parts/:id/receive', requireFlag('parts'), async (req, res) => {
+router.post('/parts/:id/receive', requireFlag('parts'), requireWorkshopPermission('manage_parts'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const b = req.body || {};
   const qty = Math.max(0, num(b.qty, 0));
@@ -1947,7 +2049,7 @@ router.post('/parts/:id/receive', requireFlag('parts'), async (req, res) => {
 
 // A physical count is an explicit correction, never an invisible overwrite.
 // The movement ledger keeps the before/after reason available for review.
-router.post('/parts/:id/adjust', requireFlag('parts'), async (req, res) => {
+router.post('/parts/:id/adjust', requireFlag('parts'), requireWorkshopPermission('manage_parts'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const counted = Math.max(0, num(req.body && req.body.counted_qty, 0));
   const client = await pool.connect();
@@ -1975,7 +2077,7 @@ router.post('/parts/:id/adjust', requireFlag('parts'), async (req, res) => {
 });
 
 // Supplier returns reduce available stock and remain distinct from a job issue.
-router.post('/parts/:id/return', requireFlag('parts'), async (req, res) => {
+router.post('/parts/:id/return', requireFlag('parts'), requireWorkshopPermission('manage_parts'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const qty = Math.max(0, num(req.body && req.body.qty, 0));
   if (!qty) return res.redirect('/workshop/parts');
@@ -2004,7 +2106,7 @@ router.post('/parts/:id/return', requireFlag('parts'), async (req, res) => {
 });
 
 // ── Service reminders ────────────────────────────────────────────────────────
-router.get('/reminders', requireFlag('reminders'), async (req, res) => {
+router.get('/reminders', requireFlag('reminders'), requireWorkshopPermission('view_reminders'), async (req, res) => {
   const cid = req.company.id;
   const rows = await pool.query(
     `SELECT r.*, v.plate, v.make, v.model, v.odometer,
@@ -2021,7 +2123,7 @@ router.get('/reminders', requireFlag('reminders'), async (req, res) => {
   });
 });
 
-router.post('/reminders/:id/:action', requireFlag('reminders'), async (req, res) => {
+router.post('/reminders/:id/:action', requireFlag('reminders'), requireWorkshopPermission('manage_reminders'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   if (req.params.action === 'contacted') {
     await pool.query('UPDATE workshop_reminders SET contacted_at=now() WHERE id=$1 AND company_id=$2', [id, cid]);
@@ -2033,7 +2135,7 @@ router.post('/reminders/:id/:action', requireFlag('reminders'), async (req, res)
 });
 
 // ── Technicians ──────────────────────────────────────────────────────────────
-router.get('/technicians', requireFlag('technicians'), async (req, res) => {
+router.get('/technicians', requireFlag('technicians'), requireWorkshopPermission('view_technicians'), async (req, res) => {
   const rows = await pool.query(
     `SELECT t.*,
             (SELECT COALESCE(SUM(l.amount),0)::float FROM workshop_job_labour l
@@ -2054,7 +2156,7 @@ router.get('/technicians', requireFlag('technicians'), async (req, res) => {
   });
 });
 
-router.post('/technicians', requireFlag('technicians'), requireWorkshopManager, async (req, res) => {
+router.post('/technicians', requireFlag('technicians'), requireWorkshopPermission('manage_technicians'), async (req, res) => {
   const b = req.body || {};
   const name = text(b.name, 120);
   if (name) {
@@ -2068,7 +2170,7 @@ router.post('/technicians', requireFlag('technicians'), requireWorkshopManager, 
   res.redirect('/workshop/technicians');
 });
 
-router.post('/technicians/:id', requireFlag('technicians'), requireWorkshopManager, async (req, res) => {
+router.post('/technicians/:id', requireFlag('technicians'), requireWorkshopPermission('manage_technicians'), async (req, res) => {
   const b = req.body || {};
   const id = int(req.params.id);
   const name = text(b.name, 120);
@@ -2084,7 +2186,7 @@ router.post('/technicians/:id', requireFlag('technicians'), requireWorkshopManag
   res.redirect('/workshop/technicians?saved=1');
 });
 
-router.post('/technicians/:id/toggle', requireFlag('technicians'), requireWorkshopManager, async (req, res) => {
+router.post('/technicians/:id/toggle', requireFlag('technicians'), requireWorkshopPermission('manage_technicians'), async (req, res) => {
   await pool.query(
     `UPDATE workshop_technicians SET is_active=NOT is_active
       WHERE id=$1 AND company_id=$2`,
@@ -2093,7 +2195,7 @@ router.post('/technicians/:id/toggle', requireFlag('technicians'), requireWorksh
   res.redirect('/workshop/technicians');
 });
 
-router.post('/technicians/:id/delete', requireFlag('technicians'), requireWorkshopManager, async (req, res) => {
+router.post('/technicians/:id/delete', requireFlag('technicians'), requireWorkshopPermission('manage_technicians'), async (req, res) => {
   const client = await pool.connect();
   try {
     const cid = req.company.id;
@@ -2132,7 +2234,7 @@ router.post('/technicians/:id/delete', requireFlag('technicians'), requireWorksh
 });
 
 // ── Invoices ─────────────────────────────────────────────────────────────────
-router.get('/invoices', requireFlag('invoices'), async (req, res) => {
+router.get('/invoices', requireFlag('invoices'), requireWorkshopPermission('view_invoices'), async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim().slice(0, 80);
   const status = J.STATUSES.includes(String(req.query.status)) ? String(req.query.status) : '';
@@ -2154,7 +2256,7 @@ router.get('/invoices', requireFlag('invoices'), async (req, res) => {
   });
 });
 
-router.get('/invoices.csv', requireFlag('invoices'), async (req, res) => {
+router.get('/invoices.csv', requireFlag('invoices'), requireWorkshopPermission('view_invoices'), async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80);
   const status = J.STATUSES.includes(String(req.query.status)) ? String(req.query.status) : '';
   const customerId = int(req.query.customer_id);
@@ -2171,7 +2273,7 @@ router.get('/invoices.csv', requireFlag('invoices'), async (req, res) => {
   res.send('\uFEFF' + lines.map((line) => line.map(csvCell).join(',')).join('\n'));
 });
 
-router.get('/customers/:id/statement', requireFlag('invoices'), async (req, res) => {
+router.get('/customers/:id/statement', requireFlag('invoices'), requireWorkshopPermission('view_invoices'), async (req, res) => {
   const cid = req.company.id, customerId = int(req.params.id);
   const customer = (await pool.query(
     'SELECT id, name, phone, whatsapp, address FROM workshop_customers WHERE id=$1 AND company_id=$2',
@@ -2195,7 +2297,7 @@ router.get('/customers/:id/statement', requireFlag('invoices'), async (req, res)
 });
 
 // ── Expenses ─────────────────────────────────────────────────────────────────
-router.get('/expenses', requireFlag('expenses'), async (req, res) => {
+router.get('/expenses', requireFlag('expenses'), requireWorkshopPermission('view_expenses'), async (req, res) => {
   const rows = await pool.query(
     `SELECT * FROM workshop_expenses WHERE company_id=$1 ORDER BY spent_on DESC, id DESC LIMIT 300`,
     [req.company.id]);
@@ -2205,7 +2307,7 @@ router.get('/expenses', requireFlag('expenses'), async (req, res) => {
   });
 });
 
-router.post('/expenses', requireFlag('expenses'), async (req, res) => {
+router.post('/expenses', requireFlag('expenses'), requireWorkshopPermission('manage_expenses'), async (req, res) => {
   const b = req.body || {};
   const amount = Math.max(0, num(b.amount, 0));
   if (amount > 0) {
@@ -2219,7 +2321,7 @@ router.post('/expenses', requireFlag('expenses'), async (req, res) => {
 });
 
 // ── Reports ──────────────────────────────────────────────────────────────────
-router.get('/reports', requireFlag('reports'), async (req, res) => {
+router.get('/reports', requireFlag('reports'), requireWorkshopPermission('view_reports'), async (req, res) => {
   const cid = req.company.id;
   const days = Math.min(365, Math.max(7, int(req.query.days, 30)));
   const [summary, faults, parts, expenses, capacity] = await Promise.all([
@@ -2285,7 +2387,7 @@ router.get('/reports', requireFlag('reports'), async (req, res) => {
   });
 });
 
-router.get('/reports.csv', requireFlag('reports'), async (req, res) => {
+router.get('/reports.csv', requireFlag('reports'), requireWorkshopPermission('view_reports'), async (req, res) => {
   const days = Math.min(365, Math.max(7, int(req.query.days, 30)));
   const rows = await loadWorkshopInvoiceRows(req.company.id, { days });
   const lines = [
@@ -2301,7 +2403,7 @@ router.get('/reports.csv', requireFlag('reports'), async (req, res) => {
 });
 
 // ── Warranty ─────────────────────────────────────────────────────────────────
-router.get('/warranty', requireFlag('warranty'), async (req, res) => {
+router.get('/warranty', requireFlag('warranty'), requireWorkshopPermission('view_warranty'), async (req, res) => {
   const cid = req.company.id;
   const rows = await pool.query(
     `SELECT j.id, j.warranty_months, j.delivered_at, v.plate, v.make, v.model,

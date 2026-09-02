@@ -67,11 +67,15 @@
         <span class="text-slate-500"><%= t('wsh.job.quote') %>: <b><bdi><%= money(job.quote_total) %></bdi></b></span>
       <% } %>
     <% } else { %>
-      <form method="post" action="/workshop/jobs/<%= job.id %>/approve" class="flex items-center gap-2 no-print">
-        <input name="approved_by" placeholder="<%= t('wsh.job.approved_by') %>"
-          class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
-        <button class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-1.5 text-sm">✓ <%= t('wsh.job.approve') %></button>
-      </form>
+      <% if (canWorkshop('manage_job_pricing')) { %>
+        <form method="post" action="/workshop/jobs/<%= job.id %>/approve" class="flex items-center gap-2 no-print">
+          <input name="approved_by" placeholder="<%= t('wsh.job.approved_by') %>"
+            class="border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
+          <button class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-1.5 text-sm">✓ <%= t('wsh.job.approve') %></button>
+        </form>
+      <% } else { %>
+        <span class="text-amber-700 font-bold">العرض بانتظار اعتماد الإدارة</span>
+      <% } %>
       <span class="text-xs text-slate-400"><%= t('wsh.inv.total') %>: <bdi><%= money(totals.total) %></bdi></span>
     <% } %>
   </div>
@@ -108,7 +112,7 @@
           </tbody>
         </table>
       <% } %>
-      <% if (flags.has('parts')) { %>
+      <% if (flags.has('parts') && canWorkshop('manage_job_parts')) { %>
       <form method="post" action="/workshop/jobs/<%= job.id %>/parts" class="mt-4 grid sm:grid-cols-4 gap-2 text-sm no-print">
         <select name="part_id" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
           <option value=""><%= t('wsh.part.name') %>…</option>
@@ -121,7 +125,7 @@
         <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.job.add_part') %></button>
       </form>
       <% } %>
-      <% if (flags.has('parts')) { %>
+      <% if (flags.has('parts') && (canWorkshop('reserve_parts') || canWorkshop('release_parts'))) { %>
       <div id="reservations" class="mt-5 pt-4 border-t border-slate-100 no-print">
         <div class="flex items-center justify-between gap-3 mb-2">
           <div><h3 class="font-black text-sm">حجز قطع لهذا الأمر</h3><p class="text-xs text-slate-500 mt-0.5">الحجز لا ينقص المخزون، لكنه يمنع حجز نفس الكمية لأمر آخر.</p></div>
@@ -132,19 +136,19 @@
               <div class="flex items-center gap-2 text-xs bg-brand-50 rounded-lg px-3 py-2">
                 <span class="flex-1 font-bold"><%= r.name %><%= r.part_number ? ' — ' + r.part_number : '' %></span>
                 <span><%= Number(r.qty) %> محجوز</span>
-                <form method="post" action="/workshop/jobs/<%= job.id %>/parts/release/<%= r.id %>"><button class="text-rose-700 font-bold">تحرير</button></form>
+                <% if (canWorkshop('release_parts')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/parts/release/<%= r.id %>"><button class="text-rose-700 font-bold">تحرير</button></form><% } %>
               </div>
             <% }) %>
           </div>
         <% } %>
-        <form method="post" action="/workshop/jobs/<%= job.id %>/parts/reserve" class="grid sm:grid-cols-[1fr_120px_auto] gap-2 text-sm">
+        <% if (canWorkshop('reserve_parts')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/parts/reserve" class="grid sm:grid-cols-[1fr_120px_auto] gap-2 text-sm">
           <select name="part_id" required class="border border-slate-200 rounded-xl px-3 py-2">
             <option value="">اختر قطعة للحجز</option>
             <% stock.forEach(function(s){ %><option value="<%= s.id %>"><%= s.name %> — متاح فعليًا <%= Number(s.qty) %></option><% }) %>
           </select>
           <input name="qty" type="number" min="0.001" step="0.001" required placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2" />
           <button class="bg-slate-900 text-white font-bold rounded-xl px-4 py-2">حجز القطعة</button>
-        </form>
+        </form><% } %>
       </div>
       <% } %>
     </section>
@@ -165,7 +169,7 @@
           </tbody>
         </table>
       <% } %>
-      <form method="post" action="/workshop/jobs/<%= job.id %>/labour" class="mt-4 grid sm:grid-cols-4 gap-2 text-sm no-print">
+      <% if (canWorkshop('manage_job_pricing')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/labour" class="mt-4 grid sm:grid-cols-4 gap-2 text-sm no-print">
         <input name="description" required placeholder="<%= t('wsh.job.labour') %>"
           class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
         <input name="hours" type="number" step="0.25" min="0" dir="ltr" placeholder="<%= t('wsh.job.hours') %>"
@@ -176,7 +180,7 @@
         <div class="sm:col-span-4">
           <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.job.add_labour') %></button>
         </div>
-      </form>
+      </form><% } %>
     </section>
 
     <% if (flags.has('floor')) { %>
@@ -200,10 +204,10 @@
                 <td data-l="المدة" class="py-2"><bdi><%= (Number(entry.minutes || 0) / 60).toFixed(2) %></bdi> ساعة</td>
                 <td data-l="" class="py-2 text-end">
                   <% if (!entry.ended_at) { %>
-                    <form method="post" action="/workshop/time/<%= entry.id %>/stop" class="flex gap-1 justify-end">
-                      <input name="note" placeholder="ملاحظة" class="w-28 border border-slate-200 rounded-lg px-2 py-1 text-xs">
-                      <button class="bg-slate-900 text-white rounded-lg px-2 py-1 text-xs font-bold">إيقاف</button>
-                    </form>
+                    <% if (canWorkshop('manage_time')) { %><form method="post" action="/workshop/time/<%= entry.id %>/stop" class="flex gap-1 justify-end">
+                        <input name="note" placeholder="ملاحظة" class="w-28 border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                        <button class="bg-slate-900 text-white rounded-lg px-2 py-1 text-xs font-bold">إيقاف</button>
+                      </form><% } %>
                   <% } %>
                 </td>
               </tr>
@@ -211,21 +215,21 @@
           </tbody>
         </table>
       <% } %>
-      <form method="post" action="/workshop/time/start" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-[1fr_auto] gap-2 text-sm no-print">
+      <% if (canWorkshop('manage_time')) { %><form method="post" action="/workshop/time/start" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-[1fr_auto] gap-2 text-sm no-print">
         <input type="hidden" name="job_id" value="<%= job.id %>">
         <select name="technician_id" required class="border border-slate-200 rounded-xl px-3 py-2">
           <option value="">اختر الفني لبدء جلسة</option>
           <% technicians.forEach(function(tc){ %><option value="<%= tc.id %>"><%= tc.name %></option><% }) %>
         </select>
         <button class="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold">بدء تسجيل الوقت</button>
-      </form>
+      </form><% } %>
     </section>
     <% } %>
 
     <!-- Diagnosis + settings for this job -->
       <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
        <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.diagnosis') %></h2>
-      <form method="post" action="/workshop/jobs/<%= job.id %>/update" class="space-y-3 text-sm">
+      <% if (canWorkshop('manage_job_details')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/update" class="space-y-3 text-sm">
         <textarea name="diagnosis" rows="3" class="w-full border border-slate-200 rounded-xl px-3 py-2"><%= job.diagnosis || '' %></textarea>
          <label class="block"><span class="text-xs font-bold text-slate-500">ملاحظات الفني</span>
            <textarea name="technician_note" rows="3" placeholder="ما تم فحصه أو تنفيذه، وأي ملاحظة يحتاجها الفني التالي"
@@ -256,6 +260,17 @@
           class="w-full border border-slate-200 rounded-xl px-3 py-2"><%= job.note || '' %></textarea>
         <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2"><%= t('wsh.common.save') %></button>
       </form>
+      <% } else if (canWorkshop('update_technician_note') || canWorkshop('update_job_note')) { %>
+        <form method="post" action="/workshop/jobs/<%= job.id %>/update" class="space-y-3 text-sm">
+          <label class="block"><span class="text-xs font-bold text-slate-500">ملاحظات التنفيذ</span>
+            <textarea name="technician_note" rows="4" placeholder="ما تم فحصه أو تنفيذه، وأي ملاحظة يحتاجها الفريق التالي"
+              class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><%= job.technician_note || '' %></textarea>
+          </label>
+          <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2">حفظ الملاحظة</button>
+        </form>
+      <% } else { %>
+        <p class="text-sm text-slate-500">تعديل بيانات أمر الشغل متاح لإدارة الورشة فقط.</p>
+      <% } %>
     </section>
 
     <% if (flags.has('change_orders')) { %>
@@ -270,12 +285,12 @@
         <% (changeOrders || []).forEach(function(o){ %>
           <div class="rounded-xl border border-slate-100 p-3">
             <div class="flex items-start justify-between gap-3 flex-wrap"><div><span class="font-bold">تعديل #<%= o.id %></span> · <%= o.reason %><div class="text-xs text-slate-500 mt-1"><%= o.item_count %> بند · <bdi><%= money(o.total) %></bdi></div></div><span class="text-xs rounded-full px-2 py-1 font-bold <%= o.status==='approved'?'bg-emerald-50 text-emerald-700':o.status==='rejected'?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-700' %>"><%= o.status==='approved'?'معتمد':o.status==='rejected'?'مرفوض':'بانتظار الموافقة' %></span></div>
-            <% if (o.status === 'proposed') { %><div class="flex gap-2 mt-2 no-print"><form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="approved"><button class="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 font-bold">اعتماد المدير</button></form><form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="rejected"><button class="text-xs border border-rose-200 text-rose-700 rounded-lg px-3 py-1.5 font-bold">رفض</button></form></div><% } %>
+             <% if (o.status === 'proposed' && canWorkshop('manage_job_pricing')) { %><div class="flex gap-2 mt-2 no-print"><form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="approved"><button class="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 font-bold">اعتماد المدير</button></form><form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="rejected"><button class="text-xs border border-rose-200 text-rose-700 rounded-lg px-3 py-1.5 font-bold">رفض</button></form></div><% } %>
           </div>
         <% }) %>
       </div>
       <div class="mt-4 pt-4 border-t border-slate-100">
-        <div class="flex items-center justify-between gap-3 flex-wrap mb-2"><h3 class="font-black text-sm">نسخ عرض السعر</h3><form method="post" action="/workshop/jobs/<%= job.id %>/estimates" class="no-print"><button class="text-xs border border-brand-200 text-brand-700 rounded-lg px-3 py-1.5 font-bold">حفظ نسخة من العرض الحالي</button></form></div>
+         <div class="flex items-center justify-between gap-3 flex-wrap mb-2"><h3 class="font-black text-sm">نسخ عرض السعر</h3><% if (canWorkshop('manage_job_pricing')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/estimates" class="no-print"><button class="text-xs border border-brand-200 text-brand-700 rounded-lg px-3 py-1.5 font-bold">حفظ نسخة من العرض الحالي</button></form><% } %></div>
         <% if (!(estimateVersions || []).length) { %><p class="text-xs text-slate-400">احفظ نسخة قبل أي تعديل لتكون المقارنة الزمنية واضحة.</p><% } else { %>
           <div class="space-y-2"><% estimateVersions.forEach(function(v){ var snap = Array.isArray(v.snapshot) ? v.snapshot : []; %>
             <details class="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
@@ -290,7 +305,7 @@
           <% }) %></div>
         <% } %>
       </div>
-      <form method="post" action="/workshop/jobs/<%= job.id %>/change-orders" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-4 gap-2 text-sm no-print">
+       <% if (canWorkshop('manage_job_pricing')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/change-orders" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-4 gap-2 text-sm no-print">
         <select name="kind" class="border border-slate-200 rounded-xl px-3 py-2"><option value="labour">عمالة</option><option value="part">قطعة</option></select>
         <input name="description" required placeholder="وصف التعديل" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
         <input name="qty" type="number" min="0.001" step="0.001" value="1" placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
@@ -298,7 +313,7 @@
         <input name="unit_cost" type="number" min="0" step="0.01" placeholder="التكلفة" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
         <input name="reason" placeholder="سبب التعديل" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
         <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">إضافة للمراجعة</button>
-      </form>
+       </form><% } %>
     </section>
     <% } %>
 
@@ -311,7 +326,7 @@
       <div class="space-y-3">
         <% var inspectionLabels = {not_checked:'لم يُفحص', good:'سليم', attention:'يحتاج متابعة', urgent:'عاجل', deferred:'مؤجل'}; %>
         <% inspection.forEach(function(item){ %>
-          <form method="post" action="/workshop/jobs/<%= job.id %>/inspection/items" class="rounded-xl border <%= item.status === 'urgent' ? 'border-rose-200 bg-rose-50/40' : item.status === 'attention' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100' %> p-3">
+          <% if (canWorkshop('update_inspection')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/inspection/items" class="rounded-xl border <%= item.status === 'urgent' ? 'border-rose-200 bg-rose-50/40' : item.status === 'attention' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100' %> p-3"><% } else { %><div class="rounded-xl border <%= item.status === 'urgent' ? 'border-rose-200 bg-rose-50/40' : item.status === 'attention' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-100' %> p-3"><% } %>
             <input type="hidden" name="item_id" value="<%= item.id %>" />
             <div class="flex items-start justify-between gap-3">
               <div><div class="text-[10px] text-brand-700 font-black"><%= item.system %></div><div class="font-bold text-sm"><%= item.check_name %></div><div class="text-[11px] text-slate-400 mt-0.5"><%= item.guidance || '' %></div></div>
@@ -326,13 +341,15 @@
               <label class="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="customer_visible" value="1" <%= item.customer_visible ? 'checked' : '' %> /> يظهر للعميل في تقرير الفحص</label>
             </div>
             <div class="flex items-center justify-between gap-2 mt-2">
-              <button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ نتيجة الفحص</button>
+               <% if (canWorkshop('update_inspection')) { %><button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ نتيجة الفحص</button><% } else { %><span class="text-[11px] text-slate-500">للعرض فقط</span><% } %>
               <% if (item.promoted_at) { %><span class="text-[11px] text-emerald-700 font-bold">تمت إضافته للعرض</span>
-              <% } else if (item.recommendation || Number(item.estimated_amount) > 0) { %>
+               <% } else if (item.recommendation || Number(item.estimated_amount) > 0) { %>
+                 <% if (canWorkshop('manage_job_pricing')) { %>
                 <button type="submit" formaction="/workshop/jobs/<%= job.id %>/inspection/promote/<%= item.id %>" class="text-xs text-brand-700 font-bold border border-brand-200 rounded-lg px-3 py-1.5 bg-white">تحويل لبند عرض السعر</button>
+                 <% } %>
               <% } %>
             </div>
-          </form>
+           <% if (canWorkshop('update_inspection')) { %></form><% } else { %></div><% } %>
         <% }) %>
       </div>
     </section>
@@ -351,7 +368,7 @@
       <div class="space-y-2">
         <% var qualityLabels = {pending:'لم يُراجع', passed:'ناجح', failed:'يحتاج إعادة'}; %>
         <% quality.forEach(function(item){ %>
-          <form method="post" action="/workshop/jobs/<%= job.id %>/quality" class="rounded-xl border border-slate-100 p-3">
+          <% if (canWorkshop('update_quality')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/quality" class="rounded-xl border border-slate-100 p-3"><% } else { %><div class="rounded-xl border border-slate-100 p-3"><% } %>
             <input type="hidden" name="check_id" value="<%= item.id %>" />
             <div class="flex items-start gap-3 justify-between flex-wrap">
               <div class="font-bold text-sm"><%= item.check_name %><% if (item.required !== false) { %> <span class="text-rose-500">*</span><% } %></div>
@@ -362,9 +379,9 @@
             <div class="grid sm:grid-cols-[1fr_1fr_auto] gap-2 mt-2">
               <input name="note" value="<%= item.note || '' %>" placeholder="ملاحظة أو نتيجة الاختبار" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
               <input name="checked_by" value="<%= item.checked_by || '' %>" placeholder="اسم المراجع" class="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5" />
-              <button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ</button>
+               <% if (canWorkshop('update_quality')) { %><button class="text-xs bg-brand-600 text-white rounded-lg px-3 py-1.5 font-bold">حفظ</button><% } else { %><span class="text-[11px] text-slate-500">للعرض فقط</span><% } %>
             </div>
-          </form>
+           <% if (canWorkshop('update_quality')) { %></form><% } else { %></div><% } %>
         <% }) %>
       </div>
     </section>
@@ -394,16 +411,17 @@
         <p class="mt-1.5 leading-relaxed"><%= t('wsh.inv.margin_note') %></p>
       </div>
 
-      <form method="post" action="/workshop/jobs/<%= job.id %>/pay" class="mt-4 flex gap-2 no-print">
-        <input name="amount" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.exp.amount') %>"
-          class="flex-1 border border-slate-200 rounded-xl px-3 py-2 min-w-0" />
-        <button class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-2 whitespace-nowrap"><%= t('wsh.inv.pay') %></button>
-      </form>
+      <% if (canWorkshop('record_payment')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/pay" class="mt-4 flex gap-2 no-print">
+          <input name="amount" type="number" step="0.01" min="0" dir="ltr" placeholder="<%= t('wsh.exp.amount') %>"
+            class="flex-1 border border-slate-200 rounded-xl px-3 py-2 min-w-0" />
+          <button class="bg-emerald-600 text-white font-bold rounded-xl px-4 py-2 whitespace-nowrap"><%= t('wsh.inv.pay') %></button>
+        </form><% } %>
     </section>
 
+    <% if (canWorkshop('advance_job') || canWorkshop('deliver_job')) { %>
     <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
        <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.status') %></h2>
-      <% if (nextSt) { %>
+      <% if (nextSt && (nextSt === 'delivered' ? canWorkshop('deliver_job') : canWorkshop('advance_job'))) { %>
         <form method="post" action="/workshop/jobs/<%= job.id %>/status" class="mb-3">
           <input type="hidden" name="status" value="<%= nextSt %>" />
           <% if (nextSt === 'delivered' && totals.due > 0) { %>
@@ -433,7 +451,7 @@
       <% } %>
       <form method="post" action="/workshop/jobs/<%= job.id %>/status" class="flex gap-2">
         <select name="status" class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm">
-          <% J.STATUSES.forEach(function(s){ %>
+          <% (canWorkshop('manage_job_pricing') ? J.STATUSES : ['diagnosing', 'in_progress', 'done', 'ready_for_pickup']).forEach(function(s){ %>
             <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= t('wsh.st.' + s) %></option>
           <% }) %>
         </select>
@@ -442,6 +460,7 @@
         <button class="bg-slate-200 font-bold rounded-xl px-4 py-2 text-sm"><%= t('wsh.common.save') %></button>
       </form>
     </section>
+    <% } %>
     <% if (flags.has('audit')) { %>
       <section class="bg-white rounded-2xl border border-slate-200 p-5">
         <h2 class="font-black mb-3">سجل النشاط</h2>

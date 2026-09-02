@@ -25,6 +25,47 @@ const QUALITY_DEFAULTS = [
 ];
 const QUALITY_STATUSES = ['pending', 'passed', 'failed'];
 
+// Roles are attached to the authenticated company user, never accepted from
+// a form. Keep the permission names action-oriented so a route can protect
+// the write even when its page is also visible to a less privileged role.
+const WORKSHOP_ROLE_LABELS = {
+  owner: 'صاحب الورشة',
+  manager: 'مدير الورشة',
+  admin: 'إدارة الورشة',
+  reception: 'الاستقبال',
+  technician: 'الفني',
+};
+
+const MANAGEMENT_ROLES = new Set(['owner', 'manager', 'admin']);
+const ROLE_PERMISSIONS = {
+  reception: new Set([
+    'view_dashboard', 'view_board', 'view_appointments', 'manage_appointments',
+    'view_customers', 'manage_customers', 'view_vehicles', 'manage_vehicles',
+    'view_jobs', 'create_jobs', 'update_job_note', 'advance_job', 'view_invoices',
+    'view_change_orders', 'view_parts', 'view_communications',
+    'prepare_communications', 'send_communications', 'view_reminders', 'manage_reminders',
+    'view_warranty', 'view_warranty_claims', 'manage_warranty_claims', 'record_payment',
+  ]),
+  technician: new Set([
+    'view_dashboard', 'view_board', 'view_vehicles', 'view_jobs', 'update_technician_note',
+    'view_floor', 'manage_time', 'view_parts', 'reserve_parts', 'release_parts',
+    'view_communications', 'view_inspection', 'update_inspection', 'view_warranty',
+  ]),
+};
+
+function normalizeWorkshopRole(role) {
+  const normalized = String(role || '').trim().toLowerCase();
+  if (MANAGEMENT_ROLES.has(normalized) || ROLE_PERMISSIONS[normalized]) return normalized;
+  // An unknown role must fail closed instead of inheriting management access.
+  return 'reception';
+}
+
+function workshopCan(role, permission) {
+  const normalized = normalizeWorkshopRole(role);
+  return MANAGEMENT_ROLES.has(normalized)
+    || Boolean(ROLE_PERMISSIONS[normalized] && ROLE_PERMISSIONS[normalized].has(permission));
+}
+
 function newToken() {
   return crypto.randomBytes(24).toString('base64url');
 }
@@ -102,6 +143,11 @@ module.exports = {
   INSPECTION_STATUSES,
   QUALITY_DEFAULTS,
   QUALITY_STATUSES,
+  WORKSHOP_ROLE_LABELS,
+  MANAGEMENT_ROLES,
+  ROLE_PERMISSIONS,
+  normalizeWorkshopRole,
+  workshopCan,
   ensureJobAccess,
   ensureInspection,
   ensureQuality,

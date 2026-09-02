@@ -3,6 +3,40 @@
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4"><%= t('wsh.set.saved') %></div><% } %>
 <% if (settingsError === 'secret_unavailable' || settingsError === 'payment_secret_unavailable') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">لا يمكن حفظ بيانات الاعتماد الآن لأن مفتاح التشفير غير مفعّل على الخادم.</div><% } %>
 <% if (settingsError === 'message_save' || settingsError === 'payment_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ الإعدادات. راجع البيانات وحاول مرة أخرى.</div><% } %>
+<% if (typeof users !== 'undefined' && canWorkshop('manage_settings')) { %>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="font-black mb-1">أدوار فريق الورشة</h2>
+        <p class="text-xs text-slate-500">حدّد ما يستطيع كل حساب فعله. تعديل الأسعار، تسجيل الدفعات، إعدادات الورشة، واستثناء فحص الجودة متاحة للإدارة فقط.</p>
+      </div>
+      <span class="text-xs font-bold text-brand-700 bg-brand-50 rounded-full px-3 py-1">صلاحيتك: <%= workshopRoleLabel %></span>
+    </div>
+    <div class="divide-y divide-slate-100 mt-4">
+      <% users.forEach(function(user){ %>
+        <div class="py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div class="min-w-0">
+            <div class="font-bold text-sm truncate" dir="ltr"><%= user.email %></div>
+            <div class="text-xs text-slate-500"><%= roleLabels[user.role] || roleLabels.reception %><% if (user.id === currentUserId) { %> · حسابك الحالي<% } %></div>
+          </div>
+          <% if (user.id === currentUserId || user.role === 'owner' || user.role === 'admin') { %>
+            <span class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">محمي</span>
+          <% } else { %>
+            <form method="post" action="/workshop/settings/users/<%= user.id %>/role" class="flex items-center gap-2">
+              <label class="sr-only" for="role-<%= user.id %>">دور <%= user.email %></label>
+              <select id="role-<%= user.id %>" name="role" class="border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                <option value="manager" <%= user.role === 'manager' ? 'selected' : '' %>>مدير الورشة</option>
+                <option value="reception" <%= user.role === 'reception' ? 'selected' : '' %>>الاستقبال</option>
+                <option value="technician" <%= user.role === 'technician' ? 'selected' : '' %>>الفني</option>
+              </select>
+              <button class="bg-brand-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold">حفظ الدور</button>
+            </form>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
 <form method="post" action="/workshop/settings" class="space-y-5">
   <section class="bg-white rounded-2xl border border-slate-200 p-5">
     <h2 class="font-black mb-3"><%= t('wsh.set.business') %></h2>
