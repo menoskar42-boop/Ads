@@ -223,8 +223,11 @@ async function ensureWorkshopSchema() {
         odometer_in   INTEGER,
         received_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
         promised_at   TIMESTAMPTZ,
+         diagnosed_at  TIMESTAMPTZ,
         started_at    TIMESTAMPTZ,
+         quality_checked_at TIMESTAMPTZ,
         done_at       TIMESTAMPTZ,
+         ready_at      TIMESTAMPTZ,
         delivered_at  TIMESTAMPTZ,
         quote_total   NUMERIC(12,2),
         approved_at   TIMESTAMPTZ,
@@ -234,6 +237,9 @@ async function ensureWorkshopSchema() {
         paid          NUMERIC(12,2) NOT NULL DEFAULT 0,
         warranty_months INTEGER NOT NULL DEFAULT 0,
         note          TEXT,
+         technician_note TEXT,
+         handover_note TEXT,
+         handover_by   TEXT,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs ON workshop_jobs (company_id, status, received_at DESC);
@@ -558,7 +564,13 @@ async function ensureWorkshopSchema() {
     // Existing installations need the new relationship/lookup columns too.
     await client.query(`
       ALTER TABLE workshop_jobs
-        ADD COLUMN IF NOT EXISTS bay_id INTEGER;
+        ADD COLUMN IF NOT EXISTS bay_id INTEGER,
+        ADD COLUMN IF NOT EXISTS diagnosed_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS quality_checked_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS ready_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS handover_note TEXT,
+        ADD COLUMN IF NOT EXISTS handover_by TEXT,
+        ADD COLUMN IF NOT EXISTS technician_note TEXT;
       ALTER TABLE workshop_parts
         ADD COLUMN IF NOT EXISTS barcode TEXT;
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs_bay

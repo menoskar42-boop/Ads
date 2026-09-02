@@ -1,7 +1,7 @@
 <%- include('head') %>
 <%
-  var labels = { received:'استلام', quoted:'عرض سعر', approved:'موافقة', in_progress:'تحت التنفيذ', done:'مراجعة وتسليم', delivered:'تم التسليم' };
-  var tones = { received:'border-slate-200', quoted:'border-amber-200', approved:'border-blue-200', in_progress:'border-violet-200', done:'border-emerald-200', delivered:'border-slate-200' };
+  var labels = { received:'استلام', diagnosing:'تشخيص', quoted:'عرض سعر', approved:'موافقة', awaiting_parts:'في انتظار قطع', in_progress:'تحت التنفيذ', quality_check:'فحص الجودة', done:'اكتمل الإصلاح', ready_for_pickup:'جاهزة للاستلام', delivered:'تم التسليم' };
+  var tones = { received:'border-slate-200', diagnosing:'border-cyan-200', quoted:'border-amber-200', approved:'border-blue-200', awaiting_parts:'border-orange-200', in_progress:'border-violet-200', quality_check:'border-indigo-200', done:'border-emerald-200', ready_for_pickup:'border-teal-200', delivered:'border-slate-200' };
   function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
   function dt(v){ try { return v ? new Date(v).toLocaleString(LOC, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'بدون موعد'; } catch(e){ return 'بدون موعد'; } }
 %>
@@ -17,7 +17,43 @@
   </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 items-start">
+<form method="get" action="/workshop/board" class="bg-white rounded-2xl border border-slate-200 p-4 mb-5 grid sm:grid-cols-2 lg:grid-cols-5 gap-2 text-sm no-print">
+  <input name="q" value="<%= q %>" placeholder="ابحث برقم الأمر أو اللوحة أو العميل" class="border border-slate-200 rounded-xl px-3 py-2 lg:col-span-2" />
+  <select name="status" class="border border-slate-200 rounded-xl px-3 py-2">
+    <option value="">كل الحالات</option>
+    <% J.STATUSES.forEach(function(s){ %><option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= labels[s] || t('wsh.st.' + s) %></option><% }) %>
+  </select>
+  <select name="technician" class="border border-slate-200 rounded-xl px-3 py-2">
+    <option value="">كل الفنيين</option>
+    <% technicians.forEach(function(tech){ %><option value="<%= tech.id %>" <%= String(technician) === String(tech.id) ? 'selected' : '' %>><%= tech.name %></option><% }) %>
+  </select>
+  <select name="due" class="border border-slate-200 rounded-xl px-3 py-2">
+    <option value="all" <%= due === 'all' ? 'selected' : '' %>>كل المواعيد</option>
+    <option value="overdue" <%= due === 'overdue' ? 'selected' : '' %>>المتأخر فقط</option>
+    <option value="today" <%= due === 'today' ? 'selected' : '' %>>موعده اليوم</option>
+  </select>
+  <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold lg:col-span-5">تطبيق الفلاتر</button>
+</form>
+
+<% if (lateJobs.length) { %>
+  <section class="bg-rose-50 border border-rose-200 rounded-2xl p-4 mb-5 no-print">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div><h2 class="font-black text-rose-900">تنبيه: أوامر متأخرة</h2><p class="text-xs text-rose-700 mt-1">هذه الأوامر تجاوزت موعد التسليم ولم تُسلّم بعد.</p></div>
+      <a href="/workshop/board?due=overdue" class="text-xs font-bold text-rose-800 border border-rose-300 rounded-lg px-3 py-1.5">عرض المتأخر فقط (<%= lateJobs[0].total_late || lateJobs.length %>)</a>
+    </div>
+    <div class="mt-3 grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <% lateJobs.forEach(function(job){ %>
+        <a href="/workshop/jobs/<%= job.id %>" class="bg-white/80 rounded-xl border border-rose-100 p-3 hover:border-rose-300">
+          <div class="flex justify-between gap-2"><b><%= J.jobCode(job.id) %></b><span class="text-xs text-rose-700 font-bold"><%= dt(job.promised_at) %></span></div>
+          <div class="text-sm font-bold mt-1"><%= job.plate || 'بدون لوحة' %> · <%= job.customer_name || 'عميل غير مسجل' %></div>
+          <div class="text-xs text-slate-500 mt-1"><%= job.technician_name || 'بدون فني' %></div>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 items-start">
   <% columns.forEach(function(column){ %>
     <section class="bg-slate-100/80 rounded-2xl p-2.5 min-h-[260px] border-t-4 <%= tones[column.status] %>">
       <div class="flex items-center justify-between px-1.5 py-1 mb-2">

@@ -15,6 +15,8 @@ const FLAGS = [
     desc: 'جدول استقبال منظم وربط الموعد بأمر الشغل بدون إعادة إدخال البيانات.' },
   { key: 'vehicles', label: 'العربيات والعملاء', icon: '🚗', path: '/workshop/vehicles', core: true,
     desc: 'ملف كل عربية بتاريخها الكامل — تدوّر بالرقم وتلاقي كل حاجة اتعملت فيها.' },
+  { key: 'customers', label: 'العملاء', icon: '👥', path: '/workshop/customers', core: true,
+    desc: 'بيانات العملاء وحالة الحساب مع الحفاظ على تاريخ العربيات وأوامر الشغل.' },
   { key: 'parts', label: 'قطع الغيار', icon: '🔩', path: '/workshop/parts',
     desc: 'مخزون القطع بمتوسط تكلفة متحرّك، والحد الأدنى، وحركة الصرف.' },
   { key: 'purchasing', label: 'الموردون والشراء', icon: '▤', path: '/workshop/purchasing',

@@ -5,7 +5,7 @@
   var cards = [
     [t('wsh.dash.open_jobs'),     stats.open,     '/workshop/jobs',      'text-brand-700', 'bg-brand-100'],
     [t('wsh.dash.awaiting'),      stats.awaiting, '/workshop/jobs?status=quoted', 'text-amber-600', 'bg-amber-100'],
-    [t('wsh.dash.due_today'),     stats.promised, '/workshop/jobs',      'text-rose-600', 'bg-rose-100'],
+     [t('wsh.dash.overdue_jobs'),  stats.promised, '/workshop/board?due=overdue', 'text-rose-600', 'bg-rose-100'],
     [t('wsh.dash.due_reminders'), stats.dueRem,   '/workshop/reminders', 'text-emerald-700', 'bg-emerald-100'],
   ];
 %>

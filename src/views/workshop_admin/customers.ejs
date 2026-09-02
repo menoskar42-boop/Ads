@@ -1,0 +1,84 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
+  var errorLabels = {
+    linked: t('wsh.people.linked'),
+    invalid: t('wsh.people.invalid'),
+    failed: t('wsh.people.delete_failed'),
+    not_found: t('wsh.people.not_found')
+  };
+%>
+<div class="flex items-start justify-between gap-4 flex-wrap mb-5">
+  <div>
+    <h1 class="font-black text-xl"><%= t('wsh.cust.title') %></h1>
+    <p class="text-sm text-slate-500 mt-1"><%= t('wsh.people.sub') %></p>
+  </div>
+  <a href="#new" class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">+ <%= t('wsh.cust.new') %></a>
+</div>
+
+<% if (errorLabels[error]) { %>
+  <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm font-semibold"><%= errorLabels[error] %></div>
+<% } %>
+<% if (saved) { %>
+  <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm font-semibold"><%= t('wsh.people.saved') %></div>
+<% } %>
+
+<form method="get" action="/workshop/customers" class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 flex flex-wrap gap-2">
+  <input name="q" value="<%= q %>" placeholder="<%= t('wsh.people.search') %>" class="flex-1 min-w-[220px] border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+  <select name="view" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+    <option value="active" <%= view === 'active' ? 'selected' : '' %>><%= t('wsh.people.active') %></option>
+    <option value="inactive" <%= view === 'inactive' ? 'selected' : '' %>><%= t('wsh.people.inactive') %></option>
+    <option value="all" <%= view === 'all' ? 'selected' : '' %>><%= t('wsh.common.all') %></option>
+  </select>
+  <button class="bg-brand-600 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('wsh.people.filter') %></button>
+</form>
+
+<% if (!customers.length) { %>
+  <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500"><%= t('wsh.cust.empty') %></div>
+<% } else { %>
+  <div class="space-y-3">
+    <% customers.forEach(function(customer){ %>
+      <details class="bg-white rounded-2xl border <%= customer.is_active ? 'border-slate-200' : 'border-amber-200 bg-amber-50/30' %> overflow-hidden">
+        <summary class="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center gap-3">
+          <span class="font-bold min-w-[180px] flex-1"><%= customer.name %></span>
+          <span class="text-sm text-slate-500" dir="ltr"><%= customer.phone || customer.whatsapp || '—' %></span>
+          <span class="text-xs text-slate-500"><%= customer.vehicles_count %> <%= t('wsh.cust.vehicles') %></span>
+          <span class="text-xs font-bold <%= Number(customer.balance) > 0 ? 'text-rose-700' : 'text-emerald-700' %>"><%= money(customer.balance) %> ج.م</span>
+          <span class="text-xs font-bold rounded-full px-2 py-1 <%= customer.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' %>">
+            <%= customer.is_active ? t('wsh.people.active') : t('wsh.people.inactive') %>
+          </span>
+        </summary>
+        <div class="border-t border-slate-100 p-4 grid lg:grid-cols-[1fr_auto] gap-4">
+          <form method="post" action="/workshop/customers/<%= customer.id %>" class="grid sm:grid-cols-2 gap-2 text-sm">
+            <input name="name" required value="<%= customer.name %>" placeholder="<%= t('wsh.cust.name') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+            <input name="phone" value="<%= customer.phone || '' %>" dir="ltr" placeholder="<%= t('wsh.cust.phone') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+            <input name="whatsapp" value="<%= customer.whatsapp || '' %>" dir="ltr" placeholder="<%= t('wsh.people.whatsapp') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+            <input name="address" value="<%= customer.address || '' %>" placeholder="<%= t('wsh.people.address') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+            <textarea name="note" rows="2" placeholder="<%= t('wsh.cust.note') %>" class="sm:col-span-2 border border-slate-200 rounded-xl px-3 py-2"><%= customer.note || '' %></textarea>
+            <button class="sm:col-span-2 bg-brand-600 text-white font-bold rounded-xl px-4 py-2"><%= t('wsh.common.save') %></button>
+          </form>
+          <div class="flex lg:flex-col gap-2">
+            <a href="/workshop/customers/<%= customer.id %>/statement" class="w-full text-center border border-brand-200 text-brand-700 font-bold rounded-xl px-4 py-2 text-sm">كشف الحساب</a>
+            <form method="post" action="/workshop/customers/<%= customer.id %>/toggle">
+              <button class="w-full border border-amber-300 text-amber-800 font-bold rounded-xl px-4 py-2 text-sm"><%= customer.is_active ? t('wsh.people.disable') : t('wsh.people.enable') %></button>
+            </form>
+            <form method="post" action="/workshop/customers/<%= customer.id %>/delete" onsubmit="return confirm('<%= t('wsh.people.delete_confirm') %>')">
+              <button class="w-full border border-rose-200 text-rose-700 font-bold rounded-xl px-4 py-2 text-sm"><%= t('wsh.common.delete') %></button>
+            </form>
+          </div>
+        </div>
+      </details>
+    <% }) %>
+  </div>
+<% } %>
+
+<h2 id="new" class="font-black text-lg mt-8 mb-3"><%= t('wsh.cust.new') %></h2>
+<form method="post" action="/workshop/customers" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-2 gap-3 text-sm">
+  <input name="name" required placeholder="<%= t('wsh.cust.name') %> *" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <input name="phone" dir="ltr" placeholder="<%= t('wsh.cust.phone') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <input name="whatsapp" dir="ltr" placeholder="<%= t('wsh.people.whatsapp') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <input name="address" placeholder="<%= t('wsh.people.address') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <textarea name="note" rows="2" placeholder="<%= t('wsh.cust.note') %>" class="sm:col-span-2 border border-slate-200 rounded-xl px-3 py-2"></textarea>
+  <button class="sm:col-span-2 bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button>
+</form>
+<%- include('foot') %>

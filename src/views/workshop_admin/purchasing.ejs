@@ -12,6 +12,15 @@
   </div>
   <a href="/workshop/parts" class="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold hover:border-brand-300">المخزون</a>
 </div>
+<% if (lowParts.length) { %>
+  <section class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <div><h2 class="font-black text-amber-900">تنبيه إعادة الطلب</h2><p class="text-xs text-amber-800 mt-1"><%= lowParts.length %> قطعة وصلت للحد الأدنى وتحتاج مراجعة أمر شراء.</p></div>
+      <a href="/workshop/parts?low=1" class="text-xs font-bold text-amber-900 border border-amber-300 rounded-lg px-3 py-1.5">فتح قائمة القطع</a>
+    </div>
+    <div class="text-xs text-amber-900 mt-3 flex flex-wrap gap-2"><% lowParts.slice(0,8).forEach(function(p){ %><span class="bg-white/70 rounded-lg px-2 py-1"><%= p.name %> (<%= Number(p.qty) %>/<%= Number(p.min_qty) %>)</span><% }) %></div>
+  </section>
+<% } %>
 
 <div class="grid lg:grid-cols-[.8fr_1.2fr] gap-5 items-start">
   <div class="space-y-5">

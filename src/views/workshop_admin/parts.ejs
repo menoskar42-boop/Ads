@@ -8,6 +8,13 @@
   </form>
   <% } %>
 </div>
+<div class="flex items-center justify-between gap-3 flex-wrap bg-white rounded-2xl border border-slate-200 p-4 mb-5">
+  <div><div class="font-black">تنبيهات إعادة الطلب</div><div class="text-xs text-slate-500 mt-1"><%= lowCount %> قطعة عند الحد الأدنى أو أقل.</div></div>
+  <a href="/workshop/parts<%= low ? '' : '?low=1' %>" class="text-sm font-bold rounded-xl px-4 py-2 <%= low ? 'bg-amber-100 text-amber-800' : 'bg-amber-500 text-white' %>"><%= low ? 'عرض كل المخزون' : 'عرض القطع منخفضة المخزون' %></a>
+</div>
+<% if (typeof error !== 'undefined' && error === 'return_stock') { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-3 mb-4 text-sm">لا يمكن إرجاع كمية أكبر من الرصيد الفعلي.</div>
+<% } %>
 <% if (barcode) { %>
   <% if (parts.length === 1) { var scanned = parts[0]; %>
     <section class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5">
@@ -36,6 +43,26 @@
   { label: t('wsh.part.cost'), key: 'avg_cost', money: true },
   { label: t('wsh.part.price'), key: 'sell_price', money: true }
 ] }) %>
+<section class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+  <h2 class="font-black text-lg">جرد أو مرتجع للمورد</h2>
+  <p class="text-xs text-slate-500 mt-1">الجرد يسجل الفرق في سجل الحركة، والمرتجع ينقص الرصيد ولا يسمح برصيد سالب.</p>
+  <div class="mt-4 space-y-2">
+    <% parts.slice(0, 20).forEach(function(p){ %>
+      <div class="grid sm:grid-cols-[1fr_110px_1fr_1fr] gap-2 items-center text-sm border-t border-slate-100 pt-2">
+        <div class="font-bold truncate"><%= p.name %><div class="text-xs text-slate-400">الرصيد: <%= Number(p.qty) %></div></div>
+        <form method="post" action="/workshop/parts/<%= p.id %>/adjust" class="flex gap-1">
+          <input name="counted_qty" type="number" min="0" step="0.001" placeholder="العد الفعلي" class="w-full border border-slate-200 rounded-lg px-2 py-1.5" />
+          <button class="text-xs bg-slate-900 text-white rounded-lg px-2 font-bold">جرد</button>
+        </form>
+        <form method="post" action="/workshop/parts/<%= p.id %>/return" class="flex gap-1">
+          <input name="qty" type="number" min="0.001" step="0.001" placeholder="كمية المرتجع" class="w-full border border-slate-200 rounded-lg px-2 py-1.5" />
+          <button class="text-xs border border-rose-200 text-rose-700 rounded-lg px-2 font-bold">مرتجع</button>
+        </form>
+        <span class="text-xs text-slate-400"><%= p.min_qty > 0 && p.qty <= p.min_qty ? 'يحتاج طلب شراء' : '' %></span>
+      </div>
+    <% }) %>
+  </div>
+</section>
 
 <div class="grid lg:grid-cols-2 gap-5 mt-8">
   <div>

@@ -39,6 +39,9 @@
        <span class="inline-flex text-xs font-bold px-3 py-1 rounded-full bg-brand-100 text-brand-800"><%= t('wsh.st.' + job.status) %></span>
       <div class="text-xs text-slate-500 mt-2"><%= t('wsh.job.received') %>: <%= dt(job.received_at) %></div>
        <a href="/workshop/jobs/<%= job.id %>/report" target="_blank" rel="noopener" class="inline-flex mt-2 text-xs text-brand-700 font-bold no-print">تقرير التسليم / طباعة PDF ↗</a>
+       <% if (job.handover_note || job.handover_by) { %>
+         <div class="text-xs text-emerald-700 mt-2">تم التوثيق بواسطة <%= job.handover_by || 'فريق الورشة' %><% if (job.handover_note) { %> · <%= job.handover_note %><% } %></div>
+       <% } %>
       <% if (job.odometer_in != null) { %>
         <div class="text-xs text-slate-500"><%= t('wsh.job.odometer_in') %>: <%= Number(job.odometer_in).toLocaleString(LOC) %></div>
       <% } %>
@@ -224,6 +227,10 @@
        <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.diagnosis') %></h2>
       <form method="post" action="/workshop/jobs/<%= job.id %>/update" class="space-y-3 text-sm">
         <textarea name="diagnosis" rows="3" class="w-full border border-slate-200 rounded-xl px-3 py-2"><%= job.diagnosis || '' %></textarea>
+         <label class="block"><span class="text-xs font-bold text-slate-500">ملاحظات الفني</span>
+           <textarea name="technician_note" rows="3" placeholder="ما تم فحصه أو تنفيذه، وأي ملاحظة يحتاجها الفني التالي"
+             class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><%= job.technician_note || '' %></textarea>
+         </label>
         <div class="grid sm:grid-cols-4 gap-2">
           <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.technician') %></span>
             <select name="technician_id" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1">
@@ -415,6 +422,12 @@
               <label class="flex items-center gap-2 mt-2"><input type="checkbox" name="quality_override" value="1" required /> أقرّ بأنني مدير وأتحمل قرار التسليم</label>
             </details>
           <% } %>
+          <% if (nextSt === 'delivered') { %>
+            <div class="grid sm:grid-cols-2 gap-2 mb-3">
+              <input name="handover_by" maxlength="120" placeholder="سلّمها / استلمها (الاسم)" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+              <input name="handover_note" maxlength="1000" placeholder="ملاحظات التسليم أو حالة السيارة" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+            </div>
+          <% } %>
           <button class="w-full bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5"><%= t('wsh.st.' + nextSt) %> →</button>
         </form>
       <% } %>
@@ -424,6 +437,8 @@
             <option value="<%= s %>" <%= job.status === s ? 'selected' : '' %>><%= t('wsh.st.' + s) %></option>
           <% }) %>
         </select>
+        <input name="handover_by" maxlength="120" placeholder="اسم المستلم عند التسليم" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <input name="handover_note" maxlength="1000" placeholder="ملاحظة التسليم" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
         <button class="bg-slate-200 font-bold rounded-xl px-4 py-2 text-sm"><%= t('wsh.common.save') %></button>
       </form>
     </section>

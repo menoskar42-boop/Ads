@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api, type StTaklaSectionArticle, type StTaklaSectionCatalog, type StTaklaSectionKey, type StTaklaSectionItem } from '@/lib/api';
+import { buildStTaklaUrl, navigateStTakla, parseStTaklaLocation, ST_TAKLA_ROUTE } from '@/lib/sttakla-history';
 
 const sectionIcons: Record<StTaklaSectionKey, typeof Church> = {
   ritual: Church,
@@ -97,45 +98,6 @@ function UnavailableCatalog({ catalog }: { catalog: StTaklaSectionCatalog }) {
       </div>
     </div>
   );
-}
-
-const ST_TAKLA_ROUTE = '/orthodox/st-takla';
-const ST_TAKLA_SECTION_KEYS = new Set<StTaklaSectionKey>(['ritual', 'bible', 'calendar']);
-
-function parseStTaklaLocation(location: string): {
-  section: StTaklaSectionKey | null;
-  browse: string | null;
-  page: number;
-  query: string;
-} {
-  const queryString = location.split('?')[1]?.split('#')[0] ?? '';
-  const params = new URLSearchParams(queryString);
-  const sectionValue = params.get('section');
-  const pageValue = Number(params.get('page') || 1);
-
-  return {
-    section: sectionValue && ST_TAKLA_SECTION_KEYS.has(sectionValue as StTaklaSectionKey)
-      ? sectionValue as StTaklaSectionKey
-      : null,
-    browse: params.get('browse')?.trim() || null,
-    page: Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1,
-    query: params.get('q')?.trim().slice(0, 80) || '',
-  };
-}
-
-function buildStTaklaUrl(state: {
-  section: StTaklaSectionKey;
-  browse: string;
-  page: number;
-  query: string;
-}): string {
-  const params = new URLSearchParams({
-    section: state.section,
-    browse: state.browse,
-    page: String(Math.max(1, Math.floor(state.page))),
-  });
-  if (state.query) params.set('q', state.query);
-  return `${ST_TAKLA_ROUTE}?${params.toString()}`;
 }
 
 export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTaklaSectionKey } = {}) {
@@ -233,12 +195,12 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
       setEmbeddedPage(pagination.page);
       return;
     }
-    navigate(buildStTaklaUrl({
+    navigateStTakla(navigate, {
       section: selectedSectionKey,
       browse: selectedBrowseKey,
       page: pagination.page,
       query: submittedQuery,
-    }), { replace: true });
+    }, { replace: true });
   }, [pagination?.page, browsePage, selectedSectionKey, selectedBrowseKey, submittedQuery, navigate, isEmbedded]);
 
   const selectSection = (catalog: StTaklaSectionCatalog) => {
@@ -247,7 +209,7 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
     setBrowseArticleDismissed(false);
     const firstBrowse = catalog.browse[0]?.id;
     if (firstBrowse) {
-      navigate(buildStTaklaUrl({ section: catalog.key, browse: firstBrowse, page: 1, query: '' }), { replace: true });
+      navigateStTakla(navigate, { section: catalog.key, browse: firstBrowse, page: 1, query: '' });
     }
   };
 
@@ -261,7 +223,7 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
       setEmbeddedQuery('');
       setSearchInput('');
     } else if (selectedSectionKey) {
-      navigate(buildStTaklaUrl({ section: selectedSectionKey, browse: key, page: 1, query: '' }), { replace: true });
+      navigateStTakla(navigate, { section: selectedSectionKey, browse: key, page: 1, query: '' });
     }
   };
 
@@ -283,12 +245,12 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
       setEmbeddedPage(page);
       return;
     }
-    navigate(buildStTaklaUrl({
+    navigateStTakla(navigate, {
       section: selectedSectionKey,
       browse: selectedBrowseKey,
       page,
       query: submittedQuery,
-    }), { replace: true });
+    });
   };
 
   if (sectionsQuery.isLoading) {
@@ -413,12 +375,12 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
                       setEmbeddedQuery(searchInput.trim());
                       setEmbeddedPage(1);
                     } else if (selectedSectionKey && selectedBrowseKey) {
-                     navigate(buildStTaklaUrl({
+                      navigateStTakla(navigate, {
                        section: selectedSectionKey,
                        browse: selectedBrowseKey,
                        page: 1,
                        query: searchInput.trim(),
-                     }), { replace: true });
+                      });
                    }
                 }}
                 role="search"

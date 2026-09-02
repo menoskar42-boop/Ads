@@ -9,6 +9,11 @@ import {
   getStTaklaSectionCatalog,
 } from './st-takla-sections-service';
 import { registerRoutes } from './routes';
+import {
+  buildStTaklaUrl,
+  navigateStTakla,
+  parseStTaklaLocation,
+} from '../client/src/lib/sttakla-history';
 
 const realFetch = globalThis.fetch;
 const ritualPrefix = '/Coptic-Faith-Creed-Dogma/Coptic-Rite-n-Ritual-Taks-Al-Kanisa/Dictionary-of-Coptic-Ritual-Terms/';
@@ -158,6 +163,82 @@ describe('St-Takla section source service', () => {
       () => getStTaklaSectionArticle('ritual', 'https://example.com/not-st-takla.html'),
       /غير مسموح/,
     );
+  });
+});
+
+describe('St-Takla dictionary browser history', () => {
+  class MemoryBrowserHistory {
+    private entries: string[];
+    private index = 0;
+
+    constructor(initial: string) {
+      this.entries = [initial];
+    }
+
+    navigate = (url: string, options?: { replace?: boolean }) => {
+      if (options?.replace) {
+        this.entries[this.index] = url;
+        return;
+      }
+      this.entries = this.entries.slice(0, this.index + 1);
+      this.entries.push(url);
+      this.index += 1;
+    };
+
+    back() {
+      this.index = Math.max(0, this.index - 1);
+      return this.entries[this.index];
+    }
+
+    forward() {
+      this.index = Math.min(this.entries.length - 1, this.index + 1);
+      return this.entries[this.index];
+    }
+  }
+
+  it('restores the previous dictionary search and moves forward without defaulting the section', () => {
+    const history = new MemoryBrowserHistory(
+      buildStTaklaUrl({ section: 'ritual', browse: 'letter-1', page: 1, query: '' }),
+    );
+    const firstSearch = {
+      section: 'ritual' as const,
+      browse: 'letter-1',
+      page: 1,
+      query: 'خبز',
+    };
+    const secondSearch = {
+      section: 'bible' as const,
+      browse: 'letter-2',
+      page: 3,
+      query: 'الروح',
+    };
+
+    navigateStTakla(history.navigate, firstSearch);
+    navigateStTakla(history.navigate, secondSearch);
+
+    const previous = history.back();
+    assert.deepEqual(parseStTaklaLocation(previous), firstSearch);
+    assert.equal(previous, buildStTaklaUrl(firstSearch));
+
+    const latest = history.forward();
+    assert.deepEqual(parseStTaklaLocation(latest), secondSearch);
+    assert.equal(latest, buildStTaklaUrl(secondSearch));
+    assert.equal(parseStTaklaLocation(latest).section, 'bible');
+    assert.equal(parseStTaklaLocation(latest).browse, 'letter-2');
+  });
+
+  it('replaces only an automatic correction and keeps it out of the user history', () => {
+    const history = new MemoryBrowserHistory('/orthodox/st-takla');
+    const canonical = {
+      section: 'calendar' as const,
+      browse: 'month-2',
+      page: 1,
+      query: '',
+    };
+
+    navigateStTakla(history.navigate, canonical, { replace: true });
+    assert.equal(history.back(), buildStTaklaUrl(canonical));
+    assert.equal(history.forward(), buildStTaklaUrl(canonical));
   });
 });
 
