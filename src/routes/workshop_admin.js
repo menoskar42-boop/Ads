@@ -44,6 +44,8 @@ const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().sli
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+const SERVICE_REMINDER_LEAD_DAYS = 7;
+const SERVICE_REMINDER_LEAD_KM = 500;
 const WORKSHOP_SECTION_PERMISSIONS = {
   board: 'view_board',
   appointments: 'view_appointments',
@@ -150,7 +152,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
   const mapped = deliveryFromProvider(provider, providerStatus);
   if (!mapped || !providerMessageId) return { updated: false, reason: 'ignored' };
   const current = (await pool.query(
-    `SELECT id, job_id, channel, status, provider_status
+    `SELECT id, job_id, channel, status, provider_status, attempt_count
        FROM workshop_messages
       WHERE company_id=$1 AND provider_message_id=$2
       ORDER BY id DESC LIMIT 1`,
@@ -176,7 +178,12 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
             error=CASE WHEN $2='failed' THEN $3 ELSE NULL END,
             delivered_at=CASE WHEN $2='delivered' THEN COALESCE(delivered_at, now()) ELSE delivered_at END,
             failed_at=CASE WHEN $2='failed' THEN COALESCE(failed_at, now()) ELSE failed_at END,
-            delivery_updated_at=now()
+            delivery_updated_at=now(),
+            next_retry_at=CASE
+              WHEN $2='failed' AND COALESCE(attempt_count,0) < 5
+              THEN now() + INTERVAL '5 minutes'
+              ELSE next_retry_at
+            END
       WHERE id=$4 AND company_id=$5
       RETURNING id, job_id, status`,
     [mapped.providerStatus, nextStatus, failure, current.id, companyId]
@@ -297,6 +304,126 @@ async function deliverWorkshopMessage(companyId, messageId, force = false) {
   return result;
 }
 
+function serviceReminderBody(reminder) {
+  const triggers = [];
+  if (reminder.due_on) {
+    triggers.push(`قبل أو في ${new Date(reminder.due_on).toLocaleDateString('ar-EG')}`);
+  }
+  if (reminder.due_odometer != null) {
+    triggers.push(`عند ${Number(reminder.due_odometer).toLocaleString('ar-EG')} كم`);
+  }
+  const when = triggers.length ? ` (${triggers.join(' أو ')})` : '';
+  return `تذكير صيانة لسيارتك ${reminder.plate || ''}${when}. ` +
+    'نرجو التواصل مع الورشة لحجز الموعد المناسب.';
+}
+
+function reminderChannel(reminder) {
+  const hasWhatsapp = phoneDigits(reminder.customer_whatsapp).length > 0;
+  const hasSms = phoneDigits(reminder.customer_phone).length > 0;
+  if (reminder.whatsapp_provider !== 'none' && hasWhatsapp) return 'whatsapp';
+  if (reminder.sms_provider !== 'none' && hasSms) return 'sms';
+  return hasWhatsapp ? 'whatsapp' : 'sms';
+}
+
+async function queueServiceReminderMessages() {
+  const candidates = (await pool.query(
+    `SELECT r.id, r.company_id, r.vehicle_id, r.job_id, r.customer_id,
+            r.due_on, r.due_odometer, v.plate, v.odometer,
+            c.phone AS customer_phone, c.whatsapp AS customer_whatsapp,
+            COALESCE(ms.active, false) AS messaging_active,
+            COALESCE(ms.sms_provider, 'none') AS sms_provider,
+            COALESCE(ms.whatsapp_provider, 'none') AS whatsapp_provider
+       FROM workshop_reminders r
+       JOIN workshop_vehicles v ON v.id=r.vehicle_id AND v.company_id=r.company_id
+       JOIN workshop_customers c ON c.id=v.customer_id AND c.company_id=r.company_id
+       LEFT JOIN workshop_message_settings ms ON ms.company_id=r.company_id
+      WHERE r.status='open'
+        AND r.reminder_notified_at IS NULL
+        AND (
+          length(regexp_replace(COALESCE(c.phone, ''), '[^0-9]', '', 'g')) > 0
+          OR length(regexp_replace(COALESCE(c.whatsapp, ''), '[^0-9]', '', 'g')) > 0
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM workshop_flags wf
+           WHERE wf.company_id=r.company_id
+             AND wf.flag_key='reminders' AND wf.enabled=false
+        )
+        AND (
+          r.due_on BETWEEN CURRENT_DATE AND CURRENT_DATE + $1::int
+          OR (r.due_odometer IS NOT NULL AND v.odometer IS NOT NULL
+              AND r.due_odometer - v.odometer BETWEEN 0 AND $2::int)
+        )
+      ORDER BY r.company_id, r.id
+      LIMIT 300`,
+    [SERVICE_REMINDER_LEAD_DAYS, SERVICE_REMINDER_LEAD_KM]
+  )).rows;
+
+  let queued = 0;
+  for (const reminder of candidates) {
+    const client = await pool.connect();
+    let messageId = null;
+    try {
+      await client.query('BEGIN');
+      const claimed = (await client.query(
+        `UPDATE workshop_reminders
+            SET reminder_notified_at=now()
+          WHERE id=$1 AND company_id=$2 AND status='open'
+            AND reminder_notified_at IS NULL
+          RETURNING id`,
+        [reminder.id, reminder.company_id]
+      )).rows[0];
+      if (!claimed) {
+        await client.query('ROLLBACK');
+        continue;
+      }
+
+      const channel = reminderChannel(reminder);
+      const recipient = channel === 'whatsapp'
+        ? (reminder.customer_whatsapp || reminder.customer_phone)
+        : reminder.customer_phone;
+      const inserted = (await client.query(
+        `INSERT INTO workshop_messages
+          (company_id, job_id, customer_id, channel, recipient, event_key, body)
+         VALUES ($1,$2,$3,$4,$5,'service_reminder',$6)
+         RETURNING id`,
+        [reminder.company_id, reminder.job_id, reminder.customer_id, channel,
+          phoneDigits(recipient), serviceReminderBody(reminder)]
+      )).rows[0];
+      if (!inserted) throw new Error('reminder message was not created');
+      messageId = inserted.id;
+      await client.query(
+        `UPDATE workshop_reminders SET reminder_message_id=$1
+          WHERE id=$2 AND company_id=$3`,
+        [messageId, reminder.id, reminder.company_id]
+      );
+      await client.query('COMMIT');
+      queued += 1;
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch (_) { /* best effort */ }
+      console.error('[workshop reminder queue]', e.message);
+      continue;
+    } finally {
+      client.release();
+    }
+
+    const providerConfigured = reminder.messaging_active
+      && (reminder[`${reminderChannel(reminder)}_provider`] !== 'none');
+    if (providerConfigured) {
+      try {
+        await deliverWorkshopMessage(reminder.company_id, messageId);
+      } catch (e) {
+        console.error('[workshop reminder delivery]', e.message);
+      }
+    }
+    await logActivity(
+      pool, reminder.company_id, reminder.job_id,
+      'service_reminder_queued',
+      `تم تجهيز تذكير الصيانة للسيارة ${reminder.plate || ''}`
+    );
+  }
+  return queued;
+}
+
 // Failed deliveries are retried without needing an admin to keep the page
 // open. The manual button remains available for an immediate retry.
 const workshopRetryTimer = setInterval(async () => {
@@ -314,6 +441,15 @@ const workshopRetryTimer = setInterval(async () => {
   }
 }, 60 * 1000);
 if (workshopRetryTimer.unref) workshopRetryTimer.unref();
+
+const workshopReminderTimer = setInterval(async () => {
+  try { await queueServiceReminderMessages(); }
+  catch (e) { console.error('[workshop reminder scheduler]', e.message); }
+}, 5 * 60 * 1000);
+if (workshopReminderTimer.unref) workshopReminderTimer.unref();
+setTimeout(() => {
+  queueServiceReminderMessages().catch((e) => console.error('[workshop reminder startup]', e.message));
+}, 15 * 1000).unref();
 
 async function loadWorkshopInvoiceRows(companyId, options = {}) {
   const params = [companyId];
@@ -2287,10 +2423,14 @@ router.get('/reminders', requireFlag('reminders'), requireWorkshopPermission('vi
   const cid = req.company.id;
   const rows = await pool.query(
     `SELECT r.*, v.plate, v.make, v.model, v.odometer,
-            c.name AS customer_name, c.phone AS customer_phone, c.whatsapp AS customer_whatsapp
+            c.name AS customer_name, c.phone AS customer_phone, c.whatsapp AS customer_whatsapp,
+            m.status AS message_status, m.provider_status AS message_provider_status,
+            m.error AS message_error, m.delivered_at AS message_delivered_at,
+            m.failed_at AS message_failed_at
        FROM workshop_reminders r
-       JOIN workshop_vehicles v ON v.id=r.vehicle_id
-       LEFT JOIN workshop_customers c ON c.id=v.customer_id
+       JOIN workshop_vehicles v ON v.id=r.vehicle_id AND v.company_id=r.company_id
+       LEFT JOIN workshop_customers c ON c.id=v.customer_id AND c.company_id=r.company_id
+       LEFT JOIN workshop_messages m ON m.id=r.reminder_message_id AND m.company_id=r.company_id
       WHERE r.company_id=$1 AND r.status='open'
       ORDER BY r.due_on NULLS LAST LIMIT 300`, [cid]);
   const list = rows.rows.map((r) => ({ ...r, state: J.reminderState(r, r, new Date()) }));
@@ -2303,7 +2443,12 @@ router.get('/reminders', requireFlag('reminders'), requireWorkshopPermission('vi
 router.post('/reminders/:id/:action', requireFlag('reminders'), requireWorkshopPermission('manage_reminders'), async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   if (req.params.action === 'contacted') {
-    await pool.query('UPDATE workshop_reminders SET contacted_at=now() WHERE id=$1 AND company_id=$2', [id, cid]);
+    await pool.query(
+      `UPDATE workshop_reminders
+          SET contacted_at=now(), reminder_notified_at=COALESCE(reminder_notified_at, now())
+        WHERE id=$1 AND company_id=$2`,
+      [id, cid]
+    );
   } else if (req.params.action === 'close') {
     await pool.query(`UPDATE workshop_reminders SET status='closed', closed_at=now()
                        WHERE id=$1 AND company_id=$2`, [id, cid]);

@@ -422,6 +422,8 @@ async function ensureWorkshopSchema() {
         note         TEXT,
         status       TEXT NOT NULL DEFAULT 'open',
         contacted_at TIMESTAMPTZ,
+        reminder_notified_at TIMESTAMPTZ,
+        reminder_message_id BIGINT,
         closed_at    TIMESTAMPTZ,
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
@@ -615,6 +617,11 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS technician_note TEXT;
       ALTER TABLE workshop_parts
         ADD COLUMN IF NOT EXISTS barcode TEXT;
+      ALTER TABLE workshop_reminders
+        ADD COLUMN IF NOT EXISTS reminder_notified_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS reminder_message_id BIGINT;
+      CREATE INDEX IF NOT EXISTS idx_wsh_reminder_notifications
+        ON workshop_reminders (company_id, reminder_notified_at, status);
       ALTER TABLE workshop_messages
         ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ,
