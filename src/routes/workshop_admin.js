@@ -29,6 +29,22 @@ const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n :
 const int = (v, d = null) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().slice(0, max); return s || null; };
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
+
+function defaultWorkshopMessage(job, eventKey, portalPath) {
+  const code = J.jobCode(job.id);
+  const portal = portalPath ? `\nرابط المتابعة: ${portalPath}` : '';
+  const labels = {
+    received: `مرحبًا ${job.customer_name || 'بك'}، استلمنا سيارتك ${job.plate || ''} في ${job.company_name || 'الورشة'}، ورقم أمر الشغل ${code}.`,
+    quoted: `تم تجهيز عرض السعر لأمر الشغل ${code} لسيارة ${job.plate || ''}. برجاء مراجعة التفاصيل والموافقة من الرابط.`,
+    approved: `تم تسجيل موافقتك على أمر الشغل ${code}. سنرسل لك تحديثًا عند انتهاء العمل.`,
+    in_progress: `بدأ فريق ${job.company_name || 'الورشة'} العمل على السيارة ${job.plate || ''} — أمر ${code}.`,
+    done: `سيارتك ${job.plate || ''} جاهزة للمراجعة. تواصل معنا لترتيب الاستلام — أمر ${code}.`,
+    delivered: `شكرًا لثقتك في ${job.company_name || 'الورشة'}. تم تسليم السيارة ${job.plate || ''}.`,
+    change_order: `يوجد تعديل مطلوب على عرض السعر لأمر الشغل ${code}. برجاء مراجعة الرابط والموافقة قبل تنفيذ الإضافة.`,
+  };
+  return (labels[eventKey] || labels.received) + portal;
+}
 
 async function managerIdentity(req, companyId) {
   const userId = req.session && int(req.session.companyUserId);
@@ -453,6 +469,9 @@ router.post('/jobs', async (req, res) => {
     ensureQuality(pool, cid, r.rows[0].id),
   ]);
   await logActivity(pool, cid, r.rows[0].id, 'job_created', 'تم فتح أمر شغل جديد');
+  if (req.flags.has('communications')) {
+    try { await prepareWorkshopMessage(cid, r.rows[0].id, 'received'); } catch (e) { console.error('[workshop auto message]', e.message); }
+  }
   // A newer odometer reading is worth keeping on the vehicle: every reminder is
   // computed from it, and this is the one moment somebody actually reads it.
   if (odo != null && (v.odometer == null || odo >= Number(v.odometer))) {
@@ -473,7 +492,7 @@ async function loadJob(cid, id) {
        LEFT JOIN workshop_technicians t ON t.id=j.technician_id
       WHERE j.id=$1 AND j.company_id=$2`, [id, cid])).rows[0];
   if (!job) return null;
-  const [parts, labour, photos, payments, inspection, quality, activity, access, partReservations] = await Promise.all([
+  const [parts, labour, photos, payments, inspection, quality, activity, access, partReservations, changeOrders, timeEntries, estimateVersions] = await Promise.all([
     pool.query('SELECT * FROM workshop_job_parts WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_job_labour WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_job_photos WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
@@ -488,11 +507,34 @@ async function loadJob(cid, id) {
          JOIN workshop_parts p ON p.id=r.part_id
         WHERE r.company_id=$1 AND r.job_id=$2 AND r.status='reserved'
         ORDER BY r.created_at`, [cid, id]),
+    pool.query(
+      `SELECT co.*,
+              COALESCE(SUM(i.qty*i.unit_price),0)::float AS total,
+              COUNT(i.id)::int AS item_count
+         FROM workshop_change_orders co
+         LEFT JOIN workshop_change_order_items i
+           ON i.change_order_id=co.id AND i.company_id=co.company_id
+        WHERE co.company_id=$1 AND co.job_id=$2
+        GROUP BY co.id
+        ORDER BY co.created_at DESC`, [cid, id]),
+    pool.query(
+      `SELECT e.*, t.name AS technician_name,
+              ROUND(EXTRACT(EPOCH FROM (COALESCE(e.ended_at, now())-e.started_at))/60.0, 1)::float AS minutes
+         FROM workshop_time_entries e
+         LEFT JOIN workshop_technicians t
+           ON t.id=e.technician_id AND t.company_id=e.company_id
+        WHERE e.company_id=$1 AND e.job_id=$2
+        ORDER BY e.started_at DESC`, [cid, id]),
+    pool.query(
+      `SELECT * FROM workshop_estimate_versions
+        WHERE company_id=$1 AND job_id=$2
+        ORDER BY version_no DESC LIMIT 30`, [cid, id]),
   ]);
   return {
     job, parts: parts.rows, labour: labour.rows, photos: photos.rows, payments: payments.rows,
     inspection: inspection.rows, quality: quality.rows, activity: activity.rows, access: access.rows[0] || null,
-    partReservations: partReservations.rows,
+    partReservations: partReservations.rows, changeOrders: changeOrders.rows,
+    timeEntries: timeEntries.rows, estimateVersions: estimateVersions.rows,
   };
 }
 
@@ -537,6 +579,347 @@ router.get('/jobs/:id/report', async (req, res) => {
     title: `تقرير تسليم ${J.jobCode(id)}`, ...freshData, J,
     totals: J.jobTotals(freshData.job, freshData.parts, freshData.labour),
   });
+});
+
+// ── Change orders / estimate versions ───────────────────────────────────────
+router.get('/change-orders', requireFlag('change_orders'), async (req, res) => {
+  const cid = req.company.id;
+  const [orders, jobs] = await Promise.all([
+    pool.query(
+      `SELECT co.*, j.status AS job_status,
+              v.plate, c.name AS customer_name,
+              COALESCE(SUM(i.qty*i.unit_price),0)::float AS total
+         FROM workshop_change_orders co
+         JOIN workshop_jobs j ON j.id=co.job_id AND j.company_id=co.company_id
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+         LEFT JOIN workshop_change_order_items i
+           ON i.change_order_id=co.id AND i.company_id=co.company_id
+        WHERE co.company_id=$1
+        GROUP BY co.id, j.status, v.plate, c.name
+        ORDER BY co.created_at DESC LIMIT 300`, [cid]),
+    pool.query(
+      `SELECT j.id, v.plate, c.name AS customer_name
+         FROM workshop_jobs j
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+        WHERE j.company_id=$1 AND j.status NOT IN ('delivered','cancelled')
+        ORDER BY j.received_at DESC LIMIT 300`, [cid]),
+  ]);
+  res.render('workshop_admin/change_orders', {
+    title: 'موافقات الإصلاحات الإضافية', tab: 'change_orders',
+    orders: orders.rows, jobs: jobs.rows,
+  });
+});
+
+router.post('/jobs/:id/change-orders', requireFlag('change_orders'), async (req, res) => {
+  const cid = req.company.id, jobId = int(req.params.id), b = req.body || {};
+  const job = (await pool.query(
+    `SELECT j.id FROM workshop_jobs j WHERE j.id=$1 AND j.company_id=$2`, [jobId, cid])).rows[0];
+  const description = text(b.description, 300);
+  const amount = Math.max(0, num(b.unit_price, 0));
+  if (!job || !description || amount <= 0) return res.redirect(`/workshop/jobs/${jobId}#change-orders`);
+  const client = await pool.connect();
+  let orderId = null;
+  try {
+    await client.query('BEGIN');
+    const order = (await client.query(
+      `INSERT INTO workshop_change_orders (company_id, job_id, reason, customer_note)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
+      [cid, jobId, text(b.reason, 500) || description, text(b.customer_note, 500)] )).rows[0];
+    orderId = order.id;
+    await client.query(
+      `INSERT INTO workshop_change_order_items
+        (company_id, change_order_id, kind, description, qty, unit_price, unit_cost)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [cid, orderId, b.kind === 'part' ? 'part' : 'labour', description,
+       Math.max(0.001, num(b.qty, 1)), amount, Math.max(0, num(b.unit_cost, 0))]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[workshop change order]', e.message);
+  } finally { client.release(); }
+  if (orderId) await logActivity(pool, cid, jobId, 'change_order_created', `تم إنشاء موافقة إصلاح إضافي #${orderId}`);
+  res.redirect(`/workshop/jobs/${jobId}#change-orders`);
+});
+
+router.post('/jobs/:id/estimates', requireFlag('change_orders'), async (req, res) => {
+  const cid = req.company.id, jobId = int(req.params.id);
+  const data = await loadJob(cid, jobId);
+  if (!data) return res.redirect('/workshop/jobs');
+  const totals = J.jobTotals(data.job, data.parts, data.labour);
+  const snapshot = [
+    ...data.parts.map((p) => ({ kind: 'part', description: p.name, qty: Number(p.qty), unit_price: Number(p.unit_price), unit_cost: Number(p.unit_cost || 0) })),
+    ...data.labour.map((l) => ({ kind: 'labour', description: l.description, qty: Number(l.hours || 0), unit_price: Number(l.amount || 0), unit_cost: 0 })),
+  ];
+  const next = (await pool.query(
+    `SELECT COALESCE(MAX(version_no),0)+1 AS n FROM workshop_estimate_versions
+      WHERE company_id=$1 AND job_id=$2`, [cid, jobId])).rows[0].n;
+  const actor = (await managerIdentity(req, cid)) || { name: 'فريق الورشة' };
+  await pool.query(
+    `INSERT INTO workshop_estimate_versions
+      (company_id, job_id, version_no, status, subtotal, total, snapshot, created_by, approved_by, approved_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,CASE WHEN $4='approved' THEN now() ELSE NULL END)`,
+    [cid, jobId, next, data.job.approved_at ? 'approved' : 'draft',
+     totals.subtotal, totals.total, JSON.stringify(snapshot), actor.name,
+     data.job.approved_at ? data.job.approved_by || actor.name : null]);
+  await logActivity(pool, cid, jobId, 'estimate_version_created', `تم حفظ نسخة العرض رقم ${next}`, actor.name);
+  res.redirect(`/workshop/jobs/${jobId}#change-orders`);
+});
+
+router.post('/change-orders/:id/status', requireFlag('change_orders'), async (req, res) => {
+  const cid = req.company.id, orderId = int(req.params.id), status = req.body && req.body.status;
+  if (!['approved', 'rejected'].includes(status)) return res.redirect('/workshop/change-orders');
+  const actor = (await managerIdentity(req, cid)) || { name: 'فريق الورشة' };
+  const row = (await pool.query(
+    `UPDATE workshop_change_orders
+        SET status=$1,
+            approved_by=CASE WHEN $1='approved' THEN $2 ELSE NULL END,
+            approved_at=CASE WHEN $1='approved' THEN now() ELSE NULL END,
+            rejected_by=CASE WHEN $1='rejected' THEN $2 ELSE NULL END,
+            rejected_at=CASE WHEN $1='rejected' THEN now() ELSE NULL END,
+            updated_at=now()
+      WHERE id=$3 AND company_id=$4
+      RETURNING job_id`, [status, actor.name, orderId, cid])).rows[0];
+  if (row) await logActivity(pool, cid, row.job_id, `change_order_${status}`, `تم ${status === 'approved' ? 'اعتماد' : 'رفض'} التعديل #${orderId}`, actor.name);
+  res.redirect(req.get('referer') || '/workshop/change-orders');
+});
+
+// ── Floor, bays and actual technician time ──────────────────────────────────
+router.get('/floor', requireFlag('floor'), async (req, res) => {
+  const cid = req.company.id;
+  const [bays, jobs, technicians, active] = await Promise.all([
+    pool.query('SELECT * FROM workshop_work_bays WHERE company_id=$1 ORDER BY is_active DESC, name', [cid]),
+    pool.query(
+      `SELECT j.id, j.status, j.bay_id, v.plate, v.make, v.model, c.name AS customer_name,
+              t.name AS technician_name
+         FROM workshop_jobs j
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+         LEFT JOIN workshop_technicians t ON t.id=j.technician_id AND t.company_id=j.company_id
+        WHERE j.company_id=$1 AND j.status IN ('approved','in_progress','done')
+        ORDER BY j.bay_id NULLS FIRST, j.received_at`, [cid]),
+    pool.query('SELECT id, name FROM workshop_technicians WHERE company_id=$1 AND is_active ORDER BY name', [cid]),
+    pool.query(
+      `SELECT e.*, j.id AS job_id, v.plate, t.name AS technician_name
+         FROM workshop_time_entries e
+         JOIN workshop_jobs j ON j.id=e.job_id AND j.company_id=e.company_id
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_technicians t ON t.id=e.technician_id AND t.company_id=e.company_id
+        WHERE e.company_id=$1 AND e.ended_at IS NULL
+        ORDER BY e.started_at`, [cid]),
+  ]);
+  res.render('workshop_admin/floor', {
+    title: 'الفنيون والرافعات', tab: 'floor',
+    bays: bays.rows, jobs: jobs.rows, technicians: technicians.rows, active: active.rows,
+  });
+});
+
+router.post('/bays', requireFlag('floor'), async (req, res) => {
+  const name = text(req.body && req.body.name, 80);
+  if (name) await pool.query(
+    `INSERT INTO workshop_work_bays (company_id, name, bay_type) VALUES ($1,$2,$3)`,
+    [req.company.id, name, text(req.body && req.body.bay_type, 60)]);
+  res.redirect('/workshop/floor');
+});
+
+router.post('/jobs/:id/bay', requireFlag('floor'), async (req, res) => {
+  const cid = req.company.id, jobId = int(req.params.id), bayId = int(req.body && req.body.bay_id);
+  await pool.query(
+    `UPDATE workshop_jobs SET bay_id=$1 WHERE id=$2 AND company_id=$3
+       AND ($1 IS NULL OR EXISTS (SELECT 1 FROM workshop_work_bays b WHERE b.id=$1 AND b.company_id=$3 AND b.is_active))`,
+    [bayId, jobId, cid]);
+  res.redirect(req.get('referer') || '/workshop/floor');
+});
+
+router.post('/time/start', requireFlag('floor'), async (req, res) => {
+  const cid = req.company.id, jobId = int(req.body && req.body.job_id), techId = int(req.body && req.body.technician_id);
+  const valid = (await pool.query(
+    `SELECT j.id FROM workshop_jobs j
+      WHERE j.id=$1 AND j.company_id=$2
+        AND EXISTS (SELECT 1 FROM workshop_technicians t WHERE t.id=$3 AND t.company_id=$2 AND t.is_active)`,
+    [jobId, cid, techId])).rows.length;
+  if (valid) {
+    try {
+      await pool.query(
+        `INSERT INTO workshop_time_entries (company_id, job_id, technician_id, note)
+         VALUES ($1,$2,$3,$4)`, [cid, jobId, techId, text(req.body && req.body.note, 300)]);
+      await logActivity(pool, cid, jobId, 'time_started', 'بدأ الفني تسجيل الوقت');
+    } catch (e) { console.error('[workshop time start]', e.message); }
+  }
+  res.redirect(req.get('referer') || '/workshop/floor');
+});
+
+router.post('/time/:id/stop', requireFlag('floor'), async (req, res) => {
+  const cid = req.company.id, entryId = int(req.params.id);
+  const row = (await pool.query(
+    `UPDATE workshop_time_entries SET ended_at=now(), note=COALESCE($1,note)
+      WHERE id=$2 AND company_id=$3 AND ended_at IS NULL RETURNING job_id`,
+    [text(req.body && req.body.note, 300), entryId, cid])).rows[0];
+  if (row) await logActivity(pool, cid, row.job_id, 'time_stopped', 'تم إيقاف جلسة وقت الفني');
+  res.redirect(req.get('referer') || '/workshop/floor');
+});
+
+// ── Customer communications ─────────────────────────────────────────────────
+async function prepareWorkshopMessage(companyId, jobId, eventKey) {
+  const row = (await pool.query(
+    `SELECT j.id, j.plate, c.name AS customer_name, c.phone AS customer_phone,
+            co.company_name, a.token
+       FROM workshop_jobs j
+       LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+       JOIN companies co ON co.id=j.company_id
+       LEFT JOIN workshop_job_access a ON a.job_id=j.id AND a.company_id=j.company_id
+      WHERE j.id=$1 AND j.company_id=$2
+      ORDER BY a.created_at DESC NULLS LAST LIMIT 1`, [jobId, companyId])).rows[0];
+  if (!row) return null;
+  const portal = row.token ? `/workshop/status/${row.token}` : null;
+  const body = defaultWorkshopMessage(row, eventKey, portal);
+  return (await pool.query(
+    `INSERT INTO workshop_messages
+      (company_id, job_id, customer_id, channel, recipient, event_key, body)
+     SELECT $1,$2,customer_id,'whatsapp',$3,$4,$5
+       FROM workshop_jobs WHERE id=$2 AND company_id=$1
+     RETURNING id`, [companyId, jobId, row.customer_phone, eventKey, body])).rows[0];
+}
+
+router.get('/communications', requireFlag('communications'), async (req, res) => {
+  const cid = req.company.id;
+  const [messages, jobs] = await Promise.all([
+    pool.query(
+      `SELECT m.*, j.id AS job_id, v.plate, c.name AS customer_name, c.phone AS customer_phone
+         FROM workshop_messages m
+         LEFT JOIN workshop_jobs j ON j.id=m.job_id AND j.company_id=m.company_id
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=m.customer_id AND c.company_id=m.company_id
+        WHERE m.company_id=$1 ORDER BY m.created_at DESC LIMIT 200`, [cid]),
+    pool.query(
+      `SELECT j.id, v.plate, c.name AS customer_name
+         FROM workshop_jobs j
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+        WHERE j.company_id=$1 AND j.status <> 'cancelled'
+        ORDER BY j.received_at DESC LIMIT 300`, [cid]),
+  ]);
+  res.render('workshop_admin/communications', {
+    title: 'رسائل العملاء', tab: 'communications', messages: messages.rows, jobs: jobs.rows,
+  });
+});
+
+router.post('/communications/prepare', requireFlag('communications'), async (req, res) => {
+  const cid = req.company.id, jobId = int(req.body && req.body.job_id);
+  const job = (await pool.query(
+    `SELECT j.*, v.plate, c.name AS customer_name, c.phone AS customer_phone,
+            co.company_name, a.token
+       FROM workshop_jobs j
+       LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+       LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+       JOIN companies co ON co.id=j.company_id
+       LEFT JOIN workshop_job_access a ON a.job_id=j.id AND a.company_id=j.company_id
+      WHERE j.id=$1 AND j.company_id=$2 ORDER BY a.created_at DESC NULLS LAST LIMIT 1`,
+    [jobId, cid])).rows[0];
+  if (job) {
+    const eventKey = text(req.body && req.body.event_key, 40) || 'received';
+    const body = text(req.body && req.body.body, 2000) ||
+      defaultWorkshopMessage(job, eventKey, job.token ? `/workshop/status/${job.token}` : null);
+    await pool.query(
+      `INSERT INTO workshop_messages
+        (company_id, job_id, customer_id, channel, recipient, event_key, body)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [cid, job.id, job.customer_id, ['whatsapp','sms'].includes(req.body.channel) ? req.body.channel : 'whatsapp',
+       job.customer_phone, eventKey, body]);
+  }
+  res.redirect('/workshop/communications');
+});
+
+router.post('/communications/:id/sent', requireFlag('communications'), async (req, res) => {
+  await pool.query(
+    `UPDATE workshop_messages SET status='sent', sent_at=now()
+      WHERE id=$1 AND company_id=$2`, [int(req.params.id), req.company.id]);
+  res.redirect(req.get('referer') || '/workshop/communications');
+});
+
+// ── Warranty returns / claims ───────────────────────────────────────────────
+router.get('/warranty-claims', requireFlag('warranty_claims'), async (req, res) => {
+  const cid = req.company.id;
+  const [claims, jobs] = await Promise.all([
+    pool.query(
+      `SELECT wc.*, v.plate, c.name AS customer_name
+         FROM workshop_warranty_claims wc
+         LEFT JOIN workshop_vehicles v ON v.id=wc.vehicle_id AND v.company_id=wc.company_id
+         LEFT JOIN workshop_customers c ON c.id=wc.customer_id AND c.company_id=wc.company_id
+        WHERE wc.company_id=$1 ORDER BY wc.opened_at DESC LIMIT 300`, [cid]),
+    pool.query(
+      `SELECT j.id, j.delivered_at, v.plate, c.name AS customer_name
+         FROM workshop_jobs j
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+        WHERE j.company_id=$1 AND j.status='delivered'
+        ORDER BY j.delivered_at DESC LIMIT 300`, [cid]),
+  ]);
+  res.render('workshop_admin/warranty_claims', {
+    title: 'مطالبات الضمان وعودة السيارة', tab: 'warranty_claims',
+    claims: claims.rows, jobs: jobs.rows,
+  });
+});
+
+router.post('/warranty-claims', requireFlag('warranty_claims'), async (req, res) => {
+  const cid = req.company.id, jobId = int(req.body && req.body.original_job_id);
+  const complaint = text(req.body && req.body.complaint, 1000);
+  const original = (await pool.query(
+    `SELECT customer_id, vehicle_id FROM workshop_jobs WHERE id=$1 AND company_id=$2`, [jobId, cid])).rows[0];
+  if (original && complaint) {
+    await pool.query(
+      `INSERT INTO workshop_warranty_claims
+        (company_id, original_job_id, vehicle_id, customer_id, complaint)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [cid, jobId, original.vehicle_id, original.customer_id, complaint]);
+    await logActivity(pool, cid, jobId, 'warranty_claim_opened', 'تم فتح مطالبة ضمان لعودة السيارة');
+  }
+  res.redirect('/workshop/warranty-claims');
+});
+
+router.post('/warranty-claims/:id/return-job', requireFlag('warranty_claims'), async (req, res) => {
+  const cid = req.company.id, claimId = int(req.params.id);
+  const claim = (await pool.query(
+    `SELECT wc.*, j.technician_id
+       FROM workshop_warranty_claims wc
+       LEFT JOIN workshop_jobs j ON j.id=wc.original_job_id AND j.company_id=wc.company_id
+      WHERE wc.id=$1 AND wc.company_id=$2`, [claimId, cid])).rows[0];
+  if (claim && !claim.return_job_id && claim.vehicle_id) {
+    const job = (await pool.query(
+      `INSERT INTO workshop_jobs
+        (company_id, vehicle_id, customer_id, technician_id, complaint, warranty_months)
+       VALUES ($1,$2,$3,$4,$5,0) RETURNING id`,
+      [cid, claim.vehicle_id, claim.customer_id, claim.technician_id,
+       `عودة ضمان: ${claim.complaint}`])).rows[0];
+    await Promise.all([
+      ensureJobAccess(pool, cid, job.id),
+      ensureInspection(pool, cid, job.id),
+      ensureQuality(pool, cid, job.id),
+    ]);
+    await pool.query(
+      `UPDATE workshop_warranty_claims
+          SET return_job_id=$1, status='approved', updated_at=now()
+        WHERE id=$2 AND company_id=$3`, [job.id, claimId, cid]);
+    await logActivity(pool, cid, job.id, 'warranty_return_job_created', `تم فتح أمر عودة من مطالبة الضمان #${claimId}`);
+  }
+  res.redirect('/workshop/warranty-claims');
+});
+
+router.post('/warranty-claims/:id', requireFlag('warranty_claims'), async (req, res) => {
+  const cid = req.company.id, id = int(req.params.id), b = req.body || {};
+  const status = ['open','approved','rejected','resolved'].includes(b.status) ? b.status : 'open';
+  await pool.query(
+    `UPDATE workshop_warranty_claims
+        SET status=$1, decision=$2, diagnosis=$3, resolution=$4,
+            return_job_id=CASE WHEN $5 IS NULL OR EXISTS
+              (SELECT 1 FROM workshop_jobs rj WHERE rj.id=$5 AND rj.company_id=$7) THEN $5 ELSE NULL END,
+            closed_at=CASE WHEN $1 IN ('rejected','resolved') THEN now() ELSE NULL END,
+            updated_at=now()
+      WHERE id=$6 AND company_id=$7`,
+    [status, text(b.decision, 500), text(b.diagnosis, 1000), text(b.resolution, 1000),
+     int(b.return_job_id), id, cid]);
+  res.redirect('/workshop/warranty-claims');
 });
 
 router.post('/jobs/:id/quality', async (req, res) => {
@@ -915,6 +1298,9 @@ router.post('/jobs/:id/approve', async (req, res) => {
       [text((req.body || {}).approved_by, 120) || data.job.customer_name, totals.total, id, cid]);
     await logActivity(pool, cid, id, 'quote_approved',
       `تم اعتماد عرض سعر بقيمة ${totals.total}`, text((req.body || {}).approved_by, 120) || data.job.customer_name);
+    if (req.flags.has('communications')) {
+      try { await prepareWorkshopMessage(cid, id, 'approved'); } catch (e) { console.error('[workshop auto message]', e.message); }
+    }
   }
   res.redirect('/workshop/jobs/' + id);
 });
@@ -953,6 +1339,9 @@ router.post('/jobs/:id/status', async (req, res) => {
     `UPDATE workshop_jobs SET status=$1${col ? `, ${col}=COALESCE(${col}, now())` : ''}
       WHERE id=$2 AND company_id=$3`, [status, id, cid]);
   await logActivity(pool, cid, id, 'status_changed', `تغيرت الحالة إلى ${status}`);
+  if (req.flags.has('communications') && ['quoted', 'in_progress', 'done', 'delivered'].includes(status)) {
+    try { await prepareWorkshopMessage(cid, id, status); } catch (e) { console.error('[workshop auto message]', e.message); }
+  }
 
   // Handover is what schedules the next visit, and what closes any reminder the
   // car came back for.
@@ -1007,7 +1396,7 @@ router.get('/parts', requireFlag('parts'), async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 60);
   const params = [cid];
   let where = 'company_id=$1 AND is_active';
-  if (q) { params.push('%' + q + '%'); where += ` AND (name ILIKE $${params.length} OR part_number ILIKE $${params.length} OR fits ILIKE $${params.length})`; }
+  if (q) { params.push('%' + q + '%'); where += ` AND (name ILIKE $${params.length} OR part_number ILIKE $${params.length} OR barcode ILIKE $${params.length} OR fits ILIKE $${params.length})`; }
   const rows = await pool.query(
     `SELECT * FROM workshop_parts WHERE ${where} ORDER BY (min_qty > 0 AND qty <= min_qty) DESC, name LIMIT 500`, params);
   res.render('workshop_admin/parts', {
@@ -1020,13 +1409,21 @@ router.post('/parts', requireFlag('parts'), async (req, res) => {
   const name = text(b.name, 120);
   if (name) {
     await pool.query(
-      `INSERT INTO workshop_parts (company_id, name, part_number, brand, category, unit, qty, min_qty, avg_cost, sell_price, fits)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      `INSERT INTO workshop_parts (company_id, name, part_number, brand, category, unit, qty, min_qty, avg_cost, sell_price, fits, barcode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [req.company.id, name, text(b.part_number, 60), text(b.brand, 60), text(b.category, 60),
        text(b.unit, 20) || 'قطعة', Math.max(0, num(b.qty, 0)), Math.max(0, num(b.min_qty, 0)),
-       Math.max(0, num(b.avg_cost, 0)), Math.max(0, num(b.sell_price, 0)), text(b.fits, 200)]);
+       Math.max(0, num(b.avg_cost, 0)), Math.max(0, num(b.sell_price, 0)), text(b.fits, 200),
+       text(b.barcode, 80)]);
   }
   res.redirect('/workshop/parts');
+});
+
+// A hardware scanner acts like a keyboard: scan into this field and the
+// server takes the same scoped search path as a hand-entered part number.
+router.get('/parts/scan', requireFlag('barcodes'), async (req, res) => {
+  const code = text(req.query && req.query.barcode, 80);
+  res.redirect('/workshop/parts' + (code ? `?q=${encodeURIComponent(code)}` : ''));
 });
 
 // Receiving stock recomputes the moving average. Not the last purchase price:
@@ -1178,12 +1575,17 @@ router.post('/expenses', requireFlag('expenses'), async (req, res) => {
 router.get('/reports', requireFlag('reports'), async (req, res) => {
   const cid = req.company.id;
   const days = Math.min(365, Math.max(7, int(req.query.days, 30)));
-  const [summary, faults, parts] = await Promise.all([
+  const [summary, faults, parts, expenses, capacity] = await Promise.all([
     pool.query(
       `SELECT COUNT(*)::int AS jobs,
               COALESCE(SUM((SELECT SUM(qty*unit_price) FROM workshop_job_parts WHERE job_id=j.id)),0)::float AS parts_rev,
               COALESCE(SUM((SELECT SUM(qty*unit_cost)  FROM workshop_job_parts WHERE job_id=j.id)),0)::float AS parts_cost,
-              COALESCE(SUM((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id)),0)::float AS labour_rev
+              COALESCE(SUM((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id)),0)::float AS labour_rev,
+              COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(e.ended_at, now())-e.started_at))/3600 * COALESCE(t.pay_rate,0))
+                          FROM workshop_time_entries e
+                          LEFT JOIN workshop_technicians t ON t.id=e.technician_id AND t.company_id=e.company_id
+                         WHERE e.company_id=j.company_id AND e.job_id=j.id
+                           AND e.started_at >= CURRENT_DATE - ($2 || ' days')::interval),0)::float AS labour_cost
          FROM workshop_jobs j
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
           AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval`, [cid, days]),
@@ -1199,8 +1601,23 @@ router.get('/reports', requireFlag('reports'), async (req, res) => {
          LEFT JOIN workshop_parts p ON p.id=jp.part_id
         WHERE jp.company_id=$1 AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval
         GROUP BY p.name ORDER BY qty DESC NULLS LAST LIMIT 10`, [cid, days]),
+    pool.query(
+      `SELECT COALESCE(SUM(amount),0)::float AS total
+         FROM workshop_expenses
+        WHERE company_id=$1 AND spent_on >= CURRENT_DATE - ($2 || ' days')::interval`, [cid, days]),
+    pool.query(
+      `SELECT
+         (SELECT COUNT(*)::int FROM workshop_work_bays WHERE company_id=$1 AND is_active) AS bays,
+         (SELECT COUNT(*)::int FROM workshop_jobs WHERE company_id=$1 AND status IN ('approved','in_progress','done')) AS active_jobs,
+         COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, now())-started_at))/3600)
+                     FROM workshop_time_entries
+                    WHERE company_id=$1 AND started_at >= CURRENT_DATE - ($2 || ' days')::interval),0)::float AS worked_hours`,
+      [cid, days]),
   ]);
   const s = summary.rows[0];
+  const expenseTotal = round2(expenses.rows[0].total);
+  const c = capacity.rows[0];
+  const availableHours = round2(Number(c.bays || 0) * 8 * days);
   res.render('workshop_admin/reports', {
     title: res.locals.t('wsh.rep.title'), tab: 'reports', days,
     summary: {
@@ -1208,9 +1625,16 @@ router.get('/reports', requireFlag('reports'), async (req, res) => {
       partsRevenue: round2(s.parts_rev), partsCost: round2(s.parts_cost),
       partsMargin: round2(s.parts_rev - s.parts_cost),
       labourRevenue: round2(s.labour_rev),
+      labourCost: round2(s.labour_cost),
       revenue: round2(s.parts_rev + s.labour_rev),
+      expenses: expenseTotal,
+      grossAfterParts: round2(s.parts_rev + s.labour_rev - s.parts_cost - s.labour_cost),
+      operatingResult: round2(s.parts_rev + s.labour_rev - s.parts_cost - s.labour_cost - expenseTotal),
     },
     faults: faults.rows, topParts: parts.rows,
+    capacity: { bays: Number(c.bays || 0), activeJobs: Number(c.active_jobs || 0),
+      workedHours: round2(c.worked_hours), availableHours,
+      utilization: availableHours ? round2((Number(c.worked_hours || 0) / availableHours) * 100) : 0 },
   });
 });
 

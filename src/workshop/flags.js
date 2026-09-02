@@ -39,6 +39,14 @@ const FLAGS = [
     desc: 'الإيراد والمصنعية وقطع الغيار والربح، وأكتر الأعطال تكراراً.' },
   { key: 'warranty', label: 'الضمان', icon: '🛡️', path: '/workshop/warranty',
     desc: 'ضمان الشغل، وبيبدأ يوم تسليم العربية مش يوم الفاتورة.' },
+  { key: 'change_orders', label: 'موافقات إضافية', icon: '✍️', path: '/workshop/change-orders',
+    desc: 'اعرض أي إصلاح إضافي على العميل وسجّل موافقته قبل التنفيذ.' },
+  { key: 'floor', label: 'الفنيون والرافعات', icon: '🧰', path: '/workshop/floor',
+    desc: 'توزيع العربيات على الرافعات وتسجيل وقت الفني الفعلي.' },
+  { key: 'communications', label: 'رسائل العملاء', icon: '💬', path: '/workshop/communications',
+    desc: 'رسائل جاهزة عبر WhatsApp مع سجل واضح لما تم إرساله.' },
+  { key: 'warranty_claims', label: 'مطالبات الضمان', icon: '↩️', path: '/workshop/warranty-claims',
+    desc: 'تسجيل عودة السيارة لنفس المشكلة وتحليل أسباب الـ comeback.' },
 ];
 
 const FLAG_KEYS = FLAGS.map((f) => f.key);
@@ -46,7 +54,11 @@ const FLAG_KEYS = FLAGS.map((f) => f.key);
 const OPTIONAL_KEYS = FLAGS.filter((f) => !f.core).map((f) => f.key);
 // A new workshop starts with the parts that make the product obviously useful
 // on day one; the rest are opt-in so the sidebar is not a wall.
-const DEFAULT_ON = ['parts', 'purchasing', 'reminders', 'invoices', 'board', 'appointments', 'inspections', 'customer_portal', 'audit'];
+const DEFAULT_ON = [
+  'parts', 'purchasing', 'reminders', 'invoices', 'board', 'appointments',
+  'inspections', 'customer_portal', 'audit', 'change_orders', 'floor',
+  'communications', 'warranty_claims', 'barcodes',
+];
 
 /** Feature keys enabled for a company, as a Set. Core keys are always in it. */
 async function getFlags(pool, companyId) {

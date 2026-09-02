@@ -10,3 +10,4 @@
 - [Workshop release controls](workshop-release-controls.md) — keep quality gates, stock reservations, purchase receipts, and public booking confirmation as separate events.
 - [Local preview host routing](local-preview-host-routing.md) — treat loopback hosts as platform root, not tenant subdomains, or preview `/` can return a tenant 404.
 - [Deployment healthcheck status](deployment-healthcheck-status.md) — the VM readiness probe needs a direct 200 on `/`; a healthy redirect to `/ar` is still rejected.
+- [Workshop outbound messages](workshop-outbound-messages.md) — workshop notifications are prepared and tracked locally until an external WhatsApp/SMS provider is explicitly connected.

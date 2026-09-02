@@ -1,0 +1,49 @@
+<%- include('head') %>
+<%
+  function money(v){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}); }
+  var labels = { proposed:'بانتظار الموافقة', approved:'معتمد', rejected:'مرفوض' };
+%>
+<div class="flex items-end justify-between gap-3 flex-wrap mb-5">
+  <div><h1 class="font-black text-xl">موافقات الإصلاحات الإضافية</h1>
+    <p class="text-sm text-slate-500 mt-1">كل تغيير بعد عرض السعر الأساسي يحتاج قرارًا مستقلًا وتاريخًا واضحًا.</p></div>
+  <a href="/workshop/jobs" class="text-sm text-brand-700 font-bold">فتح أوامر الشغل</a>
+</div>
+<section class="bg-brand-50 border border-brand-100 rounded-2xl p-4 mb-5 text-sm text-brand-900">
+  أضف التعديل من داخل أمر الشغل، ثم أرسل رابط العميل الآمن. لا تعتبر الإضافة معتمدة ولا تبدأ تنفيذها قبل ظهورها بحالة «معتمد».
+</section>
+<section class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+  <div class="p-4 border-b border-slate-100 flex justify-between gap-3">
+    <h2 class="font-black">آخر التعديلات</h2><span class="text-xs text-slate-500"><%= orders.length %> سجل</span>
+  </div>
+  <% if (!orders.length) { %>
+    <p class="p-8 text-center text-sm text-slate-400">لا توجد تعديلات إضافية حتى الآن.</p>
+  <% } else { %>
+    <table class="rt w-full text-sm">
+      <thead class="bg-slate-50 text-xs text-slate-500"><tr>
+        <th class="text-start px-4 py-2">أمر الشغل</th><th class="text-start px-4 py-2">السيارة / العميل</th>
+        <th class="text-start px-4 py-2">السبب</th><th class="text-start px-4 py-2">القيمة</th>
+        <th class="text-start px-4 py-2">الحالة</th><th class="text-start px-4 py-2"></th>
+      </tr></thead>
+      <tbody>
+      <% orders.forEach(function(o){ %>
+        <tr class="border-t border-slate-100">
+          <td data-l="أمر الشغل" class="px-4 py-2"><a class="font-bold text-brand-700" href="/workshop/jobs/<%= o.job_id %>#change-orders">#<%= o.job_id %></a></td>
+          <td data-l="السيارة / العميل" class="px-4 py-2"><%= o.plate || '—' %> · <%= o.customer_name || '—' %></td>
+          <td data-l="السبب" class="px-4 py-2"><%= o.reason %></td>
+          <td data-l="القيمة" class="px-4 py-2 font-bold"><bdi><%= money(o.total) %></bdi></td>
+          <td data-l="الحالة" class="px-4 py-2"><span class="text-xs rounded-full px-2 py-1 font-bold <%= o.status==='approved'?'bg-emerald-50 text-emerald-700':o.status==='rejected'?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-700' %>"><%= labels[o.status] || o.status %></span></td>
+          <td data-l="" class="px-4 py-2">
+            <% if (o.status === 'proposed') { %>
+              <div class="flex gap-1">
+                <form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="approved"><button class="text-xs bg-emerald-600 text-white rounded-lg px-2 py-1 font-bold">اعتماد</button></form>
+                <form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="rejected"><button class="text-xs bg-rose-50 text-rose-700 rounded-lg px-2 py-1 font-bold">رفض</button></form>
+              </div>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</section>
+<%- include('foot') %>

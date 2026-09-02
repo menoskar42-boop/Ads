@@ -24,6 +24,7 @@
   <header><div class="wrap" style="padding:0 16px"><div class="brand"><%= job.business_name || job.company_name %></div><div style="opacity:.85;font-size:13px">متابعة أمر الصيانة من هاتفك</div></div></header>
   <main class="wrap">
     <% if (approved) { %><div class="success">تم تسجيل موافقتك بنجاح. سيبدأ المركز تنفيذ الأعمال المعتمدة.</div><% } %>
+    <% if (typeof query !== 'undefined' && query.change_approved === '1') { %><div class="success">تم تسجيل موافقتك على الإصلاح الإضافي، وسيظهر للفريق ضمن الأعمال المعتمدة.</div><% } %>
      <section class="card hero">
       <div><div class="muted">رقم أمر الشغل</div><h1><%= J.jobCode ? J.jobCode(job.job_id) : 'أمر الصيانة' %></h1><div class="muted"><%= [job.make,job.model,job.model_year].filter(Boolean).join(' ') %> · <bdi><%= job.plate %></bdi></div></div>
       <span class="badge"><%= ({received:'تم الاستلام',quoted:'بانتظار الموافقة',approved:'تمت الموافقة',in_progress:'تحت التنفيذ',done:'جاهزة للمراجعة',delivered:'تم التسليم',cancelled:'ملغي'})[job.status] || job.status %></span>
@@ -56,6 +57,18 @@
       <form method="post" action="/workshop/status/<%= token %>/approve" style="margin-top:18px"><label class="label">اكتب اسمك لتأكيد موافقة عرض السعر</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على عرض السعر</button></form>
     <% } else if (job.approved_at) { %><p class="muted">تم اعتماد العرض في <%= new Date(job.approved_at).toLocaleString('ar-EG') %>.</p><% } %>
     </section>
+    <% if (changeOrders && changeOrders.length) { %>
+      <section class="card"><h2>تعديلات على عرض السعر</h2>
+        <% changeOrders.forEach(function(order){ %>
+          <div style="border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;background:<%= order.status === 'approved' ? '#f0fbf4' : order.status === 'rejected' ? '#fff5f4' : '#fffaf0' %>">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><b>تعديل #<%= order.id %></b><div class="muted" style="font-size:12px"><%= order.reason %></div></div><span class="badge"><%= order.status === 'approved' ? 'معتمد' : order.status === 'rejected' ? 'مرفوض' : 'بانتظار موافقتك' %></span></div>
+            <% if (order.items) { order.items.forEach(function(item){ %><div style="display:flex;justify-content:space-between;font-size:13px;margin-top:7px"><span><%= item.description %> × <%= item.qty %></span><bdi><%= Number(item.qty*item.unit_price).toLocaleString('ar-EG') %> ج.م</bdi></div><% }); } %>
+            <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><b>قيمة التعديل</b><bdi><%= Number(order.total).toLocaleString('ar-EG') %> ج.م</bdi></div>
+            <% if (order.status === 'proposed') { %><form method="post" action="/workshop/status/<%= token %>/change-orders/<%= order.id %>/approve" style="margin-top:12px"><label class="label">اكتب اسمك للموافقة على هذا التعديل</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على الإصلاح الإضافي</button></form><% } else if (order.status === 'approved') { %><p class="muted" style="font-size:12px;margin-bottom:0">تم اعتماد هذا التعديل.</p><% } %>
+          </div>
+        <% }); %>
+      </section>
+    <% } %>
     <footer class="muted" style="text-align:center;font-size:12px;margin-top:24px"><%= job.address || '' %><% if (job.workshop_phone || job.company_phone) { %> · <bdi><%= job.workshop_phone || job.company_phone %></bdi><% } %></footer>
   </main>
 </body>
