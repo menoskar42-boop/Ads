@@ -331,7 +331,7 @@ async function queueServiceReminderMessages({
   activity = logActivity,
 } = {}) {
   const candidates = (await db.query(
-    `SELECT r.id, r.company_id, r.vehicle_id, r.job_id, r.customer_id,
+    `SELECT r.id, r.company_id, r.vehicle_id, r.job_id, v.customer_id,
             r.due_on, r.due_odometer, v.plate, v.odometer,
             c.phone AS customer_phone, c.whatsapp AS customer_whatsapp,
             COALESCE(ws.reminder_lead_days, ${DEFAULT_REMINDER_LEAD_DAYS}) AS reminder_lead_days,
