@@ -8,6 +8,25 @@
   </form>
   <% } %>
 </div>
+<% if (barcode) { %>
+  <% if (parts.length === 1) { var scanned = parts[0]; %>
+    <section class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div><div class="text-xs text-emerald-700 font-bold">نتيجة المسح</div><h2 class="font-black text-emerald-950 mt-1"><%= scanned.name %></h2><div class="text-xs text-emerald-800 mt-1" dir="ltr"><%= scanned.barcode || barcode %> · المخزون الحالي <%= Number(scanned.qty) %></div></div>
+        <a href="/workshop/parts" class="text-xs text-emerald-800 font-bold">مسح جديد</a>
+      </div>
+      <form method="post" action="/workshop/parts/<%= scanned.id %>/receive" class="mt-3 flex flex-wrap gap-2 items-center text-sm">
+        <input name="qty" type="number" min="0.001" step="0.001" required placeholder="الكمية المستلمة" class="w-36 border border-emerald-200 rounded-xl px-3 py-2" dir="ltr">
+        <input name="unit_cost" type="number" min="0" step="0.01" placeholder="تكلفة الوحدة" class="w-36 border border-emerald-200 rounded-xl px-3 py-2" dir="ltr">
+        <button class="bg-emerald-700 text-white rounded-xl px-4 py-2 font-bold">استلام وتحديث المخزون</button>
+      </form>
+    </section>
+  <% } else { %>
+    <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl px-4 py-3 mb-5 text-sm">
+      لم يتم العثور على قطعة بهذا الباركود. يمكنك تسجيلها الآن وسيُملأ الباركود تلقائيًا.
+    </div>
+  <% } %>
+<% } %>
 <%- include('_table', { empty: t('wsh.part.empty'), rows: parts, cols: [
   { label: t('wsh.part.name'), key: 'name', cls: 'font-semibold' },
   { label: t('wsh.part.number'), key: 'part_number' },
@@ -25,7 +44,7 @@
       <input name="name" required placeholder="<%= t('wsh.part.name') %> *" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
       <input name="part_number" placeholder="<%= t('wsh.part.number') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="brand" placeholder="<%= t('wsh.part.brand') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
-      <input name="barcode" placeholder="الباركود (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr" />
+      <input name="barcode" value="<%= barcode || '' %>" placeholder="الباركود (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr" />
       <input name="fits" placeholder="<%= t('wsh.part.fits') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
       <input name="qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.qty') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="min_qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.min') %>" class="border border-slate-200 rounded-xl px-3 py-2" />

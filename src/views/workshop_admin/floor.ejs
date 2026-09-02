@@ -18,6 +18,15 @@
             <a href="/workshop/jobs/<%= j.id %>" class="font-bold text-brand-700">أمر #<%= j.id %></a>
             <div class="text-xs mt-1"><%= j.plate || '—' %> · <%= j.customer_name || '—' %></div>
             <div class="text-[11px] text-slate-500 mt-1"><%= j.technician_name || 'بدون فني' %> · <%= j.status %></div>
+            <form method="post" action="/workshop/jobs/<%= j.id %>/bay" class="flex gap-1 mt-2 text-xs">
+              <select name="bay_id" class="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1">
+                <option value="">إلغاء التوزيع</option>
+                <% bays.filter(function(x){return x.is_active;}).forEach(function(x){ %>
+                  <option value="<%= x.id %>" <%= j.bay_id===x.id?'selected':'' %>><%= x.name %></option>
+                <% }) %>
+              </select>
+              <button class="bg-slate-100 text-slate-700 rounded-lg px-2 py-1 font-bold">نقل</button>
+            </form>
           </div><% }) %>
         </div>
       <% }); %>

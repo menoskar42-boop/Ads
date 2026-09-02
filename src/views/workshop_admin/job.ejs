@@ -176,6 +176,49 @@
       </form>
     </section>
 
+    <% if (flags.has('floor')) { %>
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div><h2 class="font-black">وقت الفنيين</h2><p class="text-xs text-slate-500 mt-1">راجع الوقت الفعلي المسجل على هذا الأمر، وأوقف الجلسة المفتوحة من نفس الشاشة.</p></div>
+        <% var totalMinutes = (timeEntries || []).reduce(function(sum, e){ return sum + Number(e.minutes || 0); }, 0); %>
+        <span class="text-xs rounded-full bg-brand-50 text-brand-700 px-3 py-1 font-bold"><bdi><%= (totalMinutes / 60).toFixed(2) %></bdi> ساعة مسجلة</span>
+      </div>
+      <% if (!(timeEntries || []).length) { %>
+        <p class="text-sm text-slate-400">لم يُسجل وقت لهذا الأمر بعد.</p>
+      <% } else { %>
+        <table class="rt w-full text-sm">
+          <thead class="text-xs text-slate-500 border-b border-slate-100"><tr><th class="text-start py-2">الفني</th><th class="text-start py-2">البداية</th><th class="text-start py-2">النهاية</th><th class="text-start py-2">المدة</th><th></th></tr></thead>
+          <tbody>
+            <% timeEntries.forEach(function(entry){ %>
+              <tr class="border-b border-slate-50">
+                <td data-l="الفني" class="py-2 font-bold"><%= entry.technician_name || '—' %></td>
+                <td data-l="البداية" class="py-2 text-slate-500"><%= dt(entry.started_at) %></td>
+                <td data-l="النهاية" class="py-2 text-slate-500"><%= entry.ended_at ? dt(entry.ended_at) : 'مفتوحة الآن' %></td>
+                <td data-l="المدة" class="py-2"><bdi><%= (Number(entry.minutes || 0) / 60).toFixed(2) %></bdi> ساعة</td>
+                <td data-l="" class="py-2 text-end">
+                  <% if (!entry.ended_at) { %>
+                    <form method="post" action="/workshop/time/<%= entry.id %>/stop" class="flex gap-1 justify-end">
+                      <input name="note" placeholder="ملاحظة" class="w-28 border border-slate-200 rounded-lg px-2 py-1 text-xs">
+                      <button class="bg-slate-900 text-white rounded-lg px-2 py-1 text-xs font-bold">إيقاف</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+      <form method="post" action="/workshop/time/start" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-[1fr_auto] gap-2 text-sm no-print">
+        <input type="hidden" name="job_id" value="<%= job.id %>">
+        <select name="technician_id" required class="border border-slate-200 rounded-xl px-3 py-2">
+          <option value="">اختر الفني لبدء جلسة</option>
+          <% technicians.forEach(function(tc){ %><option value="<%= tc.id %>"><%= tc.name %></option><% }) %>
+        </select>
+        <button class="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold">بدء تسجيل الوقت</button>
+      </form>
+    </section>
+    <% } %>
+
     <!-- Diagnosis + settings for this job -->
       <section class="bg-white rounded-2xl border border-slate-200 p-5 no-print">
        <h2 class="font-black mb-3 text-slate-900"><%= t('wsh.job.diagnosis') %></h2>
@@ -227,7 +270,17 @@
       <div class="mt-4 pt-4 border-t border-slate-100">
         <div class="flex items-center justify-between gap-3 flex-wrap mb-2"><h3 class="font-black text-sm">نسخ عرض السعر</h3><form method="post" action="/workshop/jobs/<%= job.id %>/estimates" class="no-print"><button class="text-xs border border-brand-200 text-brand-700 rounded-lg px-3 py-1.5 font-bold">حفظ نسخة من العرض الحالي</button></form></div>
         <% if (!(estimateVersions || []).length) { %><p class="text-xs text-slate-400">احفظ نسخة قبل أي تعديل لتكون المقارنة الزمنية واضحة.</p><% } else { %>
-          <div class="flex flex-wrap gap-2"><% estimateVersions.forEach(function(v){ %><span class="text-xs rounded-lg bg-slate-50 border border-slate-100 px-3 py-1.5">نسخة <bdi><%= v.version_no %></bdi> · <bdi><%= money(v.total) %></bdi> · <%= v.status === 'approved' ? 'معتمدة' : 'مسودة' %></span><% }) %></div>
+          <div class="space-y-2"><% estimateVersions.forEach(function(v){ var snap = Array.isArray(v.snapshot) ? v.snapshot : []; %>
+            <details class="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+              <summary class="cursor-pointer text-xs font-bold">نسخة <bdi><%= v.version_no %></bdi> · <bdi><%= money(v.total) %></bdi> · <%= v.status === 'approved' ? 'معتمدة' : 'مسودة' %></summary>
+              <div class="text-[11px] text-slate-500 mt-2">أنشأها <%= v.created_by || 'فريق الورشة' %> · <%= dt(v.created_at) %><% if (v.approved_by) { %> · اعتمدها <%= v.approved_by %><% } %></div>
+              <% if (snap.length) { %>
+                <div class="mt-2 space-y-1"><% snap.forEach(function(item){ %>
+                  <div class="flex justify-between gap-3 border-t border-slate-200/70 pt-1"><span><%= item.kind === 'part' ? 'قطعة' : 'عمالة' %> · <%= item.description %> × <bdi><%= item.qty %></bdi></span><bdi><%= money(Number(item.qty || 0) * Number(item.unit_price || 0)) %></bdi></div>
+                <% }) %></div>
+              <% } else { %><div class="text-xs text-slate-400 mt-2">لا توجد بنود محفوظة في هذه النسخة.</div><% } %>
+            </details>
+          <% }) %></div>
         <% } %>
       </div>
       <form method="post" action="/workshop/jobs/<%= job.id %>/change-orders" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-4 gap-2 text-sm no-print">

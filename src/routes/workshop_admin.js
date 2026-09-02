@@ -625,7 +625,9 @@ router.post('/jobs/:id/change-orders', requireFlag('change_orders'), async (req,
     await client.query('BEGIN');
     const order = (await client.query(
       `INSERT INTO workshop_change_orders (company_id, job_id, reason, customer_note)
-       VALUES ($1,$2,$3,$4) RETURNING id`,
+       SELECT $1,$2,$3,$4
+        WHERE EXISTS (SELECT 1 FROM workshop_jobs WHERE id=$2 AND company_id=$1)
+       RETURNING id`,
       [cid, jobId, text(b.reason, 500) || description, text(b.customer_note, 500)] )).rows[0];
     orderId = order.id;
     await client.query(
@@ -659,7 +661,8 @@ router.post('/jobs/:id/estimates', requireFlag('change_orders'), async (req, res
   await pool.query(
     `INSERT INTO workshop_estimate_versions
       (company_id, job_id, version_no, status, subtotal, total, snapshot, created_by, approved_by, approved_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,CASE WHEN $4='approved' THEN now() ELSE NULL END)`,
+     SELECT $1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,CASE WHEN $4='approved' THEN now() ELSE NULL END
+      WHERE EXISTS (SELECT 1 FROM workshop_jobs WHERE id=$2 AND company_id=$1)`,
     [cid, jobId, next, data.job.approved_at ? 'approved' : 'draft',
      totals.subtotal, totals.total, JSON.stringify(snapshot), actor.name,
      data.job.approved_at ? data.job.approved_by || actor.name : null]);
@@ -743,7 +746,10 @@ router.post('/time/start', requireFlag('floor'), async (req, res) => {
     try {
       await pool.query(
         `INSERT INTO workshop_time_entries (company_id, job_id, technician_id, note)
-         VALUES ($1,$2,$3,$4)`, [cid, jobId, techId, text(req.body && req.body.note, 300)]);
+         SELECT $1,$2,$3,$4
+          WHERE EXISTS (SELECT 1 FROM workshop_jobs WHERE id=$2 AND company_id=$1)
+            AND EXISTS (SELECT 1 FROM workshop_technicians WHERE id=$3 AND company_id=$1 AND is_active)`,
+        [cid, jobId, techId, text(req.body && req.body.note, 300)]);
       await logActivity(pool, cid, jobId, 'time_started', 'بدأ الفني تسجيل الوقت');
     } catch (e) { console.error('[workshop time start]', e.message); }
   }
@@ -777,8 +783,10 @@ async function prepareWorkshopMessage(companyId, jobId, eventKey) {
   return (await pool.query(
     `INSERT INTO workshop_messages
       (company_id, job_id, customer_id, channel, recipient, event_key, body)
-     SELECT $1,$2,customer_id,'whatsapp',$3,$4,$5
-       FROM workshop_jobs WHERE id=$2 AND company_id=$1
+       SELECT $1,$2,customer_id,'whatsapp',$3,$4,$5
+         FROM workshop_jobs
+        WHERE id=$2 AND company_id=$1
+          AND EXISTS (SELECT 1 FROM workshop_jobs WHERE id=$2 AND company_id=$1)
      RETURNING id`, [companyId, jobId, row.customer_phone, eventKey, body])).rows[0];
 }
 
@@ -841,7 +849,7 @@ router.post('/communications/:id/sent', requireFlag('communications'), async (re
 // ── Warranty returns / claims ───────────────────────────────────────────────
 router.get('/warranty-claims', requireFlag('warranty_claims'), async (req, res) => {
   const cid = req.company.id;
-  const [claims, jobs] = await Promise.all([
+  const [claims, jobs, returnJobs] = await Promise.all([
     pool.query(
       `SELECT wc.*, v.plate, c.name AS customer_name
          FROM workshop_warranty_claims wc
@@ -855,10 +863,17 @@ router.get('/warranty-claims', requireFlag('warranty_claims'), async (req, res) 
          LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
         WHERE j.company_id=$1 AND j.status='delivered'
         ORDER BY j.delivered_at DESC LIMIT 300`, [cid]),
+    pool.query(
+      `SELECT j.id, j.status, j.received_at, v.plate, c.name AS customer_name
+         FROM workshop_jobs j
+         LEFT JOIN workshop_vehicles v ON v.id=j.vehicle_id AND v.company_id=j.company_id
+         LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
+        WHERE j.company_id=$1
+        ORDER BY j.received_at DESC LIMIT 300`, [cid]),
   ]);
   res.render('workshop_admin/warranty_claims', {
     title: 'مطالبات الضمان وعودة السيارة', tab: 'warranty_claims',
-    claims: claims.rows, jobs: jobs.rows,
+    claims: claims.rows, jobs: jobs.rows, returnJobs: returnJobs.rows,
   });
 });
 
@@ -871,7 +886,8 @@ router.post('/warranty-claims', requireFlag('warranty_claims'), async (req, res)
     await pool.query(
       `INSERT INTO workshop_warranty_claims
         (company_id, original_job_id, vehicle_id, customer_id, complaint)
-       VALUES ($1,$2,$3,$4,$5)`,
+       SELECT $1,$2,$3,$4,$5
+        WHERE EXISTS (SELECT 1 FROM workshop_jobs WHERE id=$2 AND company_id=$1)`,
       [cid, jobId, original.vehicle_id, original.customer_id, complaint]);
     await logActivity(pool, cid, jobId, 'warranty_claim_opened', 'تم فتح مطالبة ضمان لعودة السيارة');
   }
@@ -1275,7 +1291,16 @@ router.post('/jobs/:id/update', async (req, res) => {
   const cid = req.company.id, id = int(req.params.id);
   const b = req.body || {};
   await pool.query(
-    `UPDATE workshop_jobs SET diagnosis=$1, note=$2, technician_id=$3, discount=$4,
+    `UPDATE workshop_jobs SET diagnosis=$1, note=$2,
+            technician_id=CASE
+              WHEN $3 IS NULL THEN NULL
+              WHEN EXISTS (
+                SELECT 1 FROM workshop_technicians t
+                 WHERE t.id=$3 AND t.company_id=$9 AND t.is_active
+              ) THEN $3
+              ELSE technician_id
+            END,
+            discount=$4,
             tax_percent=$5, warranty_months=$6, promised_at=$7
       WHERE id=$8 AND company_id=$9`,
     [text(b.diagnosis, 2000), text(b.note, 1000), int(b.technician_id),
@@ -1393,14 +1418,21 @@ router.post('/jobs/:id/pay', async (req, res) => {
 // ── Parts ────────────────────────────────────────────────────────────────────
 router.get('/parts', requireFlag('parts'), async (req, res) => {
   const cid = req.company.id;
-  const q = String(req.query.q || '').trim().slice(0, 60);
+  const barcode = text(req.query && req.query.barcode, 80);
+  const q = barcode || String(req.query.q || '').trim().slice(0, 60);
   const params = [cid];
   let where = 'company_id=$1 AND is_active';
-  if (q) { params.push('%' + q + '%'); where += ` AND (name ILIKE $${params.length} OR part_number ILIKE $${params.length} OR barcode ILIKE $${params.length} OR fits ILIKE $${params.length})`; }
+  if (barcode) {
+    params.push(barcode);
+    where += ` AND barcode=$${params.length}`;
+  } else if (q) {
+    params.push('%' + q + '%');
+    where += ` AND (name ILIKE $${params.length} OR part_number ILIKE $${params.length} OR barcode ILIKE $${params.length} OR fits ILIKE $${params.length})`;
+  }
   const rows = await pool.query(
     `SELECT * FROM workshop_parts WHERE ${where} ORDER BY (min_qty > 0 AND qty <= min_qty) DESC, name LIMIT 500`, params);
   res.render('workshop_admin/parts', {
-    title: res.locals.t('wsh.part.title'), tab: 'parts', parts: rows.rows, q,
+    title: res.locals.t('wsh.part.title'), tab: 'parts', parts: rows.rows, q, barcode,
   });
 });
 
@@ -1423,7 +1455,7 @@ router.post('/parts', requireFlag('parts'), async (req, res) => {
 // server takes the same scoped search path as a hand-entered part number.
 router.get('/parts/scan', requireFlag('barcodes'), async (req, res) => {
   const code = text(req.query && req.query.barcode, 80);
-  res.redirect('/workshop/parts' + (code ? `?q=${encodeURIComponent(code)}` : ''));
+  res.redirect('/workshop/parts' + (code ? `?barcode=${encodeURIComponent(code)}` : ''));
 });
 
 // Receiving stock recomputes the moving average. Not the last purchase price:
