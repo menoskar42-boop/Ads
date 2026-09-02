@@ -57,7 +57,35 @@ async function initDealsDb() {
       ON deals_catalog_products (is_published, is_featured, created_at DESC);
     ALTER TABLE deals_catalog_products
       ADD COLUMN IF NOT EXISTS source_rank INTEGER,
-      ADD COLUMN IF NOT EXISTS price_checked_at TIMESTAMPTZ;
+      ADD COLUMN IF NOT EXISTS price_checked_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS availability_checked_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS image_checked_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS data_fresh_until TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS last_sync_success_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS last_sync_failure_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'manual',
+      ADD COLUMN IF NOT EXISTS sync_error TEXT,
+      ADD COLUMN IF NOT EXISTS seo_title TEXT,
+      ADD COLUMN IF NOT EXISTS meta_description TEXT,
+      ADD COLUMN IF NOT EXISTS image_alt TEXT;
+    CREATE INDEX IF NOT EXISTS idx_deals_amazon_sync
+      ON deals_catalog_products (source, sync_status, data_fresh_until);
+
+    CREATE TABLE IF NOT EXISTS deals_sync_runs (
+      id SERIAL PRIMARY KEY,
+      source TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('running','success','partial','failed','skipped')),
+      started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      finished_at TIMESTAMPTZ,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      failure_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      error_summary TEXT,
+      triggered_by TEXT NOT NULL DEFAULT 'scheduled'
+    );
+    CREATE INDEX IF NOT EXISTS idx_deals_sync_runs_recent
+      ON deals_sync_runs (source, started_at DESC);
 
     CREATE TABLE IF NOT EXISTS deals_articles (
       id SERIAL PRIMARY KEY,

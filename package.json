@@ -9,7 +9,9 @@
     "db:schema": "node src/db/schema.js",
     "db:seed": "node src/db/seed.js",
     "db:seed:crm": "node src/db/seed_crm.js",
-    "build:css": "tailwindcss -c tailwind.config.js -i src/styles/tailwind.css -o public/css/tw.css --minify"
+    "build:css": "tailwindcss -c tailwind.config.js -i src/styles/tailwind.css -o public/css/tw.css --minify",
+    "deals:sync:amazon": "node scripts/sync-deals-amazon.js",
+    "deals:seed:amazon": "node scripts/seed-deals-amazon.js"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

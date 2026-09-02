@@ -10,6 +10,12 @@ const crypto = require('crypto');
 const { pool, initDealsDb } = require('./db');
 const { listProviders, assertProviderAllowed } = require('./providers');
 const { checkAffiliateUrl } = require('./affiliate');
+const {
+  decorateProduct,
+  getSyncDashboard,
+  syncAmazonCatalog,
+  syncStatusLabel,
+} = require('./catalog_sync');
 // وحدتين مشتركتين من المنصّة الأساسية. Deals عملية مستقلة، بس هي جوّه نفس
 // الريبو — فمفيش سبب تعيد كتابة قراية العنوان ولا فحص بايتات الملف، خصوصاً إن
 // النسختين اللي كانت هنا كانوا فيهم نفس الغلطتين اللي المنصّة صلّحتهم.
@@ -101,6 +107,10 @@ const integerOrNull = (v) => {
 };
 const metaText = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 160);
 const jsonLd = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
+const publicAssetUrl = (value) => {
+  if (!value) return null;
+  return /^https?:\/\//i.test(String(value)) ? String(value) : `${BASE_URL}/${String(value).replace(/^\/+/, '')}`;
+};
 
 function common(req, extra = {}) {
   return {
@@ -156,7 +166,7 @@ app.get('/', async (req, res, next) => {
       `SELECT p.*, c.name AS category_name FROM deals_catalog_products p
        LEFT JOIN deals_categories c ON c.id = p.category_id
        WHERE p.is_published = true ORDER BY p.is_featured DESC, p.created_at DESC`
-    )).rows;
+    )).rows.map(decorateProduct);
     const articles = (await pool.query(
       `SELECT * FROM deals_articles WHERE is_published = true
        ORDER BY published_at DESC NULLS LAST, created_at DESC LIMIT 3`
@@ -184,7 +194,7 @@ app.get('/category/:slug', async (req, res, next) => {
        LEFT JOIN deals_categories c ON c.id = p.category_id
        WHERE p.category_id = $1 AND p.is_published = true
        ORDER BY p.is_featured DESC, p.created_at DESC`, [category.id]
-    )).rows;
+    )).rows.map(decorateProduct);
     res.render('listing', common(req, {
       products, heading: category.name, description: category.description, title: `${category.name} — ${req.app.locals.settings.site_name}`,
       canonicalPath: `/category/${encodeURIComponent(category.slug)}`, metaDescription: metaText(category.description, `منتجات مختارة في تصنيف ${category.name}.`),
@@ -204,44 +214,59 @@ app.get('/search', async (req, res, next) => {
        LEFT JOIN deals_categories c ON c.id = p.category_id
        WHERE p.is_published = true AND (p.title ILIKE $1 OR p.short_description ILIKE $1 OR p.brand ILIKE $1)
        ORDER BY p.is_featured DESC, p.created_at DESC`, [`%${q}%`]
-    )).rows : [];
+    )).rows.map(decorateProduct) : [];
     res.render('listing', common(req, { products, heading: q ? `نتائج البحث: ${q}` : 'بحث', description: '', title: `بحث — ${req.app.locals.settings.site_name}`, canonicalPath: '/search', noindex: true, metaDescription: 'ابحث في المنتجات المختارة على Deals.' }));
   } catch (e) { next(e); }
 });
 
 app.get('/product/:slug', async (req, res, next) => {
   try {
-    const product = (await pool.query(
+    const product = decorateProduct((await pool.query(
       `SELECT p.*, c.name AS category_name, c.slug AS category_slug FROM deals_catalog_products p
        LEFT JOIN deals_categories c ON c.id = p.category_id
        WHERE p.slug = $1 AND p.is_published = true`, [req.params.slug]
-    )).rows[0];
+    )).rows[0]);
     if (!product) return res.status(404).render('error', common(req, { status: 404, message: 'المنتج غير موجود' }));
-    // ── السكيمة: مافيهاش سعر ولا تقييم. ودي حاجة مقصودة ───────────────────
+    // ── السكيمة: السعر مش بيظهر إلا بعد تحديث رسمي حديث ───────────────────
     //
     // `offers.price` كان بيتنشر لجوجل من سعر **متكتوب بالإيد** في اللوحة،
-    // ومافيش عمود بيقول اتشاف امتى ولا حاجة بتشيله لما يقدم. وده بيكسر شرطين
-    // مع بعض: أمازون بتشترط إن سعرها يتعرض من بياناتها ويتحدّث أو يتشال في ٢٤
-    // ساعة، وجوجل بتعامل `offers` على إنه **ادعاء** — وسعر غلط في البيانات
-    // المهيكلة بيجيب عقوبة يدوية.
+    // أمازون بتشترط إن سعرها يتعرض من بياناتها ويتحدّث أو يتشال في ٢٤ ساعة،
+    // وجوجل بتعامل `offers` على إنه **ادعاء** — لذلك لا نضعه إلا مع
+    // `product.show_price` الذي يحرس بيانات API الحديثة.
     //
     // و`aggregateRating` كان بياخد تقييم أمازون ويقدّمه على إنه تقييم
     // **موقعنا**. مرفوض من الاتنين: أمازون بتمنع إعادة نشر محتوى التقييمات،
     // وجوجل بتشترط إن التقييم يكون لمحتوى مستضاف عندك.
     //
-    // السعر لسه بيتعرض **للقارئ** على الصفحة ومعاه إنه ممكن يكون اتغيّر —
-    // الفرق إننا مابنقولش لجوجل إنه رقم مؤكَّد. ولما واجهة أمازون تتفتح
-    // وتجيب السعر بقاعدة تحديثه، ساعتها `offers` يرجع.
+    // السعر الرسمي الحديث يتعرض للقارئ ولجوجل معًا؛ أما البيانات القديمة
+    // فتظل خارج الصفحة والسكيمة إلى أن تنجح مزامنة جديدة.
     const productSchema = {
       '@context': 'https://schema.org', '@type': 'Product', name: product.title,
       description: metaText(product.short_description || product.full_description, product.title),
       url: `${BASE_URL}/product/${encodeURIComponent(product.slug)}`,
-      image: product.image_url ? [product.image_url] : undefined,
+      image: product.image_url ? [publicAssetUrl(product.image_url)] : undefined,
       brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
       category: product.category_name || undefined,
+      offers: product.show_price ? {
+        '@type': 'Offer',
+        price: Number(product.current_price).toFixed(2),
+        priceCurrency: product.currency || 'EGP',
+        url: product.affiliate_url,
+        availability: product.availability
+          ? (/out|unavailable|غير متاح/i.test(product.availability)
+            ? 'https://schema.org/OutOfStock'
+            : 'https://schema.org/InStock')
+          : undefined,
+      } : undefined,
     };
     Object.keys(productSchema).forEach((key) => productSchema[key] === undefined && delete productSchema[key]);
-    res.render('product', common(req, { product, title: `${product.title} — ${req.app.locals.settings.site_name}`, metaDescription: metaText(product.short_description || product.full_description, `${product.title} — تفاصيل ومعلومات قبل الشراء.`), structuredData: [productSchema, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'الرئيسية', item: BASE_URL }, ...(product.category_name ? [{ '@type': 'ListItem', position: 2, name: product.category_name, item: `${BASE_URL}/category/${encodeURIComponent(product.category_slug)}` }] : []), { '@type': 'ListItem', position: product.category_name ? 3 : 2, name: product.title, item: `${BASE_URL}/product/${encodeURIComponent(product.slug)}` }] }] }));
+     res.render('product', common(req, {
+       product,
+       title: metaText(product.seo_title, `${product.title} — ${req.app.locals.settings.site_name}`),
+       metaDescription: metaText(product.meta_description || product.short_description || product.full_description, `${product.title} — تفاصيل ومعلومات قبل الشراء.`),
+       ogDescription: metaText(product.meta_description || product.short_description || product.full_description, `${product.title} — تفاصيل ومعلومات قبل الشراء.`),
+       ogImage: publicAssetUrl(product.image_url),
+       structuredData: [productSchema, { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'الرئيسية', item: BASE_URL }, ...(product.category_name ? [{ '@type': 'ListItem', position: 2, name: product.category_name, item: `${BASE_URL}/category/${encodeURIComponent(product.category_slug)}` }] : []), { '@type': 'ListItem', position: product.category_name ? 3 : 2, name: product.title, item: `${BASE_URL}/product/${encodeURIComponent(product.slug)}` }] }] }));
   } catch (e) { next(e); }
 });
 
@@ -392,12 +417,26 @@ app.post('/admin/logout', requireAdmin, (req, res) => req.session.destroy(() => 
 
 app.get('/admin', requireAdmin, async (req, res, next) => {
   try {
-    const [products, categories, articles] = await Promise.all([
+    const [products, categories, articles, sync] = await Promise.all([
       pool.query('SELECT p.*, c.name AS category_name FROM deals_catalog_products p LEFT JOIN deals_categories c ON c.id=p.category_id ORDER BY p.created_at DESC'),
       pool.query('SELECT * FROM deals_categories ORDER BY name'),
       pool.query('SELECT * FROM deals_articles ORDER BY created_at DESC'),
+      getSyncDashboard(),
     ]);
-    res.render('admin/dashboard', common(req, { products: products.rows, categories: categories.rows, articles: articles.rows, title: 'إدارة Deals' }));
+    const notice = {
+      success: 'تم تحديث كتالوج Amazon بنجاح.',
+      partial: 'اكتمل التحديث جزئيًا؛ راجع حالات المنتجات.',
+      failed: 'فشل تحديث كتالوج Amazon؛ لم نحتفظ بسعر أو توافر قديم.',
+      skipped: 'تم تخطي التحديث لأن المصدر غير مهيأ أو توجد مزامنة أخرى.',
+    }[req.query.sync];
+    res.render('admin/dashboard', common(req, { products: products.rows, categories: categories.rows, articles: articles.rows, sync, syncStatusLabel, notice, title: 'إدارة Deals' }));
+  } catch (e) { next(e); }
+});
+
+app.post('/admin/amazon-sync', requireAdmin, async (req, res, next) => {
+  try {
+    const result = await syncAmazonCatalog({ triggeredBy: 'admin' });
+    res.redirect(`/admin?sync=${encodeURIComponent(result.status)}`);
   } catch (e) { next(e); }
 });
 
@@ -436,14 +475,15 @@ app.post('/admin/products', requireAdmin, upload, async (req, res, next) => {
       `INSERT INTO deals_catalog_products
        (source, external_id, title, slug, short_description, full_description, brand, category_id,
         image_url, current_price, currency, original_price, amazon_product_url, affiliate_url,
-        rating, review_count, availability, is_featured, is_published)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+         rating, review_count, availability, is_featured, is_published, seo_title, meta_description, image_alt)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
       [req.body.source || 'MANUAL', txt(req.body.external_id, 80), title, slugify(req.body.slug || title),
          txt(req.body.short_description, 400), txt(req.body.full_description, 8000), txt(req.body.brand, 120),
          req.body.category_id || null, imageUrl, price, txt(req.body.currency, 8) || 'EGP',
          originalPrice, safeUrl(req.body.amazon_product_url), affiliateUrl,
          numberOrNull(req.body.rating), integerOrNull(req.body.review_count),
-        txt(req.body.availability, 120), bool(req.body.is_featured), bool(req.body.is_published)],
+         txt(req.body.availability, 120), bool(req.body.is_featured), bool(req.body.is_published),
+          txt(req.body.seo_title, 60), txt(req.body.meta_description, 160), txt(req.body.image_alt, 180)],
     );
     res.redirect('/admin');
   } catch (e) { next(e); }
@@ -476,13 +516,15 @@ app.post('/admin/products/:id/edit', requireAdmin, upload, async (req, res, next
     await pool.query(
       `UPDATE deals_catalog_products SET title=$1,slug=$2,short_description=$3,full_description=$4,
        brand=$5,category_id=$6,image_url=$7,current_price=$8,currency=$9,original_price=$10,
-       amazon_product_url=$11,affiliate_url=$12,availability=$13,is_featured=$14,is_published=$15,updated_at=now()
-       WHERE id=$16`,
+        amazon_product_url=$11,affiliate_url=$12,availability=$13,is_featured=$14,is_published=$15,
+        seo_title=$16,meta_description=$17,image_alt=$18,updated_at=now()
+        WHERE id=$19`,
       [title, slugify(req.body.slug || title), txt(req.body.short_description, 400), txt(req.body.full_description, 8000),
          txt(req.body.brand, 120), req.body.category_id || null, imageUrl, price,
          txt(req.body.currency, 8) || 'EGP', numberOrNull(req.body.original_price),
         safeUrl(req.body.amazon_product_url), affiliateUrl, txt(req.body.availability, 120),
-        bool(req.body.is_featured), bool(req.body.is_published), req.params.id]
+         bool(req.body.is_featured), bool(req.body.is_published), txt(req.body.seo_title, 60),
+         txt(req.body.meta_description, 160), txt(req.body.image_alt, 180), req.params.id]
     );
     res.redirect('/admin');
   } catch (e) { next(e); }

@@ -54,6 +54,7 @@ const CHECKS = [
   ['check-tenant-clone','خطة نسخ المستأجر: الشركة الجديدة، والمفتاح المعلّق بيترفض'],
   ['check-trace-judge','«كتب الحرف صح» عن كتابة مش عن شخبطة'],
   ['check-deals','موقع Deals: امتثال أمازون، أرشفة الصفحات، وقوالب بترندر'],
+  ['check-deals-sync','مزامنة Deals الرسمية: freshness وOAuth والكتالوج'],
   ['check-company-facts','حقائق الشركة من مصدر واحد — والعدد محسوب مش مخزّن'],
   ['check-static-apps','mykid و neuropilot: محتوى مرئي حقيقي، ومفيش cloaking'],
   ['check-demo-lead','الديمو بيلتقط عميل — من غير ما يقفل الديمو'],
