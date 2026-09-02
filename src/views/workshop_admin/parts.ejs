@@ -1,8 +1,17 @@
 <%- include('head') %>
-<h1 class="font-black text-xl mb-4"><%= t('wsh.part.title') %></h1>
+<div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl"><%= t('wsh.part.title') %></h1>
+  <% if (flags.has('barcodes')) { %>
+  <form method="get" action="/workshop/parts/scan" class="flex gap-2 text-sm">
+    <input name="barcode" value="<%= q || '' %>" autofocus placeholder="امسح باركود القطعة" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
+    <button class="bg-slate-900 text-white rounded-xl px-4 py-2 font-bold">بحث</button>
+  </form>
+  <% } %>
+</div>
 <%- include('_table', { empty: t('wsh.part.empty'), rows: parts, cols: [
   { label: t('wsh.part.name'), key: 'name', cls: 'font-semibold' },
   { label: t('wsh.part.number'), key: 'part_number' },
+  { label: 'الباركود', key: 'barcode' },
   { label: t('wsh.part.fits'), key: 'fits' },
   { label: t('wsh.part.qty'), get: function(r){ return Number(r.qty) + (Number(r.min_qty) > 0 && Number(r.qty) <= Number(r.min_qty) ? ' ⚠️' : ''); } },
   { label: t('wsh.part.cost'), key: 'avg_cost', money: true },
@@ -16,6 +25,7 @@
       <input name="name" required placeholder="<%= t('wsh.part.name') %> *" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
       <input name="part_number" placeholder="<%= t('wsh.part.number') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="brand" placeholder="<%= t('wsh.part.brand') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <input name="barcode" placeholder="الباركود (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr" />
       <input name="fits" placeholder="<%= t('wsh.part.fits') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
       <input name="qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.qty') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="min_qty" type="number" step="0.001" min="0" dir="ltr" placeholder="<%= t('wsh.part.min') %>" class="border border-slate-200 rounded-xl px-3 py-2" />

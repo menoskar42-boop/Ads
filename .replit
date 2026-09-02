@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "postgresql-16"]
+modules = ["nodejs-20", "python-base-3.13", "postgresql-16"]
 [agent]
 expertMode = true
 stack = "BEST_EFFORT_FALLBACK"
@@ -26,46 +26,17 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=false npm run dev"
 waitForPort = 5000
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3001
-
-[[ports]]
-localPort = 5099
-externalPort = 6000
-
-[[ports]]
-localPort = 5100
-externalPort = 4200
-
-[[ports]]
-localPort = 5101
-externalPort = 5000
-
-[[ports]]
-localPort = 5551
-externalPort = 3003
-
-[[ports]]
-localPort = 5555
-externalPort = 3002
-
-[[ports]]
-localPort = 8976
-externalPort = 3000
-exposeLocalhost = true
 
 [deployment]
 deploymentTarget = "vm"

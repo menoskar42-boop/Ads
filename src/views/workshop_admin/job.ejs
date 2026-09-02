@@ -208,6 +208,40 @@
       </form>
     </section>
 
+    <% if (flags.has('change_orders')) { %>
+    <section id="change-orders" class="bg-white rounded-2xl border border-slate-200 p-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div><h2 class="font-black">موافقات الإصلاحات الإضافية</h2><p class="text-xs text-slate-500 mt-1">لا تبدأ التعديل قبل تسجيل موافقة العميل أو اعتماد مدير الورشة.</p></div>
+        <% var approvedAdditions = (changeOrders || []).filter(function(o){ return o.status === 'approved'; }).reduce(function(a,o){ return a + Number(o.total || 0); }, 0); %>
+        <% if (approvedAdditions) { %><span class="text-xs rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 font-bold">إضافات معتمدة: <bdi><%= money(approvedAdditions) %></bdi></span><% } %>
+      </div>
+      <% if (!(changeOrders || []).length) { %><p class="text-sm text-slate-400 mb-3">لا توجد إضافات على العرض الأساسي.</p><% } %>
+      <div class="space-y-2">
+        <% (changeOrders || []).forEach(function(o){ %>
+          <div class="rounded-xl border border-slate-100 p-3">
+            <div class="flex items-start justify-between gap-3 flex-wrap"><div><span class="font-bold">تعديل #<%= o.id %></span> · <%= o.reason %><div class="text-xs text-slate-500 mt-1"><%= o.item_count %> بند · <bdi><%= money(o.total) %></bdi></div></div><span class="text-xs rounded-full px-2 py-1 font-bold <%= o.status==='approved'?'bg-emerald-50 text-emerald-700':o.status==='rejected'?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-700' %>"><%= o.status==='approved'?'معتمد':o.status==='rejected'?'مرفوض':'بانتظار الموافقة' %></span></div>
+            <% if (o.status === 'proposed') { %><div class="flex gap-2 mt-2 no-print"><form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="approved"><button class="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5 font-bold">اعتماد المدير</button></form><form method="post" action="/workshop/change-orders/<%= o.id %>/status"><input type="hidden" name="status" value="rejected"><button class="text-xs border border-rose-200 text-rose-700 rounded-lg px-3 py-1.5 font-bold">رفض</button></form></div><% } %>
+          </div>
+        <% }) %>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-100">
+        <div class="flex items-center justify-between gap-3 flex-wrap mb-2"><h3 class="font-black text-sm">نسخ عرض السعر</h3><form method="post" action="/workshop/jobs/<%= job.id %>/estimates" class="no-print"><button class="text-xs border border-brand-200 text-brand-700 rounded-lg px-3 py-1.5 font-bold">حفظ نسخة من العرض الحالي</button></form></div>
+        <% if (!(estimateVersions || []).length) { %><p class="text-xs text-slate-400">احفظ نسخة قبل أي تعديل لتكون المقارنة الزمنية واضحة.</p><% } else { %>
+          <div class="flex flex-wrap gap-2"><% estimateVersions.forEach(function(v){ %><span class="text-xs rounded-lg bg-slate-50 border border-slate-100 px-3 py-1.5">نسخة <bdi><%= v.version_no %></bdi> · <bdi><%= money(v.total) %></bdi> · <%= v.status === 'approved' ? 'معتمدة' : 'مسودة' %></span><% }) %></div>
+        <% } %>
+      </div>
+      <form method="post" action="/workshop/jobs/<%= job.id %>/change-orders" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-4 gap-2 text-sm no-print">
+        <select name="kind" class="border border-slate-200 rounded-xl px-3 py-2"><option value="labour">عمالة</option><option value="part">قطعة</option></select>
+        <input name="description" required placeholder="وصف التعديل" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
+        <input name="qty" type="number" min="0.001" step="0.001" value="1" placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
+        <input name="unit_price" type="number" min="0" step="0.01" required placeholder="سعر البيع" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
+        <input name="unit_cost" type="number" min="0" step="0.01" placeholder="التكلفة" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
+        <input name="reason" placeholder="سبب التعديل" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
+        <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">إضافة للمراجعة</button>
+      </form>
+    </section>
+    <% } %>
+
     <% if (flags.has('inspections')) { %>
     <section id="inspection" class="bg-white rounded-2xl border border-slate-200 p-5">
       <div class="flex items-start justify-between gap-3 flex-wrap mb-3">

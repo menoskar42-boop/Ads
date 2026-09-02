@@ -437,6 +437,137 @@ async function ensureWorkshopSchema() {
       CREATE INDEX IF NOT EXISTS idx_wsh_expenses ON workshop_expenses (company_id, spent_on DESC);
     `);
 
+    // ── Advanced operations ───────────────────────────────────────────────────
+    // These tables are deliberately additive. Existing jobs, parts and warranty
+    // rows remain valid while the workshop gradually adopts the richer flow.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS workshop_change_orders (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id        INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        status        TEXT NOT NULL DEFAULT 'proposed',
+        reason        TEXT NOT NULL,
+        customer_note TEXT,
+        approved_by   TEXT,
+        approved_at   TIMESTAMPTZ,
+        rejected_by   TEXT,
+        rejected_at   TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_change_orders
+        ON workshop_change_orders (company_id, job_id, status, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_change_order_items (
+        id              SERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        change_order_id INTEGER NOT NULL REFERENCES workshop_change_orders(id) ON DELETE CASCADE,
+        kind            TEXT NOT NULL DEFAULT 'labour',
+        description     TEXT NOT NULL,
+        qty             NUMERIC(12,3) NOT NULL DEFAULT 1,
+        unit_price      NUMERIC(12,2) NOT NULL DEFAULT 0,
+        unit_cost       NUMERIC(12,2) NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_change_items
+        ON workshop_change_order_items (company_id, change_order_id);
+
+      CREATE TABLE IF NOT EXISTS workshop_estimate_versions (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id      INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        version_no  INTEGER NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'draft',
+        subtotal    NUMERIC(12,2) NOT NULL DEFAULT 0,
+        total       NUMERIC(12,2) NOT NULL DEFAULT 0,
+        snapshot    JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_by  TEXT,
+        approved_by TEXT,
+        approved_at TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (company_id, job_id, version_no)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_estimate_versions
+        ON workshop_estimate_versions (company_id, job_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_work_bays (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        bay_type    TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_bays
+        ON workshop_work_bays (company_id, is_active, name);
+
+      CREATE TABLE IF NOT EXISTS workshop_time_entries (
+        id            BIGSERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id        INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        technician_id INTEGER REFERENCES workshop_technicians(id) ON DELETE SET NULL,
+        started_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        ended_at      TIMESTAMPTZ,
+        note          TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_time_entries
+        ON workshop_time_entries (company_id, job_id, started_at DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_wsh_active_time_by_tech
+        ON workshop_time_entries (company_id, technician_id)
+        WHERE ended_at IS NULL AND technician_id IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS workshop_warranty_claims (
+        id              SERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        original_job_id INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
+        return_job_id   INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
+        vehicle_id      INTEGER REFERENCES workshop_vehicles(id) ON DELETE SET NULL,
+        customer_id     INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
+        status          TEXT NOT NULL DEFAULT 'open',
+        complaint       TEXT NOT NULL,
+        diagnosis       TEXT,
+        resolution      TEXT,
+        decision        TEXT,
+        opened_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        closed_at       TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_warranty_claims
+        ON workshop_warranty_claims (company_id, status, opened_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_messages (
+        id          BIGSERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id      INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
+        customer_id INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
+        channel     TEXT NOT NULL DEFAULT 'whatsapp',
+        recipient   TEXT,
+        event_key   TEXT,
+        body        TEXT NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'prepared',
+        sent_at     TIMESTAMPTZ,
+        error       TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_messages
+        ON workshop_messages (company_id, created_at DESC);
+    `);
+
+    // Existing installations need the new relationship/lookup columns too.
+    await client.query(`
+      ALTER TABLE workshop_jobs
+        ADD COLUMN IF NOT EXISTS bay_id INTEGER;
+      ALTER TABLE workshop_parts
+        ADD COLUMN IF NOT EXISTS barcode TEXT;
+      CREATE INDEX IF NOT EXISTS idx_wsh_jobs_bay
+        ON workshop_jobs (company_id, bay_id, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_wsh_parts_barcode
+        ON workshop_parts (company_id, barcode)
+        WHERE barcode IS NOT NULL AND barcode <> '';
+    `);
+
     /* الورش اللي اتعملت قبل الزرار ده جدولها من غير العمود، و`CREATE
      * TABLE IF NOT EXISTS` مابيزوّدش عمود على جدول موجود. من غير الـALTER
      * دي `bookingOpen` بترمي، وهي بترجّع `true` عند الخطأ — فالزرار كان

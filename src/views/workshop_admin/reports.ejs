@@ -22,6 +22,29 @@
 </div>
 <p class="text-xs text-slate-400 mb-6"><%= t('wsh.inv.margin_note') %></p>
 
+<div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+  <% [
+    ['تكلفة القطع', money(summary.partsCost), 'text-slate-700'],
+    ['تكلفة وقت الفنيين', money(summary.labourCost), 'text-slate-700'],
+    ['المصروفات التشغيلية', money(summary.expenses), 'text-rose-600'],
+    ['هامش قبل المصروفات', money(summary.grossAfterParts), 'text-emerald-700'],
+    ['نتيجة التشغيل التقريبية', money(summary.operatingResult), summary.operatingResult >= 0 ? 'text-emerald-700' : 'text-rose-700'],
+    ['نسبة استغلال الرافعات', capacity.utilization + '%', capacity.utilization >= 75 ? 'text-brand-700' : 'text-amber-600']
+  ].forEach(function(c){ %>
+    <div class="bg-white rounded-2xl border border-slate-200 p-4">
+      <div class="text-xs text-slate-500 font-semibold"><%= c[0] %></div>
+      <div class="text-lg font-black mt-1 <%= c[2] %>"><bdi><%= c[1] %></bdi></div>
+    </div>
+  <% }) %>
+</div>
+<div class="bg-white rounded-2xl border border-slate-200 p-4 mb-6 text-sm">
+  <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div><span class="font-black">الطاقة التشغيلية</span><span class="text-slate-500 ms-2"><%= capacity.bays %> رافعة · <%= capacity.activeJobs %> أوامر نشطة</span></div>
+    <div class="text-slate-500"><bdi><%= capacity.workedHours %></bdi> ساعة مسجلة من <bdi><%= capacity.availableHours %></bdi> ساعة نظرية خلال الفترة</div>
+  </div>
+  <div class="h-2 bg-slate-100 rounded-full mt-3 overflow-hidden"><div class="h-full bg-brand-500 rounded-full" style="width:<%= Math.min(100, Math.max(0, capacity.utilization)) %>%"></div></div>
+</div>
+
 <div class="grid lg:grid-cols-2 gap-5">
   <div>
     <h2 class="font-black text-lg mb-3"><%= t('wsh.rep.top_faults') %></h2>
