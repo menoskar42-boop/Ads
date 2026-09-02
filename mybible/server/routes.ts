@@ -152,6 +152,7 @@ export async function registerRoutes(
       return res.status(503).json({
         source: 'St-Takla.org',
         section,
+        status: 'unavailable',
         message: 'تعذر تحميل هذا القسم من St-Takla حاليًا',
         items: [],
       });
@@ -176,6 +177,7 @@ export async function registerRoutes(
       return res.status(503).json({
         source: 'St-Takla.org',
         message: 'تعذر تحميل المقال من St-Takla حاليًا',
+        status: 'unavailable',
       });
     }
   });

@@ -7,6 +7,7 @@ import {
   getStTaklaSectionArticle,
   getStTaklaSectionBrowse,
   getStTaklaSectionCatalog,
+  getStTaklaSectionCatalogs,
 } from './st-takla-sections-service';
 import { registerRoutes } from './routes';
 import {
@@ -51,19 +52,33 @@ function requestJson(url: string): Promise<{ status: number; body: any }> {
 const ritualIndex = `
   <a href="#1nav">طقس</a>
   <a href="/Coptic-Faith-Creed-Dogma/Coptic-Rite-n-Ritual-Taks-Al-Kanisa/Dictionary-of-Coptic-Ritual-Terms/Coptic-Church-Rituals-Lexicon__00-index.html">الفهرس</a>
-  <a href="${ritualPrefix}Coptic-Church-Rituals-Lexicon__01-Alef.html">أ</a>
-  <a href="${ritualPrefix}Coptic-Church-Rituals-Lexicon__02-Beh.html">ب</a>
+  ${Array.from({ length: 28 }, (_, index) => {
+    const number = String(index + 1).padStart(2, '0');
+    const label = index === 0 ? 'أ' : index === 1 ? 'ب' : `حرف ${index + 1}`;
+    const fileName = index === 0 ? 'Coptic-Church-Rituals-Lexicon__01-Alef.html'
+      : index === 1 ? 'Coptic-Church-Rituals-Lexicon__02-Beh.html'
+        : `Coptic-Church-Rituals-Lexicon__${number}-Letter.html`;
+    return `<a href="${ritualPrefix}${fileName}">${label}</a>`;
+  }).join('\n  ')}
 `;
 
-const bibleIndex = `
-  <a href="${biblePrefix}01_A/A_WORD.html">أ</a>
-  <a href="${biblePrefix}02_B/B_WORD.html">ب</a>
-`;
+const bibleIndex = Array.from({ length: 28 }, (_, index) => {
+  const number = String(index + 1).padStart(2, '0');
+  const label = index === 0 ? 'أ' : index === 1 ? 'ب' : `حرف ${index + 1}`;
+  const path = index === 0 ? '01_A/A_WORD.html'
+    : index === 1 ? '02_B/B_WORD.html'
+      : `${number}_LETTER/LETTER_WORD.html`;
+  return `<a href="${biblePrefix}${path}">${label}</a>`;
+}).join('\n  ');
 
-const calendarIndex = `
-  <a href="${calendarPrefix}01-January-Yanayer-Yanaier-Calendar-Coptic.html">1- يناير</a>
-  <a href="${calendarPrefix}02-February-Febrayer-Febraier-OrthodoxOnline-Calendar.html">2- فبراير</a>
-`;
+const calendarIndex = Array.from({ length: 12 }, (_, index) => {
+  const number = String(index + 1).padStart(2, '0');
+  const label = index === 0 ? '1- يناير' : index === 1 ? '2- فبراير' : `${index + 1}- شهر`;
+  const fileName = index === 0 ? '01-January-Yanayer-Yanaier-Calendar-Coptic.html'
+    : index === 1 ? '02-February-Febrayer-Febraier-OrthodoxOnline-Calendar.html'
+      : `${number}-Month-Calendar.html`;
+  return `<a href="${calendarPrefix}${fileName}">${label}</a>`;
+}).join('\n  ');
 
 describe('St-Takla section source service', () => {
   beforeEach(() => {
@@ -88,11 +103,32 @@ describe('St-Takla section source service', () => {
     const bible = await getStTaklaSectionCatalog('bible');
     const calendar = await getStTaklaSectionCatalog('calendar');
 
-    assert.deepEqual(ritual.browse.map(item => item.label), ['أ', 'ب']);
-    assert.deepEqual(bible.browse.map(item => item.label), ['أ', 'ب']);
-    assert.deepEqual(calendar.browse.map(item => item.id), ['month-1', 'month-2']);
+    assert.deepEqual(ritual.browse.slice(0, 2).map(item => item.label), ['أ', 'ب']);
+    assert.deepEqual(bible.browse.slice(0, 2).map(item => item.label), ['أ', 'ب']);
+    assert.deepEqual(calendar.browse.slice(0, 2).map(item => item.id), ['month-1', 'month-2']);
     assert.equal(ritual.status, 'ok');
     assert.match(calendar.sourceUrl, /st-takla\.org/);
+  });
+
+  it('marks a catalog unavailable when the upstream index loses a letter or month', async () => {
+    const incompleteRitualIndex = ritualIndex.replace(
+      /<a href="[^"]+__28-Letter\.html">حرف 28<\/a>/,
+      '',
+    );
+    globalThis.fetch = async input => {
+      const url = String(input);
+      if (url.includes('Coptic-Church-Rituals-Lexicon__00-index')) return response(incompleteRitualIndex);
+      if (url.includes('Kamous-Al-Engeel-index')) return response(bibleIndex);
+      if (url.includes('00-Al-Natiga-Al-Keptia-Current-Year-index')) return response(calendarIndex);
+      throw new Error(`unexpected URL ${url}`);
+    };
+
+    const catalogs = await getStTaklaSectionCatalogs();
+    const ritual = catalogs.find(catalog => catalog.key === 'ritual');
+    assert.equal(ritual?.status, 'unavailable');
+    assert.match(ritual?.error ?? '', /الحروف/);
+    assert.equal(ritual?.browse.length, 0);
+    assert.equal(catalogs.find(catalog => catalog.key === 'bible')?.status, 'ok');
   });
 
   it('filters dictionary entries on the selected Arabic browse page', async () => {
@@ -162,6 +198,26 @@ describe('St-Takla section source service', () => {
     await assert.rejects(
       () => getStTaklaSectionArticle('ritual', 'https://example.com/not-st-takla.html'),
       /غير مسموح/,
+    );
+  });
+
+  it('rejects empty browse pages and articles instead of returning successful empty data', async () => {
+    globalThis.fetch = async input => {
+      const url = String(input);
+      if (url.includes('Coptic-Church-Rituals-Lexicon__00-index')) return response(ritualIndex);
+      if (url.includes('Lexicon__01-Alef')) return response('<h1>أ</h1>');
+      if (url.includes('00-Al-Natiga-Al-Keptia-Current-Year-index')) return response(calendarIndex);
+      if (url.includes('01-January')) return response('<title>يناير | St-Takla.org</title><h1>يناير</h1>');
+      throw new Error(`unexpected URL ${url}`);
+    };
+
+    await assert.rejects(
+      () => getStTaklaSectionBrowse('ritual', 'letter-1'),
+      /مداخل قابلة للعرض/,
+    );
+    await assert.rejects(
+      () => getStTaklaSectionBrowse('calendar', 'month-1'),
+      /محتوى المقال/,
     );
   });
 });

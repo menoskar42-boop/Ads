@@ -262,6 +262,7 @@ export interface StTaklaSectionBrowseResponse {
   section: StTaklaSectionKey;
   source: 'St-Takla.org';
   sourceUrl: string;
+  status: 'ok' | 'unavailable';
   items: StTaklaSectionItem[];
   pagination?: StTaklaPagination;
   article?: StTaklaSectionArticle;

@@ -485,6 +485,16 @@ export function StTaklaSections({ embeddedSection }: { embeddedSection?: StTakla
                 إعادة المحاولة
               </Button>
             </div>
+          ) : browseQuery.data?.status === 'unavailable' ? (
+            <div className="p-8 text-center" data-testid="sttakla-browse-unavailable">
+              <AlertCircle className="mx-auto mb-3 h-7 w-7 text-amber-700 dark:text-amber-300" aria-hidden="true" />
+              <p className="text-sm font-medium text-foreground">هذا القسم غير متاح حاليًا.</p>
+              <p className="mt-1 text-sm text-muted-foreground">لم ينجح التحقق من بنية فهرس St-Takla أو محتواه.</p>
+              <Button type="button" variant="outline" size="sm" className="mt-4 gap-2" onClick={() => browseQuery.refetch()} data-testid="sttakla-browse-retry">
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                إعادة المحاولة
+              </Button>
+            </div>
           ) : browseQuery.data?.items.length ? (
             <div className="divide-y divide-border/70" aria-busy={browseQuery.isFetching} data-testid="sttakla-browse-results">
               {browseQuery.data.items.map((item) => (

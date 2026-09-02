@@ -7,6 +7,7 @@
 - [Synaxarium source](synaxarium-copticchurch.md) — daily Arabic Synaxarium text comes from validated month/day pages on copticchurch.net, with explicit unavailable states.
 - [MyBible preview build](mybible-preview-build.md) — the root preview serves MyBible from its compiled child bundle, so rebuild before live verification.
 - [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — strip navigation, avoid chapter-wrapper inference, and use current live URLs when indexed pages move.
+- [St-Takla section contracts](sttakla-sections-contract.md) — treat reachable indexes as invalid when expected letters, months, encoding, or article content disappear.
 - [Workshop release controls](workshop-release-controls.md) — keep quality gates, stock reservations, purchase receipts, and public booking confirmation as separate events.
 - [Local preview host routing](local-preview-host-routing.md) — treat loopback hosts as platform root, not tenant subdomains, or preview `/` can return a tenant 404.
 - [Deployment healthcheck status](deployment-healthcheck-status.md) — the VM readiness probe needs a direct 200 on `/`; a healthy redirect to `/ar` is still rejected.
