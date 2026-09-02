@@ -325,8 +325,12 @@ function reminderChannel(reminder) {
   return hasWhatsapp ? 'whatsapp' : 'sms';
 }
 
-async function queueServiceReminderMessages() {
-  const candidates = (await pool.query(
+async function queueServiceReminderMessages({
+  db = pool,
+  deliver = deliverWorkshopMessage,
+  activity = logActivity,
+} = {}) {
+  const candidates = (await db.query(
     `SELECT r.id, r.company_id, r.vehicle_id, r.job_id, r.customer_id,
             r.due_on, r.due_odometer, v.plate, v.odometer,
             c.phone AS customer_phone, c.whatsapp AS customer_whatsapp,
@@ -364,7 +368,7 @@ async function queueServiceReminderMessages() {
 
   let queued = 0;
   for (const reminder of candidates) {
-    const client = await pool.connect();
+    const client = await db.connect();
     let messageId = null;
     try {
       await client.query('BEGIN');
@@ -414,13 +418,13 @@ async function queueServiceReminderMessages() {
       && (reminder[`${reminderChannel(reminder)}_provider`] !== 'none');
     if (providerConfigured) {
       try {
-        await deliverWorkshopMessage(reminder.company_id, messageId);
+        await deliver(reminder.company_id, messageId);
       } catch (e) {
         console.error('[workshop reminder delivery]', e.message);
       }
     }
-    await logActivity(
-      pool, reminder.company_id, reminder.job_id,
+    await activity(
+      db, reminder.company_id, reminder.job_id,
       'service_reminder_queued',
       `تم تجهيز تذكير الصيانة للسيارة ${reminder.plate || ''}`
     );
@@ -2764,4 +2768,6 @@ router.get('/warranty', requireFlag('warranty'), requireWorkshopPermission('view
 
 module.exports = router;
 module.exports.pool = pool;
-module.exports.helpers = { num, int, text, round2, requireFlag };
+module.exports.helpers = {
+  num, int, text, round2, requireFlag, queueServiceReminderMessages,
+};
