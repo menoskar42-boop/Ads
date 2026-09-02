@@ -624,8 +624,13 @@ router.post('/jobs/:id/change-orders', requireFlag('change_orders'), async (req,
   try {
     await client.query('BEGIN');
     const order = (await client.query(
+      /* `ref()` بيحطّ التقييد **جوّه** جملة الكتابة: لو الـjob مش بتاع
+       * الشركة دي، `job_id` بيطلع NULL والقيد بيرفض الصف — مش بيتكتب
+       * ناقص. التحقّق اللي فوق برّه المعاملة، فبينه وبين الكتابة فيه
+       * فرجة نظرية؛ ده بيقفلها في نفس الجملة. وهو كمان النمط المتّبع في
+       * باقي المشروع، فـ`check-foreign-ids` بيعرفه من غير ما نوسّعه. */
       `INSERT INTO workshop_change_orders (company_id, job_id, reason, customer_note)
-       VALUES ($1,$2,$3,$4) RETURNING id`,
+       VALUES ($1,${ref('workshop_jobs', '$2', '$1')},$3,$4) RETURNING id`,
       [cid, jobId, text(b.reason, 500) || description, text(b.customer_note, 500)] )).rows[0];
     orderId = order.id;
     await client.query(
@@ -657,9 +662,11 @@ router.post('/jobs/:id/estimates', requireFlag('change_orders'), async (req, res
       WHERE company_id=$1 AND job_id=$2`, [cid, jobId])).rows[0].n;
   const actor = (await managerIdentity(req, cid)) || { name: 'فريق الورشة' };
   await pool.query(
+    /* التقييد جوّه الجملة — `job_id` هنا `NOT NULL`، فلو الـjob مش بتاع
+     * الشركة الصف بيترفض بدل ما يتكتب على شغل حد تاني. */
     `INSERT INTO workshop_estimate_versions
       (company_id, job_id, version_no, status, subtotal, total, snapshot, created_by, approved_by, approved_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,CASE WHEN $4='approved' THEN now() ELSE NULL END)`,
+     VALUES ($1,${ref('workshop_jobs', '$2', '$1')},$3,$4,$5,$6,$7::jsonb,$8,$9,CASE WHEN $4='approved' THEN now() ELSE NULL END)`,
     [cid, jobId, next, data.job.approved_at ? 'approved' : 'draft',
      totals.subtotal, totals.total, JSON.stringify(snapshot), actor.name,
      data.job.approved_at ? data.job.approved_by || actor.name : null]);
@@ -742,8 +749,12 @@ router.post('/time/start', requireFlag('floor'), async (req, res) => {
   if (valid) {
     try {
       await pool.query(
+        /* الاتنين متقيّدين: `job_id` (NOT NULL) بيرفض الصف لو الشغل مش
+         * بتاع الشركة، و`technician_id` بيبقى NULL لو الفني مش بتاعها —
+         * فمفيش ساعة شغل بتتسجّل على فني ورشة تانية. */
         `INSERT INTO workshop_time_entries (company_id, job_id, technician_id, note)
-         VALUES ($1,$2,$3,$4)`, [cid, jobId, techId, text(req.body && req.body.note, 300)]);
+         VALUES ($1,${ref('workshop_jobs', '$2', '$1')},${ref('workshop_technicians', '$3', '$1')},$4)`,
+        [cid, jobId, techId, text(req.body && req.body.note, 300)]);
       await logActivity(pool, cid, jobId, 'time_started', 'بدأ الفني تسجيل الوقت');
     } catch (e) { console.error('[workshop time start]', e.message); }
   }
@@ -865,15 +876,21 @@ router.get('/warranty-claims', requireFlag('warranty_claims'), async (req, res) 
 router.post('/warranty-claims', requireFlag('warranty_claims'), async (req, res) => {
   const cid = req.company.id, jobId = int(req.body && req.body.original_job_id);
   const complaint = text(req.body && req.body.complaint, 1000);
-  const original = (await pool.query(
-    `SELECT customer_id, vehicle_id FROM workshop_jobs WHERE id=$1 AND company_id=$2`, [jobId, cid])).rows[0];
-  if (original && complaint) {
-    await pool.query(
+  if (complaint) {
+    /* `INSERT … SELECT` بدل `VALUES`: الجملة بتاخد العربية والعميل من صف
+     * الشغل نفسه، وشرط `company_id` جوّاها. فلو الشغل مش بتاع الشركة دي
+     * الجملة **مابتكتبش ولا صف** — مش بتكتب مطالبة بشغل NULL.
+     * (`original_job_id` بيقبل NULL، فـ`ref()` لوحدها كانت هتسيب مطالبة
+     * ضمان مالهاش شغل بدل ما ترفضها.) */
+    const r = await pool.query(
       `INSERT INTO workshop_warranty_claims
         (company_id, original_job_id, vehicle_id, customer_id, complaint)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [cid, jobId, original.vehicle_id, original.customer_id, complaint]);
-    await logActivity(pool, cid, jobId, 'warranty_claim_opened', 'تم فتح مطالبة ضمان لعودة السيارة');
+       SELECT $2, id, vehicle_id, customer_id, $3
+         FROM workshop_jobs WHERE id=$1 AND company_id=$2`,
+      [jobId, cid, complaint]);
+    if (r.rowCount) {
+      await logActivity(pool, cid, jobId, 'warranty_claim_opened', 'تم فتح مطالبة ضمان لعودة السيارة');
+    }
   }
   res.redirect('/workshop/warranty-claims');
 });
