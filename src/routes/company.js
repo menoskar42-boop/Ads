@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
@@ -43,6 +44,10 @@ const loyaltyRules = require('../shop/loyalty');
 const shopThemes = require('../shop/themes');
 const push = require('../lib/push');
 const indexnow = require('../lib/indexnow');
+
+function workshopInviteHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -253,6 +258,93 @@ async function requireShop(req, res, next) {
 }
 
 /* ─── LOGIN ─────────────────────────────────────────────── */
+router.get('/workshop-invite/:token', async (req, res) => {
+  const token = String(req.params.token || '').slice(0, 200);
+  let invite = null;
+  if (token) {
+    try {
+      invite = (await pool.query(
+        `SELECT i.email, i.role, i.expires_at, c.company_name
+           FROM workshop_team_invitations i
+           JOIN companies c ON c.id=i.company_id AND c.page_type='workshop' AND c.is_active=true
+          WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.expires_at > now()`,
+        [workshopInviteHash(token)]
+      )).rows[0] || null;
+    } catch (e) {
+      console.error('[workshop invite page]', e.message);
+    }
+  }
+  res.render('company/workshop-invite', { invite, token, error: null });
+});
+
+router.post('/workshop-invite/:token', async (req, res) => {
+  const token = String(req.params.token || '').slice(0, 200);
+  const password = String(req.body && req.body.password || '');
+  const confirm = String(req.body && req.body.password_confirm || '');
+  const renderError = (error, invite = null) => res.status(400).render(
+    'company/workshop-invite', { invite, token, error }
+  );
+  if (password.length < 8 || password !== confirm) {
+    return renderError(password.length < 8
+      ? 'استخدم كلمة مرور من 8 أحرف على الأقل.'
+      : 'كلمتا المرور غير متطابقتين.');
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const invite = (await client.query(
+      `SELECT i.*, c.company_name, c.theme_color, c.slug
+         FROM workshop_team_invitations i
+         JOIN companies c ON c.id=i.company_id AND c.page_type='workshop' AND c.is_active=true
+        WHERE i.token_hash=$1 AND i.accepted_at IS NULL AND i.expires_at > now()
+        FOR UPDATE OF i`,
+      [workshopInviteHash(token)]
+    )).rows[0];
+    if (!invite) {
+      await client.query('ROLLBACK');
+      return renderError('رابط الدعوة غير صالح أو انتهت صلاحيته.');
+    }
+    const existing = (await client.query(
+      'SELECT id FROM company_users WHERE lower(email)=lower($1) LIMIT 1',
+      [invite.email]
+    )).rows[0];
+    if (existing) {
+      await client.query('ROLLBACK');
+      return renderError('يوجد حساب بهذا البريد بالفعل. استخدم تسجيل الدخول.', invite);
+    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const created = (await client.query(
+      `INSERT INTO company_users (company_id, email, password_hash, role)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
+      [invite.company_id, invite.email, passwordHash, invite.role]
+    )).rows[0];
+    await client.query(
+      'UPDATE workshop_team_invitations SET accepted_at=now() WHERE id=$1',
+      [invite.id]
+    );
+    await client.query(
+      `INSERT INTO workshop_role_history
+        (company_id, user_id, email, from_role, to_role, changed_by)
+       VALUES ($1,$2,$3,NULL,$4,$3)`,
+      [invite.company_id, created.id, invite.email, invite.role]
+    );
+    await client.query('COMMIT');
+    req.session.companyId = invite.company_id;
+    req.session.companyUserId = created.id;
+    req.session.companyName = invite.company_name;
+    req.session.themeColor = invite.theme_color;
+    req.session.companySlug = invite.slug;
+    req.session.adminLang = 'ar';
+    return res.redirect('/workshop');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop invite accept]', e.message);
+    return renderError('تعذر تفعيل الدعوة الآن. حاول مرة أخرى.');
+  } finally {
+    client.release();
+  }
+});
+
 router.get('/login', (req, res) => {
   if (req.session.companyId) return res.redirect('/company/dashboard');
   res.render('company/login', { error: null, notice: null });

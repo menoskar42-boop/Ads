@@ -3,6 +3,11 @@
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4"><%= t('wsh.set.saved') %></div><% } %>
 <% if (settingsError === 'secret_unavailable' || settingsError === 'payment_secret_unavailable') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">لا يمكن حفظ بيانات الاعتماد الآن لأن مفتاح التشفير غير مفعّل على الخادم.</div><% } %>
 <% if (settingsError === 'message_save' || settingsError === 'payment_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ الإعدادات. راجع البيانات وحاول مرة أخرى.</div><% } %>
+<% if (settingsError === 'invite_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا صحيحًا واختر دورًا صالحًا.</div><% } %>
+<% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
+<% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
+<% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
+<% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
 <% if (typeof users !== 'undefined' && canWorkshop('manage_settings')) { %>
   <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
     <div class="flex items-start justify-between gap-3 flex-wrap">
@@ -12,6 +17,23 @@
       </div>
       <span class="text-xs font-bold text-brand-700 bg-brand-50 rounded-full px-3 py-1">صلاحيتك: <%= workshopRoleLabel %></span>
     </div>
+      <form method="post" action="/workshop/settings/users/invite" class="grid sm:grid-cols-[1fr_10rem_auto] gap-2 mt-4 pt-4 border-t border-slate-100">
+        <label class="sr-only" for="invite-email">بريد عضو الفريق</label>
+        <input id="invite-email" type="email" name="email" required maxlength="200" placeholder="بريد عضو الفريق" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <label class="sr-only" for="invite-role">دور عضو الفريق</label>
+        <select id="invite-role" name="role" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+          <option value="reception">الاستقبال</option>
+          <option value="technician">الفني</option>
+          <option value="manager">مدير الورشة</option>
+        </select>
+        <button class="bg-brand-600 text-white rounded-xl px-4 py-2 text-sm font-bold">إنشاء دعوة</button>
+      </form>
+      <% if (inviteLink) { %>
+        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <div class="font-bold text-emerald-800">تم إنشاء الدعوة. انسخ الرابط وأرسله للعضو — يظل صالحًا 7 أيام.</div>
+          <input readonly value="<%= inviteLink %>" dir="ltr" onclick="this.select()" class="w-full mt-2 border border-emerald-200 rounded-lg px-3 py-2 text-xs bg-white" aria-label="رابط الدعوة" />
+        </div>
+      <% } %>
     <div class="divide-y divide-slate-100 mt-4">
       <% users.forEach(function(user){ %>
         <div class="py-3 flex items-center justify-between gap-3 flex-wrap">
@@ -35,6 +57,49 @@
         </div>
       <% }) %>
     </div>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <h2 class="font-black mb-1">سجل تغييرات الأدوار</h2>
+    <p class="text-xs text-slate-500 mb-3">سجل لا يمكن تعديله من واجهة الورشة، يوضح من غيّر دور كل حساب ومتى.</p>
+    <% if (!roleHistory || !roleHistory.length) { %>
+      <p class="text-sm text-slate-400">لا توجد تغييرات مسجلة بعد.</p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% roleHistory.forEach(function(change){ %>
+          <div class="py-3 text-sm flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <span class="font-bold" dir="ltr"><%= change.current_email || change.email %></span>
+              <span class="text-slate-500"> · <%= change.from_role ? (roleLabels[change.from_role] || change.from_role) : 'دعوة جديدة' %> ← <%= roleLabels[change.to_role] || change.to_role %></span>
+            </div>
+            <div class="text-xs text-slate-500"><%= change.changed_by || 'النظام' %> · <%= new Date(change.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <h2 class="font-black mb-1">تشغيل تذكيرات الصيانة</h2>
+    <p class="text-xs text-slate-500 mb-3">ملخص آخر عمليات العامل لهذه الورشة، مع فصل الرسائل التي تم تجهيزها عن التي تجاوزها عامل آخر أو فشلت.</p>
+    <% if (!reminderRuns || !reminderRuns.length) { %>
+      <p class="text-sm text-slate-400">لم يعمل عامل التذكيرات لهذه الورشة بعد.</p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% reminderRuns.forEach(function(run){ %>
+          <div class="py-3 flex items-center justify-between gap-3 flex-wrap text-sm">
+            <div class="text-xs text-slate-500">
+              <%= new Date(run.started_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %>
+              <% if (!run.finished_at) { %><span class="text-amber-700 font-bold"> · جارٍ</span><% } %>
+            </div>
+            <div class="flex gap-2 flex-wrap text-xs font-bold">
+              <span class="bg-slate-100 rounded-full px-2 py-1">مرشحون: <%= run.candidate_count %></span>
+              <span class="bg-emerald-50 text-emerald-700 rounded-full px-2 py-1">تم: <%= run.queued_count %></span>
+              <span class="bg-slate-100 text-slate-600 rounded-full px-2 py-1">تم تجاوزهم: <%= run.skipped_count %></span>
+              <% if (run.failed_count) { %><span class="bg-rose-50 text-rose-700 rounded-full px-2 py-1">فشل: <%= run.failed_count %></span><% } %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
   </section>
 <% } %>
 <form method="post" action="/workshop/settings" class="space-y-5">

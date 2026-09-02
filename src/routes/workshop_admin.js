@@ -185,9 +185,18 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
               ELSE next_retry_at
             END
       WHERE id=$4 AND company_id=$5
+        AND CASE status
+          WHEN 'prepared' THEN 0
+          WHEN 'queued' THEN 1
+          WHEN 'sent' THEN 2
+          WHEN 'failed' THEN 3
+          WHEN 'delivered' THEN 4
+          ELSE 2
+        END <= $6
       RETURNING id, job_id, status`,
-    [mapped.providerStatus, nextStatus, failure, current.id, companyId]
+    [mapped.providerStatus, nextStatus, failure, current.id, companyId, incomingRank]
   )).rows[0];
+  if (!changed) return { updated: false, reason: 'stale' };
   if (changed && changed.status !== current.status) {
     await logActivity(
       pool, companyId, changed.job_id,
@@ -329,6 +338,7 @@ async function queueServiceReminderMessages({
   db = pool,
   deliver = deliverWorkshopMessage,
   activity = logActivity,
+  runLog = true,
 } = {}) {
   const candidates = (await db.query(
     `SELECT r.id, r.company_id, r.vehicle_id, r.job_id, v.customer_id,
@@ -366,6 +376,48 @@ async function queueServiceReminderMessages({
       LIMIT 300`
   )).rows;
 
+  const runStats = new Map();
+  if (runLog) {
+    const allCompanies = await db.query(
+      `SELECT id FROM companies WHERE page_type='workshop' AND is_active=true`
+    );
+    const companyIds = [...new Set([
+      ...allCompanies.rows.map((row) => Number(row.id)),
+      ...candidates.map((row) => Number(row.company_id)),
+    ].filter(Boolean))];
+    for (const companyId of companyIds) {
+      try {
+        const run = (await db.query(
+          `INSERT INTO workshop_reminder_runs (company_id, candidate_count)
+           VALUES ($1,$2) RETURNING id`,
+          [companyId, candidates.filter((row) => Number(row.company_id) === companyId).length]
+        )).rows[0];
+        if (run) runStats.set(companyId, { id: run.id, queued: 0, skipped: 0, failed: 0 });
+      } catch (e) {
+        console.error('[workshop reminder run log]', e.message);
+      }
+    }
+  }
+
+  const updateRun = (companyId, key) => {
+    const stats = runStats.get(Number(companyId));
+    if (stats) stats[key] += 1;
+  };
+  const finishRuns = async () => {
+    for (const stats of runStats.values()) {
+      try {
+        await db.query(
+          `UPDATE workshop_reminder_runs
+              SET finished_at=now(), queued_count=$1, skipped_count=$2, failed_count=$3
+            WHERE id=$4`,
+          [stats.queued, stats.skipped, stats.failed, stats.id]
+        );
+      } catch (e) {
+        console.error('[workshop reminder run finish]', e.message);
+      }
+    }
+  };
+
   let queued = 0;
   for (const reminder of candidates) {
     const client = await db.connect();
@@ -382,6 +434,7 @@ async function queueServiceReminderMessages({
       )).rows[0];
       if (!claimed) {
         await client.query('ROLLBACK');
+        updateRun(reminder.company_id, 'skipped');
         continue;
       }
 
@@ -406,9 +459,11 @@ async function queueServiceReminderMessages({
       );
       await client.query('COMMIT');
       queued += 1;
+      updateRun(reminder.company_id, 'queued');
     } catch (e) {
       try { await client.query('ROLLBACK'); } catch (_) { /* best effort */ }
       console.error('[workshop reminder queue]', e.message);
+      updateRun(reminder.company_id, 'failed');
       continue;
     } finally {
       client.release();
@@ -429,6 +484,7 @@ async function queueServiceReminderMessages({
       `تم تجهيز تذكير الصيانة للسيارة ${reminder.plate || ''}`
     );
   }
+  await finishRuns();
   return queued;
 }
 
@@ -843,11 +899,26 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), requireWor
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', requireWorkshopPermission('view_settings'), async (req, res) => {
-  const [messageRow, paymentRow, users] = await Promise.all([
+  const [messageRow, paymentRow, users, roleHistory, reminderRuns] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),
     pool.query(
       'SELECT id, email, role, created_at FROM company_users WHERE company_id=$1 ORDER BY created_at, id',
+      [req.company.id]
+    ),
+    pool.query(
+      `SELECT h.*, COALESCE(u.email, h.email) AS current_email
+         FROM workshop_role_history h
+         LEFT JOIN company_users u ON u.id=h.user_id AND u.company_id=h.company_id
+        WHERE h.company_id=$1
+        ORDER BY h.created_at DESC, h.id DESC LIMIT 100`,
+      [req.company.id]
+    ),
+    pool.query(
+      `SELECT id, started_at, finished_at, candidate_count, queued_count, skipped_count, failed_count, error
+         FROM workshop_reminder_runs
+        WHERE company_id=$1
+        ORDER BY started_at DESC, id DESC LIMIT 20`,
       [req.company.id]
     ),
   ]);
@@ -862,11 +933,56 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     messageSettings: workshopMessagingView(messageRow.rows[0]),
     payment, settingsError: req.query.err || '',
     users: users.rows,
+    roleHistory: roleHistory.rows,
+    reminderRuns: reminderRuns.rows,
+    inviteLink: req.query.invite
+      ? `${publicOrigin(req)}/company/workshop-invite/${encodeURIComponent(String(req.query.invite).slice(0, 200))}`
+      : null,
     currentUserId: int(req.session.companyUserId),
     roleLabels: WORKSHOP_ROLE_LABELS,
     twilioWebhookUrl: workshopWebhookUrl(req.company.id, 'twilio', req),
     metaWebhookUrl: workshopWebhookUrl(req.company.id, 'meta', req),
   });
+});
+
+router.post('/settings/users/invite', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  const email = String(req.body && req.body.email || '').trim().toLowerCase();
+  const role = normalizeWorkshopRole(req.body && req.body.role);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      || !['manager', 'reception', 'technician'].includes(role)) {
+    return res.redirect('/workshop/settings?err=invite_invalid');
+  }
+  const existing = (await pool.query(
+    'SELECT id FROM company_users WHERE lower(email)=lower($1) LIMIT 1', [email]
+  )).rows[0];
+  if (existing) return res.redirect('/workshop/settings?err=invite_existing');
+
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE workshop_team_invitations
+          SET accepted_at=now()
+        WHERE company_id=$1 AND lower(email)=lower($2) AND accepted_at IS NULL`,
+      [req.company.id, email]
+    );
+    await client.query(
+      `INSERT INTO workshop_team_invitations
+        (company_id, email, role, token_hash, invited_by, expires_at)
+       VALUES ($1,$2,$3,$4,$5,now() + interval '7 days')`,
+      [req.company.id, email, role, tokenHash, int(req.session.companyUserId)]
+    );
+    await client.query('COMMIT');
+    return res.redirect('/workshop/settings?saved=1&invite=' + encodeURIComponent(token));
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop invite create]', e.message);
+    return res.redirect('/workshop/settings?err=invite_save');
+  } finally {
+    client.release();
+  }
 });
 
 router.post('/settings/users/:id/role', requireWorkshopPermission('manage_settings'), async (req, res) => {
@@ -878,17 +994,55 @@ router.post('/settings/users/:id/role', requireWorkshopPermission('manage_settin
       || id === int(req.session.companyUserId)) {
     return res.redirect('/workshop/settings?err=role_save');
   }
-  await pool.query(
-    `UPDATE company_users SET role=$1
-      WHERE id=$2 AND company_id=$3 AND role NOT IN ('owner','admin')`,
-    [role, id, req.company.id]
-  );
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const current = (await client.query(
+      `SELECT id, email, role FROM company_users
+        WHERE id=$1 AND company_id=$2 AND role NOT IN ('owner','admin')
+        FOR UPDATE`,
+      [id, req.company.id]
+    )).rows[0];
+    if (!current || current.role === role) {
+      await client.query('ROLLBACK');
+      return res.redirect(current ? '/workshop/settings?saved=1' : '/workshop/settings?err=role_save');
+    }
+    await client.query(
+      `UPDATE company_users SET role=$1
+        WHERE id=$2 AND company_id=$3 AND role NOT IN ('owner','admin')`,
+      [role, id, req.company.id]
+    );
+    const actor = req.workshopUser && req.workshopUser.email
+      ? req.workshopUser.email : 'إدارة الورشة';
+    await client.query(
+      `INSERT INTO workshop_role_history
+        (company_id, user_id, email, from_role, to_role, changed_by)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [req.company.id, current.id, current.email, current.role, role, actor]
+    );
+    await client.query('COMMIT');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop role update]', e.message);
+    return res.redirect('/workshop/settings?err=role_save');
+  } finally {
+    client.release();
+  }
   res.redirect('/workshop/settings?saved=1');
 });
 
 router.post('/settings', requireWorkshopPermission('manage_settings'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
+  const reminderDaysInput = String(b.reminder_lead_days == null ? '' : b.reminder_lead_days).trim();
+  const reminderKmInput = String(b.reminder_lead_km == null ? '' : b.reminder_lead_km).trim();
+  const reminderLeadDays = Number(reminderDaysInput);
+  const reminderLeadKm = Number(reminderKmInput);
+  if (!reminderDaysInput || !reminderKmInput
+      || !Number.isInteger(reminderLeadDays) || reminderLeadDays < 0 || reminderLeadDays > 60
+      || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000) {
+    return res.redirect('/workshop/settings?err=reminder_invalid');
+  }
   await pool.query(
     `INSERT INTO workshop_settings
        (company_id, business_name, address, phone, whatsapp, about, hours,
@@ -907,8 +1061,8 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
      text(b.about, 2000), text(b.hours, 120), Math.min(100, Math.max(0, num(b.tax_percent))),
      Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
      Math.max(0, int(b.service_months, 6)),
-      Math.min(60, Math.max(0, int(b.reminder_lead_days, DEFAULT_REMINDER_LEAD_DAYS))),
-      Math.min(10000, Math.max(0, int(b.reminder_lead_km, DEFAULT_REMINDER_LEAD_KM))),
+       reminderLeadDays,
+       reminderLeadKm,
      /* خانة اختيار مش مختارة مابتتبعتش أصلاً في الفورم، فغيابها = مقفول.
       * لازم تتحسب من وجود الحقل نفسه — لو قريناها بـ`!== false` كانت
       * هتفضل مفتوحة على طول ومحدش يقدر يقفل. */
@@ -1604,7 +1758,7 @@ async function prepareWorkshopMessage(companyId, jobId, eventKey) {
 
 router.get('/communications', requireFlag('communications'), requireWorkshopPermission('view_communications'), async (req, res) => {
   const cid = req.company.id;
-  const [messages, jobs] = await Promise.all([
+  const [messages, jobs, finalFailures] = await Promise.all([
     pool.query(
       `SELECT m.*, j.id AS job_id, v.plate, c.name AS customer_name, c.phone AS customer_phone
          FROM workshop_messages m
@@ -1619,10 +1773,16 @@ router.get('/communications', requireFlag('communications'), requireWorkshopPerm
          LEFT JOIN workshop_customers c ON c.id=j.customer_id AND c.company_id=j.company_id
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
         ORDER BY j.received_at DESC LIMIT 300`, [cid]),
+    pool.query(
+      `SELECT COUNT(*)::int AS n
+         FROM workshop_messages
+        WHERE company_id=$1 AND status='failed' AND COALESCE(attempt_count,0) >= 5`,
+      [cid]),
   ]);
   res.render('workshop_admin/communications', {
     title: 'رسائل العملاء', tab: 'communications', messages: messages.rows, jobs: jobs.rows,
     sent: req.query.sent === '1', error: req.query.error || '',
+    finalFailureCount: finalFailures.rows[0].n,
     messaging: workshopMessagingView(await pool.query(
       'SELECT * FROM workshop_message_settings WHERE company_id=$1', [cid]
     ).then((r) => r.rows[0])),

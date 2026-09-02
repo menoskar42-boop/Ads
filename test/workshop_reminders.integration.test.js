@@ -136,6 +136,7 @@ describe('workshop service reminder queue integration', () => {
       db,
       activity: async () => {},
       deliver: async () => ({ ok: true }),
+      runLog: false,
     };
 
     const [firstRun, secondRun] = await Promise.all([
@@ -164,6 +165,7 @@ describe('workshop service reminder queue integration', () => {
       db,
       activity: async () => {},
       deliver: async () => ({ ok: true }),
+      runLog: false,
     };
 
     const failedRun = await queue(options);

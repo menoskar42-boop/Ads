@@ -61,6 +61,48 @@ async function ensureWorkshopSchema() {
         enabled     BOOLEAN NOT NULL DEFAULT false,
         PRIMARY KEY (company_id, flag_key)
       );
+
+      CREATE TABLE IF NOT EXISTS workshop_team_invitations (
+        id           BIGSERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        email        TEXT NOT NULL,
+        role         TEXT NOT NULL DEFAULT 'reception',
+        token_hash   TEXT NOT NULL UNIQUE,
+        invited_by   INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
+        expires_at   TIMESTAMPTZ NOT NULL,
+        accepted_at  TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_team_invites_lookup
+        ON workshop_team_invitations (company_id, lower(email), expires_at)
+        WHERE accepted_at IS NULL;
+
+      CREATE TABLE IF NOT EXISTS workshop_role_history (
+        id           BIGSERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        user_id      INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
+        email        TEXT NOT NULL,
+        from_role    TEXT,
+        to_role      TEXT NOT NULL,
+        changed_by   TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_role_history
+        ON workshop_role_history (company_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_reminder_runs (
+        id             BIGSERIAL PRIMARY KEY,
+        company_id     INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        finished_at    TIMESTAMPTZ,
+        candidate_count INTEGER NOT NULL DEFAULT 0,
+        queued_count   INTEGER NOT NULL DEFAULT 0,
+        skipped_count  INTEGER NOT NULL DEFAULT 0,
+        failed_count   INTEGER NOT NULL DEFAULT 0,
+        error          TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_reminder_runs
+        ON workshop_reminder_runs (company_id, started_at DESC);
     `);
 
     // ── Customers and vehicles ───────────────────────────────────────────────
