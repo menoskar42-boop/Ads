@@ -275,7 +275,9 @@ async function ensureSokroSchema() {
         payload JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      CREATE INDEX IF NOT EXISTS sokro_phone_calls_user_idx ON sokro_phone_calls(user_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS sokro_phone_events_call_idx ON sokro_phone_events(call_id, id);
+      CREATE INDEX IF NOT EXISTS sokro_phone_events_user_call_idx ON sokro_phone_events(user_id, call_id, id);
       /* دفتر جهات الاتصال — الرقم **مشفّر** زي أي سر.
        *
        * الرقم مش بيانات المستخدم، ده بيانات **طرف تالت** ما اختارش يدّيهالنا.
