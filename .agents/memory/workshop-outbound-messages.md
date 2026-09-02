@@ -3,8 +3,8 @@ name: Workshop outbound messages
 description: Boundary between the workshop notification log and real WhatsApp/SMS delivery.
 ---
 
-Workshop customer notifications must be treated as prepared, tracked messages until a real provider is connected. The current safe behavior is to create a message record, offer a WhatsApp or SMS deep link, and let the operator mark it sent; never claim that the provider delivered it.
+Workshop customer notifications must remain tracked in the local outbox. When a workshop connects Twilio or Meta, provider acceptance and later delivery/failure callbacks update that same record; a deep link alone never proves delivery.
 
-**Why:** No external messaging credential or provider is currently attached to the workshop, and silently pretending that a deep link is delivery would hide failed customer communication.
+**Why:** Provider APIs acknowledge messages before final delivery, and callbacks can be delayed, duplicated, or forged if they are not authenticated and company-scoped.
 
-**How to apply:** When adding provider delivery, keep the existing message/outbox record as the audit trail, update `sent` or `error` from the provider response, and use Replit-managed integration/secrets rather than putting credentials in code or chat.
+**How to apply:** Keep the existing message/outbox record as the audit trail, attach Twilio status callbacks and Meta signed webhooks to provider IDs, ignore stale updates, and keep credentials encrypted and out of views/logs.

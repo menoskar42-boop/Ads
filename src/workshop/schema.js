@@ -554,6 +554,9 @@ async function ensureWorkshopSchema() {
         body        TEXT NOT NULL,
         status      TEXT NOT NULL DEFAULT 'prepared',
         sent_at     TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ,
+        failed_at   TIMESTAMPTZ,
+        delivery_updated_at TIMESTAMPTZ,
         error       TEXT,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
@@ -574,6 +577,8 @@ async function ensureWorkshopSchema() {
         twilio_whatsapp_from    TEXT,
         meta_phone_number_id    TEXT,
         meta_access_token_enc   TEXT,
+        meta_app_secret_enc     TEXT,
+        meta_verify_token_enc   TEXT,
         updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_message_settings_active
@@ -615,7 +620,15 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
-        ADD COLUMN IF NOT EXISTS provider_status TEXT;
+         ADD COLUMN IF NOT EXISTS provider_status TEXT,
+         ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_wsh_messages_provider_id
+        ON workshop_messages (company_id, provider_message_id);
+      ALTER TABLE workshop_message_settings
+        ADD COLUMN IF NOT EXISTS meta_app_secret_enc TEXT,
+        ADD COLUMN IF NOT EXISTS meta_verify_token_enc TEXT;
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs_bay
         ON workshop_jobs (company_id, bay_id, status);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_wsh_parts_barcode

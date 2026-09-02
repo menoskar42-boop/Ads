@@ -7,11 +7,16 @@
 'use strict';
 
 const express = require('express');
+const crypto = require('crypto');
 const { Pool } = require('pg');
 const { ref } = require('../lib/tenant_scope');
 const payVault = require('../lib/pay_vault');
 const workshopVault = require('../lib/workshop_vault');
-const { sendWorkshopMessage } = require('../lib/workshop_messaging');
+const {
+  sendWorkshopMessage,
+  deliveryFromProvider,
+  DELIVERY_STATUS_ORDER,
+} = require('../lib/workshop_messaging');
 const { loadPaySettings, gatewayReady } = require('../lib/gateways');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
@@ -76,6 +81,8 @@ async function loadWorkshopMessagingConfig(companyId) {
     accountSid: workshopVault.read(row.twilio_account_sid_enc, null),
     authToken: workshopVault.read(row.twilio_auth_token_enc, null),
     metaAccessToken: workshopVault.read(row.meta_access_token_enc, null),
+    metaAppSecret: workshopVault.read(row.meta_app_secret_enc, null),
+    metaVerifyToken: workshopVault.read(row.meta_verify_token_enc, null),
   };
 }
 
@@ -91,8 +98,170 @@ function workshopMessagingView(row) {
     twilio_account_sid_set: Boolean(source.twilio_account_sid_enc),
     twilio_auth_token_set: Boolean(source.twilio_auth_token_enc),
     meta_access_token_set: Boolean(source.meta_access_token_enc),
+    meta_app_secret_set: Boolean(source.meta_app_secret_enc),
+    meta_verify_token_set: Boolean(source.meta_verify_token_enc),
   };
 }
+
+function publicOrigin(req) {
+  const configured = String(process.env.PUBLIC_BASE_DOMAINS || process.env.PUBLIC_BASE_DOMAIN || '')
+    .split(',').map((value) => value.trim()).find(Boolean);
+  if (configured) {
+    return (configured.startsWith('http://') || configured.startsWith('https://')
+      ? configured : `https://${configured}`).replace(/\/+$/, '');
+  }
+  if (!req) return '';
+  const forwarded = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  return `${forwarded || req.protocol || 'https'}://${req.get('host')}`.replace(/\/+$/, '');
+}
+
+function workshopWebhookUrl(companyId, provider, req) {
+  const origin = publicOrigin(req);
+  return origin ? `${origin}/workshop/webhooks/${provider}/${encodeURIComponent(companyId)}` : null;
+}
+
+function safeSignatureEqual(expected, received) {
+  const left = Buffer.from(String(expected || ''));
+  const right = Buffer.from(String(received || ''));
+  return left.length > 0 && left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function twilioSignatureValid(req, authToken) {
+  const received = req.get('x-twilio-signature');
+  if (!received || !authToken) return false;
+  const url = `${publicOrigin(req)}${req.originalUrl}`;
+  const params = Object.keys(req.body || {}).sort().map((key) => {
+    const value = req.body[key];
+    return key + (Array.isArray(value) ? value.join(',') : String(value == null ? '' : value));
+  }).join('');
+  const expected = crypto.createHmac('sha1', authToken).update(url + params).digest('base64');
+  return safeSignatureEqual(expected, received);
+}
+
+function metaSignatureValid(req, appSecret) {
+  const received = req.get('x-hub-signature-256');
+  if (!received || !appSecret || !/^sha256=[a-f0-9]+$/i.test(received)) return false;
+  const payload = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(payload).digest('hex');
+  return safeSignatureEqual(expected, received);
+}
+
+async function updateWorkshopDelivery(companyId, providerMessageId, provider, providerStatus, providerError) {
+  const mapped = deliveryFromProvider(provider, providerStatus);
+  if (!mapped || !providerMessageId) return { updated: false, reason: 'ignored' };
+  const current = (await pool.query(
+    `SELECT id, job_id, channel, status, provider_status
+       FROM workshop_messages
+      WHERE company_id=$1 AND provider_message_id=$2
+      ORDER BY id DESC LIMIT 1`,
+    [companyId, String(providerMessageId).slice(0, 250)]
+  )).rows[0];
+  if (!current) return { updated: false, reason: 'unknown_message' };
+  if (provider === 'meta' && current.channel !== 'whatsapp') {
+    return { updated: false, reason: 'channel_mismatch' };
+  }
+
+  const currentRank = DELIVERY_STATUS_ORDER[current.status] == null
+    ? DELIVERY_STATUS_ORDER.sent : DELIVERY_STATUS_ORDER[current.status];
+  const incomingRank = mapped.status
+    ? DELIVERY_STATUS_ORDER[mapped.status] : currentRank;
+  if (incomingRank < currentRank) return { updated: false, reason: 'stale' };
+
+  const nextStatus = mapped.status || current.status;
+  const failure = nextStatus === 'failed' ? text(providerError, 500) : null;
+  const changed = (await pool.query(
+    `UPDATE workshop_messages
+        SET provider_status=$1,
+            status=$2,
+            error=CASE WHEN $2='failed' THEN $3 ELSE NULL END,
+            delivered_at=CASE WHEN $2='delivered' THEN COALESCE(delivered_at, now()) ELSE delivered_at END,
+            failed_at=CASE WHEN $2='failed' THEN COALESCE(failed_at, now()) ELSE failed_at END,
+            delivery_updated_at=now()
+      WHERE id=$4 AND company_id=$5
+      RETURNING id, job_id, status`,
+    [mapped.providerStatus, nextStatus, failure, current.id, companyId]
+  )).rows[0];
+  if (changed && changed.status !== current.status) {
+    await logActivity(
+      pool, companyId, changed.job_id,
+      nextStatus === 'delivered' ? 'تم تأكيد وصول رسالة العميل من المزود'
+        : nextStatus === 'failed' ? 'فشل وصول رسالة العميل بحسب المزود'
+          : 'حدّث المزود حالة رسالة العميل',
+      `${provider}: ${mapped.providerStatus}`
+    );
+  }
+  return { updated: Boolean(changed), status: nextStatus };
+}
+
+// Provider callbacks are intentionally before the authenticated admin router:
+// Twilio and Meta call these endpoints server-to-server, without a workshop
+// session. The company id is only a lookup hint; the provider signature and
+// stored account identity are the actual authorization checks.
+router.get('/webhooks/meta/:companyId', async (req, res) => {
+  const companyId = int(req.params.companyId);
+  const config = companyId ? await loadWorkshopMessagingConfig(companyId) : null;
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (!config || mode !== 'subscribe' || !config.metaVerifyToken
+      || !safeSignatureEqual(config.metaVerifyToken, token)) {
+    return res.status(403).send('forbidden');
+  }
+  return res.type('text/plain').send(String(challenge || '').slice(0, 200));
+});
+
+router.post('/webhooks/twilio/:companyId', async (req, res) => {
+  try {
+    const companyId = int(req.params.companyId);
+    const config = companyId ? await loadWorkshopMessagingConfig(companyId) : null;
+    const accountSid = String(req.body && req.body.AccountSid || '');
+    if (!config || !config.accountSid || accountSid !== config.accountSid
+        || !twilioSignatureValid(req, config.authToken)) {
+      return res.status(403).send('forbidden');
+    }
+    const messageId = req.body.MessageSid || req.body.SmsSid;
+    const status = req.body.MessageStatus || req.body.SmsStatus;
+    const error = req.body.ErrorMessage || req.body.ErrorCode || null;
+    await updateWorkshopDelivery(companyId, messageId, 'twilio', status, error);
+    return res.type('text/plain').send('ok');
+  } catch (e) {
+    console.error('[workshop twilio callback]', e.message);
+    return res.status(500).send('temporary failure');
+  }
+});
+
+router.post('/webhooks/meta/:companyId', async (req, res) => {
+  try {
+    const companyId = int(req.params.companyId);
+    const config = companyId ? await loadWorkshopMessagingConfig(companyId) : null;
+    if (!config || !metaSignatureValid(req, config.metaAppSecret)) {
+      return res.status(403).send('forbidden');
+    }
+    const entries = Array.isArray(req.body && req.body.entry) ? req.body.entry : [];
+    let accepted = false;
+    for (const entry of entries) {
+      for (const change of (Array.isArray(entry.changes) ? entry.changes : [])) {
+        const value = change && change.value;
+        if (!value || !config.metaPhoneNumberId
+          || String(value.metadata && value.metadata.phone_number_id || '') !== String(config.metaPhoneNumberId)) {
+          continue;
+        }
+        const statuses = Array.isArray(value.statuses) ? value.statuses : [];
+        for (const item of statuses) {
+          const error = Array.isArray(item.errors)
+            ? item.errors.map((one) => one.title || one.message || one.code).filter(Boolean).join('; ')
+            : null;
+          await updateWorkshopDelivery(companyId, item.id, 'meta', item.status, error);
+          accepted = true;
+        }
+      }
+    }
+    return res.type('text/plain').send(accepted ? 'ok' : 'ignored');
+  } catch (e) {
+    console.error('[workshop meta callback]', e.message);
+    return res.status(500).send('temporary failure');
+  }
+});
 
 async function deliverWorkshopMessage(companyId, messageId, force = false) {
   const claimed = (await pool.query(
@@ -109,6 +278,7 @@ async function deliverWorkshopMessage(companyId, messageId, force = false) {
   if (!claimed) return { ok: false, error: 'message is already sending, sent, or has reached the retry limit' };
 
   const config = await loadWorkshopMessagingConfig(companyId);
+  if (config) config.statusCallbackUrl = workshopWebhookUrl(companyId, 'twilio');
   const result = await sendWorkshopMessage(config, claimed.channel, claimed.recipient, claimed.body);
   const nextRetry = result.ok || Number(claimed.attempt_count) >= 5
     ? null : new Date(Date.now() + 5 * 60 * 1000);
@@ -550,6 +720,8 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     users: users.rows,
     currentUserId: int(req.session.companyUserId),
     roleLabels: WORKSHOP_ROLE_LABELS,
+    twilioWebhookUrl: workshopWebhookUrl(req.company.id, 'twilio', req),
+    metaWebhookUrl: workshopWebhookUrl(req.company.id, 'meta', req),
   });
 });
 
@@ -612,8 +784,9 @@ router.post('/settings/messages', requireWorkshopPermission('manage_settings'), 
       `INSERT INTO workshop_message_settings
         (company_id, active, sms_provider, whatsapp_provider,
          twilio_account_sid_enc, twilio_auth_token_enc, twilio_sms_from,
-         twilio_whatsapp_from, meta_phone_number_id, meta_access_token_enc, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
+         twilio_whatsapp_from, meta_phone_number_id, meta_access_token_enc,
+         meta_app_secret_enc, meta_verify_token_enc, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
        ON CONFLICT (company_id) DO UPDATE SET
          active=EXCLUDED.active, sms_provider=EXCLUDED.sms_provider,
          whatsapp_provider=EXCLUDED.whatsapp_provider,
@@ -623,6 +796,8 @@ router.post('/settings/messages', requireWorkshopPermission('manage_settings'), 
          twilio_whatsapp_from=EXCLUDED.twilio_whatsapp_from,
          meta_phone_number_id=EXCLUDED.meta_phone_number_id,
          meta_access_token_enc=EXCLUDED.meta_access_token_enc,
+          meta_app_secret_enc=EXCLUDED.meta_app_secret_enc,
+          meta_verify_token_enc=EXCLUDED.meta_verify_token_enc,
          updated_at=now()`,
       [cid, b.active === '1',
         ['none', 'twilio'].includes(b.sms_provider) ? b.sms_provider : 'none',
@@ -631,7 +806,9 @@ router.post('/settings/messages', requireWorkshopPermission('manage_settings'), 
         keepWorkshopSecret(current.twilio_auth_token_enc, b.twilio_auth_token, b.twilio_auth_token_clear),
         text(b.twilio_sms_from, 40), text(b.twilio_whatsapp_from, 40),
         text(b.meta_phone_number_id, 120),
-        keepWorkshopSecret(current.meta_access_token_enc, b.meta_access_token, b.meta_access_token_clear)]
+         keepWorkshopSecret(current.meta_access_token_enc, b.meta_access_token, b.meta_access_token_clear),
+         keepWorkshopSecret(current.meta_app_secret_enc, b.meta_app_secret, b.meta_app_secret_clear),
+         keepWorkshopSecret(current.meta_verify_token_enc, b.meta_verify_token, b.meta_verify_token_clear)]
     );
   } catch (e) {
     console.error('[workshop message settings]', e.message);

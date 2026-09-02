@@ -85,6 +85,15 @@
       <label><span class="text-xs font-bold text-slate-500">رقم WhatsApp المرسل</span><input name="twilio_whatsapp_from" dir="ltr" value="<%= messageSettings.twilio_whatsapp_from %>" placeholder="whatsapp:+1415..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
       <label><span class="text-xs font-bold text-slate-500">Meta Phone Number ID</span><input name="meta_phone_number_id" dir="ltr" value="<%= messageSettings.meta_phone_number_id %>" placeholder="Phone Number ID" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
       <label><span class="text-xs font-bold text-slate-500">Meta Access Token</span><input type="password" name="meta_access_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_access_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Access token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_access_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_access_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta App Secret</span><input type="password" name="meta_app_secret" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_app_secret_set ? '•••••••• محفوظ — اتركه فارغًا' : 'App secret' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_app_secret_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_app_secret_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta Verify Token</span><input type="password" name="meta_verify_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_verify_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Verify token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_verify_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_verify_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <div class="sm:col-span-2 bg-slate-50 rounded-xl px-3 py-3 text-[11px] text-slate-600 space-y-1">
+        <div>ضع Twilio Status Callback على:</div>
+        <code dir="ltr" class="block break-all"><%= twilioWebhookUrl || 'اضبط PUBLIC_BASE_DOMAIN لإظهار الرابط العام' %></code>
+        <div class="pt-1">ضع Meta Webhook على:</div>
+        <code dir="ltr" class="block break-all"><%= metaWebhookUrl || 'اضبط PUBLIC_BASE_DOMAIN لإظهار الرابط العام' %></code>
+        <div>لن تُقبل تحديثات Meta إلا بعد حفظ App Secret وVerify Token والتحقق من توقيع الطلب.</div>
+      </div>
       <button class="sm:col-span-2 bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5">حفظ إعدادات الإرسال</button>
     </form>
   </section>

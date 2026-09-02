@@ -2,6 +2,13 @@
 'use strict';
 
 const GRAPH_VERSION = 'v20.0';
+const DELIVERY_STATUS_ORDER = {
+  prepared: 0,
+  queued: 1,
+  sent: 2,
+  failed: 3,
+  delivered: 4,
+};
 
 function normalizePhone(raw) {
   let digits = String(raw || '').replace(/[^\d]/g, '');
@@ -35,7 +42,9 @@ async function sendTwilio(config, channel, phone, body) {
   if (!from) return resultError(channel === 'whatsapp' ? 'WhatsApp sender is not configured' : 'SMS sender is not configured');
   const to = channel === 'whatsapp' ? `whatsapp:+${phone}` : `+${phone}`;
   const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(config.accountSid)}/Messages.json`;
-  const form = new URLSearchParams({ To: to, From: from, Body: body });
+  const fields = { To: to, From: from, Body: body };
+  if (config.statusCallbackUrl) fields.StatusCallback = config.statusCallbackUrl;
+  const form = new URLSearchParams(fields);
   const auth = Buffer.from(`${config.accountSid}:${config.authToken}`).toString('base64');
   const response = await request(url, {
     method: 'POST',
@@ -91,4 +100,24 @@ async function sendWorkshopMessage(config, channel, recipient, body) {
   }
 }
 
-module.exports = { normalizePhone, sendWorkshopMessage };
+function deliveryFromProvider(provider, rawStatus) {
+  const status = String(rawStatus || '').trim().toLowerCase();
+  if (!status) return null;
+  if (['delivered', 'read'].includes(status)) {
+    return { status: 'delivered', providerStatus: status };
+  }
+  if (['failed', 'undelivered', 'expired', 'rejected', 'canceled', 'cancelled'].includes(status)) {
+    return { status: 'failed', providerStatus: status };
+  }
+  if (['queued', 'accepted', 'sending', 'sent', 'submitted'].includes(status)) {
+    return { status: 'sent', providerStatus: status };
+  }
+  return { status: null, providerStatus: status };
+}
+
+module.exports = {
+  normalizePhone,
+  sendWorkshopMessage,
+  deliveryFromProvider,
+  DELIVERY_STATUS_ORDER,
+};
