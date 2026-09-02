@@ -559,6 +559,43 @@ async function ensureWorkshopSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_messages
         ON workshop_messages (company_id, created_at DESC);
+
+      -- Each workshop connects its own Twilio or Meta account. Credentials are
+      -- encrypted before storage; the settings page only exposes configured
+      -- indicators, never the secret values.
+      CREATE TABLE IF NOT EXISTS workshop_message_settings (
+        company_id              INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        active                  BOOLEAN NOT NULL DEFAULT false,
+        sms_provider            TEXT NOT NULL DEFAULT 'none',
+        whatsapp_provider       TEXT NOT NULL DEFAULT 'none',
+        twilio_account_sid_enc  TEXT,
+        twilio_auth_token_enc   TEXT,
+        twilio_sms_from         TEXT,
+        twilio_whatsapp_from    TEXT,
+        meta_phone_number_id    TEXT,
+        meta_access_token_enc   TEXT,
+        updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_message_settings_active
+        ON workshop_message_settings (company_id, active);
+
+      CREATE TABLE IF NOT EXISTS workshop_payment_attempts (
+        id                 BIGSERIAL PRIMARY KEY,
+        company_id         INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id             INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        merchant_order_id  TEXT NOT NULL UNIQUE,
+        provider            TEXT NOT NULL DEFAULT 'paymob',
+        amount_cents       INTEGER NOT NULL,
+        status              TEXT NOT NULL DEFAULT 'pending',
+        provider_order_id  TEXT,
+        payment_ref        TEXT,
+        payment_url        TEXT,
+        error              TEXT,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        paid_at            TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_payment_attempts_job
+        ON workshop_payment_attempts (company_id, job_id, created_at DESC);
     `);
 
     // Existing installations need the new relationship/lookup columns too.
@@ -573,6 +610,12 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS technician_note TEXT;
       ALTER TABLE workshop_parts
         ADD COLUMN IF NOT EXISTS barcode TEXT;
+      ALTER TABLE workshop_messages
+        ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
+        ADD COLUMN IF NOT EXISTS provider_status TEXT;
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs_bay
         ON workshop_jobs (company_id, bay_id, status);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_wsh_parts_barcode

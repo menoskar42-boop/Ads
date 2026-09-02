@@ -9,6 +9,10 @@
 const express = require('express');
 const { Pool } = require('pg');
 const { ref } = require('../lib/tenant_scope');
+const payVault = require('../lib/pay_vault');
+const workshopVault = require('../lib/workshop_vault');
+const { sendWorkshopMessage } = require('../lib/workshop_messaging');
+const { loadPaySettings, gatewayReady } = require('../lib/gateways');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
 const {
@@ -31,6 +35,92 @@ const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().sli
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+
+function keepWorkshopSecret(current, typed, clear) {
+  if (clear === '1') return null;
+  const value = String(typed || '').trim();
+  if (value) return workshopVault.encrypt(value);
+  return current || null;
+}
+
+async function loadWorkshopMessagingConfig(companyId) {
+  const row = (await pool.query(
+    'SELECT * FROM workshop_message_settings WHERE company_id=$1', [companyId]
+  )).rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    accountSid: workshopVault.read(row.twilio_account_sid_enc, null),
+    authToken: workshopVault.read(row.twilio_auth_token_enc, null),
+    metaAccessToken: workshopVault.read(row.meta_access_token_enc, null),
+  };
+}
+
+function workshopMessagingView(row) {
+  const source = row || {};
+  return {
+    active: Boolean(source.active),
+    sms_provider: source.sms_provider || 'none',
+    whatsapp_provider: source.whatsapp_provider || 'none',
+    twilio_sms_from: source.twilio_sms_from || '',
+    twilio_whatsapp_from: source.twilio_whatsapp_from || '',
+    meta_phone_number_id: source.meta_phone_number_id || '',
+    twilio_account_sid_set: Boolean(source.twilio_account_sid_enc),
+    twilio_auth_token_set: Boolean(source.twilio_auth_token_enc),
+    meta_access_token_set: Boolean(source.meta_access_token_enc),
+  };
+}
+
+async function deliverWorkshopMessage(companyId, messageId, force = false) {
+  const claimed = (await pool.query(
+    `UPDATE workshop_messages
+        SET status='queued', attempt_count=COALESCE(attempt_count,0)+1,
+            last_attempt_at=now(), error=NULL
+      WHERE id=$1 AND company_id=$2
+        AND status IN ('prepared','failed')
+        AND COALESCE(attempt_count,0) < 5
+        AND ($3 OR next_retry_at IS NULL OR next_retry_at <= now())
+      RETURNING *`,
+    [messageId, companyId, force]
+  )).rows[0];
+  if (!claimed) return { ok: false, error: 'message is already sending, sent, or has reached the retry limit' };
+
+  const config = await loadWorkshopMessagingConfig(companyId);
+  const result = await sendWorkshopMessage(config, claimed.channel, claimed.recipient, claimed.body);
+  const nextRetry = result.ok || Number(claimed.attempt_count) >= 5
+    ? null : new Date(Date.now() + 5 * 60 * 1000);
+  await pool.query(
+    `UPDATE workshop_messages
+        SET status=$1, sent_at=CASE WHEN $1='sent' THEN now() ELSE NULL END,
+            provider_message_id=$2, provider_status=$3, error=$4, next_retry_at=$5
+      WHERE id=$6 AND company_id=$7`,
+    [result.ok ? 'sent' : 'failed', result.providerMessageId || null,
+      result.providerStatus || null, result.ok ? null : result.error, nextRetry, messageId, companyId]
+  );
+  if (result.ok) {
+    await logActivity(pool, companyId, claimed.job_id,
+      `تم إرسال رسالة ${claimed.channel === 'sms' ? 'SMS' : 'WhatsApp'} للعميل`);
+  }
+  return result;
+}
+
+// Failed deliveries are retried without needing an admin to keep the page
+// open. The manual button remains available for an immediate retry.
+const workshopRetryTimer = setInterval(async () => {
+  try {
+    const rows = (await pool.query(
+      `SELECT id, company_id
+         FROM workshop_messages
+        WHERE status='failed' AND next_retry_at IS NOT NULL
+          AND next_retry_at <= now() AND attempt_count < 5
+        ORDER BY next_retry_at LIMIT 25`
+    )).rows;
+    for (const row of rows) await deliverWorkshopMessage(row.company_id, row.id);
+  } catch (e) {
+    console.error('[workshop message retry]', e.message);
+  }
+}, 60 * 1000);
+if (workshopRetryTimer.unref) workshopRetryTimer.unref();
 
 async function loadWorkshopInvoiceRows(companyId, options = {}) {
   const params = [companyId];
@@ -382,9 +472,20 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), async (req
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', async (req, res) => {
+  const [messageRow, paymentRow] = await Promise.all([
+    pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
+    loadPaySettings(pool, req.company.id),
+  ]);
+  const payment = Object.assign({}, paymentRow || { gateway: 'none', cod_enabled: true });
+  payment.gateway_secret_set = Boolean(payment.gateway_secret_enc || payment.gateway_secret);
+  payment.gateway_hmac_set = Boolean(payment.gateway_hmac_enc || payment.gateway_hmac);
+  delete payment.gateway_secret; delete payment.gateway_secret_enc;
+  delete payment.gateway_hmac; delete payment.gateway_hmac_enc;
   res.render('workshop_admin/settings', {
     title: res.locals.t('wsh.set.title'), tab: 'settings',
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
+    messageSettings: workshopMessagingView(messageRow.rows[0]),
+    payment, settingsError: req.query.err || '',
   });
 });
 
@@ -413,6 +514,98 @@ router.post('/settings', async (req, res) => {
   );
   const wanted = Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []);
   await saveFlags(pool, cid, wanted);
+  res.redirect('/workshop/settings?saved=1');
+});
+
+router.post('/settings/messages', async (req, res) => {
+  const b = req.body || {};
+  const cid = req.company.id;
+  const current = (await pool.query(
+    'SELECT * FROM workshop_message_settings WHERE company_id=$1', [cid]
+  )).rows[0] || {};
+  try {
+    if (!workshopVault.configured()) {
+      return res.redirect('/workshop/settings?err=secret_unavailable');
+    }
+    await pool.query(
+      `INSERT INTO workshop_message_settings
+        (company_id, active, sms_provider, whatsapp_provider,
+         twilio_account_sid_enc, twilio_auth_token_enc, twilio_sms_from,
+         twilio_whatsapp_from, meta_phone_number_id, meta_access_token_enc, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
+       ON CONFLICT (company_id) DO UPDATE SET
+         active=EXCLUDED.active, sms_provider=EXCLUDED.sms_provider,
+         whatsapp_provider=EXCLUDED.whatsapp_provider,
+         twilio_account_sid_enc=EXCLUDED.twilio_account_sid_enc,
+         twilio_auth_token_enc=EXCLUDED.twilio_auth_token_enc,
+         twilio_sms_from=EXCLUDED.twilio_sms_from,
+         twilio_whatsapp_from=EXCLUDED.twilio_whatsapp_from,
+         meta_phone_number_id=EXCLUDED.meta_phone_number_id,
+         meta_access_token_enc=EXCLUDED.meta_access_token_enc,
+         updated_at=now()`,
+      [cid, b.active === '1',
+        ['none', 'twilio'].includes(b.sms_provider) ? b.sms_provider : 'none',
+        ['none', 'twilio', 'meta'].includes(b.whatsapp_provider) ? b.whatsapp_provider : 'none',
+        keepWorkshopSecret(current.twilio_account_sid_enc, b.twilio_account_sid, b.twilio_account_sid_clear),
+        keepWorkshopSecret(current.twilio_auth_token_enc, b.twilio_auth_token, b.twilio_auth_token_clear),
+        text(b.twilio_sms_from, 40), text(b.twilio_whatsapp_from, 40),
+        text(b.meta_phone_number_id, 120),
+        keepWorkshopSecret(current.meta_access_token_enc, b.meta_access_token, b.meta_access_token_clear)]
+    );
+  } catch (e) {
+    console.error('[workshop message settings]', e.message);
+    return res.redirect('/workshop/settings?err=message_save');
+  }
+  res.redirect('/workshop/settings?saved=1');
+});
+
+router.post('/settings/payments', async (req, res) => {
+  const b = req.body || {};
+  const cid = req.company.id;
+  const cur = (await pool.query(
+    'SELECT gateway_secret, gateway_secret_enc, gateway_hmac, gateway_hmac_enc FROM payment_settings WHERE company_id=$1',
+    [cid]
+  )).rows[0] || {};
+  const keep = (name, clear, encrypted, legacy) => {
+    if (b[clear] === '1') return null;
+    const typed = String(b[name] || '').trim();
+    if (typed) return payVault.encrypt(typed);
+    const existing = payVault.read(cur[encrypted], cur[legacy]);
+    return existing ? payVault.encrypt(existing) : null;
+  };
+  try {
+    if (!payVault.configured()) return res.redirect('/workshop/settings?err=payment_secret_unavailable');
+    const gateway = ['none', 'paymob', 'fawry', 'stripe', 'paypal'].includes(b.gateway) ? b.gateway : 'none';
+    await pool.query(
+      `INSERT INTO payment_settings
+        (company_id, cod_enabled, cod_terms, gateway, payment_link, payment_link_label,
+         gateway_public_key, gateway_secret_enc, gateway_hmac_enc, gateway_secret, gateway_hmac,
+         gateway_integration_id, gateway_iframe_id, gateway_exclusive, instructions, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULL,NULL,$10,$11,$12,$13,now())
+       ON CONFLICT (company_id) DO UPDATE SET
+         cod_enabled=EXCLUDED.cod_enabled, cod_terms=EXCLUDED.cod_terms,
+         gateway=EXCLUDED.gateway, payment_link=EXCLUDED.payment_link,
+         payment_link_label=EXCLUDED.payment_link_label,
+         gateway_public_key=EXCLUDED.gateway_public_key,
+         gateway_secret_enc=EXCLUDED.gateway_secret_enc,
+         gateway_hmac_enc=EXCLUDED.gateway_hmac_enc,
+         gateway_secret=NULL, gateway_hmac=NULL,
+         gateway_integration_id=EXCLUDED.gateway_integration_id,
+         gateway_iframe_id=EXCLUDED.gateway_iframe_id,
+         gateway_exclusive=EXCLUDED.gateway_exclusive,
+         instructions=EXCLUDED.instructions, updated_at=now()`,
+      [cid, b.cod_enabled === '1', text(b.cod_terms, 500), gateway,
+        /^https?:\/\//i.test(String(b.payment_link || '').trim()) ? String(b.payment_link).trim() : null,
+        text(b.payment_link_label, 80), text(b.gateway_public_key, 500),
+        keep('gateway_secret', 'gateway_secret_clear', 'gateway_secret_enc', 'gateway_secret'),
+        keep('gateway_hmac', 'gateway_hmac_clear', 'gateway_hmac_enc', 'gateway_hmac'),
+        text(b.gateway_integration_id, 80), text(b.gateway_iframe_id, 80),
+        b.gateway_exclusive === '1', text(b.instructions, 2000)]
+    );
+  } catch (e) {
+    console.error('[workshop payment settings]', e.message);
+    return res.redirect('/workshop/settings?err=payment_save');
+  }
   res.redirect('/workshop/settings?saved=1');
 });
 
@@ -979,14 +1172,27 @@ async function prepareWorkshopMessage(companyId, jobId, eventKey) {
   if (!row) return null;
   const portal = row.token ? `/workshop/status/${row.token}` : null;
   const body = defaultWorkshopMessage(row, eventKey, portal);
-  return (await pool.query(
+  const settings = (await pool.query(
+    `SELECT active, sms_provider, whatsapp_provider
+       FROM workshop_message_settings WHERE company_id=$1`, [companyId]
+  )).rows[0] || {};
+  const channel = settings.whatsapp_provider !== 'none' ? 'whatsapp'
+    : settings.sms_provider !== 'none' ? 'sms' : 'whatsapp';
+  const inserted = (await pool.query(
     `INSERT INTO workshop_messages
       (company_id, job_id, customer_id, channel, recipient, event_key, body)
-       SELECT $1,$2,customer_id,'whatsapp',$3,$4,$5
+       SELECT $1,$2,customer_id,$3,$4,$5,$6
          FROM workshop_jobs
         WHERE id=$2 AND company_id=$1
           AND EXISTS (SELECT 1 FROM workshop_jobs WHERE id=$2 AND company_id=$1)
-     RETURNING id`, [companyId, jobId, row.customer_phone, eventKey, body])).rows[0];
+     RETURNING id`, [companyId, jobId, channel, row.customer_phone, eventKey, body])).rows[0];
+  const channelConfigured = channel === 'whatsapp'
+    ? settings.whatsapp_provider !== 'none'
+    : settings.sms_provider !== 'none';
+  if (inserted && settings.active && channelConfigured) {
+    await deliverWorkshopMessage(companyId, inserted.id);
+  }
+  return inserted;
 }
 
 router.get('/communications', requireFlag('communications'), async (req, res) => {
@@ -1009,6 +1215,10 @@ router.get('/communications', requireFlag('communications'), async (req, res) =>
   ]);
   res.render('workshop_admin/communications', {
     title: 'رسائل العملاء', tab: 'communications', messages: messages.rows, jobs: jobs.rows,
+    sent: req.query.sent === '1', error: req.query.error || '',
+    messaging: workshopMessagingView(await pool.query(
+      'SELECT * FROM workshop_message_settings WHERE company_id=$1', [cid]
+    ).then((r) => r.rows[0])),
   });
 });
 
@@ -1028,19 +1238,37 @@ router.post('/communications/prepare', requireFlag('communications'), async (req
     const eventKey = text(req.body && req.body.event_key, 40) || 'received';
     const body = text(req.body && req.body.body, 2000) ||
       defaultWorkshopMessage(job, eventKey, job.token ? `/workshop/status/${job.token}` : null);
-    await pool.query(
+    const inserted = (await pool.query(
       `INSERT INTO workshop_messages
         (company_id, job_id, customer_id, channel, recipient, event_key, body)
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [cid, job.id, job.customer_id, ['whatsapp','sms'].includes(req.body.channel) ? req.body.channel : 'whatsapp',
-       job.customer_phone, eventKey, body]);
+       job.customer_phone, eventKey, body])).rows[0];
+    if (inserted && req.body.send_now === '1') {
+      await deliverWorkshopMessage(cid, inserted.id);
+    }
   }
   res.redirect('/workshop/communications');
 });
 
+router.post('/communications/:id/send', requireFlag('communications'), async (req, res) => {
+  const result = await deliverWorkshopMessage(req.company.id, int(req.params.id));
+  const suffix = result.ok ? 'sent=1' : 'error=send';
+  res.redirect((req.get('referer') || '/workshop/communications').split('?')[0] + '?' + suffix);
+});
+
+router.post('/communications/:id/retry', requireFlag('communications'), async (req, res) => {
+  const result = await deliverWorkshopMessage(req.company.id, int(req.params.id), true);
+  const suffix = result.ok ? 'sent=1' : 'error=retry';
+  res.redirect((req.get('referer') || '/workshop/communications').split('?')[0] + '?' + suffix);
+});
+
+// This legacy endpoint is intentionally not a success transition. Opening a
+// deep link or clicking a button cannot prove delivery at the provider.
 router.post('/communications/:id/sent', requireFlag('communications'), async (req, res) => {
   await pool.query(
-    `UPDATE workshop_messages SET status='sent', sent_at=now()
+    `UPDATE workshop_messages SET status='prepared', sent_at=NULL,
+            error='manual send was not verified by a provider'
       WHERE id=$1 AND company_id=$2`, [int(req.params.id), req.company.id]);
   res.redirect(req.get('referer') || '/workshop/communications');
 });

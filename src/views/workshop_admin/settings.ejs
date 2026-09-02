@@ -1,6 +1,8 @@
 <%- include('head') %>
 <h1 class="font-black text-xl mb-4"><%= t('wsh.set.title') %></h1>
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4"><%= t('wsh.set.saved') %></div><% } %>
+<% if (settingsError === 'secret_unavailable' || settingsError === 'payment_secret_unavailable') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">لا يمكن حفظ بيانات الاعتماد الآن لأن مفتاح التشفير غير مفعّل على الخادم.</div><% } %>
+<% if (settingsError === 'message_save' || settingsError === 'payment_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ الإعدادات. راجع البيانات وحاول مرة أخرى.</div><% } %>
 <form method="post" action="/workshop/settings" class="space-y-5">
   <section class="bg-white rounded-2xl border border-slate-200 p-5">
     <h2 class="font-black mb-3"><%= t('wsh.set.business') %></h2>
@@ -29,8 +31,52 @@
       <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.service_months') %></span>
         <input name="service_months" type="number" min="0" dir="ltr" value="<%= Number(settings.service_months || 6) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
     </div>
+    <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5 mt-4"><%= t('wsh.common.save') %></button>
+  </section>
+</form>
+
+  <section id="messaging" class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div><h2 class="font-black mb-1">إرسال WhatsApp وSMS</h2><p class="text-xs text-slate-500">كل ورشة تستخدم حسابها الخاص. الأسرار تُحفظ مشفّرة ولا تظهر بعد الحفظ.</p></div>
+      <% if (messageSettings.twilio_account_sid_set || messageSettings.twilio_auth_token_set || messageSettings.meta_access_token_set) { %><span class="text-xs font-bold text-emerald-700 bg-emerald-50 rounded-full px-3 py-1">بيانات اعتماد محفوظة</span><% } %>
+    </div>
+    <p class="text-xs text-slate-500 mt-3 mb-3">يمكن استخدام Twilio للقناتين، أو Meta Cloud لـWhatsApp فقط. لا تختَر Meta للـSMS.</p>
+    <form method="post" action="/workshop/settings/messages" class="grid sm:grid-cols-2 gap-3 text-sm">
+      <label class="flex items-center gap-2 sm:col-span-2 bg-slate-50 rounded-xl px-3 py-3"><input type="checkbox" name="active" value="1" <%= messageSettings.active ? 'checked' : '' %> /><span class="font-bold">تفعيل الإرسال الفعلي</span></label>
+      <label><span class="text-xs font-bold text-slate-500">مزود SMS</span><select name="sms_provider" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><option value="none" <%= messageSettings.sms_provider === 'none' ? 'selected' : '' %>>غير مفعّل</option><option value="twilio" <%= messageSettings.sms_provider === 'twilio' ? 'selected' : '' %>>Twilio</option></select></label>
+      <label><span class="text-xs font-bold text-slate-500">مزود WhatsApp</span><select name="whatsapp_provider" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><option value="none" <%= messageSettings.whatsapp_provider === 'none' ? 'selected' : '' %>>غير مفعّل</option><option value="twilio" <%= messageSettings.whatsapp_provider === 'twilio' ? 'selected' : '' %>>Twilio</option><option value="meta" <%= messageSettings.whatsapp_provider === 'meta' ? 'selected' : '' %>>Meta Cloud API</option></select></label>
+      <label><span class="text-xs font-bold text-slate-500">Twilio Account SID</span><input name="twilio_account_sid" dir="ltr" value="" autocomplete="off" placeholder="<%= messageSettings.twilio_account_sid_set ? '•••••••• محفوظ — اتركه فارغًا' : 'AC…' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.twilio_account_sid_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="twilio_account_sid_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Twilio Auth Token</span><input type="password" name="twilio_auth_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.twilio_auth_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Auth token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.twilio_auth_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="twilio_auth_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">رقم SMS المرسل</span><input name="twilio_sms_from" dir="ltr" value="<%= messageSettings.twilio_sms_from %>" placeholder="+2010..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">رقم WhatsApp المرسل</span><input name="twilio_whatsapp_from" dir="ltr" value="<%= messageSettings.twilio_whatsapp_from %>" placeholder="whatsapp:+1415..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta Phone Number ID</span><input name="meta_phone_number_id" dir="ltr" value="<%= messageSettings.meta_phone_number_id %>" placeholder="Phone Number ID" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta Access Token</span><input type="password" name="meta_access_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_access_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Access token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_access_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_access_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <button class="sm:col-span-2 bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5">حفظ إعدادات الإرسال</button>
+    </form>
   </section>
 
+  <section id="payments" class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div><h2 class="font-black mb-1">بوابة الدفع الإلكتروني</h2><p class="text-xs text-slate-500">حساب الدفع ملك للورشة. يمكن استخدام Paymob للفاتورة الديناميكية أو رابط دفع ثابت من مزودك.</p></div>
+      <% if (payment.gateway && payment.gateway !== 'none') { %><span class="text-xs font-bold text-emerald-700 bg-emerald-50 rounded-full px-3 py-1">مزود: <%= payment.gateway %></span><% } %>
+    </div>
+    <form method="post" action="/workshop/settings/payments" class="grid sm:grid-cols-2 gap-3 text-sm mt-3">
+      <label><span class="text-xs font-bold text-slate-500">المزود</span><select name="gateway" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><option value="none" <%= payment.gateway === 'none' ? 'selected' : '' %>>غير مفعّل</option><option value="paymob" <%= payment.gateway === 'paymob' ? 'selected' : '' %>>Paymob</option><option value="fawry" <%= payment.gateway === 'fawry' ? 'selected' : '' %>>Fawry (رابط يدوي)</option><option value="stripe" <%= payment.gateway === 'stripe' ? 'selected' : '' %>>Stripe (رابط يدوي)</option><option value="paypal" <%= payment.gateway === 'paypal' ? 'selected' : '' %>>PayPal (رابط يدوي)</option></select></label>
+      <label class="flex items-center gap-2 self-end"><input type="checkbox" name="cod_enabled" value="1" <%= payment.cod_enabled !== false ? 'checked' : '' %> /><span class="font-bold">السماح بالدفع عند الاستلام/في الورشة</span></label>
+      <label class="sm:col-span-2"><span class="text-xs font-bold text-slate-500">رابط الدفع الثابت</span><input name="payment_link" dir="ltr" value="<%= payment.payment_link || '' %>" placeholder="https://..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">اسم رابط الدفع</span><input name="payment_link_label" value="<%= payment.payment_link_label || '' %>" placeholder="ادفع الآن" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">شروط الدفع عند الاستلام</span><input name="cod_terms" value="<%= payment.cod_terms || '' %>" placeholder="مثال: الدفع عند استلام السيارة" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">Paymob API Key</span><input type="password" name="gateway_secret" dir="ltr" value="" autocomplete="new-password" placeholder="<%= payment.gateway_secret_set ? '•••••••• محفوظ — اتركه فارغًا' : 'API key' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (payment.gateway_secret_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="gateway_secret_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Paymob HMAC Secret</span><input type="password" name="gateway_hmac" dir="ltr" value="" autocomplete="new-password" placeholder="<%= payment.gateway_hmac_set ? '•••••••• محفوظ — اتركه فارغًا' : 'HMAC secret' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (payment.gateway_hmac_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="gateway_hmac_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Integration ID</span><input name="gateway_integration_id" dir="ltr" value="<%= payment.gateway_integration_id || '' %>" placeholder="123456" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">iFrame ID</span><input name="gateway_iframe_id" dir="ltr" value="<%= payment.gateway_iframe_id || '' %>" placeholder="98765" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <div class="sm:col-span-2 bg-slate-50 rounded-xl px-3 py-2 text-[11px] text-slate-600">ضع هذا العنوان في إعدادات Webhook داخل Paymob: <code dir="ltr" class="break-all">https://oscardevs.com/workshop/status/payment/paymob/callback</code></div>
+      <label class="sm:col-span-2"><span class="text-xs font-bold text-slate-500">تعليمات الدفع</span><textarea name="instructions" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" placeholder="تعليمات تظهر للعميل"><%= payment.instructions || '' %></textarea></label>
+      <button class="sm:col-span-2 bg-emerald-600 text-white font-bold rounded-xl px-6 py-2.5">حفظ إعدادات الدفع</button>
+    </form>
+  </section>
+
+<form method="post" action="/workshop/settings" class="space-y-5">
   <section class="bg-white rounded-2xl border border-slate-200 p-5">
     <h2 class="font-black mb-3"><%= t('wsh.set.features') %></h2>
     <div class="grid sm:grid-cols-2 gap-2 text-sm">
