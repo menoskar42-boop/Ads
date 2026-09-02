@@ -44,8 +44,8 @@ const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().sli
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
-const SERVICE_REMINDER_LEAD_DAYS = 7;
-const SERVICE_REMINDER_LEAD_KM = 500;
+const DEFAULT_REMINDER_LEAD_DAYS = 7;
+const DEFAULT_REMINDER_LEAD_KM = 500;
 const WORKSHOP_SECTION_PERMISSIONS = {
   board: 'view_board',
   appointments: 'view_appointments',
@@ -330,12 +330,15 @@ async function queueServiceReminderMessages() {
     `SELECT r.id, r.company_id, r.vehicle_id, r.job_id, r.customer_id,
             r.due_on, r.due_odometer, v.plate, v.odometer,
             c.phone AS customer_phone, c.whatsapp AS customer_whatsapp,
+            COALESCE(ws.reminder_lead_days, ${DEFAULT_REMINDER_LEAD_DAYS}) AS reminder_lead_days,
+            COALESCE(ws.reminder_lead_km, ${DEFAULT_REMINDER_LEAD_KM}) AS reminder_lead_km,
             COALESCE(ms.active, false) AS messaging_active,
             COALESCE(ms.sms_provider, 'none') AS sms_provider,
             COALESCE(ms.whatsapp_provider, 'none') AS whatsapp_provider
        FROM workshop_reminders r
        JOIN workshop_vehicles v ON v.id=r.vehicle_id AND v.company_id=r.company_id
        JOIN workshop_customers c ON c.id=v.customer_id AND c.company_id=r.company_id
+       LEFT JOIN workshop_settings ws ON ws.company_id=r.company_id
        LEFT JOIN workshop_message_settings ms ON ms.company_id=r.company_id
       WHERE r.status='open'
         AND r.reminder_notified_at IS NULL
@@ -349,13 +352,14 @@ async function queueServiceReminderMessages() {
              AND wf.flag_key='reminders' AND wf.enabled=false
         )
         AND (
-          r.due_on BETWEEN CURRENT_DATE AND CURRENT_DATE + $1::int
+          r.due_on BETWEEN CURRENT_DATE
+            AND CURRENT_DATE + COALESCE(ws.reminder_lead_days, ${DEFAULT_REMINDER_LEAD_DAYS})::int
           OR (r.due_odometer IS NOT NULL AND v.odometer IS NOT NULL
-              AND r.due_odometer - v.odometer BETWEEN 0 AND $2::int)
+              AND r.due_odometer - v.odometer BETWEEN 0
+                AND COALESCE(ws.reminder_lead_km, ${DEFAULT_REMINDER_LEAD_KM})::int)
         )
       ORDER BY r.company_id, r.id
-      LIMIT 300`,
-    [SERVICE_REMINDER_LEAD_DAYS, SERVICE_REMINDER_LEAD_KM]
+      LIMIT 300`
   )).rows;
 
   let queued = 0;
@@ -884,18 +888,23 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
   await pool.query(
     `INSERT INTO workshop_settings
        (company_id, business_name, address, phone, whatsapp, about, hours,
-        tax_percent, labour_rate, service_km, service_months, booking_enabled, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
+        tax_percent, labour_rate, service_km, service_months,
+        reminder_lead_days, reminder_lead_km, booking_enabled, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
      ON CONFLICT (company_id) DO UPDATE SET
        business_name=EXCLUDED.business_name, address=EXCLUDED.address, phone=EXCLUDED.phone,
        whatsapp=EXCLUDED.whatsapp, about=EXCLUDED.about, hours=EXCLUDED.hours,
        tax_percent=EXCLUDED.tax_percent, labour_rate=EXCLUDED.labour_rate,
        service_km=EXCLUDED.service_km, service_months=EXCLUDED.service_months,
+       reminder_lead_days=EXCLUDED.reminder_lead_days,
+       reminder_lead_km=EXCLUDED.reminder_lead_km,
        booking_enabled=EXCLUDED.booking_enabled, updated_at=now()`,
     [cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
      text(b.about, 2000), text(b.hours, 120), Math.min(100, Math.max(0, num(b.tax_percent))),
      Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
      Math.max(0, int(b.service_months, 6)),
+      Math.min(60, Math.max(0, int(b.reminder_lead_days, DEFAULT_REMINDER_LEAD_DAYS))),
+      Math.min(10000, Math.max(0, int(b.reminder_lead_km, DEFAULT_REMINDER_LEAD_KM))),
      /* خانة اختيار مش مختارة مابتتبعتش أصلاً في الفورم، فغيابها = مقفول.
       * لازم تتحسب من وجود الحقل نفسه — لو قريناها بـ`!== false` كانت
       * هتفضل مفتوحة على طول ومحدش يقدر يقفل. */

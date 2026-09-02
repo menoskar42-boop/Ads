@@ -43,6 +43,9 @@ async function ensureWorkshopSchema() {
         -- vehicle can override it.
         service_km     INTEGER NOT NULL DEFAULT 5000,
         service_months INTEGER NOT NULL DEFAULT 6,
+        -- How early the automated reminder worker should notify the customer.
+        reminder_lead_days INTEGER NOT NULL DEFAULT 7,
+        reminder_lead_km   INTEGER NOT NULL DEFAULT 500,
         -- زرار الورشة تقفل بيه استقبال الحجوزات من الموقع العام.
         -- مفتوح افتراضياً: ورشة لسه بتتظبط المفروض تستقبل، مش تفضل
         -- مقفولة لحد ما حد ياخد باله. نفس اللي في العيادة والجيم.
@@ -649,7 +652,9 @@ async function ensureWorkshopSchema() {
      * هيبان في الإعدادات وما يقفلش حاجة. */
     await client.query(`
       ALTER TABLE workshop_settings
-        ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true;
+        ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS reminder_lead_days INTEGER NOT NULL DEFAULT 7,
+        ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500;
     `);
 
     console.log('Workshop schema ready.');

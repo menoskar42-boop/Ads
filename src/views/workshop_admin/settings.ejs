@@ -64,6 +64,12 @@
         <input name="service_km" type="number" min="0" dir="ltr" value="<%= Number(settings.service_km || 5000) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
       <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.service_months') %></span>
         <input name="service_months" type="number" min="0" dir="ltr" value="<%= Number(settings.service_months || 6) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">التذكير قبل الموعد (بالأيام)</span>
+        <input name="reminder_lead_days" type="number" min="0" max="60" dir="ltr" value="<%= settings.reminder_lead_days == null ? 7 : Number(settings.reminder_lead_days) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        <span class="block text-[11px] text-slate-500 mt-1">0 = في يوم الموعد فقط، والافتراضي 7 أيام.</span></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">التذكير قبل الكيلومترات</span>
+        <input name="reminder_lead_km" type="number" min="0" max="10000" dir="ltr" value="<%= settings.reminder_lead_km == null ? 500 : Number(settings.reminder_lead_km) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        <span class="block text-[11px] text-slate-500 mt-1">0 = عند بلوغ الحد فقط، والافتراضي 500 كم.</span></label>
     </div>
     <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5 mt-4"><%= t('wsh.common.save') %></button>
   </section>
