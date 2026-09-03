@@ -146,7 +146,8 @@ Overviews · Bing Copilot · Gemini. لو واحدة مش متاحة عندك، 
 - موبيليا → /furniture-store-management-egypt
 - تقسيط → /installments-collection-egypt
 - ورش سيارات → /car-workshop-management-egypt
-- مواقع ومتاجر → الصفحة الرئيسية
+- متجر إلكتروني → /online-store-egypt
+- بورتفوليو ومواقع المهن → /portfolio-website-egypt
 
 ## لكل محور هات ٢٠–٣٠ كلمة، ولكل كلمة:
 الكلمة · اللغة · الدولة · نية البحث (تجارية/معلوماتية/مقارنة/محلية) ·
@@ -179,6 +180,8 @@ Overviews · Bing Copilot · Gemini. لو واحدة مش متاحة عندك، 
 وهل في الصفحة سكربت `pagead2.googlesyndication.com` (نعم/لأ).
 
 ## المجموعة أ — لازم ٢٠٠ و`index`
+/online-store-egypt
+/portfolio-website-egypt
 /car-workshop-management-egypt
 /pharmacy-management-egypt
 /clinic-management-egypt
@@ -269,11 +272,11 @@ https://orders.oscardevs.com
 >
 > ⚠️ **قبل ما تشتغل — حقيقة اتأكّدنا منها من الكود:** السايت‌ماب الرسمي
 > الوحيد هو `https://oscardevs.com/sitemap.xml`، وهو **الوحيد** المعلَن في
-> `robots.txt`. وجوّاه **١٠٤ رابط ثابت** (١٠ صفحات أساسية + ٩ صفحات قطاعات
+> `robots.txt`. وجوّاه **١٠٦ رابط ثابت** (١٠ صفحات أساسية + ١١ صفحة قطاعات
 > + ٣ خدمات + ٤ صفحات خليج إنجليزية + `/dental` + ورش السيارات +
 > `/research` + `/radiology` + ٧٢ مقالة) **زائد** صفحات التجّار اللي
 > بتعدّي بوابة الجودة (بتتحسب من قاعدة البيانات وقت الطلب، فالعدد
-> النهائي بيزيد عن ١٠٤).
+> النهائي بيزيد عن ١٠٦).
 >
 > **وأهم من ده:** `adhd.oscardevs.com` و`mykid.oscardevs.com` **موجودين
 > جوّه السايت‌ماب الأساسي بالفعل** (اتضافوا فيه بعد ما اكتشفنا إنهم كانوا
@@ -337,7 +340,7 @@ https://orders.oscardevs.com
 واستنى لحد ما الحالة تبقى Success، وبعدين سجّل:
 
   • "Discovered URLs" الرقم اللي ظهر = ______
-  • قارنه بـ١٠٤ + عدد صفحات التجّار. لو الرقم **أقل بكتير**، ده معناه
+  • قارنه بـ١٠٦ + عدد صفحات التجّار. لو الرقم **أقل بكتير**، ده معناه
     إن جوجل مش قادرة تقرا جزء من الملف → بلّغ فوراً.
 
 ────────────────────────────────────────────────────────────
@@ -360,6 +363,12 @@ https://orders.oscardevs.com
   9.  https://oscardevs.com/ar/installments-collection-egypt
   10. https://oscardevs.com/ar/car-workshop-management-egypt
   11. https://oscardevs.com/ar/dental
+  12. https://oscardevs.com/ar/online-store-egypt      ← **جديدة، ابدأ بيها**
+  13. https://oscardevs.com/ar/portfolio-website-egypt  ← **جديدة، ابدأ بيها**
+
+> ⚠️ **١٢ و١٣ أول حاجة تتعمل.** دول صفحتين اتنشروا حديثاً ومحصلش لهم زحف
+> أصلاً، فطلب الفهرسة بتاعهم هو اللي بيفرق فعلاً. الترقيم من ١ لـ١١ متسيب
+> زي ما هو عشان الجدول اللي المالك ماشي عليه ما يتلخبطش.
 
 لكل رابط: URL Inspection → وبعدها **Request Indexing**، وسجّل في جدول:
 
