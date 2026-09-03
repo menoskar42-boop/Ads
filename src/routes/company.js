@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const { BCRYPT_COST } = require('../lib/password_cost');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -312,7 +313,7 @@ router.post('/workshop-invite/:token', async (req, res) => {
       await client.query('ROLLBACK');
       return renderError('يوجد حساب بهذا البريد بالفعل. استخدم تسجيل الدخول.', invite);
     }
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
     const created = (await client.query(
       `INSERT INTO company_users (company_id, email, password_hash, role)
        VALUES ($1,$2,$3,$4) RETURNING id`,
@@ -357,7 +358,7 @@ router.get('/login', (req, res) => {
 /* A real bcrypt hash of a value nothing can match, compared against when no
    account was found — see the note at the failure branch. Generated once at
    boot; the cost has to match the real hashes or it measures differently. */
-const DUMMY_HASH = bcrypt.hashSync('oscardevs-no-such-account', 10);
+const DUMMY_HASH = bcrypt.hashSync('oscardevs-no-such-account', BCRYPT_COST);
 
 const LOGIN_FAILED = 'البريد الإلكتروني أو كلمة المرور غير صحيحة. '
   + 'لو لسه مستني الموافقة على طلبك، تابعه من صفحة «متابعة الطلب».';

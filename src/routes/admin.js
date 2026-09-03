@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
+const { BCRYPT_COST } = require('../lib/password_cost');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
 const codes = require('../lib/codes');
@@ -253,7 +254,7 @@ router.post('/companies/add', requireAdmin, async (req, res) => {
     );
     const newCompanyId = inserted.rows[0].id;
 
-    const hash = await bcrypt.hash(admin_password, 10);
+    const hash = await bcrypt.hash(admin_password, BCRYPT_COST);
     await client.query(
       `INSERT INTO company_users (company_id, email, password_hash)
        VALUES ($1, $2, $3)`,
@@ -426,7 +427,7 @@ router.post('/companies/:id/reset-password', requireAdmin, async (req, res) => {
       return res.redirect('/admin/dashboard');
     }
     const user = userResult.rows[0];
-    const hash = await bcrypt.hash(new_password, 10);
+    const hash = await bcrypt.hash(new_password, BCRYPT_COST);
     await pool.query('UPDATE company_users SET password_hash = $1 WHERE id = $2', [hash, user.id]);
     req.session.adminFlash = {
       type: 'success',
