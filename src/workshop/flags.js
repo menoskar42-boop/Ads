@@ -17,6 +17,8 @@ const FLAGS = [
     desc: 'ملف كل عربية بتاريخها الكامل — تدوّر بالرقم وتلاقي كل حاجة اتعملت فيها.' },
   { key: 'customers', label: 'العملاء', icon: '👥', path: '/workshop/customers', core: true,
     desc: 'بيانات العملاء وحالة الحساب مع الحفاظ على تاريخ العربيات وأوامر الشغل.' },
+  { key: 'crm', label: 'CRM والمتابعة', icon: '◎', path: '/workshop/crm',
+    desc: 'مراحل العملاء المحتملين، تصنيف العملاء، ومواعيد المتابعة في لوحة واحدة.' },
   { key: 'parts', label: 'قطع الغيار', icon: '🔩', path: '/workshop/parts',
     desc: 'مخزون القطع بمتوسط تكلفة متحرّك، والحد الأدنى، وحركة الصرف.' },
   { key: 'purchasing', label: 'الموردون والشراء', icon: '▤', path: '/workshop/purchasing',
@@ -59,7 +61,7 @@ const OPTIONAL_KEYS = FLAGS.filter((f) => !f.core).map((f) => f.key);
 const DEFAULT_ON = [
   'parts', 'purchasing', 'reminders', 'invoices', 'board', 'appointments',
   'inspections', 'customer_portal', 'audit', 'change_orders', 'floor',
-  'communications', 'warranty_claims', 'barcodes',
+  'communications', 'warranty_claims', 'barcodes', 'crm',
 ];
 
 /** Feature keys enabled for a company, as a Set. Core keys are always in it. */

@@ -46,10 +46,22 @@ const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
+const CRM_LEAD_STAGES = ['new', 'contacted', 'qualified', 'booked', 'won', 'lost'];
+const CRM_LEAD_STAGE_LABELS = {
+  new: 'جديد', contacted: 'تم التواصل', qualified: 'مهتم', booked: 'حجز موعد',
+  won: 'تم التحويل', lost: 'غير مهتم',
+};
+const CRM_PRIORITIES = ['low', 'normal', 'high'];
+const CRM_PRIORITY_LABELS = { low: 'منخفضة', normal: 'عادية', high: 'عالية' };
+const CRM_SEGMENTS = ['new', 'regular', 'vip', 'inactive'];
+const CRM_SEGMENT_LABELS = { new: 'عميل جديد', regular: 'منتظم', vip: 'مميز', inactive: 'غير نشط' };
+const CRM_LIFECYCLES = ['active', 'at_risk', 'lost'];
+const CRM_LIFECYCLE_LABELS = { active: 'نشط', at_risk: 'معرّض للانقطاع', lost: 'منقطع' };
 const WORKSHOP_SECTION_PERMISSIONS = {
   board: 'view_board',
   appointments: 'view_appointments',
   customers: 'view_customers',
+  crm: 'view_crm',
   vehicles: 'view_vehicles',
   jobs: 'view_jobs',
   change_orders: 'view_change_orders',
@@ -1168,6 +1180,260 @@ router.post('/settings/payments', requireWorkshopPermission('manage_settings'), 
     return res.redirect('/workshop/settings?err=payment_save');
   }
   res.redirect('/workshop/settings?saved=1');
+});
+
+// ── CRM ──────────────────────────────────────────────────────────────────────
+function crmDate(value) {
+  const s = String(value == null ? '' : value).trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+function crmActor(req) {
+  return (req.workshopUser && req.workshopUser.email) || 'فريق الورشة';
+}
+
+router.get('/crm', requireFlag('crm'), requireWorkshopPermission('view_crm'), async (req, res) => {
+  const cid = req.company.id;
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  const stage = CRM_LEAD_STAGES.includes(String(req.query.stage)) ? String(req.query.stage) : '';
+  const customerId = int(req.query.customer_id);
+  const params = [cid];
+  const where = ['l.company_id=$1'];
+  if (stage) { params.push(stage); where.push(`l.stage=$${params.length}`); }
+  if (q) {
+    params.push('%' + q + '%');
+    where.push(`(l.name ILIKE $${params.length} OR l.phone ILIKE $${params.length}
+                OR l.email ILIKE $${params.length} OR l.source ILIKE $${params.length})`);
+  }
+  const [leadRows, stageCounts, customerRows, selectedCustomer, leadActivities] = await Promise.all([
+    pool.query(
+      `SELECT l.*, c.name AS customer_name
+         FROM workshop_crm_leads l
+         LEFT JOIN workshop_customers c ON c.id=l.customer_id AND c.company_id=l.company_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY (l.priority='high') DESC, (l.next_followup_on IS NULL), l.next_followup_on, l.updated_at DESC
+        LIMIT 200`, params
+    ),
+    pool.query(
+      `SELECT stage, COUNT(*)::int AS count
+         FROM workshop_crm_leads WHERE company_id=$1 GROUP BY stage`, [cid]
+    ),
+    pool.query(
+      `SELECT c.id, c.name, c.phone, c.segment, c.lifecycle_stage, c.preferred_channel,
+              c.source, c.last_contacted_at, c.next_followup_on,
+              (SELECT COUNT(*)::int FROM workshop_jobs j
+                WHERE j.company_id=c.company_id AND j.customer_id=c.id AND j.status <> 'cancelled') AS jobs_count,
+              (SELECT MAX(j.delivered_at) FROM workshop_jobs j
+                WHERE j.company_id=c.company_id AND j.customer_id=c.id) AS last_visit
+         FROM workshop_customers c
+        WHERE c.company_id=$1 AND c.is_active
+        ORDER BY (c.next_followup_on IS NULL), c.next_followup_on, c.name
+        LIMIT 200`, [cid]
+    ),
+    customerId ? pool.query(
+      `SELECT id, name, phone, whatsapp, segment, lifecycle_stage, preferred_channel, source,
+              last_contacted_at, next_followup_on, note
+         FROM workshop_customers WHERE id=$1 AND company_id=$2`, [customerId, cid]
+    ) : Promise.resolve({ rows: [] }),
+    pool.query(
+      `SELECT a.lead_id, a.kind, a.channel, a.body, a.followup_on, a.actor_name, a.created_at
+         FROM workshop_crm_lead_activities a
+         JOIN workshop_crm_leads l ON l.id=a.lead_id AND l.company_id=a.company_id
+        WHERE a.company_id=$1
+        ORDER BY a.created_at DESC LIMIT 40`, [cid]
+    ),
+  ]);
+
+  const counts = Object.fromEntries(CRM_LEAD_STAGES.map((key) => [key, 0]));
+  stageCounts.rows.forEach((row) => { if (counts[row.stage] != null) counts[row.stage] = Number(row.count); });
+  const leadsByStage = Object.fromEntries(CRM_LEAD_STAGES.map((key) => [
+    key, leadRows.rows.filter((lead) => lead.stage === key),
+  ]));
+  let timeline = [];
+  if (selectedCustomer.rows[0]) {
+    timeline = (await pool.query(
+      `SELECT created_at, kind, channel, body, followup_on, actor_name
+         FROM workshop_customer_activities
+        WHERE company_id=$1 AND customer_id=$2
+       UNION ALL
+       SELECT a.created_at, 'job' AS kind, NULL AS channel,
+              COALESCE(a.details, a.action) AS body, NULL AS followup_on, a.actor_name
+         FROM workshop_activity a
+         JOIN workshop_jobs j ON j.id=a.job_id AND j.company_id=a.company_id
+        WHERE a.company_id=$1 AND j.customer_id=$2
+       UNION ALL
+       SELECT m.created_at, 'message' AS kind, m.channel, m.body, NULL AS followup_on, NULL AS actor_name
+         FROM workshop_messages m
+        WHERE m.company_id=$1 AND m.customer_id=$2
+        ORDER BY created_at DESC LIMIT 60`, [cid, customerId]
+    )).rows;
+  }
+
+  res.render('workshop_admin/crm', {
+    title: 'CRM والمتابعة', tab: 'crm', q, stage, customerId,
+    leads: leadRows.rows, leadsByStage, counts, customers: customerRows.rows,
+    selectedCustomer: selectedCustomer.rows[0] || null, timeline,
+    leadActivities: leadActivities.rows,
+    leadStages: CRM_LEAD_STAGES, leadStageLabels: CRM_LEAD_STAGE_LABELS,
+    priorities: CRM_PRIORITIES, priorityLabels: CRM_PRIORITY_LABELS,
+    segments: CRM_SEGMENTS, segmentLabels: CRM_SEGMENT_LABELS,
+    lifecycles: CRM_LIFECYCLES, lifecycleLabels: CRM_LIFECYCLE_LABELS,
+  });
+});
+
+router.post('/crm/leads', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const b = req.body || {};
+  const name = text(b.name, 120);
+  const stage = CRM_LEAD_STAGES.includes(String(b.stage)) ? String(b.stage) : 'new';
+  const priority = CRM_PRIORITIES.includes(String(b.priority)) ? String(b.priority) : 'normal';
+  if (name) {
+    await pool.query(
+      `INSERT INTO workshop_crm_leads
+        (company_id, name, phone, email, source, stage, priority, notes, next_followup_on)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [req.company.id, name, text(b.phone, 40), text(b.email, 160), text(b.source, 80),
+        stage, priority, text(b.notes, 1000), crmDate(b.next_followup_on)]
+    );
+  }
+  res.redirect('/workshop/crm');
+});
+
+router.post('/crm/leads/:id', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const b = req.body || {};
+  const stage = CRM_LEAD_STAGES.includes(String(b.stage)) ? String(b.stage) : 'new';
+  const priority = CRM_PRIORITIES.includes(String(b.priority)) ? String(b.priority) : 'normal';
+  const id = int(req.params.id);
+  await pool.query(
+    `UPDATE workshop_crm_leads
+        SET stage=$3, priority=$4, notes=$5, next_followup_on=$6, updated_at=now()
+      WHERE id=$1 AND company_id=$2`,
+    [id, req.company.id, stage, priority, text(b.notes, 1000), crmDate(b.next_followup_on)]
+  );
+  res.redirect('/workshop/crm');
+});
+
+router.post('/crm/leads/:id/activity', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const b = req.body || {};
+  const body = text(b.body, 1000);
+  const channel = ['phone', 'whatsapp', 'sms', 'email', 'visit', 'note'].includes(String(b.channel))
+    ? String(b.channel) : 'note';
+  const id = int(req.params.id);
+  if (body) {
+    const lead = (await pool.query(
+      'SELECT id FROM workshop_crm_leads WHERE id=$1 AND company_id=$2', [id, req.company.id]
+    )).rows[0];
+    if (lead) {
+      await pool.query(
+        `INSERT INTO workshop_crm_lead_activities
+          (company_id, lead_id, kind, channel, body, followup_on, actor_name)
+         VALUES ($1,$2,'contact',$3,$4,$5,$6)`,
+        [req.company.id, id, channel, body, crmDate(b.followup_on), crmActor(req)]
+      );
+      await pool.query(
+        `UPDATE workshop_crm_leads
+            SET last_contacted_at=now(), next_followup_on=$3, updated_at=now()
+          WHERE id=$1 AND company_id=$2`,
+        [id, req.company.id, crmDate(b.followup_on)]
+      );
+    }
+  }
+  res.redirect('/workshop/crm');
+});
+
+router.post('/crm/leads/:id/convert', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const cid = req.company.id;
+    const id = int(req.params.id);
+    await client.query('BEGIN');
+    const lead = (await client.query(
+      `SELECT * FROM workshop_crm_leads WHERE id=$1 AND company_id=$2 FOR UPDATE`, [id, cid]
+    )).rows[0];
+    if (!lead || lead.customer_id) {
+      await client.query('ROLLBACK');
+      return res.redirect('/workshop/crm');
+    }
+    let customer;
+    if (lead.phone) {
+      customer = (await client.query(
+        `SELECT * FROM workshop_customers
+          WHERE company_id=$1 AND (phone=$2 OR whatsapp=$2)
+          ORDER BY is_active DESC, id LIMIT 1 FOR UPDATE`, [cid, lead.phone]
+      )).rows[0];
+    }
+    if (!customer) {
+      customer = (await client.query(
+        `INSERT INTO workshop_customers
+          (company_id, name, phone, source, segment, lifecycle_stage, preferred_channel)
+         VALUES ($1,$2,$3,$4,'new','active','whatsapp') RETURNING *`,
+        [cid, lead.name, lead.phone, lead.source]
+      )).rows[0];
+    }
+    await client.query(
+      `UPDATE workshop_crm_leads
+          SET customer_id=$3, stage='won', converted_at=now(), updated_at=now()
+        WHERE id=$1 AND company_id=$2`, [id, cid, customer.id]
+    );
+    await client.query(
+      `INSERT INTO workshop_customer_activities
+        (company_id, customer_id, kind, channel, body, actor_name)
+       VALUES ($1,$2,'lead_converted','note',$3,$4)`,
+      [cid, customer.id, `تم تحويل العميل المحتمل «${lead.name}» إلى عميل ورشة`, crmActor(req)]
+    );
+    await client.query('COMMIT');
+    res.redirect('/workshop/crm?customer_id=' + customer.id);
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop CRM conversion]', e.message);
+    res.redirect('/workshop/crm');
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/crm/customers/:id/profile', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const b = req.body || {};
+  const id = int(req.params.id);
+  const segment = CRM_SEGMENTS.includes(String(b.segment)) ? String(b.segment) : 'regular';
+  const lifecycle = CRM_LIFECYCLES.includes(String(b.lifecycle_stage)) ? String(b.lifecycle_stage) : 'active';
+  const channel = ['whatsapp', 'phone', 'sms', 'email', 'none'].includes(String(b.preferred_channel))
+    ? String(b.preferred_channel) : 'whatsapp';
+  const followup = crmDate(b.next_followup_on);
+  await pool.query(
+    `UPDATE workshop_customers
+        SET segment=$3, lifecycle_stage=$4, preferred_channel=$5, next_followup_on=$6
+      WHERE id=$1 AND company_id=$2`,
+    [id, req.company.id, segment, lifecycle, channel, followup]
+  );
+  res.redirect('/workshop/crm?customer_id=' + id);
+});
+
+router.post('/crm/customers/:id/activity', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const b = req.body || {};
+  const body = text(b.body, 1000);
+  const channel = ['phone', 'whatsapp', 'sms', 'email', 'visit', 'note'].includes(String(b.channel))
+    ? String(b.channel) : 'note';
+  const id = int(req.params.id);
+  if (body) {
+    const customer = (await pool.query(
+      'SELECT id FROM workshop_customers WHERE id=$1 AND company_id=$2', [id, req.company.id]
+    )).rows[0];
+    if (customer) {
+      await pool.query(
+        `INSERT INTO workshop_customer_activities
+          (company_id, customer_id, kind, channel, body, followup_on, actor_name)
+         VALUES ($1,$2,'contact',$3,$4,$5,$6)`,
+        [req.company.id, id, channel, body, crmDate(b.followup_on), crmActor(req)]
+      );
+      await pool.query(
+        `UPDATE workshop_customers
+            SET last_contacted_at=now(), next_followup_on=$3
+          WHERE id=$1 AND company_id=$2`,
+        [id, req.company.id, crmDate(b.followup_on)]
+      );
+    }
+  }
+  res.redirect('/workshop/crm?customer_id=' + id);
 });
 
 // ── Customers ────────────────────────────────────────────────────────────────

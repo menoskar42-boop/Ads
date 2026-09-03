@@ -45,6 +45,7 @@ const ROLE_PERMISSIONS = {
     'view_change_orders', 'view_parts', 'view_communications',
     'prepare_communications', 'send_communications', 'view_reminders', 'manage_reminders',
     'view_warranty', 'view_warranty_claims', 'manage_warranty_claims', 'record_payment',
+    'view_crm', 'manage_crm',
   ]),
   technician: new Set([
     'view_dashboard', 'view_board', 'view_vehicles', 'view_jobs', 'update_technician_note',

@@ -120,6 +120,56 @@ async function ensureWorkshopSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_customers ON workshop_customers (company_id, name);
 
+      CREATE TABLE IF NOT EXISTS workshop_customer_activities (
+        id             BIGSERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id    INTEGER NOT NULL REFERENCES workshop_customers(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL DEFAULT 'note',
+        channel        TEXT,
+        body           TEXT NOT NULL,
+        followup_on    DATE,
+        actor_name     TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_customer_activities
+        ON workshop_customer_activities (company_id, customer_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_leads (
+        id                  BIGSERIAL PRIMARY KEY,
+        company_id          INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id         INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
+        name                TEXT NOT NULL,
+        phone               TEXT,
+        email               TEXT,
+        source              TEXT,
+        stage               TEXT NOT NULL DEFAULT 'new',
+        priority             TEXT NOT NULL DEFAULT 'normal',
+        notes               TEXT,
+        next_followup_on    DATE,
+        last_contacted_at   TIMESTAMPTZ,
+        converted_at        TIMESTAMPTZ,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_leads_pipeline
+        ON workshop_crm_leads (company_id, stage, next_followup_on, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_leads_phone
+        ON workshop_crm_leads (company_id, phone);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_lead_activities (
+        id             BIGSERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        lead_id        BIGINT NOT NULL REFERENCES workshop_crm_leads(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL DEFAULT 'note',
+        channel        TEXT,
+        body           TEXT NOT NULL,
+        followup_on    DATE,
+        actor_name     TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_lead_activities
+        ON workshop_crm_lead_activities (company_id, lead_id, created_at DESC);
+
       -- The vehicle is the spine of this system. A job card, a reminder and a
       -- warranty all point here rather than at the customer, so a car sold to a
       -- new owner keeps its history and the workshop can still answer "what did
@@ -697,6 +747,15 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true,
         ADD COLUMN IF NOT EXISTS reminder_lead_days INTEGER NOT NULL DEFAULT 7,
         ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500;
+      ALTER TABLE workshop_customers
+        ADD COLUMN IF NOT EXISTS segment TEXT NOT NULL DEFAULT 'regular',
+        ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS preferred_channel TEXT NOT NULL DEFAULT 'whatsapp',
+        ADD COLUMN IF NOT EXISTS source TEXT,
+        ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS next_followup_on DATE;
+      CREATE INDEX IF NOT EXISTS idx_wsh_customers_crm
+        ON workshop_customers (company_id, segment, lifecycle_stage, next_followup_on);
     `);
 
     console.log('Workshop schema ready.');

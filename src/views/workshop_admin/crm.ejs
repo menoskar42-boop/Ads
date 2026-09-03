@@ -1,0 +1,195 @@
+<%- include('head') %>
+<%
+  function dateOnly(v){ return v ? String(v).slice(0, 10) : ''; }
+  function dateLabel(v){
+    if (!v) return 'بدون موعد';
+    return new Date(v).toLocaleDateString('ar-EG', {dateStyle:'medium'});
+  }
+  function activityLabel(v){
+    return ({phone:'مكالمة', whatsapp:'واتساب', sms:'رسالة SMS', email:'بريد',
+      visit:'زيارة', note:'ملاحظة'})[v] || 'تواصل';
+  }
+  function leadActivitiesFor(id){
+    return (leadActivities || []).filter(function(a){ return Number(a.lead_id) === Number(id); });
+  }
+%>
+
+<div class="flex items-start justify-between gap-4 flex-wrap mb-5">
+  <div>
+    <h1 class="font-black text-xl">CRM والمتابعة</h1>
+    <p class="text-sm text-slate-500 mt-1">حوّل الاستفسار إلى موعد، ثم حافظ على عودة العميل للورشة.</p>
+  </div>
+  <a href="/workshop/customers" class="border border-brand-200 text-brand-700 font-bold rounded-xl px-4 py-2 text-sm">كل العملاء ←</a>
+</div>
+
+<section class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
+  <% leadStages.forEach(function(key){ %>
+    <a href="/workshop/crm?stage=<%= key %>" class="bg-white border border-slate-200 rounded-2xl p-3 hover:border-brand-300">
+      <div class="text-xs text-slate-500"><%= leadStageLabels[key] %></div>
+      <div class="text-2xl font-black text-slate-900 mt-1"><%= counts[key] || 0 %></div>
+    </a>
+  <% }) %>
+</section>
+
+<div class="grid xl:grid-cols-[1.5fr_1fr] gap-5 items-start">
+  <div>
+    <section class="bg-white rounded-2xl border border-slate-200 p-4 mb-5">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <h2 class="font-black">قمع العملاء المحتملين</h2>
+        <form method="get" action="/workshop/crm" class="flex gap-2 flex-wrap">
+          <input name="q" value="<%= q %>" placeholder="اسم أو رقم أو مصدر" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+          <select name="stage" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+            <option value="">كل المراحل</option>
+            <% leadStages.forEach(function(key){ %><option value="<%= key %>" <%= stage === key ? 'selected' : '' %>><%= leadStageLabels[key] %></option><% }) %>
+          </select>
+          <button class="bg-brand-600 text-white font-bold rounded-xl px-4 py-2 text-sm">تصفية</button>
+        </form>
+      </div>
+      <div class="grid md:grid-cols-2 2xl:grid-cols-3 gap-3">
+        <% leadStages.forEach(function(key){ %>
+          <div class="bg-slate-50 rounded-2xl p-3 min-h-[180px]">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-black text-sm"><%= leadStageLabels[key] %></h3>
+              <span class="text-xs bg-white rounded-full px-2 py-1 text-slate-500"><%= counts[key] || 0 %></span>
+            </div>
+            <% if (!leadsByStage[key].length) { %>
+              <p class="text-xs text-slate-400 py-5 text-center">لا يوجد عملاء هنا</p>
+            <% } %>
+            <% leadsByStage[key].forEach(function(lead){ var acts = leadActivitiesFor(lead.id); %>
+              <article class="bg-white border border-slate-200 rounded-xl p-3 mb-2">
+                <div class="flex justify-between gap-2">
+                  <strong class="text-sm"><%= lead.name %></strong>
+                  <% if (lead.priority === 'high') { %><span class="text-[10px] font-bold text-rose-700 bg-rose-50 rounded-full px-2 py-1">أولوية</span><% } %>
+                </div>
+                <div class="text-xs text-slate-500 mt-1" dir="ltr"><%= lead.phone || lead.email || 'بدون وسيلة اتصال' %></div>
+                <% if (lead.source) { %><div class="text-[11px] text-brand-700 mt-1">المصدر: <%= lead.source %></div><% } %>
+                <% if (lead.next_followup_on) { %>
+                  <div class="text-[11px] mt-2 <%= new Date(lead.next_followup_on) < new Date(new Date().toDateString()) ? 'text-rose-700 font-bold' : 'text-slate-500' %>">المتابعة: <%= dateLabel(lead.next_followup_on) %></div>
+                <% } %>
+                <% if (lead.customer_id) { %><div class="text-[11px] text-emerald-700 font-bold mt-1">عميل ورشة: <%= lead.customer_name || 'تم التحويل' %></div><% } %>
+                <details class="mt-2">
+                  <summary class="cursor-pointer text-xs text-brand-700 font-bold">تحديث ومتابعة</summary>
+                  <form method="post" action="/workshop/crm/leads/<%= lead.id %>" class="space-y-2 mt-2">
+                    <select name="stage" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs">
+                      <% leadStages.forEach(function(option){ %><option value="<%= option %>" <%= lead.stage === option ? 'selected' : '' %>><%= leadStageLabels[option] %></option><% }) %>
+                    </select>
+                    <div class="grid grid-cols-2 gap-2">
+                      <select name="priority" class="border border-slate-200 rounded-lg px-2 py-1.5 text-xs">
+                        <% priorities.forEach(function(option){ %><option value="<%= option %>" <%= lead.priority === option ? 'selected' : '' %>><%= priorityLabels[option] %></option><% }) %>
+                      </select>
+                      <input type="date" name="next_followup_on" value="<%= dateOnly(lead.next_followup_on) %>" class="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                    </div>
+                    <textarea name="notes" rows="2" placeholder="ملاحظات" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs"><%= lead.notes || '' %></textarea>
+                    <button class="w-full bg-brand-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold">حفظ</button>
+                  </form>
+                  <form method="post" action="/workshop/crm/leads/<%= lead.id %>/activity" class="space-y-2 mt-3 pt-2 border-t border-slate-100">
+                    <div class="grid grid-cols-2 gap-2">
+                      <select name="channel" class="border border-slate-200 rounded-lg px-2 py-1.5 text-xs">
+                        <option value="phone">مكالمة</option><option value="whatsapp">واتساب</option><option value="visit">زيارة</option><option value="note">ملاحظة</option>
+                      </select>
+                      <input type="date" name="followup_on" class="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                    </div>
+                    <input name="body" required placeholder="ماذا حدث في التواصل؟" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+                    <button class="w-full border border-brand-200 text-brand-700 rounded-lg px-3 py-1.5 text-xs font-bold">تسجيل التواصل</button>
+                  </form>
+                  <% if (acts.length) { %>
+                    <div class="mt-2 pt-2 border-t border-slate-100 space-y-1">
+                      <% acts.slice(0, 3).forEach(function(a){ %><div class="text-[11px] text-slate-500"><%= activityLabel(a.channel) %> · <%= a.body %></div><% }) %>
+                    </div>
+                  <% } %>
+                  <% if (!lead.customer_id && key !== 'lost') { %>
+                    <form method="post" action="/workshop/crm/leads/<%= lead.id %>/convert" class="mt-2">
+                      <button class="w-full border border-emerald-200 text-emerald-700 rounded-lg px-3 py-1.5 text-xs font-bold">تحويل إلى عميل ورشة</button>
+                    </form>
+                  <% } %>
+                </details>
+              </article>
+            <% }) %>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black mb-1">إضافة عميل محتمل</h2>
+      <p class="text-xs text-slate-500 mb-4">سجّل أي استفسار حتى لا تضيع فرصة المتابعة.</p>
+      <form method="post" action="/workshop/crm/leads" class="grid sm:grid-cols-2 gap-2 text-sm">
+        <input name="name" required placeholder="الاسم *" class="border border-slate-200 rounded-xl px-3 py-2" />
+        <input name="phone" dir="ltr" placeholder="الهاتف" class="border border-slate-200 rounded-xl px-3 py-2" />
+        <input name="email" type="email" placeholder="البريد الإلكتروني" class="border border-slate-200 rounded-xl px-3 py-2" />
+        <input name="source" placeholder="المصدر: إعلان، توصية، موقع..." class="border border-slate-200 rounded-xl px-3 py-2" />
+        <select name="priority" class="border border-slate-200 rounded-xl px-3 py-2"><% priorities.forEach(function(key){ %><option value="<%= key %>"><%= priorityLabels[key] %> الأولوية</option><% }) %></select>
+        <input name="next_followup_on" type="date" class="border border-slate-200 rounded-xl px-3 py-2" />
+        <textarea name="notes" rows="2" placeholder="ملاحظات أولية" class="sm:col-span-2 border border-slate-200 rounded-xl px-3 py-2"></textarea>
+        <button class="sm:col-span-2 bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5">حفظ في القمع</button>
+      </form>
+    </section>
+  </div>
+
+  <div class="space-y-5">
+    <section class="bg-white rounded-2xl border border-slate-200 p-5">
+      <h2 class="font-black">متابعة العملاء الحاليين</h2>
+      <p class="text-xs text-slate-500 mt-1 mb-3">قسّم العملاء وحدد من يحتاج اتصالًا قبل أن ينقطع.</p>
+      <% if (!customers.length) { %><p class="text-sm text-slate-400">لا يوجد عملاء نشطون.</p><% } %>
+      <div class="space-y-2 max-h-[520px] overflow-auto">
+        <% customers.forEach(function(customer){ %>
+          <a href="/workshop/crm?customer_id=<%= customer.id %>" class="block border <%= Number(customer.id) === Number(customerId) ? 'border-brand-400 bg-brand-50' : 'border-slate-100' %> rounded-xl p-3 hover:border-brand-300">
+            <div class="flex items-center justify-between gap-2">
+              <strong class="text-sm"><%= customer.name %></strong>
+              <span class="text-[11px] font-bold rounded-full px-2 py-1 bg-slate-100"><%= segmentLabels[customer.segment] || 'منتظم' %></span>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-500 mt-1">
+              <span><%= customer.jobs_count || 0 %> زيارة</span>
+              <span class="<%= customer.next_followup_on && new Date(customer.next_followup_on) <= new Date(new Date().toDateString()) ? 'text-rose-700 font-bold' : '' %>"><%= customer.next_followup_on ? dateLabel(customer.next_followup_on) : 'لا توجد متابعة' %></span>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    </section>
+
+    <% if (selectedCustomer) { %>
+      <section class="bg-white rounded-2xl border border-slate-200 p-5">
+        <h2 class="font-black">ملف متابعة: <%= selectedCustomer.name %></h2>
+        <p class="text-xs text-slate-500 mt-1" dir="ltr"><%= selectedCustomer.phone || selectedCustomer.whatsapp || 'بدون رقم' %></p>
+        <form method="post" action="/workshop/crm/customers/<%= selectedCustomer.id %>/profile" class="grid grid-cols-2 gap-2 text-xs mt-4">
+          <label>التصنيف<select name="segment" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1"><% segments.forEach(function(key){ %><option value="<%= key %>" <%= selectedCustomer.segment === key ? 'selected' : '' %>><%= segmentLabels[key] %></option><% }) %></select></label>
+          <label>الحالة<select name="lifecycle_stage" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1"><% lifecycles.forEach(function(key){ %><option value="<%= key %>" <%= selectedCustomer.lifecycle_stage === key ? 'selected' : '' %>><%= lifecycleLabels[key] %></option><% }) %></select></label>
+          <label>القناة المفضلة<select name="preferred_channel" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1"><option value="whatsapp" <%= selectedCustomer.preferred_channel === 'whatsapp' ? 'selected' : '' %>>واتساب</option><option value="phone" <%= selectedCustomer.preferred_channel === 'phone' ? 'selected' : '' %>>هاتف</option><option value="sms" <%= selectedCustomer.preferred_channel === 'sms' ? 'selected' : '' %>>SMS</option><option value="email" <%= selectedCustomer.preferred_channel === 'email' ? 'selected' : '' %>>بريد</option><option value="none" <%= selectedCustomer.preferred_channel === 'none' ? 'selected' : '' %>>لا يفضل</option></select></label>
+          <label>المتابعة القادمة<input type="date" name="next_followup_on" value="<%= dateOnly(selectedCustomer.next_followup_on) %>" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1" /></label>
+          <button class="col-span-2 bg-brand-600 text-white rounded-lg px-3 py-2 font-bold">حفظ ملف المتابعة</button>
+        </form>
+
+        <form method="post" action="/workshop/crm/customers/<%= selectedCustomer.id %>/activity" class="mt-4 pt-4 border-t border-slate-100 space-y-2">
+          <div class="grid grid-cols-2 gap-2">
+            <select name="channel" class="border border-slate-200 rounded-lg px-2 py-1.5 text-xs"><option value="whatsapp">واتساب</option><option value="phone">مكالمة</option><option value="visit">زيارة</option><option value="note">ملاحظة</option></select>
+            <input name="followup_on" type="date" class="border border-slate-200 rounded-lg px-2 py-1.5 text-xs" />
+          </div>
+          <textarea name="body" required rows="2" placeholder="سجل آخر تفاعل مع العميل..." class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"></textarea>
+          <button class="w-full border border-brand-200 text-brand-700 font-bold rounded-lg px-3 py-2 text-sm">إضافة إلى سجل العميل</button>
+        </form>
+
+        <div class="mt-5 pt-4 border-t border-slate-100">
+          <h3 class="font-black text-sm mb-2">السجل الموحد</h3>
+          <% if (!timeline.length) { %><p class="text-xs text-slate-400">لا توجد تفاعلات مسجلة بعد.</p><% } %>
+          <div class="space-y-2 max-h-[420px] overflow-auto">
+            <% timeline.forEach(function(item){ %>
+              <div class="border-s-2 border-brand-200 ps-3">
+                <div class="text-[11px] text-slate-400"><%= item.kind === 'job' ? 'أمر شغل' : item.kind === 'message' ? 'رسالة' : activityLabel(item.channel) %> · <%= dateLabel(item.created_at) %></div>
+                <div class="text-sm text-slate-700 whitespace-pre-line"><%= item.body %></div>
+                <% if (item.actor_name) { %><div class="text-[11px] text-slate-400"><%= item.actor_name %></div><% } %>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+      </section>
+    <% } else { %>
+      <section class="bg-brand-700 text-white rounded-2xl p-5">
+        <div class="text-3xl mb-2">◎</div>
+        <h2 class="font-black text-lg">اختر عميلًا لفتح ملفه</h2>
+        <p class="text-sm text-white/75 mt-1">سترى هنا تصنيفه، موعد المتابعة، وسجل الزيارات والرسائل والتواصل في مكان واحد.</p>
+      </section>
+    <% } %>
+  </div>
+</div>
+
+<%- include('foot') %>
