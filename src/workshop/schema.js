@@ -103,6 +103,17 @@ async function ensureWorkshopSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_reminder_runs
         ON workshop_reminder_runs (company_id, started_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_reminder_health (
+        company_id         INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        state              TEXT NOT NULL DEFAULT 'healthy',
+        last_success_at    TIMESTAMPTZ,
+        outage_started_at  TIMESTAMPTZ,
+        last_alert_at      TIMESTAMPTZ,
+        last_alert_status  TEXT,
+        recovered_at       TIMESTAMPTZ,
+        checked_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
     `);
 
     // ── Customers and vehicles ───────────────────────────────────────────────

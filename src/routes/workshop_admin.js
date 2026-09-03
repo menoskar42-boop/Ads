@@ -34,6 +34,7 @@ const {
   normalizeWorkshopRole,
   workshopCan,
 } = require('../workshop/operations');
+const { checkWorkshopReminderHealth } = require('../workshop/reminder_health');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -534,6 +535,13 @@ if (workshopReminderTimer.unref) workshopReminderTimer.unref();
 setTimeout(() => {
   queueServiceReminderMessages().catch((e) => console.error('[workshop reminder startup]', e.message));
 }, 15 * 1000).unref();
+const workshopReminderHealthTimer = setInterval(() => {
+  checkWorkshopReminderHealth().catch((e) => console.error('[workshop reminder health]', e.message));
+}, 10 * 60 * 1000);
+if (workshopReminderHealthTimer.unref) workshopReminderHealthTimer.unref();
+setTimeout(() => {
+  checkWorkshopReminderHealth().catch((e) => console.error('[workshop reminder health startup]', e.message));
+}, 60 * 1000).unref();
 
 async function loadWorkshopInvoiceRows(companyId, options = {}) {
   const params = [companyId];
@@ -919,7 +927,7 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), requireWor
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', requireWorkshopPermission('view_settings'), async (req, res) => {
-  const [messageRow, paymentRow, users, roleHistory, reminderRuns] = await Promise.all([
+  const [messageRow, paymentRow, users, roleHistory, reminderRuns, reminderHealth] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),
     pool.query(
@@ -941,6 +949,13 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
         ORDER BY started_at DESC, id DESC LIMIT 20`,
       [req.company.id]
     ),
+    pool.query(
+      `SELECT state, last_success_at, outage_started_at, last_alert_at, last_alert_status,
+              recovered_at, checked_at
+         FROM workshop_reminder_health
+        WHERE company_id=$1`,
+      [req.company.id]
+    ),
   ]);
   const payment = Object.assign({}, paymentRow || { gateway: 'none', cod_enabled: true });
   payment.gateway_secret_set = Boolean(payment.gateway_secret_enc || payment.gateway_secret);
@@ -955,6 +970,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     users: users.rows,
     roleHistory: roleHistory.rows,
     reminderRuns: reminderRuns.rows,
+    reminderHealth: reminderHealth.rows[0] || null,
     inviteLink: req.query.invite
       ? `${publicOrigin(req)}/company/workshop-invite/${encodeURIComponent(String(req.query.invite).slice(0, 200))}`
       : null,

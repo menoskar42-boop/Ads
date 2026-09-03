@@ -8,6 +8,15 @@
 <% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
 <% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
+<% if (typeof reminderHealth !== 'undefined' && reminderHealth && reminderHealth.state === 'alerted') { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">
+    <div class="font-black">تنبيه: عامل تذكيرات الصيانة متوقف أو لم يسجل تشغيلًا ناجحًا مؤخرًا.</div>
+    <div class="text-xs mt-1">آخر تشغيل ناجح:
+      <%= reminderHealth.last_success_at ? new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : 'لا يوجد سجل بعد' %>
+      · حالة التنبيه: <%= reminderHealth.last_alert_status === 'sent' ? 'تم إرسال إشعار' : reminderHealth.last_alert_status === 'push_disabled' ? 'الإشعار الفوري غير مفعّل' : reminderHealth.last_alert_status === 'push_error' ? 'تعذر إرسال الإشعار الفوري' : 'جارٍ تسجيل التنبيه' %>
+    </div>
+  </div>
+<% } %>
 <% if (typeof users !== 'undefined' && canWorkshop('manage_settings')) { %>
   <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
     <div class="flex items-start justify-between gap-3 flex-wrap">
@@ -80,6 +89,9 @@
   <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
     <h2 class="font-black mb-1">تشغيل تذكيرات الصيانة</h2>
     <p class="text-xs text-slate-500 mb-3">ملخص آخر عمليات العامل لهذه الورشة، مع فصل الرسائل التي تم تجهيزها عن التي تجاوزها عامل آخر أو فشلت.</p>
+    <% if (reminderHealth && reminderHealth.state === 'healthy' && reminderHealth.last_success_at) { %>
+      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></p>
+    <% } %>
     <% if (!reminderRuns || !reminderRuns.length) { %>
       <p class="text-sm text-slate-400">لم يعمل عامل التذكيرات لهذه الورشة بعد.</p>
     <% } else { %>
