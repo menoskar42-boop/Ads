@@ -230,6 +230,21 @@ for (const rel of ROUTERS) {
         scoped += 1; continue;
       }
 
+      /* `INSERT … SELECT … FROM <table> WHERE id=$N AND company_id=$M`.
+       *
+       * ده أقوى من `ref()` مش أضعف: التقييد جوّه نفس الجملة، ولو الصف مش
+       * بتاع الشركة الجملة **مابتكتبش ولا صف** بدل ما تكتب عمود NULL.
+       * ومفيد بالذات لما العمود بيقبل NULL — `ref()` ساعتها بتسيب صف
+       * يتيم (مطالبة ضمان بلا شغل مثلاً) بدل ما ترفضه.
+       *
+       * الشرط مضبوط على **نفس** رقم المتغيّر بتاع العمود ده، فجملة
+       * بتقيّد معرّف تاني ماتعديش بالغلط. */
+      if (new RegExp(
+        '\\bSELECT\\b[\\s\\S]{0,400}?\\bFROM\\s+[a-z_]+\\s+WHERE\\s+id=\\$' + ph[1]
+        + '\\s+AND\\s+company_id=\\$\\d+', 'i').test(st.sql)) {
+        scoped += 1; continue;
+      }
+
       /* The transactional-lock form, which the workshop reservation route uses:
        *
        *   const job = (await client.query(
@@ -277,6 +292,39 @@ for (const rel of ROUTERS) {
     }
   }
 }
+
+/* ── كنسة تانية: شكل `INSERT … SELECT` ────────────────────────────────
+ *
+ * الكنسة اللي فوق بتمشي على القيم اللي شكلها `$N`. لكن في
+ * `INSERT … SELECT $2, id, vehicle_id, … FROM workshop_jobs WHERE id=$1
+ * AND company_id=$2` القيمة اللي بتتكتب في `original_job_id` هي **عمود**
+ * (`id`) مش متغيّر — فالكنسة الأولى مابتشوفهاش خالص.
+ *
+ * والشكل ده آمن **بشرط واحد**: إن الـ`WHERE` فيه `company_id`. من غيره
+ * الجملة بتسحب صف حد تاني وتكتبه عندنا — ومفيش حاجة في الكنسة الأولى
+ * كانت هتقول. الثغرة دي ظهرت لما حوّلنا مطالبة الضمان للشكل ده: شيلنا
+ * `AND company_id` والفحص فضل أخضر.
+ *
+ * فالقاعدة هنا: أي `INSERT … SELECT … FROM <جدول مستأجرين> WHERE id=$N`
+ * لازم يبقى معاه `company_id=`. */
+const nakedSelects = [];
+for (const rel of ROUTERS) {
+  let src;
+  try { src = code(rel); } catch (e) { continue; }
+  for (const st of statementsIn(src)) {
+    if (!/\bSELECT\b/i.test(st.sql)) continue;
+    const from = /\bFROM\s+([a-z_]+)\s+WHERE\s+([\s\S]{0,200})/i.exec(st.sql);
+    if (!from) continue;
+    const [, sourceTable, whereClause] = from;
+    if (!SCHEMA.scopedTables.has(sourceTable)) continue;   // كتالوج مشترك
+    if (!/\bid=\$\d+/.test(whereClause)) continue;         // مش بيختار بمعرّف من الطلب
+    if (/company_id\s*=/.test(whereClause)) continue;      // متقيّد ✅
+    nakedSelects.push(`${rel}:${st.at} ${st.table} ← SELECT FROM ${sourceTable} من غير company_id`);
+  }
+}
+
+check('و`INSERT … SELECT` بيقيّد مصدره بالشركة كمان',
+  nakedSelects.length === 0, nakedSelects.join('\n     ') || 'ولا واحد');
 
 check('مفيش INSERT بيكتب معرّف جاي من الطلب من غير ما يقيّده',
   naked.length === 0, naked.join('\n     ') || 'ولا واحد');
