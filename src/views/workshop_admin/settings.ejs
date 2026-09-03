@@ -92,10 +92,11 @@
             </div>
             <div class="flex gap-2 flex-wrap text-xs font-bold">
               <span class="bg-slate-100 rounded-full px-2 py-1">مرشحون: <%= run.candidate_count %></span>
-              <span class="bg-emerald-50 text-emerald-700 rounded-full px-2 py-1">تم: <%= run.queued_count %></span>
+              <span class="bg-emerald-50 text-emerald-700 rounded-full px-2 py-1">تم تجهيزه: <%= run.queued_count %></span>
               <span class="bg-slate-100 text-slate-600 rounded-full px-2 py-1">تم تجاوزهم: <%= run.skipped_count %></span>
               <% if (run.failed_count) { %><span class="bg-rose-50 text-rose-700 rounded-full px-2 py-1">فشل: <%= run.failed_count %></span><% } %>
             </div>
+            <% if (run.error) { %><p class="basis-full text-xs text-rose-700">خطأ التشغيل: <%= run.error %></p><% } %>
           </div>
         <% }) %>
       </div>

@@ -124,6 +124,29 @@ class ConcurrentReminderDb {
   }
 }
 
+class ReminderRunLogDb {
+  constructor() {
+    this.created = [];
+    this.finished = [];
+  }
+
+  async query(sql, params) {
+    if (sql.includes('FROM workshop_reminders r')) return { rows: [] };
+    if (sql.includes('FROM companies WHERE page_type')) {
+      return { rows: [{ id: 77 }, { id: 88 }] };
+    }
+    if (sql.includes('INSERT INTO workshop_reminder_runs')) {
+      this.created.push({ companyId: params[0], candidateCount: params[1] });
+      return { rows: [{ id: this.created.length }] };
+    }
+    if (sql.includes('UPDATE workshop_reminder_runs')) {
+      this.finished.push({ id: params[3], queued: params[0], skipped: params[1], failed: params[2] });
+      return { rows: [] };
+    }
+    throw new Error(`unexpected reminder run query: ${sql.slice(0, 80)}`);
+  }
+}
+
 describe('workshop service reminder queue integration', () => {
   after(async () => {
     await workshopAdmin.pool.end();
@@ -181,5 +204,20 @@ describe('workshop service reminder queue integration', () => {
     assert.equal(db.messages.length, 1);
     assert.equal(db.reminder.reminder_message_id, db.messages[0].id);
     assert.ok(db.reminder.reminder_notified_at instanceof Date);
+  });
+
+  it('records an isolated zero-candidate run for every active workshop', async () => {
+    const db = new ReminderRunLogDb();
+    const queued = await workshopAdmin.helpers.queueServiceReminderMessages({ db });
+
+    assert.equal(queued, 0);
+    assert.deepEqual(db.created, [
+      { companyId: 77, candidateCount: 0 },
+      { companyId: 88, candidateCount: 0 },
+    ]);
+    assert.deepEqual(db.finished, [
+      { id: 1, queued: 0, skipped: 0, failed: 0 },
+      { id: 2, queued: 0, skipped: 0, failed: 0 },
+    ]);
   });
 });
