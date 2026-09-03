@@ -80,6 +80,72 @@ check('no landing page hardcodes a price', strays.length === 0, strays.join(', '
     /PRICES|arabicNumber/.test(facts));
 }
 
+/* ── `llms.txt` — الملف اللي محرّكات الإجابة بتقتبس منه ────────────────
+ *
+ * قياس الجيو (٢٠٢٦-٠٨-٢٥) طلّع صفر ذكر لـOscarDevs في أربع أسئلة سوقية.
+ * السعر أكتر حقيقة بيستشهد بيها محرّك الإجابة — فلو الرقم هنا غلط، هو
+ * الرقم اللي هيتكرّر في كل إجابة، مش الصح اللي على الصفحة.
+ *
+ * والفحص **بينفّذ الراوت فعلاً** ويقرا مخرَجه، مش بيدوّر على نص في
+ * `legal.js`. مطابقة النص كانت هتعدّي على كود بيبني السطر صح ومابيطبعوش،
+ * وعلى نظام اتشال من القايمة. */
+{
+  let body = null, why = null;
+  try {
+    const router = require('../src/routes/legal');
+    const layer = router.stack.find((l) => l.route && l.route.path === '/llms.txt');
+    if (!layer) throw new Error('مالقيتش راوت /llms.txt');
+    const res = { setHeader() {}, send(b) { body = b; } };
+    layer.route.stack[0].handle({ query: {}, headers: {}, get() {} }, res, () => {});
+    if (!body) throw new Error('الراوت ما بعتش رد');
+  } catch (e) {
+    why = e.message;
+  }
+
+  if (why) {
+    /* مش بنعدّيه أخضر. فحص مش قادر يقيس لازم يقول كده. */
+    check('llms.txt: قدرت أنفّذ الراوت وأقرا مخرَجه', false, why);
+  } else {
+    const businessTypes = require('../src/lib/business_types');
+    const { arabicNumber } = require('../src/lib/pricing');
+    /* **قسم الأسعار بس.** قسم «الأنظمة الجاهزة» فوقه فيه سطور بتبدأ بنفس
+     * الاسم بالظبط (`- **متجر إلكتروني**: منتجات وسلة…`)، فالبحث في الملف
+     * كله كان بيلاقي سطر المميزات ويقول «مفيش سعر ولا رابط» وهما موجودين
+     * تحت. وقع فعلاً أول تشغيل. */
+    const priceBlock = (body.split('## الأسعار')[1] || '').split('\n## ')[0];
+    const missing = [], wrong = [];
+    for (const type of Object.keys(PRICES)) {
+      const label = businessTypes.labelOf(type);
+      const line = priceBlock.split('\n').find((l) => l.startsWith(`- **${label}**`));
+      if (!line) { missing.push(label); continue; }
+      const monthly = arabicNumber(PRICES[type].monthly);
+      const buy = arabicNumber(PRICES[type].buy);
+      if (!line.includes(monthly + ' ج/شهر') || !line.includes(buy + ' ج')) {
+        wrong.push(`${label}: المفروض ${monthly}/${buy}`);
+      }
+      if (!/https:\/\/[^\s]+/.test(line)) wrong.push(`${label}: مفيش رابط`);
+    }
+    check('llms.txt: كل نظام مسعّر موجود فيه', missing.length === 0, missing.join('، '));
+    check('llms.txt: وأسعاره مطابقة لـpricing.js ومعاه رابط', wrong.length === 0, wrong.join(' | '));
+
+    check(`llms.txt: بيقول إن أول ${arabicNumber(require('../src/lib/pricing').FREE_MONTHS)} شهور مجانية وإن العملة جنيه`,
+      /مجاني بالكامل أول/.test(body) && /الجنيه المصري|EGP/.test(body));
+
+    /* الخدمات المخصّصة **مالهاش سعر** — القاعدة في
+     * `docs/SOCIAL_POSTS_PROMPT.md`: «متكتبش سعر ولا رقم تقريبي»، لأن
+     * سعرها بيتحدّد بعد وثيقة نطاق مكتوبة. لو ظهر رقم في القسم ده، أي
+     * محرّك إجابة هيقتبسه كسعر ثابت. */
+    const servicesBlock = body.split('## خدمات التطوير المخصّص')[1] || '';
+    /* من غير `\b`. حدود الكلمة في JS مبنية على ASCII، و«ج» مش حرف كلمة
+     * عندها — فـ`ج\b` **مابيطابقش أبداً**، حتى في «٥٠٠٠ ج». النسخة الأولى
+     * كانت كده: فحص مايقدرش يقع، وضوء أخضر مالوش معنى. اتكشف لما جرّبت
+     * أحطّ سعر في قسم الخدمات عمداً والفحص عدّى. */
+    const servicesPriced = /[٠-٩0-9][٠-٩0-9٬,]*\s*ج(?![\u0600-\u06FF])/.test(servicesBlock);
+    check('llms.txt: خدمات التطوير المخصّص بلا سعر', !servicesPriced,
+      servicesPriced ? 'ظهر رقم بالجنيه في قسم الخدمات — سعرها بيتحدّد بعد وثيقة نطاق مكتوبة.' : '');
+  }
+}
+
 console.log(fail
   ? `\n${fail} مشكلة في الأسعار — دي أرقام العميل بيقرر عليها وبيتحاسب بيها.`
   : `\nالأسعار متسقة عبر ${Object.keys(PRICES).length} نظام.`);

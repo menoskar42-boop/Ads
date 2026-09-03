@@ -107,6 +107,26 @@ const CONTACT = langRoutes.withLang('/contact', langRoutes.DEFAULT_LANG);
 // بتتحسب مرة واحدة عند التحميل — القايمة مشتقّة من ملفات ثابتة.
 const PUBLIC_PATHS = langRoutes.publicPaths();
 const { arabicNumber } = require('../lib/pricing');
+const pricing = require('../lib/pricing');
+const businessTypes = require('../lib/business_types');
+
+/* خريطة: نوع النشاط → الصفحة العامة اللي بتشرحه.
+ *
+ * التسعة اللي ليهم صفحة قطاع بتتقرا من `SECTORS` نفسها بدل ما تتكتب
+ * تاني — قطاع جديد بيدخل هنا لوحده. والورشة صفحتها ثابتة برّه `SECTORS`.
+ *
+ * ⚠️ **البورتفوليو والمتجر مالهمش صفحة نظام** — بس مقالات مدوّنة. فبيوَدّوا
+ * على الرئيسية، وكروتهم عليها بأسعارهم الحقيقية (نفس الكروت اللي
+ * `check-pricing` بيقارنها بالمصدر). لما يتعملّهم صفحة، السطر ده بس
+ * اللي هيتغيّر. */
+const SYSTEM_PAGE = (() => {
+  const map = {};
+  for (const [slug, sec] of Object.entries(SECTORS)) {
+    if (sec.type) map[sec.type] = '/' + slug;
+  }
+  map.workshop = WORKSHOP_LANDING;
+  return map;
+})();
 for (const slug of Object.keys(SERVICES)) {
   router.get('/' + slug, (req, res) => {
     res.render('landing/service', {
@@ -506,6 +526,34 @@ router.get('/llms.txt', (req, res) => {
   // بتقول إنه خدمة مش نظام — عشان اللي بيقرا الملف ما يجمعش التلاتة
   // على الاتناشر ويقول خمستاشر نظام. نفس مشكلة «١٢ ولا ١٣» اللي
   // اتصلّحت فوق، وبتتكرّر بالظبط كده لو الفصل مش مكتوب.
+  /* ── الأسعار ─────────────────────────────────────────────────────────
+   *
+   * ليه في `llms.txt` أصلاً: قياس الجيو (`docs/GEO_BASELINE.md`، ٢٠٢٦-٠٨-٢٥)
+   * طلّع **صفر ذكر لـOscarDevs** في أربع أسئلة سوقية على Gemini. وسؤال زي
+   * «أرخص برنامج إدارة صيدلية في مصر» **مايتجاوبش من غير رقم** — فمحرّك
+   * الإجابة بيستشهد باللي عنده رقم. أسعارنا نقطة قوة مش حاجة نخبّيها.
+   *
+   * والأرقام **بتتقرا من `pricing.js`** مش مكتوبة هنا. صفحة الورش كانت
+   * معلنة ١٩٩ ج في بياناتها المنظّمة والسعر الحقيقي ١٣٩ — والبيانات
+   * المنظّمة هي اللي المحرّك بيقتبسها، فالرقم الغلط هو اللي بيتكرّر.
+   * `check-pricing.js` بيقارن المخرَج ده بالمصدر.
+   *
+   * ⛔ **خدمات التطوير المخصّص مالهاش سعر هنا** — سعرها بيتحدّد بعد وثيقة
+   * نطاق مكتوبة، والقاعدة مسجّلة في `docs/SOCIAL_POSTS_PROMPT.md`:
+   * «متكتبش سعر ولا رقم تقريبي». القسم اللي تحت بيقول كده صراحةً. */
+  lines.push('## الأسعار');
+  lines.push(`> كل الأسعار بالجنيه المصري (EGP). **الاشتراك مجاني بالكامل أول ${pricing.arabicNumber(pricing.FREE_MONTHS)} شهور** لكل الأنظمة. بعدها تختار: **اشتراك شهري** بيفضل مدفوع كل شهر، أو **شراء كامل مرة واحدة** تملك بيه النظام ومش بتدفع بعده أي اشتراك.`);
+  lines.push('');
+  lines.push(`> الأرقام دي مولَّدة من مصدر الأسعار الرسمي وقت طلب الملف — مش نسخة محفوظة. لو اختلف رقم هنا عن صفحة النظام، الصفحة هي الأصل.`);
+  lines.push('');
+  for (const type of businessTypes.KEYS) {
+    const pr = pricing.PRICES[type];
+    if (!pr) continue;
+    const url = SITE_ORIGIN + (SYSTEM_PAGE[type] || '/');
+    lines.push(`- **${businessTypes.labelOf(type)}**: ${pricing.arabicNumber(pr.monthly)} ج/شهر، أو شراء كامل بـ${pricing.arabicNumber(pr.buy)} ج — ${url}`);
+  }
+  lines.push('');
+
   lines.push('## خدمات التطوير المخصّص (خدمات — مش أنظمة جاهزة)');
   lines.push(`> **توضيح للعدّ:** التلات صفحات دي **خدمات تطوير**، مش أنظمة جاهزة. عدد الأنظمة الجاهزة فضل ${companyFacts.facts().systemsCountAr} زي ما هو مكتوب فوق. الفرق: النظام الجاهز ليه سعر ثابت وتشغيل فوري، والخدمة سعرها بيتحدّد بعد وثيقة نطاق مكتوبة.`);
   for (const [slug, sv] of Object.entries(SERVICES)) {
