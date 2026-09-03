@@ -21,7 +21,12 @@
       <div class="flex items-start justify-between gap-3 flex-wrap"><div><a class="font-bold text-brand-700" href="/workshop/jobs/<%= c.original_job_id %>">أمر #<%= c.original_job_id || '—' %></a> · <%= c.plate || '—' %> · <%= c.customer_name || '—' %><div class="text-sm mt-1"><%= c.complaint %></div></div><span class="text-xs rounded-full px-2 py-1 font-bold bg-slate-100"><%= labels[c.status] || c.status %></span></div>
       <div class="grid sm:grid-cols-4 gap-2 mt-3 text-sm">
         <select name="status" class="border border-slate-200 rounded-xl px-3 py-2"><% Object.keys(labels).forEach(function(s){ %><option value="<%= s %>" <%= c.status===s?'selected':'' %>><%= labels[s] %></option><% }) %></select>
-        <input name="return_job_id" type="number" value="<%= c.return_job_id || '' %>" placeholder="رقم أمر العودة (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
+        <select name="return_job_id" class="border border-slate-200 rounded-xl px-3 py-2">
+          <option value="">أمر العودة (اختياري)</option>
+          <% (returnJobs || []).forEach(function(j){ %>
+            <option value="<%= j.id %>" <%= Number(c.return_job_id) === Number(j.id) ? 'selected' : '' %>>#<%= j.id %> · <%= j.plate || '—' %> · <%= j.status %></option>
+          <% }) %>
+        </select>
         <input name="decision" value="<%= c.decision || '' %>" placeholder="قرار الضمان" class="border border-slate-200 rounded-xl px-3 py-2">
         <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">حفظ الحالة</button>
         <textarea name="diagnosis" rows="2" placeholder="التشخيص" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2"><%= c.diagnosis || '' %></textarea>

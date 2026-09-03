@@ -12,9 +12,9 @@
   <tbody>
     <% rows.forEach(function(r){ %>
       <tr class="border-t border-slate-100">
-        <% cols.forEach(function(c){ var v = typeof c.get==='function' ? c.get(r) : r[c.key]; %>
+        <% cols.forEach(function(c){ var v = typeof c.get==='function' ? c.get(r) : r[c.key]; var href = typeof c.link==='function' ? c.link(r) : c.link; %>
           <td class="px-4 py-2 <%= c.cls || '' %>" data-l="<%= c.label %>">
-            <% if (c.link) { %><a href="<%= c.link(r) %>" class="font-bold text-brand-700"><%= v %></a>
+            <% if (href) { %><a href="<%= href %>" class="font-bold text-brand-700"><%= v %></a>
             <% } else if (c.badge) { %><span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100"><%= v %></span>
             <% } else if (c.money) { %><bdi><%= Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}) %></bdi>
             <% } else { %><%= (v === null || v === undefined || v === '') ? '—' : v %><% } %>

@@ -35,7 +35,20 @@
             <% if (r.state.overdueKm != null && r.state.overdueKm >= 0) { %>
               <span class="bg-amber-50 text-amber-700 font-bold px-2 py-0.5 rounded-full"><%= t('wsh.rem.overdue_km') %>: <%= r.state.overdueKm.toLocaleString(LOC) %></span>
             <% } %>
+            <% if (r.message_status) { %>
+              <span class="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                الرسالة: <%= r.message_status === 'delivered' ? 'وصلت' : r.message_status === 'failed' ? 'فشلت' : r.message_status === 'sent' ? 'قبلها المزود' : 'مجهزة' %>
+              </span>
+            <% } %>
           </div>
+          <% if (r.message_provider_status || r.message_error || r.message_delivered_at || r.message_failed_at) { %>
+            <div class="w-full text-xs text-slate-500">
+              <% if (r.message_provider_status) { %><span dir="ltr">Provider: <%= r.message_provider_status %></span><% } %>
+              <% if (r.message_delivered_at) { %><span class="text-emerald-700"> · وصلت: <%= d(r.message_delivered_at) %></span><% } %>
+              <% if (r.message_failed_at) { %><span class="text-rose-700"> · فشلت: <%= d(r.message_failed_at) %></span><% } %>
+              <% if (r.message_error) { %><span class="text-rose-700"> · <%= r.message_error %></span><% } %>
+            </div>
+          <% } %>
           <div class="flex gap-2 no-print">
             <% var link = wa(r); if (link) { %>
               <a href="<%= link %>" target="_blank" rel="noopener"

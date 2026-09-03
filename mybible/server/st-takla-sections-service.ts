@@ -73,6 +73,15 @@ const SECTION_DEFINITIONS: Record<StTaklaSectionKey, {
 const htmlCache = new Map<string, { expiresAt: number; html: string }>();
 const catalogCache = new Map<StTaklaSectionKey, { expiresAt: number; value: StTaklaSectionCatalog }>();
 
+const BROWSE_CONTRACTS: Record<StTaklaSectionKey, {
+  expectedCount: number;
+  unit: 'حرف' | 'شهر';
+}> = {
+  ritual: { expectedCount: 28, unit: 'حرف' },
+  bible: { expectedCount: 28, unit: 'حرف' },
+  calendar: { expectedCount: 12, unit: 'شهر' },
+};
+
 /* قاموس الكتاب المقدس لوحده آلاف المقالات، وكل واحد مفتاح جديد في
  * `htmlCache`. المدخل المنتهي بيتقرا وما بيتمسحش، فالخريطة بتكبر ولا
  * بتصغر أبداً — تسريب ذاكرة على سيرفر مشترك. السقف بيرمي الأقدم. */
@@ -190,6 +199,10 @@ async function fetchHtml(url: string): Promise<string> {
     } catch {
       html = new TextDecoder('utf-8').decode(bytes);
     }
+    const decodedForValidation = decodeHtmlEntities(html);
+    if (html.includes('\uFFFD') || !/[\u0600-\u06ff]/.test(decodedForValidation)) {
+      throw new Error('St-Takla أرسل صفحة بترميز غير صالح أو بلا محتوى عربي');
+    }
     putCappedHtml(url, { expiresAt: Date.now() + CACHE_TTL_MS, html });
     return html;
   } finally {
@@ -242,6 +255,20 @@ function parseBrowseLinks(key: StTaklaSectionKey, html: string, definition: type
     }
   }
   return uniqueLinks(links).map((link, index) => ({ ...link, id: key === 'calendar' ? link.id : `letter-${index + 1}` }));
+}
+
+function validateBrowseContract(key: StTaklaSectionKey, browse: StTaklaBrowseLink[]): void {
+  const contract = BROWSE_CONTRACTS[key];
+  const expectedIds = Array.from({ length: contract.expectedCount }, (_, index) =>
+    key === 'calendar' ? `month-${index + 1}` : `letter-${index + 1}`,
+  );
+  const missing = expectedIds.filter(id => !browse.some(link => link.id === id));
+  if (missing.length) {
+    throw new Error(
+      `St-Takla فشل تحقق فهرس ${contract.unit === 'شهر' ? 'الشهور' : 'الحروف'}: ` +
+      `المداخل المفقودة (${missing.join(', ')})`,
+    );
+  }
 }
 
 function parseSectionItems(
@@ -306,7 +333,7 @@ export async function getStTaklaSectionCatalog(key: StTaklaSectionKey): Promise<
     browse: parseBrowseLinks(key, html, definition),
     status: 'ok',
   };
-  if (!value.browse.length) throw new Error(`St-Takla لم يُرجع فهرسًا لقسم ${key}`);
+  validateBrowseContract(key, value.browse);
   catalogCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
   return value;
 }
@@ -341,6 +368,7 @@ export async function getStTaklaSectionBrowse(
   section: StTaklaSectionKey;
   source: 'St-Takla.org';
   sourceUrl: string;
+  status: 'ok' | 'unavailable';
   items: StTaklaSectionItem[];
   pagination?: StTaklaPagination;
   article?: StTaklaSectionArticle;
@@ -350,22 +378,29 @@ export async function getStTaklaSectionBrowse(
   if (!browse) throw new Error('عنصر التصفح غير موجود في فهرس St-Takla');
   const html = await fetchHtml(browse.url);
   if (key === 'calendar') {
+    const content = parseArticleContent(html);
+    if (!content) throw new Error('St-Takla لم يُرجع محتوى المقال');
     return {
       section: key,
       source: 'St-Takla.org',
       sourceUrl: browse.url,
+      status: 'ok' as const,
       items: [],
       article: {
         section: key,
         title: parseArticleTitle(html, browse.label),
-        content: parseArticleContent(html),
+        content,
         source: 'St-Takla.org',
         sourceUrl: browse.url,
       },
     };
   }
   const normalizedQuery = query.trim().slice(0, 80).toLocaleLowerCase('ar');
-  const items = parseSectionItems(key, html, sectionDefinition(key), browse.url).filter(item =>
+  const parsedItems = parseSectionItems(key, html, sectionDefinition(key), browse.url);
+  if (!parsedItems.length) {
+    throw new Error('St-Takla لم يُرجع مداخل قابلة للعرض لهذا القسم');
+  }
+  const items = parsedItems.filter(item =>
     !normalizedQuery || item.title.toLocaleLowerCase('ar').includes(normalizedQuery),
   );
   const safePageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(Number(pageSize) || DEFAULT_PAGE_SIZE)));
@@ -377,6 +412,7 @@ export async function getStTaklaSectionBrowse(
     section: key,
     source: 'St-Takla.org',
     sourceUrl: browse.url,
+    status: 'ok',
     items: items.slice(start, start + safePageSize),
     pagination: {
       page: safePage,

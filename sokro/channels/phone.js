@@ -8,7 +8,15 @@ async function call(to, callbackUrl, statusCallback) {
   if (!configured()) throw new Error('phone provider is not configured');
   const sid = process.env.SOKRO_TWILIO_ACCOUNT_SID;
   const auth = Buffer.from(`${sid}:${process.env.SOKRO_TWILIO_AUTH_TOKEN}`).toString('base64');
-  const form = new URLSearchParams({ To: String(to), From: process.env.SOKRO_TWILIO_FROM, Url: String(callbackUrl), StatusCallback: String(statusCallback || callbackUrl), StatusCallbackMethod: 'POST' });
+  const form = new URLSearchParams({
+    To: String(to),
+    From: process.env.SOKRO_TWILIO_FROM,
+    Url: String(callbackUrl),
+    Method: 'POST',
+    StatusCallback: String(statusCallback || callbackUrl),
+    StatusCallbackMethod: 'POST',
+    StatusCallbackEvent: 'initiated ringing answered completed',
+  });
   const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Calls.json`, {
     method: 'POST', headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form,
   });

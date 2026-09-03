@@ -2,7 +2,9 @@
 <% function money(v){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}); } %>
 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
   <h1 class="font-black text-xl"><%= t('wsh.rep.title') %></h1>
-  <div class="flex gap-1 text-xs">
+  <div class="flex gap-1 text-xs items-center no-print">
+    <a href="/workshop/reports.csv?days=<%= days %>" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold">تصدير CSV</a>
+    <button onclick="window.print()" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-bold">طباعة</button>
     <% [7,30,90,365].forEach(function(n){ %>
       <a href="/workshop/reports?days=<%= n %>" class="px-3 py-1.5 rounded-lg <%= days===n ? 'bg-brand-600 text-white font-bold' : 'bg-white border border-slate-200' %>"><%= n %></a>
     <% }) %>

@@ -8,8 +8,12 @@
 - [Synaxarium source](synaxarium-copticchurch.md) — daily Arabic Synaxarium text comes from validated month/day pages on copticchurch.net, with explicit unavailable states.
 - [MyBible preview build](mybible-preview-build.md) — the root preview serves MyBible from its compiled child bundle, so rebuild before live verification.
 - [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — strip navigation, avoid chapter-wrapper inference, and use current live URLs when indexed pages move.
+- [St-Takla section contracts](sttakla-sections-contract.md) — treat reachable indexes as invalid when expected letters, months, encoding, or article content disappear.
 - [Workshop release controls](workshop-release-controls.md) — keep quality gates, stock reservations, purchase receipts, and public booking confirmation as separate events.
 - [Local preview host routing](local-preview-host-routing.md) — treat loopback hosts as platform root, not tenant subdomains, or preview `/` can return a tenant 404.
 - [Deployment healthcheck status](deployment-healthcheck-status.md) — the VM readiness probe needs a direct 200 on `/`; a healthy redirect to `/ar` is still rejected.
 - [Replit-managed databases](replit-managed-databases.md) — this project uses Replit’s separate managed development and production databases; never override them with an external URL alias.
 - [Workshop outbound messages](workshop-outbound-messages.md) — workshop notifications are prepared and tracked locally until an external WhatsApp/SMS provider is explicitly connected.
+- [Workshop operations lifecycle](workshop-operations-lifecycle.md) — keep job stages explicit and every stock correction in a company-scoped movement ledger.
+- [Workshop role access](workshop-role-access.md) — derive every workshop action from company_users.role; unknown roles fail closed and demos remain read-only.
+- [Git remote divergence](git-remote-divergence.md) — an active GitHub connection can coexist with a stale Git-pane auth error; avoid Pull on divergent branches and abort accidental merges.

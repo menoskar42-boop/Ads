@@ -43,6 +43,9 @@ async function ensureWorkshopSchema() {
         -- vehicle can override it.
         service_km     INTEGER NOT NULL DEFAULT 5000,
         service_months INTEGER NOT NULL DEFAULT 6,
+        -- How early the automated reminder worker should notify the customer.
+        reminder_lead_days INTEGER NOT NULL DEFAULT 7,
+        reminder_lead_km   INTEGER NOT NULL DEFAULT 500,
         -- زرار الورشة تقفل بيه استقبال الحجوزات من الموقع العام.
         -- مفتوح افتراضياً: ورشة لسه بتتظبط المفروض تستقبل، مش تفضل
         -- مقفولة لحد ما حد ياخد باله. نفس اللي في العيادة والجيم.
@@ -57,6 +60,59 @@ async function ensureWorkshopSchema() {
         flag_key    TEXT NOT NULL,
         enabled     BOOLEAN NOT NULL DEFAULT false,
         PRIMARY KEY (company_id, flag_key)
+      );
+
+      CREATE TABLE IF NOT EXISTS workshop_team_invitations (
+        id           BIGSERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        email        TEXT NOT NULL,
+        role         TEXT NOT NULL DEFAULT 'reception',
+        token_hash   TEXT NOT NULL UNIQUE,
+        invited_by   INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
+        expires_at   TIMESTAMPTZ NOT NULL,
+        accepted_at  TIMESTAMPTZ,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_team_invites_lookup
+        ON workshop_team_invitations (company_id, lower(email), expires_at)
+        WHERE accepted_at IS NULL;
+
+      CREATE TABLE IF NOT EXISTS workshop_role_history (
+        id           BIGSERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        user_id      INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
+        email        TEXT NOT NULL,
+        from_role    TEXT,
+        to_role      TEXT NOT NULL,
+        changed_by   TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_role_history
+        ON workshop_role_history (company_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_reminder_runs (
+        id             BIGSERIAL PRIMARY KEY,
+        company_id     INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+        started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+        finished_at    TIMESTAMPTZ,
+        candidate_count INTEGER NOT NULL DEFAULT 0,
+        queued_count   INTEGER NOT NULL DEFAULT 0,
+        skipped_count  INTEGER NOT NULL DEFAULT 0,
+        failed_count   INTEGER NOT NULL DEFAULT 0,
+        error          TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_reminder_runs
+        ON workshop_reminder_runs (company_id, started_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_reminder_health (
+        company_id         INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        state              TEXT NOT NULL DEFAULT 'healthy',
+        last_success_at    TIMESTAMPTZ,
+        outage_started_at  TIMESTAMPTZ,
+        last_alert_at      TIMESTAMPTZ,
+        last_alert_status  TEXT,
+        recovered_at       TIMESTAMPTZ,
+        checked_at         TIMESTAMPTZ NOT NULL DEFAULT now()
       );
     `);
 
@@ -74,6 +130,91 @@ async function ensureWorkshopSchema() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_customers ON workshop_customers (company_id, name);
+
+      CREATE TABLE IF NOT EXISTS workshop_customer_activities (
+        id             BIGSERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id    INTEGER NOT NULL REFERENCES workshop_customers(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL DEFAULT 'note',
+        channel        TEXT,
+        body           TEXT NOT NULL,
+        followup_on    DATE,
+        actor_name     TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_customer_activities
+        ON workshop_customer_activities (company_id, customer_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_leads (
+        id                  BIGSERIAL PRIMARY KEY,
+        company_id          INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        customer_id         INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
+        name                TEXT NOT NULL,
+        phone               TEXT,
+        email               TEXT,
+        source              TEXT,
+        stage               TEXT NOT NULL DEFAULT 'new',
+        priority             TEXT NOT NULL DEFAULT 'normal',
+        notes               TEXT,
+        next_followup_on    DATE,
+        last_contacted_at   TIMESTAMPTZ,
+        converted_at        TIMESTAMPTZ,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_leads_pipeline
+        ON workshop_crm_leads (company_id, stage, next_followup_on, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_leads_phone
+        ON workshop_crm_leads (company_id, phone);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_lead_activities (
+        id             BIGSERIAL PRIMARY KEY,
+        company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        lead_id        BIGINT NOT NULL REFERENCES workshop_crm_leads(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL DEFAULT 'note',
+        channel        TEXT,
+        body           TEXT NOT NULL,
+        followup_on    DATE,
+        actor_name     TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_lead_activities
+        ON workshop_crm_lead_activities (company_id, lead_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_campaigns (
+        id              BIGSERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name            TEXT NOT NULL,
+        segment         TEXT NOT NULL,
+        body            TEXT NOT NULL,
+        status           TEXT NOT NULL DEFAULT 'prepared',
+        audience_count   INTEGER NOT NULL DEFAULT 0,
+        prepared_count   INTEGER NOT NULL DEFAULT 0,
+        sent_count       INTEGER NOT NULL DEFAULT 0,
+        skipped_count    INTEGER NOT NULL DEFAULT 0,
+        failed_count     INTEGER NOT NULL DEFAULT 0,
+        created_by       TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        started_at       TIMESTAMPTZ,
+        completed_at     TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_campaigns
+        ON workshop_crm_campaigns (company_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_campaign_recipients (
+        id              BIGSERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        campaign_id     BIGINT NOT NULL REFERENCES workshop_crm_campaigns(id) ON DELETE CASCADE,
+        customer_id     INTEGER NOT NULL REFERENCES workshop_customers(id) ON DELETE CASCADE,
+        message_id      BIGINT,
+        status           TEXT NOT NULL DEFAULT 'prepared',
+        skip_reason      TEXT,
+        result_note      TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (campaign_id, customer_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_campaign_recipients
+        ON workshop_crm_campaign_recipients (company_id, campaign_id, status);
 
       -- The vehicle is the spine of this system. A job card, a reminder and a
       -- warranty all point here rather than at the customer, so a car sold to a
@@ -223,8 +364,11 @@ async function ensureWorkshopSchema() {
         odometer_in   INTEGER,
         received_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
         promised_at   TIMESTAMPTZ,
+         diagnosed_at  TIMESTAMPTZ,
         started_at    TIMESTAMPTZ,
+         quality_checked_at TIMESTAMPTZ,
         done_at       TIMESTAMPTZ,
+         ready_at      TIMESTAMPTZ,
         delivered_at  TIMESTAMPTZ,
         quote_total   NUMERIC(12,2),
         approved_at   TIMESTAMPTZ,
@@ -234,6 +378,9 @@ async function ensureWorkshopSchema() {
         paid          NUMERIC(12,2) NOT NULL DEFAULT 0,
         warranty_months INTEGER NOT NULL DEFAULT 0,
         note          TEXT,
+         technician_note TEXT,
+         handover_note TEXT,
+         handover_by   TEXT,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs ON workshop_jobs (company_id, status, received_at DESC);
@@ -416,6 +563,8 @@ async function ensureWorkshopSchema() {
         note         TEXT,
         status       TEXT NOT NULL DEFAULT 'open',
         contacted_at TIMESTAMPTZ,
+        reminder_notified_at TIMESTAMPTZ,
+        reminder_message_id BIGINT,
         closed_at    TIMESTAMPTZ,
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       );
@@ -548,19 +697,89 @@ async function ensureWorkshopSchema() {
         body        TEXT NOT NULL,
         status      TEXT NOT NULL DEFAULT 'prepared',
         sent_at     TIMESTAMPTZ,
+        delivered_at TIMESTAMPTZ,
+        failed_at   TIMESTAMPTZ,
+        delivery_updated_at TIMESTAMPTZ,
         error       TEXT,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       CREATE INDEX IF NOT EXISTS idx_wsh_messages
         ON workshop_messages (company_id, created_at DESC);
+
+      -- Each workshop connects its own Twilio or Meta account. Credentials are
+      -- encrypted before storage; the settings page only exposes configured
+      -- indicators, never the secret values.
+      CREATE TABLE IF NOT EXISTS workshop_message_settings (
+        company_id              INTEGER PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+        active                  BOOLEAN NOT NULL DEFAULT false,
+        sms_provider            TEXT NOT NULL DEFAULT 'none',
+        whatsapp_provider       TEXT NOT NULL DEFAULT 'none',
+        twilio_account_sid_enc  TEXT,
+        twilio_auth_token_enc   TEXT,
+        twilio_sms_from         TEXT,
+        twilio_whatsapp_from    TEXT,
+        meta_phone_number_id    TEXT,
+        meta_access_token_enc   TEXT,
+        meta_app_secret_enc     TEXT,
+        meta_verify_token_enc   TEXT,
+        updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_message_settings_active
+        ON workshop_message_settings (company_id, active);
+
+      CREATE TABLE IF NOT EXISTS workshop_payment_attempts (
+        id                 BIGSERIAL PRIMARY KEY,
+        company_id         INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id             INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        merchant_order_id  TEXT NOT NULL UNIQUE,
+        provider            TEXT NOT NULL DEFAULT 'paymob',
+        amount_cents       INTEGER NOT NULL,
+        status              TEXT NOT NULL DEFAULT 'pending',
+        provider_order_id  TEXT,
+        payment_ref        TEXT,
+        payment_url        TEXT,
+        error              TEXT,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        paid_at            TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_payment_attempts_job
+        ON workshop_payment_attempts (company_id, job_id, created_at DESC);
     `);
 
     // Existing installations need the new relationship/lookup columns too.
     await client.query(`
       ALTER TABLE workshop_jobs
-        ADD COLUMN IF NOT EXISTS bay_id INTEGER;
+        ADD COLUMN IF NOT EXISTS bay_id INTEGER,
+        ADD COLUMN IF NOT EXISTS diagnosed_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS quality_checked_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS ready_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS handover_note TEXT,
+        ADD COLUMN IF NOT EXISTS handover_by TEXT,
+        ADD COLUMN IF NOT EXISTS technician_note TEXT;
       ALTER TABLE workshop_parts
         ADD COLUMN IF NOT EXISTS barcode TEXT;
+      ALTER TABLE workshop_reminders
+        ADD COLUMN IF NOT EXISTS reminder_notified_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS reminder_message_id BIGINT;
+      CREATE INDEX IF NOT EXISTS idx_wsh_reminder_notifications
+        ON workshop_reminders (company_id, reminder_notified_at, status);
+      ALTER TABLE workshop_messages
+        ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS campaign_id BIGINT,
+        ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
+         ADD COLUMN IF NOT EXISTS provider_status TEXT,
+         ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_wsh_messages_provider_id
+        ON workshop_messages (company_id, provider_message_id);
+      CREATE INDEX IF NOT EXISTS idx_wsh_messages_campaign
+        ON workshop_messages (company_id, campaign_id);
+      ALTER TABLE workshop_message_settings
+        ADD COLUMN IF NOT EXISTS meta_app_secret_enc TEXT,
+        ADD COLUMN IF NOT EXISTS meta_verify_token_enc TEXT;
       CREATE INDEX IF NOT EXISTS idx_wsh_jobs_bay
         ON workshop_jobs (company_id, bay_id, status);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_wsh_parts_barcode
@@ -574,7 +793,21 @@ async function ensureWorkshopSchema() {
      * هيبان في الإعدادات وما يقفلش حاجة. */
     await client.query(`
       ALTER TABLE workshop_settings
-        ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true;
+        ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true,
+        ADD COLUMN IF NOT EXISTS reminder_lead_days INTEGER NOT NULL DEFAULT 7,
+        ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500;
+      ALTER TABLE workshop_customers
+        ADD COLUMN IF NOT EXISTS segment TEXT NOT NULL DEFAULT 'regular',
+        ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS preferred_channel TEXT NOT NULL DEFAULT 'whatsapp',
+        ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS marketing_consent_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS marketing_opted_out_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS source TEXT,
+        ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS next_followup_on DATE;
+      CREATE INDEX IF NOT EXISTS idx_wsh_customers_crm
+        ON workshop_customers (company_id, segment, lifecycle_stage, next_followup_on);
     `);
 
     console.log('Workshop schema ready.');

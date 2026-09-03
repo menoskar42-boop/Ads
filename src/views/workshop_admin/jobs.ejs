@@ -17,6 +17,7 @@
   { label: t('wsh.job.status'), get: function(r){ return t('wsh.st.' + r.status); }, badge: true }
 ] }) %>
 
+<% if (canWorkshop('create_jobs')) { %>
 <h2 class="font-black text-lg mt-8 mb-3"><%= t('wsh.job.new') %></h2>
 <form method="post" action="/workshop/jobs" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-2 gap-3 text-sm">
   <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.job.vehicle') %> *</span>
@@ -39,4 +40,5 @@
     <input name="promised_at" type="datetime-local" dir="ltr" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
   <div class="sm:col-span-2"><button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.job.new') %></button></div>
 </form>
+<% } %>
 <%- include('foot') %>

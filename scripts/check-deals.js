@@ -10,8 +10,8 @@
  * أخطر بندين في اتفاقية الـAssociates:
  *   • **السعر**: ممنوع تنشر سعر إلا من الـAPI، ولازم يتحدّث أو يتشال خلال
  *     ٢٤ ساعة. الموقع بيدخّل الأسعار **بالإيد** من اللوحة، فسعر متكتوب في
- *     `offers` بيتبعت لجوجل على إنه **ادعاء** — وده كسر للشرطين مع بعض.
- *     فـ`offers` و`aggregateRating` ممنوعين في السكيمة لحد ما يبقى في API.
+ *     `offers` بيتبعت لجوجل على إنه **ادعاء** — لذلك لا يظهر إلا إذا
+ *     كان السعر من API حديثًا؛ أما `aggregateRating` فليس جزءًا من الكتالوج.
  *   • **الإفصاح**: لازم يكون واضح و**جنب الروابط**، مش في الفوتر بس.
  *
  * ── ٢) صفحات السياسات تتأرشف وكانونيكال لنفسها ─────────────────────────
@@ -53,12 +53,16 @@ const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\
 const app = raw('deals/app.js');
 const appCode = code(app);
 const db = raw('deals/db.js');
+const syncCode = code(raw('deals/catalog_sync.js'));
 
 /* ── ١. امتثال أمازون ─────────────────────────────────────────────────── */
 {
-  check('مفيش `offers` ولا `aggregateRating` في السكيمة',
-    !/offers\s*:/.test(appCode) && !/aggregateRating\s*:/.test(appCode),
-    'السعر بالإيد + شرط الـ٢٤ ساعة = ادعاء غلط');
+  check('الـProduct Offers مش بتظهر إلا مع سعر حديث من المصدر الرسمي',
+    /offers:\s*product\.show_price\s*\?/.test(appCode)
+    && !/aggregateRating\s*:/.test(appCode)
+    && /data_fresh_until/.test(syncCode)
+    && /dynamic_data_fresh/.test(syncCode),
+    'السعر القديم لا يتحول إلى ادعاء مهيكل');
 
   // الإفصاح جنب الروابط: أي قالب بيرسم كروت منتجات لازم يعرض الإفصاح.
   const viewsDir = path.join(ROOT, 'deals/views');

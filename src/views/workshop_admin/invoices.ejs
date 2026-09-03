@@ -1,6 +1,18 @@
 <%- include('head') %>
 <% function money(v){ return Number(v||0).toLocaleString(LOC,{maximumFractionDigits:2}); } %>
-<h1 class="font-black text-xl mb-4"><%= t('wsh.inv.title') %></h1>
+<div class="flex items-center justify-between gap-3 flex-wrap mb-4">
+  <h1 class="font-black text-xl"><%= t('wsh.inv.title') %></h1>
+  <div class="flex gap-2 no-print">
+    <a href="/workshop/invoices.csv?q=<%= encodeURIComponent(q || '') %>&status=<%= encodeURIComponent(status || '') %>&customer_id=<%= customerId || '' %>" class="border border-slate-200 bg-white rounded-xl px-3 py-2 text-sm font-bold">تصدير CSV</a>
+    <button onclick="window.print()" class="border border-slate-200 bg-white rounded-xl px-3 py-2 text-sm font-bold">طباعة</button>
+  </div>
+</div>
+<form method="get" action="/workshop/invoices" class="bg-white rounded-2xl border border-slate-200 p-4 mb-5 grid sm:grid-cols-3 gap-2 text-sm no-print">
+  <input name="q" value="<%= q || '' %>" placeholder="ابحث برقم الأمر أو اللوحة أو العميل" class="border border-slate-200 rounded-xl px-3 py-2" />
+  <select name="status" class="border border-slate-200 rounded-xl px-3 py-2"><option value="">كل الحالات</option><% J.STATUSES.forEach(function(s){ %><option value="<%= s %>" <%= status === s ? 'selected' : '' %>><%= t('wsh.st.' + s) %></option><% }) %></select>
+  <select name="customer_id" class="border border-slate-200 rounded-xl px-3 py-2"><option value="">كل العملاء</option><% customers.forEach(function(c){ %><option value="<%= c.id %>" <%= String(customerId) === String(c.id) ? 'selected' : '' %>><%= c.name %></option><% }) %></select>
+  <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold sm:col-span-3">تطبيق البحث</button>
+</form>
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
   <div class="bg-white rounded-2xl border border-slate-200 p-4">
     <div class="text-xs text-slate-500 font-semibold"><%= t('wsh.inv.total') %></div>
@@ -19,6 +31,7 @@
   { label: t('wsh.job.code'), get: function(r){ return J.jobCode(r.id); }, link: function(r){ return '/workshop/jobs/' + r.id; } },
   { label: t('wsh.veh.plate'), key: 'plate', cls: 'font-semibold' },
   { label: t('wsh.job.customer'), key: 'customer_name' },
+  { label: 'كشف الحساب', get: function(r){ return r.customer_id ? 'فتح' : '—'; }, link: function(r){ return r.customer_id ? '/workshop/customers/' + r.customer_id + '/statement' : null; } },
   { label: t('wsh.inv.total'), get: function(r){ return r.totals.total; }, money: true },
   { label: t('wsh.inv.paid'), get: function(r){ return r.totals.paid; }, money: true },
   { label: t('wsh.inv.due'), get: function(r){ return r.totals.due; }, money: true }

@@ -1,6 +1,120 @@
 <%- include('head') %>
 <h1 class="font-black text-xl mb-4"><%= t('wsh.set.title') %></h1>
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4"><%= t('wsh.set.saved') %></div><% } %>
+<% if (settingsError === 'secret_unavailable' || settingsError === 'payment_secret_unavailable') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">لا يمكن حفظ بيانات الاعتماد الآن لأن مفتاح التشفير غير مفعّل على الخادم.</div><% } %>
+<% if (settingsError === 'message_save' || settingsError === 'payment_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ الإعدادات. راجع البيانات وحاول مرة أخرى.</div><% } %>
+<% if (settingsError === 'invite_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا صحيحًا واختر دورًا صالحًا.</div><% } %>
+<% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
+<% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
+<% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
+<% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
+<% if (typeof reminderHealth !== 'undefined' && reminderHealth && reminderHealth.state === 'alerted') { %>
+  <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">
+    <div class="font-black">تنبيه: عامل تذكيرات الصيانة متوقف أو لم يسجل تشغيلًا ناجحًا مؤخرًا.</div>
+    <div class="text-xs mt-1">آخر تشغيل ناجح:
+      <%= reminderHealth.last_success_at ? new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : 'لا يوجد سجل بعد' %>
+      · حالة التنبيه: <%= reminderHealth.last_alert_status === 'sent' ? 'تم إرسال إشعار' : reminderHealth.last_alert_status === 'push_disabled' ? 'الإشعار الفوري غير مفعّل' : reminderHealth.last_alert_status === 'push_error' ? 'تعذر إرسال الإشعار الفوري' : 'جارٍ تسجيل التنبيه' %>
+    </div>
+  </div>
+<% } %>
+<% if (typeof users !== 'undefined' && canWorkshop('manage_settings')) { %>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="font-black mb-1">أدوار فريق الورشة</h2>
+        <p class="text-xs text-slate-500">حدّد ما يستطيع كل حساب فعله. تعديل الأسعار، تسجيل الدفعات، إعدادات الورشة، واستثناء فحص الجودة متاحة للإدارة فقط.</p>
+      </div>
+      <span class="text-xs font-bold text-brand-700 bg-brand-50 rounded-full px-3 py-1">صلاحيتك: <%= workshopRoleLabel %></span>
+    </div>
+      <form method="post" action="/workshop/settings/users/invite" class="grid sm:grid-cols-[1fr_10rem_auto] gap-2 mt-4 pt-4 border-t border-slate-100">
+        <label class="sr-only" for="invite-email">بريد عضو الفريق</label>
+        <input id="invite-email" type="email" name="email" required maxlength="200" placeholder="بريد عضو الفريق" dir="ltr" class="border border-slate-200 rounded-xl px-3 py-2 text-sm" />
+        <label class="sr-only" for="invite-role">دور عضو الفريق</label>
+        <select id="invite-role" name="role" class="border border-slate-200 rounded-xl px-3 py-2 text-sm">
+          <option value="reception">الاستقبال</option>
+          <option value="technician">الفني</option>
+          <option value="manager">مدير الورشة</option>
+        </select>
+        <button class="bg-brand-600 text-white rounded-xl px-4 py-2 text-sm font-bold">إنشاء دعوة</button>
+      </form>
+      <% if (inviteLink) { %>
+        <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <div class="font-bold text-emerald-800">تم إنشاء الدعوة. انسخ الرابط وأرسله للعضو — يظل صالحًا 7 أيام.</div>
+          <input readonly value="<%= inviteLink %>" dir="ltr" onclick="this.select()" class="w-full mt-2 border border-emerald-200 rounded-lg px-3 py-2 text-xs bg-white" aria-label="رابط الدعوة" />
+        </div>
+      <% } %>
+    <div class="divide-y divide-slate-100 mt-4">
+      <% users.forEach(function(user){ %>
+        <div class="py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div class="min-w-0">
+            <div class="font-bold text-sm truncate" dir="ltr"><%= user.email %></div>
+            <div class="text-xs text-slate-500"><%= roleLabels[user.role] || roleLabels.reception %><% if (user.id === currentUserId) { %> · حسابك الحالي<% } %></div>
+          </div>
+          <% if (user.id === currentUserId || user.role === 'owner' || user.role === 'admin') { %>
+            <span class="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">محمي</span>
+          <% } else { %>
+            <form method="post" action="/workshop/settings/users/<%= user.id %>/role" class="flex items-center gap-2">
+              <label class="sr-only" for="role-<%= user.id %>">دور <%= user.email %></label>
+              <select id="role-<%= user.id %>" name="role" class="border border-slate-200 rounded-lg px-2 py-1.5 text-sm">
+                <option value="manager" <%= user.role === 'manager' ? 'selected' : '' %>>مدير الورشة</option>
+                <option value="reception" <%= user.role === 'reception' ? 'selected' : '' %>>الاستقبال</option>
+                <option value="technician" <%= user.role === 'technician' ? 'selected' : '' %>>الفني</option>
+              </select>
+              <button class="bg-brand-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold">حفظ الدور</button>
+            </form>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <h2 class="font-black mb-1">سجل تغييرات الأدوار</h2>
+    <p class="text-xs text-slate-500 mb-3">سجل لا يمكن تعديله من واجهة الورشة، يوضح من غيّر دور كل حساب ومتى.</p>
+    <% if (!roleHistory || !roleHistory.length) { %>
+      <p class="text-sm text-slate-400">لا توجد تغييرات مسجلة بعد.</p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% roleHistory.forEach(function(change){ %>
+          <div class="py-3 text-sm flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <span class="font-bold" dir="ltr"><%= change.current_email || change.email %></span>
+              <span class="text-slate-500"> · <%= change.from_role ? (roleLabels[change.from_role] || change.from_role) : 'دعوة جديدة' %> ← <%= roleLabels[change.to_role] || change.to_role %></span>
+            </div>
+            <div class="text-xs text-slate-500"><%= change.changed_by || 'النظام' %> · <%= new Date(change.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <h2 class="font-black mb-1">تشغيل تذكيرات الصيانة</h2>
+    <p class="text-xs text-slate-500 mb-3">ملخص آخر عمليات العامل لهذه الورشة، مع فصل الرسائل التي تم تجهيزها عن التي تجاوزها عامل آخر أو فشلت.</p>
+    <% if (reminderHealth && reminderHealth.state === 'healthy' && reminderHealth.last_success_at) { %>
+      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></p>
+    <% } %>
+    <% if (!reminderRuns || !reminderRuns.length) { %>
+      <p class="text-sm text-slate-400">لم يعمل عامل التذكيرات لهذه الورشة بعد.</p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% reminderRuns.forEach(function(run){ %>
+          <div class="py-3 flex items-center justify-between gap-3 flex-wrap text-sm">
+            <div class="text-xs text-slate-500">
+              <%= new Date(run.started_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %>
+              <% if (!run.finished_at) { %><span class="text-amber-700 font-bold"> · جارٍ</span><% } %>
+            </div>
+            <div class="flex gap-2 flex-wrap text-xs font-bold">
+              <span class="bg-slate-100 rounded-full px-2 py-1">مرشحون: <%= run.candidate_count %></span>
+              <span class="bg-emerald-50 text-emerald-700 rounded-full px-2 py-1">تم تجهيزه: <%= run.queued_count %></span>
+              <span class="bg-slate-100 text-slate-600 rounded-full px-2 py-1">تم تجاوزهم: <%= run.skipped_count %></span>
+              <% if (run.failed_count) { %><span class="bg-rose-50 text-rose-700 rounded-full px-2 py-1">فشل: <%= run.failed_count %></span><% } %>
+            </div>
+            <% if (run.error) { %><p class="basis-full text-xs text-rose-700">خطأ التشغيل: <%= run.error %></p><% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+<% } %>
 <form method="post" action="/workshop/settings" class="space-y-5">
   <section class="bg-white rounded-2xl border border-slate-200 p-5">
     <h2 class="font-black mb-3"><%= t('wsh.set.business') %></h2>
@@ -28,9 +142,68 @@
         <input name="service_km" type="number" min="0" dir="ltr" value="<%= Number(settings.service_km || 5000) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
       <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.set.service_months') %></span>
         <input name="service_months" type="number" min="0" dir="ltr" value="<%= Number(settings.service_months || 6) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">التذكير قبل الموعد (بالأيام)</span>
+        <input name="reminder_lead_days" type="number" min="0" max="60" dir="ltr" value="<%= settings.reminder_lead_days == null ? 7 : Number(settings.reminder_lead_days) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        <span class="block text-[11px] text-slate-500 mt-1">0 = في يوم الموعد فقط، والافتراضي 7 أيام.</span></label>
+      <label class="block"><span class="text-xs font-bold text-slate-500">التذكير قبل الكيلومترات</span>
+        <input name="reminder_lead_km" type="number" min="0" max="10000" dir="ltr" value="<%= settings.reminder_lead_km == null ? 500 : Number(settings.reminder_lead_km) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        <span class="block text-[11px] text-slate-500 mt-1">0 = عند بلوغ الحد فقط، والافتراضي 500 كم.</span></label>
     </div>
+    <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5 mt-4"><%= t('wsh.common.save') %></button>
+  </section>
+</form>
+
+  <section id="messaging" class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div><h2 class="font-black mb-1">إرسال WhatsApp وSMS</h2><p class="text-xs text-slate-500">كل ورشة تستخدم حسابها الخاص. الأسرار تُحفظ مشفّرة ولا تظهر بعد الحفظ.</p></div>
+      <% if (messageSettings.twilio_account_sid_set || messageSettings.twilio_auth_token_set || messageSettings.meta_access_token_set) { %><span class="text-xs font-bold text-emerald-700 bg-emerald-50 rounded-full px-3 py-1">بيانات اعتماد محفوظة</span><% } %>
+    </div>
+    <p class="text-xs text-slate-500 mt-3 mb-3">يمكن استخدام Twilio للقناتين، أو Meta Cloud لـWhatsApp فقط. لا تختَر Meta للـSMS.</p>
+    <form method="post" action="/workshop/settings/messages" class="grid sm:grid-cols-2 gap-3 text-sm">
+      <label class="flex items-center gap-2 sm:col-span-2 bg-slate-50 rounded-xl px-3 py-3"><input type="checkbox" name="active" value="1" <%= messageSettings.active ? 'checked' : '' %> /><span class="font-bold">تفعيل الإرسال الفعلي</span></label>
+      <label><span class="text-xs font-bold text-slate-500">مزود SMS</span><select name="sms_provider" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><option value="none" <%= messageSettings.sms_provider === 'none' ? 'selected' : '' %>>غير مفعّل</option><option value="twilio" <%= messageSettings.sms_provider === 'twilio' ? 'selected' : '' %>>Twilio</option></select></label>
+      <label><span class="text-xs font-bold text-slate-500">مزود WhatsApp</span><select name="whatsapp_provider" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><option value="none" <%= messageSettings.whatsapp_provider === 'none' ? 'selected' : '' %>>غير مفعّل</option><option value="twilio" <%= messageSettings.whatsapp_provider === 'twilio' ? 'selected' : '' %>>Twilio</option><option value="meta" <%= messageSettings.whatsapp_provider === 'meta' ? 'selected' : '' %>>Meta Cloud API</option></select></label>
+      <label><span class="text-xs font-bold text-slate-500">Twilio Account SID</span><input name="twilio_account_sid" dir="ltr" value="" autocomplete="off" placeholder="<%= messageSettings.twilio_account_sid_set ? '•••••••• محفوظ — اتركه فارغًا' : 'AC…' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.twilio_account_sid_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="twilio_account_sid_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Twilio Auth Token</span><input type="password" name="twilio_auth_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.twilio_auth_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Auth token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.twilio_auth_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="twilio_auth_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">رقم SMS المرسل</span><input name="twilio_sms_from" dir="ltr" value="<%= messageSettings.twilio_sms_from %>" placeholder="+2010..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">رقم WhatsApp المرسل</span><input name="twilio_whatsapp_from" dir="ltr" value="<%= messageSettings.twilio_whatsapp_from %>" placeholder="whatsapp:+1415..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta Phone Number ID</span><input name="meta_phone_number_id" dir="ltr" value="<%= messageSettings.meta_phone_number_id %>" placeholder="Phone Number ID" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta Access Token</span><input type="password" name="meta_access_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_access_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Access token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_access_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_access_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta App Secret</span><input type="password" name="meta_app_secret" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_app_secret_set ? '•••••••• محفوظ — اتركه فارغًا' : 'App secret' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_app_secret_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_app_secret_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Meta Verify Token</span><input type="password" name="meta_verify_token" dir="ltr" value="" autocomplete="new-password" placeholder="<%= messageSettings.meta_verify_token_set ? '•••••••• محفوظ — اتركه فارغًا' : 'Verify token' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (messageSettings.meta_verify_token_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="meta_verify_token_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <div class="sm:col-span-2 bg-slate-50 rounded-xl px-3 py-3 text-[11px] text-slate-600 space-y-1">
+        <div>ضع Twilio Status Callback على:</div>
+        <code dir="ltr" class="block break-all"><%= twilioWebhookUrl || 'اضبط PUBLIC_BASE_DOMAIN لإظهار الرابط العام' %></code>
+        <div class="pt-1">ضع Meta Webhook على:</div>
+        <code dir="ltr" class="block break-all"><%= metaWebhookUrl || 'اضبط PUBLIC_BASE_DOMAIN لإظهار الرابط العام' %></code>
+        <div>لن تُقبل تحديثات Meta إلا بعد حفظ App Secret وVerify Token والتحقق من توقيع الطلب.</div>
+      </div>
+      <button class="sm:col-span-2 bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5">حفظ إعدادات الإرسال</button>
+    </form>
   </section>
 
+  <section id="payments" class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="flex items-start justify-between gap-3 flex-wrap">
+      <div><h2 class="font-black mb-1">بوابة الدفع الإلكتروني</h2><p class="text-xs text-slate-500">حساب الدفع ملك للورشة. يمكن استخدام Paymob للفاتورة الديناميكية أو رابط دفع ثابت من مزودك.</p></div>
+      <% if (payment.gateway && payment.gateway !== 'none') { %><span class="text-xs font-bold text-emerald-700 bg-emerald-50 rounded-full px-3 py-1">مزود: <%= payment.gateway %></span><% } %>
+    </div>
+    <form method="post" action="/workshop/settings/payments" class="grid sm:grid-cols-2 gap-3 text-sm mt-3">
+      <label><span class="text-xs font-bold text-slate-500">المزود</span><select name="gateway" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1"><option value="none" <%= payment.gateway === 'none' ? 'selected' : '' %>>غير مفعّل</option><option value="paymob" <%= payment.gateway === 'paymob' ? 'selected' : '' %>>Paymob</option><option value="fawry" <%= payment.gateway === 'fawry' ? 'selected' : '' %>>Fawry (رابط يدوي)</option><option value="stripe" <%= payment.gateway === 'stripe' ? 'selected' : '' %>>Stripe (رابط يدوي)</option><option value="paypal" <%= payment.gateway === 'paypal' ? 'selected' : '' %>>PayPal (رابط يدوي)</option></select></label>
+      <label class="flex items-center gap-2 self-end"><input type="checkbox" name="cod_enabled" value="1" <%= payment.cod_enabled !== false ? 'checked' : '' %> /><span class="font-bold">السماح بالدفع عند الاستلام/في الورشة</span></label>
+      <label class="sm:col-span-2"><span class="text-xs font-bold text-slate-500">رابط الدفع الثابت</span><input name="payment_link" dir="ltr" value="<%= payment.payment_link || '' %>" placeholder="https://..." class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">اسم رابط الدفع</span><input name="payment_link_label" value="<%= payment.payment_link_label || '' %>" placeholder="ادفع الآن" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">شروط الدفع عند الاستلام</span><input name="cod_terms" value="<%= payment.cod_terms || '' %>" placeholder="مثال: الدفع عند استلام السيارة" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">Paymob API Key</span><input type="password" name="gateway_secret" dir="ltr" value="" autocomplete="new-password" placeholder="<%= payment.gateway_secret_set ? '•••••••• محفوظ — اتركه فارغًا' : 'API key' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (payment.gateway_secret_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="gateway_secret_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Paymob HMAC Secret</span><input type="password" name="gateway_hmac" dir="ltr" value="" autocomplete="new-password" placeholder="<%= payment.gateway_hmac_set ? '•••••••• محفوظ — اتركه فارغًا' : 'HMAC secret' %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /><% if (payment.gateway_hmac_set) { %><span class="block text-[11px] mt-1"><label><input type="checkbox" name="gateway_hmac_clear" value="1" /> مسح المحفوظ</label></span><% } %></label>
+      <label><span class="text-xs font-bold text-slate-500">Integration ID</span><input name="gateway_integration_id" dir="ltr" value="<%= payment.gateway_integration_id || '' %>" placeholder="123456" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <label><span class="text-xs font-bold text-slate-500">iFrame ID</span><input name="gateway_iframe_id" dir="ltr" value="<%= payment.gateway_iframe_id || '' %>" placeholder="98765" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
+      <div class="sm:col-span-2 bg-slate-50 rounded-xl px-3 py-2 text-[11px] text-slate-600">ضع هذا العنوان في إعدادات Webhook داخل Paymob: <code dir="ltr" class="break-all">https://oscardevs.com/workshop/status/payment/paymob/callback</code></div>
+      <label class="sm:col-span-2"><span class="text-xs font-bold text-slate-500">تعليمات الدفع</span><textarea name="instructions" rows="2" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" placeholder="تعليمات تظهر للعميل"><%= payment.instructions || '' %></textarea></label>
+      <button class="sm:col-span-2 bg-emerald-600 text-white font-bold rounded-xl px-6 py-2.5">حفظ إعدادات الدفع</button>
+    </form>
+  </section>
+
+<form method="post" action="/workshop/settings" class="space-y-5">
   <section class="bg-white rounded-2xl border border-slate-200 p-5">
     <h2 class="font-black mb-3"><%= t('wsh.set.features') %></h2>
     <div class="grid sm:grid-cols-2 gap-2 text-sm">

@@ -795,15 +795,72 @@ router.post('/api/calls', auth.requireAuth, async (req, res) => {
     res.json({ ok: true, callId: row.id, status: out.status });
   } catch (e) { res.status(502).json({ ok: false, error: e.message }); }
 });
+router.get('/api/calls', auth.requireAuth, async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+  const rows = (await pool.query(
+    `SELECT id, provider, external_id, to_number, status, created_at, updated_at
+       FROM sokro_phone_calls
+      WHERE user_id=$1
+      ORDER BY created_at DESC
+      LIMIT $2`,
+    [req.sokroUser.id, limit]
+  )).rows;
+  res.json({ ok: true, calls: rows });
+});
 router.post('/api/calls/status', async (req, res) => {
-  if (process.env.SOKRO_TWILIO_AUTH_TOKEN) {
-    const url = `${config.origin}/api/calls/status`;
-    if (!phone.verifySignature(url, req.body || {}, req.headers['x-twilio-signature'])) return res.sendStatus(403);
-  }
+  if (!process.env.SOKRO_TWILIO_AUTH_TOKEN) return res.sendStatus(503);
+  const url = `${config.origin}/api/calls/status`;
+  if (!phone.verifySignature(url, req.body || {}, req.headers['x-twilio-signature'])) return res.sendStatus(403);
   const sid = String(req.body && (req.body.CallSid || req.body.callSid) || '');
   if (!sid) return res.sendStatus(400);
-  await pool.query('UPDATE sokro_phone_calls SET status=$2,updated_at=now() WHERE external_id=$1', [sid, String(req.body.CallStatus || 'unknown')]);
+  const result = await pool.query(
+    `UPDATE sokro_phone_calls
+        SET status=$2, updated_at=now()
+      WHERE external_id=$1
+      RETURNING id, user_id`,
+    [sid, String(req.body.CallStatus || 'unknown').slice(0, 40)]
+  );
+  // The provider callback has no browser session. Resolve the owner from the
+  // provider id, then persist the event with that same owner; callers can only
+  // read it through the user-scoped routes below.
+  const call = result.rows[0];
+  if (call) {
+    await pool.query(
+      `INSERT INTO sokro_phone_events(call_id,user_id,event_type,payload)
+       VALUES($1,$2,'twilio_status',$3::jsonb)`,
+      [call.id, call.user_id, JSON.stringify({
+        callSid: sid,
+        status: String(req.body.CallStatus || 'unknown').slice(0, 40),
+        sequence: String(req.body.SequenceNumber || '').slice(0, 40),
+      })]
+    );
+  }
   res.sendStatus(204);
+});
+router.get('/api/calls/:id([0-9]+)/events', auth.requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const call = (await pool.query(
+    `SELECT id, provider, external_id, to_number, status, created_at, updated_at
+       FROM sokro_phone_calls
+      WHERE id=$1 AND user_id=$2`,
+    [id, req.sokroUser.id]
+  )).rows[0];
+  if (!call) return res.sendStatus(404);
+  const events = (await pool.query(
+    `SELECT id, event_type, payload, created_at
+       FROM sokro_phone_events
+      WHERE call_id=$1 AND user_id=$2
+      ORDER BY id ASC`,
+    [id, req.sokroUser.id]
+  )).rows;
+  res.json({
+    ok: true,
+    call,
+    events,
+    transcript: events
+      .filter((e) => e.event_type === 'transcript_user' || e.event_type === 'transcript_assistant')
+      .map((e) => ({ role: e.event_type === 'transcript_user' ? 'user' : 'assistant', text: e.payload && e.payload.text || '', created_at: e.created_at })),
+  });
 });
 router.post('/api/calls/:id([0-9]+)/twiml', async (req, res) => {
   const claims = auth.verify(String(req.query.token || ''));

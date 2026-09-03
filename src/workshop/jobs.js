@@ -15,15 +15,22 @@
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
-// received → quoted → approved → in_progress → done → delivered.
+// received → diagnosing → quoted → approved → awaiting_parts → in_progress →
+// quality_check → done → ready_for_pickup → delivered.
 // 'cancelled' is reachable from any of them; it is a decision, not a stage.
-const STATUSES = ['received', 'quoted', 'approved', 'in_progress', 'done', 'delivered', 'cancelled'];
-const OPEN_STATUSES = ['received', 'quoted', 'approved', 'in_progress', 'done'];
+const STATUSES = [
+  'received', 'diagnosing', 'quoted', 'approved', 'awaiting_parts',
+  'in_progress', 'quality_check', 'done', 'ready_for_pickup', 'delivered', 'cancelled',
+];
+const OPEN_STATUSES = STATUSES.filter((status) => !['delivered', 'cancelled'].includes(status));
 
 // The order a job normally moves in. Used to offer the next step, never to
 // forbid a jump: a workshop that finishes a small job in ten minutes should not
 // have to click through four screens to say so.
-const FLOW = ['received', 'quoted', 'approved', 'in_progress', 'done', 'delivered'];
+const FLOW = [
+  'received', 'diagnosing', 'quoted', 'approved', 'awaiting_parts',
+  'in_progress', 'quality_check', 'done', 'ready_for_pickup', 'delivered',
+];
 
 function nextStatus(status) {
   const i = FLOW.indexOf(status);

@@ -37,6 +37,7 @@
   var __tab = typeof tab !== 'undefined' ? tab : '';
   function __cls(k){ return 'px-3 py-1.5 rounded-lg ' + (__tab===k ? 'bg-white/25 font-bold' : 'hover:bg-white/15'); }
   var __nav = (typeof workshopNav !== 'undefined' ? workshopNav : []);
+  var __can = typeof canWorkshop === 'function' ? canWorkshop : function(){ return true; };
 %>
 <header class="bg-brand-600 text-white no-print">
   <div class="max-w-6xl mx-auto px-4 py-3 sm:py-3.5 flex items-center gap-3 flex-wrap">
@@ -49,8 +50,9 @@
       <% __nav.forEach(function(f){ %>
         <a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.label %></a>
       <% }); %>
-      <a href="/workshop/settings" class="<%= __cls('settings') %>"><%= t('wsh.nav.settings') %></a>
+      <% if (__can('view_settings')) { %><a href="/workshop/settings" class="<%= __cls('settings') %>"><%= t('wsh.nav.settings') %></a><% } %>
     </nav>
+    <span class="text-[11px] bg-white/15 rounded-full px-2.5 py-1 font-bold"><%= workshopRoleLabel %></span>
     <% var __due = (typeof dueCount !== 'undefined' ? Number(dueCount) || 0 : 0); %>
     <% if (__due) { %>
       <a href="/workshop/reminders" class="relative text-xs leading-none px-2 py-1.5 rounded-lg hover:bg-white/15" title="<%= t('wsh.nav.reminders') %>"><%= t('wsh.nav.reminders') %><span
@@ -81,7 +83,7 @@
     <% __nav.forEach(function(f){ %>
         <a href="<%= f.path %>" class="<%= __cls(f.key) %>"><%= f.label %></a>
     <% }); %>
-    <a href="/workshop/settings" class="<%= __cls('settings') %>"><%= t('wsh.nav.settings') %></a>
+    <% if (__can('view_settings')) { %><a href="/workshop/settings" class="<%= __cls('settings') %>"><%= t('wsh.nav.settings') %></a><% } %>
   </div>
 </nav>
 

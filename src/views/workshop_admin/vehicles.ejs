@@ -13,7 +13,7 @@
 ] }) %>
 
 <h2 id="new" class="font-black text-lg mt-8 mb-3"><%= t('wsh.veh.new') %></h2>
-<form method="post" action="/workshop/vehicles" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-3 gap-3 text-sm">
+<% if (canWorkshop('manage_vehicles')) { %><form method="post" action="/workshop/vehicles" class="bg-white rounded-2xl border border-slate-200 p-5 grid sm:grid-cols-3 gap-3 text-sm">
   <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.plate') %> *</span>
     <input name="plate" required class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" /></label>
   <label class="block"><span class="text-xs font-bold text-slate-500"><%= t('wsh.veh.make') %></span>
@@ -65,5 +65,5 @@
   <div class="sm:col-span-3">
     <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button>
   </div>
-</form>
+</form><% } %>
 <%- include('foot') %>

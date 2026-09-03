@@ -53,6 +53,17 @@
       <% labour.forEach(function(l){ %><tr><td><%= l.description %></td><td><bdi><%= Number(l.amount).toLocaleString('ar-EG') %></bdi> ج.م</td></tr><% }) %>
       <tr><td><b>الإجمالي</b></td><td><bdi><%= Number(totals.total).toLocaleString('ar-EG') %></bdi> ج.م</td></tr>
     </table>
+    <% if (payment && payment.paid > 0) { %><p class="muted" style="font-size:13px;margin:10px 0 0">المدفوع: <bdi><%= Number(payment.paid).toLocaleString('ar-EG') %></bdi> ج.م</p><% } %>
+    <% if (payment && payment.due > 0) { %>
+      <div style="margin-top:16px;padding:14px;border-radius:12px;background:#f0f7fb;border:1px solid #c9dfea">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>المتبقي</b><strong><bdi><%= Number(payment.due).toLocaleString('ar-EG') %></bdi> ج.م</strong></div>
+        <% if (payment.onlineReady) { %><form method="get" action="/workshop/status/<%= token %>/pay" style="margin-top:12px"><button>الدفع الإلكتروني الآمن</button></form><% } %>
+        <% if (payment.link) { %><a href="<%= payment.link %>" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:9px;padding:10px;border:1px solid var(--brand);border-radius:10px;color:var(--brand);font-weight:800"><%= payment.linkLabel %></a><% } %>
+        <% if (payment.instructions) { %><p class="muted" style="font-size:12px;margin:10px 0 0;white-space:pre-line"><%= payment.instructions %></p><% } %>
+      </div>
+    <% } else if (payment && payment.paid > 0) { %><p class="success" style="margin-top:14px">تم سداد قيمة أمر الشغل بالكامل.</p><% } %>
+    <% if (payerror === 'not_configured') { %><p style="color:#9a4d18;font-size:12px;margin-top:10px">الدفع الإلكتروني غير متاح حاليًا. تواصل مع الورشة لإتمام الدفع.</p><% } %>
+    <% if (payerror === 'provider') { %><p style="color:#9a4d18;font-size:12px;margin-top:10px">تعذر فتح بوابة الدفع الآن. لم يتم تسجيل أي دفعة؛ حاول مرة أخرى أو تواصل مع الورشة.</p><% } %>
     <% if (!job.approved_at && !['delivered','cancelled'].includes(job.status)) { %>
       <form method="post" action="/workshop/status/<%= token %>/approve" style="margin-top:18px"><label class="label">اكتب اسمك لتأكيد موافقة عرض السعر</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على عرض السعر</button></form>
     <% } else if (job.approved_at) { %><p class="muted">تم اعتماد العرض في <%= new Date(job.approved_at).toLocaleString('ar-EG') %>.</p><% } %>

@@ -18,6 +18,15 @@
             <a href="/workshop/jobs/<%= j.id %>" class="font-bold text-brand-700">أمر #<%= j.id %></a>
             <div class="text-xs mt-1"><%= j.plate || '—' %> · <%= j.customer_name || '—' %></div>
             <div class="text-[11px] text-slate-500 mt-1"><%= j.technician_name || 'بدون فني' %> · <%= j.status %></div>
+            <% if (canWorkshop('manage_bays')) { %><form method="post" action="/workshop/jobs/<%= j.id %>/bay" class="flex gap-1 mt-2 text-xs">
+              <select name="bay_id" class="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1">
+                <option value="">إلغاء التوزيع</option>
+                <% bays.filter(function(x){return x.is_active;}).forEach(function(x){ %>
+                  <option value="<%= x.id %>" <%= j.bay_id===x.id?'selected':'' %>><%= x.name %></option>
+                <% }) %>
+              </select>
+              <button class="bg-slate-100 text-slate-700 rounded-lg px-2 py-1 font-bold">نقل</button>
+            </form><% } %>
           </div><% }) %>
         </div>
       <% }); %>
@@ -26,36 +35,36 @@
     <h3 class="font-black mt-6 mb-2">أوامر غير موزعة</h3>
     <div class="space-y-2">
       <% jobs.filter(function(j){return !j.bay_id;}).forEach(function(j){ %>
-        <form method="post" action="/workshop/jobs/<%= j.id %>/bay" class="flex items-center gap-2 border border-slate-100 rounded-xl p-2 text-sm">
+        <% if (canWorkshop('manage_bays')) { %><form method="post" action="/workshop/jobs/<%= j.id %>/bay" class="flex items-center gap-2 border border-slate-100 rounded-xl p-2 text-sm">
           <a href="/workshop/jobs/<%= j.id %>" class="font-bold text-brand-700 flex-1">#<%= j.id %> · <%= j.plate || '—' %> · <%= j.customer_name || '—' %></a>
           <select name="bay_id" class="border border-slate-200 rounded-lg px-2 py-1"><option value="">اختر رافعة</option><% bays.filter(function(b){return b.is_active;}).forEach(function(b){ %><option value="<%= b.id %>"><%= b.name %></option><% }) %></select>
           <button class="bg-brand-600 text-white rounded-lg px-3 py-1 font-bold">توزيع</button>
-        </form>
+        </form><% } else { %><div class="flex items-center gap-2 border border-slate-100 rounded-xl p-2 text-sm"><a href="/workshop/jobs/<%= j.id %>" class="font-bold text-brand-700 flex-1">#<%= j.id %> · <%= j.plate || '—' %> · <%= j.customer_name || '—' %></a><span class="text-xs text-slate-500">بانتظار توزيع الإدارة</span></div><% } %>
       <% }); %>
     </div>
   </section>
   <aside class="space-y-5">
     <section class="bg-white rounded-2xl border border-slate-200 p-4">
       <h2 class="font-black mb-3">إضافة رافعة</h2>
-      <form method="post" action="/workshop/bays" class="space-y-2 text-sm">
+      <% if (canWorkshop('manage_bays')) { %><form method="post" action="/workshop/bays" class="space-y-2 text-sm">
         <input name="name" required placeholder="مثال: الرافعة 1" class="w-full border border-slate-200 rounded-xl px-3 py-2">
         <input name="bay_type" placeholder="نوعها أو سعتها" class="w-full border border-slate-200 rounded-xl px-3 py-2">
         <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">حفظ</button>
-      </form>
+      </form><% } else { %><p class="text-sm text-slate-500">إدارة الرافعات متاحة لمدير الورشة فقط.</p><% } %>
     </section>
     <section class="bg-white rounded-2xl border border-slate-200 p-4">
       <h2 class="font-black mb-3">جلسات الوقت المفتوحة</h2>
       <% if (!active.length) { %><p class="text-xs text-slate-400">لا توجد جلسات نشطة.</p><% } %>
       <% active.forEach(function(e){ %><div class="border-b border-slate-100 pb-3 mb-3 text-sm">
         <div class="font-bold"><%= e.technician_name || 'فني' %> · أمر #<%= e.job_id %></div><div class="text-xs text-slate-500"><%= e.plate || '—' %> · بدأت <%= dt(e.started_at) %></div>
-        <form method="post" action="/workshop/time/<%= e.id %>/stop" class="mt-2 flex gap-2"><input name="note" placeholder="ملاحظة اختيارية" class="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs"><button class="bg-slate-900 text-white rounded-lg px-3 py-1 text-xs font-bold">إيقاف</button></form>
+        <% if (canWorkshop('manage_time')) { %><form method="post" action="/workshop/time/<%= e.id %>/stop" class="mt-2 flex gap-2"><input name="note" placeholder="ملاحظة اختيارية" class="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs"><button class="bg-slate-900 text-white rounded-lg px-3 py-1 text-xs font-bold">إيقاف</button></form><% } %>
       </div><% }) %>
       <h3 class="font-black text-sm mt-4 mb-2">بدء جلسة</h3>
-      <form method="post" action="/workshop/time/start" class="space-y-2 text-sm">
+      <% if (canWorkshop('manage_time')) { %><form method="post" action="/workshop/time/start" class="space-y-2 text-sm">
         <select name="job_id" required class="w-full border border-slate-200 rounded-xl px-3 py-2"><option value="">اختر أمرًا</option><% jobs.forEach(function(j){ %><option value="<%= j.id %>">#<%= j.id %> · <%= j.plate || '—' %></option><% }) %></select>
         <select name="technician_id" required class="w-full border border-slate-200 rounded-xl px-3 py-2"><option value="">اختر الفني</option><% technicians.forEach(function(t){ %><option value="<%= t.id %>"><%= t.name %></option><% }) %></select>
         <button class="bg-emerald-600 text-white rounded-xl px-4 py-2 font-bold w-full">بدء تسجيل الوقت</button>
-      </form>
+      </form><% } %>
     </section>
   </aside>
 </div>

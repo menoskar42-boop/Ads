@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>دعوة فريق الورشة</title>
+  <link rel="stylesheet" href="/css/tw.css" />
+  <style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center px-4">
+  <main class="w-full max-w-md">
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto mb-3 shadow-lg">O</div>
+      <h1 class="text-2xl font-black text-gray-800">دعوة فريق الورشة</h1>
+    </div>
+    <section class="bg-white rounded-3xl shadow-xl p-8">
+      <% if (!invite) { %>
+        <div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-3 text-sm font-bold">
+          رابط الدعوة غير صالح أو انتهت صلاحيته.
+        </div>
+        <a href="/company/login" class="block text-center text-blue-600 font-bold mt-5">الانتقال لتسجيل الدخول</a>
+      <% } else { %>
+        <p class="text-gray-600 text-sm mb-5">
+          تمت دعوتك للانضمام إلى <b><%= invite.company_name %></b> بدور
+          <b><%= invite.role === 'manager' ? 'مدير الورشة' : invite.role === 'technician' ? 'فني' : 'استقبال' %></b>.
+        </p>
+        <% if (error) { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-3 text-sm font-bold mb-4"><%= error %></div><% } %>
+        <form method="post" action="/company/workshop-invite/<%= encodeURIComponent(token) %>" class="space-y-4">
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">البريد الإلكتروني</label>
+            <input value="<%= invite.email %>" disabled dir="ltr" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50" />
+          </div>
+          <div>
+            <label for="invite-password" class="block text-sm font-bold text-gray-600 mb-1">كلمة المرور</label>
+            <input id="invite-password" type="password" name="password" minlength="8" required autocomplete="new-password" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+          </div>
+          <div>
+            <label for="invite-password-confirm" class="block text-sm font-bold text-gray-600 mb-1">تأكيد كلمة المرور</label>
+            <input id="invite-password-confirm" type="password" name="password_confirm" minlength="8" required autocomplete="new-password" class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" />
+          </div>
+          <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">تفعيل الدعوة والدخول</button>
+        </form>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>
