@@ -31,6 +31,74 @@
   <% }) %>
 </section>
 
+<section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div>
+      <h2 class="font-black">حملات المتابعة</h2>
+      <p class="text-xs text-slate-500 mt-1">اختر شريحة، راجع عدد الرسائل، ثم أرسل فقط للعملاء أصحاب الموافقة التسويقية.</p>
+    </div>
+    <span class="text-xs font-bold rounded-full px-3 py-1 bg-amber-50 text-amber-800">مراجعة قبل الإرسال</span>
+  </div>
+  <form method="post" action="/workshop/crm/campaigns" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-4 text-sm">
+    <input name="name" required placeholder="اسم الحملة *" class="border border-slate-200 rounded-xl px-3 py-2" />
+    <select name="segment" class="border border-slate-200 rounded-xl px-3 py-2">
+      <% campaignSegments.forEach(function(key){ %><option value="<%= key %>"><%= campaignSegmentLabels[key] %></option><% }) %>
+    </select>
+    <textarea name="body" required rows="2" placeholder="الرسالة — استخدم {{name}} للاسم" class="lg:col-span-2 border border-slate-200 rounded-xl px-3 py-2"></textarea>
+    <button class="lg:col-span-4 bg-brand-600 text-white font-bold rounded-xl px-4 py-2.5">تجهيز الحملة للمراجعة</button>
+  </form>
+  <% if (campaigns && campaigns.length) { %>
+    <div class="mt-5 pt-4 border-t border-slate-100 space-y-2">
+      <% campaigns.forEach(function(campaign){ %>
+        <div class="border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
+          <a href="/workshop/crm?campaign_id=<%= campaign.id %>" class="min-w-[180px] flex-1">
+            <strong class="text-sm"><%= campaign.name %></strong>
+            <span class="text-xs text-slate-500 block mt-1"><%= campaignSegmentLabels[campaign.segment] || campaign.segment %> · <%= new Date(campaign.created_at).toLocaleDateString('ar-EG') %></span>
+          </a>
+          <div class="flex gap-2 flex-wrap text-[11px] font-bold">
+            <span class="bg-slate-100 rounded-full px-2 py-1">الجمهور: <%= campaign.audience_count %></span>
+            <span class="bg-emerald-50 text-emerald-700 rounded-full px-2 py-1">تم الإرسال: <%= campaign.sent_count %></span>
+            <span class="bg-slate-100 text-slate-600 rounded-full px-2 py-1">تجاوز: <%= campaign.skipped_count %></span>
+            <% if (campaign.failed_count) { %><span class="bg-rose-50 text-rose-700 rounded-full px-2 py-1">فشل: <%= campaign.failed_count %></span><% } %>
+          </div>
+          <% if (campaign.status === 'prepared' && canWorkshop('send_communications')) { %>
+            <form method="post" action="/workshop/crm/campaigns/<%= campaign.id %>/send" onsubmit="return confirm('تمت مراجعة الرسالة والجمهور؟ سيبدأ الإرسال الآن.');">
+              <button class="bg-emerald-600 text-white rounded-lg px-3 py-1.5 text-xs font-bold">إرسال الحملة</button>
+            </form>
+          <% } else if (campaign.status === 'sending') { %>
+            <span class="text-xs text-amber-700 font-bold">جارٍ الإرسال</span>
+          <% } else { %>
+            <span class="text-xs text-slate-500 font-bold">مكتملة</span>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+  <% if (selectedCampaign) { %>
+    <div class="mt-4 pt-4 border-t border-slate-100">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <h3 class="font-black text-sm">مراجعة: <%= selectedCampaign.name %></h3>
+        <span class="text-xs text-slate-500"><%= selectedCampaign.body %></span>
+      </div>
+      <div class="overflow-auto mt-3">
+        <table class="rt w-full text-xs">
+          <thead><tr class="text-slate-500 border-b border-slate-100"><th class="text-start p-2">العميل</th><th class="text-start p-2">القناة</th><th class="text-start p-2">الحالة</th><th class="text-start p-2">النتيجة</th></tr></thead>
+          <tbody>
+            <% campaignRecipients.forEach(function(recipient){ %>
+              <tr class="border-b border-slate-50">
+                <td data-l="العميل" class="p-2"><%= recipient.customer_name %></td>
+                <td data-l="القناة" class="p-2"><%= recipient.channel === 'whatsapp' ? 'واتساب' : recipient.channel === 'sms' ? 'SMS' : '—' %><% if (recipient.message_id) { %> · <span dir="ltr"><%= recipient.whatsapp || recipient.phone || '—' %></span><% } %></td>
+                <td data-l="الحالة" class="p-2 font-bold <%= recipient.status === 'sent' ? 'text-emerald-700' : recipient.status === 'failed' ? 'text-rose-700' : recipient.status === 'skipped' ? 'text-slate-500' : 'text-amber-700' %>"><%= recipient.status === 'sent' ? 'تم قبولها' : recipient.status === 'failed' ? 'فشل' : recipient.status === 'skipped' ? 'تم تجاوزها' : 'جاهزة' %></td>
+                <td data-l="النتيجة" class="p-2"><%= recipient.skip_reason || recipient.result_note || 'بانتظار الإرسال' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% } %>
+</section>
+
 <div class="grid xl:grid-cols-[1.5fr_1fr] gap-5 items-start">
   <div>
     <section class="bg-white rounded-2xl border border-slate-200 p-4 mb-5">
@@ -156,6 +224,7 @@
           <label>الحالة<select name="lifecycle_stage" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1"><% lifecycles.forEach(function(key){ %><option value="<%= key %>" <%= selectedCustomer.lifecycle_stage === key ? 'selected' : '' %>><%= lifecycleLabels[key] %></option><% }) %></select></label>
           <label>القناة المفضلة<select name="preferred_channel" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1"><option value="whatsapp" <%= selectedCustomer.preferred_channel === 'whatsapp' ? 'selected' : '' %>>واتساب</option><option value="phone" <%= selectedCustomer.preferred_channel === 'phone' ? 'selected' : '' %>>هاتف</option><option value="sms" <%= selectedCustomer.preferred_channel === 'sms' ? 'selected' : '' %>>SMS</option><option value="email" <%= selectedCustomer.preferred_channel === 'email' ? 'selected' : '' %>>بريد</option><option value="none" <%= selectedCustomer.preferred_channel === 'none' ? 'selected' : '' %>>لا يفضل</option></select></label>
           <label>المتابعة القادمة<input type="date" name="next_followup_on" value="<%= dateOnly(selectedCustomer.next_followup_on) %>" class="w-full border border-slate-200 rounded-lg px-2 py-1.5 mt-1" /></label>
+          <label class="col-span-2 flex items-center gap-2 bg-amber-50 text-amber-900 rounded-lg px-3 py-2"><input type="checkbox" name="marketing_consent" value="1" <%= selectedCustomer.marketing_consent ? 'checked' : '' %> /> موافق على رسائل المتابعة التسويقية</label>
           <button class="col-span-2 bg-brand-600 text-white rounded-lg px-3 py-2 font-bold">حفظ ملف المتابعة</button>
         </form>
 

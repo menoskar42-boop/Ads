@@ -170,6 +170,41 @@ async function ensureWorkshopSchema() {
       CREATE INDEX IF NOT EXISTS idx_wsh_crm_lead_activities
         ON workshop_crm_lead_activities (company_id, lead_id, created_at DESC);
 
+      CREATE TABLE IF NOT EXISTS workshop_crm_campaigns (
+        id              BIGSERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name            TEXT NOT NULL,
+        segment         TEXT NOT NULL,
+        body            TEXT NOT NULL,
+        status           TEXT NOT NULL DEFAULT 'prepared',
+        audience_count   INTEGER NOT NULL DEFAULT 0,
+        prepared_count   INTEGER NOT NULL DEFAULT 0,
+        sent_count       INTEGER NOT NULL DEFAULT 0,
+        skipped_count    INTEGER NOT NULL DEFAULT 0,
+        failed_count     INTEGER NOT NULL DEFAULT 0,
+        created_by       TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        started_at       TIMESTAMPTZ,
+        completed_at     TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_campaigns
+        ON workshop_crm_campaigns (company_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_crm_campaign_recipients (
+        id              BIGSERIAL PRIMARY KEY,
+        company_id      INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        campaign_id     BIGINT NOT NULL REFERENCES workshop_crm_campaigns(id) ON DELETE CASCADE,
+        customer_id     INTEGER NOT NULL REFERENCES workshop_customers(id) ON DELETE CASCADE,
+        message_id      BIGINT,
+        status           TEXT NOT NULL DEFAULT 'prepared',
+        skip_reason      TEXT,
+        result_note      TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (campaign_id, customer_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_crm_campaign_recipients
+        ON workshop_crm_campaign_recipients (company_id, campaign_id, status);
+
       -- The vehicle is the spine of this system. A job card, a reminder and a
       -- warranty all point here rather than at the customer, so a car sold to a
       -- new owner keeps its history and the workshop can still answer "what did
@@ -721,6 +756,7 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS campaign_id BIGINT,
         ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
          ADD COLUMN IF NOT EXISTS provider_status TEXT,
          ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
@@ -728,6 +764,8 @@ async function ensureWorkshopSchema() {
          ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ;
       CREATE INDEX IF NOT EXISTS idx_wsh_messages_provider_id
         ON workshop_messages (company_id, provider_message_id);
+      CREATE INDEX IF NOT EXISTS idx_wsh_messages_campaign
+        ON workshop_messages (company_id, campaign_id);
       ALTER TABLE workshop_message_settings
         ADD COLUMN IF NOT EXISTS meta_app_secret_enc TEXT,
         ADD COLUMN IF NOT EXISTS meta_verify_token_enc TEXT;
@@ -751,6 +789,9 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS segment TEXT NOT NULL DEFAULT 'regular',
         ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT NOT NULL DEFAULT 'active',
         ADD COLUMN IF NOT EXISTS preferred_channel TEXT NOT NULL DEFAULT 'whatsapp',
+        ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS marketing_consent_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS marketing_opted_out_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS source TEXT,
         ADD COLUMN IF NOT EXISTS last_contacted_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS next_followup_on DATE;

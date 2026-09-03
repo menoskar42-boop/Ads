@@ -57,6 +57,14 @@ const CRM_SEGMENTS = ['new', 'regular', 'vip', 'inactive'];
 const CRM_SEGMENT_LABELS = { new: 'عميل جديد', regular: 'منتظم', vip: 'مميز', inactive: 'غير نشط' };
 const CRM_LIFECYCLES = ['active', 'at_risk', 'lost'];
 const CRM_LIFECYCLE_LABELS = { active: 'نشط', at_risk: 'معرّض للانقطاع', lost: 'منقطع' };
+const CAMPAIGN_SEGMENTS = ['all', 'inactive', 'due', 'vip', 'at_risk'];
+const CAMPAIGN_SEGMENT_LABELS = {
+  all: 'كل العملاء الموافقين',
+  inactive: 'العملاء غير النشطين',
+  due: 'المستحقون للمتابعة',
+  vip: 'العملاء المميزون',
+  at_risk: 'المعرضون للانقطاع',
+};
 const WORKSHOP_SECTION_PERMISSIONS = {
   board: 'view_board',
   appointments: 'view_appointments',
@@ -1192,11 +1200,41 @@ function crmActor(req) {
   return (req.workshopUser && req.workshopUser.email) || 'فريق الورشة';
 }
 
+function campaignAudienceCondition(segment) {
+  return ({
+    all: 'TRUE',
+    inactive: `(c.segment='inactive' OR c.lifecycle_stage='lost'
+               OR (c.last_contacted_at IS NULL AND c.created_at < CURRENT_DATE - INTERVAL '90 days'))`,
+    due: `c.next_followup_on IS NOT NULL AND c.next_followup_on <= CURRENT_DATE`,
+    vip: `c.segment='vip'`,
+    at_risk: `c.lifecycle_stage='at_risk'`,
+  })[segment] || 'FALSE';
+}
+
+function campaignRecipient(customer) {
+  const preference = String(customer.preferred_channel || 'whatsapp');
+  if (!customer.marketing_consent) return { reason: 'لا توجد موافقة تسويقية' };
+  if (preference === 'whatsapp') {
+    return customer.whatsapp
+      ? { channel: 'whatsapp', recipient: phoneDigits(customer.whatsapp) }
+      : { reason: 'القناة المفضلة واتساب لكن الرقم غير مسجل' };
+  }
+  if (preference === 'sms') {
+    return customer.phone
+      ? { channel: 'sms', recipient: phoneDigits(customer.phone) }
+      : { reason: 'القناة المفضلة SMS لكن الرقم غير مسجل' };
+  }
+  if (preference === 'phone') return { reason: 'الهاتف يحتاج اتصالًا يدويًا وليس رسالة آلية' };
+  if (preference === 'email') return { reason: 'البريد الإلكتروني غير مدعوم في مزود رسائل الورشة' };
+  return { reason: 'العميل أوقف الرسائل التسويقية' };
+}
+
 router.get('/crm', requireFlag('crm'), requireWorkshopPermission('view_crm'), async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim().slice(0, 80);
   const stage = CRM_LEAD_STAGES.includes(String(req.query.stage)) ? String(req.query.stage) : '';
   const customerId = int(req.query.customer_id);
+  const campaignId = int(req.query.campaign_id);
   const params = [cid];
   const where = ['l.company_id=$1'];
   if (stage) { params.push(stage); where.push(`l.stage=$${params.length}`); }
@@ -1205,7 +1243,7 @@ router.get('/crm', requireFlag('crm'), requireWorkshopPermission('view_crm'), as
     where.push(`(l.name ILIKE $${params.length} OR l.phone ILIKE $${params.length}
                 OR l.email ILIKE $${params.length} OR l.source ILIKE $${params.length})`);
   }
-  const [leadRows, stageCounts, customerRows, selectedCustomer, leadActivities] = await Promise.all([
+  const [leadRows, stageCounts, customerRows, selectedCustomer, leadActivities, campaignRows, selectedCampaign] = await Promise.all([
     pool.query(
       `SELECT l.*, c.name AS customer_name
          FROM workshop_crm_leads l
@@ -1232,7 +1270,7 @@ router.get('/crm', requireFlag('crm'), requireWorkshopPermission('view_crm'), as
     ),
     customerId ? pool.query(
       `SELECT id, name, phone, whatsapp, segment, lifecycle_stage, preferred_channel, source,
-              last_contacted_at, next_followup_on, note
+              marketing_consent, last_contacted_at, next_followup_on, note
          FROM workshop_customers WHERE id=$1 AND company_id=$2`, [customerId, cid]
     ) : Promise.resolve({ rows: [] }),
     pool.query(
@@ -1242,6 +1280,23 @@ router.get('/crm', requireFlag('crm'), requireWorkshopPermission('view_crm'), as
         WHERE a.company_id=$1
         ORDER BY a.created_at DESC LIMIT 40`, [cid]
     ),
+    pool.query(
+      `SELECT c.*,
+              COUNT(r.id)::int AS recipient_count,
+              COUNT(r.id) FILTER (WHERE r.status='sent')::int AS delivered_to_provider,
+              COUNT(r.id) FILTER (WHERE r.status='failed')::int AS failed_recipients,
+              COUNT(r.id) FILTER (WHERE r.status='skipped')::int AS skipped_recipients
+         FROM workshop_crm_campaigns c
+         LEFT JOIN workshop_crm_campaign_recipients r
+           ON r.campaign_id=c.id AND r.company_id=c.company_id
+        WHERE c.company_id=$1
+        GROUP BY c.id
+        ORDER BY c.created_at DESC LIMIT 30`, [cid]
+    ),
+    campaignId ? pool.query(
+      `SELECT c.* FROM workshop_crm_campaigns c
+        WHERE c.id=$1 AND c.company_id=$2`, [campaignId, cid]
+    ) : Promise.resolve({ rows: [] }),
   ]);
 
   const counts = Object.fromEntries(CRM_LEAD_STAGES.map((key) => [key, 0]));
@@ -1268,16 +1323,32 @@ router.get('/crm', requireFlag('crm'), requireWorkshopPermission('view_crm'), as
         ORDER BY created_at DESC LIMIT 60`, [cid, customerId]
     )).rows;
   }
+  let campaignRecipients = [];
+  if (selectedCampaign.rows[0]) {
+    campaignRecipients = (await pool.query(
+      `SELECT r.*, c.name AS customer_name, c.phone, c.whatsapp, m.channel,
+              m.status AS message_status, m.error AS message_error, m.attempt_count
+         FROM workshop_crm_campaign_recipients r
+         JOIN workshop_customers c ON c.id=r.customer_id AND c.company_id=r.company_id
+         LEFT JOIN workshop_messages m ON m.id=r.message_id AND m.company_id=r.company_id
+        WHERE r.campaign_id=$1 AND r.company_id=$2
+        ORDER BY r.status='failed' DESC, r.status='skipped' DESC, c.name`,
+      [campaignId, cid]
+    )).rows;
+  }
 
   res.render('workshop_admin/crm', {
-    title: 'CRM والمتابعة', tab: 'crm', q, stage, customerId,
+    title: 'CRM والمتابعة', tab: 'crm', q, stage, customerId, campaignId,
     leads: leadRows.rows, leadsByStage, counts, customers: customerRows.rows,
     selectedCustomer: selectedCustomer.rows[0] || null, timeline,
     leadActivities: leadActivities.rows,
+    campaigns: campaignRows.rows, selectedCampaign: selectedCampaign.rows[0] || null,
+    campaignRecipients,
     leadStages: CRM_LEAD_STAGES, leadStageLabels: CRM_LEAD_STAGE_LABELS,
     priorities: CRM_PRIORITIES, priorityLabels: CRM_PRIORITY_LABELS,
     segments: CRM_SEGMENTS, segmentLabels: CRM_SEGMENT_LABELS,
     lifecycles: CRM_LIFECYCLES, lifecycleLabels: CRM_LIFECYCLE_LABELS,
+    campaignSegments: CAMPAIGN_SEGMENTS, campaignSegmentLabels: CAMPAIGN_SEGMENT_LABELS,
   });
 });
 
@@ -1399,11 +1470,15 @@ router.post('/crm/customers/:id/profile', requireFlag('crm'), requireWorkshopPer
   const channel = ['whatsapp', 'phone', 'sms', 'email', 'none'].includes(String(b.preferred_channel))
     ? String(b.preferred_channel) : 'whatsapp';
   const followup = crmDate(b.next_followup_on);
+  const consent = b.marketing_consent === '1';
   await pool.query(
     `UPDATE workshop_customers
-        SET segment=$3, lifecycle_stage=$4, preferred_channel=$5, next_followup_on=$6
+        SET segment=$3, lifecycle_stage=$4, preferred_channel=$5, next_followup_on=$6,
+            marketing_consent=$7,
+            marketing_consent_at=CASE WHEN $7 THEN COALESCE(marketing_consent_at, now()) ELSE marketing_consent_at END,
+            marketing_opted_out_at=CASE WHEN $7 THEN NULL ELSE now() END
       WHERE id=$1 AND company_id=$2`,
-    [id, req.company.id, segment, lifecycle, channel, followup]
+    [id, req.company.id, segment, lifecycle, channel, followup, consent]
   );
   res.redirect('/workshop/crm?customer_id=' + id);
 });
@@ -1434,6 +1509,163 @@ router.post('/crm/customers/:id/activity', requireFlag('crm'), requireWorkshopPe
     }
   }
   res.redirect('/workshop/crm?customer_id=' + id);
+});
+
+router.post('/crm/campaigns', requireFlag('crm'), requireWorkshopPermission('manage_crm'), async (req, res) => {
+  const b = req.body || {};
+  const name = text(b.name, 120);
+  const body = text(b.body, 2000);
+  const segment = CAMPAIGN_SEGMENTS.includes(String(b.segment)) ? String(b.segment) : 'all';
+  if (!name || !body) return res.redirect('/workshop/crm');
+
+  const client = await pool.connect();
+  try {
+    const cid = req.company.id;
+    await client.query('BEGIN');
+    const campaign = (await client.query(
+      `INSERT INTO workshop_crm_campaigns
+        (company_id, name, segment, body, created_by)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+      [cid, name, segment, body, crmActor(req)]
+    )).rows[0];
+    const customers = (await client.query(
+      `SELECT id, name, phone, whatsapp, preferred_channel, marketing_consent
+         FROM workshop_customers c
+        WHERE c.company_id=$1 AND c.is_active AND ${campaignAudienceCondition(segment)}
+        ORDER BY c.name, c.id`, [cid]
+    )).rows;
+    let preparedCount = 0;
+    let skippedCount = 0;
+    for (const customer of customers) {
+      const target = campaignRecipient(customer);
+      if (!target.channel || !target.recipient) {
+        await client.query(
+          `INSERT INTO workshop_crm_campaign_recipients
+            (company_id, campaign_id, customer_id, status, skip_reason)
+           VALUES ($1,$2,$3,'skipped',$4)`,
+          [cid, campaign.id, customer.id, target.reason]
+        );
+        skippedCount += 1;
+        continue;
+      }
+      const personalizedBody = body.replace(/\{\{\s*name\s*\}\}/gi, customer.name);
+      const message = (await client.query(
+        `INSERT INTO workshop_messages
+          (company_id, customer_id, campaign_id, channel, recipient, event_key, body)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [cid, customer.id, campaign.id, target.channel, target.recipient,
+          `crm_campaign_${campaign.id}`, personalizedBody]
+      )).rows[0];
+      await client.query(
+        `INSERT INTO workshop_crm_campaign_recipients
+          (company_id, campaign_id, customer_id, message_id, status)
+         VALUES ($1,$2,$3,$4,'prepared')`,
+        [cid, campaign.id, customer.id, message.id]
+      );
+      preparedCount += 1;
+    }
+    await client.query(
+      `UPDATE workshop_crm_campaigns
+          SET audience_count=$2, prepared_count=$3, skipped_count=$4
+        WHERE id=$1 AND company_id=$5`,
+      [campaign.id, customers.length, preparedCount, skippedCount, cid]
+    );
+    await client.query('COMMIT');
+    res.redirect('/workshop/crm?campaign_id=' + campaign.id);
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop CRM campaign prepare]', e.message);
+    res.redirect('/workshop/crm');
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/crm/campaigns/:id/send', requireFlag('crm'), requireWorkshopPermission('send_communications'), async (req, res) => {
+  const cid = req.company.id;
+  const id = int(req.params.id);
+  const started = (await pool.query(
+    `UPDATE workshop_crm_campaigns
+        SET status='sending', started_at=COALESCE(started_at, now())
+      WHERE id=$1 AND company_id=$2 AND status='prepared'
+      RETURNING id`, [id, cid]
+  )).rows[0];
+  if (!started) return res.redirect('/workshop/crm?campaign_id=' + id);
+
+  const recipients = (await pool.query(
+    `SELECT r.id AS recipient_id, r.message_id, r.customer_id
+       FROM workshop_crm_campaign_recipients r
+      WHERE r.campaign_id=$1 AND r.company_id=$2 AND r.status='prepared'
+      ORDER BY r.id`, [id, cid]
+  )).rows;
+  for (const recipient of recipients) {
+    const claimed = (await pool.query(
+      `UPDATE workshop_crm_campaign_recipients
+          SET status='sending'
+        WHERE id=$1 AND company_id=$2 AND status='prepared'
+        RETURNING id`, [recipient.recipient_id, cid]
+    )).rows[0];
+    if (!claimed) continue;
+
+    const customer = (await pool.query(
+      `SELECT id, phone, whatsapp, preferred_channel, marketing_consent
+         FROM workshop_customers WHERE id=$1 AND company_id=$2`, [recipient.customer_id, cid]
+    )).rows[0];
+    const target = customer ? campaignRecipient(customer) : { reason: 'العميل غير موجود' };
+    if (!target.channel || !target.recipient || !customer.marketing_consent) {
+      await pool.query(
+        `UPDATE workshop_messages
+            SET status='failed', attempt_count=5, failed_at=now(), error=$3
+          WHERE id=$1 AND company_id=$2 AND status='prepared'`,
+        [recipient.message_id, cid, target.reason || 'الموافقة التسويقية غير متاحة']
+      );
+      await pool.query(
+        `UPDATE workshop_crm_campaign_recipients
+            SET status='skipped', skip_reason=$3, result_note=$3
+          WHERE id=$1 AND company_id=$2`,
+        [recipient.recipient_id, cid, target.reason || 'الموافقة التسويقية غير متاحة']
+      );
+      continue;
+    }
+    let result;
+    try {
+      result = await deliverWorkshopMessage(cid, recipient.message_id);
+    } catch (e) {
+      result = { ok: false, error: e.message || 'تعذر الاتصال بمزود الرسائل' };
+      console.error('[workshop CRM campaign send]', e.message);
+      await pool.query(
+        `UPDATE workshop_messages
+            SET status='failed', failed_at=now(), error=$3
+          WHERE id=$1 AND company_id=$2 AND status IN ('prepared','queued')`,
+        [recipient.message_id, cid, result.error]
+      );
+    }
+    await pool.query(
+      `UPDATE workshop_crm_campaign_recipients
+          SET status=$3, result_note=$4
+        WHERE id=$1 AND company_id=$2`,
+      [recipient.recipient_id, cid, result.ok ? 'sent' : 'failed',
+        result.ok ? 'تم قبول الرسالة من المزود' : (result.error || 'فشل غير محدد من المزود')]
+    );
+  }
+  const finalCounts = (await pool.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status IN ('prepared','sending'))::int AS prepared_count,
+       COUNT(*) FILTER (WHERE status='sent')::int AS sent_count,
+       COUNT(*) FILTER (WHERE status='skipped')::int AS skipped_count,
+       COUNT(*) FILTER (WHERE status='failed')::int AS failed_count
+       FROM workshop_crm_campaign_recipients
+      WHERE campaign_id=$1 AND company_id=$2`, [id, cid]
+  )).rows[0];
+  await pool.query(
+    `UPDATE workshop_crm_campaigns
+        SET status='completed', completed_at=now(),
+            prepared_count=$3, sent_count=$4, skipped_count=$5, failed_count=$6
+      WHERE id=$1 AND company_id=$2`,
+    [id, cid, finalCounts.prepared_count, finalCounts.sent_count,
+      finalCounts.skipped_count, finalCounts.failed_count]
+  );
+  res.redirect('/workshop/crm?campaign_id=' + id);
 });
 
 // ── Customers ────────────────────────────────────────────────────────────────
@@ -3196,4 +3428,5 @@ module.exports = router;
 module.exports.pool = pool;
 module.exports.helpers = {
   num, int, text, round2, requireFlag, queueServiceReminderMessages,
+  campaignRecipient, campaignAudienceCondition,
 };
