@@ -44,6 +44,10 @@ const int = (v, d = null) => { const n = parseInt(v, 10); return Number.isFinite
 const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().slice(0, max); return s || null; };
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
+const emailAddress = (v) => {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return s && s.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
+};
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
@@ -1071,10 +1075,15 @@ router.post('/settings/users/:id/role', requireWorkshopPermission('manage_settin
 router.post('/settings', requireWorkshopPermission('manage_settings'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
+  const adminAlertEmailInput = String(b.admin_alert_email == null ? '' : b.admin_alert_email).trim();
+  const adminAlertEmail = adminAlertEmailInput ? emailAddress(adminAlertEmailInput) : null;
   const reminderDaysInput = String(b.reminder_lead_days == null ? '' : b.reminder_lead_days).trim();
   const reminderKmInput = String(b.reminder_lead_km == null ? '' : b.reminder_lead_km).trim();
   const reminderLeadDays = Number(reminderDaysInput);
   const reminderLeadKm = Number(reminderKmInput);
+  if (adminAlertEmailInput && !adminAlertEmail) {
+    return res.redirect('/workshop/settings?err=admin_email_invalid');
+  }
   if (!reminderDaysInput || !reminderKmInput
       || !Number.isInteger(reminderLeadDays) || reminderLeadDays < 0 || reminderLeadDays > 60
       || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000) {
@@ -1082,20 +1091,22 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
   }
   await pool.query(
     `INSERT INTO workshop_settings
-       (company_id, business_name, address, phone, whatsapp, about, hours,
+       (company_id, business_name, address, phone, whatsapp, about, hours, admin_alert_email,
         tax_percent, labour_rate, service_km, service_months,
         reminder_lead_days, reminder_lead_km, booking_enabled, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now())
      ON CONFLICT (company_id) DO UPDATE SET
        business_name=EXCLUDED.business_name, address=EXCLUDED.address, phone=EXCLUDED.phone,
        whatsapp=EXCLUDED.whatsapp, about=EXCLUDED.about, hours=EXCLUDED.hours,
+       admin_alert_email=EXCLUDED.admin_alert_email,
        tax_percent=EXCLUDED.tax_percent, labour_rate=EXCLUDED.labour_rate,
        service_km=EXCLUDED.service_km, service_months=EXCLUDED.service_months,
        reminder_lead_days=EXCLUDED.reminder_lead_days,
        reminder_lead_km=EXCLUDED.reminder_lead_km,
        booking_enabled=EXCLUDED.booking_enabled, updated_at=now()`,
     [cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
-     text(b.about, 2000), text(b.hours, 120), Math.min(100, Math.max(0, num(b.tax_percent))),
+     text(b.about, 2000), text(b.hours, 120), adminAlertEmail,
+     Math.min(100, Math.max(0, num(b.tax_percent))),
      Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
      Math.max(0, int(b.service_months, 6)),
        reminderLeadDays,

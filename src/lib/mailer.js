@@ -225,14 +225,28 @@ async function sendAdminNewApplication({ fullName, email, phone, country, busine
   return sendMail({ to, subject: `طلب جديد: ${businessName || ''} — OscarDevs`, html, text });
 }
 
+function validEmailAddress(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
+    ? normalized
+    : null;
+}
+
+function resolveWorkshopAlertRecipient(adminEmail) {
+  return validEmailAddress(adminEmail)
+    || validEmailAddress(process.env.ADMIN_NOTIFY_EMAIL)
+    || validEmailAddress(process.env.ADMIN_EMAIL)
+    || 'support@oscardevs.com';
+}
+
 /**
  * Alert the platform administrator when a workshop reminder outage cannot be
  * reported through browser push. This message intentionally contains only
  * operational identifiers and timestamps — never customer names or phone
  * numbers.
  */
-async function sendWorkshopReminderHealthAlert({ companyId, reason, outageStartedAt }) {
-  const to = process.env.ADMIN_NOTIFY_EMAIL || process.env.ADMIN_EMAIL || 'support@oscardevs.com';
+async function sendWorkshopReminderHealthAlert({ companyId, adminEmail, reason, outageStartedAt }) {
+  const to = resolveWorkshopAlertRecipient(adminEmail);
   const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
   const started = outageStartedAt
     ? new Date(outageStartedAt).toISOString()
@@ -268,6 +282,7 @@ module.exports = {
   sendApplicationTrackLink,
   sendAdminNewApplication,
   sendWorkshopReminderHealthAlert,
+  resolveWorkshopAlertRecipient,
   siteOrigin,
   localeForCountry,
 };

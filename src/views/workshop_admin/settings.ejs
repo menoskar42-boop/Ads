@@ -7,6 +7,7 @@
 <% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
 <% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
+<% if (settingsError === 'admin_email_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا إداريًا صحيحًا أو اترك الحقل فارغًا لاستخدام العنوان العام.</div><% } %>
 <% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
 <% if (typeof reminderHealth !== 'undefined' && reminderHealth && reminderHealth.state === 'alerted') { %>
   <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">
@@ -130,6 +131,9 @@
       <input name="phone" dir="ltr" value="<%= settings.phone || '' %>" placeholder="<%= t('wsh.cust.phone') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="whatsapp" dir="ltr" value="<%= settings.whatsapp || '' %>" placeholder="WhatsApp" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="hours" value="<%= settings.hours || '' %>" placeholder="<%= t('wsh.set.hours') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">بريد تنبيهات الإدارة</span>
+        <input name="admin_alert_email" type="email" maxlength="200" autocomplete="email" dir="ltr" value="<%= settings.admin_alert_email || '' %>" placeholder="استخدم بريدًا خاصًا بهذه الورشة أو اتركه فارغًا" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        <span class="block text-[11px] text-slate-500 mt-1">يستقبل تنبيهات تعطل تذكيرات الصيانة فقط. عند تركه فارغًا يستخدم الخادم عنوان الإدارة العام.</span></label>
       <input name="address" value="<%= settings.address || '' %>" placeholder="<%= t('wsh.exp.category') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
       <textarea name="about" rows="3" placeholder="<%= t('wsh.set.about') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2"><%= settings.about || '' %></textarea>
 

@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { checkWorkshopReminderHealth } = require('../src/workshop/reminder_health');
+const { resolveWorkshopAlertRecipient } = require('../src/lib/mailer');
 
 const ROOT = path.join(__dirname, '..');
 let failed = 0;
@@ -24,8 +25,14 @@ function fakeDb({ claim = true } = {}) {
   const db = {
     updates: alerts,
     async query(sql, args) {
-      if (/SELECT id, created_at\s+FROM companies/.test(sql)) {
-        return { rows: [{ id: 7, created_at: '2026-09-05T06:00:00.000Z' }] };
+      if (/SELECT c\.id, c\.created_at/.test(sql)) {
+        return {
+          rows: [{
+            id: 7,
+            created_at: '2026-09-05T06:00:00.000Z',
+            admin_alert_email: 'owner@workshop.example',
+          }],
+        };
       }
       if (/SELECT started_at, finished_at, error/.test(sql)) {
         return { rows: [{ started_at: '2026-09-05T08:00:00.000Z', finished_at: null, error: null }] };
@@ -68,6 +75,7 @@ async function run() {
   check('نجاح البريد يتسجل كإرسال', disabledDb.updates[0].args[2] === 'sent');
   check('سبب التعطّل يصل للقناة دون بيانات عميل',
     disabledFallback[0].reason === 'push_disabled'
+      && disabledFallback[0].adminEmail === 'owner@workshop.example'
       && !Object.prototype.hasOwnProperty.call(disabledFallback[0], 'customer_name')
       && !Object.prototype.hasOwnProperty.call(disabledFallback[0], 'customer_phone'));
   check('حالة التعطّل الواحدة تُرسل مرة واحدة', disabledResult.alerted === 1);
@@ -105,6 +113,15 @@ async function run() {
 
   const mailer = fs.readFileSync(path.join(ROOT, 'src/lib/mailer.js'), 'utf8');
   check('قناة البريد الإدارية موجودة', /sendWorkshopReminderHealthAlert/.test(mailer));
+  check('العنوان المخصص يسبق العنوان العام',
+    /resolveWorkshopAlertRecipient[\s\S]{0,500}ADMIN_NOTIFY_EMAIL/.test(mailer));
+  process.env.ADMIN_NOTIFY_EMAIL = 'global@example.com';
+  process.env.ADMIN_EMAIL = 'fallback@example.com';
+  check('العنوان المخصص يُستخدم فعليًا',
+    resolveWorkshopAlertRecipient('owner@workshop.example') === 'owner@workshop.example');
+  check('العنوان العام يبقى fallback عند غياب المخصص',
+    resolveWorkshopAlertRecipient('') === 'global@example.com'
+      && resolveWorkshopAlertRecipient('not-an-email') === 'global@example.com');
   check('نص التنبيه لا يقرأ بيانات العملاء',
     !/customer_(name|phone)|customerName|customerPhone/.test(mailer.slice(mailer.indexOf('async function sendWorkshopReminderHealthAlert'))));
 

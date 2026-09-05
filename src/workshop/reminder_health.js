@@ -31,9 +31,10 @@ async function checkWorkshopReminderHealth({
   noRunGraceMs = NO_RUN_GRACE_MS,
 } = {}) {
   const companies = (await db.query(
-    `SELECT id, created_at
-       FROM companies
-      WHERE page_type='workshop' AND is_active=true`
+    `SELECT c.id, c.created_at, ws.admin_alert_email
+       FROM companies c
+       LEFT JOIN workshop_settings ws ON ws.company_id=c.id
+      WHERE c.page_type='workshop' AND c.is_active=true`
   )).rows;
   const result = { checked: 0, alerted: 0, recovered: 0 };
 
@@ -119,6 +120,7 @@ async function checkWorkshopReminderHealth({
       try {
         const fallback = await sendFallback({
           companyId,
+          adminEmail: company.admin_alert_email,
           reason: status,
           outageStartedAt: claimed.outage_started_at,
         });

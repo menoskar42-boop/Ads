@@ -32,6 +32,7 @@ async function ensureWorkshopSchema() {
         address        TEXT,
         phone          TEXT,
         whatsapp       TEXT,
+        admin_alert_email TEXT,
         about          TEXT,
         hours          TEXT,
         currency       TEXT NOT NULL DEFAULT 'EGP',
@@ -798,7 +799,8 @@ async function ensureWorkshopSchema() {
       ALTER TABLE workshop_settings
         ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true,
         ADD COLUMN IF NOT EXISTS reminder_lead_days INTEGER NOT NULL DEFAULT 7,
-        ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500;
+        ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500,
+        ADD COLUMN IF NOT EXISTS admin_alert_email TEXT;
       ALTER TABLE workshop_customers
         ADD COLUMN IF NOT EXISTS segment TEXT NOT NULL DEFAULT 'regular',
         ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT NOT NULL DEFAULT 'active',
