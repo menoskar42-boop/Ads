@@ -286,6 +286,28 @@ async function sendWorkshopReminderHealthAlert({
   return { channel: 'email', ...result };
 }
 
+/** Send a generic, customer-free test message using the workshop alert route. */
+async function sendWorkshopReminderHealthTest({ companyId, adminEmail }) {
+  const to = resolveWorkshopAlertRecipient(adminEmail);
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const html = shell('ar', 'اختبار بريد تنبيهات تذكيرات الصيانة', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">هذه رسالة اختبار من إعدادات ورشة الصيانة.</p>
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">إذا وصلت هذه الرسالة، فإن قناة البريد الإداري جاهزة لتنبيهات تعطل التذكيرات واستعادتها.</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">معرّف الورشة: <span dir="ltr">${safeCompanyId}</span></p>`);
+  const text = [
+    'هذه رسالة اختبار من إعدادات ورشة الصيانة.',
+    'إذا وصلت، فقناة البريد الإداري جاهزة لتنبيهات تعطل التذكيرات واستعادتها.',
+    `معرّف الورشة: ${safeCompanyId}.`,
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'اختبار بريد تنبيهات تذكيرات الصيانة — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
 module.exports = {
   sendMail,
   sendApplicationReceived,
@@ -293,6 +315,7 @@ module.exports = {
   sendApplicationTrackLink,
   sendAdminNewApplication,
   sendWorkshopReminderHealthAlert,
+  sendWorkshopReminderHealthTest,
   resolveWorkshopAlertRecipient,
   siteOrigin,
   localeForCountry,

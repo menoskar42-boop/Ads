@@ -35,6 +35,7 @@ const {
   workshopCan,
 } = require('../workshop/operations');
 const { checkWorkshopReminderHealth } = require('../workshop/reminder_health');
+const { sendWorkshopReminderHealthTest } = require('../lib/mailer');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -971,6 +972,8 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
   res.render('workshop_admin/settings', {
     title: res.locals.t('wsh.set.title'), tab: 'settings',
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
+    testEmailStatus: ['sent', 'unavailable', 'error'].includes(String(req.query.test_email || ''))
+      ? String(req.query.test_email) : '',
     messageSettings: workshopMessagingView(messageRow.rows[0]),
     payment, settingsError: req.query.err || '',
     users: users.rows,
@@ -1120,6 +1123,22 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
   const wanted = Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []);
   await saveFlags(pool, cid, wanted);
   res.redirect('/workshop/settings?saved=1');
+});
+
+router.post('/settings/reminder-email-test', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  try {
+    const result = await sendWorkshopReminderHealthTest({
+      companyId: req.company.id,
+      adminEmail: req.settings && req.settings.admin_alert_email,
+    });
+    const status = result && result.ok
+      ? 'sent'
+      : (result && result.status === 'unavailable' ? 'unavailable' : 'error');
+    return res.redirect('/workshop/settings?test_email=' + status);
+  } catch (err) {
+    console.error('[workshop reminder email test]', err.message);
+    return res.redirect('/workshop/settings?test_email=error');
+  }
 });
 
 router.post('/settings/messages', requireWorkshopPermission('manage_settings'), async (req, res) => {

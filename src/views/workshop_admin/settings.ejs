@@ -9,6 +9,9 @@
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
 <% if (settingsError === 'admin_email_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا إداريًا صحيحًا أو اترك الحقل فارغًا لاستخدام العنوان العام.</div><% } %>
 <% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
+<% if (testEmailStatus === 'sent') { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم إرسال رسالة اختبار عامة إلى قناة بريد تنبيهات الإدارة.</div><% } %>
+<% if (testEmailStatus === 'unavailable') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر الاختبار لأن إعدادات البريد غير مهيأة على الخادم.</div><% } %>
+<% if (testEmailStatus === 'error') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">فشل إرسال رسالة الاختبار. راجع إعدادات البريد وحاول مرة أخرى.</div><% } %>
 <% if (typeof reminderHealth !== 'undefined' && reminderHealth && reminderHealth.state === 'alerted') { %>
   <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">
     <div class="font-black">تنبيه: عامل تذكيرات الصيانة متوقف أو لم يسجل تشغيلًا ناجحًا مؤخرًا.</div>
@@ -165,7 +168,10 @@
         <input name="reminder_lead_km" type="number" min="0" max="10000" dir="ltr" value="<%= settings.reminder_lead_km == null ? 500 : Number(settings.reminder_lead_km) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
         <span class="block text-[11px] text-slate-500 mt-1">0 = عند بلوغ الحد فقط، والافتراضي 500 كم.</span></label>
     </div>
-    <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5 mt-4"><%= t('wsh.common.save') %></button>
+    <div class="flex gap-2 flex-wrap mt-4">
+      <button type="submit" class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button>
+      <button type="submit" formaction="/workshop/settings/reminder-email-test" formmethod="post" class="border border-brand-200 text-brand-700 font-bold rounded-xl px-6 py-2.5">إرسال رسالة اختبار للبريد</button>
+    </div>
   </section>
 </form>
 

@@ -194,6 +194,9 @@ async function run() {
 
   const mailer = fs.readFileSync(path.join(ROOT, 'src/lib/mailer.js'), 'utf8');
   check('قناة البريد الإدارية موجودة', /sendWorkshopReminderHealthAlert/.test(mailer));
+  check('رسالة اختبار البريد منفصلة عن تنبيهات الأعطال',
+    /sendWorkshopReminderHealthTest/.test(mailer)
+      && /اختبار بريد تنبيهات تذكيرات الصيانة/.test(mailer));
   check('قالب البريد يدعم إشعار الاستعادة', /kind === 'recovered'/.test(mailer));
   check('العنوان المخصص يسبق العنوان العام',
     /resolveWorkshopAlertRecipient[\s\S]{0,500}ADMIN_NOTIFY_EMAIL/.test(mailer));
@@ -206,6 +209,13 @@ async function run() {
       && resolveWorkshopAlertRecipient('not-an-email') === 'global@example.com');
   check('نص التنبيه لا يقرأ بيانات العملاء',
     !/customer_(name|phone)|customerName|customerPhone/.test(mailer.slice(mailer.indexOf('async function sendWorkshopReminderHealthAlert'))));
+  const router = fs.readFileSync(path.join(ROOT, 'src/routes/workshop_admin.js'), 'utf8');
+  const settingsView = fs.readFileSync(path.join(ROOT, 'src/views/workshop_admin/settings.ejs'), 'utf8');
+  check('اختبار البريد محمي بصلاحية الإدارة',
+    /router\.post\('\/settings\/reminder-email-test', requireWorkshopPermission\('manage_settings'\)/.test(router));
+  check('الإعدادات تعرض نتيجة الاختبار دون أسرار',
+    /testEmailStatus/.test(router) && /testEmailStatus === 'sent'/.test(settingsView)
+      && !/SMTP_PASSWORD|SMTP_PASS|SMTP_USER/.test(settingsView));
 
   console.log(failed ? `\n${failed} مشكلة في قناة تنبيه صحة التذكيرات.` : '\nقناة التنبيه الاحتياطية ومنع التكرار يعملان.');
   process.exit(failed ? 1 : 0);
