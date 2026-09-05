@@ -39,6 +39,7 @@ const { checkWorkshopReminderHealth } = require('../workshop/reminder_health');
 const {
   sendWorkshopReminderHealthTest,
   sendWorkshopSecurityAccessAlert,
+  sendWorkshopMessageFailureAlert,
 } = require('../lib/mailer');
 
 const router = express.Router();
@@ -220,7 +221,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
   const mapped = deliveryFromProvider(provider, providerStatus);
   if (!mapped || !providerMessageId) return { updated: false, reason: 'ignored' };
   const current = (await pool.query(
-    `SELECT id, job_id, channel, status, provider_status, attempt_count
+    `SELECT id, job_id, channel, provider, status, provider_status, attempt_count
        FROM workshop_messages
       WHERE company_id=$1 AND provider_message_id=$2
       ORDER BY id DESC LIMIT 1`,
@@ -229,6 +230,9 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
   if (!current) return { updated: false, reason: 'unknown_message' };
   if (provider === 'meta' && current.channel !== 'whatsapp') {
     return { updated: false, reason: 'channel_mismatch' };
+  }
+  if (current.provider && current.provider !== provider) {
+    return { updated: false, reason: 'provider_mismatch' };
   }
 
   const currentRank = DELIVERY_STATUS_ORDER[current.status] == null
@@ -243,6 +247,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
     `UPDATE workshop_messages
         SET provider_status=$1,
             status=$2,
+            provider=COALESCE(provider,$7),
             error=CASE WHEN $2='failed' THEN $3 ELSE NULL END,
             delivered_at=CASE WHEN $2='delivered' THEN COALESCE(delivered_at, now()) ELSE delivered_at END,
             failed_at=CASE WHEN $2='failed' THEN COALESCE(failed_at, now()) ELSE failed_at END,
@@ -262,7 +267,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
           ELSE 2
         END <= $6
       RETURNING id, job_id, status`,
-    [mapped.providerStatus, nextStatus, failure, current.id, companyId, incomingRank]
+    [mapped.providerStatus, nextStatus, failure, current.id, companyId, incomingRank, provider]
   )).rows[0];
   if (!changed) return { updated: false, reason: 'stale' };
   if (changed && changed.status !== current.status) {
@@ -273,6 +278,9 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
           : 'حدّث المزود حالة رسالة العميل',
       `${provider}: ${mapped.providerStatus}`
     );
+  }
+  if (changed && changed.status === 'failed' && Number(current.attempt_count) >= 5) {
+    await notifyFinalMessageFailure(companyId, current.id);
   }
   return { updated: Boolean(changed), status: nextStatus };
 }
@@ -363,22 +371,68 @@ async function deliverWorkshopMessage(companyId, messageId, force = false) {
 
   const config = await loadWorkshopMessagingConfig(companyId);
   if (config) config.statusCallbackUrl = workshopWebhookUrl(companyId, 'twilio');
+  const provider = config
+    ? (claimed.channel === 'sms' ? config.smsProvider : config.whatsappProvider)
+    : null;
   const result = await sendWorkshopMessage(config, claimed.channel, claimed.recipient, claimed.body);
   const nextRetry = result.ok || Number(claimed.attempt_count) >= 5
     ? null : new Date(Date.now() + 5 * 60 * 1000);
   await pool.query(
     `UPDATE workshop_messages
         SET status=$1, sent_at=CASE WHEN $1='sent' THEN now() ELSE NULL END,
-            provider_message_id=$2, provider_status=$3, error=$4, next_retry_at=$5
-      WHERE id=$6 AND company_id=$7`,
+            provider_message_id=$2, provider=$3, provider_status=$4, error=$5, next_retry_at=$6
+            ,failed_at=CASE WHEN $1='failed' THEN COALESCE(failed_at, now()) ELSE failed_at END
+            ,delivery_updated_at=now()
+      WHERE id=$7 AND company_id=$8`,
     [result.ok ? 'sent' : 'failed', result.providerMessageId || null,
-      result.providerStatus || null, result.ok ? null : result.error, nextRetry, messageId, companyId]
+      provider, result.providerStatus || null, result.ok ? null : result.error, nextRetry, messageId, companyId]
   );
+  if (!result.ok && Number(claimed.attempt_count) >= 5) {
+    await notifyFinalMessageFailure(companyId, messageId);
+  }
   if (result.ok) {
     await logActivity(pool, companyId, claimed.job_id,
       `تم إرسال رسالة ${claimed.channel === 'sms' ? 'SMS' : 'WhatsApp'} للعميل`);
   }
   return result;
+}
+
+async function notifyFinalMessageFailure(companyId, messageId) {
+  const claimed = (await pool.query(
+    `UPDATE workshop_messages
+        SET final_failure_alert_at=now(), final_failure_alert_status='pending'
+      WHERE id=$1 AND company_id=$2 AND status='failed'
+        AND COALESCE(attempt_count,0) >= 5
+        AND final_failure_alert_at IS NULL
+      RETURNING id, channel, attempt_count, event_key`,
+    [messageId, companyId]
+  )).rows[0];
+  if (!claimed) return null;
+  const settings = (await pool.query(
+    'SELECT admin_alert_email FROM workshop_settings WHERE company_id=$1',
+    [companyId]
+  )).rows[0] || {};
+  let alert;
+  try {
+    alert = await sendWorkshopMessageFailureAlert({
+      companyId,
+      adminEmail: settings.admin_alert_email,
+      messageId: claimed.id,
+      channel: claimed.channel,
+      attemptCount: claimed.attempt_count,
+      eventKey: claimed.event_key,
+    });
+  } catch (err) {
+    console.error('[workshop final message failure alert]', err.message);
+    alert = { channel: 'email', status: 'error' };
+  }
+  await pool.query(
+    `UPDATE workshop_messages
+        SET final_failure_alert_channel=$1, final_failure_alert_status=$2
+      WHERE id=$3 AND company_id=$4 AND final_failure_alert_status='pending'`,
+    [alert.channel || 'email', alert.status || 'error', claimed.id, companyId]
+  );
+  return alert;
 }
 
 function serviceReminderBody(reminder) {
@@ -1142,7 +1196,8 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
   }
   if (!reminderDaysInput || !reminderKmInput
       || !Number.isInteger(reminderLeadDays) || reminderLeadDays < 0 || reminderLeadDays > 60
-      || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000) {
+      || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000
+      || (reminderLeadDays === 0 && reminderLeadKm === 0)) {
     return res.redirect('/workshop/settings?err=reminder_invalid');
   }
   const settingsValues = [

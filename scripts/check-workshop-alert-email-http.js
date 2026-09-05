@@ -65,6 +65,9 @@ class FixturePool {
       securityEvents.push(args);
       return { rows: [] };
     }
+    if (/SELECT threshold, window_minutes\s+FROM workshop_security_alert_policy/.test(sql)) {
+      return { rows: [{ threshold: 5, window_minutes: 15 }] };
+    }
     if (/INSERT INTO workshop_security_alert_state/.test(sql)) {
       const key = [args[0], args[1], args[2]].join(':');
       const current = securityAlertState.get(key) || {
@@ -258,6 +261,9 @@ class ConcurrentSecurityPool {
 
   async query(sql, args = []) {
     if (/INSERT INTO medical_audit_log/.test(sql)) return { rows: [] };
+    if (/SELECT threshold, window_minutes\s+FROM workshop_security_alert_policy/.test(sql)) {
+      return { rows: [{ threshold: 5, window_minutes: 15 }] };
+    }
     if (/INSERT INTO workshop_security_alert_state/.test(sql)) {
       if (this.resetNext) {
         this.resetNext = false;
@@ -361,6 +367,15 @@ class ConcurrentSecurityPool {
       alphaHtml.includes('alpha-alert@example.com')
         && !alphaHtml.includes('bravo-alert@example.com')
         && alphaHtml.includes('سجل بريد تنبيهات الإدارة'));
+
+    const invalidReminder = await alpha.request('/workshop/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'reminder_lead_days=0&reminder_lead_km=0',
+    });
+    check('لا يمكن حفظ تذكير بلا حد زمني أو كيلومتري',
+      invalidReminder.status === 302
+        && invalidReminder.headers.get('location') === '/workshop/settings?err=reminder_invalid');
 
     const alphaTampered = await alpha.request('/workshop/settings?company_id=202');
     const alphaTamperedHtml = await alphaTampered.text();

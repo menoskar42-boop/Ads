@@ -118,6 +118,17 @@ async function ensureWorkshopSchema() {
       CREATE INDEX IF NOT EXISTS idx_wsh_security_alert_state_window
         ON workshop_security_alert_state (window_started_at DESC);
 
+      CREATE TABLE IF NOT EXISTS workshop_security_alert_policy (
+        id              SMALLINT PRIMARY KEY CHECK (id=1),
+        threshold       INTEGER NOT NULL DEFAULT 5 CHECK (threshold BETWEEN 3 AND 50),
+        window_minutes  INTEGER NOT NULL DEFAULT 15 CHECK (window_minutes BETWEEN 5 AND 1440),
+        updated_by      INTEGER,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      INSERT INTO workshop_security_alert_policy (id)
+      VALUES (1)
+      ON CONFLICT (id) DO NOTHING;
+
       CREATE TABLE IF NOT EXISTS workshop_reminder_runs (
         id             BIGSERIAL PRIMARY KEY,
         company_id     INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -729,6 +740,7 @@ async function ensureWorkshopSchema() {
         job_id      INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
         customer_id INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
         channel     TEXT NOT NULL DEFAULT 'whatsapp',
+         provider    TEXT,
         recipient   TEXT,
         event_key   TEXT,
         body        TEXT NOT NULL,
@@ -806,10 +818,14 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS campaign_id BIGINT,
         ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
+         ADD COLUMN IF NOT EXISTS provider TEXT,
          ADD COLUMN IF NOT EXISTS provider_status TEXT,
          ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
          ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ,
-         ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ;
+         ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS final_failure_alert_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS final_failure_alert_channel TEXT,
+         ADD COLUMN IF NOT EXISTS final_failure_alert_status TEXT;
       CREATE INDEX IF NOT EXISTS idx_wsh_messages_provider_id
         ON workshop_messages (company_id, provider_message_id);
       CREATE INDEX IF NOT EXISTS idx_wsh_messages_campaign

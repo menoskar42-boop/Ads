@@ -287,6 +287,43 @@ async function sendWorkshopSecurityAccessAlert({
   return { channel: 'email', ...result };
 }
 
+/** Tell the workshop administrator when a customer message has exhausted retries. */
+async function sendWorkshopMessageFailureAlert({
+  companyId, adminEmail, messageId, channel, attemptCount, eventKey,
+}) {
+  const to = resolveWorkshopAlertRecipient(adminEmail);
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const safeMessageId = Number.isInteger(Number(messageId)) ? String(Number(messageId)) : 'غير معروف';
+  const safeAttempts = Number.isInteger(Number(attemptCount)) ? String(Number(attemptCount)) : 'غير معروف';
+  const safeChannel = channel === 'sms' ? 'SMS' : 'WhatsApp';
+  const safeEvent = String(eventKey || 'customer_message').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'customer_message';
+  const html = shell('ar', 'فشل نهائي في رسالة عميل', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">لم تصل رسالة العميل بعد استنفاد محاولات الإرسال المسموح بها.</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">
+      الورشة: <span dir="ltr">${safeCompanyId}</span><br>
+      رقم الرسالة: <span dir="ltr">${safeMessageId}</span><br>
+      القناة: <span dir="ltr">${safeChannel}</span><br>
+      نوع الحدث: <span dir="ltr">${safeEvent}</span><br>
+      عدد المحاولات: <span dir="ltr">${safeAttempts}</span>
+    </p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">افتح سجل الرسائل من لوحة الورشة واتخذ إجراءً يدويًا مع العميل.</p>`);
+  const text = [
+    'فشل نهائي في رسالة عميل بعد استنفاد المحاولات.',
+    `الورشة: ${safeCompanyId}.`,
+    `رقم الرسالة: ${safeMessageId}.`,
+    `القناة: ${safeChannel}.`,
+    `نوع الحدث: ${safeEvent}.`,
+    `عدد المحاولات: ${safeAttempts}.`,
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'تنبيه: فشل نهائي في رسالة عميل — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
 /**
  * Alert the platform administrator about a workshop reminder outage or its
  * recovery. This message intentionally contains only operational identifiers
@@ -365,6 +402,7 @@ module.exports = {
   sendWorkshopReminderHealthAlert,
   sendWorkshopReminderHealthTest,
   sendWorkshopSecurityAccessAlert,
+  sendWorkshopMessageFailureAlert,
   resolveWorkshopAlertRecipient,
   resolveSecurityAlertRecipient,
   siteOrigin,

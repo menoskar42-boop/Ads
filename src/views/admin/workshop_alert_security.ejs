@@ -17,6 +17,42 @@
     </span>
   </div>
 
+  <div class="mt-6 grid gap-4 lg:grid-cols-2">
+    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <h2 class="font-black text-gray-800">آخر تنبيه أمني</h2>
+      <% if (latestAlert) { %>
+        <div class="mt-3 grid gap-2 text-sm text-gray-600">
+          <div>الشركة: <bdi class="font-bold"><%= latestAlert.company_id %></bdi></div>
+          <div>الحساب: <bdi class="font-bold"><%= latestAlert.actor_id %></bdi> (<%= latestAlert.actor_kind %>)</div>
+          <div>عدد الرفضات: <bdi class="font-bold"><%= latestAlert.rejection_count %></bdi></div>
+          <div>الحالة:
+            <span class="font-bold <%= latestAlert.alert_status === 'sent' ? 'text-emerald-700' : 'text-amber-700' %>">
+              <%= latestAlert.alert_status === 'sent' ? 'تم الإرسال' : latestAlert.alert_status === 'unavailable' ? 'القناة غير متاحة' : latestAlert.alert_status === 'error' ? 'فشل الإرسال' : 'قيد المعالجة' %>
+            </span>
+          </div>
+          <div class="text-xs text-gray-500">القناة: <%= latestAlert.alert_channel || '—' %> · <%= new Date(latestAlert.alerted_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+        </div>
+      <% } else { %>
+        <p class="mt-3 text-sm text-gray-500">لم يُرسل تنبيه أمني بعد.</p>
+      <% } %>
+    </div>
+    <form method="post" action="/admin/security/workshop-alert-email/policy" class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <h2 class="font-black text-gray-800">سياسة التكرار</h2>
+      <p class="mt-1 text-xs text-gray-500">الحدود تمنع تعطيل التنبيه أو إغراق البريد.</p>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <label class="text-sm font-bold text-gray-700">عدد الرفضات
+          <input type="number" name="threshold" min="3" max="50" required value="<%= policy.threshold %>" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 font-normal" />
+        </label>
+        <label class="text-sm font-bold text-gray-700">النافذة بالدقائق
+          <input type="number" name="window_minutes" min="5" max="1440" required value="<%= policy.windowMinutes %>" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 font-normal" />
+        </label>
+      </div>
+      <button class="mt-3 brand-bg text-white rounded-lg px-4 py-2 text-sm font-bold">حفظ السياسة</button>
+      <% if (policyError === 'saved') { %><span class="mr-2 text-sm text-emerald-700 font-bold">تم الحفظ</span><% } %>
+      <% if (policyError === 'invalid') { %><span class="mr-2 text-sm text-rose-700 font-bold">القيم غير صحيحة</span><% } %>
+    </form>
+  </div>
+
   <form method="get" action="/admin/security/workshop-alert-email" class="mt-6 grid gap-3 sm:grid-cols-4 items-end">
     <label class="text-sm font-bold text-gray-700">
       رقم الشركة الفعلية

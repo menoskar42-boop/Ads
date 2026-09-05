@@ -31,6 +31,12 @@
  */
 
 const TABLE = 'medical_audit_log';
+const SECURITY_ALERT_DEFAULT_THRESHOLD = 5;
+const SECURITY_ALERT_DEFAULT_WINDOW_MINUTES = 15;
+const SECURITY_ALERT_MIN_THRESHOLD = 3;
+const SECURITY_ALERT_MAX_THRESHOLD = 50;
+const SECURITY_ALERT_MIN_WINDOW_MINUTES = 5;
+const SECURITY_ALERT_MAX_WINDOW_MINUTES = 1440;
 const SECURITY_ALERT_THRESHOLD = 5;
 const SECURITY_ALERT_WINDOW_MINUTES = 15;
 
@@ -126,48 +132,95 @@ function log(pool, req, e) {
  * address being protected or the value a request tried to put in company_id.
  * The company and actor are still derived from the authenticated session.
  */
+function normalizeSecurityPolicy(input = {}) {
+  const threshold = Number(input.threshold);
+  const windowMinutes = Number(input.windowMinutes);
+  if (!Number.isInteger(threshold)
+      || threshold < SECURITY_ALERT_MIN_THRESHOLD
+      || threshold > SECURITY_ALERT_MAX_THRESHOLD) {
+    throw new Error('invalid security alert threshold');
+  }
+  if (!Number.isInteger(windowMinutes)
+      || windowMinutes < SECURITY_ALERT_MIN_WINDOW_MINUTES
+      || windowMinutes > SECURITY_ALERT_MAX_WINDOW_MINUTES) {
+    throw new Error('invalid security alert window');
+  }
+  return { threshold, windowMinutes };
+}
+
+async function getSecurityAlertPolicy(pool) {
+  const row = (await pool.query(
+    `SELECT threshold, window_minutes
+       FROM workshop_security_alert_policy
+      WHERE id=1`
+  )).rows[0];
+  if (!row) {
+    return {
+      threshold: SECURITY_ALERT_DEFAULT_THRESHOLD,
+      windowMinutes: SECURITY_ALERT_DEFAULT_WINDOW_MINUTES,
+    };
+  }
+  try {
+    return normalizeSecurityPolicy({
+      threshold: Number(row.threshold),
+      windowMinutes: Number(row.window_minutes),
+    });
+  } catch (_) {
+    return {
+      threshold: SECURITY_ALERT_DEFAULT_THRESHOLD,
+      windowMinutes: SECURITY_ALERT_DEFAULT_WINDOW_MINUTES,
+    };
+  }
+}
+
 async function claimSecurityAlert(pool, identity) {
+  const policy = await getSecurityAlertPolicy(pool);
   const state = (await pool.query(
     `INSERT INTO workshop_security_alert_state
        (company_id, actor_kind, actor_id, window_started_at, rejection_count)
      VALUES ($1,$2,$3,now(),1)
      ON CONFLICT (company_id, actor_kind, actor_id) DO UPDATE SET
        rejection_count=CASE
-         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
            THEN 1
          ELSE workshop_security_alert_state.rejection_count + 1
        END,
        window_started_at=CASE
-         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
            THEN now()
          ELSE workshop_security_alert_state.window_started_at
        END,
        alerted_at=CASE
-         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
            THEN NULL
          ELSE workshop_security_alert_state.alerted_at
        END,
        alert_channel=CASE
-         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
            THEN NULL
          ELSE workshop_security_alert_state.alert_channel
        END,
        alert_status=CASE
-         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
            THEN NULL
          ELSE workshop_security_alert_state.alert_status
        END
      RETURNING company_id, actor_kind, actor_id, window_started_at, rejection_count`,
-    [identity.companyId, identity.actorKind, identity.actorId]
+    [identity.companyId, identity.actorKind, identity.actorId, policy.windowMinutes]
   )).rows[0];
-  if (!state || Number(state.rejection_count) < SECURITY_ALERT_THRESHOLD) return null;
+  if (!state || Number(state.rejection_count) < policy.threshold) return null;
   return (await pool.query(
     `UPDATE workshop_security_alert_state
         SET alerted_at=now(), alert_status='pending'
       WHERE company_id=$1 AND actor_kind=$2 AND actor_id=$3
         AND rejection_count >= $4 AND alerted_at IS NULL
       RETURNING company_id, actor_kind, actor_id, window_started_at, rejection_count`,
-    [identity.companyId, identity.actorKind, identity.actorId, SECURITY_ALERT_THRESHOLD]
+    [identity.companyId, identity.actorKind, identity.actorId, policy.threshold]
   )).rows[0] || null;
 }
 
@@ -303,7 +356,20 @@ async function recentSecurity(pool, opts = {}) {
   return result.rows;
 }
 
+async function latestSecurityAlert(pool) {
+  const result = await pool.query(
+    `SELECT company_id, actor_kind, actor_id, rejection_count,
+            window_started_at, alerted_at, alert_channel, alert_status
+       FROM workshop_security_alert_state
+      WHERE alerted_at IS NOT NULL
+      ORDER BY alerted_at DESC
+      LIMIT 1`
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   log, logSecurity, recent, recentSecurity, normalizeSecurityFilters,
+  latestSecurityAlert, getSecurityAlertPolicy, normalizeSecurityPolicy,
   SECURITY_ALERT_THRESHOLD, SECURITY_ALERT_WINDOW_MINUTES, SCHEMA, TABLE,
 };
