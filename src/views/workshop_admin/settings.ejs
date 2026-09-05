@@ -13,7 +13,14 @@
     <div class="font-black">تنبيه: عامل تذكيرات الصيانة متوقف أو لم يسجل تشغيلًا ناجحًا مؤخرًا.</div>
     <div class="text-xs mt-1">آخر تشغيل ناجح:
       <%= reminderHealth.last_success_at ? new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : 'لا يوجد سجل بعد' %>
-      · حالة التنبيه: <%= reminderHealth.last_alert_status === 'sent' ? 'تم إرسال إشعار' : reminderHealth.last_alert_status === 'push_disabled' ? 'الإشعار الفوري غير مفعّل' : reminderHealth.last_alert_status === 'push_error' ? 'تعذر إرسال الإشعار الفوري' : 'جارٍ تسجيل التنبيه' %>
+      · القناة: <%= reminderHealth.last_alert_channel === 'email' ? 'بريد الإدارة' : reminderHealth.last_alert_channel === 'push' ? 'إشعار المتصفح' : '—' %>
+      · النتيجة: <%= reminderHealth.last_alert_status === 'sent'
+        ? (reminderHealth.last_alert_channel === 'email' ? 'تم إرسال البريد الاحتياطي' : 'تم إرسال الإشعار')
+        : reminderHealth.last_alert_status === 'unavailable' ? 'قناة البريد غير مهيأة'
+          : reminderHealth.last_alert_status === 'error' ? 'تعذر إرسال التنبيه'
+            : reminderHealth.last_alert_status === 'push_disabled' ? 'الإشعار الفوري غير مفعّل'
+              : reminderHealth.last_alert_status === 'push_error' ? 'تعذر إرسال الإشعار الفوري'
+                : 'جارٍ تسجيل التنبيه' %>
     </div>
   </div>
 <% } %>

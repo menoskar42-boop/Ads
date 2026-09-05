@@ -2,6 +2,7 @@
 
 const { Pool } = require('pg');
 const push = require('../lib/push');
+const { sendWorkshopReminderHealthAlert } = require('../lib/mailer');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const STALE_AFTER_MS = 15 * 60 * 1000;
@@ -23,6 +24,8 @@ function ageMs(value, now) {
 async function checkWorkshopReminderHealth({
   db = pool,
   sendPush = push.sendToCompany,
+  isPushEnabled = push.isEnabled,
+  sendFallback = sendWorkshopReminderHealthAlert,
   now = new Date(),
   staleAfterMs = STALE_AFTER_MS,
   noRunGraceMs = NO_RUN_GRACE_MS,
@@ -99,7 +102,8 @@ async function checkWorkshopReminderHealth({
     }
 
     result.alerted += 1;
-    let status = push.isEnabled() ? 'sent' : 'push_disabled';
+    let channel = 'push';
+    let status = isPushEnabled() ? 'sent' : 'push_disabled';
     try {
       await sendPush(companyId, {
         title: 'تنبيه تشغيل تذكيرات الصيانة',
@@ -110,11 +114,27 @@ async function checkWorkshopReminderHealth({
       status = 'push_error';
       console.error('[workshop reminder health alert]', err.message);
     }
+    if (status === 'push_disabled' || status === 'push_error') {
+      channel = 'email';
+      try {
+        const fallback = await sendFallback({
+          companyId,
+          reason: status,
+          outageStartedAt: claimed.outage_started_at,
+        });
+        status = fallback && fallback.ok
+          ? 'sent'
+          : (fallback && fallback.status) || 'error';
+      } catch (err) {
+        status = 'error';
+        console.error('[workshop reminder health fallback]', err.message);
+      }
+    }
     await db.query(
       `UPDATE workshop_reminder_health
-          SET last_alert_status=$2, checked_at=now()
+          SET last_alert_channel=$2, last_alert_status=$3, checked_at=now()
         WHERE company_id=$1 AND state='alerted'`,
-      [companyId, status]
+      [companyId, channel, status]
     );
   }
   return result;

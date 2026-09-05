@@ -110,10 +110,13 @@ async function ensureWorkshopSchema() {
         last_success_at    TIMESTAMPTZ,
         outage_started_at  TIMESTAMPTZ,
         last_alert_at      TIMESTAMPTZ,
+        last_alert_channel TEXT,
         last_alert_status  TEXT,
         recovered_at       TIMESTAMPTZ,
         checked_at         TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE workshop_reminder_health
+        ADD COLUMN IF NOT EXISTS last_alert_channel TEXT;
     `);
 
     // ── Customers and vehicles ───────────────────────────────────────────────

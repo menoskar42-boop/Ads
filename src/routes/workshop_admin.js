@@ -950,7 +950,8 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
       [req.company.id]
     ),
     pool.query(
-      `SELECT state, last_success_at, outage_started_at, last_alert_at, last_alert_status,
+      `SELECT state, last_success_at, outage_started_at, last_alert_at, last_alert_channel,
+              last_alert_status,
               recovered_at, checked_at
          FROM workshop_reminder_health
         WHERE company_id=$1`,

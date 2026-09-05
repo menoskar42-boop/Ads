@@ -69,22 +69,27 @@ function localeForCountry(country) {
   return ARAB_COUNTRIES.has(String(country).trim()) ? 'ar' : 'en';
 }
 
-/** Low-level send. Returns true on success, false if skipped/failed. */
-async function sendMail({ to, subject, html, text }) {
-  if (!to) return false;
+/** Low-level send with a reason that internal alert channels can record. */
+async function sendMailResult({ to, subject, html, text }) {
+  if (!to) return { ok: false, status: 'unavailable' };
   const tx = getTransporter();
   if (!tx) {
     console.warn('[mailer] SMTP not configured — skipping email to', to);
-    return false;
+    return { ok: false, status: 'unavailable' };
   }
   try {
     await tx.sendMail({ from: FROM(), to, subject, html, text });
     console.log('[mailer] sent email to', to, '—', subject);
-    return true;
+    return { ok: true, status: 'sent' };
   } catch (err) {
     console.error('[mailer] send failed to', to, ':', err.message);
-    return false;
+    return { ok: false, status: 'error' };
   }
+}
+
+/** Low-level send. Returns true on success, false if skipped/failed. */
+async function sendMail(args) {
+  return (await sendMailResult(args)).ok;
 }
 
 // Shared HTML shell. lang 'ar' → RTL, 'en' → LTR.
@@ -220,4 +225,49 @@ async function sendAdminNewApplication({ fullName, email, phone, country, busine
   return sendMail({ to, subject: `طلب جديد: ${businessName || ''} — OscarDevs`, html, text });
 }
 
-module.exports = { sendMail, sendApplicationReceived, sendApplicationApproved, sendApplicationTrackLink, sendAdminNewApplication, siteOrigin, localeForCountry };
+/**
+ * Alert the platform administrator when a workshop reminder outage cannot be
+ * reported through browser push. This message intentionally contains only
+ * operational identifiers and timestamps — never customer names or phone
+ * numbers.
+ */
+async function sendWorkshopReminderHealthAlert({ companyId, reason, outageStartedAt }) {
+  const to = process.env.ADMIN_NOTIFY_EMAIL || process.env.ADMIN_EMAIL || 'support@oscardevs.com';
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const started = outageStartedAt
+    ? new Date(outageStartedAt).toISOString()
+    : 'غير متاح';
+  const reasonText = reason === 'push_error'
+    ? 'حدث خطأ أثناء محاولة إرسال إشعار المتصفح.'
+    : 'إشعارات المتصفح غير مفعّلة أو غير متاحة.';
+  const html = shell('ar', 'تعطّل تذكيرات الصيانة', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">لم يسجل عامل تذكيرات الصيانة تشغيلًا ناجحًا خلال النافذة المحددة.</p>
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${reasonText} تم إرسال هذا التنبيه عبر البريد كقناة احتياطية.</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">معرّف الورشة: <span dir="ltr">${safeCompanyId}</span><br>بداية التوقف: <span dir="ltr">${started}</span></p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">راجع إعدادات الورشة وسجل التذكيرات من لوحة الإدارة.</p>`);
+  const text = [
+    'تعطّل تذكيرات الصيانة في ورشة.',
+    `معرّف الورشة: ${safeCompanyId}.`,
+    `بداية التوقف: ${started}.`,
+    reasonText,
+    'راجع إعدادات الورشة وسجل التذكيرات.',
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'تنبيه: تعطّل تذكيرات الصيانة — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
+module.exports = {
+  sendMail,
+  sendApplicationReceived,
+  sendApplicationApproved,
+  sendApplicationTrackLink,
+  sendAdminNewApplication,
+  sendWorkshopReminderHealthAlert,
+  siteOrigin,
+  localeForCountry,
+};
