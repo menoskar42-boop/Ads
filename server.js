@@ -546,7 +546,11 @@ app.get('/demo/:slug', async (req, res) => {
     req.session.adminLang = 'ar';
     req.session.demoReadOnly = true;
     req.session.demoSlug = slug;
-    const destination = c.page_type === 'workshop' ? '/workshop' : '/company/dashboard';
+    const destination = c.page_type === 'workshop'
+      ? '/workshop'
+      : c.page_type === 'clinic'
+        ? '/clinic'
+        : '/company/dashboard';
     return req.session.save(() => res.redirect(destination));
   } catch (e) {
     console.error('[demo] failed to open demo session:', e.message);
