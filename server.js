@@ -532,7 +532,7 @@ app.get('/demo/:slug', async (req, res) => {
     // العمود اسمه company_name مش name — الغلط ده كان بيرمي استثناء فالـcatch
     // يرجّع الزائر للصفحة الرئيسية بدل لوحة العرض.
     const r = await demoPool.query(
-      'SELECT id, company_name, slug, theme_color, is_active FROM companies WHERE slug = $1',
+      'SELECT id, company_name, slug, page_type, theme_color, is_active FROM companies WHERE slug = $1',
       [slug]
     );
     const c = r.rows[0];
@@ -546,7 +546,8 @@ app.get('/demo/:slug', async (req, res) => {
     req.session.adminLang = 'ar';
     req.session.demoReadOnly = true;
     req.session.demoSlug = slug;
-    return req.session.save(() => res.redirect('/company/dashboard'));
+    const destination = c.page_type === 'workshop' ? '/workshop' : '/company/dashboard';
+    return req.session.save(() => res.redirect(destination));
   } catch (e) {
     console.error('[demo] failed to open demo session:', e.message);
     return res.redirect('/');

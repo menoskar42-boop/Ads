@@ -3165,7 +3165,8 @@ router.get('/technicians', requireFlag('technicians'), requireWorkshopPermission
   const rows = await pool.query(
     `SELECT t.*,
             (SELECT COALESCE(SUM(l.amount),0)::float FROM workshop_job_labour l
-              WHERE l.technician_id=t.id AND l.created_at >= date_trunc('month', CURRENT_DATE)) AS month_labour
+              WHERE l.company_id=t.company_id AND l.technician_id=t.id
+                AND l.created_at >= date_trunc('month', CURRENT_DATE)) AS month_labour,
             (SELECT COUNT(*)::int FROM workshop_jobs j
               WHERE j.company_id=t.company_id AND j.technician_id=t.id) AS jobs_count,
             (SELECT COUNT(*)::int FROM workshop_job_labour l
@@ -3353,15 +3354,36 @@ router.get('/reports', requireFlag('reports'), requireWorkshopPermission('view_r
   const [summary, faults, parts, expenses, capacity] = await Promise.all([
     pool.query(
       `SELECT COUNT(*)::int AS jobs,
-              COALESCE(SUM((SELECT SUM(qty*unit_price) FROM workshop_job_parts WHERE job_id=j.id)),0)::float AS parts_rev,
-              COALESCE(SUM((SELECT SUM(qty*unit_cost)  FROM workshop_job_parts WHERE job_id=j.id)),0)::float AS parts_cost,
-              COALESCE(SUM((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id)),0)::float AS labour_rev,
-              COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(e.ended_at, now())-e.started_at))/3600 * COALESCE(t.pay_rate,0))
-                          FROM workshop_time_entries e
-                          LEFT JOIN workshop_technicians t ON t.id=e.technician_id AND t.company_id=e.company_id
-                         WHERE e.company_id=j.company_id AND e.job_id=j.id
-                           AND e.started_at >= CURRENT_DATE - ($2 || ' days')::interval),0)::float AS labour_cost
+              COALESCE(SUM(COALESCE(jp.parts_rev,0)),0)::float AS parts_rev,
+              COALESCE(SUM(COALESCE(jp.parts_cost,0)),0)::float AS parts_cost,
+              COALESCE(SUM(COALESCE(jl.labour_rev,0)),0)::float AS labour_rev,
+              COALESCE(SUM(COALESCE(tc.labour_cost,0)),0)::float AS labour_cost
          FROM workshop_jobs j
+          LEFT JOIN (
+            SELECT job_id,
+                   SUM(qty*unit_price) AS parts_rev,
+                   SUM(qty*unit_cost) AS parts_cost
+              FROM workshop_job_parts
+             WHERE company_id=$1
+             GROUP BY job_id
+          ) jp ON jp.job_id=j.id
+          LEFT JOIN (
+            SELECT job_id, SUM(amount) AS labour_rev
+              FROM workshop_job_labour
+             WHERE company_id=$1
+             GROUP BY job_id
+          ) jl ON jl.job_id=j.id
+          LEFT JOIN (
+            SELECT e.job_id,
+                   SUM(EXTRACT(EPOCH FROM (COALESCE(e.ended_at, now())-e.started_at))/3600
+                       * COALESCE(t.pay_rate,0)) AS labour_cost
+              FROM workshop_time_entries e
+              LEFT JOIN workshop_technicians t
+                ON t.id=e.technician_id AND t.company_id=$1
+             WHERE e.company_id=$1
+               AND e.started_at >= CURRENT_DATE - ($2 || ' days')::interval
+             GROUP BY e.job_id
+          ) tc ON tc.job_id=j.id
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
           AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval`, [cid, days]),
     pool.query(
@@ -3372,7 +3394,7 @@ router.get('/reports', requireFlag('reports'), requireWorkshopPermission('view_r
     pool.query(
       `SELECT p.name, SUM(jp.qty)::float AS qty, SUM(jp.qty*jp.unit_price)::float AS revenue
          FROM workshop_job_parts jp
-         JOIN workshop_jobs j ON j.id=jp.job_id
+          JOIN workshop_jobs j ON j.id=jp.job_id AND j.company_id=jp.company_id
          LEFT JOIN workshop_parts p ON p.id=jp.part_id
         WHERE jp.company_id=$1 AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval
         GROUP BY p.name ORDER BY qty DESC NULLS LAST LIMIT 10`, [cid, days]),
