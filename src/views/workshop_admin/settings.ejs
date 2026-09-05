@@ -7,6 +7,7 @@
 <% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
 <% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
+<% if (settingsError === 'settings_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ إعدادات الورشة وسجل التغيير.</div><% } %>
 <% if (settingsError === 'admin_email_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا إداريًا صحيحًا أو اترك الحقل فارغًا لاستخدام العنوان العام.</div><% } %>
 <% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
 <% if (testEmailStatus === 'sent') { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم إرسال رسالة اختبار عامة إلى قناة بريد تنبيهات الإدارة.</div><% } %>
@@ -77,6 +78,25 @@
         </div>
       <% }) %>
     </div>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <h2 class="font-black mb-1">سجل بريد تنبيهات الإدارة</h2>
+    <p class="text-xs text-slate-500 mb-3">يعرض تغييرات عنوان تنبيهات تعطل التذكيرات ومن نفذها. لا يتضمن رسائل العملاء.</p>
+    <% if (!alertEmailHistory || !alertEmailHistory.length) { %>
+      <p class="text-sm text-slate-400">لا توجد تغييرات مسجلة بعد.</p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% alertEmailHistory.forEach(function(change){ %>
+          <div class="py-3 flex items-center justify-between gap-3 flex-wrap text-sm">
+            <div>
+              <span class="font-bold"><%= change.change_type === 'added' ? 'إضافة' : change.change_type === 'removed' ? 'إزالة' : 'تغيير' %></span>
+              <span class="text-slate-500" dir="ltr"><%= change.previous_email || '—' %> ← <%= change.new_email || '—' %></span>
+            </div>
+            <div class="text-xs text-slate-500"><span dir="ltr"><%= change.changed_by %></span> · <%= new Date(change.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
   </section>
   <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
     <h2 class="font-black mb-1">سجل تغييرات الأدوار</h2>

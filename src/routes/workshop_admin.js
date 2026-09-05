@@ -49,6 +49,16 @@ const emailAddress = (v) => {
   const s = String(v == null ? '' : v).trim().toLowerCase();
   return s && s.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
 };
+const alertEmailChange = (previousEmail, nextEmail) => {
+  const previous = emailAddress(previousEmail);
+  const next = emailAddress(nextEmail);
+  if (previous === next) return null;
+  return {
+    previousEmail: previous,
+    newEmail: next,
+    changeType: !previous ? 'added' : !next ? 'removed' : 'changed',
+  };
+};
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
@@ -932,7 +942,7 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), requireWor
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', requireWorkshopPermission('view_settings'), async (req, res) => {
-  const [messageRow, paymentRow, users, roleHistory, reminderRuns, reminderHealth] = await Promise.all([
+  const [messageRow, paymentRow, users, roleHistory, alertEmailHistory, reminderRuns, reminderHealth] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),
     pool.query(
@@ -945,6 +955,13 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
          LEFT JOIN company_users u ON u.id=h.user_id AND u.company_id=h.company_id
         WHERE h.company_id=$1
         ORDER BY h.created_at DESC, h.id DESC LIMIT 100`,
+      [req.company.id]
+    ),
+    pool.query(
+      `SELECT id, changed_by, previous_email, new_email, change_type, created_at
+         FROM workshop_alert_email_history
+        WHERE company_id=$1
+        ORDER BY created_at DESC, id DESC LIMIT 100`,
       [req.company.id]
     ),
     pool.query(
@@ -978,6 +995,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     payment, settingsError: req.query.err || '',
     users: users.rows,
     roleHistory: roleHistory.rows,
+    alertEmailHistory: alertEmailHistory.rows,
     reminderRuns: reminderRuns.rows,
     reminderHealth: reminderHealth.rows[0] || null,
     inviteLink: req.query.invite
@@ -1093,7 +1111,27 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
       || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000) {
     return res.redirect('/workshop/settings?err=reminder_invalid');
   }
-  await pool.query(
+  const settingsValues = [
+    cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
+    text(b.about, 2000), text(b.hours, 120), adminAlertEmail,
+    Math.min(100, Math.max(0, num(b.tax_percent))),
+    Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
+    Math.max(0, int(b.service_months, 6)),
+    reminderLeadDays,
+    reminderLeadKm,
+    b.booking_enabled === '1' || b.booking_enabled === 'on',
+  ];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const previous = (await client.query(
+      `SELECT admin_alert_email
+         FROM workshop_settings
+        WHERE company_id=$1
+        FOR UPDATE`,
+      [cid]
+    )).rows[0] || {};
+    await client.query(
     `INSERT INTO workshop_settings
        (company_id, business_name, address, phone, whatsapp, about, hours, admin_alert_email,
         tax_percent, labour_rate, service_km, service_months,
@@ -1108,18 +1146,27 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
        reminder_lead_days=EXCLUDED.reminder_lead_days,
        reminder_lead_km=EXCLUDED.reminder_lead_km,
        booking_enabled=EXCLUDED.booking_enabled, updated_at=now()`,
-    [cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
-     text(b.about, 2000), text(b.hours, 120), adminAlertEmail,
-     Math.min(100, Math.max(0, num(b.tax_percent))),
-     Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
-     Math.max(0, int(b.service_months, 6)),
-       reminderLeadDays,
-       reminderLeadKm,
-     /* خانة اختيار مش مختارة مابتتبعتش أصلاً في الفورم، فغيابها = مقفول.
-      * لازم تتحسب من وجود الحقل نفسه — لو قريناها بـ`!== false` كانت
-      * هتفضل مفتوحة على طول ومحدش يقدر يقفل. */
-     b.booking_enabled === '1' || b.booking_enabled === 'on']
-  );
+      settingsValues
+    );
+    const change = alertEmailChange(previous.admin_alert_email, adminAlertEmail);
+    if (change) {
+      const actor = req.workshopUser && req.workshopUser.email
+        ? req.workshopUser.email : 'إدارة الورشة';
+      await client.query(
+        `INSERT INTO workshop_alert_email_history
+          (company_id, changed_by_user_id, changed_by, previous_email, new_email, change_type)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [cid, int(req.session.companyUserId), actor, change.previousEmail, change.newEmail, change.changeType]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop alert email settings]', e.message);
+    return res.redirect('/workshop/settings?err=settings_save');
+  } finally {
+    client.release();
+  }
   const wanted = Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []);
   await saveFlags(pool, cid, wanted);
   res.redirect('/workshop/settings?saved=1');
@@ -3515,5 +3562,5 @@ module.exports = router;
 module.exports.pool = pool;
 module.exports.helpers = {
   num, int, text, round2, requireFlag, queueServiceReminderMessages,
-  campaignRecipient, campaignAudienceCondition,
+  campaignRecipient, campaignAudienceCondition, alertEmailChange,
 };

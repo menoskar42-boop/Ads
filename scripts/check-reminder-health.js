@@ -211,11 +211,22 @@ async function run() {
     !/customer_(name|phone)|customerName|customerPhone/.test(mailer.slice(mailer.indexOf('async function sendWorkshopReminderHealthAlert'))));
   const router = fs.readFileSync(path.join(ROOT, 'src/routes/workshop_admin.js'), 'utf8');
   const settingsView = fs.readFileSync(path.join(ROOT, 'src/views/workshop_admin/settings.ejs'), 'utf8');
+  const schema = fs.readFileSync(path.join(ROOT, 'src/workshop/schema.js'), 'utf8');
   check('اختبار البريد محمي بصلاحية الإدارة',
     /router\.post\('\/settings\/reminder-email-test', requireWorkshopPermission\('manage_settings'\)/.test(router));
   check('الإعدادات تعرض نتيجة الاختبار دون أسرار',
     /testEmailStatus/.test(router) && /testEmailStatus === 'sent'/.test(settingsView)
       && !/SMTP_PASSWORD|SMTP_PASS|SMTP_USER/.test(settingsView));
+  check('سجل بريد التنبيهات معزول بالشركة',
+    /CREATE TABLE IF NOT EXISTS workshop_alert_email_history/.test(schema)
+      && /company_id\s+INTEGER NOT NULL REFERENCES companies/.test(schema)
+      && /workshop_alert_email_history/.test(router)
+      && /alertEmailHistory/.test(settingsView));
+  check('التغيير يسجل الإضافة والتعديل والإزالة مع المنفذ',
+    /alertEmailChange/.test(router)
+      && /change_type/.test(router)
+      && /changed_by_user_id/.test(router)
+      && /settings_save/.test(settingsView));
 
   console.log(failed ? `\n${failed} مشكلة في قناة تنبيه صحة التذكيرات.` : '\nقناة التنبيه الاحتياطية ومنع التكرار يعملان.');
   process.exit(failed ? 1 : 0);

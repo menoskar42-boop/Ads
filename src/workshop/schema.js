@@ -91,6 +91,19 @@ async function ensureWorkshopSchema() {
       CREATE INDEX IF NOT EXISTS idx_wsh_role_history
         ON workshop_role_history (company_id, created_at DESC);
 
+      CREATE TABLE IF NOT EXISTS workshop_alert_email_history (
+        id                BIGSERIAL PRIMARY KEY,
+        company_id        INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        changed_by_user_id INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
+        changed_by        TEXT NOT NULL,
+        previous_email    TEXT,
+        new_email         TEXT,
+        change_type       TEXT NOT NULL CHECK (change_type IN ('added', 'changed', 'removed')),
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_alert_email_history
+        ON workshop_alert_email_history (company_id, created_at DESC, id DESC);
+
       CREATE TABLE IF NOT EXISTS workshop_reminder_runs (
         id             BIGSERIAL PRIMARY KEY,
         company_id     INTEGER REFERENCES companies(id) ON DELETE CASCADE,
