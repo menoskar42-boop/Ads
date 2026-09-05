@@ -38,6 +38,11 @@ const fixture = {
       change_type: 'added', created_at: '2026-09-05T08:00:00.000Z',
     },
     {
+      id: 3, company_id: 101, changed_by: 'alpha-manager@example.com',
+      previous_email: 'old-alpha@example.com', new_email: 'alpha-alert@example.com',
+      change_type: 'changed', created_at: '2026-09-05T08:02:00.000Z',
+    },
+    {
       id: 2, company_id: 202, changed_by: 'bravo-manager@example.com',
       previous_email: null, new_email: 'bravo-alert@example.com',
       change_type: 'added', created_at: '2026-09-05T08:01:00.000Z',
@@ -49,6 +54,7 @@ const queries = [];
 class FixturePool {
   async query(sql, args = []) {
     queries.push([sql.replace(/\s+/g, ' ').trim(), args]);
+    if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql.trim())) return { rows: [] };
     if (/SELECT \* FROM companies WHERE id = \$1/.test(sql)) {
       return { rows: fixture.companies.filter((row) => row.id === Number(args[0])) };
     }
@@ -68,10 +74,42 @@ class FixturePool {
     if (/SELECT \* FROM workshop_settings WHERE company_id/.test(sql)) {
       return { rows: fixture.settings.filter((row) => row.company_id === Number(args[0])) };
     }
+    if (/SELECT admin_alert_email\s+FROM workshop_settings/.test(sql)) {
+      return {
+        rows: fixture.settings
+          .filter((row) => row.company_id === Number(args[0]))
+          .map((row) => ({ admin_alert_email: row.admin_alert_email })),
+      };
+    }
     if (/FROM workshop_reminders/.test(sql)) return { rows: [{ n: 0 }] };
     if (/FROM workshop_message_settings/.test(sql)) return { rows: [] };
     if (/FROM payment_settings/.test(sql)) return { rows: [] };
     if (/FROM workshop_role_history/.test(sql)) return { rows: [] };
+    if (/SELECT previous_email\s+FROM workshop_alert_email_history/.test(sql)) {
+      return {
+        rows: fixture.alertEmailHistory.filter(
+          (row) => row.id === Number(args[0]) && row.company_id === Number(args[1])
+        ),
+      };
+    }
+    if (/UPDATE workshop_settings\s+SET admin_alert_email/.test(sql)) {
+      const row = fixture.settings.find((item) => item.company_id === Number(args[1]));
+      if (row) row.admin_alert_email = args[0];
+      return { rows: [] };
+    }
+    if (/INSERT INTO workshop_alert_email_history/.test(sql)) {
+      fixture.alertEmailHistory.push({
+        id: Math.max(...fixture.alertEmailHistory.map((row) => row.id)) + 1,
+        company_id: Number(args[0]),
+        changed_by_user_id: Number(args[1]),
+        changed_by: args[2],
+        previous_email: args[3],
+        new_email: args[4],
+        change_type: args[5],
+        created_at: '2026-09-05T08:03:00.000Z',
+      });
+      return { rows: [] };
+    }
     if (/FROM workshop_alert_email_history/.test(sql)) {
       return {
         rows: fixture.alertEmailHistory.filter((row) => row.company_id === Number(args[0])),
@@ -185,6 +223,25 @@ function client(base) {
         && alphaTamperedHtml.includes('alpha-alert@example.com')
         && !alphaTamperedHtml.includes('bravo-alert@example.com'));
 
+    const alphaRestore = await alpha.request('/workshop/settings/alert-email-history/3/restore', {
+      method: 'POST',
+    });
+    const alphaRestoredPage = await alpha.request('/workshop/settings');
+    const alphaRestoredHtml = await alphaRestoredPage.text();
+    check('مدير Alpha يستعيد عنوانًا سابقًا عبر HTTP',
+      alphaRestore.status === 302
+        && alphaRestore.headers.get('location') === '/workshop/settings?saved=1&restored=1'
+        && fixture.settings.find((row) => row.company_id === 101).admin_alert_email === 'old-alpha@example.com'
+        && alphaRestoredHtml.includes('old-alpha@example.com')
+        && alphaRestoredHtml.includes('alpha-alert@example.com'));
+
+    const invalidRestore = await alpha.request('/workshop/settings/alert-email-history/1/restore', {
+      method: 'POST',
+    });
+    check('لا يمكن استعادة سجل بلا عنوان سابق',
+      invalidRestore.status === 302
+        && invalidRestore.headers.get('location') === '/workshop/settings?err=alert_email_restore_invalid');
+
     const bravoSeed = await bravo.request('/__test/session/202');
     const bravoPage = await bravo.request('/workshop/settings');
     const bravoHtml = await bravoPage.text();
@@ -210,9 +267,26 @@ function client(base) {
       body: 'company_id=202',
     });
     check('الديمو لا يستطيع تغيير إعدادات سجل البريد', demoPost.status === 403);
+    const demoRestore = await demo.request('/workshop/settings/alert-email-history/3/restore', {
+      method: 'POST',
+    });
+    check('الديمو لا يستطيع استعادة عنوان البريد', demoRestore.status === 403);
+    check('الاستعادة تسجل حدثًا جديدًا للشركة نفسها',
+      fixture.alertEmailHistory.some((row) =>
+        row.company_id === 101
+        && row.previous_email === 'alpha-alert@example.com'
+        && row.new_email === 'old-alpha@example.com'
+        && row.change_type === 'changed'));
     check('استعلامات سجل البريد تحمل نطاق الشركة',
       queries.filter(([sql]) => /FROM workshop_alert_email_history/.test(sql))
-        .every(([sql, args]) => /WHERE company_id=\$1/.test(sql) && [101, 202, 303].includes(Number(args[0]))));
+        .every(([sql, args]) => {
+          const scopedCompanyId = /WHERE company_id=\$1/.test(sql)
+            ? args[0]
+            : /WHERE id=\$1 AND company_id=\$2/.test(sql)
+              ? args[1]
+              : null;
+          return scopedCompanyId != null && [101, 202, 303].includes(Number(scopedCompanyId));
+        }));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

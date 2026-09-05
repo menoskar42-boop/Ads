@@ -993,6 +993,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
   res.render('workshop_admin/settings', {
     title: res.locals.t('wsh.set.title'), tab: 'settings',
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
+    restored: req.query.restored === '1',
     testEmailStatus: ['sent', 'unavailable', 'error'].includes(String(req.query.test_email || ''))
       ? String(req.query.test_email) : '',
     messageSettings: workshopMessagingView(messageRow.rows[0]),
@@ -1174,6 +1175,65 @@ router.post('/settings', requireWorkshopPermission('manage_settings'), async (re
   const wanted = Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []);
   await saveFlags(pool, cid, wanted);
   res.redirect('/workshop/settings?saved=1');
+});
+
+router.post('/settings/alert-email-history/:id/restore', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  const historyId = int(req.params.id);
+  const cid = req.company.id;
+  if (!historyId) return res.redirect('/workshop/settings?err=alert_email_restore_invalid');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const history = (await client.query(
+      `SELECT previous_email
+         FROM workshop_alert_email_history
+        WHERE id=$1 AND company_id=$2
+        FOR SHARE`,
+      [historyId, cid]
+    )).rows[0];
+    const targetEmail = emailAddress(history && history.previous_email);
+    if (!targetEmail) {
+      await client.query('ROLLBACK');
+      return res.redirect('/workshop/settings?err=alert_email_restore_invalid');
+    }
+
+    const current = (await client.query(
+      `SELECT admin_alert_email
+         FROM workshop_settings
+        WHERE company_id=$1
+        FOR UPDATE`,
+      [cid]
+    )).rows[0] || {};
+    const change = alertEmailChange(current.admin_alert_email, targetEmail);
+    if (!change) {
+      await client.query('COMMIT');
+      return res.redirect('/workshop/settings?saved=1&restored=1');
+    }
+
+    await client.query(
+      `UPDATE workshop_settings
+          SET admin_alert_email=$1, updated_at=now()
+        WHERE company_id=$2`,
+      [targetEmail, cid]
+    );
+    const actor = req.workshopUser && req.workshopUser.email
+      ? req.workshopUser.email : 'إدارة الورشة';
+    await client.query(
+      `INSERT INTO workshop_alert_email_history
+        (company_id, changed_by_user_id, changed_by, previous_email, new_email, change_type)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [cid, int(req.session.companyUserId), actor, change.previousEmail, change.newEmail, change.changeType]
+    );
+    await client.query('COMMIT');
+    return res.redirect('/workshop/settings?saved=1&restored=1');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop alert email restore]', e.message);
+    return res.redirect('/workshop/settings?err=alert_email_restore');
+  } finally {
+    client.release();
+  }
 });
 
 router.post('/settings/reminder-email-test', requireWorkshopPermission('manage_settings'), async (req, res) => {
