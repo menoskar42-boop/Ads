@@ -59,6 +59,16 @@ const alertEmailChange = (previousEmail, nextEmail) => {
     changeType: !previous ? 'added' : !next ? 'removed' : 'changed',
   };
 };
+async function loadAlertEmailHistory(db, companyId) {
+  const result = await db.query(
+    `SELECT id, changed_by, previous_email, new_email, change_type, created_at
+       FROM workshop_alert_email_history
+      WHERE company_id=$1
+      ORDER BY created_at DESC, id DESC LIMIT 100`,
+    [companyId]
+  );
+  return result.rows;
+}
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
@@ -957,13 +967,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
         ORDER BY h.created_at DESC, h.id DESC LIMIT 100`,
       [req.company.id]
     ),
-    pool.query(
-      `SELECT id, changed_by, previous_email, new_email, change_type, created_at
-         FROM workshop_alert_email_history
-        WHERE company_id=$1
-        ORDER BY created_at DESC, id DESC LIMIT 100`,
-      [req.company.id]
-    ),
+    loadAlertEmailHistory(pool, req.company.id),
     pool.query(
       `SELECT id, started_at, finished_at, candidate_count, queued_count, skipped_count, failed_count, error
          FROM workshop_reminder_runs
@@ -995,7 +999,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
     payment, settingsError: req.query.err || '',
     users: users.rows,
     roleHistory: roleHistory.rows,
-    alertEmailHistory: alertEmailHistory.rows,
+    alertEmailHistory,
     reminderRuns: reminderRuns.rows,
     reminderHealth: reminderHealth.rows[0] || null,
     inviteLink: req.query.invite
@@ -3562,5 +3566,5 @@ module.exports = router;
 module.exports.pool = pool;
 module.exports.helpers = {
   num, int, text, round2, requireFlag, queueServiceReminderMessages,
-  campaignRecipient, campaignAudienceCondition, alertEmailChange,
+  campaignRecipient, campaignAudienceCondition, alertEmailChange, loadAlertEmailHistory,
 };

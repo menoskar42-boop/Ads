@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { checkWorkshopReminderHealth } = require('../src/workshop/reminder_health');
 const { resolveWorkshopAlertRecipient } = require('../src/lib/mailer');
+const { helpers: workshopAdminHelpers } = require('../src/routes/workshop_admin');
 
 const ROOT = path.join(__dirname, '..');
 let failed = 0;
@@ -227,6 +228,34 @@ async function run() {
       && /change_type/.test(router)
       && /changed_by_user_id/.test(router)
       && /settings_save/.test(settingsView));
+  const alertEmailRecords = [
+    { company_id: 101, new_email: 'alpha-admin@example.com', change_type: 'added' },
+    { company_id: 202, new_email: 'bravo-admin@example.com', change_type: 'added' },
+  ];
+  const alertHistoryDb = {
+    async query(sql, args) {
+      if (!/FROM workshop_alert_email_history/.test(sql)
+          || !/WHERE company_id=\$1/.test(sql)) {
+        throw new Error('alert history query lost company scope');
+      }
+      return {
+        rows: alertEmailRecords.filter((record) => Number(record.company_id) === Number(args[0])),
+      };
+    },
+  };
+  const alphaHistory = await workshopAdminHelpers.loadAlertEmailHistory(alertHistoryDb, 101);
+  const bravoHistory = await workshopAdminHelpers.loadAlertEmailHistory(alertHistoryDb, 202);
+  check('اختبار عزل سجل البريد يجهز شركتين منفصلتين',
+    alphaHistory.length === 1 && bravoHistory.length === 1
+      && alphaHistory[0].new_email === 'alpha-admin@example.com'
+      && bravoHistory[0].new_email === 'bravo-admin@example.com'
+      && !alphaHistory.some((record) => record.new_email === 'bravo-admin@example.com')
+      && !bravoHistory.some((record) => record.new_email === 'alpha-admin@example.com'));
+  const settingsRoute = router.slice(router.indexOf("router.get('/settings'"), router.indexOf("router.post('/settings/users/invite'"));
+  check('تبديل company_id في الرابط لا يغير نطاق السجل',
+    /requireWorkshopPermission\('view_settings'\)/.test(settingsRoute)
+      && /loadAlertEmailHistory\(pool, req\.company\.id\)/.test(settingsRoute)
+      && !/loadAlertEmailHistory\(pool, req\.(query|params)/.test(settingsRoute));
 
   console.log(failed ? `\n${failed} مشكلة في قناة تنبيه صحة التذكيرات.` : '\nقناة التنبيه الاحتياطية ومنع التكرار يعملان.');
   process.exit(failed ? 1 : 0);
