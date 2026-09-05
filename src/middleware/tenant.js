@@ -3,6 +3,21 @@ const { getBaseDomains } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+function sendTenantNotFound(res) {
+  // This middleware can run before the view stack is fully available during a
+  // deployment health probe. Do not call res.render() here: if Express has not
+  // registered its default engine yet, the 404 itself becomes a 500 with
+  // "No default engine was specified and no extension was provided".
+  return res.status(404).type('html').send(
+    '<!doctype html><html lang="ar" dir="rtl"><head>' +
+    '<meta charset="UTF-8"><meta name="robots" content="noindex">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>404 — الصفحة غير موجودة</title></head><body>' +
+    '<h1>الصفحة غير موجودة</h1><p>تأكد من رابط الموقع وحاول مرة أخرى.</p>' +
+    '</body></html>'
+  );
+}
+
 // These local hosts and any host ending with the suffixes below are treated as
 // root (no tenant).
 // - *.replit.dev  → Replit dev-preview URLs (UUID-based, never a tenant slug)
@@ -60,7 +75,7 @@ async function tenantMiddleware(req, res, next) {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).render('404', { subdomain });
+      return sendTenantNotFound(res);
     }
 
     const company = result.rows[0];
