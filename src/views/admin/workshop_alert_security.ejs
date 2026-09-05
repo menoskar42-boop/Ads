@@ -17,6 +17,37 @@
     </span>
   </div>
 
+  <form method="get" action="/admin/security/workshop-alert-email" class="mt-6 grid gap-3 sm:grid-cols-4 items-end">
+    <label class="text-sm font-bold text-gray-700">
+      رقم الشركة الفعلية
+      <input type="number" name="company_id" min="1" max="2147483647" inputmode="numeric"
+        value="<%= filters.companyId || '' %>" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 font-normal" />
+    </label>
+    <label class="text-sm font-bold text-gray-700">
+      من تاريخ
+      <input type="date" name="from" value="<%= filters.from || '' %>"
+        class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 font-normal" />
+    </label>
+    <label class="text-sm font-bold text-gray-700">
+      إلى تاريخ
+      <input type="date" name="to" value="<%= filters.to || '' %>"
+        class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 font-normal" />
+    </label>
+    <div class="flex gap-2">
+      <button class="brand-bg text-white rounded-lg px-4 py-2 text-sm font-bold">تطبيق</button>
+      <a href="/admin/security/workshop-alert-email" class="border border-gray-200 text-gray-600 rounded-lg px-4 py-2 text-sm font-bold">مسح</a>
+    </div>
+  </form>
+  <% if (filterError === 'invalid') { %>
+    <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm font-bold">
+      الفلاتر غير صحيحة. اختر تاريخًا حقيقيًا ضمن فترة لا تتجاوز سنة ورقم شركة موجبًا.
+    </div>
+  <% } else if (filterError === 'load') { %>
+    <div class="mt-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 px-4 py-3 text-sm font-bold">
+      تعذر تحميل سجل الأمن الآن.
+    </div>
+  <% } %>
+
   <% if (!rows.length) { %>
     <div class="mt-6 rounded-xl border border-gray-100 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
       لا توجد محاولات مرفوضة مسجلة.

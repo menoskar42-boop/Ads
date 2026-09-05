@@ -169,16 +169,39 @@ router.get('/demos', requireAdmin, (req, res) => {
 });
 
 router.get('/security/workshop-alert-email', requireAdmin, async (req, res) => {
+  const rawFilters = {
+    companyId: req.query.company_id,
+    from: req.query.from,
+    to: req.query.to,
+  };
+  let filters;
+  let filterError = null;
   try {
-    const rows = await audit.recentSecurity(pool, { limit: 200 });
+    filters = audit.normalizeSecurityFilters({ ...rawFilters, limit: 200 });
+    const rows = await audit.recentSecurity(pool, filters);
     return res.render('admin/workshop_alert_security', {
       session: adminSession(req),
       activePage: 'security',
       rows,
+      filters,
+      filterError,
     });
   } catch (err) {
-    console.error('[admin workshop alert security]', err.message);
-    return res.status(500).send('error');
+    filterError = /invalid /.test(String(err.message)) ? 'invalid' : 'load';
+    if (filterError === 'load') {
+      console.error('[admin workshop alert security]', err.message);
+    }
+    return res.render('admin/workshop_alert_security', {
+      session: adminSession(req),
+      activePage: 'security',
+      rows: [],
+      filters: {
+        companyId: rawFilters.companyId || '',
+        from: rawFilters.from || '',
+        to: rawFilters.to || '',
+      },
+      filterError,
+    });
   }
 });
 

@@ -167,22 +167,63 @@ async function recent(pool, companyId, opts) {
 }
 
 /** Read-only security review surface for trusted admin tooling, not tenants. */
-async function recentSecurity(pool, opts = {}) {
-  const params = ['workshop', 'workshop_alert_email_history', 'access_denied'];
-  let where = 'system=$1 AND entity=$2 AND action=$3';
-  if (Number.isInteger(opts.companyId)) {
-    where += ` AND company_id=$${params.push(opts.companyId)}`;
+function parseSecurityDate(value, field) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error(`invalid ${field}`);
+  const [year, month, day] = raw.split('-').map(Number);
+  const stamp = Date.UTC(year, month - 1, day);
+  const date = new Date(stamp);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error(`invalid ${field}`);
+  }
+  return raw;
+}
+
+function normalizeSecurityFilters(opts = {}) {
+  const rawCompanyId = String(opts.companyId == null ? '' : opts.companyId).trim();
+  let companyId = null;
+  if (rawCompanyId) {
+    if (!/^\d+$/.test(rawCompanyId)) throw new Error('invalid company_id');
+    companyId = Number(rawCompanyId);
+    if (!Number.isSafeInteger(companyId) || companyId < 1 || companyId > 2147483647) {
+      throw new Error('invalid company_id');
+    }
+  }
+  const from = parseSecurityDate(opts.from, 'from');
+  const to = parseSecurityDate(opts.to, 'to');
+  if (from && to) {
+    const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
+    if (days < 0 || days > 366) throw new Error('invalid security date range');
   }
   const limit = Math.min(500, Math.max(1, parseInt(opts.limit, 10) || 200));
+  return { companyId, from, to, limit };
+}
+
+async function recentSecurity(pool, opts = {}) {
+  const filters = normalizeSecurityFilters(opts);
+  const params = ['workshop', 'workshop_alert_email_history', 'access_denied'];
+  let where = 'system=$1 AND entity=$2 AND action=$3';
+  if (filters.companyId != null) {
+    where += ` AND company_id=$${params.push(filters.companyId)}`;
+  }
+  if (filters.from) {
+    where += ` AND created_at >= $${params.push(filters.from)}::date`;
+  }
+  if (filters.to) {
+    where += ` AND created_at < ($${params.push(filters.to)}::date + INTERVAL '1 day')`;
+  }
   const result = await pool.query(
     `SELECT company_id, actor_kind, actor_id, actor_label, action, meta, created_at
        FROM ${TABLE}
       WHERE ${where}
       ORDER BY created_at DESC, id DESC
-      LIMIT ${limit}`,
+      LIMIT ${filters.limit}`,
     params
   );
   return result.rows;
 }
 
-module.exports = { log, logSecurity, recent, recentSecurity, SCHEMA, TABLE };
+module.exports = {
+  log, logSecurity, recent, recentSecurity, normalizeSecurityFilters, SCHEMA, TABLE,
+};

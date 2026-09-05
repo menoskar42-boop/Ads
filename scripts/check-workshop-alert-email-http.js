@@ -16,6 +16,7 @@ const express = require('express');
 const session = require('express-session');
 
 const ROOT = path.join(__dirname, '..');
+const audit = require(path.join(ROOT, 'src/lib/audit'));
 const fixture = {
   companies: [
     { id: 101, company_name: 'Alpha Workshop', page_type: 'workshop', is_active: true, theme_color: '#22425c' },
@@ -214,6 +215,32 @@ function client(base) {
   const demo = client(base);
 
   try {
+    const filterQueries = [];
+    const filterProbe = {
+      async query(sql, args) {
+        filterQueries.push([sql, args]);
+        return { rows: [] };
+      },
+    };
+    await audit.recentSecurity(filterProbe, {
+      companyId: '101', from: '2026-09-01', to: '2026-09-05', limit: 200,
+    });
+    check('فلاتر سجل الأمن تُمرر كمعاملات محدودة',
+      filterQueries.length === 1
+        && filterQueries[0][0].includes('system=$1 AND entity=$2 AND action=$3')
+        && filterQueries[0][0].includes('company_id=$4')
+        && filterQueries[0][0].includes('created_at >= $5::date')
+        && filterQueries[0][0].includes("created_at < ($6::date + INTERVAL '1 day')")
+        && filterQueries[0][1].join('|') === 'workshop|workshop_alert_email_history|access_denied|101|2026-09-01|2026-09-05'
+        && !filterQueries[0][0].includes('2026-09'));
+    let invalidFilterRejected = false;
+    try {
+      await audit.recentSecurity(filterProbe, { from: '2026-02-30' });
+    } catch (_) {
+      invalidFilterRejected = true;
+    }
+    check('التاريخ غير الحقيقي أو الفترة الطويلة لا تتجاوز حدود الفحص', invalidFilterRejected);
+
     const alphaSeed = await alpha.request('/__test/session/101');
     const alphaPage = await alpha.request('/workshop/settings');
     const alphaHtml = await alphaPage.text();
