@@ -241,6 +241,48 @@ function client(base) {
   return { request };
 }
 
+class ConcurrentSecurityPool {
+  constructor() {
+    this.state = {
+      company_id: 909,
+      actor_kind: 'company_user',
+      actor_id: 9009,
+      window_started_at: '2026-09-05T08:00:00.000Z',
+      rejection_count: 4,
+      alerted_at: null,
+    };
+    this.resetNext = false;
+    this.claims = [];
+    this.statusUpdates = [];
+  }
+
+  async query(sql, args = []) {
+    if (/INSERT INTO medical_audit_log/.test(sql)) return { rows: [] };
+    if (/INSERT INTO workshop_security_alert_state/.test(sql)) {
+      if (this.resetNext) {
+        this.resetNext = false;
+        this.state.window_started_at = '2026-09-05T09:00:00.000Z';
+        this.state.rejection_count = 1;
+        this.state.alerted_at = null;
+      } else {
+        this.state.rejection_count += 1;
+      }
+      return { rows: [{ ...this.state }] };
+    }
+    if (/UPDATE workshop_security_alert_state\s+SET alerted_at=now/.test(sql)) {
+      if (this.state.alerted_at || this.state.rejection_count < Number(args[3])) return { rows: [] };
+      this.state.alerted_at = '2026-09-05T09:10:00.000Z';
+      this.claims.push({ ...this.state });
+      return { rows: [{ ...this.state }] };
+    }
+    if (/UPDATE workshop_security_alert_state\s+SET alert_channel=\$4/.test(sql)) {
+      this.statusUpdates.push(args);
+      return { rows: [] };
+    }
+    throw new Error(`unexpected concurrency query: ${sql.slice(0, 180)}`);
+  }
+}
+
 (async () => {
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -250,6 +292,41 @@ function client(base) {
   const demo = client(base);
 
   try {
+    const concurrentPool = new ConcurrentSecurityPool();
+    const alerts = [];
+    const concurrentRequest = {
+      method: 'POST',
+      path: '/workshop/settings',
+      session: { companyId: 909, companyUserId: 9009 },
+    };
+    const denyOnce = () => audit.logSecurity(concurrentPool, concurrentRequest, {
+      reason: 'permission_denied',
+      notify: async (event) => {
+        alerts.push(event);
+        await new Promise((resolve) => setImmediate(resolve));
+        return { channel: 'email', status: 'sent' };
+      },
+    });
+    await Promise.all([denyOnce(), denyOnce()]);
+    check('عاملان متزامنان يطالبان بتنبيه واحد فقط',
+      concurrentPool.claims.length === 1
+        && alerts.length === 1
+        && concurrentPool.state.rejection_count === 6
+        && concurrentPool.statusUpdates.length === 1);
+
+    concurrentPool.resetNext = true;
+    await denyOnce();
+    check('النافذة المنتهية تبدأ عدًّا جديدًا بلا تسريب بيانات',
+      concurrentPool.state.rejection_count === 1
+        && alerts.length === 1
+        && !JSON.stringify(alerts).includes('@')
+        && !JSON.stringify(alerts).includes('company_scope'));
+    await Promise.all([denyOnce(), denyOnce(), denyOnce(), denyOnce()]);
+    check('النافذة الجديدة تسمح بتنبيه واحدًا جديدًا',
+      concurrentPool.claims.length === 2
+        && alerts.length === 2
+        && concurrentPool.statusUpdates.length === 2);
+
     const filterQueries = [];
     const filterProbe = {
       async query(sql, args) {
