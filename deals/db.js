@@ -3,9 +3,30 @@
 const { Pool } = require('pg');
 
 const connectionString = process.env.DEALS_DATABASE_URL || process.env.DATABASE_URL;
-if (!connectionString) throw new Error('DEALS_DATABASE_URL or DATABASE_URL is required');
 
-const pool = new Pool({ connectionString });
+/* الرمي بيحصل عند **أول استخدام** مش وقت التحميل.
+ *
+ * الموديول اللي بيرمي في `require` بيوقّع أي حاجة بتستدعيه — حتى لو
+ * مابتلمسش قاعدة البيانات أصلاً. `scripts/check-deals-sync.js` بيستورد
+ * `catalog_sync` عشان يفحص دوال صافية (`normalizeItem`،
+ * `splitIntoBatches`)، والاستيراد ده كان بيوقّع الفحص كله بستاك تريس
+ * في أي بيئة من غير قاعدة — والفحوص هنا بتشتغل من غير قاعدة بالتعريف
+ * (`docs/HANDOVER.md`، الدرس التاني).
+ *
+ * ونفس فئة باج `xlsx`: استدعاء وقت التحميل بيحوّل إعداد ناقص لعطل شامل.
+ * الرسالة زي ما هي بالحرف — بس بتظهر لما حد يحاول يستعلم فعلاً. */
+function assertDealsDbConfigured() {
+  if (!connectionString) throw new Error('DEALS_DATABASE_URL or DATABASE_URL is required');
+}
+
+const rawPool = new Pool({ connectionString });
+const pool = new Proxy(rawPool, {
+  get(target, prop, receiver) {
+    if (prop === 'query' || prop === 'connect') assertDealsDbConfigured();
+    const v = Reflect.get(target, prop, receiver);
+    return typeof v === 'function' ? v.bind(target) : v;
+  },
+});
 
 async function initDealsDb() {
   await pool.query(`

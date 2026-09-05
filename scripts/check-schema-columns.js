@@ -55,11 +55,13 @@ for (const f of files) {
       }
     }
   }
-  for (const m of stripSqlComments(s).matchAll(/ALTER TABLE\s+(\w+)([\s\S]*?)(?:;|$)/gi)) {
-    const t = m[1].toLowerCase();
-    for (const c of m[2].matchAll(
-      /* `IF NOT EXISTS` is optional: a column added inside a DO block that
-         already tested information_schema does not repeat the guard. */
+  /* جملة ALTER الواحدة قد تضيف أكثر من عمود مفصولًا بفاصلة. نقرأ الجملة
+   * كاملة، ثم ننسب كل ADD COLUMN إلى الجدول الذي ظهر بعد ALTER TABLE. */
+  for (const stmt of stripSqlComments(s).matchAll(
+    /ALTER TABLE\s+(\w+)\s+([\s\S]*?)(?:;|$)/gi
+  )) {
+    const t = stmt[1].toLowerCase();
+    for (const c of stmt[2].matchAll(
       /\bADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_][a-z0-9_]*)/gi
     )) {
       (cols[t] = cols[t] || new Set()).add(c[1].toLowerCase());

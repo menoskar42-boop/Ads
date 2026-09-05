@@ -78,10 +78,36 @@ check('ومفيش رسالة رفض',
   check('وإيميل مش موجود بيدفع تكلفة bcrypt زي الموجود',
     /bcrypt\.compare\(password, DUMMY_HASH\)/.test(login));
   check('والهاش الوهمي متعمول مرة عند التشغيل', /const DUMMY_HASH = bcrypt\.hashSync/.test(code));
-  // Same cost factor, or the two paths still measure differently.
-  const real = (code.match(/bcrypt\.hash\([^,]+,\s*(\d+)\)/) || [])[1];
-  const dummy = (code.match(/bcrypt\.hashSync\([^,]+,\s*(\d+)\)/) || [])[1];
-  check('وبنفس تكلفة الهاش الحقيقي', !real || real === dummy, `حقيقي ${real} · وهمي ${dummy}`);
+  /* نفس التكلفة، وإلا المسارين بيتقاسوا مختلف.
+   *
+   * كانت بتقارن رقمين مكتوبين بالإيد في الملف. ودي كانت بتقع بطريقتين:
+   * الرقم الحقيقي كان بيتلقط من **أي** `bcrypt.hash` في الملف — حتى بتاع
+   * `shop_staff` اللي دخوله مستقل خالص؛ ولو حد وحّد الرقم في ثابت مشترك
+   * (وده اللي حصل)، الاتنين بيبقوا بلا رقم والمقارنة بتبقى بلا معنى.
+   *
+   * فبنتأكد دلوقتي من اللي المهم فعلاً: الهاش الوهمي وهاش تسجيل المستخدم
+   * **من نفس المصدر**. `BCRYPT_COST` في `src/lib/password_cost.js`
+   * بيخلّي الرقم واحد بحكم التعريف — أقوى من إن رقمين يتصادف إنهم
+   * متساويين. */
+  const sharedConst = /const \{ BCRYPT_COST \} = require\('\.\.\/lib\/password_cost'\)/.test(code);
+  const dummyUsesShared = /bcrypt\.hashSync\([^,]+,\s*BCRYPT_COST\s*\)/.test(code);
+  const realUsesShared = /bcrypt\.hash\(password,\s*BCRYPT_COST\s*\)/.test(code);
+
+  /* ⚠️ **الثابت المشترك مطلوب — مش تحسين اختياري.**
+   *
+   * جرّبت أسيب بديل بيقارن رقمين مكتوبين بالإيد لو الثابت مش مستخدم،
+   * ورجّعت الوهمي لـ١٠ عمداً — **والفحص عدّى**. السبب إن `company.js`
+   * فيه `bcrypt.hash(password, 10)` تاني خالص لـ`shop_staff` (دخول
+   * مستقل بجدول تاني)، فالرقم «الحقيقي» اتلقط منه وصادف إنه ١٠ زي
+   * الوهمي. يعني البديل كان بيقارن مسار بمسار مالوش علاقة بيه.
+   *
+   * فمفيش بديل: الاتنين لازم ياخدوا `BCRYPT_COST` من مصدر واحد. ساعتها
+   * التساوي بحكم التعريف مش بالمصادفة. */
+  check('وبنفس تكلفة الهاش الحقيقي (الاتنين من BCRYPT_COST)',
+    sharedConst && dummyUsesShared && realUsesShared,
+    !sharedConst ? 'الملف مش بيستورد BCRYPT_COST من `src/lib/password_cost.js`.'
+      : !dummyUsesShared ? 'الهاش الوهمي لسه برقم مكتوب بالإيد.'
+      : 'هاش كلمة سر المستخدم لسه برقم مكتوب بالإيد.');
 }
 
 /* ── The page that IS allowed to answer still does not over-answer ─────── */

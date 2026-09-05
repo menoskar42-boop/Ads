@@ -11,6 +11,7 @@ const applyLimiter = rateLimit({ name: 'apply', windowMs: 60 * 60000, max: 5 });
 // that walking a list of addresses is not worth doing.
 const statusLimiter = rateLimit({ name: 'apply-status', windowMs: 15 * 60000, max: 8 });
 const bcrypt = require('bcryptjs');
+const { BCRYPT_COST } = require('../lib/password_cost');
 const { Pool } = require('pg');
 const { sendApplicationReceived, sendAdminNewApplication, sendApplicationTrackLink } = require('../lib/mailer');
 const { canonicalCompanyUrl } = require('../lib/urls');
@@ -116,7 +117,7 @@ router.post('/apply', applyLimiter, async (req, res) => {
     if (dupEmail.rows.length) return render('فيه طلب سابق بنفس البريد الإلكتروني — تواصل معنا لو طلبك متأخر.');
     if (dupSlug.rows.length || dupCompany.rows.length) return render('الاسم المختصر للرابط محجوز أو قيد المراجعة — اختر اسماً آخر.');
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
     // نفس القراية المشتركة: العنوان المتسجّل على الطلب لازم يكون اللي إحنا
     // شفناه، مش اللي المُرسِل كتبه في هيدر.
     const ip = String(clientIp(req) || '').slice(0, 80);
