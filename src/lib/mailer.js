@@ -240,27 +240,38 @@ function resolveWorkshopAlertRecipient(adminEmail) {
 }
 
 /**
- * Alert the platform administrator when a workshop reminder outage cannot be
- * reported through browser push. This message intentionally contains only
- * operational identifiers and timestamps — never customer names or phone
- * numbers.
+ * Alert the platform administrator about a workshop reminder outage or its
+ * recovery. This message intentionally contains only operational identifiers
+ * and timestamps — never customer names or phone numbers.
  */
-async function sendWorkshopReminderHealthAlert({ companyId, adminEmail, reason, outageStartedAt }) {
+async function sendWorkshopReminderHealthAlert({
+  companyId,
+  adminEmail,
+  kind = 'outage',
+  reason,
+  outageStartedAt,
+}) {
   const to = resolveWorkshopAlertRecipient(adminEmail);
   const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
   const started = outageStartedAt
     ? new Date(outageStartedAt).toISOString()
     : 'غير متاح';
-  const reasonText = reason === 'push_error'
+  const recovery = kind === 'recovered';
+  const reasonText = recovery
+    ? 'عاد عامل التذكيرات إلى تسجيل تشغيل ناجح.'
+    : reason === 'push_error'
     ? 'حدث خطأ أثناء محاولة إرسال إشعار المتصفح.'
     : 'إشعارات المتصفح غير مفعّلة أو غير متاحة.';
-  const html = shell('ar', 'تعطّل تذكيرات الصيانة', `
-    <p style="font-size:14px;line-height:1.8;color:#4b5563;">لم يسجل عامل تذكيرات الصيانة تشغيلًا ناجحًا خلال النافذة المحددة.</p>
-    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${reasonText} تم إرسال هذا التنبيه عبر البريد كقناة احتياطية.</p>
+  const title = recovery ? 'عودة تذكيرات الصيانة' : 'تعطّل تذكيرات الصيانة';
+  const html = shell('ar', title, `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${recovery
+      ? 'عاد عامل تذكيرات الصيانة إلى العمل وسجل تشغيلًا ناجحًا.'
+      : 'لم يسجل عامل تذكيرات الصيانة تشغيلًا ناجحًا خلال النافذة المحددة.'}</p>
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${reasonText}${recovery ? '' : ' تم إرسال هذا التنبيه عبر البريد كقناة احتياطية.'}</p>
     <p style="font-size:13px;line-height:1.8;color:#6b7280;">معرّف الورشة: <span dir="ltr">${safeCompanyId}</span><br>بداية التوقف: <span dir="ltr">${started}</span></p>
     <p style="font-size:13px;line-height:1.8;color:#6b7280;">راجع إعدادات الورشة وسجل التذكيرات من لوحة الإدارة.</p>`);
   const text = [
-    'تعطّل تذكيرات الصيانة في ورشة.',
+    recovery ? 'عادت تذكيرات الصيانة للعمل في ورشة.' : 'تعطّلت تذكيرات الصيانة في ورشة.',
     `معرّف الورشة: ${safeCompanyId}.`,
     `بداية التوقف: ${started}.`,
     reasonText,
@@ -268,7 +279,7 @@ async function sendWorkshopReminderHealthAlert({ companyId, adminEmail, reason, 
   ].join(' ');
   const result = await sendMailResult({
     to,
-    subject: 'تنبيه: تعطّل تذكيرات الصيانة — OscarDevs',
+    subject: `${recovery ? 'استعادة' : 'تنبيه'}: ${title} — OscarDevs`,
     html,
     text,
   });

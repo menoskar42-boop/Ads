@@ -56,6 +56,40 @@ function fakeDb({ claim = true } = {}) {
   return db;
 }
 
+function fakeRecoveryDb({ claim = true } = {}) {
+  const updates = [];
+  return {
+    updates,
+    async query(sql, args) {
+      if (/SELECT c\.id, c\.created_at/.test(sql)) {
+        return {
+          rows: [{
+            id: 7,
+            created_at: '2026-09-05T06:00:00.000Z',
+            admin_alert_email: 'owner@workshop.example',
+          }],
+        };
+      }
+      if (/SELECT started_at, finished_at, error/.test(sql)) {
+        return { rows: [{ started_at: '2026-09-05T08:59:00.000Z', finished_at: '2026-09-05T08:59:00.000Z', error: null }] };
+      }
+      if (/SELECT state, last_success_at, outage_started_at/.test(sql)) {
+        return { rows: [{ state: 'alerted', outage_started_at: '2026-09-05T08:00:00.000Z' }] };
+      }
+      if (/SET state='healthy'/.test(sql)) {
+        return {
+          rows: claim ? [{ company_id: 7, outage_started_at: '2026-09-05T08:00:00.000Z' }] : [],
+        };
+      }
+      if (/SET recovery_alert_channel=\$2/.test(sql)) {
+        updates.push({ sql, args });
+        return { rows: [] };
+      }
+      throw new Error(`unexpected recovery query: ${sql.slice(0, 120)}`);
+    },
+  };
+}
+
 async function run() {
   const now = new Date('2026-09-05T09:00:00.000Z');
   const disabledDb = fakeDb();
@@ -111,8 +145,56 @@ async function run() {
   check('بوابة منع التكرار تمنع تنبيهًا ثانيًا',
     duplicateResult.alerted === 0 && duplicateFallback.length === 0);
 
+  const recoveryDb = fakeRecoveryDb();
+  const recoveryFallback = [];
+  const recoveryResult = await checkWorkshopReminderHealth({
+    db: recoveryDb,
+    isPushEnabled: () => false,
+    sendPush: async () => {},
+    sendFallback: async (payload) => {
+      recoveryFallback.push(payload);
+      return { channel: 'email', ok: true, status: 'sent' };
+    },
+    now,
+    staleAfterMs: 60 * 1000,
+  });
+  check('العودة من alerted ترسل تنبيه استعادة مرة واحدة',
+    recoveryResult.recovered === 1 && recoveryFallback[0].kind === 'recovered');
+  check('استعادة Push المعطل تستخدم بريد الورشة',
+    recoveryFallback[0].adminEmail === 'owner@workshop.example'
+      && recoveryDb.updates[0].args[1] === 'email'
+      && recoveryDb.updates[0].args[2] === 'sent');
+
+  const recoveryPushDb = fakeRecoveryDb();
+  let recoveryPushCount = 0;
+  const recoveryPushResult = await checkWorkshopReminderHealth({
+    db: recoveryPushDb,
+    isPushEnabled: () => true,
+    sendPush: async () => { recoveryPushCount += 1; },
+    sendFallback: async () => { throw new Error('fallback should not run'); },
+    now,
+    staleAfterMs: 60 * 1000,
+  });
+  check('استعادة Push الناجح تُسجل القناة والنتيجة',
+    recoveryPushResult.recovered === 1 && recoveryPushCount === 1
+      && recoveryPushDb.updates[0].args[1] === 'push'
+      && recoveryPushDb.updates[0].args[2] === 'sent');
+
+  const recoveryDuplicateDb = fakeRecoveryDb({ claim: false });
+  let recoveryDuplicateCount = 0;
+  const recoveryDuplicateResult = await checkWorkshopReminderHealth({
+    db: recoveryDuplicateDb,
+    isPushEnabled: () => false,
+    sendFallback: async () => { recoveryDuplicateCount += 1; },
+    now,
+    staleAfterMs: 60 * 1000,
+  });
+  check('بوابة الاستعادة تمنع رسالة مكررة',
+    recoveryDuplicateResult.recovered === 0 && recoveryDuplicateCount === 0);
+
   const mailer = fs.readFileSync(path.join(ROOT, 'src/lib/mailer.js'), 'utf8');
   check('قناة البريد الإدارية موجودة', /sendWorkshopReminderHealthAlert/.test(mailer));
+  check('قالب البريد يدعم إشعار الاستعادة', /kind === 'recovered'/.test(mailer));
   check('العنوان المخصص يسبق العنوان العام',
     /resolveWorkshopAlertRecipient[\s\S]{0,500}ADMIN_NOTIFY_EMAIL/.test(mailer));
   process.env.ADMIN_NOTIFY_EMAIL = 'global@example.com';

@@ -98,7 +98,12 @@
     <h2 class="font-black mb-1">تشغيل تذكيرات الصيانة</h2>
     <p class="text-xs text-slate-500 mb-3">ملخص آخر عمليات العامل لهذه الورشة، مع فصل الرسائل التي تم تجهيزها عن التي تجاوزها عامل آخر أو فشلت.</p>
     <% if (reminderHealth && reminderHealth.state === 'healthy' && reminderHealth.last_success_at) { %>
-      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></p>
+      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %>
+        <% if (reminderHealth.recovery_alert_status) { %>
+          · تنبيه الاستعادة: <%= reminderHealth.recovery_alert_channel === 'email' ? 'بريد الإدارة' : reminderHealth.recovery_alert_channel === 'push' ? 'إشعار المتصفح' : '—' %>
+          (<%= reminderHealth.recovery_alert_status === 'sent' ? 'تم الإرسال' : reminderHealth.recovery_alert_status === 'unavailable' ? 'القناة غير مهيأة' : 'تعذر الإرسال' %>)
+        <% } %>
+      </p>
     <% } %>
     <% if (!reminderRuns || !reminderRuns.length) { %>
       <p class="text-sm text-slate-400">لم يعمل عامل التذكيرات لهذه الورشة بعد.</p>

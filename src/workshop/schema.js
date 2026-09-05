@@ -114,10 +114,16 @@ async function ensureWorkshopSchema() {
         last_alert_channel TEXT,
         last_alert_status  TEXT,
         recovered_at       TIMESTAMPTZ,
+        recovery_alert_at      TIMESTAMPTZ,
+        recovery_alert_channel TEXT,
+        recovery_alert_status  TEXT,
         checked_at         TIMESTAMPTZ NOT NULL DEFAULT now()
       );
       ALTER TABLE workshop_reminder_health
-        ADD COLUMN IF NOT EXISTS last_alert_channel TEXT;
+        ADD COLUMN IF NOT EXISTS last_alert_channel TEXT,
+        ADD COLUMN IF NOT EXISTS recovery_alert_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS recovery_alert_channel TEXT,
+        ADD COLUMN IF NOT EXISTS recovery_alert_status TEXT;
     `);
 
     // ── Customers and vehicles ───────────────────────────────────────────────

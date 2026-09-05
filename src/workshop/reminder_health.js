@@ -18,9 +18,54 @@ function ageMs(value, now) {
  * another run row. Only company ids and aggregate timestamps are used here;
  * customer names, phones, plates and message bodies never enter the alert.
  *
- * The conditional upsert is the dedupe gate: only the first monitor instance
- * that sees a healthy company become stale gets to send the alert.
+ * The conditional upsert and recovery UPDATE are dedupe gates: only the first
+ * monitor instance that sees a state transition gets to send its alert.
  */
+async function sendHealthAlert({
+  companyId,
+  adminEmail,
+  kind,
+  outageStartedAt,
+  sendPush,
+  isPushEnabled,
+  sendFallback,
+}) {
+  let channel = 'push';
+  let status = isPushEnabled() ? 'sent' : 'push_disabled';
+  const recovery = kind === 'recovered';
+  try {
+    await sendPush(companyId, {
+      title: recovery ? 'عودة تشغيل تذكيرات الصيانة' : 'تنبيه تشغيل تذكيرات الصيانة',
+      body: recovery
+        ? 'عاد عامل التذكيرات إلى العمل وسجل تشغيلًا ناجحًا.'
+        : 'لم يسجل عامل التذكيرات تشغيلًا ناجحًا خلال النافذة المحددة. راجع الإعدادات.',
+      url: '/workshop/settings',
+    });
+  } catch (err) {
+    status = 'push_error';
+    console.error(`[workshop reminder health ${recovery ? 'recovery' : 'alert'}]`, err.message);
+  }
+  if (status === 'push_disabled' || status === 'push_error') {
+    channel = 'email';
+    try {
+      const fallback = await sendFallback({
+        companyId,
+        adminEmail,
+        kind,
+        reason: status,
+        outageStartedAt,
+      });
+      status = fallback && fallback.ok
+        ? 'sent'
+        : (fallback && fallback.status) || 'error';
+    } catch (err) {
+      status = 'error';
+      console.error('[workshop reminder health fallback]', err.message);
+    }
+  }
+  return { channel, status };
+}
+
 async function checkWorkshopReminderHealth({
   db = pool,
   sendPush = push.sendToCompany,
@@ -62,6 +107,40 @@ async function checkWorkshopReminderHealth({
 
     result.checked += 1;
     if (!stale) {
+      if (current && current.state === 'alerted' && latest && latest.finished_at) {
+        const recovered = (await db.query(
+          `UPDATE workshop_reminder_health
+              SET state='healthy',
+                  last_success_at=$2,
+                  recovered_at=now(),
+                  recovery_alert_at=now(),
+                  recovery_alert_channel=NULL,
+                  recovery_alert_status='pending',
+                  checked_at=now()
+            WHERE company_id=$1 AND state='alerted'
+            RETURNING company_id, outage_started_at`,
+          [companyId, latest && latest.finished_at ? latest.finished_at : null]
+        )).rows[0];
+        if (!recovered) continue;
+
+        result.recovered += 1;
+        const alert = await sendHealthAlert({
+          companyId,
+          adminEmail: company.admin_alert_email,
+          kind: 'recovered',
+          outageStartedAt: recovered.outage_started_at,
+          sendPush,
+          isPushEnabled,
+          sendFallback,
+        });
+        await db.query(
+          `UPDATE workshop_reminder_health
+              SET recovery_alert_channel=$2, recovery_alert_status=$3, checked_at=now()
+            WHERE company_id=$1 AND state='healthy' AND recovery_alert_status='pending'`,
+          [companyId, alert.channel, alert.status]
+        );
+        continue;
+      }
       await db.query(
         `INSERT INTO workshop_reminder_health
            (company_id, state, last_success_at, recovered_at, checked_at)
@@ -103,40 +182,20 @@ async function checkWorkshopReminderHealth({
     }
 
     result.alerted += 1;
-    let channel = 'push';
-    let status = isPushEnabled() ? 'sent' : 'push_disabled';
-    try {
-      await sendPush(companyId, {
-        title: 'تنبيه تشغيل تذكيرات الصيانة',
-        body: 'لم يسجل عامل التذكيرات تشغيلًا ناجحًا خلال النافذة المحددة. راجع الإعدادات.',
-        url: '/workshop/settings',
-      });
-    } catch (err) {
-      status = 'push_error';
-      console.error('[workshop reminder health alert]', err.message);
-    }
-    if (status === 'push_disabled' || status === 'push_error') {
-      channel = 'email';
-      try {
-        const fallback = await sendFallback({
-          companyId,
-          adminEmail: company.admin_alert_email,
-          reason: status,
-          outageStartedAt: claimed.outage_started_at,
-        });
-        status = fallback && fallback.ok
-          ? 'sent'
-          : (fallback && fallback.status) || 'error';
-      } catch (err) {
-        status = 'error';
-        console.error('[workshop reminder health fallback]', err.message);
-      }
-    }
+    const alert = await sendHealthAlert({
+      companyId,
+      adminEmail: company.admin_alert_email,
+      kind: 'outage',
+      outageStartedAt: claimed.outage_started_at,
+      sendPush,
+      isPushEnabled,
+      sendFallback,
+    });
     await db.query(
       `UPDATE workshop_reminder_health
           SET last_alert_channel=$2, last_alert_status=$3, checked_at=now()
         WHERE company_id=$1 AND state='alerted'`,
-      [companyId, channel, status]
+      [companyId, alert.channel, alert.status]
     );
   }
   return result;
