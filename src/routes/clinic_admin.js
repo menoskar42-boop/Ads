@@ -92,13 +92,13 @@ router.get('/', async (req, res) => {
                 WHERE v.company_id=$1 AND v.visit_date=${today} AND v.status IN ('waiting','in_room')
                 ORDER BY v.is_urgent DESC, v.arrival_at NULLS LAST, v.id`, [cid]],
     // Booked for today and nobody has confirmed with them yet.
-    unconfirmed: [`SELECT a.id, a.patient_name, a.phone, a.slot_at, d.name AS doctor_name
+    unconfirmed: [`SELECT a.id, a.patient_name, a.patient_phone AS phone, a.slot_at, d.name AS doctor_name
                      FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
                     WHERE a.company_id=$1 AND a.status='pending'
                       AND (a.slot_at IS NULL OR (a.slot_at AT TIME ZONE 'Africa/Cairo')::date <= ${today} + 1)
                     ORDER BY a.slot_at NULLS LAST, a.id DESC LIMIT 30`, [cid]],
     // Coming in today, already confirmed.
-    today: [`SELECT a.id, a.patient_name, a.phone, a.slot_at, d.name AS doctor_name
+    today: [`SELECT a.id, a.patient_name, a.patient_phone AS phone, a.slot_at, d.name AS doctor_name
                FROM clinic_appointments a LEFT JOIN clinic_doctors d ON d.id=a.doctor_id
               WHERE a.company_id=$1 AND a.status='confirmed'
                 AND (a.slot_at AT TIME ZONE 'Africa/Cairo')::date = ${today}
