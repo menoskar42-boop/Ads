@@ -24,6 +24,7 @@ const fixture = {
   ],
   users: [
     { id: 1001, company_id: 101, email: 'alpha-manager@example.com', role: 'manager' },
+    { id: 1002, company_id: 101, email: 'alpha-reception@example.com', role: 'reception' },
     { id: 2002, company_id: 202, email: 'bravo-manager@example.com', role: 'manager' },
   ],
   settings: [
@@ -51,10 +52,15 @@ const fixture = {
 };
 
 const queries = [];
+const securityEvents = [];
 class FixturePool {
   async query(sql, args = []) {
     queries.push([sql.replace(/\s+/g, ' ').trim(), args]);
     if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql.trim())) return { rows: [] };
+    if (/INSERT INTO medical_audit_log/.test(sql)) {
+      securityEvents.push(args);
+      return { rows: [] };
+    }
     if (/SELECT \* FROM companies WHERE id = \$1/.test(sql)) {
       return { rows: fixture.companies.filter((row) => row.id === Number(args[0])) };
     }
@@ -162,7 +168,8 @@ app.use((req, res, next) => {
 // These endpoints create real HTTP sessions for the fixture's managers.
 app.get('/__test/session/:companyId', (req, res) => {
   const companyId = Number(req.params.companyId);
-  const user = fixture.users.find((row) => row.company_id === companyId);
+  const role = String(req.query.role || 'manager');
+  const user = fixture.users.find((row) => row.company_id === companyId && row.role === role);
   if (!user) return res.status(404).send('unknown fixture user');
   req.session.companyId = companyId;
   req.session.companyUserId = user.id;
@@ -218,6 +225,7 @@ function client(base) {
 
     const alphaTampered = await alpha.request('/workshop/settings?company_id=202');
     const alphaTamperedHtml = await alphaTampered.text();
+    await new Promise((resolve) => setImmediate(resolve));
     check('تمرير company_id لا يبدّل جلسة Alpha',
       alphaTampered.status === 200
         && alphaTamperedHtml.includes('alpha-alert@example.com')
@@ -254,6 +262,7 @@ function client(base) {
     const demoSeed = await demo.request('/__test/demo');
     const demoPage = await demo.request('/workshop/settings');
     const demoHtml = await demoPage.text();
+    await new Promise((resolve) => setImmediate(resolve));
     check('الديمو لا يرى سجل بريد التنبيهات',
       demoSeed.status === 302
         && demoPage.status === 200
@@ -271,6 +280,17 @@ function client(base) {
       method: 'POST',
     });
     check('الديمو لا يستطيع استعادة عنوان البريد', demoRestore.status === 403);
+
+    const reception = client(base);
+    await reception.request('/__test/session/101?role=reception');
+    const receptionPost = await reception.request('/workshop/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'company_id=202',
+    });
+    check('الدور غير المصرح به يُرفض ويُسجل', receptionPost.status === 403);
+    await new Promise((resolve) => setImmediate(resolve));
+
     check('الاستعادة تسجل حدثًا جديدًا للشركة نفسها',
       fixture.alertEmailHistory.some((row) =>
         row.company_id === 101
@@ -287,6 +307,36 @@ function client(base) {
               : null;
           return scopedCompanyId != null && [101, 202, 303].includes(Number(scopedCompanyId));
         }));
+    const safeSecurityEvents = securityEvents.map((args) => ({
+      companyId: args[0],
+      system: args[1],
+      actorKind: args[2],
+      actorId: args[3],
+      actorLabel: args[4],
+      entity: args[5],
+      action: args[8],
+      meta: JSON.parse(args[9]),
+    }));
+    check('محاولات الوصول المرفوضة تُسجل بالشركة والحساب الفعلي فقط',
+      safeSecurityEvents.some((event) =>
+        event.companyId === 101
+        && event.actorId === 1001
+        && event.entity === 'workshop_alert_email_history'
+        && event.action === 'access_denied'
+        && event.meta.reason === 'company_scope_mismatch'
+        && event.meta.company_scope_mismatch === true)
+        && safeSecurityEvents.some((event) =>
+          event.companyId === 303
+          && event.actorKind === 'demo_session'
+          && event.meta.reason === 'demo_read_only')
+        && safeSecurityEvents.some((event) =>
+          event.companyId === 101
+          && event.actorId === 1002
+          && event.meta.reason === 'permission_denied'));
+    check('سجل الأمن لا يحتوي عناوين البريد أو قيمة company_id المطلوبة',
+      safeSecurityEvents.every((event) =>
+        !JSON.stringify(event).includes('@')
+        && !JSON.stringify(event.meta).includes('202')));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

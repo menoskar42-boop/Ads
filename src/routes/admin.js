@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
 const codes = require('../lib/codes');
+const audit = require('../lib/audit');
 /* تصنيف نوع النشاط من قاموس واحد. كانت هنا سلسلة بتغطّي تلات أنواع
  * بس، وأي حاجة تانية بتتسجّل في CRM «بورتفوليو» — تسعة من اتناشر. */
 const businessTypes = require('../lib/business_types');
@@ -165,6 +166,20 @@ router.get('/demos', requireAdmin, (req, res) => {
   res.render('admin/demos', {
     session: adminSession(req), activePage: 'demos', results: null, error: null,
   });
+});
+
+router.get('/security/workshop-alert-email', requireAdmin, async (req, res) => {
+  try {
+    const rows = await audit.recentSecurity(pool, { limit: 200 });
+    return res.render('admin/workshop_alert_security', {
+      session: adminSession(req),
+      activePage: 'security',
+      rows,
+    });
+  } catch (err) {
+    console.error('[admin workshop alert security]', err.message);
+    return res.status(500).send('error');
+  }
 });
 
 router.get('/dashboard', requireAdmin, async (req, res) => {

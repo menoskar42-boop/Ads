@@ -18,6 +18,7 @@ const {
   DELIVERY_STATUS_ORDER,
 } = require('../lib/workshop_messaging');
 const { loadPaySettings, gatewayReady } = require('../lib/gateways');
+const audit = require('../lib/audit');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
 const {
@@ -68,6 +69,20 @@ async function loadAlertEmailHistory(db, companyId) {
     [companyId]
   );
   return result.rows;
+}
+function hasAlertEmailCompanyScopeMismatch(req) {
+  const requested = [req && req.query && req.query.company_id, req && req.body && req.body.company_id]
+    .map((value) => int(value))
+    .filter((value) => value != null);
+  return Boolean(req && req.company && requested.some((value) => value !== Number(req.company.id)));
+}
+function isAlertEmailSecurityRoute(req) {
+  const path = String((req && req.path) || '');
+  return path === '/settings' || path.startsWith('/settings/alert-email-history');
+}
+function logAlertEmailAccessDenied(req, reason, companyScopeMismatch = false) {
+  if (!isAlertEmailSecurityRoute(req)) return;
+  audit.logSecurity(pool, req, { reason, companyScopeMismatch });
 }
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
@@ -714,6 +729,7 @@ function requireWorkshopPermission(permission) {
   return (req, res, next) => {
     if (req.session && req.session.demoReadOnly && req.method === 'GET') return next();
     if (req.canWorkshop && req.canWorkshop(permission)) return next();
+    logAlertEmailAccessDenied(req, 'permission_denied', hasAlertEmailCompanyScopeMismatch(req));
     return res.status(403).send(
       res.locals.t ? res.locals.t('wsh.err.role') : 'هذه العملية غير متاحة حسب دورك في الورشة.'
     );
@@ -952,6 +968,12 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), requireWor
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', requireWorkshopPermission('view_settings'), async (req, res) => {
+  const companyScopeMismatch = hasAlertEmailCompanyScopeMismatch(req);
+  if (req.session && req.session.demoReadOnly) {
+    logAlertEmailAccessDenied(req, 'demo_read_only', companyScopeMismatch);
+  } else if (companyScopeMismatch) {
+    logAlertEmailAccessDenied(req, 'company_scope_mismatch', true);
+  }
   const [messageRow, paymentRow, users, roleHistory, alertEmailHistory, reminderRuns, reminderHealth] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),

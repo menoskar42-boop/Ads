@@ -1,0 +1,52 @@
+<%
+  pageTitle = 'أمن تنبيهات الورش';
+  activePage = 'security';
+%>
+<%- include('_layout_top') %>
+
+<section class="bg-white rounded-2xl shadow-sm p-6" dir="rtl">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h1 class="text-xl font-black text-gray-800 mb-1">محاولات الوصول المرفوضة لسجل بريد التنبيهات</h1>
+      <p class="text-sm text-gray-500">
+        مراجعة أمنية للإدارة فقط. السجل لا يحتوي عناوين البريد أو محتوى الرسائل أو قيمة الشركة المطلوبة من الرابط.
+      </p>
+    </div>
+    <span class="bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-1 text-xs font-bold">
+      <%= rows.length %> حدثًا
+    </span>
+  </div>
+
+  <% if (!rows.length) { %>
+    <div class="mt-6 rounded-xl border border-gray-100 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+      لا توجد محاولات مرفوضة مسجلة.
+    </div>
+  <% } else { %>
+    <div class="overflow-x-auto mt-6">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs">
+          <tr>
+            <th class="px-3 py-3 text-right">الشركة الفعلية</th>
+            <th class="px-3 py-3 text-right">الحساب</th>
+            <th class="px-3 py-3 text-right">السبب</th>
+            <th class="px-3 py-3 text-right">الطلب</th>
+            <th class="px-3 py-3 text-right">الوقت</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <% rows.forEach(function(row){ var meta = row.meta || {}; %>
+            <tr>
+              <td class="px-3 py-3 font-bold"><%= row.company_id || '—' %></td>
+              <td class="px-3 py-3"><%= row.actor_id || 'جلسة عرض' %></td>
+              <td class="px-3 py-3"><%= meta.reason || 'permission_denied' %></td>
+              <td class="px-3 py-3" dir="ltr"><%= meta.method || '—' %> <%= meta.path || '—' %></td>
+              <td class="px-3 py-3 text-xs text-gray-500"><%= new Date(row.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<%- include('_layout_bottom') %>

@@ -58,6 +58,8 @@ const SCHEMA = `
   ALTER TABLE ${TABLE} ALTER COLUMN company_id DROP NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_audit_system_actor
     ON ${TABLE} (system, actor_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_security_review
+    ON ${TABLE} (system, entity, action, created_at DESC);
 `;
 
 /**
@@ -117,6 +119,32 @@ function log(pool, req, e) {
   });
 }
 
+/**
+ * Record a denied workshop alert-email history access without copying the
+ * address being protected or the value a request tried to put in company_id.
+ * The company and actor are still derived from the authenticated session.
+ */
+function logSecurity(pool, req, event = {}) {
+  const session = (req && req.session) || {};
+  const actorId = Number.isInteger(Number(session.companyUserId))
+    ? Number(session.companyUserId)
+    : null;
+  return log(pool, req, {
+    system: 'workshop',
+    actorKind: actorId ? 'company_user' : 'demo_session',
+    actorId,
+    actorLabel: actorId ? 'workshop-user' : 'workshop-demo',
+    entity: 'workshop_alert_email_history',
+    action: 'access_denied',
+    meta: {
+      reason: String(event.reason || 'permission_denied').slice(0, 40),
+      method: String((req && req.method) || '').slice(0, 10),
+      path: String((req && req.path) || '').slice(0, 100),
+      company_scope_mismatch: event.companyScopeMismatch === true,
+    },
+  });
+}
+
 /** The company's own trail, newest first. Optionally one patient's. */
 async function recent(pool, companyId, opts) {
   const o = opts || {};
@@ -138,4 +166,23 @@ async function recent(pool, companyId, opts) {
   return r.rows;
 }
 
-module.exports = { log, recent, SCHEMA, TABLE };
+/** Read-only security review surface for trusted admin tooling, not tenants. */
+async function recentSecurity(pool, opts = {}) {
+  const params = ['workshop', 'workshop_alert_email_history', 'access_denied'];
+  let where = 'system=$1 AND entity=$2 AND action=$3';
+  if (Number.isInteger(opts.companyId)) {
+    where += ` AND company_id=$${params.push(opts.companyId)}`;
+  }
+  const limit = Math.min(500, Math.max(1, parseInt(opts.limit, 10) || 200));
+  const result = await pool.query(
+    `SELECT company_id, actor_kind, actor_id, actor_label, action, meta, created_at
+       FROM ${TABLE}
+      WHERE ${where}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${limit}`,
+    params
+  );
+  return result.rows;
+}
+
+module.exports = { log, logSecurity, recent, recentSecurity, SCHEMA, TABLE };
