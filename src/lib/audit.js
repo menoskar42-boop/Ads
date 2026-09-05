@@ -31,6 +31,8 @@
  */
 
 const TABLE = 'medical_audit_log';
+const SECURITY_ALERT_THRESHOLD = 5;
+const SECURITY_ALERT_WINDOW_MINUTES = 15;
 
 /** DDL — called from the app's schema bootstrap. */
 const SCHEMA = `
@@ -124,16 +126,65 @@ function log(pool, req, e) {
  * address being protected or the value a request tried to put in company_id.
  * The company and actor are still derived from the authenticated session.
  */
+async function claimSecurityAlert(pool, identity) {
+  const state = (await pool.query(
+    `INSERT INTO workshop_security_alert_state
+       (company_id, actor_kind, actor_id, window_started_at, rejection_count)
+     VALUES ($1,$2,$3,now(),1)
+     ON CONFLICT (company_id, actor_kind, actor_id) DO UPDATE SET
+       rejection_count=CASE
+         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+           THEN 1
+         ELSE workshop_security_alert_state.rejection_count + 1
+       END,
+       window_started_at=CASE
+         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+           THEN now()
+         ELSE workshop_security_alert_state.window_started_at
+       END,
+       alerted_at=CASE
+         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+           THEN NULL
+         ELSE workshop_security_alert_state.alerted_at
+       END,
+       alert_channel=CASE
+         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+           THEN NULL
+         ELSE workshop_security_alert_state.alert_channel
+       END,
+       alert_status=CASE
+         WHEN workshop_security_alert_state.window_started_at <= now() - INTERVAL '15 minutes'
+           THEN NULL
+         ELSE workshop_security_alert_state.alert_status
+       END
+     RETURNING company_id, actor_kind, actor_id, window_started_at, rejection_count`,
+    [identity.companyId, identity.actorKind, identity.actorId]
+  )).rows[0];
+  if (!state || Number(state.rejection_count) < SECURITY_ALERT_THRESHOLD) return null;
+  return (await pool.query(
+    `UPDATE workshop_security_alert_state
+        SET alerted_at=now(), alert_status='pending'
+      WHERE company_id=$1 AND actor_kind=$2 AND actor_id=$3
+        AND rejection_count >= $4 AND alerted_at IS NULL
+      RETURNING company_id, actor_kind, actor_id, window_started_at, rejection_count`,
+    [identity.companyId, identity.actorKind, identity.actorId, SECURITY_ALERT_THRESHOLD]
+  )).rows[0] || null;
+}
+
 function logSecurity(pool, req, event = {}) {
   const session = (req && req.session) || {};
-  const actorId = Number.isInteger(Number(session.companyUserId))
+  const companyId = Number((req && req.company && req.company.id) || session.companyId) || null;
+  const userId = Number.isInteger(Number(session.companyUserId))
     ? Number(session.companyUserId)
     : null;
-  return log(pool, req, {
+  const actorId = userId || companyId;
+  const actorKind = userId ? 'company_user' : 'demo_session';
+  const identity = { companyId, actorKind, actorId };
+  const write = log(pool, req, {
     system: 'workshop',
-    actorKind: actorId ? 'company_user' : 'demo_session',
+    actorKind,
     actorId,
-    actorLabel: actorId ? 'workshop-user' : 'workshop-demo',
+    actorLabel: userId ? 'workshop-user' : 'workshop-demo',
     entity: 'workshop_alert_email_history',
     action: 'access_denied',
     meta: {
@@ -142,6 +193,34 @@ function logSecurity(pool, req, event = {}) {
       path: String((req && req.path) || '').slice(0, 100),
       company_scope_mismatch: event.companyScopeMismatch === true,
     },
+  });
+  return Promise.resolve(write).then(async () => {
+    if (!identity.companyId || !identity.actorId) return;
+    try {
+      const claimed = await claimSecurityAlert(pool, identity);
+      if (!claimed || typeof event.notify !== 'function') return;
+      const result = await event.notify({
+        companyId: claimed.company_id,
+        actorKind: claimed.actor_kind,
+        actorId: claimed.actor_id,
+        rejectionCount: claimed.rejection_count,
+        windowStartedAt: claimed.window_started_at,
+        reason: String(event.reason || 'permission_denied').slice(0, 40),
+      });
+      await pool.query(
+        `UPDATE workshop_security_alert_state
+            SET alert_channel=$4, alert_status=$5
+          WHERE company_id=$1 AND actor_kind=$2 AND actor_id=$3
+            AND alert_status='pending'`,
+        [
+          claimed.company_id, claimed.actor_kind, claimed.actor_id,
+          String((result && result.channel) || 'email').slice(0, 20),
+          String((result && result.status) || 'error').slice(0, 20),
+        ]
+      );
+    } catch (err) {
+      console.error('[audit security alert]', err.message);
+    }
   });
 }
 
@@ -225,5 +304,6 @@ async function recentSecurity(pool, opts = {}) {
 }
 
 module.exports = {
-  log, logSecurity, recent, recentSecurity, normalizeSecurityFilters, SCHEMA, TABLE,
+  log, logSecurity, recent, recentSecurity, normalizeSecurityFilters,
+  SECURITY_ALERT_THRESHOLD, SECURITY_ALERT_WINDOW_MINUTES, SCHEMA, TABLE,
 };

@@ -54,12 +54,47 @@ const fixture = {
 
 const queries = [];
 const securityEvents = [];
+const securityAlertState = new Map();
+const securityAlertClaims = [];
+const securityAlertStatusUpdates = [];
 class FixturePool {
   async query(sql, args = []) {
     queries.push([sql.replace(/\s+/g, ' ').trim(), args]);
     if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql.trim())) return { rows: [] };
     if (/INSERT INTO medical_audit_log/.test(sql)) {
       securityEvents.push(args);
+      return { rows: [] };
+    }
+    if (/INSERT INTO workshop_security_alert_state/.test(sql)) {
+      const key = [args[0], args[1], args[2]].join(':');
+      const current = securityAlertState.get(key) || {
+        company_id: Number(args[0]),
+        actor_kind: args[1],
+        actor_id: Number(args[2]),
+        window_started_at: '2026-09-05T08:00:00.000Z',
+        rejection_count: 0,
+        alerted_at: null,
+      };
+      current.rejection_count += 1;
+      securityAlertState.set(key, current);
+      return { rows: [{ ...current }] };
+    }
+    if (/UPDATE workshop_security_alert_state\s+SET alerted_at=now/.test(sql)) {
+      const key = [args[0], args[1], args[2]].join(':');
+      const current = securityAlertState.get(key);
+      if (!current || current.alerted_at || current.rejection_count < Number(args[3])) return { rows: [] };
+      current.alerted_at = '2026-09-05T08:10:00.000Z';
+      securityAlertClaims.push({ ...current });
+      return { rows: [{ ...current }] };
+    }
+    if (/UPDATE workshop_security_alert_state\s+SET alert_channel=\$4/.test(sql)) {
+      const key = [args[0], args[1], args[2]].join(':');
+      const current = securityAlertState.get(key);
+      if (current) {
+        current.alert_channel = args[3];
+        current.alert_status = args[4];
+      }
+      securityAlertStatusUpdates.push(args);
       return { rows: [] };
     }
     if (/SELECT \* FROM companies WHERE id = \$1/.test(sql)) {
@@ -316,6 +351,13 @@ function client(base) {
       body: 'company_id=202',
     });
     check('الدور غير المصرح به يُرفض ويُسجل', receptionPost.status === 403);
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      await reception.request('/workshop/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'company_id=202',
+      });
+    }
     await new Promise((resolve) => setImmediate(resolve));
 
     check('الاستعادة تسجل حدثًا جديدًا للشركة نفسها',
@@ -364,6 +406,12 @@ function client(base) {
       safeSecurityEvents.every((event) =>
         !JSON.stringify(event).includes('@')
         && !JSON.stringify(event.meta).includes('202')));
+    check('التكرار يطالب بتنبيه أمني واحدًا لكل نافذة',
+      securityAlertClaims.length === 1
+        && securityAlertClaims[0].company_id === 101
+        && securityAlertClaims[0].actor_id === 1002
+        && securityAlertClaims[0].rejection_count === 5
+        && securityAlertStatusUpdates.length === 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

@@ -36,7 +36,10 @@ const {
   workshopCan,
 } = require('../workshop/operations');
 const { checkWorkshopReminderHealth } = require('../workshop/reminder_health');
-const { sendWorkshopReminderHealthTest } = require('../lib/mailer');
+const {
+  sendWorkshopReminderHealthTest,
+  sendWorkshopSecurityAccessAlert,
+} = require('../lib/mailer');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -82,7 +85,11 @@ function isAlertEmailSecurityRoute(req) {
 }
 function logAlertEmailAccessDenied(req, reason, companyScopeMismatch = false) {
   if (!isAlertEmailSecurityRoute(req)) return;
-  audit.logSecurity(pool, req, { reason, companyScopeMismatch });
+  audit.logSecurity(pool, req, {
+    reason,
+    companyScopeMismatch,
+    notify: (event) => sendWorkshopSecurityAccessAlert(event),
+  });
 }
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;

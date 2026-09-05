@@ -14,3 +14,9 @@ Security denials for this history belong in the shared append-only audit log wit
 **Why:** The same history boundary needs investigation signals, but recording submitted email or company-scope values would turn an access log into a data leak.
 
 **How to apply:** Keep security-event metadata free of email/message content and never let a query parameter become the event’s tenant identity.
+
+Repeated security denials use a durable per-company/per-account window with an atomic alert claim; platform security recipients receive only numeric identity, reason, count, and time.
+
+**Why:** In-memory counters can reset or diverge between workers, while sending on every denial would flood the security channel.
+
+**How to apply:** Keep the threshold/window state database-backed and claim once before sending; treat delivery status as separate from the one-per-window claim.

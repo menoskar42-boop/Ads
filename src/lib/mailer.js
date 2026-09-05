@@ -239,6 +239,54 @@ function resolveWorkshopAlertRecipient(adminEmail) {
     || 'support@oscardevs.com';
 }
 
+function resolveSecurityAlertRecipient() {
+  return validEmailAddress(process.env.ADMIN_NOTIFY_EMAIL)
+    || validEmailAddress(process.env.ADMIN_EMAIL)
+    || 'support@oscardevs.com';
+}
+
+/** Alert platform security admins after repeated denied workshop access. */
+async function sendWorkshopSecurityAccessAlert({
+  companyId, actorKind, actorId, rejectionCount, windowStartedAt, reason,
+}) {
+  const to = resolveSecurityAlertRecipient();
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const safeActorId = Number.isInteger(Number(actorId)) ? String(Number(actorId)) : 'غير معروف';
+  const safeCount = Number.isInteger(Number(rejectionCount)) ? String(Number(rejectionCount)) : 'غير معروف';
+  const started = windowStartedAt ? new Date(windowStartedAt).toISOString() : 'غير متاح';
+  const reasonText = reason === 'company_scope_mismatch'
+    ? 'تكررت محاولات تغيير نطاق الشركة في الطلب.'
+    : reason === 'demo_read_only'
+      ? 'تكررت محاولات الوصول من جلسة العرض.'
+      : 'تكررت محاولات وصول غير مصرح بها.';
+  const html = shell('ar', 'تنبيه أمني: تكرار رفض الوصول', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${reasonText}</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">
+      الشركة الفعلية: <span dir="ltr">${safeCompanyId}</span><br>
+      نوع الحساب: <span dir="ltr">${String(actorKind || 'unknown').slice(0, 30)}</span><br>
+      معرّف الحساب: <span dir="ltr">${safeActorId}</span><br>
+      عدد الرفضات في النافذة: <span dir="ltr">${safeCount}</span><br>
+      بداية النافذة: <span dir="ltr">${started}</span>
+    </p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">راجع سجل أمن تنبيهات الورش من لوحة الإدارة.</p>`);
+  const text = [
+    'تنبيه أمني: تكرار رفض الوصول.',
+    `الشركة الفعلية: ${safeCompanyId}.`,
+    `نوع الحساب: ${String(actorKind || 'unknown').slice(0, 30)}.`,
+    `معرّف الحساب: ${safeActorId}.`,
+    `عدد الرفضات: ${safeCount}.`,
+    `بداية النافذة: ${started}.`,
+    reasonText,
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'تنبيه أمني: تكرار رفض الوصول لسجل الورشة — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
 /**
  * Alert the platform administrator about a workshop reminder outage or its
  * recovery. This message intentionally contains only operational identifiers
@@ -316,7 +364,9 @@ module.exports = {
   sendAdminNewApplication,
   sendWorkshopReminderHealthAlert,
   sendWorkshopReminderHealthTest,
+  sendWorkshopSecurityAccessAlert,
   resolveWorkshopAlertRecipient,
+  resolveSecurityAlertRecipient,
   siteOrigin,
   localeForCountry,
 };
