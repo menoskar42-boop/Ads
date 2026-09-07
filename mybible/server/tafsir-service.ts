@@ -545,11 +545,6 @@ export function extractVerseTafsir(
     "g"
   );
 
-  const bookRefInlinePattern = new RegExp(
-    `${REF_CORE.source}\\s*[:"\u201c\u201d]`,
-    "g"
-  );
-
   let match: RegExpExecArray | null;
   while ((match = bookRefLineStartPattern.exec(fullText)) !== null) {
     const refChapter = parseInt(match[1], 10);
@@ -574,30 +569,11 @@ export function extractVerseTafsir(
     });
   }
 
-  while ((match = bookRefInlinePattern.exec(fullText)) !== null) {
-    const refChapter = parseInt(match[1], 10);
-    const startVerse = parseInt(match[2], 10);
-    const endVerse = match[3] ? parseInt(match[3], 10) : startVerse;
-    if (isNaN(startVerse) || startVerse > 200) continue;
-
-    if (chapter && refChapter !== chapter) continue;
-
-    const alreadyCovered = sections.some(
-      (s) => Math.abs(s.startIndex - match!.index) < 10
-    );
-    if (alreadyCovered) continue;
-
-    const prevNewline = fullText.lastIndexOf("\n", match.index);
-    const sectionStart = prevNewline >= 0 ? prevNewline + 1 : match.index;
-
-    sections.push({
-      startVerse,
-      endVerse,
-      startIndex: sectionStart,
-      headerEnd: match.index + match[0].length,
-      isPrimary: true,
-    });
-  }
+  // Do not treat an inline Bible cross-reference as a section boundary.
+  // Commentary blobs commonly contain citations such as "(1:20)" while
+  // explaining another verse; accepting those citations makes a chapter-level
+  // row look like a verse-specific tafsir. Real source sections are accepted
+  // by bookRefLineStartPattern above, where the reference starts a line.
 
   // Matches verse/verses markers in various forms:
   //   آية 35:          classic form
@@ -745,27 +721,9 @@ export function extractVerseTafsir(
   }
 
   if (sections.length > 0) {
-    // A missing marker before the first section is a gap, not proof that the
-    // preamble explains verse 1. Likewise, only an unmarked tail after the
-    // final section may inherit the final section's text; gaps between two
-    // explicit sections must stay unavailable rather than showing commentary
-    // for the preceding verse.
-    const lastCoveredVerse = Math.max(...sections.map((section) => section.endVerse));
-    if (verse > lastCoveredVerse) {
-      const prevSection = [...sections].reverse().find((s) => s.startVerse <= verse);
-      if (prevSection) {
-        const prevIdx = sections.indexOf(prevSection);
-        const end =
-          prevIdx + 1 < sections.length
-            ? sections[prevIdx + 1].startIndex
-            : fullText.length;
-        const content = cleanContent(fullText.substring(prevSection.headerEnd, end).trim());
-        if (content.length >= 50) return content;
-      }
-    }
-
-    // Sections exist but none covers this verse — don't return the full blob as
-    // it would be misleading content from a different section's range.
+    // Sections exist but none covers this verse — don't return the preceding
+    // section or the unmarked tail as if it were commentary for this verse.
+    // A source range is the only safe evidence that a result belongs here.
     return null;
   }
 
@@ -848,13 +806,25 @@ function verseTafsirRaw(
     entry.chapter === 1 && entry.verse === 1;
   const entryText = (entry: TafsirEntry) =>
     entry.verse === 0 ? stripChapterWrapper(entry.tafsir, chapter) : entry.tafsir;
-  const extractEntry = (entry: TafsirEntry, targetVerse: number) =>
-    extractVerseTafsir(
-      entryText(entry),
-      targetVerse,
-      chapter,
-      entry.verse !== 0,
-    );
+  const extractEntry = (entry: TafsirEntry, targetVerse: number) => {
+    const text = entryText(entry);
+
+    // A direct CSV row carries its declared source range in the first header.
+    // Never let the extractor's unmarked-tail handling carry that row into a
+    // later verse (for example 19:14 being reused for 19:15–16).
+    if (entry.verse !== 0) {
+      const header = HEADER_RE.exec(text);
+      if (header) {
+        const startVerse = parseInt(header[2], 10);
+        const endVerse = header[3] ? parseInt(header[3], 10) : startVerse;
+        if (targetVerse < startVerse || targetVerse > endVerse) return null;
+      } else if (targetVerse !== entry.verse) {
+        return null;
+      }
+    }
+
+    return extractVerseTafsir(text, targetVerse, chapter, entry.verse !== 0);
+  };
   const isBiblePassage = (text: string) =>
     /^\s*(?:†\s*)?\d+\s+[\u0600-\u06FF]/u.test(text);
   const pickCommentary = (candidates: string[]) =>
@@ -879,7 +849,13 @@ function verseTafsirRaw(
   //   Use a Set to avoid rescanning the same blob twice.
   const seenBlobs = new Set(verseEntries.map((e) => e.tafsir));
   const chapterCandidates: string[] = [];
-  for (const entry of chapterEntries) {
+  // Prefer a narrower verse/range row over the chapter-level body. A chapter
+  // body often contains the Bible passage before its explanation, while the
+  // dedicated range row contains the explanation we want.
+  const scanEntries = [...chapterEntries].sort(
+    (a, b) => Number(a.verse === 0) - Number(b.verse === 0),
+  );
+  for (const entry of scanEntries) {
     if (isBookIntroduction(entry)) continue;
     // The chapter-level row uses "(chapter:1)" as a wrapper around the whole
     // page, not as proof that verse 1 has its own commentary.

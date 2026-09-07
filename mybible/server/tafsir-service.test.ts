@@ -103,6 +103,23 @@ test('does not reuse the preceding verse for a gap between explicit sections', (
   assert.equal(extractVerseTafsir(text, 2, 1), null);
 });
 
+test('does not extend the final marked section into an unmarked tail', () => {
+  const text = '( مكا2:20): شرح الآية الأخيرة فقط، وليس ما بعدها.';
+
+  assert.equal(extractVerseTafsir(text, 21, 2), null);
+});
+
+test('does not reuse a direct range row for a later verse gap', () => {
+  assert.equal(getVerseTafsir('حكمة سليمان', 19, 15), null);
+  assert.equal(getVerseTafsir('حكمة سليمان', 19, 16), null);
+});
+
+test('does not treat an inline cross-reference as a verse section', () => {
+  const text = 'شرح عام للإصحاح، راجع أيضًا (1:20): هذا ليس شرح الآية 20.';
+
+  assert.equal(extractVerseTafsir(text, 20, 1, false), null);
+});
+
 test('does not use an unscoped chapter blob for a verse-scoped lookup', () => {
   assert.equal(
     extractVerseTafsir('شرح عام للإصحاح بلا أي علامة آية واضحة.', 2, 1, false),
@@ -122,11 +139,12 @@ test('Tobit chapter 4 retains the complete source body and clean boundaries', ()
 
   // The live St-Takla page has one chapter body with three commentary
   // sections: the 21–23 heading, the 21–22 explanation, and verse 23.
-  assert.equal(entries.length, 2);
+  assert.equal(entries.length, 3);
   assert.deepEqual(
     entries.map((entry) => [entry.verse, entry.tafsir.includes('ع23:')]),
     [
       [0, true],
+      [21, true],
       [23, false],
     ],
   );
@@ -159,6 +177,14 @@ test('does not return the Bible passage wrapper as Sirach verse commentary', () 
 
   assert.match(verse ?? '', /^زبل الدمن/u);
   assert.doesNotMatch(verse ?? '', /الكسلان أشبه بحجر قذر/u);
+});
+
+test('prefers a dedicated Maccabees range explanation over the chapter passage', () => {
+  const verse = getVerseTafsir('المكابيين الأول', 8, 3);
+
+  assert.match(verse ?? '', /^بلاد/u);
+  assert.doesNotMatch(verse ?? '', /وَقُصَّتْ عَلَيْهِ وَقَائِعُهُمْ/u);
+  assert.doesNotMatch(verse ?? '', /الآيات \(5-11\)/u);
 });
 
 test('Tobit verse without a source section is unavailable, not chapter fallback', () => {

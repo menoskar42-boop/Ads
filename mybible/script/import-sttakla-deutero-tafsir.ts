@@ -175,9 +175,22 @@ function arabicDigitsToNumber(value: string): number {
   return Number(value.replace(/[٠-٩]/g, (digit) => "٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 }
 
+function stripLeadingBibleQuote(text: string): string {
+  const match = text.match(/^\s*["“]([\s\S]*?)["”]\s*/u);
+  if (!match || match[1].trim().length < 20) return text;
+
+  const remainder = text.slice(match[0].length).replace(/^[,،.:؛\s]+/u, "").trim();
+  return remainder.length >= 20 ? remainder : text;
+}
+
 function extractSections(body: string): Array<{ start: number; end: number; text: string }> {
   const lines = body.split("\n");
-  const marks: Array<{ start: number; end: number; contentStart: number }> = [];
+  const marks: Array<{
+    start: number;
+    end: number;
+    markerStart: number;
+    contentStart: number;
+  }> = [];
   let offset = 0;
 
   for (const line of lines) {
@@ -195,6 +208,7 @@ function extractSections(body: string): Array<{ start: number; end: number; text
       marks.push({
         start,
         end,
+        markerStart: offset + match.index,
         contentStart: offset + match.index + match[0].length,
       });
     }
@@ -205,12 +219,12 @@ function extractSections(body: string): Array<{ start: number; end: number; text
     .map((mark, index) => ({
       start: mark.start,
       end: mark.end,
-      text: body
+      text: stripLeadingBibleQuote(body
         .slice(
           mark.contentStart,
-          index + 1 < marks.length ? marks[index + 1].contentStart : body.length,
+          index + 1 < marks.length ? marks[index + 1].markerStart : body.length,
         )
-        .trim(),
+        .trim()),
     }))
     .filter((section) => {
       if (section.text.length < 20) return false;
