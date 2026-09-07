@@ -182,7 +182,7 @@ function extractSections(body: string): Array<{ start: number; end: number; text
 
   for (const line of lines) {
     const match =
-      /(?:^|\s)(?:الآيات?|الآية|ع)\s*\(?([0-9٠-٩]+)(?:\s*[-–]\s*([0-9٠-٩]+))?\)?\s*:/u.exec(
+      /(?:^|\s)(?:الآيات?|الآية|\(?ع)\s*\(?([0-9٠-٩]+)(?:\s*(?:[-–،,]|\sو\s)\s*([0-9٠-٩]+))?\)?\s*:/u.exec(
         line,
       ) ??
       /\(\s*(?:الآيات?|الآية)\s*\(?([0-9٠-٩]+)(?:\s*[-–]\s*([0-9٠-٩]+))?\)?\s*:/u.exec(
@@ -212,7 +212,22 @@ function extractSections(body: string): Array<{ start: number; end: number; text
         )
         .trim(),
     }))
-    .filter((section) => section.text.length >= 20);
+    .filter((section) => {
+      if (section.text.length < 20) return false;
+
+      // A topic heading can contain the Bible passage first and only then
+      // introduce nested commentary labels such as "ع1، 2:". The parent
+      // range is not itself commentary; the nested labels below it are the
+      // addressable sections we should import.
+      const startsWithBibleText = /^\s*(?:†\s*)?\d+\s+[\u0600-\u06FF]/u.test(
+        section.text,
+      );
+      const hasNestedCommentary =
+        /(?:^|\n)\s*ع\s*\(?\d+(?:\s*(?:[-–،,]|\sو\s)\s*\d+)?\s*\)?\s*:/u.test(
+          section.text,
+        );
+      return !(startsWithBibleText && hasNestedCommentary);
+    });
 }
 
 function csvCell(value: string | number): string {

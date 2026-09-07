@@ -7,7 +7,7 @@ St-Takla commentary exports can contain navigation lists and links to other comm
 
 **Why:** Treating those artifacts as commentary leaks site navigation into the reader and can make a missing verse appear to have the entire chapter as its explanation.
 
-**How to apply:** Strip source navigation centrally during parsing, recognize compact Arabic subsection labels such as `ع21، 22:` and `ع23:`, and do not infer verse 1 availability from a chapter wrapper row.
+**How to apply:** Strip source navigation centrally during parsing, recognize compact Arabic subsection labels such as `ع21، 22:` and `ع23:`, do not infer verse 1 availability from a chapter wrapper row, and never reuse a preceding section across an explicit verse gap.
 
 St-Takla can move a chapter to a newer URL while leaving an older generated index link at 404. Keep a short-lived, explicitly mapped live-source fallback for verified missing chapters; do not persist fetched sacred text to disk. Because the imported books may use different St-Takla commentary series, use generic St-Takla attribution unless the exact author is known for that chapter.
 

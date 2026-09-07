@@ -70,7 +70,8 @@ export function stripTafsirNavigation(text: string): string {
     const normalized = line.replace(/^[\u0022\u201c\u201d]+|[\u0022\u201c\u201d]+$/g, "").trim();
     return (
       /^←\s*تفاسير أصحاحات/u.test(normalized) ||
-      /^تفاسير أسفار الكتاب المقدس/u.test(normalized)
+      /^تفاسير أسفار الكتاب المقدس/u.test(normalized) ||
+      /←\s*تفاسير أصحاحات/u.test(normalized)
     );
   });
 
@@ -514,7 +515,12 @@ function chapterTafsir(
   return chapterEntries[chapterEntries.length - 1].tafsir;
 }
 
-export function extractVerseTafsir(fullText: string, verse: number, chapter?: number): string | null {
+export function extractVerseTafsir(
+  fullText: string,
+  verse: number,
+  chapter?: number,
+  allowUnscopedFallback = true,
+): string | null {
   interface VerseSection {
     startVerse: number;
     endVerse: number;
@@ -739,24 +745,23 @@ export function extractVerseTafsir(fullText: string, verse: number, chapter?: nu
   }
 
   if (sections.length > 0) {
-    const firstSection = sections[0];
-    // If the verse appears BEFORE all known sections, the preamble is the tafsir
-    if (verse < firstSection.startVerse && firstSection.startIndex > 50) {
-      return fullText.substring(0, firstSection.startIndex).trim();
-    }
-
-    // Fallback: verse has no explicit marker — return content from the nearest
-    // preceding section in textual order (covers unmarked tail verses like
-    // رومية 8:27-39 and يوحنا 3:26 which have no individual آية markers).
-    const prevSection = [...sections].reverse().find((s) => s.startVerse <= verse);
-    if (prevSection) {
-      const prevIdx = sections.indexOf(prevSection);
-      const end =
-        prevIdx + 1 < sections.length
-          ? sections[prevIdx + 1].startIndex
-          : fullText.length;
-      const content = cleanContent(fullText.substring(prevSection.headerEnd, end).trim());
-      if (content.length >= 50) return content;
+    // A missing marker before the first section is a gap, not proof that the
+    // preamble explains verse 1. Likewise, only an unmarked tail after the
+    // final section may inherit the final section's text; gaps between two
+    // explicit sections must stay unavailable rather than showing commentary
+    // for the preceding verse.
+    const lastCoveredVerse = Math.max(...sections.map((section) => section.endVerse));
+    if (verse > lastCoveredVerse) {
+      const prevSection = [...sections].reverse().find((s) => s.startVerse <= verse);
+      if (prevSection) {
+        const prevIdx = sections.indexOf(prevSection);
+        const end =
+          prevIdx + 1 < sections.length
+            ? sections[prevIdx + 1].startIndex
+            : fullText.length;
+        const content = cleanContent(fullText.substring(prevSection.headerEnd, end).trim());
+        if (content.length >= 50) return content;
+      }
     }
 
     // Sections exist but none covers this verse — don't return the full blob as
@@ -765,7 +770,7 @@ export function extractVerseTafsir(fullText: string, verse: number, chapter?: nu
   }
 
   // No structured sections found at all — return the raw text as last resort
-  return fullText.length > 50 ? fullText : null;
+  return allowUnscopedFallback && fullText.length > 50 ? fullText : null;
 }
 
 // Regex for the range header at the START of a tafsir field:
@@ -776,6 +781,13 @@ export function extractVerseTafsir(fullText: string, verse: number, chapter?: nu
 // Groups: [1]=chapter, [2]=startVerse, [3]=endVerse (optional)
 const HEADER_RE =
   /^\s*\(\s*(?:\d*[\u0600-\u06FF]+\s*)?(\d+)\s*:\s*(\d+)(?:\s*[-–\u00a1]\s*(\d+))?\s*\)\s*:?\s*/;
+
+function stripChapterWrapper(text: string, chapter: number): string {
+  const wrapper = new RegExp(
+    `^\\s*\\(\\s*${chapter}\\s*:\\s*1\\s*\\)\\s*:?\\s*`,
+  );
+  return text.replace(wrapper, '');
+}
 
 function stripTafsirHeader(text: string): string {
   return text
@@ -829,32 +841,61 @@ function verseTafsirRaw(
     .filter((e) => e.chapter === chapter)
     .filter((e) => belongsToChapter(e.tafsir, chapter));
 
+  // verse=1 in chapter 1 is reserved for the book introduction by the
+  // importer. It must never win the search for another verse in that chapter,
+  // otherwise the introduction is selected before the real verse/range row.
+  const isBookIntroduction = (entry: TafsirEntry) =>
+    entry.chapter === 1 && entry.verse === 1;
+  const entryText = (entry: TafsirEntry) =>
+    entry.verse === 0 ? stripChapterWrapper(entry.tafsir, chapter) : entry.tafsir;
+  const extractEntry = (entry: TafsirEntry, targetVerse: number) =>
+    extractVerseTafsir(
+      entryText(entry),
+      targetVerse,
+      chapter,
+      entry.verse !== 0,
+    );
+  const isBiblePassage = (text: string) =>
+    /^\s*(?:†\s*)?\d+\s+[\u0600-\u06FF]/u.test(text);
+  const pickCommentary = (candidates: string[]) =>
+    candidates.find((candidate) => !isBiblePassage(candidate)) ?? null;
+
   // ── Step 1: Try every entry for this exact verse (CSV may have duplicates
   //   with different tafsir blobs; the first one may not contain the right section)
-  const verseEntries = chapterEntries.filter((e) => e.verse === verse);
+  const verseEntries = chapterEntries
+    .filter((e) => e.verse === verse)
+    .filter((e) => !isBookIntroduction(e));
+  const exactCandidates: string[] = [];
   for (const entry of verseEntries) {
     if (!entry.tafsir) continue;
-    const extracted = extractVerseTafsir(entry.tafsir, verse, chapter);
-    if (extracted && extracted.length >= 20) return extracted;
+    const extracted = extractEntry(entry, verse);
+    if (extracted && extracted.length >= 20) exactCandidates.push(extracted);
   }
+  const exactCommentary = pickCommentary(exactCandidates);
+  if (exactCommentary) return exactCommentary;
 
   // ── Step 2: Scan ALL chapter entries with extractVerseTafsir
   //   (the target section may live in a different row's tafsir blob)
   //   Use a Set to avoid rescanning the same blob twice.
   const seenBlobs = new Set(verseEntries.map((e) => e.tafsir));
+  const chapterCandidates: string[] = [];
   for (const entry of chapterEntries) {
+    if (isBookIntroduction(entry)) continue;
     // The chapter-level row uses "(chapter:1)" as a wrapper around the whole
     // page, not as proof that verse 1 has its own commentary.
     if (entry.verse === 0 && verse === 1) continue;
     if (!entry.tafsir || seenBlobs.has(entry.tafsir)) continue;
     seenBlobs.add(entry.tafsir);
-    const extracted = extractVerseTafsir(entry.tafsir, verse, chapter);
-    if (extracted && extracted.length >= 20) return extracted;
+    const extracted = extractEntry(entry, verse);
+    if (extracted && extracted.length >= 20) chapterCandidates.push(extracted);
   }
+  const chapterCommentary = pickCommentary(chapterCandidates);
+  if (chapterCommentary) return chapterCommentary;
 
   // ── Step 3: Fallback — return any chapter entry whose FIRST range header
   //   covers the verse (handles blobs where extractVerseTafsir finds nothing)
   for (const entry of chapterEntries) {
+    if (isBookIntroduction(entry)) continue;
     // As above, "(chapter:1)" on the chapter-level row is only a wrapper.
     if (entry.verse === 0 && verse === 1) continue;
     if (!entry.tafsir) continue;
@@ -865,7 +906,7 @@ function verseTafsirRaw(
     const endVerse = m[3] ? parseInt(m[3], 10) : startVerse;
     if (refChapter === chapter && verse >= startVerse && verse <= endVerse) {
       const stripped = stripTafsirHeader(entry.tafsir);
-      if (stripped.length >= 20) return stripped;
+      if (stripped.length >= 20 && !isBiblePassage(stripped)) return stripped;
     }
   }
 

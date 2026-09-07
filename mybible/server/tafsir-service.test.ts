@@ -86,6 +86,30 @@ test('removes inline links to other commentaries between source sections', () =>
   assert.doesNotMatch(result, /تفاسير أخرى|وستجد/);
 });
 
+test('removes a navigation-only row when the source reference prefixes it', () => {
+  const result = stripTafsirNavigation(
+    '(49:1): ← تفاسير أصحاحات\nسيراخ:\nمقدمة | 1 | 2 | 3',
+  );
+
+  assert.equal(result, '');
+});
+
+test('does not reuse the preceding verse for a gap between explicit sections', () => {
+  const text = [
+    '( سي1:1): شرح الآية الأولى فقط، وليس الآية التالية.',
+    '( سي1:3): شرح الآية الثالثة فقط، وليس الآية الثانية.',
+  ].join('\n');
+
+  assert.equal(extractVerseTafsir(text, 2, 1), null);
+});
+
+test('does not use an unscoped chapter blob for a verse-scoped lookup', () => {
+  assert.equal(
+    extractVerseTafsir('شرح عام للإصحاح بلا أي علامة آية واضحة.', 2, 1, false),
+    null,
+  );
+});
+
 test('Tobit chapter 4 retains the complete source body and clean boundaries', () => {
   const csvPath = path.resolve(
     process.cwd(),
@@ -128,6 +152,13 @@ test('Tobit verses 21–22 and 23 use their own source sections', () => {
   assert.doesNotMatch(verses21to22 ?? '', /ثم طمأن ابنه بأن أولاد الله/u);
   assert.match(verse23 ?? '', /^ثم طمأن ابنه/u);
   assert.doesNotMatch(verse23 ?? '', /وفى النهاية/u);
+});
+
+test('does not return the Bible passage wrapper as Sirach verse commentary', () => {
+  const verse = getVerseTafsir('يشوع بن سيراخ', 22, 1);
+
+  assert.match(verse ?? '', /^زبل الدمن/u);
+  assert.doesNotMatch(verse ?? '', /الكسلان أشبه بحجر قذر/u);
 });
 
 test('Tobit verse without a source section is unavailable, not chapter fallback', () => {
