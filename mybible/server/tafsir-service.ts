@@ -699,8 +699,23 @@ export function extractVerseTafsir(
       }
     }
 
+    // If this is a direct row whose primary header is followed by compact
+    // subsection labels, stop before the first child label. Otherwise a
+    // lookup for 41:23, for example, returns the trailing "ع24:" marker and
+    // makes the UI look as if the explanation crosses verse boundaries.
+    const firstChildIdx = sections.findIndex(
+      (s, idx) =>
+        idx > parentSection!.idx &&
+        s.startIndex < parentEnd &&
+        !s.isPrimary,
+    );
+    const contentEnd =
+      firstChildIdx >= 0 ? sections[firstChildIdx].startIndex : parentEnd;
+
     // Return content after the range header (e.g. "( لو22:1-6): ")
-    const rawContent = fullText.substring(parentSection.section.headerEnd, parentEnd).trim();
+    const rawContent = fullText
+      .substring(parentSection.section.headerEnd, contentEnd)
+      .trim();
     const cleaned = cleanContent(rawContent);
     return cleaned.length >= 20
       ? cleaned

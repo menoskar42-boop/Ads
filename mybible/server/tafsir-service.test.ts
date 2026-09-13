@@ -187,6 +187,20 @@ test('prefers a dedicated Maccabees range explanation over the chapter passage',
   assert.doesNotMatch(verse ?? '', /الآيات \(5-11\)/u);
 });
 
+test('keeps Sirach verse 23 from carrying the next verse marker', () => {
+  const verse = getVerseTafsir('يشوع بن سيراخ', 41, 23);
+
+  assert.match(verse ?? '', /^5- الظلم أمام الشريك/u);
+  assert.doesNotMatch(verse ?? '', /ع24:/u);
+});
+
+test('keeps Sirach chapter 41 available and within its 28-verse source range', () => {
+  const chapter = getChapterTafsir('يشوع بن سيراخ', 41);
+
+  assert.match(chapter ?? '', /الحياء \(ع17-28\)/u);
+  assert.doesNotMatch(chapter ?? '', /ع23[-–]41/u);
+});
+
 test('Tobit verse without a source section is unavailable, not chapter fallback', () => {
   assert.equal(getVerseTafsir('طوبيا', 4, 1), null);
 });
