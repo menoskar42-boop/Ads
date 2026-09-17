@@ -1,5 +1,11 @@
-const CACHE_NAME = 'mybible-v3';
-const STATIC_CACHE = 'mybible-static-v3';
+const CACHE_NAME = 'mybible-v4';
+const STATIC_CACHE = 'mybible-static-v4';
+
+/* الكاش ده اسمه **ثابت مش مرقّم**، وبتكتب فيه الواجهة نفسها
+ * (`useOfflineSync.ts` و`GroupView.tsx` بينادوا `caches.open('mybible-static-v1')`).
+ * ده تحميل الكتاب أوفلاين اللي المستخدم طلبه بإيده — مايتمسحش أبداً.
+ * أي كاش تاني بيبدأ بـmybible ومش الحالي بيتمسح. */
+const OFFLINE_DOWNLOAD_CACHE = 'mybible-static-v1';
 
 // App shell resources to pre-cache on install
 const APP_SHELL = [
@@ -28,12 +34,15 @@ self.addEventListener('activate', function(event) {
     caches.keys().then(function(keys) {
       return Promise.all(
         keys
-          // Keep mybible-static-v1: it is the user's explicit full offline
-          // Bible download. Only retire generated shell/runtime versions.
+          /* قايمة استبقاء صريحة بدل ريجيكس على رقم النسخة. الريجيكس
+           * اللي كان هنا كان بيسيب `mybible-v1` كمان — وده كاش القشرة
+           * القديم مش تحميل الكتاب — فكان بيفضل على أجهزة الناس للأبد
+           * وزرار «تحديث الصفحة» مش قادر ينضّفه. */
           .filter(function(key) {
-            return key !== CACHE_NAME
+            return key.lastIndexOf('mybible', 0) === 0
+              && key !== CACHE_NAME
               && key !== STATIC_CACHE
-              && /^mybible(?:-static)?-v(?:[2-9]|\d{2,})$/.test(key);
+              && key !== OFFLINE_DOWNLOAD_CACHE;
           })
           .map(function(key) { return caches.delete(key); })
       );
@@ -118,10 +127,12 @@ self.addEventListener('fetch', function(event) {
   // Sitemap / robots / llms: network only
   if (url.pathname.endsWith('.xml') || url.pathname === '/robots.txt' || url.pathname === '/llms.txt') return;
 
-  // Static assets (hashed filenames from Vite): cache-first
+  /* ملفات البناء: كاش-أول، بس **جوّه كاش النسخة الحالية بس**.
+   * `caches.match` من غير تحديد بيدوّر في كل الكاشات — فملف من بناء قديم
+   * في كاش قديم كان ممكن يترد على بناء جديد ويكسر الصفحة. */
   if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/audio/')) {
     event.respondWith(
-      caches.match(event.request).then(function(cached) {
+      caches.open(STATIC_CACHE).then(function(cache) { return cache.match(event.request); }).then(function(cached) {
         if (cached) return cached;
         return fetch(event.request).then(function(response) {
           if (response.ok) {

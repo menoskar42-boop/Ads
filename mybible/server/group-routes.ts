@@ -9,6 +9,7 @@ import {
 } from "@shared/schema";
 import crypto from "crypto";
 import { canMergeGuest } from './guest-identity';
+import { getOrLoad, invalidate as invalidateGroupCache } from './group-cache';
 
 const pool = dbPool;
 const db = drizzle(dbPool);
@@ -75,6 +76,16 @@ async function migrateMemberName(groupId: number, oldName: string, newName: stri
 export function registerGroupRoutes(app: Express) {
 
   // ── معلومات الدعوة (endpoint عام بدون auth) ──
+  /* أي كتابة على مجموعة بتلغي نسختها المحفوظة فوراً — العضو اللي سجّل
+   * قراءة أو بعت رسالة لازم يشوف نتيجته هو، مش نسخة عمرها ثواني.
+   * مسجّلة **قبل** كل راوتات المجموعات عشان تشوف كل الطلبات. */
+  app.use('/api/groups/:code', (req, _res, next) => {
+    if (req.method !== 'GET' && req.params.code) {
+      invalidateGroupCache(`group:${req.params.code.toUpperCase()}`);
+    }
+    next();
+  });
+
   app.get('/api/groups/:code/invite-info', async (req, res) => {
     try {
       const [group] = await db.select({
@@ -667,10 +678,25 @@ export function registerGroupRoutes(app: Express) {
     }
   });
 
+  /* الرد هنا مالوش علاقة بمين بيطلبه، فالطلبات المتزامنة بتتجمّع على
+   * استعلام واحد وبتتخزّن ثواني. من غير كده، ٧٠٠ عضو بيفتحوا في نفس
+   * الدقيقة = ٢٨٠٠ استعلام على حوض فيه ١٥ اتصال. */
   app.get('/api/groups/:code', async (req, res) => {
     try {
-      const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, req.params.code.toUpperCase()));
-      if (!group) return res.status(404).json({ error: 'المجموعة غير موجودة' });
+      const code = req.params.code.toUpperCase();
+      const payload = await getOrLoad(`group:${code}`, () => loadGroupPayload(code));
+      if (!payload) return res.status(404).json({ error: 'المجموعة غير موجودة' });
+      res.json(payload);
+    } catch (err) {
+      console.error('[groups] get group error:', err);
+      res.status(500).json({ error: 'فشل تحميل المجموعة' });
+    }
+  });
+
+  async function loadGroupPayload(code: string) {
+    {
+      const [group] = await db.select().from(readingGroups).where(eq(readingGroups.groupCode, code));
+      if (!group) return null;
 
       const members = await db.select().from(groupMembers).where(eq(groupMembers.groupId, group.id));
       const today = new Date().toISOString().split('T')[0];
@@ -697,11 +723,18 @@ export function registerGroupRoutes(app: Express) {
 
       const readTodayCount = membersWithStatus.filter((m: any) => m.readToday).length;
 
-      const allLogs = await db.select().from(groupReadingLogs)
-        .where(eq(groupReadingLogs.groupId, group.id));
-      const uniqueChaptersRead = new Set(allLogs.map(l => `${l.book}-${l.chapter}`)).size;
+      /* كان بيسحب **كل** صفوف سجل القراءة للمجموعة من أول يوم ويعدّ في
+       * الذاكرة — لمجموعة فيها ٧٠٠ عضو بتقرا يومياً، ده مئات الآلاف من
+       * الصفوف على كل فتحة صفحة. العدّ في القاعدة بيرجّع صف واحد. */
+      const chaptersReadResult = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM (
+           SELECT DISTINCT book, chapter FROM group_reading_logs WHERE group_id = $1
+         ) t`,
+        [group.id]
+      );
+      const uniqueChaptersRead = chaptersReadResult.rows[0]?.n ?? 0;
 
-      res.json({
+      return {
         group,
         members: membersWithStatus,
         stats: {
@@ -709,12 +742,9 @@ export function registerGroupRoutes(app: Express) {
           readToday: readTodayCount,
           chaptersRead: uniqueChaptersRead,
         },
-      });
-    } catch (err) {
-      console.error('[groups] get error:', err);
-      res.status(500).json({ error: 'فشل تحميل المجموعة' });
+      };
     }
-  });
+  }
 
   app.post('/api/groups/:code/reading', async (req, res) => {
     try {
