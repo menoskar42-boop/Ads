@@ -34,6 +34,45 @@
       </button>
     </form>
 
+    <div class="border-t border-gray-100 pt-5">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <h3 class="font-bold text-gray-800">الشركات التجريبية الموجودة</h3>
+          <p class="text-xs text-gray-500 mt-1">دي الشركات الموجودة حاليًا في قاعدة البيانات التي يعمل عليها الموقع.</p>
+        </div>
+        <a href="/admin/dashboard" class="text-xs text-indigo-600 hover:underline whitespace-nowrap">كل الشركات</a>
+      </div>
+      <% if (!demoCompanies || !demoCompanies.length) { %>
+        <div class="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl px-4 py-3 text-sm">
+          لا توجد شركات تجريبية في قاعدة البيانات الحالية. شغّل التهيئة من الزر أعلاه.
+        </div>
+      <% } else { %>
+        <div class="space-y-2">
+          <% demoCompanies.forEach(function (company) { %>
+            <div class="border border-gray-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-semibold text-gray-700 truncate"><%= company.company_name %></div>
+                <div class="text-xs text-gray-500 mt-1" dir="ltr">
+                  <%= company.slug %> · <%= company.page_type %> · <%= company.users_count %> حساب
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <% if (company.is_active) { %>
+                  <span class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">نشطة</span>
+                <% } else { %>
+                  <span class="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">متوقفة</span>
+                <% } %>
+                <a href="/demo/<%= company.slug %>" target="_blank" rel="noopener"
+                   class="text-xs px-2.5 py-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                  فتح
+                </a>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+
     <% if (results) { %>
       <h3 class="font-bold text-gray-800 mb-3">النتيجة</h3>
       <% results.forEach(function (r) { %>
