@@ -205,6 +205,16 @@ test('Tobit verse without a source section is unavailable, not chapter fallback'
   assert.equal(getVerseTafsir('طوبيا', 4, 1), null);
 });
 
+test('Isaiah chapter 1 extracts embedded verse sections from its chapter body row', () => {
+  const verse1 = getVerseTafsir('إشعياء', 1, 1);
+  const verse2 = getVerseTafsir('إشعياء', 1, 2);
+
+  assert.match(verse1 ?? '', /^رؤيا اشعياء بن أموص/u);
+  assert.doesNotMatch(verse1 ?? '', /آية \(2\)|الإصحاح الأول/u);
+  assert.match(verse2 ?? '', /^اسمعي أيتها السماوات/u);
+  assert.doesNotMatch(verse2 ?? '', /رؤيا اشعياء بن أموص|آية \(3\)|الإصحاح الأول/u);
+});
+
 test('fetches a known missing chapter from the current St-Takla URL', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(
