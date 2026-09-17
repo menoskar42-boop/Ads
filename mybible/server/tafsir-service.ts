@@ -29,6 +29,18 @@ const LIVE_MISSING_CHAPTER_URLS: Record<string, Record<number, string>> = {
   },
 };
 
+/**
+ * الأصحاحات الوحيدة اللي مسموح نروح فيها للشبكة — مشتقّة من نفس الجدول فوق
+ * عشان ما تفرقش عنه. الحارس `check-tafsir-offline` بيقرا منها ويتأكد إن كل
+ * إصحاح فيها **مش موجود عندنا** فعلاً؛ السحب من سانت تكلا آخر حل مش بديل.
+ */
+export const LIVE_MISSING_CHAPTERS: Record<string, number[]> = Object.fromEntries(
+  Object.entries(LIVE_MISSING_CHAPTER_URLS).map(([book, byChapter]) => [
+    book,
+    Object.keys(byChapter).map(Number),
+  ]),
+);
+
 const tafsirCache: Record<string, TafsirEntry[]> = {};
 const cacheOrder: string[] = [];
 const MAX_CACHE_SIZE = 5;
