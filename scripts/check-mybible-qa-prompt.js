@@ -170,10 +170,17 @@ expect('قراءات اليوم', readingKeys.length);
    * `app.use('/api/*', ensureSessionUser)` — ونمط بنجمة زي ده بيطابق **أي**
    * رابط، فكان بيخلّي الفحص ده يعدّي على رابط متهيّأ. فحص مابيقدرش يقع
    * مش فحص. بناخد أفعال HTTP بس، وبنرمي أي نمط فيه نجمة. */
-  const served = new Set([
-    ...[...routes.matchAll(/app\.(?:get|post|put|patch|delete)\(\s*'([^']+)'/g)].map((m) => m[1]),
-    ...[...read('server/index.ts').matchAll(/app\.(?:get|post|put|patch|delete)\(\s*"([^"]+)"/g)].map((m) => m[1]),
-  ].filter((p) => !p.includes('*')));
+  /* كل ملفات السيرفر اللي بتسجّل مسارات — مش routes.ts بس. المجموعات
+   * والكنايس والتحدّيات في ملفات منفصلة، ولو قريت الرئيسي بس هتقول إن
+   * مسار موجود فعلاً مش موجود. */
+  const serverFiles = fs.readdirSync(path.join(MYBIBLE, 'server'))
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
+  const served = new Set(
+    serverFiles.flatMap((f) =>
+      [...read(`server/${f}`).matchAll(/app\.(?:get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]/g)]
+        .map((m) => m[1]),
+    ).filter((p) => !p.includes('*')),
+  );
   const mentioned = new Set(
     [...doc.matchAll(/mybible\.oscardevs\.com(\/(?:api|robots|sitemap|llms)[^\s`)]*)/g)]
       .map((m) => m[1].replace(/[.،]$/, '')),
@@ -214,6 +221,22 @@ expect('قراءات اليوم', readingKeys.length);
           + 'ضيفه في القسم ١ من البرومبت قبل ما تبعته لحد.');
       }
     }
+    /* صفحة المجموعة بتضمّ الزائر **من غير ما يدوس حاجة** لو الدخول
+     * الضيف مفعّل — `useEffect` في GroupView.tsx بينادي `guest-join`
+     * أول ما البيانات توصل. يعني «افتح صفحة المجموعة عشان تشوف» =
+     * إضافة عضو وهمي لمجموعة فيها ناس حقيقيين. طول ما الأوتو-جوين
+     * موجود في الكود، التحذير ده لازم يفضل في الخطوط الحمرا. */
+    const groupView = read('client/src/pages/GroupView.tsx');
+    const autoJoins = /useEffect\([\s\S]{0,600}?guest-join['\"`][\s\S]{0,120}?method:\s*'POST'/.test(groupView);
+    if (autoJoins) {
+      const warns = /\/group\//.test(red) && /تلقائ/.test(red);
+      if (!warns) {
+        fail('صفحة `/group/<كود>` بتضمّ الزائر عضو **تلقائياً** لما الدخول الضيف '
+          + 'مفعّل (GroupView.tsx)، والخطوط الحمرا مافيهاش تحذير من فتحها. '
+          + 'من غير التحذير ده المختبِر هيضيف أعضاء وهميين لمجموعات حقيقية.');
+      } else ok.push('تحذير الأوتو-جوين موجود');
+    }
+
     if (!writers.length) {
       fail('مالقيتش ولا راوت بيكتب في routes.ts — الفحص مش قادر يقيس. '
         + 'يا إما الراوتات اتنقلت يا إما الصيغة اتغيّرت.');
