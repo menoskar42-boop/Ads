@@ -73,8 +73,8 @@ function lockPath(dir = backupDir()) {
   return path.join(dir, '.ads-backup.lock');
 }
 
-function parseDatabaseUrl() {
-  const raw = String(process.env.ADS_DATABASE_URL || '').trim();
+function parseDatabaseUrl(raw = process.env.ADS_DATABASE_URL) {
+  raw = String(raw || '').trim();
   if (!raw) throw new Error('ADS_DATABASE_URL is not set');
 
   const url = new URL(raw);
@@ -338,6 +338,7 @@ module.exports = {
   cairoNow,
   listBackups,
   maybeRunAdsBackup,
+  parseDatabaseUrl,
   runAdsBackup,
   startAdsBackupScheduler,
   verifyBackup,

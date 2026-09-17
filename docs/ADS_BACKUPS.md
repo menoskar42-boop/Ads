@@ -33,6 +33,30 @@ npm run ads:backup:restore-help
 and PostgreSQL can read the custom archive table of contents. It does not
 change the database.
 
+## Migration preflight
+
+Before moving Ads data between PostgreSQL databases, compare the old
+production source with the Supabase target. Set `ADS_MIGRATION_SOURCE_URL` only
+for the migration shell or job; `ADS_DATABASE_URL` remains the target:
+
+```sh
+ADS_MIGRATION_SOURCE_URL="$OLD_PRODUCTION_DATABASE_URL" \
+  npm run ads:backup:compare
+```
+
+The command is read-only. It compares:
+
+- companies by slug, including their type, active state, and numeric ID;
+- signup applications by preferred slug, including approval status and linked
+  company;
+- every public table that has a `company_id`, grouped by company and row count.
+
+It prints a JSON report and exits with status `2` when a source company,
+application, related row, or required table is missing or different in the
+target. Do not continue a migration after a non-zero comparison. The command
+never creates, updates, or deletes records, and it never prints either
+database password.
+
 ## Restore
 
 Restore is deliberately supervised because it replaces live data. Stop the
