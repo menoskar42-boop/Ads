@@ -66,6 +66,25 @@ module.exports = function applySharedPool(pg) {
        * ⚠️ ولسه الأفضل تضبطه على القاعدة نفسها كمان
        * (`ALTER DATABASE … SET timezone`) — ساعتها حتى الاتصالات اللي
        * مابتعدّيش من هنا بتاخده. الاتنين مع بعض حزام وحمّالة. */
+      /* ⚠️ **ده بيطلّع DeprecationWarning على pg 8 وهيقع على pg 9.**
+       *
+       *   Calling client.query() when the client is already executing a
+       *   query is deprecated and will be removed in pg@9.0
+       *
+       * السبب إن `pg-pool` بيطلق `connect` جوّه `_acquireClient` قبل ما
+       * يسلّم العميل للاستعلام المنتظر، فالـ`SET` والاستعلام بيتحطّوا في
+       * طابور العميل مع بعض. الترتيب مضمون النهاردة (الطابور FIFO
+       * فالـ`SET` بتسبق، ومقيس على القاعدة الحيّة: `SHOW timezone` رجّعت
+       * `Africa/Cairo`) — بس التداخل ده هو اللي pg 9 هيشيله.
+       *
+       * 🔴 **لو حد رقّى `pg` للإصدار ٩، لازم يتغيّر المكان ده.** والباج لو
+       * رجع مش هيرمي خطأ — هيرجّع تواريخ غلطانة بساعتين في صمت. الحماية
+       * التانية هي إعداد القاعدة نفسها:
+       *
+       *     ALTER DATABASE postgres SET timezone TO 'Africa/Cairo';
+       *
+       * واتنفّذ فعلاً على Supabase يوم ٢٠٢٦-٠٩-١٧. الاتنين مع بعض معناه
+       * إن سقوط واحد منهم مايسيبش الموقع بتوقيت UTC. */
       pool.on('connect', (client) => {
         client.query("SET TIME ZONE 'Africa/Cairo'").catch((e) => {
           console.error('[pg pool] تعذّر ضبط توقيت القاهرة:', e.message);

@@ -110,4 +110,28 @@ check('و`options` اللي المالك حاططها بتفضل زي ما هي'
 console.log(fail
   ? `\n${fail} مشكلة — يعني التقارير ممكن تبقى غلط ساعتين كل ليلة.`
   : '\nكل اتصال بالقاعدة بتوقيت القاهرة، و«النهاردة» تعني النهاردة.');
+
+/* ── ترقية `pg` ممكن تكسر التوقيت في صمت ──────────────────────────────
+ *
+ * ضبط توقيت القاهرة بيتم في `shared_pool.js` على حدث `connect`، والطريقة
+ * دي بتطلّع تحذير على pg 8:
+ *
+ *   Calling client.query() when the client is already executing a query
+ *   is deprecated and will be removed in pg@9.0
+ *
+ * يعني على pg 9 الـ`SET` مش هتشتغل — **ومش هترمي خطأ**. الموقع هيرجع
+ * لتوقيت UTC وكل التواريخ تزحلق ساعتين من غير ما حاجة تقع. ده بالظبط
+ * الباج اللي الملف ده اتكتب عشانه، وعشان كده الترقية لازم توقف هنا. */
+{
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const pgVersion = String((pkg.dependencies && pkg.dependencies.pg) || '');
+  const major = parseInt(String(pgVersion).replace(/^[^0-9]*/, ''), 10);
+  const stillEight = Number.isInteger(major) && major < 9;
+  check('نسخة `pg` لسه ٨ — لأن ضبط التوقيت بيعتمد على سلوك بيتشال في ٩',
+    stillEight,
+    stillEight ? '' : `package.json فيه pg@${pgVersion}. قبل الترقية، غيّر ضبط `
+      + 'التوقيت في `src/lib/shared_pool.js` لطريقة مدعومة — وإلا التواريخ '
+      + 'هترجع UTC في صمت.');
+}
+
 process.exit(fail ? 1 : 0);
