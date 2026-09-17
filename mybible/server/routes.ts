@@ -318,9 +318,31 @@ export async function registerRoutes(
     }
   });
 
-  // Manual seed endpoint for emotion_verses and topic_verses (no auth required)
+  /* ── بوّابة الراوتات اللي بتكتب في القاعدة ────────────────────────────
+   *
+   * الراوتات اللي تحت (`/api/seed/*` و`/api/fix/*`) **بتكتب وبتمسح**:
+   * `/api/seed/verses?force=true` بيفضّي جدول الآيات ويعيد استيراد الكتاب
+   * كله، و`/api/fix/duplicate-*` بيمسح صفوف. كانت مكتوب جنبها
+   * «no auth required» — يعني أي حد معاه الرابط يقدر يوقّع موقع فيه ٧٠٠
+   * عضو بضغطة GET واحدة، من غير ولا كلمة سر.
+   *
+   * المفتاح `MYBIBLE_SEED_KEY` في الهيدر `x-seed-key` أو `?key=`. ولو
+   * المفتاح **مش متظبّط، الراوتات مقفولة** — مش مفتوحة. الإعداد الناقص
+   * مايفتحش باب.
+   *
+   * `/api/seed/verses/status` مستثنى: بيقرا حالة الاستيراد بس.
+   * الحارس: `node scripts/check-mybible-seed-gate.js` */
+  const seedKeyOk = (req: any) => {
+    const want = process.env.MYBIBLE_SEED_KEY || '';
+    if (!want) return false;
+    const got = String(req.headers['x-seed-key'] || req.query.key || '');
+    return got.length === want.length && require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  };
+
+  // Manual seed endpoint for emotion_verses and topic_verses
   // Use ?force=true to clear and reseed
   app.get('/api/seed/relations', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       const force = req.query.force === 'true';
       const result = await seedRelationsIfNeeded(force);
@@ -340,6 +362,7 @@ export async function registerRoutes(
   // Use ?force=true to clear existing verses and reimport
   // Returns immediately - check /api/seed/verses/status for progress
   app.get('/api/seed/verses', (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     const force = req.query.force === 'true';
     console.log(`[API] Starting background Bible verses reimport... (force=${force})`);
     const result = startBackgroundImport(force);
@@ -349,23 +372,7 @@ export async function registerRoutes(
     });
   });
 
-  /* ── الأسفار القانونية الثانية ─────────────────────────────────────────
-   *
-   * ⚠️ **بمفتاح، مش زي `/api/seed/verses` اللي فوق.**
-   *
-   * الراوت اللي فوقه مكتوب جنبه «no auth required»، يعني أي حد يقدر يشغّل
-   * إعادة استيراد الكتاب كله. ده حمل تقيل على القاعدة بضغطة من أي حد،
-   * وماينفعش أنسخ النمط ده في راوت **بيكتب** نص مقدّس.
-   *
-   * المفتاح `MYBIBLE_SEED_KEY`. ولو مش متظبّط، الراوت **مقفول** — مش
-   * مفتوح. الإعداد الناقص مايفتحش باب. */
-  const seedKeyOk = (req: any) => {
-    const want = process.env.MYBIBLE_SEED_KEY || '';
-    if (!want) return false;
-    const got = String(req.headers['x-seed-key'] || req.query.key || '');
-    return got.length === want.length && require('crypto').timingSafeEqual(Buffer.from(got), Buffer.from(want));
-  };
-
+  /* ── الأسفار القانونية الثانية ─────────────────────────────────────── */
   // تشخيص: إيه الموجود فعلاً في القاعدة. للقراءة، فمفيش مفتاح.
   app.get('/api/deutero/status', async (_req, res) => {
     try { res.json({ status: 'ok', ...(await deuteroStatus()) }); }
@@ -470,7 +477,8 @@ export async function registerRoutes(
   });
 
   // Fix duplicate verses in bible_verses table
-  app.get('/api/fix/duplicate-verses', async (_req, res) => {
+  app.get('/api/fix/duplicate-verses', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Checking for duplicate verses...');
       
@@ -502,7 +510,8 @@ export async function registerRoutes(
   });
 
   // Fix duplicate verses in emotion_verses table
-  app.get('/api/fix/duplicate-emotion-verses', async (_req, res) => {
+  app.get('/api/fix/duplicate-emotion-verses', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Checking for duplicate emotion verses...');
       
@@ -532,7 +541,8 @@ export async function registerRoutes(
   });
 
   // Fix duplicate verses in topic_verses table
-  app.get('/api/fix/duplicate-topic-verses', async (_req, res) => {
+  app.get('/api/fix/duplicate-topic-verses', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Checking for duplicate topic verses...');
       
@@ -562,7 +572,8 @@ export async function registerRoutes(
   });
 
   // Reseed emotions and topics with correct data (for production fix)
-  app.get('/api/seed/emotions', async (_req, res) => {
+  app.get('/api/seed/emotions', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Reseeding emotions and topics...');
       const result = await reseedEmotionsAndTopics();
@@ -577,7 +588,8 @@ export async function registerRoutes(
   });
 
   // Import AI emotion verses from CSV (for AI classification)
-  app.get('/api/seed/ai-emotions', async (_req, res) => {
+  app.get('/api/seed/ai-emotions', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Importing AI emotion verses from CSV...');
       const result = await importAiEmotionVersesFromCsv();
@@ -602,7 +614,8 @@ export async function registerRoutes(
   });
 
   // Import AI emotion examples from CSV (for semantic classification)
-  app.get('/api/seed/ai-examples', async (_req, res) => {
+  app.get('/api/seed/ai-examples', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Importing AI emotion examples from CSV...');
       const result = await importAiEmotionExamplesFromCsv();
@@ -617,7 +630,8 @@ export async function registerRoutes(
   });
 
   // Append 100k AI emotion examples from large CSV (without clearing existing data)
-  app.get('/api/seed/ai-examples-100k', async (_req, res) => {
+  app.get('/api/seed/ai-examples-100k', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Appending 100k AI emotion examples from CSV...');
       res.setHeader('Content-Type', 'application/json');
@@ -633,7 +647,8 @@ export async function registerRoutes(
   });
 
   // Refresh calendar_daily_verses texts from Bible DB
-  app.get('/api/seed/refresh-calendar-texts', async (_req, res) => {
+  app.get('/api/seed/refresh-calendar-texts', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       const result = await refreshCalendarVerseTexts();
       res.json({ status: 'ok', ...result });
@@ -643,7 +658,8 @@ export async function registerRoutes(
   });
 
   // Seed calendar daily verses from CSV
-  app.get('/api/seed/calendar-verses', async (_req, res) => {
+  app.get('/api/seed/calendar-verses', async (req, res) => {
+    if (!seedKeyOk(req)) return res.status(403).json({ status: 'error', message: 'MYBIBLE_SEED_KEY مطلوب' });
     try {
       console.log('[API] Importing calendar daily verses from CSV...');
       const result = await seedCalendarDailyVerses();
