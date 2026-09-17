@@ -4,6 +4,7 @@ node_modules
 
 # Kakeibo receipts and anything else deliberately outside the web root.
 private_uploads/
+backups/ads/
 
 # Safari Kids (mykid) runtime artifacts
 mykid/server/.tts-cache/

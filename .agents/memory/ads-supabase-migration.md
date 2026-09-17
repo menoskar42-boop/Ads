@@ -8,3 +8,9 @@ The Ads database can be reached from Replit through Supabase’s Session Pooler;
 **Why:** The Supabase target runs PostgreSQL 17 and the direct host was not reachable from the Replit environment, while the Session Pooler worked reliably.
 
 **How to apply:** Use PostgreSQL 17 tooling for future dumps/restores, prefer the Session Pooler on port 5432, and keep the Ads connection separate from `MYBIBLE_DATABASE_URL`.
+
+The backup scheduler must start after the application's additive schema migrations finish, not immediately when the HTTP port opens.
+
+**Why:** `pg_dump` can wait behind startup DDL on a fresh process; starting it too early left an active backup lock and no completed archive.
+
+**How to apply:** Keep scheduled backups attached to the end of the startup schema promise and retain a timeout for the dump process.

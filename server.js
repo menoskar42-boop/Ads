@@ -365,6 +365,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // /uploads file, serve it from Object Storage instead. Keeps merchant logos /
 // product images / banners alive across deploys.
 const _objStore = require('./src/lib/object_store');
+const adsBackup = require('./src/lib/ads_backup');
 app.get('/uploads/:file', async (req, res, next) => {
   if (!_objStore.enabled()) return next();
   try {
@@ -1916,7 +1917,12 @@ initDb()
     else if (r.status >= 200 && r.status < 300) console.log(`[IndexNow] اتبعت ${urls.length} عنوان (${r.status})`);
     else if (r.status !== 0) console.warn('[IndexNow] الإرسال فشل:', r.status, r.body);
   })
-  .catch(err => console.error('DB init warning:', err.message));
+  .catch(err => console.error('DB init warning:', err.message))
+  .finally(() => {
+    // Start backups only after additive schema work has finished, so pg_dump
+    // does not compete with startup DDL for locks on the external database.
+    adsBackup.startAdsBackupScheduler();
+  });
 
 setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();
 
