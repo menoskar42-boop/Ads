@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mybible-v2';
-const STATIC_CACHE = 'mybible-static-v2';
+const CACHE_NAME = 'mybible-v3';
+const STATIC_CACHE = 'mybible-static-v3';
 
 // App shell resources to pre-cache on install
 const APP_SHELL = [
