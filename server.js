@@ -1,5 +1,24 @@
 require('dotenv').config();
 
+// Ads can use an external PostgreSQL database without replacing the shared
+// Replit DATABASE_URL used by other hosted applications. MyBible receives its
+// own DATABASE_URL explicitly when it is spawned below.
+if (process.env.ADS_DATABASE_URL?.trim()) {
+  const adsDatabaseUrl = new URL(process.env.ADS_DATABASE_URL.trim());
+  if (adsDatabaseUrl.hostname.endsWith('.pooler.supabase.com')) {
+    if (adsDatabaseUrl.port === '6543') {
+      adsDatabaseUrl.port = '5432';
+    }
+    if (!adsDatabaseUrl.searchParams.has('sslmode')) {
+      adsDatabaseUrl.searchParams.set('sslmode', 'require');
+    }
+    if (!adsDatabaseUrl.searchParams.has('uselibpqcompat')) {
+      adsDatabaseUrl.searchParams.set('uselibpqcompat', 'true');
+    }
+  }
+  process.env.DATABASE_URL = adsDatabaseUrl.toString();
+}
+
 /* Every database connection speaks Cairo time.
  *
  * The host runs UTC. `CURRENT_DATE`, `timestamptz::date` and
@@ -346,6 +365,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // /uploads file, serve it from Object Storage instead. Keeps merchant logos /
 // product images / banners alive across deploys.
 const _objStore = require('./src/lib/object_store');
+const adsBackup = require('./src/lib/ads_backup');
 app.get('/uploads/:file', async (req, res, next) => {
   if (!_objStore.enabled()) return next();
   try {
@@ -1897,7 +1917,12 @@ initDb()
     else if (r.status >= 200 && r.status < 300) console.log(`[IndexNow] اتبعت ${urls.length} عنوان (${r.status})`);
     else if (r.status !== 0) console.warn('[IndexNow] الإرسال فشل:', r.status, r.body);
   })
-  .catch(err => console.error('DB init warning:', err.message));
+  .catch(err => console.error('DB init warning:', err.message))
+  .finally(() => {
+    // Start backups only after additive schema work has finished, so pg_dump
+    // does not compete with startup DDL for locks on the external database.
+    adsBackup.startAdsBackupScheduler();
+  });
 
 setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();
 

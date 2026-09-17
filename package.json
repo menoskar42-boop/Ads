@@ -9,6 +9,10 @@
     "db:schema": "node src/db/schema.js",
     "db:seed": "node src/db/seed.js",
     "db:seed:crm": "node src/db/seed_crm.js",
+    "ads:backup": "node scripts/ads-backup.js backup",
+    "ads:backup:list": "node scripts/ads-backup.js list",
+    "ads:backup:verify": "node scripts/ads-backup.js verify",
+    "ads:backup:restore-help": "node scripts/ads-backup.js restore-help",
     "build:css": "tailwindcss -c tailwind.config.js -i src/styles/tailwind.css -o public/css/tw.css --minify",
     "deals:sync:amazon": "node scripts/sync-deals-amazon.js",
     "deals:seed:amazon": "node scripts/seed-deals-amazon.js"
