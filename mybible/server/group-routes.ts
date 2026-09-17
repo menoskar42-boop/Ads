@@ -8,6 +8,7 @@ import {
   groupAssignments, assignmentReadings, groupJoinRequests, groupGuestTokens,
 } from "@shared/schema";
 import crypto from "crypto";
+import { canMergeGuest } from './guest-identity';
 
 const pool = dbPool;
 const db = drizzle(dbPool);
@@ -311,6 +312,17 @@ export function registerGroupRoutes(app: Express) {
       const existingReal = nameConflict.find(m => m.memberKey !== memberKey);
 
       if (existingReal) {
+        /* ⛔ الاسم لوحده **مش إثبات هوية**. الأسامي معروضة لأي حد معاه
+         * لينك المجموعة، والدمج بيسلّم `memberKey` بتاع العضو القديم —
+         * وهو نفسه صلاحية الأدمن في `isAdminByLeaderKey`. فقبل كده كان
+         * أي حد يكتب اسم القائد ويطلع أدمن. دلوقتي لازم التليفون يطابق
+         * المسجّل، ولو مفيش تليفون مسجّل الدمج بيترفض ويتحوّل للقائد.
+         * المنطق في `guest-identity.ts` والحارس `check-guest-merge-phone`. */
+        const decision = canMergeGuest(existingReal, normalizedRegPhone);
+        if (!decision.ok) {
+          return res.status(403).json({ error: decision.message, reason: decision.reason });
+        }
+
         // العضو الحقيقي موجود — انقل قراءات الضيف (عضو X) لاسمه الحقيقي أولاً
         // حتى لا يفقد الإصحاحات التي قرأها أثناء ظهوره كضيف
         if (oldName && oldName !== existingReal.userName) {
@@ -355,13 +367,6 @@ export function registerGroupRoutes(app: Express) {
           .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.memberKey, memberKey)));
         await db.delete(groupGuestTokens)
           .where(and(eq(groupGuestTokens.groupCode, code), eq(groupGuestTokens.memberKey, memberKey)));
-
-        // حدّث تليفون العضو الأصلي لو لم يكن مسجلاً
-        if (normalizedRegPhone && !existingReal.phone) {
-          await db.update(groupMembers)
-            .set({ phone: normalizedRegPhone })
-            .where(eq(groupMembers.id, existingReal.id));
-        }
 
         return res.json({
           success: true,
