@@ -1711,7 +1711,18 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 // and session secret (passed explicitly so they don't collide with OscarDevs').
 // The host gateway then proxies mybible.oscardevs.com to it. INERT otherwise, so
 // the deploy's Run command can stay `node server.js` — no separate launcher.
-if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
+const {
+  assertMyBibleCutoverSecrets,
+  isMyBibleMaintenanceMode,
+  resolveMyBibleDatabaseUrl,
+} = require('./src/lib/mybible_database');
+const mybibleMaintenanceMode = isMyBibleMaintenanceMode();
+if (process.env.MYBIBLE_UPSTREAM && !mybibleMaintenanceMode) {
+  assertMyBibleCutoverSecrets();
+}
+const mybibleDatabaseUrl = resolveMyBibleDatabaseUrl();
+
+if (process.env.MYBIBLE_UPSTREAM && mybibleDatabaseUrl && !mybibleMaintenanceMode) {
   const mybibleDist = path.join(__dirname, 'mybible', 'dist', 'index.cjs');
   if (fs.existsSync(mybibleDist)) {
     const mbPort = process.env.MYBIBLE_PORT || '5001';
@@ -1727,7 +1738,7 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
       NODE_ENV: 'production',
       PORT: mbPort,
       // mybible MUST use its own DB + secret (keeps the members logged in):
-      DATABASE_URL: process.env.MYBIBLE_DATABASE_URL,
+      DATABASE_URL: mybibleDatabaseUrl,
       SESSION_SECRET: process.env.MYBIBLE_SESSION_SECRET || process.env.SESSION_SECRET,
       // mybible MUST use its OWN VAPID keys so the members' existing push
       // subscriptions keep working. We deliberately do NOT fall back to
@@ -1801,6 +1812,8 @@ if (process.env.MYBIBLE_UPSTREAM && process.env.MYBIBLE_DATABASE_URL) {
   } else {
     console.warn('[co-host] MYBIBLE_UPSTREAM set but mybible/dist/index.cjs missing — build mybible first');
   }
+} else if (process.env.MYBIBLE_UPSTREAM && mybibleMaintenanceMode) {
+  console.warn('[co-host] MyBible maintenance mode enabled — child process not started');
 }
 
 // ===== Co-hosted Deals affiliate app: auto-launch on the same VM =====
