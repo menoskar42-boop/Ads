@@ -24,15 +24,14 @@
  */
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq, and, inArray } from 'drizzle-orm';
-import pg from 'pg';
+import { dbPool } from './db-pool';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TextDecoder } from 'node:util';
 import * as schema from '../shared/schema';
 
-const { Pool } = pg;
 function getDb() {
-  return drizzle(new Pool({ connectionString: process.env.DATABASE_URL }), { schema });
+  return drizzle(dbPool, { schema });
 }
 
 /**

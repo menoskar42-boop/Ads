@@ -28,7 +28,13 @@ self.addEventListener('activate', function(event) {
     caches.keys().then(function(keys) {
       return Promise.all(
         keys
-          .filter(function(key) { return key !== CACHE_NAME && key !== STATIC_CACHE; })
+          // Keep mybible-static-v1: it is the user's explicit full offline
+          // Bible download. Only retire generated shell/runtime versions.
+          .filter(function(key) {
+            return key !== CACHE_NAME
+              && key !== STATIC_CACHE
+              && /^mybible(?:-static)?-v(?:[2-9]|\d{2,})$/.test(key);
+          })
           .map(function(key) { return caches.delete(key); })
       );
     }).then(function() { return self.clients.claim(); })

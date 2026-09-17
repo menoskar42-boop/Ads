@@ -21,7 +21,9 @@ async function recoverClientShell(force = false) {
       const names = await caches.keys();
       await Promise.all(
         names
-          .filter((name) => name.startsWith("mybible-"))
+          // mybible-static-v1 is the user's explicit full offline Bible
+          // download. Only clear generated app-shell/runtime caches.
+          .filter((name) => /^mybible(?:-static)?-v(?:[2-9]|\d{2,})$/.test(name))
           .map((name) => caches.delete(name)),
       );
     }

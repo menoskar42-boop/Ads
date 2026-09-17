@@ -1,11 +1,9 @@
 // كاش عام لردود Groq — مشترك بين كل المستخدمين لأن الناتج يعتمد على المدخل فقط.
 // دائم (بدون TTL) لأن المحتوى ثابت. أي فشل في الكاش يجب ألا يكسر الـendpoint.
-import pg from "pg";
 import crypto from "crypto";
+import { dbPool } from "./db-pool";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-// Swallow idle-client errors (Neon auto-suspend) so they don't crash the process.
-pool.on('error', (err) => console.error('[pg] ai-cache idle client error (recovered):', err.message));
+const pool = dbPool;
 
 // تطبيع المدخل العربي: حروف صغيرة + إزالة التشكيل/التطويل + توحيد الألف/الياء/
 // التاء المربوطة + إزالة الترقيم + دمج المسافات.

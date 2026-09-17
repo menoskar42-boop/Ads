@@ -1,19 +1,14 @@
 import { storage } from './storage';
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
-import pg from "pg";
+import { dbPool } from "./db-pool";
 import * as schema from '../shared/schema';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DAILY_VERSES_366 } from './daily-verses-data';
 
-const { Pool } = pg;
-
 function getDb() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-  return drizzle(pool, { schema });
+  return drizzle(dbPool, { schema });
 }
 
 interface GetBibleVerse {
