@@ -1,19 +1,34 @@
 <%- include('head') %>
 <h1 class="font-black text-xl mb-4"><%= t('wsh.set.title') %></h1>
 <% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4"><%= t('wsh.set.saved') %></div><% } %>
+<% if (restored) { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تمت استعادة عنوان البريد السابق وتسجيل العملية.</div><% } %>
 <% if (settingsError === 'secret_unavailable' || settingsError === 'payment_secret_unavailable') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">لا يمكن حفظ بيانات الاعتماد الآن لأن مفتاح التشفير غير مفعّل على الخادم.</div><% } %>
 <% if (settingsError === 'message_save' || settingsError === 'payment_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ الإعدادات. راجع البيانات وحاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'invite_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا صحيحًا واختر دورًا صالحًا.</div><% } %>
 <% if (settingsError === 'invite_existing') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">هذا البريد مرتبط بحساب موجود بالفعل.</div><% } %>
 <% if (settingsError === 'invite_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر إنشاء الدعوة الآن. حاول مرة أخرى.</div><% } %>
 <% if (settingsError === 'role_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ تغيير الدور.</div><% } %>
-<% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة.</div><% } %>
+<% if (settingsError === 'settings_save') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر حفظ إعدادات الورشة وسجل التغيير.</div><% } %>
+<% if (settingsError === 'alert_email_restore_invalid') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">عنوان البريد السابق غير صالح أو لم يعد متاحًا للاستعادة.</div><% } %>
+<% if (settingsError === 'alert_email_restore') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر استعادة عنوان البريد. لم تُحفظ الاستعادة.</div><% } %>
+<% if (settingsError === 'admin_email_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">اكتب بريدًا إداريًا صحيحًا أو اترك الحقل فارغًا لاستخدام العنوان العام.</div><% } %>
+<% if (settingsError === 'reminder_invalid') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">مهلة التذكير غير صحيحة. الأيام من 0 إلى 60، والكيلومترات من 0 إلى 10000، ويجب أن تكون أرقامًا صحيحة، مع تفعيل واحد من الحدين على الأقل.</div><% } %>
+<% if (testEmailStatus === 'sent') { %><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تم إرسال رسالة اختبار عامة إلى قناة بريد تنبيهات الإدارة.</div><% } %>
+<% if (testEmailStatus === 'unavailable') { %><div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">تعذر الاختبار لأن إعدادات البريد غير مهيأة على الخادم.</div><% } %>
+<% if (testEmailStatus === 'error') { %><div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl px-4 py-2.5 text-sm font-bold mb-4">فشل إرسال رسالة الاختبار. راجع إعدادات البريد وحاول مرة أخرى.</div><% } %>
 <% if (typeof reminderHealth !== 'undefined' && reminderHealth && reminderHealth.state === 'alerted') { %>
   <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">
     <div class="font-black">تنبيه: عامل تذكيرات الصيانة متوقف أو لم يسجل تشغيلًا ناجحًا مؤخرًا.</div>
     <div class="text-xs mt-1">آخر تشغيل ناجح:
       <%= reminderHealth.last_success_at ? new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : 'لا يوجد سجل بعد' %>
-      · حالة التنبيه: <%= reminderHealth.last_alert_status === 'sent' ? 'تم إرسال إشعار' : reminderHealth.last_alert_status === 'push_disabled' ? 'الإشعار الفوري غير مفعّل' : reminderHealth.last_alert_status === 'push_error' ? 'تعذر إرسال الإشعار الفوري' : 'جارٍ تسجيل التنبيه' %>
+      · القناة: <%= reminderHealth.last_alert_channel === 'email' ? 'بريد الإدارة' : reminderHealth.last_alert_channel === 'push' ? 'إشعار المتصفح' : '—' %>
+      · النتيجة: <%= reminderHealth.last_alert_status === 'sent'
+        ? (reminderHealth.last_alert_channel === 'email' ? 'تم إرسال البريد الاحتياطي' : 'تم إرسال الإشعار')
+        : reminderHealth.last_alert_status === 'unavailable' ? 'قناة البريد غير مهيأة'
+          : reminderHealth.last_alert_status === 'error' ? 'تعذر إرسال التنبيه'
+            : reminderHealth.last_alert_status === 'push_disabled' ? 'الإشعار الفوري غير مفعّل'
+              : reminderHealth.last_alert_status === 'push_error' ? 'تعذر إرسال الإشعار الفوري'
+                : 'جارٍ تسجيل التنبيه' %>
     </div>
   </div>
 <% } %>
@@ -68,6 +83,32 @@
     </div>
   </section>
   <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
+    <h2 class="font-black mb-1">سجل بريد تنبيهات الإدارة</h2>
+    <p class="text-xs text-slate-500 mb-3">يعرض تغييرات عنوان تنبيهات تعطل التذكيرات ومن نفذها. لا يتضمن رسائل العملاء.</p>
+    <% if (!alertEmailHistory || !alertEmailHistory.length) { %>
+      <p class="text-sm text-slate-400">لا توجد تغييرات مسجلة بعد.</p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% alertEmailHistory.forEach(function(change){ %>
+          <div class="py-3 flex items-center justify-between gap-3 flex-wrap text-sm">
+            <div>
+              <span class="font-bold"><%= change.change_type === 'added' ? 'إضافة' : change.change_type === 'removed' ? 'إزالة' : 'تغيير' %></span>
+              <span class="text-slate-500" dir="ltr"><%= change.previous_email || '—' %> ← <%= change.new_email || '—' %></span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="text-xs text-slate-500"><span dir="ltr"><%= change.changed_by %></span> · <%= new Date(change.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+              <% if (change.previous_email) { %>
+                <form method="post" action="/workshop/settings/alert-email-history/<%= change.id %>/restore" onsubmit="return confirm('استعادة عنوان البريد السابق؟')">
+                  <button type="submit" class="border border-brand-200 text-brand-700 rounded-lg px-2.5 py-1.5 text-xs font-bold">استعادة العنوان السابق</button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5">
     <h2 class="font-black mb-1">سجل تغييرات الأدوار</h2>
     <p class="text-xs text-slate-500 mb-3">سجل لا يمكن تعديله من واجهة الورشة، يوضح من غيّر دور كل حساب ومتى.</p>
     <% if (!roleHistory || !roleHistory.length) { %>
@@ -90,7 +131,12 @@
     <h2 class="font-black mb-1">تشغيل تذكيرات الصيانة</h2>
     <p class="text-xs text-slate-500 mb-3">ملخص آخر عمليات العامل لهذه الورشة، مع فصل الرسائل التي تم تجهيزها عن التي تجاوزها عامل آخر أو فشلت.</p>
     <% if (reminderHealth && reminderHealth.state === 'healthy' && reminderHealth.last_success_at) { %>
-      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></p>
+      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %>
+        <% if (reminderHealth.recovery_alert_status) { %>
+          · تنبيه الاستعادة: <%= reminderHealth.recovery_alert_channel === 'email' ? 'بريد الإدارة' : reminderHealth.recovery_alert_channel === 'push' ? 'إشعار المتصفح' : '—' %>
+          (<%= reminderHealth.recovery_alert_status === 'sent' ? 'تم الإرسال' : reminderHealth.recovery_alert_status === 'unavailable' ? 'القناة غير مهيأة' : 'تعذر الإرسال' %>)
+        <% } %>
+      </p>
     <% } %>
     <% if (!reminderRuns || !reminderRuns.length) { %>
       <p class="text-sm text-slate-400">لم يعمل عامل التذكيرات لهذه الورشة بعد.</p>
@@ -123,6 +169,9 @@
       <input name="phone" dir="ltr" value="<%= settings.phone || '' %>" placeholder="<%= t('wsh.cust.phone') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="whatsapp" dir="ltr" value="<%= settings.whatsapp || '' %>" placeholder="WhatsApp" class="border border-slate-200 rounded-xl px-3 py-2" />
       <input name="hours" value="<%= settings.hours || '' %>" placeholder="<%= t('wsh.set.hours') %>" class="border border-slate-200 rounded-xl px-3 py-2" />
+      <label class="block sm:col-span-2"><span class="text-xs font-bold text-slate-500">بريد تنبيهات الإدارة</span>
+        <input name="admin_alert_email" type="email" maxlength="200" autocomplete="email" dir="ltr" value="<%= settings.admin_alert_email || '' %>" placeholder="استخدم بريدًا خاصًا بهذه الورشة أو اتركه فارغًا" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
+        <span class="block text-[11px] text-slate-500 mt-1">يستقبل تنبيهات تعطل تذكيرات الصيانة فقط. عند تركه فارغًا يستخدم الخادم عنوان الإدارة العام.</span></label>
       <input name="address" value="<%= settings.address || '' %>" placeholder="<%= t('wsh.exp.category') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2" />
       <textarea name="about" rows="3" placeholder="<%= t('wsh.set.about') %>" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2"><%= settings.about || '' %></textarea>
 
@@ -149,7 +198,10 @@
         <input name="reminder_lead_km" type="number" min="0" max="10000" dir="ltr" value="<%= settings.reminder_lead_km == null ? 500 : Number(settings.reminder_lead_km) %>" class="w-full border border-slate-200 rounded-xl px-3 py-2 mt-1" />
         <span class="block text-[11px] text-slate-500 mt-1">0 = عند بلوغ الحد فقط، والافتراضي 500 كم.</span></label>
     </div>
-    <button class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5 mt-4"><%= t('wsh.common.save') %></button>
+    <div class="flex gap-2 flex-wrap mt-4">
+      <button type="submit" class="bg-brand-600 text-white font-bold rounded-xl px-6 py-2.5"><%= t('wsh.common.save') %></button>
+      <button type="submit" formaction="/workshop/settings/reminder-email-test" formmethod="post" class="border border-brand-200 text-brand-700 font-bold rounded-xl px-6 py-2.5">إرسال رسالة اختبار للبريد</button>
+    </div>
   </section>
 </form>
 

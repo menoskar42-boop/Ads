@@ -18,6 +18,7 @@ const {
   DELIVERY_STATUS_ORDER,
 } = require('../lib/workshop_messaging');
 const { loadPaySettings, gatewayReady } = require('../lib/gateways');
+const audit = require('../lib/audit');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
 const {
@@ -35,6 +36,11 @@ const {
   workshopCan,
 } = require('../workshop/operations');
 const { checkWorkshopReminderHealth } = require('../workshop/reminder_health');
+const {
+  sendWorkshopReminderHealthTest,
+  sendWorkshopSecurityAccessAlert,
+  sendWorkshopMessageFailureAlert,
+} = require('../lib/mailer');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -44,6 +50,48 @@ const int = (v, d = null) => { const n = parseInt(v, 10); return Number.isFinite
 const text = (v, max = 200) => { const s = String(v == null ? '' : v).trim().slice(0, max); return s || null; };
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const phoneDigits = (v) => String(v || '').replace(/[^\d]/g, '').slice(0, 20);
+const emailAddress = (v) => {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return s && s.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : null;
+};
+const alertEmailChange = (previousEmail, nextEmail) => {
+  const previous = emailAddress(previousEmail);
+  const next = emailAddress(nextEmail);
+  if (previous === next) return null;
+  return {
+    previousEmail: previous,
+    newEmail: next,
+    changeType: !previous ? 'added' : !next ? 'removed' : 'changed',
+  };
+};
+async function loadAlertEmailHistory(db, companyId) {
+  const result = await db.query(
+    `SELECT id, changed_by, previous_email, new_email, change_type, created_at
+       FROM workshop_alert_email_history
+      WHERE company_id=$1
+      ORDER BY created_at DESC, id DESC LIMIT 100`,
+    [companyId]
+  );
+  return result.rows;
+}
+function hasAlertEmailCompanyScopeMismatch(req) {
+  const requested = [req && req.query && req.query.company_id, req && req.body && req.body.company_id]
+    .map((value) => int(value))
+    .filter((value) => value != null);
+  return Boolean(req && req.company && requested.some((value) => value !== Number(req.company.id)));
+}
+function isAlertEmailSecurityRoute(req) {
+  const path = String((req && req.path) || '');
+  return path === '/settings' || path.startsWith('/settings/alert-email-history');
+}
+function logAlertEmailAccessDenied(req, reason, companyScopeMismatch = false) {
+  if (!isAlertEmailSecurityRoute(req)) return;
+  audit.logSecurity(pool, req, {
+    reason,
+    companyScopeMismatch,
+    notify: (event) => sendWorkshopSecurityAccessAlert(event),
+  });
+}
 const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const DEFAULT_REMINDER_LEAD_DAYS = 7;
 const DEFAULT_REMINDER_LEAD_KM = 500;
@@ -173,7 +221,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
   const mapped = deliveryFromProvider(provider, providerStatus);
   if (!mapped || !providerMessageId) return { updated: false, reason: 'ignored' };
   const current = (await pool.query(
-    `SELECT id, job_id, channel, status, provider_status, attempt_count
+    `SELECT id, job_id, channel, provider, status, provider_status, attempt_count
        FROM workshop_messages
       WHERE company_id=$1 AND provider_message_id=$2
       ORDER BY id DESC LIMIT 1`,
@@ -182,6 +230,9 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
   if (!current) return { updated: false, reason: 'unknown_message' };
   if (provider === 'meta' && current.channel !== 'whatsapp') {
     return { updated: false, reason: 'channel_mismatch' };
+  }
+  if (current.provider && current.provider !== provider) {
+    return { updated: false, reason: 'provider_mismatch' };
   }
 
   const currentRank = DELIVERY_STATUS_ORDER[current.status] == null
@@ -196,6 +247,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
     `UPDATE workshop_messages
         SET provider_status=$1,
             status=$2,
+            provider=COALESCE(provider,$7),
             error=CASE WHEN $2='failed' THEN $3 ELSE NULL END,
             delivered_at=CASE WHEN $2='delivered' THEN COALESCE(delivered_at, now()) ELSE delivered_at END,
             failed_at=CASE WHEN $2='failed' THEN COALESCE(failed_at, now()) ELSE failed_at END,
@@ -215,7 +267,7 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
           ELSE 2
         END <= $6
       RETURNING id, job_id, status`,
-    [mapped.providerStatus, nextStatus, failure, current.id, companyId, incomingRank]
+    [mapped.providerStatus, nextStatus, failure, current.id, companyId, incomingRank, provider]
   )).rows[0];
   if (!changed) return { updated: false, reason: 'stale' };
   if (changed && changed.status !== current.status) {
@@ -226,6 +278,9 @@ async function updateWorkshopDelivery(companyId, providerMessageId, provider, pr
           : 'حدّث المزود حالة رسالة العميل',
       `${provider}: ${mapped.providerStatus}`
     );
+  }
+  if (changed && changed.status === 'failed' && Number(current.attempt_count) >= 5) {
+    await notifyFinalMessageFailure(companyId, current.id);
   }
   return { updated: Boolean(changed), status: nextStatus };
 }
@@ -316,22 +371,68 @@ async function deliverWorkshopMessage(companyId, messageId, force = false) {
 
   const config = await loadWorkshopMessagingConfig(companyId);
   if (config) config.statusCallbackUrl = workshopWebhookUrl(companyId, 'twilio');
+  const provider = config
+    ? (claimed.channel === 'sms' ? config.smsProvider : config.whatsappProvider)
+    : null;
   const result = await sendWorkshopMessage(config, claimed.channel, claimed.recipient, claimed.body);
   const nextRetry = result.ok || Number(claimed.attempt_count) >= 5
     ? null : new Date(Date.now() + 5 * 60 * 1000);
   await pool.query(
     `UPDATE workshop_messages
         SET status=$1, sent_at=CASE WHEN $1='sent' THEN now() ELSE NULL END,
-            provider_message_id=$2, provider_status=$3, error=$4, next_retry_at=$5
-      WHERE id=$6 AND company_id=$7`,
+            provider_message_id=$2, provider=$3, provider_status=$4, error=$5, next_retry_at=$6
+            ,failed_at=CASE WHEN $1='failed' THEN COALESCE(failed_at, now()) ELSE failed_at END
+            ,delivery_updated_at=now()
+      WHERE id=$7 AND company_id=$8`,
     [result.ok ? 'sent' : 'failed', result.providerMessageId || null,
-      result.providerStatus || null, result.ok ? null : result.error, nextRetry, messageId, companyId]
+      provider, result.providerStatus || null, result.ok ? null : result.error, nextRetry, messageId, companyId]
   );
+  if (!result.ok && Number(claimed.attempt_count) >= 5) {
+    await notifyFinalMessageFailure(companyId, messageId);
+  }
   if (result.ok) {
     await logActivity(pool, companyId, claimed.job_id,
       `تم إرسال رسالة ${claimed.channel === 'sms' ? 'SMS' : 'WhatsApp'} للعميل`);
   }
   return result;
+}
+
+async function notifyFinalMessageFailure(companyId, messageId) {
+  const claimed = (await pool.query(
+    `UPDATE workshop_messages
+        SET final_failure_alert_at=now(), final_failure_alert_status='pending'
+      WHERE id=$1 AND company_id=$2 AND status='failed'
+        AND COALESCE(attempt_count,0) >= 5
+        AND final_failure_alert_at IS NULL
+      RETURNING id, channel, attempt_count, event_key`,
+    [messageId, companyId]
+  )).rows[0];
+  if (!claimed) return null;
+  const settings = (await pool.query(
+    'SELECT admin_alert_email FROM workshop_settings WHERE company_id=$1',
+    [companyId]
+  )).rows[0] || {};
+  let alert;
+  try {
+    alert = await sendWorkshopMessageFailureAlert({
+      companyId,
+      adminEmail: settings.admin_alert_email,
+      messageId: claimed.id,
+      channel: claimed.channel,
+      attemptCount: claimed.attempt_count,
+      eventKey: claimed.event_key,
+    });
+  } catch (err) {
+    console.error('[workshop final message failure alert]', err.message);
+    alert = { channel: 'email', status: 'error' };
+  }
+  await pool.query(
+    `UPDATE workshop_messages
+        SET final_failure_alert_channel=$1, final_failure_alert_status=$2
+      WHERE id=$3 AND company_id=$4 AND final_failure_alert_status='pending'`,
+    [alert.channel || 'email', alert.status || 'error', claimed.id, companyId]
+  );
+  return alert;
 }
 
 function serviceReminderBody(reminder) {
@@ -509,38 +610,83 @@ async function queueServiceReminderMessages({
   return queued;
 }
 
-// Failed deliveries are retried without needing an admin to keep the page
-// open. The manual button remains available for an immediate retry.
-const workshopRetryTimer = setInterval(async () => {
-  try {
-    const rows = (await pool.query(
-      `SELECT id, company_id
-         FROM workshop_messages
-        WHERE status='failed' AND next_retry_at IS NOT NULL
-          AND next_retry_at <= now() AND attempt_count < 5
-        ORDER BY next_retry_at LIMIT 25`
-    )).rows;
-    for (const row of rows) await deliverWorkshopMessage(row.company_id, row.id);
-  } catch (e) {
-    console.error('[workshop message retry]', e.message);
-  }
-}, 60 * 1000);
-if (workshopRetryTimer.unref) workshopRetryTimer.unref();
+/* ── جدولة الورشة: نداء واحد كل ساعتين، وبس لو فيه ورشة فعلاً ─────────
+ *
+ * ── ليه ──────────────────────────────────────────────────────────────
+ *
+ * كانت تلات تايمرات منفصلة: إعادة الإرسال **كل ٦٠ ثانية**، وطابور
+ * التذكيرات كل ٥ دقايق، وفحص الصحة كل ١٠ دقايق. يعني **١٨٧٢ استعلام في
+ * اليوم** على جداول الورشة.
+ *
+ * وقاعدة البيانات عندنا بتتحاسب **بساعات التشغيل** مش بحجم البيانات:
+ * فاتورة ٢٠٢٦-٠٩ كانت $15.05 منها $15.03 ساعات تشغيل و**سنتين بس**
+ * تخزين (البيانات كلها ٦٠ ميجا). واستعلام كل دقيقة معناه إن القاعدة
+ * **مستحيل تنام** — فبندفع على ساعة صاحية عشان نسأل جدول فاضي.
+ *
+ * ── والجدول فاضي فعلاً ───────────────────────────────────────────────
+ *
+ * لسه مفيش ولا ورشة مشتركة وقت كتابة ده. فالنداء بيتأكد الأول إن فيه
+ * شركة `page_type='workshop'` — ولو مفيش، بيرجع من غير ما يلمس جداول
+ * الورشة خالص.
+ *
+ * ── وبيرجع لوحده ─────────────────────────────────────────────────────
+ *
+ * **مافيش حاجة محتاجة تتفتكر.** أول ورشة تشترك، البوابة بتفتح لوحدها في
+ * النداء الجاي. ولو احتجنا دقة أعلى ساعتها (إعادة إرسال أسرع مثلاً)،
+ * نقلّل `WORKSHOP_TICK_MS` وقتها — بس ساعتها هيبقى فيه عميل بيدفع مقابل
+ * الساعات دي.
+ *
+ * ⚠️ **ومتزوّدش التردد من غير سبب.** `scripts/check-db-timers.js` بيمنع
+ * أي تايمر بيلمس القاعدة بتردد أعلى من الحد.
+ */
+const WORKSHOP_TICK_MS = 2 * 60 * 60 * 1000;   // ساعتين
 
-const workshopReminderTimer = setInterval(async () => {
-  try { await queueServiceReminderMessages(); }
-  catch (e) { console.error('[workshop reminder scheduler]', e.message); }
-}, 5 * 60 * 1000);
-if (workshopReminderTimer.unref) workshopReminderTimer.unref();
+/** فيه ورشة مشتركة أصلاً؟ استعلام واحد رخيص على فهرس. */
+async function anyWorkshopTenant() {
+  try {
+    const r = await pool.query(
+      "SELECT 1 FROM companies WHERE page_type='workshop' LIMIT 1");
+    return r.rowCount > 0;
+  } catch (e) {
+    /* القاعدة مش رادّة: منكملش على جداول الورشة — بس منسكتش كمان. */
+    console.error('[workshop tick] gate', e.message);
+    return false;
+  }
+}
+
+async function retryFailedWorkshopMessages() {
+  const rows = (await pool.query(
+    `SELECT id, company_id
+       FROM workshop_messages
+      WHERE status='failed' AND next_retry_at IS NOT NULL
+        AND next_retry_at <= now() AND attempt_count < 5
+      ORDER BY next_retry_at LIMIT 25`
+  )).rows;
+  for (const row of rows) await deliverWorkshopMessage(row.company_id, row.id);
+}
+
+async function workshopTick() {
+  if (!await anyWorkshopTenant()) return;
+  for (const [label, task] of [
+    ['retry', retryFailedWorkshopMessages],
+    ['reminders', queueServiceReminderMessages],
+    ['health', checkWorkshopReminderHealth],
+  ]) {
+    /* كل مهمة لوحدها: واحدة تقع ماتمنعش اللي بعدها. */
+    try { await task(); }
+    catch (e) { console.error(`[workshop tick] ${label}`, e.message); }
+  }
+}
+
+const workshopTimer = setInterval(() => {
+  workshopTick().catch((e) => console.error('[workshop tick]', e.message));
+}, WORKSHOP_TICK_MS);
+if (workshopTimer.unref) workshopTimer.unref();
+
+/* نداء أول بعد دقيقة من الإقلاع — بيدّي إشارة مبكرة لو حاجة بايظة، من
+ * غير ما يزاحم بقية التهيئة. */
 setTimeout(() => {
-  queueServiceReminderMessages().catch((e) => console.error('[workshop reminder startup]', e.message));
-}, 15 * 1000).unref();
-const workshopReminderHealthTimer = setInterval(() => {
-  checkWorkshopReminderHealth().catch((e) => console.error('[workshop reminder health]', e.message));
-}, 10 * 60 * 1000);
-if (workshopReminderHealthTimer.unref) workshopReminderHealthTimer.unref();
-setTimeout(() => {
-  checkWorkshopReminderHealth().catch((e) => console.error('[workshop reminder health startup]', e.message));
+  workshopTick().catch((e) => console.error('[workshop tick startup]', e.message));
 }, 60 * 1000).unref();
 
 async function loadWorkshopInvoiceRows(companyId, options = {}) {
@@ -689,6 +835,7 @@ function requireWorkshopPermission(permission) {
   return (req, res, next) => {
     if (req.session && req.session.demoReadOnly && req.method === 'GET') return next();
     if (req.canWorkshop && req.canWorkshop(permission)) return next();
+    logAlertEmailAccessDenied(req, 'permission_denied', hasAlertEmailCompanyScopeMismatch(req));
     return res.status(403).send(
       res.locals.t ? res.locals.t('wsh.err.role') : 'هذه العملية غير متاحة حسب دورك في الورشة.'
     );
@@ -927,7 +1074,13 @@ router.post('/appointments/:id/convert', requireFlag('appointments'), requireWor
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 router.get('/settings', requireWorkshopPermission('view_settings'), async (req, res) => {
-  const [messageRow, paymentRow, users, roleHistory, reminderRuns, reminderHealth] = await Promise.all([
+  const companyScopeMismatch = hasAlertEmailCompanyScopeMismatch(req);
+  if (req.session && req.session.demoReadOnly) {
+    logAlertEmailAccessDenied(req, 'demo_read_only', companyScopeMismatch);
+  } else if (companyScopeMismatch) {
+    logAlertEmailAccessDenied(req, 'company_scope_mismatch', true);
+  }
+  const [messageRow, paymentRow, users, roleHistory, alertEmailHistory, reminderRuns, reminderHealth] = await Promise.all([
     pool.query('SELECT * FROM workshop_message_settings WHERE company_id=$1', [req.company.id]),
     loadPaySettings(pool, req.company.id),
     pool.query(
@@ -942,6 +1095,7 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
         ORDER BY h.created_at DESC, h.id DESC LIMIT 100`,
       [req.company.id]
     ),
+    loadAlertEmailHistory(pool, req.company.id),
     pool.query(
       `SELECT id, started_at, finished_at, candidate_count, queued_count, skipped_count, failed_count, error
          FROM workshop_reminder_runs
@@ -950,7 +1104,9 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
       [req.company.id]
     ),
     pool.query(
-      `SELECT state, last_success_at, outage_started_at, last_alert_at, last_alert_status,
+      `SELECT state, last_success_at, outage_started_at, last_alert_at, last_alert_channel,
+              last_alert_status, recovery_alert_at, recovery_alert_channel,
+              recovery_alert_status,
               recovered_at, checked_at
          FROM workshop_reminder_health
         WHERE company_id=$1`,
@@ -965,10 +1121,14 @@ router.get('/settings', requireWorkshopPermission('view_settings'), async (req, 
   res.render('workshop_admin/settings', {
     title: res.locals.t('wsh.set.title'), tab: 'settings',
     FLAGS, OPTIONAL_KEYS, saved: req.query.saved === '1',
+    restored: req.query.restored === '1',
+    testEmailStatus: ['sent', 'unavailable', 'error'].includes(String(req.query.test_email || ''))
+      ? String(req.query.test_email) : '',
     messageSettings: workshopMessagingView(messageRow.rows[0]),
     payment, settingsError: req.query.err || '',
     users: users.rows,
     roleHistory: roleHistory.rows,
+    alertEmailHistory,
     reminderRuns: reminderRuns.rows,
     reminderHealth: reminderHealth.rows[0] || null,
     inviteLink: req.query.invite
@@ -1070,43 +1230,155 @@ router.post('/settings/users/:id/role', requireWorkshopPermission('manage_settin
 router.post('/settings', requireWorkshopPermission('manage_settings'), async (req, res) => {
   const b = req.body || {};
   const cid = req.company.id;
+  const adminAlertEmailInput = String(b.admin_alert_email == null ? '' : b.admin_alert_email).trim();
+  const adminAlertEmail = adminAlertEmailInput ? emailAddress(adminAlertEmailInput) : null;
   const reminderDaysInput = String(b.reminder_lead_days == null ? '' : b.reminder_lead_days).trim();
   const reminderKmInput = String(b.reminder_lead_km == null ? '' : b.reminder_lead_km).trim();
   const reminderLeadDays = Number(reminderDaysInput);
   const reminderLeadKm = Number(reminderKmInput);
+  if (adminAlertEmailInput && !adminAlertEmail) {
+    return res.redirect('/workshop/settings?err=admin_email_invalid');
+  }
   if (!reminderDaysInput || !reminderKmInput
       || !Number.isInteger(reminderLeadDays) || reminderLeadDays < 0 || reminderLeadDays > 60
-      || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000) {
+      || !Number.isInteger(reminderLeadKm) || reminderLeadKm < 0 || reminderLeadKm > 10000
+      || (reminderLeadDays === 0 && reminderLeadKm === 0)) {
     return res.redirect('/workshop/settings?err=reminder_invalid');
   }
-  await pool.query(
+  const settingsValues = [
+    cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
+    text(b.about, 2000), text(b.hours, 120), adminAlertEmail,
+    Math.min(100, Math.max(0, num(b.tax_percent))),
+    Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
+    Math.max(0, int(b.service_months, 6)),
+    reminderLeadDays,
+    reminderLeadKm,
+    b.booking_enabled === '1' || b.booking_enabled === 'on',
+  ];
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const previous = (await client.query(
+      `SELECT admin_alert_email
+         FROM workshop_settings
+        WHERE company_id=$1
+        FOR UPDATE`,
+      [cid]
+    )).rows[0] || {};
+    await client.query(
     `INSERT INTO workshop_settings
-       (company_id, business_name, address, phone, whatsapp, about, hours,
+       (company_id, business_name, address, phone, whatsapp, about, hours, admin_alert_email,
         tax_percent, labour_rate, service_km, service_months,
         reminder_lead_days, reminder_lead_km, booking_enabled, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now())
      ON CONFLICT (company_id) DO UPDATE SET
        business_name=EXCLUDED.business_name, address=EXCLUDED.address, phone=EXCLUDED.phone,
        whatsapp=EXCLUDED.whatsapp, about=EXCLUDED.about, hours=EXCLUDED.hours,
+       admin_alert_email=EXCLUDED.admin_alert_email,
        tax_percent=EXCLUDED.tax_percent, labour_rate=EXCLUDED.labour_rate,
        service_km=EXCLUDED.service_km, service_months=EXCLUDED.service_months,
        reminder_lead_days=EXCLUDED.reminder_lead_days,
        reminder_lead_km=EXCLUDED.reminder_lead_km,
        booking_enabled=EXCLUDED.booking_enabled, updated_at=now()`,
-    [cid, text(b.business_name, 120), text(b.address, 250), text(b.phone, 40), text(b.whatsapp, 40),
-     text(b.about, 2000), text(b.hours, 120), Math.min(100, Math.max(0, num(b.tax_percent))),
-     Math.max(0, num(b.labour_rate)), Math.max(0, int(b.service_km, 5000)),
-     Math.max(0, int(b.service_months, 6)),
-       reminderLeadDays,
-       reminderLeadKm,
-     /* خانة اختيار مش مختارة مابتتبعتش أصلاً في الفورم، فغيابها = مقفول.
-      * لازم تتحسب من وجود الحقل نفسه — لو قريناها بـ`!== false` كانت
-      * هتفضل مفتوحة على طول ومحدش يقدر يقفل. */
-     b.booking_enabled === '1' || b.booking_enabled === 'on']
-  );
+      settingsValues
+    );
+    const change = alertEmailChange(previous.admin_alert_email, adminAlertEmail);
+    if (change) {
+      const actor = req.workshopUser && req.workshopUser.email
+        ? req.workshopUser.email : 'إدارة الورشة';
+      await client.query(
+        `INSERT INTO workshop_alert_email_history
+          (company_id, changed_by_user_id, changed_by, previous_email, new_email, change_type)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [cid, int(req.session.companyUserId), actor, change.previousEmail, change.newEmail, change.changeType]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop alert email settings]', e.message);
+    return res.redirect('/workshop/settings?err=settings_save');
+  } finally {
+    client.release();
+  }
   const wanted = Array.isArray(b.flags) ? b.flags : (b.flags ? [b.flags] : []);
   await saveFlags(pool, cid, wanted);
   res.redirect('/workshop/settings?saved=1');
+});
+
+router.post('/settings/alert-email-history/:id/restore', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  const historyId = int(req.params.id);
+  const cid = req.company.id;
+  if (!historyId) return res.redirect('/workshop/settings?err=alert_email_restore_invalid');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const history = (await client.query(
+      `SELECT previous_email
+         FROM workshop_alert_email_history
+        WHERE id=$1 AND company_id=$2
+        FOR SHARE`,
+      [historyId, cid]
+    )).rows[0];
+    const targetEmail = emailAddress(history && history.previous_email);
+    if (!targetEmail) {
+      await client.query('ROLLBACK');
+      return res.redirect('/workshop/settings?err=alert_email_restore_invalid');
+    }
+
+    const current = (await client.query(
+      `SELECT admin_alert_email
+         FROM workshop_settings
+        WHERE company_id=$1
+        FOR UPDATE`,
+      [cid]
+    )).rows[0] || {};
+    const change = alertEmailChange(current.admin_alert_email, targetEmail);
+    if (!change) {
+      await client.query('COMMIT');
+      return res.redirect('/workshop/settings?saved=1&restored=1');
+    }
+
+    await client.query(
+      `UPDATE workshop_settings
+          SET admin_alert_email=$1, updated_at=now()
+        WHERE company_id=$2`,
+      [targetEmail, cid]
+    );
+    const actor = req.workshopUser && req.workshopUser.email
+      ? req.workshopUser.email : 'إدارة الورشة';
+    await client.query(
+      `INSERT INTO workshop_alert_email_history
+        (company_id, changed_by_user_id, changed_by, previous_email, new_email, change_type)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [cid, int(req.session.companyUserId), actor, change.previousEmail, change.newEmail, change.changeType]
+    );
+    await client.query('COMMIT');
+    return res.redirect('/workshop/settings?saved=1&restored=1');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('[workshop alert email restore]', e.message);
+    return res.redirect('/workshop/settings?err=alert_email_restore');
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/settings/reminder-email-test', requireWorkshopPermission('manage_settings'), async (req, res) => {
+  try {
+    const result = await sendWorkshopReminderHealthTest({
+      companyId: req.company.id,
+      adminEmail: req.settings && req.settings.admin_alert_email,
+    });
+    const status = result && result.ok
+      ? 'sent'
+      : (result && result.status === 'unavailable' ? 'unavailable' : 'error');
+    return res.redirect('/workshop/settings?test_email=' + status);
+  } catch (err) {
+    console.error('[workshop reminder email test]', err.message);
+    return res.redirect('/workshop/settings?test_email=error');
+  }
 });
 
 router.post('/settings/messages', requireWorkshopPermission('manage_settings'), async (req, res) => {
@@ -3165,7 +3437,8 @@ router.get('/technicians', requireFlag('technicians'), requireWorkshopPermission
   const rows = await pool.query(
     `SELECT t.*,
             (SELECT COALESCE(SUM(l.amount),0)::float FROM workshop_job_labour l
-              WHERE l.technician_id=t.id AND l.created_at >= date_trunc('month', CURRENT_DATE)) AS month_labour
+              WHERE l.company_id=t.company_id AND l.technician_id=t.id
+                AND l.created_at >= date_trunc('month', CURRENT_DATE)) AS month_labour,
             (SELECT COUNT(*)::int FROM workshop_jobs j
               WHERE j.company_id=t.company_id AND j.technician_id=t.id) AS jobs_count,
             (SELECT COUNT(*)::int FROM workshop_job_labour l
@@ -3353,15 +3626,36 @@ router.get('/reports', requireFlag('reports'), requireWorkshopPermission('view_r
   const [summary, faults, parts, expenses, capacity] = await Promise.all([
     pool.query(
       `SELECT COUNT(*)::int AS jobs,
-              COALESCE(SUM((SELECT SUM(qty*unit_price) FROM workshop_job_parts WHERE job_id=j.id)),0)::float AS parts_rev,
-              COALESCE(SUM((SELECT SUM(qty*unit_cost)  FROM workshop_job_parts WHERE job_id=j.id)),0)::float AS parts_cost,
-              COALESCE(SUM((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id)),0)::float AS labour_rev,
-              COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(e.ended_at, now())-e.started_at))/3600 * COALESCE(t.pay_rate,0))
-                          FROM workshop_time_entries e
-                          LEFT JOIN workshop_technicians t ON t.id=e.technician_id AND t.company_id=e.company_id
-                         WHERE e.company_id=j.company_id AND e.job_id=j.id
-                           AND e.started_at >= CURRENT_DATE - ($2 || ' days')::interval),0)::float AS labour_cost
+              COALESCE(SUM(COALESCE(jp.parts_rev,0)),0)::float AS parts_rev,
+              COALESCE(SUM(COALESCE(jp.parts_cost,0)),0)::float AS parts_cost,
+              COALESCE(SUM(COALESCE(jl.labour_rev,0)),0)::float AS labour_rev,
+              COALESCE(SUM(COALESCE(tc.labour_cost,0)),0)::float AS labour_cost
          FROM workshop_jobs j
+          LEFT JOIN (
+            SELECT job_id,
+                   SUM(qty*unit_price) AS parts_rev,
+                   SUM(qty*unit_cost) AS parts_cost
+              FROM workshop_job_parts
+             WHERE company_id=$1
+             GROUP BY job_id
+          ) jp ON jp.job_id=j.id
+          LEFT JOIN (
+            SELECT job_id, SUM(amount) AS labour_rev
+              FROM workshop_job_labour
+             WHERE company_id=$1
+             GROUP BY job_id
+          ) jl ON jl.job_id=j.id
+          LEFT JOIN (
+            SELECT e.job_id,
+                   SUM(EXTRACT(EPOCH FROM (COALESCE(e.ended_at, now())-e.started_at))/3600
+                       * COALESCE(t.pay_rate,0)) AS labour_cost
+              FROM workshop_time_entries e
+              LEFT JOIN workshop_technicians t
+                ON t.id=e.technician_id AND t.company_id=$1
+             WHERE e.company_id=$1
+               AND e.started_at >= CURRENT_DATE - ($2 || ' days')::interval
+             GROUP BY e.job_id
+          ) tc ON tc.job_id=j.id
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
           AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval`, [cid, days]),
     pool.query(
@@ -3372,7 +3666,7 @@ router.get('/reports', requireFlag('reports'), requireWorkshopPermission('view_r
     pool.query(
       `SELECT p.name, SUM(jp.qty)::float AS qty, SUM(jp.qty*jp.unit_price)::float AS revenue
          FROM workshop_job_parts jp
-         JOIN workshop_jobs j ON j.id=jp.job_id
+          JOIN workshop_jobs j ON j.id=jp.job_id AND j.company_id=jp.company_id
          LEFT JOIN workshop_parts p ON p.id=jp.part_id
         WHERE jp.company_id=$1 AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval
         GROUP BY p.name ORDER BY qty DESC NULLS LAST LIMIT 10`, [cid, days]),
@@ -3461,5 +3755,5 @@ module.exports = router;
 module.exports.pool = pool;
 module.exports.helpers = {
   num, int, text, round2, requireFlag, queueServiceReminderMessages,
-  campaignRecipient, campaignAudienceCondition,
+  campaignRecipient, campaignAudienceCondition, alertEmailChange, loadAlertEmailHistory,
 };

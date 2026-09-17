@@ -32,6 +32,7 @@ async function ensureWorkshopSchema() {
         address        TEXT,
         phone          TEXT,
         whatsapp       TEXT,
+        admin_alert_email TEXT,
         about          TEXT,
         hours          TEXT,
         currency       TEXT NOT NULL DEFAULT 'EGP',
@@ -90,6 +91,44 @@ async function ensureWorkshopSchema() {
       CREATE INDEX IF NOT EXISTS idx_wsh_role_history
         ON workshop_role_history (company_id, created_at DESC);
 
+      CREATE TABLE IF NOT EXISTS workshop_alert_email_history (
+        id                BIGSERIAL PRIMARY KEY,
+        company_id        INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        changed_by_user_id INTEGER REFERENCES company_users(id) ON DELETE SET NULL,
+        changed_by        TEXT NOT NULL,
+        previous_email    TEXT,
+        new_email         TEXT,
+        change_type       TEXT NOT NULL CHECK (change_type IN ('added', 'changed', 'removed')),
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_alert_email_history
+        ON workshop_alert_email_history (company_id, created_at DESC, id DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_security_alert_state (
+        company_id        INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        actor_kind        TEXT NOT NULL,
+        actor_id          INTEGER NOT NULL,
+        window_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        rejection_count   INTEGER NOT NULL DEFAULT 0,
+        alerted_at        TIMESTAMPTZ,
+        alert_channel     TEXT,
+        alert_status      TEXT,
+        PRIMARY KEY (company_id, actor_kind, actor_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_security_alert_state_window
+        ON workshop_security_alert_state (window_started_at DESC);
+
+      CREATE TABLE IF NOT EXISTS workshop_security_alert_policy (
+        id              SMALLINT PRIMARY KEY CHECK (id=1),
+        threshold       INTEGER NOT NULL DEFAULT 5 CHECK (threshold BETWEEN 3 AND 50),
+        window_minutes  INTEGER NOT NULL DEFAULT 15 CHECK (window_minutes BETWEEN 5 AND 1440),
+        updated_by      INTEGER,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      INSERT INTO workshop_security_alert_policy (id)
+      VALUES (1)
+      ON CONFLICT (id) DO NOTHING;
+
       CREATE TABLE IF NOT EXISTS workshop_reminder_runs (
         id             BIGSERIAL PRIMARY KEY,
         company_id     INTEGER REFERENCES companies(id) ON DELETE CASCADE,
@@ -110,10 +149,19 @@ async function ensureWorkshopSchema() {
         last_success_at    TIMESTAMPTZ,
         outage_started_at  TIMESTAMPTZ,
         last_alert_at      TIMESTAMPTZ,
+        last_alert_channel TEXT,
         last_alert_status  TEXT,
         recovered_at       TIMESTAMPTZ,
+        recovery_alert_at      TIMESTAMPTZ,
+        recovery_alert_channel TEXT,
+        recovery_alert_status  TEXT,
         checked_at         TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      ALTER TABLE workshop_reminder_health
+        ADD COLUMN IF NOT EXISTS last_alert_channel TEXT,
+        ADD COLUMN IF NOT EXISTS recovery_alert_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS recovery_alert_channel TEXT,
+        ADD COLUMN IF NOT EXISTS recovery_alert_status TEXT;
     `);
 
     // ── Customers and vehicles ───────────────────────────────────────────────
@@ -692,6 +740,7 @@ async function ensureWorkshopSchema() {
         job_id      INTEGER REFERENCES workshop_jobs(id) ON DELETE SET NULL,
         customer_id INTEGER REFERENCES workshop_customers(id) ON DELETE SET NULL,
         channel     TEXT NOT NULL DEFAULT 'whatsapp',
+         provider    TEXT,
         recipient   TEXT,
         event_key   TEXT,
         body        TEXT NOT NULL,
@@ -769,10 +818,14 @@ async function ensureWorkshopSchema() {
         ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS campaign_id BIGINT,
         ADD COLUMN IF NOT EXISTS provider_message_id TEXT,
+         ADD COLUMN IF NOT EXISTS provider TEXT,
          ADD COLUMN IF NOT EXISTS provider_status TEXT,
          ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ,
          ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ,
-         ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ;
+         ADD COLUMN IF NOT EXISTS delivery_updated_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS final_failure_alert_at TIMESTAMPTZ,
+         ADD COLUMN IF NOT EXISTS final_failure_alert_channel TEXT,
+         ADD COLUMN IF NOT EXISTS final_failure_alert_status TEXT;
       CREATE INDEX IF NOT EXISTS idx_wsh_messages_provider_id
         ON workshop_messages (company_id, provider_message_id);
       CREATE INDEX IF NOT EXISTS idx_wsh_messages_campaign
@@ -795,7 +848,8 @@ async function ensureWorkshopSchema() {
       ALTER TABLE workshop_settings
         ADD COLUMN IF NOT EXISTS booking_enabled BOOLEAN NOT NULL DEFAULT true,
         ADD COLUMN IF NOT EXISTS reminder_lead_days INTEGER NOT NULL DEFAULT 7,
-        ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500;
+        ADD COLUMN IF NOT EXISTS reminder_lead_km INTEGER NOT NULL DEFAULT 500,
+        ADD COLUMN IF NOT EXISTS admin_alert_email TEXT;
       ALTER TABLE workshop_customers
         ADD COLUMN IF NOT EXISTS segment TEXT NOT NULL DEFAULT 'regular',
         ADD COLUMN IF NOT EXISTS lifecycle_stage TEXT NOT NULL DEFAULT 'active',

@@ -31,6 +31,14 @@
  */
 
 const TABLE = 'medical_audit_log';
+const SECURITY_ALERT_DEFAULT_THRESHOLD = 5;
+const SECURITY_ALERT_DEFAULT_WINDOW_MINUTES = 15;
+const SECURITY_ALERT_MIN_THRESHOLD = 3;
+const SECURITY_ALERT_MAX_THRESHOLD = 50;
+const SECURITY_ALERT_MIN_WINDOW_MINUTES = 5;
+const SECURITY_ALERT_MAX_WINDOW_MINUTES = 1440;
+const SECURITY_ALERT_THRESHOLD = 5;
+const SECURITY_ALERT_WINDOW_MINUTES = 15;
 
 /** DDL — called from the app's schema bootstrap. */
 const SCHEMA = `
@@ -58,6 +66,8 @@ const SCHEMA = `
   ALTER TABLE ${TABLE} ALTER COLUMN company_id DROP NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_audit_system_actor
     ON ${TABLE} (system, actor_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_security_review
+    ON ${TABLE} (system, entity, action, created_at DESC);
 `;
 
 /**
@@ -117,6 +127,156 @@ function log(pool, req, e) {
   });
 }
 
+/**
+ * Record a denied workshop alert-email history access without copying the
+ * address being protected or the value a request tried to put in company_id.
+ * The company and actor are still derived from the authenticated session.
+ */
+function normalizeSecurityPolicy(input = {}) {
+  const threshold = Number(input.threshold);
+  const windowMinutes = Number(input.windowMinutes);
+  if (!Number.isInteger(threshold)
+      || threshold < SECURITY_ALERT_MIN_THRESHOLD
+      || threshold > SECURITY_ALERT_MAX_THRESHOLD) {
+    throw new Error('invalid security alert threshold');
+  }
+  if (!Number.isInteger(windowMinutes)
+      || windowMinutes < SECURITY_ALERT_MIN_WINDOW_MINUTES
+      || windowMinutes > SECURITY_ALERT_MAX_WINDOW_MINUTES) {
+    throw new Error('invalid security alert window');
+  }
+  return { threshold, windowMinutes };
+}
+
+async function getSecurityAlertPolicy(pool) {
+  const row = (await pool.query(
+    `SELECT threshold, window_minutes
+       FROM workshop_security_alert_policy
+      WHERE id=1`
+  )).rows[0];
+  if (!row) {
+    return {
+      threshold: SECURITY_ALERT_DEFAULT_THRESHOLD,
+      windowMinutes: SECURITY_ALERT_DEFAULT_WINDOW_MINUTES,
+    };
+  }
+  try {
+    return normalizeSecurityPolicy({
+      threshold: Number(row.threshold),
+      windowMinutes: Number(row.window_minutes),
+    });
+  } catch (_) {
+    return {
+      threshold: SECURITY_ALERT_DEFAULT_THRESHOLD,
+      windowMinutes: SECURITY_ALERT_DEFAULT_WINDOW_MINUTES,
+    };
+  }
+}
+
+async function claimSecurityAlert(pool, identity) {
+  const policy = await getSecurityAlertPolicy(pool);
+  const state = (await pool.query(
+    `INSERT INTO workshop_security_alert_state
+       (company_id, actor_kind, actor_id, window_started_at, rejection_count)
+     VALUES ($1,$2,$3,now(),1)
+     ON CONFLICT (company_id, actor_kind, actor_id) DO UPDATE SET
+       rejection_count=CASE
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
+           THEN 1
+         ELSE workshop_security_alert_state.rejection_count + 1
+       END,
+       window_started_at=CASE
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
+           THEN now()
+         ELSE workshop_security_alert_state.window_started_at
+       END,
+       alerted_at=CASE
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
+           THEN NULL
+         ELSE workshop_security_alert_state.alerted_at
+       END,
+       alert_channel=CASE
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
+           THEN NULL
+         ELSE workshop_security_alert_state.alert_channel
+       END,
+       alert_status=CASE
+         WHEN workshop_security_alert_state.window_started_at
+           <= now() - ($4 * INTERVAL '1 minute')
+           THEN NULL
+         ELSE workshop_security_alert_state.alert_status
+       END
+     RETURNING company_id, actor_kind, actor_id, window_started_at, rejection_count`,
+    [identity.companyId, identity.actorKind, identity.actorId, policy.windowMinutes]
+  )).rows[0];
+  if (!state || Number(state.rejection_count) < policy.threshold) return null;
+  return (await pool.query(
+    `UPDATE workshop_security_alert_state
+        SET alerted_at=now(), alert_status='pending'
+      WHERE company_id=$1 AND actor_kind=$2 AND actor_id=$3
+        AND rejection_count >= $4 AND alerted_at IS NULL
+      RETURNING company_id, actor_kind, actor_id, window_started_at, rejection_count`,
+    [identity.companyId, identity.actorKind, identity.actorId, policy.threshold]
+  )).rows[0] || null;
+}
+
+function logSecurity(pool, req, event = {}) {
+  const session = (req && req.session) || {};
+  const companyId = Number((req && req.company && req.company.id) || session.companyId) || null;
+  const userId = Number.isInteger(Number(session.companyUserId))
+    ? Number(session.companyUserId)
+    : null;
+  const actorId = userId || companyId;
+  const actorKind = userId ? 'company_user' : 'demo_session';
+  const identity = { companyId, actorKind, actorId };
+  const write = log(pool, req, {
+    system: 'workshop',
+    actorKind,
+    actorId,
+    actorLabel: userId ? 'workshop-user' : 'workshop-demo',
+    entity: 'workshop_alert_email_history',
+    action: 'access_denied',
+    meta: {
+      reason: String(event.reason || 'permission_denied').slice(0, 40),
+      method: String((req && req.method) || '').slice(0, 10),
+      path: String((req && req.path) || '').slice(0, 100),
+      company_scope_mismatch: event.companyScopeMismatch === true,
+    },
+  });
+  return Promise.resolve(write).then(async () => {
+    if (!identity.companyId || !identity.actorId) return;
+    try {
+      const claimed = await claimSecurityAlert(pool, identity);
+      if (!claimed || typeof event.notify !== 'function') return;
+      const result = await event.notify({
+        companyId: claimed.company_id,
+        actorKind: claimed.actor_kind,
+        actorId: claimed.actor_id,
+        rejectionCount: claimed.rejection_count,
+        windowStartedAt: claimed.window_started_at,
+        reason: String(event.reason || 'permission_denied').slice(0, 40),
+      });
+      await pool.query(
+        `UPDATE workshop_security_alert_state
+            SET alert_channel=$4, alert_status=$5
+          WHERE company_id=$1 AND actor_kind=$2 AND actor_id=$3
+            AND alert_status='pending'`,
+        [
+          claimed.company_id, claimed.actor_kind, claimed.actor_id,
+          String((result && result.channel) || 'email').slice(0, 20),
+          String((result && result.status) || 'error').slice(0, 20),
+        ]
+      );
+    } catch (err) {
+      console.error('[audit security alert]', err.message);
+    }
+  });
+}
+
 /** The company's own trail, newest first. Optionally one patient's. */
 async function recent(pool, companyId, opts) {
   const o = opts || {};
@@ -138,4 +298,78 @@ async function recent(pool, companyId, opts) {
   return r.rows;
 }
 
-module.exports = { log, recent, SCHEMA, TABLE };
+/** Read-only security review surface for trusted admin tooling, not tenants. */
+function parseSecurityDate(value, field) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new Error(`invalid ${field}`);
+  const [year, month, day] = raw.split('-').map(Number);
+  const stamp = Date.UTC(year, month - 1, day);
+  const date = new Date(stamp);
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error(`invalid ${field}`);
+  }
+  return raw;
+}
+
+function normalizeSecurityFilters(opts = {}) {
+  const rawCompanyId = String(opts.companyId == null ? '' : opts.companyId).trim();
+  let companyId = null;
+  if (rawCompanyId) {
+    if (!/^\d+$/.test(rawCompanyId)) throw new Error('invalid company_id');
+    companyId = Number(rawCompanyId);
+    if (!Number.isSafeInteger(companyId) || companyId < 1 || companyId > 2147483647) {
+      throw new Error('invalid company_id');
+    }
+  }
+  const from = parseSecurityDate(opts.from, 'from');
+  const to = parseSecurityDate(opts.to, 'to');
+  if (from && to) {
+    const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000;
+    if (days < 0 || days > 366) throw new Error('invalid security date range');
+  }
+  const limit = Math.min(500, Math.max(1, parseInt(opts.limit, 10) || 200));
+  return { companyId, from, to, limit };
+}
+
+async function recentSecurity(pool, opts = {}) {
+  const filters = normalizeSecurityFilters(opts);
+  const params = ['workshop', 'workshop_alert_email_history', 'access_denied'];
+  let where = 'system=$1 AND entity=$2 AND action=$3';
+  if (filters.companyId != null) {
+    where += ` AND company_id=$${params.push(filters.companyId)}`;
+  }
+  if (filters.from) {
+    where += ` AND created_at >= $${params.push(filters.from)}::date`;
+  }
+  if (filters.to) {
+    where += ` AND created_at < ($${params.push(filters.to)}::date + INTERVAL '1 day')`;
+  }
+  const result = await pool.query(
+    `SELECT company_id, actor_kind, actor_id, actor_label, action, meta, created_at
+       FROM ${TABLE}
+      WHERE ${where}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${filters.limit}`,
+    params
+  );
+  return result.rows;
+}
+
+async function latestSecurityAlert(pool) {
+  const result = await pool.query(
+    `SELECT company_id, actor_kind, actor_id, rejection_count,
+            window_started_at, alerted_at, alert_channel, alert_status
+       FROM workshop_security_alert_state
+      WHERE alerted_at IS NOT NULL
+      ORDER BY alerted_at DESC
+      LIMIT 1`
+  );
+  return result.rows[0] || null;
+}
+
+module.exports = {
+  log, logSecurity, recent, recentSecurity, normalizeSecurityFilters,
+  latestSecurityAlert, getSecurityAlertPolicy, normalizeSecurityPolicy,
+  SECURITY_ALERT_THRESHOLD, SECURITY_ALERT_WINDOW_MINUTES, SCHEMA, TABLE,
+};

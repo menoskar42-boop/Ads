@@ -175,14 +175,27 @@ function arabicDigitsToNumber(value: string): number {
   return Number(value.replace(/[٠-٩]/g, (digit) => "٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 }
 
+function stripLeadingBibleQuote(text: string): string {
+  const match = text.match(/^\s*["“]([\s\S]*?)["”]\s*/u);
+  if (!match || match[1].trim().length < 20) return text;
+
+  const remainder = text.slice(match[0].length).replace(/^[,،.:؛\s]+/u, "").trim();
+  return remainder.length >= 20 ? remainder : text;
+}
+
 function extractSections(body: string): Array<{ start: number; end: number; text: string }> {
   const lines = body.split("\n");
-  const marks: Array<{ start: number; end: number; contentStart: number }> = [];
+  const marks: Array<{
+    start: number;
+    end: number;
+    markerStart: number;
+    contentStart: number;
+  }> = [];
   let offset = 0;
 
   for (const line of lines) {
     const match =
-      /(?:^|\s)(?:الآيات?|الآية|ع)\s*\(?([0-9٠-٩]+)(?:\s*[-–]\s*([0-9٠-٩]+))?\)?\s*:/u.exec(
+      /(?:^|\s)(?:الآيات?|الآية|\(?ع)\s*\(?([0-9٠-٩]+)(?:\s*(?:[-–،,]|\sو\s)\s*([0-9٠-٩]+))?\)?\s*:/u.exec(
         line,
       ) ??
       /\(\s*(?:الآيات?|الآية)\s*\(?([0-9٠-٩]+)(?:\s*[-–]\s*([0-9٠-٩]+))?\)?\s*:/u.exec(
@@ -195,6 +208,7 @@ function extractSections(body: string): Array<{ start: number; end: number; text
       marks.push({
         start,
         end,
+        markerStart: offset + match.index,
         contentStart: offset + match.index + match[0].length,
       });
     }
@@ -205,14 +219,29 @@ function extractSections(body: string): Array<{ start: number; end: number; text
     .map((mark, index) => ({
       start: mark.start,
       end: mark.end,
-      text: body
+      text: stripLeadingBibleQuote(body
         .slice(
           mark.contentStart,
-          index + 1 < marks.length ? marks[index + 1].contentStart : body.length,
+          index + 1 < marks.length ? marks[index + 1].markerStart : body.length,
         )
-        .trim(),
+        .trim()),
     }))
-    .filter((section) => section.text.length >= 20);
+    .filter((section) => {
+      if (section.text.length < 20) return false;
+
+      // A topic heading can contain the Bible passage first and only then
+      // introduce nested commentary labels such as "ع1، 2:". The parent
+      // range is not itself commentary; the nested labels below it are the
+      // addressable sections we should import.
+      const startsWithBibleText = /^\s*(?:†\s*)?\d+\s+[\u0600-\u06FF]/u.test(
+        section.text,
+      );
+      const hasNestedCommentary =
+        /(?:^|\n)\s*ع\s*\(?\d+(?:\s*(?:[-–،,]|\sو\s)\s*\d+)?\s*\)?\s*:/u.test(
+          section.text,
+        );
+      return !(startsWithBibleText && hasNestedCommentary);
+    });
 }
 
 function csvCell(value: string | number): string {

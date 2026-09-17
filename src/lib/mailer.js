@@ -69,22 +69,27 @@ function localeForCountry(country) {
   return ARAB_COUNTRIES.has(String(country).trim()) ? 'ar' : 'en';
 }
 
-/** Low-level send. Returns true on success, false if skipped/failed. */
-async function sendMail({ to, subject, html, text }) {
-  if (!to) return false;
+/** Low-level send with a reason that internal alert channels can record. */
+async function sendMailResult({ to, subject, html, text }) {
+  if (!to) return { ok: false, status: 'unavailable' };
   const tx = getTransporter();
   if (!tx) {
     console.warn('[mailer] SMTP not configured — skipping email to', to);
-    return false;
+    return { ok: false, status: 'unavailable' };
   }
   try {
     await tx.sendMail({ from: FROM(), to, subject, html, text });
     console.log('[mailer] sent email to', to, '—', subject);
-    return true;
+    return { ok: true, status: 'sent' };
   } catch (err) {
     console.error('[mailer] send failed to', to, ':', err.message);
-    return false;
+    return { ok: false, status: 'error' };
   }
+}
+
+/** Low-level send. Returns true on success, false if skipped/failed. */
+async function sendMail(args) {
+  return (await sendMailResult(args)).ok;
 }
 
 // Shared HTML shell. lang 'ar' → RTL, 'en' → LTR.
@@ -220,4 +225,186 @@ async function sendAdminNewApplication({ fullName, email, phone, country, busine
   return sendMail({ to, subject: `طلب جديد: ${businessName || ''} — OscarDevs`, html, text });
 }
 
-module.exports = { sendMail, sendApplicationReceived, sendApplicationApproved, sendApplicationTrackLink, sendAdminNewApplication, siteOrigin, localeForCountry };
+function validEmailAddress(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)
+    ? normalized
+    : null;
+}
+
+function resolveWorkshopAlertRecipient(adminEmail) {
+  return validEmailAddress(adminEmail)
+    || validEmailAddress(process.env.ADMIN_NOTIFY_EMAIL)
+    || validEmailAddress(process.env.ADMIN_EMAIL)
+    || 'support@oscardevs.com';
+}
+
+function resolveSecurityAlertRecipient() {
+  return validEmailAddress(process.env.ADMIN_NOTIFY_EMAIL)
+    || validEmailAddress(process.env.ADMIN_EMAIL)
+    || 'support@oscardevs.com';
+}
+
+/** Alert platform security admins after repeated denied workshop access. */
+async function sendWorkshopSecurityAccessAlert({
+  companyId, actorKind, actorId, rejectionCount, windowStartedAt, reason,
+}) {
+  const to = resolveSecurityAlertRecipient();
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const safeActorId = Number.isInteger(Number(actorId)) ? String(Number(actorId)) : 'غير معروف';
+  const safeCount = Number.isInteger(Number(rejectionCount)) ? String(Number(rejectionCount)) : 'غير معروف';
+  const started = windowStartedAt ? new Date(windowStartedAt).toISOString() : 'غير متاح';
+  const reasonText = reason === 'company_scope_mismatch'
+    ? 'تكررت محاولات تغيير نطاق الشركة في الطلب.'
+    : reason === 'demo_read_only'
+      ? 'تكررت محاولات الوصول من جلسة العرض.'
+      : 'تكررت محاولات وصول غير مصرح بها.';
+  const html = shell('ar', 'تنبيه أمني: تكرار رفض الوصول', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${reasonText}</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">
+      الشركة الفعلية: <span dir="ltr">${safeCompanyId}</span><br>
+      نوع الحساب: <span dir="ltr">${String(actorKind || 'unknown').slice(0, 30)}</span><br>
+      معرّف الحساب: <span dir="ltr">${safeActorId}</span><br>
+      عدد الرفضات في النافذة: <span dir="ltr">${safeCount}</span><br>
+      بداية النافذة: <span dir="ltr">${started}</span>
+    </p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">راجع سجل أمن تنبيهات الورش من لوحة الإدارة.</p>`);
+  const text = [
+    'تنبيه أمني: تكرار رفض الوصول.',
+    `الشركة الفعلية: ${safeCompanyId}.`,
+    `نوع الحساب: ${String(actorKind || 'unknown').slice(0, 30)}.`,
+    `معرّف الحساب: ${safeActorId}.`,
+    `عدد الرفضات: ${safeCount}.`,
+    `بداية النافذة: ${started}.`,
+    reasonText,
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'تنبيه أمني: تكرار رفض الوصول لسجل الورشة — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
+/** Tell the workshop administrator when a customer message has exhausted retries. */
+async function sendWorkshopMessageFailureAlert({
+  companyId, adminEmail, messageId, channel, attemptCount, eventKey,
+}) {
+  const to = resolveWorkshopAlertRecipient(adminEmail);
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const safeMessageId = Number.isInteger(Number(messageId)) ? String(Number(messageId)) : 'غير معروف';
+  const safeAttempts = Number.isInteger(Number(attemptCount)) ? String(Number(attemptCount)) : 'غير معروف';
+  const safeChannel = channel === 'sms' ? 'SMS' : 'WhatsApp';
+  const safeEvent = String(eventKey || 'customer_message').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'customer_message';
+  const html = shell('ar', 'فشل نهائي في رسالة عميل', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">لم تصل رسالة العميل بعد استنفاد محاولات الإرسال المسموح بها.</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">
+      الورشة: <span dir="ltr">${safeCompanyId}</span><br>
+      رقم الرسالة: <span dir="ltr">${safeMessageId}</span><br>
+      القناة: <span dir="ltr">${safeChannel}</span><br>
+      نوع الحدث: <span dir="ltr">${safeEvent}</span><br>
+      عدد المحاولات: <span dir="ltr">${safeAttempts}</span>
+    </p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">افتح سجل الرسائل من لوحة الورشة واتخذ إجراءً يدويًا مع العميل.</p>`);
+  const text = [
+    'فشل نهائي في رسالة عميل بعد استنفاد المحاولات.',
+    `الورشة: ${safeCompanyId}.`,
+    `رقم الرسالة: ${safeMessageId}.`,
+    `القناة: ${safeChannel}.`,
+    `نوع الحدث: ${safeEvent}.`,
+    `عدد المحاولات: ${safeAttempts}.`,
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'تنبيه: فشل نهائي في رسالة عميل — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
+/**
+ * Alert the platform administrator about a workshop reminder outage or its
+ * recovery. This message intentionally contains only operational identifiers
+ * and timestamps — never customer names or phone numbers.
+ */
+async function sendWorkshopReminderHealthAlert({
+  companyId,
+  adminEmail,
+  kind = 'outage',
+  reason,
+  outageStartedAt,
+}) {
+  const to = resolveWorkshopAlertRecipient(adminEmail);
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const started = outageStartedAt
+    ? new Date(outageStartedAt).toISOString()
+    : 'غير متاح';
+  const recovery = kind === 'recovered';
+  const reasonText = recovery
+    ? 'عاد عامل التذكيرات إلى تسجيل تشغيل ناجح.'
+    : reason === 'push_error'
+    ? 'حدث خطأ أثناء محاولة إرسال إشعار المتصفح.'
+    : 'إشعارات المتصفح غير مفعّلة أو غير متاحة.';
+  const title = recovery ? 'عودة تذكيرات الصيانة' : 'تعطّل تذكيرات الصيانة';
+  const html = shell('ar', title, `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${recovery
+      ? 'عاد عامل تذكيرات الصيانة إلى العمل وسجل تشغيلًا ناجحًا.'
+      : 'لم يسجل عامل تذكيرات الصيانة تشغيلًا ناجحًا خلال النافذة المحددة.'}</p>
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">${reasonText}${recovery ? '' : ' تم إرسال هذا التنبيه عبر البريد كقناة احتياطية.'}</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">معرّف الورشة: <span dir="ltr">${safeCompanyId}</span><br>بداية التوقف: <span dir="ltr">${started}</span></p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">راجع إعدادات الورشة وسجل التذكيرات من لوحة الإدارة.</p>`);
+  const text = [
+    recovery ? 'عادت تذكيرات الصيانة للعمل في ورشة.' : 'تعطّلت تذكيرات الصيانة في ورشة.',
+    `معرّف الورشة: ${safeCompanyId}.`,
+    `بداية التوقف: ${started}.`,
+    reasonText,
+    'راجع إعدادات الورشة وسجل التذكيرات.',
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: `${recovery ? 'استعادة' : 'تنبيه'}: ${title} — OscarDevs`,
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
+/** Send a generic, customer-free test message using the workshop alert route. */
+async function sendWorkshopReminderHealthTest({ companyId, adminEmail }) {
+  const to = resolveWorkshopAlertRecipient(adminEmail);
+  const safeCompanyId = Number.isInteger(Number(companyId)) ? String(Number(companyId)) : 'غير معروف';
+  const html = shell('ar', 'اختبار بريد تنبيهات تذكيرات الصيانة', `
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">هذه رسالة اختبار من إعدادات ورشة الصيانة.</p>
+    <p style="font-size:14px;line-height:1.8;color:#4b5563;">إذا وصلت هذه الرسالة، فإن قناة البريد الإداري جاهزة لتنبيهات تعطل التذكيرات واستعادتها.</p>
+    <p style="font-size:13px;line-height:1.8;color:#6b7280;">معرّف الورشة: <span dir="ltr">${safeCompanyId}</span></p>`);
+  const text = [
+    'هذه رسالة اختبار من إعدادات ورشة الصيانة.',
+    'إذا وصلت، فقناة البريد الإداري جاهزة لتنبيهات تعطل التذكيرات واستعادتها.',
+    `معرّف الورشة: ${safeCompanyId}.`,
+  ].join(' ');
+  const result = await sendMailResult({
+    to,
+    subject: 'اختبار بريد تنبيهات تذكيرات الصيانة — OscarDevs',
+    html,
+    text,
+  });
+  return { channel: 'email', ...result };
+}
+
+module.exports = {
+  sendMail,
+  sendApplicationReceived,
+  sendApplicationApproved,
+  sendApplicationTrackLink,
+  sendAdminNewApplication,
+  sendWorkshopReminderHealthAlert,
+  sendWorkshopReminderHealthTest,
+  sendWorkshopSecurityAccessAlert,
+  sendWorkshopMessageFailureAlert,
+  resolveWorkshopAlertRecipient,
+  resolveSecurityAlertRecipient,
+  siteOrigin,
+  localeForCountry,
+};

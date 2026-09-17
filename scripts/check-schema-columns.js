@@ -55,25 +55,15 @@ for (const f of files) {
       }
     }
   }
-  /* جملة الـALTER الواحدة بتضيف **أكتر من عمود** مفصولين بفاصلة:
-   *
-   *     ALTER TABLE workshop_messages
-   *       ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0,
-   *       ADD COLUMN IF NOT EXISTS campaign_id BIGINT,
-   *       ADD COLUMN IF NOT EXISTS provider_status TEXT;
-   *
-   * النسخة الأولى كانت `ALTER TABLE (\w+) … ADD COLUMN (\w+)` — فبتاخد
-   * **أول عمود بس**، والباقي مالوش `ALTER TABLE` قبله فمابيتلقطش. النتيجة
-   * إن الحارس بيقول عن أعمدة موجودة فعلاً إنها ناقصة: أربعتاشر عمود
-   * اتبلّغوا غلط، وكلهم متضافين صح. وحارس بيفشّل شغل سليم بيعلّم اللي
-   * بعده إن الأحمر مالوش معنى.
-   *
-   * فبناخد جملة الـALTER كلها لحد `;` الأول، وبعدين كل `ADD COLUMN`
-   * جوّاها بتتنسب للجدول اللي في أولها. */
-  for (const stmt of stripSqlComments(s).matchAll(/ALTER TABLE\s+(\w+)\s+([\s\S]*?);/gi)) {
+  /* جملة ALTER الواحدة قد تضيف أكثر من عمود مفصولًا بفاصلة. نقرأ الجملة
+   * كاملة، ثم ننسب كل ADD COLUMN إلى الجدول الذي ظهر بعد ALTER TABLE. */
+  for (const stmt of stripSqlComments(s).matchAll(
+    /ALTER TABLE\s+(\w+)\s+([\s\S]*?)(?:;|$)/gi
+  )) {
     const t = stmt[1].toLowerCase();
     for (const c of stmt[2].matchAll(
-      /ADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_][a-z0-9_]*)/gi)) {
+      /\bADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_][a-z0-9_]*)/gi
+    )) {
       (cols[t] = cols[t] || new Set()).add(c[1].toLowerCase());
     }
   }

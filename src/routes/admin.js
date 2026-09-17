@@ -5,6 +5,7 @@ const { BCRYPT_COST } = require('../lib/password_cost');
 const { Pool } = require('pg');
 const requireAdmin = require('../middleware/adminAuth');
 const codes = require('../lib/codes');
+const audit = require('../lib/audit');
 /* تصنيف نوع النشاط من قاموس واحد. كانت هنا سلسلة بتغطّي تلات أنواع
  * بس، وأي حاجة تانية بتتسجّل في CRM «بورتفوليو» — تسعة من اتناشر. */
 const businessTypes = require('../lib/business_types');
@@ -166,6 +167,75 @@ router.get('/demos', requireAdmin, (req, res) => {
   res.render('admin/demos', {
     session: adminSession(req), activePage: 'demos', results: null, error: null,
   });
+});
+
+router.post('/security/workshop-alert-email/policy', requireAdmin, async (req, res) => {
+  try {
+    const policy = audit.normalizeSecurityPolicy({
+      threshold: req.body && req.body.threshold,
+      windowMinutes: req.body && req.body.window_minutes,
+    });
+    await pool.query(
+      `UPDATE workshop_security_alert_policy
+          SET threshold=$1, window_minutes=$2, updated_by=$3, updated_at=now()
+        WHERE id=1`,
+      [policy.threshold, policy.windowMinutes, adminSession(req).adminId || null]
+    );
+    return res.redirect('/admin/security/workshop-alert-email?policy=saved');
+  } catch (err) {
+    if (!/invalid /.test(String(err.message))) {
+      console.error('[admin workshop security policy]', err.message);
+    }
+    return res.redirect('/admin/security/workshop-alert-email?policy=invalid');
+  }
+});
+
+router.get('/security/workshop-alert-email', requireAdmin, async (req, res) => {
+  const rawFilters = {
+    companyId: req.query.company_id,
+    from: req.query.from,
+    to: req.query.to,
+  };
+  let filters;
+  let filterError = null;
+  try {
+    filters = audit.normalizeSecurityFilters({ ...rawFilters, limit: 200 });
+    const [rows, latestAlert, policy] = await Promise.all([
+      audit.recentSecurity(pool, filters),
+      audit.latestSecurityAlert(pool),
+      audit.getSecurityAlertPolicy(pool),
+    ]);
+    return res.render('admin/workshop_alert_security', {
+      session: adminSession(req),
+      activePage: 'security',
+      rows,
+      latestAlert,
+      policy,
+      filters,
+      filterError,
+      policyError: ['saved', 'invalid'].includes(String(req.query.policy || ''))
+        ? String(req.query.policy) : '',
+    });
+  } catch (err) {
+    filterError = /invalid /.test(String(err.message)) ? 'invalid' : 'load';
+    if (filterError === 'load') {
+      console.error('[admin workshop alert security]', err.message);
+    }
+    return res.render('admin/workshop_alert_security', {
+      session: adminSession(req),
+      activePage: 'security',
+      rows: [],
+      latestAlert: null,
+      policy: { threshold: 5, windowMinutes: 15 },
+      filters: {
+        companyId: rawFilters.companyId || '',
+        from: rawFilters.from || '',
+        to: rawFilters.to || '',
+      },
+      filterError,
+      policyError: '',
+    });
+  }
 });
 
 router.get('/dashboard', requireAdmin, async (req, res) => {
