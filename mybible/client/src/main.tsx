@@ -21,9 +21,10 @@ async function recoverClientShell(force = false) {
       const names = await caches.keys();
       await Promise.all(
         names
-          // mybible-static-v1 is the user's explicit full offline Bible
-          // download. Only clear generated app-shell/runtime caches.
-          .filter((name) => /^mybible(?:-static)?-v(?:[2-9]|\d{2,})$/.test(name))
+          // `mybible-static-v1` اسم ثابت بتكتب فيه الواجهة تحميل الكتاب
+          // أوفلاين — ده بس اللي بيفضل. أي كاش mybible تاني بيتمسح،
+          // وده اللي بيخلّي زرار «تحديث الصفحة» يقدر يصلّح قشرة قديمة.
+          .filter((name) => name.startsWith("mybible") && name !== "mybible-static-v1")
           .map((name) => caches.delete(name)),
       );
     }
