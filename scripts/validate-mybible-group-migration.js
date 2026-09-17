@@ -99,8 +99,16 @@ async function primaryKeyColumns(client, schema, table) {
 async function digestRows(client, schema, table, where, params) {
   const primaryKey = await primaryKeyColumns(client, schema, table);
   const orderBy = primaryKey.length
-    ? primaryKey.map((column) => `row.${quoteIdentifier(column)}`).join(', ')
-    : 'row_to_json(row)::text';
+    // Database locales can order the same textual primary keys differently.
+    // Convert each key to UTF-8 bytes so Neon and Supabase produce one stable
+    // order before hashing the rows.
+    ? primaryKey
+      .map(
+        (column) =>
+          `convert_to(to_jsonb(row.${quoteIdentifier(column)})::text, 'UTF8')`
+      )
+      .join(', ')
+    : `convert_to(row_to_json(row)::text, 'UTF8')`;
   const result = await client.query(
     `SELECT row_to_json(row)::text AS payload
        FROM ${quoteIdentifier(schema)}.${quoteIdentifier(table)} row
