@@ -1,5 +1,24 @@
 require('dotenv').config();
 
+// Ads can use an external PostgreSQL database without replacing the shared
+// Replit DATABASE_URL used by other hosted applications. MyBible receives its
+// own DATABASE_URL explicitly when it is spawned below.
+if (process.env.ADS_DATABASE_URL?.trim()) {
+  const adsDatabaseUrl = new URL(process.env.ADS_DATABASE_URL.trim());
+  if (adsDatabaseUrl.hostname.endsWith('.pooler.supabase.com')) {
+    if (adsDatabaseUrl.port === '6543') {
+      adsDatabaseUrl.port = '5432';
+    }
+    if (!adsDatabaseUrl.searchParams.has('sslmode')) {
+      adsDatabaseUrl.searchParams.set('sslmode', 'require');
+    }
+    if (!adsDatabaseUrl.searchParams.has('uselibpqcompat')) {
+      adsDatabaseUrl.searchParams.set('uselibpqcompat', 'true');
+    }
+  }
+  process.env.DATABASE_URL = adsDatabaseUrl.toString();
+}
+
 /* Every database connection speaks Cairo time.
  *
  * The host runs UTC. `CURRENT_DATE`, `timestamptz::date` and
