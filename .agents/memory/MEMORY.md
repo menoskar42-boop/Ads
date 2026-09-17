@@ -16,4 +16,4 @@
 - [Workshop alert-email restoration](workshop-alert-email-restore.md) — restore only company-scoped valid history values inside a transaction and append a new audit event.
 - [Workshop operations lifecycle](workshop-operations-lifecycle.md) — keep job stages explicit and every stock correction in a company-scoped movement ledger.
 - [Workshop role access](workshop-role-access.md) — derive every workshop action from company_users.role; unknown roles fail closed and demos remain read-only.
-- [Git remote divergence](git-remote-divergence.md) — an active GitHub connection can coexist with a stale Git-pane auth error; avoid Pull on divergent branches and abort accidental merges.
+- [Git remote divergence](git-remote-divergence.md) — an active GitHub connection can coexist with a stale Git-pane auth error; avoid Pull on divergent branches and abort accidental merges.- [Workshop scheduler gating](workshop-scheduler-gated.md) — the workshop background tick runs every two hours and skips itself until a workshop tenant exists; database is billed by compute hours.

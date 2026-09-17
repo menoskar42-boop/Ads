@@ -610,38 +610,83 @@ async function queueServiceReminderMessages({
   return queued;
 }
 
-// Failed deliveries are retried without needing an admin to keep the page
-// open. The manual button remains available for an immediate retry.
-const workshopRetryTimer = setInterval(async () => {
-  try {
-    const rows = (await pool.query(
-      `SELECT id, company_id
-         FROM workshop_messages
-        WHERE status='failed' AND next_retry_at IS NOT NULL
-          AND next_retry_at <= now() AND attempt_count < 5
-        ORDER BY next_retry_at LIMIT 25`
-    )).rows;
-    for (const row of rows) await deliverWorkshopMessage(row.company_id, row.id);
-  } catch (e) {
-    console.error('[workshop message retry]', e.message);
-  }
-}, 60 * 1000);
-if (workshopRetryTimer.unref) workshopRetryTimer.unref();
+/* ── جدولة الورشة: نداء واحد كل ساعتين، وبس لو فيه ورشة فعلاً ─────────
+ *
+ * ── ليه ──────────────────────────────────────────────────────────────
+ *
+ * كانت تلات تايمرات منفصلة: إعادة الإرسال **كل ٦٠ ثانية**، وطابور
+ * التذكيرات كل ٥ دقايق، وفحص الصحة كل ١٠ دقايق. يعني **١٨٧٢ استعلام في
+ * اليوم** على جداول الورشة.
+ *
+ * وقاعدة البيانات عندنا بتتحاسب **بساعات التشغيل** مش بحجم البيانات:
+ * فاتورة ٢٠٢٦-٠٩ كانت $15.05 منها $15.03 ساعات تشغيل و**سنتين بس**
+ * تخزين (البيانات كلها ٦٠ ميجا). واستعلام كل دقيقة معناه إن القاعدة
+ * **مستحيل تنام** — فبندفع على ساعة صاحية عشان نسأل جدول فاضي.
+ *
+ * ── والجدول فاضي فعلاً ───────────────────────────────────────────────
+ *
+ * لسه مفيش ولا ورشة مشتركة وقت كتابة ده. فالنداء بيتأكد الأول إن فيه
+ * شركة `page_type='workshop'` — ولو مفيش، بيرجع من غير ما يلمس جداول
+ * الورشة خالص.
+ *
+ * ── وبيرجع لوحده ─────────────────────────────────────────────────────
+ *
+ * **مافيش حاجة محتاجة تتفتكر.** أول ورشة تشترك، البوابة بتفتح لوحدها في
+ * النداء الجاي. ولو احتجنا دقة أعلى ساعتها (إعادة إرسال أسرع مثلاً)،
+ * نقلّل `WORKSHOP_TICK_MS` وقتها — بس ساعتها هيبقى فيه عميل بيدفع مقابل
+ * الساعات دي.
+ *
+ * ⚠️ **ومتزوّدش التردد من غير سبب.** `scripts/check-db-timers.js` بيمنع
+ * أي تايمر بيلمس القاعدة بتردد أعلى من الحد.
+ */
+const WORKSHOP_TICK_MS = 2 * 60 * 60 * 1000;   // ساعتين
 
-const workshopReminderTimer = setInterval(async () => {
-  try { await queueServiceReminderMessages(); }
-  catch (e) { console.error('[workshop reminder scheduler]', e.message); }
-}, 5 * 60 * 1000);
-if (workshopReminderTimer.unref) workshopReminderTimer.unref();
+/** فيه ورشة مشتركة أصلاً؟ استعلام واحد رخيص على فهرس. */
+async function anyWorkshopTenant() {
+  try {
+    const r = await pool.query(
+      "SELECT 1 FROM companies WHERE page_type='workshop' LIMIT 1");
+    return r.rowCount > 0;
+  } catch (e) {
+    /* القاعدة مش رادّة: منكملش على جداول الورشة — بس منسكتش كمان. */
+    console.error('[workshop tick] gate', e.message);
+    return false;
+  }
+}
+
+async function retryFailedWorkshopMessages() {
+  const rows = (await pool.query(
+    `SELECT id, company_id
+       FROM workshop_messages
+      WHERE status='failed' AND next_retry_at IS NOT NULL
+        AND next_retry_at <= now() AND attempt_count < 5
+      ORDER BY next_retry_at LIMIT 25`
+  )).rows;
+  for (const row of rows) await deliverWorkshopMessage(row.company_id, row.id);
+}
+
+async function workshopTick() {
+  if (!await anyWorkshopTenant()) return;
+  for (const [label, task] of [
+    ['retry', retryFailedWorkshopMessages],
+    ['reminders', queueServiceReminderMessages],
+    ['health', checkWorkshopReminderHealth],
+  ]) {
+    /* كل مهمة لوحدها: واحدة تقع ماتمنعش اللي بعدها. */
+    try { await task(); }
+    catch (e) { console.error(`[workshop tick] ${label}`, e.message); }
+  }
+}
+
+const workshopTimer = setInterval(() => {
+  workshopTick().catch((e) => console.error('[workshop tick]', e.message));
+}, WORKSHOP_TICK_MS);
+if (workshopTimer.unref) workshopTimer.unref();
+
+/* نداء أول بعد دقيقة من الإقلاع — بيدّي إشارة مبكرة لو حاجة بايظة، من
+ * غير ما يزاحم بقية التهيئة. */
 setTimeout(() => {
-  queueServiceReminderMessages().catch((e) => console.error('[workshop reminder startup]', e.message));
-}, 15 * 1000).unref();
-const workshopReminderHealthTimer = setInterval(() => {
-  checkWorkshopReminderHealth().catch((e) => console.error('[workshop reminder health]', e.message));
-}, 10 * 60 * 1000);
-if (workshopReminderHealthTimer.unref) workshopReminderHealthTimer.unref();
-setTimeout(() => {
-  checkWorkshopReminderHealth().catch((e) => console.error('[workshop reminder health startup]', e.message));
+  workshopTick().catch((e) => console.error('[workshop tick startup]', e.message));
 }, 60 * 1000).unref();
 
 async function loadWorkshopInvoiceRows(companyId, options = {}) {

@@ -8,8 +8,33 @@
  */
 'use strict';
 
-const { Pool } = require('pg');
-const audit = require('../src/lib/audit');
+/* ── ده اختبار تكامل على قاعدة **حيّة** ───────────────────────────────
+ *
+ * محتاج `pg` متسطّبة و`DATABASE_URL` بيوصل لقاعدة فيها ورشة نشطة. بيئة
+ * المراجعة عندنا مافيهاش الاتنين بالتصميم (`docs/HANDOVER.md`، الدرسين
+ * التاني والتالت) — `npm install` بيفشل والشبكة محجوبة.
+ *
+ * فبيتخطّى هنا **بصوت عالي** بدل ما يفشّل `check-all` كله عند أي حد
+ * بيراجع الكود. وبيفضل مسجّل في `CHECKS` عشان مايسوّسش — الفحص اللي
+ * محدش بيشغّله بيسوّس.
+ *
+ * ⚠️ **والتخطّي مش نجاح.** مكانه الطبيعي مع اختبارات ما بعد النشر في
+ * `docs/LIVE_TEST_PROMPT.md` — يتشغّل على ريبليت بعد كل Republish، وهناك
+ * الحزم والقاعدة موجودين. لو وقع هناك، ده فشل حقيقي. */
+let Pool, audit;
+try {
+  ({ Pool } = require('pg'));
+  audit = require('../src/lib/audit');
+} catch (e) {
+  console.log('⏭️  اتخطّى: ' + e.message.split('\n')[0]);
+  console.log('    ده اختبار تكامل على قاعدة حيّة — شغّله على ريبليت بعد النشر.');
+  process.exit(0);
+}
+if (!process.env.DATABASE_URL) {
+  console.log('⏭️  اتخطّى: مفيش DATABASE_URL — اختبار تكامل على قاعدة حيّة.');
+  console.log('    شغّله على ريبليت بعد النشر.');
+  process.exit(0);
+}
 
 const actorId = 2147483000;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
