@@ -17,6 +17,7 @@ const PAGE_TYPES = ['shop', 'deals', 'portfolio', 'pharmacy', 'orders', 'clinic'
   'furniture', 'nutrition', 'workshop', 'hall', 'nursery', 'installments'];
 const { sendApplicationApproved } = require('../lib/mailer');
 const QRCode = require('qrcode');
+const demoMode = require('../lib/demo_mode');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -131,6 +132,19 @@ const DEMO_SEEDERS = [
   ['clinic', 'enable-demo-clinic.js'],
 ];
 
+async function loadDemoCompanies() {
+  const slugs = Array.from(demoMode.DEMO_SLUGS);
+  const result = await pool.query(
+    `SELECT c.id, c.slug, c.company_name, c.page_type, c.is_active, c.created_at,
+            (SELECT COUNT(*)::int FROM company_users u WHERE u.company_id = c.id) AS users_count
+       FROM companies c
+      WHERE c.slug = ANY($1::text[])
+      ORDER BY array_position($1::text[], c.slug)`,
+    [slugs]
+  );
+  return result.rows;
+}
+
 router.post('/demos/seed', requireAdmin, async (req, res) => {
   const { execFile } = require('child_process');
   const path = require('path');
@@ -158,14 +172,26 @@ router.post('/demos/seed', requireAdmin, async (req, res) => {
     const r = await run(script);
     results.push({ slug, ...r });
   }
+  let demoCompanies = [];
+  try {
+    demoCompanies = await loadDemoCompanies();
+  } catch (err) {
+    console.error('[admin demos] failed to load demo companies:', err.message);
+  }
   res.render('admin/demos', {
-    session: adminSession(req), activePage: 'demos', results, error: null,
+    session: adminSession(req), activePage: 'demos', results, demoCompanies, error: null,
   });
 });
 
-router.get('/demos', requireAdmin, (req, res) => {
+router.get('/demos', requireAdmin, async (req, res) => {
+  let demoCompanies = [];
+  try {
+    demoCompanies = await loadDemoCompanies();
+  } catch (err) {
+    console.error('[admin demos] failed to load demo companies:', err.message);
+  }
   res.render('admin/demos', {
-    session: adminSession(req), activePage: 'demos', results: null, error: null,
+    session: adminSession(req), activePage: 'demos', results: null, demoCompanies, error: null,
   });
 });
 

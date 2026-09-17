@@ -1,13 +1,9 @@
 import webpush from "web-push";
 import cron from "node-cron";
-import pg from "pg";
 import { storage } from "./storage";
+import { dbPool } from "./db-pool";
 
-const pgPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-// A Neon idle-connection kill must not crash the process (unhandled 'error'
-// event) — otherwise the daily 6 AM cron dies with it. Pool re-connects on use.
-pgPool.on('error', (err) => console.error('[pg] push idle client error (recovered):', err.message));
-
+const pgPool = dbPool;
 const NOTIF_DATE_KEY = "last_daily_notif_date";
 // Records what actually happened on the last daily run (sent/expired/errors, or
 // why it bailed). The date guard alone only proves the run started.

@@ -12,7 +12,9 @@
     "ads:backup": "node scripts/ads-backup.js backup",
     "ads:backup:list": "node scripts/ads-backup.js list",
     "ads:backup:verify": "node scripts/ads-backup.js verify",
+    "ads:backup:compare": "node scripts/ads-backup.js compare",
     "ads:backup:restore-help": "node scripts/ads-backup.js restore-help",
+    "mybible:migration:verify-group": "node scripts/validate-mybible-group-migration.js",
     "build:css": "tailwindcss -c tailwind.config.js -i src/styles/tailwind.css -o public/css/tw.css --minify",
     "deals:sync:amazon": "node scripts/sync-deals-amazon.js",
     "deals:seed:amazon": "node scripts/seed-deals-amazon.js"

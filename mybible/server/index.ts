@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import pg from "pg";
+import { dbPool } from "./db-pool";
 import { registerRoutes } from "./routes";
 import { registerGroupRoutes } from "./group-routes";
 import { registerChurchRoutes } from "./church-routes";
@@ -31,17 +31,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Setup PostgreSQL session store for production compatibility
 const PgSession = connectPgSimple(session);
-const pgPool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-// Prevent an idle-connection termination (Neon auto-suspend) from crashing the
-// process via an unhandled 'error' event — the pool re-connects on next use.
-pgPool.on('error', (err) => console.error('[pg] session-store idle client error (recovered):', err.message));
 
 app.use(
   session({
     store: new PgSession({
-      pool: pgPool,
+      pool: dbPool,
       tableName: 'session',
       createTableIfMissing: true,
     }),
@@ -178,23 +172,23 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
       
       // إضافة أعمدة جديدة إن لم تكن موجودة (migration آمنة)
-      pgPool.query(`ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS auto_reading_config jsonb DEFAULT NULL`)
+      dbPool.query(`ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS auto_reading_config jsonb DEFAULT NULL`)
         .catch(e => console.warn('[migration] auto_reading_config:', e.message));
-      pgPool.query(`ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS messaging_mode text DEFAULT 'all'`)
+      dbPool.query(`ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS messaging_mode text DEFAULT 'all'`)
         .catch(e => console.warn('[migration] reading_groups.messaging_mode:', e.message));
 
-      pgPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS image_url text`)
+      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS image_url text`)
         .catch(e => console.warn('[migration] group_messages.image_url:', e.message));
-      pgPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_id integer`)
+      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_id integer`)
         .catch(e => console.warn('[migration] group_messages.reply_to_id:', e.message));
-      pgPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_text text`)
+      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_text text`)
         .catch(e => console.warn('[migration] group_messages.reply_to_text:', e.message));
-      pgPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_user_name text`)
+      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_user_name text`)
         .catch(e => console.warn('[migration] group_messages.reply_to_user_name:', e.message));
-      pgPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reactions jsonb DEFAULT '[]'::jsonb`)
+      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reactions jsonb DEFAULT '[]'::jsonb`)
         .catch(e => console.warn('[migration] group_messages.reactions:', e.message));
 
-      pgPool.query(`CREATE TABLE IF NOT EXISTS group_push_subscriptions (
+      dbPool.query(`CREATE TABLE IF NOT EXISTS group_push_subscriptions (
         id serial primary key,
         group_id integer not null,
         group_code text not null,
@@ -210,12 +204,12 @@ app.use((req, res, next) => {
 
       // ترقية constraint من UNIQUE(endpoint) إلى UNIQUE(group_id, endpoint)
       // على القواعد القديمة التي أُنشئت قبل هذا التعديل
-      pgPool.query(`
+      dbPool.query(`
         ALTER TABLE group_push_subscriptions DROP CONSTRAINT IF EXISTS group_push_subscriptions_endpoint_key;
         CREATE UNIQUE INDEX IF NOT EXISTS gps_group_endpoint_idx ON group_push_subscriptions(group_id, endpoint)
       `).catch(e => console.warn('[migration] gps constraint upgrade:', e.message));
 
-      pgPool.query(`CREATE TABLE IF NOT EXISTS app_settings (
+      dbPool.query(`CREATE TABLE IF NOT EXISTS app_settings (
         key text primary key,
         value text not null,
         updated_at timestamp default now()
@@ -223,7 +217,7 @@ app.use((req, res, next) => {
 
       // تنظيف الأعضاء المكررين بنفس رقم الموبايل في المجموعة الواحدة
       // يحتفظ بالأدمن إن وُجد، وإلا بالأحدث تاريخاً
-      pgPool.query(`
+      dbPool.query(`
         DELETE FROM group_members gm
         WHERE gm.phone IS NOT NULL
           AND gm.id NOT IN (
@@ -240,7 +234,7 @@ app.use((req, res, next) => {
       }).catch(e => console.warn('[migration] dedup group_members:', e.message));
 
       // إضافة unique index على (group_id, phone) لمنع التكرار مستقبلاً
-      pgPool.query(`
+      dbPool.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS gm_group_phone_unique_idx
         ON group_members (group_id, phone)
         WHERE phone IS NOT NULL

@@ -39,6 +39,10 @@ externalPort = 80
 localPort = 5001
 externalPort = 3001
 
+[[ports]]
+localPort = 5011
+externalPort = 3000
+
 [deployment]
 deploymentTarget = "vm"
 build = ["sh", "-c", "npm install --include=dev && (cd mybible && npm install --include=dev && npm run build)"]
@@ -47,3 +51,13 @@ run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=tru
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 60000
+
+[userenv]
+
+[userenv.production]
+MYBIBLE_MAINTENANCE_MODE = "false"
+MYBIBLE_SESSION_SECRET_SHA256 = "db416deb92e6797b1bb1a87b99456df44714f51880f9f7c9c38b0dc63d50743d"
+MYBIBLE_VAPID_PUBLIC_KEY_SHA256 = "2f267592ee69f6eded91d68225704bd57ec916c13974c3a123f69a08a742ba8b"
+MYBIBLE_DATABASE_TARGET = "ads-supabase"
+MYBIBLE_PG_POOL_MAX = "5"
+PG_POOL_MAX = "8"

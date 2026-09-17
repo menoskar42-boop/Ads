@@ -1,15 +1,12 @@
 import type { Express } from "express";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+import { dbPool } from "./db-pool";
 import {
   churchChallenges, challengeParticipants, readingGroups, groupReadingLogs, groupMembers,
 } from "@shared/schema";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-// Swallow idle-client errors (Neon auto-suspend) so they don't crash the process.
-pool.on('error', (err) => console.error('[pg] challenge-routes idle client error (recovered):', err.message));
-const db = drizzle(pool);
+const db = drizzle(dbPool);
 
 const ADMIN_PHONE = process.env.ADMIN_PHONE || '01552406406';
 

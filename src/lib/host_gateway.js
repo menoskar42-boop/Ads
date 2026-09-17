@@ -19,6 +19,7 @@
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { isMyBibleMaintenanceMode } = require('./mybible_database');
 
 // Map public hostname -> upstream base URL (internal, same VM). Empty ⇒ disabled.
 function loadRoutes() {
@@ -87,6 +88,7 @@ function createHostGateway() {
   const routes = loadRoutes();
   const hosts = Object.keys(routes);
   if (!hosts.length) return null;
+  const myBibleMaintenance = isMyBibleMaintenanceMode();
   console.log('🌉 Host gateway enabled for:', hosts.join(', '));
   return function hostGateway(req, res, next) {
     // Same host source the mykid/tenant middleware uses (Replit's edge clobbers
@@ -95,6 +97,15 @@ function createHostGateway() {
       .split(':')[0].toLowerCase();
     const target = routes[host];
     if (!target) return next();                   // not co-hosted → normal OscarDevs
+    if (myBibleMaintenance && (
+      host === 'mybible.oscardevs.com' || host === 'mybible2.oscardevs.com'
+    )) {
+      res.statusCode = 503;
+      res.setHeader('content-type', 'text/plain; charset=utf-8');
+      res.setHeader('cache-control', 'no-store');
+      res.setHeader('retry-after', '300');
+      return res.end('الموقع تحت صيانة قصيرة لحماية بيانات القراءة. حاول مرة أخرى بعد دقائق.');
+    }
     proxy(req, res, target, host);
   };
 }

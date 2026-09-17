@@ -8,6 +8,7 @@ const {
   runAdsBackup,
   verifyBackup,
 } = require('../src/lib/ads_backup');
+const { compareAdsDatabases } = require('../src/lib/ads_compare');
 
 function usage() {
   console.log(`Ads PostgreSQL backup tool
@@ -16,12 +17,15 @@ Usage:
   node scripts/ads-backup.js backup
   node scripts/ads-backup.js list
   node scripts/ads-backup.js verify [path/to/ads-YYYY-MM-DD.dump]
+  node scripts/ads-backup.js compare
   node scripts/ads-backup.js restore-help
 
 Environment:
   ADS_DATABASE_URL       PostgreSQL URI for the Ads database
   ADS_BACKUP_DIR         private backup directory (default: backups/ads)
   ADS_BACKUP_RETENTION   number of daily dumps to keep (default: 7)
+  ADS_MIGRATION_SOURCE_URL
+                         read-only source database URL for migration comparison
 `);
 }
 
@@ -55,6 +59,12 @@ async function main() {
   if (command === 'verify') {
     const file = path.resolve(process.argv[3] || await latestBackup());
     console.log(JSON.stringify(await verifyBackup(file), null, 2));
+    return;
+  }
+  if (command === 'compare') {
+    const report = await compareAdsDatabases();
+    console.log(JSON.stringify(report, null, 2));
+    if (!report.ok) process.exitCode = 2;
     return;
   }
   if (command === 'backup') {

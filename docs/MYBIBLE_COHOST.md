@@ -26,6 +26,10 @@
 | `MYBIBLE_DATABASE_URL` | رابط Neon بتاع الكتاب المقدس | نفس القاعدة الحالية |
 | `MYBIBLE_SESSION_SECRET` | **سرّ الكتاب المقدس نفسه** (مش بتاع أوسكار ديفز!) | لو غلط → الـ700 يتسجّل خروجهم |
 | `MYBIBLE_VAPID_PUBLIC_KEY`/`_PRIVATE_KEY` | **مفاتيح VAPID بتاعت الكتاب المقدس نفسه** | **مطلوب لو عايز الإشعارات تفضل شغّالة للـ700** — لو غلط/فاضي، اشتراكاتهم القديمة الإشعار ليها يفشل. **متستخدمش مفاتيح أوسكار ديفز.** |
+| `MYBIBLE_DATABASE_TARGET` | فارغ افتراضيًا، أو `ads-supabase` بعد الترحيل | عند تفعيله يستخدم `ADS_DATABASE_URL` مع schema معزول اسمه `mybible` |
+| `MYBIBLE_MAINTENANCE_MODE` | `true` أثناء اللقطة النهائية فقط | يعرض 503 ويمنع تشغيل child process، لأن حتى GET قد يكتب session/user |
+| `MYBIBLE_SESSION_SECRET_SHA256` | fingerprint للقيمة القديمة قبل النقل | يمنع تشغيل Supabase لو Session secret اتغيرت حتى لو القيمة الجديدة غير فارغة |
+| `MYBIBLE_VAPID_PUBLIC_KEY_SHA256` | fingerprint للمفتاح العام القديم قبل النقل | يمنع تشغيل Supabase لو هوية Push اتغيرت، ويتحقق أيضًا أن المفتاح الخاص يطابقه |
 
 Build command: `npm install && (cd mybible && npm install && npm run build)`
 
@@ -120,3 +124,41 @@ helper `migrateMemberName` بينقل التاريخ لما التعرّف با�
 3. اختبر `mybible2.oscardevs.com` (لازم يفتح الكتاب المقدس بلوجوه). الـ700 لسه على القديم.
 4. بعد التأكد، حوّل `mybible.oscardevs.com` للـVM. القديم fallback.
 5. وقّف نشر القديم (بدون مسح) = التوفير. + غيّر باسورد Neon وحدّث `MYBIBLE_DATABASE_URL`.
+
+## نقل قاعدة MyBible إلى مشروع Supabase المشترك
+
+MyBible وAds يشتركان في نفس PostgreSQL فقط على مستوى المشروع. جداول MyBible
+تبقى داخل schema مستقل اسمه `mybible`؛ ممنوع استعادتها داخل `public` لأن اسم
+`push_subscriptions` يتعارض مع Ads.
+
+الـcutover الآمن:
+
+1. خذ dump كاملًا من Neon وbackup مستقلًا من Supabase قبل أي كتابة.
+2. استعد dump داخل schema تجريبي، ثم قارن pre-data/data/post-data مع لقطة
+   المصدر بعد توحيد اسم الـschema فقط خارج COPY payload.
+3. اختبر bundle الإنتاج مع `search_path=mybible_runtime_test,pg_catalog`.
+4. انشر مع `MYBIBLE_MAINTENANCE_MODE=true`. البوابة تعرض 503 وMyBible child
+   لا يبدأ، لذلك تتوقف session writes والـcron.
+5. بعد التأكد أن الموقع في الصيانة، فعّل
+   `default_transaction_read_only=on` لدور Neon المستخدم، وأنهِ اتصالاته
+   القديمة، ثم تأكد من اتصال جديد أن القيمة `on`. ده fence لقاعدة المصدر:
+   أي نشر قديم أو cron بنفس الرابط يفشل في الكتابة بدل ما يسبق اللقطة.
+6. خذ dump نهائيًا من Neon واستعده في schema `mybible` داخل transaction واحدة.
+7. تحقق من تطابق schema/data/constraints والـsequences. شغّل أيضًا بوابة
+   درس مارمرقس قبل فتح الموقع:
+   `MYBIBLE_COMPARE_TARGET_SCHEMA=mybible npm run mybible:migration:verify-group`.
+   يجب أن تعطي `ok: true`؛ الفحص يشمل الأعضاء والسجلات والتكليفات وتقدم
+   القراءة وكل `users` و`sessions` واشتراكات Push. أي فرق يمنع الـcutover.
+8. بعد نجاح الفحص، اضبط
+   `MYBIBLE_DATABASE_TARGET=ads-supabase` وأزل maintenance mode وأعد النشر.
+   الاتصال يستخدم `search_path=mybible,pg_catalog` بلا `public` fallback؛
+   أي جدول ناقص يفشل صراحةً ولا يلمس جدول Ads مشابهًا.
+9. حافظ على `MYBIBLE_SESSION_SECRET` ومفاتيح VAPID دون أي تغيير؛ التشغيل على
+   Supabase يرفض البدء إذا غاب أي واحد منها.
+10. قبل فتح الموقع اختبر session cookie اتعملت على Neon بنفسها بعد التحويل،
+    واختبر أن endpoint المفتاح العام لـVAPID يعطي نفس fingerprint.
+11. لا تحذف Neon القديمة ولا ترفع عنها read-only. النقل **forward-only بعد فتح
+    الكتابة على Supabase**: أي عطل يتصلح على Supabase والموقع يظل في الصيانة
+    أثناء الإصلاح. الرجوع لنسخة Neon المجمدة بعد قراءات جديدة يفقد الـdelta
+    وممنوع من غير نقل عكسي كامل ومقارنة جديدة.
+   تجميدًا جديدًا ونقل delta؛ لا تغيّر الرابط للخلف بشكل أعمى.

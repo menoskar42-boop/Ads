@@ -29,6 +29,18 @@ const LIVE_MISSING_CHAPTER_URLS: Record<string, Record<number, string>> = {
   },
 };
 
+/**
+ * الأصحاحات الوحيدة اللي مسموح نروح فيها للشبكة — مشتقّة من نفس الجدول فوق
+ * عشان ما تفرقش عنه. الحارس `check-tafsir-offline` بيقرا منها ويتأكد إن كل
+ * إصحاح فيها **مش موجود عندنا** فعلاً؛ السحب من سانت تكلا آخر حل مش بديل.
+ */
+export const LIVE_MISSING_CHAPTERS: Record<string, number[]> = Object.fromEntries(
+  Object.entries(LIVE_MISSING_CHAPTER_URLS).map(([book, byChapter]) => [
+    book,
+    Object.keys(byChapter).map(Number),
+  ]),
+);
+
 const tafsirCache: Record<string, TafsirEntry[]> = {};
 const cacheOrder: string[] = [];
 const MAX_CACHE_SIZE = 5;
@@ -583,7 +595,7 @@ export function extractVerseTafsir(
   //   الآيات (52\'a153): \'a1 = Windows-1252 artifact for ¡ used as range sep
   // Group 1 = startVerse, Group 2 = endVerse (optional)
   const versePattern =
-    /(?:^|\n)\s*\(?(?:ال)?[أآ]ي[ةات]+\s*\(?\s*(\d+)(?:\s*(?:[-–]|\\'a1)\s*(\d+))?\s*\)?\s*[:：]/g;
+    /(?:^|\n)\s*\(?(?:ال)?[أآ]ي[ةات]+\s*\(?\s*(\d+)(?:\s*(?:[-–]|\\'a1)\s*(\d+))?\s*\)?\s*[:：]?/g;
 
   while ((match = versePattern.exec(fullText)) !== null) {
     const verseNum = parseInt(match[1], 10);
@@ -821,13 +833,20 @@ function verseTafsirRaw(
     entry.chapter === 1 && entry.verse === 1;
   const entryText = (entry: TafsirEntry) =>
     entry.verse === 0 ? stripChapterWrapper(entry.tafsir, chapter) : entry.tafsir;
+  const isEmbeddedChapterBody = (entry: TafsirEntry, text: string) =>
+    entry.verse !== 0 &&
+    declaredChapter(text) === chapter &&
+    /^\s*(?:الإصحاح|الاصحاح)(?:\s|$)/u.test(text);
   const extractEntry = (entry: TafsirEntry, targetVerse: number) => {
     const text = entryText(entry);
 
     // A direct CSV row carries its declared source range in the first header.
     // Never let the extractor's unmarked-tail handling carry that row into a
     // later verse (for example 19:14 being reused for 19:15–16).
-    if (entry.verse !== 0) {
+    // Some St-Takla exports put a complete, explicitly titled chapter body in
+    // a non-zero CSV row (Isaiah 1 is stored as verse 2). For those rows, the
+    // section markers inside the body are the trustworthy verse boundaries.
+    if (entry.verse !== 0 && !isEmbeddedChapterBody(entry, text)) {
       const header = HEADER_RE.exec(text);
       if (header) {
         const startVerse = parseInt(header[2], 10);

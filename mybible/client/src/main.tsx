@@ -5,6 +5,34 @@ import App from "./App";
 import "./index.css";
 import { initUserDataSync } from "./lib/user-data-sync";
 
+const CLIENT_RECOVERY_KEY = "mybible-client-recovery";
+
+async function recoverClientShell(force = false) {
+  try {
+    if (!force && sessionStorage.getItem(CLIENT_RECOVERY_KEY)) return;
+    sessionStorage.setItem(CLIENT_RECOVERY_KEY, "1");
+
+    // Keep the service-worker registration (and therefore Push subscription),
+    // but force it to check for the latest worker and discard only MyBible's
+    // HTTP caches. User data in localStorage/IndexedDB is left untouched.
+    const registration = await navigator.serviceWorker?.getRegistration("/");
+    await registration?.update().catch(() => undefined);
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.all(
+        names
+          // mybible-static-v1 is the user's explicit full offline Bible
+          // download. Only clear generated app-shell/runtime caches.
+          .filter((name) => /^mybible(?:-static)?-v(?:[2-9]|\d{2,})$/.test(name))
+          .map((name) => caches.delete(name)),
+      );
+    }
+  } catch {
+    // Recovery is best-effort; a network reload is still worth attempting.
+  }
+  window.location.reload();
+}
+
 // Register service worker for offline caching (push notifications handled inside sw.js)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
@@ -25,6 +53,11 @@ class ErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
+  componentDidCatch() {
+    // A tab left open across a deployment can temporarily combine an old
+    // cached app shell with a new bundle. Repair that once automatically.
+    void recoverClientShell();
+  }
   render() {
     if (this.state.error) {
       const err = this.state.error as Error;
@@ -38,7 +71,7 @@ class ErrorBoundary extends React.Component<
             <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{err && (err.message + "\n" + err.stack)}</pre>
           </details>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => void recoverClientShell(true)}
             style={{ marginTop: "16px", padding: "8px 24px", background: "#8B5E3C", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "16px" }}
           >
             تحديث الصفحة
@@ -49,6 +82,9 @@ class ErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+
+// A healthy page should be allowed to self-repair again after a future deploy.
+window.setTimeout(() => sessionStorage.removeItem(CLIENT_RECOVERY_KEY), 30_000);
 
 try {
   const rootElement = document.getElementById("root");

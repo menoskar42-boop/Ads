@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
 import { eq, and, or, desc, sql, inArray, avg, count, sum } from "drizzle-orm";
+import { dbPool } from "./db-pool";
 import { normalizeArabicText } from "./utils/arabic-normalize";
 import { expandQuery, calculateRelevanceScore, type SmartSearchResult } from "./utils/smart-search";
 import type {
@@ -41,8 +41,6 @@ import type {
   SeoTopic
 } from "@shared/schema";
 import * as schema from "@shared/schema";
-
-const { Pool } = pg;
 
 export interface IStorage {
   trackEngagement(data: { sessionId: string; page: string; query?: string; scrollDepth: number; timeOnPage: number; verseClicks: number }): Promise<void>;
@@ -200,15 +198,7 @@ export class DatabaseStorage implements IStorage {
       return;
     }
 
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
-    // Neon suspends idle compute and kills open connections ("terminating
-    // connection due to administrator command"). pg.Pool emits that as an
-    // 'error' event; with no handler Node treats it as uncaught and crashes
-    // the whole process. Swallow it — the pool re-connects on the next query.
-    pool.on('error', (err) => console.error('[pg] idle client error (recovered):', err.message));
-    this.db = drizzle(pool, { schema });
+    this.db = drizzle(dbPool, { schema });
   }
 
   // Users

@@ -1,13 +1,19 @@
 ---
-name: Ads Supabase migration
-description: Constraints for the external PostgreSQL database used by the Ads application.
+name: Ads and MyBible Supabase
+description: Constraints for the Supabase database shared by Ads and schema-isolated MyBible.
 ---
 
 The Ads database can be reached from Replit through Supabase’s Session Pooler; direct `db.<project>.supabase.co` access may fail DNS resolution, and Supabase database dumps require a PostgreSQL client at least as new as the server.
 
 **Why:** The Supabase target runs PostgreSQL 17 and the direct host was not reachable from the Replit environment, while the Session Pooler worked reliably.
 
-**How to apply:** Use PostgreSQL 17 tooling for future dumps/restores, prefer the Session Pooler on port 5432, and keep the Ads connection separate from `MYBIBLE_DATABASE_URL`.
+**How to apply:** Use PostgreSQL 17 tooling for future dumps/restores and prefer the Session Pooler on port 5432. Keep MyBible in its isolated schema with a fail-closed search path.
+
+The Session Pooler’s 15-client ceiling is shared across the parent Ads process and the MyBible child process. Their process-wide pool caps must leave headroom under that combined limit.
+
+**Why:** Independent MyBible pools exhausted the shared 15-client allowance after cutover, causing intermittent API failures even though the migrated data was intact.
+
+**How to apply:** Keep one runtime pool per process and budget their maxima together; standalone maintenance scripts must not run concurrently with saturated production traffic.
 
 The backup scheduler must start after the application's additive schema migrations finish, not immediately when the HTTP port opens.
 
