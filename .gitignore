@@ -9,3 +9,8 @@ backups/ads/
 # Safari Kids (mykid) runtime artifacts
 mykid/server/.tts-cache/
 mykid/.env
+
+# التطبيق المستضاف Service Flow — المولَّد مش في جيت
+serviceflow/node_modules
+serviceflow/dist
+serviceflow/server/public

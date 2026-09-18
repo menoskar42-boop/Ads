@@ -1,0 +1,538 @@
+// ==UserScript==
+// @name         Provisioning Portal → تحديث ملف البورتات (Service-Flow)
+// @namespace    service-flow.provisioning.ports
+// @description  يفتح Get MSAN Data على Provisioning Portal (WE) لكل كود أمسان مخزّن فى Service-Flow، يعمل Search، يقرأ صفوف البورتات (Phone Number/Frame/Slot/…)، ويرفعها لـ Service-Flow فتستبدل نفس أرقام التليفونات فى ملف البورتات وتضيف الجديد. زرّ عائم يبدأ العملية.
+// @version      1.3.1
+// @match        *://provisioningportal.te.eg/provisioningPortal/*
+// @connect      service-flow-menoskar42.replit.app
+// @grant        none
+// @run-at       document-start
+// ==/UserScript==
+
+(function () {
+  "use strict";
+
+  /* ================== تشغيل تلقائى: التقاط النيّة مبكّراً ==================
+     مشكلة: لما المستخدم يكون مسجّل دخول بالفعل، البورتال (Angular) بيعمل redirect سريع
+     لصفحة get-msan-data و بيمسح ?sf_ports=1 من الـ URL قبل ما السكريبت يلحق يقراه (race).
+     الحل الأقوى: الزرّ فى Service-Flow بيفتح التبويب باسم target = "sf_ports_auto"
+     (window.name) — والـ browser بيحطه فور فتح التبويب و مفيش SPA يقدر يمسحه. نقرأه هنا،
+     ونحفظ النيّة فى sessionStorage علشان تعيش عبر الـ redirect وأى تنقّل داخلى لحد ما التحديث يخلص.
+     نسيب ?sf_ports=1 كـ fallback كمان. */
+  const AUTO_KEY = "sf_ports_auto";
+  try {
+    const fromName = (window.name === "sf_ports_auto");
+    const fromUrl = /[?&#]sf_ports=1\b/.test(location.href);
+    if (fromName || fromUrl) sessionStorage.setItem(AUTO_KEY, "1");
+    // نظّف الاسم فوراً بعد قراءته عشان reload يدوى لاحقاً مايشغّلش من نفسه
+    if (fromName) { try { window.name = ""; } catch (e) {} }
+  } catch (e) {}
+  const AUTO = (() => { try { return sessionStorage.getItem(AUTO_KEY) === "1"; } catch (e) { return false; } })();
+
+  /* ================== CONFIG ================== */
+  const USER = "mena.haleem";
+  const PASS = "Mon_oskar364";
+  const SF_API_BASE = "https://service-flow-menoskar42.replit.app"; // دومين Service-Flow
+  const SF_TOKEN = "sf-dzs-138-ingest-2026";                        // = DZS_INGEST_TOKEN فى السيرفر
+  const GET_MSAN_HASH = "#/subscriber-management/get-msan-data";
+  const SEARCH_WAIT_MS = 45000;   // أقصى انتظار لظهور بيانات الأمسان بعد Search
+  const BETWEEN_CABINS_MS = 1200; // راحة بسيطة بين كل أمسان والتالى
+
+  /* ================== اعتراض الشبكة (fetch + XHR) لالتقاط صفوف الأمسان ================== */
+  const captures = []; // [{ t, rows }]
+  const looksLikeRow = (o) =>
+    o && typeof o === "object" && !Array.isArray(o) &&
+    Object.keys(o).some((k) => /phone|msisdn/i.test(k)) &&
+    Object.keys(o).some((k) => /msan|frame|port|slot|shelf/i.test(k));
+  function findRows(json) {
+    // ابحث (DFS) عن أول Array عناصره صفوف أمسان
+    const seen = new Set();
+    const stack = [json];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (!cur || typeof cur !== "object" || seen.has(cur)) continue;
+      seen.add(cur);
+      if (Array.isArray(cur)) {
+        if (cur.length && looksLikeRow(cur[0])) return cur;
+        for (const v of cur) if (v && typeof v === "object") stack.push(v);
+      } else {
+        for (const k of Object.keys(cur)) { const v = cur[k]; if (v && typeof v === "object") stack.push(v); }
+      }
+    }
+    return null;
+  }
+  function tryCapture(text) {
+    if (!text || text.length < 20) return;
+    let json; try { json = JSON.parse(text); } catch (e) { return; }
+    const rows = findRows(json);
+    if (rows && rows.length) { captures.push({ t: Date.now(), rows }); console.log("📡 التقطنا", rows.length, "صف أمسان"); }
+  }
+  // fetch
+  const _fetch = window.fetch;
+  window.fetch = function (...args) {
+    return _fetch.apply(this, args).then((resp) => {
+      try { resp.clone().text().then(tryCapture).catch(() => {}); } catch (e) {}
+      return resp;
+    });
+  };
+  // XHR
+  const _open = XMLHttpRequest.prototype.open;
+  const _send = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function (m, u) { this.__sf_url = u; return _open.apply(this, arguments); };
+  XMLHttpRequest.prototype.send = function () {
+    this.addEventListener("load", function () {
+      try {
+        const ct = (this.getResponseHeader("content-type") || "");
+        if (/json|text/i.test(ct) || !ct) tryCapture(this.responseText);
+      } catch (e) {}
+    });
+    return _send.apply(this, arguments);
+  };
+
+  /* ================== أدوات DOM / Angular ================== */
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const visible = (el) => { try { return !!el && el.getClientRects().length > 0; } catch (e) { return false; } };
+  const norm = (s) => (s || "").toLowerCase().replace(/[\s_]+/g, "");
+
+  async function waitFor(fn, ms) {
+    const end = Date.now() + (ms || 15000);
+    while (Date.now() < end) { try { const v = fn(); if (v) return v; } catch (e) {} await sleep(200); }
+    return null;
+  }
+  // ضبط قيمة input بشكل يفهمه Angular (native setter + input event)
+  function setNgValue(input, value) {
+    try { input.focus(); } catch (e) {}
+    try {
+      const proto = input.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+      setter.call(input, value);
+    } catch (e) { input.value = value; }
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+    input.dispatchEvent(new Event("blur", { bubbles: true }));
+  }
+  function findButtonByText(re) {
+    const els = [...document.querySelectorAll("button, input[type='button'], input[type='submit'], a")];
+    return els.find((b) => visible(b) && re.test(((b.textContent || b.value || "").trim())));
+  }
+  // زرّ Search بتاع الفورم تحديداً (مش «Search» بتاع القائمة الجانبية):
+  // نصعد من خانة Cabin Code لأعلى ونلاقى أقرب <button>/submit نصّه Search داخل نفس الفورم.
+  function findSearchButton(input) {
+    const re = /^\s*search\s*$|بحث/i;
+    let node = input;
+    for (let d = 0; d < 7 && node; d++) {
+      const btns = [...node.querySelectorAll("button, input[type='submit'], input[type='button']")]
+        .filter((b) => visible(b) && re.test((b.textContent || b.value || "")));
+      if (btns.length) return btns[btns.length - 1];
+      node = node.parentElement;
+    }
+    // احتياطى: أى button (مش <a> ومش داخل قائمة/شريط جانبى) نصّه Search
+    return [...document.querySelectorAll("button, input[type='submit']")]
+      .find((b) => visible(b) && re.test((b.textContent || b.value || "")) && !b.closest("nav,aside,.sidebar,.side-menu,.menu,ul")) || null;
+  }
+  // ضغط موثوق (mousedown/up + click) + محاولة submit للفورم
+  function clickEl(el) {
+    if (!el) return false;
+    try { el.scrollIntoView({ block: "center" }); } catch (e) {}
+    for (const type of ["mousedown", "mouseup", "click"]) {
+      el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+    }
+    const form = el.closest && el.closest("form");
+    if (form && typeof form.requestSubmit === "function") { try { form.requestSubmit(el.type === "submit" ? el : undefined); } catch (e) {} }
+    return true;
+  }
+
+  /* ================== UI ================== */
+  let bar, log, startBtn;
+  function ui() {
+    if (bar) return;
+    // شريط الحالة أعلى الصفحة
+    bar = document.createElement("div");
+    bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:8px 12px;font:bold 13px Arial;color:#fff;background:#5b2a86;text-align:center;direction:rtl;box-shadow:0 2px 8px rgba(0,0,0,.4)";
+    bar.textContent = "⚙️ تحديث ملف البورتات — جاهز";
+    // زرّ تشغيل عائم كبير أسفل يسار (لا يتغطّى بهيدر الموقع)
+    startBtn = document.createElement("button");
+    startBtn.textContent = "🔄 ابدأ تحديث ملف البورتات";
+    startBtn.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483647;padding:14px 20px;border:0;border-radius:10px;background:#2e7d32;color:#fff;font:bold 15px Arial;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);direction:rtl";
+    startBtn.onmouseenter = () => (startBtn.style.background = "#1b5e20");
+    startBtn.onmouseleave = () => (startBtn.style.background = "#2e7d32");
+    startBtn.onclick = () => { startBtn.disabled = true; startBtn.style.background = "#9e9e9e"; startBtn.textContent = "⏳ جارٍ التحديث…"; run().catch((e) => banner("❌ " + (e && e.message || e), "#c62828")); };
+    log = document.createElement("div");
+    log.style.cssText = "position:fixed;bottom:0;left:0;right:0;max-height:22vh;overflow:auto;z-index:2147483646;padding:6px 12px;font:12px/1.5 monospace;color:#0f0;background:rgba(0,0,0,.82);direction:ltr;white-space:pre-wrap";
+    const root = document.body || document.documentElement;
+    root.appendChild(bar); root.appendChild(startBtn); root.appendChild(log);
+  }
+  function banner(msg, color) { ui(); bar.style.background = color || "#5b2a86"; bar.textContent = msg; }
+  function logln(msg) { ui(); log.textContent += msg + "\n"; log.scrollTop = log.scrollHeight; console.log(msg); }
+
+  /* ================== Service-Flow ================== */
+  async function sfGetCabins() {
+    const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/cabins", {
+      headers: { "X-DZS-Token": SF_TOKEN },
+    });
+    const j = await r.json();
+    return Array.isArray(j.cabins) ? j.cabins : [];
+  }
+  async function sfPostPorts(cabin, rows) {
+    // اضمن وجود msanCode لكل صف (لو ناقص من البورتال)
+    const items = rows.map((o) => Object.assign({ msanCode: cabin }, o));
+    const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
+      body: JSON.stringify({ items }),
+    });
+    return r.json();
+  }
+  // إشارة اكتمال التشغيل الكامل (بعد آخر كابينة) — الموقع بيستخدم وقتها كعلامة "اتحدّثت البورتات النهارده"
+  async function sfPortsRunComplete(cabins, updated) {
+    const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/phone-ports/run-complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-DZS-Token": SF_TOKEN },
+      body: JSON.stringify({ cabins, updated }),
+    });
+    return r.json();
+  }
+
+  /* ================== تسجيل الدخول ================== */
+  // هل إحنا على صفحة اللوجين؟ (وجود حقل باسورد = لوجين — مهم جداً عشان مانكتبش كود الكابينة فى خانة اليوزر)
+  const onLoginPage = () => /#\/login/i.test(location.hash) || !!document.querySelector("input[type='password']");
+
+  async function doLoginOnce() {
+    const pass = await waitFor(() => document.querySelector("input[type='password']"), 15000);
+    if (!pass) return !onLoginPage(); // مفيش حقل باسورد → غالباً بالفعل داخل
+    // خانة المستخدم: أقرب input نصّى قبل الباسورد
+    const inputs = [...document.querySelectorAll("input")].filter(visible);
+    const pIdx = inputs.indexOf(pass);
+    const userInput = inputs.slice(0, pIdx).reverse().find((i) => !/password/i.test(i.type)) || inputs[0];
+    // امسح أى قيمة قديمة (ممكن يكون فيها كود كابينة من محاولة سابقة) واكتب اليوزر الصحيح
+    if (userInput) { setNgValue(userInput, ""); setNgValue(userInput, USER); }
+    setNgValue(pass, PASS);
+    await sleep(400);
+    const btn = findButtonByText(/^login$|تسجيل|دخول/i) || findButtonByText(/login/i);
+    if (btn) btn.click();
+    // انتظر مغادرة صفحة اللوجين فعلياً
+    await waitFor(() => !onLoginPage(), 20000);
+    await sleep(1200);
+    return !onLoginPage();
+  }
+
+  // يعيد المحاولة أكثر من مرة (الجلسة أحياناً بتسقط ويحتاج re-login أثناء الشغل)
+  async function ensureLoggedIn() {
+    if (!onLoginPage()) return true;
+    banner("🔐 تسجيل الدخول…", "#6a1b9a");
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const ok = await doLoginOnce();
+      if (ok) { logln("🔓 تم تسجيل الدخول."); return true; }
+      logln("⚠️ محاولة تسجيل دخول " + attempt + " لم تنجح — إعادة…");
+      await sleep(1500);
+    }
+    return !onLoginPage();
+  }
+
+  /* ================== فتح Get MSAN Data ================== */
+  async function gotoGetMsan() {
+    // لو الجلسة سقطت واترمينا على اللوجين → أعِد تسجيل الدخول أولاً (مهم: عشان مانكتبش كود الكابينة فى خانة اليوزر)
+    if (onLoginPage()) {
+      logln("🔁 الجلسة سقطت — إعادة تسجيل الدخول قبل فتح الصفحة…");
+      const ok = await ensureLoggedIn();
+      if (!ok) return null;
+      await sleep(800);
+    }
+    if (!new RegExp(GET_MSAN_HASH.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(location.hash)) {
+      location.hash = GET_MSAN_HASH;
+    }
+    // خانة Cabin Code: label «Cabin Code» ثم أقرب input، وإلا أول input نصّى ظاهر
+    const input = await waitFor(() => {
+      // حماية: لو رجعنا للوجين لأى سبب، ماترجّعش أى input (خانة اليوزر) — استنى/أعِد اللوجين
+      if (onLoginPage()) return null;
+      const lbl = [...document.querySelectorAll("label,span,div,th,h1,h2,h3,p")]
+        .find((e) => visible(e) && /cabin\s*code/i.test((e.textContent || "").trim()) && (e.textContent || "").trim().length < 40);
+      if (lbl) {
+        const scope = lbl.closest("form, .card, .panel, div") || document;
+        const near = [...scope.querySelectorAll("input")].filter((i) => visible(i) && !/password/i.test(i.type));
+        if (near.length) return near[0];
+      }
+      const any = [...document.querySelectorAll("input[type='text'], input:not([type])")].filter(visible);
+      return any[0] || null;
+    }, 20000);
+    // فحص أخير: لو لسه على اللوجين، ماترجّعش الخانة الغلط
+    if (onLoginPage()) return null;
+    return input;
+  }
+
+  /* ================== قراءة صفوف الأمسان بعد Search ================== */
+  // مسح احتياطى من جدول DataTables (لو مفيش التقاط شبكة)
+  // ⚠️ الجدول مقسّم صفحات (٥–٦ صفوف معروضة من ١١١٩). فى وضع DataTables العادى
+  // (client-side) الدالة rows() بترجّع **كل** الصفوف مش المعروض بس — وده المطلوب.
+  // لكن لو البوابة شغّالة server-side مابيبقاش فى الذاكرة غير الصفحة الحالية،
+  // فبنكشف الحالة دى (عدد صفوف الجدول أقل من المتوقّع) ونوسّع الصفحة مؤقتاً
+  // لكل الصفوف ثم نرجّعها زى ما كانت.
+  function scrapeDataTable(minExpected) {
+    try {
+      const $ = window.jQuery || window.$;
+      if (!$ || !$.fn || !$.fn.DataTable) return null;
+      const tbl = [...document.querySelectorAll("table")].find((t) => $.fn.dataTable && $.fn.dataTable.isDataTable(t));
+      if (!tbl) return null;
+      const dt = $(tbl).DataTable();
+      const heads = [...tbl.querySelectorAll("thead th")].map((th) => norm(th.textContent));
+      const toObjs = (data) => data.map((row) => {
+        if (Array.isArray(row)) { const o = {}; heads.forEach((h, i) => { o[h] = row[i]; }); return o; }
+        return row;
+      });
+      let data = dt.rows().data().toArray();
+      // ناقص عن المتوقّع؟ يبقى إحنا شايفين صفحة واحدة — وسّع لكل الصفوف ثم ارجع
+      if (minExpected && data.length && data.length < minExpected) {
+        let prevLen = null;
+        try {
+          prevLen = dt.page.len();
+          if (prevLen !== -1) {
+            dt.page.len(-1).draw(false);
+            data = dt.rows().data().toArray();
+            console.log("[PORTS] الجدول كان صفحة واحدة (" + prevLen + ") — وسّعناه لـ " + data.length + " صف");
+          }
+        } catch (e) { /* التوسيع مش متاح — نكمّل باللى معانا */ }
+        finally {
+          try { if (prevLen != null && prevLen !== -1) dt.page.len(prevLen).draw(false); } catch (e) {}
+        }
+      }
+      if (!data.length) return null;
+      return toObjs(data);
+    } catch (e) { return null; }
+  }
+
+  // بيانات الشبكة (JSON) مش دايماً بتحتوى كل الأعمدة — الشيلف مثلاً بيرجع فاضى
+  // منها، رغم إن **جدول الصفحة نفسه فيه عمود Shelf بقيمة**. هنا بنكمّل أى خانة
+  // فاضية من صف الجدول المقابل (مطابقة برقم التليفون). لو الجدول مش متاح بنرجّع
+  // صفوف الـ JSON زى ما هى — الدمج إضافة آمنة مش استبدال.
+  function mergeFromTable(rows) {
+    try {
+      if (!Array.isArray(rows) || !rows.length) return rows;
+      // بنبلّغه بعدد صفوف الشبكة عشان يعرف لو اللى فى الجدول صفحة واحدة بس
+      const tbl = scrapeDataTable(rows.length);
+      if (!tbl || !tbl.length) return rows;
+      if (tbl.length < rows.length) {
+        console.warn("[PORTS] جدول الصفحة فيه " + tbl.length + " صف بس مقابل " +
+                     rows.length + " من الشبكة — هنكمّل اللى نقدر عليه.");
+      }
+      const digits = (v) => String(v == null ? "" : v).replace(/\D/g, "");
+      const clean = (v) => String(v == null ? "" : v).replace(/<[^>]*>/g, "").trim();
+      const byPhone = new Map();
+      for (const t of tbl) {
+        const p = digits(pickKey(t, "phonenumber", "phone", "msisdn"));
+        if (p && !byPhone.has(p)) byPhone.set(p, t);
+      }
+      if (!byPhone.size) return rows;
+      // أسماء الأعمدة مطبَّعة زى ما scrapeDataTable بيرجّعها (lowercase بدون مسافات)
+      const KEYS = ["areacode", "msancode", "frame", "row", "column", "shelf", "slot",
+                    "portnumber", "porttype", "voicestatus", "datastatus", "operator"];
+      let filled = 0;
+      const out = rows.map((o) => {
+        const p = digits(pickKey(o, "phonenumber", "phone", "msisdn"));
+        const t = p && byPhone.get(p);
+        if (!t) return o;
+        const merged = Object.assign({}, o);
+        for (const k of KEYS) {
+          if (pickKey(merged, k) !== "") continue;   // القيمة موجودة خلاص من الـ JSON
+          const v = clean(pickKey(t, k));
+          if (v) { merged[k] = v; filled++; }
+        }
+        return merged;
+      });
+      const withShelf = out.filter((o) => pickKey(o, "shelf") !== "").length;
+      console.log("[PORTS] الدمج: كمّلنا " + filled + " قيمة من الجدول · " +
+                  withShelf + "/" + out.length + " صف بقى ليه شيلف");
+      return out;
+    } catch (e) { return rows; }
+  }
+
+  async function searchAndRead(input, cabin) {
+    // حماية أخيرة: لو الصفحة رجعت للوجين بين الفتح والكتابة، ماتكتبش كود الكابينة فى خانة اليوزر
+    if (onLoginPage() || !input || !input.isConnected) return null;
+    setNgValue(input, cabin);
+    await sleep(400);
+    const marker = captures.length;
+    const searchBtn = findSearchButton(input);
+    if (searchBtn) { logln("🔍 ضغط Search لـ " + cabin); clickEl(searchBtn); }
+    else { logln("⚠️ لم أجد زر Search — أُرسل Enter."); input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, which: 13, bubbles: true })); input.dispatchEvent(new KeyboardEvent("keypress", { key: "Enter", keyCode: 13, which: 13, bubbles: true })); }
+    // انتظر التقاط شبكة جديد، أو ظهور صفوف بالجدول، أو رسالة «لا بيانات»
+    const end = Date.now() + SEARCH_WAIT_MS;
+    while (Date.now() < end) {
+      if (captures.length > marker) {
+        // خذ آخر التقاط، وكمّل الأعمدة الناقصة منه من جدول الصفحة (الشيلف مثلاً).
+        // مهلة صغيرة عشان Angular يكون خلّص رسم الجدول بعد وصول الرد.
+        const jsonRows = captures[captures.length - 1].rows;
+        await sleep(900);
+        return mergeFromTable(jsonRows);
+      }
+      const scraped = scrapeDataTable();
+      if (scraped && scraped.length) return scraped;
+      if (/no\s*data|no\s*matching|0\s*entries|no\s*record/i.test((document.body.innerText || ""))) return [];
+      await sleep(400);
+    }
+    return null; // timeout
+  }
+
+  /* ================== شيت تشخيص: كل الأرقام اللى اتلقطت واترفعت ================== */
+  // نفس تطبيع السيرفر: نشيل المسافات والـ underscore من أسماء المفاتيح قبل المطابقة (عشان port_type/voice_status…)
+  const pickKey = (o, ...names) => {
+    if (!o || typeof o !== "object") return "";
+    const lower = {};
+    for (const k of Object.keys(o)) lower[k.toLowerCase().replace(/[\s_]+/g, "")] = o[k];
+    for (const n of names) { const v = lower[n.toLowerCase().replace(/[\s_]+/g, "")]; if (v != null && String(v).trim() !== "") return String(v).trim(); }
+    return "";
+  };
+  function downloadDiagCsv(rows) {
+    if (!rows.length) return;
+    const SEP = ";";
+    const esc = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+    const header = ["كود الأمسان", "رقم التليفون", "Frame", "Row", "Column", "Shelf", "Slot", "Port", "Port Type", "Voice Status", "Data Status", "Operator"].join(SEP);
+    const body = rows.map((r) => [r.cabin, r.phone, r.frame, r.row, r.col, r.shelf, r.slot, r.port, r.ptype, r.voice, r.data, r.operator].map(esc).join(SEP)).join("\r\n");
+    const csv = "﻿" + header + "\n" + body;
+    try {
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "ports_captured_" + rows.length + "rows.csv";
+      (document.body || document.documentElement).appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      logln("📥 اتحمّل شيت التشخيص: " + rows.length + " رقم.");
+    } catch (e) { logln("csv err: " + (e && e.message || e)); }
+  }
+
+  /* ================== التشغيل الرئيسى ================== */
+  let running = false;
+  async function run() {
+    if (running) return; running = true;
+    const allCaptured = []; // كل الأرقام اللى اتلقطت (للتشخيص)
+    try {
+      banner("🔐 التأكد من تسجيل الدخول…", "#6a1b9a");
+      await ensureLoggedIn();
+
+      banner("📥 جلب أكواد الأمسان من Service-Flow…", "#1565c0");
+      const cabins = await sfGetCabins();
+      logln("عدد أكواد الأمسان المخزّنة: " + cabins.length);
+      if (!cabins.length) { banner("⚠️ لا توجد أكواد أمسان مخزّنة فى الموقع.", "#ef6c00"); running = false; return; }
+
+      let totalRows = 0, totalUp = 0, okCabins = 0, failCabins = 0;
+      let keysLogged = false; // نطبع أسماء الأعمدة مرة واحدة بس
+      const input0 = await gotoGetMsan();
+      if (!input0) { banner("❌ لم أجد خانة Cabin Code.", "#c62828"); running = false; return; }
+
+      let loginFails = 0; // إلغاء لو الجلسة مش راضية ترجع
+      let aborted = false; // اتوقف بالغلط قبل ما يخلص كل الكباين؟
+      for (let i = 0; i < cabins.length; i++) {
+        const cabin = cabins[i];
+        banner("⏳ (" + (i + 1) + "/" + cabins.length + ") أمسان " + cabin + " …", "#1565c0");
+        // خانة Cabin Code لهذه الدورة — يعيد تسجيل الدخول داخلياً لو الجلسة سقطت.
+        // لا نستخدم input0 كبديل أبداً (يبقى بايت/خانة لوجين لو حصل logout).
+        const input = await gotoGetMsan();
+        if (!input) {
+          loginFails++;
+          failCabins++;
+          logln("⛔ " + cabin + " — تعذّر فتح صفحة Cabin Code (الجلسة/اللوجين).");
+          if (loginFails >= 4) { aborted = true; banner("❌ تعذّر إبقاء الجلسة مفتوحة — تم الإيقاف. سجّل دخول يدوياً وأعد المحاولة.", "#c62828"); break; }
+          await sleep(BETWEEN_CABINS_MS);
+          continue;
+        }
+        loginFails = 0;
+        const rows = await searchAndRead(input, cabin);
+        if (rows == null) { failCabins++; logln("⏱️ " + cabin + " — انتهت المهلة بدون بيانات."); await sleep(BETWEEN_CABINS_MS); continue; }
+        if (!rows.length) { logln("• " + cabin + " — 0 صف."); okCabins++; await sleep(BETWEEN_CABINS_MS); continue; }
+        // تشخيص (مرة واحدة): أسماء الأعمدة زى ما البوابة بترجّعها بالظبط. لو عمود زى
+        // الشيلف طلع فاضى، من هنا نعرف اسمه الحقيقى ونضيفه للأسماء البديلة فوق.
+        if (!keysLogged && rows[0] && typeof rows[0] === "object") {
+          keysLogged = true;
+          const ks = Object.keys(rows[0]);
+          console.log("[PORTS] أسماء أعمدة البوابة:", ks);
+          logln("🔎 أعمدة البوابة: " + ks.join(" | "));
+        }
+        // سجّل كل الأرقام اللى اتلقطت لهذا الأمسان (للتشخيص)
+        for (const o of rows) allCaptured.push({
+          cabin,
+          phone: pickKey(o, "phonenumber", "phone", "msisdn"),
+          frame: pickKey(o, "frame", "frameno", "framenumber", "frameid"),
+          row: pickKey(o, "row", "rowno", "rownumber"),
+          col: pickKey(o, "column", "col", "columnno", "columnnumber"),
+          // البوابة ممكن تسمّى الشيلف بأى اسم من دول — كانت المطابقة على "shelf" بالظبط
+          // فبيرجع فاضى لو الاسم مختلف (وده اللى كان بيحصل: العمود فاضى فى كل الصفوف).
+          shelf: pickKey(o, "shelf", "shelfno", "shelfnumber", "shelfid", "subrack", "subrackno", "rack", "rackno"),
+          slot: pickKey(o, "slot", "slotno", "slotnumber", "slotid"),
+          port: pickKey(o, "portnumber", "port", "portno"),
+          ptype: pickKey(o, "porttype"),
+          voice: pickKey(o, "voicestatus", "voice"),
+          data: pickKey(o, "datastatus", "data"),
+          operator: pickKey(o, "operator", "op"),
+        });
+        try {
+          const res = await sfPostPorts(cabin, rows);
+          const up = (res && (res.inserted ?? res.total)) || 0;
+          totalRows += rows.length; totalUp += up; okCabins++;
+          logln("✓ " + cabin + " — " + rows.length + " صف، تحديث/إضافة: " + up);
+        } catch (e) { failCabins++; logln("✗ " + cabin + " — فشل الرفع: " + (e && e.message || e)); }
+        await sleep(BETWEEN_CABINS_MS);
+      }
+      banner("✅ خلص. أمسان ناجح: " + okCabins + " / صفوف: " + totalRows + " / محدَّث: " + totalUp + (failCabins ? " / فشل: " + failCabins : ""), "#2e7d32");
+      logln("=== انتهى: " + okCabins + " أمسان، " + totalRows + " صف، " + totalUp + " محدَّث/مضاف، " + failCabins + " فشل ===");
+      // إشارة "اكتمال التشغيل" للموقع — فقط لو دخل آخر كابينة والكود خلص (مش متوقف بالغلط).
+      // الموقع بيعتمد على دى (مش على وقت الرفع) لمعرفة إن تحديث البورتات خلص النهارده.
+      if (!aborted) {
+        try { await sfPortsRunComplete(okCabins, totalUp); logln("📌 اتسجّل اكتمال التشغيل فى الموقع."); }
+        catch (e) { logln("⚠️ تعذّر تسجيل الاكتمال: " + (e && e.message || e)); }
+      }
+      // شيت تشخيص بكل الأرقام اللى اتلقطت
+      downloadDiagCsv(allCaptured);
+    } finally {
+      running = false;
+      // التحديث خلص → امسح نية التشغيل التلقائى علشان فتح البورتال يدوياً لاحقاً ما يعيدش التشغيل
+      try { sessionStorage.removeItem("sf_ports_auto"); } catch (e) {}
+      // لو اتفتح تلقائى من زر Service-Flow (تحديث الملفات اليومية): اقفل التاب بعد ما يخلص
+      // — عشان مايتكدّسش تابات مع التشغيل كل نص ساعة. (window.close يشتغل لأن التاب مفتوح بـ window.open).
+      if (AUTO) {
+        banner("✅ انتهى — إغلاق التبويب…", "#2e7d32");
+        setTimeout(() => { try { window.close(); } catch (e) {} }, 4000);
+      }
+    }
+  }
+
+  // أظهر الشريط + الزر (بعد ما يجهز الـ body — إحنا شغّالين عند document-start)
+  if (document.body) ui(); else window.addEventListener("DOMContentLoaded", ui);
+
+  // تشغيل تلقائى فور فتح الصفحة من زر Service-Flow (بدون انتظار ضغط "ابدأ").
+  function fireAuto() {
+    if (window.__sfPortsAutoFired) return;
+    window.__sfPortsAutoFired = true;
+    const startNow = () => {
+      banner("⚙️ فتح تلقائى — بدء التحديث الآن…", "#5b2a86");
+      // استنى الصفحة تجهز: يا إمّا فورم اللوجين ظهر (هيسجّل دخول) يا إمّا اتخطّينا اللوجين
+      waitFor(() => document.querySelector("input[type='password']") || !/#\/login/i.test(location.hash), 25000)
+        .then(() => sleep(1200))
+        .then(() => {
+          if (startBtn) { startBtn.disabled = true; startBtn.style.background = "#9e9e9e"; startBtn.textContent = "⏳ جارٍ التحديث…"; }
+          return run();
+        })
+        .catch((e) => banner("❌ " + (e && e.message || e), "#c62828"));
+    };
+    // لو الـ body لسه مش جاهز (document-start)، استنّاه
+    if (document.body) startNow(); else window.addEventListener("DOMContentLoaded", startNow);
+  }
+  // (1) إشارة window.name/URL محفوظة فى sessionStorage (بتشتغل لما نفتح البورتال لوحده — زر تحديث منافذ MSAN)
+  if (AUTO) {
+    fireAuto();
+  } else {
+    // (2) لو الإشارة ضاعت (التدفّق اليومى بيفتح 4 تابات مرة واحدة فالبورتال SPA بيمسح ?sf_ports=1) —
+    //     نفحص علامة السيرفر اللى زر «حدّث الملفات اليومية» بيسلّحها. بنكرّر الفحص شوية لحد ما توصل.
+    (async () => {
+      for (let i = 0; i < 8 && !window.__sfPortsAutoFired; i++) {
+        try {
+          const r = await window.fetch(SF_API_BASE.replace(/\/+$/, "") + "/api/ports-auto/check", { headers: { "X-DZS-Token": SF_TOKEN } });
+          if (r.ok) { const j = await r.json(); if (j && j.pending) { try { sessionStorage.setItem(AUTO_KEY, "1"); } catch (e) {} fireAuto(); break; } }
+        } catch (e) {}
+        await sleep(1500);
+      }
+    })();
+  }
+
+  // أدوات كونسول
+  window.SF_PORTS_run = run;
+  window.SF_PORTS_captures = () => captures;
+})();

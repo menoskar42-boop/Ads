@@ -33,6 +33,15 @@ function loadRoutes() {
   }
   const deals = process.env.DEALS_UPSTREAM;
   if (deals) routes['deals.oscardevs.com'] = deals;
+
+  /* Service Flow — أداة تشغيل داخلية (سنترال الغنايم، الشركة المصرية
+   * للاتصالات). مستضافة بنفس نمط mybible، بس **الدومين بتاعها متغيّر
+   * بيئة** مش مكتوب هنا: المالك بيشغّلها على نطاق فرعي هو اللي بيختاره،
+   * وأثناء فترة التجربة النشر القديم على ريبليت بيفضل شغّال على نطاقه
+   * الأصلي — فالاتنين موجودين مع بعض لحد ما يتأكد. */
+  const sf = process.env.SERVICEFLOW_UPSTREAM;
+  const sfHost = String(process.env.SERVICEFLOW_HOST || '').trim().toLowerCase();
+  if (sf && sfHost) routes[sfHost] = sf;
   return routes;
 }
 

@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  /* Professional Color Palette - Trust & Clarity */
+  --background: 210 20% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  --primary: 221 83% 53%;
+  --primary-foreground: 210 40% 98%;
+  
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  
+  --accent: 262 83% 58%;
+  --accent-foreground: 210 40% 98%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --success: 142 76% 36%;
+  --success-foreground: 356 100% 100%;
+  
+  --warning: 38 92% 50%;
+  --warning-foreground: 48 96% 89%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 221 83% 53%;
+  
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+
+  --card: 222 47% 13%;
+  --card-foreground: 210 40% 98%;
+
+  --popover: 222 47% 13%;
+  --popover-foreground: 210 40% 98%;
+
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 11%;
+  
+  --secondary: 217 19% 27%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --muted: 217 19% 27%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --accent: 262 83% 65%;
+  --accent-foreground: 210 40% 98%;
+  
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --border: 217 19% 27%;
+  --input: 217 19% 27%;
+  --ring: 224 76% 48%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    @apply font-bold tracking-tight;
+  }
+}
+
+/* Custom Utilities */
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-xl;
+}
+
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+}
+
+/* Status Badges */
+.status-badge {
+  @apply px-2.5 py-0.5 rounded-full text-xs font-medium border;
+}
+.status-pending {
+  @apply bg-yellow-50 text-yellow-700 border-yellow-200;
+}
+.status-feasible {
+  @apply bg-green-50 text-green-700 border-green-200;
+}
+.status-not-feasible {
+  @apply bg-red-50 text-red-700 border-red-200;
+}
+
+/* Global always-visible horizontal scrollbar for wide tables (StickyScrollbars).
+   Pinned to the bottom of the viewport so the user can scroll a table left/right
+   without first scrolling down to its native scrollbar. */
+.global-hscroll-bar {
+  position: fixed;
+  bottom: 0;
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 40;
+  display: none;
+  background: rgba(241, 245, 249, 0.92);
+  border-top: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.06);
+}
+.global-hscroll-bar::-webkit-scrollbar {
+  height: 14px;
+  -webkit-appearance: none;
+}
+.global-hscroll-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.global-hscroll-bar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.6);
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.global-hscroll-bar::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.8);
+  background-clip: content-box;
+}
+/* Firefox */
+.global-hscroll-bar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.6) transparent;
+}
+
+/* شريط تنقّل أفقى قابل للتمرير على الموبايل بدون سكرول-بار ظاهر — عشان أيقونات/تبويبات
+   الهيدر تتمرّر باللمس بدل ما تتقص على الشاشات الصغيرة. */
+.nav-x-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.nav-x-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Sidebar vertical scrollbar — slim and always visible when the report
+   navigation list is taller than the viewport. */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.5);
+  border-radius: 4px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.7);
+}
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+}
