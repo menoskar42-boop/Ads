@@ -63,8 +63,47 @@ for (const [re, what] of [
   [/waitingCount/, '`pool.waiting` — الطلبات الواقفة في الطابور'],
   [/pg_indexes/, 'فحص الفهارس من `pg_indexes`'],
   [/missing/, 'قايمة الفهارس الناقصة'],
+  [/describeDbEndpoint/, 'منطقة القاعدة — بيفرّق بين «الشبكة بعيدة» و«القاعدة بطيئة»'],
 ]) {
   if (!re.test(handler)) fail(`\`/api/health\` مابيرجّعش ${what}.`);
+}
+
+/* ── ٢ب) وصف القاعدة مايكشفش بيانات دخول ولا معرّف مشروع ────────────── */
+{
+  const label = path.join(MYBIBLE, 'server/db-endpoint-label.ts');
+  if (!fs.existsSync(label)) {
+    fail('`server/db-endpoint-label.ts` مش موجود — وصف القاعدة رجع جوّه الراوت، '
+      + 'والفحص مش قادر يجرّبه على روابط حقيقية.');
+  } else {
+    const probe = path.join(require('os').tmpdir(), `dbep-${process.pid}.mjs`);
+    fs.writeFileSync(probe, `
+const m = await import(${JSON.stringify('file://' + label)});
+const urls = [
+  'postgres://sbuser:Sup3rS3cret@aws-0-eu-central-1.pooler.supabase.com:5432/postgres',
+  'postgres://sbuser:Sup3rS3cret@db.abcdefghijklm.supabase.co:5432/postgres',
+];
+process.stdout.write('@@JSON@@' + JSON.stringify(urls.map((u) => m.describeDbEndpoint(u))));
+`, 'utf8');
+    try {
+      const raw = require('child_process')
+        .execFileSync(process.execPath, ['--no-warnings', probe], { maxBuffer: 1 << 20 }).toString('utf8');
+      fs.unlinkSync(probe);
+      const out = JSON.parse(raw.slice(raw.indexOf('@@JSON@@') + 8));
+      const flat = JSON.stringify(out);
+      for (const leak of ['Sup3rS3cret', 'sbuser', 'abcdefghijklm']) {
+        if (flat.includes(leak)) {
+          fail(`وصف القاعدة بيكشف \`${leak}\` — الراوت ده **مفتوح**، وحجّة إنه يفضل `
+            + 'مفتوح هي إنه مابيكشفش حاجة.');
+        }
+      }
+      if (out[0].region !== 'eu-central-1') {
+        fail('وصف القاعدة مابيطلّعش المنطقة من اسم مضيف البوولر — '
+          + 'وده الرقم الوحيد اللي بيفسّر ping عالي.');
+      }
+    } catch (e) {
+      fail('مش قادر أشغّل db-endpoint-label.ts: ' + String(e.stderr || e.message).split('\n')[0]);
+    }
+  }
 }
 
 /* ── ٣) قايمة الفهارس مشتقّة مش مكتوبة بالإيد ─────────────────────────── */
