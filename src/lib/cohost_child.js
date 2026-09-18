@@ -30,6 +30,10 @@ const HEALTHY_AFTER_MS = 60000;
  *
  * خمس محاولات كفاية تفرّق بين الاتنين: العابر بيعدّي فيهم، والحتمي لأ. */
 const MAX_CONSECUTIVE_RESTARTS = 5;
+/* ٧٨ = EX_CONFIG (sysexits.h). التطبيق بيستخدمه ليقول «مش انهيار — إعدادي
+ * غلط». وإعادة تشغيل ده عبث مضر: كل محاولة بتفتح اتصالات على القاعدة
+ * وتموت، والاتصالات مورد مشترك مع التطبيقات التانية. */
+const EXIT_CONFIG_ERROR = 78;
 
 /**
  * @param {object} o
@@ -65,6 +69,16 @@ function launchCoHostedApp({ name, dist, cwd, env, onGaveUp }) {
     child = spawn(process.execPath, [dist], { cwd, stdio: 'inherit', env });
     child.on('exit', (code, signal) => {
       if (shuttingDown) return;
+      if (code === EXIT_CONFIG_ERROR) {
+        gaveUp = true;
+        console.error(`[co-host] ${name}: خرج بكود إعداد غلط (${EXIT_CONFIG_ERROR}) — `
+          + 'مش هعيد التشغيل. ده مش انهيار عابر؛ صلّح الإعداد وأعد النشر.');
+        if (typeof onGaveUp === 'function') {
+          try { onGaveUp('config'); } catch (_) {}
+        }
+        return;
+      }
+
       if (Date.now() - startedAt > HEALTHY_AFTER_MS) restarts = 0;
       restarts += 1;
 
@@ -103,4 +117,5 @@ function launchCoHostedApp({ name, dist, cwd, env, onGaveUp }) {
 
 module.exports = {
   launchCoHostedApp, MAX_BACKOFF_MS, HEALTHY_AFTER_MS, MAX_CONSECUTIVE_RESTARTS,
+  EXIT_CONFIG_ERROR,
 };

@@ -104,7 +104,12 @@ app.get("/api/health", async (_req, res) => {
       console.error('\n============ [WRONG DATABASE] Service Flow ============');
       console.error(identity.message);
       console.error('======================================================\n');
-      process.exit(1);
+      /* ٧٨ = EX_CONFIG (sysexits). مش انهيار — **إعداد غلط**.
+       * الفرق مهم: المستضيف بيعيد تشغيل الانهيار (يمكن يعدّي المرة دي)،
+       * وإعادة تشغيل إعداد غلط عبث: كل محاولة بتفتح اتصالات على قاعدة
+       * سوبابيز وتموت، والاتصالات دي بتتاخد من نصيب الكتاب المقدس —
+       * ولوجه فعلاً امتلا بـEMAXCONNSESSION وهجراته فشلت. */
+      process.exit(78);
     }
     console.log(`[db-identity] ${identity.message}`);
   }
