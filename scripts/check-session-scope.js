@@ -42,9 +42,48 @@ if (!fs.existsSync(SCOPE)) {
   process.exit(1);
 }
 
-const strip = (src) => src
-  .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-  .replace(/(^|[^:])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
+/* شيل الكومنتات **من غير ما تلمس النصوص**.
+ *
+ * 🐛 النسخة القديمة كانت regex على بداية ونهاية كومنت البلوك. والسطر
+ * `app.use('/api/*', ensureSessionUser)` فيه `/` بعدها `*` جوّه نص — فكانت
+ * بتتحسب بداية كومنت وتاكل باقي الملف. الفحص ساعتها قال «مالقيتش الراوت»
+ * بدل ما يفحصه. ماسح بسيط بيتابع حالة النص بيحل ده. */
+function strip(src) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (c === '"' || c === "'" || c === '`') {           // نص — انقله زي ما هو
+      const quote = c;
+      out += c; i++;
+      while (i < n) {
+        if (src[i] === '\\') { out += src[i] + (src[i + 1] ?? ''); i += 2; continue; }
+        out += src[i];
+        if (src[i] === quote) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    if (c === '/' && next === '*') {                      // كومنت بلوك
+      const end = src.indexOf('*/', i + 2);
+      const stop = end < 0 ? n : end + 2;
+      out += src.slice(i, stop).replace(/[^\n]/g, ' ');
+      i = stop;
+      continue;
+    }
+    if (c === '/' && next === '/') {                      // كومنت سطر
+      let end = src.indexOf('\n', i);
+      if (end < 0) end = n;
+      out += ' '.repeat(end - i);
+      i = end;
+      continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
 
 /* ── اجمع كل مسار معالجه بيلمس req.session ───────────────────────────── */
 const sessionPaths = [];
@@ -118,6 +157,55 @@ for (const p of r.notSkipped) {
 }
 for (const p of r.wronglySkipped) {
   fail(`\`${p}\` اتشال من الجلسة وهو المفروض ياخدها.`);
+}
+
+/* ── ٢ب) الـmiddleware اللي على /api/* كله لازم يستحمّل غياب الجلسة ──────
+ *
+ * 🐛 الغلط اللي البند ده اتضاف عشانه، وكان حي على الموقع: `ensureSessionUser`
+ * متركّب على `app.use('/api/*', …)` — يعني بيشوف **كل** مسار API، بما فيهم
+ * اللي `skipsSession` بيعدّيهم. وأول سطر فيه بيلمس `req.session` رمى
+ * «Cannot read properties of undefined»، فكل نداء على `/api/groups/*`
+ * رجّع 500 وصفحة المجموعة وقعت.
+ *
+ * فحص «المسارات اللي بتستخدم الجلسة مش متشالة» مامسكهاش، لأن راوتات
+ * المجموعات نفسها مابتلمسش `req.session` — اللي بيلمسها هو الـmiddleware
+ * اللي فوقهم. */
+{
+  const routesSrc = strip(fs.readFileSync(path.join(MYBIBLE, 'server/routes.ts'), 'utf8'));
+  const wildcardMw = [...routesSrc.matchAll(/app\.use\(\s*['"]\/api\/\*['"]\s*,\s*(\w+)/g)]
+    .map((m) => m[1]);
+  if (!wildcardMw.length) {
+    fail("مالقيتش `app.use('/api/*', …)` — الفحص مش قادر يتأكد إن الـmiddleware "
+      + 'اللي على كل مسارات API بيستحمّل غياب الجلسة.');
+  }
+  for (const name of wildcardMw) {
+    // دوّر على تعريف الدالة في كل ملفات السيرفر
+    let body = null;
+    for (const f of routeFiles) {
+      const fsrc = strip(fs.readFileSync(path.join(MYBIBLE, 'server', f), 'utf8'));
+      const at = fsrc.indexOf(`function ${name}(`);
+      if (at < 0) continue;
+      let depth = 0;
+      for (let i = fsrc.indexOf('{', at); i < fsrc.length; i++) {
+        if (fsrc[i] === '{') depth++;
+        else if (fsrc[i] === '}') { depth--; if (depth === 0) { body = fsrc.slice(at, i + 1); break; } }
+      }
+      if (body) break;
+    }
+    if (!body) { fail(`مالقيتش تعريف \`${name}\` — الفحص مش قادر يقيس.`); continue; }
+
+    const touchesSession = /req\.session\b/.test(body);
+    if (!touchesSession) continue;
+    // لازم يخرج بدري لو مفيش جلسة، قبل أي لمسة
+    const guard = /if\s*\(\s*!req\.session\s*\)\s*return/.test(body);
+    const firstTouch = body.search(/req\.session\b/);
+    const guardAt = body.search(/if\s*\(\s*!req\.session\s*\)\s*return/);
+    if (!guard || (firstTouch >= 0 && guardAt > firstTouch)) {
+      fail(`\`${name}\` متركّب على \`/api/*\` وبيلمس \`req.session\` من غير ما `
+        + 'يتأكد إنها موجودة الأول. المسارات اللي `skipsSession` بيعدّيهم بتوصله '
+        + 'من غير جلسة، وساعتها كل نداء عليهم بيرجّع 500.');
+    }
+  }
 }
 
 /* ── ٣) الـmiddleware متوصّل، وsaveUninitialized فضلت false ───────────── */
