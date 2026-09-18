@@ -124,6 +124,21 @@ for (const app of APPS) {
 
 /* ── ٢ب) الاستسلام بيوصل لصفحة الخطأ ─────────────────────────────────── */
 function checkGaveUpSurfaces() {
+  /* الرد لازم يكون ٥٠٣ مش ٥٠٢/٥٠٤.
+   *
+   * 🐛 Cloudflare بتستبدل ٥٠٢ و٥٠٤ الجايين من الأصل بصفحتها هي، فالرسالة
+   * اللي بتقول السبب بتتاكل في النص وصاحب الموقع يشوف صفحة عامة. ده حصل
+   * فعلاً وودّى التشخيص في سكة غلط لساعات. */
+  const gw = fs.readFileSync(path.join(ROOT, 'src/lib/host_gateway.js'), 'utf8');
+  const wh = /upstream\.on\('error'[\s\S]{0,1200}?res\.writeHead\((\d+)/.exec(gw);
+  if (!wh) {
+    fail('مالقيتش كود الرد على فشل التطبيق المستضاف في البوّاب.');
+  } else if (wh[1] === '502' || wh[1] === '504') {
+    fail(`البوّاب بيرجّع ${wh[1]} لما التطبيق المستضاف مايردّش — وCloudflare `
+      + 'بتستبدل الكودين دول بصفحتها هي، فالرسالة اللي بتقول السبب بتضيع. '
+      + 'استخدم ٥٠٣ (بتعدّي زي ما هي، وأدق كمان).');
+  }
+
   const st = require(path.join(ROOT, 'src/lib/cohost_status.js'));
   const d = st.describeCoHostStatus({ app: 'س', state: 'gave-up', reason: 5 });
   if (!d.permanent) {
