@@ -59,5 +59,12 @@ MYBIBLE_MAINTENANCE_MODE = "false"
 MYBIBLE_SESSION_SECRET_SHA256 = "db416deb92e6797b1bb1a87b99456df44714f51880f9f7c9c38b0dc63d50743d"
 MYBIBLE_VAPID_PUBLIC_KEY_SHA256 = "2f267592ee69f6eded91d68225704bd57ec916c13974c3a123f69a08a742ba8b"
 MYBIBLE_DATABASE_TARGET = "ads-supabase"
-MYBIBLE_PG_POOL_MAX = "5"
+# حوض اتصالات mybible. كان "5" وده قليل خطير: صفحة المجموعة لوحدها بتطلق
+# ٣١ نداء، ودرس مار مرقس فيه ٧٠٠ عضو ممكن يفتحوا في نفس الدقيقة. القياس من
+# /api/health بيقول إن المشكلة دلوقتي مش الطابور (waiting=0) لكن زمن الرحلة
+# لسوبابيز (~١٠٤ مللي) — فالرقم ده احتياطي للزحمة مش علاج للبطء.
+# لو ظهر waiting > 0 في /api/health زوّده تاني.
+MYBIBLE_PG_POOL_MAX = "12"
+# ⚠️ ده حوض أوسكار ديفز نفسه (الاتناشر نظام + المتاجر + الحجوزات) وهو "8".
+# سبته زي ما هو عشان مايتغيّرش من غير قرار — بس راقب waiting عنده كمان.
 PG_POOL_MAX = "8"
