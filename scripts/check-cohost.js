@@ -101,6 +101,13 @@ for (const app of APPS) {
       notes.push(`إعادة التشغيل: ${runs} محاولات بتأخير متزايد`);
     }
 
+    // ولازم تبطّل تحاول — مش تفضل للأبد
+    const { MAX_CONSECUTIVE_RESTARTS } = require(path.join(ROOT, 'src/lib/cohost_child.js'));
+    if (!Number.isFinite(MAX_CONSECUTIVE_RESTARTS) || MAX_CONSECUTIVE_RESTARTS > 20) {
+      fail('مفيش حد لعدد إعادة المحاولات — تطبيق بيقع وقت الإقلاع في كل مرة هيفضل '
+        + 'يتشغّل ويقع للأبد، يملا اللوج ويفتح اتصالات على القاعدة من غير فايدة.');
+    }
+
     // الإيقاف النظيف مايرجّعهاش
     handle.stop();
     const after = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').length : 0;
@@ -113,6 +120,21 @@ for (const app of APPS) {
       finish();
     }, 2500);
   }, 2500);
+}
+
+/* ── ٢ب) الاستسلام بيوصل لصفحة الخطأ ─────────────────────────────────── */
+function checkGaveUpSurfaces() {
+  const st = require(path.join(ROOT, 'src/lib/cohost_status.js'));
+  const d = st.describeCoHostStatus({ app: 'س', state: 'gave-up', reason: 5 });
+  if (!d.permanent) {
+    fail('حالة «بطّلنا نحاول» متعلَّمة مؤقتة — الصفحة هتقول «حاول تاني بعد لحظات» '
+      + 'لحاجة مش هترجع لوحدها أبداً.');
+  }
+  const serverSrc = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+  if (!/onGaveUp\s*:/.test(serverSrc)) {
+    fail('`server.js` مابيمرّرش `onGaveUp` — التطبيق هيستسلم في صمت وصفحة الـ٥٠٢ '
+      + 'هتفضل تقول «حاول تاني».');
+  }
 }
 
 /* ── ٣) البوّاب: التوجيه بيظهر بالإعداد الصح بس ──────────────────────── */
@@ -194,6 +216,7 @@ function checkBuild() {
 let finished = false;
 function finish() {
   if (finished) return; finished = true;
+  checkGaveUpSurfaces();
   checkGateway();
   checkBuild();
   if (process.exitCode) process.exit(1);
