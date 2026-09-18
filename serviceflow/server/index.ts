@@ -90,6 +90,25 @@ app.get("/api/health", async (_req, res) => {
 });
 
 (async () => {
+  /* قبل أي حاجة تلمس القاعدة: هل دي قاعدتنا أصلاً؟
+   *
+   * `SERVICEFLOW_DATABASE_URL` اتظبّط مرة على قاعدة الكتاب المقدس، و
+   * `ensureSchema` راحت تنشئ جداول Service Flow جوّاها. بوستجرس رفض
+   * بالصدفة (users.id عندهم UUID وعندنا integer) — والتحقّق ده بيشيل
+   * الاعتماد على الصدفة. شوف server/db-identity.ts */
+  {
+    const { checkDbIdentity } = await import("./db-identity");
+    const { pool } = await import("./db");
+    const identity = await checkDbIdentity(pool);
+    if (!identity.ok) {
+      console.error('\n============ [WRONG DATABASE] Service Flow ============');
+      console.error(identity.message);
+      console.error('======================================================\n');
+      process.exit(1);
+    }
+    console.log(`[db-identity] ${identity.message}`);
+  }
+
   await ensureSchema();
   // إدخال سعة الكباين تلقائياً لو الجدول فاضى (يشتغل مع النشر بدون كونسول)
   const { seedCabinetCapacityIfEmpty } = await import("./seed-cabinet-capacity");
