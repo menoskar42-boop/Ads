@@ -9,8 +9,21 @@ declare module 'express-session' {
 }
 
 export async function ensureSessionUser(req: Request, res: Response, next: NextFunction) {
+  /* الطلب ده اتبعت **من غير جلسة عن قصد** (`session-scope.ts` بيعدّي
+   * المسارات اللي مابتلمسش الجلسة عشان ما تدفعش تمن استعلام على سوبابيز).
+   * والـmiddleware ده متركّب على `/api/*` كله، فبيوصله طلبات من المسارات
+   * دي كمان — و`req.session` ساعتها `undefined`.
+   *
+   * 🐛 من غير الحارس ده، أول سطر بيلمس `req.session` بيرمي
+   * «Cannot read properties of undefined» وكل نداء بيرجّع 500. ده حصل
+   * فعلاً على `/api/groups/*` وقفّل صفحة المجموعة.
+   *
+   * ومفيش حاجة تتعمل هنا أصلاً لما مفيش جلسة: الدالة دي بتربط مستخدم
+   * بجلسة، ومفيش جلسة يعني مفيش حاجة تتربط. */
+  if (!req.session) return next();
+
   try {
-    console.log(`[Auth] Processing request: ${req.method} ${req.path}, sessionID: ${req.sessionID?.substring(0, 8)}...`);
+    console.log(`[Auth] Processing request: ${req.method} ${req.path}, sessionID: ${req.sessionID?.substring(0, 8) ?? 'none'}...`);
     
     if (!req.session.userId) {
       const sessionId = req.sessionID;
@@ -68,7 +81,8 @@ export async function ensureSessionUser(req: Request, res: Response, next: NextF
 }
 
 export async function getCurrentUser(req: Request): Promise<User | null> {
-  if (!req.session.userId) {
+  // نفس السبب اللي فوق: مسار من غير جلسة يعني مفيش مستخدم، مش انهيار.
+  if (!req.session?.userId) {
     return null;
   }
   
