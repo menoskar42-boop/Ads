@@ -155,4 +155,23 @@ app.get("/api/health", async (_req, res) => {
       log(`serving on port ${port}`);
     },
   );
-})();
+})().catch((err) => {
+  /* 🐛 كل تسلسل الإقلاع كان في IIFE من غير `.catch()`.
+   *
+   * يعني أي فشل في `ensureSchema()` أو في الزرع أو في `registerRoutes`
+   * بيطلع `unhandledRejection` — والعملية بتموت **قبل `listen`** برسالة
+   * مقصوصة صعب تتقرا. وده اللي خلّى التطبيق يقع ٦ مرات ورا بعض ومحدّش
+   * عارف بالظبط أي جملة SQL وقعت.
+   *
+   * دلوقتي الخطأ بيتكتب كامل وبعلامة واضحة تتلقى بالبحث في اللوج. */
+  console.error('\n================ [BOOT FAILED] Service Flow ================');
+  console.error('التطبيق مقدرش يقوم. السبب:');
+  console.error(err?.stack || err);
+  if (err && typeof err === 'object') {
+    for (const k of ['code', 'detail', 'constraint', 'table', 'column', 'schema', 'severity', 'routine']) {
+      if ((err as any)[k] !== undefined) console.error(`  ${k}: ${(err as any)[k]}`);
+    }
+  }
+  console.error('============================================================\n');
+  process.exit(1);
+});

@@ -104,6 +104,29 @@ for (const [name, line] of bare) {
   }
 }
 
+/* ── تسلسل الإقلاع نفسه لازم يكون عليه catch ─────────────────────────── */
+{
+  const indexPath = path.join(APP, 'server/index.ts');
+  if (!fs.existsSync(indexPath)) {
+    fail('`server/index.ts` مش موجود.');
+  } else {
+    const idx = strip(fs.readFileSync(indexPath, 'utf8'));
+    const iife = /\}\)\(\)([\s\S]{0,40})/.exec(idx.slice(idx.lastIndexOf('})()')));
+    const tail = idx.slice(idx.lastIndexOf('})()'));
+    if (!/\}\)\(\)\s*\.catch\s*\(/.test(tail)) {
+      fail('تسلسل الإقلاع `(async () => { … })()` من غير `.catch(` — أي فشل في '
+        + '`ensureSchema` أو الزرع أو تسجيل الراوتات بيطلع unhandledRejection '
+        + 'والعملية بتموت **قبل listen** برسالة مقصوصة. ده اللي خلّى التطبيق '
+        + 'يقع ٦ مرات ورا بعض ومحدّش عارف أي جملة SQL وقعت.');
+    }
+    // ولازم يطبع تفاصيل خطأ بوستجرس، مش الرسالة القصيرة بس
+    if (!/constraint/.test(tail) || !/detail/.test(tail)) {
+      fail('`catch` الإقلاع مابيطبعش تفاصيل خطأ بوستجرس (`constraint` و`detail`) — '
+        + 'من غيرها الرسالة بتقول «قيد اتكسر» من غير ما تقول أنهي قيد ولا أنهي صف.');
+    }
+  }
+}
+
 if (process.exitCode) process.exit(1);
 console.log(`✅ شغل الإقلاع محمي: ${asyncNames.size} دالة async مفحوصة · `
   + 'مفيش نداء سايب في نطاق الإقلاع');
