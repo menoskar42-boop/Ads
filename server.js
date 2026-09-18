@@ -1712,6 +1712,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 // The host gateway then proxies mybible.oscardevs.com to it. INERT otherwise, so
 // the deploy's Run command can stay `node server.js` — no separate launcher.
 const { launchCoHostedApp } = require('./src/lib/cohost_child');
+const { setCoHostStatus } = require('./src/lib/cohost_status');
 const {
   assertMyBibleCutoverSecrets,
   isMyBibleMaintenanceMode,
@@ -1818,6 +1819,9 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
   if (!sfDatabaseUrl) {
     console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_DATABASE_URL — '
       + 'مش هنشغّلها. تشغيلها على قاعدة أوسكار ديفز أسوأ بكتير من إنها ما تشتغلش.');
+    setCoHostStatus(process.env.SERVICEFLOW_HOST, {
+      app: 'Service Flow', state: 'missing-config', reason: 'SERVICEFLOW_DATABASE_URL',
+    });
   } else if (!process.env.SERVICEFLOW_HOST) {
     console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_HOST — '
       + 'البوّاب مش هيعرف يوجّهلها، فمفيش فايدة من تشغيلها.');
@@ -1837,6 +1841,9 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
       cwd: path.join(__dirname, 'serviceflow'),
       env: sfEnv,
     });
+    setCoHostStatus(process.env.SERVICEFLOW_HOST, started
+      ? { app: 'Service Flow', state: 'running' }
+      : { app: 'Service Flow', state: 'not-built' });
     if (started) {
       console.log('🛠️  Co-hosted Service Flow launched on 127.0.0.1:' + sfPort
         + ' (host: ' + process.env.SERVICEFLOW_HOST + ', schedulers: ' + sfEnv.SF_SCHEDULERS + ')');

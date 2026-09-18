@@ -38,7 +38,15 @@ module.exports = function applySharedPool(pg) {
         // web traffic, and safely under every managed-Postgres plan's ceiling.
         max: parseInt(process.env.PG_POOL_MAX, 10) || 20,
         connectionTimeoutMillis: 10000,
-        idleTimeoutMillis: 30000,
+        /* عشر دقايق مش نص دقيقة.
+         *
+         * القاعدة بقت على سوبابيز، وفتح اتصال جديد بيكلّف ~٨٠٠ مللي
+         * (مصافحة TLS + مصادقة على مسافة قارة) مقابل ~١٠٥ للاستعلام على
+         * اتصال مفتوح. وبـ٣٠ ثانية، أي هدوء نص دقيقة بيرمي الاتصالات
+         * فأول زائر بعده بيدفع الثمن ده. `keepAlive` بيمنع أي وسيط في
+         * النص من قفل السوكيت وهو ساكت. */
+        idleTimeoutMillis: 10 * 60 * 1000,
+        keepAlive: true,
       }, opts || {}));
       pool.end = async () => {};
       pool.on('error', (e) => console.error('[pg pool]', e.message));
