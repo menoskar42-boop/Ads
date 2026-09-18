@@ -6,6 +6,10 @@ import { getCached, putCached } from "./ai-cache";
 import { ensureSessionUser, getCurrentUser, checkPremiumStatus, checkAiUsageLimit } from "./auth";
 import { processAiQuery, enhanceSearchWithGroq } from "./ai-service";
 import { insertHighlightedVerseSchema, insertUserReadingProgressSchema } from "@shared/schema";
+import * as schema from "@shared/schema";
+import { is } from "drizzle-orm";
+import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
+import { dbPool } from "./db-pool";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
 import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
 import { fetchLiveMissingChapter, getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile, TAFSIR_SOURCE } from "./tafsir-service";
@@ -301,12 +305,61 @@ export async function registerRoutes(
   });
 
   // Health check endpoint (no auth required)
+  /* الصحة + **قياس** بدل التخمين.
+   *
+   * بعد نقل القاعدة لسوبابيز بقى كل استعلام بيمشي على الشبكة بدل ما كان
+   * جوّه نفس الجهاز، والبطء بقى سؤال متكرّر. الأرقام اللي تحت بتفرّق بين
+   * تلات أسباب مختلفة تماماً بدل ما نخمّن:
+   *
+   *   · `pingMs` عالي → الشبكة/المسافة لسوبابيز. مفيش كود بيصلّحها.
+   *   · `pool.waiting > 0` → الطلبات واقفة في طابور على حوض الاتصالات.
+   *     يتزوّد `MYBIBLE_PG_POOL_MAX`.
+   *   · `indexes.missing` مش فاضية → **النقل ضيّع فهارس**، وكل استعلام
+   *     بقى مسح كامل للجدول. ده أخطر احتمال وأسرع واحد يتصلّح.
+   *
+   * كله قراءة، ومفيش ولا صف بيانات بيطلع — أسماء فهارس وأرقام بس. */
   app.get('/api/health', async (_req, res) => {
     try {
+      const t0 = Date.now();
+      await dbPool.query('SELECT 1');
+      const pingMs = Date.now() - t0;
+
+      const t1 = Date.now();
       const books = await storage.getAllBooks();
       const emotions = await storage.getAllEmotions();
+      const queryMs = Date.now() - t1;
+
+      // الفهارس المتوقّعة بتتقرا من تعريف الجداول نفسها — مفيش قايمة
+      // مكتوبة بالإيد تقدر تقدم.
+      const expected = new Set<string>();
+      for (const value of Object.values(schema)) {
+        if (!is(value as object, PgTable)) continue;
+        for (const idx of getTableConfig(value as never).indexes) {
+          const name = idx.config?.name;
+          if (name) expected.add(name);
+        }
+      }
+      const present = new Set<string>(
+        (await dbPool.query<{ indexname: string }>(
+          `SELECT indexname FROM pg_indexes
+           WHERE schemaname NOT IN ('pg_catalog', 'information_schema')`,
+        )).rows.map((r) => r.indexname),
+      );
+      const missing = [...expected].filter((n) => !present.has(n)).sort();
+
       res.json({
         status: 'ok',
+        db: {
+          pingMs,
+          queryMs,
+          pool: {
+            max: (dbPool as unknown as { options?: { max?: number } }).options?.max ?? null,
+            total: dbPool.totalCount,
+            idle: dbPool.idleCount,
+            waiting: dbPool.waitingCount,
+          },
+          indexes: { expected: expected.size, present: present.size, missing },
+        },
         data: {
           booksCount: books.length,
           emotionsCount: emotions.length,
