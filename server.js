@@ -1867,6 +1867,23 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
     if (started) {
       console.log('🛠️  Co-hosted Service Flow launched on 127.0.0.1:' + sfPort
         + ' (host: ' + process.env.SERVICEFLOW_HOST + ', schedulers: ' + sfEnv.SF_SCHEDULERS + ')');
+
+      /* إعداد ناقص بيقفل أجزاء كاملة **في صمت**، والوحيد اللي هيلاحظ هو
+       * المستخدم اللي بيدوّر على حاجة مش موجودة. فبنقولها في اللوج وقت
+       * الإقلاع بدل ما تتكتشف بعد أسبوع. */
+      if (sfEnv.MAINTENANCE_ENABLED !== 'true' && !sfEnv.MAINTENANCE_DATABASE_URL) {
+        console.warn('[co-host] ⚠️ Service Flow: موقع الصيانة **مش هيتركّب** — '
+          + 'محتاج MAINTENANCE_ENABLED=true (أو MAINTENANCE_DATABASE_URL).');
+      }
+      if (!sfEnv.SF_API_TOKEN) {
+        console.warn('[co-host] ⚠️ Service Flow: SF_API_TOKEN مش متظبّط — '
+          + 'الربط بين الصيانة وServiceFlow هيترفض، وفيه توكنات بديلة مكتوبة '
+          + 'في الكود على جيت‌هب العام.');
+      }
+      if (!process.env.SERVICEFLOW_SESSION_SECRET) {
+        console.warn('[co-host] ⚠️ Service Flow: SERVICEFLOW_SESSION_SECRET مش متظبّط — '
+          + 'بيستخدم سرّ أوسكار ديفز، وكل مستخدمي Service Flow هيتسجّل خروجهم.');
+      }
     }
   }
 }
