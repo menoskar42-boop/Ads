@@ -18,11 +18,22 @@ const max = Number.isFinite(configuredMax) && configuredMax > 0
  * نفس الدقيقة. بخمسة، الطلبات بتقف في طابور و`connectionTimeoutMillis`
  * بيرميها بعد ١٠ ثواني. الأب (Ads) عنده ٢٠ — والاتنين مع بعض ٣٥، وده
  * تحت حد Supabase براحة. */
+/* ⚠️ `idleTimeoutMillis` كانت ٣٠ ثانية، وده غالي جداً بعد النقل لسوبابيز.
+ *
+ * القياس من `/api/health` على الموقع الحي: `pingMs` **١٠٥** لما يكون فيه
+ * اتصال مفتوح، و**٨٠٦** لما الحوض يضطر يفتح اتصال جديد. الفرق ده هو
+ * مصافحة TLS + المصادقة على مسافة قارة.
+ *
+ * وبـ٣٠ ثانية، أي هدوء نص دقيقة بيقفل الاتصالات — فأول زائر بعد الهدوء
+ * بيدفع ٨٠٠ مللي، وده بالظبط إحساس «الموقع بطيء أول ما أفتحه». عشر
+ * دقايق بتخلّي الاتصال عايش خلال يوم عادي، و`keepAlive` بيمنع أي
+ * وسيط في النص من قفل السوكيت في الهدوء. */
 export const dbPool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   max,
   connectionTimeoutMillis: 10_000,
-  idleTimeoutMillis: 30_000,
+  idleTimeoutMillis: 10 * 60_000,
+  keepAlive: true,
 });
 
 dbPool.on("error", (error) => {

@@ -20,6 +20,7 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 const { isMyBibleMaintenanceMode } = require('./mybible_database');
+const { getCoHostStatus, describeCoHostStatus } = require('./cohost_status');
 
 // Map public hostname -> upstream base URL (internal, same VM). Empty ⇒ disabled.
 function loadRoutes() {
@@ -84,8 +85,19 @@ function proxy(req, res, targetBase, publicHost) {
   // وإلا الاتصال بيفضل محجوز واحنا فاكرين إننا خلاص منه.
   upstream.on('timeout', () => { upstream.destroy(new Error('upstream timeout')); });
   upstream.on('error', () => {
-    if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
-    res.end('التطبيق المستضاف مؤقتاً غير متاح — حاول تاني بعد لحظات.');
+    /* ٥٠٢ بيقول «مش رادّ»، ومابيقولش **ليه**. وأربع حالات مختلفة تماماً
+     * كانت بتطلع بنفس الجملة: مااتبناش · ناقصه إعداد · بيقع في حلقة ·
+     * علّق. الأولتين مش مؤقتين، و«حاول تاني بعد لحظات» كذب فيهم.
+     * `server.js` بيسجّل السبب وقت الإقلاع، وإحنا بنقوله هنا. */
+    const info = describeCoHostStatus(getCoHostStatus(publicHost));
+    if (!res.headersSent) {
+      res.writeHead(502, {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'no-store',
+        ...(info.permanent ? {} : { 'retry-after': '30' }),
+      });
+    }
+    res.end(info.text);
   });
   // ولو العميل مشي، مانفضلش شادّين على الاتصال بتاع فوق.
   res.on('close', () => { if (!res.writableEnded) upstream.destroy(); });
