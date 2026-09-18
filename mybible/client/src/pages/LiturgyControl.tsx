@@ -28,6 +28,9 @@ import {
   OCCASION_LABELS,
   OCCASION_ORDER,
   SEASONAL_LITANY_LABELS,
+} from '@/lib/liturgy-occasion';
+import { choiceForToday } from '@/lib/liturgy-session-day';
+import {
   type OccasionTag,
   type SeasonalLitanyType,
 } from '@/lib/liturgy-occasion';
@@ -160,13 +163,15 @@ export default function LiturgyControl() {
         navigate(`/liturgy-control/${data.slot}`, { replace: true });
       }
       setSlot(data.slot ?? null);
-      // مناسبة اليوم: تُكتشف دائماً من التاريخ إلا إذا اختار المشغّل مناسبة بعينها
-      // 'ordinary' الافتراضية لا تُعدّ اختياراً مقصوداً فتُكتشف من جديد
-      const storedOccasion = data.occasion as OccasionTag | null;
+      // مناسبة اليوم وهيتينية الموسم: تُكتشفان من التاريخ، ولا يُحترم المخزَّن
+      // إلا إذا كان اختيار المشغّل **في نفس اليوم**. جلسة من يوم فات تُعاد
+      // اكتشافها، وإلا بقيت مناسبة أمس معروضة اليوم.
+      const storedOccasion = choiceForToday(data.occasion as OccasionTag | null, data.updatedAt);
       const occasion: OccasionTag = (storedOccasion && storedOccasion !== 'ordinary')
         ? storedOccasion
         : detectOccasion(new Date());
-      const seasonalLitany: SeasonalLitanyType = (data.seasonalLitany as SeasonalLitanyType) ?? detectSeasonalLitany(new Date());
+      const storedLitany = choiceForToday(data.seasonalLitany as SeasonalLitanyType | null, data.updatedAt);
+      const seasonalLitany: SeasonalLitanyType = storedLitany ?? detectSeasonalLitany(new Date());
       const slides = getSplitSlidesForSection(data.liturgyType, data.sectionKey, occasion, seasonalLitany);
       const safeIdx = Math.min(Math.max(0, data.slideIndex), Math.max(0, slides.length - 1));
       const initialMode: 'script' | 'arabic' = data.copticMode === 'arabic' ? 'arabic' : 'script';

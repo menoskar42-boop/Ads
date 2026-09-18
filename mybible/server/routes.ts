@@ -2323,7 +2323,7 @@ ${excludedStr}
   type LiturgySessionState = {
     slot: string; liturgyType: string; sectionKey: string;
     slideIndex: number; deaconOverride: unknown; copticMode: string;
-    readingsOverride: unknown; occasion: string; seasonalLitany: string; updatedAt: number;
+    readingsOverride: unknown; occasion: string | null; seasonalLitany: string | null; updatedAt: number;
   };
 
   const liturgySessions = new Map<string, LiturgySessionState>();
@@ -2331,7 +2331,11 @@ ${excludedStr}
   function makeDefaultSession(slot: string): LiturgySessionState {
     return { slot, liturgyType: 'basil', sectionKey: 'basil-opening',
              slideIndex: 0, deaconOverride: null, copticMode: 'script', readingsOverride: null,
-             occasion: 'ordinary', seasonalLitany: 'weather', updatedAt: Date.now() };
+             /* ⚠️ الاتنين دول **null** مش قيمة جاهزة. كان `seasonalLitany: 'weather'`،
+              * والواجهة بتعمل `data.seasonalLitany ?? detect(...)` — فالـ`??` عمره
+              * ما اشتغل والشاشة كانت بتقول «هيتينية الأهوية» طول السنة مهما كان
+              * الموسم. القيمة الافتراضية اللي شكلها اختيار بتمنع الاكتشاف. */
+             occasion: null, seasonalLitany: null, updatedAt: Date.now() };
   }
 
   // GET جلسة المستخدم الحالي (يُعيد slot الخاص به أيضاً)
