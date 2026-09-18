@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'wouter';
 import { detectOccasion, detectSeasonalLitany } from '@/lib/liturgy-occasion';
+import { choiceForToday } from '@/lib/liturgy-session-day';
 import {
   getSectionsForLiturgy,
   getSplitSlidesForSection,
@@ -92,11 +93,15 @@ export default function LiturgyDisplay() {
         const res = await fetch(url);
         if (!res.ok || cancelled) return;
         const raw: LiturgySession = await res.json();
-        // اكتشاف المناسبة من التاريخ إذا كانت الجلسة على القيمة الافتراضية 'ordinary'
-        const effectiveOccasion = (raw.occasion && raw.occasion !== 'ordinary')
-          ? raw.occasion
+        // المناسبة والهيتينية بتتكتشفوا من التاريخ، والمخزَّن مايتحترمش إلا
+        // لو كان اختيار المشغّل في **نفس اليوم** (شوف liturgy-session-day.ts).
+        const storedOccasion = choiceForToday(raw.occasion, (raw as { updatedAt?: unknown }).updatedAt);
+        const effectiveOccasion = (storedOccasion && storedOccasion !== 'ordinary')
+          ? storedOccasion
           : detectOccasion(new Date());
-        const effectiveLitany = raw.seasonalLitany ?? detectSeasonalLitany(new Date());
+        const effectiveLitany =
+          choiceForToday(raw.seasonalLitany, (raw as { updatedAt?: unknown }).updatedAt)
+          ?? detectSeasonalLitany(new Date());
         const data = { ...raw, occasion: effectiveOccasion, seasonalLitany: effectiveLitany };
         setSession(data);
         if (data.deaconOverride) {
