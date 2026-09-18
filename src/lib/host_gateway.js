@@ -89,9 +89,19 @@ function proxy(req, res, targetBase, publicHost) {
      * كانت بتطلع بنفس الجملة: مااتبناش · ناقصه إعداد · بيقع في حلقة ·
      * علّق. الأولتين مش مؤقتين، و«حاول تاني بعد لحظات» كذب فيهم.
      * `server.js` بيسجّل السبب وقت الإقلاع، وإحنا بنقوله هنا. */
+    /* ⚠️ **٥٠٣ مش ٥٠٢.**
+     *
+     * Cloudflare بتستبدل أي ٥٠٢ أو ٥٠٤ جاي من الأصل بصفحة الخطأ بتاعتها
+     * («Bad gateway — Host Error»). يعني كل الشغل اللي اتعمل عشان الصفحة
+     * تقول **السبب** كان بيتاكل في النص، وصاحب الموقع بيشوف صفحة عامة
+     * مالهاش معنى — وده ضيّع ساعات في تشخيص غلط (افتكرنا إن الطلب
+     * ماوصلش أصلاً، وهو كان واصل وبيترد عليه).
+     *
+     * ٥٠٣ بتعدّي زي ما هي. وهي كمان أدق: التطبيق المستضاف **غير متاح**،
+     * مش بوّابة عطلانة. */
     const info = describeCoHostStatus(getCoHostStatus(publicHost));
     if (!res.headersSent) {
-      res.writeHead(502, {
+      res.writeHead(503, {
         'content-type': 'text/plain; charset=utf-8',
         'cache-control': 'no-store',
         ...(info.permanent ? {} : { 'retry-after': '30' }),
