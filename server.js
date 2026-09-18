@@ -1787,6 +1787,11 @@ if (process.env.MYBIBLE_UPSTREAM && mybibleDatabaseUrl && !mybibleMaintenanceMod
       dist: mybibleDist,
       cwd: path.join(__dirname, 'mybible'),
       env: mybibleEnv,
+      onGaveUp: (n) => {
+        for (const h of ['mybible.oscardevs.com', 'mybible2.oscardevs.com']) {
+          setCoHostStatus(h, { app: 'الكتاب المقدس', state: 'gave-up', reason: n });
+        }
+      },
     });
     console.log('🕮 Co-hosted mybible launched on 127.0.0.1:' + mbPort);
 
@@ -1867,6 +1872,10 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
       dist: sfDist,
       cwd: path.join(__dirname, 'serviceflow'),
       env: sfEnv,
+      // لما نبطّل نحاول، صفحة الـ٥٠٢ تقول كده بدل «حاول تاني بعد لحظات».
+      onGaveUp: (n) => setCoHostStatus(process.env.SERVICEFLOW_HOST, {
+        app: 'Service Flow', state: 'gave-up', reason: n,
+      }),
     });
     setCoHostStatus(process.env.SERVICEFLOW_HOST, started
       ? { app: 'Service Flow', state: 'running' }

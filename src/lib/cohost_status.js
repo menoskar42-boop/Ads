@@ -39,6 +39,10 @@ function describeCoHostStatus(status) {
     case 'missing-config':
       return { permanent: true, text: `${app}: ناقصه إعداد إلزامي (${status.reason || 'غير محدّد'}) `
         + 'فمااتشغّلش. حطّه وأعد النشر.' };
+    case 'gave-up':
+      return { permanent: true, text: `${app}: وقع ${status.reason || 'كذا'} مرة ورا بعض `
+        + 'وقت الإقلاع، فبطّلنا نحاول. ده انهيار حتمي — شوف اللوج، صلّحه، '
+        + 'وأعد النشر.' };
     case 'running':
       return { permanent: false, text: `${app}: شغّال بس مش رادّ دلوقتي — `
         + 'يمكن بيعيد التشغيل. حاول تاني بعد لحظات.' };

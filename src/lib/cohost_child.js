@@ -20,6 +20,16 @@ const { spawn } = require('child_process');
 
 const MAX_BACKOFF_MS = 30000;
 const HEALTHY_AFTER_MS = 60000;
+/* بعد كام محاولة فاشلة ورا بعض نبطّل نحاول.
+ *
+ * 🐛 الغلط اللي الحد ده اتضاف عشانه: تطبيق بيقع وقت الإقلاع **في كل مرة**
+ * (خطأ قيد في القاعدة مثلاً) كان بيفضل يتشغّل ويقع كل ٣٠ ثانية للأبد —
+ * بيملا اللوج، وبيفتح اتصالات على القاعدة في كل محاولة، وممكن يفشّل فحص
+ * الصحة بتاع النشر كله. وإعادة المحاولة معناها «يمكن تعدّي المرة دي»،
+ * وده صحيح لانهيار عابر وغلط تماماً لانهيار حتمي.
+ *
+ * خمس محاولات كفاية تفرّق بين الاتنين: العابر بيعدّي فيهم، والحتمي لأ. */
+const MAX_CONSECUTIVE_RESTARTS = 5;
 
 /**
  * @param {object} o
@@ -29,13 +39,14 @@ const HEALTHY_AFTER_MS = 60000;
  * @param {object} o.env       بيئة العملية الابنة كاملة
  * @returns {{stop: () => void} | null}  null لو ملف التشغيل مش موجود
  */
-function launchCoHostedApp({ name, dist, cwd, env }) {
+function launchCoHostedApp({ name, dist, cwd, env, onGaveUp }) {
   if (!fs.existsSync(dist)) {
     console.warn(`[co-host] ${name}: مش لاقي ${dist} — التطبيق مش متبني. اتخطّيته.`);
     return null;
   }
 
   let restarts = 0;
+  let gaveUp = false;
   let shuttingDown = false;
   let child = null;
   let pendingRestart = null;
@@ -55,10 +66,23 @@ function launchCoHostedApp({ name, dist, cwd, env }) {
     child.on('exit', (code, signal) => {
       if (shuttingDown) return;
       if (Date.now() - startedAt > HEALTHY_AFTER_MS) restarts = 0;
-      const delay = Math.min(MAX_BACKOFF_MS, 1000 * Math.pow(2, restarts));
       restarts += 1;
+
+      if (restarts > MAX_CONSECUTIVE_RESTARTS) {
+        gaveUp = true;
+        console.error(`[co-host] ${name}: وقع ${restarts} مرات ورا بعض من غير ما `
+          + 'يعيش دقيقة واحدة — بطّلت أحاول. ده انهيار حتمي مش عابر، وإعادة '
+          + 'المحاولة بتملا اللوج وبتفتح اتصالات على القاعدة من غير فايدة. '
+          + 'شوف الخطأ فوق وأعد النشر بعد ما تصلّحه.');
+        if (typeof onGaveUp === 'function') {
+          try { onGaveUp(restarts); } catch (_) {}
+        }
+        return;
+      }
+
+      const delay = Math.min(MAX_BACKOFF_MS, 1000 * Math.pow(2, restarts - 1));
       console.error(`[co-host] ${name} exited (code=${code} signal=${signal}) — `
-        + `restarting in ${delay}ms (attempt ${restarts})`);
+        + `restarting in ${delay}ms (attempt ${restarts}/${MAX_CONSECUTIVE_RESTARTS})`);
       pendingRestart = setTimeout(launch, delay);
     });
     child.on('error', (err) => console.error(`[co-host] ${name} spawn error:`, err));
@@ -66,6 +90,7 @@ function launchCoHostedApp({ name, dist, cwd, env }) {
 
   const stop = () => {
     shuttingDown = true;
+    void gaveUp;
     if (pendingRestart) { clearTimeout(pendingRestart); pendingRestart = null; }
     if (child) { try { child.kill(); } catch (_) {} }
   };
@@ -76,4 +101,6 @@ function launchCoHostedApp({ name, dist, cwd, env }) {
   return { stop };
 }
 
-module.exports = { launchCoHostedApp, MAX_BACKOFF_MS, HEALTHY_AFTER_MS };
+module.exports = {
+  launchCoHostedApp, MAX_BACKOFF_MS, HEALTHY_AFTER_MS, MAX_CONSECUTIVE_RESTARTS,
+};
