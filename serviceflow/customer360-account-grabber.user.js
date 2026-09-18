@@ -2,7 +2,7 @@
 // @name         Customer360 Account Grabber (Service-Flow)
 // @namespace    service-flow.customer360
 // @description  يفتح Customer360، يستنى تسجيل الدخول، يدخل رقم التليفون الكامل من تقرير Service-Flow، يستنى حل البازل يدوياً، يقرأ رقم الأكونت، يحفظه فى الموقع + شيت CSV. سكربت مستقل تماماً عن سكربتات DZS/FCC القديمة.
-// @version      1.2.0
+// @version      1.3.0
 // @match        https://customer360.te.eg/*
 // @connect      service-flow-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -14,7 +14,6 @@
   "use strict";
 
   /* ================== CONFIG ================== */
-  // الموقع اللى بنحفظ فيه أرقام الأكونت (نفس دومين Service-Flow). عدّليه لو الدومين اتغيّر.
   // ── دومين Service-Flow ──────────────────────────────────────────────────────
   // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
   // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
