@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { dbPool } from "./db-pool";
-import { skipsSession } from "./session-scope";
 import { registerRoutes } from "./routes";
 import { registerGroupRoutes } from "./group-routes";
 import { registerChurchRoutes } from "./church-routes";
@@ -41,11 +40,7 @@ const sessionMiddleware = session({
   }),
   secret: process.env.SESSION_SECRET || 'bible-companion-secret-key-change-in-production',
   resave: false,
-  /* كان `true`: كل زائر — وكل بوت — بيتعملّه صف في جدول الجلسات حتى لو
-   * ماكتبش فيه حاجة. بـ`false` الصف بيتكتب لما حاجة تتحط في الجلسة فعلاً
-   * (`ensureSessionUser` بيحط `userId` وبينادي `save()` بنفسه)، فالزيارة
-   * اللي بتقرا بس مابتكلّفش كتابة على القاعدة. */
-  saveUninitialized: false,
+  saveUninitialized: true,
   cookie: {
     maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
     httpOnly: true,
@@ -54,16 +49,17 @@ const sessionMiddleware = session({
   },
 });
 
-/* مخزن الجلسات بوستجرس، والرحلة لسوبابيز ~١٠٤ مللي (مقيسة من
- * `/api/health`). فتشغيل الـmiddleware على كل طلب معناه ١٠٤ مللي زيادة
- * على كل صورة وكل ملف وكل نداء API — وصفحة المجموعة لوحدها فيها ٣١ نداء.
- * `skipsSession` بيعدّي المسارات اللي اتأكّد إنها مابتلمسش الجلسة.
- * القايمة متحفَّظة: اللي مش فيها بياخد جلسة. الحارس:
- * `node scripts/check-session-scope.js` */
-app.use((req, res, next) => {
-  if (skipsSession(req.path)) return next();
-  return sessionMiddleware(req, res, next);
-});
+/* الجلسة على كل طلب — زي ما كانت.
+ *
+ * كانت فيه محاولة تعدّي المسارات اللي مابتلمسش الجلسة عشان ما تدفعش تمن
+ * استعلام على سوبابيز (~١٠٥ مللي). المحاولة دي **اترجعت**: الـmiddleware
+ * `ensureSessionUser` متركّب على `/api/*` كله، فكان بيوصله طلب من غير
+ * جلسة ويرمي TypeError — و`GET /api/groups/…` رجّع 500 على الموقع الحي.
+ *
+ * المكسب كان تحسين سرعة، والمخاطرة كانت على موقع فيه ٧٠٠ عضو — والميزان
+ * ده مش في صالحنا. المكسب الأكبر (الاتصال الدافي: ٨٠٦ مللي → ١٠٥) موجود
+ * في `db-pool.ts` ومستقل تماماً عن ده. */
+app.use(sessionMiddleware);
 
 declare module "http" {
   interface IncomingMessage {
