@@ -491,7 +491,9 @@ let currentSource = "";
 export function setSpeedToolSource(s: string): void { currentSource = s || ""; }
 
 // إضافة مهمة للطابور
-export async function enqueueJob(type: ExecJobType, accounts: (string | number)[], note?: string, params?: ExecJobParams | null): Promise<{ ok: boolean; id?: number; count?: number; message?: string; batchId?: string }> {
+// duplicate = السيرفر لقى مهمة تحديث بنفس النوع لسه فى الطابور فرفض يضيف تانية.
+// كان بيترمى هنا، فالنداء بيرجّع ok:true والمستخدم يفتكر إن التحديث اتطلب — وهو مااتطلبش.
+export async function enqueueJob(type: ExecJobType, accounts: (string | number)[], note?: string, params?: ExecJobParams | null): Promise<{ ok: boolean; id?: number; count?: number; message?: string; batchId?: string; duplicate?: boolean }> {
   try {
     const accs = [...new Set(accounts.map((a) => String(a ?? "").trim()).filter(Boolean))];
     const r = await fetch("/api/exec-queue/enqueue", {
@@ -563,7 +565,12 @@ export async function dispatchSpeedTool(
   type: ExecJobType,
   accounts: (string | number)[],
   isSuper: boolean,
-  opts?: { params?: ExecJobParams | null; silent?: boolean; notify?: (m: string) => void },
+  opts?: {
+    params?: ExecJobParams | null; silent?: boolean; notify?: (m: string) => void;
+    // بيتنادى بنتيجة الإضافة للطابور. من غيره «اتضافت» و«كانت موجودة أصلاً»
+    // بيرجعوا نفس القراءة (true)، والتحديث التلقائى بيبقى صامت فى الحالتين.
+    onEnqueued?: (r: { ok: boolean; count?: number; duplicate?: boolean; message?: string }) => void;
+  },
 ): Promise<boolean> {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
   // notify = اعرض الرسالة جوّه الصفحة بدل alert. مهم لأن المتصفح بيقدر يوقف نوافذ
@@ -575,6 +582,7 @@ export async function dispatchSpeedTool(
   if (!SITE_WIDE_TYPES.has(type)) void recordOpIntent(type, accs);
   if (await isExecutorActive()) {
     const res = await enqueueJob(type, accs, undefined, opts?.params);
+    opts?.onEnqueued?.(res);
     say(res.ok ? `تم إضافة ${accs.length} رقم لطابور ${QUEUE_LABEL[type]} — هيتنفّذ على جهاز التنفيذ` : (res.message || "تعذّر الإضافة للطابور"));
     return true;
   }
