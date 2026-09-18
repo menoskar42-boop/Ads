@@ -12,7 +12,8 @@ import { ROLES } from "@shared/schema";
 import { format } from "date-fns";
 import { Upload, Loader2, Wrench, PhoneCall, FileSearch, Wifi, Gauge, Network, ClipboardList, Users, RefreshCw, BarChart3, Clock } from "lucide-react";
 import { ReviewSubscriberInfoButton } from "@/components/ReviewSubscriberInfoButton";
-import { runDailyUpdate as runDailyUpdateLib, runManualSiteUpdate } from "@/lib/daily-update";
+import { runDailyUpdate as runDailyUpdateLib, runManualSiteUpdate,
+  DAILY_OUTCOME_AR, DAILY_RUN_LOG_KEY, type DailyRunOutcome } from "@/lib/daily-update";
 import * as XLSX from "xlsx";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -444,6 +445,16 @@ export function FileUploadSection() {
   const [lastAutoRun, setLastAutoRun] = useState<number | null>(() => {
     try { const v = localStorage.getItem("sf_hourly_last"); return v ? Number(v) : null; } catch { return null; }
   });
+  // «مُفعَّل ✓» لوحدها كانت بتقول إن المؤقّت شغّال — مش إن التحديث حصل. لو السيرفر
+  // رفض الإضافة (فيه واحدة بنفس النوع لسه فى الطابور) كان بيعدّى فى صمت تام.
+  const readLastOutcome = (): Record<string, DailyRunOutcome> | null => {
+    try {
+      const log = JSON.parse(localStorage.getItem(DAILY_RUN_LOG_KEY) || "[]");
+      const last = Array.isArray(log) ? log[log.length - 1] : null;
+      return last?.results || null;
+    } catch { return null; }
+  };
+  const [lastOutcome, setLastOutcome] = useState(readLastOutcome);
   const toggleHourly = () => {
     const nv = !hourlyAuto;
     try { localStorage.setItem("sf_hourly_auto", nv ? "1" : "0"); } catch {}
@@ -458,7 +469,10 @@ export function FileUploadSection() {
   };
   // حدّث «آخر تشغيل تلقائى» لما المكوّن الخلفى يشغّل
   useEffect(() => {
-    const onRan = () => { try { const v = localStorage.getItem("sf_hourly_last"); setLastAutoRun(v ? Number(v) : null); } catch {} };
+    const onRan = () => {
+      try { const v = localStorage.getItem("sf_hourly_last"); setLastAutoRun(v ? Number(v) : null); } catch {}
+      setLastOutcome(readLastOutcome());
+    };
     window.addEventListener("sf-hourly-ran", onRan);
     return () => window.removeEventListener("sf-hourly-ran", onRan);
   }, []);
@@ -683,11 +697,19 @@ export function FileUploadSection() {
           <Clock className="w-4 h-4" />
           {hourlyAuto ? "التحديث كل نص ساعة: مُفعَّل ✓" : "شغّل كل نص ساعة (هذا الجهاز)"}
         </Button>
-        {hourlyAuto && lastAutoRun && (
-          <span className="text-xs text-muted-foreground self-center">
-            آخر تشغيل تلقائى: {format(new Date(lastAutoRun), "yyyy/MM/dd HH:mm")}
-          </span>
-        )}
+        {hourlyAuto && lastAutoRun && (() => {
+          const res = Object.entries(lastOutcome || {});
+          // أى نتيجة غير «اتضافت»/«اتفتحت محلياً» معناها إن التحديث ماحصلش —
+          // بتتلوّن عشان ماتعدّيش من غير ما حد ياخد باله.
+          const bad = res.filter(([, o]) => o !== "queued" && o !== "local");
+          return (
+            <span className={`text-xs self-center ${bad.length ? "text-amber-700" : "text-muted-foreground"}`}
+              title={res.map(([t, o]) => `${t}: ${DAILY_OUTCOME_AR[o] || o}`).join("\n") || undefined}>
+              آخر تشغيل تلقائى: {format(new Date(lastAutoRun), "yyyy/MM/dd HH:mm")}
+              {bad.length > 0 && ` — ⚠️ ${bad.length} من ${res.length} ماحصلش (${DAILY_OUTCOME_AR[bad[0][1]] || bad[0][1]})`}
+            </span>
+          );
+        })()}
         <span className="text-xs self-center">
           منافذ MSAN اليوم:{" "}
           {(() => {
