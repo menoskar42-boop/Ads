@@ -312,7 +312,7 @@ export function ExecutorButton() {
     // سقف زمنى لكل عملية «تفتح موقع خارجى». وجود النوع هنا معناه إنه بيتنفّذ بالمسار العام
     // (فتح التاب ← انتظار الإشارة أو قفل التاب). غيّر البورت أطول لأن الـ Submit بيدوى.
     const OP_MAX_MS: Partial<Record<ExecJobType, number>> = {
-      c360: 20 * 60 * 1000,        // بيلفّ على كل الأرقام جوّه نفس التاب (+ بازل تسجيل الدخول)
+      c360: 20 * 60 * 1000,        // سقف أدنى — المهلة الفعلية بتتدرّج بعدد الأرقام (C360_PER_PHONE_MS)
       portchange: 15 * 60 * 1000,  // المستخدم بيراجع ويضغط Submit بنفسه
       portcheck: 5 * 60 * 1000,
       ports: 30 * 60 * 1000,       // رفعة ملف البورتات كامل
@@ -325,6 +325,8 @@ export function ExecutorButton() {
     };
 
     const MAX_TOTAL_MS = 4 * 60 * 60 * 1000; // سقف إجمالى معقول للباتش الواحد (٤ ساعات)
+    // الرقم الواحد فى Customer360 = بحث + بازل بيتحلّ بالإيد + قراءة النتيجة.
+    const C360_PER_PHONE_MS = 30 * 1000;
 
     // ينفّذ **الجوب كله دفعة واحدة**: نبعت كل الأرقام للسكربت اللى بيلفّ عليها بنفسه (6/185…)
     // بدل ما نفتح صفحة لكل رقم. ننتظر لحد ما آخر رقم (السكربت بيمشى بالترتيب) يتأكد، أو سقف زمنى.
@@ -414,12 +416,23 @@ export function ExecutorButton() {
       if (OP_MAX_MS[type] != null) {
         const key = type === "c360" ? accs.join(",") : accs[0];
         // الأنواع اللى على مستوى الموقع كله (ports) مفتاحها صورى — op-check بيتجاهله
-        const sigKey = accs[0] === "-" ? "" : (type === "c360" ? accs[0] : key);
+        //
+        // ⚠️ c360 بياخد **كل** الأرقام فى تاب واحد والسكربت بيلفّ عليها بالترتيب.
+        // إشارة الانتهاء كانت `accs[0]` = **أول** رقم، يعنى أول ما الرقم رقم ١ ياخد
+        // أكونت، المنفّذ يقول «خلصت» ويقفل التاب — والـ١٠٣ رقم الباقيين ماينفّذوش.
+        // اللى بيبان للمستخدم: كام خط بيتحدّثوا (اللى لحقوا يخلصوا فى نافذة الـ٥ ثوانى
+        // الأولى) وبعدين يقف كل حاجة من غير سبب. الإشارة الصح هى **آخر** رقم — زى
+        // مسار PO بالظبط (`const last = accs[accs.length - 1]`) وللسبب نفسه.
+        const sigKey = accs[0] === "-" ? "" : (type === "c360" ? accs[accs.length - 1] : key);
         const before = await latestOpAt(type, sigKey);
         const win = executeBatch(type, accs, { params });
         if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
-        const deadline = Date.now() + OP_MAX_MS[type]!;
+        // c360 بيلفّ على كل الأرقام فى نفس التاب، فمهلة ثابتة معناها إن الباتش الكبير
+        // بيتقطع فى نُصّه. بتتدرّج بالعدد (زى القياس ورفع السرعة) تحت السقف الكلى.
+        const deadline = Date.now() + (type === "c360"
+          ? Math.min(accs.length * C360_PER_PHONE_MS, MAX_TOTAL_MS)
+          : OP_MAX_MS[type]!);
         // مهلة قصيرة قبل فحص «التاب اتقفل» — window.open ساعات بترجّع تاب لسه بيفتح
         await sleep(5 * 1000);
         while (!stopped && Date.now() < deadline) {
