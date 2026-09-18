@@ -10,6 +10,7 @@ import * as schema from "@shared/schema";
 import { is } from "drizzle-orm";
 import { PgTable, getTableConfig } from "drizzle-orm/pg-core";
 import { dbPool } from "./db-pool";
+import { describeDbEndpoint } from "./db-endpoint-label";
 import { seedRelationsIfNeeded, startBackgroundImport, getImportJobStatus, reseedEmotionsAndTopics, importAiEmotionVersesFromCsv, importAiEmotionExamplesFromCsv, appendAiEmotionExamples100k, seedCalendarDailyVerses, refreshCalendarVerseTexts } from "./auto-seed";
 import { deuteroStatus, importDeuteroFromFile, importAllDeutero, probeSources, importDeuteroFromUrl, stTaklaProbe, getStTaklaCatalog, getStTaklaChapter, importDeuteroFromStTakla } from "./deutero";
 import { fetchLiveMissingChapter, getBookIntro, getChapterTafsir, getVerseTafsir, listAvailableBooks, getTafsirCoverage, hasBookFile, TAFSIR_SOURCE } from "./tafsir-service";
@@ -352,6 +353,10 @@ export async function registerRoutes(
         db: {
           pingMs,
           queryMs,
+          // فين القاعدة (المنطقة بس — مفيش معرّف مشروع ولا بيانات دخول).
+          // ١٠٠ مللي ping معناها إن السيرفر والقاعدة في قارتين، والرقم ده
+          // بيأكّد أو ينفي من غير ما نكشف حاجة.
+          endpoint: describeDbEndpoint(process.env.DATABASE_URL),
           pool: {
             max: (dbPool as unknown as { options?: { max?: number } }).options?.max ?? null,
             total: dbPool.totalCount,
