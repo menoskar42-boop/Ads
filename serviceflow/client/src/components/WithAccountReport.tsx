@@ -1,0 +1,871 @@
+import { useState } from "react";
+import PoStatusCell, { poStatusShort } from "./PoStatusCell";
+import { QueueExcludeSelect, type QueueExcludeValue } from "@/components/QueueExcludeSelect";
+import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
+import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { PageJump } from "@/components/ui/page-jump";
+import { Input } from "@/components/ui/input";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ChevronRight, ChevronLeft, Loader2, Radar, Pencil, Save, X, Ban, Gauge, IdCard } from "lucide-react";
+import { openCustomer360 } from "@/lib/customer360";
+import { openProfileOptimization } from "@/lib/profile-optimization";
+import { dispatchSpeedTool } from "@/lib/exec-queue";
+import * as XLSX from "xlsx";
+import { printTablePDF } from "@/lib/print-pdf";
+import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
+import { useAuth } from "@/hooks/use-auth";
+import { ROLES } from "@shared/schema";
+import { RefreshButton } from "@/components/RefreshButton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+const DZS_URL = "https://10.42.187.101:8080/expresse/";
+
+type DZSItem = { account: string; complaint?: string | null; short?: string | null; full?: string | null };
+type ComplaintFilter = "all" | "has" | "none";
+
+const buildDZSUrl = (items: DZSItem[], force = false) => {
+  const accounts = items.map((it) => it.account);
+  // force = جاى من تقرير "الخطوط أسكورها أعلى من 100" → السكربت يعمل real-time فعلى حتى لو الخط
+  // مخزّن كحالة خاصة (POP_O/out-of-service)، بدل ما يعتبرها 101 على طول.
+  return `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}${force ? "&sf_force=1" : ""}`;
+};
+
+interface PhoneLine extends Measurement138 {
+  telNo: string;
+  central: string;
+  iduNo: string;
+  oduNo: string;
+  cabinNumber: string;
+  primaryBlockNo: string;
+  cabinetIn: string;
+  secBlockNo: string;
+  cabinetOut: string;
+  boxNumber: string;
+  dpTerminal: string;
+  port: string;
+  len: string;
+  fiberBlock: string;
+  fiberOut: string;
+  telNumTxt: string;
+  fullPhone: string;
+  accountNo: string;
+  accountSource: string;
+  lastPoRaiseAt: string | null;
+  lastPoStopAt: string | null;
+}
+
+interface FilterOptions {
+  centrals: string[];
+  cabins: Record<string, string[]>;
+  boxes: Record<string, string[]>;
+}
+
+const PAGE_SIZE = 50;
+// بوابة DZS بتقفل التاب لو استقبلت عدد كبير من الأرقام مرة واحدة، فنقسّم
+// التقسيم لدفعات والانتظار 400 ثانية بين كل دفعة يتم داخل سكريبت DZS نفسه
+// (dzs-expresse-v10.user.js) — هنا نفتح كل الأكونتس فى تاب واحد والسكريبت يتولّى الباقى.
+
+const scoreBadge = (v: string | number | null | undefined) => {
+  if (v == null || v === "") return <span className="text-gray-400">-</span>;
+  const n = Number(v);
+  if (isNaN(n)) return <span>{String(v)}</span>;
+  const cls =
+    n > 33 ? "bg-red-100 text-red-800" :
+    n > 15 ? "bg-amber-100 text-amber-700" :
+             "bg-green-100 text-green-800";
+  return <span className={`text-xs px-2 py-0.5 rounded font-semibold ${cls}`}>{n}</span>;
+};
+
+interface WithAccountReportProps {
+  /** فلتر اختيارى: عرض فقط الخطوط التى أسكورها أعلى من هذه القيمة (تقرير الأسكور > 100) */
+  scoreGt?: number;
+  /** فلتر اختيارى: اسكور مساوٍ لقيمة محددة بالظبط (تقرير «اسكور 103») */
+  scoreEq?: number;
+  /** يمنع تعديل/حذف رقم الأكونت على الفنى وأدمن المبيعات كمان (المبيعات ممنوعة دايماً) */
+  editorsOnly?: boolean;
+  /** يعرض زر «جلب 360»: يعيد فحص أرقام الأكونت للخطوط دى على Customer360 */
+  showC360?: boolean;
+  /** فلتر اختيارى: عرض فقط الخطوط التى لم يتم قياسها من قبل (لا يوجد لها سجل فى شيت 138) */
+  neverMeasured?: boolean;
+  /** القيمة الافتراضية لعدد أيام فلتر «أقدم من N يوم» (الفلتر نفسه يظل مطفياً حتى تفعيله) */
+  defaultStaleDays?: string;
+  title?: string;
+  /** قيم مبدئية للفلتر (تُستخدم عند فتح التقرير لبكس محدد فى نافذة منبثقة) */
+  initialCentral?: string;
+  initialCabin?: string;
+  initialBox?: string;
+}
+
+export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, neverMeasured, defaultStaleDays = "10", title, initialCentral = "", initialCabin = "", initialBox = "" }: WithAccountReportProps = {}) {
+  const showSpeedTools = useSpeedToolsVisible();
+  const isSuper = useIsSuperAdmin();
+  // المصدر يعكس التقرير الفعلى (خطوط لها أكونت / ولم تُقس / أسكور>100) عشان يظهر صح فى معاملات التنفيذ
+  useSpeedToolSource(
+    scoreEq != null ? `خطوط اسكورها ${scoreEq}`
+    : neverMeasured ? "خطوط لها أكونت ولم تُقس"
+    : scoreGt != null ? "خطوط أسكورها أعلى من 100"
+    : "خطوط لها أكونت");
+  const [central, setCentral] = useState(initialCentral);
+  const [cabin, setCabin] = useState(initialCabin);
+  const [box, setBox] = useState(initialBox);
+  const [boxFrom, setBoxFrom] = useState("");
+  const [boxTo, setBoxTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [scoreMin, setScoreMin] = useState("");
+  const [scoreMax, setScoreMax] = useState("");
+  const [speedMin, setSpeedMin] = useState("");
+  const [speedMax, setSpeedMax] = useState("");
+  const [accountQ, setAccountQ] = useState("");
+  // فلتر "أقدم من N يوم": يعرض فقط الخطوط التى مرّ على آخر قياس لها أكثر من N يوم
+  // أو التى لم تُقَس من قبل. عدد الأيام يكتبه المستخدم (افتراضى 7).
+  const [staleDays, setStaleDays] = useState(defaultStaleDays);
+  // زر «استبعاد اللى فى الطابور»: بيشيل الأرقام اللى ليها مهمة منتظرة/شغّالة فى طابور
+  // التنفيذ عشان مايتبعتوش تانى. مفعّل افتراضياً فى تقرير «لها أكونت ولم تُقَس» بس —
+  // هو التقرير اللى بيتقاس منه بالجملة دايماً؛ الباقى المستخدم هو اللى يقرّر.
+  const [excludeQueued, setExcludeQueued] = useState<QueueExcludeValue>(neverMeasured ? "measure" : "");
+  const [staleOn, setStaleOn] = useState(false);
+  // فلتر الشكوى: الكل / لها شكوى / ليس لها شكوى
+  const [complaintFilter, setComplaintFilter] = useState<ComplaintFilter>("all");
+  const [editingPhone, setEditingPhone] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
+  const [dzsLoading, setDzsLoading] = useState(false);
+  const [dzsCount, setDzsCount] = useState<number | null>(null);
+  // ⚠️ التأكيد **جوّه الصفحة** مش بـ window.confirm: المتصفح بيقدر يوقف نوافذ
+  // confirm/alert بتاعة الصفحة (Chrome بيعرض «امنع هذه الصفحة من إنشاء مربعات حوار
+  // إضافية» بعد كذا نافذة، والموقع ده بيفتح نوافذ كتير). وقتها confirm بترجع false
+  // **من غير ما تظهر حاجة** — فالقياس كان بيقف فى صمت تام: أقل من 500 رقم يشتغل
+  // (مافيش تأكيد أصلاً) وأكتر من 500 مايتضافش ولا رسالة تظهر.
+  const [confirmAsk, setConfirmAsk] = useState<{ text: string; resolve: (ok: boolean) => void } | null>(null);
+  // كل نتيجة بتظهر فى الصفحة كمان (مش بس alert) لنفس السبب.
+  const [notice, setNotice] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  // المبيعات ممنوعة دايماً؛ و«editorsOnly» بيمنع الفنى وأدمن المبيعات كمان
+  // (تقرير اسكور 103: التعديل لباقى المستخدمين بس).
+  const canEdit = user?.role !== ROLES.SALES
+    && !(editorsOnly && (user?.role === ROLES.TECH || user?.role === ROLES.SALES_ADMIN));
+  // تنسيق تاريخ آخر قياس للخط (من شيت 138)
+  const fmtMeasDate = (d: string | null | undefined) => {
+    if (!d) return "-";
+    const t = new Date(d);
+    if (isNaN(t.getTime())) return "-";
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${t.getUTCFullYear()}/${p(t.getUTCMonth() + 1)}/${p(t.getUTCDate())} ${p(t.getUTCHours())}:${p(t.getUTCMinutes())}`;
+  };
+
+  const { data: filterOptions } = useQuery({
+    queryKey: ["/api/phone-lines/filter-options"],
+    queryFn: async () => {
+      const res = await fetch("/api/phone-lines/filter-options", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch filter options");
+      return res.json() as Promise<FilterOptions>;
+    },
+  });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/phone-lines/with-account", central, cabin, box, boxFrom, boxTo, page, scoreGt ?? "", scoreEq ?? "", neverMeasured ?? false, scoreMin, scoreMax, speedMin, speedMax, accountQ, staleOn, staleDays, complaintFilter, excludeQueued],
+    queryFn: async () => {
+      // نفس باني البارامترات بتاع القياس/التصدير — مصدر واحد فمفيش فلتر يتنسى
+      const params = filterParams({ page: String(page), limit: String(PAGE_SIZE) });
+      const res = await fetch(`/api/phone-lines/with-account?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json() as Promise<{ data: PhoneLine[]; total: number; grandTotal?: number; queuedExcluded?: number; page: number; pageSize: number }>;
+    },
+    refetchOnMount: "always",
+  });
+  const mobileLookup = useMobileLookup((data?.data ?? []).map((r) => r.telNo || r.fullPhone));
+
+  const cabins = central && filterOptions ? (filterOptions.cabins[central] ?? []) : [];
+  const boxes = central && cabin && filterOptions ? (filterOptions.boxes[`${central}||${cabin}`] ?? []) : [];
+
+  const startEdit = (r: PhoneLine) => {
+    setEditingPhone(r.fullPhone);
+    setEditDraft(r.accountNo ?? "");
+  };
+
+  const cancelEdit = () => setEditingPhone(null);
+
+  const handleSave = async (fullPhone: string) => {
+    if (!editDraft.trim()) return;
+    setSaveState((s) => ({ ...s, [fullPhone]: "saving" }));
+    try {
+      const res = await fetch(`/api/line-accounts/${encodeURIComponent(fullPhone)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ accountNo: editDraft.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.message || "فشل الحفظ");
+      }
+      setSaveState((s) => ({ ...s, [fullPhone]: "saved" }));
+      setEditingPhone(null);
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/without-account"] });
+      setTimeout(() => setSaveState((s) => { const n = { ...s }; delete n[fullPhone]; return n; }), 2000);
+    } catch (e: any) {
+      setSaveState((s) => ({ ...s, [fullPhone]: "error" }));
+      alert(e?.message || "تعذّر حفظ رقم الأكونت");
+    }
+  };
+
+  // تحويل خط من "لها أكونت" إلى "ليس له أكونت": حذف الأكونت + إخفاء من التقريرين
+  const handleMarkNoAccount = async (fullPhone: string) => {
+    if (!confirm(
+      "حذف رقم الأكونت؟\n\nالخط هيتعلّم «بدون أكونت» — يعنى صوت بس مش داتا — " +
+      "ويظهر فى تقرير «معلَّمة بدون أكونت (محذوفة / غير موجودة)»."
+    )) return;
+    setSaveState((s) => ({ ...s, [fullPhone]: "saving" }));
+    try {
+      // fetch مابيرميش استثناء على 403/500 — لازم نفحص res.ok بنفسنا
+      const r1 = await fetch(`/api/line-accounts/${encodeURIComponent(fullPhone)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r1.ok) {
+        const d = await r1.json().catch(() => null);
+        throw new Error(d?.message || "تعذّر حذف رقم الأكونت");
+      }
+      await fetch(`/api/lines-no-account/${encodeURIComponent(fullPhone)}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/without-account"] });
+      // تصفير الحالة — من غيرها الزر بيفضل disabled للأبد لو الصف فضل ظاهر
+      setSaveState((s) => { const n = { ...s }; delete n[fullPhone]; return n; });
+    } catch (e: any) {
+      setSaveState((s) => { const n = { ...s }; delete n[fullPhone]; return n; });
+      alert(e?.message || "تعذّر حذف رقم الأكونت");
+    }
+  };
+
+  // بارامترات الفلاتر — **مصدر واحد** للجدول وللقياس ورفع السرعة والتصدير.
+  // كانت متكرّرة ٤ مرات بالنسخ، وأى فلتر جديد بيتضاف فى مكان وينسى فى التانى.
+  const filterParams = (extra: Record<string, string>) => {
+    const params = new URLSearchParams(extra);
+    if (central) params.set("central", central);
+    if (cabin) params.set("cabin", cabin);
+    if (box) params.set("box", box);
+    if (!box && boxFrom) params.set("boxFrom", boxFrom);
+    if (!box && boxTo)   params.set("boxTo",   boxTo);
+    if (staleOn && staleDays.trim()) params.set("staleDays", staleDays.trim());
+    if (excludeQueued) params.set("excludeQueued", excludeQueued);
+    if (complaintFilter !== "all") params.set("hasComplaint", complaintFilter === "has" ? "1" : "0");
+    if (scoreGt != null) params.set("scoreGt", String(scoreGt));
+    // اسكور مساوٍ بالظبط: السيرفر بيقارن بـ > و < بس، والاسكور عدد صحيح
+    if (scoreEq != null) { params.set("scoreGt", String(scoreEq - 1)); params.set("scoreLt", String(scoreEq + 1)); }
+    if (neverMeasured) params.set("neverMeasured", "1");
+    if (scoreMin.trim()) params.set("scoreGt", scoreMin.trim());
+    if (scoreMax.trim()) params.set("scoreLt", scoreMax.trim());
+    if (speedMin.trim()) params.set("speedGt", speedMin.trim());
+    if (speedMax.trim()) params.set("speedLt", speedMax.trim());
+    if (accountQ.trim()) params.set("accountQ", accountQ.trim());
+    return params;
+  };
+
+  // ⚠️ العدد المعروض فى الجدول **لقطة** وقت ما التقرير اتحمّل، والتقرير مابيتحدّثش
+  // لوحده (staleTime: Infinity). فى نفس الوقت فلتر «الطابور مستبعد» بيشيل الأرقام
+  // اللى فى طابور التنفيذ، والطابور بيفضى باستمرار — فكل باتش بيخلص بيرجّع أرقامه
+  // للتقرير. النتيجة: الشاشة تقول «١ سجل» وزر القياس يلاقى ٤٢٩ رقم مؤهّل فعلاً.
+  // فبنسأل المستخدم بالعدد **الحقيقى** قبل ما نبعت، ونوضّح سبب الفرق.
+  const ask = (text: string) => new Promise<boolean>((resolve) => setConfirmAsk({ text, resolve }));
+
+  const confirmRealCount = async (real: number, shown: number, what: string): Promise<boolean> => {
+    if (real === 0) { setNotice(`مفيش أرقام مؤهّلة لـ${what} فى النطاق المحدد.`); return false; }
+    if (real !== shown) {
+      return ask(
+        `الشاشة بتعرض ${shown.toLocaleString("ar-EG")} رقم، لكن المؤهّل لـ${what} دلوقتى ` +
+        `${real.toLocaleString("ar-EG")} رقم.\n\nالفرق سببه أرقام خرجت من طابور التنفيذ بعد ما ` +
+        `التقرير اتحمّل (الباتشات اللى خلصت بترجّع أرقامها للتقرير).\n\n` +
+        `تحب تكمّل وتبعت ${real.toLocaleString("ar-EG")} رقم؟ (لو عايز تشوفهم الأول: إلغاء ثم «تحديث»)`,
+      );
+    }
+    if (real > 500) {
+      return ask(
+        `عدد الخطوط ${real.toLocaleString("ar-EG")} (أكثر من 500) — ${what} على دفعات هياخد وقت طويل. هل تريد الاستمرار؟`,
+      );
+    }
+    return true;
+  };
+
+  const toItem = (r: PhoneLine): DZSItem => ({
+    account: (r.accountNo ?? "").toString().trim(),
+    complaint: "",
+    short: r.telNo ?? "",
+    full: r.fullPhone ?? "",
+  });
+
+  // القياس: نفتح كل أكونتس النطاق فى تاب DZS واحد — والسكريبت (dzs-expresse-v10.user.js)
+  // يتولّى التقسيم لدفعات 50 خط والانتظار 400 ثانية بين كل دفعة والرفع التلقائى لشيت 138.
+  const handleMeasureDZS = async () => {
+    // افتح التاب فوراً وبشكل متزامن داخل ضغطة الزر (قبل أى await) — وإلا يحجبه الـ popup blocker
+    const w = window.open("about:blank", "dzs_measure");
+    setDzsLoading(true);
+    setDzsCount(null);
+    try {
+      const res = await fetch(`/api/phone-lines/with-account?${filterParams({ page: "1", limit: "20000" })}`,
+        { credentials: "include" });
+      const json = await res.json();
+      const all = (json.data as PhoneLine[]) ?? [];
+      const seen = new Set<string>();
+      const items = all
+        .map(toItem)
+        .filter((it) => it.account && !seen.has(it.account) && seen.add(it.account));
+      if (items.length === 0) { try { w?.close(); } catch {} setNotice("لا توجد أرقام أكونت فى النطاق المحدد"); return; }
+      // التأكيد بالعدد الحقيقى اللى هيتبعت — مش بالعدد المعروض على الشاشة
+      if (!(await confirmRealCount(items.length, data?.total ?? 0, "القياس"))) { try { w?.close(); } catch {} return; }
+      if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { notify: setNotice })) {
+        try { w?.close(); } catch {}
+        qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });  // الجدول يطابق الواقع
+        return;
+      }
+      if (w) w.location.href = buildDZSUrl(items, scoreGt != null); // scoreGt != null = تقرير الأسكور>100 → فرض real-time
+      setDzsCount(items.length);
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
+    } catch {
+      try { w?.close(); } catch {}
+      setNotice("تعذّر تحميل بيانات النطاق للقياس");
+    } finally {
+      setDzsLoading(false);
+    }
+  };
+
+  const openDZSSingle = async (r: PhoneLine) => {
+    if (await dispatchSpeedTool("measure", [toItem(r).account], isSuper)) return;
+    window.open(buildDZSUrl([toItem(r)], scoreGt != null), "dzs_measure");
+  };
+
+  // رفع السرعة (Profile Optimization) لأرقام النطاق المحدد. kind: "raise" = رفع سرعة | "stop" = إيقاف Nightly فقط.
+  const handleRaiseSpeed = async (kind: "raise" | "stop") => {
+    const afterStop = kind === "raise"
+      // نفس السبب: لو المتصفح موقّف نوافذ الصفحة كانت بترجع false فى صمت والمستخدم
+      // ياخد «رفع سرعة بس» وهو فاكر إنه طلب الاتنين.
+      ? await ask("رفع السرعة والإيقاف؟\n\nكمّل = رفع السرعة لكل الأرقام ثم إيقاف الـ Nightly الناتج لكلهم\nإلغاء = رفع السرعة فقط")
+      : false;
+    setDzsLoading(true);
+    try {
+      const res = await fetch(`/api/phone-lines/with-account?${filterParams({ page: "1", limit: "20000" })}`,
+        { credentials: "include" });
+      const json = await res.json();
+      const accounts = (json.data as PhoneLine[])
+        .map((r) => (r.accountNo ?? "").toString().trim()).filter(Boolean);
+      // نفس حماية القياس — رفع السرعة على أرقام مش ظاهرة على الشاشة أخطر
+      if (!(await confirmRealCount(accounts.length, data?.total ?? 0, kind === "stop" ? "الإيقاف" : "رفع السرعة"))) return;
+      if (await dispatchSpeedTool(kind === "stop" ? "stop" : "raise", accounts, isSuper, { notify: setNotice })) {
+        qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
+        return;
+      }
+      openProfileOptimization(accounts, kind === "stop" ? { stopOnly: true } : { afterStop });
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
+    } catch {
+      setNotice("تعذّر تحميل بيانات النطاق");
+    } finally {
+      setDzsLoading(false);
+    }
+  };
+
+  // «جلب 360»: يعيد فحص أرقام الأكونت لكل خطوط النطاق المفلتر على Customer360 —
+  // السكربت بيجيب رقم الأكونت الحالى لكل رقم ويصحّحه لو اتغيّر، ولو الرقم مش موجود
+  // بيتعلّم «بدون أكونت». بناخد كل النطاق (limit 20000) مش الصفحة المعروضة بس، زى
+  // القياس ورفع السرعة بالظبط، وبنفس تأكيد العدد الحقيقى.
+  const handleFetchC360 = async () => {
+    setDzsLoading(true);
+    try {
+      const res = await fetch(`/api/phone-lines/with-account?${filterParams({ page: "1", limit: "20000" })}`,
+        { credentials: "include" });
+      const json = await res.json();
+      const phones = [...new Set(((json.data as PhoneLine[]) ?? [])
+        .map((r) => (r.fullPhone ?? "").toString().trim()).filter(Boolean))];
+      if (!(await confirmRealCount(phones.length, data?.total ?? 0, "جلب 360"))) return;
+      await openCustomer360(phones);
+      qc.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
+    } catch {
+      setNotice("تعذّر تحميل بيانات النطاق لجلب 360");
+    } finally {
+      setDzsLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    const params = filterParams({ page: "1", limit: "20000" });
+    const res = await fetch(`/api/phone-lines/with-account?${params}`, { credentials: "include" });
+    const json = await res.json();
+    const rows = (json.data as PhoneLine[]).map((r) => ({
+      "رقم التليفون الكامل": r.fullPhone,
+      "تاريخ آخر قياس": fmtMeasDate(r.lastMeasTime),
+      "رقم الأكونت": r.accountNo,
+      "مصدر الأكونت": r.accountSource === "manual" ? "يدوى" : "شيت 138",
+      "آخر قياس": r.lastMeasScore,
+      "حالة تحسين البروفايل": r.poStatus ?? "",
+      "السرعة الحالية": r.lineCurrentSpeed,
+      "أقصى سرعة": r.lineMaxSpeed,
+      "السنترال": r.central,
+      "رقم الكابينه": r.cabinNumber,
+      "رقم البكس": r.boxNumber,
+      "رقم التليفون": r.telNo,
+      "IDU": r.iduNo,
+      "ODU": r.oduNo,
+      "Primary Block": r.primaryBlockNo,
+      "Cabinet In": r.cabinetIn,
+      "DP Terminal": r.dpTerminal,
+      "Port": r.port,
+      "LEN": r.len,
+      "آخر رفع سرعة": fmtMeasDate(r.lastPoRaiseAt),
+      "آخر إيقاف PO": fmtMeasDate(r.lastPoStopAt),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "خطوط لها أكونت");
+    XLSX.writeFile(wb, "with-account-report.xlsx");
+  };
+
+  const handleExportPDF = async () => {
+    // كانت نسخة منفصلة **ناقصة فلتر مدى البكس** فالـ PDF كان بيطلع أوسع من الجدول
+    const params = filterParams({ page: "1", limit: "20000" });
+    const res = await fetch(`/api/phone-lines/with-account?${params}`, { credentials: "include" });
+    const json = await res.json();
+    const all = json.data as PhoneLine[];
+    printTablePDF({
+      title: title ?? "تقرير الخطوط التى لها رقم أكونت",
+      columns: ["#", "التليفون الكامل", "الأكونت", "المصدر", "سرعة حالية", "أقصى سرعة", "السنترال", "الكابينه", "البكس", "IDU", "DP Terminal"],
+      rows: all.map((r, i) => [i + 1, r.fullPhone, r.accountNo, r.accountSource === "manual" ? "يدوى" : "138",
+        r.lineCurrentSpeed ?? "", r.lineMaxSpeed ?? "", r.central, r.cabinNumber, r.boxNumber, r.iduNo, r.dpTerminal]),
+    });
+  };
+
+  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+
+  return (
+    <div className="space-y-4" dir="rtl">
+      <Card className="overflow-hidden shadow-sm border-0 bg-white">
+        <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-base">{title ?? "الخطوط التى لها رقم أكونت"}</h3>
+            {data && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {data.total.toLocaleString("ar-EG")} سجل
+                {staleOn && data.grandTotal != null && data.grandTotal !== data.total && (
+                  <span className="text-purple-600"> {" "}(من إجمالى {data.grandTotal.toLocaleString("ar-EG")} — بعد فلتر «أقدم من {staleDays} يوم»)</span>
+                )}
+                {/* الأرقام اللى فى طابور التنفيذ دلوقتى بتتشال من النتيجة عشان مايتكررش
+                    نفس الشغل — بنقول للمستخدم اتشال كام. */}
+                {!!data.queuedExcluded && (
+                  <span className="text-amber-700"> {" "}— مستبعَد {data.queuedExcluded.toLocaleString("ar-EG")} رقم موجود فى طابور التنفيذ
+                    {/* العدد لقطة وقت التحميل: الطابور بيفضى باستمرار وكل باتش بيخلص
+                        بيرجّع أرقامه للتقرير، فالرقم ده بيقلّ مع الوقت. */}
+                    <span className="text-muted-foreground"> (العدد وقت فتح التقرير — اضغط «تحديث» للرقم الحالى)</span>
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchableCombobox
+              options={filterOptions?.centrals ?? []}
+              value={central}
+              onChange={(v) => { setCentral(v); setCabin(""); setBox(""); setPage(1); }}
+              placeholder="كل السنترالات"
+              searchPlaceholder="ابحث في السنترالات..."
+              className="w-full sm:w-44 text-sm"
+            />
+            <SearchableCombobox
+              options={cabins}
+              value={cabin}
+              onChange={(v) => { setCabin(v); setBox(""); setBoxFrom(""); setBoxTo(""); setPage(1); }}
+              placeholder="كل الكباين"
+              searchPlaceholder="ابحث في الكباين..."
+              disabled={!central}
+              className="w-full sm:w-40 text-sm"
+            />
+            <SearchableCombobox
+              options={boxes}
+              value={box}
+              onChange={(v) => { setBox(v); setBoxFrom(""); setBoxTo(""); setPage(1); }}
+              placeholder="كل البكسيات"
+              searchPlaceholder="ابحث في البكسيات..."
+              disabled={!cabin}
+              className="w-full sm:w-36 text-sm"
+            />
+            <Input
+              type="text"
+              value={accountQ}
+              onChange={(e) => { setAccountQ(e.target.value); setPage(1); }}
+              placeholder="بحث برقم الأكونت"
+              className="w-full sm:w-40 h-9 text-sm"
+              dir="ltr"
+            />
+            <div className="flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-500 bg-white">
+              <span className="whitespace-nowrap">بكس من</span>
+              <Input
+                type="number" min="1" value={boxFrom}
+                onChange={e => { setBoxFrom(e.target.value); setBox(""); setPage(1); }}
+                className="w-14 h-6 text-xs px-1 border-0 shadow-none"
+                placeholder="1"
+                disabled={!cabin}
+              />
+              <span>—</span>
+              <Input
+                type="number" min="1" value={boxTo}
+                onChange={e => { setBoxTo(e.target.value); setBox(""); setPage(1); }}
+                className="w-14 h-6 text-xs px-1 border-0 shadow-none"
+                placeholder="99"
+                disabled={!cabin}
+              />
+            </div>
+            {/* فلترا السرعة والاسكور — بلا معنى لتقرير «لم تُقَس» فنخفيهما هناك */}
+            {!neverMeasured && (
+            <div className="flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-500 bg-gray-50">
+              <span className="whitespace-nowrap">السرعة الحالية:</span>
+              <Input
+                type="number"
+                min={0}
+                value={speedMin}
+                onChange={(e) => { setSpeedMin(e.target.value); setPage(1); }}
+                placeholder="من"
+                className="h-6 w-16 text-xs px-1 border-0 bg-transparent focus-visible:ring-0"
+                dir="ltr"
+              />
+              <span>—</span>
+              <Input
+                type="number"
+                min={0}
+                value={speedMax}
+                onChange={(e) => { setSpeedMax(e.target.value); setPage(1); }}
+                placeholder="إلى"
+                className="h-6 w-16 text-xs px-1 border-0 bg-transparent focus-visible:ring-0"
+                dir="ltr"
+              />
+            </div>
+            )}
+            {!neverMeasured && (
+            <div className="flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-500 bg-gray-50">
+              <span className="whitespace-nowrap">الاسكور:</span>
+              <Input
+                type="number"
+                min={0}
+                value={scoreMin}
+                onChange={(e) => { setScoreMin(e.target.value); setPage(1); }}
+                placeholder="من"
+                className="h-6 w-14 text-xs px-1 border-0 bg-transparent focus-visible:ring-0"
+                dir="ltr"
+              />
+              <span>—</span>
+              <Input
+                type="number"
+                min={0}
+                value={scoreMax}
+                onChange={(e) => { setScoreMax(e.target.value); setPage(1); }}
+                placeholder="إلى"
+                className="h-6 w-14 text-xs px-1 border-0 bg-transparent focus-visible:ring-0"
+                dir="ltr"
+              />
+            </div>
+            )}
+            {/* فلتر «أقدم من N يوم» — بلا معنى لتقرير «لم تُقَس» (كلها بدون قياس) فنخفيه هناك */}
+            {!neverMeasured && (
+            <div className={`flex items-center gap-1 border rounded-md px-2 py-1 text-xs ${staleOn ? "border-purple-300 bg-purple-50 text-purple-700" : "border-gray-200 bg-white text-gray-500"}`}>
+              <span className="whitespace-nowrap">أقدم من</span>
+              <Input
+                type="number"
+                min={1}
+                value={staleDays}
+                onChange={(e) => { setStaleDays(e.target.value); setPage(1); }}
+                className="h-6 w-14 text-xs px-1 border-0 bg-transparent focus-visible:ring-0"
+                dir="ltr"
+              />
+              <span className="whitespace-nowrap">يوم</span>
+              <Button
+                variant={staleOn ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setStaleOn((v) => !v); setPage(1); }}
+                className={`h-6 px-2 text-xs ${staleOn ? "bg-purple-600 hover:bg-purple-700 text-white" : "text-purple-700 border-purple-200"}`}
+                title="عرض فقط الخطوط التى مرّ على آخر قياس لها أكثر من العدد المحدد من الأيام أو لم تُقَس من قبل"
+              >
+                {staleOn ? "مفعّل" : "تفعيل"}
+              </Button>
+            </div>
+            )}
+            {/* استبعاد الأرقام اللى فى طابور التنفيذ — عشان مايتبعتوش تانى ويتكرّر الشغل.
+                مفعّل افتراضياً فى «لها أكونت ولم تُقَس» بس. */}
+            <QueueExcludeSelect
+              value={excludeQueued}
+              onChange={(v) => { setExcludeQueued(v); setPage(1); }}
+              excluded={data?.queuedExcluded ?? null}
+            />
+            {/* فلتر الشكوى — نفس الاختيار يُطبّق على الجدول والقياس والتصدير */}
+            <select
+              value={complaintFilter}
+              onChange={(e) => { setComplaintFilter(e.target.value as ComplaintFilter); setPage(1); }}
+              className={`h-9 rounded-md border px-2 text-sm bg-white ${
+                complaintFilter === "has"
+                  ? "border-purple-300 text-purple-700"
+                  : complaintFilter === "none"
+                    ? "border-orange-300 text-orange-700"
+                    : "border-gray-200 text-gray-700"
+              }`}
+              title="فلترة الأرقام حسب وجود الشكوى"
+              aria-label="فلتر الشكوى"
+              dir="rtl"
+            >
+              <option value="all">الشكوى: الكل</option>
+              <option value="has">لها شكوى</option>
+              <option value="none">ليس لها شكوى</option>
+            </select>
+            {showSpeedTools && (<>
+            <Button variant="outline" size="sm" onClick={handleMeasureDZS} disabled={dzsLoading} className="text-blue-700 border-blue-200 gap-1">
+              {dzsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />} قياس DZS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleRaiseSpeed("raise")} disabled={dzsLoading} className="text-emerald-700 border-emerald-200 gap-1" title="تشغيل Profile Optimization (رفع السرعة) لأرقام النطاق المحدد">
+              <Gauge className="w-4 h-4" /> رفع سرعة
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleRaiseSpeed("stop")} disabled={dzsLoading} className="text-orange-700 border-orange-200 gap-1" title="إيقاف الـ Nightly PO فقط (يرجّع الحالة Not Started) لأرقام النطاق المحدد">
+              <Gauge className="w-4 h-4" /> إيقاف PO
+            </Button>
+            </>)}
+            {showC360 && isSuper && (
+              <Button
+                variant="outline" size="sm"
+                onClick={handleFetchC360}
+                disabled={dzsLoading || !data?.total}
+                className="text-purple-700 border-purple-200 gap-1 disabled:opacity-40"
+                title="إعادة فحص أرقام الأكونت لكل خطوط النطاق على Customer360 — يصحّح الرقم لو اتغيّر ويعلّم الخط «بدون أكونت» لو مش موجود"
+              >
+                {dzsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <IdCard className="w-4 h-4" />} جلب 360
+              </Button>
+            )}
+            <RefreshButton />
+            <Button variant="outline" size="sm" onClick={handleExport} className="text-green-700 border-green-200">
+              تصدير Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-700 border-red-200">
+              تصدير PDF
+            </Button>
+          </div>
+        </div>
+
+        {notice && (
+          <div className="mx-4 mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex items-start gap-2">
+            <span className="flex-1 whitespace-pre-line">{notice}</span>
+            <button type="button" onClick={() => setNotice(null)}
+              className="text-amber-700 hover:text-amber-900" aria-label="إغلاق الرسالة">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <Dialog open={!!confirmAsk} onOpenChange={(o) => { if (!o) { confirmAsk?.resolve(false); setConfirmAsk(null); } }}>
+          <DialogContent dir="rtl" className="max-w-md">
+            <DialogHeader><DialogTitle>تأكيد</DialogTitle></DialogHeader>
+            <p className="text-sm whitespace-pre-line leading-6">{confirmAsk?.text}</p>
+            <DialogFooter className="gap-2 sm:justify-start">
+              <Button size="sm"
+                onClick={() => { confirmAsk?.resolve(true); setConfirmAsk(null); }}>
+                كمّل
+              </Button>
+              <Button size="sm" variant="outline"
+                onClick={() => { confirmAsk?.resolve(false); setConfirmAsk(null); setNotice("اتلغى الطلب — مافيش حاجة اتبعتت للطابور."); }}>
+                إلغاء
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {dzsCount != null && (
+          <div className="px-4 py-2 border-b bg-blue-50 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-blue-700 font-semibold">
+              فُتح قياس DZS لـ {dzsCount} رقم — السكريبت بيقيس على دفعات 140 خط، وبعد كل دفعة بينتظر 400 ثانية ويكمّل تلقائياً ويرفع النتائج لشيت 138.
+            </span>
+            <button onClick={() => setDzsCount(null)} className="text-gray-400 hover:text-gray-600 mr-auto" title="إغلاق">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {isLoading || dzsLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table className="text-right text-sm" dir="rtl">
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون الكامل</TableHead>
+                    {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">تاريخ آخر قياس</TableHead>}
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم الأكونت</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">المصدر</TableHead>
+                    {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">قياس</TableHead>}
+                    {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">السرعة الحالية</TableHead>}
+                    {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">أقصى سرعة</TableHead>}
+                    {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">الاسكور</TableHead>}
+                    {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">حالة PO</TableHead>}
+                    <TableHead className="text-right font-bold whitespace-nowrap">السنترال</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم الكابينه</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم البكس</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم الموبايل</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">IDU</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">ODU</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">Primary Block</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">Cabinet In</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">Sec Block</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">Cabinet Out</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">DP Terminal</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">Port</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">LEN</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">آخر رفع سرعة</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">آخر إيقاف PO</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data?.data.map((r, idx) => (
+                    <TableRow key={idx} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-mono font-semibold text-blue-700">{r.fullPhone || "-"}</TableCell>
+                      {!neverMeasured && <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-muted-foreground">{fmtMeasDate(r.lastMeasTime)}</TableCell>}
+                      <TableCell dir="ltr" className="text-left font-mono">
+                        {editingPhone === r.fullPhone ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Input
+                              value={editDraft}
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") handleSave(r.fullPhone); if (e.key === "Escape") cancelEdit(); }}
+                              className="h-7 w-28 text-xs px-1"
+                              dir="ltr"
+                              autoFocus
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSave(r.fullPhone)}
+                              disabled={saveState[r.fullPhone] === "saving"}
+                              title="حفظ"
+                              className="text-green-600 hover:text-green-800 disabled:opacity-40"
+                            >
+                              {saveState[r.fullPhone] === "saving"
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Save className="w-3.5 h-3.5" />}
+                            </button>
+                            <button type="button" onClick={cancelEdit} title="إلغاء" className="text-gray-400 hover:text-gray-700">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            {r.accountNo}
+                            {/* القياس من التقارير للسوبر أدمن بس — بيبعت لطابور التنفيذ */}
+                            {showSpeedTools && (
+                              <button
+                                type="button"
+                                onClick={() => openDZSSingle(r)}
+                                title="فتح DZS وقياس هذا الرقم"
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <Radar className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {canEdit && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(r)}
+                                  title="تعديل رقم الأكونت"
+                                  className="text-amber-500 hover:text-amber-700"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkNoAccount(r.fullPhone)}
+                                  disabled={saveState[r.fullPhone] === "saving"}
+                                  title="ليس له رقم أكونت — حذف الأكونت وإخفاء الخط"
+                                  className="text-orange-500 hover:text-orange-700 disabled:opacity-40"
+                                >
+                                  <Ban className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+                            {saveState[r.fullPhone] === "saved" && (
+                              <span className="text-[10px] text-green-600">✓ حُفظ</span>
+                            )}
+                            {saveState[r.fullPhone] === "error" && (
+                              <span className="text-[10px] text-red-600">خطأ</span>
+                            )}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {r.accountSource === "manual" ? (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">يدوى</span>
+                        ) : (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700">شيت 138</span>
+                        )}
+                      </TableCell>
+                      {!neverMeasured && <TableCell><Measurement138Button m={r} /></TableCell>}
+                      {!neverMeasured && <TableCell className="font-mono">{r.lineCurrentSpeed ?? "-"}</TableCell>}
+                      {!neverMeasured && <TableCell className="font-mono">{r.lineMaxSpeed ?? "-"}</TableCell>}
+                      {!neverMeasured && <TableCell>{scoreBadge(r.lastMeasScore)}</TableCell>}
+                      {!neverMeasured && <TableCell><PoStatusCell value={r.poStatus} /></TableCell>}
+                      <TableCell className="whitespace-nowrap">{r.central || "-"}</TableCell>
+                      <TableCell className="font-medium">{r.cabinNumber || "-"}</TableCell>
+                      <TableCell className="font-medium">{r.boxNumber || "-"}</TableCell>
+                      <TableCell className="font-mono text-muted-foreground">{r.telNo || "-"}</TableCell>
+                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
+                      <TableCell>{r.iduNo || "-"}</TableCell>
+                      <TableCell>{r.oduNo || "-"}</TableCell>
+                      <TableCell>{r.primaryBlockNo || "-"}</TableCell>
+                      <TableCell>{r.cabinetIn || "-"}</TableCell>
+                      <TableCell>{r.secBlockNo || "-"}</TableCell>
+                      <TableCell>{r.cabinetOut || "-"}</TableCell>
+                      <TableCell>{r.dpTerminal || "-"}</TableCell>
+                      <TableCell>{r.port || "-"}</TableCell>
+                      <TableCell>{r.len || "-"}</TableCell>
+                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtMeasDate(r.lastPoRaiseAt)}</TableCell>
+                      <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-orange-700">{fmtMeasDate(r.lastPoStopAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="p-4 border-t flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                  السابق
+                </Button>
+                <PageJump page={page} totalPages={totalPages} onJump={setPage} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  التالي
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}

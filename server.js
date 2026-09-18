@@ -1738,6 +1738,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 // and session secret (passed explicitly so they don't collide with OscarDevs').
 // The host gateway then proxies mybible.oscardevs.com to it. INERT otherwise, so
 // the deploy's Run command can stay `node server.js` — no separate launcher.
+const { launchCoHostedApp } = require('./src/lib/cohost_child');
 const {
   assertMyBibleCutoverSecrets,
   isMyBibleMaintenanceMode,
@@ -1777,37 +1778,15 @@ if (process.env.MYBIBLE_UPSTREAM && mybibleDatabaseUrl && !mybibleMaintenanceMod
       CRON_SECRET: mbCronSecret,
     });
 
-    // Keep mybible alive: if the child dies (crash, OOM, VM hiccup) restart it
-    // automatically instead of leaving a 502 for the members. Exponential
-    // backoff (1s→30s max) guards against a tight crash-loop; a child that
-    // stayed up healthy for >60s resets the backoff so transient crashes don't
-    // accumulate delay. `mbShuttingDown` prevents restarts during a clean exit.
-    let mbRestarts = 0;
-    let mbShuttingDown = false;
-    let mbChild = null;
-    const launchMybible = () => {
-      const startedAt = Date.now();
-      mbChild = require('child_process').spawn(process.execPath, [mybibleDist], {
-        cwd: path.join(__dirname, 'mybible'),
-        stdio: 'inherit',
-        env: mybibleEnv,
-      });
-      mbChild.on('exit', (code, signal) => {
-        if (mbShuttingDown) return;
-        if (Date.now() - startedAt > 60000) mbRestarts = 0; // ran healthy → fresh count
-        const delay = Math.min(30000, 1000 * Math.pow(2, mbRestarts));
-        mbRestarts += 1;
-        console.error(`[co-host] mybible exited (code=${code} signal=${signal}) — restarting in ${delay}ms (attempt ${mbRestarts})`);
-        setTimeout(launchMybible, delay);
-      });
-      mbChild.on('error', (err) => console.error('[co-host] mybible spawn error:', err));
-    };
-    // On a clean OscarDevs shutdown, take mybible down with it (no restart).
-    const mbShutdown = () => { mbShuttingDown = true; if (mbChild) { try { mbChild.kill(); } catch (_) {} } };
-    process.once('SIGTERM', mbShutdown);
-    process.once('SIGINT', mbShutdown);
-
-    launchMybible();
+    // إعادة التشغيل والإيقاف النظيف اتنقلوا لـ`src/lib/cohost_child.js` عشان
+    // التطبيق التاني المستضاف (Service Flow) ياخد **نفس** المنطق بدل نسخة
+    // تانية منه تفرق عنه مع الوقت. السلوك زي ما كان بالظبط.
+    launchCoHostedApp({
+      name: 'mybible',
+      dist: mybibleDist,
+      cwd: path.join(__dirname, 'mybible'),
+      env: mybibleEnv,
+    });
     console.log('🕮 Co-hosted mybible launched on 127.0.0.1:' + mbPort);
 
     // ── Daily verse push: drive it from THIS (always-alive) process ──────────
@@ -1841,6 +1820,55 @@ if (process.env.MYBIBLE_UPSTREAM && mybibleDatabaseUrl && !mybibleMaintenanceMod
   }
 } else if (process.env.MYBIBLE_UPSTREAM && mybibleMaintenanceMode) {
   console.warn('[co-host] MyBible maintenance mode enabled — child process not started');
+}
+
+// ===== Co-hosted Service Flow: auto-launch on the same VM =====
+//
+// Service Flow أداة تشغيل داخلية (سنترال الغنايم — الشركة المصرية
+// للاتصالات). بتتستضاف بنفس نمط mybible: عملية مستقلة على بورت داخلي،
+// والبوّاب بيوجّهلها النطاق اللي في `SERVICEFLOW_HOST`.
+//
+// **بقاعدتها هي.** `SERVICEFLOW_DATABASE_URL` إجباري — من غيره مابتقومش
+// خالص بدل ما تقع على قاعدة أوسكار ديفز. ونفس الكلام على سرّ الجلسة:
+// سرّ غلط معناه إن كل المستخدمين يتسجّل خروجهم.
+//
+// **فترة التجربة:** المالك عايز النشر القديم على ريبليت والنسخة دي
+// يشتغلوا مع بعض على نفس القاعدة لحد ما يتأكد. المهام المجدولة لازم
+// تفضل مع عملية واحدة بس — فالنسخة دي بتقوم بـ`SF_SCHEDULERS=off`
+// افتراضياً. لما القديم يتقفل، شيل `SERVICEFLOW_SCHEDULERS=off` من
+// الإعدادات (أو خلّيها `on`) عشان المهام تنتقل هنا.
+//
+// مطفي بالكامل من غير `SERVICEFLOW_UPSTREAM` — أوسكار ديفز زي ما هو.
+if (process.env.SERVICEFLOW_UPSTREAM) {
+  const sfDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
+  const sfDist = path.join(__dirname, 'serviceflow', 'dist', 'index.cjs');
+  if (!sfDatabaseUrl) {
+    console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_DATABASE_URL — '
+      + 'مش هنشغّلها. تشغيلها على قاعدة أوسكار ديفز أسوأ بكتير من إنها ما تشتغلش.');
+  } else if (!process.env.SERVICEFLOW_HOST) {
+    console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_HOST — '
+      + 'البوّاب مش هيعرف يوجّهلها، فمفيش فايدة من تشغيلها.');
+  } else {
+    const sfPort = process.env.SERVICEFLOW_PORT || '5003';
+    const sfEnv = Object.assign({}, process.env, {
+      NODE_ENV: 'production',
+      PORT: sfPort,
+      DATABASE_URL: sfDatabaseUrl,
+      SESSION_SECRET: process.env.SERVICEFLOW_SESSION_SECRET || process.env.SESSION_SECRET,
+      // المهام المجدولة: مقفولة افتراضياً طول ما النشر القديم شغّال.
+      SF_SCHEDULERS: process.env.SERVICEFLOW_SCHEDULERS || 'off',
+    });
+    const started = launchCoHostedApp({
+      name: 'serviceflow',
+      dist: sfDist,
+      cwd: path.join(__dirname, 'serviceflow'),
+      env: sfEnv,
+    });
+    if (started) {
+      console.log('🛠️  Co-hosted Service Flow launched on 127.0.0.1:' + sfPort
+        + ' (host: ' + process.env.SERVICEFLOW_HOST + ', schedulers: ' + sfEnv.SF_SCHEDULERS + ')');
+    }
+  }
 }
 
 // ===== Co-hosted Deals affiliate app: auto-launch on the same VM =====
