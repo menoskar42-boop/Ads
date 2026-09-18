@@ -5,6 +5,7 @@
 // @version      1.2.0
 // @match        https://customer360.te.eg/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -14,7 +15,23 @@
 
   /* ================== CONFIG ================== */
   // الموقع اللى بنحفظ فيه أرقام الأكونت (نفس دومين Service-Flow). عدّليه لو الدومين اتغيّر.
-  const SF_API_BASE = "https://service-flow-menoskar42.replit.app";
+  // ── دومين Service-Flow ──────────────────────────────────────────────────────
+  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
+  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
+  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
+  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
+  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
+  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  function sfBase() {
+    try {
+      var v = null;
+      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
+      if (!v) v = localStorage.getItem("sf_base");
+      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
+    } catch (e) {}
+    return SF_DEFAULT_BASE;
+  }
+  const SF_API_BASE = sfBase();
   // لازم يطابق C360_INGEST_TOKEN فى السيرفر (server/routes.ts)
   const SF_INGEST_TOKEN = "sf-c360-account-ingest-2026";
   const SF_AUTO_UPLOAD = true; // false لو عايزة CSV فقط من غير رفع تلقائى

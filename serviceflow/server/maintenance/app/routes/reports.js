@@ -1506,7 +1506,8 @@ router.get('/photos/download', staffOnly, async (req, res) => {
 // ── Service-Flow report ────────────────────────────────────────────────────────
 router.get('/service-flow', staffOnly, async (req, res) => {
   try {
-    const apiUrl = process.env.SERVICE_FLOW_API_URL || 'https://service-flow-menoskar42.replit.app/api/box-summary';
+    const apiUrl = process.env.SERVICE_FLOW_API_URL
+      || `${(process.env.SERVICE_FLOW_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`).replace(/\/+$/, '')}/api/box-summary`;
     const token  = process.env.SERVICE_FLOW_API_TOKEN || '';
     const response = await fetch(apiUrl, {
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },

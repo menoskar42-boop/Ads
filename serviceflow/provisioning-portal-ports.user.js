@@ -5,6 +5,7 @@
 // @version      1.3.1
 // @match        *://provisioningportal.te.eg/provisioningPortal/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-start
 // ==/UserScript==
@@ -32,7 +33,23 @@
   /* ================== CONFIG ================== */
   const USER = "mena.haleem";
   const PASS = "Mon_oskar364";
-  const SF_API_BASE = "https://service-flow-menoskar42.replit.app"; // دومين Service-Flow
+  // ── دومين Service-Flow ──────────────────────────────────────────────────────
+  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
+  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
+  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
+  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
+  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
+  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  function sfBase() {
+    try {
+      var v = null;
+      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
+      if (!v) v = localStorage.getItem("sf_base");
+      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
+    } catch (e) {}
+    return SF_DEFAULT_BASE;
+  }
+  const SF_API_BASE = sfBase();
   const SF_TOKEN = "sf-dzs-138-ingest-2026";                        // = DZS_INGEST_TOKEN فى السيرفر
   const GET_MSAN_HASH = "#/subscriber-management/get-msan-data";
   const SEARCH_WAIT_MS = 45000;   // أقصى انتظار لظهور بيانات الأمسان بعد Search

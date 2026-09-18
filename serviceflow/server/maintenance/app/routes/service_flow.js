@@ -4,11 +4,18 @@ const { requireRole } = require('../middleware/auth');
 const router = express.Router();
 const staffOnly = requireRole('admin', 'inspector');
 
-const SF_URL = process.env.SERVICE_FLOW_API_URL
-  || 'https://service-flow--menoskar42.replit.app/api/box-summary';
+// موقع الصيانة بينادى API بتاع Service-Flow — وهو **نفس العملية دى**. الافتراضى
+// القديم كان دومين ريبليت مكتوب بالحروف (وبنقطتين غلط كمان: service-flow--…)،
+// فبعد نقل الاستضافة كان بيخرج برّه للموقع القديم بدل ما يكلّم نفسه.
+// دلوقتى الافتراضى = الـ loopback بتاع نفس السيرفر، وينفع يتغيّر بـ
+// SERVICE_FLOW_BASE_URL أو بمسار كامل فى SERVICE_FLOW_API_URL / SERVICE_FLOW_PHONES_URL.
+const selfBase = () =>
+  (process.env.SERVICE_FLOW_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`)
+    .replace(/\/+$/, '');
 
-const SF_PHONES_URL = process.env.SERVICE_FLOW_PHONES_URL
-  || 'https://service-flow--menoskar42.replit.app/api/phone-report';
+const SF_URL = process.env.SERVICE_FLOW_API_URL || `${selfBase()}/api/box-summary`;
+
+const SF_PHONES_URL = process.env.SERVICE_FLOW_PHONES_URL || `${selfBase()}/api/phone-report`;
 
 async function fetchPhonePage({ q, exchange, cabinet, box, page } = {}) {
   const token = process.env.SERVICE_FLOW_API_TOKEN || process.env.SF_API_TOKEN;

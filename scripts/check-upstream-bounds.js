@@ -48,8 +48,11 @@ const code = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8')
     && Number(RegExp.$1) >= 5000 && Number(RegExp.$1) <= 120000, RegExp.$1 + 'ms');
   check('والاتصال بيتقفل بالإيد لما المهلة تعدّي (الحدث لوحده مابيقفلش)',
     /on\('timeout', \(\) => \{ upstream\.destroy\(/.test(g));
-  check('والوقوع لسه بيرد ٥٠٢ بجملة مفهومة',
-    /on\('error'[\s\S]{0,200}502/.test(g));
+  /* ٥٠٣ مش ٥٠٢ — Cloudflare بتستبدل أي ٥٠٢/٥٠٤ جاي من الأصل بصفحة الخطأ
+   * بتاعتها، فالجملة اللي بتقول السبب كانت بتتاكل في النص. ٥٠٣ بيعدّي زي ما هو. */
+  const errHandler = (g.match(/on\('error'[\s\S]{0,1500}/) || [''])[0];
+  check('والوقوع بيرد ٥٠٣ بجملة مفهومة (مش ٥٠٢ — كلاودفلير بتاكله)',
+    /writeHead\(503/.test(errHandler) && !/writeHead\(50[24]/.test(errHandler));
   check('والعميل اللي مشي مابيسيبناش شادّين على اتصال فوق',
     /res\.on\('close'[\s\S]{0,120}upstream\.destroy\(\)/.test(g));
 }
