@@ -5,6 +5,7 @@
 // @version      0.9.7
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -28,7 +29,23 @@
   const PO_URL = BASE + "/profileOptimization?lineId=";
 
   // رفع تلقائى لأوقات رفع السرعة / إيقاف PO فى Service-Flow (يظهر كعمودين فى تقارير القياس)
-  const SF_API_BASE = "https://service-flow-menoskar42.replit.app"; // ← عدّليه لو الدومين اتغيّر
+  // ── دومين Service-Flow ──────────────────────────────────────────────────────
+  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
+  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
+  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
+  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
+  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
+  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  function sfBase() {
+    try {
+      var v = null;
+      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
+      if (!v) v = localStorage.getItem("sf_base");
+      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
+    } catch (e) {}
+    return SF_DEFAULT_BASE;
+  }
+  const SF_API_BASE = sfBase();
   const SF_PO_TOKEN = "sf-dzs-138-ingest-2026"; // لازم يطابق DZS_INGEST_TOKEN فى السيرفر
   const PO_RESULTS_KEY = "PO_RESULTS";       // [{ accountNo, event, time }]
   const PO_DOWNLOADED_KEY = "PO_DOWNLOADED";

@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @connect      service-flow-menoskar42.replit.app
+// @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      fcc.te.eg
 // @connect      *
@@ -18,7 +19,23 @@
   'use strict';
 
   /* ===== CONFIG ===== */
-  const SF_URL   = 'https://service-flow-menoskar42.replit.app';
+  // ── دومين Service-Flow ──────────────────────────────────────────────────────
+  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
+  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
+  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
+  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
+  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
+  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  function sfBase() {
+    try {
+      var v = null;
+      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
+      if (!v) v = localStorage.getItem("sf_base");
+      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
+    } catch (e) {}
+    return SF_DEFAULT_BASE;
+  }
+  const SF_URL = sfBase();
   const DZS_TOKEN = 'sf-dzs-138-ingest-2026';        // = DZS_INGEST_TOKEN فى السيرفر
   const CREDS    = { user: 'mena.haleem', pass: 'Mon_oskar364' };
   const AUTO_NAME = 'sf_subinfo_auto';               // window.name اللى بيشغّل الجلب تلقائياً

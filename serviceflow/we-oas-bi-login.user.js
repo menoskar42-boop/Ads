@@ -7,6 +7,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      service-flow-menoskar42.replit.app
+// @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      we-oas.te.eg
 // @run-at       document-start
@@ -22,7 +23,23 @@
   /* ================== CONFIG ================== */
   const USER = "mena.haleem@te.eg";
   const PASS = "Mon_oskar364";
-  const SF_URL   = "https://service-flow-menoskar42.replit.app";
+  // ── دومين Service-Flow ──────────────────────────────────────────────────────
+  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
+  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
+  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
+  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
+  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
+  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  function sfBase() {
+    try {
+      var v = null;
+      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
+      if (!v) v = localStorage.getItem("sf_base");
+      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
+    } catch (e) {}
+    return SF_DEFAULT_BASE;
+  }
+  const SF_URL = sfBase();
   const SF_TOKEN = "sf-auto-upload-2026";
 
   // رفع Blob (ملف xlsx كامل من الخادم) لمسار الاستيراد الذكى. يرجّع Promise<boolean>.

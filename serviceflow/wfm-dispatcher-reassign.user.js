@@ -6,6 +6,7 @@
 // @match        https://wfm.te.eg/WorkOrder/*
 // @match        https://wfm.te.eg/Dispatcher/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -26,7 +27,23 @@
   // Dispatch (بتوصّل Dispatcher/faces/Home) ← Tasks Queue.
   const WFM_HOME_URL = "https://wfm.te.eg/WorkOrder/faces/Home";
   const DISPATCHER_URL = "https://wfm.te.eg/Dispatcher/faces/Home";
-  const SF_API_BASE = "https://service-flow-menoskar42.replit.app"; // دومين Service-Flow
+  // ── دومين Service-Flow ──────────────────────────────────────────────────────
+  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
+  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
+  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
+  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
+  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
+  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  function sfBase() {
+    try {
+      var v = null;
+      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
+      if (!v) v = localStorage.getItem("sf_base");
+      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
+    } catch (e) {}
+    return SF_DEFAULT_BASE;
+  }
+  const SF_API_BASE = sfBase();
   const SF_TOKEN = "sf-dzs-138-ingest-2026";                        // = DZS_INGEST_TOKEN فى السيرفر
   // الشرط الوحيد على السطر: مايكونش Completed. أى حالة تانية (Started / Assigned /
   // Dispatched / Blocked / Escalated / …) مقبولة — WFM هو اللى بيحكم لو العملية
