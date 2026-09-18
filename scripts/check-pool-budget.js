@@ -32,9 +32,20 @@ const SERVER = path.join(ROOT, 'server.js');
 const REPLIT = path.join(ROOT, '.replit');
 const MYBIBLE_POOL = path.join(ROOT, 'mybible/server/db-pool.ts');
 
-/* السقف: سوبابيز بيدّي ~٦٠ اتصال مباشر على الخطط الصغيرة. بنسيب ١٥
- * للنسخ الاحتياطي ومحرّر SQL والهجرات. */
-const BUDGET = 45;
+/* ⛔ السقف **١٥** مش ٤٥.
+ *
+ * كان مكتوب هنا ٤٥ على أساس «سوبابيز بيدّي ~٦٠ اتصال مباشر». ده غلط:
+ * إحنا على **session pooler** مش اتصال مباشر، وسقفه أقل بكتير. رفعنا
+ * الأحواض لـ20+12=32 واللوج رد:
+ *
+ *   error: (EMAXCONNSESSION) max clients reached in session mode
+ *
+ * وmybible بقى مش قادر يوصل للقاعدة أصلاً — يعني السقف الغلط في الفحص
+ * ده عدّى إعداد بيوقّع موقع فيه ٧٠٠ عضو.
+ *
+ * ١٣ (8+5) هو اللي مثبوت إنه بيشتغل. بنسيب هامش لاتنين: النسخ الاحتياطي
+ * (pg_dump) ومحرّر SQL في لوحة سوبابيز. */
+const BUDGET = 15;
 
 const fail = (m) => { console.error('❌ ' + m); process.exitCode = 1; };
 
@@ -115,9 +126,8 @@ const fail = (m) => { console.error('❌ ' + m); process.exitCode = 1; };
         + `والسقف ${BUDGET}. سوبابيز هيرفض اتصالات، والنسخ الاحتياطي ومحرّر SQL `
         + 'مش هيلاقوا مكان. قلّل واحد منهم أو ارفع السقف بقرار.');
     }
-    if (ads.value < 10) {
-      fail(`حوض أوسكار ديفز ${ads.value} — ده أقل من اللازم لموقع فيه اتناشر نظام ومتاجر. `
-        + 'الطلبات هتقف في طابور.');
+    if (ads.value < 4) {
+      fail(`حوض أوسكار ديفز ${ads.value} — قليل أوي حتى مع سقف سوبابيز.`);
     }
     if (!process.exitCode) {
       console.log(`✅ ميزانية الاتصالات: أوسكار ديفز ${ads.value} + mybible ${mybible.value} `

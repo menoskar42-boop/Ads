@@ -104,6 +104,34 @@ for (const [name, line] of bare) {
   }
 }
 
+/* ── التحقّق من هوية القاعدة قبل أي لمسة ليها ────────────────────────── */
+{
+  const idPath = path.join(APP, 'server/db-identity.ts');
+  const indexPath = path.join(APP, 'server/index.ts');
+  if (!fs.existsSync(idPath)) {
+    fail('`server/db-identity.ts` مش موجود — من غيره التطبيق ممكن يشتغل على قاعدة '
+      + 'تطبيق تاني وينشئ جداوله جوّاها. ده حصل فعلاً وقت النقل.');
+  } else if (fs.existsSync(indexPath)) {
+    const idx = strip(fs.readFileSync(indexPath, 'utf8'));
+    const checkAt = idx.indexOf('checkDbIdentity');
+    const schemaAt = idx.indexOf('ensureSchema()');
+    if (checkAt < 0) {
+      fail('`checkDbIdentity` مش متنادية في الإقلاع — الحماية موجودة ومحدّش بيستخدمها.');
+    } else if (schemaAt >= 0 && checkAt > schemaAt) {
+      fail('`checkDbIdentity` بتتنادى **بعد** `ensureSchema()` — والفحص اللي بييجي '
+        + 'بعد ما الجداول اتعملت مالوش لازمة. لازم تكون أول حاجة.');
+    }
+    // ولازم بصمات التطبيقات التانية تفضل موجودة
+    const idSrc = fs.readFileSync(idPath, 'utf8');
+    for (const t of ['bible_verses', 'companies']) {
+      if (!idSrc.includes(t)) {
+        fail(`بصمة \`${t}\` اتشالت من فحص هوية القاعدة — التطبيق مش هيعرف إنه `
+          + 'في قاعدة تطبيق تاني.');
+      }
+    }
+  }
+}
+
 /* ── تسلسل الإقلاع نفسه لازم يكون عليه catch ─────────────────────────── */
 {
   const indexPath = path.join(APP, 'server/index.ts');
