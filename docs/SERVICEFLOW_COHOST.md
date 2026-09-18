@@ -36,6 +36,87 @@
 التطبيق **مابيقومش** — وده أأمن بكتير من إنه يقوم على قاعدة أوسكار ديفز
 ويكتب فيها. الحارس بيمنع أي fallback يترجع.
 
+## كل متغيّرات Service Flow — إيه اللي يتنقل وإيه اللي لأ
+
+الجدول ده **مستخرَج من الكود** (كل `process.env.X` في `serviceflow/`)،
+والحارس `check-serviceflow-env` بيقع لو ظهر متغيّر في الكود مش مكتوب هنا.
+
+### بيتظبّطوا من جوّه الاستضافة — متحطّهمش بأسمائهم دي
+
+| في Service Flow | بيتاخد من | |
+|---|---|---|
+| `DATABASE_URL` | `SERVICEFLOW_DATABASE_URL` | ⛔ إلزامي، ومالوش fallback |
+| `SESSION_SECRET` | `SERVICEFLOW_SESSION_SECRET` | سرّ Service Flow نفسه |
+| `PORT` | `SERVICEFLOW_PORT` (٥٠٠٣) | |
+| `NODE_ENV` | `production` | |
+| `SF_SCHEDULERS` | `SERVICEFLOW_SCHEDULERS` (`off` افتراضياً) | فترة التجربة |
+
+⚠️ **`DATABASE_URL` مش في قايمة الـSecrets القديمة** لأن ريبليت بيوفّره
+تلقائياً لقاعدته المدمجة. هاته من تبويب **Database** في المشروع القديم
+(Connection string) وحطّه في `SERVICEFLOW_DATABASE_URL`.
+
+### لازم تتنقل بأسمائها زي ما هي
+
+| المتغيّر | من غيره بيحصل إيه |
+|---|---|
+| `MAINTENANCE_ENABLED` = `true` | **موقع الصيانة مايتركّبش خالص** — `/maintenance` مش هيبقى موجود |
+| `SF_API_TOKEN` | الربط بين الصيانة وService Flow بيترفض |
+
+### اختيارية — انقلها بس لو الميزة بتتستخدم
+
+| المتغيّر | بيعمل إيه | البديل لو مش متظبّط |
+|---|---|---|
+| `MAINTENANCE_DATABASE_URL` | قاعدة منفصلة للصيانة | بيستخدم قاعدة Service Flow (سكيما `maintenance`) |
+| `MAINTENANCE_SESSION_SECRET` | سرّ جلسة الصيانة | `SESSION_SECRET` |
+| `MAINTENANCE_DB_SCHEMA` | اسم السكيما | `maintenance` |
+| `MAINTENANCE_BASE_PATH` | مسار الصيانة | `/maintenance` |
+| `MAINTENANCE_API_BASE` · `MAINTENANCE_API_TOKEN` | نداء الصيانة من برّه | الميزة مقفولة |
+| `SERVICE_FLOW_API_TOKEN` | توكن الصيانة → Service Flow | `SF_API_TOKEN` |
+| `SERVICE_FLOW_API_URL` · `SERVICE_FLOW_PHONES_URL` · `SERVICE_FLOW_ORIGIN` | روابط وCORS للتكامل | الميزة مقفولة / `*` |
+| `BOX_MAINT_URL` · `BOX_MAINT_TOKEN` | تداخل الصناديق | الميزة مقفولة |
+
+### 🔴 توكنات ليها بديل **مكتوب في الكود** — انقلها
+
+الخمسة دول لو مش متظبّطين، الكود بيستخدم قيمة ثابتة مكتوبة في المصدر —
+**والمصدر على جيت‌هب عام**. يعني أي حد يقرا الريبو يقدر يبعت بيانات
+للنظام:
+
+| المتغيّر | البديل المكتوب في الكود |
+|---|---|
+| **`SESSION_SECRET`** | **`super-secret-session-key`** ← 🚨 الأخطر: سرّ توقيع الجلسات |
+| `INTEGRATION_TOKEN` | `sf-integration-2026-…` |
+| `UPLOAD_TOKEN` | `sf-auto-upload-2026` |
+| `DZS_INGEST_TOKEN` | `sf-dzs-138-ingest-2026…` |
+| `COMPREHENSIVE_API_TOKEN` | `sf-comprehensive-2026-…` |
+| `C360_INGEST_TOKEN` | `sf-c360-account-inge…` |
+| `MAINTENANCE_API_TOKEN` | `sf-comprehensive-2026-GHNAT-…` |
+| `BOX_MAINT_TOKEN` | `sf-integration-2026-GHNAT-…` |
+
+🚨 **`SESSION_SECRET` هو أخطرهم بمراحل.** سرّ توقيع الجلسات لو معروف،
+أي حد يقدر يزوّر كوكي لأي مستخدم في النظام. القيمة البديلة
+`super-secret-session-key` مكتوبة في `server/routes.ts` وموجودة على
+جيت‌هب عام.
+
+**الخبر الكويس:** الاستضافة عندنا بتحقن `SESSION_SECRET` دايماً (من
+`SERVICEFLOW_SESSION_SECRET`، وأوسكار ديفز مابيقومش أصلاً من غير
+`SESSION_SECRET`) — فالبديل ده **مش بيتنفّذ** في النسخة المستضافة.
+
+**ده مش شيء اتعمل في النقل — كان موجود من الأول.** ونقل المتغيّرات دي
+بيقفل الثغرة لأن القيمة الحقيقية بتغلب المكتوبة. والأحسن كمان إنك
+**تغيّر قيمها** دلوقتي.
+
+### مش محتاجين — مفيش ولا إشارة ليهم في الكود
+
+`CFM_PROD_DATABASE_URL` · `MAINTENANCE_MIGRATE_SOURCE_URL` — بقايا من
+هجرات قديمة. **متنقلهمش.**
+
+## التلات مواقع = مسارات مش نطاقات
+
+«كوابل» و«طلبات» و«صيانة» كلهم **تطبيق واحد**: الـSPA الرئيسي +
+تطبيق الصيانة متركّب على `/maintenance` (Express+EJS كـCommonJS غير
+مبنْدَل، وأمر البناء بينسخ `server/maintenance` → `dist/maintenance`).
+يعني **نطاق واحد بس كفاية** — مش محتاج تلات نطاقات.
+
 ## فترة التجربة: الاتنين شغّالين مع بعض (قرار المالك ٢٠٢٦-٠٩-١٨)
 
 المالك عايز **النشر القديم على ريبليت والنسخة المستضافة يشتغلوا مع بعض على
