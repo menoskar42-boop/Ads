@@ -67,6 +67,19 @@ function startWakeLock(): () => void {
   };
 }
 
+// ── النافذة المنبثقة الممنوعة ───────────────────────────────────────────────
+// window.open بترجّع null لما المتصفح يمنع النوافذ المنبثقة للموقع. وده **مش**
+// خطأ شبكة ولا مهمة فشلت: التاب ماتفتحش من أصله. من غير الكشف ده، الحلقة اللى
+// تحت كانت تفضل تسأل قاعدة البيانات لحد ما المهلة تخلص (ساعات فى بعض الأنواع)
+// والشاشة مكتوب عليها «قيد التنفيذ» طول الوقت — الجهاز شكله شغّال وهو مش بيعمل حاجة.
+//
+// ⚠️ وده بالظبط اللى بيحصل بعد نقل الدومين: إذن النوافذ المنبثقة **متربوط
+// بالدومين**، فالدومين الجديد بيبدأ ممنوع حتى لو القديم كان مسموح من سنين.
+const POPUP_BLOCKED = "popup_blocked";
+const popupBlockedMsg = () =>
+  `المتصفح منع «${location.host}» من فتح تاب — التنفيذ واقف. افتح إعدادات الموقع ` +
+  `واسمح بـ Pop-ups and redirects، وبعدين شغّل جهاز التنفيذ تانى.`;
+
 // زر «جهاز التنفيذ» — للسوبر أدمن فقط. لما يتفعّل، البراوزر ده يبقى هو المنفّذ:
 // يبعت نبضة كل 20ث، ويسحب المهام من الطابور كل 4ث وينفّذها (رفع سرعة/قياس/إيقاف).
 // أى جهاز تانى يعمل رفع سرعة/قياس/إيقاف بيروح للطابور فينفّذه الجهاز ده.
@@ -79,6 +92,10 @@ export function ExecutorButton() {
   const [current, setCurrent] = useState<string>("");
   // آخر خطأ فى سحب المهام — بيتعرض على الزر عشان التوقف مايبقاش صامت
   const [claimError, setClaimError] = useState<string | null>(null);
+  // إذن النوافذ المنبثقة **إعداد فى المتصفح**، مش عطل مؤقت. فلو خلطناه مع
+  // claimError كانت أول دورة سحب ناجحة تمسح الرسالة (بتمسحه كل 4 ثوانى)
+  // والمستخدم ما يلحقش يقراها — يفضل شايف «مُفعَّل» ومفيش حاجة بتتنفّذ.
+  const [popupBlocked, setPopupBlocked] = useState(false);
   // التاب فاق بعد تجميد/انقطاع — بيتعرض على الزر عشان التوقف مايبقاش صامت
   const [stale, setStale] = useState(false);
   const busy = useRef(false);
@@ -204,6 +221,7 @@ export function ExecutorButton() {
     setActive((v) => {
       const nv = !v;
       try { localStorage.setItem("sf_exec_active", nv ? "1" : "0"); } catch {}
+      setPopupBlocked(false);   // تفعيل من جديد = محاولة جديدة
       // لما نقفل: امسح النبضة فوراً على السيرفر عشان /status يرجّع غير-مفعّل حالاً
       // (بدون ده تفضل النبضة الأخيرة «طازجة» لـ 45ث فتتضاف مهام لطابور مفيش حد بينفّذه).
       if (!nv) fetch("/api/exec-queue/offline", { method: "POST", credentials: "include" }).catch(() => {});
@@ -399,6 +417,7 @@ export function ExecutorButton() {
         const sigKey = accs[0] === "-" ? "" : (type === "c360" ? accs[0] : key);
         const before = await latestOpAt(type, sigKey);
         const win = executeBatch(type, accs, { params });
+        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + OP_MAX_MS[type]!;
         // مهلة قصيرة قبل فحص «التاب اتقفل» — window.open ساعات بترجّع تاب لسه بيفتح
@@ -421,6 +440,7 @@ export function ExecutorButton() {
         const phone = accs[0];
         const before = await latestSubInfoAt(phone);
         const win = executeBatch("subinfo", accs);
+        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + SUBINFO_MAX_MS;
         while (!stopped && Date.now() < deadline) {
@@ -441,6 +461,7 @@ export function ExecutorButton() {
         // القياس الجاى من «بحث برقم التليفون» يختار «A recent fix (past 24h)» فى شاشة DZS
         const fixRecent = String(note || "").includes(PHONE_LOOKUP_SOURCE);
         const win = executeBatch("measure", accs, { fixRecent }); // DZS يلفّ على كلهم فى run واحد
+        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
         lastMeasureWin.current = win;
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS);
@@ -473,6 +494,7 @@ export function ExecutorButton() {
       // بنمسك النافذة: سكربت PO بيقول «خلص كل الأرقام. تقدر تقفل التاب» ومابيقفلش نفسه،
       // فمن غير المرجع ده كان التاب يفضل مفتوح للأبد والمهمة «جارية» لحد المهلة الكاملة.
       const win = executeBatch(type, accs, raiseWithStop ? { afterStop: true } : undefined); // PO يلفّ على كل الأرقام فى run واحد
+      if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
       const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
       const deadline = Date.now() + Math.min(accs.length * perMax, MAX_TOTAL_MS);
       // ⚠️ كشف التوقّف: من غيره كان الباتش الكبير (261 رقم مثلاً) اللى بيقف فى نصّه
@@ -643,16 +665,17 @@ export function ExecutorButton() {
         size="sm"
         onClick={toggle}
         className={
-          active && claimError ? "bg-red-600 hover:bg-red-700 gap-1"
+          active && (popupBlocked || claimError) ? "bg-red-600 hover:bg-red-700 gap-1"
           : active && stale ? "bg-amber-600 hover:bg-amber-700 gap-1"
           : active ? "bg-indigo-600 hover:bg-indigo-700 gap-1"
           : "text-indigo-700 border-indigo-200 gap-1"}
-        title={claimError || "جهاز التنفيذ المركزى: لما يتفعّل، رفع السرعة/القياس/الإيقاف من أى جهاز بيتنفّذ هنا عبر طابور"}
+        title={(popupBlocked ? popupBlockedMsg() : claimError) || "جهاز التنفيذ المركزى: لما يتفعّل، رفع السرعة/القياس/الإيقاف من أى جهاز بيتنفّذ هنا عبر طابور"}
       >
         {active ? <Loader2 className="w-4 h-4 animate-spin" /> : <Server className="w-4 h-4" />}
         {/* لو السحب فاشل الزر بيبقى أحمر ومكتوب عليه السبب — بدل ما التنفيذ يقف بصمت */}
         {active
-          ? (claimError ? "⚠️ التنفيذ متوقف — خطأ فى الطابور"
+          ? (popupBlocked ? "⚠️ المتصفح مانع فتح التابات — اسمح بالنوافذ المنبثقة"
+             : claimError ? "⚠️ التنفيذ متوقف — خطأ فى الطابور"
              : stale ? "⚠️ التاب كان متجمّد — جارى الاستئناف"
              : current ? `⏳ ${current}`
              : `جهاز التنفيذ: مُفعَّل${pending ? ` (${pending})` : ""}`)
