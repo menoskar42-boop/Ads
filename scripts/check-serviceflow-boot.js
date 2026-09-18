@@ -123,6 +123,12 @@ for (const [name, line] of bare) {
     }
     // ولازم بصمات التطبيقات التانية تفضل موجودة
     const idSrc = fs.readFileSync(idPath, 'utf8');
+    // ونوع users.id لازم يفضل جزء من الفحص — ده أقوى من أسماء الجداول:
+    // قاعدة ممكن ماتبقاش فيها بصمة معروفة وبرضه مش بتاعتنا.
+    if (!/users/.test(idSrc) || !/information_schema\.columns/.test(idSrc)) {
+      fail('فحص هوية القاعدة مابيبصّش لنوع `users.id` — الاعتماد على أسماء '
+        + 'الجداول لوحده بيسيب قواعد مش معروفة تعدّي.');
+    }
     for (const t of ['bible_verses', 'companies']) {
       if (!idSrc.includes(t)) {
         fail(`بصمة \`${t}\` اتشالت من فحص هوية القاعدة — التطبيق مش هيعرف إنه `

@@ -38,8 +38,13 @@ export interface DbIdentityResult {
   foreignApp: string | null;
   /** هل لقينا بصمة Service Flow نفسها؟ (قاعدة فاضية جديدة = false، وده مسموح) */
   hasOwn: boolean;
+  /** نوع `users.id` الفعلي في القاعدة، أو null لو الجدول مش موجود. */
+  usersIdType: string | null;
   message: string;
 }
+
+/** الأنواع اللي `serial` بتتحوّل ليها — ده اللي Service Flow بيتوقّعه. */
+const INTEGER_TYPES = new Set(['integer', 'bigint', 'smallint']);
 
 export async function checkDbIdentity(pool: Pool): Promise<DbIdentityResult> {
   const names = [...FOREIGN_SIGNATURES.map((s) => s.table), OWN_SIGNATURE];
@@ -54,11 +59,23 @@ export async function checkDbIdentity(pool: Pool): Promise<DbIdentityResult> {
   const foreign = FOREIGN_SIGNATURES.find((s) => present.has(s.table));
   const hasOwn = present.has(OWN_SIGNATURE);
 
+  /* نوع `users.id` — بصمة أقوى من أسماء الجداول.
+   * Service Flow بيعرّفه `serial` (integer). لو لقيناه uuid أو text، فالقاعدة
+   * دي بتاعة تطبيق تاني مهما كانت أسماء جداولها. */
+  const idTypeRes = await pool.query<{ data_type: string }>(
+    `SELECT data_type FROM information_schema.columns
+      WHERE table_schema = ANY (current_schemas(false))
+        AND table_name = 'users' AND column_name = 'id'
+      LIMIT 1`,
+  );
+  const usersIdType = idTypeRes.rows[0]?.data_type ?? null;
+
   if (foreign) {
     return {
       ok: false,
       foreignApp: foreign.app,
       hasOwn,
+      usersIdType,
       message:
         `SERVICEFLOW_DATABASE_URL بيوجّه على قاعدة **${foreign.app}** مش قاعدة ` +
         `Service Flow (لقينا جدول «${foreign.table}» جوّاها). ` +
@@ -68,12 +85,28 @@ export async function checkDbIdentity(pool: Pool): Promise<DbIdentityResult> {
     };
   }
 
+  if (usersIdType && !INTEGER_TYPES.has(usersIdType)) {
+    return {
+      ok: false,
+      foreignApp: null,
+      hasOwn,
+      usersIdType,
+      message:
+        `جدول \`users\` في القاعدة دي عموده \`id\` نوعه **${usersIdType}**، ` +
+        `وService Flow بيعرّفه \`serial\` (integer). القاعدة دي مش بتاعته — ` +
+        `ولو كمّلنا، إنشاء \`orders\` هيفشل على القيد ` +
+        `(foreign key "orders_sales_id_fkey" … incompatible types). ` +
+        `راجع SERVICEFLOW_DATABASE_URL.`,
+    };
+  }
+
   return {
     ok: true,
     foreignApp: null,
     hasOwn,
+    usersIdType,
     message: hasOwn
-      ? "القاعدة بتاعة Service Flow — اتأكدنا."
-      : "قاعدة فاضية (مفيش جداول Service Flow ولا بصمة تطبيق تاني) — هنكمّل وننشئ الجداول.",
+      ? `القاعدة بتاعة Service Flow — اتأكدنا (users.id = ${usersIdType ?? 'الجدول لسه مش موجود'}).`
+      : `قاعدة فاضية (مفيش جداول Service Flow ولا بصمة تطبيق تاني، users.id = ${usersIdType ?? 'مش موجود'}) — هنكمّل وننشئ الجداول.`,
   };
 }
