@@ -101,6 +101,31 @@ for (const app of APPS) {
       notes.push(`إعادة التشغيل: ${runs} محاولات بتأخير متزايد`);
     }
 
+    // خطأ الإعداد (٧٨) مايتعادش تشغيله خالص — ولا مرة
+    {
+      const cfgLog = path.join(tmp, 'cfg.log');
+      const cfgExit = path.join(tmp, 'cfg.js');
+      fs.writeFileSync(cfgExit,
+        `require('fs').appendFileSync(${JSON.stringify(cfgLog)}, 'x'); process.exit(78);`);
+      let gaveUpReason = null;
+      launchCoHostedApp({
+        name: 'test-config', dist: cfgExit, cwd: tmp, env: process.env,
+        onGaveUp: (r) => { gaveUpReason = r; },
+      });
+      setTimeout(() => {
+        const runs = fs.existsSync(cfgLog) ? fs.readFileSync(cfgLog, 'utf8').length : 0;
+        if (runs !== 1) {
+          fail(`خروج بكود إعداد غلط (٧٨) اتعاد تشغيله ${runs} مرة — المفروض ولا مرة. `
+            + 'كل محاولة بتفتح اتصالات على القاعدة المشتركة وتموت، وده بيجوّع '
+            + 'التطبيقات التانية (حصل فعلاً: EMAXCONNSESSION وهجرات mybible فشلت).');
+        }
+        if (gaveUpReason !== 'config') {
+          fail(`\`onGaveUp\` اتنادت بـ${JSON.stringify(gaveUpReason)} بدل 'config' — `
+            + 'صفحة الخطأ مش هتفرّق بين إعداد غلط وانهيار.');
+        }
+      }, 2200);
+    }
+
     // ولازم تبطّل تحاول — مش تفضل للأبد
     const { MAX_CONSECUTIVE_RESTARTS } = require(path.join(ROOT, 'src/lib/cohost_child.js'));
     if (!Number.isFinite(MAX_CONSECUTIVE_RESTARTS) || MAX_CONSECUTIVE_RESTARTS > 20) {

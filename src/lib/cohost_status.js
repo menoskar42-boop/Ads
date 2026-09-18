@@ -40,6 +40,12 @@ function describeCoHostStatus(status) {
       return { permanent: true, text: `${app}: ناقصه إعداد إلزامي (${status.reason || 'غير محدّد'}) `
         + 'فمااتشغّلش. حطّه وأعد النشر.' };
     case 'gave-up':
+      if (status.reason === 'config') {
+        return { permanent: true, text: `${app}: إعداده غلط فمابيقومش — `
+          + 'غالباً رابط قاعدة البيانات. شوف [WRONG DATABASE] في اللوج، صلّحه، '
+          + 'وأعد النشر. (مش هنعيد المحاولة: كل محاولة بتاخد اتصالات من القاعدة '
+          + 'المشتركة.)' };
+      }
       return { permanent: true, text: `${app}: وقع ${status.reason || 'كذا'} مرة ورا بعض `
         + 'وقت الإقلاع، فبطّلنا نحاول. ده انهيار حتمي — شوف اللوج، صلّحه، '
         + 'وأعد النشر.' };
