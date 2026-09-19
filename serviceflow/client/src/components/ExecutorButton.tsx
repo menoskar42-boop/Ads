@@ -75,6 +75,21 @@ function startWakeLock(): () => void {
 //
 // ⚠️ وده بالظبط اللى بيحصل بعد نقل الدومين: إذن النوافذ المنبثقة **متربوط
 // بالدومين**، فالدومين الجديد بيبدأ ممنوع حتى لو القديم كان مسموح من سنين.
+// ── معدّل النداء ────────────────────────────────────────────────────────────
+// كل سَبدومين على oscardevs.com بيعدّى على Cloudflare Worker، وكل طلب = طلب
+// من كوتة الـWorker. التاب الواحد من جهاز التنفيذ كان بيعمل ~٧١ طلب/دقيقة
+// (١٠٢ ألف/يوم) — يعنى **تاب واحد بياكل الكوتة اليومية كلها**، والنتيجة
+// Error 1027 على كل السَبدومينات ومنها متاجر العملاء.
+//
+// الفترات دى متظبّطة على تحمّل السيرفر مش على التخمين:
+//   · النبضة: نافذة السيرفر EXEC_ACTIVE_WINDOW = ١٥٠ث، فـ٤٥ث بتدّى ٣ نبضات جوّاها.
+//   · المهام بتاخد دقايق، فمتابعتها كل ١٠ث بدل ٥ث مالهاش أثر محسوس.
+const WATCH_MS = 15 * 1000;      // تحديث حالة الطابور (كان ٥ث)
+const HEARTBEAT_MS = 45 * 1000;  // نبضة الجهاز (كان ٢٠ث)
+const CLAIM_MS = 10 * 1000;      // سحب المهام + عدّاد المنتظر (كان ٤ث)
+const WATCHDOG_MS = 60 * 1000;   // حارس التعليق (كان ٣٠ث)
+const JOB_POLL_MS = 10 * 1000;   // متابعة المهمة الجارية (كان ٥ث)
+
 const POPUP_BLOCKED = "popup_blocked";
 const popupBlockedMsg = () =>
   `المتصفح منع «${location.host}» من فتح تاب — التنفيذ واقف. افتح إعدادات الموقع ` +
@@ -173,7 +188,7 @@ export function ExecutorButton() {
       } catch {}
     };
     load();
-    const iv = setInterval(load, 5 * 1000);
+    const iv = setInterval(load, WATCH_MS);
     return () => clearInterval(iv);
   }, [user?.role]);
 
@@ -442,7 +457,7 @@ export function ExecutorButton() {
           if (win && win.closed) return "done"; // التاب اتقفل = العملية خلصت (يدوى أو بالسكربت)
           // مهمة أعلى أولوية مستنية على **نفس الدومين** (تحديث ملفات) → اقفل التاب وسيب المسار
           if (chk.preempt) { closeWin(); return "preempted"; }
-          await sleep(5 * 1000);
+          await sleep(JOB_POLL_MS);
         }
         closeWin();
         return stopped ? "stopped" : "timeout";
@@ -457,7 +472,7 @@ export function ExecutorButton() {
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + SUBINFO_MAX_MS;
         while (!stopped && Date.now() < deadline) {
-          await sleep(5 * 1000);
+          await sleep(JOB_POLL_MS);
           const chk = await jobCheck(jobId);
           if (!chk.active) { closeWin(); return "canceled"; }
           if ((await latestSubInfoAt(phone)) > before) { closeWin(); return "done"; }
@@ -480,7 +495,7 @@ export function ExecutorButton() {
         const deadline = Date.now() + Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS);
         const measureStartedAt = Date.now();
         while (!stopped && Date.now() < deadline) {
-          await sleep(5 * 1000);
+          await sleep(JOB_POLL_MS);
           const chk = await jobCheck(jobId);
           if (!chk.active) { closeWin(); return "canceled"; } // اتمسح من الطابور يدوياً → وقف فوراً
           if (chk.total > 0 && chk.measured >= chk.total) { closeWin(); return "done"; } // كل الأرقام اتقاست
@@ -534,7 +549,7 @@ export function ExecutorButton() {
         if (win && win.closed) return "tab_closed";
         if (canPreempt && chk.preempt) { closeWin(); return "preempted"; } // طلب أعلى أولوية على نفس الدومين
         if (Date.now() - lastProgAt > poStallMs) { closeWin(); return "timeout"; } // مافيش تقدّم = وقف
-        await sleep(5 * 1000);
+        await sleep(JOB_POLL_MS);
       }
       closeWin();
       return stopped ? "stopped" : "timeout";
@@ -653,9 +668,9 @@ export function ExecutorButton() {
       });
     };
     heartbeat(); refreshPending(); pump();
-    const hb = setInterval(heartbeat, 20 * 1000);
-    const poll = setInterval(() => { pump(); refreshPending(); }, 4 * 1000);
-    const wd = setInterval(watchdog, 30 * 1000);
+    const hb = setInterval(heartbeat, HEARTBEAT_MS);
+    const poll = setInterval(() => { pump(); refreshPending(); }, CLAIM_MS);
+    const wd = setInterval(watchdog, WATCHDOG_MS);
     return () => {
       stopped = true; clearInterval(hb); clearInterval(poll); clearInterval(wd);
       document.removeEventListener("visibilitychange", onWake);
