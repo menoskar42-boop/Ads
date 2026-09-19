@@ -116,8 +116,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NavItem href="/master-data" icon={Database} label={t.masterData} />
         )}
 
-        {/* رجوع لموقع Service-Flow (رابط مطلق يخرج من قسم /cfm) */}
-        <a href="/" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent transition-colors mt-4">
+        {/* رجوع لموقع Service-Flow تحت نفس الدومين بدل جذر Ads */}
+        <a href="/serviceflow/" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent transition-colors mt-4">
           <LogOut className="w-5 h-5 rotate-180" />
           <span>الرجوع لـ Service-Flow</span>
         </a>
