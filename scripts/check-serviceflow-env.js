@@ -57,6 +57,17 @@ for (const sub of ['server', 'shared', 'script', 'scripts', 'client']) {
   const d = path.join(APP, sub);
   if (fs.existsSync(d)) walk(d);
 }
+/* ملفات إعداد فى جذر التطبيق بتقرا متغيّرات كمان — vite.config.ts بياخد منها
+ * مسار الجذر (SF_BASE_PATH). من غيرها الفحص بيقول «مكتوب فى الدليل ومفيش ليه
+ * أثر فى الكود» على متغيّر مستخدم فعلاً وقت البناء. */
+for (const f of ['vite.config.ts', 'drizzle.config.ts']) {
+  const full = path.join(APP, f);
+  if (!fs.existsSync(full)) continue;
+  const src = fs.readFileSync(full, 'utf8');
+  for (const m of src.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)/g)) {
+    if (!found.has(m[1])) found.set(m[1], path.relative(ROOT, full));
+  }
+}
 
 if (found.size < 5) {
   fail(`مالقيتش غير ${found.size} متغيّر في كود Service Flow — يا إما المجلد اتفضّى `

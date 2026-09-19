@@ -50,6 +50,8 @@
 | `PORT` | `SERVICEFLOW_PORT` (٥٠٠٣) | |
 | `NODE_ENV` | `production` | |
 | `SF_SCHEDULERS` | `SERVICEFLOW_SCHEDULERS` (`off` افتراضياً) | فترة التجربة |
+| `SF_BASE_PATH` | أمر البناء وأمر التشغيل في `.replit` | مسار باب `/serviceflow` |
+| `REPL_ID` | ريبليت بيحطه لوحده | إضافات التطوير بس — متلمسهوش |
 
 ⚠️ **`DATABASE_URL` مش في قايمة الـSecrets القديمة** لأن ريبليت بيوفّره
 تلقائياً لقاعدته المدمجة. هاته من تبويب **Database** في المشروع القديم

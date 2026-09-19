@@ -150,7 +150,7 @@ app.use(async (req, res, next) => {
 // set, so this is a complete no-op for the live site until we deliberately
 // enable it. Placed before all OscarDevs middleware so a co-hosted host never
 // touches OscarDevs' session/tenant/AdSense pipeline.
-const { createHostGateway, parseHosts } = require('./src/lib/host_gateway');
+const { createHostGateway, parseHosts, SERVICEFLOW_STATUS_KEY } = require('./src/lib/host_gateway');
 const __hostGateway = createHostGateway();
 if (__hostGateway) app.use(__hostGateway);
 
@@ -1822,7 +1822,8 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
   // ممكن يبقى أكتر من نطاق (مفصولين بفاصلة) — مثلاً النطاق العادى + لينك
   // ريبليت اللى ما بيعدّيش على Cloudflare. الحالة تتسجّل لكل واحد لوحده،
   // وإلا صفحة الـ٥٠٣ ما بتلاقيش سبب لأى منهم.
-  const sfHostList = parseHosts(process.env.SERVICEFLOW_HOST);
+  // المفتاح الثابت معاهم: باب المسار شغّال على أى نطاق، فلازم يلاقى السبب.
+  const sfHostList = parseHosts(process.env.SERVICEFLOW_HOST).concat([SERVICEFLOW_STATUS_KEY]);
   const sfDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
   const sfDist = path.join(__dirname, 'serviceflow', 'dist', 'index.cjs');
   if (!sfDatabaseUrl) {
