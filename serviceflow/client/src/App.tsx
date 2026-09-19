@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,9 +9,14 @@ import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import PhoneLinesEdit from "@/pages/phone-lines-edit";
 import CfmApp from "@/cfm/App";
+import { BASE } from "@/lib/base-path";
 
 function Router() {
   return (
+    // base = مسار الجذر لما التطبيق يتقدّم تحت مسار (oscardevs.com/serviceflow).
+    // من غيره wouter بيقارن المسارات بجذر الموقع، فـ/serviceflow/login ما بيطابقش
+    // /login والتطبيق بيوقع على NotFound.
+    <WouterRouter base={BASE}>
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/phone-lines" component={PhoneLinesEdit} />
@@ -20,6 +25,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
+    </WouterRouter>
   );
 }
 

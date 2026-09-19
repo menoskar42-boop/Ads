@@ -65,10 +65,10 @@
   </div>
 </nav>
 <script>
-  // نضبط رابط العودة على جذر Service-Flow (نفس الدومين بدون بادئة /maintenance).
+  // نضبط رابط العودة على مسار Service-Flow المبني تحت نفس الدومين.
   (function () {
     var l = document.getElementById('sfHomeLink');
-    if (l) l.setAttribute('href', location.origin + '/');
+    if (l) l.setAttribute('href', location.origin + '/serviceflow/');
   })();
 </script>
 <% } %>

@@ -4,6 +4,11 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
+  // مسار الجذر. لما Service Flow تتقدّم تحت مسار على نفس الدومين
+  // (oscardevs.com/serviceflow) لازم كل ملفاتها تتطلب من تحت المسار ده، وإلا
+  // هتطلبها من جذر الموقع ويرد عليها أوسكار ديفز. بيتقرا فى الواجهة من
+  // import.meta.env.BASE_URL (شوف client/src/lib/base-path.ts).
+  base: process.env.SF_BASE_PATH || "/",
   plugins: [
     react(),
     runtimeErrorOverlay(),

@@ -66,6 +66,7 @@ test("data review is its own screen, separate from the maintenance tasks", () =>
   const header = readFileSync(
     new URL("./maintenance/app/views/partials/header.ejs", import.meta.url), "utf8");
   assert.match(header, /href="\/data-review"/);
+  assert.match(header, /location\.origin \+ '\/serviceflow\/'/);
   // الشاشة دى مافيهاش أى بند من بنود الصيانة
   const detail = readFileSync(
     new URL("./maintenance/app/views/data_review/detail.ejs", import.meta.url), "utf8");

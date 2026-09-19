@@ -28,6 +28,55 @@ function parseHosts(value) {
   return String(value || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
 }
 
+/* ── باب المسار: oscardevs.com/serviceflow ──────────────────────────────────
+ *
+ * ليه موجود: كل **نطاق فرعى** على oscardevs.com بيعدّى على Cloudflare Worker
+ * وبياكل من كوتته — والكوتة مشتركة مع متاجر العملاء (وقعت فعلاً فى
+ * ٢٠٢٦-٠٩-١٩ بـError 1027). أما الأبكس `oscardevs.com` فمستثنى من الـWorker
+ * صراحةً وبيروح لريبليت مباشرة، فأى مسار تحته **بيكلّف صفر**.
+ *
+ * إزاى بيشتغل: التطبيق بيتبنى وكل ملفاته تحت المسار ده (SF_BASE_PATH فى
+ * vite.config)، والبوّاب بيشيل المسار قبل ما يمرّر الطلب — فالسيرفر بتاع
+ * Service Flow بيشوف `/` و`/api/x` زى ما هو متعوّد، من غير أى تعديل فيه.
+ *
+ * ⚠️ المسار هنا لازم يطابق SF_BASE_PATH اللى اتبنى بيه، وإلا الصفحة هتطلب
+ *    ملفاتها من مكان البوّاب مش فاهمه. الحارس check-serviceflow-path بيمنع ده.
+ */
+/* مفتاح ثابت لحالة Service Flow، مستقل عن أى نطاق. باب المسار بيشتغل على
+ * أى نطاق، فمحتاج مكان يلاقى فيه السبب حتى لو النطاق ده مالوش حالة مسجّلة. */
+const SERVICEFLOW_STATUS_KEY = 'serviceflow';
+
+function serviceFlowPathPrefix() {
+  const raw = String(process.env.SF_BASE_PATH || '/serviceflow');
+  const p = '/' + raw.replace(/^\/+|\/+$/g, '');
+  return p === '/' ? '' : p;
+}
+
+/** المسار تحت البادئة؟ الحدّ لازم يكون على حدود مقطع — «/serviceflowX» مش منها. */
+function underPrefix(url, prefix) {
+  if (!prefix) return false;
+  const path = String(url || '').split('?')[0];
+  return path === prefix || path.startsWith(prefix + '/');
+}
+
+/** يشيل البادئة ويسيب الباقى مسار سليم (والـquery زى ما هى). */
+function stripPrefix(url, prefix) {
+  const q = String(url).indexOf('?');
+  const path = q === -1 ? String(url) : String(url).slice(0, q);
+  const search = q === -1 ? '' : String(url).slice(q);
+  const rest = path.slice(prefix.length);
+  return (rest.startsWith('/') ? rest : '/' + rest) + search;
+}
+
+/** يضيف بادئة لمسار مع الحفاظ على query string. */
+function addPrefix(url, prefix) {
+  const value = String(url || '/');
+  const q = value.indexOf('?');
+  const path = q === -1 ? value : value.slice(0, q);
+  const search = q === -1 ? '' : value.slice(q);
+  return prefix + (path.startsWith('/') ? path : '/' + path) + search;
+}
+
 function loadRoutes() {
   const routes = {};
   const mb = process.env.MYBIBLE_UPSTREAM;
@@ -70,7 +119,11 @@ function loadRoutes() {
 // ٣٠ ثانية: أطول من أي صفحة معقولة، وأقصر بكتير من «للأبد».
 const UPSTREAM_TIMEOUT_MS = 30000;
 
-function proxy(req, res, targetBase, publicHost) {
+/* statusHost: مفتاح حالة التطبيق لو مختلف عن النطاق العام.
+ * باب المسار بيشتغل على **أى** نطاق (ads-*.replit.app مثلاً)، والحالة
+ * مسجّلة بأسم التطبيق مش بالنطاق ده — فمن غير المفتاح ده صفحة الوقوع
+ * بترجع للرسالة العامة وتفقد السبب بالظبط فى المكان اللى محتاجينه فيه. */
+function proxy(req, res, targetBase, publicHost, statusHost) {
   let base;
   try { base = new URL(targetBase); } catch (_e) {
     res.statusCode = 502; return res.end('bad upstream');
@@ -86,7 +139,11 @@ function proxy(req, res, targetBase, publicHost) {
     hostname: base.hostname,
     port: base.port || (base.protocol === 'https:' ? 443 : 80),
     method: req.method,
-    path: req.originalUrl,
+    // The Service Flow path gateway rewrites req.url from /serviceflow/…
+    // to the child app's /… before calling proxy(). originalUrl is immutable
+    // in Express, so using it here sends prefixed API and WebSocket requests
+    // back to the child's SPA fallback instead of its real route.
+    path: req.url || req.originalUrl,
     headers,
     // مهلة.
     //
@@ -117,7 +174,7 @@ function proxy(req, res, targetBase, publicHost) {
      *
      * ٥٠٣ بتعدّي زي ما هي. وهي كمان أدق: التطبيق المستضاف **غير متاح**،
      * مش بوّابة عطلانة. */
-    const info = describeCoHostStatus(getCoHostStatus(publicHost));
+    const info = describeCoHostStatus(getCoHostStatus(statusHost || publicHost));
     if (!res.headersSent) {
       res.writeHead(503, {
         'content-type': 'text/plain; charset=utf-8',
@@ -136,16 +193,72 @@ function proxy(req, res, targetBase, publicHost) {
 function createHostGateway() {
   const routes = loadRoutes();
   const hosts = Object.keys(routes);
-  if (!hosts.length) return null;
   const myBibleMaintenance = isMyBibleMaintenanceMode();
+  const sfPrefix = serviceFlowPathPrefix();
+  const sfUpstream = process.env.SERVICEFLOW_UPSTREAM;
+  // The path gateway and its aliases are valid even without SERVICEFLOW_HOST.
+  // Keep the middleware alive for the current ads-*.replit.app deployment, where
+  // Service Flow is intentionally exposed under /serviceflow instead of a
+  // separate subdomain.
+  if (!hosts.length && !(sfUpstream && sfPrefix)) return null;
   console.log('🌉 Host gateway enabled for:', hosts.join(', '));
+  if (sfUpstream && sfPrefix) console.log('🌉 Service Flow also on path:', sfPrefix + '/ (any host)');
   return function hostGateway(req, res, next) {
     // Same host source the mykid/tenant middleware uses (Replit's edge clobbers
     // the Host header; the real subdomain arrives in x-tenant-host).
     const host = String(req.headers['x-tenant-host'] || req.headers.host || '')
       .split(':')[0].toLowerCase();
+    /* روابط قديمة/مختصرة من لوحة Service Flow:
+     *   /maintenance → تطبيق الصيانة المدمج (يحتفظ بمساره الداخلي)
+     *   /cfm         → النسخة المبنية تحت /serviceflow/cfm
+     *
+     * /cfm لازم يتحول للمسار المبني تحته التطبيق، وإلا Wouter لن يطابق
+     * القاعدة وسيطلب الأصول وواجهات API من جذر غير صحيح. أما الصيانة فهي
+     * تطبيق Express مستقل داخل Service Flow ومساره الطبيعي هو /maintenance. */
+    if (sfUpstream && underPrefix(req.url, '/maintenance')) {
+      return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
+    }
+    if (sfUpstream && underPrefix(req.url, '/cfm')) {
+      res.writeHead(302, {
+        location: addPrefix(req.url, sfPrefix),
+        'cache-control': 'no-store',
+      });
+      return res.end();
+    }
+    /* باب المسار **قبل** التوجيه بالنطاق، وعلى أى نطاق:
+     *   · oscardevs.com/serviceflow/…            → مجانى (الأبكس برّه الـWorker)
+     *   · ads-*.replit.app/serviceflow/…         → مجانى (ما بيعدّيش على Cloudflare)
+     *   · serviceflow.oscardevs.com/serviceflow/… → شغّال برضه
+     * والتالتة دى مش رفاهية: الصفحة اتبنت وملفاتها تحت البادئة، فحتى على
+     * نطاقها الخاص بتطلبها بالبادئة — فلازم تتشال هنا كمان. */
+    if (sfUpstream && underPrefix(req.url, sfPrefix)) {
+      const childPath = stripPrefix(req.url, sfPrefix);
+      // Maintenance has its own absolute /maintenance base path. Send users
+      // there instead of allowing its /auth/login redirect to fall through to
+      // the OscarDevs app at the root.
+      if (underPrefix(childPath, '/maintenance')) {
+        res.writeHead(302, {
+          location: childPath,
+          'cache-control': 'no-store',
+        });
+        return res.end();
+      }
+      req.url = stripPrefix(req.url, sfPrefix);
+      return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
+    }
     const target = routes[host];
     if (!target) return next();                   // not co-hosted → normal OscarDevs
+    /* نطاق Service Flow الخاص: التطبيق **اتبنى تحت المسار**، يعنى روابط ملفاته
+     * والراوتر بتاعه كلهم بيتوقّعوا `/serviceflow` فى أول العنوان. فلو فتحته على
+     * جذر النطاق، الصفحة بتيجى لكن الراوتر مابيطابقش والملفات بتتطلب من مكان
+     * تانى — شاشة بيضا. التحويلة بتخلّى كل الأبواب تنتهى لنفس الشكل. */
+    if (sfUpstream && sfPrefix && target === sfUpstream && !underPrefix(req.url, sfPrefix)) {
+      res.writeHead(302, {
+        location: sfPrefix + (req.url === '/' ? '/' : req.url),
+        'cache-control': 'no-store',
+      });
+      return res.end();
+    }
     if (myBibleMaintenance && (
       host === 'mybible.oscardevs.com' || host === 'mybible2.oscardevs.com'
     )) {
@@ -159,4 +272,7 @@ function createHostGateway() {
   };
 }
 
-module.exports = { createHostGateway, loadRoutes, parseHosts };
+module.exports = {
+  createHostGateway, loadRoutes, parseHosts, SERVICEFLOW_STATUS_KEY,
+  serviceFlowPathPrefix, underPrefix, stripPrefix, addPrefix,
+};
