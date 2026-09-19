@@ -23,6 +23,11 @@ const { isMyBibleMaintenanceMode } = require('./mybible_database');
 const { getCoHostStatus, describeCoHostStatus } = require('./cohost_status');
 
 // Map public hostname -> upstream base URL (internal, same VM). Empty ⇒ disabled.
+/** يقسّم قيمة نطاقات مفصولة بفواصل لقائمة نظيفة (متشالة المسافات وبحروف صغيرة). */
+function parseHosts(value) {
+  return String(value || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
+}
+
 function loadRoutes() {
   const routes = {};
   const mb = process.env.MYBIBLE_UPSTREAM;
@@ -40,9 +45,22 @@ function loadRoutes() {
    * بيئة** مش مكتوب هنا: المالك بيشغّلها على نطاق فرعي هو اللي بيختاره،
    * وأثناء فترة التجربة النشر القديم على ريبليت بيفضل شغّال على نطاقه
    * الأصلي — فالاتنين موجودين مع بعض لحد ما يتأكد. */
+  /* والدومين ممكن يبقى **أكتر من واحد**، مفصولين بفاصلة.
+   *
+   * السبب مش رفاهية: كل سَبدومين على oscardevs.com بيعدّى على Cloudflare
+   * Worker، وكل طلب بياكل من كوتة الـWorker — وService Flow أداة تشغيل
+   * بتنادى السيرفر كل ثوانى، فتاب واحد منها قدر يوصل الكوتة اليومية لحدّها
+   * ويوقّع **كل** السَبدومينات ومنها متاجر العملاء (Error 1027، ٢٠٢٦-٠٩-١٩).
+   *
+   * ولينك ريبليت (`*.replit.app`) بيروح للنشر مباشرة — ما بيعدّيش على
+   * Cloudflare أصلاً. فإضافته هنا بتدّى باب تانى للأداة بصفر طلب على
+   * الـWorker، وبيفضل شغّال كمان لو Cloudflare وقعت أو عدّت حدّ الخطة.
+   *
+   * ⚠️ الهوست اللى بتحطه هنا بيروح لـService Flow **وخلاص** — أوسكار ديفز
+   * مابقاش بيرد عليه. فمتحطّش هوست إنت محتاجه للموقع الأساسى. */
   const sf = process.env.SERVICEFLOW_UPSTREAM;
-  const sfHost = String(process.env.SERVICEFLOW_HOST || '').trim().toLowerCase();
-  if (sf && sfHost) routes[sfHost] = sf;
+  const sfHosts = parseHosts(process.env.SERVICEFLOW_HOST);
+  if (sf) for (const h of sfHosts) routes[h] = sf;
   return routes;
 }
 
@@ -141,4 +159,4 @@ function createHostGateway() {
   };
 }
 
-module.exports = { createHostGateway, loadRoutes };
+module.exports = { createHostGateway, loadRoutes, parseHosts };

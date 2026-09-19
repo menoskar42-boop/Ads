@@ -150,7 +150,7 @@ app.use(async (req, res, next) => {
 // set, so this is a complete no-op for the live site until we deliberately
 // enable it. Placed before all OscarDevs middleware so a co-hosted host never
 // touches OscarDevs' session/tenant/AdSense pipeline.
-const { createHostGateway } = require('./src/lib/host_gateway');
+const { createHostGateway, parseHosts } = require('./src/lib/host_gateway');
 const __hostGateway = createHostGateway();
 if (__hostGateway) app.use(__hostGateway);
 
@@ -1846,12 +1846,16 @@ if (process.env.MYBIBLE_UPSTREAM && mybibleDatabaseUrl && !mybibleMaintenanceMod
 //
 // مطفي بالكامل من غير `SERVICEFLOW_UPSTREAM` — أوسكار ديفز زي ما هو.
 if (process.env.SERVICEFLOW_UPSTREAM) {
+  // ممكن يبقى أكتر من نطاق (مفصولين بفاصلة) — مثلاً النطاق العادى + لينك
+  // ريبليت اللى ما بيعدّيش على Cloudflare. الحالة تتسجّل لكل واحد لوحده،
+  // وإلا صفحة الـ٥٠٣ ما بتلاقيش سبب لأى منهم.
+  const sfHostList = parseHosts(process.env.SERVICEFLOW_HOST);
   const sfDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
   const sfDist = path.join(__dirname, 'serviceflow', 'dist', 'index.cjs');
   if (!sfDatabaseUrl) {
     console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_DATABASE_URL — '
       + 'مش هنشغّلها. تشغيلها على قاعدة أوسكار ديفز أسوأ بكتير من إنها ما تشتغلش.');
-    setCoHostStatus(process.env.SERVICEFLOW_HOST, {
+    for (const h of sfHostList) setCoHostStatus(h, {
       app: 'Service Flow', state: 'missing-config', reason: 'SERVICEFLOW_DATABASE_URL',
     });
   } else if (!process.env.SERVICEFLOW_HOST) {
@@ -1873,16 +1877,16 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
       cwd: path.join(__dirname, 'serviceflow'),
       env: sfEnv,
       // لما نبطّل نحاول، صفحة الـ٥٠٢ تقول كده بدل «حاول تاني بعد لحظات».
-      onGaveUp: (n) => setCoHostStatus(process.env.SERVICEFLOW_HOST, {
+      onGaveUp: (n) => { for (const h of sfHostList) setCoHostStatus(h, {
         app: 'Service Flow', state: 'gave-up', reason: n,
-      }),
+      }); },
     });
-    setCoHostStatus(process.env.SERVICEFLOW_HOST, started
+    for (const h of sfHostList) setCoHostStatus(h, started
       ? { app: 'Service Flow', state: 'running' }
       : { app: 'Service Flow', state: 'not-built' });
     if (started) {
       console.log('🛠️  Co-hosted Service Flow launched on 127.0.0.1:' + sfPort
-        + ' (host: ' + process.env.SERVICEFLOW_HOST + ', schedulers: ' + sfEnv.SF_SCHEDULERS + ')');
+        + ' (hosts: ' + sfHostList.join(', ') + ', schedulers: ' + sfEnv.SF_SCHEDULERS + ')');
 
       /* إعداد ناقص بيقفل أجزاء كاملة **في صمت**، والوحيد اللي هيلاحظ هو
        * المستخدم اللي بيدوّر على حاجة مش موجودة. فبنقولها في اللوج وقت
