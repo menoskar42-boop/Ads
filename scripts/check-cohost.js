@@ -223,6 +223,30 @@ function checkGateway() {
     fail('النطاق مااتوجّهش صح (لازم يتشال منه الفراغ ويتحوّل لحروف صغيرة): '
       + JSON.stringify(on));
   } else notes.push('البوّاب: التوجيه بيظهر بالاتنين مع بعض بس');
+
+  /* أكتر من نطاق لنفس التطبيق (مفصولين بفاصلة).
+   * ليه ده مهم: كل سَبدومين على oscardevs.com بيعدّى على Cloudflare Worker
+   * وبياكل من كوتته — ولينك ريبليت بيروح للنشر مباشرة. فالمالك بيحط
+   * الاتنين عشان يبقى فيه باب ما بيكلّفش ولا بيقع مع Cloudflare. */
+  const many = withEnv({ SERVICEFLOW_UPSTREAM: 'http://127.0.0.1:5003',
+    SERVICEFLOW_HOST: 'sf.oscardevs.com, Ads-X.replit.app ,',
+    MYBIBLE_UPSTREAM: undefined, DEALS_UPSTREAM: undefined }, () => loadRoutes());
+  const want = ['sf.oscardevs.com', 'ads-x.replit.app'];
+  const missing = want.filter((h) => many[h] !== 'http://127.0.0.1:5003');
+  if (missing.length) {
+    fail('نطاقات مفصولة بفاصلة مااتوجّهتش كلها — الناقص: ' + missing.join(', ')
+      + ' · الناتج: ' + JSON.stringify(many));
+  } else if (Object.keys(many).length !== 2) {
+    fail('الفاصلة الزايدة عملت نطاق فاضى: ' + JSON.stringify(many));
+  } else notes.push('البوّاب: نطاقات متعددة لنفس التطبيق شغّالة');
+
+  /* الحالة لازم تتسجّل **لكل نطاق لوحده**. المفتاح المدموج
+   * ("a.com,b.com") مش بيطابق أى هوست حقيقى، فصفحة الـ٥٠٣ بتفضل عامة. */
+  const serverSrc = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+  if (/setCoHostStatus\(process\.env\.SERVICEFLOW_HOST/.test(serverSrc)) {
+    fail('الحالة بتتسجّل بقيمة SERVICEFLOW_HOST الخام — مع أكتر من نطاق '
+      + 'المفتاح مابيطابقش أى هوست، وصفحة الوقوع بتفقد سببها.');
+  }
 }
 
 /* ── ٤) أمر البناء بيبني كل تطبيق مستضاف ────────────────────────────── */
