@@ -41,6 +41,9 @@ if (!/base:\s*process\.env\.SF_BASE_PATH/.test(vite)) {
 if (!/process\.env\.SF_BASE_PATH/.test(gw)) {
   errors.push('host_gateway.js مش بيقرا SF_BASE_PATH — البوّاب هيشيل مسار تاني غير اللي اتبنى');
 }
+if (!/path:\s*req\.url\s*\|\|\s*req\.originalUrl/.test(gw)) {
+  errors.push('proxy لازم يمرر req.url بعد إزالة /serviceflow — originalUrl يرجّع API للـSPA');
+}
 /* لازم يكون فى **أمر البناء وأمر التشغيل** الاتنين، مكتوب صراحةً.
  * حطّه فى [userenv] مش كافى: دى بتتطبّق وقت التشغيل، والبناء مش مضمون
  * إنه بيشوفها — ولو البناء ما شافهوش، الملفات بتتبنى على الجذر والصفحة

@@ -130,7 +130,11 @@ function proxy(req, res, targetBase, publicHost, statusHost) {
     hostname: base.hostname,
     port: base.port || (base.protocol === 'https:' ? 443 : 80),
     method: req.method,
-    path: req.originalUrl,
+    // The Service Flow path gateway rewrites req.url from /serviceflow/…
+    // to the child app's /… before calling proxy(). originalUrl is immutable
+    // in Express, so using it here sends prefixed API and WebSocket requests
+    // back to the child's SPA fallback instead of its real route.
+    path: req.url || req.originalUrl,
     headers,
     // مهلة.
     //
