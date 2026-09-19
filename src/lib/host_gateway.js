@@ -203,6 +203,17 @@ function createHostGateway() {
     }
     const target = routes[host];
     if (!target) return next();                   // not co-hosted → normal OscarDevs
+    /* نطاق Service Flow الخاص: التطبيق **اتبنى تحت المسار**، يعنى روابط ملفاته
+     * والراوتر بتاعه كلهم بيتوقّعوا `/serviceflow` فى أول العنوان. فلو فتحته على
+     * جذر النطاق، الصفحة بتيجى لكن الراوتر مابيطابقش والملفات بتتطلب من مكان
+     * تانى — شاشة بيضا. التحويلة بتخلّى كل الأبواب تنتهى لنفس الشكل. */
+    if (sfUpstream && sfPrefix && target === sfUpstream && !underPrefix(req.url, sfPrefix)) {
+      res.writeHead(302, {
+        location: sfPrefix + (req.url === '/' ? '/' : req.url),
+        'cache-control': 'no-store',
+      });
+      return res.end();
+    }
     if (myBibleMaintenance && (
       host === 'mybible.oscardevs.com' || host === 'mybible2.oscardevs.com'
     )) {
