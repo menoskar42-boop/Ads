@@ -44,6 +44,12 @@ if (!/process\.env\.SF_BASE_PATH/.test(gw)) {
 if (!/path:\s*req\.url\s*\|\|\s*req\.originalUrl/.test(gw)) {
   errors.push('proxy لازم يمرر req.url بعد إزالة /serviceflow — originalUrl يرجّع API للـSPA');
 }
+if (!/underPrefix\(req\.url,\s*'\/maintenance'\)/.test(gw)) {
+  errors.push('بوابة الصيانة المختصرة /maintenance مش بتروح لـService Flow');
+}
+if (!/underPrefix\(req\.url,\s*'\/cfm'\)/.test(gw) || !/addPrefix\(req\.url,\s*sfPrefix\)/.test(gw)) {
+  errors.push('رابط /cfm لازم يتحول للمسار المبني /serviceflow/cfm');
+}
 /* لازم يكون فى **أمر البناء وأمر التشغيل** الاتنين، مكتوب صراحةً.
  * حطّه فى [userenv] مش كافى: دى بتتطبّق وقت التشغيل، والبناء مش مضمون
  * إنه بيشوفها — ولو البناء ما شافهوش، الملفات بتتبنى على الجذر والصفحة
@@ -106,6 +112,12 @@ try {
     else if (want && g.stripPrefix(url, P) !== out) {
       errors.push(`stripPrefix("${url}") رجّع "${g.stripPrefix(url, P)}" والمفروض "${out}"`);
     }
+  }
+  if (g.addPrefix('/cfm', P) !== '/serviceflow/cfm') {
+    errors.push(`addPrefix("/cfm") رجّع "${g.addPrefix('/cfm', P)}" والمفروض "/serviceflow/cfm"`);
+  }
+  if (g.addPrefix('/cfm?tab=open', P) !== '/serviceflow/cfm?tab=open') {
+    errors.push('addPrefix مش بيحافظ على query string');
   }
   if (prev === undefined) delete process.env.SF_BASE_PATH; else process.env.SF_BASE_PATH = prev;
 } catch (e) {

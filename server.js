@@ -1859,9 +1859,6 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
     for (const h of sfHostList) setCoHostStatus(h, {
       app: 'Service Flow', state: 'missing-config', reason: 'SERVICEFLOW_DATABASE_URL',
     });
-  } else if (!process.env.SERVICEFLOW_HOST) {
-    console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_HOST — '
-      + 'البوّاب مش هيعرف يوجّهلها، فمفيش فايدة من تشغيلها.');
   } else {
     const sfPort = process.env.SERVICEFLOW_PORT || '5003';
     const sfEnv = Object.assign({}, process.env, {

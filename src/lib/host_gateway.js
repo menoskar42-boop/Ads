@@ -68,6 +68,15 @@ function stripPrefix(url, prefix) {
   return (rest.startsWith('/') ? rest : '/' + rest) + search;
 }
 
+/** يضيف بادئة لمسار مع الحفاظ على query string. */
+function addPrefix(url, prefix) {
+  const value = String(url || '/');
+  const q = value.indexOf('?');
+  const path = q === -1 ? value : value.slice(0, q);
+  const search = q === -1 ? '' : value.slice(q);
+  return prefix + (path.startsWith('/') ? path : '/' + path) + search;
+}
+
 function loadRoutes() {
   const routes = {};
   const mb = process.env.MYBIBLE_UPSTREAM;
@@ -184,10 +193,14 @@ function proxy(req, res, targetBase, publicHost, statusHost) {
 function createHostGateway() {
   const routes = loadRoutes();
   const hosts = Object.keys(routes);
-  if (!hosts.length) return null;
   const myBibleMaintenance = isMyBibleMaintenanceMode();
   const sfPrefix = serviceFlowPathPrefix();
   const sfUpstream = process.env.SERVICEFLOW_UPSTREAM;
+  // The path gateway and its aliases are valid even without SERVICEFLOW_HOST.
+  // Keep the middleware alive for the current ads-*.replit.app deployment, where
+  // Service Flow is intentionally exposed under /serviceflow instead of a
+  // separate subdomain.
+  if (!hosts.length && !(sfUpstream && sfPrefix)) return null;
   console.log('🌉 Host gateway enabled for:', hosts.join(', '));
   if (sfUpstream && sfPrefix) console.log('🌉 Service Flow also on path:', sfPrefix + '/ (any host)');
   return function hostGateway(req, res, next) {
@@ -195,6 +208,23 @@ function createHostGateway() {
     // the Host header; the real subdomain arrives in x-tenant-host).
     const host = String(req.headers['x-tenant-host'] || req.headers.host || '')
       .split(':')[0].toLowerCase();
+    /* روابط قديمة/مختصرة من لوحة Service Flow:
+     *   /maintenance → تطبيق الصيانة المدمج (يحتفظ بمساره الداخلي)
+     *   /cfm         → النسخة المبنية تحت /serviceflow/cfm
+     *
+     * /cfm لازم يتحول للمسار المبني تحته التطبيق، وإلا Wouter لن يطابق
+     * القاعدة وسيطلب الأصول وواجهات API من جذر غير صحيح. أما الصيانة فهي
+     * تطبيق Express مستقل داخل Service Flow ومساره الطبيعي هو /maintenance. */
+    if (sfUpstream && underPrefix(req.url, '/maintenance')) {
+      return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
+    }
+    if (sfUpstream && underPrefix(req.url, '/cfm')) {
+      res.writeHead(302, {
+        location: addPrefix(req.url, sfPrefix),
+        'cache-control': 'no-store',
+      });
+      return res.end();
+    }
     /* باب المسار **قبل** التوجيه بالنطاق، وعلى أى نطاق:
      *   · oscardevs.com/serviceflow/…            → مجانى (الأبكس برّه الـWorker)
      *   · ads-*.replit.app/serviceflow/…         → مجانى (ما بيعدّيش على Cloudflare)
@@ -202,6 +232,17 @@ function createHostGateway() {
      * والتالتة دى مش رفاهية: الصفحة اتبنت وملفاتها تحت البادئة، فحتى على
      * نطاقها الخاص بتطلبها بالبادئة — فلازم تتشال هنا كمان. */
     if (sfUpstream && underPrefix(req.url, sfPrefix)) {
+      const childPath = stripPrefix(req.url, sfPrefix);
+      // Maintenance has its own absolute /maintenance base path. Send users
+      // there instead of allowing its /auth/login redirect to fall through to
+      // the OscarDevs app at the root.
+      if (underPrefix(childPath, '/maintenance')) {
+        res.writeHead(302, {
+          location: childPath,
+          'cache-control': 'no-store',
+        });
+        return res.end();
+      }
       req.url = stripPrefix(req.url, sfPrefix);
       return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
     }
@@ -233,5 +274,5 @@ function createHostGateway() {
 
 module.exports = {
   createHostGateway, loadRoutes, parseHosts, SERVICEFLOW_STATUS_KEY,
-  serviceFlowPathPrefix, underPrefix, stripPrefix,
+  serviceFlowPathPrefix, underPrefix, stripPrefix, addPrefix,
 };
