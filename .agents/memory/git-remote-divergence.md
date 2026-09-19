@@ -7,4 +7,4 @@ An active GitHub connection does not guarantee that the Replit Git pane has refr
 
 **Why:** The GitHub connection/API can be healthy while the pane reports a stale authentication failure, and a Pull on an unrelated divergent branch can introduce unrelated conflicts.
 
-**How to apply:** Verify the remote connection and branch status first. Prefer preserving the local commits and refreshing/reconnecting the provider; do not Pull merely to clear the ahead/behind warning.
+**How to apply:** Verify the remote connection and branch status first. Prefer preserving the local commits and refreshing/reconnecting the provider; do not Pull merely to clear the ahead/behind warning. If terminal Git authentication fails while the Replit GitHub connection is healthy, use the connected GitHub API after an explicit force-update confirmation rather than asking for a token.
