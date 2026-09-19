@@ -1646,6 +1646,15 @@ export async function registerRoutes(
   app.use(
     session({
       store: buildSessionStore(),
+      /* اسم مميّز لكوكي الجلسة.
+       *
+       * express-session افتراضيه `connect.sid` — و**أوسكار ديفز بيستخدم نفس
+       * الاسم**. طول ما كل تطبيق على نطاقه ده مش مشكلة (الكوكى مربوط بالنطاق)،
+       * لكن لما Service Flow تتقدّم تحت مسار على نفس النطاق
+       * (oscardevs.com/serviceflow) الكوكيين بيتلموا على نفس الدومين بنفس
+       * الاسم — فتسجيل دخول هنا بيدوس على جلسة أوسكار ديفز والعكس.
+       * الاسم المميّز بيفصلهم تماماً. */
+      name: "sf.sid",
       secret: process.env.SESSION_SECRET || "super-secret-session-key",
       resave: false,
       saveUninitialized: false,

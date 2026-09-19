@@ -28,6 +28,42 @@ function parseHosts(value) {
   return String(value || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
 }
 
+/* ── باب المسار: oscardevs.com/serviceflow ──────────────────────────────────
+ *
+ * ليه موجود: كل **نطاق فرعى** على oscardevs.com بيعدّى على Cloudflare Worker
+ * وبياكل من كوتته — والكوتة مشتركة مع متاجر العملاء (وقعت فعلاً فى
+ * ٢٠٢٦-٠٩-١٩ بـError 1027). أما الأبكس `oscardevs.com` فمستثنى من الـWorker
+ * صراحةً وبيروح لريبليت مباشرة، فأى مسار تحته **بيكلّف صفر**.
+ *
+ * إزاى بيشتغل: التطبيق بيتبنى وكل ملفاته تحت المسار ده (SF_BASE_PATH فى
+ * vite.config)، والبوّاب بيشيل المسار قبل ما يمرّر الطلب — فالسيرفر بتاع
+ * Service Flow بيشوف `/` و`/api/x` زى ما هو متعوّد، من غير أى تعديل فيه.
+ *
+ * ⚠️ المسار هنا لازم يطابق SF_BASE_PATH اللى اتبنى بيه، وإلا الصفحة هتطلب
+ *    ملفاتها من مكان البوّاب مش فاهمه. الحارس check-serviceflow-path بيمنع ده.
+ */
+function serviceFlowPathPrefix() {
+  const raw = String(process.env.SF_BASE_PATH || '/serviceflow');
+  const p = '/' + raw.replace(/^\/+|\/+$/g, '');
+  return p === '/' ? '' : p;
+}
+
+/** المسار تحت البادئة؟ الحدّ لازم يكون على حدود مقطع — «/serviceflowX» مش منها. */
+function underPrefix(url, prefix) {
+  if (!prefix) return false;
+  const path = String(url || '').split('?')[0];
+  return path === prefix || path.startsWith(prefix + '/');
+}
+
+/** يشيل البادئة ويسيب الباقى مسار سليم (والـquery زى ما هى). */
+function stripPrefix(url, prefix) {
+  const q = String(url).indexOf('?');
+  const path = q === -1 ? String(url) : String(url).slice(0, q);
+  const search = q === -1 ? '' : String(url).slice(q);
+  const rest = path.slice(prefix.length);
+  return (rest.startsWith('/') ? rest : '/' + rest) + search;
+}
+
 function loadRoutes() {
   const routes = {};
   const mb = process.env.MYBIBLE_UPSTREAM;
@@ -138,12 +174,25 @@ function createHostGateway() {
   const hosts = Object.keys(routes);
   if (!hosts.length) return null;
   const myBibleMaintenance = isMyBibleMaintenanceMode();
+  const sfPrefix = serviceFlowPathPrefix();
+  const sfUpstream = process.env.SERVICEFLOW_UPSTREAM;
   console.log('🌉 Host gateway enabled for:', hosts.join(', '));
+  if (sfUpstream && sfPrefix) console.log('🌉 Service Flow also on path:', sfPrefix + '/ (any host)');
   return function hostGateway(req, res, next) {
     // Same host source the mykid/tenant middleware uses (Replit's edge clobbers
     // the Host header; the real subdomain arrives in x-tenant-host).
     const host = String(req.headers['x-tenant-host'] || req.headers.host || '')
       .split(':')[0].toLowerCase();
+    /* باب المسار **قبل** التوجيه بالنطاق، وعلى أى نطاق:
+     *   · oscardevs.com/serviceflow/…            → مجانى (الأبكس برّه الـWorker)
+     *   · ads-*.replit.app/serviceflow/…         → مجانى (ما بيعدّيش على Cloudflare)
+     *   · serviceflow.oscardevs.com/serviceflow/… → شغّال برضه
+     * والتالتة دى مش رفاهية: الصفحة اتبنت وملفاتها تحت البادئة، فحتى على
+     * نطاقها الخاص بتطلبها بالبادئة — فلازم تتشال هنا كمان. */
+    if (sfUpstream && underPrefix(req.url, sfPrefix)) {
+      req.url = stripPrefix(req.url, sfPrefix);
+      return proxy(req, res, sfUpstream, host);
+    }
     const target = routes[host];
     if (!target) return next();                   // not co-hosted → normal OscarDevs
     if (myBibleMaintenance && (
@@ -159,4 +208,7 @@ function createHostGateway() {
   };
 }
 
-module.exports = { createHostGateway, loadRoutes, parseHosts };
+module.exports = {
+  createHostGateway, loadRoutes, parseHosts,
+  serviceFlowPathPrefix, underPrefix, stripPrefix,
+};
