@@ -41,8 +41,24 @@ if (!/base:\s*process\.env\.SF_BASE_PATH/.test(vite)) {
 if (!/process\.env\.SF_BASE_PATH/.test(gw)) {
   errors.push('host_gateway.js مش بيقرا SF_BASE_PATH — البوّاب هيشيل مسار تاني غير اللي اتبنى');
 }
-if (replit && !/^SF_BASE_PATH\s*=/m.test(replit)) {
-  errors.push('.replit مش بيظبّط SF_BASE_PATH — البناء هيطلع على الجذر والباب مش هيشتغل');
+/* لازم يكون فى **أمر البناء وأمر التشغيل** الاتنين، مكتوب صراحةً.
+ * حطّه فى [userenv] مش كافى: دى بتتطبّق وقت التشغيل، والبناء مش مضمون
+ * إنه بيشوفها — ولو البناء ما شافهوش، الملفات بتتبنى على الجذر والصفحة
+ * بتطلع بيضا من غير أى رسالة. */
+if (replit) {
+  const line = (re) => (replit.match(re) || [''])[0];
+  const build = line(/^build\s*=.*$/m);
+  const run = line(/^run\s*=.*$/m);
+  if (!/SF_BASE_PATH=/.test(build)) {
+    errors.push('أمر البناء فى .replit مش شايل SF_BASE_PATH صراحةً — الملفات هتتبنى على الجذر');
+  }
+  if (!/SF_BASE_PATH=/.test(run)) {
+    errors.push('أمر التشغيل فى .replit مش شايل SF_BASE_PATH صراحةً — البوّاب مش هيشيل المسار');
+  }
+  const got = (t) => (t.match(/SF_BASE_PATH=(\S+?)(?:\s|")/) || [])[1];
+  if (got(build) && got(run) && got(build) !== got(run)) {
+    errors.push(`البناء بيبني على "${got(build)}" والتشغيل بيشيل "${got(run)}" — لازم يتطابقوا`);
+  }
 }
 
 // ── ٢. الواجهة بتحسب مسارها مش بتكتبه ─────────────────────────────────────

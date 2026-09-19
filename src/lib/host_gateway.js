@@ -42,6 +42,10 @@ function parseHosts(value) {
  * ⚠️ المسار هنا لازم يطابق SF_BASE_PATH اللى اتبنى بيه، وإلا الصفحة هتطلب
  *    ملفاتها من مكان البوّاب مش فاهمه. الحارس check-serviceflow-path بيمنع ده.
  */
+/* مفتاح ثابت لحالة Service Flow، مستقل عن أى نطاق. باب المسار بيشتغل على
+ * أى نطاق، فمحتاج مكان يلاقى فيه السبب حتى لو النطاق ده مالوش حالة مسجّلة. */
+const SERVICEFLOW_STATUS_KEY = 'serviceflow';
+
 function serviceFlowPathPrefix() {
   const raw = String(process.env.SF_BASE_PATH || '/serviceflow');
   const p = '/' + raw.replace(/^\/+|\/+$/g, '');
@@ -106,7 +110,11 @@ function loadRoutes() {
 // ٣٠ ثانية: أطول من أي صفحة معقولة، وأقصر بكتير من «للأبد».
 const UPSTREAM_TIMEOUT_MS = 30000;
 
-function proxy(req, res, targetBase, publicHost) {
+/* statusHost: مفتاح حالة التطبيق لو مختلف عن النطاق العام.
+ * باب المسار بيشتغل على **أى** نطاق (ads-*.replit.app مثلاً)، والحالة
+ * مسجّلة بأسم التطبيق مش بالنطاق ده — فمن غير المفتاح ده صفحة الوقوع
+ * بترجع للرسالة العامة وتفقد السبب بالظبط فى المكان اللى محتاجينه فيه. */
+function proxy(req, res, targetBase, publicHost, statusHost) {
   let base;
   try { base = new URL(targetBase); } catch (_e) {
     res.statusCode = 502; return res.end('bad upstream');
@@ -153,7 +161,7 @@ function proxy(req, res, targetBase, publicHost) {
      *
      * ٥٠٣ بتعدّي زي ما هي. وهي كمان أدق: التطبيق المستضاف **غير متاح**،
      * مش بوّابة عطلانة. */
-    const info = describeCoHostStatus(getCoHostStatus(publicHost));
+    const info = describeCoHostStatus(getCoHostStatus(statusHost || publicHost));
     if (!res.headersSent) {
       res.writeHead(503, {
         'content-type': 'text/plain; charset=utf-8',
@@ -191,7 +199,7 @@ function createHostGateway() {
      * نطاقها الخاص بتطلبها بالبادئة — فلازم تتشال هنا كمان. */
     if (sfUpstream && underPrefix(req.url, sfPrefix)) {
       req.url = stripPrefix(req.url, sfPrefix);
-      return proxy(req, res, sfUpstream, host);
+      return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
     }
     const target = routes[host];
     if (!target) return next();                   // not co-hosted → normal OscarDevs
@@ -209,6 +217,6 @@ function createHostGateway() {
 }
 
 module.exports = {
-  createHostGateway, loadRoutes, parseHosts,
+  createHostGateway, loadRoutes, parseHosts, SERVICEFLOW_STATUS_KEY,
   serviceFlowPathPrefix, underPrefix, stripPrefix,
 };
