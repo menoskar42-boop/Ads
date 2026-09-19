@@ -43,16 +43,10 @@ externalPort = 3001
 localPort = 5011
 externalPort = 3000
 
-# ⚠️ SF_BASE_PATH متكتوب صراحةً في أمر البناء **وأمر التشغيل** مش في
-# [userenv]: النصّين لازم يشوفوه، والبناء مش مضمون إنه بيشوف userenv.
-#   · البناء  → vite بيحط المسار في كل رابط ملف
-#   · التشغيل → البوّاب بيشيل المسار قبل ما يمرّر الطلب
-# لو واحد شافه والتاني لأ، الصفحة بتفتح وتطلب ملفاتها من مكان البوّاب مش
-# شايله = شاشة بيضا من غير رسالة خطأ. الحارس: check-serviceflow-path.
 [deployment]
 deploymentTarget = "vm"
-build = ["sh", "-c", "npm install --include=dev && (cd mybible && npm install --include=dev && npm run build) && (cd serviceflow && npm install --include=dev && SF_BASE_PATH=/serviceflow/ npm run build)"]
-run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true SF_BASE_PATH=/serviceflow/ npm start"]
+build = ["sh", "-c", "npm install --include=dev && (cd mybible && npm install --include=dev && npm run build) && (cd serviceflow && npm install --include=dev && npm run build)"]
+run = ["sh", "-c", "DEALS_UPSTREAM=http://127.0.0.1:5002 DEALS_COOKIE_SECURE=true npm start"]
 
 [postMerge]
 path = "scripts/post-merge.sh"
@@ -79,4 +73,3 @@ MYBIBLE_PG_POOL_MAX = "5"
 # ⛔ **رجعت "8"** لنفس السبب اللي فوق: 20+12 كسرت سقف session mode في
 # سوبابيز وmybible اترفضت اتصالاته. 8+5=13 هو اللي بيشتغل.
 PG_POOL_MAX = "8"
-

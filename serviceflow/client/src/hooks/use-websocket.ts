@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { WS_EVENTS } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import { BASE } from "@/lib/base-path";
 
 // أسماء الملفات المرفوعة — للتوضيح فى الإشعار (المفتاح = مسار الرفع)
 const IMPORT_LABELS: Record<string, string> = {
@@ -30,9 +29,7 @@ export function useWebSocket() {
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // مسار الجذر لازم يدخل هنا كمان — البوّاب بيشيله قبل ما يمرّر الطلب،
-    // ومن غيره الترقية بتروح لأوسكار ديفز مش لـService Flow.
-    const wsUrl = `${protocol}//${window.location.host}${BASE}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
     // بعد ما الصفحة تتشال، onclose كان بيعيد الاتصال برضه — فكل خروج/دخول للوحة
     // كان بيسيب سلسلة إعادة اتصال زومبى تعمل سوكيتات وإشعارات وتحديثات مكررة.
     let stopped = false;
