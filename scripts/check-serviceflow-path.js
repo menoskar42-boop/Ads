@@ -109,6 +109,13 @@ try {
   errors.push('مقدرتش أجرّب البوّاب: ' + e.message);
 }
 
+/* ── ٥. جذر نطاق Service Flow بيتحوّل للمسار ───────────────────────────────
+ * التطبيق اتبنى تحت المسار، فالجذر من غير تحويلة = ملفات بتتطلب من مكان تانى
+ * وراوتر مابيطابقش = شاشة بيضا من غير رسالة. */
+if (!/writeHead\(302,[\s\S]{0,160}sfPrefix/.test(gw)) {
+  errors.push('مفيش تحويلة من جذر نطاق Service Flow للمسار — الجذر هيطلع صفحة بيضا');
+}
+
 if (errors.length) {
   console.error('❌ check-serviceflow-path:');
   for (const e of errors) console.error('  - ' + e);
