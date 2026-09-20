@@ -50,8 +50,21 @@ for (const app of APPS) {
   const at = server.indexOf(`process.env.${up}`);
   if (at < 0) { fail(`\`${up}\` مش مستخدم في server.js — التطبيق مش متوصّل.`); continue; }
 
-  // الكتلة اللي بتشغّل التطبيق ده
-  const block = server.slice(at, at + 3000);
+  /* الكتلة اللي بتشغّل التطبيق ده.
+   *
+   * ⚠️ كانت شباك ثابت (٣٠٠٠ حرف) — ودى كانت هشّة: أول ما اتضاف إعداد قاعدة
+   * بيانات قبل سطر التشغيل، السطر خرج برّه الشباك والفحص قال «منطق إعادة
+   * التشغيل مش موجود» على كود سليم تماماً. إنذار كاذب على حاجة حسّاسة أسوأ
+   * من مفيش فحص: بيخلّى الواحد يدوّر فى مكان مفيهوش حاجة.
+   *
+   * دلوقتى الكتلة بتنتهى عند بداية التطبيق اللى بعده (أو آخر الملف)، فطول
+   * الإعداد مابيأثرش على الفحص. */
+  const nextStarts = APPS
+    .filter((a) => a.prefix !== app.prefix)
+    .map((a) => server.indexOf(`process.env.${a.prefix}_UPSTREAM`, at + 1))
+    .filter((i) => i > at);
+  const end = nextStarts.length ? Math.min(...nextStarts) : server.length;
+  const block = server.slice(at, end);
   const launch = block.indexOf('launchCoHostedApp');
   if (launch < 0) {
     fail(`${app.name} مش بيتشغّل بـ\`launchCoHostedApp\` — يعني منطق إعادة التشغيل `
