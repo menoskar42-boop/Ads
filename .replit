@@ -40,6 +40,10 @@ localPort = 5001
 externalPort = 3001
 
 [[ports]]
+localPort = 5003
+externalPort = 3002
+
+[[ports]]
 localPort = 5011
 externalPort = 3000
 
@@ -79,4 +83,6 @@ MYBIBLE_PG_POOL_MAX = "5"
 # ⛔ **رجعت "8"** لنفس السبب اللي فوق: 20+12 كسرت سقف session mode في
 # سوبابيز وmybible اترفضت اتصالاته. 8+5=13 هو اللي بيشتغل.
 PG_POOL_MAX = "8"
+
+[userenv.shared]
 

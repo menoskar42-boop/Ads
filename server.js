@@ -1851,11 +1851,29 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
   // وإلا صفحة الـ٥٠٣ ما بتلاقيش سبب لأى منهم.
   // المفتاح الثابت معاهم: باب المسار شغّال على أى نطاق، فلازم يلاقى السبب.
   const sfHostList = parseHosts(process.env.SERVICEFLOW_HOST).concat([SERVICEFLOW_STATUS_KEY]);
-  const sfDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
+  const sfArchiveDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
+  const sfUseSupabaseDatabase = process.env.SERVICEFLOW_DATABASE_TARGET === 'supabase';
+  const sfDatabaseUrl = sfUseSupabaseDatabase
+    ? String(process.env.ADS_DATABASE_URL || '').trim()
+    : sfArchiveDatabaseUrl;
+  const sfDatabaseUrlWithSearchPath = (() => {
+    if (!sfDatabaseUrl || !sfUseSupabaseDatabase) return sfDatabaseUrl;
+    const parsed = new URL(sfDatabaseUrl);
+    parsed.searchParams.set(
+      'options',
+      '-c timezone=Africa/Cairo -c search_path=serviceflow,public',
+    );
+    if (parsed.hostname.endsWith('.pooler.supabase.com')) {
+      if (parsed.port === '6543') parsed.port = '5432';
+      if (!parsed.searchParams.has('sslmode')) parsed.searchParams.set('sslmode', 'require');
+      if (!parsed.searchParams.has('uselibpqcompat')) parsed.searchParams.set('uselibpqcompat', 'true');
+    }
+    return parsed.toString();
+  })();
   const sfDist = path.join(__dirname, 'serviceflow', 'dist', 'index.cjs');
   if (!sfDatabaseUrl) {
-    console.error('[co-host] SERVICEFLOW_UPSTREAM متظبّط من غير SERVICEFLOW_DATABASE_URL — '
-      + 'مش هنشغّلها. تشغيلها على قاعدة أوسكار ديفز أسوأ بكتير من إنها ما تشتغلش.');
+    console.error('[co-host] Service Flow database target is missing — '
+      + 'set SERVICEFLOW_DATABASE_URL or configure the Supabase target.');
     for (const h of sfHostList) setCoHostStatus(h, {
       app: 'Service Flow', state: 'missing-config', reason: 'SERVICEFLOW_DATABASE_URL',
     });
@@ -1864,7 +1882,11 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
     const sfEnv = Object.assign({}, process.env, {
       NODE_ENV: 'production',
       PORT: sfPort,
-      DATABASE_URL: sfDatabaseUrl,
+      DATABASE_URL: sfDatabaseUrlWithSearchPath,
+      // الصور و430D والأرشيف تظل في قاعدة Service Flow القديمة حتى بعد
+      // تحويل البيانات التشغيلية إلى Supabase. تطبيق الصيانة يحتاجها لنفس
+      // المعاملات، لذلك لا نتركه يستخدم قاعدة Service Flow الجديدة.
+      MAINTENANCE_DATABASE_URL: sfArchiveDatabaseUrl,
       SESSION_SECRET: process.env.SERVICEFLOW_SESSION_SECRET || process.env.SESSION_SECRET,
       // المهام المجدولة: مقفولة افتراضياً طول ما النشر القديم شغّال.
       SF_SCHEDULERS: process.env.SERVICEFLOW_SCHEDULERS || 'off',

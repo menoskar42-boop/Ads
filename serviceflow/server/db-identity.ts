@@ -30,7 +30,7 @@ const FOREIGN_SIGNATURES: { table: string; app: string }[] = [
 ];
 
 /** جدول بيقول «دي قاعدة Service Flow» — للتأكيد الإيجابي. */
-const OWN_SIGNATURE = "work_orders";
+const OWN_SIGNATURES = new Set(["work_orders", "phone_lines"]);
 
 export interface DbIdentityResult {
   ok: boolean;
@@ -47,26 +47,41 @@ export interface DbIdentityResult {
 const INTEGER_TYPES = new Set(['integer', 'bigint', 'smallint']);
 
 export async function checkDbIdentity(pool: Pool): Promise<DbIdentityResult> {
-  const names = [...FOREIGN_SIGNATURES.map((s) => s.table), OWN_SIGNATURE];
-  const { rows } = await pool.query<{ table_name: string }>(
-    `SELECT table_name FROM information_schema.tables
+  const names = [...FOREIGN_SIGNATURES.map((s) => s.table), ...OWN_SIGNATURES];
+  const { rows } = await pool.query<{ table_schema: string; table_name: string }>(
+    `SELECT table_schema, table_name FROM information_schema.tables
       WHERE table_schema = ANY (current_schemas(false))
         AND table_name = ANY ($1::text[])`,
     [names],
   );
+  const currentSchemaResult = await pool.query<{ schema_name: string }>(
+    `SELECT current_schema() AS schema_name`,
+  );
+  const activeSchema = currentSchemaResult.rows[0]?.schema_name ?? "public";
   const present = new Set(rows.map((r) => r.table_name));
+  const activeTables = new Set(
+    rows
+      .filter((r) => r.table_schema === activeSchema)
+      .map((r) => r.table_name),
+  );
 
-  const foreign = FOREIGN_SIGNATURES.find((s) => present.has(s.table));
-  const hasOwn = present.has(OWN_SIGNATURE);
+  // Supabase is shared with other applications. If Service Flow is using its
+  // own schema, a foreign table in public (e.g. companies) is not evidence
+  // that Service Flow is connected to the wrong database.
+  const hasOwn = [...OWN_SIGNATURES].some((table) => activeTables.has(table));
+  const foreign = hasOwn
+    ? undefined
+    : FOREIGN_SIGNATURES.find((s) => present.has(s.table));
 
   /* نوع `users.id` — بصمة أقوى من أسماء الجداول.
    * Service Flow بيعرّفه `serial` (integer). لو لقيناه uuid أو text، فالقاعدة
    * دي بتاعة تطبيق تاني مهما كانت أسماء جداولها. */
   const idTypeRes = await pool.query<{ data_type: string }>(
     `SELECT data_type FROM information_schema.columns
-      WHERE table_schema = ANY (current_schemas(false))
+      WHERE table_schema = $1
         AND table_name = 'users' AND column_name = 'id'
       LIMIT 1`,
+    [activeSchema],
   );
   const usersIdType = idTypeRes.rows[0]?.data_type ?? null;
 
