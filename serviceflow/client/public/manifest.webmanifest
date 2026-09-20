@@ -1,0 +1,14 @@
+{
+  "name": "Service-Flow",
+  "short_name": "Service-Flow",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "favicon.png", "sizes": "128x128", "type": "image/png", "purpose": "any" }
+  ]
+}

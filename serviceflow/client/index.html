@@ -6,6 +6,16 @@
     <meta name="google" content="notranslate" />
     <meta http-equiv="Content-Language" content="ar" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- ⚠️ من غير السطر ده، «إضافة للشاشة الرئيسية» على iOS بيرجع لـ
+         /apple-touch-icon.png من **جذر الدومين** — واللي بيرد عليه أوسكار
+         ديفز، فالأيقونة كانت بتطلع لوجو أوسكار ديفز بدل Service Flow.
+         (وده بيحصل على أي باب: نطاق فرعي أو مسار تحت أوسكار ديفز.)
+         Vite بيحط مسار الجذر (base) على الروابط المطلقة دي وقت البناء. -->
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Service-Flow" />
+    <meta name="theme-color" content="#0f172a" />
     <title>Service-Flow</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
