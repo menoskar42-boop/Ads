@@ -984,6 +984,22 @@ const poNotStoppedSql = (col: string) => `(
             OR ${col} ~* 'never\\s+(been\\s+)?(run|optimi[sz]ed)')
   )`;
 
+// ── «الإيقاف أحدث من القياس» — تعريف واحد للتقرير وللباتش اليومى ─────────────
+// الخط بيدخل «تحتاج إيقاف PO» لأن **آخر قياس** ليه قال إن الـPO شغّال وإنه مش
+// محتاج رفع سرعة. فلو اتعملّه إيقاف **بعد** القياس ده، يبقى الدليل اللى دخّله
+// التقرير اتعالج خلاص — والقياس بقى كلام قديم، والـPO واقف فعلاً.
+//
+// من غير الشرط ده الخط كان بيرجع يظهر أول ما شرط «اتوقف خلال ٣ أيام» يخلص،
+// من غير ما يتقاس تانى — يعنى بنطلب إيقاف لحاجة واقفة، والتقرير بيعدّ خطوط
+// خلصت. والخط بيفضل يلفّ فى الدايرة دى كل ٣ أيام للأبد.
+//
+// بيفضل ظاهر لو القياس **أحدث** من الإيقاف: ده دليل جديد إن الـPO رجع اشتغل.
+//
+// العمودين الاتنين timestamptz (line_po_events.last_stop_at و
+// case_138.uploaded_at) فالمقارنة مباشرة ومفيش فرق توقيت بينهم.
+const poStopNotNewerSql = (pe: string, meas: string) =>
+  `(${pe}.last_stop_at IS NULL OR ${pe}.last_stop_at <= ${meas}.uploaded_at)`;
+
 // ── تبعية الخط لفنى (تُستخدم فى نسبة الإزالة ونسبة التكرار وتقارير التفاصيل) ──
 // فنى المنطقة = صاحب الكابينة (cabinet_technicians)، لكن لو كان فى «راحه/إجازة» يوم
 // الشكوى فالمسؤول فعلياً هو فنى الوردية القائم بالعمل مكانه (shift_schedules.covers).
@@ -2841,6 +2857,8 @@ export async function registerRoutes(
           -- اتعملها إيقاف PO خلال آخر ٣ أيام → مانكررش
           AND (pe.last_stop_at IS NULL
                OR pe.last_stop_at < now() - make_interval(days => ${AUTO_PO_STOP_SKIP_DAYS}))
+          -- والإيقاف أحدث من القياس → الدليل اتعالج، مهما عدّى عليه وقت
+          AND ${poStopNotNewerSql("pe", "m")}
           -- ليها **إيقاف PO** فى الطابور دلوقتى → مانضيفهاش تانى.
           -- الاستبعاد بنفس السبب بس: رقم مستنى قياس مالوش دعوة بإيقاف PO.
           AND ${notQueuedSql("la.account_no", ["stop"])}`);
@@ -6324,7 +6342,11 @@ export async function registerRoutes(
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const params: any[] = [];
     // أى رقم مالوش فريم (مش متركّب على المسان) مايدخلش تقارير القياسات
-    const conds: string[] = [hasFrameSql("m.full_phone")];
+    const conds: string[] = [
+      hasFrameSql("m.full_phone"),
+      // الإيقاف أحدث من القياس = الخط خلص، يختفى من التقرير (نفس شرط الباتش اليومى)
+      poStopNotNewerSql("pe", "m"),
+    ];
 
     const joinClause = `FROM (
         SELECT * FROM (
