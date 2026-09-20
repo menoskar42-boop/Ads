@@ -28,6 +28,8 @@
 | `SERVICEFLOW_UPSTREAM` | `http://127.0.0.1:5003` | ✅ بيشغّل كل حاجة |
 | `SERVICEFLOW_HOST` | النطاق/النطاقات اللي هيترد عليها — **مفصولين بفاصلة** | ✅ من غيره مفيش توجيه |
 | `SERVICEFLOW_DATABASE_URL` | **رابط قاعدة Service Flow نفسها** | ✅ من غيره **مابيقومش** |
+| `SERVICEFLOW_DATABASE_TARGET` | `supabase` لتفعيل اتصال Snapshot الاختياري | اختياري، لا يغيّر اتصال الأرشيف |
+| `ADS_DATABASE_URL` | رابط Supabase المشترك عند تفعيل الهدف | مطلوب مع `SERVICEFLOW_DATABASE_TARGET=supabase` |
 | `SERVICEFLOW_SESSION_SECRET` | سرّ الجلسة بتاع Service Flow نفسه | مهم — سرّ غلط = كل المستخدمين يتسجّل خروجهم |
 | `SERVICEFLOW_PORT` | `5003` | اختياري |
 | `SERVICEFLOW_SCHEDULERS` | `off` افتراضياً · `on` بعد إغلاق القديم | شوف تحت |
@@ -46,6 +48,7 @@
 | في Service Flow | بيتاخد من | |
 |---|---|---|
 | `DATABASE_URL` | `SERVICEFLOW_DATABASE_URL` | ⛔ إلزامي، ومالوش fallback |
+| `SERVICEFLOW_CURRENT_DATABASE_URL` | `ADS_DATABASE_URL` عند تفعيل Supabase | اتصال Snapshot للبيانات الحالية؛ لا تستخدمه لتقارير 430D أو الصور |
 | `SESSION_SECRET` | `SERVICEFLOW_SESSION_SECRET` | سرّ Service Flow نفسه |
 | `PORT` | `SERVICEFLOW_PORT` (٥٠٠٣) | |
 | `NODE_ENV` | `production` | |
@@ -56,6 +59,19 @@
 ⚠️ **`DATABASE_URL` مش في قايمة الـSecrets القديمة** لأن ريبليت بيوفّره
 تلقائياً لقاعدته المدمجة. هاته من تبويب **Database** في المشروع القديم
 (Connection string) وحطّه في `SERVICEFLOW_DATABASE_URL`.
+
+### فصل قاعدة الأرشيف عن Snapshot الحالي
+
+عند ضبط `SERVICEFLOW_DATABASE_TARGET=supabase`، يظل `DATABASE_URL` متصلًا
+بقاعدة Service Flow القديمة. التطبيق يفتح اتصالًا ثانيًا إلى
+`serviceflow` داخل Supabase عبر `SERVICEFLOW_CURRENT_DATABASE_URL`.
+
+- قاعدة Service Flow القديمة: الصور، الصيانة، 430D، كل التاريخ، والتقارير التي
+  تجمع جداول من أكثر من مصدر.
+- Supabase: آخر Snapshot من `case_138` لكل رقم، وعمليات القياس الجديدة.
+
+لا يتم تبديل `DATABASE_URL` إلى Supabase؛ PostgreSQL لا ينفذ JOIN بين قاعدتين،
+وتبديله سيجعل استعلامات الأرشيف تشير إلى جداول غير موجودة أو فارغة.
 
 ### لازم تتنقل بأسمائها زي ما هي
 

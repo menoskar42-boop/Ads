@@ -13,8 +13,91 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+/**
+ * Service Flow can use two databases during the staged migration:
+ *
+ * - `pool` / `archivePool`: the original database. It remains the compatibility
+ *   connection for reports that join operational rows to 430D, photos, or
+ *   historical tables.
+ * - `currentPool`: the optional Supabase snapshot connection. It contains the
+ *   current/reference tables and the latest `case_138` measurement per line.
+ *
+ * Do not replace `pool` with `currentPool`: PostgreSQL cannot join tables in
+ * two databases, and a large part of routes.ts intentionally joins current
+ * lines with archive-only 430D tables.
+ */
+const archiveDatabaseUrl = process.env.DATABASE_URL;
+const currentDatabaseUrl = String(process.env.SERVICEFLOW_CURRENT_DATABASE_URL || "").trim();
+
+export const archivePool = new Pool({ connectionString: archiveDatabaseUrl });
+export const pool = archivePool;
+export const currentPool = currentDatabaseUrl
+  ? new Pool({ connectionString: currentDatabaseUrl })
+  : archivePool;
+export const hasCurrentDatabase = currentPool !== archivePool;
 export const db = drizzle(pool, { schema });
+
+export async function currentQuery(text: string, values?: any[]) {
+  return currentPool.query(text, values);
+}
+
+/**
+ * Rebuild the small current-measurement snapshot from the old database.
+ * Historical rows never leave `archivePool`; only the newest row per phone is
+ * copied. Running this at startup makes enabling the second connection
+ * self-healing after measurements arrived while the staged copy was offline.
+ */
+export async function syncCurrentCase138Snapshot(): Promise<number> {
+  if (!hasCurrentDatabase) return 0;
+  const { rows } = await archivePool.query(`
+    SELECT central_name, phone_short, complain_no, score, current_speed, max_speed,
+           full_phone, account_no, status_code, cabinet_no, box_no, complain_type_name,
+           complain_time, customer_name, dispatch_time, tech_code, close_date, onu,
+           fault_type, uploaded_at, uploaded_by_id, measured_by, source, po_status
+      FROM case_138 c
+     WHERE c.full_phone IS NULL
+        OR c.id IN (
+          SELECT DISTINCT ON (full_phone) id
+            FROM case_138
+           WHERE full_phone IS NOT NULL
+           ORDER BY full_phone, id DESC
+        )
+     ORDER BY id
+  `);
+  const client = await currentPool.connect();
+  const columns = [
+    "central_name", "phone_short", "complain_no", "score", "current_speed",
+    "max_speed", "full_phone", "account_no", "status_code", "cabinet_no",
+    "box_no", "complain_type_name", "complain_time", "customer_name",
+    "dispatch_time", "tech_code", "close_date", "onu", "fault_type",
+    "uploaded_at", "uploaded_by_id", "measured_by", "source", "po_status",
+  ];
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM case_138");
+    const BATCH = 200;
+    for (let offset = 0; offset < rows.length; offset += BATCH) {
+      const chunk = rows.slice(offset, offset + BATCH);
+      const values: any[] = [];
+      const placeholders = chunk.map((row: any, rowIndex: number) => {
+        const start = rowIndex * columns.length;
+        values.push(...columns.map((column) => row[column]));
+        return `(${columns.map((_column, columnIndex) => `$${start + columnIndex + 1}`).join(",")})`;
+      }).join(",");
+      await client.query(
+        `INSERT INTO case_138 (${columns.join(",")}) VALUES ${placeholders}`,
+        values,
+      );
+    }
+    await client.query("COMMIT");
+    return rows.length;
+  } catch (e) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw e;
+  } finally {
+    client.release();
+  }
+}
 
 // Idempotent runtime migrations: keep DB in sync with schema additions even
 // when `npm run db:push` is not executed (e.g. Replit deploy).

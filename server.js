@@ -1853,39 +1853,45 @@ if (process.env.SERVICEFLOW_UPSTREAM) {
   const sfHostList = parseHosts(process.env.SERVICEFLOW_HOST).concat([SERVICEFLOW_STATUS_KEY]);
   const sfArchiveDatabaseUrl = String(process.env.SERVICEFLOW_DATABASE_URL || '').trim();
   const sfUseSupabaseDatabase = process.env.SERVICEFLOW_DATABASE_TARGET === 'supabase';
-  const sfDatabaseUrl = sfUseSupabaseDatabase
+  const sfCurrentDatabaseUrl = sfUseSupabaseDatabase
     ? String(process.env.ADS_DATABASE_URL || '').trim()
-    : sfArchiveDatabaseUrl;
-  const sfDatabaseUrlWithSearchPath = (() => {
-    if (!sfDatabaseUrl || !sfUseSupabaseDatabase) return sfDatabaseUrl;
-    const parsed = new URL(sfDatabaseUrl);
-    parsed.searchParams.set(
-      'options',
-      '-c timezone=Africa/Cairo -c search_path=serviceflow,public',
-    );
+    : '';
+  const withServiceFlowSchema = (rawUrl) => {
+    if (!rawUrl) return '';
+    const parsed = new URL(rawUrl);
+    parsed.searchParams.set('options', '-c timezone=Africa/Cairo -c search_path=serviceflow,public');
     if (parsed.hostname.endsWith('.pooler.supabase.com')) {
       if (parsed.port === '6543') parsed.port = '5432';
       if (!parsed.searchParams.has('sslmode')) parsed.searchParams.set('sslmode', 'require');
       if (!parsed.searchParams.has('uselibpqcompat')) parsed.searchParams.set('uselibpqcompat', 'true');
     }
     return parsed.toString();
-  })();
+  };
+  // Keep the old database as the child process' primary connection. The
+  // optional Supabase connection is explicit and is used only by routes that
+  // can safely operate on the current snapshot without cross-database joins.
+  const sfDatabaseUrl = sfArchiveDatabaseUrl;
+  const sfCurrentDatabaseUrlWithSearchPath = withServiceFlowSchema(sfCurrentDatabaseUrl);
   const sfDist = path.join(__dirname, 'serviceflow', 'dist', 'index.cjs');
-  if (!sfDatabaseUrl) {
+  if (!sfDatabaseUrl || (sfUseSupabaseDatabase && !sfCurrentDatabaseUrl)) {
+    const missingTarget = sfUseSupabaseDatabase && !sfCurrentDatabaseUrl;
     console.error('[co-host] Service Flow database target is missing — '
-      + 'set SERVICEFLOW_DATABASE_URL or configure the Supabase target.');
+      + (missingTarget
+        ? 'SERVICEFLOW_DATABASE_TARGET=supabase requires ADS_DATABASE_URL.'
+        : 'set SERVICEFLOW_DATABASE_URL.'));
     for (const h of sfHostList) setCoHostStatus(h, {
-      app: 'Service Flow', state: 'missing-config', reason: 'SERVICEFLOW_DATABASE_URL',
+      app: 'Service Flow', state: 'missing-config',
+      reason: missingTarget ? 'ADS_DATABASE_URL' : 'SERVICEFLOW_DATABASE_URL',
     });
   } else {
     const sfPort = process.env.SERVICEFLOW_PORT || '5003';
     const sfEnv = Object.assign({}, process.env, {
       NODE_ENV: 'production',
       PORT: sfPort,
-      DATABASE_URL: sfDatabaseUrlWithSearchPath,
-      // الصور و430D والأرشيف تظل في قاعدة Service Flow القديمة حتى بعد
-      // تحويل البيانات التشغيلية إلى Supabase. تطبيق الصيانة يحتاجها لنفس
-      // المعاملات، لذلك لا نتركه يستخدم قاعدة Service Flow الجديدة.
+      DATABASE_URL: sfArchiveDatabaseUrl,
+      SERVICEFLOW_CURRENT_DATABASE_URL: sfCurrentDatabaseUrlWithSearchPath,
+      // الصور و430D والأرشيف تظل في قاعدة Service Flow القديمة، بينما
+      // SERVICEFLOW_CURRENT_DATABASE_URL يضيف اتصال Snapshot منفصلًا.
       MAINTENANCE_DATABASE_URL: sfArchiveDatabaseUrl,
       SESSION_SECRET: process.env.SERVICEFLOW_SESSION_SECRET || process.env.SESSION_SECRET,
       // المهام المجدولة: مقفولة افتراضياً طول ما النشر القديم شغّال.

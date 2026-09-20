@@ -81,9 +81,16 @@ app.use((req, res, next) => {
 app.get("/api/health", async (_req, res) => {
   const started = Date.now();
   try {
-    const { pool } = await import("./db");
+    const { pool, currentPool, hasCurrentDatabase } = await import("./db");
     await pool.query("SELECT 1");
-    res.json({ ok: true, db: "up", uptimeSec: Math.round(process.uptime()), tookMs: Date.now() - started });
+    if (hasCurrentDatabase) await currentPool.query("SELECT 1 FROM case_138 LIMIT 0");
+    res.json({
+      ok: true,
+      db: "up",
+      currentDb: hasCurrentDatabase ? "up" : "same-as-archive",
+      uptimeSec: Math.round(process.uptime()),
+      tookMs: Date.now() - started,
+    });
   } catch (e: any) {
     res.status(503).json({ ok: false, db: "down", error: e?.message || "db error" });
   }
@@ -98,7 +105,7 @@ app.get("/api/health", async (_req, res) => {
    * الاعتماد على الصدفة. شوف server/db-identity.ts */
   {
     const { checkDbIdentity } = await import("./db-identity");
-    const { pool } = await import("./db");
+    const { pool, currentPool, hasCurrentDatabase } = await import("./db");
     const identity = await checkDbIdentity(pool);
     if (!identity.ok) {
       console.error('\n============ [WRONG DATABASE] Service Flow ============');
@@ -112,9 +119,27 @@ app.get("/api/health", async (_req, res) => {
       process.exit(78);
     }
     console.log(`[db-identity] ${identity.message}`);
+    if (hasCurrentDatabase) {
+      const currentIdentity = await checkDbIdentity(currentPool);
+      if (!currentIdentity.ok) {
+        console.error('\n============ [WRONG CURRENT DATABASE] Service Flow ============');
+        console.error(currentIdentity.message);
+        console.error('===============================================================\n');
+        process.exit(78);
+      }
+      await currentPool.query("SELECT 1 FROM case_138 LIMIT 0");
+      console.log(`[db-identity] current snapshot: ${currentIdentity.message}`);
+    }
   }
 
   await ensureSchema();
+  {
+    const { hasCurrentDatabase, syncCurrentCase138Snapshot } = await import("./db");
+    if (hasCurrentDatabase) {
+      const synced = await syncCurrentCase138Snapshot();
+      console.log(`[db-identity] current case_138 snapshot synchronized: ${synced} rows`);
+    }
+  }
   // إدخال سعة الكباين تلقائياً لو الجدول فاضى (يشتغل مع النشر بدون كونسول)
   const { seedCabinetCapacityIfEmpty } = await import("./seed-cabinet-capacity");
   await seedCabinetCapacityIfEmpty();

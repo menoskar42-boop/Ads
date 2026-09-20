@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { pool } from "./db";
+import { pool, currentPool, hasCurrentDatabase } from "./db";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
@@ -826,6 +826,74 @@ async function withTx<T>(fn: (tx: { query: (q: string, p?: any[]) => Promise<any
     try { await client.query("ROLLBACK"); } catch {}
     throw e;
   } finally { client.release(); }
+}
+
+type Case138Row = any[];
+
+/**
+ * Keep the optional Supabase copy intentionally small: one current row per
+ * phone. The archive connection keeps the full historical stream. This
+ * function is called only after the source import has committed, so a failed
+ * snapshot sync never causes a partial source transaction.
+ */
+async function syncCurrentCase138(rows: Case138Row[]): Promise<number> {
+  if (!hasCurrentDatabase || !rows.length) return 0;
+
+  // A sheet may contain repeated rows for one phone. The final row in the
+  // uploaded file is the one the old merge logic would leave as current.
+  const byPhone = new Map<string, Case138Row>();
+  const withoutPhone: Case138Row[] = [];
+  for (const row of rows) {
+    const phone = String(row[6] ?? "").trim();
+    if (phone) byPhone.set(phone, row);
+    else withoutPhone.push(row);
+  }
+  const snapshotRows = [...byPhone.values(), ...withoutPhone];
+  const client = await currentPool.connect();
+  try {
+    await client.query("BEGIN");
+    const phones = [...byPhone.keys()];
+    if (phones.length) {
+      await client.query("DELETE FROM case_138 WHERE full_phone = ANY($1::text[])", [phones]);
+    }
+    let synced = 0;
+    for (const row of snapshotRows) {
+      await client.query(
+        `INSERT INTO case_138
+           (central_name, phone_short, complain_no, score, current_speed, max_speed,
+            full_phone, account_no, status_code, cabinet_no, box_no, complain_type_name,
+            complain_time, customer_name, dispatch_time, tech_code, close_date, onu,
+            fault_type, uploaded_at, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now(),'sheet138')`,
+        row,
+      );
+      synced++;
+    }
+    await client.query("COMMIT");
+    return synced;
+  } catch (e) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function syncCurrentDzsMeasurement(values: any[]): Promise<void> {
+  if (!hasCurrentDatabase) return;
+  const fullPhone = values[5];
+  // Null-phone measurements are retained as diagnostic rows. A real phone is
+  // a snapshot key and therefore replaces the previous row for that phone.
+  if (fullPhone) {
+    await currentPool.query("DELETE FROM case_138 WHERE full_phone = $1", [fullPhone]);
+  }
+  await currentPool.query(
+    `INSERT INTO case_138
+       (phone_short, complain_no, score, current_speed, max_speed, full_phone,
+        account_no, measured_by, po_status, complain_time, uploaded_at, source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),now(),'dzs')`,
+    values,
+  );
 }
 
 const hasFrameSql = (fullPhoneExpr: string) => `EXISTS (
@@ -3242,7 +3310,8 @@ export async function registerRoutes(
       q = `SELECT COUNT(DISTINCT account_no)::int AS n FROM line_po_events WHERE account_no = ANY($1::text[]) AND ${col} >= $2`;
     }
     try {
-      const { rows } = await pool.query(q, [accs, claimedAt]);
+      const queryPool = type === "measure" ? currentPool : pool;
+      const { rows } = await queryPool.query(q, [accs, claimedAt]);
       return { done: Math.min(rows[0]?.n ?? 0, total), total };
     } catch { return { done: 0, total }; }
   };
@@ -3280,7 +3349,8 @@ export async function registerRoutes(
       } catch { return accs; }
     }
     try {
-      const { rows } = await pool.query(q, [accs, claimedAt]);
+      const queryPool = type === "measure" ? currentPool : pool;
+      const { rows } = await queryPool.query(q, [accs, claimedAt]);
       const done = new Set((rows as any[]).map((r) => String(r.account_no).trim()));
       return accs.filter((a) => !done.has(a));
     } catch { return accs; }
@@ -8809,8 +8879,9 @@ export async function registerRoutes(
       }
       return { inserted };
       });
+      const currentSynced = await syncCurrentCase138(inserts);
       invalidateBoxScoreAggCache();
-      res.json({ inserted, total: inserts.length });
+      res.json({ inserted, currentSynced, total: inserts.length });
     } catch (e: any) {
       res.status(500).json({ message: e.message || "خطأ في الاستيراد" });
     }
@@ -8829,7 +8900,8 @@ export async function registerRoutes(
       conds.push(`(${n("complain_no")} LIKE ${p} OR ${n("full_phone")} LIKE ${p} OR ${n("phone_short")} LIKE ${p} OR ${n("central_name")} LIKE ${p} OR ${n("cabinet_no")} LIKE ${p})`);
     }
     const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
-    const { rows } = await pool.query(
+    const dataPool = hasCurrentDatabase ? currentPool : pool;
+    const { rows } = await dataPool.query(
       `SELECT id, central_name AS "centralName", phone_short AS "phoneShort",
               complain_no AS "complainNo", score, current_speed AS "currentSpeed",
               max_speed AS "maxSpeed", full_phone AS "fullPhone", account_no AS "accountNo",
@@ -8890,13 +8962,21 @@ export async function registerRoutes(
       // «Profile Optimization Status» زى ما السكربت قراه من شاشة ClearView (نص حر).
       // بنقصّه على 600 حرف — الشاشة بتعرض سطرين، وأى حاجة أطول من كده مش منها.
       const poStatus = (it.poStatus ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 600) || null;
+      const measurementValues = [
+        phoneShort, complainNo, toInt(it.score),
+        (it.currentSpeed ?? "").toString().trim() || null,
+        (it.maxSpeed ?? "").toString().trim() || null,
+        fullPhone, accountNo, measuredBy, poStatus,
+      ];
+      // The old database is the immutable measurement history; Supabase holds
+      // the current one-row-per-phone snapshot.
       await pool.query(
         `INSERT INTO case_138
            (phone_short, complain_no, score, current_speed, max_speed, full_phone, account_no, measured_by, po_status, complain_time, source)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), 'dzs')`,
-        [phoneShort, complainNo, toInt(it.score), (it.currentSpeed ?? "").toString().trim() || null,
-         (it.maxSpeed ?? "").toString().trim() || null, fullPhone, accountNo, measuredBy, poStatus],
+        measurementValues,
       );
+      await syncCurrentDzsMeasurement(measurementValues);
       inserted++;
     }
     if (inserted > 0) invalidateBoxScoreAggCache();
