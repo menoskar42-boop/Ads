@@ -5683,7 +5683,14 @@ export async function registerRoutes(
     const joinClause = `FROM complaint_summary cs
       JOIN line_accounts la ON ${sp("la.full_phone")} = cs.short_phone
       LEFT JOIN phone_lines pl ON pl.full_phone = la.full_phone
-      LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone`;
+      LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone
+      LEFT JOIN LATERAL (
+        SELECT c.current_speed, c.max_speed, c.score
+        FROM case_138 c
+        WHERE c.full_phone = la.full_phone
+        ORDER BY c.id DESC
+        LIMIT 1
+      ) c138 ON true`;
     const where = `WHERE ${lineConds.join(" AND ")}`;
 
     const totalRes = await pool.query(
@@ -5706,6 +5713,9 @@ export async function registerRoutes(
            pl.central,
            pl.cabin_number AS "cabinNumber",
            pl.box_number AS "boxNumber",
+            c138.current_speed AS "lineCurrentSpeed",
+            c138.max_speed AS "lineMaxSpeed",
+            c138.score AS "lastMeasScore",
            pl.idu_no AS "iduNo",
            pl.odu_no AS "oduNo",
            pl.dp_terminal AS "dpTerminal",
