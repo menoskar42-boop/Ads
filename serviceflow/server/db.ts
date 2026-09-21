@@ -1438,6 +1438,23 @@ export async function ensureSchema() {
       ON line_account_edits (edited_at DESC)
   `);
 
+  // customer_contact_logs — سجل محاولات الاتصال بالعميل من نافذة تفاصيل الخط.
+  // كل ضغطة اتصال صف مستقل حتى يظهر آخر اتصال ويظل التاريخ الكامل محفوظًا.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_contact_logs (
+      id serial PRIMARY KEY,
+      full_phone text NOT NULL,
+      outcome text NOT NULL CHECK (outcome IN ('answered', 'no_answer')),
+      contacted_at timestamptz NOT NULL DEFAULT now(),
+      contacted_by_id integer REFERENCES users(id),
+      contacted_by_name text
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS customer_contact_logs_phone_time_idx
+      ON customer_contact_logs (full_phone, contacted_at DESC, id DESC)
+  `);
+
   // lines_no_account — خطوط معلَّمة يدوياً بأنها "بدون رقم أكونت" (لا يوجد لها أكونت)
   // تُخفى من تقرير الخطوط بدون أكونت دون تسجيل رقم أكونت لها.
   await pool.query(`

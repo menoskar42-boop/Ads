@@ -7,6 +7,7 @@ import { PageJump } from "@/components/ui/page-jump";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { RefreshButton } from "@/components/RefreshButton";
 import { LineDetailsDialog } from "@/components/LineDetailsDialog";
+import { formatContactTime } from "@/components/CustomerContactActions";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -33,6 +34,8 @@ type Row = {
   complaintCount: number;
   earliestComplaint: string | null;
   latestComplaint: string | null;
+  lastContactAt: string | null;
+  lastContactOutcome: "answered" | "no_answer" | null;
 };
 
 type FilterOptions = {
@@ -125,6 +128,10 @@ export function AccountComplaintsReport() {
       "عدد الشكاوى": r.complaintCount,
       "أقدم شكوى": fmtDate(r.earliestComplaint),
       "أحدث شكوى": fmtDate(r.latestComplaint),
+      "وقت آخر اتصال": formatContactTime(r.lastContactAt),
+      "نتيجة آخر اتصال": r.lastContactOutcome === "answered"
+        ? "تم الرد"
+        : r.lastContactOutcome === "no_answer" ? "لم يرد" : "",
       "السنترال": r.central ?? "",
       "الكابينة": r.cabinNumber ?? "",
       "البكس": r.boxNumber ?? "",
@@ -201,6 +208,7 @@ export function AccountComplaintsReport() {
                     <TableHead className="font-bold whitespace-nowrap">عدد الشكاوى</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">أقدم شكوى</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">أحدث شكوى</TableHead>
+                    <TableHead className="font-bold whitespace-nowrap">وقت آخر اتصال</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">رقم الأكونت</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">السنترال</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">الكابينة</TableHead>
@@ -231,6 +239,16 @@ export function AccountComplaintsReport() {
                       <TableCell className="font-bold text-red-700">{r.complaintCount.toLocaleString("ar-EG")}</TableCell>
                       <TableCell className="whitespace-nowrap" dir="ltr">{fmtDate(r.earliestComplaint)}</TableCell>
                       <TableCell className="whitespace-nowrap" dir="ltr">{fmtDate(r.latestComplaint)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {r.lastContactAt ? (
+                          <span className="inline-flex flex-col">
+                            <span dir="ltr">{formatContactTime(r.lastContactAt)}</span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {r.lastContactOutcome === "answered" ? "تم الرد" : "لم يرد"}
+                            </span>
+                          </span>
+                        ) : "-"}
+                      </TableCell>
                       <TableCell className="font-mono" dir="ltr">{r.accountNo || "-"}</TableCell>
                       <TableCell className="whitespace-nowrap">{r.central || "-"}</TableCell>
                       <TableCell>{r.cabinNumber || "-"}</TableCell>

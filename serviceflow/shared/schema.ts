@@ -1061,6 +1061,18 @@ export const lineAccountEdits = pgTable("line_account_edits", {
 
 export type LineAccountEdit = typeof lineAccountEdits.$inferSelect;
 
+// customer_contact_logs — سجل كل محاولة اتصال بالعميل من تفاصيل الخط
+export const customerContactLogs = pgTable("customer_contact_logs", {
+  id: serial("id").primaryKey(),
+  fullPhone: text("full_phone").notNull(),
+  outcome: text("outcome").notNull(),
+  contactedAt: timestamp("contacted_at", { withTimezone: true }).defaultNow().notNull(),
+  contactedById: integer("contacted_by_id").references(() => users.id),
+  contactedByName: text("contacted_by_name"),
+});
+
+export type CustomerContactLog = typeof customerContactLogs.$inferSelect;
+
 // lines_no_account — خطوط معلَّمة يدوياً بأنها "بدون رقم أكونت" (تُخفى من تقرير الخطوط بدون أكونت)
 export const linesNoAccount = pgTable("lines_no_account", {
   fullPhone: text("full_phone").primaryKey(),

@@ -5698,7 +5698,14 @@ export async function registerRoutes(
         WHERE c.full_phone = la.full_phone
         ORDER BY c.id DESC
         LIMIT 1
-      ) c138 ON true`;
+      ) c138 ON true
+      LEFT JOIN LATERAL (
+        SELECT contacted_at, outcome
+        FROM customer_contact_logs ccl
+        WHERE ccl.full_phone = la.full_phone
+        ORDER BY contacted_at DESC, id DESC
+        LIMIT 1
+      ) contact ON true`;
     const where = `WHERE ${lineConds.join(" AND ")}`;
 
     const totalRes = await pool.query(
@@ -5732,7 +5739,9 @@ export async function registerRoutes(
            pl.len,
            cs.complaint_count AS "complaintCount",
            (cs.earliest_complaint AT TIME ZONE 'Africa/Cairo') AS "earliestComplaint",
-           (cs.latest_complaint AT TIME ZONE 'Africa/Cairo') AS "latestComplaint"
+            (cs.latest_complaint AT TIME ZONE 'Africa/Cairo') AS "latestComplaint",
+            contact.contacted_at AS "lastContactAt",
+            contact.outcome AS "lastContactOutcome"
          ${joinClause} ${where}
          ORDER BY la.full_phone, cs.complaint_count DESC
        ) ranked
@@ -5741,6 +5750,42 @@ export async function registerRoutes(
       params,
     );
     res.json({ data: dataRes.rows, total, page: pageNum, pageSize, dateFrom: from, dateTo: to });
+  });
+
+  // GET /api/customer-contact-logs — كل اتصالات رقم تليفون، من الأحدث للأقدم
+  app.get("/api/customer-contact-logs", requireAuth, async (req, res) => {
+    const fullPhone = String((req.query as any).phone || "").trim();
+    if (!fullPhone) return res.json({ data: [] });
+    const { rows } = await pool.query(`
+      SELECT id, outcome, contacted_at AS "contactedAt",
+             contacted_by_name AS "contactedByName"
+      FROM customer_contact_logs
+      WHERE full_phone = $1
+      ORDER BY contacted_at DESC, id DESC
+    `, [fullPhone]);
+    res.json({ data: rows });
+  });
+
+  // POST /api/customer-contact-logs — تسجيل محاولة اتصال بنتيجة واحدة
+  app.post("/api/customer-contact-logs", requireAuth, async (req: any, res) => {
+    const fullPhone = String(req.body?.fullPhone || "").trim();
+    const outcome = String(req.body?.outcome || "").trim();
+    if (!/^\d{5,20}$/.test(fullPhone)) {
+      return res.status(400).json({ message: "رقم التليفون غير صالح" });
+    }
+    if (outcome !== "answered" && outcome !== "no_answer") {
+      return res.status(400).json({ message: "نتيجة الاتصال غير صالحة" });
+    }
+    const userId = Number.isInteger(req.user?.id) ? req.user.id : null;
+    const userName = String(req.user?.fullName || req.user?.username || "").trim() || null;
+    const { rows } = await pool.query(`
+      INSERT INTO customer_contact_logs
+        (full_phone, outcome, contacted_by_id, contacted_by_name)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, outcome, contacted_at AS "contactedAt",
+                contacted_by_name AS "contactedByName"
+    `, [fullPhone, outcome, userId, userName]);
+    res.status(201).json({ data: rows[0] });
   });
 
   // GET /api/phone-lines/without-account — lines with no entry in line_accounts (paginated, same filters)
