@@ -20,6 +20,7 @@ import { InstallationsByTechReport } from "@/components/InstallationsByTechRepor
 import { WorkOrdersNoCableReport } from "@/components/WorkOrdersNoCableReport";
 import { CurrentFaultsReport } from "@/components/CurrentFaultsReport";
 import { WithAccountReport } from "@/components/WithAccountReport";
+import { AccountComplaintsReport } from "@/components/AccountComplaintsReport";
 import { NoAccountTab } from "@/components/NoAccountTab";
 import { NeedsSpeedTab } from "@/components/NeedsSpeedTab";
 import { printTablePDF } from "@/lib/print-pdf";
@@ -83,7 +84,7 @@ import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "other-work-orders";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "other-work-orders";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -126,6 +127,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     icon: Cable,
     items: [
       { id: "with-account",        label: "خطوط لها رقم أكونت" },
+      { id: "account-complaints", label: "شكاوى الخطوط التى لها أكونت" },
       { id: "account-never-measured", label: "خطوط لها أكونت ولم تُقَس" },
       { id: "no-account",          label: "بدون أكونت" },
       { id: "ground-network",      label: "أعطال الشبكة الأرضية" },
@@ -740,6 +742,7 @@ export default function Dashboard() {
               {reportTab === "om-stats-2026"  && <OmStatsReport yearFilter="current" title="إحصائية متعذرات OM — 2026" />}
               {reportTab === "om-stats-prior" && <OmStatsReport yearFilter="prior"   title="إحصائية متعذرات OM — أعوام سابقة" />}
               {reportTab === "with-account"        && <WithAccountReport defaultStaleDays="10" />}
+              {reportTab === "account-complaints" && <AccountComplaintsReport />}
               {reportTab === "account-never-measured" && <WithAccountReport neverMeasured title="خطوط لها رقم أكونت ولم يتم قياسها من قبل" />}
               {reportTab === "high-score"          && <WithAccountReport scoreGt={100} title="الخطوط التى أسكورها أعلى من 100" />}
               {reportTab === "no-account"          && <NoAccountTab />}
