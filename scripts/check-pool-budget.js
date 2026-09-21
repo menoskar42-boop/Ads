@@ -31,6 +31,7 @@ const SHARED = path.join(ROOT, 'src/lib/shared_pool.js');
 const SERVER = path.join(ROOT, 'server.js');
 const REPLIT = path.join(ROOT, '.replit');
 const MYBIBLE_POOL = path.join(ROOT, 'mybible/server/db-pool.ts');
+const SERVICEFLOW_POOL = path.join(ROOT, 'serviceflow/server/db.ts');
 
 /* ⛔ السقف **١٥** مش ٤٥.
  *
@@ -115,14 +116,21 @@ const fail = (m) => { console.error('❌ ' + m); process.exitCode = 1; };
 
   const ads = read('PG_POOL_MAX', SHARED, /PG_POOL_MAX,\s*10\)\s*\|\|\s*(\d+)/);
   const mybible = read('MYBIBLE_PG_POOL_MAX', MYBIBLE_POOL, /MYBIBLE_PG_POOL_MAX \|\| "(\d+)"/);
+  const serviceflow = read(
+    'SERVICEFLOW_CURRENT_PG_POOL_MAX',
+    SERVICEFLOW_POOL,
+    /SERVICEFLOW_CURRENT_PG_POOL_MAX \|\| "(\d+)"/,
+  );
 
   if (!ads) fail('مش قادر أقرا سقف حوض أوسكار ديفز.');
   if (!mybible) fail('مش قادر أقرا سقف حوض mybible.');
+  if (!serviceflow) fail('مش قادر أقرا سقف حوض Service Flow الحالي.');
 
-  if (ads && mybible) {
-    const total = ads.value + mybible.value;
+  if (ads && mybible && serviceflow) {
+    const total = ads.value + mybible.value + serviceflow.value;
     if (total > BUDGET) {
-      fail(`مجموع الأحواض ${total} اتصال (أوسكار ديفز ${ads.value} + mybible ${mybible.value}) `
+      fail(`مجموع الأحواض ${total} اتصال (أوسكار ديفز ${ads.value} + mybible ${mybible.value} `
+        + `+ Service Flow ${serviceflow.value}) `
         + `والسقف ${BUDGET}. سوبابيز هيرفض اتصالات، والنسخ الاحتياطي ومحرّر SQL `
         + 'مش هيلاقوا مكان. قلّل واحد منهم أو ارفع السقف بقرار.');
     }
@@ -131,7 +139,8 @@ const fail = (m) => { console.error('❌ ' + m); process.exitCode = 1; };
     }
     if (!process.exitCode) {
       console.log(`✅ ميزانية الاتصالات: أوسكار ديفز ${ads.value} + mybible ${mybible.value} `
-        + `= ${total} من ${BUDGET} · واللفّة بتجمع الـ٨١ حوض في واحد`);
+        + `+ Service Flow ${serviceflow.value} = ${total} من ${BUDGET} `
+        + `· واللفّة بتجمع الـ٨١ حوض في واحد`);
     }
   }
 }

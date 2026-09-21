@@ -73,20 +73,19 @@ MYBIBLE_MAINTENANCE_MODE = "false"
 MYBIBLE_SESSION_SECRET_SHA256 = "db416deb92e6797b1bb1a87b99456df44714f51880f9f7c9c38b0dc63d50743d"
 MYBIBLE_VAPID_PUBLIC_KEY_SHA256 = "2f267592ee69f6eded91d68225704bd57ec916c13974c3a123f69a08a742ba8b"
 MYBIBLE_DATABASE_TARGET = "ads-supabase"
-# ⛔ **رجعت "5" — وريبليت كان على حق.**
+# ⛔ **الميزانية موزّعة على كل العمليات التي قد تستخدم Session Pooler.**
 #
-# رفعتها لـ12 ورفعت بتاعة أوسكار ديفز لـ20، واللوج رد عليّ:
+# الإنتاج كان يستهلك 8 للتطبيق الرئيسي + 5 لـMyBible + 2 لـService Flow
+# = 15 بالضبط، فكان أي اتصال عابر أثناء الإقلاع أو الزحام يسبب:
 #   error: (EMAXCONNSESSION) max clients reached in session mode
-# وده pooler سوبابيز نفسه بيرفض الاتصالات — mybible بقى مش قادر يوصل
-# للقاعدة أصلاً. سقف session mode أقل بكتير من الستين اللي افترضتها،
-# و8+5=13 اللي ريبليت حطّها كانت مظبوطة على السقف ده مش رقم عشوائي.
 #
-# الزحمة بتتحل بتقليل الاستعلامات (تجميع الطلبات في group-cache.ts)
-# مش بزيادة الاتصالات — الاتصالات مورد مقفول من برّه.
+# نترك هامشًا: 6 للتطبيق الرئيسي + 5 لـMyBible + 1 لـService Flow
+# = 12، مع إبقاء Pool MyBible كاملًا لأن الأولوية هي تحمّل مستخدميه.
 MYBIBLE_PG_POOL_MAX = "5"
-# ⛔ **رجعت "8"** لنفس السبب اللي فوق: 20+12 كسرت سقف session mode في
-# سوبابيز وmybible اترفضت اتصالاته. 8+5=13 هو اللي بيشتغل.
-PG_POOL_MAX = "8"
+PG_POOL_MAX = "6"
+SERVICEFLOW_CURRENT_PG_POOL_MAX = "1"
 
 [userenv.shared]
+PG_POOL_MAX = "6"
+SERVICEFLOW_CURRENT_PG_POOL_MAX = "1"
 
