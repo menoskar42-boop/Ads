@@ -5693,7 +5693,7 @@ export async function registerRoutes(
       LEFT JOIN phone_lines pl ON pl.full_phone = la.full_phone
       LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone
       LEFT JOIN LATERAL (
-        SELECT c.current_speed, c.max_speed, c.score
+         SELECT c.current_speed, c.max_speed, c.score, c.po_status
         FROM case_138 c
         WHERE c.full_phone = la.full_phone
         ORDER BY c.id DESC
@@ -5724,6 +5724,7 @@ export async function registerRoutes(
             c138.current_speed AS "lineCurrentSpeed",
             c138.max_speed AS "lineMaxSpeed",
             c138.score AS "lastMeasScore",
+             c138.po_status AS "poStatus",
            pl.idu_no AS "iduNo",
            pl.odu_no AS "oduNo",
            pl.dp_terminal AS "dpTerminal",
