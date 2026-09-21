@@ -47,6 +47,20 @@ app.locals.title = "نظام صيانة البوكسات";
 
 app.use("/static", express.static(path.join(__dirname, "static")));
 
+// نفس أيقونة Service Flow لكل صفحات الصيانة — التطبيق مدموج تحت /maintenance،
+// لذلك لا نعتمد على /favicon.png الخاص بالمضيف (قد يكون أيقونة أوسكار ديفز).
+// فى التطوير تكون الأيقونة فى client/public، وبعد البناء تكون فى dist/public.
+app.get("/favicon.png", (req, res) => {
+  const candidates = [
+    path.resolve(__dirname, "../../../client/public/favicon.png"),
+    path.resolve(__dirname, "../../public/favicon.png"),
+  ];
+  const favicon = candidates.find((file) => fs.existsSync(file));
+  if (!favicon) return res.status(404).end();
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  return res.type("png").sendFile(favicon);
+});
+
 // خدمة الصور: من الملفات (مسارات احتياطية) ثم من عمود BYTEA فى PostgreSQL.
 const UPLOAD_CANDIDATES = [
   path.join(DATA_DIR, "uploads"),

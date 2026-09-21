@@ -5478,7 +5478,7 @@ export async function registerRoutes(
   app.get("/api/phone-lines/with-account", requireAuth, async (req, res) => {
     const { search = "", central = "", cabin = "", box = "", boxFrom = "", boxTo = "",
             page = "1", limit = "50", accountQ = "", staleDays = "", hasComplaint = "",
-            scoreGt = "", scoreLt = "", speedGt = "", speedLt = "", neverMeasured = "" } = req.query as Record<string, string>;
+            hasMobile = "", scoreGt = "", scoreLt = "", speedGt = "", speedLt = "", neverMeasured = "" } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const q = search.trim().toLowerCase();
@@ -5507,6 +5507,14 @@ export async function registerRoutes(
       conds.push(complaintExistsClause);
     } else if (hasComplaint === "0" || hasComplaint === "false") {
       conds.push(`NOT ${complaintExistsClause}`);
+    }
+    // فلتر «لها رقم موبايل»: نفس مجموعة المصادر والأولوية المستخدمة فى عمود الموبايل
+    // وتقرير «بدون رقم موبايل» (إدخال يدوى / أوامر شغل / طلبات FTTH).
+    const hasMobileClause = `${phoneNormSql("la.full_phone")} IN ${HAS_MOBILE_SET}`;
+    if (hasMobile === "1" || hasMobile === "true") {
+      conds.push(hasMobileClause);
+    } else if (hasMobile === "0" || hasMobile === "false") {
+      conds.push(`NOT ${hasMobileClause}`);
     }
     if (central) { params.push(central); conds.push(`pl.central = $${params.length}`); }
     if (cabin) { params.push(cabin); conds.push(`pl.cabin_number = $${params.length}`); }
@@ -5683,7 +5691,14 @@ export async function registerRoutes(
     const joinClause = `FROM complaint_summary cs
       JOIN line_accounts la ON ${sp("la.full_phone")} = cs.short_phone
       LEFT JOIN phone_lines pl ON pl.full_phone = la.full_phone
-      LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone`;
+      LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone
+      LEFT JOIN LATERAL (
+        SELECT c.current_speed, c.max_speed, c.score
+        FROM case_138 c
+        WHERE c.full_phone = la.full_phone
+        ORDER BY c.id DESC
+        LIMIT 1
+      ) c138 ON true`;
     const where = `WHERE ${lineConds.join(" AND ")}`;
 
     const totalRes = await pool.query(
@@ -5706,6 +5721,9 @@ export async function registerRoutes(
            pl.central,
            pl.cabin_number AS "cabinNumber",
            pl.box_number AS "boxNumber",
+            c138.current_speed AS "lineCurrentSpeed",
+            c138.max_speed AS "lineMaxSpeed",
+            c138.score AS "lastMeasScore",
            pl.idu_no AS "iduNo",
            pl.odu_no AS "oduNo",
            pl.dp_terminal AS "dpTerminal",

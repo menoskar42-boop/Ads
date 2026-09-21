@@ -22,6 +22,9 @@ type Row = {
   central: string | null;
   cabinNumber: string | null;
   boxNumber: string | null;
+  lineCurrentSpeed: string | number | null;
+  lineMaxSpeed: string | number | null;
+  lastMeasScore: string | number | null;
   iduNo: string | null;
   oduNo: string | null;
   dpTerminal: string | null;
@@ -125,6 +128,9 @@ export function AccountComplaintsReport() {
       "السنترال": r.central ?? "",
       "الكابينة": r.cabinNumber ?? "",
       "البكس": r.boxNumber ?? "",
+      "السرعة الحالية": r.lineCurrentSpeed ?? "",
+      "أقصى سرعة": r.lineMaxSpeed ?? "",
+      "الاسكور": r.lastMeasScore ?? "",
       "رقم التليفون": r.telNo,
       "IDU": r.iduNo ?? "",
       "ODU": r.oduNo ?? "",
@@ -199,6 +205,9 @@ export function AccountComplaintsReport() {
                     <TableHead className="font-bold whitespace-nowrap">السنترال</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">الكابينة</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">البكس</TableHead>
+                    <TableHead className="font-bold whitespace-nowrap">السرعة الحالية</TableHead>
+                    <TableHead className="font-bold whitespace-nowrap">أقصى سرعة</TableHead>
+                    <TableHead className="font-bold whitespace-nowrap">الاسكور</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">التليفون المختصر</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">IDU</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">ODU</TableHead>
@@ -226,6 +235,9 @@ export function AccountComplaintsReport() {
                       <TableCell className="whitespace-nowrap">{r.central || "-"}</TableCell>
                       <TableCell>{r.cabinNumber || "-"}</TableCell>
                       <TableCell>{r.boxNumber || "-"}</TableCell>
+                      <TableCell className="font-mono">{r.lineCurrentSpeed ?? "-"}</TableCell>
+                      <TableCell className="font-mono">{r.lineMaxSpeed ?? "-"}</TableCell>
+                      <TableCell className="font-mono">{r.lastMeasScore ?? "-"}</TableCell>
                       <TableCell className="font-mono text-muted-foreground">{r.telNo || "-"}</TableCell>
                       <TableCell>{r.iduNo || "-"}</TableCell>
                       <TableCell>{r.oduNo || "-"}</TableCell>
@@ -235,7 +247,7 @@ export function AccountComplaintsReport() {
                     </TableRow>
                   ))}
                   {!data?.data.length && (
-                    <TableRow><TableCell colSpan={15} className="text-center text-muted-foreground py-10">لا توجد نتائج في النطاق المحدد</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={18} className="text-center text-muted-foreground py-10">لا توجد نتائج في النطاق المحدد</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
