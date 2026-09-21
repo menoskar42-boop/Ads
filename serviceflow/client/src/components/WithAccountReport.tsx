@@ -138,6 +138,8 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
   const [staleOn, setStaleOn] = useState(false);
   // فلتر الشكوى: الكل / لها شكوى / ليس لها شكوى
   const [complaintFilter, setComplaintFilter] = useState<ComplaintFilter>("all");
+  // فلتر رقم الموبايل: يطبّق على التقرير والتصدير وأوامر القياس بنفس الطريقة.
+  const [hasMobileOnly, setHasMobileOnly] = useState(false);
   const [editingPhone, setEditingPhone] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
@@ -176,7 +178,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/phone-lines/with-account", central, cabin, box, boxFrom, boxTo, page, scoreGt ?? "", scoreEq ?? "", neverMeasured ?? false, scoreMin, scoreMax, speedMin, speedMax, accountQ, staleOn, staleDays, complaintFilter, excludeQueued],
+    queryKey: ["/api/phone-lines/with-account", central, cabin, box, boxFrom, boxTo, page, scoreGt ?? "", scoreEq ?? "", neverMeasured ?? false, scoreMin, scoreMax, speedMin, speedMax, accountQ, staleOn, staleDays, complaintFilter, hasMobileOnly, excludeQueued],
     queryFn: async () => {
       // نفس باني البارامترات بتاع القياس/التصدير — مصدر واحد فمفيش فلتر يتنسى
       const params = filterParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -266,6 +268,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
     if (staleOn && staleDays.trim()) params.set("staleDays", staleDays.trim());
     if (excludeQueued) params.set("excludeQueued", excludeQueued);
     if (complaintFilter !== "all") params.set("hasComplaint", complaintFilter === "has" ? "1" : "0");
+    if (hasMobileOnly) params.set("hasMobile", "1");
     if (scoreGt != null) params.set("scoreGt", String(scoreGt));
     // اسكور مساوٍ بالظبط: السيرفر بيقارن بـ > و < بس، والاسكور عدد صحيح
     if (scoreEq != null) { params.set("scoreGt", String(scoreEq - 1)); params.set("scoreLt", String(scoreEq + 1)); }
@@ -626,6 +629,16 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
               <option value="has">لها شكوى</option>
               <option value="none">ليس لها شكوى</option>
             </select>
+            <Button
+              variant={hasMobileOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setHasMobileOnly((v) => !v); setPage(1); }}
+              className={`h-9 text-sm ${hasMobileOnly ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "text-emerald-700 border-emerald-200"}`}
+              title="عرض الخطوط التي لها رقم موبايل فقط"
+              aria-pressed={hasMobileOnly}
+            >
+              {hasMobileOnly ? "الموبايل: مفعّل" : "لها رقم موبايل"}
+            </Button>
             {showSpeedTools && (<>
             <Button variant="outline" size="sm" onClick={handleMeasureDZS} disabled={dzsLoading} className="text-blue-700 border-blue-200 gap-1">
               {dzsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />} قياس DZS
