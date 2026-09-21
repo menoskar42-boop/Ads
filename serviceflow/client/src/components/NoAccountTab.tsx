@@ -4,10 +4,14 @@ import { RegularizedNoAccountReport } from "@/components/RegularizedNoAccountRep
 import { GroundFaultsNoAccountReport } from "@/components/GroundFaultsNoAccountReport";
 import { MarkedNoAccountReport } from "@/components/MarkedNoAccountReport";
 import { WithAccountReport } from "@/components/WithAccountReport";
+import { UrgentNoAccountReport } from "@/components/UrgentNoAccountReport";
+import { useAuth } from "@/hooks/use-auth";
+import { ROLES } from "@shared/schema";
 
-type SubTab = "lines" | "regularized" | "ground" | "marked" | "score103";
+type SubTab = "urgent" | "lines" | "regularized" | "ground" | "marked" | "score103";
 
 const TABS: { id: SubTab; label: string }[] = [
+  { id: "urgent",      label: "أرقام بدون اكونت عاجل" },
   { id: "lines",       label: "الخطوط بدون رقم أكونت" },
   { id: "regularized", label: "أعطال منتظمة بدون أكونت" },
   { id: "ground",      label: "أعطال أرضية بدون رقم أكونت" },
@@ -16,12 +20,16 @@ const TABS: { id: SubTab; label: string }[] = [
 ];
 
 export function NoAccountTab() {
-  const [tab, setTab] = useState<SubTab>("regularized");
+  const { user } = useAuth();
+  const [tab, setTab] = useState<SubTab>("urgent");
+  const visibleTabs = user?.role === ROLES.DATA_MANAGER
+    ? TABS.filter((item) => item.id === "urgent")
+    : TABS;
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex flex-wrap gap-1 border-b">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -36,6 +44,7 @@ export function NoAccountTab() {
         ))}
       </div>
 
+      {tab === "urgent"      && <UrgentNoAccountReport />}
       {tab === "lines"       && <WithoutAccountReport />}
       {tab === "regularized" && <RegularizedNoAccountReport />}
       {tab === "ground"      && <GroundFaultsNoAccountReport />}
