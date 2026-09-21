@@ -29,6 +29,22 @@ app.set("views", path.join(__dirname, "views"));
 app.use(basePath(BASE_PATH));
 app.locals.base = BASE_PATH;
 
+/* قيم افتراضية للقوالب — شبكة أمان لصفحة الخطأ.
+ *
+ * `error.ejs` بيـinclude ‏`partials/header.ejs`، والهيدر بيستخدم `user` و`title`
+ * و`flash`. القيم دى بتتحط فى middleware بعدين — فأى خطأ بيحصل **قبلها** (أو
+ * أى نداء بيرسم صفحة خطأ من غير ما يعدّى عليها) بيخلّى الهيدر يقع بـ
+ * «user is not defined»، وصفحة الخطأ نفسها بتموت وتخبّى السبب الحقيقى.
+ *
+ * ده حصل فعلاً: فنى الصيانة ضغط على صورة مش ظاهرة، فطلعت رسالة EJS طويلة
+ * آخرها «user is not defined» — ومحدّش عرف إيه اللى غلط فى الصورة أصلاً.
+ *
+ * Express بيدمج app.locals → res.locals → متغيّرات الـrender، فالافتراضى هنا
+ * بيتغطّى بأى قيمة حقيقية بعدين، ومابيأثرش على أى صفحة شغّالة. */
+app.locals.user = null;
+app.locals.flash = null;
+app.locals.title = "نظام صيانة البوكسات";
+
 app.use("/static", express.static(path.join(__dirname, "static")));
 
 // خدمة الصور: من الملفات (مسارات احتياطية) ثم من عمود BYTEA فى PostgreSQL.
@@ -128,9 +144,11 @@ app.use(async (req, res, next) => {
       }
     }
   } catch (e) { console.error("[maintenance] SSO upsert failed:", e.message); }
-  res.locals.user = req.session.user || null;
-  res.locals.flash = req.session.flash || null;
-  if (req.session.flash) delete req.session.flash;
+  // ?. لأن الخطأ ممكن يحصل قبل الجلسة ما تتركّب — وساعتها ده كان بيرمى
+  // TypeError ويوصّلنا لنفس صفحة الخطأ المكسورة.
+  res.locals.user = req.session?.user || null;
+  res.locals.flash = req.session?.flash || null;
+  if (req.session?.flash) delete req.session.flash;
   next();
 });
 

@@ -105,6 +105,7 @@ const CHECKS = [
   ['check-serviceflow-path','باب /serviceflow: اللي بيتبنى يطابق اللي بيتشال'],
   ['check-po-stop-stale','الخط اللي اتوقف بعد قياسه مايرجعش يطلب إيقاف تاني'],
   ['check-serviceflow-icon','أيقونة Service Flow بتاعتها مش بتاعة أوسكار ديفز'],
+  ['check-maintenance-error-page','صفحة خطأ الصيانة بترسم وبتقول السبب مش بتقع'],
   ['check-kid-mic','ميكروفون الأطفال بيتطلب وقت الضغطة، والرفض بيقول سببه'],
   ['check-login-leak',      'الدخول مابيكشفش حالة الطلب ولا ملاحظات المراجعة'],
   ['check-upload-type',     'الملف المرفوع بيتفحص من بايتاته مش من كلام العميل'],
