@@ -29,7 +29,7 @@ if (!process.env.DATABASE_URL) {
 const archiveDatabaseUrl = process.env.DATABASE_URL;
 const currentDatabaseUrl = String(process.env.SERVICEFLOW_CURRENT_DATABASE_URL || "").trim();
 const configuredCurrentPoolMax = Number.parseInt(
-  process.env.SERVICEFLOW_CURRENT_PG_POOL_MAX || "2",
+  process.env.SERVICEFLOW_CURRENT_PG_POOL_MAX || "1",
   10,
 );
 const currentPoolMax = Number.isFinite(configuredCurrentPoolMax) && configuredCurrentPoolMax > 0

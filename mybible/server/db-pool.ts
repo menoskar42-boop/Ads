@@ -1,7 +1,7 @@
 import pg from "pg";
 
 const configuredMax = Number.parseInt(
-  process.env.MYBIBLE_PG_POOL_MAX || "5",
+  process.env.MYBIBLE_PG_POOL_MAX || "4",
   10,
 );
 const max = Number.isFinite(configuredMax) && configuredMax > 0
@@ -13,7 +13,7 @@ const max = Number.isFinite(configuredMax) && configuredMax > 0
  * ceiling below Supabase's limit; parallel requests wait here instead of
  * failing with EMAXCONNSESSION.
  *
- * ⚠️ السقف الافتراضي هنا **٥** عمداً. صفحة المجموعة قد تطلق أكثر من
+ * ⚠️ السقف الافتراضي هنا **٤** عمداً. صفحة المجموعة قد تطلق أكثر من
  * نداء في نفس اللحظة، لكن الطلبات تنتظر داخل هذا الـPool بدل أن تفتح
  * اتصالات تتجاوز سقف Session Pooler المشترك مع Ads وService Flow.
  * إعداد الإنتاج يستطيع تغييره صراحة عبر MYBIBLE_PG_POOL_MAX. */

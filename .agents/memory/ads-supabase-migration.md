@@ -21,6 +21,12 @@ Service Flow's optional current-snapshot pool can also point at the same Ads Sup
 
 **How to apply:** Include the Service Flow current pool in the connection budget and give it an explicit small maximum; do not rely on node-postgres's default pool size.
 
+Keep a real reserve below the Session Pooler ceiling, and serialize startup migrations/seed work in MyBible instead of launching all writes concurrently.
+
+**Why:** The nominal 15-client ceiling was still exhausted during rolling startup and session-store initialization when application pools were configured to consume nearly all slots.
+
+**How to apply:** Budget the co-hosted processes to roughly nine total clients by default and leave the remaining slots for rolling deploys, session requests, backups, and administrative connections.
+
 The backup scheduler must start after the application's additive schema migrations finish, not immediately when the HTTP port opens.
 
 **Why:** `pg_dump` can wait behind startup DDL on a fresh process; starting it too early left an active backup lock and no completed archive.

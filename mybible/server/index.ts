@@ -182,87 +182,112 @@ app.use((req, res, next) => {
       host: "0.0.0.0",
       reusePort: true,
     },
-    () => {
+    async () => {
       log(`serving on port ${port}`);
-      
-      // إضافة أعمدة جديدة إن لم تكن موجودة (migration آمنة)
-      dbPool.query(`ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS auto_reading_config jsonb DEFAULT NULL`)
-        .catch(e => console.warn('[migration] auto_reading_config:', e.message));
-      dbPool.query(`ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS messaging_mode text DEFAULT 'all'`)
-        .catch(e => console.warn('[migration] reading_groups.messaging_mode:', e.message));
 
-      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS image_url text`)
-        .catch(e => console.warn('[migration] group_messages.image_url:', e.message));
-      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_id integer`)
-        .catch(e => console.warn('[migration] group_messages.reply_to_id:', e.message));
-      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_text text`)
-        .catch(e => console.warn('[migration] group_messages.reply_to_text:', e.message));
-      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_user_name text`)
-        .catch(e => console.warn('[migration] group_messages.reply_to_user_name:', e.message));
-      dbPool.query(`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reactions jsonb DEFAULT '[]'::jsonb`)
-        .catch(e => console.warn('[migration] group_messages.reactions:', e.message));
+      // Run startup writes one at a time. MyBible shares Supabase's small
+      // Session Pooler with the parent app, so launching every migration and
+      // auto-seed concurrently can consume all available clients before a
+      // login/session request gets a turn.
+      const migration = async (name: string, query: string) => {
+        try {
+          return await dbPool.query(query);
+        } catch (error) {
+          console.warn(`[migration] ${name}:`, (error as Error).message);
+          return null;
+        }
+      };
 
-      dbPool.query(`CREATE TABLE IF NOT EXISTS group_push_subscriptions (
-        id serial primary key,
-        group_id integer not null,
-        group_code text not null,
-        user_name text not null,
-        member_key text not null,
-        endpoint text not null,
-        p256dh text not null,
-        auth text not null,
-        created_at timestamp default now(),
-        updated_at timestamp default now(),
-        UNIQUE(group_id, endpoint)
-      )`).catch(e => console.warn('[migration] group_push_subscriptions:', e.message));
+      await migration(
+        "auto_reading_config",
+        `ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS auto_reading_config jsonb DEFAULT NULL`,
+      );
+      await migration(
+        "reading_groups.messaging_mode",
+        `ALTER TABLE reading_groups ADD COLUMN IF NOT EXISTS messaging_mode text DEFAULT 'all'`,
+      );
+      await migration(
+        "group_messages.image_url",
+        `ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS image_url text`,
+      );
+      await migration(
+        "group_messages.reply_to_id",
+        `ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_id integer`,
+      );
+      await migration(
+        "group_messages.reply_to_text",
+        `ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_text text`,
+      );
+      await migration(
+        "group_messages.reply_to_user_name",
+        `ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reply_to_user_name text`,
+      );
+      await migration(
+        "group_messages.reactions",
+        `ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reactions jsonb DEFAULT '[]'::jsonb`,
+      );
+      await migration(
+        "group_push_subscriptions",
+        `CREATE TABLE IF NOT EXISTS group_push_subscriptions (
+          id serial primary key,
+          group_id integer not null,
+          group_code text not null,
+          user_name text not null,
+          member_key text not null,
+          endpoint text not null,
+          p256dh text not null,
+          auth text not null,
+          created_at timestamp default now(),
+          updated_at timestamp default now(),
+          UNIQUE(group_id, endpoint)
+        )`,
+      );
+      await migration(
+        "gps constraint upgrade",
+        `ALTER TABLE group_push_subscriptions DROP CONSTRAINT IF EXISTS group_push_subscriptions_endpoint_key;
+         CREATE UNIQUE INDEX IF NOT EXISTS gps_group_endpoint_idx
+         ON group_push_subscriptions(group_id, endpoint)`,
+      );
+      await migration(
+        "app_settings",
+        `CREATE TABLE IF NOT EXISTS app_settings (
+          key text primary key,
+          value text not null,
+          updated_at timestamp default now()
+        )`,
+      );
 
-      // ترقية constraint من UNIQUE(endpoint) إلى UNIQUE(group_id, endpoint)
-      // على القواعد القديمة التي أُنشئت قبل هذا التعديل
-      dbPool.query(`
-        ALTER TABLE group_push_subscriptions DROP CONSTRAINT IF EXISTS group_push_subscriptions_endpoint_key;
-        CREATE UNIQUE INDEX IF NOT EXISTS gps_group_endpoint_idx ON group_push_subscriptions(group_id, endpoint)
-      `).catch(e => console.warn('[migration] gps constraint upgrade:', e.message));
+      const duplicateMembers = await migration(
+        "dedup group_members",
+        `DELETE FROM group_members gm
+         WHERE gm.phone IS NOT NULL
+           AND gm.id NOT IN (
+             SELECT DISTINCT ON (group_id, phone)
+               CASE WHEN bool_or(is_admin) OVER (PARTITION BY group_id, phone)
+                    THEN first_value(id) OVER (PARTITION BY group_id, phone ORDER BY is_admin DESC, joined_at DESC)
+                    ELSE first_value(id) OVER (PARTITION BY group_id, phone ORDER BY joined_at DESC)
+               END
+             FROM group_members
+             WHERE phone IS NOT NULL
+           )`,
+      );
+      if (duplicateMembers?.rowCount) {
+        console.log(`[startup] removed ${duplicateMembers.rowCount} duplicate group member(s) with same phone`);
+      }
+      await migration(
+        "gm_group_phone_unique_idx",
+        `CREATE UNIQUE INDEX IF NOT EXISTS gm_group_phone_unique_idx
+         ON group_members (group_id, phone)
+         WHERE phone IS NOT NULL`,
+      );
 
-      dbPool.query(`CREATE TABLE IF NOT EXISTS app_settings (
-        key text primary key,
-        value text not null,
-        updated_at timestamp default now()
-      )`).catch(e => console.warn('[migration] app_settings:', e.message));
-
-      // تنظيف الأعضاء المكررين بنفس رقم الموبايل في المجموعة الواحدة
-      // يحتفظ بالأدمن إن وُجد، وإلا بالأحدث تاريخاً
-      dbPool.query(`
-        DELETE FROM group_members gm
-        WHERE gm.phone IS NOT NULL
-          AND gm.id NOT IN (
-            SELECT DISTINCT ON (group_id, phone)
-              CASE WHEN bool_or(is_admin) OVER (PARTITION BY group_id, phone)
-                   THEN first_value(id) OVER (PARTITION BY group_id, phone ORDER BY is_admin DESC, joined_at DESC)
-                   ELSE first_value(id) OVER (PARTITION BY group_id, phone ORDER BY joined_at DESC)
-              END
-            FROM group_members
-            WHERE phone IS NOT NULL
-          )
-      `).then(r => {
-        if (r.rowCount) console.log(`[startup] removed ${r.rowCount} duplicate group member(s) with same phone`);
-      }).catch(e => console.warn('[migration] dedup group_members:', e.message));
-
-      // إضافة unique index على (group_id, phone) لمنع التكرار مستقبلاً
-      dbPool.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS gm_group_phone_unique_idx
-        ON group_members (group_id, phone)
-        WHERE phone IS NOT NULL
-      `).catch(e => console.warn('[migration] gm_group_phone_unique_idx:', e.message));
-
-      // Run database seeding in the background after server starts
       console.log('[startup] Starting background database seed...');
-      autoSeedIfNeeded()
-        .then(() => {
-          console.log('[startup] Background database seed complete');
-        })
-        .catch((error) => {
-          console.error('[startup] Background database seed failed:', error);
-        });
+      try {
+        await autoSeedIfNeeded();
+        console.log('[startup] Background database seed complete');
+      } catch (error) {
+        console.error('[startup] Background database seed failed:', (error as Error).message);
+      }
     },
   );
 })();
