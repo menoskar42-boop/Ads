@@ -1066,6 +1066,7 @@ export const customerContactLogs = pgTable("customer_contact_logs", {
   id: serial("id").primaryKey(),
   fullPhone: text("full_phone").notNull(),
   outcome: text("outcome").notNull(),
+  notes: text("notes"),
   contactedAt: timestamp("contacted_at", { withTimezone: true }).defaultNow().notNull(),
   contactedById: integer("contacted_by_id").references(() => users.id),
   contactedByName: text("contacted_by_name"),

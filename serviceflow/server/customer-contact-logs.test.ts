@@ -16,8 +16,10 @@ const actions = readFileSync(
 test("customer contact logs are stored with an outcome and server timestamp", () => {
   assert.match(db, /CREATE TABLE IF NOT EXISTS customer_contact_logs/);
   assert.match(db, /outcome text NOT NULL CHECK \(outcome IN \('answered', 'no_answer'\)\)/);
+  assert.match(db, /ADD COLUMN IF NOT EXISTS notes text/);
   assert.match(routes, /app\.post\("\/api\/customer-contact-logs", requireAuth/);
   assert.match(routes, /INSERT INTO customer_contact_logs/);
+  assert.match(routes, /notes/);
   assert.match(routes, /contacted_by_id, contacted_by_name/);
 });
 
@@ -25,6 +27,8 @@ test("the line details dialog owns the contact actions and exposes full history"
   assert.match(dialog, /<CustomerContactActions phone=\{phone\} \/>/);
   assert.match(actions, /تم الاتصال والعميل رد/);
   assert.match(actions, /تم الاتصال ولم يرد العميل/);
+  assert.match(actions, /ملاحظات/);
+  assert.match(actions, /nextNotes/);
   assert.match(actions, /\/api\/customer-contact-logs\?phone=/);
   assert.match(actions, /invalidateQueries\(\{ queryKey: \["\/api\/phone-lines\/account-complaints"\] \}\)/);
 });

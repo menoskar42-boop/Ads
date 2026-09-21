@@ -1451,6 +1451,10 @@ export async function ensureSchema() {
     )
   `);
   await pool.query(`
+    ALTER TABLE customer_contact_logs
+      ADD COLUMN IF NOT EXISTS notes text
+  `);
+  await pool.query(`
     CREATE INDEX IF NOT EXISTS customer_contact_logs_phone_time_idx
       ON customer_contact_logs (full_phone, contacted_at DESC, id DESC)
   `);

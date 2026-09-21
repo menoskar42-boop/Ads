@@ -12,12 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export type ContactOutcome = "answered" | "no_answer";
 
 type ContactLog = {
   id: number;
   outcome: ContactOutcome;
+  notes: string | null;
   contactedAt: string;
   contactedByName: string | null;
 };
@@ -45,6 +47,7 @@ export function CustomerContactActions({ phone }: { phone: string }) {
   const [recordOpen, setRecordOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [outcome, setOutcome] = useState<ContactOutcome>("answered");
+  const [notes, setNotes] = useState("");
 
   const logsQuery = useQuery({
     queryKey: ["/api/customer-contact-logs", phone],
@@ -59,12 +62,12 @@ export function CustomerContactActions({ phone }: { phone: string }) {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async (nextOutcome: ContactOutcome) => {
+    mutationFn: async ({ nextOutcome, nextNotes }: { nextOutcome: ContactOutcome; nextNotes: string }) => {
       const res = await fetch("/api/customer-contact-logs", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullPhone: phone, outcome: nextOutcome }),
+        body: JSON.stringify({ fullPhone: phone, outcome: nextOutcome, notes: nextNotes }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message || "تعذّر حفظ الاتصال");
@@ -72,6 +75,7 @@ export function CustomerContactActions({ phone }: { phone: string }) {
     },
     onSuccess: async () => {
       setRecordOpen(false);
+      setNotes("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/customer-contact-logs", phone] }),
         queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/account-complaints"] }),
@@ -87,7 +91,7 @@ export function CustomerContactActions({ phone }: { phone: string }) {
           variant="outline"
           size="sm"
           className="h-7 gap-1 px-2 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-          onClick={() => { setOutcome("answered"); setRecordOpen(true); }}
+           onClick={() => { setOutcome("answered"); setNotes(""); setRecordOpen(true); }}
           title="تسجيل اتصال بالعميل"
         >
           <PhoneCall className="h-3.5 w-3.5" />
@@ -138,6 +142,21 @@ export function CustomerContactActions({ phone }: { phone: string }) {
               </span>
             </label>
           </RadioGroup>
+          <div className="space-y-1.5">
+            <Label htmlFor={`contact-notes-${phone}`}>ملاحظات</Label>
+            <Textarea
+              id={`contact-notes-${phone}`}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="اكتب أي تفاصيل مهمة عن المكالمة..."
+              maxLength={2000}
+              rows={3}
+              className="resize-y"
+            />
+            <p className="text-xs text-muted-foreground text-left" dir="ltr">
+              {notes.length}/2000
+            </p>
+          </div>
           {saveMutation.isError && (
             <p className="text-sm text-red-600">{(saveMutation.error as Error).message}</p>
           )}
@@ -145,7 +164,11 @@ export function CustomerContactActions({ phone }: { phone: string }) {
             <Button type="button" variant="outline" onClick={() => setRecordOpen(false)} disabled={saveMutation.isPending}>
               إلغاء
             </Button>
-            <Button type="button" onClick={() => saveMutation.mutate(outcome)} disabled={saveMutation.isPending}>
+            <Button
+              type="button"
+              onClick={() => saveMutation.mutate({ nextOutcome: outcome, nextNotes: notes })}
+              disabled={saveMutation.isPending}
+            >
               {saveMutation.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
               حفظ الاتصال
             </Button>
@@ -176,6 +199,7 @@ export function CustomerContactActions({ phone }: { phone: string }) {
                   <tr>
                     <th className="p-2 font-semibold">وقت الاتصال</th>
                     <th className="p-2 font-semibold">النتيجة</th>
+                    <th className="p-2 font-semibold">الملاحظات</th>
                     <th className="p-2 font-semibold">بواسطة</th>
                   </tr>
                 </thead>
@@ -184,6 +208,7 @@ export function CustomerContactActions({ phone }: { phone: string }) {
                     <tr key={log.id} className="border-t">
                       <td className="p-2 whitespace-nowrap">{formatContactTime(log.contactedAt)}</td>
                       <td className="p-2">{outcomeLabel(log.outcome)}</td>
+                      <td className="p-2 whitespace-pre-wrap break-words">{log.notes || "-"}</td>
                       <td className="p-2">{log.contactedByName || "-"}</td>
                     </tr>
                   ))}

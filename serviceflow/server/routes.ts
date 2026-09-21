@@ -5757,7 +5757,8 @@ export async function registerRoutes(
     const fullPhone = String((req.query as any).phone || "").trim();
     if (!fullPhone) return res.json({ data: [] });
     const { rows } = await pool.query(`
-      SELECT id, outcome, contacted_at AS "contactedAt",
+       SELECT id, outcome, notes,
+              contacted_at AS "contactedAt",
              contacted_by_name AS "contactedByName"
       FROM customer_contact_logs
       WHERE full_phone = $1
@@ -5770,21 +5771,25 @@ export async function registerRoutes(
   app.post("/api/customer-contact-logs", requireAuth, async (req: any, res) => {
     const fullPhone = String(req.body?.fullPhone || "").trim();
     const outcome = String(req.body?.outcome || "").trim();
+    const notes = String(req.body?.notes || "").trim();
     if (!/^\d{5,20}$/.test(fullPhone)) {
       return res.status(400).json({ message: "رقم التليفون غير صالح" });
     }
     if (outcome !== "answered" && outcome !== "no_answer") {
       return res.status(400).json({ message: "نتيجة الاتصال غير صالحة" });
     }
+    if (notes.length > 2000) {
+      return res.status(400).json({ message: "الملاحظات يجب ألا تتجاوز 2000 حرف" });
+    }
     const userId = Number.isInteger(req.user?.id) ? req.user.id : null;
     const userName = String(req.user?.fullName || req.user?.username || "").trim() || null;
     const { rows } = await pool.query(`
       INSERT INTO customer_contact_logs
-        (full_phone, outcome, contacted_by_id, contacted_by_name)
-      VALUES ($1, $2, $3, $4)
+        (full_phone, outcome, notes, contacted_by_id, contacted_by_name)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING id, outcome, contacted_at AS "contactedAt",
-                contacted_by_name AS "contactedByName"
-    `, [fullPhone, outcome, userId, userName]);
+                notes, contacted_by_name AS "contactedByName"
+    `, [fullPhone, outcome, notes || null, userId, userName]);
     res.status(201).json({ data: rows[0] });
   });
 
