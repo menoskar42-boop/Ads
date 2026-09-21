@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mybible-v4';
-const STATIC_CACHE = 'mybible-static-v4';
+const CACHE_NAME = 'mybible-v5';
+const STATIC_CACHE = 'mybible-static-v5';
 
 /* الكاش ده اسمه **ثابت مش مرقّم**، وبتكتب فيه الواجهة نفسها
  * (`useOfflineSync.ts` و`GroupView.tsx` بينادوا `caches.open('mybible-static-v1')`).
