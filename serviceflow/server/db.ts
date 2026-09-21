@@ -28,11 +28,27 @@ if (!process.env.DATABASE_URL) {
  */
 const archiveDatabaseUrl = process.env.DATABASE_URL;
 const currentDatabaseUrl = String(process.env.SERVICEFLOW_CURRENT_DATABASE_URL || "").trim();
+const configuredCurrentPoolMax = Number.parseInt(
+  process.env.SERVICEFLOW_CURRENT_PG_POOL_MAX || "2",
+  10,
+);
+const currentPoolMax = Number.isFinite(configuredCurrentPoolMax) && configuredCurrentPoolMax > 0
+  ? configuredCurrentPoolMax
+  : 2;
 
 export const archivePool = new Pool({ connectionString: archiveDatabaseUrl });
 export const pool = archivePool;
 export const currentPool = currentDatabaseUrl
-  ? new Pool({ connectionString: currentDatabaseUrl })
+  ? new Pool({
+      connectionString: currentDatabaseUrl,
+      // This pool points at the shared Ads/MyBible Supabase project. Keep it
+      // bounded explicitly: pg's default of 10 could consume most of the
+      // session pooler's 15-client ceiling by itself.
+      max: currentPoolMax,
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 10 * 60_000,
+      keepAlive: true,
+    })
   : archivePool;
 export const hasCurrentDatabase = currentPool !== archivePool;
 export const db = drizzle(pool, { schema });

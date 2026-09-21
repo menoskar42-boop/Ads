@@ -15,6 +15,12 @@ The Session Pooler’s 15-client ceiling is shared across the parent Ads process
 
 **How to apply:** Keep one runtime pool per process and budget their maxima together; standalone maintenance scripts must not run concurrently with saturated production traffic.
 
+Service Flow's optional current-snapshot pool can also point at the same Ads Supabase Session Pooler; its connections count toward the same ceiling even though most Service Flow routes use the archive database.
+
+**Why:** The archive-backed Service Flow UI can remain healthy while a MyBible startup/session request is rejected when the secondary snapshot pool consumes the remaining shared clients.
+
+**How to apply:** Include the Service Flow current pool in the connection budget and give it an explicit small maximum; do not rely on node-postgres's default pool size.
+
 The backup scheduler must start after the application's additive schema migrations finish, not immediately when the HTTP port opens.
 
 **Why:** `pg_dump` can wait behind startup DDL on a fresh process; starting it too early left an active backup lock and no completed archive.
