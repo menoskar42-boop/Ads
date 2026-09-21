@@ -40,7 +40,11 @@ const sessionMiddleware = session({
   }),
   secret: process.env.SESSION_SECRET || 'bible-companion-secret-key-change-in-production',
   resave: false,
-  saveUninitialized: true,
+  // Anonymous page/API reads must not create a PostgreSQL session row. A
+  // session is persisted when ensureSessionUser assigns userId and explicitly
+  // calls req.session.save(), which keeps the pool available for real work
+  // during traffic spikes.
+  saveUninitialized: false,
   cookie: {
     maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
     httpOnly: true,

@@ -34,7 +34,16 @@ export function serveStatic(app: Express) {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     next();
   });
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    setHeaders(res, filePath) {
+      // Vite asset names are content-hashed. Let browsers reuse them for a
+      // year so a burst of visitors does not repeatedly consume VM bandwidth
+      // and CPU for identical JavaScript/CSS files.
+      if (filePath.startsWith(assetsPath + path.sep)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
