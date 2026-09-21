@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
-import { execDeviceLabel, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, sleep, PHONE_LOOKUP_SOURCE, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes } from "@shared/exec-timeouts";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
@@ -291,16 +291,24 @@ export function ExecutorButton() {
     // بيرجّع بيها المهمة للطابور) وهو لسه ماخلصش. معناها التاب اتجمّد جوّه المهمة —
     // النبضة ماشية عادى فالحارس القديم مكانش بيلاحظ حاجة. الريفريش بيرجّع التاب
     // لبداية نظيفة، والسيرفر بيرجّع المهمة للطابور فتتسحب تانى.
-    const stalledLane = (): string | null => {
+    const stalledLane = (): { site: string; type: ExecJobType; batchId?: string | null } | null => {
       for (const [site, r] of runningSince) {
-        if (Date.now() - r.at > rescueMinutes(r.type) * 60 * 1000) return site;
+        if (Date.now() - r.at > rescueMinutes(r.type) * 60 * 1000) {
+          return { site, type: r.type, batchId: r.batchId };
+        }
       }
       return null;
     };
     const watchdog = () => {
       const lane = stalledLane();
       if (lane) {
-        console.warn(`[exec] المسار ${lane} عدّى مهلته وهو شغّال — ريفريش تلقائى`);
+        const dailyReport = new Set<ExecJobType>(["fccdaily", "wfmdaily", "ossdaily", "weoas"]);
+        if (dailyReport.has(lane.type) && lane.batchId) {
+          // نفس مسار إنقاذ القياس: أعد كل مهام الباتش، لا المهمة الحالية فقط.
+          // الموعد يتأخر دقيقة واحدة حتى يخرج الطلب الحالي بهدوء قبل إعادة السحب.
+          scheduleExecBatchRefresh(lane.batchId);
+        }
+        console.warn(`[exec] المسار ${lane.site} عدّى مهلته وهو شغّال — ريفريش تلقائى`);
         try { window.location.reload(); } catch {}
         return;
       }
@@ -333,10 +341,11 @@ export function ExecutorButton() {
       ports: 30 * 60 * 1000,       // رفعة ملف البورتات كامل
       wfmcancel: 6 * 60 * 1000,
       wfmreport: 20 * 60 * 1000,
-      fccdaily: 20 * 60 * 1000,
-      wfmdaily: 20 * 60 * 1000,
-      ossdaily: 20 * 60 * 1000,
-      weoas: 30 * 60 * 1000,
+      // التقارير اليومية تُعاد كباتش كامل إذا علقت أكثر من ١٠ دقائق.
+      fccdaily: 10 * 60 * 1000,
+      wfmdaily: 10 * 60 * 1000,
+      ossdaily: 10 * 60 * 1000,
+      weoas: 10 * 60 * 1000,
     };
 
     const MAX_TOTAL_MS = 4 * 60 * 60 * 1000; // سقف إجمالى معقول للباتش الواحد (٤ ساعات)
@@ -562,7 +571,7 @@ export function ExecutorButton() {
     // site → { بدأ إمتى، نوع المهمة } — الحارس بيقيس بيها إن المسار وقف فى نُصّه.
     // من غيرها كان الحارس بيقيس النبضة بس: التاب حى والنبضة ماشية، والمهمة متعلّقة
     // من ١٣ دقيقة ومحدش بيعمل ريفريش (ده بالظبط اللى حصل).
-    const runningSince = new Map<string, { at: number; type: string }>();
+    const runningSince = new Map<string, { at: number; type: ExecJobType; batchId?: string | null }>();
     const showRunning = () => setCurrent(Array.from(running.values()).join(" • "));
 
     // عدد المواقع المختلفة — سقف عدد المهام اللى ممكن تشتغل مع بعض (مسار لكل موقع).
@@ -602,7 +611,7 @@ export function ExecutorButton() {
           const site = String((job as any).site || "10.42.187.101");
           const label = QUEUE_LABEL[job.type] || job.type;
           running.set(site, `${label} (${accs.length} رقم)`);
-          runningSince.set(site, { at: Date.now(), type: job.type });
+          runningSince.set(site, { at: Date.now(), type: job.type, batchId: job.batchId });
           showRunning();
           // بدون await — مسار الموقع ده بيشتغل لوحده، وحلقة السحب تقدر تجيب مهمة لموقع تانى
           void (async () => {
