@@ -5606,6 +5606,124 @@ export async function registerRoutes(
     res.json({ data: dataRes.rows, total, grandTotal, queuedExcluded, page: pageNum, pageSize });
   });
 
+  // GET /api/phone-lines/account-complaints — أرقام لها أكونت مرتبة بعدد الشكاوى
+  // المصدر هنا مقصود به شيتا 430D فقط: complaint_details و remaining_complaints.
+  app.get("/api/phone-lines/account-complaints", requireAuth, async (req, res) => {
+    const {
+      dateFrom = "", dateTo = "", search = "", central = "", cabin = "", box = "",
+      accountQ = "", page = "1", limit = "50",
+    } = req.query as Record<string, string>;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
+    const q = search.trim();
+
+    // الافتراضى: آخر سنة حتى اليوم (بتوقيت القاهرة)، مع السماح للواجهة بإرسال نطاق مختلف.
+    const cairoParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const part = (type: string) => cairoParts.find((p) => p.type === type)?.value ?? "";
+    const today = `${part("year")}-${part("month")}-${part("day")}`;
+    const fromDefault = `${String(Number(part("year")) - 1)}-${part("month")}-${part("day")}`;
+    const from = dateFrom || fromDefault;
+    const to = dateTo || today;
+
+    const params: any[] = [from, to];
+    const lineConds: string[] = [
+      "la.account_no IS NOT NULL",
+      "btrim(la.account_no) <> ''",
+      hasFrameSql("la.full_phone"),
+    ];
+    if (central) { params.push(central); lineConds.push(`pl.central = $${params.length}`); }
+    if (cabin) { params.push(cabin); lineConds.push(`pl.cabin_number = $${params.length}`); }
+    if (box) { params.push(box); lineConds.push(`pl.box_number = $${params.length}`); }
+    if (accountQ.trim()) {
+      params.push(arQ(accountQ));
+      lineConds.push(`${n("la.account_no")} LIKE $${params.length}`);
+    }
+    if (q) {
+      params.push(arQ(q));
+      const p = `$${params.length}`;
+      lineConds.push(`(
+        ${n("la.full_phone")} LIKE ${p}
+        OR ${n("COALESCE(pl.tel_no, cs.short_phone)")} LIKE ${p}
+        OR ${n("pl.central")} LIKE ${p}
+        OR ${n("pl.cabin_number")} LIKE ${p}
+        OR ${n("pl.box_number")} LIKE ${p}
+        OR ${n("la.account_no")} LIKE ${p}
+      )`);
+    }
+    if (req.user?.role === ROLES.TECH) {
+      params.push(String((req.user as any).workerCode || "").trim());
+      lineConds.push(`EXISTS (
+        SELECT 1 FROM cabinet_technicians ctx
+        WHERE ctx.central_name = pl.central
+          AND ctx.cabin_number = pl.cabin_number
+          AND ctx.worker_code = $${params.length}
+      )`);
+    }
+
+    const complaintCte = `WITH complaint_rows AS (
+      SELECT ${sp("cd.phone_number")} AS short_phone, cd.complain_time
+      FROM complaint_details cd
+      WHERE cd.complain_time IS NOT NULL
+        AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+      UNION ALL
+      SELECT ${sp("rc.phone_number")} AS short_phone, rc.complain_time
+      FROM remaining_complaints rc
+      WHERE rc.complain_time IS NOT NULL
+        AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+    ), complaint_summary AS (
+      SELECT short_phone, COUNT(*)::int AS complaint_count,
+             MIN(complain_time) AS earliest_complaint,
+             MAX(complain_time) AS latest_complaint
+      FROM complaint_rows
+      WHERE short_phone <> ''
+      GROUP BY short_phone
+    )`;
+    const joinClause = `FROM complaint_summary cs
+      JOIN line_accounts la ON ${sp("la.full_phone")} = cs.short_phone
+      LEFT JOIN phone_lines pl ON pl.full_phone = la.full_phone
+      LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone`;
+    const where = `WHERE ${lineConds.join(" AND ")}`;
+
+    const totalRes = await pool.query(
+      `${complaintCte} SELECT COUNT(DISTINCT la.full_phone)::int AS c ${joinClause} ${where}`,
+      params,
+    );
+    const total = totalRes.rows[0]?.c ?? 0;
+
+    const offset = (pageNum - 1) * pageSize;
+    params.push(pageSize, offset);
+    const dataRes = await pool.query(
+      `${complaintCte}
+       SELECT * FROM (
+         SELECT DISTINCT ON (la.full_phone)
+           pl.id,
+           la.full_phone AS "fullPhone",
+           COALESCE(pl.tel_no, cs.short_phone) AS "telNo",
+           la.account_no AS "accountNo",
+           la.source AS "accountSource",
+           pl.central,
+           pl.cabin_number AS "cabinNumber",
+           pl.box_number AS "boxNumber",
+           pl.idu_no AS "iduNo",
+           pl.odu_no AS "oduNo",
+           pl.dp_terminal AS "dpTerminal",
+           COALESCE(pp.frame, pl.port) AS port,
+           pl.len,
+           cs.complaint_count AS "complaintCount",
+           (cs.earliest_complaint AT TIME ZONE 'Africa/Cairo') AS "earliestComplaint",
+           (cs.latest_complaint AT TIME ZONE 'Africa/Cairo') AS "latestComplaint"
+         ${joinClause} ${where}
+         ORDER BY la.full_phone, cs.complaint_count DESC
+       ) ranked
+       ORDER BY ranked."complaintCount" DESC, ranked."fullPhone"
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+    );
+    res.json({ data: dataRes.rows, total, page: pageNum, pageSize, dateFrom: from, dateTo: to });
+  });
+
   // GET /api/phone-lines/without-account — lines with no entry in line_accounts (paginated, same filters)
   app.get("/api/phone-lines/without-account", requireAuth, async (req, res) => {
     const { search = "", central = "", cabin = "", box = "", page = "1", limit = "50", complaintThisMonth = "" } = req.query as Record<string, string>;
