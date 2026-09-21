@@ -20,3 +20,17 @@ The backup scheduler must start after the application's additive schema migratio
 **Why:** `pg_dump` can wait behind startup DDL on a fresh process; starting it too early left an active backup lock and no completed archive.
 
 **How to apply:** Keep scheduled backups attached to the end of the startup schema promise and retain a timeout for the dump process.
+
+During cutover verification, MyBible production uses the shared Ads connection when
+`MYBIBLE_DATABASE_TARGET=ads-supabase`, with data isolated in the `mybible` schema.
+Migration checks must match catalog records by a stable natural key such as
+`source_key`, not by numeric IDs; the same medicine records can have different IDs
+after migration while all non-ID fields remain identical.
+
+**Why:** The two apparent medicine gaps were already present in Supabase under
+different IDs, with newer update timestamps. Inserting by the old Replit IDs would
+have created duplicates or conflicted with the migrated catalog.
+
+**How to apply:** Before copying a record, check its natural key and compare
+non-ID data fields; treat a newer timestamp in the shared Supabase row as the
+current version.
