@@ -63,14 +63,28 @@ app.get("/uploads/:filename", async (req, res) => {
     const filepath = path.join(dir, filename);
     if (fs.existsSync(filepath)) return res.sendFile(filepath);
   }
+  /* ⚠️ الـcatch هنا كان فاضى (تجاهل) — فأى فشل فى قراءة الصورة من القاعدة
+   * كان بيطلع ٤٠٤ صامت زيه زى «الصورة مش موجودة». والاتنين شكلهم واحد
+   * للمستخدم (صورة مكسورة) ومفيش ولا سطر فى اللوج يفرّق بينهم.
+   *
+   * وده وقف تشخيص بلاغ حقيقى: كل صورة **جديدة** بتطلع مكسورة والقديمة
+   * شغّالة — ومحدّش يعرف هل الصف مش موجود، ولا `data` فاضى، ولا القراءة
+   * نفسها بترمى. دلوقتى كل حالة بتقول نفسها فى اللوج. */
+  let row = null;
   try {
-    const photo = await db.get("SELECT data FROM photos WHERE filename = ?", [filename]);
-    if (photo && photo.data) {
-      res.setHeader("Content-Type", "image/jpeg");
-      res.setHeader("Cache-Control", "public, max-age=31536000");
-      return res.send(photo.data);
-    }
-  } catch (e) { /* تجاهل */ }
+    row = await db.get("SELECT data FROM photos WHERE filename = ?", [filename]);
+  } catch (e) {
+    console.error(`[maintenance] /uploads/${filename}: فشل قراءة الصورة من القاعدة:`, e.message);
+    return res.status(500).end();
+  }
+  if (row && row.data) {
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=31536000");
+    return res.send(row.data);
+  }
+  console.warn(`[maintenance] /uploads/${filename}: مفيش ملف على القرص و`
+    + (row ? "الصف موجود فى photos بس عمود data فاضى" : "مفيش صف بالاسم ده فى photos")
+    + ` — الأماكن اللى اتدوّر فيها: ${UPLOAD_CANDIDATES.join(", ")}`);
   res.status(404).end();
 });
 
