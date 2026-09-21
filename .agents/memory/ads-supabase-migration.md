@@ -34,3 +34,15 @@ have created duplicates or conflicted with the migrated catalog.
 **How to apply:** Before copying a record, check its natural key and compare
 non-ID data fields; treat a newer timestamp in the shared Supabase row as the
 current version.
+
+For MyBible cutover checks, validate that every old group/member/session row is
+present in Supabase, then treat Supabase additions and later progress updates as
+the live source of truth rather than trying to force byte-for-byte equality.
+
+**Why:** The old database was a historical snapshot: the live group gained
+members, reading logs, messages, tokens, and sessions after migration, while
+some plan-progress rows were legitimately updated later.
+
+**How to apply:** Compare stable keys and old-only counts before deleting the
+old source; do not flag newer current rows as loss, and do not overwrite newer
+Supabase progress with an older snapshot.
