@@ -1336,6 +1336,16 @@ export async function ensureSchema() {
   await pool.query(`CREATE INDEX IF NOT EXISTS case_138_full_phone_id_idx ON case_138 (full_phone, id DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS complaint_details_phone_time_idx ON complaint_details (phone_number, complain_time DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS remaining_complaints_phone_time_idx ON remaining_complaints (phone_number, complain_time DESC)`);
+  /* تقرير «عدد الأعطال فى الألف» بيفلتر بـ msan_id مش phone_number.
+   *
+   * الفهرسين اللى فوق على (phone_number, complain_time) — مابيخدموش الاستعلام
+   * ده خالص. والاستعلام بيعمل استعلام فرعى **لكل كابينة**، وكل واحد كان
+   * بيمسح الجدولين كاملين. النتيجة: التقرير بياخد دقايق قبل ما يظهر.
+   *
+   * الفهرس على (msan_id, complain_time) بيخلّى كل استعلام فرعى يقفز على صفوف
+   * الكابينة بتاعته بدل مسح الجدول. */
+  await pool.query(`CREATE INDEX IF NOT EXISTS complaint_details_msan_time_idx ON complaint_details (msan_id, complain_time)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS remaining_complaints_msan_time_idx ON remaining_complaints (msan_id, complain_time)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS phone_lines_tel_no_idx ON phone_lines (tel_no)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS phone_lines_central_cabin_box_idx ON phone_lines (central, cabin_number, box_number)`);
 
