@@ -73,6 +73,7 @@ MYBIBLE_MAINTENANCE_MODE = "false"
 MYBIBLE_SESSION_SECRET_SHA256 = "db416deb92e6797b1bb1a87b99456df44714f51880f9f7c9c38b0dc63d50743d"
 MYBIBLE_VAPID_PUBLIC_KEY_SHA256 = "2f267592ee69f6eded91d68225704bd57ec916c13974c3a123f69a08a742ba8b"
 MYBIBLE_DATABASE_TARGET = "ads-supabase"
+SERVICEFLOW_DATABASE_TARGET = "archive"
 # ⛔ **الميزانية موزّعة على كل العمليات التي قد تستخدم Session Pooler.**
 #
 # الإنتاج كان يستهلك 8 للتطبيق الرئيسي + 5 لـMyBible + 2 لـService Flow
@@ -86,6 +87,7 @@ PG_POOL_MAX = "4"
 SERVICEFLOW_CURRENT_PG_POOL_MAX = "1"
 
 [userenv.shared]
+SERVICEFLOW_DATABASE_TARGET = "archive"
 PG_POOL_MAX = "4"
 SERVICEFLOW_CURRENT_PG_POOL_MAX = "1"
 
