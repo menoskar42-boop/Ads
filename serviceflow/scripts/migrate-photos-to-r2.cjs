@@ -4,6 +4,9 @@
  *
  * السكريبت **على مرحلتين عمداً**، ومابيمسحش حاجة من القاعدة فى المرحلة الأولى:
  *
+ *   node serviceflow/scripts/migrate-photos-to-r2.cjs --check    # اختبار حى: بيرفع كائن صغير
+ *                                                   # على R2 ويقراه ويقارنه ويمسحه.
+ *                                                   # الدليل الوحيد إن الأسرار شغّالة.
  *   node scripts/migrate-photos-to-r2.js --dry      # عدّ وحجم بس، مفيش رفع
  *   node scripts/migrate-photos-to-r2.js            # يرفع على R2 ويكتب storage_key
  *                                                   # — و`data` بيفضل مكانه زى ما هو
@@ -50,13 +53,61 @@ function connLabel(url) {
 const args = new Set(process.argv.slice(2));
 const DRY = args.has('--dry');
 const VERIFY = args.has('--verify');
+const CHECK = args.has('--check');
 const PURGE = args.has('--purge');
 const BATCH = Number(process.env.R2_MIGRATE_BATCH || 20);
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const mb = (n) => (Number(n) / 1024 / 1024).toFixed(1);
 
+/**
+ * اختبار حى لـR2: رفع → قراءة → مقارنة → مسح.
+ * ده الحاجة الوحيدة اللى بتثبت إن الأسرار موجودة **وصحيحة** فعلاً. سرّ غلط
+ * بيخلّى التطبيق يرجع يكتب فى القاعدة من غير أى رسالة — فمن غير الاختبار ده
+ * مفيش طريقة تعرف بيها غير إنك تكتشف بعد شهر إن القاعدة ماقلّتش.
+ */
+async function r2SelfTest() {
+  const miss = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET']
+    .filter((v) => !(process.env[v] || '').trim());
+  if (miss.length) {
+    console.error('✖ أسرار ناقصة: ' + miss.join('، '));
+    console.error('  الأربعة لازم يكونوا مع بعض. ناقص واحد = الصور تفضل فى القاعدة من غير خطأ.');
+    return false;
+  }
+  if (!r2.isConfigured()) { console.error('✖ R2 مش مضبوط رغم إن الأسرار موجودة.'); return false; }
+
+  const key = `maintenance/_selftest/${Date.now()}.txt`;
+  const body = Buffer.from('oscardevs-r2-selftest-' + Date.now());
+  console.log(`  الباكِت: ${process.env.R2_BUCKET}`);
+  try {
+    await r2.putObject(key, body, 'text/plain');
+    console.log('  ✅ الرفع (PUT) نجح');
+  } catch (e) {
+    console.error('  ✖ الرفع فشل: ' + e.message);
+    console.error('    403 معناه مفتاح غلط أو التوكن مش على الباكِت ده.');
+    console.error('    404 معناه اسم الباكِت غلط.');
+    return false;
+  }
+  let ok = false;
+  try {
+    const got = await r2.getObject(key);
+    ok = Boolean(got && got.body.equals(body));
+    console.log(ok ? '  ✅ القراءة (GET) رجّعت نفس البايتات' : '  ✖ القراءة رجّعت بايتات مختلفة');
+  } catch (e) { console.error('  ✖ القراءة فشلت: ' + e.message); }
+  try { await r2.deleteObject(key); console.log('  ✅ المسح (DELETE) نجح — مفيش أثر اتساب'); }
+  catch (e) { console.error('  ⚠️ المسح فشل (مش مشكلة كبيرة): ' + e.message); }
+  return ok;
+}
+
 async function main() {
+  if (CHECK) {
+    console.log('── اختبار حى لـCloudflare R2 ──');
+    const ok = await r2SelfTest();
+    console.log(ok
+      ? '\n✅ R2 شغّال. أى صورة جديدة الفنى يرفعها هتروح هناك.'
+      : '\n❌ R2 مش شغّال. الصور هتفضل فى القاعدة (من غير ما يظهر خطأ للمستخدم).');
+    process.exit(ok ? 0 : 1);
+  }
   if (!CONN) {
     console.error('✖ مفيش رابط قاعدة. جرّبت بالترتيب: ' + CONN_SOURCES.join(' ← '));
     process.exit(1);
