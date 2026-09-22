@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../database');
 const { requireRole } = require('../middleware/auth');
-const { memUpload, compressToBuffer, memVideoUpload, compressVideoToDisk } = require('../utils/photo');
+const { memUpload, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk } = require('../utils/photo');
 
 const router = express.Router();
 const inspectorOrAdmin = requireRole('admin', 'inspector');
@@ -220,11 +220,13 @@ router.post('/:id/photos', inspectorOrAdmin, (req, res, next) => {
   }
   try {
     const { filename, data } = await compressToBuffer(req.file.buffer, `before_${inspection.box_id}`);
+    // R2 الأول؛ لو مضبوط ونجح الرفع بيرجّع data=null فالقاعدة ما تشيلش البايتات.
+    const stored = await storeMedia(filename, data, 'photo');
     const takenAt = req.body.taken_at || null;
     const lat = req.body.lat ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng ? parseFloat(req.body.lng) : null;
-    await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'before', 'photo', ?, ?, ?, ?, ?, ?)",
-      [inspection.box_id, inspection.id, filename, data, req.session.user.id, takenAt, lat, lng]);
+    await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, storage_key, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'before', 'photo', ?, ?, ?, ?, ?, ?, ?)",
+      [inspection.box_id, inspection.id, filename, stored.data, stored.storageKey, req.session.user.id, takenAt, lat, lng]);
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع الصورة وضغطها.' };
   } catch (e) {
@@ -253,11 +255,13 @@ router.post('/:id/after-photos', inspectorOrAdmin, (req, res, next) => {
   }
   try {
     const { filename, data } = await compressToBuffer(req.file.buffer, `after_${inspection.box_id}`);
+    // R2 الأول؛ لو مضبوط ونجح الرفع بيرجّع data=null فالقاعدة ما تشيلش البايتات.
+    const stored = await storeMedia(filename, data, 'photo');
     const takenAt = req.body.taken_at || null;
     const lat = req.body.lat ? parseFloat(req.body.lat) : null;
     const lng = req.body.lng ? parseFloat(req.body.lng) : null;
-    await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'after', 'photo', ?, ?, ?, ?, ?, ?)",
-      [inspection.box_id, inspection.id, filename, data, req.session.user.id, takenAt, lat, lng]);
+    await db.run("INSERT INTO photos (box_id, inspection_id, photo_type, media_type, filename, data, storage_key, uploaded_by, taken_at, latitude, longitude) VALUES (?, ?, 'after', 'photo', ?, ?, ?, ?, ?, ?, ?)",
+      [inspection.box_id, inspection.id, filename, stored.data, stored.storageKey, req.session.user.id, takenAt, lat, lng]);
     if (isAjax) return res.json({ ok: true, filename });
     req.session.flash = { type: 'success', msg: 'تم رفع صورة بعد الصيانة.' };
   } catch (e) {

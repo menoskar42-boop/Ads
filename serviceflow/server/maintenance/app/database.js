@@ -177,7 +177,8 @@ async function createSchema() {
     latitude REAL,
     longitude REAL,
     data BYTEA,
-    media_type TEXT DEFAULT 'photo'
+    media_type TEXT DEFAULT 'photo',
+    storage_key TEXT
   )`);
 }
 
@@ -195,6 +196,12 @@ async function migrate() {
   try { await sp(`ALTER TABLE maintenance_tasks ADD COLUMN IF NOT EXISTS prelim_confirmed_at TIMESTAMP`); } catch {}
   try { await sp(`ALTER TABLE maintenance_tasks ADD COLUMN IF NOT EXISTS prelim_confirmed_by INTEGER`); } catch {}
   try { await sp(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS media_type TEXT DEFAULT 'photo'`); } catch {}
+  /* storage_key: مفتاح الكائن على Cloudflare R2 لما تكون الصورة/الفيديو مخزّنة برّه القاعدة.
+   * الصف الواحد بيبقى فى واحدة من تلات حالات:
+   *   storage_key موجود  → الملف على R2 (و`data` بيبقى NULL بعد التحقق)
+   *   data موجود          → الملف فى القاعدة (السلوك القديم، والاحتياطى لو R2 وقع)
+   *   الاتنين NULL        → فيديو قديم على القرص بس (والقرص عند ريبليت مؤقّت) */
+  try { await sp(`ALTER TABLE photos ADD COLUMN IF NOT EXISTS storage_key TEXT`); } catch {}
   try { await sp(`UPDATE photos SET media_type = 'photo' WHERE media_type IS NULL`); } catch {}
   try { await sp(`ALTER TABLE users ADD COLUMN IF NOT EXISTS worker_code TEXT`); } catch {}
   try { await sp(`UPDATE users SET worker_code = '180769' WHERE full_name ILIKE '%خالد عبد الرحمن%' AND worker_code IS NULL`); } catch {}

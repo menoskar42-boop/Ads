@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const DATA_DIR = require('./datadir');
+const r2 = require('./r2');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 
 function ensureUploadDir() {
@@ -47,6 +48,28 @@ async function compressToBuffer(buffer, prefix) {
     fs.writeFileSync(path.join(UPLOAD_DIR, filename), data);
   } catch {}
   return { filename, data };
+}
+
+/**
+ * بيحاول يحطّ الملف على Cloudflare R2. بيرجّع اللى يتكتب فى الصف:
+ *   نجح   → { storageKey: '<key>', data: null }   الملف برّه القاعدة
+ *   فشل   → { storageKey: null,    data: <Buffer> } السلوك القديم بالظبط
+ *
+ * ⚠️ القاعدة اللى الملف ده قايم عليها: **مابنسيبش `data` فاضى إلا لما يكون
+ * الرفع نجح فعلاً.** أى فشل (أسرار ناقصة، شبكة، ٤٠٣ من R2) بيرجّع الـBuffer
+ * فالصورة بتتخزّن فى القاعدة زى الأول ومابتضيعش أبداً. أسوأ حالة = المساحة
+ * ما تقلّش، مش صورة مكسورة.
+ */
+async function storeMedia(filename, buffer, mediaType = 'photo') {
+  if (!r2.isConfigured()) return { storageKey: null, data: buffer };
+  const key = r2.keyFor(filename, mediaType);
+  try {
+    await r2.putObject(key, buffer, mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
+    return { storageKey: key, data: null };
+  } catch (e) {
+    console.error(`[maintenance] فشل رفع ${filename} على R2 — هيتخزّن فى القاعدة بدلها:`, e.message);
+    return { storageKey: null, data: buffer };
+  }
 }
 
 // ── Video upload + compression ────────────────────────────────────────────────
@@ -107,4 +130,4 @@ async function compressVideoToDisk(buffer, prefix) {
   }
 }
 
-module.exports = { memUpload, compressAndSave, compressToBuffer, memVideoUpload, compressVideoToDisk };
+module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk };

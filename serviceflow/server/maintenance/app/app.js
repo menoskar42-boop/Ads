@@ -14,6 +14,7 @@ const path = require("path");
 const fs = require("fs");
 const DATA_DIR = require("./utils/datadir");
 const db = require("./database");
+const r2 = require("./utils/r2");
 const basePath = require("./basepath");
 
 const BASE_PATH = (process.env.MAINTENANCE_BASE_PATH || "/maintenance").replace(/\/+$/, "");
@@ -86,18 +87,43 @@ app.get("/uploads/:filename", async (req, res) => {
    * نفسها بترمى. دلوقتى كل حالة بتقول نفسها فى اللوج. */
   let row = null;
   try {
-    row = await db.get("SELECT data FROM photos WHERE filename = ?", [filename]);
+    row = await db.get("SELECT data, storage_key, media_type FROM photos WHERE filename = ?", [filename]);
   } catch (e) {
     console.error(`[maintenance] /uploads/${filename}: فشل قراءة الصورة من القاعدة:`, e.message);
     return res.status(500).end();
   }
+
+  // (٢) Cloudflare R2 — الصور المنقولة برّه القاعدة. ترتيبها بعد القرص وقبل
+  // عمود `data` لأن الصف اللى ليه storage_key بيبقى `data` فيه NULL أصلاً.
+  if (row && row.storage_key) {
+    try {
+      const obj = await r2.getObject(row.storage_key);
+      if (obj) {
+        res.setHeader("Content-Type", obj.contentType
+          || (row.media_type === "video" ? "video/mp4" : "image/jpeg"));
+        res.setHeader("Cache-Control", "public, max-age=31536000");
+        return res.send(obj.body);
+      }
+      console.warn(`[maintenance] /uploads/${filename}: storage_key=${row.storage_key} مش موجود على R2`);
+    } catch (e) {
+      // مابنرجّعش ٤٠٤ هنا: ممكن تكون مشكلة شبكة مؤقتة، و`data` ممكن يكون
+      // لسه موجود (قبل ما نفضّيه). بنكمّل للاحتياطى تحت.
+      console.error(`[maintenance] /uploads/${filename}: فشل قراءة الصورة من R2:`, e.message);
+      if (!(row && row.data)) return res.status(502).end();
+    }
+  }
+
   if (row && row.data) {
     res.setHeader("Content-Type", "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=31536000");
     return res.send(row.data);
   }
   console.warn(`[maintenance] /uploads/${filename}: مفيش ملف على القرص و`
-    + (row ? "الصف موجود فى photos بس عمود data فاضى" : "مفيش صف بالاسم ده فى photos")
+    + (row
+        ? (row.storage_key
+            ? `الصف موجود ومعاه storage_key=${row.storage_key} بس الكائن مش على R2 و data فاضى`
+            : "الصف موجود فى photos بس عمود data فاضى")
+        : "مفيش صف بالاسم ده فى photos")
     + ` — الأماكن اللى اتدوّر فيها: ${UPLOAD_CANDIDATES.join(", ")}`);
   res.status(404).end();
 });
