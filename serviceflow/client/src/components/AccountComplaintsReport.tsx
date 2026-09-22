@@ -75,6 +75,7 @@ export function AccountComplaintsReport() {
   const [box, setBox] = useState("");
   const [accountQ, setAccountQ] = useState("");
   const [search, setSearch] = useState("");
+  const [complaintsGt, setComplaintsGt] = useState("");
   const [page, setPage] = useState(1);
   const [historyPhone, setHistoryPhone] = useState<string | null>(null);
 
@@ -98,18 +99,25 @@ export function AccountComplaintsReport() {
     if (box) p.set("box", box);
     if (accountQ.trim()) p.set("accountQ", accountQ.trim());
     if (search.trim()) p.set("search", search.trim());
+    if (complaintsGt.trim()) p.set("complaintsGt", complaintsGt.trim());
     return p;
   };
 
   const { data, isLoading } = useQuery({
     queryKey: [
       "/api/phone-lines/account-complaints",
-      dateFrom, dateTo, central, cabin, box, accountQ, search, page,
+       dateFrom, dateTo, central, cabin, box, accountQ, search, complaintsGt, page,
     ],
     queryFn: async () => {
       const res = await fetch(`/api/phone-lines/account-complaints?${buildParams()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch");
-      return res.json() as Promise<{ data: Row[]; total: number; page: number; pageSize: number }>;
+       return res.json() as Promise<{
+         data: Row[];
+         total: number;
+         complaintTotal: number;
+         page: number;
+         pageSize: number;
+       }>;
     },
     refetchOnMount: "always",
   });
@@ -190,10 +198,31 @@ export function AccountComplaintsReport() {
             />
             <Input value={accountQ} onChange={(e) => { setAccountQ(e.target.value); resetPage(); }} placeholder="بحث برقم الأكونت" className="w-full sm:w-40 h-9 text-sm" dir="ltr" />
             <Input value={search} onChange={(e) => { setSearch(e.target.value); resetPage(); }} placeholder="بحث بالرقم/الموقع" className="w-full sm:w-40 h-9 text-sm" dir="rtl" />
+             <Input
+               type="number"
+               min="0"
+               step="1"
+               value={complaintsGt}
+               onChange={(e) => { setComplaintsGt(e.target.value); resetPage(); }}
+               placeholder="الشكاوى أكثر من"
+               title="إظهار الخطوط التي لديها شكاوى أكثر من الرقم"
+               className="w-full sm:w-36 h-9 text-sm"
+               dir="ltr"
+             />
             <RefreshButton />
             <Button variant="outline" size="sm" onClick={exportReport} className="text-green-700 border-green-200">تصدير Excel</Button>
           </div>
         </div>
+         {data && (
+           <div className="px-4 py-3 border-b bg-slate-50/70 flex flex-wrap items-center gap-3 text-sm">
+             <span className="rounded-md border bg-white px-3 py-1.5">
+               إجمالي الخطوط: <strong className="text-blue-700">{data.total.toLocaleString("ar-EG")}</strong>
+             </span>
+             <span className="rounded-md border bg-white px-3 py-1.5">
+               إجمالي الشكاوى: <strong className="text-red-700">{data.complaintTotal.toLocaleString("ar-EG")}</strong>
+             </span>
+           </div>
+         )}
 
         {isLoading ? (
           <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>

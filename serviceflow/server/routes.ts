@@ -5619,11 +5619,14 @@ export async function registerRoutes(
   app.get("/api/phone-lines/account-complaints", requireAuth, async (req, res) => {
     const {
       dateFrom = "", dateTo = "", search = "", central = "", cabin = "", box = "",
-      accountQ = "", page = "1", limit = "50",
+      accountQ = "", complaintsGt = "", page = "1", limit = "50",
     } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const q = search.trim();
+    const complaintsGreaterThan = complaintsGt.trim() === ""
+      ? null
+      : Math.max(0, Math.min(1000000, parseInt(complaintsGt, 10) || 0));
 
     // الافتراضى: آخر سنة حتى اليوم (بتوقيت القاهرة)، مع السماح للواجهة بإرسال نطاق مختلف.
     const cairoParts = new Intl.DateTimeFormat("en-CA", {
@@ -5688,6 +5691,10 @@ export async function registerRoutes(
       WHERE short_phone <> ''
       GROUP BY short_phone
     )`;
+    if (complaintsGreaterThan !== null) {
+      params.push(complaintsGreaterThan);
+      lineConds.push(`cs.complaint_count > $${params.length}`);
+    }
     const joinClause = `FROM complaint_summary cs
       JOIN line_accounts la ON ${sp("la.full_phone")} = cs.short_phone
       LEFT JOIN phone_lines pl ON pl.full_phone = la.full_phone
@@ -5709,10 +5716,18 @@ export async function registerRoutes(
     const where = `WHERE ${lineConds.join(" AND ")}`;
 
     const totalRes = await pool.query(
-      `${complaintCte} SELECT COUNT(DISTINCT la.full_phone)::int AS c ${joinClause} ${where}`,
+      `${complaintCte}
+       SELECT COUNT(*)::int AS c,
+              COALESCE(SUM(t.complaint_count), 0)::int AS "complaintTotal"
+       FROM (
+         SELECT la.full_phone, cs.complaint_count
+         ${joinClause} ${where}
+         GROUP BY la.full_phone, cs.complaint_count
+       ) t`,
       params,
     );
     const total = totalRes.rows[0]?.c ?? 0;
+    const complaintTotal = totalRes.rows[0]?.complaintTotal ?? 0;
 
     const offset = (pageNum - 1) * pageSize;
     params.push(pageSize, offset);
@@ -5749,7 +5764,15 @@ export async function registerRoutes(
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
-    res.json({ data: dataRes.rows, total, page: pageNum, pageSize, dateFrom: from, dateTo: to });
+    res.json({
+      data: dataRes.rows,
+      total,
+      complaintTotal,
+      page: pageNum,
+      pageSize,
+      dateFrom: from,
+      dateTo: to,
+    });
   });
 
   // GET /api/customer-contact-logs — كل اتصالات رقم تليفون، من الأحدث للأقدم
