@@ -183,7 +183,9 @@ async function main() {
       purged++; freed += r.data.length;
     }
     console.log(`\n✅ اتفضّى ${purged} صف (${mb(freed)} ميجا) — واتساب ${kept} صف لأن التحقق فشل.`);
-    console.log('   شغّل بعد كده: VACUUM (FULL, ANALYZE) photos;  عشان المساحة ترجع للقرص فعلاً.');
+    console.log('   شغّل بعد كده عشان المساحة ترجع للقرص فعلاً:');
+    console.log(`      psql "$SERVICEFLOW_DATABASE_URL" -c "VACUUM (FULL, ANALYZE) ${SCHEMA}.photos"`);
+    console.log('   ⚠️ بياخد قفل حصرى لدقيقة أو اتنين — الصور مش هتتعرض خلالها.');
     await pool.end(); return;
   }
 

@@ -154,7 +154,8 @@ async function main() {
   console.log(`\n✅ اتصغّرت ${done} صورة · وفّرنا ${mb(saved)} ميجا`);
   console.log(`   اتساب زى ما هو: ${skipped} · فشل: ${failed}`);
   console.log('\n   ⚠️ المساحة ما بترجعش للقرص لوحدها — شغّل بعدها:');
-  console.log('      VACUUM (FULL, ANALYZE) photos;');
+  console.log(`      psql "$SERVICEFLOW_DATABASE_URL" -c "VACUUM (FULL, ANALYZE) ${SCHEMA}.photos"`);
+  console.log('   ⚠️ بياخد قفل حصرى لدقيقة أو اتنين — الصور مش هتتعرض خلالها.');
   await pool.end();
 }
 
