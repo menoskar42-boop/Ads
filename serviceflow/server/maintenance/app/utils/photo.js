@@ -95,6 +95,22 @@ async function appendMediaToArchive(archive, p, name, uploadsDir = UPLOAD_DIR) {
   return false;
 }
 
+/**
+ * بيمسح ملفات الصور/الفيديوهات من القرص ومن R2 — بعد ما الصف اتمسح من القاعدة.
+ * كل خطوة لوحدها best-effort: ملف يتيم على R2 بيكلّف كام كيلو، لكن رمى خطأ
+ * هنا بعد ما الصف اتمسح كان هيطلّع للمستخدم «فشل» على حاجة حصلت فعلاً.
+ * rows: [{ filename, storage_key }]
+ */
+async function removeMediaFiles(rows, uploadsDir = UPLOAD_DIR) {
+  for (const p of rows || []) {
+    if (p.filename) { try { fs.unlinkSync(path.join(uploadsDir, p.filename)); } catch {} }
+    if (p.storage_key && r2.isConfigured()) {
+      try { await r2.deleteObject(p.storage_key); }
+      catch (e) { console.error(`[maintenance] فشل مسح ${p.storage_key} من R2 (الصف اتمسح خلاص):`, e.message); }
+    }
+  }
+}
+
 // ── Video upload + compression ────────────────────────────────────────────────
 
 const memVideoUpload = multer({
@@ -153,4 +169,4 @@ async function compressVideoToDisk(buffer, prefix) {
   }
 }
 
-module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, appendMediaToArchive, memVideoUpload, compressVideoToDisk };
+module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, appendMediaToArchive, removeMediaFiles, memVideoUpload, compressVideoToDisk };

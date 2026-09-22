@@ -4,14 +4,14 @@ const fs = require('fs');
 const archiver = require('archiver');
 const db = require('../database');
 const DATA_DIR = require('../utils/datadir');
-const { appendMediaToArchive } = require('../utils/photo');
+const { appendMediaToArchive, removeMediaFiles } = require('../utils/photo');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 const adminOnly = requireRole('admin');
 
 async function cascadeDeleteBox(boxId) {
-  const photos = await db.all('SELECT filename FROM photos WHERE box_id = ?', [boxId]);
+  const photos = await db.all('SELECT filename, storage_key FROM photos WHERE box_id = ?', [boxId]);
   await db.transaction(async (q) => {
     await q(`DELETE FROM maintenance_item_status WHERE task_id IN (
       SELECT id FROM maintenance_tasks WHERE inspection_id IN (
@@ -24,8 +24,8 @@ async function cascadeDeleteBox(boxId) {
     await q('DELETE FROM photos WHERE box_id = $1', [boxId]);
     await q('DELETE FROM boxes WHERE id = $1', [boxId]);
   });
-  const uploadsDir = path.join(DATA_DIR, 'uploads');
-  photos.forEach(p => { try { fs.unlinkSync(path.join(uploadsDir, p.filename)); } catch {} });
+  // كان بيمسح من القرص بس — فالصور اللى على R2 كانت هتفضل هناك يتيمة.
+  await removeMediaFiles(photos, path.join(DATA_DIR, 'uploads'));
 }
 
 const CHECKLIST = [
@@ -285,6 +285,27 @@ router.post('/:id/location', requireRole('admin', 'inspector'), async (req, res)
   } catch (e) {
     res.status(500).json({ ok: false, msg: 'فشل حفظ الموقع: ' + e.message });
   }
+});
+
+/* حذف صورة واحدة — **للسوبر أدمن بس** (قرار المالك ٢٠٢٦-٠٩-٢٢).
+ *
+ * السوبر أدمن بتاع Service-Flow بيدخل الصيانة بدور «admin» عادى (SF_ROLE_TO_MAINT
+ * فى app.js)، فمينفعش نفرّق بـuser.role — الأدمن العادى والسوبر أدمن شكلهم
+ * واحد هناك. التفرقة بـsf_role (الدور الأصلى اللى بيتحفظ فى الجلسة وقت الدخول).
+ *
+ * الترتيب مقصود: الصف يتمسح من القاعدة **الأول**، وبعدها الملف. العكس لو فشل فى
+ * النص كان هيسيب صف بيشاور على ملف اتمسح = صورة مكسورة فى الصفحة. */
+router.post('/photos/:photoId/delete', requireLogin, async (req, res) => {
+  const u = req.session.user || {};
+  if (String(u.sf_role || '') !== 'super_admin') {
+    return res.status(403).json({ ok: false, msg: 'حذف الصور للسوبر أدمن بس.' });
+  }
+  const photo = await db.get('SELECT id, box_id, filename, storage_key, photo_type FROM photos WHERE id = ?', [req.params.photoId]);
+  if (!photo) return res.status(404).json({ ok: false, msg: 'الصورة غير موجودة.' });
+  await db.run('DELETE FROM photos WHERE id = ?', [photo.id]);
+  await removeMediaFiles([photo], path.join(DATA_DIR, 'uploads'));
+  console.log(`[maintenance] 🗑️ صورة اتمسحت: #${photo.id} ${photo.filename} (بوكس ${photo.box_id}، ${photo.photo_type}) — بواسطة ${u.full_name || u.username || u.id}`);
+  res.json({ ok: true });
 });
 
 router.post('/photos/:photoId/location', requireLogin, async (req, res) => {
