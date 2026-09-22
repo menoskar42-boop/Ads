@@ -2865,7 +2865,7 @@ export async function registerRoutes(
     return rows.map((r: any) => String(r.acc).trim()).filter(Boolean);
   };
 
-  /** أرقام أكونت القياس اليومى: لم تُقس أبداً أو آخر قياس أقدم من ١٠ أيام. */
+  /** أرقام أكونت القياس اليومى بالطريقة القديمة: لم تُقس أبداً أو آخر قياس أقدم من ١٠ أيام. */
   const autoMeasureAccounts = async (): Promise<string[]> => {
     const { rows } = await pool.query(
       `SELECT DISTINCT btrim(la.account_no) AS acc
@@ -2882,6 +2882,62 @@ export async function registerRoutes(
           -- ليها **قياس** فى الطابور دلوقتى → مانضيفهاش تانى (نفس السبب بس)
           AND ${notQueuedSql("la.account_no", ["measure"])}`);
     return rows.map((r: any) => String(r.acc).trim()).filter(Boolean);
+  };
+
+  /**
+   * أرقام تقرير «شكاوى منتظمة بدون قياس بعدها» لإضافتها إلى باتش القياس.
+   * التقرير افتراضياً من أول الشهر الحالى حتى اليوم، بنفس تعريف شاشة التقرير:
+   * شكوى غنايم منتظمة لها أكونت، ولا يوجد قياس أحدث من تاريخ الشكوى.
+   *
+   * القائمة القديمة تُمرّر هنا قبل إنشاء الباتش، لذلك نزيلها صراحةً من نتيجة
+   * التقرير حتى يظل ترتيب الباتش: الطريقة القديمة أولاً ثم الأرقام الإضافية.
+   * notQueuedSql يمنع أيضاً أى رقم موجود فى طابور قياس نشط أو باتش نشط.
+   */
+  const autoComplaintNoMeasureAccounts = async (
+    alreadySelected: readonly string[],
+  ): Promise<string[]> => {
+    const { date } = cairoNow();
+    const from = `${date.slice(0, 7)}-01`;
+    const selected = new Set(alreadySelected.map((account) => String(account).trim()).filter(Boolean));
+    const { rows } = await pool.query(
+      `WITH reg AS (
+         SELECT ${sp("cd.phone_number")} AS short, MAX(cd.close_time) AS ref_time
+           FROM complaint_details cd
+          WHERE cd.close_time IS NOT NULL
+            AND cd.exchange_name ILIKE '%غنايم%'
+            AND (cd.close_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+          GROUP BY ${sp("cd.phone_number")}
+         UNION ALL
+         SELECT ${sp("rc.phone_number")}, MAX(COALESCE(rc.close_time, rc.complain_time))
+           FROM remaining_complaints rc
+          WHERE rc.status_code IN ('138', '135')
+            AND rc.exchange_name ILIKE '%غنايم%'
+            AND COALESCE(rc.close_time, rc.complain_time)::date BETWEEN $1::date AND $2::date
+          GROUP BY ${sp("rc.phone_number")}
+       ), regm AS (
+         SELECT short, MAX(ref_time) AS ref_time
+           FROM reg
+          GROUP BY short
+       )
+       SELECT DISTINCT btrim(la.account_no) AS acc
+         FROM regm
+         JOIN line_accounts la ON la.full_phone = '88' || regm.short
+        WHERE la.account_no IS NOT NULL
+          AND btrim(la.account_no) <> ''
+          AND NOT EXISTS (
+            SELECT 1
+              FROM case_138 c
+             WHERE c.full_phone = la.full_phone
+               AND c.uploaded_at > regm.ref_time
+          )
+          AND ${hasFrameSql("la.full_phone")}
+          AND ${notQueuedSql("la.account_no", ["measure"])}`,
+      [from, date],
+    );
+    return rows
+      .map((r: any) => String(r.acc).trim())
+      .filter(Boolean)
+      .filter((account: string) => !selected.has(account));
   };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -2964,9 +3020,14 @@ export async function registerRoutes(
 
       const stopAccs = await autoPoStopAccounts();
       const stop = await enqueueAutoBatch("stop", stopAccs, "تحتاج إيقاف PO (تشغيل يومى ٩ ص)");
-      const measAccs = await autoMeasureAccounts();
+      // اجمع الطريقة القديمة أولاً، ثم أضف أرقام تقرير الشكاوى بدون تكرار.
+      // نضع الناتج كله فى باتش واحد حتى يظل التقدّم والاستئناف موحّدين.
+      const legacyMeasAccs = await autoMeasureAccounts();
+      const complaintMeasAccs = await autoComplaintNoMeasureAccounts(legacyMeasAccs);
+      const measAccs = [...legacyMeasAccs, ...complaintMeasAccs];
       const meas = await enqueueAutoBatch(
-        "measure", measAccs, `خطوط لها أكونت — لم تُقس أو أقدم من ${AUTO_MEASURE_STALE_DAYS} أيام (تشغيل يومى ٩ ص)`);
+        "measure", measAccs,
+        `خطوط لها أكونت — لم تُقس أو أقدم من ${AUTO_MEASURE_STALE_DAYS} أيام + شكاوى منتظمة بدون قياس بعدها (تشغيل يومى ٩ ص)`);
       console.log(`[auto-batches] ${date} (${trigger}): إيقاف PO ${stop.count} خط، قياس ${meas.count} خط`);
       return { ran: true, stop: stop.count, measure: meas.count,
                stopBatchId: stop.batchId, measureBatchId: meas.batchId };

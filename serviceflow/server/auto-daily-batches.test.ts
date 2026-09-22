@@ -66,6 +66,33 @@ test("the measure batch covers never-measured plus stale, minus queued", () => {
   assert.match(measFn, /la\.account_no IS NOT NULL AND la\.account_no <> ''/);
 });
 
+test("the measure batch appends complaint-without-followup-measure lines without duplicates", () => {
+  const complaintFn = routes.slice(
+    routes.indexOf("const autoComplaintNoMeasureAccounts"),
+    routes.indexOf("// ══════════════════════════════════════════════════════════════════════════", routes.indexOf("const autoComplaintNoMeasureAccounts")),
+  );
+  assert.match(complaintFn, /FROM complaint_details cd/);
+  assert.match(complaintFn, /FROM remaining_complaints rc/);
+  assert.match(complaintFn, /cd\.exchange_name ILIKE '%غنايم%'/);
+  assert.match(complaintFn, /rc\.status_code IN \('138', '135'\)/);
+  assert.match(complaintFn, /c\.uploaded_at > regm\.ref_time/);
+  assert.match(complaintFn, /\$\{hasFrameSql\("la\.full_phone"\)\}/);
+  assert.match(complaintFn, /\$\{notQueuedSql\("la\.account_no", \["measure"\]\)\}/);
+  assert.match(complaintFn, /alreadySelected/);
+  assert.match(complaintFn, /!selected\.has\(account\)/);
+});
+
+test("legacy measurement accounts are ordered before complaint-report additions in one batch", () => {
+  const run = routes.slice(
+    routes.indexOf("const legacyMeasAccs"),
+    routes.indexOf("console.log(`[auto-batches]", routes.indexOf("const legacyMeasAccs")),
+  );
+  assert.match(run, /const legacyMeasAccs = await autoMeasureAccounts\(\)/);
+  assert.match(run, /const complaintMeasAccs = await autoComplaintNoMeasureAccounts\(legacyMeasAccs\)/);
+  assert.match(run, /const measAccs = \[\.\.\.legacyMeasAccs, \.\.\.complaintMeasAccs\]/);
+  assert.match(run, /enqueueAutoBatch\(\s*"measure", measAccs/);
+});
+
 test("the batches are split per line and land at normal priority", () => {
   const enq = routes.slice(routes.indexOf("const enqueueAutoBatch"),
                            routes.indexOf("const autoPoStopAccounts"));
