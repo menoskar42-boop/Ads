@@ -576,6 +576,9 @@ migrations تكون فاضية من أى DROP.
 بـExpress 5.2.1: رفع بيكمّل بعد صورة فاشلة، `--verify` بيلقط صورة متبوّظة
 و`--purge` بيسيبها، `--repair` بيصلّحها، والصورة المتفضّية بتتعرض من R2.
 
+⚠️ البادئة الصح اتأكدت فى التشغيل الحقيقى (٢٠٢٦-٠٩-٢٢): `ads-menoskar42.replit.app/maintenance/uploads/`
+مش `/serviceflow/maintenance/…` — دى بترجّع ٣٠٢.
+
 والبوابة الأهم: `X-Photo-Source`. لو النشر مش شايف أسرار R2، الصورة بتتعرض
 من القاعدة فى صمت (اتجرّب: R2 واقع ← ٢٠٠ عادى). فقبل التفضية لازم `curl` على
 الموقع المنشور يقول `r2` — وإلا التفضية هتوقّع كل الصور.
@@ -643,7 +646,7 @@ migrations تكون فاضية من أى DROP.
 
 وجرّبها على الموقع المنشور (حطّ الاسم مكان FILENAME):
 
-    curl -s -o /dev/null -D - "https://ads-menoskar42.replit.app/serviceflow/maintenance/uploads/FILENAME" | grep -iE "^HTTP|x-photo-source"
+    curl -s -o /dev/null -D - "https://ads-menoskar42.replit.app/maintenance/uploads/FILENAME" | grep -iE "^HTTP|x-photo-source"
 
 لازم يطلع السطرين دول:
     HTTP/... 200
