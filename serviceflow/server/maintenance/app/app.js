@@ -69,6 +69,10 @@ const UPLOAD_CANDIDATES = [
   path.join(__dirname, ".local_data", "uploads"),
   path.join(__dirname, "uploads"),
 ];
+/* X-Photo-Source (disk | r2 | db): بيقول الصورة اتقرت منين. من غيره، لو النشر
+ * مش شايف أسرار R2، الصورة بتقع على عمود data فى صمت وتتعرض عادى — فمحدّش
+ * يعرف إن R2 مش شغّال لحد ما القاعدة تتفضّى وكل الصور تقع. بالهيدر ده curl
+ * واحد على الموقع المنشور بيثبت إن القراءة من R2 **قبل** أى تفضية. */
 app.get("/uploads/:filename", async (req, res) => {
   const { filename } = req.params;
   if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
@@ -82,7 +86,10 @@ app.get("/uploads/:filename", async (req, res) => {
      * الأخطاء ← صفحة «خطأ فى الخادم». ولما النشر يمسح القرص، الصورة تتقرا من
      * القاعدة وتشتغل — عشان كده المشكلة كانت «بتتحل لوحدها» وترجع.
      * اتأكد بإعادة إنتاج على express 5.2.1 / send 1.2.1: من غيره 500، بيه 200. */
-    if (fs.existsSync(filepath)) return res.sendFile(filepath, { dotfiles: "allow" });
+    if (fs.existsSync(filepath)) {
+      res.setHeader("X-Photo-Source", "disk");
+      return res.sendFile(filepath, { dotfiles: "allow" });
+    }
   }
   /* ⚠️ الـcatch هنا كان فاضى (تجاهل) — فأى فشل فى قراءة الصورة من القاعدة
    * كان بيطلع ٤٠٤ صامت زيه زى «الصورة مش موجودة». والاتنين شكلهم واحد
@@ -108,6 +115,7 @@ app.get("/uploads/:filename", async (req, res) => {
         res.setHeader("Content-Type", obj.contentType
           || (row.media_type === "video" ? "video/mp4" : "image/jpeg"));
         res.setHeader("Cache-Control", "public, max-age=31536000");
+        res.setHeader("X-Photo-Source", "r2");
         return res.send(obj.body);
       }
       console.warn(`[maintenance] /uploads/${filename}: storage_key=${row.storage_key} مش موجود على R2`);
@@ -122,6 +130,7 @@ app.get("/uploads/:filename", async (req, res) => {
   if (row && row.data) {
     res.setHeader("Content-Type", "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=31536000");
+    res.setHeader("X-Photo-Source", "db");
     return res.send(row.data);
   }
   console.warn(`[maintenance] /uploads/${filename}: مفيش ملف على القرص و`

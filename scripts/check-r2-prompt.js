@@ -98,7 +98,7 @@ const MIG_REL = path.relative(ROOT, MIG).replace(/\\/g, '/');
 if (!prompt.includes('node ' + MIG_REL)) {
   errors.push(`البرومبت مافيهوش المسار الفعلى للسكريبت — لازم يكون \`node ${MIG_REL}\` من جذر المستودع.`);
 }
-for (const flag of ['--dry', '--verify', '--purge']) {
+for (const flag of ['--dry', '--verify', '--purge', '--repair', '--check']) {
   if (!new RegExp(`'${flag}'|args\\.has\\('${flag}'\\)`).test(migsrc)) {
     errors.push(`البرومبت بيقول شغّل ${flag} بس السكريبت مابيعرفهوش.`);
   }
@@ -146,6 +146,34 @@ if (!/git log --oneline/.test(prompt)) {
 }
 if (!/r2\.js/.test(prompt)) {
   errors.push('برومبت المراجعة مابيتأكدش إن ملف r2.js موجود فى الـworkspace — ده أبسط دليل على إن السحب حصل.');
+}
+
+// ── بوابة X-Photo-Source قبل --purge فى برومبت النقل ──────────────────
+// اتجرّب: لو النشر مش شايف R2، الصورة بتتعرض من القاعدة فى صمت (٢٠٠ عادى).
+// فالبرومبت لازم يفرض curl بيقول r2 **قبل** أى تفضية — وإلا التفضية بتوقّع كل الصور.
+const blocks = [...prompt.matchAll(/```\n([\s\S]*?)\n```/g)].map((m) => m[1]);
+const migBlock = blocks.find((b) => /--purge/.test(b) && /--verify/.test(b) && /--repair/.test(b));
+if (!migBlock) {
+  errors.push('مفيش برومبت نقل فيه --verify و--repair و--purge مع بعض.');
+} else {
+  const gate = migBlock.search(/x-photo-source:\s*r2/i);
+  const purgeCmd = migBlock.search(/migrate-photos-to-r2\.cjs --purge/);
+  if (gate < 0) {
+    errors.push('برومبت النقل مافيهوش بوابة «x-photo-source: r2» — الإكستنشن هيفضّى القاعدة من غير ما يتأكد إن الموقع المنشور بيقرا من R2.');
+  } else if (purgeCmd > -1 && gate > purgeCmd) {
+    errors.push('بوابة x-photo-source جاية **بعد** أمر --purge فى البرومبت — لازم قبله.');
+  }
+  if (!/x-photo-source:\s*db/i.test(migBlock)) {
+    errors.push('برومبت النقل لازم يقول صريح إن «x-photo-source: db» معناه وقف.');
+  }
+  // أعداد grep فى خطوة ١ لازم تطابق الكود فعلاً
+  const appSrc = fs.readFileSync(path.join(ROOT, 'serviceflow/server/maintenance/app/app.js'), 'utf8');
+  const hdrLines = appSrc.split('\n').filter((l) => l.includes('X-Photo-Source')).length;
+  const claimed = (migBlock.match(/الأول لازم يطلع ([٠-٩0-9]+)/) || [])[1];
+  const toLatin = (x) => String(x || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  if (claimed && Number(toLatin(claimed)) !== hdrLines) {
+    errors.push(`برومبت النقل بيقول grep -c "X-Photo-Source" هيطلع ${claimed}، والكود فيه ${hdrLines} سطر — الإكستنشن هيفتكر إن الـSync فشل ويوقف.`);
+  }
 }
 
 if (errors.length) {

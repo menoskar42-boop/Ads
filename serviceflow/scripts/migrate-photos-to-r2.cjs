@@ -12,6 +12,9 @@
  *                                                   # — و`data` بيفضل مكانه زى ما هو
  *   node scripts/migrate-photos-to-r2.js --verify   # يقرأ كل كائن من R2 ويقارن SHA256
  *                                                   # بالبايتات اللى فى القاعدة
+ *   node scripts/migrate-photos-to-r2.js --repair   # لو --verify لقى صورة على R2 مختلفة
+ *                                                   # أو ناقصة: بيرفعها تانى من القاعدة
+ *                                                   # (القاعدة هى الأصل لحد --purge)
  *   node scripts/migrate-photos-to-r2.js --purge    # بعد ما --verify يعدّى نضيف:
  *                                                   # data = NULL (هنا بس بتقلّ القاعدة)
  *
@@ -54,6 +57,7 @@ const args = new Set(process.argv.slice(2));
 const DRY = args.has('--dry');
 const VERIFY = args.has('--verify');
 const CHECK = args.has('--check');
+const REPAIR = args.has('--repair');
 const PURGE = args.has('--purge');
 const BATCH = Number(process.env.R2_MIGRATE_BATCH || 20);
 
@@ -165,71 +169,105 @@ async function main() {
 
   if (DRY) { console.log('\n(--dry: مفيش أى كتابة)'); await pool.end(); return; }
 
+  /* ⚠️ كل التلات مراحل بتمشى **بدفعات بمؤشر id** (id > آخر id اتعالج):
+   *  • من غير دفعات، --verify و--purge كانوا بيسحبوا كل الصور (~٣٥٠ ميجا
+   *    بايتات، وأكتر وهى بتتفك من hex) فى الذاكرة مرة واحدة — ممكن يوقّع الشِل.
+   *  • ومن غير المؤشر، صورة واحدة فشل رفعها كانت بترجعلها الحلقة كل لفّة لحد
+   *    ٢٠ فشل وبعدين تقف النقل كله بسببها. دلوقتى كل صورة بتتجرّب مرة واحدة
+   *    فى التشغيلة، واللى فشلت بتتجرّب تانى فى التشغيلة الجاية. */
+  async function eachBatch(where, cols, fn) {
+    let lastId = 0;
+    for (;;) {
+      const rows = (await q(
+        `SELECT ${cols} FROM photos WHERE ${where} AND id > $1 ORDER BY id LIMIT $2`,
+        [lastId, BATCH])).rows;
+      if (!rows.length) return;
+      for (const r of rows) { lastId = r.id; await fn(r); }
+    }
+  }
+
   if (PURGE) {
-    // الأمان هنا: مابنفضّيش إلا الصفوف اللى ليها storage_key **و** اتأكّدنا منها.
-    const rows = (await q(
-      `SELECT id, filename, storage_key, data FROM photos
-        WHERE storage_key IS NOT NULL AND data IS NOT NULL ORDER BY id`)).rows;
+    // الأمان هنا: مابنفضّيش إلا الصفوف اللى ليها storage_key **و** البايتات اللى
+    // على R2 مطابقة بالـSHA256 للى فى القاعدة — فى نفس اللحظة، مش من تشغيلة قديمة.
     let purged = 0, freed = 0, kept = 0;
-    for (const r of rows) {
+    await eachBatch('storage_key IS NOT NULL AND data IS NOT NULL', 'id, filename, storage_key, data', async (r) => {
       let obj = null;
       try { obj = await r2.getObject(r.storage_key); } catch (e) {
-        console.error(`  ✖ ${r.filename}: فشل القراءة من R2 (${e.message}) — سايبها`); kept++; continue;
+        console.error(`  ✖ ${r.filename}: فشل القراءة من R2 (${e.message}) — سايبها`); kept++; return;
       }
       if (!obj || sha(obj.body) !== sha(r.data)) {
-        console.error(`  ✖ ${r.filename}: ${obj ? 'البايتات مش مطابقة' : 'مش موجودة على R2'} — سايبها`); kept++; continue;
+        console.error(`  ✖ ${r.filename}: ${obj ? 'البايتات مش مطابقة' : 'مش موجودة على R2'} — سايبها`); kept++; return;
       }
-      await q(`UPDATE photos SET data = NULL WHERE id = $1`, [r.id]);
+      // storage_key فى الشرط: لو حد غيّره فى النص، مانفضّيش صف مااتأكدناش منه.
+      await q(`UPDATE photos SET data = NULL WHERE id = $1 AND storage_key = $2`, [r.id, r.storage_key]);
       purged++; freed += r.data.length;
-    }
+      if (purged % 100 === 0) console.log(`  … ${purged} صف اتفضّى`);
+    });
     console.log(`\n✅ اتفضّى ${purged} صف (${mb(freed)} ميجا) — واتساب ${kept} صف لأن التحقق فشل.`);
     console.log('   شغّل بعد كده عشان المساحة ترجع للقرص فعلاً:');
     console.log(`      psql "$SERVICEFLOW_DATABASE_URL" -c "VACUUM (FULL, ANALYZE) ${SCHEMA}.photos"`);
     console.log('   ⚠️ بياخد قفل حصرى لدقيقة أو اتنين — الصور مش هتتعرض خلالها.');
+    process.exitCode = kept === 0 ? 0 : 1;
+    await pool.end(); return;
+  }
+
+  if (REPAIR) {
+    // الصف ده ليه storage_key و data مع بعض، يعنى البايتات الأصلية لسه فى القاعدة.
+    // فأى اختلاف على R2 بيتصلّح بإعادة الرفع من القاعدة — وبعدين بنقرا تانى
+    // ونقارن، ومانعدّش الصورة «اتصلّحت» غير لما تطابق فعلاً.
+    let fine = 0, fixed = 0, still = 0;
+    await eachBatch('storage_key IS NOT NULL AND data IS NOT NULL', 'id, filename, storage_key, data, media_type', async (r) => {
+      let obj = null;
+      try { obj = await r2.getObject(r.storage_key); } catch {}
+      if (obj && sha(obj.body) === sha(r.data)) { fine++; return; }
+      try {
+        await r2.putObject(r.storage_key, r.data, r.media_type === 'video' ? 'video/mp4' : 'image/jpeg');
+        const again = await r2.getObject(r.storage_key);
+        if (again && sha(again.body) === sha(r.data)) { fixed++; console.log(`  ✅ ${r.filename}: اترفعت تانى واتطابقت`); }
+        else { still++; console.error(`  ✖ ${r.filename}: اترفعت بس لسه مش مطابقة`); }
+      } catch (e) { still++; console.error(`  ✖ ${r.filename}: ${e.message}`); }
+    });
+    console.log(`\n${still === 0 ? '✅' : '⚠️'} سليمة: ${fine} · اتصلّحت: ${fixed} · لسه فيها مشكلة: ${still}`);
+    if (still === 0) console.log('   شغّل --verify تانى للتأكيد، وبعدين --purge.');
+    process.exitCode = still === 0 ? 0 : 1;
     await pool.end(); return;
   }
 
   if (VERIFY) {
-    const rows = (await q(
-      `SELECT id, filename, storage_key, data FROM photos
-        WHERE storage_key IS NOT NULL AND data IS NOT NULL ORDER BY id`)).rows;
     let ok = 0, bad = 0;
-    for (const r of rows) {
+    await eachBatch('storage_key IS NOT NULL AND data IS NOT NULL', 'id, filename, storage_key, data', async (r) => {
       try {
         const obj = await r2.getObject(r.storage_key);
         if (obj && sha(obj.body) === sha(r.data)) { ok++; }
         else { bad++; console.error(`  ✖ ${r.filename}: ${obj ? 'بايتات مختلفة' : 'مش موجودة على R2'}`); }
       } catch (e) { bad++; console.error(`  ✖ ${r.filename}: ${e.message}`); }
-    }
+      if ((ok + bad) % 200 === 0) console.log(`  … ${ok + bad} صورة اتراجعت`);
+    });
     console.log(`\n${bad === 0 ? '✅' : '⚠️'} اتأكّد ${ok} صورة، فشل ${bad}.`);
     if (bad === 0 && ok > 0) console.log('   تقدر تشغّل --purge دلوقتى.');
+    if (bad > 0) console.log('   صلّحهم بـ --repair (بيرفعهم تانى من القاعدة)، وبعدين --verify تانى.');
     process.exitCode = bad === 0 ? 0 : 1;
     await pool.end(); return;
   }
 
   // الرفع — دفعات، و`data` مابيتلمسش خالص.
   let done = 0, failed = 0;
-  for (;;) {
-    const rows = (await q(
-      `SELECT id, filename, data, media_type FROM photos
-        WHERE data IS NOT NULL AND storage_key IS NULL ORDER BY id LIMIT $1`, [BATCH])).rows;
-    if (!rows.length) break;
-    for (const r of rows) {
-      const key = r2.keyFor(r.filename, r.media_type);
-      try {
-        await r2.putObject(key, r.data, r.media_type === 'video' ? 'video/mp4' : 'image/jpeg');
-        await q(`UPDATE photos SET storage_key = $1 WHERE id = $2`, [key, r.id]);
-        done++;
-        if (done % 50 === 0) console.log(`  … ${done} صورة`);
-      } catch (e) {
-        failed++;
-        console.error(`  ✖ ${r.filename}: ${e.message}`);
-        if (failed > 20) { console.error('✖ فشل كتير — وقفت.'); await pool.end(); process.exit(1); }
-      }
+  await eachBatch('data IS NOT NULL AND storage_key IS NULL', 'id, filename, data, media_type', async (r) => {
+    const key = r2.keyFor(r.filename, r.media_type);
+    try {
+      await r2.putObject(key, r.data, r.media_type === 'video' ? 'video/mp4' : 'image/jpeg');
+      await q(`UPDATE photos SET storage_key = $1 WHERE id = $2 AND storage_key IS NULL`, [key, r.id]);
+      done++;
+      if (done % 50 === 0) console.log(`  … ${done} صورة`);
+    } catch (e) {
+      failed++;
+      console.error(`  ✖ ${r.filename}: ${e.message}`);
     }
-  }
+  });
   console.log(`\n✅ اترفع ${done} صورة على R2 (فشل ${failed}). \`data\` لسه زى ما هو فى القاعدة.`);
-  console.log('   الخطوة الجاية: node scripts/migrate-photos-to-r2.js --verify');
+  if (failed) console.log('   اللى فشل: شغّل نفس الأمر تانى — بيكمّل اللى ناقص بس.');
+  console.log('   الخطوة الجاية: node serviceflow/scripts/migrate-photos-to-r2.cjs --verify');
+  process.exitCode = failed === 0 ? 0 : 1;
   await pool.end();
 }
 

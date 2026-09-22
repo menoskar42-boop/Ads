@@ -171,6 +171,19 @@ if (fs.existsSync(sfPkg) && !/"express":\s*"\^?5/.test(fs.readFileSync(sfPkg, 'u
   // لو رجعنا لـExpress 4 الشرط فوق مابقاش ضرورى — بس مش ضار. مابنوقّعش.
 }
 
+// ── ٧ب. X-Photo-Source فى التلات مصادر ─────────────────────────────────
+// من غيره، لو النشر مش شايف أسرار R2، الصورة بتقع على data فى صمت وتتعرض
+// عادى (اتجرّب: R2 واقع ← 200 من القاعدة). فمحدّش يعرف إن R2 مش شغّال لحد ما
+// --purge يفضّى القاعدة وكل الصور تقع. البرومبت بيستخدمه كبوابة قبل التفضية.
+if (src.app) {
+  const h = (src.app.match(/app\.get\("\/uploads\/:filename"[\s\S]*?\n\}\);/) || [''])[0];
+  for (const tag of ['disk', 'r2', 'db']) {
+    if (!new RegExp(`X-Photo-Source",\\s*"${tag}"`).test(h)) {
+      errors.push(`app.js: /uploads مابيحطّش X-Photo-Source: ${tag} — البوابة اللى قبل --purge مش هتعرف تفرّق بين R2 شغّال وR2 واقع والصورة جاية من القاعدة.`);
+    }
+  }
+}
+
 // ── ٨. تنزيل ZIP مايسيبش صور R2 فى صمت ───────────────────────────────────
 for (const rel of ['routes/boxes.js', 'routes/reports.js']) {
   const f = path.join(APP, rel);
@@ -197,8 +210,19 @@ if (src.mig) {
   if (!/sha\(obj\.body\) !== sha\(r\.data\)/.test(purge)) {
     errors.push('migrate-photos-to-r2.cjs: --purge بيفضّى data من غير ما يقارن SHA256 باللى على R2 — ده بالظبط السيناريو اللى بيضيّع الصور.');
   }
-  if (!/WHERE storage_key IS NOT NULL AND data IS NOT NULL/.test(purge)) {
+  if (!/(WHERE |eachBatch\(')storage_key IS NOT NULL AND data IS NOT NULL/.test(purge)) {
     errors.push('migrate-photos-to-r2.cjs: --purge لازم يشتغل بس على الصفوف اللى ليها storage_key.');
+  }
+  // الدفعات: من غيرها --verify و--purge بيسحبوا كل الصور (~٣٥٠ ميجا) فى الذاكرة
+  // مرة واحدة، وده ممكن يوقّع شِل ريبليت فى النص.
+  const verify = src.mig.slice(src.mig.indexOf('if (VERIFY)'), src.mig.indexOf('// الرفع'));
+  for (const [name, part] of [['--purge', purge], ['--verify', verify]]) {
+    if (!/eachBatch\(/.test(part)) {
+      errors.push(`migrate-photos-to-r2.cjs: ${name} مابيمشيش بدفعات — هيسحب كل الصور فى الذاكرة مرة واحدة.`);
+    }
+  }
+  if (!/id > \$1 ORDER BY id LIMIT \$2/.test(src.mig)) {
+    errors.push('migrate-photos-to-r2.cjs: الدفعات لازم تمشى بمؤشر id — من غيره صورة واحدة فاشلة بتترجعلها الحلقة كل لفّة.');
   }
   const upload = src.mig.slice(src.mig.indexOf('// الرفع'));
   if (/SET data = NULL/.test(upload)) {
