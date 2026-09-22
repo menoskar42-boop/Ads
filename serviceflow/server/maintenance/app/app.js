@@ -76,7 +76,13 @@ app.get("/uploads/:filename", async (req, res) => {
   }
   for (const dir of UPLOAD_CANDIDATES) {
     const filepath = path.join(dir, filename);
-    if (fs.existsSync(filepath)) return res.sendFile(filepath);
+    /* ⚠️ `dotfiles: "allow"` مش تجميل. Express 5 (send 1.x) بيرفض أى مسار فيه
+     * جزء بيبدأ بنقطة — ولما /data مش قابل للكتابة، datadir.js بيقع على
+     * `.local_data`. فكل صورة جديدة كانت بتتكتب على القرص وتتعرض ٤٠٤ ← معالج
+     * الأخطاء ← صفحة «خطأ فى الخادم». ولما النشر يمسح القرص، الصورة تتقرا من
+     * القاعدة وتشتغل — عشان كده المشكلة كانت «بتتحل لوحدها» وترجع.
+     * اتأكد بإعادة إنتاج على express 5.2.1 / send 1.2.1: من غيره 500، بيه 200. */
+    if (fs.existsSync(filepath)) return res.sendFile(filepath, { dotfiles: "allow" });
   }
   /* ⚠️ الـcatch هنا كان فاضى (تجاهل) — فأى فشل فى قراءة الصورة من القاعدة
    * كان بيطلع ٤٠٤ صامت زيه زى «الصورة مش موجودة». والاتنين شكلهم واحد

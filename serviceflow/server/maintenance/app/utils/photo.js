@@ -72,6 +72,29 @@ async function storeMedia(filename, buffer, mediaType = 'photo') {
   }
 }
 
+/**
+ * بيضيف صورة لأرشيف ZIP من أى مكان هى فيه: القرص ← عمود data ← R2.
+ * قبل كده التلات مسارات بتوع التنزيل كانوا بيدوّروا على القرص و`data` بس —
+ * فالصورة اللى راحت R2 (و`data` فيها NULL) كانت **بتتساب من الـZIP فى صمت**:
+ * الملف ينزل ناقص ومحدّش يعرف إن فيه صور ضايعة منه.
+ * بترجّع true لو الصورة اتضافت.
+ */
+async function appendMediaToArchive(archive, p, name, uploadsDir = UPLOAD_DIR) {
+  const filePath = path.join(uploadsDir, p.filename);
+  if (fs.existsSync(filePath)) { archive.file(filePath, { name }); return true; }
+  if (p.data) { archive.append(p.data, { name }); return true; }
+  if (p.storage_key) {
+    try {
+      const obj = await r2.getObject(p.storage_key);
+      if (obj) { archive.append(obj.body, { name }); return true; }
+      console.warn(`[maintenance] ZIP: ${p.filename} ليه storage_key بس مش موجود على R2`);
+    } catch (e) {
+      console.error(`[maintenance] ZIP: فشل قراءة ${p.filename} من R2:`, e.message);
+    }
+  }
+  return false;
+}
+
 // ── Video upload + compression ────────────────────────────────────────────────
 
 const memVideoUpload = multer({
@@ -130,4 +153,4 @@ async function compressVideoToDisk(buffer, prefix) {
   }
 }
 
-module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, memVideoUpload, compressVideoToDisk };
+module.exports = { memUpload, compressAndSave, compressToBuffer, storeMedia, appendMediaToArchive, memVideoUpload, compressVideoToDisk };

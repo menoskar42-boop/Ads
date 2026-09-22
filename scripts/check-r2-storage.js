@@ -153,6 +153,44 @@ if (src.app) {
   }
 }
 
+// ── ٧. sendFile على القرص لازم يسمح بـ.local_data ─────────────────────────
+// Express 5 (send 1.x) بيرفض أى مسار فيه جزء بيبدأ بنقطة، وdatadir.js بيقع
+// على `.local_data` لما /data مش قابل للكتابة. من غير dotfiles:"allow" كل صورة
+// جديدة بتطلع «خطأ فى الخادم» لحد النشر الجاى — وبعده «بتتحل لوحدها» لأن القرص
+// اتمسح. ده كان اللغز اللى اتكرر مرتين (اتأكد بإعادة إنتاج على express 5.2.1).
+if (src.app) {
+  const h = src.app.match(/app\.get\("\/uploads\/:filename"[\s\S]*?\n\}\);/);
+  if (h && /res\.sendFile\(filepath\)/.test(h[0])) {
+    errors.push('app.js: /uploads بيعمل sendFile(filepath) من غير { dotfiles: "allow" } — Express 5 هيرفض أى صورة فى .local_data ويطلّع «خطأ فى الخادم».');
+  } else if (h && !/sendFile\(filepath,\s*\{\s*dotfiles:\s*["']allow["']\s*\}\)/.test(h[0])) {
+    errors.push('app.js: /uploads لازم يعمل sendFile(filepath, { dotfiles: "allow" }).');
+  }
+}
+const sfPkg = path.join(ROOT, 'serviceflow/package.json');
+if (fs.existsSync(sfPkg) && !/"express":\s*"\^?5/.test(fs.readFileSync(sfPkg, 'utf8'))) {
+  // لو رجعنا لـExpress 4 الشرط فوق مابقاش ضرورى — بس مش ضار. مابنوقّعش.
+}
+
+// ── ٨. تنزيل ZIP مايسيبش صور R2 فى صمت ───────────────────────────────────
+for (const rel of ['routes/boxes.js', 'routes/reports.js']) {
+  const f = path.join(APP, rel);
+  if (!fs.existsSync(f)) continue;
+  const c = fs.readFileSync(f, 'utf8');
+  if (/archive\.append\(p\.data/.test(c)) {
+    errors.push(`${rel}: فيه archive.append(p.data) مباشرة — الصورة اللى على R2 (data=NULL) هتتساب من الـZIP فى صمت. استخدم appendMediaToArchive.`);
+  }
+  // كل SELECT بيجيب data لـZIP لازم يجيب storage_key معاه
+  for (const m of c.matchAll(/SELECT ([^`]*?)\bFROM photos\b/g)) {
+    const cols = m[1];
+    if (/\b(p\.)?data\b/.test(cols) && !/storage_key/.test(cols)) {
+      errors.push(`${rel}: SELECT بيجيب data من غير storage_key — صور R2 مش هتلاقى طريقها للتنزيل:\n   SELECT ${cols.trim().slice(0, 80)}`);
+    }
+  }
+}
+if (src.photo && !/async function appendMediaToArchive[\s\S]*?r2\.getObject/.test(src.photo)) {
+  errors.push('utils/photo.js: appendMediaToArchive لازم يقرا من R2 لما data فاضى.');
+}
+
 // ── سكريبت النقل: مايفضّيش data من غير تحقق ───────────────────────────────
 if (src.mig) {
   const purge = src.mig.slice(src.mig.indexOf('if (PURGE)'), src.mig.indexOf('if (VERIFY)'));

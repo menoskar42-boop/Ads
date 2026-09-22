@@ -4,6 +4,7 @@ const fs = require('fs');
 const archiver = require('archiver');
 const db = require('../database');
 const DATA_DIR = require('../utils/datadir');
+const { appendMediaToArchive } = require('../utils/photo');
 const { requireLogin, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -248,8 +249,8 @@ router.get('/:id/photos/download', requireLogin, async (req, res) => {
     WHERE b.id = ?`, [req.params.id]);
   if (!box) return res.redirect('/boxes');
 
-  const beforePhotos = await db.all(`SELECT id, filename, data FROM photos WHERE box_id = ? AND photo_type = 'before' ORDER BY uploaded_at`, [req.params.id]);
-  const afterPhotos  = await db.all(`SELECT id, filename, data FROM photos WHERE box_id = ? AND photo_type = 'after'  ORDER BY uploaded_at`, [req.params.id]);
+  const beforePhotos = await db.all(`SELECT id, filename, data, storage_key FROM photos WHERE box_id = ? AND photo_type = 'before' ORDER BY uploaded_at`, [req.params.id]);
+  const afterPhotos  = await db.all(`SELECT id, filename, data, storage_key FROM photos WHERE box_id = ? AND photo_type = 'after'  ORDER BY uploaded_at`, [req.params.id]);
 
   if (!beforePhotos.length && !afterPhotos.length) {
     req.session.flash = { type: 'warning', msg: 'لا توجد صور لهذا البوكس.' };
@@ -266,17 +267,10 @@ router.get('/:id/photos/download', requireLogin, async (req, res) => {
   archive.on('error', err => { if (!res.headersSent) res.status(500).send(err.message); });
   archive.pipe(res);
 
-  function appendPhoto(p, idx, folderName) {
-    const name = `${rootFolder}/${folderName}/${idx + 1}${path.extname(p.filename) || '.jpg'}`;
-    const filePath = path.join(uploadsDir, p.filename);
-    if (fs.existsSync(filePath)) {
-      archive.file(filePath, { name });
-    } else if (p.data) {
-      archive.append(p.data, { name });
-    }
-  }
-  beforePhotos.forEach((p, idx) => appendPhoto(p, idx, 'قبل الصيانة'));
-  afterPhotos.forEach((p, idx) => appendPhoto(p, idx, 'بعد الصيانة'));
+  const appendPhoto = (p, idx, folderName) => appendMediaToArchive(
+    archive, p, `${rootFolder}/${folderName}/${idx + 1}${path.extname(p.filename) || '.jpg'}`, uploadsDir);
+  for (const [idx, p] of beforePhotos.entries()) await appendPhoto(p, idx, 'قبل الصيانة');
+  for (const [idx, p] of afterPhotos.entries())  await appendPhoto(p, idx, 'بعد الصيانة');
   archive.finalize();
 });
 

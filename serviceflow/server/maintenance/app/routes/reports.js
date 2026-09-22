@@ -4,6 +4,7 @@ const fs = require('fs');
 const archiver = require('archiver');
 const db = require('../database');
 const DATA_DIR = require('../utils/datadir');
+const { appendMediaToArchive } = require('../utils/photo');
 const { requireRole } = require('../middleware/auth');
 const xlsx = require('xlsx');
 const ExcelJS = require('exceljs');
@@ -1344,35 +1345,28 @@ router.get('/cabinet/:cabId/photos/download', staffOnly, async (req, res) => {
     archive.on('error', err => { if (!res.headersSent) res.status(500).send(err.message); });
     archive.pipe(res);
 
-    const appendPhoto = (boxFolder, p, idx, subFolder) => {
-      const name = `${boxFolder}/${subFolder}/${idx + 1}${path.extname(p.filename) || '.jpg'}`;
-      const filePath = path.join(uploadsDir, p.filename);
-      if (fs.existsSync(filePath)) {
-        archive.file(filePath, { name });
-      } else if (p.data) {
-        archive.append(p.data, { name });
-      }
-    };
+    const appendPhoto = (boxFolder, p, idx, subFolder) => appendMediaToArchive(
+      archive, p, `${boxFolder}/${subFolder}/${idx + 1}${path.extname(p.filename) || '.jpg'}`, uploadsDir);
 
     for (const box of boxes) {
       const boxFolder = `${rootFolder}/بوكس ${box.number}`;
       const beforePhotos = await db.all(`
-        SELECT p.filename, p.data FROM photos p
+        SELECT p.filename, p.data, p.storage_key FROM photos p
         JOIN inspections i ON i.id = p.inspection_id
         JOIN boxes b ON b.id = i.box_id
         WHERE b.number = ? AND b.cabinet_id = ? AND p.photo_type = 'before'
         ORDER BY p.uploaded_at
       `, [box.number, req.params.cabId]);
       const afterPhotos = await db.all(`
-        SELECT p.filename, p.data FROM photos p
+        SELECT p.filename, p.data, p.storage_key FROM photos p
         JOIN inspections i ON i.id = p.inspection_id
         JOIN boxes b ON b.id = i.box_id
         WHERE b.number = ? AND b.cabinet_id = ? AND p.photo_type = 'after'
         ORDER BY p.uploaded_at
       `, [box.number, req.params.cabId]);
 
-      beforePhotos.forEach((p, idx) => appendPhoto(boxFolder, p, idx, 'قبل الصيانة'));
-      afterPhotos.forEach((p, idx) => appendPhoto(boxFolder, p, idx, 'بعد الصيانة'));
+      for (const [idx, p] of beforePhotos.entries()) await appendPhoto(boxFolder, p, idx, 'قبل الصيانة');
+      for (const [idx, p] of afterPhotos.entries())  await appendPhoto(boxFolder, p, idx, 'بعد الصيانة');
     }
 
     archive.finalize();
@@ -1472,28 +1466,21 @@ router.get('/photos/download', staffOnly, async (req, res) => {
     archive.on('error', err => { if (!res.headersSent) res.status(500).send(err.message); });
     archive.pipe(res);
 
-    const appendPhoto = (folder, p, idx, sub) => {
-      const name = `${folder}/${sub}/${String(idx + 1).padStart(3, '0')}${path.extname(p.filename) || '.jpg'}`;
-      const filePath = path.join(uploadsDir, p.filename);
-      if (fs.existsSync(filePath)) {
-        archive.file(filePath, { name });
-      } else if (p.data) {
-        archive.append(p.data, { name });
-      }
-    };
+    const appendPhoto = (folder, p, idx, sub) => appendMediaToArchive(
+      archive, p, `${folder}/${sub}/${String(idx + 1).padStart(3, '0')}${path.extname(p.filename) || '.jpg'}`, uploadsDir);
 
     for (const box of boxList) {
       const folder = `${box.exchange_name}/${box.cabinet_number}/${box.box_number}`;
       const [beforePhotos, afterPhotos] = await Promise.all([
-        db.all(`SELECT p.filename, p.data FROM photos p JOIN inspections i ON i.id = p.inspection_id
+        db.all(`SELECT p.filename, p.data, p.storage_key FROM photos p JOIN inspections i ON i.id = p.inspection_id
                 WHERE i.box_id = ? AND p.photo_type = 'before' AND COALESCE(p.media_type,'photo')='photo'
                 ORDER BY p.uploaded_at`, [box.box_id]),
-        db.all(`SELECT p.filename, p.data FROM photos p JOIN inspections i ON i.id = p.inspection_id
+        db.all(`SELECT p.filename, p.data, p.storage_key FROM photos p JOIN inspections i ON i.id = p.inspection_id
                 WHERE i.box_id = ? AND p.photo_type = 'after' AND COALESCE(p.media_type,'photo')='photo'
                 ORDER BY p.uploaded_at`, [box.box_id]),
       ]);
-      beforePhotos.forEach((p, idx) => appendPhoto(folder, p, idx, 'قبل الصيانة'));
-      afterPhotos.forEach((p, idx) => appendPhoto(folder, p, idx, 'بعد الصيانة'));
+      for (const [idx, p] of beforePhotos.entries()) await appendPhoto(folder, p, idx, 'قبل الصيانة');
+      for (const [idx, p] of afterPhotos.entries())  await appendPhoto(folder, p, idx, 'بعد الصيانة');
     }
 
     archive.finalize();
