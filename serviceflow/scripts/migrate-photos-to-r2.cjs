@@ -24,7 +24,28 @@ const APP = path.join(__dirname, '..', 'server', 'maintenance', 'app');
 const r2 = require(path.join(APP, 'utils', 'r2.js'));
 
 const SCHEMA = (process.env.MAINTENANCE_DB_SCHEMA || 'maintenance').replace(/[^a-zA-Z0-9_]/g, '') || 'maintenance';
-const CONN = process.env.MAINTENANCE_DATABASE_URL || process.env.DATABASE_URL;
+
+/* ⚠️ أخطر سطر فى السكريبت ده.
+ *
+ * `MAINTENANCE_DATABASE_URL` بيتحطّ **للعملية الابنة بس** وقت التشغيل
+ * (server.js عند إطلاق Service Flow المستضاف). السكريبت ده بيتشغّل من الشِل،
+ * يعنى العملية الابنة مش موجودة أصلاً — فالمتغيّر ده مش هيبقى متظبّط.
+ *
+ * ولو وقعنا على `DATABASE_URL` على طول، فى نشر أوسكار ديفز ده بيبقى
+ * **قاعدة أوسكار ديفز نفسها** — قاعدة تانية خالص مالهاش علاقة بصور الصيانة.
+ * فبنجرّب `SERVICEFLOW_DATABASE_URL` قبله، وبنقول فى الآخر إحنا وقعنا على
+ * أنهى متغيّر وأنهى خادم — عشان اللى بيشغّل يشوف بعينه قبل ما يكمّل. */
+const CONN_SOURCES = ['MAINTENANCE_DATABASE_URL', 'SERVICEFLOW_DATABASE_URL', 'DATABASE_URL'];
+const CONN_VAR = CONN_SOURCES.find((v) => (process.env[v] || '').trim());
+const CONN = CONN_VAR ? process.env[CONN_VAR].trim() : null;
+
+/** الخادم واسم القاعدة من غير اسم المستخدم ولا كلمة السر. */
+function connLabel(url) {
+  try {
+    const u = new URL(url);
+    return `${u.hostname}${u.pathname}`;
+  } catch { return '(رابط مش مفهوم)'; }
+}
 
 const args = new Set(process.argv.slice(2));
 const DRY = args.has('--dry');
@@ -36,7 +57,16 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const mb = (n) => (Number(n) / 1024 / 1024).toFixed(1);
 
 async function main() {
-  if (!CONN) { console.error('✖ مفيش MAINTENANCE_DATABASE_URL ولا DATABASE_URL'); process.exit(1); }
+  if (!CONN) {
+    console.error('✖ مفيش رابط قاعدة. جرّبت بالترتيب: ' + CONN_SOURCES.join(' ← '));
+    process.exit(1);
+  }
+  console.log(`── القاعدة: ${connLabel(CONN)}  (من ${CONN_VAR}) ──`);
+  if (CONN_VAR === 'DATABASE_URL') {
+    console.log('  ⚠️ ده آخر اختيار فى الترتيب. فى نشر أوسكار ديفز `DATABASE_URL`');
+    console.log('     بيبقى قاعدة أوسكار ديفز نفسها — مش قاعدة Service Flow.');
+    console.log('     اتأكد من الأرقام تحت قبل ما تكمّل.');
+  }
   if (!DRY && !r2.isConfigured()) {
     console.error('✖ R2 مش مضبوط — محتاج R2_ACCOUNT_ID و R2_ACCESS_KEY_ID و R2_SECRET_ACCESS_KEY و R2_BUCKET');
     process.exit(1);
@@ -54,6 +84,17 @@ async function main() {
     } catch (e) { try { await c.query('ROLLBACK'); } catch {} throw e; }
     finally { c.release(); }
   };
+
+  try {
+    await q('SELECT 1 FROM photos LIMIT 1');
+  } catch (e) {
+    console.error(`\n✖ مفيش جدول \`${SCHEMA}.photos\` فى القاعدة دى (${connLabel(CONN)}).`);
+    console.error('  ده معناه إنك على **قاعدة غلط**، مش إن الصور خلصت.');
+    console.error(`  ظبّط MAINTENANCE_DATABASE_URL أو SERVICEFLOW_DATABASE_URL على قاعدة Service Flow وجرّب تانى.`);
+    console.error(`  (رسالة PostgreSQL: ${e.message})`);
+    await pool.end();
+    process.exit(1);
+  }
 
   const stat = await q(`
     SELECT

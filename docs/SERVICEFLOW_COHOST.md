@@ -124,10 +124,10 @@
 **نقل الصور القديمة** (من جوّه ريبليت شِل، والأسرار متظبّطة):
 
 ```
-node scripts/migrate-photos-to-r2.cjs --dry      # عدّ وحجم بس
-node scripts/migrate-photos-to-r2.cjs            # رفع + كتابة storage_key (data مابيتلمسش)
-node scripts/migrate-photos-to-r2.cjs --verify   # مقارنة SHA256 لكل صورة
-node scripts/migrate-photos-to-r2.cjs --purge    # data = NULL — **بعد ما --verify يعدّى بس**
+node serviceflow/scripts/migrate-photos-to-r2.cjs --dry      # عدّ وحجم بس
+node serviceflow/scripts/migrate-photos-to-r2.cjs            # رفع + كتابة storage_key (data مابيتلمسش)
+node serviceflow/scripts/migrate-photos-to-r2.cjs --verify   # مقارنة SHA256 لكل صورة
+node serviceflow/scripts/migrate-photos-to-r2.cjs --purge    # data = NULL — **بعد ما --verify يعدّى بس**
 ```
 
 بعد `--purge`: `VACUUM (FULL, ANALYZE) photos;` عشان المساحة ترجع فعلاً.

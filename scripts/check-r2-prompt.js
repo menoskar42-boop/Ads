@@ -82,9 +82,21 @@ for (const n of names) {
   if (!created) errors.push(`R2_BUCKET = ${n} بس الباكِت اللى البرومبت بيقول يعمله اسمه مختلف — التوكن هيتربط بباكِت والكود هيدوّر على باكِت تانى.`);
 }
 
-// ── أوامر النقل: نفس المسار ونفس الأعلام اللى فى السكريبت ────────────────
-if (!/scripts\/migrate-photos-to-r2\.cjs/.test(prompt)) {
-  errors.push('البرومبت مافيهوش مسار سكريبت النقل الصح (scripts/migrate-photos-to-r2.cjs).');
+// ── المشروع الصح: كود R2 فى نشر أوسكار ديفز مش فى المشروع القديم ────────
+// الغلطة دى حصلت فعلاً: الإكستنشن حطّ R2_ACCOUNT_ID فى المشروع القديم، واللى
+// مافيهوش كود R2 أصلاً — يعنى السرّ اتحطّ ومحصلش أى حاجة.
+for (const marker of ['SERVICEFLOW_UPSTREAM', 'SERVICEFLOW_HOST', 'SERVICEFLOW_DATABASE_URL']) {
+  if (!block.includes(marker)) {
+    errors.push(`البرومبت مش بيقول إزاى يفرّق بين المشروعين — ناقصه العلامة ${marker}. من غير كده الأسرار ممكن تتحطّ فى المشروع القديم اللى مافيهوش كود R2 خالص.`);
+  }
+}
+
+// ── أوامر النقل: نفس المسار الفعلى للسكريبت ─────────────────────────────
+// السكريبت فى serviceflow/scripts/، وشِل نشر أوسكار ديفز بيفتح على جذر
+// المستودع — فـ`node scripts/...` لوحده بيرمى "Cannot find module".
+const MIG_REL = path.relative(ROOT, MIG).replace(/\\/g, '/');
+if (!prompt.includes('node ' + MIG_REL)) {
+  errors.push(`البرومبت مافيهوش المسار الفعلى للسكريبت — لازم يكون \`node ${MIG_REL}\` من جذر المستودع.`);
 }
 for (const flag of ['--dry', '--verify', '--purge']) {
   if (!new RegExp(`'${flag}'|args\\.has\\('${flag}'\\)`).test(migsrc)) {
@@ -99,6 +111,21 @@ if (prompt.indexOf('--purge') < prompt.indexOf('--verify')) {
 // مزلق قاعدة الـdev لازم يفضل مكتوب.
 if (!/dev|الـdev/.test(prompt) || !/1748|١٧٤٨/.test(prompt)) {
   errors.push('تحذير «شِل ريبليت بيوصل لقاعدة تانية» أو الرقم المرجعى (~١٧٤٨ صورة) ناقص — من غيره المالك ممكن ينقل قاعدة الـdev ويفتكر إنه خلص.');
+}
+
+// ── السكريبت مايقعش على قاعدة أوسكار ديفز ───────────────────────────────
+// MAINTENANCE_DATABASE_URL بيتحطّ للعملية الابنة بس (server.js)، فالسكريبت
+// من الشِل مش هيلاقيه. لو وقع على DATABASE_URL على طول يبقى واقف على قاعدة
+// أوسكار ديفز — قاعدة تانية خالص.
+const srcOrder = (migsrc.match(/const CONN_SOURCES = \[([^\]]*)\]/) || [])[1] || '';
+const order = [...srcOrder.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1]);
+if (order.indexOf('SERVICEFLOW_DATABASE_URL') === -1) {
+  errors.push('سكريبت النقل مابيجرّبش SERVICEFLOW_DATABASE_URL — يعنى من شِل نشر أوسكار ديفز هيقع على DATABASE_URL اللى هى قاعدة أوسكار ديفز نفسها، مش قاعدة Service Flow.');
+} else if (order.indexOf('SERVICEFLOW_DATABASE_URL') > order.indexOf('DATABASE_URL')) {
+  errors.push('سكريبت النقل بيحطّ DATABASE_URL قبل SERVICEFLOW_DATABASE_URL — الترتيب ده بيودّيه لقاعدة أوسكار ديفز.');
+}
+if (!/مفيش جدول/.test(migsrc) || !/photos LIMIT 1/.test(migsrc)) {
+  errors.push('سكريبت النقل مابيتأكدش إن جدول photos موجود قبل ما يبدأ — من غير كده القاعدة الغلط بتبان كأنها «قاعدة خلصت صورها».');
 }
 
 if (errors.length) {
