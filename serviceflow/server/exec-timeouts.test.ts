@@ -28,6 +28,15 @@ test("the stop job — the one that stalled — is rescued in minutes, not in tw
   assert.ok(rescueMinutes("stop") < 13, "باتش واقف ١٣ دقيقة كان لازم يترجّع قبلها بكتير");
 });
 
+test("daily report batches are rescued after ten minutes", () => {
+  for (const type of ["fccdaily", "wfmdaily", "ossdaily", "weoas"]) {
+    assert.equal(EXEC_RUN_MINUTES[type], 8, `${type}: زمن التشغيل المتوقع`);
+    assert.equal(rescueMinutes(type), 10, `${type}: مهلة إعادة تشغيل الباتش`);
+  }
+  // تحديث ملف البورتات ليس تقريراً يومياً؛ يظل على مهلة التشغيل الطويلة.
+  assert.equal(rescueMinutes("ports"), 60);
+});
+
 test("an unknown job type still falls back to the shared default", () => {
   assert.equal(rescueMinutes("nope"), DEFAULT_RESCUE_MINUTES);
 });
@@ -45,10 +54,12 @@ test("the server, the stuck badge and the executor all read the one source", () 
 
 // جهاز التنفيذ: النبضة وحدها مش كفاية — التاب ممكن يبقى حى والمهمة متعلّقة جوّاه.
 test("the executor reloads a lane that outran its own timeout", () => {
-  assert.match(executor, /const runningSince = new Map<string, \{ at: number; type: string \}>\(\);/);
-  assert.match(executor, /runningSince\.set\(site, \{ at: Date\.now\(\), type: job\.type \}\);/);
+  assert.match(executor, /const runningSince = new Map<string, \{ at: number; type: ExecJobType; batchId\?: string \| null \}>\(\);/);
+  assert.match(executor, /runningSince\.set\(site, \{ at: Date\.now\(\), type: job\.type, batchId: job\.batchId \}\);/);
   assert.match(executor, /runningSince\.delete\(site\);/);
   assert.match(executor, /Date\.now\(\) - r\.at > rescueMinutes\(r\.type\) \* 60 \* 1000/);
+  assert.match(executor, /scheduleExecBatchRefresh\(lane\.batchId\)/);
+  assert.match(executor, /"fccdaily", "wfmdaily", "ossdaily", "weoas"/);
   // الفحص لازم يسبق فحص فجوة النبضة، وإلا التاب الحى مايتفحصش أصلاً
   const laneAt = executor.indexOf("const lane = stalledLane();");
   const gapAt = executor.indexOf("const gap = Date.now() - lastBeatOk;");

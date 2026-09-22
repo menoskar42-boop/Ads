@@ -17,10 +17,12 @@ export const EXEC_RUN_MINUTES: Record<string, number> = {
   ports: 30,        // رفعة ملف البورتات كامل
   wfmcancel: 6,
   wfmreport: 20,
-  fccdaily: 20,
-  wfmdaily: 20,
-  ossdaily: 20,
-  weoas: 30,
+  // التقارير اليومية عادةً تخلص خلال ٨ دقائق؛ بعد ١٠ دقائق نعتبر
+  // الباتش عالقاً ونطلب إعادة تشغيله بدلاً من تركه مفتوحاً.
+  fccdaily: 8,
+  wfmdaily: 8,
+  ossdaily: 8,
+  weoas: 8,
 };
 
 /**
@@ -40,10 +42,10 @@ export const EXEC_RESCUE_MINUTES: Record<string, number> = {
   c360: 45,
   wfmreport: 45,
   ports: 60,
-  fccdaily: 60,
-  wfmdaily: 60,
-  ossdaily: 60,
-  weoas: 60,
+  fccdaily: 10,
+  wfmdaily: 10,
+  ossdaily: 10,
+  weoas: 10,
 };
 
 /** النوع اللى مش فى الجدول (نوع جديد اتضاف ونُسى) بياخد المهلة العامة. */

@@ -21,3 +21,4 @@
 - [Git remote divergence](git-remote-divergence.md) — an active GitHub connection can coexist with a stale Git-pane auth error; avoid Pull on divergent branches and abort accidental merges.
 - [Workshop scheduler gating](workshop-scheduler-gated.md) — the workshop background tick runs every two hours and skips itself until a workshop tenant exists; database is billed by compute hours.
 - [Service Flow staged Supabase migration](supabase-staged-migration.md) — leaving photos and archive tables behind requires dual database routing before cutover.
+- [Demo session recovery](demo-session-recovery.md) — a real admin session can retain Demo read-only state; logout/login clears it, and admin login must clear it automatically.

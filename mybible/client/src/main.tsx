@@ -34,6 +34,13 @@ async function recoverClientShell(force = false) {
   window.location.reload();
 }
 
+// Vite dispatches this event when a lazy route chunk disappeared during a
+// deployment. Recover before React is left with a rejected dynamic import.
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  void recoverClientShell(true);
+});
+
 // Register service worker for offline caching (push notifications handled inside sw.js)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {

@@ -118,6 +118,21 @@ function loadRoutes() {
 // its real public domain (keeps its session cookie bound to mybible.*).
 // ٣٠ ثانية: أطول من أي صفحة معقولة، وأقصر بكتير من «للأبد».
 const UPSTREAM_TIMEOUT_MS = 30000;
+// Keep the local child-app connection warm. Without an Agent, every public
+// request creates a new loopback TCP connection between the gateway and
+// MyBible, adding avoidable work when many users open the app together.
+const upstreamHttpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 128,
+  maxFreeSockets: 32,
+  timeout: UPSTREAM_TIMEOUT_MS + 5000,
+});
+const upstreamHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 128,
+  maxFreeSockets: 32,
+  timeout: UPSTREAM_TIMEOUT_MS + 5000,
+});
 
 /* statusHost: مفتاح حالة التطبيق لو مختلف عن النطاق العام.
  * باب المسار بيشتغل على **أى** نطاق (ads-*.replit.app مثلاً)، والحالة
@@ -145,6 +160,7 @@ function proxy(req, res, targetBase, publicHost, statusHost) {
     // back to the child's SPA fallback instead of its real route.
     path: req.url || req.originalUrl,
     headers,
+    agent: base.protocol === 'https:' ? upstreamHttpsAgent : upstreamHttpAgent,
     // مهلة.
     //
     // من غيرها، لو التطبيق المستضاف علّق (مش وقع — **علّق**)، الطلب بيفضل

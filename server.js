@@ -2050,9 +2050,15 @@ initDb()
   })
   .catch(err => console.error('DB init warning:', err.message))
   .finally(() => {
-    // Start backups only after additive schema work has finished, so pg_dump
-    // does not compete with startup DDL for locks on the external database.
-    adsBackup.startAdsBackupScheduler();
+    // Backups are opt-in. The Ads database remains the source of truth and
+    // no full pg_dump should run unless the operator explicitly enables it.
+    if (process.env.ADS_BACKUP_ENABLED === 'true') {
+      // Start backups only after additive schema work has finished, so pg_dump
+      // does not compete with startup DDL for locks on the external database.
+      adsBackup.startAdsBackupScheduler();
+    } else {
+      console.log('[ads-backup] automatic backups disabled — using Supabase as the source of truth');
+    }
   });
 
 setInterval(() => { syncMedicinesSafe(); }, 24 * 60 * 60 * 1000).unref();

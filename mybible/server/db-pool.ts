@@ -1,23 +1,22 @@
 import pg from "pg";
 
 const configuredMax = Number.parseInt(
-  process.env.MYBIBLE_PG_POOL_MAX || "15",
+  process.env.MYBIBLE_PG_POOL_MAX || "4",
   10,
 );
 const max = Number.isFinite(configuredMax) && configuredMax > 0
   ? configuredMax
-  : 15;
+  : 5;
 
 /* MyBible shares one Supabase project and one session-pooler account with the
  * parent Ads process. One process-wide pool keeps their combined connection
  * ceiling below Supabase's limit; parallel requests wait here instead of
  * failing with EMAXCONNSESSION.
  *
- * ⚠️ الرقم ده كان **٥** وده قليل خطير: صفحة المجموعة لوحدها بتطلق أكتر من
- * عشر نداءات مع بعض أول ما تفتح، ودرس الكتاب فيه ٧٠٠ عضو ممكن يفتحوا في
- * نفس الدقيقة. بخمسة، الطلبات بتقف في طابور و`connectionTimeoutMillis`
- * بيرميها بعد ١٠ ثواني. الأب (Ads) عنده ٢٠ — والاتنين مع بعض ٣٥، وده
- * تحت حد Supabase براحة. */
+ * ⚠️ السقف الافتراضي هنا **٤** عمداً. صفحة المجموعة قد تطلق أكثر من
+ * نداء في نفس اللحظة، لكن الطلبات تنتظر داخل هذا الـPool بدل أن تفتح
+ * اتصالات تتجاوز سقف Session Pooler المشترك مع Ads وService Flow.
+ * إعداد الإنتاج يستطيع تغييره صراحة عبر MYBIBLE_PG_POOL_MAX. */
 /* ⚠️ `idleTimeoutMillis` كانت ٣٠ ثانية، وده غالي جداً بعد النقل لسوبابيز.
  *
  * القياس من `/api/health` على الموقع الحي: `pingMs` **١٠٥** لما يكون فيه

@@ -1,0 +1,71 @@
+IMPORTANT CONSTRAINTS:
+- Never rewrite entire existing files
+- Always use str_replace for edits to existing files
+- Add new features one at a time
+- For files over 200 lines: insert code sections only, 
+  never full file replacement
+- If a task is complex, break it into steps and 
+  confirm after each step
+
+TASK:
+Remove the existing automated daily full PostgreSQL backup (pg_dump) for the Ads database.
+
+IMPORTANT:
+This task is ONLY about disabling/removing the automated daily backup process.
+Do NOT modify, migrate, delete, reset, or alter any database data.
+
+Before making any changes:
+1. Search the entire project for all code related to:
+   - pg_dump
+   - PostgreSQL backups
+   - daily backup schedules
+   - backup cron jobs
+   - scheduled backup functions
+   - backup scripts
+   - backup destinations
+   - commands that export the Ads database
+2. Identify exactly which code/scheduler is responsible for the automated daily Ads database backup.
+3. Do not modify anything yet.
+4. Report the exact file(s), function(s), and scheduler responsible for the backup.
+
+After identifying the backup mechanism:
+5. Remove or disable ONLY the automated daily backup execution.
+6. Do not modify:
+   - ADS_DATABASE_URL
+   - SERVICEFLOW_DATABASE_URL
+   - SERVICEFLOW_DATABASE_TARGET
+   - Service Flow functionality
+   - Ads application functionality
+   - MyBible functionality
+   - Supabase configuration
+   - database schemas
+   - database tables
+   - database records
+   - authentication
+   - API endpoints
+   - existing application schedulers unrelated to backups
+
+7. If the backup is triggered by a scheduler, disable only that specific backup job.
+8. If the backup code is no longer needed after disabling the scheduler, remove only the minimum necessary code.
+9. Do not remove generic database utilities if they are used elsewhere.
+10. Do not delete existing backup files unless explicitly instructed.
+
+After the change:
+11. Run the minimum necessary validation to confirm:
+   - The application still starts successfully.
+   - Ads still connects to its existing database.
+   - Service Flow still uses its existing database.
+   - MyBible remains unaffected.
+   - No daily pg_dump backup job is scheduled or executed.
+12. Search again for active references to the automated daily backup and confirm that it is disabled.
+
+IMPORTANT SAFETY CHECK:
+Before finishing, explicitly report:
+- Which file(s) were changed
+- What exact backup scheduler/process was disabled
+- Whether any database data was modified
+- Whether ADS_DATABASE_URL was changed
+- Whether Service Flow was changed
+- Whether any unrelated scheduler was changed
+
+Do not make any other changes.

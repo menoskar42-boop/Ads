@@ -78,7 +78,13 @@ router.get('/', (req, res) => {
 });
 
 router.get('/login', (req, res) => {
-  if (req.session.adminId) return res.redirect('/admin/dashboard');
+  if (req.session.adminId) {
+    // An admin can arrive here after opening a demo in the same browser.
+    // The authenticated admin session is real, so do not leave the global
+    // demo read-only guard attached to it.
+    demoMode.endDemo(req);
+    return res.redirect('/admin/dashboard');
+  }
   res.render('admin/login', { error: null });
 });
 
@@ -95,6 +101,10 @@ router.post('/login', loginLimiter, async (req, res) => {
     if (!match) {
       return res.render('admin/login', { error: 'Invalid email or password.' });
     }
+    // A successful admin credential is a real login, not a demo session.
+    // Clear the flag before the first redirect so POST actions such as
+    // "Mark as read" are not rejected by the global demo guard.
+    demoMode.endDemo(req);
     req.session.adminId = admin.id;
     req.session.adminEmail = admin.email;
     req.session.adminLang = admin.lang || 'ar';

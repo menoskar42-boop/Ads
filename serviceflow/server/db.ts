@@ -28,11 +28,27 @@ if (!process.env.DATABASE_URL) {
  */
 const archiveDatabaseUrl = process.env.DATABASE_URL;
 const currentDatabaseUrl = String(process.env.SERVICEFLOW_CURRENT_DATABASE_URL || "").trim();
+const configuredCurrentPoolMax = Number.parseInt(
+  process.env.SERVICEFLOW_CURRENT_PG_POOL_MAX || "1",
+  10,
+);
+const currentPoolMax = Number.isFinite(configuredCurrentPoolMax) && configuredCurrentPoolMax > 0
+  ? configuredCurrentPoolMax
+  : 2;
 
 export const archivePool = new Pool({ connectionString: archiveDatabaseUrl });
 export const pool = archivePool;
 export const currentPool = currentDatabaseUrl
-  ? new Pool({ connectionString: currentDatabaseUrl })
+  ? new Pool({
+      connectionString: currentDatabaseUrl,
+      // This pool points at the shared Ads/MyBible Supabase project. Keep it
+      // bounded explicitly: pg's default of 10 could consume most of the
+      // session pooler's 15-client ceiling by itself.
+      max: currentPoolMax,
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 10 * 60_000,
+      keepAlive: true,
+    })
   : archivePool;
 export const hasCurrentDatabase = currentPool !== archivePool;
 export const db = drizzle(pool, { schema });
@@ -1420,6 +1436,27 @@ export async function ensureSchema() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS line_account_edits_edited_at_idx
       ON line_account_edits (edited_at DESC)
+  `);
+
+  // customer_contact_logs — سجل محاولات الاتصال بالعميل من نافذة تفاصيل الخط.
+  // كل ضغطة اتصال صف مستقل حتى يظهر آخر اتصال ويظل التاريخ الكامل محفوظًا.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_contact_logs (
+      id serial PRIMARY KEY,
+      full_phone text NOT NULL,
+      outcome text NOT NULL CHECK (outcome IN ('answered', 'no_answer')),
+      contacted_at timestamptz NOT NULL DEFAULT now(),
+      contacted_by_id integer REFERENCES users(id),
+      contacted_by_name text
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE customer_contact_logs
+      ADD COLUMN IF NOT EXISTS notes text
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS customer_contact_logs_phone_time_idx
+      ON customer_contact_logs (full_phone, contacted_at DESC, id DESC)
   `);
 
   // lines_no_account — خطوط معلَّمة يدوياً بأنها "بدون رقم أكونت" (لا يوجد لها أكونت)

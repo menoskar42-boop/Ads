@@ -118,6 +118,13 @@ check('والخروج مسموح عشان الزائر مايتحبسش',
   check('كل باب دخول بينهي وضع العرض', sets === ends && ends >= 5, `${ends}/${sets}`);
 }
 
+/* The platform admin login is another real credential door. */
+{
+  const admin = fs.readFileSync(path.join(ROOT, 'src/routes/admin.js'), 'utf8');
+  check('ودخول أدمن المنصة بينهي وضع العرض',
+    (admin.match(/demoMode\.endDemo\(req\);/g) || []).length >= 2);
+}
+
 /* ── The seven no longer need their own copy ───────────────────────────── */
 {
   // Stated as a fact about the routers: none of them enforces this itself, and

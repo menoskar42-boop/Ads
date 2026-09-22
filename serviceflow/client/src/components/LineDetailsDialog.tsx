@@ -3,6 +3,7 @@ import { Loader2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { closeReason } from "@/lib/close-codes";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
+import { CustomerContactActions } from "@/components/CustomerContactActions";
 
 // نافذة «تفاصيل الخط» المشتركة — بتتفتح من أى تقرير فيه رقم تليفون.
 // مصدر البيانات هو نفس مصادر «بحث برقم التليفون» بالظبط عشان مايبقاش فيه مصدرين
@@ -71,19 +72,22 @@ export function LineDetailsDialog({
       onPointerDown={(e) => { if (e.target === e.currentTarget) handleClose(e); }}
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl my-8" dir="rtl" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-blue-50">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 border-b bg-blue-50">
           <h3 className="font-bold text-sm">تفاصيل الخط — <bdi dir="ltr">{phone}</bdi></h3>
-          <button
-            type="button"
-            onPointerDown={handleClose}
-            onMouseDown={handleClose}
-            onClick={handleClose}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            aria-label="إغلاق تفاصيل الخط"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <CustomerContactActions phone={phone} />
+            <button
+              type="button"
+              onPointerDown={handleClose}
+              onMouseDown={handleClose}
+              onClick={handleClose}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              aria-label="إغلاق تفاصيل الخط"
+              title="إغلاق"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-4">

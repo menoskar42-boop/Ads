@@ -34,9 +34,13 @@ module.exports = function applySharedPool(pg) {
     const key = String((opts && opts.connectionString) || process.env.DATABASE_URL || '');
     if (!cache.has(key)) {
       const pool = new RealPool(Object.assign({
-        // Bounded for the whole process. 20 is generous for one node handling
-        // web traffic, and safely under every managed-Postgres plan's ceiling.
-        max: parseInt(process.env.PG_POOL_MAX, 10) || 20,
+        // Bounded for the whole process. Keep the default conservative because
+        // MyBible and Service Flow may share the same Supabase Session Pooler.
+        // Keep a real reserve on the shared Supabase Session Pooler. The
+        // parent process shares that project with MyBible and Service Flow;
+        // consuming all 15 slots leaves no room for a session-store request,
+        // migration, backup, or a rolling deploy.
+        max: parseInt(process.env.PG_POOL_MAX, 10) || 4,
         connectionTimeoutMillis: 10000,
         /* عشر دقايق مش نص دقيقة.
          *
