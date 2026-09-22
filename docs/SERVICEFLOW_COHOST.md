@@ -55,6 +55,8 @@
 | `SF_SCHEDULERS` | `SERVICEFLOW_SCHEDULERS` (`off` افتراضياً) | فترة التجربة |
 | `SF_BASE_PATH` | أمر البناء وأمر التشغيل في `.replit` | مسار باب `/serviceflow` |
 | `REPL_ID` | ريبليت بيحطه لوحده | إضافات التطوير بس — متلمسهوش |
+| `SERVICEFLOW_CURRENT_PG_POOL_MAX` | اختياري (افتراضي `1`) | سقف اتصالات قاعدة الـSnapshot |
+| `SERVICEFLOW_TEST_DATABASE_URL` | للاختبارات بس | **متحطّهوش في النشر** — من غيره اختبارات PostgreSQL بتتخطّى |
 
 ⚠️ **`DATABASE_URL` مش في قايمة الـSecrets القديمة** لأن ريبليت بيوفّره
 تلقائياً لقاعدته المدمجة. هاته من تبويب **Database** في المشروع القديم
