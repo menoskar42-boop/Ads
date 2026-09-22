@@ -5624,9 +5624,10 @@ export async function registerRoutes(
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const q = search.trim();
-    const complaintsGreaterThan = complaintsGt.trim() === ""
+    const parsedComplaintsGt = Number.parseInt(complaintsGt, 10);
+    const complaintsGreaterThan = complaintsGt.trim() === "" || !Number.isFinite(parsedComplaintsGt)
       ? null
-      : Math.max(0, Math.min(1000000, parseInt(complaintsGt, 10) || 0));
+      : Math.max(0, Math.min(1000000, parsedComplaintsGt));
 
     // الافتراضى: آخر سنة حتى اليوم (بتوقيت القاهرة)، مع السماح للواجهة بإرسال نطاق مختلف.
     const cairoParts = new Intl.DateTimeFormat("en-CA", {

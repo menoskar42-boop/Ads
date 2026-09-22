@@ -15,7 +15,7 @@ const route = routes.slice(routeStart, routeEnd);
 
 test("account complaints supports a strict greater-than complaint filter", () => {
   assert.match(route, /complaintsGt/);
-  assert.match(route, /cs\.complaint_count > \$\{params\.length\}/);
+  assert.match(route, /cs\.complaint_count > \$\$\{params\.length\}/);
 });
 
 test("account complaints returns totals for all filtered lines", () => {
