@@ -17,6 +17,7 @@ const safety = require('../nutrition/safety');
 const diary = require('../nutrition/diary');
 const goalTools = require('../nutrition/goals');
 const { waPhone } = require('../nutrition/whatsapp');
+const XL = require('../lib/xlsx_write');
 const bcrypt = require('bcryptjs');
 const audit = require('../lib/audit');
 
@@ -138,6 +139,68 @@ router.get('/patients', async (req, res) => {
       err: NT_ERRORS.includes(req.query.err) ? req.query.err : null,
     });
   } catch (e) { console.error('[nutrition patients]', e.message); res.status(500).send('error'); }
+});
+
+// ── تصدير العملاء إكسيل ──────────────────────────────────────────────────────
+//
+// بيانات العيادة ملكها: تقدر تاخدها كلها في أي وقت وتمشي — من غير ما تطلب
+// مننا. ملف واحد بتلات شيتات: العملاء (نشط ومؤرشف)، وكل القياسات، وكل
+// التحاليل، مربوطين برقم العميل واسمه.
+//
+// صاحب العيادة بس: ده **كل** السجل الطبي في ملف واحد. المساعد اللي بيوزن
+// والاستقبال اللي بيرد على التليفون مايفتحوش تحليل واحد (perms.js)، فأكيد
+// مايسحبوش الكل. والسحب نفسه بيتسجّل في سجل العمليات.
+router.get('/export', async (req, res) => {
+  if (!req.perms || req.perms.role !== 'owner') return res.redirect('/nutrition/patients');
+  const cid = req.company.id;
+  const d = (v) => (v ? new Date(v).toISOString().slice(0, 10) : '');
+  const n = (v) => (v === null || v === undefined || v === '' ? '' : Number(v));
+  const T = (k) => res.locals.t(k);
+  try {
+    const [pts, meas, labs] = await Promise.all([
+      pool.query(`SELECT * FROM nutrition_patients WHERE company_id=$1 ORDER BY id`, [cid]),
+      pool.query(`SELECT m.*, p.name AS patient_name FROM nutrition_measurements m
+                    JOIN nutrition_patients p ON p.id = m.patient_id AND p.company_id = m.company_id
+                   WHERE m.company_id=$1 ORDER BY m.patient_id, m.taken_on, m.id`, [cid]),
+      pool.query(`SELECT l.*, p.name AS patient_name FROM nutrition_labs l
+                    JOIN nutrition_patients p ON p.id = l.patient_id AND p.company_id = l.company_id
+                   WHERE l.company_id=$1 ORDER BY l.patient_id, l.taken_on, l.id`, [cid]),
+    ]);
+    const sheets = [
+      { name: T('nt.ex.patients'), rows: [
+        ['#', T('nt.f.name'), T('nt.f.phone'), T('nt.ex.email'), T('nt.f.gender'), T('nt.f.birth_date'),
+          T('nt.f.height_cm'), T('nt.f.activity'), T('nt.f.goal'), T('nt.ex.target'),
+          T('nt.f.protein_per_kg'), T('nt.f.fat_percent'), T('nt.f.notes'), T('nt.ex.status'), T('nt.ex.created')],
+        ...pts.rows.map((p) => [p.id, p.name, p.phone || '', p.email || '',
+          p.gender ? T('nt.g.' + p.gender) : '', d(p.birth_date), n(p.height_cm),
+          T('nt.act.' + p.activity), T('nt.goal.' + p.goal), n(p.target_weight_kg),
+          n(p.protein_per_kg), n(p.fat_percent), p.notes || '',
+          p.is_active ? T('nt.ex.active') : T('nt.ex.archived'), d(p.created_at)]),
+      ] },
+      { name: T('nt.ex.measurements'), rows: [
+        ['#', T('nt.f.name'), T('nt.ex.date'), T('nt.ex.weight'), T('nt.ex.fat'), T('nt.ex.waist'),
+          T('nt.ex.muscle'), T('nt.ex.source'), T('nt.f.notes')],
+        ...meas.rows.map((m) => [m.patient_id, m.patient_name, d(m.taken_on), n(m.weight_kg),
+          n(m.body_fat_pct), n(m.waist_cm), n(m.muscle_kg), T('nt.ex.src_' + (m.source === 'patient' ? 'patient' : 'clinic')),
+          m.notes || '']),
+      ] },
+      { name: T('nt.ex.labs'), rows: [
+        ['#', T('nt.f.name'), T('nt.ex.date'), T('nt.ex.lab'), T('nt.ex.value'), T('nt.ex.unit'), T('nt.f.notes')],
+        ...labs.rows.map((l) => [l.patient_id, l.patient_name, d(l.taken_on), l.title, l.value || '', l.unit || '', l.notes || '']),
+      ] },
+    ];
+    const buf = XL.workbook(sheets, { rtl: res.locals.lang !== 'en' });
+    const name = `${req.company.slug || 'nutrition'}-clients-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    audit.log(pool, req, { entity: 'patient', action: 'export', meta: { patients: pts.rows.length } });
+    res.setHeader('Content-Type', XL.MIME);
+    res.setHeader('Content-Length', buf.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(buf);
+  } catch (e) {
+    console.error('[nutrition export]', e.message);
+    res.redirect('/nutrition/patients?err=save');
+  }
 });
 
 router.post('/patients', async (req, res) => {
