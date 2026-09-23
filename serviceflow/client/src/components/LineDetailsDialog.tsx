@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { closeReason } from "@/lib/close-codes";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
 import { CustomerContactActions } from "@/components/CustomerContactActions";
+import { MobileValue } from "@/lib/mobile-lookup";
 
 // نافذة «تفاصيل الخط» المشتركة — بتتفتح من أى تقرير فيه رقم تليفون.
 // مصدر البيانات هو نفس مصادر «بحث برقم التليفون» بالظبط عشان مايبقاش فيه مصدرين
@@ -100,7 +101,7 @@ export function LineDetailsDialog({
               <div>
                 <Row k="اسم العميل" v={l.subName} />
                 <Row k="العنوان" v={l.subAdd} />
-                <Row k="رقم الموبايل" v={l.mobile} />
+                <Row k="رقم الموبايل" v={<MobileValue mobile={l.mobile} />} />
                 <Row k="رقم الأكونت" v={l.accountNo} />
                 <Row k="اسم الفنى" v={l.techName} />
               </div>

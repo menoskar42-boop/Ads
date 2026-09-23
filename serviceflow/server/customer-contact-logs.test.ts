@@ -12,6 +12,10 @@ const actions = readFileSync(
   new URL("../client/src/components/CustomerContactActions.tsx", import.meta.url),
   "utf8",
 );
+const mobileLookup = readFileSync(
+  new URL("../client/src/lib/mobile-lookup.tsx", import.meta.url),
+  "utf8",
+);
 
 test("customer contact logs are stored with an outcome and server timestamp", () => {
   assert.match(db, /CREATE TABLE IF NOT EXISTS customer_contact_logs/);
@@ -25,6 +29,9 @@ test("customer contact logs are stored with an outcome and server timestamp", ()
 
 test("the line details dialog owns the contact actions and exposes full history", () => {
   assert.match(dialog, /<CustomerContactActions phone=\{phone\} \/>/);
+  assert.match(dialog, /<MobileValue mobile=\{l\.mobile\} \/>/);
+  assert.match(mobileLookup, /href=\{`tel:\$\{dial\}`\}/);
+  assert.match(mobileLookup, /md:hidden/);
   assert.match(actions, /تم الاتصال والعميل رد/);
   assert.match(actions, /تم الاتصال ولم يرد العميل/);
   assert.match(actions, /ملاحظات/);
