@@ -8,6 +8,7 @@ import { Loader2, Check, Undo2, FileSpreadsheet, Printer, Link2 } from "lucide-r
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { arNorm } from "@shared/ar-norm";
+import { MobileValue } from "@/lib/mobile-lookup";
 
 // «ربط الطلبات بالمتعذرات الحالية» — سوبر أدمن فقط.
 // بيطابق بالاسم (نسبة ≥ العتبة) وبيعرض الجهتين جنب بعض، وزر «تأكيد التطابق»
@@ -233,11 +234,11 @@ export function OmOrderMatchReport() {
                     </TableCell>
                     <TableCell className="min-w-[140px]"><Cell v={p.order.name} /></TableCell>
                     <TableCell className="min-w-[160px] max-w-[240px] break-words"><Cell v={p.order.address} /></TableCell>
-                    <TableCell dir="ltr" className="text-left whitespace-nowrap"><Cell v={p.order.mobile} /></TableCell>
+                    <TableCell dir="ltr" className="text-left whitespace-nowrap"><MobileValue mobile={p.order.mobile} /></TableCell>
                     <TableCell className="min-w-[110px]"><Cell v={p.order.reason} /></TableCell>
                     <TableCell className="min-w-[140px]"><Cell v={p.om?.name} /></TableCell>
                     <TableCell className="min-w-[160px] max-w-[240px] break-words"><Cell v={p.om?.address} /></TableCell>
-                    <TableCell dir="ltr" className="text-left whitespace-nowrap"><Cell v={p.om?.mobile} /></TableCell>
+                    <TableCell dir="ltr" className="text-left whitespace-nowrap"><MobileValue mobile={p.om?.mobile} /></TableCell>
                     <TableCell className="min-w-[110px]"><Cell v={p.om?.reason} /></TableCell>
                     <TableCell className="whitespace-nowrap">
                       {p.confirmed ? (

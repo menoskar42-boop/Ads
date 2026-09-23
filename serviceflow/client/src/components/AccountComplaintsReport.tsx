@@ -73,7 +73,7 @@ const defaultDates = (mode: "period" | "period-total") => {
   return { from, to };
 };
 
-const initialDates = defaultDates("period");
+const initialDates = defaultDates("period-total");
 
 const reportTitle = (mode: "period" | "period-total") =>
   mode === "period-total" ? "تقرير الشكاوى خلال فترة" : "تقرير الشكاوى خلال عام";
@@ -87,7 +87,7 @@ const fmtDate = (value: string | null) => {
 };
 
 export function AccountComplaintsReport() {
-  const [reportMode, setReportMode] = useState<"period" | "period-total">("period");
+  const [reportMode, setReportMode] = useState<"period" | "period-total">("period-total");
   const [dateFrom, setDateFrom] = useState(initialDates.from);
   const [dateTo, setDateTo] = useState(initialDates.to);
   const [central, setCentral] = useState("");

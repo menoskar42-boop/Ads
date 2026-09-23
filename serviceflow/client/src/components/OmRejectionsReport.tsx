@@ -16,6 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { ROLES, REJECTION_REASONS } from "@shared/schema";
 import { TechActionModal } from "@/components/TechActionModal";
 import { isBoxBrokenReason, matchesBoxScoreFilter } from "@shared/om-box-score";
+import { MobileValue } from "@/lib/mobile-lookup";
 
 interface Row {
   id: number;
@@ -238,7 +239,7 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
   };
 
   const renderMobileCell = (r: Row) => {
-    if (!canEditMobile || !r.serialNumber) return r.customerMobile || "-";
+    if (!canEditMobile || !r.serialNumber) return <MobileValue mobile={r.customerMobile} />;
     const masked = !r.customerMobile || /[*]/.test(String(r.customerMobile));
     if (editSerial === r.serialNumber) {
       return (
@@ -255,7 +256,9 @@ export function OmRejectionsReport({ bucket, title }: { bucket: "current" | "soy
     }
     return (
       <span className="inline-flex items-center gap-2">
-        <span className={masked && !r.manualMobile ? "text-orange-600" : ""} dir="ltr">{r.customerMobile || "-"}</span>
+        <span className={masked && !r.manualMobile ? "text-orange-600" : ""}>
+          <MobileValue mobile={r.customerMobile} />
+        </span>
         <button onClick={() => { setMobileInput(r.manualMobile || ""); setEditSerial(r.serialNumber!); }}
           className="text-[11px] text-blue-600 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50">
           {r.manualMobile ? "تعديل" : "＋ إضافة"}
