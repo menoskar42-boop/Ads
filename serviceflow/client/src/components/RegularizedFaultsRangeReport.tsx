@@ -392,8 +392,6 @@ export function RegularizedFaultsRangeReport() {
     if (w) { w.document.write(html); w.document.close(); }
   };
 
-  const CENTRALS = ["الغنايم", "الغنايم-العزايزة", "الغنايم-دير الجنادله", "الغنايم-نجع العمدة"];
-
   return (
     <div className="space-y-4" dir="rtl">
       {/* Toolbar */}
@@ -487,7 +485,7 @@ export function RegularizedFaultsRangeReport() {
           ))}
         </select>
         <select
-          value={central}
+          value={closeReasonF}
           onChange={(e) => setCloseReasonF(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
           dir="rtl"

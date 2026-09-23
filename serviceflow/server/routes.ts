@@ -12593,7 +12593,10 @@ export async function registerRoutes(
   // المصدر 2: remaining_complaints (شيت المتبقى) — فقط status_code 138 و 135 منتظمة.
   app.get("/api/reports/regularized-faults-range", requireAuth, async (req, res) => {
     try {
-      const { central = "", q = "", dateFrom = "", dateTo = "", measuredBefore = "" } =
+      const {
+        central = "", cabin = "", box = "", closingTech = "",
+        q = "", dateFrom = "", dateTo = "", measuredBefore = "",
+      } =
         req.query as Record<string, string>;
       const isTech = req.user?.role === ROLES.TECH;
       // التاريخ الافتراضى هو الشهر الحالى بتوقيت القاهرة. للفنى نثبت الشهر الحالى
@@ -12626,6 +12629,16 @@ export async function registerRoutes(
         cdConds.push(`cd.exchange_name = $${params.length}`);
         rcConds.push(`rc.exchange_name = $${params.length}`);
       }
+      if (cabin) {
+        params.push(cabin);
+        cdConds.push(`cd.cabinet_no = $${params.length}`);
+        rcConds.push(`rc.cabinet_no = $${params.length}`);
+      }
+      if (box) {
+        params.push(box);
+        cdConds.push(`${n("pl.box_number")} = $${params.length}`);
+        rcConds.push(`${n("pl2.box_number")} = $${params.length}`);
+      }
       {
         cdConds.push(`(cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date`);
         rcConds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date`);
@@ -12654,6 +12667,28 @@ export async function registerRoutes(
       if (qTypes) {
         cdConds.push(notQueuedSql("c138p.account_no", qTypes));
         rcConds.push(notQueuedSql("rc138p.account_no", qTypes));
+      }
+      // الفني الفعلي فى التقرير: فني الإغلاق المعروف أولاً، وإلا فني المنطقة.
+      // canonicalTechSql يحوّل كل صيغ أسماء الفنيين إلى الاسم المختصر المعتمد
+      // ويحوّل الاسم غير المعروف إلى NULL، لذلك لا يدخل فى الفلتر إلا الخمسة
+      // المسجّلون فعلاً.
+      const cdEffectiveTech = `COALESCE(
+        ${canonicalTechSql("(SELECT mcb.tech_name FROM manual_close_by mcb WHERE mcb.complain_no = cd.complain_no LIMIT 1)")},
+        ${canonicalTechSql("(SELECT tnClose.tech_name FROM technician_names tnClose WHERE tnClose.worker_code = cd.close_by LIMIT 1)")},
+        ${canonicalTechSql(areaTechSql("cd.exchange_name", "cd.cabinet_no", "cd.complain_time", "cd.phone_number"))},
+        'غير معروف'
+      )`;
+      const rcEffectiveTech = `COALESCE(
+        ${canonicalTechSql("(SELECT mcb.tech_name FROM manual_close_by mcb WHERE mcb.complain_no = rc.complain_no LIMIT 1)")},
+        ${canonicalTechSql("(SELECT tnClose.tech_name FROM technician_names tnClose WHERE tnClose.worker_code = rc.close_by LIMIT 1)")},
+        ${canonicalTechSql(areaTechSql("rc.exchange_name", "rc.cabinet_no", "rc.complain_time", "rc.phone_number"))},
+        'غير معروف'
+      )`;
+      if (closingTech.trim()) {
+        params.push(closingTech.trim());
+        const techParam = `$${params.length}`;
+        cdConds.push(`${cdEffectiveTech} = ${techParam}`);
+        rcConds.push(`${rcEffectiveTech} = ${techParam}`);
       }
       // الفني يرى الأعطال التابعة له فقط. نستخدم فنى المنطقة الفعلى فى يوم الشكوى
       // مع دعم تغطية الزميل أثناء الوردية.
@@ -12750,7 +12785,7 @@ export async function registerRoutes(
              cd.close_time            AS "closeDate",
              pp.onu                   AS "onu",
              ct.worker_code           AS "workerCode",
-             COALESCE(tn.tech_name, mcb.tech_name, cd.close_by) AS "techName",
+              ${cdEffectiveTech} AS "techName",
              ct.haya_karima           AS "hayaKarima",
              pp.voice_status          AS "voiceStatus",
              pp.data_status           AS "dataStatus",
@@ -12847,7 +12882,7 @@ export async function registerRoutes(
              rc.close_time            AS "closeDate",
              pp2.onu                  AS "onu",
              ct2.worker_code          AS "workerCode",
-             COALESCE(tn2.tech_name, rc.close_by) AS "techName",
+              ${rcEffectiveTech} AS "techName",
              ct2.haya_karima          AS "hayaKarima",
              pp2.voice_status         AS "voiceStatus",
              pp2.data_status          AS "dataStatus",
