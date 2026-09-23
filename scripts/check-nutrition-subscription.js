@@ -94,7 +94,8 @@ const patient = { portal_since: '2026-01-01' };
   check('والبوابة بتفشل مفتوحة لو القراية وقعت',
     /catch \(e\) \{[\s\S]{0,200}portal subscription gate[\s\S]{0,120}\n\s*\}\s*\n\s*next\(\);/.test(portal));
   check('والحارس مركّب مرة واحدة على كل صفحات البوابة', /router\.use\(requirePatient\);[\s\S]{0,3000}router\.use\(async \(req, res, next\)/.test(portal));
-  check('وصفحة الاشتراك والخروج مش محروسين', /const SUB_FREE = \['\/subscription', '\/logout'\]/.test(portal));
+  // (وتغيير كلمة السر كمان مش محروس — check-nutrition-portal-password.)
+  check('وصفحة الاشتراك والخروج مش محروسين', /const SUB_FREE = \['\/subscription', '\/logout'(, '\/[a-z-]+')*\]/.test(portal));
 }
 
 /* ── The period arithmetic ─────────────────────────────────────────────── */

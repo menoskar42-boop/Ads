@@ -821,6 +821,18 @@ const FIXTURES = {
     err: 'bad',
   }),
 
+  // تغيير كلمة السر من المريض — بخطأ وبعد النجاح.
+  nutrition_portal_password: () => ({
+    __file: 'nutrition_portal/password.ejs',
+    practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+    saved: false, err: 'current',
+  }),
+  nutrition_portal_password_saved: () => ({
+    __file: 'nutrition_portal/password.ejs',
+    practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+    saved: true, err: null,
+  }),
+
   nutrition_portal_today: () => {
     const E = require('../src/nutrition/engine');
     const items = [

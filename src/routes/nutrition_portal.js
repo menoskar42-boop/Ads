@@ -29,6 +29,7 @@ const swaps = require('../nutrition/swaps');
 const goalTools = require('../nutrition/goals');
 const practiceData = require('../nutrition/practice');
 const { rateLimit } = require('../middleware/rateLimit');
+const { BCRYPT_COST } = require('../lib/password_cost');
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -36,6 +37,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // Slower than the staff limiter: a patient logs in from one phone a few times
 // a week, so anything above this is not a patient having a bad morning.
 const portalLimiter = rateLimit({ name: 'nutrition-portal', windowMs: 15 * 60000, max: 8 });
+// تغيير كلمة السر بيختبر كلمة السر الحالية — يعني تخمينها ممكن من هنا كمان
+// لو حد لقى الموبايل مفتوح. نفس الحد تقريباً.
+const pwLimiter = rateLimit({ name: 'nutrition-portal-pw', windowMs: 15 * 60000, max: 10 });
 
 /** The practice whose subdomain we are on, or null if this is not one. */
 function practiceOf(req) {
@@ -123,7 +127,8 @@ router.use(requirePatient);
  *     a screen you cannot leave or understand is worse than a closed one.
  */
 const SUB = require('../nutrition/subscription');
-const SUB_FREE = ['/subscription', '/logout'];
+// وتغيير كلمة السر كمان: أمان الحساب مايتقفلش ورا اشتراك.
+const SUB_FREE = ['/subscription', '/logout', '/password'];
 router.use(async (req, res, next) => {
   if (SUB_FREE.some((p) => req.path === p || req.path.startsWith(p + '/'))) return next();
   try {
@@ -142,6 +147,52 @@ router.use(async (req, res, next) => {
     console.error('[portal subscription gate]', e.message);
   }
   next();
+});
+
+// ── تغيير كلمة السر من المريض نفسه ──────────────────────────────────────────
+//
+// الأخصائي بيعمل كلمة سر عشوائية ويبعتها للمريض — يعني عدّت على واتساب وعلى
+// موبايل الأخصائي. المريض من حقه يغيّرها لحاجة محدّش يعرفها غيره.
+//
+// · الحالية مطلوبة: موبايل متساب مفتوح مايكفيش إن حد يقفل صاحبه برّه.
+// · الصف بيتجاب بـ patient_id من الجلسة و company_id من الدومين — مفيش أي id
+//   جاي من الطلب، زي باقي البوابة.
+// · لو نسيها: الأخصائي بيعمل واحدة جديدة من ملفه (زي ما هو).
+const PW_ERRORS = ['current', 'short', 'match', 'same', 'save'];
+router.get('/password', (req, res) => {
+  res.render('nutrition_portal/password', {
+    saved: req.query.saved === '1',
+    err: PW_ERRORS.includes(req.query.err) ? req.query.err : null,
+  });
+});
+
+router.post('/password', pwLimiter, async (req, res) => {
+  const b = req.body || {};
+  const current = String(b.current || '');
+  const next = String(b.password || '');
+  const confirm = String(b.confirm || '');
+  if (next.length < 8 || next.length > 200) return res.redirect('/portal/password?err=short');
+  if (next !== confirm) return res.redirect('/portal/password?err=match');
+  if (next === current) return res.redirect('/portal/password?err=same');
+  try {
+    const u = (await pool.query(
+      `SELECT id, password_hash FROM nutrition_patient_users
+        WHERE patient_id=$1 AND company_id=$2 AND is_active`,
+      [req.patientId, req.practice.id])).rows[0];
+    if (!u || !await bcrypt.compare(current, u.password_hash)) return res.redirect('/portal/password?err=current');
+    const hash = await bcrypt.hash(next, BCRYPT_COST);
+    // الشرط على الـhash القديم: لو اتغيّرت في نفس اللحظة (الأخصائي عمل واحدة
+    // جديدة) مانكتبش فوقها بحاجة المريض ماكانش شايفها.
+    const r = await pool.query(
+      `UPDATE nutrition_patient_users SET password_hash=$1
+        WHERE id=$2 AND company_id=$3 AND password_hash=$4`,
+      [hash, u.id, req.practice.id, u.password_hash]);
+    if (!r.rowCount) return res.redirect('/portal/password?err=save');
+    res.redirect('/portal/password?saved=1');
+  } catch (e) {
+    console.error('[nutrition portal password]', e.message);
+    res.redirect('/portal/password?err=save');
+  }
 });
 
 // The page the gate sends people to — and the only one it never guards.
