@@ -411,6 +411,56 @@ async function ensureNutritionSchema() {
       ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS stage        TEXT NOT NULL DEFAULT 'none';
       ALTER TABLE nutrition_patients ADD COLUMN IF NOT EXISTS budget       TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_diary_one ON nutrition_diary (patient_id, on_date, item_id);
+
+      -- Weekly goals are operational agreements, not clinical scores. The goal
+      -- stores what the dietitian asked for; the log stores what the patient
+      -- reported, so neither side silently rewrites the other.
+      CREATE TABLE IF NOT EXISTS nutrition_goals (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id   INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        title        TEXT NOT NULL,
+        target_value NUMERIC(12,2) NOT NULL,
+        unit         TEXT,
+        starts_on    DATE NOT NULL DEFAULT CURRENT_DATE,
+        ends_on      DATE NOT NULL,
+        measure_mode TEXT NOT NULL DEFAULT 'sum', -- sum | latest
+        status       TEXT NOT NULL DEFAULT 'active', -- active | archived
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_goals ON nutrition_goals (company_id, patient_id, status, ends_on);
+
+      CREATE TABLE IF NOT EXISTS nutrition_goal_logs (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        goal_id    INTEGER NOT NULL REFERENCES nutrition_goals(id) ON DELETE CASCADE,
+        on_date    DATE NOT NULL,
+        value      NUMERIC(12,2) NOT NULL,
+        note       TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_nut_goal_log_day
+        ON nutrition_goal_logs (goal_id, on_date);
+      CREATE INDEX IF NOT EXISTS idx_nut_goal_logs_patient
+        ON nutrition_goal_logs (company_id, patient_id, on_date DESC);
+
+      -- Shopping marks belong to a plan version. A new plan therefore starts
+      -- clean, while a patient can close and reopen the same list on another
+      -- device without losing their marks.
+      CREATE TABLE IF NOT EXISTS nutrition_shopping_checks (
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        plan_id    INTEGER NOT NULL REFERENCES nutrition_plans(id) ON DELETE CASCADE,
+        line_key   TEXT NOT NULL,
+        checked    BOOLEAN NOT NULL DEFAULT true,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (company_id, patient_id, plan_id, line_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_shopping_checks
+        ON nutrition_shopping_checks (company_id, patient_id, plan_id);
     `);
   } finally {
     client.release();

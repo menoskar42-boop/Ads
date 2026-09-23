@@ -8,6 +8,7 @@
 
 const E = require('./engine');
 const engagement = require('./engagement');
+const goalTools = require('./goals');
 
 /** The practice's defaults, or the engine's if it has never saved any. */
 async function settings(pool, companyId) {
@@ -59,6 +60,29 @@ async function counts(pool, companyId) {
             COUNT(*) FILTER (WHERE NOT is_active)::int AS archived
        FROM nutrition_patients WHERE company_id=$1`, [companyId]);
   return r.rows[0];
+}
+
+/**
+ * Goals are shown with their own report history. The company and patient
+ * predicates are repeated on both queries because a goal id is not ownership.
+ */
+async function goals(pool, companyId, patientId, { activeOnly = false, onDate = null } = {}) {
+  const params = [companyId, patientId];
+  let where = 'g.company_id=$1 AND g.patient_id=$2';
+  if (activeOnly) {
+    where += ` AND g.status='active' AND g.starts_on <= $${params.push(onDate)} AND g.ends_on >= $${params.push(onDate)}`;
+  }
+  const rows = (await pool.query(
+    `SELECT g.* FROM nutrition_goals g
+      WHERE ${where}
+      ORDER BY CASE WHEN g.status='active' THEN 0 ELSE 1 END, g.starts_on DESC, g.id DESC
+      LIMIT 50`, params)).rows;
+  if (!rows.length) return [];
+  const logs = (await pool.query(
+    `SELECT * FROM nutrition_goal_logs
+      WHERE company_id=$1 AND patient_id=$2 AND goal_id = ANY($3::int[])
+      ORDER BY on_date, id`, [companyId, patientId, rows.map((g) => g.id)])).rows;
+  return rows.map((goal) => goalTools.decorate(goal, logs.filter((log) => log.goal_id === goal.id)));
 }
 
 /**
@@ -179,6 +203,7 @@ async function file(pool, companyId, patientId) {
       `SELECT * FROM nutrition_subscriptions WHERE patient_id=$1 AND company_id=$2
         ORDER BY ends_on DESC, id DESC LIMIT 24`, [patientId, companyId]),
   ]);
+  const patientGoals = await goals(pool, companyId, patientId);
 
   const latest = meas.rows[0] || null;
   const SUB = require('./subscription');
@@ -192,6 +217,7 @@ async function file(pool, companyId, patientId) {
     measurements: meas.rows,
     labs: labs.rows,
     plans: plans.rows,
+    goals: patientGoals,
     login: login.rows[0] || null,
     calc: E.compute(patient, latest, prefs),
     latest,
@@ -220,4 +246,4 @@ function progress(series, targetWeight) {
   };
 }
 
-module.exports = { settings, patients, counts, weeklyEngagement, file, progress };
+module.exports = { settings, patients, counts, weeklyEngagement, goals, file, progress };

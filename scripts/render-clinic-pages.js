@@ -636,6 +636,12 @@ const FIXTURES = {
       latest: measurements[0],
       progress: P.progress(series, patient.target_weight_kg),
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      patientGoals: [{
+        id: 1, title: 'Drink water', target_value: 42, unit: 'glasses',
+        starts_on: '2026-07-20', ends_on: '2026-07-26', status: 'active',
+        measure_mode: 'sum', logs: [{ on_date: '2026-07-20', value: 6 }],
+        progress: { current: 6, target: 42, pct: 14, logged: 1 },
+      }],
       // The medical profile (backlog 84), with a plan that clashes with it —
       // the state the screen exists to show.
       ...profileFixture({ allergies: 'peanut, nuts', diet_style: 'vegetarian' }, [
@@ -830,6 +836,12 @@ const FIXTURES = {
       items, meals: E.MEALS, byMeal, done,
       planTotals: E.totals(items),
       eatenTotals: E.totals(items.filter((i) => done.has(i.id))),
+      goals: [{
+        id: 1, title: 'Drink water', target_value: 42, unit: 'glasses',
+        starts_on: '2026-08-03', ends_on: '2026-08-09', status: 'active',
+        measure_mode: 'sum', logs: [{ on_date: '2026-08-03', value: 6 }],
+        progress: { current: 6, target: 42, pct: 14, logged: 1 },
+      }],
       lastWeight: { weight_kg: 84.2, taken_on: '2026-07-20' },
       loggedToday: false, day: '2026-08-03',
       saved: false, err: 'weight',
@@ -853,8 +865,8 @@ const FIXTURES = {
     shopping: {
       days: 7,
       lines: [
-        { name: 'Grilled chicken breast', grams: 1400 },
-        { name: 'Baladi bread', grams: 420 },
+        { key: 'f:1', name: 'Grilled chicken breast', grams: 1400, checked: true },
+        { key: 'f:2', name: 'Baladi bread', grams: 420, checked: false },
       ],
       partial: true,
       uncounted: 1,

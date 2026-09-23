@@ -119,11 +119,11 @@ function shoppingList(items, days) {
     // No weight, or nothing to call it: cannot be bought by this list.
     if (!name || !Number.isFinite(grams) || grams <= 0) { uncounted++; continue; }
     const key = it.food_id ? 'f' + it.food_id : 'n' + name.toLowerCase();
-    if (!byFood.has(key)) byFood.set(key, { food_id: it.food_id || null, name, grams: 0 });
+    if (!byFood.has(key)) byFood.set(key, { key, food_id: it.food_id || null, name, grams: 0 });
     byFood.get(key).grams += grams;
   }
   const lines = [...byFood.values()]
-    .map((l) => ({ food_id: l.food_id, name: l.name, grams: +(l.grams * n).toFixed(0) }))
+    .map((l) => ({ key: l.key, food_id: l.food_id, name: l.name, grams: +(l.grams * n).toFixed(0) }))
     .sort((a, b) => b.grams - a.grams);
   return { days: n, lines, uncounted, partial: uncounted > 0 };
 }

@@ -22,3 +22,4 @@
 - [Workshop scheduler gating](workshop-scheduler-gated.md) — the workshop background tick runs every two hours and skips itself until a workshop tenant exists; database is billed by compute hours.
 - [Service Flow staged Supabase migration](supabase-staged-migration.md) — leaving photos and archive tables behind requires dual database routing before cutover.
 - [Demo session recovery](demo-session-recovery.md) — a real admin session can retain Demo read-only state; logout/login clears it, and admin login must clear it automatically.
+- [Nutrition goals and shopping state](nutrition-goals-shopping-state.md) — keep patient goal logs separate from goals and scope shopping marks to the plan version.
