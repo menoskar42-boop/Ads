@@ -15,7 +15,9 @@
  * changing a price in one place and not the other fails a check instead of
  * reaching a customer.
  *
- * `buy` is the one-off purchase (the customer owns it), `monthly` the
+ * `buy` is the one-off purchase (paid once, no monthly fee after it — the
+ * system itself stays hosted and running on the platform; the customer's
+ * data is theirs to export any time), `monthly` the
  * subscription. Both in EGP. FREE_MONTHS is the launch offer both prices sit
  * behind.
  */
@@ -49,7 +51,7 @@ function priceLine(type) {
   if (!p) return '';
   return `الاشتراك مجاني بالكامل أول ${arabicNumber(FREE_MONTHS)} شهور. بعد كده تختار `
     + `اشتراك شهري بـ${arabicNumber(p.monthly)} ج، أو شراء كامل بـ${arabicNumber(p.buy)} ج `
-    + `تملكه ومش بتدفع بعده.`;
+    + `بتدفعه مرة واحدة ومن غير اشتراك شهري بعده، والنظام بيفضل شغّال أونلاين على المنصّة.`;
 }
 
 module.exports = { PRICES, FREE_MONTHS, arabicNumber, priceLine };
