@@ -759,6 +759,68 @@ const FIXTURES = {
       saved: false, err: 'line',
     };
   },
+  // صنف متعارض مع حساسية المريض رجع للتأكيد — المربع الأحمر بسبب إلزامى.
+  nutrition_plan_clash: () => {
+    const E = require('../src/nutrition/engine');
+    const items = [
+      { id: 1, meal: 'breakfast', food_name: 'Boiled egg', grams: 100, kcal: 155, protein_g: 13, carbs_g: 1.1, fat_g: 11, note: null },
+      { id: 2, meal: 'breakfast', food_name: 'Baladi bread', grams: 60, kcal: 165, protein_g: 5.7, carbs_g: 33, fat_g: 1, note: null },
+      { id: 3, meal: 'lunch', food_name: 'Grilled chicken breast', grams: 200, kcal: 330, protein_g: 62, carbs_g: 0, fat_g: 7.2, note: null },
+      { id: 4, meal: 'lunch', food_name: 'Cooked white rice', grams: 150, kcal: 195, protein_g: 4.1, carbs_g: 42, fat_g: 0.5, note: null },
+    ];
+    const byMeal = {};
+    E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
+    return {
+      clashAsk: { food: { id: 1, name: 'Boiled egg' }, grams: 100, meal: 'breakfast', hits: [{ kind: 'allergy', term: 'egg' }] }, err: 'reason',
+      __file: 'nutrition_admin/plan.ejs', waPhone: '201012345678', practiceName: 'Nutrio Clinic', tab: 'patients',
+      micros: require('../src/nutrition/micros').MICROS,
+      // عنصر متسجّل على صنفين من أربعة، وعنصر مش متسجّل خالص — التلات حالات
+      // بتترسم: رقم بكامله، ورقم ومعاه «كام سطر مش محسوبين»، و«مش مسجّل».
+      microTotals: require('../src/nutrition/micros').totals([
+        { grams: 100, food: { iron_mg: 1.2, fiber_g: 0 } },
+        { grams: 60, food: { iron_mg: 1.6, fiber_g: 2.4 } },
+        { grams: 200, food: null },
+        { grams: 150, food: {} },
+      ]),
+      plan: { id: 1, pid: 1, patient_name: 'Mona S.', title: 'August plan',
+        target_kcal: 1650, target_protein: 152, target_carbs: 132, target_fat: 46,
+        start_date: '2026-08-01', is_active: true, notes: 'Water 2L a day.' },
+      items, foods: [
+        { id: 1, name: 'Cooked white rice', kcal: 130, serving_g: 150 },
+        { id: 2, name: 'Grilled chicken breast', kcal: 165, serving_g: 200 },
+      ],
+      meals: E.MEALS, byMeal,
+      // Real engine totals, so a change to the arithmetic cannot pass this
+      // check against a hand-written figure that no longer matches.
+      mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
+      dayTotals: E.totals(items),
+      // Substitutes, the shopping list and the profile clash (backlog 84) —
+      // real functions, so a change to any of them shows up here.
+      ...(function () {
+        const SW = require('../src/nutrition/swaps');
+        const SF = require('../src/nutrition/safety');
+        const patient = { allergies: 'peanut', diet_style: 'none' };
+        const foods = [
+          { id: 1, name: 'Cooked white rice', kcal: 130, protein_g: 2.7, category: 'grain' },
+          { id: 2, name: 'Grilled chicken breast', kcal: 165, protein_g: 31, category: 'protein' },
+          { id: 3, name: 'Peanut butter', kcal: 588, protein_g: 25, category: 'protein' },
+          // No energy figure: cannot be scaled, so it must not be offered.
+          { id: 4, name: 'Mystery item', kcal: 0, protein_g: 0, category: null },
+        ];
+        const swapsByItem = {};
+        for (const it of items) swapsByItem[it.id] = SW.candidates(it, foods, patient, { limit: 4 });
+        return {
+          swapsByItem,
+          clashes: SF.scanPlan(items, patient),
+          // One line with no weight, so the "not everything is in this list"
+          // branch renders.
+          shopping: SW.shoppingList(items.concat([{ food_name: '', grams: 0 }]), 7),
+          shoppingDays: 7,
+        };
+      })(),
+      saved: false, err: 'line',
+    };
+  },
 
   // The public practice page — the only nutrition page visitors see, so it is
   // held to the SEO rules (title <= 60, description 70-160, one h1).

@@ -19,6 +19,7 @@ const E = require('../nutrition/engine');
 const P = require('../nutrition/practice');
 const swaps = require('../nutrition/swaps');
 const safety = require('../nutrition/safety');
+const audit = require('../lib/audit');
 const templates = require('../nutrition/templates');
 const micros = require('../nutrition/micros');
 const { waPhone } = require('../nutrition/whatsapp');
@@ -144,7 +145,11 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
       clashes: safety.restrictionsOf(patient).length ? safety.scanPlan(data.items, patient) : null,
       shopping: swaps.shoppingList(data.items, req.query.days || 7),
       shoppingDays: Math.max(1, Math.min(31, parseInt(req.query.days, 10) || 7)),
-      saved: req.query.saved === '1', err: req.query.err || null,
+      saved: req.query.saved === '1',
+      // Known codes only — the page never repeats the address bar's own words.
+      err: PLAN_ERRORS.includes(req.query.err) ? req.query.err : null,
+      // A clashing food waiting for the dietitian's decision (see the add route).
+      clashAsk: clashAskFrom(req.query, foods, patient),
       // «ابعت على واتساب»: الرقم بالشكل الدولي، أو null لو مش واضح — ساعتها
       // واتساب بيفتح يختار منه جهة الاتصال بدل ما نخمّن رقم غلط.
       waPhone: waPhone(data.plan.patient_phone),
@@ -152,6 +157,20 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
     });
   } catch (e) { console.error('[nutrition plan]', e.message); res.status(500).send('error'); }
 });
+
+const PLAN_ERRORS = ['line', 'save', 'reason', 'tpl_empty', 'tpl_name', 'tpl_pick', 'tpl_save'];
+
+/** The food the add route bounced back for confirmation, re-checked here. */
+function clashAskFrom(q, foods, patient) {
+  const id = parseInt((q || {}).clash, 10);
+  if (!Number.isInteger(id)) return null;
+  const food = foods.find((f) => Number(f.id) === id);
+  if (!food) return null;
+  const verdict = safety.checkFood(food, patient);
+  if (verdict.state !== 'clash') return null;
+  const grams = Math.max(1, Math.min(5000, parseInt(q.g, 10) || 100));
+  return { food, grams, meal: E.MEALS.includes(q.meal) ? q.meal : 'breakfast', hits: verdict.hits };
+}
 
 /**
  * نتيجة آخر تطبيق قالب، جاية في الرابط كأرقام بس.
@@ -267,22 +286,43 @@ router.post('/templates/:id(\\d+)/delete', async (req, res) => {
 });
 
 // ── Add a line ───────────────────────────────────────────────────────────────
+//
+// A food that clashes with the patient's own file (an allergy, a food they will
+// not eat, their diet style) is NOT saved on the first click. It used to be
+// saved and the warning shown afterwards — by then the plan the patient opens
+// on their phone already had the peanut in it. Now the page asks, and saving it
+// anyway needs a written reason, which goes to the audit log with the clash.
+const OVERRIDE_REASON_MIN = 5;
 router.post('/plans/:id(\\d+)/items', async (req, res) => {
   const cid = req.company.id;
   const planId = parseInt(req.params.id, 10);
   const b = req.body || {};
   const foodId = parseInt(b.food_id, 10);
   const grams = Number(b.grams);
+  const meal = E.MEALS.includes(b.meal) ? b.meal : 'breakfast';
   if (!Number.isInteger(foodId) || !(grams > 0)) {
     return res.redirect('/nutrition/plans/' + planId + '?err=line');
   }
   try {
     const owns = (await pool.query(
-      'SELECT id FROM nutrition_plans WHERE id=$1 AND company_id=$2', [planId, cid])).rows[0];
+      'SELECT id, patient_id FROM nutrition_plans WHERE id=$1 AND company_id=$2', [planId, cid])).rows[0];
     if (!owns) return res.redirect('/nutrition/patients');
     const food = (await pool.query(
       'SELECT * FROM nutrition_foods WHERE id=$1 AND company_id=$2', [foodId, cid])).rows[0];
     if (!food) return res.redirect('/nutrition/plans/' + planId + '?err=line');
+
+    const patient = (await pool.query(
+      'SELECT allergies, avoid_foods, diet_style FROM nutrition_patients WHERE id=$1 AND company_id=$2',
+      [owns.patient_id, cid])).rows[0] || {};
+    const verdict = safety.checkFood(food, patient);
+    const reason = String(b.override_reason || '').trim().slice(0, 300);
+    if (verdict.state === 'clash') {
+      // Numbers and a meal key in the address, never a name: the page looks the
+      // food up itself and never prints words that came from the URL.
+      const back = '/nutrition/plans/' + planId + '?clash=' + food.id + '&g=' + Math.round(grams) + '&meal=' + meal;
+      if (b.override !== '1') return res.redirect(back);
+      if (reason.length < OVERRIDE_REASON_MIN) return res.redirect(back + '&err=reason');
+    }
 
     // Computed here and STORED. Recomputing at read time from the live food row
     // is exactly the drift this design is avoiding.
@@ -292,39 +332,65 @@ router.post('/plans/:id(\\d+)/items', async (req, res) => {
          (company_id, plan_id, food_id, meal, food_name, grams, kcal, protein_g, carbs_g, fat_g, note, sort_order)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
                COALESCE((SELECT MAX(sort_order)+1 FROM nutrition_plan_items WHERE plan_id=$2), 0))`,
-      // food.id — the row the scoped SELECT above returned.
       // owns.id and food.id — both rows were just confirmed to be ours.
-      [cid, owns.id, food.id, E.MEALS.includes(b.meal) ? b.meal : 'breakfast',
+      [cid, owns.id, food.id, meal,
         line.food_name, line.grams, line.kcal, line.protein_g, line.carbs_g, line.fat_g,
         text(b.note, 200)]);
-  } catch (e) { console.error('[nutrition plan item]', e.message); }
-  res.redirect('/nutrition/plans/' + planId + '?saved=1');
+    if (verdict.state === 'clash') {
+      audit.log(pool, req, { entity: 'plan_item', entityId: owns.id, patientId: owns.patient_id,
+        action: 'override_clash',
+        meta: { food: food.name, hits: verdict.hits.map((h) => `${h.kind}:${h.term}`), reason } });
+    }
+    return res.redirect('/nutrition/plans/' + planId + '?saved=1');
+  } catch (e) {
+    // «اتحفظ» on a failed insert is the page lying: the dietitian moves on
+    // believing the line is in the plan.
+    console.error('[nutrition plan item]', e.message);
+    return res.redirect('/nutrition/plans/' + planId + '?err=save');
+  }
 });
 
 router.post('/plans/:id(\\d+)/items/:iid(\\d+)/delete', async (req, res) => {
   const planId = parseInt(req.params.id, 10);
   try {
-    await pool.query('DELETE FROM nutrition_plan_items WHERE id=$1 AND plan_id=$2 AND company_id=$3',
+    const r = await pool.query('DELETE FROM nutrition_plan_items WHERE id=$1 AND plan_id=$2 AND company_id=$3',
       [parseInt(req.params.iid, 10), planId, req.company.id]);
-  } catch (e) { console.error('[nutrition item del]', e.message); }
-  res.redirect('/nutrition/plans/' + planId);
+    return res.redirect('/nutrition/plans/' + planId + (r.rowCount ? '?saved=1' : '?err=save'));
+  } catch (e) {
+    console.error('[nutrition item del]', e.message);
+    return res.redirect('/nutrition/plans/' + planId + '?err=save');
+  }
 });
 
 // ── Activate / retire ────────────────────────────────────────────────────────
+//
+// Same shape as creating a plan: both statements in one transaction, and the
+// unique partial index (one active plan per patient) as the backstop. Before,
+// they ran as two separate statements and any failure — including the index
+// refusing a second active plan from another tab — still said «اتحفظ».
 router.post('/plans/:id(\\d+)/activate', async (req, res) => {
   const cid = req.company.id;
   const planId = parseInt(req.params.id, 10);
+  const client = await pool.connect();
   try {
-    const p = (await pool.query(
+    await client.query('BEGIN');
+    const p = (await client.query(
       'SELECT patient_id FROM nutrition_plans WHERE id=$1 AND company_id=$2', [planId, cid])).rows[0];
-    if (p) {
-      await pool.query('UPDATE nutrition_plans SET is_active=false WHERE patient_id=$1 AND company_id=$2',
-        [p.patient_id, cid]);
-      await pool.query('UPDATE nutrition_plans SET is_active=true WHERE id=$1 AND company_id=$2',
-        [planId, cid]);
-    }
-  } catch (e) { console.error('[nutrition plan activate]', e.message); }
-  res.redirect('/nutrition/plans/' + planId + '?saved=1');
+    if (!p) { await client.query('ROLLBACK'); return res.redirect('/nutrition/patients'); }
+    // Lock this patient's plans so two tabs activating two plans queue up
+    // instead of interleaving.
+    await client.query('SELECT id FROM nutrition_plans WHERE patient_id=$1 AND company_id=$2 FOR UPDATE',
+      [p.patient_id, cid]);
+    await client.query('UPDATE nutrition_plans SET is_active=false WHERE patient_id=$1 AND company_id=$2 AND id<>$3',
+      [p.patient_id, cid, planId]);
+    await client.query('UPDATE nutrition_plans SET is_active=true WHERE id=$1 AND company_id=$2', [planId, cid]);
+    await client.query('COMMIT');
+    return res.redirect('/nutrition/plans/' + planId + '?saved=1');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[nutrition plan activate]', e.message);
+    return res.redirect('/nutrition/plans/' + planId + '?err=save');
+  } finally { client.release(); }
 });
 
 module.exports = router;

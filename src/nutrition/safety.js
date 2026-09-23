@@ -67,6 +67,43 @@ function haystack(food) {
 }
 
 /**
+ * Does `term` appear in `hay` as a word (or the start of one)?
+ *
+ * It used to be a plain substring, and «بيض» (egg) is inside «أبيض» (white): an
+ * egg allergy flagged white rice, white bread and white flour, and once a
+ * clashing line needed a written reason to be added, it would have blocked
+ * them. The rule now:
+ *   · the match must START a word — or follow an Arabic prefix (ال، بال، وال،
+ *     فال، كال، لل): «البيض» and «بالبيض» still hit;
+ *   · Arabic may continue after it («بيضة»، «لبنة»، «لحمة») — for an allergy a
+ *     longer word is far more often the same food than a different one;
+ *   · Latin terms may only take a plural (egg → eggs, not eggplant);
+ *   · and a few known false friends are skipped by name (بيضا/بيضاء = white).
+ * Missing a real match is worse than a false one, so everything else still
+ * matches.
+ */
+const PREFIXES = ['ال', 'بال', 'وال', 'فال', 'كال', 'لل'];
+const FALSE_FRIENDS = { 'بيض': ['بيضا', 'بيضاء'] };
+const isLetter = (ch) => !!ch && /[\p{L}\p{N}]/u.test(ch);
+function matchesTerm(hay, term) {
+  if (!term) return false;
+  const latin = /^[a-z0-9 '\-]+$/.test(term);
+  for (let i = hay.indexOf(term); i >= 0; i = hay.indexOf(term, i + 1)) {
+    // Where the word containing this match starts.
+    let ws = i; while (ws > 0 && isLetter(hay[ws - 1])) ws -= 1;
+    const lead = hay.slice(ws, i);
+    if (lead && !PREFIXES.includes(lead)) continue;
+    let we = i + term.length; while (we < hay.length && isLetter(hay[we])) we += 1;
+    const tail = hay.slice(i + term.length, we);
+    if (latin && tail && tail !== 's' && tail !== 'es') continue;
+    const word = hay.slice(i, we);
+    if ((FALSE_FRIENDS[term] || []).includes(word)) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Check one food against one patient.
  * @returns {{state:'clash'|'clear'|'unknown', hits:Array}}
  */
@@ -76,7 +113,7 @@ function checkFood(food, patient) {
   // Nothing recorded to check against, or nothing readable to check.
   if (!rules.length) return { state: 'unknown', hits: [], why: 'no_rules' };
   if (!hay) return { state: 'unknown', hits: [], why: 'no_name' };
-  const hits = rules.filter((r) => hay.indexOf(r.term) >= 0);
+  const hits = rules.filter((r) => matchesTerm(hay, r.term));
   return hits.length ? { state: 'clash', hits } : { state: 'clear', hits: [] };
 }
 
@@ -101,4 +138,5 @@ function stageExtra(stage) {
   return Object.prototype.hasOwnProperty.call(STAGE_KCAL, key) ? STAGE_KCAL[key] : 0;
 }
 
-module.exports = { KINDS, DIETS, STAGE_KCAL, parseList, restrictionsOf, haystack, checkFood, scanPlan, stageExtra };
+module.exports = {
+  matchesTerm, KINDS, DIETS, STAGE_KCAL, parseList, restrictionsOf, haystack, checkFood, scanPlan, stageExtra };
