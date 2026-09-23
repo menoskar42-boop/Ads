@@ -17,9 +17,9 @@ test("the account search matches account and both phone forms", () => {
   const branchStart = endpoint.indexOf('if (accountQ.trim())');
   assert.ok(branchStart >= 0, "accountQ filter must exist");
   const branch = endpoint.slice(branchStart, branchStart + 900);
-  assert.match(branch, /n\("la\.account_no"\) LIKE/);
-  assert.match(branch, /n\("la\.full_phone"\) LIKE/);
-  assert.match(branch, /n\("COALESCE\(pl\.tel_no, regexp_replace\(la\.full_phone,'\^88'\)\)"\) LIKE/);
+  assert.match(branch, /n\("la\.account_no"\)\}\s+LIKE/);
+  assert.match(branch, /n\("la\.full_phone"\)\}\s+LIKE/);
+  assert.match(branch, /n\("COALESCE\(pl\.tel_no, regexp_replace\(la\.full_phone,'\^88',''\)\)"\)\}\s+LIKE/);
 });
 
 test("the report tells the user that account and phone search are supported", () => {
