@@ -219,6 +219,8 @@ const CHECKS = [
   ['check-dicom-deident',   'هوية المريض بتتشال من هيدر الـDICOM'],
   ['check-order-flow',      'الحالة النهائية مابترجعش (مفيش بيع مرتين)'],
   ['check-nutrition',       'محرّك سعرات التغذية + عزل بوابة المريض'],
+  ['check-nutrition-goals', 'أهداف التغذية: الأدمن بيعملها والطرفين بيشوفوها'],
+  ['check-nutrition-engagement', 'قايمة مشتريات التغذية من الخطة النشطة وnoindex'],
   ['check-payment-secrets', 'مفاتيح الدفع مشفّرة ومش بتتعرض'],
   ['check-apply-track',     'متابعة الطلب بالتوكن + الفورم مايكشفش'],
   ['check-route-order',     'ترتيب الـroutes (الصفحات العامة قبل المحميّة)'],
