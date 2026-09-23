@@ -508,8 +508,9 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
               type="text"
               value={accountQ}
               onChange={(e) => { setAccountQ(e.target.value); setPage(1); }}
-              placeholder="بحث برقم الأكونت"
-              className="w-full sm:w-40 h-9 text-sm"
+               placeholder="بحث برقم الأكونت أو التليفون"
+               aria-label="بحث برقم الأكونت أو التليفون"
+               className="w-full sm:w-52 h-9 text-sm"
               dir="ltr"
             />
             <div className="flex items-center gap-1 border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-500 bg-white">

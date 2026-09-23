@@ -5609,10 +5609,16 @@ export async function registerRoutes(
       const p = `$${params.length}`;
       conds.push(`(${n("la.full_phone")} LIKE ${p} OR ${n("COALESCE(pl.tel_no, regexp_replace(la.full_phone,'^88',''))")} LIKE ${p} OR ${n("pl.central")} LIKE ${p} OR ${n("pl.cabin_number")} LIKE ${p} OR ${n("pl.box_number")} LIKE ${p} OR ${n("la.account_no")} LIKE ${p})`);
     }
-    // بحث مخصّص برقم الأكونت فقط
+    // بحث مخصّص برقم الأكونت أو رقم التليفون؛ يظل منفصلاً عن البحث العام
+    // حتى لا يغيّر هذا الحقل معنى الفلاتر النصية الأخرى.
     if (accountQ.trim()) {
       params.push(arQ(accountQ));
-      conds.push(`${n("la.account_no")} LIKE $${params.length}`);
+      const accountOrPhoneParam = `$${params.length}`;
+      conds.push(`(
+        ${n("la.account_no")} LIKE ${accountOrPhoneParam}
+        OR ${n("la.full_phone")} LIKE ${accountOrPhoneParam}
+        OR ${n("COALESCE(pl.tel_no, regexp_replace(la.full_phone,'^88',''))")} LIKE ${accountOrPhoneParam}
+      )`);
     }
     // الفنى: يرى خطوطه فقط (كباينه من cabinet_technicians حسب رقم العامل)
     if (req.user?.role === ROLES.TECH) {
