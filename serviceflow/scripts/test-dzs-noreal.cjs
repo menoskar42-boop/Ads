@@ -34,6 +34,9 @@ function page(url, html, store, hooks = {}) {
   // offsetParent مش متاح فى jsdom — نعتبر كل حاجة ظاهرة
   Object.defineProperty(w.HTMLElement.prototype, 'offsetParent', { get() { return this.parentNode; } });
   w.HTMLElement.prototype.scrollIntoView = function () {};   // jsdom مافيهوش scrollIntoView
+  // jsdom مافيهوش innerText — من غيره السكربت عمره ما بيشوف الشاشة اتغيّرت، فكان دايماً
+  // بيستنى الـ٨ث كاملين، والاختبار كان بيعدّى على مشكلة القراية بدرى (٢ب) من غير ما يمسكها.
+  Object.defineProperty(w.HTMLElement.prototype, 'innerText', { get() { return this.textContent; }, configurable: true });
   if (hooks.before) hooks.before(w);
   w.eval(SRC.replace(/location\.href\s*=\s*([^;]+);/g, (m, rhs) => `(window.__hrefs.push(${rhs}));`));
   const dump = () => { const o = {}; for (let i = 0; i < w.localStorage.length; i++) { const k = w.localStorage.key(i); o[k] = w.localStorage.getItem(k); } return o; };
@@ -113,6 +116,31 @@ const lineSummary = (loop) => `<!doctype html><html><body>
   t('راح شاشة DSL', B.w.__hrefs.some((h) => h === '/expresse/lineSummary?lineId=' + LINE), JSON.stringify(B.w.__hrefs));
   t('مابعتش قياس من clearview (لسه Loop Length)', B.posts.length === 0);
   const s2 = B.dump(); B.w.close();
+
+  // ٢ب) زى اللى حصل على خط 78630329 (٢٠٢٦-٠٩-٢٣): AXON بيرسم الشاشة على مراحل بعد
+  // اختيار التاريخ — الأول بيفضل عارض قيم القراية القديمة، والقيم الصح وسطر حالة PO
+  // بييجوا بعد ثوانى. القراية القديمة كانت بتاخد اللى على الشاشة بعد ~٤٫٥ث.
+  console.log('── ٢ب) الشاشة بتتحدّث على مراحل — لازم يستنى لحد ما تهدى ──');
+  const staged = clearview().replace('<tr><td>Profile Optimization Status</td><td>PO is not currently running.</td></tr>', '');
+  const B2 = page(BASE + 'clearview?lineId=' + LINE, staged, s1, {
+    before: (w) => {
+      [...w.document.querySelectorAll('li.ui-selectonemenu-item')][1].addEventListener('click', () => {
+        const p = () => w.document.getElementById('panel');
+        // المرحلة ١ (٠٫٨ث): اتغيّر حاجة صغيرة بس — القيم لسه بتاعة القراية اللى قبلها
+        setTimeout(() => { p().innerHTML = p().innerHTML.replace('>55<', '>0<'); }, 800);
+        // المرحلة ٢ (٦ث): القيم الصح + سطر حالة PO
+        setTimeout(() => {
+          p().innerHTML = p().innerHTML.replace('DS = 9999', 'DS = 13312').replace('DS = 11111', 'DS = 22034')
+            .replace('</table>', '<tr><td>Profile Optimization Status</td><td>PO is not currently running.PO was completed on 2026-09-17 20:54:49</td></tr></table>');
+        }, 6000);
+      });
+    },
+  });
+  const pend2 = await until(() => B2.w.localStorage.getItem('DZS_NOREAL_PENDING'), 45000);
+  const q = JSON.parse(pend2 || '{}');
+  t('القيم من الرسمة الأخيرة مش القديمة', q.cur === '13312' && q.max === '22034', `cur=${q.cur} max=${q.max}`);
+  t('وحالة PO اتقرت (كانت بتضيع)', /completed on 2026-09-17/.test(q.po || ''), JSON.stringify(q.po));
+  B2.w.close();
 
   for (const [name, loopHtml, expect] of [
     ['قيمة عادية', '1402 meters', '1402 meters'],

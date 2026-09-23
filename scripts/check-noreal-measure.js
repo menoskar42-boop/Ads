@@ -45,7 +45,7 @@ need(/COALESCE\(c\.measured_at, c\.uploaded_at\) AT TIME ZONE 'Africa\/Cairo'\) 
   'بحث برقم التليفون: «تاريخ آخر قياس» لازم COALESCE(measured_at, uploaded_at) — وإلا تاريخ الـHistory مش هيبان.');
 
 // ٣ + ٤. السكربت
-need(/@version\s+10\.23\./.test(us), 'السكربت لازم يبقى 10.23.x');
+need(/@version\s+10\.(2[4-9]|[3-9]\d)\./.test(us), 'السكربت لازم يبقى 10.24 أو أحدث (10.24 فيه انتظار الشاشة تهدى فى «بدون Real»)');
 const rt = (us.match(/const realTimeTimer = setInterval[\s\S]*?\}, POLL_RT\);/) || [''])[0];
 const iNo = rt.indexOf('if (NOREAL)'), iClick = rt.indexOf('b.click(); rtRequested = true');
 need(iNo > -1 && iClick > -1 && iNo < iClick, 'realTimeTimer: فرع NOREAL لازم ييجى قبل ضغط real-time — وضغط real-time لازم يفضل للقياس العادى.');
@@ -98,6 +98,13 @@ for (const f of fs.readdirSync(dir).filter((x) => /Report\.tsx$/.test(x) && x !=
     need(!new RegExp(`onClick=\\{${m[1]}\\}`).test(src), `${f}: onClick={${m[1]}} بيبعت الـevent مكان noReal — القياس القديم هيتعمل بدون Real.`);
   }
 }
+
+// ٧. (٢٠٢٦-٠٩-٢٣، خط 78630329) القراية بعد ما الشاشة تهدى — مش بعد أول تغيير.
+need(/const settled = !pfBusy\(\) && quiet >= 3000/.test(us) && /speeds && \(poSeen \|\| waited >= 20000\)/.test(us),
+  'startNoReal لازم يستنى الشاشة تهدى (PrimeFaces فاضى + ٣ث من غير تغيير + السرعات وحالة PO) — v10.23 كان بيقرا بدرى فسجّل سرعات قديمة وPO فاضى.');
+need(!/changed && waited >= 2500/.test(us), 'رجعت قراية «أول تغيير + ٢٫٥ث» — دى اللى سجّلت القراية القديمة.');
+// ٨. شرط باتش ٩ الصبح: آخر قياس أقدم من ٨ أيام (قرار المالك ٢٠٢٦-٠٩-٢٣، كانت ١٠).
+need(/const AUTO_MEASURE_STALE_DAYS = 8;/.test(routes), 'شرط القياس اليومى لازم يكون ٨ أيام (قرار المالك) — اتغيّر؟');
 
 need(checked >= 11, `اتفحص ${checked} تقرير بس — المفروض ١١ (فيه تقرير زرار القياس القديم فيه اتغيّر شكله؟)`);
 

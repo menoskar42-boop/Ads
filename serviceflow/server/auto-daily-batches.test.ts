@@ -4,7 +4,7 @@ import test from "node:test";
 
 // الباتشات اليومية التلقائية — ٩ صباحاً بتوقيت القاهرة:
 //   (١) إيقاف PO لأرقام تقرير «تحتاج إيقاف PO»
-//   (٢) قياس للخطوط اللى ليها أكونت ولم تُقس + اللى آخر قياس ليها أقدم من ١٠ أيام
+//   (٢) قياس للخطوط اللى ليها أكونت ولم تُقس + اللى آخر قياس ليها أقدم من ٨ أيام
 // كل واحد فيهم بيستبعد اللى فى الطابور، والأول كمان بيستبعد اللى اتعمله إيقاف
 // خلال آخر ٣ أيام.
 //
@@ -58,8 +58,8 @@ const measFn = routes.slice(routes.indexOf("const autoMeasureAccounts"),
                             routes.indexOf("type AutoBatchResult"));
 
 test("the measure batch covers never-measured plus stale, minus queued", () => {
-  assert.match(routes, /const AUTO_MEASURE_STALE_DAYS = 10;/);
-  // NULL = لم يُقس أبداً، والتانى = آخر قياس أقدم من ١٠ أيام — الشرطين مع بعض
+  assert.match(routes, /const AUTO_MEASURE_STALE_DAYS = 8;/);
+  // NULL = لم يُقس أبداً، والتانى = آخر قياس أقدم من ٨ أيام — الشرطين مع بعض
   assert.match(measFn, /c138p\.uploaded_at IS NULL\s*\n\s*OR c138p\.uploaded_at < now\(\) - make_interval\(days => \$\{AUTO_MEASURE_STALE_DAYS\}\)/);
   assert.match(measFn, /\$\{notQueuedSql\("la\.account_no", \["measure"\]\)\}/);
   assert.match(measFn, /\$\{hasFrameSql\("la\.full_phone"\)\}/);

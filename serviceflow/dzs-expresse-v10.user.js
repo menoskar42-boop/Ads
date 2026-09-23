@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.23.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.24.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @grant        none
@@ -694,18 +694,32 @@
       console.warn("⚠️ «بدون Real»: مالقيتش تاريخ فى History Check — هنسجّل من غير تاريخ (السيرفر هيحط وقت الوصول).",
         h ? h.options.map(o => o.textContent.trim()).slice(0, 5) : "(مفيش قايمة)");
     }
-    // النص كله مش أوله بس: التغيير بعد الاختيار ممكن يكون فى نص الصفحة («Collection Date»/السرعات).
-    const before = document.body.innerText || "";
+    // v10.24: AXON بيرسم الشاشة **على مراحل** بعد اختيار التاريخ — أول تغيير بيبان بعد
+    // أقل من ثانية وهو لسه عارض قيم القراية اللى قبلها، والقيم الصح وسطر «Profile
+    // Optimization Status» بييجوا بعدها بثوانى. v10.23 كان بيقرا بعد أول تغيير بـ٤٫٥ث،
+    // فخط 78630329 اتسجّل بسرعات القراية القديمة وحالة PO فاضية.
+    // دلوقتى بنستنى الشاشة **تهدى**: مفيش طلب PrimeFaces شغّال، ومفيش تغيير فى النص
+    // ٣ث، والسرعات ظاهرة، وسطر حالة PO ظهر (أو عدّت ٢٠ث من غيره). أقصى حاجة ٤٥ث.
+    let lastText = document.body.innerText || "", lastChange = Date.now(), everChanged = false;
+    const pfBusy = () => {
+      try { const q = window.PrimeFaces && window.PrimeFaces.ajax && window.PrimeFaces.ajax.Queue; return !!(q && typeof q.isEmpty === "function" && !q.isEmpty()); }
+      catch (e) { return false; }
+    };
     const t0 = Date.now();
     const poll = setInterval(() => {
       if (processingComplete) { clearInterval(poll); return; }
       const ks = checkForKnownState(); if (ks !== null) { clearInterval(poll); handleSpecialAndClose(ks); return; }
       const now = document.body.innerText || "";
-      const changed = now !== before;
+      if (now !== lastText) { lastText = now; lastChange = Date.now(); everChanged = true; }
       const waited = Date.now() - t0;
-      // الشاشة اتحدّثت (أو عدّت ٨ث من غير تغيير لو كان الخيار ده هو المعروض أصلاً)،
-      // وبعدين ثانيتين تثبيت. أقصى حاجة ٣٠ث.
-      if (!((changed && waited >= 2500) || waited >= 8000 || how === "none")) return;
+      const quiet = Date.now() - lastChange;
+      const speeds = !isBadReading(findSynchRateDS()) || !isBadReading(findMaxAchievableDS());
+      const poSeen = !!findProfileOptimizationStatus();
+      const settled = !pfBusy() && quiet >= 3000
+        && (everChanged || waited >= 8000 || how === "none")
+        && speeds && (poSeen || waited >= 20000);
+      if (!settled && waited < 45000) return;
+      if (!settled) console.warn("⚠️ «بدون Real»: الشاشة ماهديتش فى ٤٥ث — هقرا اللى ظاهر", { speeds, poSeen, quiet });
       clearInterval(poll);
       setTimeout(() => {
         if (processingComplete) return;
@@ -733,9 +747,8 @@
         console.log("🗓️ «بدون Real»: اتقرا من clearview", pending, "— رايح شاشة DSL لـ Loop Length");
         processingComplete = true;   // يوقف الـwatchdog وباقى المؤقتات فى الصفحة دى
         goToDslTab();
-      }, 2000);
+      }, 500);
     }, 700);
-    setTimeout(() => { try { clearInterval(poll); } catch (e) {} }, 30000);
   }
   function goToDslTab() {
     const tab = [...document.querySelectorAll("a, span, li, button")]
