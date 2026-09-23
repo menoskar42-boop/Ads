@@ -383,21 +383,23 @@ router.post('/goal-log', async (req, res) => {
   const read = goalTools.readLog(b);
   if (!Number.isInteger(goalId) || !read.ok) return res.redirect('/portal?err=' + (read.ok ? 'goal_value' : read.why));
   try {
-    const goal = (await pool.query(
-      `SELECT id, starts_on, ends_on FROM nutrition_goals
-        WHERE id=$1 AND company_id=$2 AND patient_id=$3 AND status='active'`,
-      [goalId, req.practice.id, req.patientId])).rows[0];
-    if (!goal || read.value.on_date < String(goal.starts_on).slice(0, 10)
-      || read.value.on_date > String(goal.ends_on).slice(0, 10)) {
-      return res.redirect('/portal?err=goal_date');
-    }
-    await pool.query(
+    const saved = await pool.query(
       `INSERT INTO nutrition_goal_logs
          (company_id, patient_id, goal_id, on_date, value, note, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,now())
+       SELECT $1, $2, g.id, $4, $5, $6, now()
+         FROM nutrition_goals g
+        WHERE g.id=$3
+          AND g.company_id=$1
+          AND g.patient_id=$2
+          AND g.status='active'
+          AND $4::date BETWEEN g.starts_on AND g.ends_on
        ON CONFLICT (goal_id, on_date) DO UPDATE SET
-         value=EXCLUDED.value, note=EXCLUDED.note, updated_at=now()`,
+         value=EXCLUDED.value, note=EXCLUDED.note, updated_at=now()
+       RETURNING id`,
       [req.practice.id, req.patientId, goalId, read.value.on_date, read.value.value, read.value.note]);
+    if (!saved.rowCount) {
+      return res.redirect('/portal?err=goal_date');
+    }
   } catch (e) {
     console.error('[nutrition goal log]', e.message);
     return res.redirect('/portal?err=save');

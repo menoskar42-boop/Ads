@@ -39,11 +39,14 @@ const portal = fs.readFileSync(path.join(__dirname, '..', 'src/routes/nutrition_
 const admin = fs.readFileSync(path.join(__dirname, '..', 'src/routes/nutrition_admin.js'), 'utf8');
 const adminView = fs.readFileSync(path.join(__dirname, '..', 'src/views/nutrition_admin/patient.ejs'), 'utf8');
 const portalView = fs.readFileSync(path.join(__dirname, '..', 'src/views/nutrition_portal/today.ejs'), 'utf8');
+const shoppingView = fs.readFileSync(path.join(__dirname, '..', 'src/views/nutrition_portal/shopping_list.ejs'), 'utf8');
 check('goal tables are tenant-scoped', /CREATE TABLE IF NOT EXISTS nutrition_goals[\s\S]{0,900}company_id\s+INTEGER/.test(schema)
   && /CREATE TABLE IF NOT EXISTS nutrition_goal_logs[\s\S]{0,500}company_id\s+INTEGER/.test(schema));
 check('shopping checks are plan-scoped', /CREATE TABLE IF NOT EXISTS nutrition_shopping_checks[\s\S]{0,700}plan_id/.test(schema));
-check('portal verifies goal ownership', /router\.post\('\/goal-log'[\s\S]{0,1800}company_id=\$2 AND patient_id=\$3/.test(portal));
+check('portal verifies goal ownership', /router\.post\('\/goal-log'[\s\S]{0,1800}g\.company_id=\$1[\s\S]{0,300}g\.patient_id=\$2/.test(portal));
+check('goal write repeats tenant and patient ownership', /INSERT INTO nutrition_goal_logs[\s\S]{0,1200}SELECT \$1, \$2, g\.id[\s\S]{0,1200}g\.company_id=\$1[\s\S]{0,300}g\.patient_id=\$2/.test(portal));
 check('portal persists shopping marks', /router\.post\('\/shopping-list\/check'[\s\S]{0,1800}nutrition_shopping_checks/.test(portal));
+check('shopping hooks have explicit styling', /\.shop-row\s*\{/.test(shoppingView) && /\.shop-check\s*\{/.test(shoppingView));
 check('both sides render goals', /nt\.goals/.test(adminView) && /np\.goals/.test(portalView));
 check('admin can create goals', /router\.post\('\/patients\/:id.*\/goals'/.test(admin));
 
