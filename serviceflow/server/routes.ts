@@ -2820,6 +2820,11 @@ export async function registerRoutes(
   // بيوقّظ السيرفر والنبضة بتنادى الدالة دى فوراً).
   const AUTO_BATCH_HOUR = 9;              // ٩ صباحاً بتوقيت القاهرة
   const AUTO_MEASURE_STALE_DAYS = 10;     // آخر قياس أقدم من ١٠ أيام
+  // باتش القياس اليومى «بدون Real» (قرار المالك ٢٠٢٦-٠٩-٢٣): العلامة دى فى note
+  // المهمة هى اللى جهاز التنفيذ بيقراها ويبعت &sf_mode=noreal لسكربت DZS
+  // (ExecutorButton). لازم تفضل **نفس النص** بتاع NOREAL_MARK فى
+  // client/src/lib/exec-queue.ts — الفحص check-noreal-measure بيقارن الاتنين.
+  const AUTO_MEASURE_NOREAL_MARK = "بدون Real";
   const AUTO_PO_STOP_SKIP_DAYS = 3;       // اتعمله إيقاف خلال ٣ أيام → استبعاد
   let autoBatchDay = "";                  // حارس فى الذاكرة يوفّر ضربة قاعدة كل نبضة
 
@@ -3037,7 +3042,7 @@ export async function registerRoutes(
       const measAccs = [...legacyMeasAccs, ...complaintMeasAccs];
       const meas = await enqueueAutoBatch(
         "measure", measAccs,
-        `خطوط لها أكونت — لم تُقس أو أقدم من ${AUTO_MEASURE_STALE_DAYS} أيام + شكاوى منتظمة بدون قياس بعدها (تشغيل يومى ٩ ص)`);
+        `خطوط لها أكونت — لم تُقس أو أقدم من ${AUTO_MEASURE_STALE_DAYS} أيام + شكاوى منتظمة بدون قياس بعدها (تشغيل يومى ٩ ص) — قياس ${AUTO_MEASURE_NOREAL_MARK}`);
       console.log(`[auto-batches] ${date} (${trigger}): إيقاف PO ${stop.count} خط، قياس ${meas.count} خط`);
       return { ran: true, stop: stop.count, measure: meas.count,
                stopBatchId: stop.batchId, measureBatchId: meas.batchId };

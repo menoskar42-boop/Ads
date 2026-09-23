@@ -18,12 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronRight, ChevronLeft, Loader2, Radar, X, Gauge, Search, EyeOff, Filter } from "lucide-react";
+import { ChevronRight, ChevronLeft, Loader2, Radar, X, Gauge, Search, EyeOff, Filter, History } from "lucide-react";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 
 const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const buildDZSUrl = (accounts: string[]) =>
@@ -218,7 +218,7 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
   };
 
   // قياس DZS للنطاق المحدد — يفتح كل أرقام الأكونت فى تاب واحد والسكريبت يتولّى التقسيم لدفعات
-  const handleMeasureDZS = async () => {
+  const handleMeasureDZS = async (noReal = false) => {
     const w = window.open("about:blank", "dzs_measure");
     setDzsLoading(true);
     setDzsCount(null);
@@ -231,8 +231,8 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
         .map((r) => (r.accountNo ?? "").toString().trim())
         .filter((a) => a && !seen.has(a) && seen.add(a));
       if (accounts.length === 0) { try { w?.close(); } catch {} alert("لا توجد أرقام أكونت فى النطاق المحدد"); return; }
-      if (await dispatchSpeedTool("measure", accounts, isSuper)) { try { w?.close(); } catch {} return; }
-      if (w) w.location.href = buildDZSUrl(accounts);
+      if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return; }
+      if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
       setDzsCount(accounts.length);
     } catch {
       try { w?.close(); } catch {}
@@ -438,8 +438,11 @@ export function NeedsSpeedReport({ requireComplaint = false, endpoint = "/api/ph
               )}
             </div>
             {showSpeedTools && (<>
-            <Button variant="outline" size="sm" onClick={handleMeasureDZS} className="text-blue-700 border-blue-200 gap-1">
+            <Button variant="outline" size="sm" onClick={() => handleMeasureDZS()} className="text-blue-700 border-blue-200 gap-1">
               <Radar className="w-4 h-4" /> قياس DZS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
+              <History className="w-4 h-4" /> قياس بدون Real
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleRaiseSpeed("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="تشغيل Profile Optimization (رفع السرعة) لأرقام النطاق المحدد">
               <Gauge className="w-4 h-4" /> رفع سرعة

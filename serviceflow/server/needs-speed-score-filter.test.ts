@@ -86,7 +86,9 @@ test("Excel, PDF, measurement, and speed-raise actions use the filtered range", 
     4,
     "DZS measurement, speed raise, Excel, and PDF must all request the same full filtered range",
   );
-  assert.match(clientReport, /onClick=\{handleMeasureDZS\}/);
+  // أرو فانكشن مش مرجع مباشر: handleMeasureDZS(noReal) — الـevent كان هيتقرا noReal=true
+  assert.match(clientReport, /onClick=\{\(\) => handleMeasureDZS\(\)\}/);
+  assert.match(clientReport, /onClick=\{\(\) => handleMeasureDZS\(true\)\}/);
   assert.match(clientReport, /onClick=\{\(\) => handleRaiseSpeed\("raise"\)\}/);
   assert.match(clientReport, /onClick=\{\(\) => handleRaiseSpeed\("stop"\)\}/);
   assert.match(clientReport, /const handleExport = async \(\) =>/);

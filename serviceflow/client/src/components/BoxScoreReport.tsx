@@ -9,10 +9,10 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, ChevronUp, ChevronDown, ChevronsUpDown, Radar, Wrench, List, X, AlertTriangle } from "lucide-react";
+import { Loader2, ChevronUp, ChevronDown, ChevronsUpDown, Radar, Wrench, List, X, AlertTriangle, History } from "lucide-react";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { MaintBoxDetail, maintStatusBadge, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
 import { WithAccountReport } from "@/components/WithAccountReport";
 
@@ -21,7 +21,7 @@ const buildDZSUrl = (accounts: string[]) =>
   `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
 
 // يجيب أرقام الأكونت لخطوط نطاق معيّن ويفتح بوابة DZS لقياسها
-async function measureAccountsFor(params: URLSearchParams, isSuper: boolean): Promise<number> {
+async function measureAccountsFor(params: URLSearchParams, isSuper: boolean, noReal = false): Promise<number> {
   params.set("page", "1"); params.set("limit", "20000");
   const w = window.open("about:blank", "dzs_measure");
   try {
@@ -31,8 +31,8 @@ async function measureAccountsFor(params: URLSearchParams, isSuper: boolean): Pr
       ((json.data as any[]) ?? []).map((r) => (r.accountNo ?? "").toString().trim()).filter(Boolean),
     )];
     if (!accounts.length) { try { w?.close(); } catch {} alert("لا توجد أرقام أكونت لقياسها فى هذا النطاق"); return 0; }
-    if (await dispatchSpeedTool("measure", accounts, isSuper)) { try { w?.close(); } catch {} return 0; }
-    if (w) w.location.href = buildDZSUrl(accounts);
+    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return 0; }
+    if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
     return accounts.length;
   } catch {
     try { w?.close(); } catch {}
@@ -330,7 +330,7 @@ function BoxTab({ central, cabin, minScore }: { central: string; cabin: string; 
     await measureAccountsFor(p, isSuper);
     setTimeout(() => setDzsBox(null), 1500);
   };
-  const measureAll = async () => {
+  const measureAll = async (noReal = false) => {
     const p = new URLSearchParams();
     if (central) p.set("central", central);
     if (cabin) p.set("cabin", cabin);
@@ -338,7 +338,7 @@ function BoxTab({ central, cabin, minScore }: { central: string; cabin: string; 
     if (!central && !cabin && !box) {
       if (!confirm("هتفتح قياس DZS لكل الخطوط اللى لها أكونت فى كل السنترالات — متأكد؟")) return;
     }
-    await measureAccountsFor(p, isSuper);
+    await measureAccountsFor(p, isSuper, noReal);
   };
 
   const sorted = useMemo(() => {
@@ -436,9 +436,14 @@ function BoxTab({ central, cabin, minScore }: { central: string; cabin: string; 
             <AlertTriangle className="w-4 h-4" /> له شكوى أرضية{onlyGroundTicket ? " ✓" : ""}
           </Button>
           {showSpeedTools && (
-          <Button variant="outline" size="sm" onClick={measureAll} className="text-blue-700 border-blue-200 gap-1">
+          <>
+          <Button variant="outline" size="sm" onClick={() => measureAll()} className="text-blue-700 border-blue-200 gap-1">
             <Radar className="w-4 h-4" /> قياس الكل
           </Button>
+          <Button variant="outline" size="sm" onClick={() => measureAll(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
+            <History className="w-4 h-4" /> قياس بدون Real
+          </Button>
+          </>
           )}
           <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-green-700 border-green-200">تصدير Excel</Button>
           <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-700 border-red-200">تصدير PDF</Button>

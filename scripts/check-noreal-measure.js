@@ -11,6 +11,8 @@
  *   ٤. Loop Length بيتقرا من نفس السطر (readRowValue) — findValueCellByLabel لو القيمة
  *      فاضية بيجيب عنوان الجدول اللى بعده.
  *   ٥. الزرار للسوبر أدمن بس، والخانات فى ترتيب الموبايل والإكسيل والـPDF.
+ *   ٦. (٢٠٢٦-٠٩-٢٣) الزرار فى كل تقرير فيه زرار القياس القديم، وباتش ٩ الصبح «بدون Real»،
+ *      و onClick={handler} ممنوع (الـevent كان هيتقرا noReal=true).
  * والاختبار الوظيفى (٤٠ حالة على صفحات AXON مقلّدة): serviceflow/scripts/test-dzs-noreal.cjs
  */
 const fs = require('fs');
@@ -67,6 +69,37 @@ need(/"آخر قياس", "نوع القياس", "Loop Length"/.test(plr), 'عم�
 need(/if \(opts\?\.noReal\) return "&sf_mode=noreal";/.test(eq), 'measureHashFlags لازم يرجّع &sf_mode=noreal.');
 need(/const noReal = String\(note \|\| ""\)\.includes\(NOREAL_MARK\);/.test(exb) && /executeBatch\("measure", accs, \{ fixRecent, noReal \}\)/.test(exb),
   'جهاز التنفيذ لازم يحوّل NOREAL_MARK لـnoReal.');
+
+// ٦. (٢٠٢٦-٠٩-٢٣) الزرار فى **كل** تقرير فيه زرار القياس القديم، وباتش ٩ الصبح «بدون Real».
+const MARK = (eq.match(/export const NOREAL_MARK = "([^"]+)";/) || [])[1];
+need(MARK, 'مالقيتش NOREAL_MARK فى exec-queue.ts');
+need((routes.match(/const AUTO_MEASURE_NOREAL_MARK = "([^"]+)";/) || [])[1] === MARK,
+  'علامة باتش ٩ الصبح فى السيرفر لازم = NOREAL_MARK بالحرف — وإلا جهاز التنفيذ هيعمل قياس Real.');
+need(/enqueueAutoBatch\(\s*"measure", measAccs,[\s\S]{0,300}قياس \$\{AUTO_MEASURE_NOREAL_MARK\}`\)/.test(routes),
+  'باتش القياس اليومى (٩ ص) لازم الـnote بتاعه فيه AUTO_MEASURE_NOREAL_MARK.');
+need(/const note = type === "measure" && opts\?\.noReal\s*\?\s*\[currentSource, NOREAL_MARK\]/.test(eq),
+  'dispatchSpeedTool لازم يحط NOREAL_MARK فى note لما noReal.');
+need(/export function noRealUrl\(url: string, noReal\?: boolean\): string \{\s*return noReal \? url \+ "&sf_mode=noreal" : url;/.test(eq),
+  'noRealUrl لازم يزوّد &sf_mode=noreal (التشغيل المحلى).');
+const dir = path.join(__dirname, '..', 'serviceflow', 'client', 'src', 'components');
+let checked = 0;
+for (const f of fs.readdirSync(dir).filter((x) => /Report\.tsx$/.test(x) && x !== 'PhoneLookupReport.tsx')) {
+  const src = fs.readFileSync(path.join(dir, f), 'utf8');
+  // زرار القياس القديم المجمّع (التقارير اللى فيها قياس لخط واحد بس مالهاش زرار مجمّع)
+  if (!/\/>\}? قياس (DZS|الكل)\s*\n/.test(src)) continue;
+  checked++;
+  need(/قياس بدون Real\s*\n/.test(src), `${f}: فيه زرار القياس القديم ومافيهوش «قياس بدون Real».`);
+  need(/noReal \}\)|noReal: kind === "measure" && noReal \}\)|notify: setNotice, noReal \}\)/.test(src), `${f}: الزرار الجديد مابيبعتش noReal لـdispatchSpeedTool.`);
+  // CFM «قياس الكل» مالوش تشغيل محلى أصلاً (جهاز التنفيذ بس) — فمالوش رابط يتعلّم.
+  const localOnlyQueue = /if \(kind === "measure"\) \{ alert\("جهاز التنفيذ غير مفعّل/.test(src);
+  if (!localOnlyQueue) need(/noRealUrl\(buildDZSUrl\(/.test(src), `${f}: التشغيل المحلى مابيزوّدش &sf_mode=noreal.`);
+  // onClick={handler} بيبعت الـevent كأول باراميتر — وهو truthy، فالقياس القديم هيبقى «بدون Real».
+  for (const m of src.matchAll(/const (\w+) = async \(noReal = false\)/g)) {
+    need(!new RegExp(`onClick=\\{${m[1]}\\}`).test(src), `${f}: onClick={${m[1]}} بيبعت الـevent مكان noReal — القياس القديم هيتعمل بدون Real.`);
+  }
+}
+
+need(checked >= 11, `اتفحص ${checked} تقرير بس — المفروض ١١ (فيه تقرير زرار القياس القديم فيه اتغيّر شكله؟)`);
 
 if (errors.length) { console.log('❌ check-noreal-measure:'); errors.forEach((e) => console.log('   · ' + e)); process.exit(1); }
 console.log('✅ check-noreal-measure: «بدون Real» مابيلمسش uploaded_at، بيتفرّع قبل real-time، والزرار للسوبر أدمن بس.');

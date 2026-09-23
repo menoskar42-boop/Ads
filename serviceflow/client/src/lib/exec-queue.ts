@@ -372,6 +372,12 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
   return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`, DZS_MEASURE_TARGET);
 }
 
+/** للتشغيل المحلى (سوبر أدمن من غير جهاز تنفيذ): علامة «بدون Real» على رابط DZS
+ *  اللى التقرير بيبنيه بنفسه. نفس اللى جهاز التنفيذ بيعمله من الـnote. */
+export function noRealUrl(url: string, noReal?: boolean): string {
+  return noReal ? url + "&sf_mode=noreal" : url;
+}
+
 /** علامات القياس فى رابط DZS. «بدون Real» مالوش شاشة real-time أصلاً، فعلامة
  *  «A recent fix» (اللى بتختار حاجة فى شاشة الـreal-time) مالهاش معنى معاه. */
 export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean }): string {
@@ -581,6 +587,9 @@ export async function dispatchSpeedTool(
     // بيتنادى بنتيجة الإضافة للطابور. من غيره «اتضافت» و«كانت موجودة أصلاً»
     // بيرجعوا نفس القراءة (true)، والتحديث التلقائى بيبقى صامت فى الحالتين.
     onEnqueued?: (r: { ok: boolean; count?: number; duplicate?: boolean; message?: string }) => void;
+    // «قياس بدون Real»: العلامة NOREAL_MARK بتتحط فى note المهمة، وجهاز التنفيذ
+    // بيحوّلها لـ&sf_mode=noreal (ExecutorButton). للقياس بس.
+    noReal?: boolean;
   },
 ): Promise<boolean> {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
@@ -592,7 +601,10 @@ export async function dispatchSpeedTool(
   // (measured_by / last_raise_by / requested_by …). العمليات على مستوى الموقع كله مالهاش رقم.
   if (!SITE_WIDE_TYPES.has(type)) void recordOpIntent(type, accs);
   if (await isExecutorActive()) {
-    const res = await enqueueJob(type, accs, undefined, opts?.params);
+    const note = type === "measure" && opts?.noReal
+      ? [currentSource, NOREAL_MARK].filter(Boolean).join(" ")
+      : undefined;
+    const res = await enqueueJob(type, accs, note, opts?.params);
     opts?.onEnqueued?.(res);
     say(res.ok ? `تم إضافة ${accs.length} رقم لطابور ${QUEUE_LABEL[type]} — هيتنفّذ على جهاز التنفيذ` : (res.message || "تعذّر الإضافة للطابور"));
     return true;

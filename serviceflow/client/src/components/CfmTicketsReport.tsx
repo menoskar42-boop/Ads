@@ -4,7 +4,7 @@ import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, AlertCircle, Search, FileSpreadsheet, FileText, Radar, Gauge } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, Search, FileSpreadsheet, FileText, Radar, Gauge, History } from "lucide-react";
 import * as XLSX from "xlsx";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool } from "@/lib/exec-queue";
@@ -220,12 +220,12 @@ export function CfmTicketsReport() {
   };
 
   // --- تنفيذ مجمّع (قياس / رفع سرعة / إيقاف) لكل خطوط التذاكر الظاهرة حسب الفلتر — سوبر أدمن فقط ---
-  const [batchBusy, setBatchBusy] = useState<null | "measure" | "raise" | "stop">(null);
-  const handleBatch = async (kind: "measure" | "raise" | "stop") => {
+  const [batchBusy, setBatchBusy] = useState<null | "measure" | "noreal" | "raise" | "stop">(null);
+  const handleBatch = async (kind: "measure" | "raise" | "stop", noReal = false) => {
     if (!filteredData.length || batchBusy) return;
-    const label = kind === "measure" ? "قياس" : kind === "raise" ? "رفع سرعة" : "إيقاف PO";
+    const label = kind === "measure" ? (noReal ? "قياس بدون Real" : "قياس") : kind === "raise" ? "رفع سرعة" : "إيقاف PO";
     if (!confirm(`تنفيذ «${label}» لكل خطوط ${filteredData.length} تذكرة حسب الفلتر الحالى؟`)) return;
-    setBatchBusy(kind);
+    setBatchBusy(kind === "measure" && noReal ? "noreal" : kind);
     try {
       const seen = new Set<string>();
       const accounts: string[] = [];
@@ -254,7 +254,7 @@ export function CfmTicketsReport() {
         for (const a of accs) if (!seen.has(a)) { seen.add(a); accounts.push(a); }
       }
       if (!accounts.length) { alert("لا توجد خطوط لها أكونت فى نتائج الفلتر"); return; }
-      const ok = await dispatchSpeedTool(kind, accounts, isSuper);
+      const ok = await dispatchSpeedTool(kind, accounts, isSuper, { noReal: kind === "measure" && noReal });
       if (ok) { alert(`تم إضافة ${accounts.length} خط لطابور «${label}» — هيتنفّذوا على جهاز التنفيذ`); return; }
       if (kind === "measure") { alert("جهاز التنفيذ غير مفعّل — شغّله من زر «جهاز التنفيذ»"); return; }
       openProfileOptimization(accounts, kind === "stop" ? { stopOnly: true } : {});
@@ -511,6 +511,10 @@ export function CfmTicketsReport() {
                 <Button variant="outline" size="sm" onClick={() => handleBatch("measure")} disabled={!filteredData.length || !!batchBusy}
                   title="قياس كل خطوط التذاكر الظاهرة حسب الفلتر" className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-50">
                   {batchBusy === "measure" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />} قياس الكل
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleBatch("measure", true)} disabled={!filteredData.length || !!batchBusy}
+                  title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL" className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-50">
+                  {batchBusy === "noreal" ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />} قياس بدون Real
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => handleBatch("raise")} disabled={!filteredData.length || !!batchBusy}
                   title="رفع سرعة كل خطوط التذاكر الظاهرة حسب الفلتر" className="gap-1 text-emerald-700 border-emerald-300 hover:bg-emerald-50">

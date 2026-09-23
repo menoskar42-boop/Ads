@@ -93,6 +93,16 @@ test("legacy measurement accounts are ordered before complaint-report additions 
   assert.match(run, /enqueueAutoBatch\(\s*"measure", measAccs/);
 });
 
+test("the daily measure batch runs as «بدون Real» (owner decision 2026-09-23)", () => {
+  // جهاز التنفيذ بيقرا العلامة من note المهمة (ExecutorButton) — نفس نص NOREAL_MARK
+  assert.match(routes, /const AUTO_MEASURE_NOREAL_MARK = "بدون Real";/);
+  const run = routes.slice(
+    routes.indexOf("const legacyMeasAccs"),
+    routes.indexOf("console.log(`[auto-batches]", routes.indexOf("const legacyMeasAccs")),
+  );
+  assert.match(run, /قياس \$\{AUTO_MEASURE_NOREAL_MARK\}`\)/);
+});
+
 test("the batches are split per line and land at normal priority", () => {
   const enq = routes.slice(routes.indexOf("const enqueueAutoBatch"),
                            routes.indexOf("const autoPoStopAccounts"));

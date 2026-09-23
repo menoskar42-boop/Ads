@@ -8,10 +8,10 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Info, Radar, Gauge, CircleSlash, X } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Info, Radar, Gauge, CircleSlash, X, History } from "lucide-react";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { LineDetailsDialog } from "@/components/LineDetailsDialog";
 import { closeReason } from "@/lib/close-codes";
@@ -131,14 +131,14 @@ export function RepeatedWithinMonthReport() {
   };
 
   // قياس كل الأرقام المعروضة
-  const measureAll = async () => {
+  const measureAll = async (noReal = false) => {
     const accounts = shownAccounts();
     if (!accounts.length) { alert("لا توجد أرقام أكونت فى الصفوف المعروضة"); return; }
     setBusy(true);
     const w = window.open("about:blank", "dzs_measure");
     try {
-      if (await dispatchSpeedTool("measure", accounts, isSuper)) { try { w?.close(); } catch {} return; }
-      if (w) w.location.href = buildDZSUrl(accounts);
+      if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) { try { w?.close(); } catch {} return; }
+      if (w) w.location.href = noRealUrl(buildDZSUrl(accounts), noReal);
     } finally { setBusy(false); }
   };
 
@@ -319,12 +319,15 @@ export function RepeatedWithinMonthReport() {
         {showSpeedTools && (
           <>
             <Button
-              variant="outline" size="sm" onClick={measureAll}
+              variant="outline" size="sm" onClick={() => measureAll()}
               disabled={busy || rows.length === 0}
               title="قياس DZS لكل الأرقام المعروضة (بعد الفلاتر)"
               className="text-blue-700 border-blue-200 gap-1"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />} قياس DZS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => measureAll(true)} disabled={busy} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
+              <History className="w-4 h-4" /> قياس بدون Real
             </Button>
             <Button
               variant="outline" size="sm" onClick={() => raiseOrStop("raise")}

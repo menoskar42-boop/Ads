@@ -8,9 +8,9 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, RefreshCw, AlertCircle, Radar, FileSpreadsheet, FileText, Gauge } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, Radar, FileSpreadsheet, FileText, Gauge, History } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
@@ -111,7 +111,7 @@ export function OpenTicketLinesReport() {
     [lines, filterCentral, filterCabinet, onlyWithAccount],
   );
 
-  const handleMeasureDZS = async () => {
+  const handleMeasureDZS = async (noReal = false) => {
     const accounts = [...new Set(
       filtered.map((l) => (l.accountNo ?? "").toString().trim()).filter(Boolean),
     )];
@@ -119,8 +119,8 @@ export function OpenTicketLinesReport() {
       alert("لا توجد أرقام أكونت فى الخطوط المعروضة لقياسها");
       return;
     }
-    if (await dispatchSpeedTool("measure", accounts, isSuper)) return;
-    window.open(buildDZSUrl(accounts), "dzs_measure");
+    if (await dispatchSpeedTool("measure", accounts, isSuper, { noReal })) return;
+    window.open(noRealUrl(buildDZSUrl(accounts), noReal), "dzs_measure");
     setDzsCount(accounts.length);
   };
 
@@ -215,8 +215,11 @@ export function OpenTicketLinesReport() {
               لها أكونت فقط
             </label>
             {showSpeedTools && (<>
-            <Button variant="outline" size="sm" onClick={handleMeasureDZS} className="text-blue-700 border-blue-200 gap-1">
+            <Button variant="outline" size="sm" onClick={() => handleMeasureDZS()} className="text-blue-700 border-blue-200 gap-1">
               <Radar className="w-4 h-4" /> قياس DZS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
+              <History className="w-4 h-4" /> قياس بدون Real
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="رفع السرعة (Profile Optimization) للخطوط المعروضة">
               <Gauge className="w-4 h-4" /> رفع سرعة

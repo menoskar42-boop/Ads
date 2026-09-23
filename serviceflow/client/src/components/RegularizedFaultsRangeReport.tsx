@@ -11,9 +11,9 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Repeat, Radar, Gauge, X } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Repeat, Radar, Gauge, X, History } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
 import { closeReason } from "@/lib/close-codes";
 import { useAuth } from "@/hooks/use-auth";
@@ -194,7 +194,7 @@ export function RegularizedFaultsRangeReport() {
     full: f.phoneShort ? "88" + f.phoneShort : "",
   });
 
-  const handleMeasureDZS = async () => {
+  const handleMeasureDZS = async (noReal = false) => {
     const seen = new Set<string>();
     const items = displayed
       .map(toItem)
@@ -203,8 +203,8 @@ export function RegularizedFaultsRangeReport() {
       alert("لا توجد أرقام أكونت فى الأعطال المعروضة — لا شىء للقياس");
       return;
     }
-    if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper)) return;
-    window.open(buildDZSUrl(items), "dzs_measure");
+    if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { noReal })) return;
+    window.open(noRealUrl(buildDZSUrl(items), noReal), "dzs_measure");
   };
 
   // رفع السرعة / إيقاف PO لأرقام الأعطال المعروضة.
@@ -499,12 +499,15 @@ export function RegularizedFaultsRangeReport() {
         {showSpeedTools && (<>
         <Button
           variant="outline" size="sm"
-          onClick={handleMeasureDZS}
+          onClick={() => handleMeasureDZS()}
           disabled={displayed.filter((f) => (f.accountNo ?? "").toString().trim() !== "").length === 0}
           className="text-blue-700 border-blue-200 gap-1"
           title="فتح DZS وقياس أرقام الأكونت المعروضة"
         >
           <Radar className="w-4 h-4" /> قياس DZS
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
+          <History className="w-4 h-4" /> قياس بدون Real
         </Button>
         <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="رفع السرعة (Profile Optimization) لأرقام الأعطال المعروضة">
           <Gauge className="w-4 h-4" /> رفع سرعة

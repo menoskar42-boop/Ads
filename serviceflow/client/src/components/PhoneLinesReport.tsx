@@ -16,9 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronRight, ChevronLeft, Loader2, Radar, Gauge, IdCard } from "lucide-react";
+import { ChevronRight, ChevronLeft, Loader2, Radar, Gauge, IdCard, History } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { dispatchSpeedTool } from "@/lib/exec-queue";
+import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
@@ -140,7 +140,7 @@ export function PhoneLinesReport() {
 
   // القياس يشتغل على النطاق المفلتر بالكامل (السنترال/الكابينه/البكس المحدد) —
   // مش الصفحة الظاهرة فقط — فنجيب كل الصفوف المطابقة للفلتر (limit كبير).
-  const handleMeasureDZS = async () => {
+  const handleMeasureDZS = async (noReal = false) => {
     if (!central && !cabin && !box) {
       alert("اختر سنترال أو كابينه أو بكس أولاً — القياس يشتغل على النطاق المحدد فقط وليس كل الجدول");
       return;
@@ -167,13 +167,13 @@ export function PhoneLinesReport() {
         alert("لا توجد أرقام أكونت فى النطاق المحدد — لا شىء للقياس");
         return;
       }
-      if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper)) { if (win) win.close(); return; }
+      if (await dispatchSpeedTool("measure", items.map((i) => i.account), isSuper, { noReal })) { if (win) win.close(); return; }
       if (items.length > 150 &&
           !confirm(`سيتم فتح DZS لقياس ${items.length} رقم فى هذا النطاق — متأكد؟`)) {
         if (win) win.close();
         return;
       }
-      const url = buildDZSUrl(items);
+      const url = noRealUrl(buildDZSUrl(items), noReal);
       if (win) win.location.href = url; else window.open(url, "_blank");
     } catch {
       if (win) win.close();
@@ -418,8 +418,11 @@ export function PhoneLinesReport() {
             </div>
 
             {showSpeedTools && (<>
-            <Button variant="outline" size="sm" onClick={handleMeasureDZS} className="text-blue-700 border-blue-200 gap-1">
+            <Button variant="outline" size="sm" onClick={() => handleMeasureDZS()} className="text-blue-700 border-blue-200 gap-1">
               <Radar className="w-4 h-4" /> قياس DZS
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleMeasureDZS(true)} className="text-amber-700 border-amber-300 gap-1" title="قياس من غير real-time: أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL">
+              <History className="w-4 h-4" /> قياس بدون Real
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleRaisePO("raise")} className="text-emerald-700 border-emerald-200 gap-1" title="رفع السرعة (Profile Optimization) لأرقام النطاق المحدد">
               <Gauge className="w-4 h-4" /> رفع سرعة
