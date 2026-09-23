@@ -297,7 +297,7 @@ export function NoMobileComplaintsReport() {
                 <TableRow>
                   <TableHead className="text-right font-bold whitespace-nowrap">المصدر</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">رقم الشكوى</TableHead>
-                   <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون المحلى</TableHead>
+                  <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون المحلى</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">رقم الموبايل</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">تاريخ الشكوى</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">تاريخ الانتظام</TableHead>
@@ -325,7 +325,7 @@ export function NoMobileComplaintsReport() {
                        }`}>{row.source}</span>
                     </TableCell>
                     <TableCell className="font-mono">{row.ticketId || `يدوي #${row.id}`}</TableCell>
-                     <TableCell className="font-mono font-semibold text-blue-700">{localPhone(row)}</TableCell>
+                    <TableCell className="font-mono font-semibold text-blue-700">{localPhone(row)}</TableCell>
                     <TableCell dir="ltr" className="text-left">
                       {editingPhone === row.fullPhone ? (
                         <span className="inline-flex items-center gap-1">
