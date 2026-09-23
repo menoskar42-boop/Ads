@@ -88,3 +88,12 @@ test("defaults the report to a rolling one-month window ending today", () => {
   assert.match(reportRoute, /const defaultFrom = `\$\{previousMonthYear\}-\$\{String\(previousMonth\)\.padStart\(2, "0"\)\}-\$\{String\(Math\.min\(todayDay, previousMonthLastDay\)\)\.padStart\(2, "0"\)\}`/);
   assert.match(reportRoute, /const from = dateFrom \|\| defaultFrom/);
 });
+
+test("displays the local phone without the 88 prefix while keeping the full phone for actions", () => {
+  assert.match(clientReport, /const localPhone = \(row: Pick<Row, "phoneShort" \| "fullPhone">\) =>\s+phoneLookupKey\(row\.phoneShort \|\| row\.fullPhone\) \|\| "-"/);
+  assert.match(clientReport, /<TableHead[^>]*>رقم التليفون المحلى<\/TableHead>/);
+  assert.match(clientReport, /<TableCell className="font-mono font-semibold text-blue-700">\{localPhone\(row\)\}<\/TableCell>/);
+  assert.doesNotMatch(clientReport, /<TableHead[^>]*>التليفون الكامل<\/TableHead>/);
+  assert.match(clientReport, /saveMobile = async \(fullPhone: string\)/);
+  assert.match(clientReport, /markChecked = async \(fullPhone: string\)/);
+});

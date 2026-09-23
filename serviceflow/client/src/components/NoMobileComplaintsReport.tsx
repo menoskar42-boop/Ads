@@ -57,6 +57,9 @@ const formatDate = (value: string | null) => {
   return `${date.getUTCFullYear()}/${pad(date.getUTCMonth() + 1)}/${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 };
 
+const localPhone = (row: Pick<Row, "phoneShort" | "fullPhone">) =>
+  phoneLookupKey(row.phoneShort || row.fullPhone) || "-";
+
 export function NoMobileComplaintsReport() {
   const today = todayInCairo();
   const [dateFrom, setDateFrom] = useState(() => oneMonthBefore(today));
@@ -181,8 +184,7 @@ export function NoMobileComplaintsReport() {
       "#": index + 1,
       "المصدر": row.source,
       "رقم الشكوى": row.ticketId ?? "",
-      "رقم التليفون الكامل": row.fullPhone,
-      "رقم التليفون": row.phoneShort ?? "",
+      "رقم التليفون المحلى": localPhone(row),
       "تاريخ الشكوى": formatDate(row.complaintTime),
       "تاريخ الانتظام": formatDate(row.closeDate ?? row.regularizedAt),
       "السنترال": row.central ?? "",
@@ -208,10 +210,10 @@ export function NoMobileComplaintsReport() {
     const rows = json.data as Row[];
     printTablePDF({
       title: `أرقام لها شكاوى بدون رقم موبايل (${dateFrom || "البداية"} → ${dateTo || "النهاية"})`,
-      columns: ["#", "المصدر", "رقم الشكوى", "التليفون الكامل", "التليفون", "تاريخ الشكوى", "تاريخ الانتظام",
+      columns: ["#", "المصدر", "رقم الشكوى", "رقم التليفون المحلى", "تاريخ الشكوى", "تاريخ الانتظام",
         "السنترال", "اسم العميل", "العنوان", "الكابينة", "البكس", "MSAN", "سبب الإغلاق", "نوع الشكوى", "الفني"],
       rows: rows.map((row, index) => [
-        index + 1, row.source, row.ticketId ?? "-", row.fullPhone, row.phoneShort ?? "-",
+        index + 1, row.source, row.ticketId ?? "-", localPhone(row),
         formatDate(row.complaintTime), formatDate(row.closeDate ?? row.regularizedAt), row.central ?? "-",
         row.subName ?? "-", row.subAdd ?? "-", row.cabinNumber ?? "-", row.boxNumber ?? "-",
         row.msanCode ?? "-", row.closeCode ?? "-", row.complaintTypeName ?? "-", row.techName ?? "-",
@@ -295,7 +297,7 @@ export function NoMobileComplaintsReport() {
                 <TableRow>
                   <TableHead className="text-right font-bold whitespace-nowrap">المصدر</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">رقم الشكوى</TableHead>
-                  <TableHead className="text-right font-bold whitespace-nowrap">التليفون الكامل</TableHead>
+                   <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون المحلى</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">رقم الموبايل</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">تاريخ الشكوى</TableHead>
                   <TableHead className="text-right font-bold whitespace-nowrap">تاريخ الانتظام</TableHead>
@@ -323,7 +325,7 @@ export function NoMobileComplaintsReport() {
                        }`}>{row.source}</span>
                     </TableCell>
                     <TableCell className="font-mono">{row.ticketId || `يدوي #${row.id}`}</TableCell>
-                    <TableCell className="font-mono font-semibold text-blue-700">{row.fullPhone || "-"}</TableCell>
+                     <TableCell className="font-mono font-semibold text-blue-700">{localPhone(row)}</TableCell>
                     <TableCell dir="ltr" className="text-left">
                       {editingPhone === row.fullPhone ? (
                         <span className="inline-flex items-center gap-1">
