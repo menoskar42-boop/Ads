@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -19,6 +20,13 @@ import { closeReason } from "@/lib/close-codes";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { TECHNICIANS } from "@shared/technicians";
+
+interface FilterOptions {
+  centrals: string[];
+  cabins: Record<string, string[]>;
+  boxes: Record<string, string[]>;
+}
 
 interface RegularizedFault extends Measurement138 {
   ticketId: string | null;
@@ -110,6 +118,9 @@ export function RegularizedFaultsRangeReport() {
   const isTechnician = user?.role === ROLES.TECH;
   useSpeedToolSource("الأعطال المنتظمة (مدى)");
   const [central, setCentral] = useState("");
+  const [cabin, setCabin] = useState("");
+  const [box, setBox] = useState("");
+  const [closingTech, setClosingTech] = useState("");
   const [q, setQ] = useState("");
   const [dateFrom, setDateFrom] = useState(() => {
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
@@ -130,12 +141,24 @@ export function RegularizedFaultsRangeReport() {
   const [scoreFrom, setScoreFrom] = useState("");
   const [scoreTo, setScoreTo] = useState("");
 
+  const { data: filterOptions } = useQuery<FilterOptions>({
+    queryKey: ["/api/phone-lines/filter-options"],
+    queryFn: async () => {
+      const res = await fetch("/api/phone-lines/filter-options", { credentials: "include" });
+      if (!res.ok) throw new Error("فشل تحميل فلاتر السنترال والكابينة والبكس");
+      return res.json();
+    },
+  });
+
   // المصدر: complaint_details (شيت التفاصيل من ملف 430D) مفلتراً بـ close_time.
   const { data: faults = [], isFetching } = useQuery<RegularizedFault[]>({
-    queryKey: ["/api/reports/regularized-faults-range", central, q, dateFrom, dateTo, measuredBefore, excludeQueued, isTechnician],
+    queryKey: ["/api/reports/regularized-faults-range", central, cabin, box, closingTech, q, dateFrom, dateTo, measuredBefore, excludeQueued, isTechnician],
     queryFn: async () => {
       const p = new URLSearchParams();
       if (central) p.set("central", central);
+      if (cabin) p.set("cabin", cabin);
+      if (box) p.set("box", box);
+      if (closingTech) p.set("closingTech", closingTech);
       if (q) p.set("q", q);
       if (dateFrom) p.set("dateFrom", dateFrom);
       if (dateTo) p.set("dateTo", dateTo);
@@ -153,6 +176,10 @@ export function RegularizedFaultsRangeReport() {
   // قائمة أسباب الإغلاق الموجودة فعلاً فى النتيجة (للدروب‌ليست)
   const reasonOptions = Array.from(new Set(faults.map((f) => closeReason(f.closeCode)).filter(Boolean)))
     .sort((a, b) => a.localeCompare(b, "ar"));
+  const cabins = central && filterOptions ? (filterOptions.cabins[central] ?? []) : [];
+  const boxes = central && cabin && filterOptions
+    ? (filterOptions.boxes[`${central}||${cabin}`] ?? [])
+    : [];
 
   // عند تفعيل زر "المكرر فقط" نعرض/نصدّر الأعطال المكررة فقط + فلتر سبب الإغلاق لو متحدّد.
   // السرعة مخزّنة نص: الأرقام الصحيحة Kbps، والقيم العشرية ميجابت (× 1024) — نفس
@@ -421,17 +448,46 @@ export function RegularizedFaultsRangeReport() {
             التاريخ: الشهر الحالي فقط
           </span>
         )}
-        <select
+        <SearchableCombobox
+          options={["الغنايم", "الغنايم-العزايزة", "الغنايم-دير الجنادله", "الغنايم-نجع العمدة"]}
           value={central}
-          onChange={(e) => setCentral(e.target.value)}
+          onChange={(value) => { setCentral(value); setCabin(""); setBox(""); }}
+          placeholder="كل السنترالات"
+          searchPlaceholder="ابحث في السنترالات..."
+          className="w-full sm:w-44 text-sm"
+        />
+        <SearchableCombobox
+          options={cabins}
+          value={cabin}
+          onChange={(value) => { setCabin(value); setBox(""); }}
+          placeholder="كل الكباين"
+          searchPlaceholder="ابحث في الكباين..."
+          disabled={!central}
+          className="w-full sm:w-40 text-sm"
+        />
+        <SearchableCombobox
+          options={boxes}
+          value={box}
+          onChange={setBox}
+          placeholder="كل البكسيات"
+          searchPlaceholder="ابحث في البكسيات..."
+          disabled={!cabin}
+          className="w-full sm:w-36 text-sm"
+        />
+        <select
+          value={closingTech}
+          onChange={(e) => setClosingTech(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
           dir="rtl"
+          title="الفني المعروف من الإغلاق، أو فني المنطقة إذا كان فني الإغلاق غير معروف"
         >
-          <option value="">كل السنترالات</option>
-          {CENTRALS.map((c) => <option key={c} value={c}>{c}</option>)}
+          <option value="">كل فنيي الإغلاق</option>
+          {TECHNICIANS.map((tech) => (
+            <option key={tech.name} value={tech.name}>{tech.fullName}</option>
+          ))}
         </select>
         <select
-          value={closeReasonF}
+          value={central}
           onChange={(e) => setCloseReasonF(e.target.value)}
           className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
           dir="rtl"
