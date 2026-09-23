@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
-import { execDeviceLabel, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes } from "@shared/exec-timeouts";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
@@ -497,7 +497,9 @@ export function ExecutorButton() {
         try { if (lastMeasureWin.current && !lastMeasureWin.current.closed) lastMeasureWin.current.close(); } catch {}
         // القياس الجاى من «بحث برقم التليفون» يختار «A recent fix (past 24h)» فى شاشة DZS
         const fixRecent = String(note || "").includes(PHONE_LOOKUP_SOURCE);
-        const win = executeBatch("measure", accs, { fixRecent }); // DZS يلفّ على كلهم فى run واحد
+        // «قياس بدون Real»: بياخد أحدث تاريخ من History Check بدل الـreal-time
+        const noReal = String(note || "").includes(NOREAL_MARK);
+        const win = executeBatch("measure", accs, { fixRecent, noReal }); // DZS يلفّ على كلهم فى run واحد
         if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
         lastMeasureWin.current = win;
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };

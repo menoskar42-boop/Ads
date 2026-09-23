@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.22.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.23.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @grant        none
@@ -221,6 +221,16 @@
   const FIX_MODE_KEY = "DZS_FIX_MODE";
   if (_fromHash) localStorage.setItem(FIX_MODE_KEY, (location.hash.match(/[#&]sf_fix=([^&]+)/) || [])[1] || "");
   const FIX_MODE = localStorage.getItem(FIX_MODE_KEY) || "";
+
+  // v10.23: «قياس بدون Real» — sf_mode=noreal فى الهاش (زرار سوبر أدمن فى «بحث برقم
+  // التليفون»). بيتخزّن زى sf_fix عشان يعيش بعد التنقّل لـclearview وlineSummary.
+  const MEASURE_MODE_KEY = "DZS_MEASURE_MODE";
+  if (_fromHash) localStorage.setItem(MEASURE_MODE_KEY, (location.hash.match(/[#&]sf_mode=([^&]+)/) || [])[1] || "");
+  const NOREAL = localStorage.getItem(MEASURE_MODE_KEY) === "noreal";
+  if (NOREAL) console.log("🗓️ وضع «قياس بدون Real» — مفيش real-time؛ أحدث تاريخ من History Check + Loop Length من شاشة DSL.");
+  // القراءات اللى اتاخدت من clearview بتستنى هنا لحد ما Loop Length يتقرا من صفحة DSL
+  // (صفحة جديدة = نسخة جديدة من السكربت، فلازم تتخزّن).
+  const NOREAL_PENDING_KEY = "DZS_NOREAL_PENDING";
   if (FIX_MODE === "recent") console.log("🛠️ Fix mode = recent — هيختار «A recent fix (past 24h)» قبل Yes.");
 
   let lineIndex = parseInt(localStorage.getItem(INDEX_KEY), 10);
@@ -409,13 +419,16 @@
           phoneShort: rec.phoneShort, complainNo: rec.complainNo, score: rec.dispatchScore,
           currentSpeed: rec.currentSpeed, maxSpeed: rec.maxSpeed, fullPhone: rec.fullPhone, accountNo: rec.accountNo,
           poStatus: rec.poStatus,
+          // v10.23: السيرفر بيستخدم measuredAt كتاريخ القياس فى noreal بس
+          measureMode: rec.measureMode, measuredAt: rec.measuredAt, loopLength: rec.loopLength,
+          histLabel: rec.histLabel, histRealtime: rec.histRealtime,
         }] }),
       }).then(r => r.json()).then(j => console.log("☁️ 138 updated:", rec.accountNo, j))
         .catch(e => console.warn("☁️ 138 update failed:", e));
     } catch (e) { console.warn("post err", e); }
   }
 
-  function saveResult(lineId, score, currentSpeed, maxSpeed, source, poStatus) {
+  function saveResult(lineId, score, currentSpeed, maxSpeed, source, poStatus, extra) {
     const results = JSON.parse(localStorage.getItem(RESULTS_KEY) || "[]");
     if (results.some(r => r.lineId === lineId)) return;
     const meta = getMeta(lineId);
@@ -425,11 +438,19 @@
       dispatchScore: score, currentSpeed: currentSpeed || "", maxSpeed: maxSpeed || "",
       poStatus: poStatus || "",
       readingSource: source || "بعد", timestamp: new Date().toISOString(),
+      // v10.23: نوع القياس دايماً؛ والتاريخ وطول الخط فى «بدون Real» بس
+      measureMode: NOREAL ? "noreal" : "real",
+      measuredAt: (extra && extra.measuredAt) || "",
+      loopLength: extra && typeof extra.loopLength === "string" ? extra.loopLength : undefined,
+      histLabel: (extra && extra.histLabel) || "",          // الخيار زى ما هو فى History Check
+      histRealtime: !!(extra && extra.histRealtime),        // جنبه «(Realtime)»؟
     };
     results.push(rec);
     localStorage.setItem(RESULTS_KEY, JSON.stringify(results));
     console.log("💾 Saved:", lineId, "score:", score, "cur:", currentSpeed || "-", "max:", maxSpeed || "-",
                 "| PO:", (poStatus || "-").slice(0, 60),
+                "| mode:", rec.measureMode, rec.measuredAt ? "@ " + rec.measuredAt : "", rec.histRealtime ? "(Realtime)" : "",
+                rec.loopLength !== undefined ? "| loop: " + (rec.loopLength || "(فاضى)") : "",
                 "| phone:", meta.short || "-", "| complaint:", meta.complaint || "-",
                 "(" + results.length + "/" + UNIQUE_LINE_COUNT + ")");
     updateDownloadButton();
@@ -441,10 +462,11 @@
     const results = JSON.parse(localStorage.getItem(RESULTS_KEY) || "[]");
     if (!results.length) { alert("لا توجد نتائج للتنزيل حتى الآن."); return false; }
     const SEP = ";";
-    const header = ["رقم التلفون","رقم الشكوي","score","السرعه الحاليه","اقصى سرعه","رقم التليفون كاملا","رقم الاكونت","القراية (قبل/بعد)","حالة تحسين البروفايل"].join(SEP);
+    const header = ["رقم التلفون","رقم الشكوي","score","السرعه الحاليه","اقصى سرعه","رقم التليفون كاملا","رقم الاكونت","القراية (قبل/بعد)","حالة تحسين البروفايل","نوع القياس","تاريخ القياس (History)","Estimated Loop Length"].join(SEP);
     const rows = results.map(r => [
       r.phoneShort || "", r.complainNo || "", r.dispatchScore || "", r.currentSpeed || "", r.maxSpeed || "",
       r.fullPhone || "", r.accountNo || r.lineId || "", r.readingSource || "", r.poStatus || "",
+      r.measureMode === "noreal" ? ("بدون Real" + (r.histRealtime ? " (Realtime)" : "")) : "Real", r.measuredAt || "", r.loopLength == null ? "" : cleanOneLine(r.loopLength),
     ].join(SEP)).join("\n");
     const csv = "﻿" + header + "\n" + rows;
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -566,7 +588,198 @@
     openNextLine(closeThisTab); // افتح التالى (مع احترام الحد) ثم اقفل التاب ده — متتكسرش السلسلة ومتفيضش الذاكرة
   }
 
+  /* ================== v10.23: «قياس بدون Real» ================== */
+  // الخيارات فى قايمة History Check بتيجى بشكلين (المالك، ٢٠٢٦-٠٩-٢٣):
+  //   «1. 2026-09-23 09:27:58(Realtime)»  — تاريخ ووقت + علامة Realtime
+  //   «1. 2026-09-22»                     — تاريخ بس
+  // بناخد أحدث واحد (أول واحد فوق) فى الحالتين، ولو جنبه Realtime بنبعتها.
+  const HIST_DATE_RE = /(\d{4}-\d{2}-\d{2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
+  function parseHist(text) {
+    const t = String(text || "");
+    const m = t.match(HIST_DATE_RE);
+    if (!m) return null;
+    return {
+      date: m[1],
+      time: m[2] ? String(m[2]).padStart(2, "0") + ":" + m[3] + ":" + (m[4] || "00") : "",
+      realtime: /real\s*-?\s*time/i.test(t),
+      label: t.replace(/^\s*\d+\.\s*/, "").replace(/\s+/g, " ").trim(),
+    };
+  }
+  function histDateOf(text) {
+    const h = parseHist(text);
+    return h && h.time ? h.date + " " + h.time : "";
+  }
+  // بيلاقى قايمة History Check: الـ<select> المخفى بتاع PrimeFaces (أو عادى) اللى من
+  // ضمن خياراته «Most Recent collected data». بيرجّع أول خيار فيه تاريخ — والمالك أكّد
+  // إن أحدث تاريخ دايماً فوق (أول واحد تحت «Most Recent collected data»).
+  function findHistoryCheck() {
+    for (const sel of document.querySelectorAll("select")) {
+      const opts = [...sel.options];
+      if (!opts.some(o => /most\s+recent\s+collected\s+data/i.test(o.textContent || ""))) continue;
+      const idx = opts.findIndex(o => parseHist(o.textContent));
+      return { select: sel, options: opts, idx, text: idx >= 0 ? opts[idx].textContent.trim() : "" };
+    }
+    return null;
+  }
+  // بيختار الخيار بتلات طرق بالترتيب، وأول واحدة تنجح بتكفى:
+  //   (١) PrimeFaces widget.selectValue — نفس اللى بيحصل لما حد يختار بإيده (بيعمل الـajax)
+  //   (٢) فتح القايمة وضغط الـ<li> اللى نصه نفس الخيار
+  //   (٣) تغيير الـ<select> نفسه وإطلاق change
+  function selectHistory(h) {
+    const opt = h.options[h.idx];
+    try {
+      const PFw = window.PrimeFaces && window.PrimeFaces.widgets;
+      if (PFw) {
+        for (const k in PFw) {
+          const w = PFw[k];
+          const inp = w && (w.input && w.input[0] || (w.jq && w.jq.find && w.jq.find("select")[0]));
+          if (inp === h.select && typeof w.selectValue === "function") {
+            w.selectValue(opt.value);
+            console.log("🗓️ History: PrimeFaces selectValue →", h.text);
+            return "pf";
+          }
+        }
+      }
+    } catch (e) { console.warn("History PF:", e); }
+    try {
+      const box = h.select.closest(".ui-selectonemenu");
+      const trig = box && box.querySelector(".ui-selectonemenu-trigger");
+      if (trig) {
+        trig.click();
+        const want = h.text.replace(/\s+/g, " ");
+        const li = [...document.querySelectorAll("li.ui-selectonemenu-item, li[data-label]")]
+          .find(l => ((l.getAttribute("data-label") || l.textContent || "").trim().replace(/\s+/g, " ")) === want);
+        if (li) { li.click(); console.log("🗓️ History: ضغط العنصر فى القايمة →", h.text); return "li"; }
+      }
+    } catch (e) { console.warn("History li:", e); }
+    h.select.selectedIndex = h.idx;
+    h.select.dispatchEvent(new Event("change", { bubbles: true }));
+    try { if (window.jQuery) window.jQuery(h.select).trigger("change"); } catch (e) {}
+    console.log("🗓️ History: change على الـselect →", h.text);
+    return "select";
+  }
+  // قراية قيمة من **نفس السطر** بس. findValueCellByLabel لو القيمة فاضية بيطلع يدوّر
+  // فى اللى بعده — ففى آخر سطر فى الجدول كان هيجيب عنوان الجدول اللى بعده
+  // («Latest PO Status…»). هنا: null = اللابل نفسه مش موجود، "" = موجود وقيمته فاضية.
+  function readRowValue(labelText) {
+    const norm = (t) => String(t || "").replace(/\s+/g, " ").trim();
+    const labels = [...document.querySelectorAll("*")]
+      .filter(el => el.children.length === 0 && norm(el.textContent) === labelText);
+    if (!labels.length) return null;
+    const labelEl = labels[0];
+    const tr = labelEl.closest("tr");
+    if (tr) {
+      const cells = [...tr.children];
+      const i = cells.findIndex(c => c === labelEl || c.contains(labelEl));
+      return norm(cells.slice(i + 1).map(c => c.textContent).join(" "));
+    }
+    // من غير جدول: اللى جنبه فى نفس الأب، أو الأخ اللى بعد الأب مباشرة — مستوى واحد بس.
+    let sib = labelEl.nextElementSibling;
+    if (!sib && labelEl.parentElement) sib = labelEl.parentElement.nextElementSibling;
+    return sib ? norm(sib.textContent) : "";
+  }
+
+  let noRealStarted = false;
+  // على clearview بعد Line Details: اختار أحدث تاريخ، استنى الشاشة تتحدّث، اقرا، خزّن،
+  // وروح لشاشة DSL. الـreal-time مابيتضغطش خالص.
+  function startNoReal() {
+    if (noRealStarted || processingComplete) return;
+    noRealStarted = true;
+    const h = findHistoryCheck();
+    const hp = h && h.idx >= 0 ? parseHist(h.text) : null;
+    let how = "none";
+    if (hp) {
+      how = selectHistory(h);
+    } else {
+      console.warn("⚠️ «بدون Real»: مالقيتش تاريخ فى History Check — هنسجّل من غير تاريخ (السيرفر هيحط وقت الوصول).",
+        h ? h.options.map(o => o.textContent.trim()).slice(0, 5) : "(مفيش قايمة)");
+    }
+    // النص كله مش أوله بس: التغيير بعد الاختيار ممكن يكون فى نص الصفحة («Collection Date»/السرعات).
+    const before = document.body.innerText || "";
+    const t0 = Date.now();
+    const poll = setInterval(() => {
+      if (processingComplete) { clearInterval(poll); return; }
+      const ks = checkForKnownState(); if (ks !== null) { clearInterval(poll); handleSpecialAndClose(ks); return; }
+      const now = document.body.innerText || "";
+      const changed = now !== before;
+      const waited = Date.now() - t0;
+      // الشاشة اتحدّثت (أو عدّت ٨ث من غير تغيير لو كان الخيار ده هو المعروض أصلاً)،
+      // وبعدين ثانيتين تثبيت. أقصى حاجة ٣٠ث.
+      if (!((changed && waited >= 2500) || waited >= 8000 || how === "none")) return;
+      clearInterval(poll);
+      setTimeout(() => {
+        if (processingComplete) return;
+        // التاريخ: لو الخيار فيه وقت → هو ده. لو تاريخ بس («2026-09-22») → الوقت من
+        // «Collection Date» اللى الشاشة بتعرضه بعد الاختيار، بشرط يكون نفس اليوم؛
+        // غير كده بنسجّل اليوم الساعة 00:00 (والـlabel بيتبعت زى ما هو فبيبان إنه يوم بس).
+        let measuredAt = "";
+        if (hp) {
+          if (hp.time) measuredAt = hp.date + " " + hp.time;
+          else {
+            const cd = readRowValue("Collection Date") || "";
+            const cm = cd.match(/(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+            measuredAt = cm && cm[1] === hp.date
+              ? cm[1] + " " + String(cm[2]).padStart(2, "0") + ":" + cm[3] + ":" + (cm[4] || "00")
+              : hp.date + " 00:00:00";
+          }
+        }
+        const pending = {
+          lineId: CURRENT_LINE_ID, t: Date.now(), measuredAt,
+          histLabel: hp ? hp.label : "", histRealtime: !!(hp && hp.realtime),
+          score: findDispatchScore(), cur: findSynchRateDS(), max: findMaxAchievableDS(),
+          po: findProfileOptimizationStatus(),
+        };
+        localStorage.setItem(NOREAL_PENDING_KEY, JSON.stringify(pending));
+        console.log("🗓️ «بدون Real»: اتقرا من clearview", pending, "— رايح شاشة DSL لـ Loop Length");
+        processingComplete = true;   // يوقف الـwatchdog وباقى المؤقتات فى الصفحة دى
+        goToDslTab();
+      }, 2000);
+    }, 700);
+    setTimeout(() => { try { clearInterval(poll); } catch (e) {} }, 30000);
+  }
+  function goToDslTab() {
+    const tab = [...document.querySelectorAll("a, span, li, button")]
+      .find(el => el.children.length <= 1 && (el.textContent || "").trim() === "DSL" && el.offsetParent !== null);
+    const target = "/expresse/lineSummary?lineId=" + encodeURIComponent(CURRENT_LINE_ID);
+    if (tab) { console.log("🗓️ ضغط تبويب DSL"); tab.click(); }
+    // لو الضغط مانقلش الصفحة خلال ٤ث (أو مالقيناش التبويب) → نروح بالرابط مباشرة.
+    setTimeout(() => {
+      if (!location.href.includes("/expresse/lineSummary")) { console.log("🗓️ فتح شاشة DSL بالرابط"); location.href = target; }
+    }, tab ? 4000 : 0);
+  }
+  // على lineSummary: اقرا «Estimated Loop Length» (ممكن تكون فاضية أو N/A — بتتكتب زى ما هى)
+  // وسجّل القياس كامل، وبعدين كمّل زى القياس العادى (التالى/قفل التاب).
+  function finishNoRealOnLineSummary() {
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(NOREAL_PENDING_KEY) || "null"); } catch (e) {}
+    if (!pending || pending.lineId !== CURRENT_LINE_ID || Date.now() - (pending.t || 0) > 10 * 60 * 1000) return false;
+    processingComplete = true;   // مانسيبش الـwatchdog يسجّل قراية فاضية من الصفحة دى
+    const t0 = Date.now();
+    let firstSeen = 0;
+    const poll = setInterval(() => {
+      const v = readRowValue("Estimated Loop Length");
+      const waited = Date.now() - t0;
+      if (v === null && waited < 45000) return;          // اللابل لسه ماظهرش
+      if (v !== null && !firstSeen) firstSeen = Date.now();
+      // ظهر فاضى؟ نديله ٨ث يمكن يتملى بـajax. غير كده ناخده زى ما هو.
+      if (v === "" && Date.now() - firstSeen < 8000 && waited < 45000) return;
+      clearInterval(poll);
+      const loop = v === null ? "" : v.slice(0, 60);
+      if (v === null) console.warn("⚠️ «بدون Real»: مالقيتش «Estimated Loop Length» فى شاشة DSL — هتتسجّل فاضية.");
+      localStorage.removeItem(NOREAL_PENDING_KEY);
+      saveResult(CURRENT_LINE_ID, pending.score, pending.cur, pending.max, "بدون Real", pending.po,
+        { measuredAt: pending.measuredAt, loopLength: loop, histLabel: pending.histLabel, histRealtime: pending.histRealtime });
+      maybeDownloadFinal();
+      if (iAmTheDownloader) { showFinalMessage(); return; }
+      stopHeartbeat();
+      openNextLine(closeThisTab);
+    }, 1000);
+    return true;
+  }
+
   window.DZS_test = findDispatchScore;
+  window.DZS_history = () => { const h = findHistoryCheck(); return h && { parsed: parseHist(h.text), label: h.text, options: h.options.map(o => o.textContent.trim()) }; };
+  window.DZS_loop = () => readRowValue("Estimated Loop Length");
   window.DZS_po = findProfileOptimizationStatus;   // 🆕 v10.22: اختبار قراية حالة البروفايل
   window.DZS_synch = findSynchRateDS;
   window.DZS_maxbr = findMaxAchievableDS;
@@ -726,6 +939,11 @@
   }
   scheduleWatchdog();
 
+  /* ===== v10.23: شاشة DSL (lineSummary) فى «بدون Real» ===== */
+  if (NOREAL && location.href.includes("/expresse/lineSummary")) {
+    if (finishNoRealOnLineSummary()) console.log("🗓️ «بدون Real»: فى شاشة DSL — بقرا Estimated Loop Length");
+  }
+
   /* ================== AUTO LOGIN ================== */
   const loginTimer = setInterval(() => {
     if (processingComplete) { clearInterval(loginTimer); return; }
@@ -774,6 +992,11 @@
     if (!lineDetailsDone) return;
     rt++;
     const ks = checkForKnownState(); if (ks !== null) { clearInterval(realTimeTimer); handleSpecialAndClose(ks); return; }
+    // v10.23: «بدون Real» → مانضغطش real-time خالص؛ نستنى قايمة History Check تظهر ونكمّل منها.
+    if (NOREAL) {
+      if (findHistoryCheck() || rt >= MAX_RT) { clearInterval(realTimeTimer); startNoReal(); }
+      return;
+    }
     const b = findRealTimeButton();
     if (b) { b.click(); rtRequested = true; clearInterval(realTimeTimer); armConfirm(); return; } // 🆕 طلبنا real-time → من دلوقتى الحالات الخاصة تتسجّل عادى
     if (rt >= MAX_RT) { clearInterval(realTimeTimer); handleSpecialAndClose(SCORE_TIMEOUT); }

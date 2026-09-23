@@ -1492,6 +1492,13 @@ export async function ensureSchema() {
   // مع الاسكور — نص حر زى ما هو («PO is running…» / «PO is not currently running…»).
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS po_status text`);
   await pool.query(`CREATE INDEX IF NOT EXISTS case_138_source_idx ON case_138 (source)`);
+  // «قياس بدون Real»: تاريخ القياس الحقيقى + نوعه + طول الخط (قيد #8 — نفس الكوميت
+  // بتاع shared/schema.ts). ⚠️ مشروع Service Flow القديم على ريبليت شايف نفس القاعدة:
+  // لو اتعمله Republish وظهر DROP COLUMN للأعمدة دى → Cancel (السكيما دى أحدث منه).
+  await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS measured_at timestamptz`);
+  await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS measure_mode text`);
+  await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS loop_length text`);
+  await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS hist_label text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_raise_by text`);
   await pool.query(`ALTER TABLE line_po_events ADD COLUMN IF NOT EXISTS last_stop_by text`);
   await pool.query(`

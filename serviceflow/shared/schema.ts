@@ -624,6 +624,19 @@ export const case138 = pgTable("case_138", {
   // جاى من رفع شيت 138. رفعة الشيت بتستبدل صفوف الشيت القديمة بس ومابتلمسش
   // قياسات dzs — التقارير بتعتمد على تاريخ القياسات ده.
   source: text("source"),
+  // «قياس بدون Real» (٢٠٢٦-٠٩-٢٣): أداة القياس بتاخد أحدث تاريخ من «History Check»
+  // فى ClearView بدل ما تعمل real-time. التاريخ ده هو تاريخ القياس الحقيقى.
+  //   measured_at  = لحظة القياس: تاريخ الـHistory فى «بدون Real»، ووقت الوصول فى Real.
+  //                  ⚠️ uploaded_at فاضل وقت الوصول دايماً — جهاز التنفيذ بيعرف منه إن
+  //                  القياس خلص، وتاريخ الـHistory أقدم من بداية المهمة.
+  //   measure_mode = 'real' | 'noreal'
+  //   loop_length  = «Estimated Loop Length» من شاشة DSL (نص زى ما هو: «1402 meters» / «N/A» / فاضى)
+  measuredAt: timestamp("measured_at", { withTimezone: true }),
+  measureMode: text("measure_mode"),
+  loopLength: text("loop_length"),
+  //   hist_label   = الخيار اللى اتاخد من History Check زى ما هو («2026-09-19 16:13:57(Realtime)»
+  //                  أو «2026-09-22» من غير وقت) — منه بيبان إذا كان Realtime ولا لأ.
+  histLabel: text("hist_label"),
 });
 
 export type Case138 = typeof case138.$inferSelect;

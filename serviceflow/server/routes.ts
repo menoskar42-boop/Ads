@@ -6790,7 +6790,16 @@ export async function registerRoutes(
               na.marked_by_name                                  AS "noAccountBy",
               (na.marked_at AT TIME ZONE 'Africa/Cairo')         AS "noAccountAt",
               c.current_speed AS "currentSpeed", c.max_speed AS "maxSpeed",
-              c.score AS "score", (c.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
+              -- تاريخ القياس الحقيقى: فى «بدون Real» ده تاريخ الـHistory من ClearView، مش
+              -- وقت وصول القراءة. الصفوف القديمة مالهاش measured_at فبترجع لـuploaded_at.
+              c.score AS "score", (COALESCE(c.measured_at, c.uploaded_at) AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
+              -- نوع القياس: 'noreal' صريح، و'real' للقياسات الجديدة، والقديمة (قبل العمود)
+              -- اللى من أداة القياس كانت كلها real-time.
+              CASE WHEN c.measure_mode = 'noreal' THEN 'noreal'
+                   WHEN c.measure_mode = 'real' OR c.source = 'dzs' THEN 'real'
+                   ELSE NULL END AS "measureMode",
+              c.loop_length AS "loopLength",
+              c.hist_label AS "histLabel",
               c.po_status AS "poStatus",
               c.measured_by AS "measuredBy",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt", pe.last_raise_by AS "raisedBy",
@@ -6883,7 +6892,8 @@ export async function registerRoutes(
        ) ctc ON true
        LEFT JOIN msan_tech_overrides mto ON mto.cabin_code = ctc.cabin_code
        LEFT JOIN LATERAL (
-         SELECT c2.full_phone, c2.current_speed, c2.max_speed, c2.score, c2.po_status, c2.uploaded_at, c2.measured_by
+         SELECT c2.full_phone, c2.current_speed, c2.max_speed, c2.score, c2.po_status, c2.uploaded_at, c2.measured_by,
+                c2.measured_at, c2.measure_mode, c2.loop_length, c2.hist_label, c2.source
          FROM case_138 c2 WHERE c2.full_phone = COALESCE(pl.full_phone, t.full) ORDER BY c2.id DESC LIMIT 1
        ) c ON true
        LEFT JOIN LATERAL (
@@ -9262,13 +9272,36 @@ export async function registerRoutes(
         (it.maxSpeed ?? "").toString().trim() || null,
         fullPhone, accountNo, measuredBy, poStatus,
       ];
+      // «قياس بدون Real»: السكربت بياخد أحدث تاريخ من «History Check» فى ClearView
+      // (توقيت القاهرة، «2026-09-23 09:27:58») وده بيبقى تاريخ القياس. أى حاجة تانية
+      // (Real، أو تاريخ مش مفهوم) → وقت الوصول زى الأول.
+      // ⚠️ uploaded_at مابيتلمسش (default now()): جهاز التنفيذ بيعرف إن القياس خلص من
+      // MAX(uploaded_at) بعد بداية المهمة، وتاريخ الـHistory دايماً أقدم من كده.
+      const measureMode = String(it.measureMode ?? "").trim().toLowerCase() === "noreal" ? "noreal" : "real";
+      const rawAt = String(it.measuredAt ?? "").trim().replace("T", " ");
+      const measuredAt = measureMode === "noreal" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(rawAt)
+        ? rawAt : null;
+      // «Estimated Loop Length» زى ما هو فى شاشة DSL («1402 meters» / «N/A» / فاضى).
+      // فى «بدون Real» بنخزّن حتى الفاضى ("") عشان يبان إنه اتقرا وكان فاضى، مش إنه ماتقراش.
+      const loopLength = measureMode === "noreal"
+        ? (it.loopLength ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 60)
+        : ((it.loopLength ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 60) || null);
+      // الخيار اللى اتاخد من History Check زى ما هو — منه بيبان «(Realtime)» لو مكتوب.
+      const histLabel = measureMode === "noreal"
+        ? ((it.histLabel ?? "").toString().replace(/^\s*\d+\.\s*/, "").replace(/\s+/g, " ").trim().slice(0, 80) || null)
+        : null;
       // The old database is the immutable measurement history; Supabase holds
       // the current one-row-per-phone snapshot.
       await pool.query(
         `INSERT INTO case_138
-           (phone_short, complain_no, score, current_speed, max_speed, full_phone, account_no, measured_by, po_status, complain_time, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), 'dzs')`,
-        measurementValues,
+           (phone_short, complain_no, score, current_speed, max_speed, full_phone, account_no, measured_by, po_status, complain_time, source,
+            measure_mode, measured_at, loop_length, hist_label)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now(), 'dzs',
+            $10,
+            -- LEAST: لو ساعة AXON متقدّمة شوية، مانسجّلش قياس فى المستقبل.
+            LEAST(COALESCE($11::timestamp AT TIME ZONE 'Africa/Cairo', now()), now()),
+            $12, $13)`,
+        [...measurementValues, measureMode, measuredAt, loopLength, histLabel],
       );
       await syncCurrentDzsMeasurement(measurementValues);
       inserted++;

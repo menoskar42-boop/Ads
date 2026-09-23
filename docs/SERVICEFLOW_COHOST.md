@@ -320,6 +320,26 @@ SERVICEFLOW_HOST = serviceflow.oscardevs.com,<اسم-النشر>.replit.app
 > والسيرفر عنده CORS لـ`X-DZS-Token`). والحارس `check-userscript-base` بيثبّت
 > القيمة دى بالظبط فى `OWNER_PINNED` — لو اتغيّرت، الفحص بيقع.
 > **متعدّلش الملف ده من غير ما المالك يبعت الكود بنفسه.**
+>
+> **v10.23.0 (٢٠٢٦-٠٩-٢٣) — بطلب المالك:** نفس كوده + وضع «قياس بدون Real»
+> (`sf_mode=noreal`). مسار القياس العادى (Real) مااتغيّرش. الحارس
+> `check-noreal-measure` + اختبار ٤٠ حالة `serviceflow/scripts/test-dzs-noreal.cjs`.
+
+### 🗓️ «قياس بدون Real» (سوبر أدمن — تجربة فى «بحث برقم التليفون»)
+
+زرار جنب «قياس DZS». السكربت مابيضغطش real-time: بياخد **أحدث تاريخ فى History
+Check** (أول واحد تحت «Most Recent collected data» — دايماً الأحدث فوق)، ويقرا
+السرعة الحالية وأقصى سرعة والاسكور وحالة PO، وبعدين يفتح تبويب **DSL** ويقرا
+**Estimated Loop Length** (بيتسجّل زى ما هو: قيمة / N/A / فاضى).
+
+- التاريخ من غير وقت («2026-09-22») → الوقت من «Collection Date» لو نفس اليوم، وإلا 00:00.
+- لو جنبه «(Realtime)» → بيتبعت وبيظهر badge «Realtime» جنب «بدون Real».
+- الأعمدة: `measured_at` (تاريخ القياس الحقيقى) · `measure_mode` · `loop_length` · `hist_label`.
+- ⚠️ **`uploaded_at` فاضل وقت الوصول دايماً** — جهاز التنفيذ بيعرف منه إن القياس خلص.
+  «تاريخ آخر قياس» فى «بحث برقم التليفون» = `COALESCE(measured_at, uploaded_at)`.
+  **باقى التقارير لسه بتقرا `uploaded_at`** — لما الزرار يتعمّم لازم يتحوّلوا.
+- ⚠️ مشروع Service Flow القديم على ريبليت شايف نفس القاعدة. لو اتعمله Republish وظهر
+  `DROP COLUMN` لأى عمود من الأربعة دول → **Cancel**.
 
 اتصلّح كده: الدومين بقى بيتحسب من `sfBase()`:
 

@@ -11,7 +11,7 @@ import { CLOSE_CODE_REASONS, closeReason } from "@/lib/close-codes";
 import { openCustomer360 } from "@/lib/customer360";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE } from "@/lib/exec-queue";
+import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK } from "@/lib/exec-queue";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
@@ -59,6 +59,12 @@ interface LineData {
   poStatus: string | null;   // حالة تحسين البروفايل من شاشة ClearView وقت القياس
   lastMeasTime: string | null;
   measuredBy: string | null;
+  /** 'noreal' = «قياس بدون Real» (التاريخ من History Check) · 'real' = real-time */
+  measureMode?: "real" | "noreal" | null;
+  /** «Estimated Loop Length» من شاشة DSL — بيتسجّل فى «بدون Real» بس ("" = اتقرا وكان فاضى) */
+  loopLength?: string | null;
+  /** الخيار اللى اتاخد من History Check («2026-09-19 16:13:57(Realtime)» أو «2026-09-22») */
+  histLabel?: string | null;
   lastPoRaiseAt: string | null;
   raisedBy: string | null;
   lastPoStopAt: string | null;
@@ -121,6 +127,39 @@ const scoreBadge = (v: number | null) => {
 };
 
 // الحقول الفنية الباقية تُعرض كامل العرض (صف لكل حقل) بعد الصفوف المزدوجة (زى عمود الإكسيل اليمين)
+// نوع القياس: «بدون Real» معناه إن التاريخ اتاخد من «History Check» فى ClearView
+// (آخر قراية AXON كانت عاملها) مش من قياس real-time اتعمل دلوقتى.
+const isHistRealtime = (label?: string | null) => /real\s*-?\s*time/i.test(label || "");
+function measureModeText(mode?: "real" | "noreal" | null, histLabel?: string | null): string {
+  if (mode === "noreal") return "بدون Real" + (isHistRealtime(histLabel) ? " (Realtime)" : "") + (histLabel ? ` — History: ${histLabel}` : "");
+  if (mode === "real") return "Real";
+  return "-";
+}
+function measureModeCell(mode?: "real" | "noreal" | null, histLabel?: string | null): ReactNode {
+  if (mode === "noreal") {
+    return (
+      <span className="inline-flex items-center gap-1 flex-wrap justify-end"
+            title={`التاريخ ده من History Check فى ClearView — مش قياس real-time${histLabel ? ` (${histLabel})` : ""}`}>
+        <span className="text-sm px-2 py-0.5 rounded font-semibold bg-amber-100 text-amber-800">بدون Real</span>
+        {/* الخيار اللى اتاخد كان جنبه «(Realtime)» فى History Check */}
+        {isHistRealtime(histLabel) && <span className="text-xs px-1.5 py-0.5 rounded font-semibold bg-sky-100 text-sky-800">Realtime</span>}
+      </span>
+    );
+  }
+  if (mode === "real") return <span className="text-sm px-2 py-0.5 rounded font-semibold bg-sky-100 text-sky-800">Real</span>;
+  return <span className="text-gray-400">-</span>;
+}
+// Loop Length بيتقرا فى «بدون Real» بس. "" = اتقرا وكان فاضى فى الشاشة (بيتكتب كده).
+function loopLengthText(mode?: "real" | "noreal" | null, v?: string | null): string {
+  if (v == null) return "-";
+  if (v === "") return mode === "noreal" ? "فاضى" : "-";
+  return v;
+}
+function loopLengthCell(mode?: "real" | "noreal" | null, v?: string | null): ReactNode {
+  const t = loopLengthText(mode, v);
+  return t === "-" ? <span className="text-gray-400">-</span> : <span className="text-sm">{t}</span>;
+}
+
 const FULL_WIDTH_FIELDS = new Set<string>([
   "رقم التليفون الكامل", "رقم التليفون", "إحداثيات البكس",
   "operator", "shelf", "slot", "Port", "IDU", "ODU",
@@ -346,6 +385,24 @@ export function PhoneLookupReport() {
     if (!isSuper || !canRunLocalExecutor()) { alert(NO_EXECUTOR_MSG); return; }
     // قياس من بحث برقم التليفون → اختار «A recent fix (past 24h)» فى شاشة DZS
     window.open(buildDZSUrl([acc]) + "&sf_fix=recent", "dzs_measure"); // نفس النافذة الثابتة — الجديد يحلّ محل القديم
+  };
+
+  // «قياس بدون Real» (سوبر أدمن بس — تجربة): نفس القياس لكن من غير real-time.
+  // السكربت بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس)، ويقرا
+  // السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length».
+  // العلامة NOREAL_MARK فى note المهمة هى اللى بتقول لجهاز التنفيذ يبعت &sf_mode=noreal.
+  const measureNoReal = async () => {
+    if (!isSuper) return; // الزرار مش ظاهر لغيره أصلاً — ده حارس احتياطى
+    const acc = (line?.accountNo ?? "").toString().trim();
+    if (!acc) { alert("لا يوجد رقم أكونت لهذا الخط — لا يمكن القياس"); return; }
+    void recordOpIntent("measure", [acc]);
+    if (await enqueueIfExecutorActive("measure", [acc], `${PHONE_LOOKUP_SOURCE} ${NOREAL_MARK}`)) {
+      alert("تم إضافة الرقم لطابور «قياس بدون Real» — هيتنفّذ على جهاز التنفيذ، والصفحة هتتحدّث تلقائياً بعد ظهور النتيجة");
+      void waitForOpThenRefresh("measure", acc);
+      return;
+    }
+    if (!canRunLocalExecutor()) { alert(NO_EXECUTOR_MSG); return; }
+    window.open(buildDZSUrl([acc]) + "&sf_mode=noreal", "dzs_measure");
   };
 
   // غيّر البورت فى Provisioning (MSAN Replacement) — سوبر أدمن فقط.
@@ -654,6 +711,8 @@ export function PhoneLookupReport() {
         ["الاسكور", scoreBadge(line.score)],            ["رقم الفريم", dash(line.frame)],
         ["تاريخ آخر قياس", withBy(fmtDate(line.lastMeasTime), line.measuredBy)], ["Port Type", dash(line.portType)],
         ["حالة تحسين البروفايل", <PoStatusCell value={line.poStatus} />],
+        // اتنين جنب بعض = سطر واحد، فالترتيب اللى تحت مابيتزحلقش.
+        ["نوع القياس", measureModeCell(line.measureMode, line.histLabel)],  ["Loop Length", loopLengthCell(line.measureMode, line.loopLength)],
         ["آخر رفع سرعة", withBy(fmtDate(line.lastPoRaiseAt), line.raisedBy)],  ["voice status", dash(line.voiceStatus)],
         ["آخر إيقاف PO", withBy(fmtDate(line.lastPoStopAt), line.stoppedBy)],   ["data status", dash(line.dataStatus)],
         ["تاريخ آخر شكوى", fmtDate(line.lastComplaintAt)], ["Row", dash(line.rowNo)],
@@ -690,7 +749,7 @@ export function PhoneLookupReport() {
   const MOBILE_ORDER = [
     "اسم العميل", "عنوان العميل", "رقم الموبايل", "اسم الفنى", "السنترال", "رقم الكابينة", "رقم البكس",
     "DP Terminal", "كود الكابينة (MSAN)", "رقم الفريم", "رقم الأكونت", "السرعة الحالية", "أقصى سرعة",
-    "الاسكور", "تاريخ آخر قياس", "حالة تحسين البروفايل", "آخر رفع سرعة", "آخر إيقاف PO", "تاريخ آخر شكوى", "إحداثيات البكس",
+    "الاسكور", "تاريخ آخر قياس", "نوع القياس", "حالة تحسين البروفايل", "Loop Length", "آخر رفع سرعة", "آخر إيقاف PO", "تاريخ آخر شكوى", "إحداثيات البكس",
     "Port Type", "voice status", "data status", "Row", "Column", "operator",
     "حالة صيانة البكس", "هل البكس له تكت أرضية", "shelf", "slot", "Port", "IDU", "ODU",
     "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "Fiber Block", "Fiber Out",
@@ -725,6 +784,8 @@ export function PhoneLookupReport() {
       "حالة تحسين البروفايل": line.poStatus ?? "",
       "رقم الفريم": line.frame ?? "",
       "تاريخ آخر قياس": fmtDate(line.lastMeasTime),
+      "نوع القياس": measureModeText(line.measureMode, line.histLabel),
+      "Loop Length": loopLengthText(line.measureMode, line.loopLength),
       "Port Type": line.portType ?? "",
       "آخر رفع سرعة": fmtDate(line.lastPoRaiseAt),
       "Row": line.rowNo ?? "",
@@ -759,10 +820,11 @@ export function PhoneLookupReport() {
     if (!line) return;
     printTablePDF({
       title: `بيانات الخط ${line.fullPhone}`,
-      columns: ["السنترال", "الكابينة", "البكس", "حالة صيانة البكس", "تكت أرضية", "كود MSAN", "اسم الفنى", "الفريم", "الأكونت", "سرعة حالية", "أقصى سرعة", "الاسكور", "حالة PO", "آخر قياس", "Port Type", "Row", "Column", "voice", "data", "operator", "shelf", "slot", "IDU", "ODU", "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "DP Terminal", "Port", "LEN", "Fiber Block", "Fiber Out", "آخر رفع سرعة", "آخر إيقاف PO", "آخر شكوى"],
+      columns: ["السنترال", "الكابينة", "البكس", "حالة صيانة البكس", "تكت أرضية", "كود MSAN", "اسم الفنى", "الفريم", "الأكونت", "سرعة حالية", "أقصى سرعة", "الاسكور", "حالة PO", "آخر قياس", "نوع القياس", "Loop Length", "Port Type", "Row", "Column", "voice", "data", "operator", "shelf", "slot", "IDU", "ODU", "Primary Block", "Cabinet In", "Sec Block", "Cabinet Out", "DP Terminal", "Port", "LEN", "Fiber Block", "Fiber Out", "آخر رفع سرعة", "آخر إيقاف PO", "آخر شكوى"],
       rows: [[
         line.central, line.cabinNumber ?? "-", line.boxNumber ?? "-", boxMaint?.maintenance_status_ar ?? "-", line.boxNumber ? (boxGround?.hasOpenTicket ? "نعم" : "لا") : "-", line.msanCode ?? "-", line.techName ?? "-", line.frame ?? "-", line.accountNo ?? "-",
         line.currentSpeed ?? "-", line.maxSpeed ?? "-", line.score ?? "-", poStatusShort(line.poStatus) || "-", fmtDate(line.lastMeasTime),
+        measureModeText(line.measureMode, line.histLabel), loopLengthText(line.measureMode, line.loopLength),
         line.portType ?? "-", line.rowNo ?? "-", line.columnNo ?? "-", line.voiceStatus ?? "-", line.dataStatus ?? "-", line.operator ?? "-", line.shelf ?? "-", line.slot ?? "-",
         line.iduNo ?? "-", line.oduNo ?? "-", line.primaryBlockNo ?? "-", line.cabinetIn ?? "-", line.secBlockNo ?? "-",
         line.cabinetOut ?? "-", line.dpTerminal ?? "-", line.port ?? "-", line.len ?? "-", line.fiberBlock ?? "-", line.fiberOut ?? "-",
@@ -869,6 +931,18 @@ export function PhoneLookupReport() {
                       : <Radar className="w-4 h-4" />}
                     {awaitingOp === "measure" ? "فى انتظار القياس… (اضغط للإلغاء)" : "قياس DZS"}
                   </Button>
+                  {isSuper && (
+                    <Button
+                      variant="outline"
+                      onClick={measureNoReal}
+                      disabled={awaitingOp === "measure"}
+                      className="bg-white gap-2 text-amber-700 border-amber-300"
+                      title="قياس من غير real-time: بياخد أحدث تاريخ من History Check فى ClearView (وده بيبقى تاريخ القياس) + Estimated Loop Length من شاشة DSL — سوبر أدمن بس (تجربة)"
+                    >
+                      <History className="w-4 h-4" />
+                      قياس بدون Real
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={async () => {

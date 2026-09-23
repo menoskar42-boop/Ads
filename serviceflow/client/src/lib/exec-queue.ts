@@ -31,6 +31,12 @@ export interface ExecJob { id: number; type: ExecJobType; accounts: string[]; re
 // مصدر «بحث برقم التليفون» — القياس اللى بييجى منه بيختار «A recent fix (past 24h)» فى شاشة DZS.
 export const PHONE_LOOKUP_SOURCE = "بحث برقم التليفون";
 
+// «قياس بدون Real» (٢٠٢٦-٠٩-٢٣، سوبر أدمن بس — تجربة فى «بحث برقم التليفون»).
+// العلامة دى بتتحط فى note المهمة، وجهاز التنفيذ بيحوّلها لـ&sf_mode=noreal فى رابط DZS:
+// السكربت مابيعملش real-time — بياخد أحدث تاريخ من «History Check» ويقرا القيم اللى
+// عليه، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length».
+export const NOREAL_MARK = "بدون Real";
+
 const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const FCC_URL = "https://fcc.te.eg/TroubleTicket/faces/security/pages/Login.jsf";
 const C360_URL = "https://customer360.te.eg/Authentication/Login";
@@ -336,20 +342,19 @@ export function openOpSite(type: ExecJobType, key: string, params?: ExecJobParam
 
 // تنفيذ **خط واحد** (رقم أكونت واحد) — عشان جهاز التنفيذ يباعد بينهم بمهلة ويمنع التداخل.
 // بيرجّع نافذة القياس (لو measure) بنفس الاسم الثابت فيتعاد استخدامها للقياس اللى بعده.
-export function executeSingle(type: ExecJobType, account: string | number, opts?: { fixRecent?: boolean }): Window | null {
+export function executeSingle(type: ExecJobType, account: string | number, opts?: { fixRecent?: boolean; noReal?: boolean }): Window | null {
   const acc = String(account ?? "").trim();
   if (!acc) return null;
   if (type === "subinfo") return openSubInfo(acc);
   if (type === "raise") { openProfileOptimization([acc]); return null; }
   if (type === "stop") { openProfileOptimization([acc], { stopOnly: true }); return null; }
   if (type !== "measure") return openOpSite(type, acc);
-  const fix = opts?.fixRecent ? "&sf_fix=recent" : "";
-  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(acc)}${fix}`, DZS_MEASURE_TARGET);
+  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(acc)}${measureHashFlags(opts)}`, DZS_MEASURE_TARGET);
 }
 
 // تنفيذ **مجموعة أرقام دفعة واحدة** — نبعتها كلها للسكربت (DZS/PO) اللى بيلفّ عليها بنفسه
 // (زى ما لو ضغطنا عليها والزر مطفى: 6/185…). كده مايفتحش صفحة منفصلة لكل رقم.
-export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; afterStop?: boolean; params?: ExecJobParams | null }): Window | null {
+export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; afterStop?: boolean; params?: ExecJobParams | null }): Window | null {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
   if (!accs.length) return null;
   // العمليات الجديدة: c360 بياخد كل الأرقام مرة واحدة، والباقى رقم واحد لكل مهمة.
@@ -364,8 +369,14 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
   // بنرجّع النافذة (كانت null) — جهاز التنفيذ محتاجها يكشف إن التاب اتقفل = خلص، ويقفله بنفسه.
   if (type === "raise") return openProfileOptimization(accs, opts?.afterStop ? { afterStop: true } : {});
   if (type === "stop") return openProfileOptimization(accs, { stopOnly: true });
-  const fix = opts?.fixRecent ? "&sf_fix=recent" : "";
-  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${fix}`, DZS_MEASURE_TARGET);
+  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`, DZS_MEASURE_TARGET);
+}
+
+/** علامات القياس فى رابط DZS. «بدون Real» مالوش شاشة real-time أصلاً، فعلامة
+ *  «A recent fix» (اللى بتختار حاجة فى شاشة الـreal-time) مالهاش معنى معاه. */
+export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean }): string {
+  if (opts?.noReal) return "&sf_mode=noreal";
+  return opts?.fixRecent ? "&sf_fix=recent" : "";
 }
 
 // آخر وقت قياس لرقم أكونت (للتأكد إن القياس اتحدّث) — millis أو 0
