@@ -1780,13 +1780,23 @@ export async function registerRoutes(
 
   // 🆕 يضيف اسم الفني (tech_name) للمستخدم — من رقم العامل عبر technician_names — عشان
   // الواجهة تقدر تفلتر تقارير الفني على بياناته. fallback: اسم المستخدم لو مفيش رقم عامل/تطابق.
+  /* ⚠️ الرد ده بيروح للمتصفح (الدخول، البوابة الموحّدة، /api/user). كان بيبعت صف
+   * users **كله** — ومنه password (البصمة) وpassword_plain (الباسورد نفسه نص عادى).
+   * يعنى كل دخول كان بيحط الباسورد فى الـNetwork tab وفى ذاكرة الصفحة، وأى XSS كان
+   * هيسرقه. الواجهة مابتستخدمش الاتنين من الرد ده خالص (إدارة المستخدمين بتجيب
+   * passwordPlain من /api/portal/users للسوبر أدمن بس). */
+  function withoutSecrets(user: any) {
+    const { password: _password, passwordPlain: _passwordPlain, password_plain: _pp, ...safe } = user;
+    return safe;
+  }
   async function userResponse(user: any) {
     if (!user) return user;
+    const safe = withoutSecrets(user);
     if (user.role === ROLES.TECH) {
       const c = await coverageCodes(user);
-      return { ...user, techName: c.techName ?? user.username, coveredTechNames: c.coveredNames };
+      return { ...safe, techName: c.techName ?? user.username, coveredTechNames: c.coveredNames };
     }
-    return { ...user, techName: null, coveredTechNames: [] };
+    return { ...safe, techName: null, coveredTechNames: [] };
   }
 
   // تغطية الفنى: own = كوده (كل خطوطه) ؛ covered = أكواد الزملاء المشمولين (منح دائمة + تغطية اليوم
