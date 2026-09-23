@@ -21,6 +21,7 @@ const swaps = require('../nutrition/swaps');
 const safety = require('../nutrition/safety');
 const templates = require('../nutrition/templates');
 const micros = require('../nutrition/micros');
+const { waPhone } = require('../nutrition/whatsapp');
 
 const router = express.Router({ mergeParams: true });
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -31,7 +32,7 @@ const int = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n >
 /** Load a plan and confirm it belongs to this practice. */
 async function load(companyId, planId) {
   const plan = (await pool.query(
-    `SELECT p.*, pt.name AS patient_name, pt.id AS pid
+    `SELECT p.*, pt.name AS patient_name, pt.id AS pid, pt.phone AS patient_phone
        FROM nutrition_plans p JOIN nutrition_patients pt ON pt.id = p.patient_id
       WHERE p.id=$1 AND p.company_id=$2`, [planId, companyId])).rows[0];
   if (!plan) return null;
@@ -144,6 +145,10 @@ router.get('/plans/:id(\\d+)', async (req, res) => {
       shopping: swaps.shoppingList(data.items, req.query.days || 7),
       shoppingDays: Math.max(1, Math.min(31, parseInt(req.query.days, 10) || 7)),
       saved: req.query.saved === '1', err: req.query.err || null,
+      // «ابعت على واتساب»: الرقم بالشكل الدولي، أو null لو مش واضح — ساعتها
+      // واتساب بيفتح يختار منه جهة الاتصال بدل ما نخمّن رقم غلط.
+      waPhone: waPhone(data.plan.patient_phone),
+      practiceName: (await P.settings(pool, req.company.id)).practice_name || req.company.company_name,
     });
   } catch (e) { console.error('[nutrition plan]', e.message); res.status(500).send('error'); }
 });

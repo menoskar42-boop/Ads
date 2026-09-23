@@ -16,6 +16,7 @@ const nutriPerms = require('../nutrition/perms');
 const safety = require('../nutrition/safety');
 const diary = require('../nutrition/diary');
 const goalTools = require('../nutrition/goals');
+const { waPhone } = require('../nutrition/whatsapp');
 const bcrypt = require('bcryptjs');
 const audit = require('../lib/audit');
 
@@ -452,6 +453,7 @@ router.get('/patients/:id(\\d+)/report', async (req, res) => {
       dayTotals: E.totals(items),
       mealTotals: Object.fromEntries(E.MEALS.map((m) => [m, E.totals(byMeal[m])])),
       printedOn: new Date().toISOString().slice(0, 10),
+      waPhone: waPhone(data.patient.phone),
     });
   } catch (e) { console.error('[nutrition report]', e.message); res.status(500).send('error'); }
 });

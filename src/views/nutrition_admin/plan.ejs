@@ -21,6 +21,13 @@
     </form>
   <% } %>
   <button onclick="window.print()" class="no-print ms-auto text-xs bg-slate-100 hover:bg-slate-200 rounded-xl px-4 py-2 font-bold"><%= t('nt.m.print') %></button>
+  <%- include('_wa_share', {
+        target: 'main',
+        filename: t('nt.wa.file_plan') + ' - ' + plan.patient_name,
+        phone: (typeof waPhone !== 'undefined') ? waPhone : null,
+        text: t('nt.wa.msg_plan').replace('{name}', plan.patient_name)
+              .replace('{practice}', (typeof practiceName !== 'undefined' && practiceName) || company.company_name),
+      }) %>
 </div>
 <p class="text-slate-500 mb-5 text-sm"><%= String(plan.start_date).slice(0,10) %></p>
 

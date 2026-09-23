@@ -7,6 +7,13 @@
 <div class="flex items-center gap-3 mb-4 no-print">
   <a href="/nutrition/patients/<%= patient.id %>" class="text-slate-400 hover:text-slate-600 text-sm">← <%= patient.name %></a>
   <button onclick="window.print()" class="ms-auto text-xs bg-brand-600 text-white rounded-xl px-5 py-2 font-bold"><%= t('nt.m.print') %></button>
+  <%- include('_wa_share', {
+        target: '.sheet',
+        filename: t('nt.wa.file_report') + ' - ' + patient.name,
+        phone: (typeof waPhone !== 'undefined') ? waPhone : null,
+        text: t('nt.wa.msg_report').replace('{name}', patient.name)
+              .replace('{practice}', settings.practice_name || company.company_name),
+      }) %>
 </div>
 <%# "Save as PDF" is in every print dialogue on every platform. A server-side
     renderer would be a large dependency producing a worse result: no

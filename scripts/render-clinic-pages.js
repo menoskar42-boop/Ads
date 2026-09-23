@@ -710,7 +710,7 @@ const FIXTURES = {
     const byMeal = {};
     E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
     return {
-      __file: 'nutrition_admin/plan.ejs', tab: 'patients',
+      __file: 'nutrition_admin/plan.ejs', waPhone: '201012345678', practiceName: 'Nutrio Clinic', tab: 'patients',
       micros: require('../src/nutrition/micros').MICROS,
       // عنصر متسجّل على صنفين من أربعة، وعنصر مش متسجّل خالص — التلات حالات
       // بتترسم: رقم بكامله، ورقم ومعاه «كام سطر مش محسوبين»، و«مش مسجّل».
@@ -798,7 +798,7 @@ const FIXTURES = {
     const byMeal = {};
     E.MEALS.forEach((m) => { byMeal[m] = items.filter((i) => i.meal === m); });
     return {
-      __file: 'nutrition_admin/report.ejs', tab: 'patients',
+      __file: 'nutrition_admin/report.ejs', tab: 'patients', waPhone: '201012345678',
       patient, measurements, series, labs: [{ id: 1, taken_on: '2026-07-01', title: 'Vitamin D', value: '18', unit: 'ng/mL' }],
       plans: [], login: null, latest: measurements[0],
       settings: { practice_name: 'Nutrio Clinic', phone: '0882000000', address: '5 Adly St' },

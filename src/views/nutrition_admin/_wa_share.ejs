@@ -1,0 +1,22 @@
+<%# «ابعت على واتساب» — PDF بيتعمل على جهاز الأخصائي ويتشارك من قايمة
+    المشاركة. مفيش رفع لأي سيرفر ولا رابط عام للخطة (بيانات صحية).
+    public/js/share-pdf.js فيه الشرح كامل. المتغيّرات: target · filename ·
+    phone (دولي أو null) · text. %>
+<span class="no-print inline-flex items-center gap-2 flex-wrap">
+  <button type="button" data-share-pdf
+          data-target="<%= target %>"
+          data-filename="<%= String(filename).replace(/[\\/:*?"<>|]+/g, ' ').replace(/[.\s]+$/, '').trim() %>.pdf"
+          data-phone="<%= phone || '' %>"
+          data-text="<%= text %>"
+          data-busy="<%= t('nt.wa.busy') %>"
+          data-ready="<%= t('nt.wa.ready') %>"
+          data-done="<%= t('nt.wa.done') %>"
+          data-downloaded="<%= t('nt.wa.downloaded') %>"
+          data-failed="<%= t('nt.wa.failed') %>"
+          class="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-xl px-4 py-2 font-bold">
+    <span data-label><%= t('nt.wa.btn') %></span>
+  </button>
+  <a data-wa-fallback href="#" target="_blank" rel="noopener"
+     class="hidden text-xs font-bold text-emerald-700 underline"><%= t('nt.wa.open_chat') %></a>
+</span>
+<script src="/js/share-pdf.js" defer></script>
