@@ -53,10 +53,14 @@ test("the report sends the complaint filter and displays both totals", () => {
 
 test("the period-and-total tab shows both counts and defaults to the current month", () => {
   assert.match(client, /useState<"period" \| "period-total">\("period"\)/);
-  assert.match(client, /TabsTrigger value="period-total">الفترة وإجمالي الشكاوى المخزنة/);
+  assert.match(client, /TabsTrigger value="period">تقرير الشكاوى خلال عام/);
+  assert.match(client, /TabsTrigger value="period-total">تقرير الشكاوى خلال فترة/);
   assert.match(client, /"عدد الشكاوى خلال الفترة": r\.complaintCount/);
   assert.match(client, /"إجمالي الشكاوى المخزنة": r\.totalComplaintCount/);
+  assert.match(client, /mode === "period-total"/);
   assert.match(client, /from: `\$\{to\.slice\(0, 8\)\}01`/);
+  assert.match(client, /oneYearBefore\(to\)/);
+  assert.match(client, /setDateFrom\(nextDates\.from\)/);
   assert.match(route, /`ranked\."complaintCount" DESC, ranked\."fullPhone"`/);
   assert.match(route, /all_complaint_summary all_cs/);
   assert.match(route, /COALESCE\(all_cs\.complaint_count, cs\.complaint_count\) AS "totalComplaintCount"/);

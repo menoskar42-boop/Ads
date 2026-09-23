@@ -48,20 +48,35 @@ type FilterOptions = {
 
 const PAGE_SIZE = 50;
 
-const dateParts = (date: Date) => {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
+const cairoToday = () => new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Africa/Cairo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
+
+const oneYearBefore = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const previous = new Date(Date.UTC(year - 1, month - 1, day));
+  // Clamp February 29 to February 28 in a non-leap year.
+  if (previous.getUTCMonth() + 1 !== month) {
+    return `${year - 1}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year - 1, month, 0)).getUTCDate()).padStart(2, "0")}`;
+  }
+  return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}-${String(previous.getUTCDate()).padStart(2, "0")}`;
 };
 
-const defaultDates = () => {
-  const to = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Africa/Cairo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  return { from: `${to.slice(0, 8)}01`, to };
+const defaultDates = (mode: "period" | "period-total") => {
+  const to = cairoToday();
+  const from = mode === "period-total"
+    ? `${to.slice(0, 8)}01`
+    : oneYearBefore(to);
+  return { from, to };
 };
+
+const initialDates = defaultDates("period");
+
+const reportTitle = (mode: "period" | "period-total") =>
+  mode === "period-total" ? "تقرير الشكاوى خلال فترة" : "تقرير الشكاوى خلال عام";
 
 const fmtDate = (value: string | null) => {
   if (!value) return "-";
@@ -73,9 +88,8 @@ const fmtDate = (value: string | null) => {
 
 export function AccountComplaintsReport() {
   const [reportMode, setReportMode] = useState<"period" | "period-total">("period");
-  const dates = defaultDates();
-  const [dateFrom, setDateFrom] = useState(dates.from);
-  const [dateTo, setDateTo] = useState(dates.to);
+  const [dateFrom, setDateFrom] = useState(initialDates.from);
+  const [dateTo, setDateTo] = useState(initialDates.to);
   const [central, setCentral] = useState("");
   const [cabin, setCabin] = useState("");
   const [box, setBox] = useState("");
@@ -174,25 +188,32 @@ export function AccountComplaintsReport() {
 
   const resetPage = () => setPage(1);
 
+  const switchReportMode = (value: string) => {
+    const nextMode = value as "period" | "period-total";
+    const nextDates = defaultDates(nextMode);
+    setReportMode(nextMode);
+    setDateFrom(nextDates.from);
+    setDateTo(nextDates.to);
+    setPage(1);
+  };
+
   return (
     <div className="space-y-4" dir="rtl">
       <Tabs
         value={reportMode}
-        onValueChange={(value) => setReportMode(value as "period" | "period-total")}
+        onValueChange={switchReportMode}
         className="w-full"
       >
         <TabsList className="w-full sm:w-fit">
-          <TabsTrigger value="period">إحصاء الشكاوى خلال الفترة</TabsTrigger>
-          <TabsTrigger value="period-total">الفترة وإجمالي الشكاوى المخزنة</TabsTrigger>
+          <TabsTrigger value="period">تقرير الشكاوى خلال عام</TabsTrigger>
+          <TabsTrigger value="period-total">تقرير الشكاوى خلال فترة</TabsTrigger>
         </TabsList>
       </Tabs>
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
         <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold text-base">
-              {reportMode === "period-total"
-                ? "خطوط لها أكونت — شكاوى الفترة والإجمالي"
-                : "خطوط لها أكونت — إحصاء الشكاوى"}
+              {reportTitle(reportMode)}
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               من شيتَي 430D: التفاصيل وتفاصيل المتبقي
