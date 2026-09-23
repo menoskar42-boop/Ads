@@ -684,13 +684,17 @@ const FIXTURES = {
       category: 'grain', serving_g: 100, serving_desc: null,
       iron_mg: 1.2, fiber_g: 0.4, sodium_mg: null, potassium_mg: null,
       calcium_mg: null, vit_d_ug: null, vit_b12_ug: null },
-    saved: true, err: 'not_empty',
+    // عيادة عندها أصناف وناقصها جزء من القائمة الجاهزة — العرض بيظهر بعدد
+    // الناقص، ورسالة «اتضاف كذا صنف» بعد الإضافة.
+    catalogMissing: 155, added: 155,
+    saved: true, err: 'save',
   }),
 
-  // The empty state, which is the only place the starter-list offer renders.
+  // The empty state: the whole ready-made list is on offer.
   nutrition_foods_empty: () => ({
     __file: 'nutrition_admin/foods.ejs', tab: 'foods',
     rows: [], tally: { active: 0, archived: 0 }, edit: null, q: '', archived: false,
+    catalogMissing: require('../src/nutrition/food_catalog').CATALOG.length, added: 0,
     MICROS: require('../src/nutrition/micros').MICROS,
     saved: false, err: null,
   }),

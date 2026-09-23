@@ -9,7 +9,8 @@
     whatever the serving happens to be. %>
 <p class="text-xs text-slate-600 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-2.5 mb-5"><%= t('nt.fd.per100') %></p>
 
-<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= t('nt.m.saved') %></div><% } %>
+<% var addedN = (typeof added !== 'undefined') ? added : 0; %>
+<% if (saved) { %><div class="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-emerald-800"><%= addedN ? t('nt.fd.catalog_added').replace('{n}', addedN) : t('nt.m.saved') %></div><% } %>
 <% if (err) { %><div class="bg-red-50 border border-red-200 rounded-2xl px-4 py-2.5 mb-4 text-sm text-red-800"><%= t('nt.err.' + err) %></div><% } %>
 
 <div class="bg-white rounded-2xl shadow-sm p-5 mb-5">
@@ -62,15 +63,17 @@
   </form>
 </div>
 
-<%# Offered only into an empty database. A plan builder with no foods is
-    unusable on day one, and every dietitian would otherwise type the same
-    twenty staples by hand. %>
-<% if (!tally.active && !tally.archived) { %>
+<%# The ready-made list, offered while any of it is missing. It only ever
+    ADDS: a food the practice already has under the same name (either
+    language, active or archived) is left exactly as the dietitian set it. %>
+<% var missingN = (typeof catalogMissing !== 'undefined') ? catalogMissing : 0;
+   var isEmpty = !tally.active && !tally.archived; %>
+<% if (missingN > 0 && !archived) { %>
 <div class="bg-brand-50 border border-brand-200 rounded-2xl p-5 mb-5">
-  <p class="text-sm font-bold text-brand-900 mb-1"><%= t('nt.fd.starter_title') %></p>
-  <p class="text-xs text-brand-800 mb-3"><%= t('nt.fd.starter_body') %></p>
+  <p class="text-sm font-bold text-brand-900 mb-1"><%= isEmpty ? t('nt.fd.starter_title') : t('nt.fd.catalog_more_title').replace('{n}', missingN) %></p>
+  <p class="text-xs text-brand-800 mb-3"><%= t('nt.fd.starter_body').replace('{n}', missingN) %></p>
   <form method="post" action="/nutrition/foods/starter">
-    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('nt.fd.starter_btn') %></button>
+    <button class="bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl px-5 py-2 text-sm"><%= t('nt.fd.starter_btn').replace('{n}', missingN) %></button>
   </form>
 </div>
 <% } %>
