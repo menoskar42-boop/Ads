@@ -556,6 +556,11 @@ const FIXTURES = {
     lapsed: [{ id: 1, name: 'Mona S.', last_seen: '2026-05-01' }],
     never: [{ id: 2, name: 'Karim H.' }],
     total: 12,
+    weekly: {
+      active: 7, low: 3, quiet: 2, checkins: 8,
+      rows: [{ id: 1, name: 'Mona S.', active_days: 5, checkin_days: 3,
+        diary_days: 4, adherence_pct: 72, attention: 'active' }],
+    },
   }),
 
   // شاشة المواعيد (البند ٨٤): يوم فيه خانة محجوزة وخانة فاضية، وحجز متأكّد
@@ -839,6 +844,23 @@ const FIXTURES = {
       ], { water_glasses: 8, sleep_hours: 6.5, steps: null, mood: 'ok', note: null }),
     };
   },
+
+  nutrition_portal_shopping: () => ({
+    __file: 'nutrition_portal/shopping_list.ejs',
+    practice: { id: 1, slug: 'nutrio', company_name: 'Nutrio Clinic' },
+    patient: { id: 1, name: 'Mona S.' },
+    plan: { id: 1, title: 'August plan' },
+    shopping: {
+      days: 7,
+      lines: [
+        { name: 'Grilled chicken breast', grams: 1400 },
+        { name: 'Baladi bread', grams: 420 },
+      ],
+      partial: true,
+      uncounted: 1,
+    },
+    shoppingDays: 7,
+  }),
 
   // The empty state: signed in, but the dietitian has not written a plan yet.
   nutrition_portal_no_plan: () => {

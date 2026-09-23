@@ -22,6 +22,62 @@
   </div>
 </div>
 
+<%# A weekly operational view: it describes recording behaviour, not medical
+    compliance. A dietitian can see who needs a follow-up without guessing from
+    a single stale weight. %>
+<% var week = (typeof weekly !== 'undefined' && weekly) ? weekly : null; %>
+<% if (week) { %>
+<div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+  <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+    <div>
+      <h2 class="font-bold text-slate-800"><%= t('nt.dash.week_title') %></h2>
+      <p class="text-xs text-slate-400 mt-1"><%= t('nt.dash.week_hint') %></p>
+    </div>
+    <a href="/nutrition/patients" class="text-xs text-brand-700 font-bold hover:underline"><%= t('nt.dash.open_patients') %> →</a>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+    <div class="rounded-xl bg-emerald-50 p-3"><div class="text-xs text-emerald-700"><%= t('nt.dash.week_active') %></div><div class="text-xl font-black text-emerald-800"><%= week.active %></div></div>
+    <div class="rounded-xl bg-amber-50 p-3"><div class="text-xs text-amber-700"><%= t('nt.dash.week_low') %></div><div class="text-xl font-black text-amber-800"><%= week.low %></div></div>
+    <div class="rounded-xl bg-slate-100 p-3"><div class="text-xs text-slate-600"><%= t('nt.dash.week_quiet') %></div><div class="text-xl font-black text-slate-700"><%= week.quiet %></div></div>
+    <div class="rounded-xl bg-brand-50 p-3"><div class="text-xs text-brand-700"><%= t('nt.dash.week_checkins') %></div><div class="text-xl font-black text-brand-800"><%= week.checkins %></div></div>
+  </div>
+  <% if (!week.rows.length) { %>
+    <p class="text-sm text-slate-500"><%= t('nt.dash.week_none') %></p>
+  <% } else { %>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm rt">
+        <thead class="text-slate-500 text-xs border-b border-slate-100">
+          <tr>
+            <th class="text-start py-2 pe-3"><%= t('nt.dash.week_patient') %></th>
+            <th class="text-start py-2 pe-3"><%= t('nt.dash.week_days') %></th>
+            <th class="text-start py-2 pe-3"><%= t('nt.dash.week_checkin') %></th>
+            <th class="text-start py-2 pe-3"><%= t('nt.dash.week_diary') %></th>
+            <th class="text-start py-2"><%= t('nt.dash.week_plan') %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% week.rows.slice(0, 12).forEach(function (p) { %>
+          <tr>
+            <td class="py-2 pe-3" data-l="<%= t('nt.dash.week_patient') %>">
+              <a href="/nutrition/patients/<%= p.id %>" class="font-bold text-brand-700 hover:underline"><%= p.name %></a>
+            </td>
+            <td class="py-2 pe-3" data-l="<%= t('nt.dash.week_days') %>">
+              <span class="font-bold <%= p.attention === 'quiet' ? 'text-slate-500' : p.attention === 'low' ? 'text-amber-700' : 'text-emerald-700' %>"><%= p.active_days %>/7</span>
+            </td>
+            <td class="py-2 pe-3 text-slate-600" data-l="<%= t('nt.dash.week_checkin') %>"><%= p.checkin_days %>/7</td>
+            <td class="py-2 pe-3 text-slate-600" data-l="<%= t('nt.dash.week_diary') %>"><%= p.diary_days %>/7</td>
+            <td class="py-2 text-slate-600" data-l="<%= t('nt.dash.week_plan') %>">
+              <%= p.adherence_pct == null ? '—' : p.adherence_pct + '%' %>
+            </td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+<% } %>
+
 <%# The two lists a dietitian actually needs. People do not announce that they
     have stopped coming — they just stop, and a card that surfaces the silence
     is worth more than another total. %>

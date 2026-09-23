@@ -25,6 +25,7 @@ const bcrypt = require('bcryptjs');
 const E = require('../nutrition/engine');
 const diary = require('../nutrition/diary');
 const checkin = require('../nutrition/checkin');
+const swaps = require('../nutrition/swaps');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -305,6 +306,26 @@ router.get('/', async (req, res) => {
       saved: req.query.saved === '1', err: req.query.err || null,
     });
   } catch (e) { console.error('[nutrition portal]', e.message); res.status(500).send('error'); }
+});
+
+// A patient needs the list where they make the buying decision, not only on
+// the dietitian's plan editor. It is derived from the active plan on every
+// request, so an updated plan never leaves an old list behind.
+router.get('/shopping-list', async (req, res) => {
+  try {
+    const d = await load(req.practice.id, req.patientId, today());
+    if (!d.patient) { delete req.session.nutriPatient; return res.redirect('/portal/login'); }
+    const shopping = swaps.shoppingList(d.items, req.query.days || 7);
+    res.render('nutrition_portal/shopping_list', {
+      patient: d.patient,
+      plan: d.plan,
+      shopping,
+      shoppingDays: shopping.days,
+    });
+  } catch (e) {
+    console.error('[nutrition portal shopping]', e.message);
+    res.status(500).send('error');
+  }
 });
 
 // ── Tick a meal item ─────────────────────────────────────────────────────────

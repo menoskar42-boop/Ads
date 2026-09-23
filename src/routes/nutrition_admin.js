@@ -95,10 +95,18 @@ router.use('/', require('./nutrition_plans'));
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const [tally, recent] = await Promise.all([
+    const [tally, recent, weeklyRows] = await Promise.all([
       P.counts(pool, req.company.id),
       P.patients(pool, req.company.id, {}),
+      P.weeklyEngagement(pool, req.company.id, 7),
     ]);
+    const weekly = {
+      rows: weeklyRows,
+      active: weeklyRows.filter((p) => p.attention === 'active').length,
+      low: weeklyRows.filter((p) => p.attention === 'low').length,
+      quiet: weeklyRows.filter((p) => p.attention === 'quiet').length,
+      checkins: weeklyRows.filter((p) => p.checkin_days > 0).length,
+    };
     res.render('nutrition_admin/dashboard', {
       tab: 'dashboard', tally,
       // Patients whose last reading is over 30 days old. That gap is the whole
@@ -107,6 +115,7 @@ router.get('/', async (req, res) => {
         && (Date.now() - new Date(p.last_seen).getTime()) > 30 * 86400000).slice(0, 10),
       never: recent.filter((p) => !p.readings).slice(0, 10),
       total: recent.length,
+      weekly,
     });
   } catch (e) { console.error('[nutrition dashboard]', e.message); res.status(500).send('error'); }
 });
