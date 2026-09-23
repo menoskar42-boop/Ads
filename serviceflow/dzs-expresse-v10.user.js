@@ -4,7 +4,6 @@
 // @version      10.22.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
-// @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -106,23 +105,7 @@
   const RESET_TOKEN = "3";
 
   // 🆕 رفع تلقائى لشيت 138 فى Service-Flow
-  // ── دومين Service-Flow ──────────────────────────────────────────────────────
-  // ماكانش متغيّر: الدومين كان مكتوب بالحروف جوّه السكربت، فلما الاستضافة اتنقلت
-  // فضلت السكربتات بتبعت للدومين القديم — «جهاز التنفيذ» بيفتح التاب وينفّذ،
-  // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
-  // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
-  //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
-  function sfBase() {
-    try {
-      var v = null;
-      if (typeof GM_getValue === "function") v = GM_getValue("sf_base", null);
-      if (!v) v = localStorage.getItem("sf_base");
-      if (v && /^https?:\/\//.test(v)) return String(v).replace(/\/+$/, "");
-    } catch (e) {}
-    return SF_DEFAULT_BASE;
-  }
-  const SF_API_BASE = sfBase();
+  const SF_API_BASE   = "https://ads-menoskar42.replit.app/serviceflow/"; // ← عدّليه لو الدومين اتغيّر
   const SF_INGEST_TOKEN = "sf-dzs-138-ingest-2026"; // ← لازم يطابق DZS_INGEST_TOKEN فى السيرفر
   const SF_AUTO_UPLOAD = true; // false لو عايزه CSV فقط من غير رفع تلقائى
 
