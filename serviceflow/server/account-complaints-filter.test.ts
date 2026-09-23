@@ -20,7 +20,9 @@ test("account complaints supports a strict greater-than complaint filter", () =>
 
 test("account complaints returns totals for all filtered lines", () => {
   assert.match(route, /COALESCE\(SUM\(t\.complaint_count\), 0\)::int AS "complaintTotal"/);
+  assert.match(route, /COALESCE\(SUM\(t\.total_complaint_count\), 0\)::int AS "storedComplaintTotal"/);
   assert.match(route, /complaintTotal,/);
+  assert.match(route, /storedComplaintTotal,/);
 });
 
 test("deduplicates a complaint that exists in both 430D sheets", () => {
@@ -47,4 +49,26 @@ test("the report sends the complaint filter and displays both totals", () => {
   assert.match(client, /p\.set\("complaintsGt", complaintsGt\.trim\(\)\)/);
   assert.match(client, /إجمالي الخطوط/);
   assert.match(client, /إجمالي الشكاوى/);
+});
+
+test("the period-and-total tab shows both counts and defaults to the current month", () => {
+  assert.match(client, /useState<"period" \| "period-total">\("period"\)/);
+  assert.match(client, /TabsTrigger value="period-total">الفترة وإجمالي الشكاوى المخزنة/);
+  assert.match(client, /"عدد الشكاوى خلال الفترة": r\.complaintCount/);
+  assert.match(client, /"إجمالي الشكاوى المخزنة": r\.totalComplaintCount/);
+  assert.match(client, /from: `\$\{to\.slice\(0, 8\)\}01`/);
+  assert.match(route, /`ranked\."complaintCount" DESC, ranked\."fullPhone"`/);
+  assert.match(route, /all_complaint_summary all_cs/);
+  assert.match(route, /COALESCE\(all_cs\.complaint_count, cs\.complaint_count\) AS "totalComplaintCount"/);
+});
+
+test("the new tab can sort by stored complaint totals without changing the original order", () => {
+  assert.match(route, /sortBy = ""/);
+  assert.match(route, /sortBy\.trim\(\) === "stored"/);
+  assert.match(
+    route,
+    /ranked\."totalComplaintCount" DESC, ranked\."complaintCount" DESC, ranked\."fullPhone"/,
+  );
+  assert.match(route, /ranked\."complaintCount" DESC, ranked\."fullPhone"/);
+  assert.match(client, /if \(reportMode === "period-total"\) p\.set\("sortBy", "stored"\)/);
 });

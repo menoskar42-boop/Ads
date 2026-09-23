@@ -5704,7 +5704,7 @@ export async function registerRoutes(
   app.get("/api/phone-lines/account-complaints", requireAuth, async (req, res) => {
     const {
       dateFrom = "", dateTo = "", search = "", central = "", cabin = "", box = "",
-      accountQ = "", complaintsGt = "", page = "1", limit = "50",
+      accountQ = "", complaintsGt = "", sortBy = "", page = "1", limit = "50",
     } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
@@ -5713,6 +5713,11 @@ export async function registerRoutes(
     const complaintsGreaterThan = complaintsGt.trim() === "" || !Number.isFinite(parsedComplaintsGt)
       ? null
       : Math.max(0, Math.min(1000000, parsedComplaintsGt));
+    // التبويب الجديد يطلب ترتيبًا بالإجمالى المخزن، أما التقرير الأصلى
+    // فيظل مرتبًا بعدد شكاوى الفترة. القيمة محصورة فى اختيارين ثابتين.
+    const orderBy = sortBy.trim() === "stored"
+      ? `ranked."totalComplaintCount" DESC, ranked."complaintCount" DESC, ranked."fullPhone"`
+      : `ranked."complaintCount" DESC, ranked."fullPhone"`;
 
     // الافتراضى: آخر سنة حتى اليوم (بتوقيت القاهرة)، مع السماح للواجهة بإرسال نطاق مختلف.
     const cairoParts = new Intl.DateTimeFormat("en-CA", {
@@ -5783,6 +5788,28 @@ export async function registerRoutes(
       FROM complaint_deduped
       GROUP BY short_phone
     )`;
+    // نحتاج إجمالى مستقل عن نطاق التاريخ للتبويب الجديد «الفترة والإجمالى».
+    // يظل بنفس قاعدة إزالة التكرار: رقم الشكوى الواحد يُحسب مرة واحدة حتى لو
+    // كان موجودًا فى complaint_details وremaining_complaints معًا.
+    const allComplaintCte = `, all_complaint_rows AS (
+      SELECT ${sp("cd.phone_number")} AS short_phone, cd.complain_no, cd.complain_time,
+             1 AS source_priority
+      FROM complaint_details cd
+      UNION ALL
+      SELECT ${sp("rc.phone_number")} AS short_phone, rc.complain_no, rc.complain_time,
+             2 AS source_priority
+      FROM remaining_complaints rc
+    ), all_complaint_deduped AS (
+      SELECT DISTINCT ON (complain_no) short_phone, complain_no, complain_time
+      FROM all_complaint_rows
+      WHERE short_phone <> '' AND complain_no <> ''
+      ORDER BY complain_no, source_priority
+    ), all_complaint_summary AS (
+      SELECT short_phone, COUNT(*)::int AS complaint_count
+      FROM all_complaint_deduped
+      GROUP BY short_phone
+    )`;
+    const reportCte = `${complaintCte}${allComplaintCte}`;
     if (complaintsGreaterThan !== null) {
       params.push(complaintsGreaterThan);
       lineConds.push(`cs.complaint_count > $${params.length}`);
@@ -5791,6 +5818,7 @@ export async function registerRoutes(
       JOIN line_accounts la ON ${sp("la.full_phone")} = cs.short_phone
       LEFT JOIN phone_lines pl ON pl.full_phone = la.full_phone
       LEFT JOIN phone_ports pp ON pp.phone_number = la.full_phone
+      LEFT JOIN all_complaint_summary all_cs ON all_cs.short_phone = cs.short_phone
       LEFT JOIN LATERAL (
          SELECT c.current_speed, c.max_speed, c.score, c.po_status
         FROM case_138 c
@@ -5808,23 +5836,26 @@ export async function registerRoutes(
     const where = `WHERE ${lineConds.join(" AND ")}`;
 
     const totalRes = await pool.query(
-      `${complaintCte}
+      `${reportCte}
        SELECT COUNT(*)::int AS c,
-              COALESCE(SUM(t.complaint_count), 0)::int AS "complaintTotal"
+               COALESCE(SUM(t.complaint_count), 0)::int AS "complaintTotal",
+               COALESCE(SUM(t.total_complaint_count), 0)::int AS "storedComplaintTotal"
        FROM (
-         SELECT la.full_phone, cs.complaint_count
+         SELECT la.full_phone, cs.complaint_count,
+                COALESCE(all_cs.complaint_count, cs.complaint_count) AS total_complaint_count
          ${joinClause} ${where}
-         GROUP BY la.full_phone, cs.complaint_count
+         GROUP BY la.full_phone, cs.complaint_count, all_cs.complaint_count
        ) t`,
       params,
     );
     const total = totalRes.rows[0]?.c ?? 0;
     const complaintTotal = totalRes.rows[0]?.complaintTotal ?? 0;
+    const storedComplaintTotal = totalRes.rows[0]?.storedComplaintTotal ?? 0;
 
     const offset = (pageNum - 1) * pageSize;
     params.push(pageSize, offset);
     const dataRes = await pool.query(
-      `${complaintCte}
+      `${reportCte}
        SELECT * FROM (
          SELECT DISTINCT ON (la.full_phone)
            pl.id,
@@ -5845,6 +5876,7 @@ export async function registerRoutes(
            COALESCE(pp.frame, pl.port) AS port,
            pl.len,
            cs.complaint_count AS "complaintCount",
+            COALESCE(all_cs.complaint_count, cs.complaint_count) AS "totalComplaintCount",
            (cs.earliest_complaint AT TIME ZONE 'Africa/Cairo') AS "earliestComplaint",
             (cs.latest_complaint AT TIME ZONE 'Africa/Cairo') AS "latestComplaint",
             contact.contacted_at AS "lastContactAt",
@@ -5852,7 +5884,7 @@ export async function registerRoutes(
          ${joinClause} ${where}
          ORDER BY la.full_phone, cs.complaint_count DESC
        ) ranked
-       ORDER BY ranked."complaintCount" DESC, ranked."fullPhone"
+        ORDER BY ${orderBy}
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
     );
@@ -5860,6 +5892,7 @@ export async function registerRoutes(
       data: dataRes.rows,
       total,
       complaintTotal,
+      storedComplaintTotal,
       page: pageNum,
       pageSize,
       dateFrom: from,

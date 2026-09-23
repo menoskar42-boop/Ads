@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { ChevronLeft, ChevronRight, History, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Row = {
   id: number | null;
@@ -32,6 +33,7 @@ type Row = {
   port: string | null;
   len: string | null;
   complaintCount: number;
+  totalComplaintCount: number;
   earliestComplaint: string | null;
   latestComplaint: string | null;
   lastContactAt: string | null;
@@ -52,10 +54,13 @@ const dateParts = (date: Date) => {
 };
 
 const defaultDates = () => {
-  const to = new Date();
-  const from = new Date(to);
-  from.setFullYear(from.getFullYear() - 1);
-  return { from: dateParts(from), to: dateParts(to) };
+  const to = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Cairo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return { from: `${to.slice(0, 8)}01`, to };
 };
 
 const fmtDate = (value: string | null) => {
@@ -67,6 +72,7 @@ const fmtDate = (value: string | null) => {
 };
 
 export function AccountComplaintsReport() {
+  const [reportMode, setReportMode] = useState<"period" | "period-total">("period");
   const dates = defaultDates();
   const [dateFrom, setDateFrom] = useState(dates.from);
   const [dateTo, setDateTo] = useState(dates.to);
@@ -94,6 +100,7 @@ export function AccountComplaintsReport() {
       page: exportAll ? "1" : String(page),
       limit: exportAll ? "20000" : String(PAGE_SIZE),
     });
+    if (reportMode === "period-total") p.set("sortBy", "stored");
     if (central) p.set("central", central);
     if (cabin) p.set("cabin", cabin);
     if (box) p.set("box", box);
@@ -106,7 +113,7 @@ export function AccountComplaintsReport() {
   const { data, isLoading } = useQuery({
     queryKey: [
       "/api/phone-lines/account-complaints",
-       dateFrom, dateTo, central, cabin, box, accountQ, search, complaintsGt, page,
+       dateFrom, dateTo, central, cabin, box, accountQ, search, complaintsGt, reportMode, page,
     ],
     queryFn: async () => {
       const res = await fetch(`/api/phone-lines/account-complaints?${buildParams()}`, { credentials: "include" });
@@ -115,6 +122,7 @@ export function AccountComplaintsReport() {
          data: Row[];
          total: number;
          complaintTotal: number;
+          storedComplaintTotal: number;
          page: number;
          pageSize: number;
        }>;
@@ -133,7 +141,12 @@ export function AccountComplaintsReport() {
     const rows = json.data.map((r) => ({
       "رقم التليفون الكامل": r.fullPhone,
       "رقم الأكونت": r.accountNo,
-      "عدد الشكاوى": r.complaintCount,
+      ...(reportMode === "period-total"
+        ? {
+            "عدد الشكاوى خلال الفترة": r.complaintCount,
+            "إجمالي الشكاوى المخزنة": r.totalComplaintCount,
+          }
+        : { "عدد الشكاوى": r.complaintCount }),
       "أقدم شكوى": fmtDate(r.earliestComplaint),
       "أحدث شكوى": fmtDate(r.latestComplaint),
       "وقت آخر اتصال": formatContactTime(r.lastContactAt),
@@ -163,10 +176,24 @@ export function AccountComplaintsReport() {
 
   return (
     <div className="space-y-4" dir="rtl">
+      <Tabs
+        value={reportMode}
+        onValueChange={(value) => setReportMode(value as "period" | "period-total")}
+        className="w-full"
+      >
+        <TabsList className="w-full sm:w-fit">
+          <TabsTrigger value="period">إحصاء الشكاوى خلال الفترة</TabsTrigger>
+          <TabsTrigger value="period-total">الفترة وإجمالي الشكاوى المخزنة</TabsTrigger>
+        </TabsList>
+      </Tabs>
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
         <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold text-base">خطوط لها أكونت — إحصاء الشكاوى</h3>
+            <h3 className="font-semibold text-base">
+              {reportMode === "period-total"
+                ? "خطوط لها أكونت — شكاوى الفترة والإجمالي"
+                : "خطوط لها أكونت — إحصاء الشكاوى"}
+            </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               من شيتَي 430D: التفاصيل وتفاصيل المتبقي
               {data && <> — {data.total.toLocaleString("ar-EG")} رقم</>}
@@ -221,6 +248,11 @@ export function AccountComplaintsReport() {
              <span className="rounded-md border bg-white px-3 py-1.5">
                إجمالي الشكاوى: <strong className="text-red-700">{data.complaintTotal.toLocaleString("ar-EG")}</strong>
              </span>
+              {reportMode === "period-total" && (
+                <span className="rounded-md border bg-white px-3 py-1.5">
+                  إجمالي الشكاوى المخزنة: <strong className="text-purple-700">{data.storedComplaintTotal.toLocaleString("ar-EG")}</strong>
+                </span>
+              )}
            </div>
          )}
 
@@ -234,7 +266,14 @@ export function AccountComplaintsReport() {
                   <TableRow>
                     <TableHead className="font-bold whitespace-nowrap">#</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">رقم التليفون</TableHead>
-                    <TableHead className="font-bold whitespace-nowrap">عدد الشكاوى</TableHead>
+                    {reportMode === "period-total" ? (
+                      <>
+                        <TableHead className="font-bold whitespace-nowrap">شكاوى الفترة</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap">إجمالي الشكاوى المخزنة</TableHead>
+                      </>
+                    ) : (
+                      <TableHead className="font-bold whitespace-nowrap">عدد الشكاوى</TableHead>
+                    )}
                     <TableHead className="font-bold whitespace-nowrap">أقدم شكوى</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">أحدث شكوى</TableHead>
                     <TableHead className="font-bold whitespace-nowrap">وقت آخر اتصال</TableHead>
@@ -266,6 +305,9 @@ export function AccountComplaintsReport() {
                         </span>
                       </TableCell>
                       <TableCell className="font-bold text-red-700">{r.complaintCount.toLocaleString("ar-EG")}</TableCell>
+                      {reportMode === "period-total" && (
+                        <TableCell className="font-bold text-purple-700">{r.totalComplaintCount.toLocaleString("ar-EG")}</TableCell>
+                      )}
                       <TableCell className="whitespace-nowrap" dir="ltr">{fmtDate(r.earliestComplaint)}</TableCell>
                       <TableCell className="whitespace-nowrap" dir="ltr">{fmtDate(r.latestComplaint)}</TableCell>
                       <TableCell className="whitespace-nowrap">
@@ -294,7 +336,7 @@ export function AccountComplaintsReport() {
                     </TableRow>
                   ))}
                   {!data?.data.length && (
-                    <TableRow><TableCell colSpan={18} className="text-center text-muted-foreground py-10">لا توجد نتائج في النطاق المحدد</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={reportMode === "period-total" ? 20 : 19} className="text-center text-muted-foreground py-10">لا توجد نتائج في النطاق المحدد</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
