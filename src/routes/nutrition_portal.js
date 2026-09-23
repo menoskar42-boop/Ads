@@ -25,6 +25,9 @@ const bcrypt = require('bcryptjs');
 const E = require('../nutrition/engine');
 const diary = require('../nutrition/diary');
 const checkin = require('../nutrition/checkin');
+const swaps = require('../nutrition/swaps');
+const goalTools = require('../nutrition/goals');
+const practiceData = require('../nutrition/practice');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -187,11 +190,15 @@ async function load(companyId, patientId, onDate) {
     // no plan item to tick.
     "SELECT item_id, done FROM nutrition_diary WHERE patient_id=$1 AND on_date=$2 AND company_id=$3 AND kind='tick'",
     [patientId, onDate, companyId])).rows : [];
+  const patientGoals = await practiceData.goals(pool, companyId, patientId, {
+    activeOnly: true, onDate,
+  });
   return {
     patient: patient.rows[0] || null,
     plan: p,
     items,
     done: new Set(ticks.filter((t) => t.done).map((t) => t.item_id)),
+    goals: patientGoals,
   };
 }
 
@@ -301,10 +308,101 @@ router.get('/', async (req, res) => {
       diaryMeals: diary.MEALS,
       todayCheckin, checkinMoods: checkin.MOODS,
       lastWeight,
+      goals: d.goals,
       loggedToday: lastWeight && String(lastWeight.taken_on).slice(0, 10) === day,
       saved: req.query.saved === '1', err: req.query.err || null,
     });
   } catch (e) { console.error('[nutrition portal]', e.message); res.status(500).send('error'); }
+});
+
+// A patient needs the list where they make the buying decision, not only on
+// the dietitian's plan editor. It is derived from the active plan on every
+// request, so an updated plan never leaves an old list behind.
+router.get('/shopping-list', async (req, res) => {
+  try {
+    const d = await load(req.practice.id, req.patientId, today());
+    if (!d.patient) { delete req.session.nutriPatient; return res.redirect('/portal/login'); }
+    const shopping = swaps.shoppingList(d.items, req.query.days || 7);
+    const checkedRows = d.plan ? (await pool.query(
+      `SELECT line_key FROM nutrition_shopping_checks
+        WHERE company_id=$1 AND patient_id=$2 AND plan_id=$3 AND checked=true`,
+      [req.practice.id, req.patientId, d.plan.id])).rows : [];
+    const checked = new Set(checkedRows.map((row) => row.line_key));
+    shopping.lines = shopping.lines.map((line) => Object.assign({}, line, {
+      checked: checked.has(line.key),
+    }));
+    res.render('nutrition_portal/shopping_list', {
+      patient: d.patient,
+      plan: d.plan,
+      shopping,
+      shoppingDays: shopping.days,
+    });
+  } catch (e) {
+    console.error('[nutrition portal shopping]', e.message);
+    res.status(500).send('error');
+  }
+});
+
+// Shopping marks are stored against the active plan version, not only the food
+// name. A replacement plan starts clean without deleting the patient's old list.
+router.post('/shopping-list/check', async (req, res) => {
+  const key = String((req.body || {}).line_key || '').trim().slice(0, 180);
+  const checked = ['1', 'true', 'on'].includes(String((req.body || {}).checked || '').toLowerCase());
+  if (!key) return res.status(400).send('bad line');
+  try {
+    const d = await load(req.practice.id, req.patientId, today());
+    if (!d.plan) return res.status(404).send('no plan');
+    const allowed = new Set(swaps.shoppingList(d.items, 31).lines.map((line) => line.key));
+    if (!allowed.has(key)) return res.status(403).send('not allowed');
+    if (checked) {
+      await pool.query(
+        `INSERT INTO nutrition_shopping_checks
+           (company_id, patient_id, plan_id, line_key, checked, updated_at)
+         VALUES ($1,$2,$3,$4,true,now())
+         ON CONFLICT (company_id, patient_id, plan_id, line_key)
+         DO UPDATE SET checked=true, updated_at=now()`,
+        [req.practice.id, req.patientId, d.plan.id, key]);
+    } else {
+      await pool.query(
+        `DELETE FROM nutrition_shopping_checks
+          WHERE company_id=$1 AND patient_id=$2 AND plan_id=$3 AND line_key=$4`,
+        [req.practice.id, req.patientId, d.plan.id, key]);
+    }
+    return res.status(204).end();
+  } catch (e) {
+    console.error('[nutrition shopping check]', e.message);
+    return res.status(500).send('error');
+  }
+});
+
+// One progress report per goal per day. Updating it is a correction to today's
+// report, while the older days remain available to the dietitian.
+router.post('/goal-log', async (req, res) => {
+  const b = req.body || {};
+  const goalId = parseInt(b.goal_id, 10);
+  const read = goalTools.readLog(b);
+  if (!Number.isInteger(goalId) || !read.ok) return res.redirect('/portal?err=' + (read.ok ? 'goal_value' : read.why));
+  try {
+    const goal = (await pool.query(
+      `SELECT id, starts_on, ends_on FROM nutrition_goals
+        WHERE id=$1 AND company_id=$2 AND patient_id=$3 AND status='active'`,
+      [goalId, req.practice.id, req.patientId])).rows[0];
+    if (!goal || read.value.on_date < String(goal.starts_on).slice(0, 10)
+      || read.value.on_date > String(goal.ends_on).slice(0, 10)) {
+      return res.redirect('/portal?err=goal_date');
+    }
+    await pool.query(
+      `INSERT INTO nutrition_goal_logs
+         (company_id, patient_id, goal_id, on_date, value, note, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,now())
+       ON CONFLICT (goal_id, on_date) DO UPDATE SET
+         value=EXCLUDED.value, note=EXCLUDED.note, updated_at=now()`,
+      [req.practice.id, req.patientId, goalId, read.value.on_date, read.value.value, read.value.note]);
+  } catch (e) {
+    console.error('[nutrition goal log]', e.message);
+    return res.redirect('/portal?err=save');
+  }
+  res.redirect('/portal?saved=1');
 });
 
 // ── Tick a meal item ─────────────────────────────────────────────────────────

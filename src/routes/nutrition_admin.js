@@ -15,6 +15,7 @@ const staffScope = require('../lib/staff_scope');
 const nutriPerms = require('../nutrition/perms');
 const safety = require('../nutrition/safety');
 const diary = require('../nutrition/diary');
+const goalTools = require('../nutrition/goals');
 const bcrypt = require('bcryptjs');
 const audit = require('../lib/audit');
 
@@ -35,7 +36,8 @@ const bad = (v) => String(v == null ? '' : v).trim() !== '' && !M.read(v).ok;
 // Codes the server chose. Printing `req.query.err` would let a link write the
 // words on a dietitian's screen.
 const NT_ERRORS = ['required', 'save', 'empty', 'unreadable', 'login_taken',
-  'no_name', 'username', 'line', 'not_empty', 'subs_off'];
+  'no_name', 'username', 'line', 'not_empty', 'subs_off', 'goal_title',
+  'goal_target', 'goal_dates', 'goal_value', 'goal_date'];
 const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
 const text = (v, max) => String(v || '').trim().slice(0, max) || null;
 
@@ -95,10 +97,18 @@ router.use('/', require('./nutrition_plans'));
 // ── Dashboard ────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const [tally, recent] = await Promise.all([
+    const [tally, recent, weeklyRows] = await Promise.all([
       P.counts(pool, req.company.id),
       P.patients(pool, req.company.id, {}),
+      P.weeklyEngagement(pool, req.company.id, 7),
     ]);
+    const weekly = {
+      rows: weeklyRows,
+      active: weeklyRows.filter((p) => p.attention === 'active').length,
+      low: weeklyRows.filter((p) => p.attention === 'low').length,
+      quiet: weeklyRows.filter((p) => p.attention === 'quiet').length,
+      checkins: weeklyRows.filter((p) => p.checkin_days > 0).length,
+    };
     res.render('nutrition_admin/dashboard', {
       tab: 'dashboard', tally,
       // Patients whose last reading is over 30 days old. That gap is the whole
@@ -107,6 +117,7 @@ router.get('/', async (req, res) => {
         && (Date.now() - new Date(p.last_seen).getTime()) > 30 * 86400000).slice(0, 10),
       never: recent.filter((p) => !p.readings).slice(0, 10),
       total: recent.length,
+      weekly,
     });
   } catch (e) { console.error('[nutrition dashboard]', e.message); res.status(500).send('error'); }
 });
@@ -199,6 +210,38 @@ router.post('/patients/:id(\\d+)/profile', async (req, res) => {
   res.redirect('/nutrition/patients/' + id + '?saved=1');
 });
 
+// A goal is a time-boxed agreement the dietitian can review, not a hidden
+// clinical score. The patient reports its progress from the separate portal.
+router.post('/patients/:id(\\d+)/goals', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const read = goalTools.readGoal(req.body, new Date().toISOString().slice(0, 10));
+  if (!read.ok) return res.redirect('/nutrition/patients/' + id + '?err=' + read.why);
+  try {
+    await pool.query(
+      `INSERT INTO nutrition_goals
+         (company_id, patient_id, title, target_value, unit, starts_on, ends_on, measure_mode)
+       SELECT $1,$2,$3,$4,$5,$6,$7,$8
+        WHERE EXISTS (SELECT 1 FROM nutrition_patients WHERE id=$2 AND company_id=$1)`,
+      [req.company.id, id, read.value.title, read.value.target_value, read.value.unit,
+        read.value.starts_on, read.value.ends_on, read.value.measure_mode]);
+  } catch (e) {
+    console.error('[nutrition goal create]', e.message);
+    return res.redirect('/nutrition/patients/' + id + '?err=save');
+  }
+  res.redirect('/nutrition/patients/' + id + '?saved=1');
+});
+
+router.post('/patients/:id(\\d+)/goals/:goalId(\\d+)/archive', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  try {
+    await pool.query(
+      `UPDATE nutrition_goals SET status='archived', updated_at=now()
+        WHERE id=$1 AND patient_id=$2 AND company_id=$3`,
+      [parseInt(req.params.goalId, 10), id, req.company.id]);
+  } catch (e) { console.error('[nutrition goal archive]', e.message); }
+  res.redirect('/nutrition/patients/' + id + '?saved=1');
+});
+
 // Archived, never deleted: a measurement history with no patient attached to it
 // is not privacy, it is just data nobody can account for.
 router.post('/patients/:id(\\d+)/archive', async (req, res) => {
@@ -236,8 +279,11 @@ router.get('/patients/:id(\\d+)', async (req, res) => {
       tab: 'patients', ...data,
       progress: P.progress(data.series, data.patient.target_weight_kg),
       activities: E.ACTIVITY_KEYS, goals: E.GOAL_KEYS,
+      patientGoals: data.goals || [],
       dietStyles: Object.keys(safety.DIETS), stages: Object.keys(safety.STAGE_KCAL),
       planScan,
+       goalToday: new Date().toISOString().slice(0, 10),
+       goalDefaultEnd: goalTools.addDays(new Date().toISOString().slice(0, 10), 6),
       // Shown once and never again — it exists only as a hash from here on.
       // Read once and gone. It used to arrive as ?pw=… — which puts a patient's
       // password in the browser history, in the address bar over someone's

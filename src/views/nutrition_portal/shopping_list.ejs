@@ -1,0 +1,107 @@
+<%- include('head', { title: t('np.shop.title') }) %>
+
+<div class="flex items-center gap-3 mb-4">
+  <a href="/portal" class="text-slate-400 hover:text-slate-600 text-sm">← <%= t('np.today.title') %></a>
+  <h1 class="text-xl font-black text-slate-900"><%= t('np.shop.title') %></h1>
+  <button onclick="window.print()" class="ms-auto no-print text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-600"><%= t('np.shop.print') %></button>
+</div>
+
+<% if (!plan) { %>
+  <div class="bg-white rounded-2xl shadow-sm p-8 text-center">
+    <div class="text-3xl mb-2">🛒</div>
+    <p class="text-sm text-slate-600 font-bold mb-1"><%= t('np.shop.no_plan') %></p>
+    <a href="/portal" class="text-sm text-brand-700 font-bold hover:underline"><%= t('np.shop.back') %></a>
+  </div>
+<% } else { %>
+  <div class="bg-white rounded-2xl shadow-sm p-4 mb-4 no-print">
+    <div class="flex items-center justify-between gap-3 flex-wrap">
+      <p class="text-sm text-slate-600"><%= t('np.shop.hint') %></p>
+      <form method="get" class="flex items-center gap-2">
+        <label class="text-xs font-bold text-slate-600">
+          <span class="sr-only"><%= t('np.shop.days') %></span>
+          <input name="days" type="number" min="1" max="31" value="<%= shoppingDays %>"
+                 class="w-20 border border-slate-200 rounded-xl px-3 py-1.5 text-sm" />
+        </label>
+        <button class="bg-brand-600 text-white rounded-xl px-3 py-1.5 text-xs font-bold"><%= t('np.shop.update') %></button>
+      </form>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="font-bold text-slate-800"><%= plan.title || t('np.today.title') %></h2>
+      <span class="text-xs text-slate-400"><%= shopping.days %> <%= t('np.shop.days') %></span>
+    </div>
+    <% if (!shopping.lines.length) { %>
+      <p class="p-6 text-center text-sm text-slate-400"><%= t('np.shop.empty') %></p>
+    <% } else { %>
+      <div class="divide-y divide-slate-100">
+        <% shopping.lines.forEach(function (line) { %>
+          <label class="shop-row px-4 py-3 flex items-center gap-3 text-sm cursor-pointer hover:bg-slate-50">
+            <input type="checkbox" class="shop-check w-5 h-5 accent-green-600"
+                   data-line-key="<%= line.key %>" <%= line.checked ? 'checked' : '' %> />
+            <span class="flex-1 text-slate-700"><%= line.name %></span>
+            <span class="font-bold text-slate-800"><%= line.grams %> <%= t('np.u.g') %></span>
+          </label>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (shopping.partial) { %>
+    <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-3">
+      <%= t('np.shop.partial') %> (<%= shopping.uncounted %>)
+    </p>
+  <% } %>
+
+  <div class="flex items-center justify-between gap-3 mt-4 no-print">
+    <a href="/portal" class="text-sm text-brand-700 font-bold hover:underline"><%= t('np.shop.back') %></a>
+    <button type="button" id="clearShop" class="text-xs text-slate-500 hover:text-red-600"><%= t('np.shop.clear') %></button>
+  </div>
+<% } %>
+
+<style>@media print { header, .no-print { display:none !important; } body{background:#fff !important;} main{max-width:100% !important;padding:0 !important;} }</style>
+<script>
+  (function () {
+    var checks = Array.prototype.slice.call(document.querySelectorAll('.shop-check'));
+      function style(box) {
+        box.closest('label').classList.toggle('opacity-50', box.checked);
+        box.closest('label').classList.toggle('line-through', box.checked);
+      }
+      function save(box, previous) {
+        return fetch('/portal/shopping-list/check', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            line_key: box.getAttribute('data-line-key'),
+            checked: box.checked ? '1' : '0'
+          })
+        }).then(function (r) {
+          if (!r.ok) throw new Error('save failed');
+        }).catch(function () {
+          box.checked = previous;
+          style(box);
+        });
+      }
+      checks.forEach(function (box) {
+        style(box);
+      box.addEventListener('change', function () {
+          var previous = !box.checked;
+          style(box);
+          save(box, previous);
+      });
+    });
+    var clear = document.getElementById('clearShop');
+      if (clear) clear.addEventListener('click', function () {
+        checks.forEach(function (box) {
+          if (!box.checked) return;
+          box.checked = false;
+          style(box);
+          save(box, true);
+        });
+      });
+  })();
+</script>
+
+</main></body></html>

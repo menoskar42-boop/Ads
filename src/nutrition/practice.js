@@ -7,6 +7,8 @@
 'use strict';
 
 const E = require('./engine');
+const engagement = require('./engagement');
+const goalTools = require('./goals');
 
 /** The practice's defaults, or the engine's if it has never saved any. */
 async function settings(pool, companyId) {
@@ -61,6 +63,115 @@ async function counts(pool, companyId) {
 }
 
 /**
+ * Goals are shown with their own report history. The company and patient
+ * predicates are repeated on both queries because a goal id is not ownership.
+ */
+async function goals(pool, companyId, patientId, { activeOnly = false, onDate = null } = {}) {
+  const params = [companyId, patientId];
+  let where = 'g.company_id=$1 AND g.patient_id=$2';
+  if (activeOnly) {
+    where += ` AND g.status='active' AND g.starts_on <= $${params.push(onDate)} AND g.ends_on >= $${params.push(onDate)}`;
+  }
+  const rows = (await pool.query(
+    `SELECT g.* FROM nutrition_goals g
+      WHERE ${where}
+      ORDER BY CASE WHEN g.status='active' THEN 0 ELSE 1 END, g.starts_on DESC, g.id DESC
+      LIMIT 50`, params)).rows;
+  if (!rows.length) return [];
+  const logs = (await pool.query(
+    `SELECT * FROM nutrition_goal_logs
+      WHERE company_id=$1 AND patient_id=$2 AND goal_id = ANY($3::int[])
+      ORDER BY on_date, id`, [companyId, patientId, rows.map((g) => g.id)])).rows;
+  return rows.map((goal) => goalTools.decorate(goal, logs.filter((log) => log.goal_id === goal.id)));
+}
+
+/**
+ * What the active patients recorded in the current seven-day window.
+ *
+ * The window is calculated in SQL so it uses the database's calendar date,
+ * just like the rows patients create with CURRENT_DATE. Every source is
+ * company-scoped, including the active plan and its lines.
+ */
+async function weeklyEngagement(pool, companyId, days = engagement.DEFAULT_DAYS) {
+  const windowDays = Math.max(1, Math.min(31, parseInt(days, 10) || engagement.DEFAULT_DAYS));
+  const r = await pool.query(
+    `WITH active AS (
+       SELECT id, name, phone
+         FROM nutrition_patients
+        WHERE company_id=$1 AND is_active=true
+     ),
+     plan_lines AS (
+       SELECT p.patient_id, COUNT(i.id)::int AS planned_items
+         FROM nutrition_plans p
+         LEFT JOIN nutrition_plan_items i
+           ON i.plan_id=p.id AND i.company_id=$1
+        WHERE p.company_id=$1 AND p.is_active=true
+        GROUP BY p.patient_id
+     ),
+     checkin_days AS (
+       SELECT patient_id, COUNT(DISTINCT on_date)::int AS checkin_days
+         FROM nutrition_checkins
+        WHERE company_id=$1
+          AND on_date >= CURRENT_DATE - ($2::int - 1)
+          AND on_date <= CURRENT_DATE
+        GROUP BY patient_id
+     ),
+     diary_days AS (
+       SELECT patient_id, COUNT(DISTINCT on_date)::int AS diary_days
+         FROM nutrition_diary
+        WHERE company_id=$1
+          AND on_date >= CURRENT_DATE - ($2::int - 1)
+          AND on_date <= CURRENT_DATE
+          AND kind='ate'
+        GROUP BY patient_id
+     ),
+     ticks AS (
+       SELECT patient_id, COUNT(*)::int AS completed_ticks
+         FROM nutrition_diary
+        WHERE company_id=$1
+          AND on_date >= CURRENT_DATE - ($2::int - 1)
+          AND on_date <= CURRENT_DATE
+          AND kind='tick' AND done=true
+        GROUP BY patient_id
+     ),
+     touch_days AS (
+       SELECT patient_id, on_date
+         FROM nutrition_diary
+        WHERE company_id=$1
+          AND on_date >= CURRENT_DATE - ($2::int - 1)
+          AND on_date <= CURRENT_DATE
+       GROUP BY patient_id, on_date
+       UNION
+       SELECT patient_id, on_date
+         FROM nutrition_checkins
+        WHERE company_id=$1
+          AND on_date >= CURRENT_DATE - ($2::int - 1)
+          AND on_date <= CURRENT_DATE
+       GROUP BY patient_id, on_date
+     ),
+     active_days AS (
+       SELECT patient_id, COUNT(*)::int AS active_days
+         FROM touch_days GROUP BY patient_id
+     )
+     SELECT a.id, a.name, a.phone,
+            COALESCE(ad.active_days, 0)::int AS active_days,
+            COALESCE(cd.checkin_days, 0)::int AS checkin_days,
+            COALESCE(dd.diary_days, 0)::int AS diary_days,
+            COALESCE(t.completed_ticks, 0)::int AS completed_ticks,
+            COALESCE(pl.planned_items, 0)::int AS planned_items
+       FROM active a
+       LEFT JOIN active_days ad ON ad.patient_id=a.id
+       LEFT JOIN checkin_days cd ON cd.patient_id=a.id
+       LEFT JOIN diary_days dd ON dd.patient_id=a.id
+       LEFT JOIN ticks t ON t.patient_id=a.id
+       LEFT JOIN plan_lines pl ON pl.patient_id=a.id
+      ORDER BY a.name`,
+    [companyId, windowDays]
+  );
+  return engagement.sortForFollowUp(r.rows, windowDays);
+}
+
+/**
  * One patient, with everything the file page shows.
  * The engine result is computed here from the LATEST measurement, so the
  * targets on the page always follow the most recent weight rather than a
@@ -92,6 +203,7 @@ async function file(pool, companyId, patientId) {
       `SELECT * FROM nutrition_subscriptions WHERE patient_id=$1 AND company_id=$2
         ORDER BY ends_on DESC, id DESC LIMIT 24`, [patientId, companyId]),
   ]);
+  const patientGoals = await goals(pool, companyId, patientId);
 
   const latest = meas.rows[0] || null;
   const SUB = require('./subscription');
@@ -105,6 +217,7 @@ async function file(pool, companyId, patientId) {
     measurements: meas.rows,
     labs: labs.rows,
     plans: plans.rows,
+    goals: patientGoals,
     login: login.rows[0] || null,
     calc: E.compute(patient, latest, prefs),
     latest,
@@ -133,4 +246,4 @@ function progress(series, targetWeight) {
   };
 }
 
-module.exports = { settings, patients, counts, file, progress };
+module.exports = { settings, patients, counts, weeklyEngagement, goals, file, progress };
