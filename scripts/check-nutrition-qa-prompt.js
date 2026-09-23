@@ -6,7 +6,8 @@
  * لأ، المختبِر هيكتب ❌ على نظام سليم — أو أسوأ: هنعدّل النظام عشان يطابق
  * برومبت غلط. فالفحص ده بيعيد حساب **كل صف** في جدول المتوقَّع من
  * src/nutrition/engine.js نفسه، وبيتأكد من:
- *   · إيميل الديمو = اللي في scripts/enable-demo-nutrition.js، ومفيش كلمة سر.
+ *   · إن البرومبت **مش** على الديمو (الديمو قراءة فقط ومابيدخلش بكلمة سر)،
+ *     وإن عيادة التجربة مابتكتبش وصف/نبذة (عشان صفحتها تفضل noindex)، ومفيش كلمة سر.
  *   · المسارات اللي البرومبت بيفتحها موجودة (تصدير · كلمة سر البوابة · القائمة الجاهزة).
  *   · أرقام «أرز أبيض مسلوق» وعدد القائمة الجاهزة = food_catalog.js.
  *   · حد السعرات في الفورم (900) وحد الأنثى (1200) = الكود.
@@ -29,10 +30,19 @@ const prompt = (doc.match(/````\n([\s\S]*?)\n````/) || [])[1] || '';
 check('البلوك اللي بيتنسخ موجود', prompt.length > 1000);
 
 /* ── الديمو والأسرار ─────────────────────────────────────────────────── */
+// الديمو قراءة فقط وحسابه مابيدخلش بكلمة سر (isDemoLogin) — برومبت بيقول
+// «ادخل بحساب الديمو واعمل مرضى» مستحيل يتنفّذ. الاختبار على عيادة تجربة.
 const demoEmail = (code('scripts/enable-demo-nutrition.js').match(/const EMAIL = '([^']+)'/) || [])[1];
-check(`إيميل الديمو في البرومبت = ${demoEmail}`, !!demoEmail && prompt.includes(demoEmail));
+check('البرومبت مابيقولش ادخل بحساب الديمو', !!demoEmail && !prompt.includes(demoEmail));
+check('والديمو فعلاً مقفول على الدخول (لو اتفتح، راجع البرومبت)',
+  /function isDemoLogin\(slug\) \{\s*return isDemoSlug\(slug\);/.test(code('src/lib/demo_mode.js')));
+check('بيمنع استخدام كلمات السر المتحفوظة في المتصفح', /ماتستخدمش أي كلمة سر متحفوظة في المتصفح/.test(prompt));
+// صفحة عيادة التجربة العامة لازم تفضل noindex: شرط الفهرسة = وصف ≥٤٠ أو نبذة ≥٦٠.
+check('بيمنع كتابة وصف أو نبذة لعيادة التجربة', /ماتكتبش أي وصف ولا «نبذة» للعيادة/.test(prompt));
+check('وشرط الفهرسة في السايت‌ماب لسه ٤٠/٦٠ (لو اتغيّر، راجع البرومبت)',
+  /row\.page_type === 'nutrition'\s*\n\s*\? \(Number\(row\.desc_len\) >= 40 \|\| Number\(row\.nutri_about_len\) >= 60\)/.test(code('src/routes/legal.js')));
 check('مفيش كلمة سر مكتوبة', !/(password|باسورد|كلمة السر)\s*[:=]\s*\S{4,}/i.test(prompt));
-check('وبيقول للمختبِر مايكتبش كلمة السر', /ماتكتبهاش في\s*\n?\s*التقرير/.test(prompt));
+check('وبيقول للمختبِر مايكتبش كلمة السر', /ماتكتبش كلمة السر في التقرير|ماتكتبهاش في التقرير/.test(prompt));
 
 /* ── جدول المدخلات والمتوقَّع ──────────────────────────────────────────── */
 const ACT = { 'قليل الحركة': 'sedentary', 'نشاط خفيف': 'light', 'نشاط متوسط': 'moderate', 'نشيط': 'active', 'نشيط جداً': 'very_active' };
@@ -95,7 +105,7 @@ check('القائمة الجاهزة /foods/starter موجودة', /router\.post
 check('noindex في لوحة التغذية', /noindex,nofollow/.test(code('src/views/nutrition_admin/head.ejs')));
 check('noindex في البوابة', /noindex,nofollow/.test(code('src/views/nutrition_portal/head.ejs')));
 check('البوابة على <slug>.oscardevs.com/portal', /portalUrl: 'https:\/\/' \+ req\.company\.slug \+ '\.oscardevs\.com\/portal'/.test(admin)
-  && prompt.includes('https://nutrition.oscardevs.com/portal'));
+  && prompt.includes('.oscardevs.com/portal') && !prompt.includes('https://nutrition.oscardevs.com/portal'));
 
 if (errors.length) {
   console.log('❌ check-nutrition-qa-prompt:');
