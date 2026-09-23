@@ -23,6 +23,26 @@ test("account complaints returns totals for all filtered lines", () => {
   assert.match(route, /complaintTotal,/);
 });
 
+test("deduplicates a complaint that exists in both 430D sheets", () => {
+  assert.match(
+    route,
+    /SELECT \$\{sp\("cd\.phone_number"\)\} AS short_phone, cd\.complain_no, cd\.complain_time,\s+1 AS source_priority/,
+  );
+  assert.match(
+    route,
+    /SELECT \$\{sp\("rc\.phone_number"\)\} AS short_phone, rc\.complain_no, rc\.complain_time,\s+2 AS source_priority/,
+  );
+  assert.match(
+    route,
+    /complaint_deduped AS \(\s+SELECT DISTINCT ON \(complain_no\)[\s\S]*?ORDER BY complain_no, source_priority/,
+  );
+  assert.match(route, /FROM complaint_deduped\s+GROUP BY short_phone/);
+  assert.doesNotMatch(
+    route,
+    /FROM complaint_rows\s+WHERE short_phone <> ''\s+GROUP BY short_phone/,
+  );
+});
+
 test("the report sends the complaint filter and displays both totals", () => {
   assert.match(client, /p\.set\("complaintsGt", complaintsGt\.trim\(\)\)/);
   assert.match(client, /إجمالي الخطوط/);

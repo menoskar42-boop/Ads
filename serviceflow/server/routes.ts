@@ -5697,7 +5697,10 @@ export async function registerRoutes(
   });
 
   // GET /api/phone-lines/account-complaints — أرقام لها أكونت مرتبة بعدد الشكاوى
-  // المصدر هنا مقصود به شيتا 430D فقط: complaint_details و remaining_complaints.
+    // المصدر هنا مقصود به شيتا 430D فقط: complaint_details و remaining_complaints.
+    // نفس رقم الشكوى قد يظهر فى الشيتين (مثلاً بعد انتظام الشكوى ونقلها من
+    // «المتبقى» إلى «التفاصيل»)، لذلك لا يجوز عده مرتين. رقم الشكوى هو مفتاح
+    // الشكوى، مع تفضيل سجل «التفاصيل» عند وجود السجلين.
   app.get("/api/phone-lines/account-complaints", requireAuth, async (req, res) => {
     const {
       dateFrom = "", dateTo = "", search = "", central = "", cabin = "", box = "",
@@ -5757,21 +5760,27 @@ export async function registerRoutes(
     }
 
     const complaintCte = `WITH complaint_rows AS (
-      SELECT ${sp("cd.phone_number")} AS short_phone, cd.complain_time
+      SELECT ${sp("cd.phone_number")} AS short_phone, cd.complain_no, cd.complain_time,
+             1 AS source_priority
       FROM complaint_details cd
       WHERE cd.complain_time IS NOT NULL
         AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
       UNION ALL
-      SELECT ${sp("rc.phone_number")} AS short_phone, rc.complain_time
+      SELECT ${sp("rc.phone_number")} AS short_phone, rc.complain_no, rc.complain_time,
+             2 AS source_priority
       FROM remaining_complaints rc
       WHERE rc.complain_time IS NOT NULL
         AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+    ), complaint_deduped AS (
+      SELECT DISTINCT ON (complain_no) short_phone, complain_no, complain_time
+      FROM complaint_rows
+      WHERE short_phone <> '' AND complain_no <> ''
+      ORDER BY complain_no, source_priority
     ), complaint_summary AS (
       SELECT short_phone, COUNT(*)::int AS complaint_count,
              MIN(complain_time) AS earliest_complaint,
              MAX(complain_time) AS latest_complaint
-      FROM complaint_rows
-      WHERE short_phone <> ''
+      FROM complaint_deduped
       GROUP BY short_phone
     )`;
     if (complaintsGreaterThan !== null) {
