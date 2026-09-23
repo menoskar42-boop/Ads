@@ -58,7 +58,7 @@ test("the period-and-total tab shows both counts and defaults to the current mon
   assert.match(client, /"عدد الشكاوى خلال الفترة": r\.complaintCount/);
   assert.match(client, /"إجمالي الشكاوى المخزنة": r\.totalComplaintCount/);
   assert.match(client, /mode === "period-total"/);
-  assert.match(client, /from: `\$\{to\.slice\(0, 8\)\}01`/);
+  assert.match(client, /\? `\$\{to\.slice\(0, 8\)\}01`/);
   assert.match(client, /oneYearBefore\(to\)/);
   assert.match(client, /setDateFrom\(nextDates\.from\)/);
   assert.match(route, /`ranked\."complaintCount" DESC, ranked\."fullPhone"`/);
