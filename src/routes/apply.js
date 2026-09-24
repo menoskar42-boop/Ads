@@ -18,7 +18,7 @@ const { canonicalCompanyUrl } = require('../lib/urls');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const TERMS_VERSION = '1.0';
+const TERMS_VERSION = '1.1';
 
 // The definition of what a customer may request, and the source
 // scripts/check-page-types.js reads to verify every other place that offers a

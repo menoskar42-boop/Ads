@@ -5,7 +5,7 @@ const { rateLimit } = require('../middleware/rateLimit');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const TERMS_VERSION = '1.0';
+const TERMS_VERSION = '1.1';
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://oscardevs.com';
 // Bare base domain (e.g. "oscardevs.com") for building the production subdomain
 // URLs that tenant pages canonicalize to — so the sitemap lists the same URLs.
