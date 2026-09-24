@@ -50,6 +50,14 @@ const formatEmailDate = (value: string) => {
 const westernDigits = (value: string) =>
   value.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
 
+const splitCabinetCable = (value: string | null) => {
+  const raw = String(value || "").trim();
+  const numericPair = westernDigits(raw).match(/^(\d+)\s*-\s*(\d+)$/);
+  return numericPair
+    ? { cabinetNumber: numericPair[1], cableNumber: numericPair[2] }
+    : { cabinetNumber: raw, cableNumber: "" };
+};
+
 export function MajorFaultClosureReport() {
   const [phoneInput, setPhoneInput] = useState("");
   const [line, setLine] = useState<LineData | null>(null);
@@ -61,7 +69,6 @@ export function MajorFaultClosureReport() {
   const [closeDate, setCloseDate] = useState(() => localISODate(1));
   const [boxFrom, setBoxFrom] = useState("");
   const [boxTo, setBoxTo] = useState("");
-  const [cable, setCable] = useState("");
 
   const [exchangeCode, setExchangeCode] = useState("");
   const [statsRows, setStatsRows] = useState<EditableStat[]>([]);
@@ -69,17 +76,13 @@ export function MajorFaultClosureReport() {
   const [statsError, setStatsError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const cabinetParts = splitCabinetCable(line?.cabinNumber ?? null);
+  const cableNumber = line
+    ? (cabinetParts.cableNumber || (element === "cabinet" ? line.primaryBlockNo : line.secBlockNo) || "")
+    : "";
   const rangeValid = /^\d+$/.test(boxFrom) && /^\d+$/.test(boxTo) &&
     Number(boxFrom) >= 1 && Number(boxTo) >= Number(boxFrom) &&
     Number(boxTo) - Number(boxFrom) <= 299;
-
-  useEffect(() => {
-    if (!line) {
-      setCable("");
-      return;
-    }
-    setCable(element === "cabinet" ? (line.primaryBlockNo || "") : (line.secBlockNo || ""));
-  }, [line, element]);
 
   useEffect(() => {
     setStatsRows([]);
@@ -99,7 +102,8 @@ export function MajorFaultClosureReport() {
       setStatsLoading(true);
       const params = new URLSearchParams({
         central: line.central || "",
-        cabin: line.cabinNumber || "",
+        cabin: cabinetParts.cabinetNumber,
+        rawCabin: line.cabinNumber || cabinetParts.cabinetNumber,
         element,
       });
       if (element === "boxes") {
@@ -186,26 +190,26 @@ export function MajorFaultClosureReport() {
         "اغلاق جسيم",
         reason,
         subjectType,
-        line.central ? `سنترال ${line.central}` : "",
-        cable.trim() ? `كابل ${cable.trim()}` : "",
-        line.cabinNumber ? `كابينة ${line.cabinNumber}` : "",
+         line.central ? `سنترال ${line.central}` : "",
+         cableNumber.trim() ? `كابل ${cableNumber.trim()}` : "",
+         cabinetParts.cabinetNumber ? `كابينة ${cabinetParts.cabinetNumber}` : "",
         element === "boxes" && rangeValid ? `بكسيات ${boxFrom} إلى ${boxTo}` : "",
       ].filter(Boolean).join(" ")
     : "";
 
-  const tableRow = line && totals.complete ? [
+  const tableRow = line && statsRows.length > 0 ? [
     "وسط الصعيد",
     "أسيوط",
     line.central || "",
     exchangeCode,
-    cable,
-    line.cabinNumber || "",
+    cableNumber,
+    cabinetParts.cabinetNumber,
     element === "cabinet" ? "الكل" : `${boxFrom}-${boxTo}`,
     line.iduNo || "",
     line.oduNo || "",
     subjectType,
-    totals.capacity,
-    totals.working,
+    totals.capacity ?? "",
+    totals.working ?? "",
     reason,
     formatEmailDate(closeDate),
     element === "cabinet" ? "كابينة" : "بكسيات",
@@ -213,6 +217,56 @@ export function MajorFaultClosureReport() {
     "088",
     "maged.gadallah@te.eg",
   ] : null;
+
+  const editableStatsTable = (
+    <div className="overflow-x-auto rounded border bg-background">
+      <Table className="text-sm">
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-right">العنصر</TableHead>
+            <TableHead className="text-right">السعة</TableHead>
+            <TableHead className="text-right">الشغال في الموقع</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {statsRows.map((row, index) => (
+            <TableRow key={row.boxNumber ?? `cabinet-${index}`}>
+              <TableCell className="whitespace-nowrap">
+                {element === "cabinet" ? `الكابينة ${cabinetParts.cabinetNumber}` : `البكس ${row.boxNumber}`}
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  aria-label={`السعة ${row.boxNumber ? `للبكس ${row.boxNumber}` : "للكابينة"}`}
+                  value={row.capacity}
+                  onChange={(event) => updateStat(index, "capacity", event.target.value)}
+                  className="h-8 w-28"
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  aria-label={`الخطوط العاملة ${row.boxNumber ? `للبكس ${row.boxNumber}` : "للكابينة"}`}
+                  value={row.workingLines}
+                  onChange={(event) => updateStat(index, "workingLines", event.target.value)}
+                  className="h-8 w-28"
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+          <TableRow className="bg-muted/40 font-semibold">
+            <TableCell>الإجمالي</TableCell>
+            <TableCell>{totals.capacity ?? "أدخل السعة الناقصة"}</TableCell>
+            <TableCell>{totals.working ?? "أدخل القيمة الناقصة"}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   const copySubject = async () => {
     if (!subject) return;
@@ -318,15 +372,6 @@ export function MajorFaultClosureReport() {
             </div>
           </>
         )}
-        <div className="grid gap-1">
-          <label className="text-xs text-muted-foreground">رقم Cable</label>
-          <Input
-            value={cable}
-            onChange={(event) => setCable(event.target.value)}
-            className="h-9 w-24"
-            disabled={!line}
-          />
-        </div>
       </form>
 
       {lookupError && <div className="text-sm text-red-600">{lookupError}</div>}
@@ -335,7 +380,7 @@ export function MajorFaultClosureReport() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm">
               <span className="font-semibold">{line.central || "—"}</span>
-              {" · "}كابينة <span className="font-semibold">{line.cabinNumber || "—"}</span>
+              {" · "}كابينة <span className="font-semibold">{cabinetParts.cabinetNumber || "—"}</span>
               {" · "}كود السنترال <span className="font-semibold">{exchangeCode || "غير متاح"}</span>
             </div>
             {statsLoading && <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> تحديث بيانات السعة</span>}
@@ -347,57 +392,43 @@ export function MajorFaultClosureReport() {
           {statsError && <div className="flex items-center gap-1 text-sm text-red-600"><AlertCircle className="h-4 w-4" />{statsError}</div>}
 
           {statsRows.length > 0 && (
-            <div className="overflow-x-auto rounded border bg-background">
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">العنصر</TableHead>
-                    <TableHead className="text-right">السعة</TableHead>
-                    <TableHead className="text-right">الشغال في الموقع</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {statsRows.map((row, index) => (
-                    <TableRow key={row.boxNumber ?? `cabinet-${index}`}>
-                      <TableCell className="whitespace-nowrap">
-                        {element === "cabinet" ? `الكابينة ${line.cabinNumber || ""}` : `البكس ${row.boxNumber}`}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={1}
-                          aria-label={`السعة ${row.boxNumber ? `للبكس ${row.boxNumber}` : "للكابينة"}`}
-                          value={row.capacity}
-                          onChange={(event) => updateStat(index, "capacity", event.target.value)}
-                          className="h-8 w-28"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={1}
-                          aria-label={`الخطوط العاملة ${row.boxNumber ? `للبكس ${row.boxNumber}` : "للكابينة"}`}
-                          value={row.workingLines}
-                          onChange={(event) => updateStat(index, "workingLines", event.target.value)}
-                          className="h-8 w-28"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="bg-muted/40 font-semibold">
-                    <TableCell>الإجمالي</TableCell>
-                    <TableCell>{totals.capacity ?? "أدخل السعة الناقصة"}</TableCell>
-                    <TableCell>{totals.working ?? "أدخل القيمة الناقصة"}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            element === "boxes" ? (
+              <>
+                <div className="overflow-x-auto rounded border bg-background">
+                  <Table className="text-sm">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-right">العنصر</TableHead>
+                        <TableHead className="text-right">السعة الإجمالية</TableHead>
+                        <TableHead className="text-right">الخطوط العاملة الإجمالية</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell className="whitespace-nowrap">البكسيات {boxFrom} إلى {boxTo}</TableCell>
+                        <TableCell>{totals.capacity ?? "أدخل السعات الناقصة بالتفاصيل"}</TableCell>
+                        <TableCell>{totals.working ?? "أدخل القيم الناقصة بالتفاصيل"}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                <details className="rounded-md border bg-background">
+                  <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+                    عرض وتعديل تفاصيل كل بكس ({statsRows.length})
+                  </summary>
+                  <div className="p-2">{editableStatsTable}</div>
+                </details>
+              </>
+            ) : editableStatsTable
           )}
           <p className="text-xs text-muted-foreground">
-            عند اختيار الكابينة يُستخدم النوع الرئيسي؛ وعند اختيار البكسيات يُستخدم النوع الثانوي. عدّل أي سعة أو عدد خطوط قبل نسخ الجدول.
+            عند اختيار الكابينة يُستخدم النوع الرئيسي؛ وعند اختيار البكسيات يُستخدم النوع الثانوي ويظهر الإجمالي فقط. افتح تفاصيل البكسيات لتعديل قيمها الفردية.
           </p>
+          {statsRows.length > 0 && !totals.complete && (
+            <p className="text-xs text-amber-700">
+              يمكن نسخ جدول البريد الآن؛ ستبقى القيم الناقصة فارغة حتى إدخالها.
+            </p>
+          )}
         </div>
       )}
 

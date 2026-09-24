@@ -7096,21 +7096,35 @@ export async function registerRoutes(
       const query = req.query as Record<string, string>;
       const central = String(query.central || "").trim();
       const cabin = String(query.cabin || "").trim();
+      const rawCabin = String(query.rawCabin || cabin).trim();
       const element = String(query.element || "");
       if (!central || !cabin) return res.status(400).json({ message: "بيانات السنترال والكابينة مطلوبة" });
       if (element !== "cabinet" && element !== "boxes") {
         return res.status(400).json({ message: "نوع العنصر غير صحيح" });
       }
+      const cabinMatches = (column: string) => {
+        const compact = `REGEXP_REPLACE(BTRIM(COALESCE(${column}, '')), '[[:space:]]+', '', 'g')`;
+        return `(
+          BTRIM(COALESCE(${column}, '')) = BTRIM($2)
+          OR BTRIM(COALESCE(${column}, '')) = BTRIM($3)
+          OR (${compact} ~ '^[0-9]+-[0-9]+$' AND SPLIT_PART(${compact}, '-', 1) = BTRIM($2))
+        )`;
+      };
 
       const centralMatch = `LOWER(REPLACE(BTRIM(COALESCE(central_name, '')), ' ', '')) =
                             LOWER(REPLACE(BTRIM($1), ' ', ''))`;
       const { rows: capacityRows } = await pool.query(
         `SELECT exch_code AS "exchangeCode", primary_capacity AS "primaryCapacity"
          FROM cabinet_capacity
-         WHERE ${centralMatch} AND BTRIM(COALESCE(cabin_number, '')) = BTRIM($2)
-         ORDER BY uploaded_at DESC, id DESC
+         WHERE ${centralMatch} AND ${cabinMatches("cabin_number")}
+         ORDER BY CASE
+                    WHEN BTRIM(COALESCE(cabin_number, '')) = BTRIM($3) THEN 0
+                    WHEN BTRIM(COALESCE(cabin_number, '')) = BTRIM($2) THEN 1
+                    ELSE 2
+                  END,
+                  uploaded_at DESC, id DESC
          LIMIT 1`,
-        [central, cabin],
+        [central, cabin, rawCabin],
       );
       const exchangeCodes: Record<string, string> = {
         "الغنايم": "GHNAT",
@@ -7126,8 +7140,8 @@ export async function registerRoutes(
            FROM phone_lines
            WHERE LOWER(REPLACE(BTRIM(COALESCE(central, '')), ' ', '')) =
                  LOWER(REPLACE(BTRIM($1), ' ', ''))
-             AND BTRIM(COALESCE(cabin_number, '')) = BTRIM($2)`,
-          [central, cabin],
+             AND ${cabinMatches("cabin_number")}`,
+          [central, cabin, rawCabin],
         );
         return res.json({
           exchangeCode,
@@ -7150,7 +7164,7 @@ export async function registerRoutes(
 
       const { rows: items } = await pool.query(
         `WITH wanted AS (
-           SELECT generate_series($3::int, $4::int) AS box_number
+           SELECT generate_series($4::int, $5::int) AS box_number
          ), dp_raw AS (
            SELECT id, capacity,
                   CASE WHEN BTRIM(COALESCE(dp_no, '')) ~ '^[0-9]+$'
@@ -7158,11 +7172,11 @@ export async function registerRoutes(
            FROM dp_inventory
            WHERE LOWER(REPLACE(BTRIM(COALESCE(central, '')), ' ', '')) =
                  LOWER(REPLACE(BTRIM($1), ' ', ''))
-             AND BTRIM(COALESCE(cabinet_no, '')) = BTRIM($2)
+              AND ${cabinMatches("cabinet_no")}
          ), dp AS (
            SELECT DISTINCT ON (box_number) box_number, capacity
            FROM dp_raw
-           WHERE box_number BETWEEN $3::int AND $4::int
+            WHERE box_number BETWEEN $4::int AND $5::int
            ORDER BY box_number, id DESC
          ), line_raw AS (
            SELECT tel_no,
@@ -7171,11 +7185,11 @@ export async function registerRoutes(
            FROM phone_lines
            WHERE LOWER(REPLACE(BTRIM(COALESCE(central, '')), ' ', '')) =
                  LOWER(REPLACE(BTRIM($1), ' ', ''))
-             AND BTRIM(COALESCE(cabin_number, '')) = BTRIM($2)
+              AND ${cabinMatches("cabin_number")}
          ), line_counts AS (
            SELECT box_number, COUNT(DISTINCT tel_no)::int AS working_lines
            FROM line_raw
-           WHERE box_number BETWEEN $3::int AND $4::int
+            WHERE box_number BETWEEN $4::int AND $5::int
            GROUP BY box_number
          )
          SELECT wanted.box_number::text AS "boxNumber",
@@ -7185,7 +7199,7 @@ export async function registerRoutes(
          LEFT JOIN dp ON dp.box_number = wanted.box_number
          LEFT JOIN line_counts ON line_counts.box_number = wanted.box_number
          ORDER BY wanted.box_number`,
-        [central, cabin, boxFrom, boxTo],
+         [central, cabin, rawCabin, boxFrom, boxTo],
       );
       res.json({ exchangeCode, items });
     } catch (e: any) {
