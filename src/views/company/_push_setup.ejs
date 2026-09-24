@@ -30,6 +30,9 @@
   var btn = document.getElementById('pushBtn');
   var hint = document.getElementById('pushHint');
   if (!card || !btn) return;
+  // النسخة التجريبية بتمنع أي كتابة، فالاشتراك (POST) كان هيترفض — والكارت
+  // كان بيقول «تعذّر التحميل» كأن النظام بايظ (فحص مانوس ٢٠٢٦-٠٩-٢٤).
+  var isDemo = <%= (typeof session !== 'undefined' && session && session.demoReadOnly) ? 'true' : 'false' %>;
 
   var supported = ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
 
@@ -47,6 +50,13 @@
     btn.disabled = !!disabled;
     btn.style.opacity = disabled ? '0.6' : '';
     btn.style.cursor = disabled ? 'default' : 'pointer';
+  }
+
+  if (isDemo) {
+    card.style.display = '';
+    setState('بتتفعّل من حسابك', true);
+    hint.textContent = 'دي نسخة تجريبية. في حسابك بتفعّلها بضغطة، وبيوصلك تنبيه على موبايلك بكل رسالة وحجز وأوردر.';
+    return;
   }
 
   if (!supported) {
@@ -75,7 +85,7 @@
   }
 
   fetch('/company/push/config', { credentials: 'same-origin' })
-    .then(function (r) { return r.json(); })
+    .then(function (r) { if (!r.ok) throw new Error('config ' + r.status); return r.json(); })
     .then(function (cfg) {
       card.style.display = '';
       if (cfg.prefs && prefsBox) {
@@ -91,7 +101,14 @@
         return;
       }
       publicKey = cfg.publicKey;
-      return navigator.serviceWorker.register('/sw.js').then(function (reg) {
+      // فشل تسجيل الـService Worker غير فشل الإعدادات: ده المتصفح نفسه
+      // (تصفّح خفي، متصفح جوّه تطبيق، أو متصفح آلي) — فبنقول كده بدل «تعذّر التحميل».
+      return navigator.serviceWorker.register('/sw.js').catch(function () {
+        publicKey = null;
+        setState('مش متاحة على المتصفح ده', true);
+        hint.textContent = 'المتصفح ده مش بيسمح بالإشعارات (غالباً تصفّح خفي أو متصفح جوّه تطبيق). افتح اللوحة من Chrome أو Safari العادي.';
+      }).then(function (reg) {
+        if (!reg) return;
         return reg.pushManager.getSubscription().then(function (sub) {
           if (sub && Notification.permission === 'granted') {
             setState('✓ الإشعارات مفعّلة', true);
@@ -105,6 +122,7 @@
     .catch(function () {
       card.style.display = '';
       setState('تعذّر التحميل', true);
+      hint.textContent = 'مقدرناش نجيب إعدادات الإشعارات — حدّث الصفحة.';
     });
 
   btn.addEventListener('click', function () {

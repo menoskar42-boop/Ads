@@ -38,6 +38,7 @@ for (const k of KEYS) {
   check(`«${k}» → ${h.path} مركّب في server.js`,
     server.includes(`app.use('${h.path}',`));
   check(`«${k}» ليه اسم عربي للرابط`, /[؀-ۿ]/.test(h.label || ''));
+  check(`«${k}» ليه اسم إنجليزي للوحة الإنجليزي`, /^[A-Za-z &]+$/.test(h.labelEn || ''));
 }
 check('sectorHome(نوع مش معروف) = null', sectorHome('portfolio') === null && sectorHome('') === null);
 
@@ -51,6 +52,8 @@ check('company.js بيحط res.locals.sectorHome',
   /res\.locals\.sectorHome = sectorHome\(res\.locals\.companyPageType\)/.test(code('src/routes/company.js')));
 check('القايمة الجانبية فيها رابط النظام',
   /href="<%= sectorHome\.path %>"/.test(code('src/views/company/_layout_top.ejs')));
+check('«فريق المتجر» مستخبّي عن القطاعات اللي ليها نظام (فريقهم جوّه نظامهم)',
+  /__can\('\/company\/staff'\)[^%]*!\(typeof sectorHome !== 'undefined' && sectorHome\)/.test(code('src/views/company/_layout_top.ejs')));
 check('اللوحة فيها كارت النظام',
   /href="<%= sectorHome\.path %>"/.test(code('src/views/company/dashboard.ejs')));
 

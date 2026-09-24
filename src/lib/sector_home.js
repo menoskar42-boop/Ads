@@ -12,16 +12,16 @@
  * مركّب في server.js لازم يبقى هنا.
  */
 const SECTOR_HOME = {
-  pharmacy:     { path: '/pharmacy',  label: 'نظام الصيدلية' },
-  orders:       { path: '/food',      label: 'نظام الطلبات والمنيو' },
-  clinic:       { path: '/clinic',    label: 'نظام العيادة' },
-  gym:          { path: '/gym',       label: 'نظام الجيم' },
-  nutrition:    { path: '/nutrition', label: 'نظام التغذية' },
-  furniture:    { path: '/furniture', label: 'نظام المعرض والمصنع' },
-  workshop:     { path: '/workshop',  label: 'نظام الورشة' },
-  hall:         { path: '/hall',      label: 'نظام القاعة' },
-  nursery:      { path: '/nursery',   label: 'نظام الحضانة' },
-  installments: { path: '/qastly',    label: 'نظام قسّطلي' },
+  pharmacy:     { path: '/pharmacy',  label: 'نظام الصيدلية', labelEn: 'Pharmacy system' },
+  orders:       { path: '/food',      label: 'نظام الطلبات والمنيو', labelEn: 'Orders & menu system' },
+  clinic:       { path: '/clinic',    label: 'نظام العيادة', labelEn: 'Clinic system' },
+  gym:          { path: '/gym',       label: 'نظام الجيم', labelEn: 'Gym system' },
+  nutrition:    { path: '/nutrition', label: 'نظام التغذية', labelEn: 'Nutrition system' },
+  furniture:    { path: '/furniture', label: 'نظام المعرض والمصنع', labelEn: 'Showroom & factory system' },
+  workshop:     { path: '/workshop',  label: 'نظام الورشة', labelEn: 'Workshop system' },
+  hall:         { path: '/hall',      label: 'نظام القاعة', labelEn: 'Hall system' },
+  nursery:      { path: '/nursery',   label: 'نظام الحضانة', labelEn: 'Nursery system' },
+  installments: { path: '/qastly',    label: 'نظام قسّطلي', labelEn: 'Qastly installments' },
 };
 
 /** نظام القطاع لنوع صفحة، أو null (بورتفوليو/متجر — لوحتهم هي /company). */

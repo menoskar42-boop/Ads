@@ -18,25 +18,26 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const FILES = [
-  'server.js',
-  'src/clinic/schema.js',
-  'src/pharmacy/schema.js',
-  'src/food/schema.js',
-  'src/gym/schema.js',
-  'src/kakeibo/schema.js',
-  'src/accounting/schema.js',
-  'src/radiology/schema.js',
-  'src/furniture/schema.js',
-  'src/nutrition/schema.js',
-];
+// Every src/**/schema.js, found rather than listed: the hand-written list had
+// drifted — workshop, hall, nursery, installments and einvoice were never checked.
+function schemaFiles(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...schemaFiles(p));
+    else if (e.name === 'schema.js') out.push(path.relative(ROOT, p));
+  }
+  return out;
+}
+const FILES = ['server.js', ...schemaFiles(path.join(ROOT, 'src')).sort()];
 
 let problems = 0;
 
 for (const rel of FILES) {
   const file = path.join(ROOT, rel);
   if (!fs.existsSync(file)) continue;
-  const src = fs.readFileSync(file, 'utf8');
+  // A comment can name a table before it exists; comments don't run.
+  const src = fs.readFileSync(file, 'utf8').replace(/--[^\n]*/g, (c) => ' '.repeat(c.length));
 
   // First position each table is created at.
   const creates = new Map();
@@ -57,6 +58,10 @@ for (const rel of FILES) {
   };
   check(/ALTER TABLE (\w+)/g, 'ALTER');
   check(/CREATE (?:UNIQUE )?INDEX IF NOT EXISTS \w+\s+ON (\w+)/g, 'INDEX');
+  // A foreign key to a table further down fails the same way. Nutrition had
+  // appointments/messages/template_items above patients/foods — every fresh
+  // database got no nutrition tables at all (2026-09-24).
+  check(/REFERENCES (\w+)\s*\(/g, 'REFERENCES');
 
   if (issues.length) {
     problems += issues.length;
@@ -67,7 +72,7 @@ for (const rel of FILES) {
 }
 
 if (problems) {
-  console.error(`\n${problems} مشكلة ترتيب — الـALTER/INDEX لازم يجي بعد CREATE TABLE بتاعه.`);
+  console.error(`\n${problems} مشكلة ترتيب — الـALTER/INDEX/REFERENCES لازم يجي بعد CREATE TABLE بتاعه.`);
   console.error('على قاعدة جديدة ده بيوقف تنفيذ باقي المخطط بالكامل من غير ما يبان.');
   process.exit(1);
 }

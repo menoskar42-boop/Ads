@@ -243,9 +243,7 @@ async function ensureFoodSchema() {
       CREATE INDEX IF NOT EXISTS idx_food_zones ON food_zones (company_id, is_active);
       ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS zone_id     INTEGER REFERENCES food_zones(id) ON DELETE SET NULL;
       ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS zone_name   TEXT;
-      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS driver_id   INTEGER REFERENCES food_staff(id) ON DELETE SET NULL;
       ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
-      CREATE INDEX IF NOT EXISTS idx_food_orders_driver ON food_orders (driver_id, status);
 
       CREATE TABLE IF NOT EXISTS food_order_events (
         id SERIAL PRIMARY KEY,
@@ -293,6 +291,9 @@ async function ensureFoodSchema() {
       -- number of them may have no username at all.
       CREATE UNIQUE INDEX IF NOT EXISTS idx_food_staff_username
         ON food_staff (lower(username)) WHERE username IS NOT NULL;
+      -- السوّاق صف في food_staff، فالعمود ده لازم ييجي بعد الجدول (check-schema-order).
+      ALTER TABLE food_orders ADD COLUMN IF NOT EXISTS driver_id   INTEGER REFERENCES food_staff(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_food_orders_driver ON food_orders (driver_id, status);
 
       CREATE TABLE IF NOT EXISTS food_reviews (
         id SERIAL PRIMARY KEY,

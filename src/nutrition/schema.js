@@ -56,87 +56,6 @@ async function ensureNutritionSchema() {
       -- «مش حشو». فالخانة فاضية لحد ما الأخصائي يكتبها.
       ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS services TEXT;
 
-      -- ── مواعيد الحجز (البند ٨٤) ────────────────────────────────────────
-      -- الزرار اللي كان على الصفحة بيفتح واتساب بجملة جاهزة. ده مش حجز:
-      -- الأخصائي بيرد بعد ساعتين يقول «الميعاد محجوز»، والمريض راح لغيره.
-      -- ومفيش أي حاجة كانت بتمنع إن اتنين يتفقوا على نفس الساعة.
-      --
-      -- الخانات **بتتحسب** من الإعدادات دي كل مرة، مش متخزّنة كصفوف: جدول
-      -- خانات متخزّن معناه إن تغيير المواعيد بيسيب خانات قديمة شغّالة.
-      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_days TEXT;      -- '0,1,2,3,4,6'
-      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_from TEXT;      -- '16:00'
-      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_to TEXT;        -- '22:00'
-      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS slot_minutes INTEGER;
-
-      CREATE TABLE IF NOT EXISTS nutrition_appointments (
-        id            SERIAL PRIMARY KEY,
-        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        -- المريض الجديد مالوش ملف لسه، فالاسم والموبايل بيتخزّنوا على الحجز
-        -- نفسه. واللي عنده ملف بيترابط بيه عشان تاريخه يبان.
-        patient_id    INTEGER REFERENCES nutrition_patients(id) ON DELETE SET NULL,
-        patient_name  TEXT NOT NULL,
-        patient_phone TEXT NOT NULL,
-        slot_at       TIMESTAMPTZ NOT NULL,
-        note          TEXT,
-        status        TEXT NOT NULL DEFAULT 'pending',  -- pending|confirmed|done|cancelled
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS idx_nut_appts ON nutrition_appointments (company_id, slot_at);
-      CREATE INDEX IF NOT EXISTS idx_nut_appts_open ON nutrition_appointments (company_id, status, slot_at);
-
-      -- ── القوالب العلاجية (البند ٨٤) ────────────────────────────────────
-      -- «إنقاص وزن ١٥٠٠ سعرة» و«بروتوكول سكري» بتتكتب لكل مريض من الأول.
-      -- القالب بيخزّن **الوصفة** (وجبة · صنف · جرامات) — مش القيم المحسوبة،
-      -- لأنه مش خطة مسلّمة لمريض: القيم بتتحسب وقت التطبيق من الصنف الحي.
-      -- ── رسايل آمنة (البند ٨٤) ──────────────────────────────────────────
-      -- المريض كان بيبعت سؤاله وصورة تحليله على واتساب رقم شخصي. هنا الكلام
-      -- جوّه النظام جنب ملفه.
-      --
-      -- **مقفولة افتراضياً**: استقبال أسئلة طبية التزام، وعيادة ما تعرفش إن
-      -- فيه صندوق وارد هتسيب مرضى مستنيين رد.
-      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS messages_enabled BOOLEAN NOT NULL DEFAULT false;
-      -- وقت الرد اللي العيادة بتوعد بيه، بكلامها هي — عشان الصفحة تقول للمريض
-      -- «الرد خلال كذا» بدل ما تسيبه يخمّن.
-      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS messages_reply_note TEXT;
-
-      CREATE TABLE IF NOT EXISTS nutrition_messages (
-        id          SERIAL PRIMARY KEY,
-        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        patient_id  INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
-        sender      TEXT NOT NULL,          -- 'patient' | 'practice'
-        -- اسم اللي رد من العيادة: المريض يعرف إنه بيكلّم الأخصائي ولا الاستقبال.
-        author_name TEXT,
-        body        TEXT NOT NULL,
-        -- «اتقرت» بتتكتب لما الطرف التاني يفتح الخيط فعلاً — مش وقت الوصول.
-        read_at     TIMESTAMPTZ,
-        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS idx_nut_messages ON nutrition_messages (company_id, patient_id, created_at);
-
-      CREATE TABLE IF NOT EXISTS nutrition_templates (
-        id         SERIAL PRIMARY KEY,
-        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        name       TEXT NOT NULL,
-        note       TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS idx_nut_templates ON nutrition_templates (company_id, name);
-
-      CREATE TABLE IF NOT EXISTS nutrition_template_items (
-        id          SERIAL PRIMARY KEY,
-        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-        template_id INTEGER NOT NULL REFERENCES nutrition_templates(id) ON DELETE CASCADE,
-        food_id     INTEGER REFERENCES nutrition_foods(id) ON DELETE SET NULL,
-        -- الاسم متنسوخ عشان القالب يفضل مقروء حتى لو الصنف اتمسح — والتطبيق
-        -- ساعتها بيرفض السطر **باسمه** بدل ما يختفي بصمت.
-        food_name   TEXT,
-        meal        TEXT NOT NULL DEFAULT 'breakfast',
-        grams       NUMERIC(7,2) NOT NULL DEFAULT 100,
-        note        TEXT,
-        sort_order  INTEGER NOT NULL DEFAULT 0
-      );
-      CREATE INDEX IF NOT EXISTS idx_nut_template_items ON nutrition_template_items (template_id, sort_order);
-
       -- The practice's own staff: an assistant with a scale, somebody on the
       -- phone. Small practices, which is exactly why this matters — the
       -- assistant used to sign in as the dietitian, so a blood panel was one
@@ -461,6 +380,90 @@ async function ensureNutritionSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_nut_shopping_checks
         ON nutrition_shopping_checks (company_id, patient_id, plan_id);
+
+      -- ⚠️ الجداول دي بتشاور على nutrition_patients و nutrition_foods، فلازم
+      -- تيجي بعدهم. كانت في أول استعلام، فعلى قاعدة جديدة الاستعلام كله كان
+      -- بيفشل ومفيش ولا جدول تغذية بيتعمل. الحارس: check-nutrition-schema-order.
+      -- ── مواعيد الحجز (البند ٨٤) ────────────────────────────────────────
+      -- الزرار اللي كان على الصفحة بيفتح واتساب بجملة جاهزة. ده مش حجز:
+      -- الأخصائي بيرد بعد ساعتين يقول «الميعاد محجوز»، والمريض راح لغيره.
+      -- ومفيش أي حاجة كانت بتمنع إن اتنين يتفقوا على نفس الساعة.
+      --
+      -- الخانات **بتتحسب** من الإعدادات دي كل مرة، مش متخزّنة كصفوف: جدول
+      -- خانات متخزّن معناه إن تغيير المواعيد بيسيب خانات قديمة شغّالة.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_days TEXT;      -- '0,1,2,3,4,6'
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_from TEXT;      -- '16:00'
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS work_to TEXT;        -- '22:00'
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS slot_minutes INTEGER;
+
+      CREATE TABLE IF NOT EXISTS nutrition_appointments (
+        id            SERIAL PRIMARY KEY,
+        company_id    INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        -- المريض الجديد مالوش ملف لسه، فالاسم والموبايل بيتخزّنوا على الحجز
+        -- نفسه. واللي عنده ملف بيترابط بيه عشان تاريخه يبان.
+        patient_id    INTEGER REFERENCES nutrition_patients(id) ON DELETE SET NULL,
+        patient_name  TEXT NOT NULL,
+        patient_phone TEXT NOT NULL,
+        slot_at       TIMESTAMPTZ NOT NULL,
+        note          TEXT,
+        status        TEXT NOT NULL DEFAULT 'pending',  -- pending|confirmed|done|cancelled
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_appts ON nutrition_appointments (company_id, slot_at);
+      CREATE INDEX IF NOT EXISTS idx_nut_appts_open ON nutrition_appointments (company_id, status, slot_at);
+
+      -- ── القوالب العلاجية (البند ٨٤) ────────────────────────────────────
+      -- «إنقاص وزن ١٥٠٠ سعرة» و«بروتوكول سكري» بتتكتب لكل مريض من الأول.
+      -- القالب بيخزّن **الوصفة** (وجبة · صنف · جرامات) — مش القيم المحسوبة،
+      -- لأنه مش خطة مسلّمة لمريض: القيم بتتحسب وقت التطبيق من الصنف الحي.
+      -- ── رسايل آمنة (البند ٨٤) ──────────────────────────────────────────
+      -- المريض كان بيبعت سؤاله وصورة تحليله على واتساب رقم شخصي. هنا الكلام
+      -- جوّه النظام جنب ملفه.
+      --
+      -- **مقفولة افتراضياً**: استقبال أسئلة طبية التزام، وعيادة ما تعرفش إن
+      -- فيه صندوق وارد هتسيب مرضى مستنيين رد.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS messages_enabled BOOLEAN NOT NULL DEFAULT false;
+      -- وقت الرد اللي العيادة بتوعد بيه، بكلامها هي — عشان الصفحة تقول للمريض
+      -- «الرد خلال كذا» بدل ما تسيبه يخمّن.
+      ALTER TABLE nutrition_settings ADD COLUMN IF NOT EXISTS messages_reply_note TEXT;
+
+      CREATE TABLE IF NOT EXISTS nutrition_messages (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        patient_id  INTEGER NOT NULL REFERENCES nutrition_patients(id) ON DELETE CASCADE,
+        sender      TEXT NOT NULL,          -- 'patient' | 'practice'
+        -- اسم اللي رد من العيادة: المريض يعرف إنه بيكلّم الأخصائي ولا الاستقبال.
+        author_name TEXT,
+        body        TEXT NOT NULL,
+        -- «اتقرت» بتتكتب لما الطرف التاني يفتح الخيط فعلاً — مش وقت الوصول.
+        read_at     TIMESTAMPTZ,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_messages ON nutrition_messages (company_id, patient_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS nutrition_templates (
+        id         SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        note       TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_templates ON nutrition_templates (company_id, name);
+
+      CREATE TABLE IF NOT EXISTS nutrition_template_items (
+        id          SERIAL PRIMARY KEY,
+        company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        template_id INTEGER NOT NULL REFERENCES nutrition_templates(id) ON DELETE CASCADE,
+        food_id     INTEGER REFERENCES nutrition_foods(id) ON DELETE SET NULL,
+        -- الاسم متنسوخ عشان القالب يفضل مقروء حتى لو الصنف اتمسح — والتطبيق
+        -- ساعتها بيرفض السطر **باسمه** بدل ما يختفي بصمت.
+        food_name   TEXT,
+        meal        TEXT NOT NULL DEFAULT 'breakfast',
+        grams       NUMERIC(7,2) NOT NULL DEFAULT 100,
+        note        TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_nut_template_items ON nutrition_template_items (template_id, sort_order);
     `);
   } finally {
     client.release();

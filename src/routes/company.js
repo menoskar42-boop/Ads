@@ -2736,6 +2736,9 @@ router.get('/staff', requireLogin, async (req, res) => {
          FROM shop_staff WHERE company_id=$1 ORDER BY is_active DESC, id`,
       [req.session.companyId])).rows;
     res.render('company/staff', {
+      // _layout_top reads session.themeColor — without it every visit was a 500
+      // (Manus QA 2026-09-24, ref muf6ufit-5x2y2). check-company-render-session.
+      session: req.session,
       staff, roles: shopPerms.ROLE_KEYS, ROLES: shopPerms.ROLES,
       saved: req.query.saved === '1',
       // Known codes only — this page never prints the address bar's words.
