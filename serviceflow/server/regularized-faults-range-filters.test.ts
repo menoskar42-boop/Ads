@@ -44,3 +44,13 @@ test("the report sends the new filters and exposes the five technicians", () => 
   assert.match(report, /كل الكباين/);
   assert.match(report, /كل البكسيات/);
 });
+
+test("phone rows open the shared line details dialog", () => {
+  assert.match(report, /import \{ LineDetailsDialog \} from "@\/components\/LineDetailsDialog";/);
+  assert.match(report, /const \[detailPhone, setDetailPhone\] = useState<string \| null>\(null\)/);
+  assert.match(report, /onClick=\{\(\) => setDetailPhone\(f\.phoneShort!\)\}/);
+  assert.match(
+    report,
+    /\{detailPhone && <LineDetailsDialog phone=\{detailPhone\} onClose=\{\(\) => setDetailPhone\(null\)\} \/>\}/,
+  );
+});

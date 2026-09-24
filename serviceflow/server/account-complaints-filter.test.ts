@@ -22,6 +22,19 @@ test("account complaints supports a strict greater-than complaint filter", () =>
   assert.match(route, /cs\.complaint_count > \$\$\{params\.length\}/);
 });
 
+test("account complaints filters lines by whether they have a mobile number", () => {
+  assert.match(route, /hasMobile = ""/);
+  assert.match(route, /phoneNormSql\("la\.full_phone"\)\} IN \$\{HAS_MOBILE_SET\}/);
+  assert.match(route, /hasMobile === "1" \|\| hasMobile === "true"/);
+  assert.match(route, /hasMobile === "0" \|\| hasMobile === "false"/);
+  assert.match(client, /mobileFilter !== "all"/);
+  assert.match(client, /p\.set\("hasMobile", mobileFilter === "has" \? "1" : "0"\)/);
+  assert.match(client, /mobileFilter, excludeContactedAfterComplaint, reportMode, page/);
+  assert.match(client, /<option value="all">الموبايل: الكل<\/option>/);
+  assert.match(client, /<option value="has">لها موبايل<\/option>/);
+  assert.match(client, /<option value="missing">بدون موبايل<\/option>/);
+});
+
 test("account complaints can exclude lines contacted after their latest in-period complaint", () => {
   assert.match(route, /excludeContactedAfterComplaint = ""/);
   assert.match(route, /excludeContactedAfterComplaint === "true"/);

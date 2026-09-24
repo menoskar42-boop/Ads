@@ -12,10 +12,11 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Repeat, Radar, Gauge, X, History } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Repeat, Radar, Gauge, X, History, Info } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
+import { LineDetailsDialog } from "@/components/LineDetailsDialog";
 import { closeReason } from "@/lib/close-codes";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
@@ -118,6 +119,7 @@ export function RegularizedFaultsRangeReport() {
   const { user } = useAuth();
   const isTechnician = user?.role === ROLES.TECH;
   useSpeedToolSource("الأعطال المنتظمة (مدى)");
+  const [detailPhone, setDetailPhone] = useState<string | null>(null);
   const [editingMobileIndex, setEditingMobileIndex] = useState<number | null>(null);
   const [mobileInput, setMobileInput] = useState("");
   const [savingMobile, setSavingMobile] = useState(false);
@@ -612,6 +614,8 @@ export function RegularizedFaultsRangeReport() {
         </Button>
       </div>
 
+      {detailPhone && <LineDetailsDialog phone={detailPhone} onClose={() => setDetailPhone(null)} />}
+
       {/* Table */}
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
         <div className="overflow-x-auto">
@@ -682,7 +686,22 @@ export function RegularizedFaultsRangeReport() {
                     </span>
                   </TableCell>
                   <TableCell>{f.centralName || "-"}</TableCell>
-                  <TableCell dir="ltr" className="text-left font-mono">{f.phoneShort || "-"}</TableCell>
+                  <TableCell dir="ltr" className="text-left font-mono">
+                    <span className="inline-flex items-center gap-1.5">
+                      {f.phoneShort || "-"}
+                      {f.phoneShort && (
+                        <button
+                          type="button"
+                          onClick={() => setDetailPhone(f.phoneShort!)}
+                          title="تفاصيل الخط والاتصال"
+                          aria-label={`تفاصيل الخط والاتصال ${f.phoneShort}`}
+                          className="text-purple-600 hover:text-purple-800"
+                        >
+                          <Info className="w-4 h-4" />
+                        </button>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell dir="ltr" className="text-left">
                     {isSuper && editingMobileIndex === i ? (
                       <span className="inline-flex items-center gap-1">

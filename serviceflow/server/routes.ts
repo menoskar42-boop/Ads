@@ -5716,7 +5716,7 @@ export async function registerRoutes(
     const {
       dateFrom = "", dateTo = "", search = "", central = "", cabin = "", box = "",
       accountQ = "", complaintsGt = "", sortBy = "", page = "1", limit = "50",
-      excludeContactedAfterComplaint = "",
+      excludeContactedAfterComplaint = "", hasMobile = "",
     } = req.query as Record<string, string>;
     const shouldExcludeContactedAfterComplaint = excludeContactedAfterComplaint === "true";
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -5748,6 +5748,13 @@ export async function registerRoutes(
       "btrim(la.account_no) <> ''",
       hasFrameSql("la.full_phone"),
     ];
+    // نفس مصادر الموبايل الموحّدة المستخدمة فى بقية التقارير.
+    const hasMobileClause = `${phoneNormSql("la.full_phone")} IN ${HAS_MOBILE_SET}`;
+    if (hasMobile === "1" || hasMobile === "true") {
+      lineConds.push(hasMobileClause);
+    } else if (hasMobile === "0" || hasMobile === "false") {
+      lineConds.push(`NOT ${hasMobileClause}`);
+    }
     if (central) { params.push(central); lineConds.push(`pl.central = $${params.length}`); }
     if (cabin) { params.push(cabin); lineConds.push(`pl.cabin_number = $${params.length}`); }
     if (box) { params.push(box); lineConds.push(`pl.box_number = $${params.length}`); }

@@ -96,6 +96,7 @@ export function AccountComplaintsReport() {
   const [accountQ, setAccountQ] = useState("");
   const [search, setSearch] = useState("");
   const [complaintsGt, setComplaintsGt] = useState("");
+  const [mobileFilter, setMobileFilter] = useState<"all" | "has" | "missing">("all");
   const [excludeContactedAfterComplaint, setExcludeContactedAfterComplaint] = useState(false);
   const [page, setPage] = useState(1);
   const [historyPhone, setHistoryPhone] = useState<string | null>(null);
@@ -122,6 +123,7 @@ export function AccountComplaintsReport() {
     if (accountQ.trim()) p.set("accountQ", accountQ.trim());
     if (search.trim()) p.set("search", search.trim());
     if (complaintsGt.trim()) p.set("complaintsGt", complaintsGt.trim());
+    if (mobileFilter !== "all") p.set("hasMobile", mobileFilter === "has" ? "1" : "0");
     if (excludeContactedAfterComplaint) p.set("excludeContactedAfterComplaint", "true");
     return p;
   };
@@ -130,7 +132,7 @@ export function AccountComplaintsReport() {
     queryKey: [
       "/api/phone-lines/account-complaints",
        dateFrom, dateTo, central, cabin, box, accountQ, search, complaintsGt,
-       excludeContactedAfterComplaint, reportMode, page,
+       mobileFilter, excludeContactedAfterComplaint, reportMode, page,
     ],
     queryFn: async () => {
       const res = await fetch(`/api/phone-lines/account-complaints?${buildParams()}`, { credentials: "include" });
@@ -260,6 +262,20 @@ export function AccountComplaintsReport() {
                className="w-full sm:w-36 h-9 text-sm"
                dir="ltr"
              />
+            <select
+              value={mobileFilter}
+              onChange={(e) => {
+                setMobileFilter(e.target.value as "all" | "has" | "missing");
+                resetPage();
+              }}
+              aria-label="فلتر حسب وجود رقم الموبايل"
+              title="فلتر حسب وجود رقم الموبايل"
+              className="h-9 w-full sm:w-40 rounded-md border bg-white px-2 text-sm"
+            >
+              <option value="all">الموبايل: الكل</option>
+              <option value="has">لها موبايل</option>
+              <option value="missing">بدون موبايل</option>
+            </select>
             <Button
               type="button"
               variant="outline"
