@@ -246,6 +246,11 @@ export function CurrentFaultsReport() {
       "Field1": f.centralName,
       "رقم التلفون": f.phoneShort,
       "رقم الأكونت": f.accountNo,
+      "السرعة الحالية": f.lineCurrentSpeed ?? "",
+      "أقصى سرعة": f.lineMaxSpeed ?? "",
+      "الاسكور": f.lastMeasScore ?? "",
+      "حالة تحسين البروفايل": f.poStatus ?? "",
+      "تاريخ آخر قياس": fmtDt(f.lastMeasTime),
       "القياس الحالى (نفس الشكوى)": f.curMeasScore,
       "آخر قياس للرقم": f.lastMeasScore,
       "حالة تحسين البروفايل": f.poStatus ?? "",
@@ -287,7 +292,7 @@ export function CurrentFaultsReport() {
     const ROWS_PER_PAGE = 10;
     const totalPages = Math.max(1, Math.ceil(displayed.length / ROWS_PER_PAGE));
     const headRow = `<tr>
-      <th>#</th><th>السنترال</th><th>التليفون</th><th>الأكونت</th><th>قياس حالى</th><th>آخر قياس</th><th>حالة PO</th><th>تكرار</th><th>Status</th>
+      <th>#</th><th>السنترال</th><th>التليفون</th><th>الأكونت</th><th>سرعة حالية</th><th>أقصى سرعة</th><th>الاسكور</th><th>حالة PO</th><th>تاريخ آخر قياس</th><th>قياس حالى</th><th>آخر قياس</th><th>تكرار</th><th>Status</th>
       <th>MSAN</th><th>Frame</th>
       <th>الكابينه</th><th>البكس</th><th>ترمنال</th><th>وقت الشكوى</th><th>الوقت الفعلى</th><th>نوع الشكوى</th>
       <th>تصنيف</th><th>كود العامل</th><th>اسم الفنى</th><th>نوع العطل</th><th>Voice</th><th>Data</th>
@@ -301,6 +306,11 @@ export function CurrentFaultsReport() {
           <td>${esc(f.centralName)}</td>
           <td>${esc(f.phoneShort)}</td>
           <td>${esc(f.accountNo)}</td>
+          <td>${esc(f.lineCurrentSpeed)}</td>
+          <td>${esc(f.lineMaxSpeed)}</td>
+          <td>${esc(f.lastMeasScore)}</td>
+          <td>${esc(poStatusShort(f.poStatus))}</td>
+          <td>${esc(fmtDt(f.lastMeasTime))}</td>
           <td>${esc(f.curMeasScore)}</td>
           <td>${esc(f.lastMeasScore)}</td><td>${esc(poStatusShort(f.poStatus))}</td>
           <td>${esc(f.repeatStatus)}</td>
@@ -488,6 +498,11 @@ export function CurrentFaultsReport() {
                 <TableHead className="text-right font-bold text-white">تصنيف</TableHead>
                 <TableHead className="text-right font-bold text-white">اسم الفنى</TableHead>
                 <TableHead className="text-right font-bold text-white">رقم الأكونت</TableHead>
+                <TableHead className="text-right font-bold text-white whitespace-nowrap">السرعة الحالية</TableHead>
+                <TableHead className="text-right font-bold text-white whitespace-nowrap">أقصى سرعة</TableHead>
+                <TableHead className="text-right font-bold text-white">الاسكور</TableHead>
+                <TableHead className="text-right font-bold text-white">حالة PO</TableHead>
+                <TableHead className="text-right font-bold text-white whitespace-nowrap">تاريخ آخر قياس</TableHead>
                 <TableHead className="text-right font-bold text-white">قياس</TableHead>
                 <TableHead className="text-right font-bold text-white">ONU</TableHead>
                 <TableHead className="text-right font-bold text-white">كود العامل</TableHead>
@@ -506,7 +521,7 @@ export function CurrentFaultsReport() {
             <TableBody>
               {displayed.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={27} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={35} className="text-center py-16 text-muted-foreground">
                     {isFetching
                       ? "جاري التحميل..."
                       : repeatedOnly
@@ -565,6 +580,11 @@ export function CurrentFaultsReport() {
                         </span>
                       ) : "-"}
                     </TableCell>
+                    <TableCell>{f.lineCurrentSpeed || "-"}</TableCell>
+                    <TableCell>{f.lineMaxSpeed || "-"}</TableCell>
+                    <TableCell>{f.lastMeasScore ?? "-"}</TableCell>
+                    <TableCell><PoStatusCell value={f.poStatus} /></TableCell>
+                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap">{fmtDt(f.lastMeasTime)}</TableCell>
                     <TableCell><Measurement138Button m={f} /></TableCell>
                     <TableCell>{f.onu || "-"}</TableCell>
                     <TableCell>{f.workerCode || "-"}</TableCell>
