@@ -7,6 +7,10 @@ const client = readFileSync(
   new URL("../client/src/components/AccountComplaintsReport.tsx", import.meta.url),
   "utf8",
 );
+const repeatedReport = readFileSync(
+  new URL("../client/src/components/RepeatedWithinMonthReport.tsx", import.meta.url),
+  "utf8",
+);
 
 const routeStart = routes.indexOf('app.get("/api/phone-lines/account-complaints"');
 const routeEnd = routes.indexOf('app.get("/api/customer-contact-logs"', routeStart);
@@ -24,6 +28,11 @@ test("account complaints can exclude lines contacted after their latest in-perio
   assert.match(route, /contact\.contacted_at IS NULL\s+OR contact\.contacted_at <= cs\.latest_complaint/);
   assert.match(client, /p\.set\("excludeContactedAfterComplaint", "true"\)/);
   assert.match(client, /استبعاد المتصل بها بعد أحدث شكوى/);
+});
+
+test("account complaints matches contact logs saved from the repeated-complaints report", () => {
+  assert.match(repeatedReport, /onClick=\{\(\) => setDetailPhone\(r\.phoneShort!\)\}/);
+  assert.match(route, /WHERE \$\{sp\("ccl\.full_phone"\)\} = \$\{sp\("la\.full_phone"\)\}/);
 });
 
 test("account complaints returns totals for all filtered lines", () => {

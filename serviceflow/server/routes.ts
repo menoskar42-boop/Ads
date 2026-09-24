@@ -5840,7 +5840,7 @@ export async function registerRoutes(
       LEFT JOIN LATERAL (
         SELECT contacted_at, outcome
         FROM customer_contact_logs ccl
-        WHERE ccl.full_phone = la.full_phone
+        WHERE ${sp("ccl.full_phone")} = ${sp("la.full_phone")}
         ORDER BY contacted_at DESC, id DESC
         LIMIT 1
       ) contact ON true`;
