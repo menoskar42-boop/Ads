@@ -43,7 +43,7 @@ export function MajorFaultsReport({ selectedOnly = false }: { selectedOnly?: boo
   // خانات أعلى التقرير: تاريخ رفع الجسيم + نوع الجسيم (اتلاف/صيانة) + العنصر المرفوع (بكسيات/الكابينة).
   const [raiseDate, setRaiseDate] = useState(todayISO());
   const [reason, setReason] = useState("صيانة");
-  const [element, setElement] = useState("بكسيات");
+  const [element, setElement] = useState(selectedOnly ? "الكابينة" : "بكسيات");
   const mobileLookup = useMobileLookup(rows.map((f) => f.phoneShort));
 
   const load = useCallback(async () => {
