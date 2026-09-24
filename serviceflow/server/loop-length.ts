@@ -6,6 +6,13 @@
 /** أقصى طول خط معقول (٢٠ كم). أى حاجة أكبر غلطة قراية مش خط. */
 export const MAX_LOOP_M = 20000;
 
+/** A blank DZS result is not an instruction to erase the previously known loop length. */
+export function preserveLoopLength(incoming: unknown, previous: unknown): string | null {
+  const clean = (value: unknown) =>
+    String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 60) || null;
+  return clean(incoming) ?? clean(previous);
+}
+
 export function loopMeters(raw: unknown): number | null {
   const s = String(raw ?? "").trim().toLowerCase().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
   if (!s || /^n\/?a$/.test(s) || s === "-") return null;

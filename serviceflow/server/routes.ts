@@ -27,7 +27,7 @@ import { registerCfmRoutes } from "./cfm/routes";
 import { storage as cfmStorage } from "./cfm/storage";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
-import { loopMeters, speedKbps } from "./loop-length";
+import { loopMeters, preserveLoopLength, speedKbps } from "./loop-length";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
 import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
@@ -6957,7 +6957,19 @@ export async function registerRoutes(
        LEFT JOIN msan_tech_overrides mto ON mto.cabin_code = ctc.cabin_code
        LEFT JOIN LATERAL (
          SELECT c2.full_phone, c2.current_speed, c2.max_speed, c2.score, c2.po_status, c2.uploaded_at, c2.measured_by,
-                c2.measured_at, c2.measure_mode, c2.loop_length, c2.hist_label, c2.source
+                 c2.measured_at, c2.measure_mode,
+                 COALESCE(
+                   NULLIF(btrim(c2.loop_length), ''),
+                   (
+                     SELECT NULLIF(btrim(c3.loop_length), '')
+                       FROM case_138 c3
+                      WHERE c3.full_phone = c2.full_phone
+                        AND NULLIF(btrim(c3.loop_length), '') IS NOT NULL
+                      ORDER BY c3.id DESC
+                      LIMIT 1
+                   )
+                 ) AS loop_length,
+                 c2.hist_label, c2.source
          FROM case_138 c2 WHERE c2.full_phone = COALESCE(pl.full_phone, t.full) ORDER BY c2.id DESC LIMIT 1
        ) c ON true
        LEFT JOIN LATERAL (
@@ -9409,11 +9421,11 @@ export async function registerRoutes(
       const rawAt = String(it.measuredAt ?? "").trim().replace("T", " ");
       const measuredAt = measureMode === "noreal" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(rawAt)
         ? rawAt : null;
-      // «Estimated Loop Length» زى ما هو فى شاشة DSL («1402 meters» / «N/A» / فاضى).
-      // فى «بدون Real» بنخزّن حتى الفاضى ("") عشان يبان إنه اتقرا وكان فاضى، مش إنه ماتقراش.
-      const loopLength = measureMode === "noreal"
-        ? (it.loopLength ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 60)
-        : ((it.loopLength ?? "").toString().replace(/\s+/g, " ").trim().slice(0, 60) || null);
+      // طول الخط خاصية للخط نفسه؛ قياس Real غالباً لا يقرأها. القيمة الفارغة
+      // لا تمسح آخر قيمة معروفة: تعبير INSERT أدناه ينقل أحدث قيمة غير فارغة لنفس الخط.
+      const incomingLoopLength = preserveLoopLength(it.loopLength, null);
+      const loopLength = incomingLoopLength ?? (measureMode === "noreal" ? "" : null);
+      // فى قياس بدون Real نحتفظ بتمييز القراءة الفارغة لو لم توجد قيمة سابقة.
       // الخيار اللى اتاخد من History Check زى ما هو — منه بيبان «(Realtime)» لو مكتوب.
       const histLabel = measureMode === "noreal"
         ? ((it.histLabel ?? "").toString().replace(/^\s*\d+\.\s*/, "").replace(/\s+/g, " ").trim().slice(0, 80) || null)
@@ -9428,7 +9440,22 @@ export async function registerRoutes(
             $10,
             -- LEAST: لو ساعة AXON متقدّمة شوية، مانسجّلش قياس فى المستقبل.
             LEAST(COALESCE($11::timestamp AT TIME ZONE 'Africa/Cairo', now()), now()),
-            $12, $13)`,
+             COALESCE(
+               NULLIF($12::text, ''),
+               (
+                 SELECT NULLIF(btrim(c.loop_length), '')
+                   FROM case_138 c
+                  WHERE (($6::text IS NOT NULL AND c.full_phone = $6)
+                     OR ($1::text IS NOT NULL AND c.phone_short = $1)
+                     OR ($6::text IS NULL AND $1::text IS NULL
+                         AND $7::text IS NOT NULL AND c.account_no = $7))
+                    AND NULLIF(btrim(c.loop_length), '') IS NOT NULL
+                  ORDER BY c.id DESC
+                  LIMIT 1
+               ),
+               CASE WHEN $10 = 'noreal' THEN '' ELSE NULL END
+             ),
+             $13)`,
         [...measurementValues, measureMode, measuredAt, loopLength, histLabel],
       );
       await syncCurrentDzsMeasurement(measurementValues);

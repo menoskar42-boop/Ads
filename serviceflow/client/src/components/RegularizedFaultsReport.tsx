@@ -9,12 +9,13 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Radar, Gauge, History } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Radar, Gauge, History, Info } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
+import { LineDetailsDialog } from "@/components/LineDetailsDialog";
 import { format } from "date-fns";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 
@@ -129,6 +130,7 @@ const regBadge = (s: string | null) => {
 export function RegularizedFaultsReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
+  const [detailPhone, setDetailPhone] = useState<string | null>(null);
   useSpeedToolSource("الأعطال المنتظمة");
   const [central, setCentral] = useState("");
   const [q, setQ] = useState("");
@@ -395,6 +397,8 @@ export function RegularizedFaultsReport() {
         </Button>
       </div>
 
+      {detailPhone && <LineDetailsDialog phone={detailPhone} onClose={() => setDetailPhone(null)} />}
+
       {/* Table */}
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
         <div className="overflow-x-auto">
@@ -448,7 +452,22 @@ export function RegularizedFaultsReport() {
                   <TableRow key={i} className={rowClass}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell>{f.centralName || "-"}</TableCell>
-                    <TableCell dir="ltr" className="text-left font-mono">{f.phoneShort || "-"}</TableCell>
+                    <TableCell dir="ltr" className="text-left font-mono font-semibold text-blue-700">
+                      <span className="inline-flex items-center gap-1.5">
+                        {f.phoneShort || "-"}
+                        {f.phoneShort && (
+                          <button
+                            type="button"
+                            onClick={() => setDetailPhone(f.phoneShort!)}
+                            title="تفاصيل الخط والاتصال"
+                            aria-label={`تفاصيل الخط والاتصال ${f.phoneShort}`}
+                            className="text-purple-600 hover:text-purple-800"
+                          >
+                            <Info className="w-4 h-4" />
+                          </button>
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)]} /></TableCell>
                     <TableCell>
                       {f.repeatStatus === "مكرر" ? (
