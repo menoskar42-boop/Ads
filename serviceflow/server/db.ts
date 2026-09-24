@@ -500,6 +500,7 @@ export async function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS manual_faults_status_idx ON manual_faults (status, flagged_at);
     CREATE INDEX IF NOT EXISTS manual_faults_phone_idx ON manual_faults (phone_short);
+    CREATE INDEX IF NOT EXISTS manual_faults_regularized_at_idx ON manual_faults (regularized_at DESC) WHERE status = 'regularized';
   `);
 
   // Reconcile ticket_queue unique constraint → composite (ticket_id, status_code).
@@ -1492,6 +1493,7 @@ export async function ensureSchema() {
   // مع الاسكور — نص حر زى ما هو («PO is running…» / «PO is not currently running…»).
   await pool.query(`ALTER TABLE case_138 ADD COLUMN IF NOT EXISTS po_status text`);
   await pool.query(`CREATE INDEX IF NOT EXISTS case_138_source_idx ON case_138 (source)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS case_138_dzs_phone_uploaded_idx ON case_138 (full_phone, uploaded_at, id) WHERE source = 'dzs'`);
   // «قياس بدون Real»: تاريخ القياس الحقيقى + نوعه + طول الخط (قيد #8 — نفس الكوميت
   // بتاع shared/schema.ts). ⚠️ مشروع Service Flow القديم على ريبليت شايف نفس القاعدة:
   // لو اتعمله Republish وظهر DROP COLUMN للأعمدة دى → Cancel (السكيما دى أحدث منه).

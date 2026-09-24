@@ -9,8 +9,8 @@ Loopback hosts such as `127.0.0.1`, `localhost`, and `0.0.0.0` must resolve to t
 
 **How to apply:** Keep loopback hosts in the same root-host allowlist as Replit preview and deployment domains. Do not broaden the rule to arbitrary unknown production subdomains, which should remain tenant-routed.
 
-For Service Flow's path-hosted preview, the client must be built and run with `SF_BASE_PATH=/serviceflow/`; a bare client build emits root-relative assets and makes `/serviceflow/` appear blank even when the server is healthy.
+For Service Flow's path-hosted preview, both the child client build and the active `Start application` workflow must set `SF_BASE_PATH=/serviceflow/`. The deployment build/run settings do not automatically configure the preview workflow.
 
-**Why:** The gateway serves Service Flow below `/serviceflow/`, while Vite defaults to `/` unless the deployment environment supplies the path explicitly.
+**Why:** The gateway serves Service Flow below `/serviceflow/`, while Vite defaults to `/` unless the client build gets the path. A correct deployment setting does not fix a development workflow that omits it.
 
-**How to apply:** Preserve the explicit `SF_BASE_PATH` in `.replit` build/run commands and use the path-aware build for live preview verification.
+**How to apply:** Set `SF_BASE_PATH=/serviceflow/` on both the client build and the running preview workflow; verify that generated asset URLs start with `/serviceflow/`.

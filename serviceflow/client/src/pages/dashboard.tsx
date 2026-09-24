@@ -65,6 +65,7 @@ import { ExecJobsReport } from "@/components/ExecJobsReport";
 import { QueueReorderPanel } from "@/components/QueueReorderPanel";
 import { ExecBatchesReport } from "@/components/ExecBatchesReport";
 import { ManualCurrentFaultsReport } from "@/components/ManualCurrentFaultsReport";
+import { ManualRegularizedHighScoreReport } from "@/components/ManualRegularizedHighScoreReport";
 import { EngineeringInspectionReport } from "@/components/EngineeringInspectionReport";
 import { MajorFaultsReport } from "@/components/MajorFaultsReport";
 import { ClosedPortCabinetsReport } from "@/components/ClosedPortCabinetsReport";
@@ -84,7 +85,7 @@ import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "other-work-orders";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "other-work-orders";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -97,6 +98,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
       { id: "regularized-faults-range", label: "الأعطال المنتظمة (فترة من/إلى)" },
       { id: "manual-current-faults", label: "الأعطال الحالية خارج الشاشة" },
       { id: "manual-regularized-range", label: "الأعطال المنتظمة خارج الشاشة (فترة)" },
+      { id: "manual-regularized-high-score", label: "أعطال منتظمة خارج الشاشة - اسكور عالي" },
       { id: "repeated-within-month", label: "الأعطال المكررة خلال شهر من تاريخه" },
       { id: "cabinet-adsl-faults", label: "عدد الأعطال فى الألف" },
       { id: "removal-stats",       label: "إحصائيات الإزالة" },
@@ -281,7 +283,7 @@ export default function Dashboard() {
   // الفني: 5 تقارير فقط (الأعطال الحالية + أداء الفنيين + إحصائيات الإزالة/التكرار + متوسط القياسات)
   // «التركيبات والنقل الحالى» و«المعاينات الحالية» بيظهروا للفنى كمان — والسيرفر
   // بيفلترهم على كباينه هو (worker_code) فكل واحد يشوف اللى يخصه بس.
-  const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "installations-by-tech", "shift-schedule", "current-installations", "current-surveys"];
+  const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "installations-by-tech", "shift-schedule", "current-installations", "current-surveys"];
   const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات"];
   // أدمن المبيعات: تقرير المتعذرات الحالية فقط (عشان يدخّل رقم المحمول)
   const SALES_ADMIN_ALLOWED: ReportTab[] = ["om-current"];
@@ -763,6 +765,7 @@ export default function Dashboard() {
               {reportTab === "lines-mobile-checked" && isSuperAdmin && <LinesNoMobileReport checked />}
               {reportTab === "cfm-tickets"         && <CfmTicketsReport />}
               {reportTab === "manual-current-faults"   && <ManualCurrentFaultsReport />}
+              {reportTab === "manual-regularized-high-score" && <ManualRegularizedHighScoreReport />}
               {reportTab === "engineering-inspection"  && <EngineeringInspectionReport />}
               {reportTab === "manual-regularized-range" && <ManualRegularizedFaultsRangeReport />}
               {reportTab === "exec-jobs"           && isSuperAdmin && <ExecJobsReport />}

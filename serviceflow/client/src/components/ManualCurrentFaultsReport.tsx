@@ -117,12 +117,12 @@ export function ManualCurrentFaultsReport() {
     if (isSuper && !regTech) { alert("اختر فنى الانتظام"); return; }
     setRegBusy(true);
     try {
-      const body: any = { fullPhone: regRow.fullPhone || regRow.phoneShort, phoneShort: regRow.phoneShort || regRow.fullPhone, closeCode: regCode };
+      const acc = (regRow.accountNo ?? "").toString().trim();
+      const body: any = { fullPhone: regRow.fullPhone || regRow.phoneShort, phoneShort: regRow.phoneShort || regRow.fullPhone, closeCode: regCode, accountNo: acc };
       if (isSuper && regTech) body.techName = regTech;
       const r = await fetch("/api/manual-faults/regularize", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!d?.ok) { alert(d?.message || "تعذّر تسجيل الانتظام"); return; }
-      const acc = (regRow.accountNo ?? "").toString().trim();
       setRegRow(null); setRegCode(""); setRegTech("");
       await load();
       // قياس أوتوماتيك لو الخط ليه أكونت (نفس منطق بحث برقم التليفون)

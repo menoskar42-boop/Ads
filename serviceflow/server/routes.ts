@@ -12150,6 +12150,7 @@ export async function registerRoutes(
     const phoneShort = String(b.phoneShort || "").replace(/^88/, "").trim();
     const fullPhone = String(b.fullPhone || (phoneShort ? "88" + phoneShort : "")).trim();
     const closeCode = String(b.closeCode || "").trim();
+    const accountNo = String(b.accountNo || "").trim();
     if (!closeCode) return res.status(400).json({ message: "اختر سبب الإغلاق" });
     const techName = (req.user.role === ROLES.SUPER_ADMIN && b.techName) ? String(b.techName).trim() : String(req.user.username || "");
     // عند الانتظام نسجّل snapshot للبيان الفنى الحالى (زى بحث برقم التليفون وقت الانتظام):
@@ -12158,6 +12159,7 @@ export async function registerRoutes(
     const { rows } = await pool.query(
       `UPDATE manual_faults mf SET
          status='regularized', regularized_at=now(), regularized_by=$3, close_code=$4,
+         account_no = COALESCE(NULLIF($5, ''), mf.account_no),
          central      = COALESCE(cur.central, mf.central),
          cabin_number = COALESCE(cur.cabin_number, mf.cabin_number),
          box_number   = COALESCE(cur.box_number, mf.box_number),
@@ -12178,7 +12180,7 @@ export async function registerRoutes(
          ) ctc ON true
        ) cur
        WHERE mf.status='open' AND (mf.phone_short=$1 OR mf.full_phone=$2) RETURNING mf.id`,
-      [phoneShort, fullPhone, techName || null, closeCode]);
+       [phoneShort, fullPhone, techName || null, closeCode, accountNo]);
     if (!rows.length) return res.json({ ok: false, message: "لا يوجد عطل مفتوح لهذا الخط" });
     res.json({ ok: true, count: rows.length });
   });
@@ -12322,18 +12324,84 @@ export async function registerRoutes(
   // الأعطال المنتظمة خارج الشاشة لفترة
   app.get("/api/manual-faults/regularized", requireAuth, async (req, res) => {
     const { from = "", to = "" } = req.query as Record<string, string>;
-    const conds = ["status='regularized'"]; const params: any[] = [];
+    const conds = ["mf.status='regularized'"]; const params: any[] = [];
     // الفلترة بتوقيت القاهرة زى ما التاريخ بيتعرض — المقارنة الخام بـUTC كانت
     // بتسقط الانتظامات اللى حصلت بين منتصف الليل و2/3 الفجر من المدى المختار.
-    if (from) { params.push(from); conds.push(`(regularized_at AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}::date`); }
-    if (to) { params.push(to); conds.push(`(regularized_at AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}::date`); }
+    if (from) { params.push(from); conds.push(`(mf.regularized_at AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}::date`); }
+    if (to) { params.push(to); conds.push(`(mf.regularized_at AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}::date`); }
     const { rows } = await pool.query(
-      `SELECT id, full_phone AS "fullPhone", phone_short AS "phoneShort", account_no AS "accountNo",
-              central, cabin_number AS "cabinNumber", box_number AS "boxNumber", msan_code AS "msanCode",
-              tech_name AS "techName", close_code AS "closeCode",
-              (flagged_at AT TIME ZONE 'Africa/Cairo') AS "flaggedAt", flagged_by AS "flaggedBy",
-              (regularized_at AT TIME ZONE 'Africa/Cairo') AS "regularizedAt", regularized_by AS "regularizedBy"
-       FROM manual_faults WHERE ${conds.join(" AND ")} ORDER BY regularized_at DESC`, params);
+      `SELECT mf.id, mf.full_phone AS "fullPhone", mf.phone_short AS "phoneShort",
+              COALESCE(NULLIF(mf.account_no, ''), measurement.account_no) AS "accountNo",
+              mf.central, mf.cabin_number AS "cabinNumber", mf.box_number AS "boxNumber",
+              mf.msan_code AS "msanCode", mf.tech_name AS "techName", mf.close_code AS "closeCode",
+              (mf.flagged_at AT TIME ZONE 'Africa/Cairo') AS "flaggedAt", mf.flagged_by AS "flaggedBy",
+              (mf.regularized_at AT TIME ZONE 'Africa/Cairo') AS "regularizedAt",
+              mf.regularized_by AS "regularizedBy",
+              measurement.current_speed AS "currentSpeed",
+              measurement.max_speed AS "maxSpeed",
+              measurement.score,
+              measurement.po_status AS "poStatus",
+              (COALESCE(measurement.measured_at, measurement.uploaded_at) AT TIME ZONE 'Africa/Cairo') AS "measuredAt"
+       FROM manual_faults mf
+       LEFT JOIN LATERAL (
+         SELECT c.account_no, c.current_speed, c.max_speed, c.score, c.po_status,
+                c.measured_at, c.uploaded_at
+         FROM case_138 c
+         WHERE c.full_phone = COALESCE(NULLIF(mf.full_phone, ''), '88' || mf.phone_short)
+           AND (NULLIF(mf.account_no, '') IS NULL OR c.account_no = mf.account_no)
+           AND c.source = 'dzs'
+           AND c.uploaded_at > mf.regularized_at
+           AND c.score IS NOT NULL
+         ORDER BY c.uploaded_at ASC, c.id ASC
+         LIMIT 1
+       ) measurement ON true
+       WHERE ${conds.join(" AND ")}
+       ORDER BY mf.regularized_at DESC`, params);
+    res.json({ data: rows });
+  });
+
+  // أعطال خارج الشاشة اتنظمت وكان أول قياس DZS بعدها أعلى من 25 فقط.
+  // ربط القياس بوقت الانتظام ومصدره يمنع إدخال أى خط لمجرد أن له اسكور قديم مرتفع.
+  app.get("/api/manual-faults/regularized-high-score", requireAuth, async (req: any, res) => {
+    const params: any[] = [];
+    const conditions = ["mf.status = 'regularized'", "mf.regularized_at IS NOT NULL"];
+    if (req.user?.role === ROLES.TECH) {
+      const username = String(req.user.username || "").trim();
+      if (!username) return res.json({ data: [] });
+      params.push(username);
+      conditions.push(`mf.regularized_by = $${params.length}`);
+    }
+    const { rows } = await pool.query(
+      `SELECT mf.id, mf.full_phone AS "fullPhone", mf.phone_short AS "phoneShort",
+              COALESCE(NULLIF(mf.account_no, ''), measurement.account_no) AS "accountNo",
+              mf.central, mf.cabin_number AS "cabinNumber", mf.box_number AS "boxNumber",
+              mf.msan_code AS "msanCode", mf.tech_name AS "techName", mf.close_code AS "closeCode",
+              (mf.flagged_at AT TIME ZONE 'Africa/Cairo') AS "flaggedAt",
+              mf.flagged_by AS "flaggedBy",
+              (mf.regularized_at AT TIME ZONE 'Africa/Cairo') AS "regularizedAt",
+              mf.regularized_by AS "regularizedBy",
+              measurement.current_speed AS "currentSpeed",
+              measurement.max_speed AS "maxSpeed",
+              measurement.score,
+              measurement.po_status AS "poStatus",
+              (COALESCE(measurement.measured_at, measurement.uploaded_at) AT TIME ZONE 'Africa/Cairo') AS "measuredAt"
+       FROM manual_faults mf
+       JOIN LATERAL (
+         SELECT c.account_no, c.current_speed, c.max_speed, c.score, c.po_status,
+                c.measured_at, c.uploaded_at
+         FROM case_138 c
+         WHERE c.full_phone = COALESCE(NULLIF(mf.full_phone, ''), '88' || mf.phone_short)
+           AND (NULLIF(mf.account_no, '') IS NULL OR c.account_no = mf.account_no)
+           AND c.source = 'dzs'
+           AND c.uploaded_at > mf.regularized_at
+           AND c.score IS NOT NULL
+         ORDER BY c.uploaded_at ASC, c.id ASC
+         LIMIT 1
+       ) measurement ON measurement.score > 25
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY mf.regularized_at DESC`,
+      params,
+    );
     res.json({ data: rows });
   });
 

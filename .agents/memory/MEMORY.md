@@ -10,7 +10,7 @@
 - [St-Takla tafsir parsing](sttakla-tafsir-parsing.md) — strip navigation, avoid chapter-wrapper inference, and use current live URLs when indexed pages move.
 - [St-Takla section contracts](sttakla-sections-contract.md) — treat reachable indexes as invalid when expected letters, months, encoding, or article content disappear.
 - [Workshop release controls](workshop-release-controls.md) — keep quality gates, stock reservations, purchase receipts, and public booking confirmation as separate events.
-- [Local preview host routing](local-preview-host-routing.md) — treat loopback hosts as platform root, not tenant subdomains, or preview `/` can return a tenant 404.
+- [Local preview host routing](local-preview-host-routing.md) — treat loopback as platform root and set Service Flow’s `/serviceflow/` base path in builds and preview run config.
 - [Deployment healthcheck status](deployment-healthcheck-status.md) — the VM readiness probe needs a direct 200 on `/`; a healthy redirect to `/ar` is still rejected.
 - [Replit-managed databases](replit-managed-databases.md) — this project uses Replit’s separate managed development and production databases; never override them with an external URL alias.
 - [Ads and MyBible Supabase](ads-supabase-migration.md) — share the Session Pooler conservatively; isolate MyBible by schema and preserve PostgreSQL 17 tooling.

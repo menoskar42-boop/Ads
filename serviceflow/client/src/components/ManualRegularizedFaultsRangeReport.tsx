@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { closeReason } from "@/lib/close-codes";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import PoStatusCell from "./PoStatusCell";
 
 // «الأعطال المنتظمة خارج الشاشة لفترة» — الأعطال اليدوية اللى اتنظمت (أرشيف دائم بفلتر تاريخ).
 interface Row {
@@ -25,6 +26,11 @@ interface Row {
   flaggedBy: string | null;
   regularizedAt: string;
   regularizedBy: string | null;
+  currentSpeed: string | null;
+  maxSpeed: string | null;
+  score: number | null;
+  poStatus: string | null;
+  measuredAt: string | null;
 }
 
 const fmt = (iso: string | null) => {
@@ -53,8 +59,19 @@ export function ManualRegularizedFaultsRangeReport() {
   }, [from, to]);
   useEffect(() => { load(); }, [load]);
 
-  const COLUMNS = ["تاريخ الانتظام", "رقم التليفون", "رقم الموبايل", "رقم الأكونت", "السنترال", "الكابينة", "البكس", "سبب الإغلاق", "فنى الانتظام", "تاريخ العطل", "سجّل العطل"];
-  const toRow = (x: Row) => [fmt(x.regularizedAt), x.fullPhone || x.phoneShort || "-", mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] || "-", x.accountNo || "-", x.central || "-", x.cabinNumber || "-", x.boxNumber || "-", closeReason(x.closeCode) || x.closeCode || "-", x.regularizedBy || "-", fmt(x.flaggedAt), x.flaggedBy || "-"];
+  const COLUMNS = [
+    "تاريخ الانتظام", "رقم التليفون", "رقم الموبايل", "رقم الأكونت",
+    "السرعة الحالية", "أقصى سرعة", "الاسكور", "حالة PO", "تاريخ القياس",
+    "السنترال", "الكابينة", "البكس", "سبب الإغلاق", "فنى الانتظام", "تاريخ العطل", "سجّل العطل",
+  ];
+  const toRow = (x: Row) => [
+    fmt(x.regularizedAt), x.fullPhone || x.phoneShort || "-",
+    mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] || "-", x.accountNo || "-",
+    x.currentSpeed || "-", x.maxSpeed || "-", x.score ?? "-", x.poStatus || "-",
+    fmt(x.measuredAt), x.central || "-", x.cabinNumber || "-", x.boxNumber || "-",
+    closeReason(x.closeCode) || x.closeCode || "-", x.regularizedBy || "-",
+    fmt(x.flaggedAt), x.flaggedBy || "-",
+  ];
 
   const handleExportExcel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLUMNS, ...rows.map(toRow)]);
@@ -69,7 +86,7 @@ export function ManualRegularizedFaultsRangeReport() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2"><Repeat className="w-5 h-5 text-green-600" /> الأعطال المنتظمة خارج الشاشة لفترة</h2>
-          <p className="text-xs text-muted-foreground">الأعطال اليدوية اللى اتنظمت (بسبب الإغلاق) خلال الفترة المختارة — أرشيف دائم.</p>
+          <p className="text-xs text-muted-foreground">الأعطال اليدوية اللى اتنظمت خلال الفترة المختارة، مع بيانات أول قياس DZS بعدها عند توفره.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-1 text-green-700 border-green-200" disabled={!rows.length}><FileSpreadsheet className="w-4 h-4" /> تصدير Excel</Button>
@@ -97,6 +114,11 @@ export function ManualRegularizedFaultsRangeReport() {
                 <TableCell className="whitespace-nowrap font-medium">{x.fullPhone || x.phoneShort || "-"}</TableCell>
                 <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)]} /></TableCell>
                 <TableCell className="whitespace-nowrap">{x.accountNo || "-"}</TableCell>
+                <TableCell>{x.currentSpeed || "-"}</TableCell>
+                <TableCell>{x.maxSpeed || "-"}</TableCell>
+                <TableCell className="font-semibold">{x.score ?? "-"}</TableCell>
+                <TableCell><PoStatusCell value={x.poStatus} /></TableCell>
+                <TableCell className="whitespace-nowrap">{fmt(x.measuredAt)}</TableCell>
                 <TableCell className="whitespace-nowrap">{x.central || "-"}</TableCell>
                 <TableCell>{x.cabinNumber || "-"}</TableCell>
                 <TableCell>{x.boxNumber || "-"}</TableCell>
