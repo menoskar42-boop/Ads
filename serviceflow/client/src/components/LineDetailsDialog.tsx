@@ -1,10 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, X } from "lucide-react";
 import { createPortal } from "react-dom";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import { closeReason } from "@/lib/close-codes";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
 import { CustomerContactActions } from "@/components/CustomerContactActions";
 import { MobileValue } from "@/lib/mobile-lookup";
+import { useIsSuperAdmin } from "@/lib/use-speed-tools";
 
 // نافذة «تفاصيل الخط» المشتركة — بتتفتح من أى تقرير فيه رقم تليفون.
 // مصدر البيانات هو نفس مصادر «بحث برقم التليفون» بالظبط عشان مايبقاش فيه مصدرين
@@ -32,6 +36,12 @@ interface FaultRow {
 export function LineDetailsDialog({
   phone, onClose, highlightComplainNo,
 }: { phone: string; onClose: () => void; highlightComplainNo?: string | null }) {
+  const queryClient = useQueryClient();
+  const isSuperAdmin = useIsSuperAdmin();
+  const { toast } = useToast();
+  const [editingMobile, setEditingMobile] = useState(false);
+  const [mobileInput, setMobileInput] = useState("");
+  const [savingMobile, setSavingMobile] = useState(false);
   const { data, isFetching } = useQuery({
     queryKey: ["/api/phone-lines/lookup", phone],
     queryFn: async () => {
@@ -52,6 +62,35 @@ export function LineDetailsDialog({
   const l = data?.found ? data.line : null;
   const closes = hist?.history ?? [];
   const historyScroll = useHorizontalKeyboardScroll(!!closes.length && !histLoading);
+
+  const saveMobile = async () => {
+    if (!l) return;
+    setSavingMobile(true);
+    try {
+      const response = await fetch("/api/line-mobiles", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullPhone: l.fullPhone || phone, mobile: mobileInput.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      const result = await response.json() as { mobile?: string };
+      const savedMobile = result.mobile ?? mobileInput.trim();
+      queryClient.setQueryData<{ found: boolean; line?: any }>(
+        ["/api/phone-lines/lookup", phone],
+        (current) => current?.line
+          ? { ...current, line: { ...current.line, mobile: savedMobile } }
+          : current,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
+      setEditingMobile(false);
+      toast({ title: "تم حفظ رقم المحمول" });
+    } catch {
+      toast({ title: "تعذّر حفظ رقم المحمول", variant: "destructive" });
+    } finally {
+      setSavingMobile(false);
+    }
+  };
 
   const handleClose = (e?: { preventDefault?: () => void; stopPropagation?: () => void }) => {
     e?.preventDefault?.();
@@ -101,7 +140,59 @@ export function LineDetailsDialog({
               <div>
                 <Row k="اسم العميل" v={l.subName} />
                 <Row k="العنوان" v={l.subAdd} />
-                <Row k="رقم الموبايل" v={<MobileValue mobile={l.mobile} />} />
+                <Row k="رقم الموبايل" v={
+                  editingMobile ? (
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <Input
+                        value={mobileInput}
+                        onChange={(e) => setMobileInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void saveMobile();
+                          }
+                        }}
+                        placeholder="رقم الموبايل"
+                        className="h-8 w-36 px-2 text-sm"
+                        dir="ltr"
+                        inputMode="tel"
+                        disabled={savingMobile}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void saveMobile()}
+                        disabled={savingMobile}
+                        className="rounded bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {savingMobile ? "..." : "حفظ"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingMobile(false)}
+                        disabled={savingMobile}
+                        className="px-1 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      >
+                        إلغاء
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      <MobileValue mobile={l.mobile} />
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMobileInput(l.mobile || "");
+                            setEditingMobile(true);
+                          }}
+                          className="rounded border border-blue-200 px-1.5 py-0.5 text-[11px] text-blue-600 hover:bg-blue-50"
+                        >
+                          {l.mobile ? "تعديل" : "＋ إضافة"}
+                        </button>
+                      )}
+                    </span>
+                  )
+                } />
                 <Row k="رقم الأكونت" v={l.accountNo} />
                 <Row k="اسم الفنى" v={l.techName} />
               </div>
