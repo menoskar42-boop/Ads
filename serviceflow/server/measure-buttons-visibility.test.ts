@@ -66,14 +66,15 @@ for (const f of ROW_MEASURE_REPORTS) {
 }
 
 // فنى المنطقة = نفس الفنى اللى الشاشة بتعرضه (حسن، TB07، ٢٠٢٦-٠٩-٢٤): الشاشة كانت
-// تقول «الخط تابع للفنى: حسن» لحسن نفسه وتقفل عليه القياس — لأن الصلاحية كانت
-// بتشترط كود كابينة، وبتتجاهل إسناد MSAN اليدوى اللى الاسم المعروض جاى منه.
+// تقول «الخط تابع للفنى: حسن» لحسن نفسه وتقفل عليه القياس. دلوقتي الاتنين من كود
+// الكابينة اللى جاى من البورتات، والإسناد اليدوى على نفس الكود بيتحسب.
 test("ownership follows the technician the screen names", () => {
   const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
   const i = routes.indexOf('-- ownedByMe: خطوطى أنا');
   const expr = routes.slice(i, routes.indexOf('AS "ownedByMe"', i));
-  assert.match(expr, /ctx\.central_name = pl\.central AND ctx\.cabin_number = pl\.cabin_number\s+AND btrim\(ctx\.worker_code\) = ANY\(\$4::text\[\]\)/,
-    "own cabinet by central+cabin even when cabin_code is empty");
+  // بكود الكابينة (من البورتات) مش بالسنترال/رقم الكابينة — قرار المالك.
+  assert.doesNotMatch(expr, /ctx\.central_name = pl\.central/, "ownership is by cabin code, not central+cabin");
+  assert.match(expr, /btrim\(ctc\.ct_tech\) = btrim\(\$6::text\)/, "my name shown as the line's tech opens measuring");
   assert.match(expr, /unnest\(string_to_array\(mto\.tech_name, ','\)\)[\s\S]*?btrim\(n\.name\) = btrim\(\$6::text\)/,
     "a manual MSAN assignment to me counts, by exact name");
   assert.match(routes, /\[digits, short, full, codes\.own, codes\.covered, req\.user\?\.role === ROLES\.TECH \? \(codes\.techName \|\| ""\) : ""\]/,

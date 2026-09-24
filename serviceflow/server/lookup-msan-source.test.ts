@@ -26,10 +26,11 @@ test("the phone lookup reads the MSAN code from phone_ports, not from cabinet_te
   );
 });
 
-// الفنى والتغطية قاعدتهم مختلفة: فنى المنطقة بيتحدد من كابينة الخط (cabinet_technicians)
-// مش من الأمسان — فالإصلاح فوق مالوش أى أثر عليهم.
-test("technician name and coverage still resolve through cabinet_technicians", () => {
-  assert.match(lookupRoute, /LEFT JOIN msan_tech_overrides mto ON mto\.cabin_code = ctc\.cabin_code/);
+// قرار المالك (٢٠٢٦-٠٩-٢٤): فنى الخط = فنى كود الكابينة **اللى جاى من البورتات** —
+// نفس الكود المعروض. سنترال/كابينة phone_lines بس للخط اللى مالوش صف بورت.
+test("technician name and coverage resolve through the port's cabin code", () => {
+  assert.match(lookupRoute, /WHERE CASE WHEN NULLIF\(btrim\(pp\.msan_code\), ''\) IS NOT NULL\s+THEN btrim\(ct\.cabin_code\) = btrim\(pp\.msan_code\)\s+ELSE ct\.central_name = pl\.central AND ct\.cabin_number = pl\.cabin_number END/);
+  assert.match(lookupRoute, /LEFT JOIN msan_tech_overrides mto\s+ON mto\.cabin_code = COALESCE\(NULLIF\(btrim\(pp\.msan_code\), ''\), ctc\.cabin_code\)/);
   assert.match(lookupRoute, /COALESCE\(mto\.tech_name, ctc\.ct_tech, ''\) AS "techName"/);
   assert.match(lookupRoute, /ctc\.cabin_code IS NOT NULL AND btrim\(ctc\.cabin_code\) <> ''/);
 });

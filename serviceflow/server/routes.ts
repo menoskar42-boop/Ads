@@ -6852,8 +6852,8 @@ export async function registerRoutes(
               -- والشاشة تفضل عارضة الكود القديم للأبد. باقى تقارير الموقع بتعرضه من
               -- phone_ports أصلاً، فده بيوحّدهم كمان. cabinet_technicians تفضل fallback
               -- للخطوط اللى مالهاش صف منافذ.
-              -- ⚠️ ctc.cabin_code لسه هو المستخدم فى تحديد الفنى والتغطية (ownedByMe) —
-              -- فنى المنطقة بيتحدد من كابينة الخط مش من الأمسان (قاعدة متفق عليها).
+              -- فنى المنطقة والتغطية (ownedByMe) بيتحددوا من نفس الكود ده (البورتات) —
+              -- قرار المالك ٢٠٢٦-٠٩-٢٤ (كان قبلها من سنترال/كابينة phone_lines).
               COALESCE(NULLIF(btrim(pp.msan_code), ''), ctc.cabin_code) AS "msanCode",
               COALESCE(mto.tech_name, ctc.ct_tech, '') AS "techName",
               COALESCE(pl.idu_no, si.idu_no) AS "iduNo", COALESCE(pl.odu_no, si.odu_no) AS "oduNo",
@@ -6930,14 +6930,10 @@ export async function registerRoutes(
                                  AND (ts.status_code ~ '^(160|173|122|73|72|60)' OR ts.complain_type_name ~ '^(160|173|122|73|72|60)'))
                   ))
               ))
-              -- أو: خطى بالسنترال/رقم الكابينة حتى لو صف الكابينة **مالوش كود** (cabin_code
-              -- فاضى). الفرع اللى فوق بيبدأ بـ«ctc.cabin_code مش فاضى» فكان بيقفل على الفنى
-              -- خطوط كابينته، والاسم بيظهر عادى «الخط تابع للفنى: <هو نفسه>» (حسن، TB07،
-              -- ٢٠٢٦-٠٩-٢٤).
-              OR (array_length($4::text[], 1) > 0 AND pl.central IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM cabinet_technicians ctx
-                     WHERE ctx.central_name = pl.central AND ctx.cabin_number = pl.cabin_number
-                       AND btrim(ctx.worker_code) = ANY($4::text[])))
+              -- أو: اسم فنى الكابينة المعروض (من كود البورتات) = اسمى. القاعدة من المالك:
+              -- «اسمه مكتوب فى اسم الفنى ومش عارف يقيس» — لو الشاشة بتقول إنه بتاعه يبقى
+              -- بتاعه، حتى لو كود العامل فى حسابه مختلف عن اللى فى شيت الكباين.
+              OR ($6::text <> '' AND ctc.ct_tech IS NOT NULL AND btrim(ctc.ct_tech) = btrim($6::text))
               -- أو: الفنى المعروض للخط جاى من **إسناد MSAN يدوى** (msan_tech_overrides) وهو أنا.
               -- كل الموقع بيعتبر فنى الخط = COALESCE(الإسناد اليدوى، فنى الكابينة) — تقاريره
               -- وقايمة «متعذراتى» — والصلاحية بس كانت بتبص على cabinet_technicians، فالفنى
@@ -6988,15 +6984,24 @@ export async function registerRoutes(
           WHERE c2.phone_full = COALESCE(pl.full_phone, t.full)
           ORDER BY c2.created_at DESC, c2.id DESC LIMIT 1
        ) corr ON true
+       -- فنى الخط = فنى **كود الكابينة اللى جاى من البورتات** (phone_ports.msan_code) —
+       -- قرار المالك (٢٠٢٦-٠٩-٢٤). نفس الكود اللى الشاشة بتعرضه، فالاسم المعروض
+       -- والصلاحية بقوا من مصدر واحد. الخط اللى مالوش صف بورت بس بيرجع للطريقة
+       -- القديمة (سنترال/كابينة phone_lines).
        LEFT JOIN LATERAL (
          SELECT ct.cabin_code, tn.tech_name AS ct_tech
          FROM cabinet_technicians ct
          LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
-         WHERE ct.central_name = pl.central AND ct.cabin_number = pl.cabin_number
+         WHERE CASE WHEN NULLIF(btrim(pp.msan_code), '') IS NOT NULL
+                    THEN btrim(ct.cabin_code) = btrim(pp.msan_code)
+                    ELSE ct.central_name = pl.central AND ct.cabin_number = pl.cabin_number END
          ORDER BY (ct.cabin_code IS NOT NULL AND ct.cabin_code <> '') DESC, tn.tech_name NULLS LAST
          LIMIT 1
        ) ctc ON true
-       LEFT JOIN msan_tech_overrides mto ON mto.cabin_code = ctc.cabin_code
+       -- الإسناد اليدوى على نفس الكود — كود بورت مش موجود فى شيت الكباين أصلاً ده
+       -- بالظبط اللى الإسناد اليدوى معمول عشانه، فمايتربطش بـctc (هيبقى فاضى).
+       LEFT JOIN msan_tech_overrides mto
+         ON mto.cabin_code = COALESCE(NULLIF(btrim(pp.msan_code), ''), ctc.cabin_code)
        LEFT JOIN LATERAL (
          SELECT c2.full_phone, c2.current_speed, c2.max_speed, c2.score, c2.po_status, c2.uploaded_at, c2.measured_by,
                  c2.measured_at, c2.measure_mode,

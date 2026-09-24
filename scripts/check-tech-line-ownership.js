@@ -4,10 +4,9 @@
  *
  * ٢٠٢٦-٠٩-٢٤: حسن فتح خط فى كابينته TB07، والشاشة كتبت «القياس متاح فقط لفنى
  * المنطقة — الخط تابع للفنى: حسن عبد الفتاح يعقوب». يعنى قالتله إنه مش هو.
- * السبب إن الاسم المعروض = COALESCE(إسناد MSAN يدوى، فنى الكابينة)، والصلاحية
- * (ownedByMe) كانت:
- *   · بتشترط cabin_code مش فاضى — كابينة من غير كود = مقفولة على فنيها.
- *   · ومابتبصّش على msan_tech_overrides خالص.
+ * قرار المالك: فنى الخط = فنى **كود الكابينة اللى جاى من البورتات** (نفس الكود
+ * المعروض)، والإسناد اليدوى (msan_tech_overrides) على نفس الكود بيتحسب — الصلاحية
+ * كانت بتتجاهله فالفنى يلاقى الخط باسمه ومايقيسوش.
  * اتجرّب على PG16 بالاستعلام الحقيقى: ٨ حالات، والقديم وقع فى الاتنين دول بالظبط.
  *
  *   node scripts/check-tech-line-ownership.js
@@ -25,8 +24,15 @@ const check = (label, ok) => { if (!ok) errors.push(label); };
 const i = routes.indexOf('-- ownedByMe: خطوطى أنا');
 const expr = i >= 0 ? routes.slice(i, routes.indexOf('AS "ownedByMe"', i)) : '';
 check('ownedByMe موجود', !!expr);
-check('كابينتى بالسنترال/الرقم حتى لو كود الكابينة فاضى',
-  /ctx\.central_name = pl\.central AND ctx\.cabin_number = pl\.cabin_number\s+AND btrim\(ctx\.worker_code\) = ANY\(\$4::text\[\]\)/.test(expr));
+// قرار المالك: «بكود الكابينة طالما كود الكابينة جاى من البورتات».
+check('فنى الخط من كود الكابينة اللى جاى من البورتات (phone_ports.msan_code)',
+  /WHERE CASE WHEN NULLIF\(btrim\(pp\.msan_code\), ''\) IS NOT NULL\s+THEN btrim\(ct\.cabin_code\) = btrim\(pp\.msan_code\)/.test(routes));
+check('الإسناد اليدوى على نفس كود البورتات',
+  /LEFT JOIN msan_tech_overrides mto\s+ON mto\.cabin_code = COALESCE\(NULLIF\(btrim\(pp\.msan_code\), ''\), ctc\.cabin_code\)/.test(routes));
+check('الصلاحية مش بالسنترال/رقم الكابينة', !/ctx\.central_name = pl\.central/.test(expr));
+// «اسمه مكتوب فى اسم الفنى ومش عارف يقيس»: الاسم المعروض (فنى كابينة الأمسان) = اسمى → يقيس.
+check('اسم فنى الكابينة المعروض = اسمى بيفتح القياس',
+  /\$6::text <> '' AND ctc\.ct_tech IS NOT NULL AND btrim\(ctc\.ct_tech\) = btrim\(\$6::text\)/.test(expr));
 check('إسناد MSAN اليدوى باسمى (مطابقة كاملة للاسم)',
   /unnest\(string_to_array\(mto\.tech_name, ','\)\)[\s\S]*?btrim\(n\.name\) = btrim\(\$6::text\)/.test(expr));
 check('$6 = اسمى للفنى بس',
