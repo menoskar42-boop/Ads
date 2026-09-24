@@ -635,7 +635,7 @@ export default function Dashboard() {
             </aside>
 
             {/* ── Report Content ── */}
-            <div className="flex-1 min-w-0">
+            <div className={`flex-1 min-w-0 ${REPORT_GROUPS.some((group) => group.label === "الأعطال" && group.items.some((item) => item.id === reportTab)) ? "fault-report-compact" : ""}`}>
               {reportTab === "box-rejections"    && <BoxRejectionReport orders={orders || []} />}
               {reportTab === "phone-lines"       && <PhoneLinesReport />}
               {reportTab === "ports-missing-line-data" && <PortsMissingLineDataReport />}

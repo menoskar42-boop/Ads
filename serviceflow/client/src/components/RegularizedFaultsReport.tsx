@@ -1,6 +1,6 @@
 import { useState } from "react";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -130,7 +130,11 @@ const regBadge = (s: string | null) => {
 export function RegularizedFaultsReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
+  const queryClient = useQueryClient();
   const [detailPhone, setDetailPhone] = useState<string | null>(null);
+  const [editingMobileIndex, setEditingMobileIndex] = useState<number | null>(null);
+  const [mobileInput, setMobileInput] = useState("");
+  const [savingMobile, setSavingMobile] = useState(false);
   useSpeedToolSource("الأعطال المنتظمة");
   const [central, setCentral] = useState("");
   const [q, setQ] = useState("");
@@ -149,6 +153,26 @@ export function RegularizedFaultsReport() {
     },
   });
   const mobileLookup = useMobileLookup(faults.map((f) => f.phoneShort));
+
+  const saveMobile = async (f: RegularizedFault) => {
+    if (!f.phoneShort) return;
+    setSavingMobile(true);
+    try {
+      const response = await fetch("/api/line-mobiles", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullPhone: f.phoneShort, mobile: mobileInput.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      setEditingMobileIndex(null);
+      await queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
+    } catch {
+      alert("تعذّر حفظ رقم الموبايل");
+    } finally {
+      setSavingMobile(false);
+    }
+  };
 
   // تقسيم الإجمالى: عدد أعطال الداتا وعدد أعطال الصوت
   const dataCount  = faults.filter(isDataFault).length;
@@ -468,7 +492,52 @@ export function RegularizedFaultsReport() {
                         )}
                       </span>
                     </TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)]} /></TableCell>
+                    <TableCell>
+                      {isSuper && editingMobileIndex === i ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Input
+                            value={mobileInput}
+                            onChange={(e) => setMobileInput(e.target.value)}
+                            placeholder="رقم الموبايل"
+                            className="h-7 w-28 px-2 text-xs"
+                            dir="ltr"
+                            inputMode="tel"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveMobile(f)}
+                            disabled={savingMobile}
+                            className="text-[11px] text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1 disabled:opacity-50"
+                          >
+                            {savingMobile ? "..." : "حفظ"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingMobileIndex(null)}
+                            disabled={savingMobile}
+                            className="text-[11px] text-gray-500 px-1"
+                          >
+                            إلغاء
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)]} />
+                          {isSuper && f.phoneShort && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMobileInput(mobileLookup[phoneLookupKey(f.phoneShort)] || "");
+                                setEditingMobileIndex(i);
+                              }}
+                              className="text-[11px] text-blue-600 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50"
+                            >
+                              {mobileLookup[phoneLookupKey(f.phoneShort)] ? "تعديل" : "＋ إضافة"}
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {f.repeatStatus === "مكرر" ? (
                         <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">مكرر</span>

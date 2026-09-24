@@ -3,7 +3,7 @@ import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { QueueExcludeSelect, type QueueExcludeValue } from "@/components/QueueExcludeSelect";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,9 +114,13 @@ const buildDZSUrl = (items: DZSItem[]) => {
 export function RegularizedFaultsRangeReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const isTechnician = user?.role === ROLES.TECH;
   useSpeedToolSource("الأعطال المنتظمة (مدى)");
+  const [editingMobileIndex, setEditingMobileIndex] = useState<number | null>(null);
+  const [mobileInput, setMobileInput] = useState("");
+  const [savingMobile, setSavingMobile] = useState(false);
   const [central, setCentral] = useState("");
   const [cabin, setCabin] = useState("");
   const [box, setBox] = useState("");
@@ -211,6 +215,26 @@ export function RegularizedFaultsRangeReport() {
       f.lastMeasScore == null || f.lastMeasScore === "" ? null : Number(f.lastMeasScore),
       scoreFrom, scoreTo));
   const mobileLookup = useMobileLookup(displayed.map((f) => f.phoneShort));
+
+  const saveMobile = async (f: RegularizedFault) => {
+    if (!f.phoneShort) return;
+    setSavingMobile(true);
+    try {
+      const response = await fetch("/api/line-mobiles", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullPhone: f.phoneShort, mobile: mobileInput.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      setEditingMobileIndex(null);
+      await queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
+    } catch {
+      alert("تعذّر حفظ رقم الموبايل");
+    } finally {
+      setSavingMobile(false);
+    }
+  };
 
   // يجمع أرقام الأكونت من الأعطال المعروضة (يحذف المكرر ويتجاهل اللى مالهاش
   // أكونت) ويفتح تاب DZS واحد يمرّر الأرقام فى الـ hash ليقيسها الـ Tampermonkey.
@@ -659,10 +683,51 @@ export function RegularizedFaultsRangeReport() {
                   </TableCell>
                   <TableCell>{f.centralName || "-"}</TableCell>
                   <TableCell dir="ltr" className="text-left font-mono">{f.phoneShort || "-"}</TableCell>
-                  <TableCell dir="ltr" className="text-left whitespace-nowrap">
-                    <span className="inline-flex items-center gap-2">
-                       <MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile} />
-                    </span>
+                  <TableCell dir="ltr" className="text-left">
+                    {isSuper && editingMobileIndex === i ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Input
+                          value={mobileInput}
+                          onChange={(e) => setMobileInput(e.target.value)}
+                          placeholder="رقم الموبايل"
+                          className="h-7 w-28 px-2 text-xs"
+                          dir="ltr"
+                          inputMode="tel"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveMobile(f)}
+                          disabled={savingMobile}
+                          className="text-[11px] text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1 disabled:opacity-50"
+                        >
+                          {savingMobile ? "..." : "حفظ"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingMobileIndex(null)}
+                          disabled={savingMobile}
+                          className="text-[11px] text-gray-500 px-1"
+                        >
+                          إلغاء
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1">
+                        <MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile} />
+                        {isSuper && f.phoneShort && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileInput(mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile ?? "");
+                              setEditingMobileIndex(i);
+                            }}
+                            className="text-[11px] text-blue-600 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50"
+                          >
+                            {mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile ? "تعديل" : "＋ إضافة"}
+                          </button>
+                        )}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {f.repeatStatus === "مكرر" ? (
