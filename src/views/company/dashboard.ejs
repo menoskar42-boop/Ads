@@ -4,6 +4,19 @@
 %>
 <%- include('_layout_top') %>
 
+<%# نظام القطاع — أول حاجة فى اللوحة. من غيره صاحب العيادة/الجيم/القاعة كان
+    بيشوف أعمال وبانرات بس ومش لاقى نظامه. %>
+<% if (typeof sectorHome !== 'undefined' && sectorHome) { %>
+<a href="<%= sectorHome.path %>" class="block brand-bg text-white rounded-2xl shadow-sm p-5 mb-5 hover:opacity-90 transition">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <div class="text-lg font-black">افتح <%= sectorHome.label %> ←</div>
+      <div class="text-sm opacity-90">كل شغلك اليومي هناك. الصفحة دي لإعدادات صفحتك العامة والحسابات والدفع.</div>
+    </div>
+  </div>
+</a>
+<% } %>
+
   <div class="space-y-6">
 
     <!-- Welcome card -->

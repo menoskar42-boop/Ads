@@ -1,3 +1,4 @@
+const { sectorHome } = require('../lib/sector_home');
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
@@ -241,6 +242,8 @@ router.use(async (req, res, next) => {
       res.locals.companyPageType = r.rows[0].page_type || 'portfolio';
     } catch (e) { /* non-critical */ }
   }
+  // نظام القطاع (التغذية، العيادة، الجيم…) — رابطه أول القايمة وكارت فوق اللوحة.
+  res.locals.sectorHome = sectorHome(res.locals.companyPageType);
   next();
 });
 

@@ -75,7 +75,7 @@ test('accepts shared-database startup only with all identity secrets', () => {
 
 test('blocks a changed non-empty session secret', () => {
   const env = validCutoverEnv();
-  env.MYBIBLE_SESSION_SECRET = 'different-session-secret';
+  env.MYBIBLE_SESSION_SECRET = `${env.MYBIBLE_SESSION_SECRET}-rotated`;
   assert.throws(
     () => assertMyBibleCutoverSecrets(env),
     /MYBIBLE_SESSION_SECRET fingerprint changed/

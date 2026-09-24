@@ -545,6 +545,7 @@ app.get('/company', (req, res) => res.redirect('/company/login'));
 //
 // مقفول على السلَجات التجريبية بس، والجلسة بتتعلّم demoReadOnly فيمنع أي كتابة
 // في requireLogin. لازم تيجي قبل app.use('/company') عشان الجلسة تكون جاهزة.
+const { sectorHome } = require('./src/lib/sector_home');
 app.get('/demo/:slug', async (req, res) => {
   const slug = String(req.params.slug || '').toLowerCase();
   if (!demoMode.isDemoSlug(slug)) return res.status(404).redirect('/');
@@ -566,11 +567,10 @@ app.get('/demo/:slug', async (req, res) => {
     req.session.adminLang = 'ar';
     req.session.demoReadOnly = true;
     req.session.demoSlug = slug;
-    const destination = c.page_type === 'workshop'
-      ? '/workshop'
-      : c.page_type === 'clinic'
-        ? '/clinic'
-        : '/company/dashboard';
+    // الديمو بيوري **النظام نفسه** (مرضى التغذية، حجوزات القاعة…) — كان بيفتح
+    // اللوحة العامة لكل قطاع غير الورشة والعيادة. src/lib/sector_home.js.
+    const home = sectorHome(c.page_type);
+    const destination = home ? home.path : '/company/dashboard';
     return req.session.save(() => res.redirect(destination));
   } catch (e) {
     console.error('[demo] failed to open demo session:', e.message);

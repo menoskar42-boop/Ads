@@ -27,7 +27,8 @@ need(/hasFrameSql\("pl\.full_phone"\)/.test(q), 'الخطوط اللى ماله�
 need(/pl\.box_number = ANY\(\$\$\{params\.length\}::text\[\]\)/.test(q), 'فلتر البكسيات لازم يقبل أكتر من بكس.');
 need(/req\.user\?\.role === ROLES\.TECH/.test(q), 'الفنى يشوف كبايينه بس (زى متوسط القياسات).');
 need(/Number\(r\.score\) > 100\) \{ special\+\+; continue; \}/.test(ep), 'الاسكور > 100 مايترسمش.');
-need(/import \{ loopMeters, speedKbps \} from "\.\/loop-length";/.test(routes), 'التحويل لازم من server/loop-length.ts.');
+const llImport = (routes.match(/import \{([^}]*)\} from "\.\/loop-length";/) || [])[1] || '';
+need(/\bloopMeters\b/.test(llImport) && /\bspeedKbps\b/.test(llImport), 'التحويل لازم من server/loop-length.ts.');
 
 const ui = R('client/src/components/LoopLengthScatterReport.tsx');
 for (const k of ['currentSpeed', 'maxSpeed', 'score']) need(new RegExp(`key: "${k}"`).test(ui), `رسمة ${k} ناقصة.`);
