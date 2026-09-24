@@ -11,7 +11,7 @@ import { formatContactTime } from "@/components/CustomerContactActions";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, History, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, History, Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -96,6 +96,7 @@ export function AccountComplaintsReport() {
   const [accountQ, setAccountQ] = useState("");
   const [search, setSearch] = useState("");
   const [complaintsGt, setComplaintsGt] = useState("");
+  const [excludeContactedAfterComplaint, setExcludeContactedAfterComplaint] = useState(false);
   const [page, setPage] = useState(1);
   const [historyPhone, setHistoryPhone] = useState<string | null>(null);
 
@@ -121,13 +122,15 @@ export function AccountComplaintsReport() {
     if (accountQ.trim()) p.set("accountQ", accountQ.trim());
     if (search.trim()) p.set("search", search.trim());
     if (complaintsGt.trim()) p.set("complaintsGt", complaintsGt.trim());
+    if (excludeContactedAfterComplaint) p.set("excludeContactedAfterComplaint", "true");
     return p;
   };
 
   const { data, isLoading } = useQuery({
     queryKey: [
       "/api/phone-lines/account-complaints",
-       dateFrom, dateTo, central, cabin, box, accountQ, search, complaintsGt, reportMode, page,
+       dateFrom, dateTo, central, cabin, box, accountQ, search, complaintsGt,
+       excludeContactedAfterComplaint, reportMode, page,
     ],
     queryFn: async () => {
       const res = await fetch(`/api/phone-lines/account-complaints?${buildParams()}`, { credentials: "include" });
@@ -257,6 +260,25 @@ export function AccountComplaintsReport() {
                className="w-full sm:w-36 h-9 text-sm"
                dir="ltr"
              />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setExcludeContactedAfterComplaint((enabled) => !enabled);
+                resetPage();
+              }}
+              aria-pressed={excludeContactedAfterComplaint}
+              title="يستبعد الخط إذا كان وقت آخر محاولة اتصال مسجلة أحدث من أحدث شكوى ضمن الفترة المحددة"
+              className={excludeContactedAfterComplaint
+                ? "gap-1 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                : "gap-1"}
+            >
+              <Filter className="w-4 h-4" />
+              {excludeContactedAfterComplaint
+                ? "استبعاد المتصل بها بعد أحدث شكوى (مفعّل)"
+                : "استبعاد المتصل بها بعد أحدث شكوى"}
+            </Button>
             <RefreshButton />
             <Button variant="outline" size="sm" onClick={exportReport} className="text-green-700 border-green-200">تصدير Excel</Button>
           </div>

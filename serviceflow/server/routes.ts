@@ -5706,7 +5706,9 @@ export async function registerRoutes(
     const {
       dateFrom = "", dateTo = "", search = "", central = "", cabin = "", box = "",
       accountQ = "", complaintsGt = "", sortBy = "", page = "1", limit = "50",
+      excludeContactedAfterComplaint = "",
     } = req.query as Record<string, string>;
+    const shouldExcludeContactedAfterComplaint = excludeContactedAfterComplaint === "true";
     const pageNum = Math.max(1, parseInt(page) || 1);
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const q = search.trim();
@@ -5762,6 +5764,14 @@ export async function registerRoutes(
         WHERE ctx.central_name = pl.central
           AND ctx.cabin_number = pl.cabin_number
           AND ctx.worker_code = $${params.length}
+      )`);
+    }
+    // استبعاد الخطوط التي لها محاولة اتصال مسجلة بعد أحدث شكوى ظاهرة ضمن الفترة.
+    // contact هو أحدث سجل اتصال للخط، لذلك يغطي أي محاولة أحدث من آخر شكوى.
+    if (shouldExcludeContactedAfterComplaint) {
+      lineConds.push(`(
+        contact.contacted_at IS NULL
+        OR contact.contacted_at <= cs.latest_complaint
       )`);
     }
 

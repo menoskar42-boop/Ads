@@ -18,6 +18,14 @@ test("account complaints supports a strict greater-than complaint filter", () =>
   assert.match(route, /cs\.complaint_count > \$\$\{params\.length\}/);
 });
 
+test("account complaints can exclude lines contacted after their latest in-period complaint", () => {
+  assert.match(route, /excludeContactedAfterComplaint = ""/);
+  assert.match(route, /excludeContactedAfterComplaint === "true"/);
+  assert.match(route, /contact\.contacted_at IS NULL\s+OR contact\.contacted_at <= cs\.latest_complaint/);
+  assert.match(client, /p\.set\("excludeContactedAfterComplaint", "true"\)/);
+  assert.match(client, /استبعاد المتصل بها بعد أحدث شكوى/);
+});
+
 test("account complaints returns totals for all filtered lines", () => {
   assert.match(route, /COALESCE\(SUM\(t\.complaint_count\), 0\)::int AS "complaintTotal"/);
   assert.match(route, /COALESCE\(SUM\(t\.total_complaint_count\), 0\)::int AS "storedComplaintTotal"/);
