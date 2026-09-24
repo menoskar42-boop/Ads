@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { randomBytes, scrypt } from "node:crypto";
 import express from "express";
@@ -6,7 +7,18 @@ import { createServer } from "node:http";
 import test from "node:test";
 import { boxAverageFromAggregate, boxAverageFromAggregates, matchesBoxScoreFilter } from "@shared/om-box-score";
 
+const routesSource = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const scryptAsync = promisify(scrypt);
+
+test("OM working-line counts compare reversed numeric cabin pairs consistently", () => {
+  const routeStart = routesSource.indexOf('app.get("/api/ftth-orders"');
+  const routeEnd = routesSource.indexOf('app.post("/api/om-rejections/mobile"', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart, "OM rejections route must be bounded");
+  const route = routesSource.slice(routeStart, routeEnd);
+  assert.match(route, /\$\{cabinetNormSql\("pl2\.cabin_number"\)\}\s*=\s*\$\{cabinetNormSql\("orp\.cabin_number"\)\}/);
+  assert.match(routesSource, /regexp_match\(\$\{value\}, '\^\(\[0-9\]\+\)\[\[:space:\]\]\*\[-\/\]\[\[:space:\]\]\*\(\[0-9\]\+\)\$'\)/);
+  assert.match(routesSource, /string_agg\(part, '\/' ORDER BY part\)/);
+});
 
 test("box average uses valid latest-score aggregate values and rounds to one decimal", () => {
   assert.deepEqual(boxAverageFromAggregate({ sum: 37, measured: 3 }), {
@@ -47,7 +59,7 @@ test("box score filter without a limit can show all broken boxes", () => {
   assert.equal(matchesBoxScoreFilter(false, null, false, ""), true);
 });
 
-test("OM report enriches only broken-box rows from latest valid Service-Flow scores", async (t) => {
+test("OM report enriches broken-box rows and counts lines across equivalent cabin formats", async (t) => {
   // `npm test` بيحط عنوان نائب (no-db.invalid) لو مفيش قاعدة، عشان استيراد
   // server/db مايرميش وباقى اختبارات الوحدات تعدّى. الاختبار ده محتاج قاعدة
   // حقيقية فبيتخطّى فى الحالة دى بدل ما يحاول يتصل ويفشل.
@@ -90,6 +102,7 @@ test("OM report enriches only broken-box rows from latest valid Service-Flow sco
     await pool.query(`DELETE FROM case_138 WHERE full_phone = ANY($1::text[])`, [allPhones]);
     await pool.query(`DELETE FROM line_account_edits WHERE full_phone = ANY($1::text[])`, [allPhones]);
     await pool.query(`DELETE FROM line_accounts WHERE full_phone = ANY($1::text[])`, [allPhones]);
+    await pool.query(`DELETE FROM phone_ports WHERE phone_number = ANY($1::text[])`, [allPhones]);
     await pool.query(`DELETE FROM phone_lines WHERE full_phone = ANY($1::text[])`, [allPhones]);
     await pool.query(`DELETE FROM om_responses WHERE serial_number = ANY($1::text[])`, [allSerials]);
     await pool.query(`DELETE FROM ftth_orders_current WHERE serial_number = ANY($1::text[])`, [allSerials]);
@@ -123,7 +136,7 @@ test("OM report enriches only broken-box rows from latest valid Service-Flow sco
          (serial_number, status, rejection_reason, central_name, cabin_number, box_number)
        VALUES
          ($1, 'not_feasible', 'بوكس معطل', $2, $3, $4),
-         ($5, 'not_feasible', 'بوكس معطل', 'No Score Central', 'C-2', 'B-2'),
+         ($5, 'not_feasible', 'بوكس معطل', 'No Score Central', '3/2', 'B-2'),
          ($6, 'not_feasible', 'بوكس مليان', $2, $3, $4)`,
       [serials.measured, central, cabin, box, serials.empty, serials.otherReason],
     );
@@ -134,11 +147,15 @@ test("OM report enriches only broken-box rows from latest valid Service-Flow sco
          ($1, $2, $3, $4, $1),
          ($5, $2, $3, $4, $5),
          ($6, $2, $3, $4, $6),
-         ($7, 'No Score Central', 'C-2', 'B-2', $7)`,
+          ($7, 'No Score Central', '2-3', 'B-2', $7)`,
       [
         phones.first, central, cabin, box,
         phones.second, phones.invalid, phones.empty,
       ],
+    );
+    await pool.query(
+      `INSERT INTO phone_ports (phone_number, frame) VALUES ($1, 'FRAME-1')`,
+      [phones.empty],
     );
     await pool.query(
       `INSERT INTO line_accounts (full_phone, account_no)
@@ -184,6 +201,7 @@ test("OM report enriches only broken-box rows from latest valid Service-Flow sco
     assert.equal(bySerial.get(serials.measured)?.boxMeasuredCount, 2);
     assert.equal(bySerial.get(serials.empty)?.boxAvgScore, null);
     assert.equal(bySerial.get(serials.empty)?.boxMeasuredCount, 0);
+    assert.equal(bySerial.get(serials.empty)?.boxWorkingCount, 1);
     assert.equal(bySerial.get(serials.otherReason)?.boxAvgScore, null);
     assert.equal(bySerial.get(serials.otherReason)?.boxMeasuredCount, 0);
 

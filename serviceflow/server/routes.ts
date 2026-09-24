@@ -712,6 +712,16 @@ const arQ = (q: unknown) => `%${arNorm(String(q ?? "").trim())}%`;
 // يستخدم الفهرس (وإلا الـ LATERAL بتاع الشكاوى يرجع seq scan لكل صف ويعلّق التقارير).
 const sp = phoneNormSql;
 
+// بعض المصادر تكتب رقم الكابينة كزوج أرقام بفاصل أو ترتيب مختلف (2-3 / 3/2).
+// نرتب الزوج للمطابقة فقط، ونبقى القيم الأخرى كما هي دون تعديل البيانات المخزنة.
+const cabinetNormSql = (expr: string) => {
+  const value = `btrim(COALESCE(${expr}::text, ''))`;
+  return `COALESCE((
+    SELECT string_agg(part, '/' ORDER BY part)
+    FROM unnest(regexp_match(${value}, '^([0-9]+)[[:space:]]*[-/][[:space:]]*([0-9]+)$')) AS pair(part)
+  ), ${value})`;
+};
+
 // «أى حاجة فى طابور التنفيذ ماتتكررش»: شرط بيستبعد أرقام الأكونت اللى الباتش بتاعها
 // **لسه تحت التنفيذ** (قياس/رفع سرعة/إيقاف). بيتحطّ فى تقارير القياسات اللى بتتبعت منها
 // باتشات، عشان الرقم مايتبعتش تانى وهو أصلاً فى الدور.
@@ -11470,7 +11480,7 @@ export async function registerRoutes(
            FROM phone_lines pl2
           WHERE COALESCE(btrim(orp.box_number), '') <> ''
             AND btrim(pl2.box_number) = btrim(orp.box_number)
-            AND (COALESCE(btrim(orp.cabin_number), '') = '' OR btrim(pl2.cabin_number) = btrim(orp.cabin_number))
+             AND (COALESCE(btrim(orp.cabin_number), '') = '' OR ${cabinetNormSql("pl2.cabin_number")} = ${cabinetNormSql("orp.cabin_number")})
             AND (COALESCE(btrim(orp.central_name), '') = '' OR btrim(pl2.central) = btrim(orp.central_name))
             AND ${hasFrameSql("pl2.full_phone")}
        ) bx ON true
