@@ -18,6 +18,7 @@ interface Fault {
   cabinetNo: string | null;
   statusCode: string | null;
   complainTime: string | null;
+  majorSelected: boolean;
 }
 
 const isMajor = (s: string | null) => !!s && (s.includes("9999") || s.includes("تنتظر الحل"));
@@ -34,7 +35,8 @@ const fmtComplain = (d: string | null) => {
 const dmy = (s: string) => { const [y, m, d] = (s || "").split("-"); return y && m && d ? `${d}/${m}/${y}` : ""; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-export function MajorFaultsReport() {
+export function MajorFaultsReport({ selectedOnly = false }: { selectedOnly?: boolean }) {
+  const reportTitle = selectedOnly ? "الأعطال الجسيمة المختارة" : "الأعطال الجسيمة";
   const [rows, setRows] = useState<Fault[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +52,11 @@ export function MajorFaultsReport() {
       const r = await fetch("/api/reports/current-faults", { credentials: "include" });
       if (!r.ok) throw new Error("تعذّر التحميل");
       const d = await r.json();
-      setRows((Array.isArray(d) ? d : []).filter((f: Fault) => isMajor(f.statusCode)));
+      setRows((Array.isArray(d) ? d : []).filter((f: Fault) =>
+        selectedOnly ? f.majorSelected === true : isMajor(f.statusCode),
+      ));
     } catch (e: any) { setError(e.message || "خطأ"); } finally { setLoading(false); }
-  }, []);
+  }, [selectedOnly]);
   useEffect(() => { load(); }, [load]);
 
   // أعمدة جدول «اغلاق جسيم» (بترتيب الإيميل). الأعمدة الفاضية تُملأ يدوياً بعد التصدير.
@@ -78,10 +82,14 @@ export function MajorFaultsReport() {
   const handleExportExcel = () => {
     const ws = XLSX.utils.aoa_to_sheet([COLUMNS, ...rows.map(toRow)]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "أعطال جسيمة");
-    XLSX.writeFile(wb, `major-faults-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, selectedOnly ? "أعطال جسيمة مختارة" : "أعطال جسيمة");
+    XLSX.writeFile(wb, `${selectedOnly ? "selected-major-faults" : "major-faults"}-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
-  const handleExportPDF = () => printTablePDF({ title: "الأعطال الجسيمة (اغلاق جسيم)", columns: COLUMNS, rows: rows.map(toRow) });
+  const handleExportPDF = () => printTablePDF({
+    title: selectedOnly ? reportTitle : "الأعطال الجسيمة (اغلاق جسيم)",
+    columns: COLUMNS,
+    rows: rows.map(toRow),
+  });
 
   // نسخ الجدول كـ HTML بحدود (RTL + أرقام لاتينية) → يتلصق فى الإيميل (Outlook) مباشرة.
   const handleCopyTable = async () => {
@@ -93,8 +101,13 @@ export function MajorFaultsReport() {
     <Card className="p-4 space-y-4" dir="rtl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold flex items-center gap-2"><AlertOctagon className="w-5 h-5 text-red-600" /> الأعطال الجسيمة</h2>
-          <p className="text-xs text-muted-foreground">الخطوط ذات الحالة «9999 / أعطال تنتظر الحل» (99-DSL) — بشكل جدول «اغلاق جسيم». الأعمدة الفاضية (العنصر المرفوع / الإيميل) تُملأ يدوياً.</p>
+          <h2 className="text-lg font-bold flex items-center gap-2"><AlertOctagon className="w-5 h-5 text-red-600" /> {reportTitle}</h2>
+          <p className="text-xs text-muted-foreground">
+            {selectedOnly
+              ? "الأعطال الحالية التي تم تحديدها بعلامة الصح في تقرير الأعطال الحالية — بنفس تنسيق جدول «اغلاق جسيم»."
+              : "الخطوط ذات الحالة «9999 / أعطال تنتظر الحل» (99-DSL) — بشكل جدول «اغلاق جسيم»."}
+            {" "}الأعمدة الفاضية (العنصر المرفوع / الإيميل) تُملأ يدوياً.
+          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={load} size="sm" className="gap-1" disabled={loading}>{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} تحديث</Button>
@@ -123,7 +136,9 @@ export function MajorFaultsReport() {
             <option value="الكابينة">الكابينة</option>
           </select>
         </div>
-        <div className="text-sm text-muted-foreground mr-auto">إجمالى: <strong>{rows.length}</strong> عطل جسيم</div>
+        <div className="text-sm text-muted-foreground mr-auto">
+          إجمالى: <strong>{rows.length}</strong> {selectedOnly ? "عطل محدد" : "عطل جسيم"}
+        </div>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
       <div className="rounded-md border max-h-[65vh] overflow-auto">
@@ -133,7 +148,9 @@ export function MajorFaultsReport() {
             {loading ? (
               <TableRow><TableCell colSpan={COLUMNS.length} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={COLUMNS.length} className="text-center h-24 text-muted-foreground">لا توجد أعطال جسيمة حالياً</TableCell></TableRow>
+              <TableRow><TableCell colSpan={COLUMNS.length} className="text-center h-24 text-muted-foreground">
+                {selectedOnly ? "لا توجد أعطال محددة حالياً" : "لا توجد أعطال جسيمة حالياً"}
+              </TableCell></TableRow>
             ) : rows.map((f, i) => {
               const r = toRow(f);
               return <TableRow key={i}>{r.map((cell, j) => <TableCell key={j} className="whitespace-nowrap">{j === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(rows[i]?.phoneShort)]} /> : (cell || "-")}</TableCell>)}</TableRow>;

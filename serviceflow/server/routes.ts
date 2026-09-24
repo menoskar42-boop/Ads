@@ -12646,6 +12646,11 @@ export async function registerRoutes(
              t.ticket_id             AS "ticketId",
              t.central_name          AS "centralName",
              t.phone_number          AS "phoneShort",
+              EXISTS (
+                SELECT 1
+                FROM current_fault_major_selections mfs
+                WHERE mfs.ticket_id = t.ticket_id
+              )                       AS "majorSelected",
              -- مكرر: يوجد شكوى مغلقة سابقة (complaint_details) لنفس الرقم، تاريخ شكواها
              -- (Complain Time) يقع في نفس شهر الشكوى الحالية، بيوم مختلف.
              -- (المقارنة بتاريخ الشكوى وليس الإغلاق: شكوى تاريخها الشهر السابق وأُغلقت
@@ -12798,6 +12803,54 @@ export async function registerRoutes(
       res.json(rows);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
+    }
+  });
+
+  // PUT /api/reports/current-faults/major-selection — إدراج/إزالة عطل من الجدول اليدوى للجسيم
+  app.put("/api/reports/current-faults/major-selection", requireAuth, async (req: any, res) => {
+    try {
+      const ticketId = String(req.body?.ticketId || "").trim();
+      const selected = req.body?.selected;
+      if (!ticketId || ticketId.length > 200 || typeof selected !== "boolean") {
+        return res.status(400).json({ message: "رقم الشكوى أو حالة الاختيار غير صالحة" });
+      }
+
+      if (!selected) {
+        await pool.query(
+          `DELETE FROM current_fault_major_selections WHERE ticket_id = $1`,
+          [ticketId],
+        );
+        return res.json({ ticketId, selected: false });
+      }
+
+      const userId = Number.isInteger(req.user?.id) ? req.user.id : null;
+      const userName = String(req.user?.fullName || req.user?.username || "").trim() || null;
+      const { rows } = await pool.query(
+        `INSERT INTO current_fault_major_selections
+           (ticket_id, selected_by_id, selected_by_name, selected_at)
+         SELECT t.ticket_id, $2, $3, now()
+         FROM ticket_dsl_current t
+         WHERE t.ticket_id = $1
+           AND t.close_date IS NULL
+           AND (t.status_code ~ '^(160|173|122|73|72|60|81)'
+                OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
+           AND t.central_name IN ('الغنايم', 'الغنايم-العزايزة', 'الغنايم-دير الجنادله', 'الغنايم-نجع العمدة')
+         ORDER BY t.id DESC
+         LIMIT 1
+         ON CONFLICT (ticket_id) DO UPDATE SET
+           selected_by_id = EXCLUDED.selected_by_id,
+           selected_by_name = EXCLUDED.selected_by_name,
+           selected_at = now()
+         RETURNING ticket_id`,
+        [ticketId, userId, userName],
+      );
+      if (rows.length === 0) {
+        return res.status(404).json({ message: "العطل لم يعد ضمن الأعطال الحالية" });
+      }
+      return res.json({ ticketId, selected: true });
+    } catch (error) {
+      console.error("Failed to update current fault major selection:", error);
+      return res.status(500).json({ message: "تعذّر حفظ اختيار التقرير" });
     }
   });
 

@@ -1460,6 +1460,16 @@ export async function ensureSchema() {
       ON customer_contact_logs (full_phone, contacted_at DESC, id DESC)
   `);
 
+  // الاختيارات اليدوية لإضافة الأعطال الحالية إلى جدول الأعطال الجسيمة.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS current_fault_major_selections (
+      ticket_id text PRIMARY KEY,
+      selected_by_id integer REFERENCES users(id),
+      selected_by_name text,
+      selected_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
   // lines_no_account — خطوط معلَّمة يدوياً بأنها "بدون رقم أكونت" (لا يوجد لها أكونت)
   // تُخفى من تقرير الخطوط بدون أكونت دون تسجيل رقم أكونت لها.
   await pool.query(`

@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/RefreshButton";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -59,6 +60,7 @@ interface CurrentFault extends Measurement138 {
   customerAddress: string | null;
   lastContactAt: string | null;
   lastContactOutcome: "answered" | "no_answer" | null;
+  majorSelected: boolean;
 }
 
 // تطبيع رقم المحمول للاتصال: أرقام فقط + إضافة صفر بادئ لو ناقص (1552… → 01552…)
@@ -174,6 +176,7 @@ export function CurrentFaultsReport() {
   const [editingMobileIndex, setEditingMobileIndex] = useState<number | null>(null);
   const [mobileInput, setMobileInput] = useState("");
   const [savingMobile, setSavingMobile] = useState(false);
+  const [savingMajorTicketId, setSavingMajorTicketId] = useState<string | null>(null);
   const openRepeat = async (f: CurrentFault) => {
     setRepeatFor(f); setRepeatData(null); setRepeatLoading(true);
     const p = new URLSearchParams({ phone: f.phoneShort || "", refDate: (f.complainTime || "").slice(0, 10) });
@@ -202,6 +205,32 @@ export function CurrentFaultsReport() {
       alert("تعذّر حفظ رقم الموبايل");
     } finally {
       setSavingMobile(false);
+    }
+  };
+
+  const updateMajorSelection = async (f: CurrentFault, selected: boolean) => {
+    const ticketId = String(f.ticketId || "").trim();
+    if (!ticketId) {
+      alert("لا يمكن إضافة العطل للتقرير لعدم وجود رقم شكوى");
+      return;
+    }
+    setSavingMajorTicketId(ticketId);
+    try {
+      const response = await fetch("/api/reports/current-faults/major-selection", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, selected }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.message || "تعذّر تحديث اختيار التقرير");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["/api/reports/current-faults"] });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "تعذّر تحديث اختيار التقرير");
+    } finally {
+      setSavingMajorTicketId(null);
     }
   };
 
@@ -545,6 +574,7 @@ export function CurrentFaultsReport() {
                 <TableHead className="text-right font-bold text-white">Data</TableHead>
                 <TableHead className="text-right font-bold text-white">Shelf</TableHead>
                 <TableHead className="text-right font-bold text-white">Slot</TableHead>
+                <TableHead className="text-right font-bold text-white whitespace-nowrap">اختيار للجسيم</TableHead>
                 <TableHead className="text-right font-bold text-white">Port</TableHead>
                 <TableHead className="text-right font-bold text-white">كود السنترال</TableHead>
                 <TableHead className="text-right font-bold text-white whitespace-nowrap">آخر رفع سرعة</TableHead>
@@ -554,7 +584,7 @@ export function CurrentFaultsReport() {
             <TableBody>
               {displayed.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={36} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={37} className="text-center py-16 text-muted-foreground">
                     {isFetching
                       ? "جاري التحميل..."
                       : repeatedOnly
@@ -700,6 +730,14 @@ export function CurrentFaultsReport() {
                     <TableCell className="text-xs">{f.dataStatus || "-"}</TableCell>
                     <TableCell>{f.shelf || "-"}</TableCell>
                     <TableCell>{f.slot || "-"}</TableCell>
+                    <TableCell>
+                      <Checkbox
+                        checked={Boolean(f.majorSelected)}
+                        onCheckedChange={(checked) => void updateMajorSelection(f, checked === true)}
+                        disabled={savingMajorTicketId !== null || !f.ticketId}
+                        aria-label={`إضافة ${f.phoneShort || "الخط"} إلى تقرير الأعطال الجسيمة المختارة`}
+                      />
+                    </TableCell>
                     <TableCell>{f.portNumber || "-"}</TableCell>
                     <TableCell>{f.centralCode || "-"}</TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-emerald-700">{fmtDt(f.lastPoRaiseAt)}</TableCell>
