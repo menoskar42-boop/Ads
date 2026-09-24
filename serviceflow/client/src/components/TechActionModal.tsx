@@ -298,6 +298,7 @@ export function TechActionModal({ order, action, onSubmit, submitting, triggerLa
                 <div className="space-y-2">
                   <Label>بعد أقرب بوكس (متر) *</Label>
                   <Input
+                    type="text"
                     required
                     value={distance}
                     onChange={(e) => setDistance(e.target.value)}
