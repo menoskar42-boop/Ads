@@ -139,17 +139,20 @@
     <h2 class="font-bold text-slate-900 mb-1"><%= t('ntp.book') %></h2>
     <p class="text-xs text-slate-500 mb-3"><%= t('ntp.book_hint') %></p>
 
-    <% if (typeof req !== 'undefined' && req && req.query && req.query.sent) { %>
+    <%# `req` مش بيتبعت للقالب — فالسطرين دول كانوا دايماً false: المريض يحجز
+        ومايشوفش «حجزك اتسجّل» ولا أي رسالة خطأ. `sent`/`contactError` هما اللي
+        السيرفر بيحسبهم من قايمة أكواد معروفة (tenant.js). check-tenant-shadow. %>
+    <% if (typeof sent !== 'undefined' && sent) { %>
       <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2 mb-3 text-sm"><%= t('ntp.book_sent') %></div>
     <% } %>
-    <% var __err = (typeof req !== 'undefined' && req && req.query && req.query.error) ? String(req.query.error) : null; %>
+    <% var __err = (typeof contactError !== 'undefined' && contactError) ? String(contactError) : null; %>
     <% if (__err) { %>
       <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2 mb-3 text-sm">
         <%= __err === 'taken' ? t('ntp.book_taken') : __err === 'closed' ? t('ntp.book_closed') : t('ntp.book_bad') %>
       </div>
     <% } %>
 
-    <form method="POST" action="/nutrition/book" class="grid gap-3">
+    <form method="POST" action="/nutrition/book" id="ntBook" class="grid gap-3">
       <div class="grid sm:grid-cols-2 gap-3">
         <label class="text-xs font-bold text-slate-600"><%= t('ntp.book_name') %>
           <input name="patient_name" required maxlength="80" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
@@ -169,6 +172,9 @@
         <div class="text-xs font-bold text-slate-600 mb-1"><%= t('ntp.book_time') %></div>
         <div id="ntSlots" class="flex flex-wrap gap-2"></div>
         <input type="hidden" name="time" id="ntTime" required />
+        <%# الخانة hidden، والمتصفح مابيتحقّقش من hidden — فمن غير ده الزرار كان
+            بيبعت فاضي ويرجع برسالة عامة بعد رحلة للسيرفر (فحص مانوس ٢٠٢٦-٠٩-٢٤). %>
+        <p id="ntTimeErr" class="hidden text-xs font-bold text-amber-700 mt-1" role="alert"><%= t('ntp.book_pick_time') %></p>
       </div>
       <label class="text-xs font-bold text-slate-600"><%= t('ntp.book_note') %>
         <input name="note" maxlength="300" class="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2 text-sm" />
@@ -191,6 +197,7 @@
               : 'border-slate-200 text-slate-700 hover:border-brand-500');
             b.onclick = function () {
               field.value = s.time;
+              document.getElementById('ntTimeErr').classList.add('hidden');
               Array.prototype.forEach.call(box.children, function (c) { c.classList.remove('bg-brand-600', 'text-white'); });
               b.classList.add('bg-brand-600', 'text-white');
             };
@@ -198,6 +205,13 @@
           });
         }
         sel.addEventListener('change', draw); draw();
+        document.getElementById('ntBook').addEventListener('submit', function (e) {
+          if (field.value) return;
+          e.preventDefault();
+          var err = document.getElementById('ntTimeErr');
+          err.classList.remove('hidden');
+          err.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
       })();
     </script>
   </section>

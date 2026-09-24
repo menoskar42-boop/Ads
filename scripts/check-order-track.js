@@ -166,7 +166,8 @@ const raw = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   const server = code('server.js');
   check('والراوت متركّب قبل راوتر المستأجر',
     server.indexOf("app.use('/track'") > -1
-    && server.indexOf("app.use('/track'") < server.indexOf('tenantRouter(req, res, next)'));
+    // lastIndexOf: الراوتر العام هو الأخير — TENANT_FIRST فوق بيناديه لمسارين بس.
+    && server.indexOf("app.use('/track'") < server.lastIndexOf('tenantRouter(req, res, next)'));
 }
 
 /* ── ٦. التوكن بيتعمل مرة واحدة وبقرار التاجر ───────────────────────────── */

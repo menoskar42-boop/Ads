@@ -638,6 +638,29 @@ app.use(require('./src/middleware/pay_status').middleware());
 // Company dashboard must be before tenant middleware
 app.use('/company', companyRouter);
 app.use('/accounting', require('./src/routes/accounting'));
+/* ── صفحات عامة للتاجر بتبدأ بمسار لوحة إدارة ─────────────────────────────
+ *
+ * راوتر المستأجر بيتركّب **بعد** لوحات القطاعات. فعلى سَبدومين العيادة،
+ * `POST /nutrition/book` (فورم الحجز العام) كان بيروح لـ`/nutrition` بتاع
+ * الأدمن، وده بيحوّل أي حد مش مسجّل دخول لـ`/company/login` — المريض بيدوس
+ * «احجز» فيلاقي شاشة دخول، والحجز مايتحفظش. ونفس الحكاية في لينك حجز الجيم
+ * (`/gym/booking/<token>` وإلغاؤه ونقله) اللي العميل بيتحوّل عليه بعد الحجز.
+ * اتلقط وأنا بجرّب رسالة «اختار ميعاد» اللي طلبها فحص مانوس (٢٠٢٦-٠٩-٢٤).
+ *
+ * المسارات دي بس بتتجرّب على راوتر المستأجر الأول، ولو الطلب مش على سَبدومين
+ * تاجر بتكمّل عادي للأدمن. الحارس: scripts/check-tenant-shadow.js — أي مسار
+ * جديد في tenant.js بيبدأ بمسار لوحة لازم يتضاف هنا. */
+const TENANT_FIRST = /^\/(?:nutrition\/book$|gym\/booking\/)/;
+app.use((req, res, next) => {
+  if (!TENANT_FIRST.test(req.path)) return next();
+  tenantMiddleware(req, res, (err) => {
+    if (err) return next(err);
+    if (!req.tenant) return next();
+    res.locals.showAds = false; // حجز وتأكيد حجز، مش محتوى
+    return tenantRouter(req, res, next);
+  });
+});
+
 app.use('/pharmacy', pharmacyAdminRouter);
 app.use('/food', foodAdminRouter);
 app.use('/clinic', clinicAdminRouter);
