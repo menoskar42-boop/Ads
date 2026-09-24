@@ -23,7 +23,7 @@ import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
-import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { fetchMobileLookup, useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
@@ -408,8 +408,11 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
     const params = filterParams({ page: "1", limit: "20000" });
     const res = await fetch(`/api/phone-lines/with-account?${params}`, { credentials: "include" });
     const json = await res.json();
-    const rows = (json.data as PhoneLine[]).map((r) => ({
+    const all = json.data as PhoneLine[];
+    const exportMobiles = await fetchMobileLookup(all.map((r) => r.telNo || r.fullPhone));
+    const rows = all.map((r) => ({
       "رقم التليفون الكامل": r.fullPhone,
+      "رقم الموبايل": exportMobiles[phoneLookupKey(r.telNo || r.fullPhone)] || "",
       "تاريخ آخر قياس": fmtMeasDate(r.lastMeasTime),
       "رقم الأكونت": r.accountNo,
       "مصدر الأكونت": r.accountSource === "manual" ? "يدوى" : "شيت 138",
@@ -443,10 +446,12 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
     const res = await fetch(`/api/phone-lines/with-account?${params}`, { credentials: "include" });
     const json = await res.json();
     const all = json.data as PhoneLine[];
+    const exportMobiles = await fetchMobileLookup(all.map((r) => r.telNo || r.fullPhone));
     printTablePDF({
       title: title ?? "تقرير الخطوط التى لها رقم أكونت",
-      columns: ["#", "التليفون الكامل", "الأكونت", "المصدر", "سرعة حالية", "أقصى سرعة", "السنترال", "الكابينه", "البكس", "IDU", "DP Terminal"],
-      rows: all.map((r, i) => [i + 1, r.fullPhone, r.accountNo, r.accountSource === "manual" ? "يدوى" : "138",
+      columns: ["#", "التليفون الكامل", "رقم الموبايل", "الأكونت", "المصدر", "سرعة حالية", "أقصى سرعة", "السنترال", "الكابينه", "البكس", "IDU", "DP Terminal"],
+      rows: all.map((r, i) => [i + 1, r.fullPhone, exportMobiles[phoneLookupKey(r.telNo || r.fullPhone)] || "",
+        r.accountNo, r.accountSource === "manual" ? "يدوى" : "138",
         r.lineCurrentSpeed ?? "", r.lineMaxSpeed ?? "", r.central, r.cabinNumber, r.boxNumber, r.iduNo, r.dpTerminal]),
     });
   };
@@ -722,6 +727,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
                 <TableHeader className="bg-muted/50">
                   <TableRow>
                     <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون الكامل</TableHead>
+                    <TableHead className="text-right font-bold whitespace-nowrap">رقم الموبايل</TableHead>
                     {!neverMeasured && <TableHead className="text-right font-bold whitespace-nowrap">تاريخ آخر قياس</TableHead>}
                     <TableHead className="text-right font-bold whitespace-nowrap">رقم الأكونت</TableHead>
                     <TableHead className="text-right font-bold whitespace-nowrap">المصدر</TableHead>
@@ -734,7 +740,6 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
                     <TableHead className="text-right font-bold whitespace-nowrap">رقم الكابينه</TableHead>
                     <TableHead className="text-right font-bold whitespace-nowrap">رقم البكس</TableHead>
                     <TableHead className="text-right font-bold whitespace-nowrap">رقم التليفون</TableHead>
-                    <TableHead className="text-right font-bold whitespace-nowrap">رقم الموبايل</TableHead>
                     <TableHead className="text-right font-bold whitespace-nowrap">IDU</TableHead>
                     <TableHead className="text-right font-bold whitespace-nowrap">ODU</TableHead>
                     <TableHead className="text-right font-bold whitespace-nowrap">Primary Block</TableHead>
@@ -752,6 +757,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
                   {data?.data.map((r, idx) => (
                     <TableRow key={idx} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="font-mono font-semibold text-blue-700">{r.fullPhone || "-"}</TableCell>
+                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
                       {!neverMeasured && <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-muted-foreground">{fmtMeasDate(r.lastMeasTime)}</TableCell>}
                       <TableCell dir="ltr" className="text-left font-mono">
                         {editingPhone === r.fullPhone ? (
@@ -839,7 +845,6 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
                       <TableCell className="font-medium">{r.cabinNumber || "-"}</TableCell>
                       <TableCell className="font-medium">{r.boxNumber || "-"}</TableCell>
                       <TableCell className="font-mono text-muted-foreground">{r.telNo || "-"}</TableCell>
-                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
                       <TableCell>{r.iduNo || "-"}</TableCell>
                       <TableCell>{r.oduNo || "-"}</TableCell>
                       <TableCell>{r.primaryBlockNo || "-"}</TableCell>

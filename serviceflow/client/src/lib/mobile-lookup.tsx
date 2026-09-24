@@ -13,6 +13,25 @@ export const dialMobile = (raw: string | null | undefined): string => {
   return digits.startsWith("0") ? digits : `0${digits}`;
 };
 
+export async function fetchMobileLookup(phones: Array<string | null | undefined>): Promise<Record<string, string>> {
+  const uniquePhones = Array.from(new Set(phones.map(phoneLookupKey).filter(Boolean))).sort();
+  if (!uniquePhones.length) return {};
+
+  const response = await fetch("/api/phone-lines/mobile-lookup", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phones: uniquePhones }),
+  });
+  if (!response.ok) throw new Error("فشل تحميل أرقام الموبايل");
+  const payload = await response.json() as { data?: Array<{ phone: string; mobile: string | null }> };
+  return Object.fromEntries(
+    (payload.data ?? [])
+      .filter((row) => row.mobile)
+      .map((row) => [phoneLookupKey(row.phone), String(row.mobile)]),
+  ) as Record<string, string>;
+}
+
 export function useMobileLookup(phones: Array<string | null | undefined>): Record<string, string> {
   const phoneKey = useMemo(
     () => Array.from(new Set(phones.map(phoneLookupKey).filter(Boolean))).sort().join("|"),
@@ -21,21 +40,7 @@ export function useMobileLookup(phones: Array<string | null | undefined>): Recor
   const { data } = useQuery({
     queryKey: ["/api/phone-lines/mobile-lookup", phoneKey],
     enabled: Boolean(phoneKey),
-    queryFn: async () => {
-      const response = await fetch("/api/phone-lines/mobile-lookup", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phones: phoneKey.split("|") }),
-      });
-      if (!response.ok) throw new Error("فشل تحميل أرقام الموبايل");
-      const payload = await response.json() as { data?: Array<{ phone: string; mobile: string | null }> };
-      return Object.fromEntries(
-        (payload.data ?? [])
-          .filter((row) => row.mobile)
-          .map((row) => [phoneLookupKey(row.phone), String(row.mobile)]),
-      ) as Record<string, string>;
-    },
+    queryFn: () => fetchMobileLookup(phoneKey.split("|")),
   });
   return data ?? {};
 }

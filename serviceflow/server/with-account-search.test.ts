@@ -26,3 +26,13 @@ test("the report tells the user that account and phone search are supported", ()
   assert.match(report, /placeholder="بحث برقم الأكونت أو التليفون"/);
   assert.match(report, /aria-label="بحث برقم الأكونت أو التليفون"/);
 });
+
+test("mobile number is displayed beside the full phone number and included in exports", () => {
+  assert.match(
+    report,
+    /<TableHead[^>]*>رقم التليفون الكامل<\/TableHead>\s*<TableHead[^>]*>رقم الموبايل<\/TableHead>/,
+  );
+  assert.match(report, /"رقم الموبايل": exportMobiles\[phoneLookupKey\(r\.telNo \|\| r\.fullPhone\)\]/);
+  assert.match(report, /columns: \["#", "التليفون الكامل", "رقم الموبايل"/);
+  assert.match(report, /fetchMobileLookup\(all\.map\(\(r\) => r\.telNo \|\| r\.fullPhone\)\)/);
+});
