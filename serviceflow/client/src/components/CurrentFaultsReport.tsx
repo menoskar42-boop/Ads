@@ -2,7 +2,7 @@ import { useState } from "react";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -152,6 +152,7 @@ const faultBadge = (cls: string | null) => {
 export function CurrentFaultsReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
+  const queryClient = useQueryClient();
   useSpeedToolSource("المتعذرات الحالية");
   const [central, setCentral] = useState("");
   const [q, setQ] = useState("");
@@ -165,6 +166,9 @@ export function CurrentFaultsReport() {
   const [repeatData, setRepeatData] = useState<any[] | null>(null);
   const repeatScroll = useHorizontalKeyboardScroll(!!repeatFor && !!repeatData && repeatData.length > 0);
   const [repeatLoading, setRepeatLoading] = useState(false);
+  const [editingMobileIndex, setEditingMobileIndex] = useState<number | null>(null);
+  const [mobileInput, setMobileInput] = useState("");
+  const [savingMobile, setSavingMobile] = useState(false);
   const openRepeat = async (f: CurrentFault) => {
     setRepeatFor(f); setRepeatData(null); setRepeatLoading(true);
     const p = new URLSearchParams({ phone: f.phoneShort || "", refDate: (f.complainTime || "").slice(0, 10) });
@@ -174,6 +178,26 @@ export function CurrentFaultsReport() {
       setRepeatData(j.prev || []);
     } catch { setRepeatData([]); }
     setRepeatLoading(false);
+  };
+
+  const saveMobile = async (f: CurrentFault) => {
+    if (!f.phoneShort) return;
+    setSavingMobile(true);
+    try {
+      const response = await fetch("/api/line-mobiles", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullPhone: f.phoneShort, mobile: mobileInput.trim() }),
+      });
+      if (!response.ok) throw new Error();
+      setEditingMobileIndex(null);
+      await queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/mobile-lookup"] });
+    } catch {
+      alert("تعذّر حفظ رقم الموبايل");
+    } finally {
+      setSavingMobile(false);
+    }
   };
 
   const { data: faults = [], isFetching } = useQuery<CurrentFault[]>({
@@ -529,6 +553,7 @@ export function CurrentFaultsReport() {
                   </TableCell>
                 </TableRow>
               ) : displayed.map((f, i) => {
+                const mobile = mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile;
                 const rowClass =
                   f.faultClass === "المتبقيات"     ? "bg-red-50 hover:bg-red-100" :
                   f.faultClass === "اعطال 48 ساعه" ? "bg-yellow-50 hover:bg-yellow-100" :
@@ -538,7 +563,52 @@ export function CurrentFaultsReport() {
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell>{f.centralName || "-"}</TableCell>
                     <TableCell dir="ltr" className="text-left font-mono">{f.phoneShort || "-"}</TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)] ?? f.mobile} /></TableCell>
+                    <TableCell>
+                      {isSuper && editingMobileIndex === i ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Input
+                            value={mobileInput}
+                            onChange={(e) => setMobileInput(e.target.value)}
+                            placeholder="رقم الموبايل"
+                            className="h-7 w-32 px-2 text-xs"
+                            dir="ltr"
+                            inputMode="tel"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveMobile(f)}
+                            disabled={savingMobile}
+                            className="text-[11px] text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-1 disabled:opacity-50"
+                          >
+                            {savingMobile ? "..." : "حفظ"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingMobileIndex(null)}
+                            disabled={savingMobile}
+                            className="text-[11px] text-gray-500 px-1"
+                          >
+                            إلغاء
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <MobileValue mobile={mobile} />
+                          {isSuper && f.phoneShort && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMobileInput(mobile ?? "");
+                                setEditingMobileIndex(i);
+                              }}
+                              className="text-[11px] text-blue-600 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50"
+                            >
+                              {mobile ? "تعديل" : "＋ إضافة"}
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {f.repeatStatus === "مكرر" ? (
                         <button
