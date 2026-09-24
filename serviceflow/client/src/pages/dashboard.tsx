@@ -69,6 +69,7 @@ import { ManualCurrentFaultsReport } from "@/components/ManualCurrentFaultsRepor
 import { ManualRegularizedHighScoreReport } from "@/components/ManualRegularizedHighScoreReport";
 import { EngineeringInspectionReport } from "@/components/EngineeringInspectionReport";
 import { MajorFaultsReport } from "@/components/MajorFaultsReport";
+import { MajorFaultClosureReport } from "@/components/MajorFaultClosureReport";
 import { ClosedPortCabinetsReport } from "@/components/ClosedPortCabinetsReport";
 import { InspectionReports } from "@/components/InspectionReports";
 import { ShiftScheduleReport } from "@/components/ShiftScheduleReport";
@@ -86,7 +87,7 @@ import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "other-work-orders";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "other-work-orders";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -114,6 +115,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
     items: [
       { id: "major-faults",           label: "الأعطال الجسيمة" },
       { id: "major-faults-selected",  label: "الأعطال الجسيمة المختارة" },
+      { id: "major-fault-closure",    label: "إغلاق العطل الجسيم مركز الصيانة" },
       { id: "engineering-inspection", label: "أعطال التفتيش الهندسى" },
       { id: "closed-port-cabinets",   label: "الكباين المغلقة بورتات" },
     ],
@@ -662,6 +664,7 @@ export default function Dashboard() {
               {reportTab === "current-faults"    && <CurrentFaultsReport />}
               {reportTab === "major-faults"      && <MajorFaultsReport />}
               {reportTab === "major-faults-selected" && <MajorFaultsReport selectedOnly />}
+              {reportTab === "major-fault-closure" && <MajorFaultClosureReport />}
               {reportTab === "closed-port-cabinets" && <ClosedPortCabinetsReport />}
               {reportTab === "inspection-reports" && <InspectionReports />}
               {reportTab === "shift-schedule" && <ShiftScheduleReport />}
