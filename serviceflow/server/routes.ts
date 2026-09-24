@@ -13306,7 +13306,16 @@ export async function registerRoutes(
                 c138.po_status                          AS "poStatus",
                 c138.current_speed                  AS "lineCurrentSpeed",
                 c138.max_speed                      AS "lineMaxSpeed",
-                (c138.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime"
+                 (c138.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
+                 EXISTS (
+                   SELECT 1
+                     FROM customer_contact_logs ccl
+                    WHERE (ccl.full_phone = qual.phone
+                       OR ccl.full_phone = ('88' || qual.phone)
+                       OR ccl.full_phone = ('0' || qual.phone))
+                      AND (ccl.contacted_at AT TIME ZONE 'Africa/Cairo')::date >= $1::date
+                      AND (ccl.contacted_at AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+                 ) AS "contactedDuringPeriod"
          FROM qual
          LEFT JOIN phone_lines pl ON pl.tel_no = qual.phone
          LEFT JOIN cabinet_technicians ct

@@ -44,6 +44,7 @@ interface RepeatedRow {
   lineCurrentSpeed: string | null;
   lineMaxSpeed: string | null;
   lastMeasTime: string | null;
+  contactedDuringPeriod: boolean;
 }
 
 // الأوقات مخزَّنة كـ UTC — تُعرض كما هى دون إزاحة المتصفح.
@@ -75,6 +76,8 @@ export function RepeatedWithinMonthReport() {
   const [busy, setBusy] = useState(false);
   const [central, setCentral] = useState("");
   const [q, setQ] = useState("");
+  const [mobileFilter, setMobileFilter] = useState<"all" | "has-mobile" | "no-mobile">("all");
+  const [contactFilter, setContactFilter] = useState<"all" | "not-contacted">("all");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -106,12 +109,19 @@ export function RepeatedWithinMonthReport() {
     .sort((a, b) => a.localeCompare(b, "ar"));
   const hasNoTech = allRows.some((r) => !(r.techName || "").trim());
   const NO_TECH = "__none__";
-  const rows = !tech
+  const techRows = !tech
     ? allRows
     : tech === NO_TECH
       ? allRows.filter((r) => !(r.techName || "").trim())
       : allRows.filter((r) => (r.techName || "").trim() === tech);
-  const mobileLookup = useMobileLookup(rows.map((r) => r.phoneShort));
+  const mobileLookup = useMobileLookup(techRows.map((r) => r.phoneShort));
+  const rows = techRows.filter((r) => {
+    const mobile = mobileLookup[phoneLookupKey(r.phoneShort)]?.trim() || "";
+    if (mobileFilter === "has-mobile" && !mobile) return false;
+    if (mobileFilter === "no-mobile" && mobile) return false;
+    if (contactFilter === "not-contacted" && r.contactedDuringPeriod) return false;
+    return true;
+  });
 
   const rangeLabel = `تاريخ آخر شكوى من ${dateFrom || "البداية"} إلى ${dateTo || "النهاية"}`;
 
@@ -305,6 +315,27 @@ export function RepeatedWithinMonthReport() {
           <option value="">كل الفنيين</option>
           {techOptions.map((t) => <option key={t} value={t}>{t}</option>)}
           {hasNoTech && <option value={NO_TECH}>— بدون فنى —</option>}
+        </select>
+        <select
+          value={mobileFilter}
+          onChange={(e) => setMobileFilter(e.target.value as typeof mobileFilter)}
+          className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
+          dir="rtl"
+          title="فلترة حسب توفر رقم الموبايل"
+        >
+          <option value="all">كل الأرقام (الموبايل)</option>
+          <option value="has-mobile">لها موبايل</option>
+          <option value="no-mobile">ليس لها موبايل</option>
+        </select>
+        <select
+          value={contactFilter}
+          onChange={(e) => setContactFilter(e.target.value as typeof contactFilter)}
+          className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
+          dir="rtl"
+          title={`الاتصال خلال الفترة المحددة: ${dateFrom || "البداية"} إلى ${dateTo || "النهاية"}`}
+        >
+          <option value="all">كل حالات الاتصال</option>
+          <option value="not-contacted">لم يتم الاتصال خلال الفترة</option>
         </select>
         <Input
           placeholder="بحث برقم التليفون"

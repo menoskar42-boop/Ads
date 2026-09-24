@@ -79,6 +79,7 @@ export function CustomerContactActions({ phone }: { phone: string }) {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/customer-contact-logs", phone] }),
         queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/account-complaints"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/reports/repeated-within-month"] }),
       ]);
     },
   });
