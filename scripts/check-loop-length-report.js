@@ -25,8 +25,6 @@ need((q.match(/JOIN LATERAL/g) || []).length === 1 && /COALESCE\(c\.loop_length,
   'الـloop والسرعات لازم من نفس الصف: LATERAL واحد مقيّد بـloop مش فاضى.');
 need(/hasFrameSql\("pl\.full_phone"\)/.test(q), 'الخطوط اللى مالهاش فريم لازم تتشال (زى متوسط القياسات).');
 need(/pl\.box_number = ANY\(\$\$\{params\.length\}::text\[\]\)/.test(q), 'فلتر البكسيات لازم يقبل أكتر من بكس.');
-need(/req\.user\?\.role === ROLES\.TECH/.test(q), 'الفنى يشوف كبايينه بس (زى متوسط القياسات).');
-need(/Number\(r\.score\) > 100\) \{ special\+\+; continue; \}/.test(ep), 'الاسكور > 100 مايترسمش.');
 const llImport = (routes.match(/import \{([^}]*)\} from "\.\/loop-length";/) || [])[1] || '';
 need(/\bloopMeters\b/.test(llImport) && /\bspeedKbps\b/.test(llImport), 'التحويل لازم من server/loop-length.ts.');
 
@@ -57,5 +55,16 @@ const grp = dash.slice(dash.indexOf('label: "القياسات"'), dash.indexOf('
 need(grp.includes('"loop-length-scatter"'), 'التقرير لازم يكون جوّه مجموعة «القياسات».');
 need(/introHtml\?: string;/.test(R('client/src/lib/print-pdf.ts')), 'printTablePDF لازم يقبل introHtml.');
 
+// قرار المالك (٢٠٢٦-٠٩-٢٤): التقرير مش للفنيين — مقفول فى السيرفر قبل أى استعلام، ومش فى TECH_ALLOWED.
+const head = ep.slice(0, ep.indexOf('try {'));
+need(/role === ROLES\.TECH \|\| req\.user\?\.role === ROLES\.MAINTENANCE_TECH\)[\s\S]*?status\(403\)/.test(head),
+  'التقرير لازم يرجّع 403 للفنى وفنى الصيانة قبل الاستعلام.');
+need(!/ROLES\.TECH/.test(q.slice(q.indexOf('try {'))), 'مفيش نطاق فنى جوّه الاستعلام — الفنى مابيوصلش أصلاً.');
+const techAllowed = (dash.match(/const TECH_ALLOWED: ReportTab\[\] = \[([^\]]*)\]/) || [])[1];
+need(techAllowed != null && !techAllowed.includes('"loop-length-scatter"'), 'التاب لازم يفضل مستخبّى عن الفنى (مش فى TECH_ALLOWED).');
+// الاسكور > 100 بيتشال، والاسكور 0 **بيفضل** فى النقط والمتوسطات (قرار المالك).
+need(/Number\(r\.score\) > 100\) \{ special\+\+; continue; \}/.test(ep), 'الاسكور > 100 مايترسمش.');
+need(!/score\)? *(===|!==|<=|>) *0\b|score *> *0|!r\.score\b|!p\.score\b/.test(ep.slice(0, ep.indexOf('res.json({ points'))) && !/score *(===|!==|>) *0\b|!p\.score\b/.test(ui),
+  'الاسكور 0 لازم يفضل فى المتوسطات — اللى بيتشال الأعلى من 100 بس.');
 if (errors.length) { console.log('❌ check-loop-length-report:'); errors.forEach((e) => console.log('   · ' + e)); process.exit(1); }
 console.log('✅ check-loop-length-report: ٣ رسومات من نفس صف القياس، بفلتر سنترال/كابينة/بكسيات، وExcel + PDF.');

@@ -7433,8 +7433,15 @@ export async function registerRoutes(
   // بس)، والسرعات والاسكور من **نفس الصف** — لو اتاخدت من آخر قياس (ممكن يكون
   // Real من غير loop) النقطة هتبقى طول خط من يوم وسرعة من يوم تانى.
   // الاسكور > 100 (حالات خاصة: 101 داتا ناقصة، 104 بلوك…) مش قراية — بيتشال من
-  // الرسومات ويتعدّ لوحده. boxes = قايمة بفواصل (بكس واحد أو أكتر).
+  // الرسومات والمتوسطات ويتعدّ لوحده. **الاسكور 0 بيفضل** — قرار المالك
+  // (٢٠٢٦-٠٩-٢٤): «لا تشيل اسكور 0 من المتوسطات، اللى يتشال هو الأعلى من 100».
+  // boxes = قايمة بفواصل (بكس واحد أو أكتر).
   app.get("/api/reports/loop-length-scatter", requireAuth, async (req: any, res) => {
+    // قرار المالك (٢٠٢٦-٠٩-٢٤): التقرير ده مش للفنيين. التاب مستخبّى عنهم فى
+    // الواجهة (مش فى TECH_ALLOWED)، والسيرفر بيقفله كمان — الرابط المباشر مايكفيش.
+    if (req.user?.role === ROLES.TECH || req.user?.role === ROLES.MAINTENANCE_TECH) {
+      return res.status(403).json({ message: "التقرير ده مش متاح للفنيين" });
+    }
     try {
       const { central, cabin } = req.query as Record<string, string>;
       const boxes = String(req.query.boxes || "").split(",").map((b) => b.trim()).filter(Boolean).slice(0, 200);
@@ -7443,17 +7450,6 @@ export async function registerRoutes(
       if (central) { params.push(central); conds.push(`pl.central = $${params.length}`); }
       if (cabin)   { params.push(cabin);   conds.push(`pl.cabin_number = $${params.length}`); }
       if (boxes.length) { params.push(boxes); conds.push(`pl.box_number = ANY($${params.length}::text[])`); }
-      if (req.user?.role === ROLES.TECH) {
-        const workerCode = String(req.user.workerCode || "").trim();
-        if (!workerCode) return res.json({ points: [], totalLines: 0, withLoop: 0, special: 0, unreadable: 0 });
-        params.push(workerCode);
-        conds.push(`EXISTS (
-          SELECT 1 FROM cabinet_technicians ct
-           WHERE ct.central_name = pl.central
-             AND ct.cabin_number = pl.cabin_number
-             AND btrim(COALESCE(ct.worker_code, '')) = btrim($${params.length})
-        )`);
-      }
       const { rows } = await pool.query(
         `SELECT DISTINCT ON (pl.full_phone)
                 pl.full_phone AS "fullPhone", pl.central, pl.cabin_number AS "cabinNumber", pl.box_number AS "boxNumber",
