@@ -7087,6 +7087,112 @@ export async function registerRoutes(
     res.json({ found: true, line });
   });
 
+  // GET /api/reports/major-fault-closure/stats — سعة العنصر والخطوط العاملة للإغلاق الجسيم.
+  // الكابينة: السعة الابتدائية من FCC + عدد الخطوط فى بيان التليفونات.
+  // البكسيات: سعة كل DP من Network Inventory + الخطوط لكل بكس، ثم يجمعها العميل.
+  app.get("/api/reports/major-fault-closure/stats", requireAuth, async (req, res) => {
+    if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
+    try {
+      const query = req.query as Record<string, string>;
+      const central = String(query.central || "").trim();
+      const cabin = String(query.cabin || "").trim();
+      const element = String(query.element || "");
+      if (!central || !cabin) return res.status(400).json({ message: "بيانات السنترال والكابينة مطلوبة" });
+      if (element !== "cabinet" && element !== "boxes") {
+        return res.status(400).json({ message: "نوع العنصر غير صحيح" });
+      }
+
+      const centralMatch = `LOWER(REPLACE(BTRIM(COALESCE(central_name, '')), ' ', '')) =
+                            LOWER(REPLACE(BTRIM($1), ' ', ''))`;
+      const { rows: capacityRows } = await pool.query(
+        `SELECT exch_code AS "exchangeCode", primary_capacity AS "primaryCapacity"
+         FROM cabinet_capacity
+         WHERE ${centralMatch} AND BTRIM(COALESCE(cabin_number, '')) = BTRIM($2)
+         ORDER BY uploaded_at DESC, id DESC
+         LIMIT 1`,
+        [central, cabin],
+      );
+      const exchangeCodes: Record<string, string> = {
+        "الغنايم": "GHNAT",
+        "الغنايم-دير الجنادله": "DRGAT",
+        "الغنايم-العزايزة": "AMZAT",
+        "الغنايم-نجع العمدة": "NGOAT",
+      };
+      const exchangeCode = capacityRows[0]?.exchangeCode || exchangeCodes[central] || "";
+
+      if (element === "cabinet") {
+        const { rows: workingRows } = await pool.query(
+          `SELECT COUNT(DISTINCT tel_no)::int AS "workingLines"
+           FROM phone_lines
+           WHERE LOWER(REPLACE(BTRIM(COALESCE(central, '')), ' ', '')) =
+                 LOWER(REPLACE(BTRIM($1), ' ', ''))
+             AND BTRIM(COALESCE(cabin_number, '')) = BTRIM($2)`,
+          [central, cabin],
+        );
+        return res.json({
+          exchangeCode,
+          items: [{
+            boxNumber: null,
+            capacity: capacityRows[0]?.primaryCapacity ?? null,
+            workingLines: workingRows[0]?.workingLines ?? 0,
+          }],
+        });
+      }
+
+      const boxFrom = Number(query.boxFrom);
+      const boxTo = Number(query.boxTo);
+      if (!Number.isInteger(boxFrom) || !Number.isInteger(boxTo) || boxFrom < 1 || boxTo < boxFrom) {
+        return res.status(400).json({ message: "أدخل نطاق بكسيات صحيحًا" });
+      }
+      if (boxTo - boxFrom > 299) {
+        return res.status(400).json({ message: "النطاق كبير جدًا؛ الحد الأقصى 300 بكس" });
+      }
+
+      const { rows: items } = await pool.query(
+        `WITH wanted AS (
+           SELECT generate_series($3::int, $4::int) AS box_number
+         ), dp_raw AS (
+           SELECT id, capacity,
+                  CASE WHEN BTRIM(COALESCE(dp_no, '')) ~ '^[0-9]+$'
+                       THEN BTRIM(dp_no)::int END AS box_number
+           FROM dp_inventory
+           WHERE LOWER(REPLACE(BTRIM(COALESCE(central, '')), ' ', '')) =
+                 LOWER(REPLACE(BTRIM($1), ' ', ''))
+             AND BTRIM(COALESCE(cabinet_no, '')) = BTRIM($2)
+         ), dp AS (
+           SELECT DISTINCT ON (box_number) box_number, capacity
+           FROM dp_raw
+           WHERE box_number BETWEEN $3::int AND $4::int
+           ORDER BY box_number, id DESC
+         ), line_raw AS (
+           SELECT tel_no,
+                  CASE WHEN BTRIM(COALESCE(box_number, '')) ~ '^[0-9]+$'
+                       THEN BTRIM(box_number)::int END AS box_number
+           FROM phone_lines
+           WHERE LOWER(REPLACE(BTRIM(COALESCE(central, '')), ' ', '')) =
+                 LOWER(REPLACE(BTRIM($1), ' ', ''))
+             AND BTRIM(COALESCE(cabin_number, '')) = BTRIM($2)
+         ), line_counts AS (
+           SELECT box_number, COUNT(DISTINCT tel_no)::int AS working_lines
+           FROM line_raw
+           WHERE box_number BETWEEN $3::int AND $4::int
+           GROUP BY box_number
+         )
+         SELECT wanted.box_number::text AS "boxNumber",
+                dp.capacity,
+                COALESCE(line_counts.working_lines, 0)::int AS "workingLines"
+         FROM wanted
+         LEFT JOIN dp ON dp.box_number = wanted.box_number
+         LEFT JOIN line_counts ON line_counts.box_number = wanted.box_number
+         ORDER BY wanted.box_number`,
+        [central, cabin, boxFrom, boxTo],
+      );
+      res.json({ exchangeCode, items });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "تعذّر تحميل السعة والخطوط العاملة" });
+    }
+  });
+
   // POST /api/line-mobiles — حفظ/تحديث رقم موبايل يدوى لخط (بحث برقم التليفون)
   app.post("/api/line-mobiles", requireAuth, async (req: any, res) => {
     if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
