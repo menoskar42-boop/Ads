@@ -6930,6 +6930,21 @@ export async function registerRoutes(
                                  AND (ts.status_code ~ '^(160|173|122|73|72|60)' OR ts.complain_type_name ~ '^(160|173|122|73|72|60)'))
                   ))
               ))
+              -- أو: خطى بالسنترال/رقم الكابينة حتى لو صف الكابينة **مالوش كود** (cabin_code
+              -- فاضى). الفرع اللى فوق بيبدأ بـ«ctc.cabin_code مش فاضى» فكان بيقفل على الفنى
+              -- خطوط كابينته، والاسم بيظهر عادى «الخط تابع للفنى: <هو نفسه>» (حسن، TB07،
+              -- ٢٠٢٦-٠٩-٢٤).
+              OR (array_length($4::text[], 1) > 0 AND pl.central IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM cabinet_technicians ctx
+                     WHERE ctx.central_name = pl.central AND ctx.cabin_number = pl.cabin_number
+                       AND btrim(ctx.worker_code) = ANY($4::text[])))
+              -- أو: الفنى المعروض للخط جاى من **إسناد MSAN يدوى** (msan_tech_overrides) وهو أنا.
+              -- كل الموقع بيعتبر فنى الخط = COALESCE(الإسناد اليدوى، فنى الكابينة) — تقاريره
+              -- وقايمة «متعذراتى» — والصلاحية بس كانت بتبص على cabinet_technicians، فالفنى
+              -- يلاقى الخط فى تقاريره باسمه ومايقدرش يقيسه. الإسناد ممكن يبقى «أ , ب».
+              OR ($6::text <> '' AND mto.tech_name IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM unnest(string_to_array(mto.tech_name, ',')) AS n(name)
+                     WHERE btrim(n.name) = btrim($6::text)))
               -- أو: الرقم موجود فى تقرير «الأعطال المنتظمة اليوم» وتذكرته على كابينة
               -- بتاعتى أو بتاعة زميل أنا مغطّيه → **كل** أرقام التقرير مفتوحة للفنى
               -- القائم بالعمل وللفنى المغطَّى له.
@@ -7046,11 +7061,14 @@ export async function registerRoutes(
        ) mob ON true
        LIMIT 1`,
       // raw = الأرقام بس كمان (الرقم بشرطة مستحيل يطابق full_phone المخزّن)
-      [digits, short, full, codes.own, codes.covered],
+      [digits, short, full, codes.own, codes.covered, req.user?.role === ROLES.TECH ? (codes.techName || "") : ""],
     );
     const line = rows[0];
     if (!line || !line.hasData) return res.json({ found: false });
     delete line.hasData;
+    // فنى حسابه مش مربوط بكود عامل: مفيش ولا خط هيبقى «بتاعه» — والرسالة العامة
+    // «متاحة فقط لفنى المنطقة» كانت بتخبّى السبب ده. الشاشة بتقوله يكلّم الأدمن.
+    line.myWorkerCodeMissing = req.user?.role === ROLES.TECH && codes.own.length === 0;
     res.json({ found: true, line });
   });
 

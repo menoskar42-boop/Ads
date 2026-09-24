@@ -90,6 +90,7 @@ interface LineData {
   workOrdDate: string | null;
   workOrdNo: string | null;
   ownedByMe: boolean | null;
+  myWorkerCodeMissing?: boolean;
 }
 
 const dash = (v: unknown) =>
@@ -1002,6 +1003,11 @@ export function PhoneLookupReport() {
                     <span className="block mt-1 text-[11px] opacity-90">
                       لو انت مغطّى للفنى ده: الصلاحية بتفتح على خطوطه اللى عليها عطل مفتوح أو عطل اتنظّم النهاردة بس.
                     </span>
+                    {line.myWorkerCodeMissing && (
+                      <span className="block mt-1 text-[11px] font-bold text-red-700">
+                        حسابك مش مربوط بكود عامل، فالنظام مش عارف خطوطك — كلّم الأدمن يضيف كودك من إدارة المستخدمين.
+                      </span>
+                    )}
                   </span>
                 )
               ) : isSuper ? (
