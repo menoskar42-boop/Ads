@@ -60,7 +60,7 @@ test("the report sends the complaint filter and displays both totals", () => {
 });
 
 test("the period-and-total tab shows both counts and defaults to the current month", () => {
-  assert.match(client, /useState<"period" \| "period-total">\("period"\)/);
+  assert.match(client, /useState<"period" \| "period-total">\("period-total"\)/);
   assert.match(client, /TabsTrigger value="period">تقرير الشكاوى خلال عام/);
   assert.match(client, /TabsTrigger value="period-total">تقرير الشكاوى خلال فترة/);
   assert.match(client, /"عدد الشكاوى خلال الفترة": r\.complaintCount/);
