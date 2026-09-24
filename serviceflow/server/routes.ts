@@ -1187,6 +1187,8 @@ async function queryRegularizedFaults(opts: { central?: string; q?: string; date
          c138p.po_status             AS "poStatus",
          c138p.complain_no       AS "lastMeasComplainNo",
          (c138p.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastMeasTime",
+              contact.contacted_at    AS "lastContactAt",
+              contact.outcome         AS "lastContactOutcome",
          c138c.score             AS "curMeasScore",
          c138c.current_speed     AS "curMeasCurrentSpeed",
          c138c.max_speed         AS "curMeasMaxSpeed",
@@ -1222,6 +1224,14 @@ async function queryRegularizedFaults(opts: { central?: string; q?: string; date
           WHERE ${sp("p.phone_number")} = ${sp("t.phone_number")}
           ORDER BY length(p.phone_number) DESC LIMIT 1
        ) pp ON true
+            -- أحدث محاولة اتصال مسجلة، مع توحيد الرقم القصير والكامل مثل تقرير شكاوى الأكونت.
+            LEFT JOIN LATERAL (
+              SELECT ccl.contacted_at, ccl.outcome
+              FROM customer_contact_logs ccl
+              WHERE ${sp("ccl.full_phone")} = ${sp("t.phone_number")}
+              ORDER BY ccl.contacted_at DESC, ccl.id DESC
+              LIMIT 1
+            ) contact ON true
        LEFT JOIN phone_lines pl ON pl.tel_no = t.phone_number
        LEFT JOIN cabinet_technicians ct ON ct.central_name = t.central_name AND ct.cabin_number = t.cabinet_no
        LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code

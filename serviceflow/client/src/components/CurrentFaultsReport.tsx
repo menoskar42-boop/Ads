@@ -17,6 +17,7 @@ import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { closeReason } from "@/lib/close-codes";
 import { Measurement138Button, type Measurement138 } from "@/components/Measurement138Button";
 import { LineDetailsDialog } from "@/components/LineDetailsDialog";
+import { formatContactTime } from "@/components/CustomerContactActions";
 import { LastUpdatedBadge } from "@/components/LastUpdatedBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
@@ -56,6 +57,8 @@ interface CurrentFault extends Measurement138 {
   lastPoStopAt: string | null;
   mobile: string | null;
   customerAddress: string | null;
+  lastContactAt: string | null;
+  lastContactOutcome: "answered" | "no_answer" | null;
 }
 
 // تطبيع رقم المحمول للاتصال: أرقام فقط + إضافة صفر بادئ لو ناقص (1552… → 01552…)
@@ -277,6 +280,7 @@ export function CurrentFaultsReport() {
       "الاسكور": f.lastMeasScore ?? "",
       "حالة تحسين البروفايل": f.poStatus ?? "",
       "تاريخ آخر قياس": fmtDt(f.lastMeasTime ?? null),
+      "وقت آخر اتصال": formatContactTime(f.lastContactAt),
       "القياس الحالى (نفس الشكوى)": f.curMeasScore,
       "آخر قياس للرقم": f.lastMeasScore,
       "موقف التكرار": f.repeatStatus,
@@ -317,7 +321,7 @@ export function CurrentFaultsReport() {
     const ROWS_PER_PAGE = 10;
     const totalPages = Math.max(1, Math.ceil(displayed.length / ROWS_PER_PAGE));
     const headRow = `<tr>
-      <th>#</th><th>السنترال</th><th>التليفون</th><th>الأكونت</th><th>سرعة حالية</th><th>أقصى سرعة</th><th>الاسكور</th><th>حالة PO</th><th>تاريخ آخر قياس</th><th>قياس حالى</th><th>آخر قياس</th><th>تكرار</th><th>Status</th>
+      <th>#</th><th>السنترال</th><th>التليفون</th><th>الأكونت</th><th>سرعة حالية</th><th>أقصى سرعة</th><th>الاسكور</th><th>حالة PO</th><th>تاريخ آخر قياس</th><th>وقت آخر اتصال</th><th>قياس حالى</th><th>آخر قياس</th><th>تكرار</th><th>Status</th>
       <th>MSAN</th><th>Frame</th>
       <th>الكابينه</th><th>البكس</th><th>ترمنال</th><th>وقت الشكوى</th><th>الوقت الفعلى</th><th>نوع الشكوى</th>
       <th>تصنيف</th><th>كود العامل</th><th>اسم الفنى</th><th>نوع العطل</th><th>Voice</th><th>Data</th>
@@ -336,6 +340,7 @@ export function CurrentFaultsReport() {
           <td>${esc(f.lastMeasScore)}</td>
           <td>${esc(poStatusShort(f.poStatus))}</td>
           <td>${esc(fmtDt(f.lastMeasTime ?? null))}</td>
+          <td>${esc(f.lastContactAt ? `${formatContactTime(f.lastContactAt)}${f.lastContactOutcome ? ` — ${f.lastContactOutcome === "answered" ? "تم الرد" : "لم يرد"}` : ""}` : "-")}</td>
           <td>${esc(f.curMeasScore)}</td>
           <td>${esc(f.lastMeasScore)}</td>
           <td>${esc(f.repeatStatus)}</td>
@@ -530,6 +535,7 @@ export function CurrentFaultsReport() {
                 <TableHead className="text-right font-bold text-white">الاسكور</TableHead>
                 <TableHead className="text-right font-bold text-white">حالة PO</TableHead>
                 <TableHead className="text-right font-bold text-white whitespace-nowrap">تاريخ آخر قياس</TableHead>
+                <TableHead className="text-right font-bold text-white whitespace-nowrap">وقت آخر اتصال</TableHead>
                 <TableHead className="text-right font-bold text-white">قياس</TableHead>
                 <TableHead className="text-right font-bold text-white">ONU</TableHead>
                 <TableHead className="text-right font-bold text-white">كود العامل</TableHead>
@@ -548,7 +554,7 @@ export function CurrentFaultsReport() {
             <TableBody>
               {displayed.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={35} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={36} className="text-center py-16 text-muted-foreground">
                     {isFetching
                       ? "جاري التحميل..."
                       : repeatedOnly
@@ -673,6 +679,18 @@ export function CurrentFaultsReport() {
                     <TableCell>{f.lastMeasScore ?? "-"}</TableCell>
                     <TableCell><PoStatusCell value={f.poStatus} /></TableCell>
                     <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap">{fmtDt(f.lastMeasTime ?? null)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {f.lastContactAt ? (
+                        <span className="inline-flex flex-col">
+                          <span dir="ltr">{formatContactTime(f.lastContactAt)}</span>
+                          {f.lastContactOutcome && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {f.lastContactOutcome === "answered" ? "تم الرد" : "لم يرد"}
+                            </span>
+                          )}
+                        </span>
+                      ) : "-"}
+                    </TableCell>
                     <TableCell><Measurement138Button m={f} /></TableCell>
                     <TableCell>{f.onu || "-"}</TableCell>
                     <TableCell>{f.workerCode || "-"}</TableCell>
