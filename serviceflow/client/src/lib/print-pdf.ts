@@ -14,8 +14,10 @@ export function printTablePDF(opts: {
   columns: string[];
   rows: Cell[][];
   rowsPerPage?: number;
+  /** HTML جاهز (رسومات SVG مثلاً) بيتحط فوق الجدول فى أول صفحة. المتصل مسئول عن تنضيفه. */
+  introHtml?: string;
 }): void {
-  const { title, columns, rows, rowsPerPage = 12 } = opts;
+  const { title, columns, rows, rowsPerPage = 12, introHtml = "" } = opts;
   const headRow = `<tr>${columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>`;
   const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
 
@@ -29,6 +31,7 @@ export function printTablePDF(opts: {
       <section class="page">
         <h2>${esc(title)}</h2>
         <div class="pageno">صفحة ${p + 1} من ${totalPages} — إجمالي: ${rows.length} سجل</div>
+        ${p === 0 ? introHtml : ""}
         <table><thead>${headRow}</thead><tbody>${body}</tbody></table>
       </section>`;
   }

@@ -27,6 +27,7 @@ import { registerCfmRoutes } from "./cfm/routes";
 import { storage as cfmStorage } from "./cfm/storage";
 import { openBoxFaultTicket, findCoveringOpenTicket, resolveCable, settleBoxTicketIfCleared } from "./box-fault-ticket";
 import { requestBoxDataReview, boxPhones } from "./box-full-inspection";
+import { loopMeters, speedKbps } from "./loop-length";
 import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
 import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
@@ -7383,6 +7384,70 @@ export async function registerRoutes(
         params,
       );
       res.json({ data: rows });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // === طول الخط (Loop Length) قصاد السرعة الحالية / أقصى سرعة / الاسكور ===
+  // لكل خط فى الفلتر: **آخر قياس فيه Loop Length** (بييجى من «قياس بدون Real»
+  // بس)، والسرعات والاسكور من **نفس الصف** — لو اتاخدت من آخر قياس (ممكن يكون
+  // Real من غير loop) النقطة هتبقى طول خط من يوم وسرعة من يوم تانى.
+  // الاسكور > 100 (حالات خاصة: 101 داتا ناقصة، 104 بلوك…) مش قراية — بيتشال من
+  // الرسومات ويتعدّ لوحده. boxes = قايمة بفواصل (بكس واحد أو أكتر).
+  app.get("/api/reports/loop-length-scatter", requireAuth, async (req: any, res) => {
+    try {
+      const { central, cabin } = req.query as Record<string, string>;
+      const boxes = String(req.query.boxes || "").split(",").map((b) => b.trim()).filter(Boolean).slice(0, 200);
+      const params: any[] = [];
+      const conds: string[] = [hasFrameSql("pl.full_phone")];
+      if (central) { params.push(central); conds.push(`pl.central = $${params.length}`); }
+      if (cabin)   { params.push(cabin);   conds.push(`pl.cabin_number = $${params.length}`); }
+      if (boxes.length) { params.push(boxes); conds.push(`pl.box_number = ANY($${params.length}::text[])`); }
+      if (req.user?.role === ROLES.TECH) {
+        const workerCode = String(req.user.workerCode || "").trim();
+        if (!workerCode) return res.json({ points: [], totalLines: 0, withLoop: 0, special: 0, unreadable: 0 });
+        params.push(workerCode);
+        conds.push(`EXISTS (
+          SELECT 1 FROM cabinet_technicians ct
+           WHERE ct.central_name = pl.central
+             AND ct.cabin_number = pl.cabin_number
+             AND btrim(COALESCE(ct.worker_code, '')) = btrim($${params.length})
+        )`);
+      }
+      const { rows } = await pool.query(
+        `SELECT DISTINCT ON (pl.full_phone)
+                pl.full_phone AS "fullPhone", pl.central, pl.cabin_number AS "cabinNumber", pl.box_number AS "boxNumber",
+                c.loop_length AS "loopRaw", c.current_speed AS "currentRaw", c.max_speed AS "maxRaw", c.score,
+                (COALESCE(c.measured_at, c.uploaded_at) AT TIME ZONE 'Africa/Cairo') AS "measuredAt"
+           FROM phone_lines pl
+           LEFT JOIN LATERAL (
+             SELECT c.loop_length, c.current_speed, c.max_speed, c.score, c.measured_at, c.uploaded_at
+               FROM case_138 c
+              WHERE c.full_phone = pl.full_phone AND COALESCE(c.loop_length, '') <> ''
+              ORDER BY c.id DESC LIMIT 1
+           ) c ON true
+          WHERE ${conds.join(" AND ")}
+          ORDER BY pl.full_phone`,
+        params,
+      );
+      let withLoop = 0, special = 0, unreadable = 0;
+      const points: any[] = [];
+      for (const r of rows) {
+        if (r.loopRaw == null) continue;
+        withLoop++;
+        if (r.score != null && Number(r.score) > 100) { special++; continue; }
+        const loopM = loopMeters(r.loopRaw);
+        if (loopM == null) { unreadable++; continue; }
+        points.push({
+          fullPhone: r.fullPhone, central: r.central, cabinNumber: r.cabinNumber, boxNumber: r.boxNumber,
+          loopRaw: r.loopRaw, loopM,
+          currentSpeed: speedKbps(r.currentRaw), maxSpeed: speedKbps(r.maxRaw),
+          score: r.score == null ? null : Number(r.score),
+          measuredAt: r.measuredAt,
+        });
+      }
+      res.json({ points, totalLines: rows.length, withLoop, special, unreadable });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
