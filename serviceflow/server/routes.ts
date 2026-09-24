@@ -7177,7 +7177,7 @@ export async function registerRoutes(
            SELECT DISTINCT ON (box_number) box_number, capacity
            FROM dp_raw
             WHERE box_number BETWEEN $4::int AND $5::int
-           ORDER BY box_number, id DESC
+            ORDER BY box_number, (capacity IS NULL), id DESC
          ), line_raw AS (
            SELECT tel_no,
                   CASE WHEN BTRIM(COALESCE(box_number, '')) ~ '^[0-9]+$'

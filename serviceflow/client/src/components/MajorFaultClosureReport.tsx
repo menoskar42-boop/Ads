@@ -81,6 +81,8 @@ export function MajorFaultClosureReport() {
   const rangeValid = /^\d+$/.test(boxFrom) && /^\d+$/.test(boxTo) &&
     Number(boxFrom) >= 1 && Number(boxTo) >= Number(boxFrom) &&
     Number(boxTo) - Number(boxFrom) <= 299;
+  const boxRangeLabel = boxFrom === boxTo ? boxFrom : `${boxFrom} إلى ${boxTo}`;
+  const boxesSelectionLabel = boxFrom === boxTo ? `بكس ${boxFrom}` : `بكسيات ${boxRangeLabel}`;
 
   useEffect(() => {
     setStatsRows([]);
@@ -191,7 +193,7 @@ export function MajorFaultClosureReport() {
          line.central ? `سنترال ${line.central}` : "",
          cableNumber.trim() ? `كابل ${cableNumber.trim()}` : "",
          cabinetParts.cabinetNumber ? `كابينة ${cabinetParts.cabinetNumber}` : "",
-        element === "boxes" && rangeValid ? `بكسيات ${boxFrom} إلى ${boxTo}` : "",
+        element === "boxes" && rangeValid ? boxesSelectionLabel : "",
       ].filter(Boolean).join(" ")
     : "";
 
@@ -202,7 +204,7 @@ export function MajorFaultClosureReport() {
     exchangeCode,
     cableNumber,
     cabinetParts.cabinetNumber,
-    element === "cabinet" ? "الكل" : `${boxFrom} إلى ${boxTo}`,
+    element === "cabinet" ? "الكل" : boxRangeLabel,
     line.iduNo || "",
     line.oduNo || "",
     subjectType,
@@ -403,7 +405,7 @@ export function MajorFaultClosureReport() {
                     </TableHeader>
                     <TableBody>
                       <TableRow>
-                        <TableCell className="whitespace-nowrap">البكسيات {boxFrom} إلى {boxTo}</TableCell>
+                        <TableCell className="whitespace-nowrap">{boxesSelectionLabel}</TableCell>
                         <TableCell>{totals.capacity ?? "أدخل السعات الناقصة بالتفاصيل"}</TableCell>
                         <TableCell>{totals.working ?? "أدخل القيم الناقصة بالتفاصيل"}</TableCell>
                       </TableRow>

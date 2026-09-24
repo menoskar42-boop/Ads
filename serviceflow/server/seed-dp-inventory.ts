@@ -47,7 +47,9 @@ export async function seedDpInventory(): Promise<number> {
     const res = await pool.query(
       `INSERT INTO dp_inventory (central, mdf_code, cabinet_no, dp_no, dp_type, capacity)
        VALUES ($1,$2,$3,$4,'weather proof',$5)
-       ON CONFLICT (central, cabinet_no, dp_no) DO NOTHING`,
+       ON CONFLICT (central, cabinet_no, dp_no)
+       DO UPDATE SET capacity = EXCLUDED.capacity
+       WHERE dp_inventory.capacity IS NULL AND EXCLUDED.capacity IS NOT NULL`,
       [central, MDF[central] || null, cabinet, dp, cap],
     );
     inserted += res.rowCount ?? 0;
@@ -55,8 +57,8 @@ export async function seedDpInventory(): Promise<number> {
   return inserted;
 }
 
-// يشغّل الـ seed عند كل إقلاع بشكل **إضافى** (ON CONFLICT DO NOTHING) — يضيف الصفوف الناقصة
-// فقط ولا يحذف أى شىء، فيتوسّع مع إضافة سنترالات/بكسيات جديدة للـ seed. (الاستيراد باللصق
+// يشغّل الـ seed عند كل إقلاع بشكل **إضافى** — يضيف الصفوف الناقصة ويملأ السعات الفارغة
+// المعروفة فقط، من غير أن يستبدل سعة مستوردة موجودة. (الاستيراد باللصق
 // يظل يعمل full-replace للسنترال لحظته؛ الـ seed لا يمسح، بس ممكن يرجّع صفوف seed محذوفة عند الإقلاع.)
 export async function seedDpInventoryIfEmpty(): Promise<void> {
   try {
