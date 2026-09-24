@@ -33,7 +33,22 @@ const ui = R('client/src/components/LoopLengthScatterReport.tsx');
 for (const k of ['currentSpeed', 'maxSpeed', 'score']) need(new RegExp(`key: "${k}"`).test(ui), `رسمة ${k} ناقصة.`);
 need(/handleExportExcel/.test(ui) && /handleExportPDF/.test(ui) && /introHtml: svgs/.test(ui), 'Excel + PDF (بالرسومات) إلزامى (قيد #7).');
 need(/enabled: !!central/.test(ui), 'السنترال إلزامى قبل الاستعلام (من غيره بيلف على كل الخطوط).');
-need(/export function fitLine/.test(ui) && /ReferenceLine segment=\{s\.seg\}/.test(ui), 'خط الاتجاه ومعامل الارتباط.');
+need(/export function fitLine/.test(ui), 'معامل الارتباط r.');
+// (٢٠٢٦-٠٩-٢٤) منحنى متوسطات بدل خط الاتجاه: متوسط كل شريحة مسافة لخطوط الفلتر الحالى.
+need(/export function binAverages/.test(ui) && /<Scatter data=\{s\.avg\}[^>]*line=\{/.test(ui), 'منحنى المتوسطات (Scatter بـline على s.avg).');
+need(!/ReferenceLine/.test(ui), 'خط الاتجاه القديم اتشال بطلب المالك — مايرجعش جنب المتوسطات.');
+need(/rows: binRows/.test(ui) && /"المتوسطات"\)/.test(ui), 'جدول المتوسطات فى الـPDF والإكسيل.');
+const ts = (() => { try { return require(path.join(__dirname, '..', 'serviceflow', 'node_modules', 'typescript')); } catch { return null; } })();
+if (ts) {
+  // الدوال بس — من غير JSX/imports.
+  const fns = ['binWidthFor', 'binAverages'].map((n) => (ui.match(new RegExp(`export function ${n}[\\s\\S]*?\\n\\}`)) || [''])[0]).join('\n');
+  const js = ts.transpileModule(fns.replace(/export /g, ''), { compilerOptions: { target: ts.ScriptTarget.ES2019 } }).outputText;
+  const m = new Function(js + '; return { binWidthFor, binAverages };')();
+  need(m.binWidthFor(2500) === 200 && m.binWidthFor(600) === 50 && m.binWidthFor(9000) === 1000, 'عرض الشريحة (≤١٥ شريحة).');
+  const a = m.binAverages([{ x: 50, y: 10 }, { x: 150, y: 20 }, { x: 450, y: 40 }, { x: 460, y: 60 }], 200);
+  need(a.length === 2 && a[0].n === 2 && a[0].y === 15 && a[0].x === 100 && a[1].y === 50 && a[1].from === 400,
+    'binAverages: متوسط كل شريحة عند متوسط أطوالها، والشريحة الفاضية (٢٠٠–٤٠٠) مابتترسمش.');
+}
 const dash = R('client/src/pages/dashboard.tsx');
 need(/\{ id: "loop-length-scatter", label: "طول الخط والسرعة والاسكور \(رسم بيانى\)" \}/.test(dash)
   && /reportTab === "loop-length-scatter" && <LoopLengthScatterReport \/>/.test(dash), 'التقرير مش متسجّل فى تاب القياسات.');

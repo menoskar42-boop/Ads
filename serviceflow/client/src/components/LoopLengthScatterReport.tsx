@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, FileSpreadsheet, Printer, ChevronDown } from "lucide-react";
 import {
-  ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
@@ -15,8 +15,10 @@ import { printTablePDF } from "@/lib/print-pdf";
 // طول الخط (Loop Length) قصاد السرعة الحالية / أقصى سرعة / الاسكور.
 // كل نقطة = خط، من **آخر قياس فيه Loop Length** (بييجى من «قياس بدون Real» بس)،
 // والسرعات والاسكور من نفس القياس (server: /api/reports/loop-length-scatter).
-// مع كل رسمة خط اتجاه (أقل مربعات) ومعامل الارتباط r — عشان «العلاقة» تبقى رقم
-// مش إحساس بالعين.
+// فوق النقط **منحنى متوسطات**: المسافة بتتقسّم لشرايح (٢٠٠م مثلاً)، ولكل شريحة
+// متوسط القيمة لخطوط الفلتر الحالى — سنترال كله، أو كابينة، أو بكسيات — والمتوسطات
+// بتتوصّل بخط. (طلب المالك ٢٠٢٦-٠٩-٢٤: النقط لوحدها كتير ومش بتقول العلاقة.)
+// ومعامل الارتباط r مكتوب فوق كل رسمة.
 
 interface Point {
   fullPhone: string; central: string; cabinNumber: string; boxNumber: string;
@@ -45,6 +47,29 @@ export function fitLine(xy: { x: number; y: number }[]) {
   const slope = sxy / sxx;
   const r = syy === 0 ? 0 : sxy / Math.sqrt(sxx * syy);
   return { slope, intercept: my - slope * mx, r, n };
+}
+
+/** عرض الشريحة: أصغر رقم «مدوّر» يخلّى عدد الشرايح ≤ ١٥. */
+export function binWidthFor(maxLoop: number): number {
+  for (const w of [50, 100, 200, 250, 500, 1000, 2000]) if (Math.ceil((maxLoop + 1) / w) <= 15) return w;
+  return 5000;
+}
+
+/**
+ * متوسط القيمة لكل شريحة مسافة. النقطة بتترسم عند **متوسط أطوال** خطوط الشريحة
+ * (مش نص الشريحة) عشان الخط يمشى فين الخطوط فعلاً. الشريحة الفاضية مابتترسمش
+ * (المنحنى بيوصل اللى قبلها باللى بعدها بدل ما ينزل لصفر).
+ */
+export function binAverages(xy: { x: number; y: number }[], width: number) {
+  const bins = new Map<number, { sx: number; sy: number; n: number }>();
+  for (const { x, y } of xy) {
+    const k = Math.floor(x / width);
+    const b = bins.get(k) ?? { sx: 0, sy: 0, n: 0 };
+    b.sx += x; b.sy += y; b.n += 1; bins.set(k, b);
+  }
+  return [...bins.entries()].sort((a, b) => a[0] - b[0]).map(([k, b]) => ({
+    x: b.sx / b.n, y: b.sy / b.n, n: b.n, from: k * width, to: (k + 1) * width,
+  }));
 }
 
 /** وصف الارتباط بالعربى — نفس الحدود المعتادة (|r| ٠٫٣ / ٠٫٥ / ٠٫٧). */
@@ -117,16 +142,28 @@ export function LoopLengthScatterReport() {
     },
   });
 
+  const binW = useMemo(() => binWidthFor(Math.max(0, ...(data?.points ?? []).map((p) => p.loopM))), [data]);
   const series = useMemo(() => {
     const pts = data?.points ?? [];
     return METRICS.map((m) => {
       const xy = pts.filter((p) => p[m.key] != null).map((p) => ({ x: p.loopM, y: p[m.key] as number, p }));
       const fit = fitLine(xy);
-      const xs = xy.map((d) => d.x);
-      const x1 = xs.length ? Math.min(...xs) : 0, x2 = xs.length ? Math.max(...xs) : 0;
-      return { ...m, xy, fit, seg: fit ? [{ x: x1, y: fit.intercept + fit.slope * x1 }, { x: x2, y: fit.intercept + fit.slope * x2 }] : null };
+      return { ...m, xy, fit, avg: binAverages(xy, binW) };
     });
-  }, [data]);
+  }, [data, binW]);
+
+  // جدول المتوقَّع فى الـPDF والإكسيل: نفس الشرايح للتلات قيم.
+  const binRows = useMemo(() => {
+    const byBin = new Map<number, (string | number)[]>();
+    series.forEach((s, i) => s.avg.forEach((a) => {
+      const row = byBin.get(a.from) ?? [`${fmt(a.from)}–${fmt(a.to)} م`, "", "", "", "", "", ""];
+      row[1 + i * 2] = a.n;
+      row[2 + i * 2] = s.key === "score" ? a.y.toFixed(1) : fmt(a.y);
+      byBin.set(a.from, row);
+    }));
+    return [...byBin.entries()].sort((a, b) => a[0] - b[0]).map(([, r]) => r);
+  }, [series]);
+  const BIN_COLS = ["المسافة", "عدد (سرعة حالية)", "متوسط السرعة الحالية (kbps)", "عدد (أقصى سرعة)", "متوسط أقصى سرعة (kbps)", "عدد (اسكور)", "متوسط الاسكور"];
 
   const scopeTitle = [central, cabin && `كابينة ${cabin}`, boxes.length ? `بكس ${boxes.join("، ")}` : ""].filter(Boolean).join(" — ");
   const summaryRows = series.map((s) => [
@@ -146,6 +183,7 @@ export function LoopLengthScatterReport() {
       "تاريخ القياس": p.measuredAt ? String(p.measuredAt).replace("T", " ").slice(0, 16) : "",
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "النقط");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([BIN_COLS, ...binRows]), "المتوسطات");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ["الرسمة", "عدد النقط", "r", "الوصف", "التغيّر لكل ١٠٠ متر"], ...summaryRows,
     ]), "الارتباط");
@@ -157,12 +195,13 @@ export function LoopLengthScatterReport() {
     const svgs = [...(chartsRef.current?.querySelectorAll("[data-chart]") ?? [])].map((el) => {
       const svg = el.querySelector("svg.recharts-surface");
       const title = el.getAttribute("data-chart") || "";
-      return svg ? `<div style="margin:6px 0 14px"><h3 style="font-size:13px;margin:0 0 4px">${title}</h3><div dir="ltr">${svg.outerHTML}</div></div>` : "";
+      const note = (el.querySelector("p")?.textContent || "").replace(/[<>&]/g, "");
+      return svg ? `<div style="margin:6px 0 14px"><h3 style="font-size:13px;margin:0 0 2px">${title}</h3><div style="font-size:11px;color:#475569;margin-bottom:4px">${note}</div><div dir="ltr">${svg.outerHTML}</div></div>` : "";
     }).join("");
     printTablePDF({
       title: `طول الخط والسرعة والاسكور — ${scopeTitle || "كل السنترالات"}`,
-      columns: ["الرسمة", "عدد النقط", "r", "الوصف", "التغيّر لكل ١٠٠ متر"],
-      rows: summaryRows,
+      columns: BIN_COLS,
+      rows: binRows,
       introHtml: svgs,
     });
   };
@@ -210,7 +249,7 @@ export function LoopLengthScatterReport() {
               <div key={s.key} data-chart={s.title} className="border rounded-lg p-3">
                 <div className="flex items-baseline justify-between gap-2 mb-1">
                   <h4 className="text-sm font-semibold">{s.title}</h4>
-                  <span className="text-xs text-muted-foreground">{s.xy.length} نقطة</span>
+                  <span className="text-xs text-muted-foreground">{s.xy.length} خط · {s.avg.length} شريحة</span>
                 </div>
                 <p className="text-xs mb-2" style={{ color: s.color }}>
                   {s.fit ? <>r = <b>{s.fit.r.toFixed(2)}</b> — {strengthOf(s.fit.r)} · كل ١٠٠ متر: {s.fit.slope * 100 >= 0 ? "+" : ""}{(s.fit.slope * 100).toFixed(s.key === "score" ? 2 : 0)}{s.unit ? ` ${s.unit}` : ""}</> : "نقط قليلة لحساب الارتباط (محتاج ٣ على الأقل)"}
@@ -224,7 +263,15 @@ export function LoopLengthScatterReport() {
                       <YAxis type="number" dataKey="y" name={s.title} tick={{ fontSize: 11 }} width={52}
                         tickFormatter={(v) => (s.key === "score" ? String(v) : fmt(v))} />
                       <Tooltip cursor={{ strokeDasharray: "3 3" }} content={({ payload }) => {
-                        const d: any = payload?.[0]?.payload; if (!d?.p) return null;
+                        const d: any = payload?.[0]?.payload; if (!d) return null;
+                        if (d.n != null) return (
+                          <div dir="rtl" className="bg-white border rounded px-2 py-1 text-xs shadow">
+                            <div className="font-semibold">متوسط {fmt(d.from)}–{fmt(d.to)} م</div>
+                            <div>{s.key === "score" ? "الاسكور" : s.key === "maxSpeed" ? "أقصى سرعة" : "السرعة الحالية"}: {s.key === "score" ? d.y.toFixed(1) : `${fmt(d.y)} kbps`}</div>
+                            <div>من {d.n} خط</div>
+                          </div>
+                        );
+                        if (!d.p) return null;
                         return (
                           <div dir="rtl" className="bg-white border rounded px-2 py-1 text-xs shadow">
                             <div className="font-semibold">{d.p.fullPhone}</div>
@@ -234,8 +281,9 @@ export function LoopLengthScatterReport() {
                           </div>
                         );
                       }} />
-                      <Scatter data={s.xy} fill={s.color} fillOpacity={0.7} isAnimationActive={false} />
-                      {s.seg && <ReferenceLine segment={s.seg} stroke="#dc2626" strokeDasharray="6 4" strokeWidth={2} ifOverflow="extendDomain" />}
+                      <Scatter data={s.xy} fill={s.color} fillOpacity={0.22} isAnimationActive={false} />
+                      <Scatter data={s.avg} fill="#0f172a" line={{ stroke: "#0f172a", strokeWidth: 3 }} lineType="joint"
+                        shape="circle" isAnimationActive={false} />
                     </ScatterChart>
                   </ResponsiveContainer>
                 </div>
@@ -244,7 +292,8 @@ export function LoopLengthScatterReport() {
           </div>
           <p className="text-xs text-muted-foreground">
             كل نقطة = خط، من آخر «قياس بدون Real» ليه (هو اللى فيه Loop Length)، والسرعات والاسكور من نفس القياس.
-            الخط الأحمر المتقطّع = الاتجاه العام. r قريب من −١ = كل ما الخط يطول القيمة بتقل بانتظام.
+            الخط الغامق = متوسط القيمة لكل شريحة {fmt(binW)} متر لخطوط الفلتر الحالى (السنترال / الكابينة / البكسيات).
+            r قريب من −١ = كل ما الخط يطول القيمة بتقل بانتظام.
           </p>
         </div>
       )}
