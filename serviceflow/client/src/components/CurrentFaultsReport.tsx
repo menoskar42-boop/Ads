@@ -250,10 +250,9 @@ export function CurrentFaultsReport() {
       "أقصى سرعة": f.lineMaxSpeed ?? "",
       "الاسكور": f.lastMeasScore ?? "",
       "حالة تحسين البروفايل": f.poStatus ?? "",
-      "تاريخ آخر قياس": fmtDt(f.lastMeasTime),
+      "تاريخ آخر قياس": fmtDt(f.lastMeasTime ?? null),
       "القياس الحالى (نفس الشكوى)": f.curMeasScore,
       "آخر قياس للرقم": f.lastMeasScore,
-      "حالة تحسين البروفايل": f.poStatus ?? "",
       "موقف التكرار": f.repeatStatus,
       "Status Code": dispStatus(f.statusCode),
       "MSAN Code": f.msanCode,
@@ -310,9 +309,9 @@ export function CurrentFaultsReport() {
           <td>${esc(f.lineMaxSpeed)}</td>
           <td>${esc(f.lastMeasScore)}</td>
           <td>${esc(poStatusShort(f.poStatus))}</td>
-          <td>${esc(fmtDt(f.lastMeasTime))}</td>
+          <td>${esc(fmtDt(f.lastMeasTime ?? null))}</td>
           <td>${esc(f.curMeasScore)}</td>
-          <td>${esc(f.lastMeasScore)}</td><td>${esc(poStatusShort(f.poStatus))}</td>
+          <td>${esc(f.lastMeasScore)}</td>
           <td>${esc(f.repeatStatus)}</td>
           <td style="font-size:9px">${esc(dispStatus(f.statusCode))}</td>
           <td style="font-size:9px">${esc(f.msanCode)}</td>
@@ -584,7 +583,7 @@ export function CurrentFaultsReport() {
                     <TableCell>{f.lineMaxSpeed || "-"}</TableCell>
                     <TableCell>{f.lastMeasScore ?? "-"}</TableCell>
                     <TableCell><PoStatusCell value={f.poStatus} /></TableCell>
-                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap">{fmtDt(f.lastMeasTime)}</TableCell>
+                    <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap">{fmtDt(f.lastMeasTime ?? null)}</TableCell>
                     <TableCell><Measurement138Button m={f} /></TableCell>
                     <TableCell>{f.onu || "-"}</TableCell>
                     <TableCell>{f.workerCode || "-"}</TableCell>

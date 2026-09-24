@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { poStatusShort } from "./PoStatusCell";
+import PoStatusCell from "./PoStatusCell";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -146,7 +146,7 @@ export function ManualCurrentFaultsReport() {
   const toRow = (x: Row) => [
     fmt(x.flaggedAt), x.fullPhone || x.phoneShort || "-", mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] || "-", dash(x.flaggedBy),
     dash(x.central), dash(x.cabinNumber), dash(x.boxNumber), dash(x.msanCode), dash(x.techName), dash(x.frame),
-    dash(x.accountNo), dash(x.lineCurrentSpeed), dash(x.lineMaxSpeed), dash(x.lastMeasScore), dash(poStatusShort(x.poStatus)), fmt(x.lastMeasTime), dash(x.curMeasScore),
+    dash(x.accountNo), dash(x.lineCurrentSpeed), dash(x.lineMaxSpeed), dash(x.lastMeasScore), dash(x.poStatus), fmt(x.lastMeasTime), dash(x.curMeasScore),
     dash(x.shelf), dash(x.slot), dash(x.portNumber), dash(x.portType),
     dash(x.voiceStatus), dash(x.dataStatus), dash(x.operator), dash(x.onu), fmt(x.lastPoRaiseAt), fmt(x.lastPoStopAt),
   ];
@@ -214,7 +214,7 @@ export function ManualCurrentFaultsReport() {
                             </a>
                           )}
                         </span>
-                      ) : i === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile} /> : (val || "-")}
+                      ) : i === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile} /> : i === 14 ? <PoStatusCell value={x.poStatus} /> : (val || "-")}
                     </TableCell>
                   ))}
                 </TableRow>
