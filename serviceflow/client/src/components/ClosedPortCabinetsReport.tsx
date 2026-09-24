@@ -6,7 +6,6 @@ import { Loader2, RefreshCw, FileSpreadsheet, FileText, PlugZap, ClipboardCopy }
 import * as XLSX from "xlsx";
 import { printTablePDF } from "@/lib/print-pdf";
 import { copyHtmlTable } from "@/lib/copy-table";
-import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 
 // «الكباين المغلقة بورتات» — بتكتب فى الخانة الكباين اللى قافلة بورتات (كل كابينة فى سطر:
 // سواء بالـ MSAN code أو برقم الكابينة — الاتنين بيطابقوا)، والتقرير بيجيب من «الأعطال الحالية»
@@ -106,13 +105,11 @@ export function ClosedPortCabinetsReport() {
     if (closedSet.size === 0) return [];
     return all.filter((f) => closedSet.has(norm(f.msanCode)) || closedSet.has(norm(f.cabinetNo)));
   }, [all, closedSet]);
-  const mobileLookup = useMobileLookup(rows.map((f) => f.phoneShort));
 
   // أعمدة جدول Access (بالترتيب): ارضى / Msan Code / اسم السنترال / FCC code / وقت الشكوى / نوع العطل.
-  const COLUMNS = ["ارضى", "رقم الموبايل", "Msan Code", "اسم السنترال", "FCC code", "وقت الشكوى", "نوع العطل"];
+  const COLUMNS = ["ارضى", "Msan Code", "اسم السنترال", "FCC code", "وقت الشكوى", "نوع العطل"];
   const toRow = (f: Fault) => [
     f.phoneShort ? "88" + f.phoneShort : "",
-    mobileLookup[phoneLookupKey(f.phoneShort)] || "",
     f.msanCode || "",
     f.centralName || "",
     f.centralCode || "",
@@ -178,7 +175,7 @@ export function ClosedPortCabinetsReport() {
               const r = toRow(f);
               return <TableRow key={i}>{r.map((cell, j) => (
                 <TableCell key={j} className="whitespace-nowrap">
-                  {j === 1 ? <MobileValue mobile={cell} /> : cell || "-"}
+                  {cell || "-"}
                 </TableCell>
               ))}</TableRow>;
             })}
