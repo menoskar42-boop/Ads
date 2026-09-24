@@ -197,14 +197,14 @@ export function MajorFaultClosureReport() {
       ].filter(Boolean).join(" ")
     : "";
 
-  const tableRow = line && statsRows.length > 0 ? [
+  const tableRow = line && (element === "cabinet" || rangeValid) ? [
     "وسط الصعيد",
     "أسيوط",
     line.central || "",
     exchangeCode,
     cableNumber,
     cabinetParts.cabinetNumber,
-    element === "cabinet" ? "الكل" : `${boxFrom}-${boxTo}`,
+    element === "cabinet" ? "الكل" : `${boxFrom} إلى ${boxTo}`,
     line.iduNo || "",
     line.oduNo || "",
     subjectType,
@@ -447,7 +447,12 @@ export function MajorFaultClosureReport() {
           {tableRow && (
             <>
               <div className="flex items-center justify-end">
-                <Button onClick={copyTable} size="sm" className="gap-1">
+                <Button
+                  onClick={copyTable}
+                  size="sm"
+                  className="gap-1"
+                  disabled={statsLoading || (!statsRows.length && !statsError)}
+                >
                   <ClipboardCopy className="h-4 w-4" /> نسخ الجدول للبريد
                 </Button>
               </div>
