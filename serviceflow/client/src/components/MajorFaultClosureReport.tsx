@@ -54,7 +54,7 @@ const splitCabinetCable = (value: string | null) => {
   const raw = String(value || "").trim();
   const numericPair = westernDigits(raw).match(/^(\d+)\s*-\s*(\d+)$/);
   return numericPair
-    ? { cabinetNumber: numericPair[1], cableNumber: numericPair[2] }
+    ? { cabinetNumber: numericPair[2], cableNumber: numericPair[1] }
     : { cabinetNumber: raw, cableNumber: "" };
 };
 
@@ -77,9 +77,7 @@ export function MajorFaultClosureReport() {
   const [notice, setNotice] = useState("");
 
   const cabinetParts = splitCabinetCable(line?.cabinNumber ?? null);
-  const cableNumber = line
-    ? (cabinetParts.cableNumber || (element === "cabinet" ? line.primaryBlockNo : line.secBlockNo) || "")
-    : "";
+  const cableNumber = line ? cabinetParts.cableNumber : "";
   const rangeValid = /^\d+$/.test(boxFrom) && /^\d+$/.test(boxTo) &&
     Number(boxFrom) >= 1 && Number(boxTo) >= Number(boxFrom) &&
     Number(boxTo) - Number(boxFrom) <= 299;

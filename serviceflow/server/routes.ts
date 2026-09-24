@@ -7107,7 +7107,7 @@ export async function registerRoutes(
         return `(
           BTRIM(COALESCE(${column}, '')) = BTRIM($2)
           OR BTRIM(COALESCE(${column}, '')) = BTRIM($3)
-          OR (${compact} ~ '^[0-9]+-[0-9]+$' AND SPLIT_PART(${compact}, '-', 1) = BTRIM($2))
+          OR (${compact} ~ '^[0-9]+-[0-9]+$' AND SPLIT_PART(${compact}, '-', 2) = BTRIM($2))
         )`;
       };
 
