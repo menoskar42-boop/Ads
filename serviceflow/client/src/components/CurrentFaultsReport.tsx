@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PoStatusCell, { poStatusShort } from "./PoStatusCell";
 import { useSpeedToolsVisible, useIsSuperAdmin } from "@/lib/use-speed-tools";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
@@ -159,6 +159,19 @@ export function CurrentFaultsReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
   const queryClient = useQueryClient();
+  const { data: uploadTimes } = useQuery<Record<string, string | null>>({
+    queryKey: ["/api/upload-times"],
+  });
+  const ticketQueueUpdatedAt = uploadTimes?.["/api/ticket-queue/import"];
+  const previousTicketQueueUpdatedAt = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (ticketQueueUpdatedAt === undefined) return;
+    const previous = previousTicketQueueUpdatedAt.current;
+    previousTicketQueueUpdatedAt.current = ticketQueueUpdatedAt;
+    if (previous !== undefined && ticketQueueUpdatedAt && ticketQueueUpdatedAt !== previous) {
+      void queryClient.invalidateQueries({ queryKey: ["/api/reports/current-faults"] });
+    }
+  }, [ticketQueueUpdatedAt, queryClient]);
   const [detailPhone, setDetailPhone] = useState<string | null>(null);
   useSpeedToolSource("المتعذرات الحالية");
   const [central, setCentral] = useState("");
@@ -236,6 +249,7 @@ export function CurrentFaultsReport() {
 
   const { data: faults = [], isFetching } = useQuery<CurrentFault[]>({
     queryKey: ["/api/reports/current-faults", central, q],
+    refetchOnMount: "always",
     queryFn: async () => {
       const p = new URLSearchParams();
       if (central) p.set("central", central);
