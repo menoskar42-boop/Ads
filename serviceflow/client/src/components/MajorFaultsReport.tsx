@@ -33,6 +33,7 @@ const fmtComplain = (d: string | null) => {
 // تحويل تاريخ الإدخال YYYY-MM-DD → يوم/شهر/سنة (صيغة الإيميل).
 const dmy = (s: string) => { const [y, m, d] = (s || "").split("-"); return y && m && d ? `${d}/${m}/${y}` : ""; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const DEFAULT_REQUEST_EMAIL = "mena.haleem@te.eg";
 
 export function MajorFaultsReport({ selectedOnly = false }: { selectedOnly?: boolean }) {
   const reportTitle = selectedOnly ? "الأعطال الجسيمة المختارة" : "الأعطال الجسيمة";
@@ -57,7 +58,7 @@ export function MajorFaultsReport({ selectedOnly = false }: { selectedOnly?: boo
   }, [selectedOnly]);
   useEffect(() => { load(); }, [load]);
 
-  // أعمدة جدول «اغلاق جسيم» (بترتيب الإيميل). الأعمدة الفاضية تُملأ يدوياً بعد التصدير.
+  // أعمدة جدول «اغلاق جسيم» (بترتيب الإيميل).
   const COLUMNS = [
     "كود المحافظة", "رقم التليفون", "اسم السنترال", "كود السنترال",
     "رقم العنصر المرفوع جسيم", "رقم الكابينة الحالى", "سبب رفع الجسيم",
@@ -73,7 +74,7 @@ export function MajorFaultsReport({ selectedOnly = false }: { selectedOnly?: boo
     reason,                     // سبب رفع الجسيم (من الدروب ليست: اتلاف/صيانة)
     dmy(raiseDate),             // تاريخ رفع الجسيم (من خانة التاريخ)
     fmtComplain(f.complainTime),// تاريخ شكوي المشترك
-    "",                         // ايميل مرسل الطلب — يُملأ يدوياً
+    DEFAULT_REQUEST_EMAIL,      // ايميل مرسل الطلب الافتراضي
   ];
 
   const handleExportExcel = () => {
@@ -103,7 +104,7 @@ export function MajorFaultsReport({ selectedOnly = false }: { selectedOnly?: boo
             {selectedOnly
               ? "الأعطال الحالية التي تم تحديدها بعلامة الصح في تقرير الأعطال الحالية — بنفس تنسيق جدول «اغلاق جسيم»."
               : "الخطوط ذات الحالة «9999 / أعطال تنتظر الحل» (99-DSL) — بشكل جدول «اغلاق جسيم»."}
-            {" "}الأعمدة الفاضية (العنصر المرفوع / الإيميل) تُملأ يدوياً.
+            {" "}يُملأ إيميل مرسل الطلب تلقائياً، ويمكن اختيار العنصر المرفوع من القائمة أعلاه.
           </p>
         </div>
         <div className="flex gap-2">
