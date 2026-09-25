@@ -15,8 +15,8 @@ const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 
 test("a successful timeout preempt is not submitted again during completion", () => {
   const timeoutBranch = client.slice(
-    client.indexOf("if (Date.now() - measureStartedAt >= STALL_MS)"),
-    client.indexOf("closeWin();\n        return stopped", client.indexOf("if (Date.now() - measureStartedAt >= STALL_MS")),
+    client.indexOf("if (Date.now() - lastProgressAt >= STALL_MS)"),
+    client.indexOf("closeWin();\n        return stopped", client.indexOf("if (Date.now() - lastProgressAt >= STALL_MS")),
   );
   assert.match(timeoutBranch, /refreshAfterMeasureTimeout\(jobId, batchId\)/);
   assert.match(timeoutBranch, /"preempted_by_timeout"/);

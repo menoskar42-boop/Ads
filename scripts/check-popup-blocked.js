@@ -60,6 +60,20 @@ if (!/setPopupBlocked\(false\)/.test(src)) {
   errors.push('العلامة مابترفعش عند إعادة التفعيل — هتفضل حمرا حتى بعد ما الإذن يتظبّط');
 }
 
+// ── ٢ب. العلامة بتنزل لوحدها أول ما تاب يتفتح (٢٠٢٦-٠٩-٢٥) ──────────────
+// كانت بتفضل حمرا لحد ريفريش حتى والتابات بتتفتح عادى — منع لمرة واحدة كان
+// بيلزق للأبد. والمهمة اللى تابها ماتفتحش كانت بتتعلّم done وتضيع.
+if ((src.match(/if \(!win\) \{ setPopupBlocked\(true\); return POPUP_BLOCKED; \} else setPopupBlocked\(false\);/g) || []).length < 4) {
+  errors.push('فتح تاب ناجح لازم ينزّل العلامة (else setPopupBlocked(false)) فى كل نداء');
+}
+const blockedBranch = src.slice(src.indexOf('} else if (result === POPUP_BLOCKED) {'), src.indexOf('} else if (result === "canceled")'));
+if (!/requestExecPreempt\(job\.id\)/.test(blockedBranch) || !/popupCooldownUntil = Date\.now\(\) \+ POPUP_COOLDOWN_MS/.test(blockedBranch)) {
+  errors.push('مهمة التاب الممنوع لازم ترجع للطابور (preempt) مع تهدئة للسحب — مش تتعلّم done');
+}
+if (!/if \(Date\.now\(\) < popupCooldownUntil\) return;/.test(src)) {
+  errors.push('السحب مابيهداش بعد تاب ممنوع — هيلفّ سحب→منع→رجوع');
+}
+
 // ── ٣. الزر بيقول السبب ───────────────────────────────────────────────────
 const label = src.slice(src.indexOf('{active'), src.indexOf('{active') + 900);
 if (!/popupBlocked \?/.test(label)) {

@@ -450,7 +450,7 @@ export function ExecutorButton() {
         const sigKey = accs[0] === "-" ? "" : (type === "c360" ? accs[accs.length - 1] : key);
         const before = await latestOpAt(type, sigKey);
         const win = executeBatch(type, accs, { params });
-        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
+        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         // c360 بيلفّ على كل الأرقام فى نفس التاب، فمهلة ثابتة معناها إن الباتش الكبير
         // بيتقطع فى نُصّه. بتتدرّج بالعدد (زى القياس ورفع السرعة) تحت السقف الكلى.
@@ -477,7 +477,7 @@ export function ExecutorButton() {
         const phone = accs[0];
         const before = await latestSubInfoAt(phone);
         const win = executeBatch("subinfo", accs);
-        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
+        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + SUBINFO_MAX_MS;
         while (!stopped && Date.now() < deadline) {
@@ -500,11 +500,17 @@ export function ExecutorButton() {
         // «قياس بدون Real»: بياخد أحدث تاريخ من History Check بدل الـreal-time
         const noReal = String(note || "").includes(NOREAL_MARK);
         const win = executeBatch("measure", accs, { fixRecent, noReal }); // DZS يلفّ على كلهم فى run واحد
-        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
+        if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
         lastMeasureWin.current = win;
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS);
-        const measureStartedAt = Date.now();
+        // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
+        // الباتش. كانت بتتقاس من البداية، فأى باتش قياس أطول من ٣ دقايق (٤-٥ خطوط
+        // بدون Real، كل خط لحد ٤٥ث استنى الشاشة تهدى) كان بيتقطع وهو شغّال،
+        // والصفحة تعمل ريفريش — والريفريش بيقتل كل المسارات التانية الشغّالة
+        // (weoas وغيره) فالطابور يفضل يبدأ من الأول ويبان «واقف» (٢٠٢٦-٠٩-٢٥).
+        let lastMeasured = -1;
+        let lastProgressAt = Date.now();
         while (!stopped && Date.now() < deadline) {
           await sleep(JOB_POLL_MS);
           const chk = await jobCheck(jobId);
@@ -512,7 +518,8 @@ export function ExecutorButton() {
           if (chk.total > 0 && chk.measured >= chk.total) { closeWin(); return "done"; } // كل الأرقام اتقاست
           if (win && win.closed) return "tab_closed"; // التاب اتقفل قبل ما يخلص
           if (canPreempt && chk.preempt) { closeWin(); return "preempted"; } // طلب عاجل يقطع
-          if (Date.now() - measureStartedAt >= STALL_MS) {
+          if (chk.measured > lastMeasured) { lastMeasured = chk.measured; lastProgressAt = Date.now(); }
+          if (Date.now() - lastProgressAt >= STALL_MS) {
             closeWin();
             // هذه الدالة أرسلت preempt بالفعل؛ لا نعيد إرساله في مسار الإكمال
             // أسفل الحلقة، لأن ذلك كان يسبب طلبين متتاليين لنفس المهمة.
@@ -533,7 +540,7 @@ export function ExecutorButton() {
       // بنمسك النافذة: سكربت PO بيقول «خلص كل الأرقام. تقدر تقفل التاب» ومابيقفلش نفسه،
       // فمن غير المرجع ده كان التاب يفضل مفتوح للأبد والمهمة «جارية» لحد المهلة الكاملة.
       const win = executeBatch(type, accs, raiseWithStop ? { afterStop: true } : undefined); // PO يلفّ على كل الأرقام فى run واحد
-      if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
+      if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
       const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
       const deadline = Date.now() + Math.min(accs.length * perMax, MAX_TOTAL_MS);
       // ⚠️ كشف التوقّف: من غيره كان الباتش الكبير (261 رقم مثلاً) اللى بيقف فى نصّه
@@ -570,6 +577,9 @@ export function ExecutorButton() {
     // (السيرفر هو اللى بيضمن ده فى claim). هنا بنمنع بس إن أكتر من طلب claim يتبعت مع بعض،
     // وبعدها بنشغّل المهمة **من غير انتظار** عشان مسار تانى يقدر يبدأ.
     const running = new Map<string, string>();   // site → وصف المهمة الجارية
+    // بعد تاب ممنوع: السحب يهدى دقيقة (المهمة رجعت للطابور).
+    const POPUP_COOLDOWN_MS = 60 * 1000;
+    let popupCooldownUntil = 0;
     // site → { بدأ إمتى، نوع المهمة } — الحارس بيقيس بيها إن المسار وقف فى نُصّه.
     // من غيرها كان الحارس بيقيس النبضة بس: التاب حى والنبضة ماشية، والمهمة متعلّقة
     // من ١٣ دقيقة ومحدش بيعمل ريفريش (ده بالظبط اللى حصل).
@@ -581,6 +591,7 @@ export function ExecutorButton() {
 
     const claimAndRun = async () => {
       if (busy.current || stopped || batchRefreshBusy.current || batchRefreshTriggered.current) return;
+      if (Date.now() < popupCooldownUntil) return;   // تاب اتمنع من شوية — ماتسحبش تانى فوراً
       busy.current = true;
       try {
         // بنفضل نسحب لحد ما السيرفر يقول «مفيش مهمة مؤهّلة» — كده كل المسارات
@@ -640,6 +651,13 @@ export function ExecutorButton() {
               } else if (result === "preempt_pending") {
                 // لم نعرف هل وصل preempt؛ لا ترسل /done بنتيجة timeout فوق مقاطعة
                 // ربما قبلها الخادم. آلية إنقاذ المهام العالقة تعيد المحاولة لاحقاً.
+              } else if (result === POPUP_BLOCKED) {
+                // التاب ماتفتحش → المهمة ماتنفّذتش. كانت بتتعلّم done بنتيجة
+                // popup_blocked فتضيع. دلوقتى بترجع للطابور زى المقاطعة (نفس
+                // الأولوية)، والسحب بيهدى دقيقة عشان مانلفّش سحب→منع→رجوع.
+                popupCooldownUntil = Date.now() + POPUP_COOLDOWN_MS;
+                const outcome = await requestExecPreempt(job.id);
+                if (outcome === "send_failed") console.error("[exec] تعذّر إرجاع مهمة التاب الممنوع للطابور");
               } else if (result === "canceled") {
                 // اتمسحت من الطابور يدوياً (بقت stale أصلاً) → مانعملش حاجة
               } else {
