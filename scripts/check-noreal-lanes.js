@@ -25,7 +25,7 @@ const check = (l, ok) => { if (!ok) errors.push(l); };
 
 // ── السيرفر ──
 const lanes = +((routes.match(/const NOREAL_LANES = (\d+);/) || [])[1] || 0);
-check('NOREAL_LANES متعرّف (1 = القديم، 2 = تابين) ومايزيدش عن 2', lanes >= 1 && lanes <= 2);
+check('NOREAL_LANES متعرّف (1 = القديم) ومايزيدش عن 3 (قرار المالك)', lanes >= 1 && lanes <= 3);
 const helper = routes.slice(routes.indexOf('const siteFreeFor ='), routes.indexOf('app.post("/api/exec-queue/claim"'));
 check('الاستثناء لمهام قياس «بدون Real» بس', /\$\{isNoRealJob\(e\)\}/.test(helper) && /\.type = 'measure' AND POSITION\('\$\{AUTO_MEASURE_NOREAL_MARK\}'/.test(routes));
 check('بحد NOREAL_LANES', /< \$\{NOREAL_LANES\}/.test(helper));
@@ -39,11 +39,13 @@ check('إنقاذ المهام اليتيمة مابيعتبرش التاب ال
 check('تاب لكل مسار (dzs_measure_2)', /export function measureTabName\(lane\?: number\)/.test(lib) && /measureTabName\(opts\?\.noReal \? opts\.lane : undefined\)/.test(lib));
 check('sf_lane فى الهاش لـ«بدون Real» التانى بس', /"&sf_mode=noreal" \+ \(opts\.lane && opts\.lane > 1 \? `&sf_lane=\$\{opts\.lane\}` : ""\)/.test(lib));
 check('قفل «التاب الأخير» لنفس المسار بس', /lastMeasureWin\.current\.get\(lane\)/.test(exec) && /lastMeasureWin\.current\.set\(lane, win\)/.test(exec));
+check('رقم التاب = أول رقم فاضى (مش متثبّت على ٢)', /while \(noRealLanes\.has\(lane\)\) lane\+\+;/.test(exec));
 check('المهام الشغّالة متتبّعة بالمسار مش بالموقع', /running\.set\(laneKey,/.test(exec) && /running\.delete\(laneKey\)/.test(exec) && /noRealLanes\.delete\(lane\)/.test(exec));
 
 // ── السكربت ──
 const ver = (script.match(/@version\s+(\d+)\.(\d+)/) || []).slice(1).map(Number);
-check('السكربت v10.25 أو أحدث', ver[0] > 10 || (ver[0] === 10 && ver[1] >= 25));
+check('السكربت v10.26 أو أحدث', ver[0] > 10 || (ver[0] === 10 && ver[1] >= 26));
+check('رقم التاب بيتعرف من رقم الخط فى الرابط (نافذة جديدة مابتضيّعوش)', /new URLSearchParams\(location\.search\)\.get\("lineId"\)/.test(script));
 check('رقم التاب من sf_lane ويتحفظ فى sessionStorage', /sf_lane=\(\\d\+\)/.test(script) && /sessionStorage\.setItem\(LANE_SESSION_KEY, LANE\)/.test(script));
 for (const k of ['DZS_SF_ACCOUNTS', 'DZS_SF_META', 'DZS_LINE_INDEX', 'DZS_LINE_ARRAY_HASH', 'DZS_RESULTS', 'DZS_DOWNLOAD_DONE', 'DZS_RESET_TOKEN', 'DZS_FORCE_RT', 'DZS_FIX_MODE', 'DZS_MEASURE_MODE', 'DZS_NOREAL_PENDING']) {
   check(`مفتاح ${k} بلاحقة التاب`, new RegExp(`"${k}" \\+ LANE_SUFFIX`).test(script));
@@ -56,4 +58,4 @@ if (errors.length) {
   errors.forEach((e) => console.log('   · ' + e));
   process.exit(1);
 }
-console.log(`✅ check-noreal-lanes: «بدون Real» بـ${lanes} تاب${lanes > 1 ? 'ين' : ''}، وReal وباقى المواقع مهمة واحدة زى ما هم.`);
+console.log(`✅ check-noreal-lanes: «بدون Real» لحد ${lanes} تاب، وReal وباقى المواقع مهمة واحدة زى ما هم.`);

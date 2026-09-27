@@ -629,7 +629,10 @@ export function ExecutorButton() {
           const site = String((job as any).site || "10.42.187.101");
           const label = QUEUE_LABEL[job.type] || job.type;
           const isNoReal = job.type === "measure" && String(job.note || "").includes(NOREAL_MARK);
-          const lane = isNoReal ? (noRealLanes.has(1) ? 2 : 1) : 1;
+          // أول رقم تاب فاضى (1، 2، 3…). عدد التابات نفسه بيحدّده السيرفر (NOREAL_LANES) —
+          // هو اللى بيدّى مهمة «بدون Real» تانية/تالتة أو لأ.
+          let lane = 1;
+          if (isNoReal) while (noRealLanes.has(lane)) lane++;
           if (isNoReal) noRealLanes.add(lane);
           const laneKey = isNoReal && lane > 1 ? `${site}#L${lane}` : site;
           running.set(laneKey, `${label}${isNoReal && lane > 1 ? ` [تاب ${lane}]` : ""} (${accs.length} رقم)`);

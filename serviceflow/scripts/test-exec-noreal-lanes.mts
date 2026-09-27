@@ -19,6 +19,7 @@ if (LANES != null) helpers = helpers.replace(/const NOREAL_LANES = \d+;/, `const
 const c0 = src.indexOf("const row = await withTx(async (tx) => {", src.indexOf('app.post("/api/exec-queue/claim"'));
 const bodyStart = src.indexOf("{", c0 + "const row = await withTx(async (tx) =>".length) + 1;
 const body = src.slice(bodyStart, src.indexOf("\n      });\n      res.json(row);", bodyStart));
+const LANES_EFF = LANES ?? Number((helpers.match(/const NOREAL_LANES = (\d+);/) || [])[1]);
 const mark = (src.match(/const AUTO_MEASURE_NOREAL_MARK = "([^"]+)";/) || [])[1];
 const tmp = `/tmp/claim-${process.pid}.mts`;
 writeFileSync(tmp, `const AUTO_MEASURE_NOREAL_MARK = ${JSON.stringify(mark)};\n${helpers}\nexport default async function claim(tx: any, req: any, execIdentity: any) {${body}\n}`);
@@ -38,21 +39,23 @@ if (LANES === 1) {
   const x = await claim(), y = await claim();
   ok("NOREAL_LANES = 1: بدون Real تاب واحد زى القديم", x?.id === a1 && y == null, `${x?.id},${y?.id}`);
 } else {
-  const nr = [await add("measure", NR), await add("measure", NR), await add("measure", NR), await add("measure", NR)];
-  const a = await claim(), b = await claim(), c = await claim();
-  ok("أول خطين بدون Real اتسحبوا مع بعض", a?.id === nr[0] && b?.id === nr[1], `${a?.id},${b?.id}`);
-  ok("التالت لأ (حد التابين)", c == null);
+  const N = LANES_EFF;
+  const nr: number[] = []; for (let z = 0; z < N * 2; z++) nr.push(await add("measure", NR));
+  const first: any[] = []; for (let z = 0; z < N; z++) first.push(await claim());
+  ok(`أول ${N} خطوط بدون Real اتسحبوا مع بعض`, first.every((j, z) => j?.id === nr[z]), first.map((j) => j?.id).join(","));
+  ok(`اللى بعدهم لأ (حد ${N} تابات)`, (await claim()) == null);
   const real = await add("measure", "قياس", 2);
-  await done(a.id);
+  await done(first[0].id);
   ok("Real أولويته أعلى مستنى: التاب الفاضى مابياخدش بدون Real تانى", (await claim()) == null);
-  await done(b.id);
+  for (let z = 1; z < N - 1; z++) { await done(first[z].id); ok(`لسه مستنى بعد ما تاب ${z + 1} فضى`, (await claim()) == null); }
+  await done(first[N - 1].id);
   const e = await claim();
-  ok("بعد ما التابين خلصوا خطوطهم: Real اتسحب", e?.id === real, String(e?.id));
+  ok("بعد ما كل التابات خلصت خطوطها: Real اتسحب", e?.id === real, String(e?.id));
   ok("وReal لوحده: مفيش بدون Real جنبه", (await claim()) == null);
   await done(e.id);
-  const g = await claim(), h = await claim();
-  ok("بعد Real: بدون Real بيكمّل بتابين", g?.id === nr[2] && h?.id === nr[3], `${g?.id},${h?.id}`);
-  await done(g.id); await done(h.id);
+  const next: any[] = []; for (let z = 0; z < N; z++) next.push(await claim());
+  ok(`بعد Real: بدون Real بيكمّل بـ${N} تابات`, next.every((j, z) => j?.id === nr[N + z]), next.map((j) => j?.id).join(","));
+  for (const j of next) await done(j.id);
   const raise = await add("raise", "رفع"), nr5 = await add("measure", NR);
   const i = await claim();
   ok("رفع سرعة شغّال على DZS: بدون Real بيستنى", i?.id === raise && (await claim()) == null);

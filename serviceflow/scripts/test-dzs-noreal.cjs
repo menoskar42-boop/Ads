@@ -212,6 +212,20 @@ const lineSummary = (loop) => `<!doctype html><html><body>
   t('بعد التنقّل: التاب التانى فضل «بدون Real» وحفظ انتظاره فى _L2', !!pendL2 && rtL2 === 0, pendL2 ? '' : '(مفيش انتظار)');
   t('وماكتبش فى انتظار التاب الأول', T2b.w.localStorage.getItem('DZS_NOREAL_PENDING') === null);
   const ln2b = T2b.dump(); T2b.w.close();
+  // v10.26: خطوة التاب التانى فتحت فى تاب/نافذة جديدة (مفيش sessionStorage) — لازم
+  // يتعرف من رقم الخط اللى فى الرابط، مش يرجع لحالة التاب الأول ويسيب خطه من غير تسجيل.
+  let rtL2n = 0;
+  const T2n = page(BASE + 'clearview?lineId=' + LINE2, clearview(), ln2, { before: (w) => w.document.getElementById('rt').addEventListener('click', () => rtL2n++) });
+  const pendN = await until(() => T2n.w.localStorage.getItem('DZS_NOREAL_PENDING_L2'), 25000);
+  t('نافذة جديدة من غير رقم التاب: اتعرف من رقم الخط وكمّل «بدون Real» فى _L2', !!pendN && rtL2n === 0, pendN ? '' : '(مفيش انتظار فى _L2)');
+  t('ورقم التاب اتحفظ للخطوات اللى بعدها', T2n.w.sessionStorage.getItem('DZS_LANE') === '2');
+  t('وماشتغلش على خط التاب الأول', T2n.w.localStorage.getItem('DZS_NOREAL_PENDING') === null);
+  T2n.w.close();
+  // التاب التالت (NOREAL_LANES = 3)
+  const T3l = page(BASE + 'welcome#sf_accounts=8881234&sf_mode=noreal&sf_lane=3', '<body>w</body>', ln2);
+  await until(() => T3l.w.__hrefs.length, 3000); const ln3l = T3l.dump(); T3l.w.close();
+  t('التاب التالت مفاتيحه _L3 ومالمسش الأول والتانى', ln3l.DZS_SF_ACCOUNTS_L3 === JSON.stringify(['8881234'])
+    && ln3l.DZS_SF_ACCOUNTS_L2 === JSON.stringify([LINE2]) && ln3l.DZS_SF_ACCOUNTS === JSON.stringify([LINE]));
   // التاب الأول بيبدأ رن جديد بعد ما رنّه خلص — الـreset بيمسح مفاتيحه هو بس
   const T3 = page(BASE + 'welcome#sf_accounts=9990001&sf_mode=noreal', '<body>w</body>', { ...ln2b, DZS_DOWNLOAD_DONE: '1' });
   await until(() => T3.w.__hrefs.length, 3000); const ln3 = T3.dump(); T3.w.close();

@@ -2215,8 +2215,9 @@ export async function registerRoutes(
   // (قياس Real مثلاً) قبله فى ترتيب الطابور على نفس الموقع — وإلا التابين كانوا
   // هيفضلوا ياخدوا خطوط والموقع مايفضاش أبداً للـReal. كده الـReal اللى أولويته
   // أعلى بيستنى التابين يخلّصوا الخط اللى فى إيدهم، يتنفّذ، وبعده «بدون Real» يكمّل.
-  // ⚠️ للرجوع للقديم فوراً: NOREAL_LANES = 1 (السكربت v10.25 بيشتغل عادى بتاب واحد).
-  const NOREAL_LANES = 2;
+  // ⚠️ للرجوع للقديم فوراً: NOREAL_LANES = 1 (السكربت بيشتغل عادى بتاب واحد).
+  // ده الرقم الوحيد اللى بيحدّد عدد التابات — جهاز التنفيذ والسكربت بيمشوا وراه.
+  const NOREAL_LANES = 3;   // المالك ٢٠٢٦-٠٩-٢٧: ٣ تابات
   const isNoRealJob = (a: string) =>
     `(${a}.type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(${a}.note, '')) > 0)`;
   const queueRank = (a: string) =>
