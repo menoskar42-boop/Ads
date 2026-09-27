@@ -1134,7 +1134,7 @@ async function queryRegularizedFaults(opts: { central?: string; q?: string; date
   if (date) { params.push(date); dateExpr = `$${params.length}::date`; }
   else { dateExpr = `(now() AT TIME ZONE 'Africa/Cairo')::date`; }
   const conds: string[] = [
-    `(t.status_code ~ '^(160|173|122|73|72|60)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')`,
+    `(t.status_code ~ '^(160|173|122|73|72|60|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')`,
     `(t.central_name = 'الغنايم' OR t.central_name = 'الغنايم-العزايزة' OR t.central_name = 'الغنايم-دير الجنادله' OR t.central_name = 'الغنايم-نجع العمدة')`,
   ];
   if (central) { params.push(central); conds.push(`t.central_name = $${params.length}`); }
@@ -4707,7 +4707,7 @@ export async function registerRoutes(
       conds.push(`EXISTS (
         SELECT 1 FROM ticket_dsl_current t
          WHERE t.close_date IS NULL
-           AND (t.status_code ~ '^(160|173|122|73|72|60|81)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
+           AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
            AND (t.central_name = 'الغنايم' OR t.central_name = 'الغنايم-العزايزة'
                 OR t.central_name = 'الغنايم-دير الجنادله' OR t.central_name = 'الغنايم-نجع العمدة')
            AND ${sp("t.phone_number")} = ${sp("k.full_phone")})`);
@@ -4882,7 +4882,7 @@ export async function registerRoutes(
       // نفس تعريف تقرير «الأعطال الحالية» المفتوح، مع تطبيق نطاق التاريخ على تاريخ الشكوى.
       const currentConds: string[] = [
         "t.close_date IS NULL",
-        "(t.status_code ~ '^(160|173|122|73|72|60|81)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')",
+        "(t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')",
         "t.central_name ILIKE '%غنايم%'",
         "(t.complaint_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date",
         "(t.complaint_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date",
@@ -4891,14 +4891,14 @@ export async function registerRoutes(
       // إغلاق اليوم من الملف الحالي، أو اختفاء شكوى من لقطة بداية اليوم.
       const regularizedTodayCurrentConds: string[] = [
         "t.close_date IS NOT NULL",
-        "(t.status_code ~ '^(160|173|122|73|72|60)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')",
+        "(t.status_code ~ '^(160|173|122|73|72|60|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')",
         "t.central_name ILIKE '%غنايم%'",
         "(t.close_date AT TIME ZONE 'Africa/Cairo')::date = (now() AT TIME ZONE 'Africa/Cairo')::date",
         "(t.close_date AT TIME ZONE 'Africa/Cairo')::date >= $1::date",
         "(t.close_date AT TIME ZONE 'Africa/Cairo')::date <= $2::date",
       ];
       const regularizedTodaySodConds: string[] = [
-        "(s.status_code ~ '^(160|173|122|73|72|60)' OR s.complain_type_name ~ '^(160|173|122|73|72|60)')",
+        "(s.status_code ~ '^(160|173|122|73|72|60|9999)' OR s.complain_type_name ~ '^(160|173|122|73|72|60)')",
         "s.central_name ILIKE '%غنايم%'",
         "NOT EXISTS (SELECT 1 FROM ticket_dsl_current c WHERE c.ticket_id = s.ticket_id)",
         "NOT (s.status_code ~ '^(135|138)')",
@@ -6484,7 +6484,7 @@ export async function registerRoutes(
       SELECT 1 FROM ticket_dsl_current t
        WHERE ${sp("t.phone_number")} = ${sp("m.full_phone")}
          AND t.close_date IS NULL
-         AND (t.status_code ~ '^(160|173|122|73|72|60|81)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
+         AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
          AND ${GHANAIM_CENTRALS})`;
     // المنتظمة اليوم: مصدرين زى التقرير — مقفولة النهاردة، أو اختفت من الملف الحالى
     // (والحالات الوسيطة 135/138 مابتتحسبش «منتظم» أبداً).
@@ -6502,7 +6502,7 @@ export async function registerRoutes(
     const inRegularizedTodaySql = `EXISTS (
       SELECT 1 FROM ${REGULARIZED_TODAY_SRC} t
       WHERE ${sp("t.phone_number")} = ${sp("m.full_phone")}
-        AND (t.status_code ~ '^(160|173|122|73|72|60)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')
+        AND (t.status_code ~ '^(160|173|122|73|72|60|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')
         AND ${GHANAIM_CENTRALS})`;
 
     const joinClause = `FROM (
@@ -6920,7 +6920,7 @@ export async function registerRoutes(
                   AND (
                     EXISTS (SELECT 1 FROM ticket_dsl_current tc
                             WHERE tc.phone_number = t.short AND tc.close_date IS NULL
-                              AND (tc.status_code ~ '^(160|173|122|73|72|60|81)' OR tc.complain_type_name ~ '^(160|173|122|73|72|60|81)'))
+                              AND (tc.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR tc.complain_type_name ~ '^(160|173|122|73|72|60|81)'))
                     OR EXISTS (SELECT 1 FROM manual_faults mf
                                WHERE mf.status = 'open' AND (mf.phone_short = t.short OR mf.full_phone = t.full))
                     -- أو عطل **اتنظّم النهاردة** (تقرير «الأعطال المنتظمة اليوم»):
@@ -6932,12 +6932,12 @@ export async function registerRoutes(
                                WHERE tr.phone_number = t.short AND tr.close_date IS NOT NULL
                                  AND (tr.close_date AT TIME ZONE 'Africa/Cairo')::date
                                      = (now() AT TIME ZONE 'Africa/Cairo')::date
-                                 AND (tr.status_code ~ '^(160|173|122|73|72|60)' OR tr.complain_type_name ~ '^(160|173|122|73|72|60)'))
+                                 AND (tr.status_code ~ '^(160|173|122|73|72|60|9999)' OR tr.complain_type_name ~ '^(160|173|122|73|72|60)'))
                     OR EXISTS (SELECT 1 FROM ticket_dsl_sod ts
                                WHERE ts.phone_number = t.short
                                  AND NOT EXISTS (SELECT 1 FROM ticket_dsl_current c WHERE c.ticket_id = ts.ticket_id)
                                  AND NOT (ts.status_code ~ '^(135|138)')
-                                 AND (ts.status_code ~ '^(160|173|122|73|72|60)' OR ts.complain_type_name ~ '^(160|173|122|73|72|60)'))
+                                 AND (ts.status_code ~ '^(160|173|122|73|72|60|9999)' OR ts.complain_type_name ~ '^(160|173|122|73|72|60)'))
                   ))
               ))
               -- أو: اسم فنى الكابينة المعروض (من كود البورتات) = اسمى. القاعدة من المالك:
@@ -6975,7 +6975,7 @@ export async function registerRoutes(
                 JOIN cabinet_technicians rct
                   ON rct.central_name = rt.central_name AND rct.cabin_number = rt.cabinet_no
                 WHERE ${sp("rt.phone_number")} = ${sp("t.short")}
-                  AND (rt.status_code ~ '^(160|173|122|73|72|60)' OR rt.complain_type_name ~ '^(160|173|122|73|72|60)')
+                  AND (rt.status_code ~ '^(160|173|122|73|72|60|9999)' OR rt.complain_type_name ~ '^(160|173|122|73|72|60)')
                   AND btrim(rct.worker_code) = ANY($4::text[] || $5::text[])
               ) AS "ownedByMe",
               (pl.full_phone IS NOT NULL OR la.account_no IS NOT NULL OR c.uploaded_at IS NOT NULL OR cpl.complain_no IS NOT NULL OR pp.phone_number IS NOT NULL OR si.phone_number IS NOT NULL OR wfmo.phone_number IS NOT NULL) AS "hasData"
@@ -12745,7 +12745,7 @@ export async function registerRoutes(
       const params: any[] = [];
       const conds: string[] = [
         `t.close_date IS NULL`,
-        `(t.status_code ~ '^(160|173|122|73|72|60|81)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')`,
+        `(t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')`,
         `(t.central_name = 'الغنايم' OR t.central_name = 'الغنايم-العزايزة' OR t.central_name = 'الغنايم-دير الجنادله' OR t.central_name = 'الغنايم-نجع العمدة')`,
       ];
       if (central) { params.push(central); conds.push(`t.central_name = $${params.length}`); }
@@ -12952,7 +12952,7 @@ export async function registerRoutes(
          FROM ticket_dsl_current t
          WHERE t.ticket_id = $1
            AND t.close_date IS NULL
-           AND (t.status_code ~ '^(160|173|122|73|72|60|81)'
+           AND (t.status_code ~ '^(160|173|122|73|72|60|81|9999)'
                 OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')
            AND t.central_name IN ('الغنايم', 'الغنايم-العزايزة', 'الغنايم-دير الجنادله', 'الغنايم-نجع العمدة')
          ORDER BY t.id DESC

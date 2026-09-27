@@ -17,7 +17,12 @@ test("every lastMeasScore the server sends comes with its poStatus", () => {
   const allPos = routes.match(/^\s*[A-Za-z0-9_]+\.po_status\s*AS "poStatus",/gm) ?? [];
   // «بحث برقم التليفون» بيسمّى الاسكور "score" مش "lastMeasScore" — بيتفحص لوحده تحت
   const lookupOne = '              c.po_status AS "poStatus",\n';
-  const pos = allPos.filter((x) => x !== lookupOne.replace(/\n$/, ""));
+  // تقارير الأعطال اليدوية (٢٠٢٦-٠٩-٢٤) بتسمّى الاسكور "score" (measurement.score) مش
+  // "lastMeasScore" — ومعاه poStatus من نفس الصف. بتتفحص لوحدها تحت.
+  const manualOnes = allPos.filter((x) => /^\s*measurement\.po_status/.test(x));
+  assert.equal(manualOnes.length, (routes.match(/^\s*measurement\.score,\n\s*measurement\.po_status AS "poStatus",/gm) ?? []).length,
+    "كل تقرير أعطال يدوية بيبعت الاسكور مع حالة البروفايل من نفس القياس");
+  const pos = allPos.filter((x) => x !== lookupOne.replace(/\n$/, "") && !manualOnes.includes(x));
   assert.ok(scores.length >= 13, `expected the known score columns, got ${scores.length}`);
   assert.equal(pos.length, scores.length,
     "كل تقرير بيعرض الاسكور لازم يعرض حالة البروفايل معاه");

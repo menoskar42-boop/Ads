@@ -45,8 +45,9 @@ test("the status never breaks the CSV: one line, no semicolons, and a matching c
 test("the script sends it and the server stores it", () => {
   assert.match(script, /poStatus: rec\.poStatus,/);
   assert.match(routes, /const poStatus = \(it\.poStatus \?\? ""\)\.toString\(\)/);
-  assert.match(routes, /account_no, measured_by, po_status, complain_time, source\)/);
-  assert.match(routes, /VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9, now\(\), 'dzs'\)/);
+  // «بدون Real» (٢٠٢٦-٠٩-٢٣) زوّد أعمدة بعد source: measure_mode · measured_at · loop_length · hist_label.
+  assert.match(routes, /account_no, measured_by, po_status, complain_time, source,\s+measure_mode, measured_at, loop_length, hist_label\)/);
+  assert.match(routes, /VALUES \(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9, now\(\), 'dzs',/);
 });
 
 test("the new column exists in both the schema and ensureSchema (قاعدة #8)", () => {

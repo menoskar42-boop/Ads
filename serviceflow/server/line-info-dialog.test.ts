@@ -61,7 +61,7 @@ test("the lookup accepts the phone in any stored format", () => {
   assert.match(ep, /const short = digits\.replace\(\/\^88\/, ""\);/);
   assert.match(ep, /const full = digits\.startsWith\("88"\) \? digits : "88" \+ digits;/);
   // raw كمان لازم يبقى أرقام بس
-  assert.match(ep, /\[digits, short, full, codes\.own, codes\.covered\]/);
+  assert.match(ep, /\[digits, short, full, codes\.own, codes\.covered(?:, [^\]]+)?\]/);
   assert.doesNotMatch(ep, /const short = phone\.replace\(\/\^88\/, ""\);/);
 });
 
