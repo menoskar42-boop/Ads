@@ -25,7 +25,10 @@ const check = (l, ok) => { if (!ok) errors.push(l); };
 
 // ── السيرفر ──
 const lanes = +((routes.match(/const NOREAL_LANES = (\d+);/) || [])[1] || 0);
-check('NOREAL_LANES متعرّف (1 = القديم) ومايزيدش عن 3 (قرار المالك)', lanes >= 1 && lanes <= 3);
+check('NOREAL_LANES متعرّف (1 = القديم)', lanes >= 1);
+// المالك: العدد من NOREAL_LANES **بس** — مفيش رقم تاب متثبّت فى جهاز التنفيذ ولا حدّ لـ«بدون Real» فى السكربت.
+check('جهاز التنفيذ مافيهوش حدّ لعدد تابات «بدون Real»', !/noRealLanes\.has\(\d\)|lane (<|<=) \d/.test(exec));
+check('السكربت مافيهوش حدّ لعدد تابات «بدون Real»', /=== "noreal"[\s\S]{0,120}\? Infinity : 1;/.test(script));
 const helper = routes.slice(routes.indexOf('const siteFreeFor ='), routes.indexOf('app.post("/api/exec-queue/claim"'));
 check('الاستثناء لمهام قياس «بدون Real» بس', /\$\{isNoRealJob\(e\)\}/.test(helper) && /\.type = 'measure' AND POSITION\('\$\{AUTO_MEASURE_NOREAL_MARK\}'/.test(routes));
 check('بحد NOREAL_LANES', /< \$\{NOREAL_LANES\}/.test(helper));
@@ -41,6 +44,9 @@ check('sf_lane فى الهاش لـ«بدون Real» التانى بس', /"&sf_m
 check('قفل «التاب الأخير» لنفس المسار بس', /lastMeasureWin\.current\.get\(lane\)/.test(exec) && /lastMeasureWin\.current\.set\(lane, win\)/.test(exec));
 check('رقم التاب = أول رقم فاضى (مش متثبّت على ٢)', /while \(noRealLanes\.has\(lane\)\) lane\+\+;/.test(exec));
 check('المهام الشغّالة متتبّعة بالمسار مش بالموقع', /running\.set\(laneKey,/.test(exec) && /running\.delete\(laneKey\)/.test(exec) && /noRealLanes\.delete\(lane\)/.test(exec));
+
+check('تابات «بدون Real» بتفتح متفرّقة (تسجيل دخول مع بعض بيبوّظ جلسة)', /const NOREAL_STAGGER_MS = \d+ \* 1000;/.test(exec) && /if \(wait > 0\) await sleep\(wait\);/.test(exec));
+check('تاب «بدون Real» اللى علق بيتقفل لوحده (timeout) من غير ريفريش للصفحة كلها', /if \(noReal\) return "timeout";/.test(exec));
 
 // ── السكربت ──
 const ver = (script.match(/@version\s+(\d+)\.(\d+)/) || []).slice(1).map(Number);

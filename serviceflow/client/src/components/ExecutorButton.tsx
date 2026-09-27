@@ -501,6 +501,15 @@ export function ExecutorButton() {
         const fixRecent = String(note || "").includes(PHONE_LOOKUP_SOURCE);
         // «قياس بدون Real»: بياخد أحدث تاريخ من History Check بدل الـreal-time
         const noReal = String(note || "").includes(NOREAL_MARK);
+        // تابات «بدون Real» بتبدأ متفرّقة: لو اتفتحوا فى نفس اللحظة كلهم بيسجّلوا دخول مع
+        // بعض، وAXON ساعات بيبوّظ جلسة واحد ويحوّله على 10.60.213.2:8081/login-page?
+        // sessionExpired=true (عنوان داخلى مايتوصلش — التاب يعلق). (المالك ٢٠٢٦-٠٩-٢٧)
+        if (noReal) {
+          const wait = nextNoRealOpenAt - Date.now();
+          nextNoRealOpenAt = Math.max(Date.now(), nextNoRealOpenAt) + NOREAL_STAGGER_MS;
+          if (wait > 0) await sleep(wait);
+          if (stopped) return "stopped";
+        }
         const win = executeBatch("measure", accs, { fixRecent, noReal, lane }); // DZS يلفّ على كلهم فى run واحد
         if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
         lastMeasureWin.current.set(lane, win);
@@ -523,6 +532,10 @@ export function ExecutorButton() {
           if (chk.measured > lastMeasured) { lastMeasured = chk.measured; lastProgressAt = Date.now(); }
           if (Date.now() - lastProgressAt >= STALL_MS) {
             closeWin();
+            // «بدون Real»: التاب ده بس اللى علق (جلسة باظت مثلاً) — مانعملش ريفريش للصفحة
+            // كلها (كان بيقتل التابات التانية وهى شغّالة). الخط بيتسجّل timeout والطابور
+            // بيعيده مرة لوحده (requeueErroredJobs).
+            if (noReal) return "timeout";
             // هذه الدالة أرسلت preempt بالفعل؛ لا نعيد إرساله في مسار الإكمال
             // أسفل الحلقة، لأن ذلك كان يسبب طلبين متتاليين لنفس المهمة.
             return (await refreshAfterMeasureTimeout(jobId, batchId)) === "handled"
@@ -582,6 +595,9 @@ export function ExecutorButton() {
     // مسارات «بدون Real» المشغولة على DZS (1 و2). السيرفر هو اللى بيقرّر يدّى تابين
     // ولا لأ (NOREAL_LANES)؛ هنا بس بنوزّع رقم التاب على المهمة اللى اتسحبت.
     const noRealLanes = new Set<number>();
+    // فاصل بين فتح تابات «بدون Real» (شوف runBatch) — ٨ثوانى كفاية لتسجيل الدخول.
+    const NOREAL_STAGGER_MS = 8 * 1000;
+    let nextNoRealOpenAt = 0;
     // بعد تاب ممنوع: السحب يهدى دقيقة (المهمة رجعت للطابور).
     const POPUP_COOLDOWN_MS = 60 * 1000;
     let popupCooldownUntil = 0;
