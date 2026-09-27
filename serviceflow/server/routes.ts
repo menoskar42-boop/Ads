@@ -7102,13 +7102,21 @@ export async function registerRoutes(
       if (element !== "cabinet" && element !== "boxes") {
         return res.status(400).json({ message: "نوع العنصر غير صحيح" });
       }
+      // ⚠️ الكابينة فى الجداول دى متخزّنة «كابل-كابينة» (2-1). لما الخط كابينته معروفة
+      // بكابلها، المطابقة **بالظبط** — كانت بتطابق أى صف رقمه التانى = رقم الكابينة،
+      // فكابينة 2-1 كانت بتاخد سعة بكس 1 من كابينة 3-1 (١٠) وتعدّ خطوط بكس 1 من
+      // 1-1 و2-1 و3-1 مع بعض (٢٢)، وأى بكس مش فى الكابينة الغلط يطلع من غير سعة
+      // (٢٠٢٦-٠٩-٢٧). الكابينة من غير كابل (shelter، tb…) بتفضل زى ما هى.
+      const rawPair = `REGEXP_REPLACE(BTRIM($3), '[[:space:]]+', '', 'g')`;
       const cabinMatches = (column: string) => {
         const compact = `REGEXP_REPLACE(BTRIM(COALESCE(${column}, '')), '[[:space:]]+', '', 'g')`;
-        return `(
-          BTRIM(COALESCE(${column}, '')) = BTRIM($2)
-          OR BTRIM(COALESCE(${column}, '')) = BTRIM($3)
-          OR (${compact} ~ '^[0-9]+-[0-9]+$' AND SPLIT_PART(${compact}, '-', 2) = BTRIM($2))
-        )`;
+        return `(CASE WHEN ${rawPair} ~ '^[0-9]+-[0-9]+$'
+          THEN ${compact} = ${rawPair}
+          ELSE (
+            BTRIM(COALESCE(${column}, '')) = BTRIM($2)
+            OR BTRIM(COALESCE(${column}, '')) = BTRIM($3)
+            OR (${compact} ~ '^[0-9]+-[0-9]+$' AND SPLIT_PART(${compact}, '-', 2) = BTRIM($2))
+          ) END)`;
       };
 
       const centralMatch = `LOWER(REPLACE(BTRIM(COALESCE(central_name, '')), ' ', '')) =
