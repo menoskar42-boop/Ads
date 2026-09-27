@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { copyHtmlTable } from "@/lib/copy-table";
+import { copyHtmlTable, latinDigitsForOutlook } from "@/lib/copy-table";
 
 interface LineData {
   telNo: string | null;
@@ -271,7 +271,8 @@ export function MajorFaultClosureReport() {
   const copySubject = async () => {
     if (!subject) return;
     try {
-      await navigator.clipboard.writeText(subject);
+      // الموضوع كمان: «كابل 2 كابينة 1» كانت بتطلع ٢ و١ فى Outlook.
+      await navigator.clipboard.writeText(latinDigitsForOutlook(subject));
       setNotice("تم نسخ سطر موضوع البريد");
     } catch {
       setNotice("تعذّر النسخ؛ اسمح للموقع بالوصول إلى الحافظة");
