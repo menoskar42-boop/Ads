@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DZS Expresse Continuous Flow v10.7 (Service-Flow 138 sheet + auto-upload)
-// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
-// @version      10.24.0
+// @description  Measures DZS → CSV شيت-138 + رفع تلقائى لـ case_138. v10.25: «بدون Real» ممكن يشتغل فى تابين مع بعض (sf_lane=2) — كل تاب حالته لوحده (مفاتيح بلاحقة _L2) والـreset بيمسح مفاتيح تابه بس؛ Real زى ما هو تاب واحد. v10.24: «بدون Real» بيستنى شاشة ClearView تهدى بعد اختيار التاريخ (مفيش طلب PrimeFaces شغّال + مفيش تغيير ٣ث + السرعات وسطر حالة PO ظاهرين، أقصى ٤٥ث) — v10.23 كان بيقرا بدرى فيسجّل سرعات القراية اللى قبلها وحالة PO فاضية. v10.23: وضع «قياس بدون Real» (sf_mode=noreal — سوبر أدمن من «بحث برقم التليفون»): مابيعملش real-time؛ بياخد أحدث تاريخ من «History Check» (ده بيبقى تاريخ القياس) ويقرا السرعات والاسكور وحالة PO، وبعدين يفتح شاشة DSL ويقرا «Estimated Loop Length». القياس العادى (Real) زى ما هو. v10.22: بيسجّل كمان «Profile Optimization Status» (الكلام اللى قدّام اللابل فى ClearView) — بيتحفظ فى شيت 138 وفى الـ CSV وبيتبعت مع القياس. v10.21: تصحيح اختيار «A recent fix (past 24h)» — الـ label من نوع ui-outputlabel من غير for، فبنختار الـ .ui-radiobutton-box بفهرس الخيار المستخرَج من آى دى/كلاس الـ label (الأثبت). v10.20: القياس الجاى من «بحث برقم التليفون» (sf_fix=recent) يختار «A recent fix was performed on the line over the past 24 hours» فى شاشة Real-time Analysis قبل ضغط Yes؛ الافتراضى بدون العلامة يفضل «No fix performed on the line». v10.19: جهاز التنفيذ بيبعت الأرقام خط-خط (كل خط مهمة حسب الأولوية) فكل تشغيلة = خط واحد؛ رجّعنا منطق فتح التاب المستقر (v10.17) للاستخدام اليدوى متعدد الخطوط؛ ومع الرفع التلقائى لـ138 وقفنا تنزيل CSV التلقائى (نسيبه للزر اليدوى) عشان مايبقاش مئات الملفات. v10.18 (متراجَع عنه): انتقال داخلى فى نفس التاب. v10.17: حارس تعارض مع سكربت رفع السرعة (يقف لو #sf_po أو PO_ACTIVE). v10.16: (1) إصلاح الدومين → service-flow-menoskar42 (شرطة واحدة) عشان القياسات تتحفظ فورًا. (2) إرجاع منع نوم الشاشة/الجهاز أثناء القياس. v10.10: (1) "read-when-ready" — يقرا ويقفل ويفتح التالى أول ما القياس يخلّص (ثانيتين بعده) بدل انتظار 90ث ثابتة. (2) رسالة "POP_O/PerTone data is missing" → 101 ويكمّل. (3) رسالة البلوك (busy) → 5 محاولات بحد أقصى ثم 104 والتالى، ومايفتحش تابات قبل النتيجة. (4) وضع الفرض sf_force=1 (من تقرير الخطوط score>100): يتجاهل الحالات المخزّنة ويعمل real-time فعلى. v10.9: فتح التالى وقت الإغلاق فقط (مفيش تداخل real-time/busy). v10.8: إصلاح deadlock. v10.7: retry على Resource Allocator.
+// @version      10.25.0
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
 // @grant        none
@@ -109,8 +109,32 @@
   const SF_INGEST_TOKEN = "sf-dzs-138-ingest-2026"; // ← لازم يطابق DZS_INGEST_TOKEN فى السيرفر
   const SF_AUTO_UPLOAD = true; // false لو عايزه CSV فقط من غير رفع تلقائى
 
-  const SF_ACCOUNTS_KEY = "DZS_SF_ACCOUNTS";
-  const SF_META_KEY     = "DZS_SF_META";
+  /* ===== v10.25: تاب «بدون Real» التانى (sf_lane=2) =====
+     كل حالة السكربت (القايمة · رقم الخط · النتايج · الوضع) فى localStorage **مشترك
+     بين كل تابات DZS**. تابين مع بعض كانوا هيكتبوا فوق بعض. فالتاب التانى بياخد
+     رقمه من الهاش (sf_lane=2) ويحفظه فى sessionStorage (خاص بالتاب وبيعيش مع التنقّل
+     لـclearview وlineSummary)، وكل مفاتيحه بلاحقة _L2. التاب الأول والقياس Real
+     من غير لاحقة — نفس مفاتيح v10.24 بالظبط. */
+  const LANE_SESSION_KEY = "DZS_LANE";
+  let LANE = "";
+  try {
+    if (/[#&]sf_accounts=/.test(location.hash)) {
+      LANE = ((location.hash.match(/[#&]sf_lane=(\d+)/) || [])[1] || "").replace(/^1$/, "");
+      sessionStorage.setItem(LANE_SESSION_KEY, LANE);
+    } else {
+      LANE = sessionStorage.getItem(LANE_SESSION_KEY) || "";
+    }
+  } catch (e) {}
+  const LANE_SUFFIX = LANE ? "_L" + LANE : "";
+  if (LANE) console.log("🛣️ تاب «بدون Real» رقم " + LANE + " — مفاتيحه بلاحقة " + LANE_SUFFIX);
+  // مفاتيح التاب ده بس: بلاحقته لو ليه رقم، ومن غير أى لاحقة لو هو الأول.
+  // DZS_OPEN_TABS مشترك (عدّاد التابات كلها) فمابيتمسحش هنا.
+  const isMyLaneKey = (k) => k.indexOf("DZS_") === 0 && k !== "DZS_OPEN_TABS"
+    && (LANE_SUFFIX ? k.endsWith(LANE_SUFFIX) : !/_L\d+$/.test(k));
+  const clearMyLane = () => Object.keys(localStorage).filter(isMyLaneKey).forEach(k => localStorage.removeItem(k));
+
+  const SF_ACCOUNTS_KEY = "DZS_SF_ACCOUNTS" + LANE_SUFFIX;
+  const SF_META_KEY     = "DZS_SF_META" + LANE_SUFFIX;
 
   function readAccountsFromHash() {
     const m = location.hash.match(/sf_accounts=([^&]+)/);
@@ -151,9 +175,12 @@
   const WAIT_FOR_DISPATCH_SCORE = 1.5 * 60 * 1000; // وقت انتظار الـ Dispatch Score بعد yes — قلّليه يسرّع لكن لو زاد عدد القراءات الفاضية/102 ارجعيه لـ 1.8
   const EARLY_READ_MAX_MS = 40 * 1000;
   const STAGGER_BETWEEN_TABS_MS = 3000; // التالى بيتفتح وقت الإغلاق (مفيش تداخل)، فـ 3 ثوانى كفاية كفاصل أمان
-  const MAX_CONCURRENT = 1; // AXON يسمح بـ real-time واحد بس لكل جلسة دخول. أى رقم أكبر بيخلّى التابات
-                            // تتخانق على "busy" وتعلّق وتعمل فيضان تابات. خليها 1 = مفيش تصادم، مفيش تعليق،
-                            // ونفس السرعة (AXON بيشتغل بالدور أصلاً). أقصى تجربة آمنة 2؛ متعدّيهاش.
+  // AXON يسمح بـ real-time واحد بس لكل جلسة دخول. أى رقم أكبر بيخلّى التابات
+  // تتخانق على "busy" وتعلّق وتعمل فيضان تابات. خليها 1 = مفيش تصادم، مفيش تعليق،
+  // ونفس السرعة (AXON بيشتغل بالدور أصلاً). أقصى تجربة آمنة 2؛ متعدّيهاش.
+  // v10.25: «بدون Real» مابيعملش real-time أصلاً (بيقرا History)، فاتنين بس — قرار المالك.
+  const MAX_CONCURRENT = (localStorage.getItem("DZS_MEASURE_MODE" + LANE_SUFFIX) === "noreal"
+    || /[#&]sf_mode=noreal\b/.test(location.hash)) ? 2 : 1;
   const POPUP_RETRY_DELAY_MS = 10000;
   const MAX_POPUP_ATTEMPTS = 5;
   const DELAY_BEFORE_CLOSE_MS = 2000;
@@ -168,16 +195,16 @@
   const SCORE_NOT_FOUND = "105"; // 🆕 line id not found → score 105 وسرعات فاضية
 
   /* ================== STORAGE KEYS ================== */
-  const INDEX_KEY = "DZS_LINE_INDEX";
-  const ARRAY_KEY = "DZS_LINE_ARRAY_HASH";
-  const RESULTS_KEY = "DZS_RESULTS";
-  const DOWNLOAD_DONE_KEY = "DZS_DOWNLOAD_DONE";
-  const RESET_TOKEN_KEY = "DZS_RESET_TOKEN";
+  const INDEX_KEY = "DZS_LINE_INDEX" + LANE_SUFFIX;
+  const ARRAY_KEY = "DZS_LINE_ARRAY_HASH" + LANE_SUFFIX;
+  const RESULTS_KEY = "DZS_RESULTS" + LANE_SUFFIX;
+  const DOWNLOAD_DONE_KEY = "DZS_DOWNLOAD_DONE" + LANE_SUFFIX;
+  const RESET_TOKEN_KEY = "DZS_RESET_TOKEN" + LANE_SUFFIX;
 
   /* ================== FORCED RESET via TOKEN ================== */
   const savedToken = localStorage.getItem(RESET_TOKEN_KEY);
   if (savedToken !== RESET_TOKEN) {
-    Object.keys(localStorage).filter(k => k.indexOf("DZS_") === 0).forEach(k => localStorage.removeItem(k));
+    clearMyLane();   // v10.25: مفاتيح التاب ده بس — مش حالة التاب التانى
     localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
     console.log("🧹 FORCED RESET via token '" + RESET_TOKEN + "'.");
   }
@@ -187,7 +214,7 @@
   const prevResults = JSON.parse(localStorage.getItem(RESULTS_KEY) || "[]");
   const prevRunComplete = prevDownloadDone || (prevResults.length >= UNIQUE_LINE_COUNT && prevResults.length > 0);
   if (prevRunComplete) {
-    Object.keys(localStorage).filter(k => k.indexOf("DZS_") === 0).forEach(k => localStorage.removeItem(k));
+    clearMyLane();   // v10.25: مفاتيح التاب ده بس — مش حالة التاب التانى
     localStorage.setItem(RESET_TOKEN_KEY, RESET_TOKEN);
     console.log("🔄 Previous run complete, auto-reset.");
   }
@@ -209,7 +236,7 @@
 
   // 🆕 فرض real-time (من تقرير الخطوط score>100): علامة sf_force=1 فى الهاش.
   // تتثبّت للرن كله: أول تاب (اللى جاى بالهاش) يحدّد القيمة، وباقى التابات تقراها من localStorage.
-  const FORCE_RT_KEY = "DZS_FORCE_RT";
+  const FORCE_RT_KEY = "DZS_FORCE_RT" + LANE_SUFFIX;
   if (_fromHash) localStorage.setItem(FORCE_RT_KEY, /[#&]sf_force=1\b/.test(location.hash) ? "1" : "0");
   const FORCE_REALTIME = localStorage.getItem(FORCE_RT_KEY) === "1";
   if (FORCE_REALTIME) console.log("🎯 FORCE real-time mode ON — الحالات المخزّنة (POP_O/out-of-service) هتتقاس فعلياً.");
@@ -218,19 +245,19 @@
   // بيحطّ sf_fix=recent فى الهاش → قبل ضغط Yes نختار «A recent fix was performed on the line
   // over the past 24 hours». الافتراضى (بدون العلامة) = «No fix performed on the line» زى ما هو.
   // نخزّنها فى localStorage عشان تعيش بعد التنقّل لصفحة clearview (زى sf_force).
-  const FIX_MODE_KEY = "DZS_FIX_MODE";
+  const FIX_MODE_KEY = "DZS_FIX_MODE" + LANE_SUFFIX;
   if (_fromHash) localStorage.setItem(FIX_MODE_KEY, (location.hash.match(/[#&]sf_fix=([^&]+)/) || [])[1] || "");
   const FIX_MODE = localStorage.getItem(FIX_MODE_KEY) || "";
 
   // v10.23: «قياس بدون Real» — sf_mode=noreal فى الهاش (زرار سوبر أدمن فى «بحث برقم
   // التليفون»). بيتخزّن زى sf_fix عشان يعيش بعد التنقّل لـclearview وlineSummary.
-  const MEASURE_MODE_KEY = "DZS_MEASURE_MODE";
+  const MEASURE_MODE_KEY = "DZS_MEASURE_MODE" + LANE_SUFFIX;
   if (_fromHash) localStorage.setItem(MEASURE_MODE_KEY, (location.hash.match(/[#&]sf_mode=([^&]+)/) || [])[1] || "");
   const NOREAL = localStorage.getItem(MEASURE_MODE_KEY) === "noreal";
   if (NOREAL) console.log("🗓️ وضع «قياس بدون Real» — مفيش real-time؛ أحدث تاريخ من History Check + Loop Length من شاشة DSL.");
   // القراءات اللى اتاخدت من clearview بتستنى هنا لحد ما Loop Length يتقرا من صفحة DSL
   // (صفحة جديدة = نسخة جديدة من السكربت، فلازم تتخزّن).
-  const NOREAL_PENDING_KEY = "DZS_NOREAL_PENDING";
+  const NOREAL_PENDING_KEY = "DZS_NOREAL_PENDING" + LANE_SUFFIX;
   if (FIX_MODE === "recent") console.log("🛠️ Fix mode = recent — هيختار «A recent fix (past 24h)» قبل Yes.");
 
   let lineIndex = parseInt(localStorage.getItem(INDEX_KEY), 10);

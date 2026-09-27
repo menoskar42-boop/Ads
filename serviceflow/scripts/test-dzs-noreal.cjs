@@ -192,6 +192,37 @@ const lineSummary = (loop) => `<!doctype html><html><body>
   t('مفيش أى أثر لـHistory فى Real', R.w.localStorage.getItem('DZS_NOREAL_PENDING') === null);
   R.w.close();
 
+  console.log('── ٦) v10.25: تابين «بدون Real» مع بعض (sf_lane=2) ──');
+  const LINE2 = '7771234';
+  const T1 = page(BASE + 'welcome#sf_accounts=' + LINE + '&sf_mode=noreal', '<body>w</body>', {});
+  await until(() => T1.w.__hrefs.length, 3000); const ln1 = T1.dump(); T1.w.close();
+  t('التاب الأول بمفاتيح من غير لاحقة (زى v10.24)', ln1.DZS_SF_ACCOUNTS === JSON.stringify([LINE]) && ln1.DZS_MEASURE_MODE === 'noreal');
+  // التاب التانى بيفتح والمخزن المشترك فيه حالة التاب الأول
+  const T2 = page(BASE + 'welcome#sf_accounts=' + LINE2 + '&sf_mode=noreal&sf_lane=2', '<body>w</body>', ln1);
+  await until(() => T2.w.__hrefs.length, 3000); const ln2 = T2.dump();
+  t('التاب التانى رقمه اتحفظ فى sessionStorage', T2.w.sessionStorage.getItem('DZS_LANE') === '2');
+  T2.w.close();
+  t('التاب التانى كتب فى مفاتيح _L2', ln2.DZS_SF_ACCOUNTS_L2 === JSON.stringify([LINE2]) && ln2.DZS_MEASURE_MODE_L2 === 'noreal');
+  t('وماكتبش فوق قايمة التاب الأول', ln2.DZS_SF_ACCOUNTS === JSON.stringify([LINE]) && ln2.DZS_LINE_ARRAY_HASH === LINE);
+  t('التاب التانى رايح لخطه هو', (T2.w.__hrefs[0] || '').includes(LINE2), T2.w.__hrefs[0] || '');
+  // التاب التانى اتنقّل لـclearview (من غير هاش) — رقمه من sessionStorage
+  let rtL2 = 0;
+  const T2b = page(BASE + 'clearview?lineId=' + LINE2, clearview(), ln2, { before: (w) => { w.sessionStorage.setItem('DZS_LANE', '2'); w.document.getElementById('rt').addEventListener('click', () => rtL2++); } });
+  const pendL2 = await until(() => T2b.w.localStorage.getItem('DZS_NOREAL_PENDING_L2'), 25000);
+  t('بعد التنقّل: التاب التانى فضل «بدون Real» وحفظ انتظاره فى _L2', !!pendL2 && rtL2 === 0, pendL2 ? '' : '(مفيش انتظار)');
+  t('وماكتبش فى انتظار التاب الأول', T2b.w.localStorage.getItem('DZS_NOREAL_PENDING') === null);
+  const ln2b = T2b.dump(); T2b.w.close();
+  // التاب الأول بيبدأ رن جديد بعد ما رنّه خلص — الـreset بيمسح مفاتيحه هو بس
+  const T3 = page(BASE + 'welcome#sf_accounts=9990001&sf_mode=noreal', '<body>w</body>', { ...ln2b, DZS_DOWNLOAD_DONE: '1' });
+  await until(() => T3.w.__hrefs.length, 3000); const ln3 = T3.dump(); T3.w.close();
+  t('reset التاب الأول ماسحش حالة التاب التانى', ln3.DZS_SF_ACCOUNTS_L2 === JSON.stringify([LINE2]) && ln3.DZS_MEASURE_MODE_L2 === 'noreal' && !!ln3.DZS_NOREAL_PENDING_L2);
+  t('والتاب الأول بدأ قايمته الجديدة', ln3.DZS_SF_ACCOUNTS === JSON.stringify(['9990001']));
+  // Real من غير sf_lane بيرجّع التاب لمفاتيح من غير لاحقة حتى لو نفس التاب كان تانى قبل كده
+  const T4 = page(BASE + 'welcome#sf_accounts=' + LINE, '<body>w</body>', {}, { before: (w) => w.sessionStorage.setItem('DZS_LANE', '2') });
+  await until(() => T4.w.__hrefs.length, 3000);
+  t('Real (من غير sf_lane) = التاب الأول دايماً', T4.w.sessionStorage.getItem('DZS_LANE') === '' && T4.dump().DZS_SF_ACCOUNTS === JSON.stringify([LINE]));
+  T4.w.close();
+
   console.log(`\n${bad ? '❌' : '✅'} ${ok} نجح، ${bad} فشل`);
   process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error('✖', e); process.exit(1); });

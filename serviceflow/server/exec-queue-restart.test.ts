@@ -344,10 +344,11 @@ test("claim endpoint locks sites independently without changing queue ordering",
   );
   assert.match(claimRoute, /skippedSites/);
   assert.match(claimRoute, /<> ALL\(\$1::text\[\]\)/);
-  assert.match(
-    claimRoute,
-    /b\.status = 'claimed'[\s\S]*?COALESCE\(b\.site, '10\.42\.187\.101'\) = COALESCE\(e\.site, '10\.42\.187\.101'\)/,
-  );
+  // فحص «الموقع فاضى» اتنقل لـsiteFreeFor (فيه استثناء «بدون Real» — تابين على DZS).
+  assert.match(claimRoute, /siteFreeFor\("e", "COALESCE\(e\.site, '10\.42\.187\.101'\)"\)/);
+  assert.match(claimRoute, /siteFreeFor\("exec_jobs", "\$3"\)/);
+  const helper = routes.slice(routes.indexOf("const siteFreeFor ="), claimStart);
+  assert.match(helper, /NOT EXISTS \(SELECT 1 FROM exec_jobs b\s+WHERE b\.status = 'claimed' AND COALESCE\(b\.site, '10\.42\.187\.101'\) = \$\{siteSql\}\)/);
   assert.match(
     claimRoute,
     /ORDER BY e\.priority DESC,[\s\S]*?e\.queue_order[\s\S]*?e\.created_at, e\.id/,

@@ -116,7 +116,9 @@ export function ExecutorButton() {
   const busy = useRef(false);
   const [clearing, setClearing] = useState(false);
   // تاب القياس الأخير — نقفله أول ما نفتح قياس جديد (يفضل تاب واحد بس مفتوح: الأخير)
-  const lastMeasureWin = useRef<Window | null>(null);
+  // تاب القياس الأخير **لكل مسار** — «بدون Real» ممكن يشتغل فى تابين (1 و2)، فقفل
+  // «الأخير» لازم يبقى تاب نفس المسار بس؛ وإلا التاب التانى كان هيقفل الأول وهو شغّال.
+  const lastMeasureWin = useRef(new Map<number, Window>());
   // يمنع إرسال أكثر من طلب إعادة تشغيل لنفس مهمة القياس، حتى لو دخل مسار
   // انتهاء المهلة ومسار الإكمال معاً قبل أن ينفّذ المتصفح reload.
   const measureRefreshBusy = useRef(new Set<number>());
@@ -394,7 +396,7 @@ export function ExecutorButton() {
           beforeReload: () => {
             batchRefreshTriggered.current = true;
             try {
-              if (lastMeasureWin.current && !lastMeasureWin.current.closed) lastMeasureWin.current.close();
+              for (const w of lastMeasureWin.current.values()) if (!w.closed) w.close();
             } catch {}
           },
           reload: () => { try { window.location.reload(); } catch {} },
@@ -430,7 +432,7 @@ export function ExecutorButton() {
     // بترجّع نتيجة التنفيذ: "done" خلص فعلاً | "tab_closed" التاب اتقفل قبل ما يخلص |
     // "timeout" علّق/وقف بدون تقدّم | "stopped" جهاز التنفيذ اتقفل | "canceled" اتمسح من الطابور يدوياً |
     // "preempted" اتقطع لصالح طلب عاجل.
-    const runBatch = async (type: ExecJob["type"], accs: string[], jobId: number, note?: string | null, params?: any, batchId?: string | null): Promise<string> => {
+    const runBatch = async (type: ExecJob["type"], accs: string[], jobId: number, note?: string | null, params?: any, batchId?: string | null, lane = 1): Promise<string> => {
       const last = accs[accs.length - 1];
       const canPreempt = accs.length > 3; // الباتش الكبير بس هو اللى يتقطع
       // العمليات اللى بتفتح موقع خارجى وتخلص لوحدها (جلب أكونت/تغيير أو تحديث بورت/إلغاء إسناد/
@@ -494,14 +496,14 @@ export function ExecutorButton() {
         return stopped ? "stopped" : "timeout";
       }
       if (type === "measure") {
-        try { if (lastMeasureWin.current && !lastMeasureWin.current.closed) lastMeasureWin.current.close(); } catch {}
+        try { const prev = lastMeasureWin.current.get(lane); if (prev && !prev.closed) prev.close(); } catch {}
         // القياس الجاى من «بحث برقم التليفون» يختار «A recent fix (past 24h)» فى شاشة DZS
         const fixRecent = String(note || "").includes(PHONE_LOOKUP_SOURCE);
         // «قياس بدون Real»: بياخد أحدث تاريخ من History Check بدل الـreal-time
         const noReal = String(note || "").includes(NOREAL_MARK);
-        const win = executeBatch("measure", accs, { fixRecent, noReal }); // DZS يلفّ على كلهم فى run واحد
+        const win = executeBatch("measure", accs, { fixRecent, noReal, lane }); // DZS يلفّ على كلهم فى run واحد
         if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
-        lastMeasureWin.current = win;
+        lastMeasureWin.current.set(lane, win);
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
         const deadline = Date.now() + Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS);
         // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
@@ -576,7 +578,10 @@ export function ExecutorButton() {
     // الطابور بيشتغل بمسارات: مهمة واحدة لكل **موقع** فى نفس الوقت، ومواقع مختلفة بالتوازى
     // (السيرفر هو اللى بيضمن ده فى claim). هنا بنمنع بس إن أكتر من طلب claim يتبعت مع بعض،
     // وبعدها بنشغّل المهمة **من غير انتظار** عشان مسار تانى يقدر يبدأ.
-    const running = new Map<string, string>();   // site → وصف المهمة الجارية
+    const running = new Map<string, string>();   // site (أو site#L2 لتاب «بدون Real» التانى) → وصف المهمة الجارية
+    // مسارات «بدون Real» المشغولة على DZS (1 و2). السيرفر هو اللى بيقرّر يدّى تابين
+    // ولا لأ (NOREAL_LANES)؛ هنا بس بنوزّع رقم التاب على المهمة اللى اتسحبت.
+    const noRealLanes = new Set<number>();
     // بعد تاب ممنوع: السحب يهدى دقيقة (المهمة رجعت للطابور).
     const POPUP_COOLDOWN_MS = 60 * 1000;
     let popupCooldownUntil = 0;
@@ -623,14 +628,18 @@ export function ExecutorButton() {
           const accs = (job.accounts || []).map((a) => String(a).trim()).filter(Boolean);
           const site = String((job as any).site || "10.42.187.101");
           const label = QUEUE_LABEL[job.type] || job.type;
-          running.set(site, `${label} (${accs.length} رقم)`);
-          runningSince.set(site, { at: Date.now(), type: job.type, batchId: job.batchId });
+          const isNoReal = job.type === "measure" && String(job.note || "").includes(NOREAL_MARK);
+          const lane = isNoReal ? (noRealLanes.has(1) ? 2 : 1) : 1;
+          if (isNoReal) noRealLanes.add(lane);
+          const laneKey = isNoReal && lane > 1 ? `${site}#L${lane}` : site;
+          running.set(laneKey, `${label}${isNoReal && lane > 1 ? ` [تاب ${lane}]` : ""} (${accs.length} رقم)`);
+          runningSince.set(laneKey, { at: Date.now(), type: job.type, batchId: job.batchId });
           showRunning();
           // بدون await — مسار الموقع ده بيشتغل لوحده، وحلقة السحب تقدر تجيب مهمة لموقع تانى
           void (async () => {
             let result: string | null = null;
             try {
-              if (accs.length && !stopped) result = await runBatch(job.type, accs, job.id, job.note, job.params, job.batchId);
+              if (accs.length && !stopped) result = await runBatch(job.type, accs, job.id, job.note, job.params, job.batchId, lane);
               if (batchRefreshTriggered.current) return;
               if (result === null && stopped) {
                 // الجهاز اتقفل قبل ما المهمة تشتغل أصلاً — ماتتعلّمش done وهى
@@ -669,8 +678,9 @@ export function ExecutorButton() {
                 }).catch(() => {});
               }
             } catch {} finally {
-              running.delete(site);
-              runningSince.delete(site);
+              running.delete(laneKey);
+              runningSince.delete(laneKey);
+              if (isNoReal) noRealLanes.delete(lane);
               showRunning();
             }
           })();

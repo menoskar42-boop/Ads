@@ -2208,6 +2208,36 @@ export async function registerRoutes(
   };
 
   // جهاز التنفيذ يسحب أقدم مهمة (atomic) — SKIP LOCKED
+  // ── استثناء «بدون Real»: تابين DZS مع بعض (قرار المالك ٢٠٢٦-٠٩-٢٧) ──────────────
+  // القاعدة العامة: مهمة واحدة شغّالة لكل موقع. «بدون Real» مابيعملش real-time (اللى
+  // AXON بيسمح بواحد بس منه لكل جلسة) — بيقرا History — فبيتسمح بـNOREAL_LANES منه
+  // مع بعض على DZS، **بشرط** إن الشغّال كله «بدون Real»، وإن مفيش مهمة من نوع تانى
+  // (قياس Real مثلاً) قبله فى ترتيب الطابور على نفس الموقع — وإلا التابين كانوا
+  // هيفضلوا ياخدوا خطوط والموقع مايفضاش أبداً للـReal. كده الـReal اللى أولويته
+  // أعلى بيستنى التابين يخلّصوا الخط اللى فى إيدهم، يتنفّذ، وبعده «بدون Real» يكمّل.
+  // ⚠️ للرجوع للقديم فوراً: NOREAL_LANES = 1 (السكربت v10.25 بيشتغل عادى بتاب واحد).
+  const NOREAL_LANES = 2;
+  const isNoRealJob = (a: string) =>
+    `(${a}.type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(${a}.note, '')) > 0)`;
+  const queueRank = (a: string) =>
+    `ROW(-${a}.priority, CASE WHEN ${a}.queue_order > 0 THEN ${a}.queue_order ELSE 9223372036854775807 END, ${a}.created_at, ${a}.id)`;
+  // الموقع «فاضى» للمهمة e: مفيش حاجة شغّالة عليه، أو استثناء «بدون Real».
+  const siteFreeFor = (e: string, siteSql: string) => `(
+    NOT EXISTS (SELECT 1 FROM exec_jobs b
+                 WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql})
+    OR (${NOREAL_LANES} > 1 AND ${isNoRealJob(e)}
+        AND (SELECT COUNT(*) FROM exec_jobs b
+              WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}) < ${NOREAL_LANES}
+        AND NOT EXISTS (SELECT 1 FROM exec_jobs b
+                         WHERE b.status = 'claimed' AND COALESCE(b.site, '10.42.187.101') = ${siteSql}
+                           AND NOT ${isNoRealJob("b")})
+        AND NOT EXISTS (SELECT 1 FROM exec_jobs x
+                         WHERE x.status = 'pending' AND x.paused_at IS NULL AND x.id <> ${e}.id
+                           AND COALESCE(x.site, '10.42.187.101') = ${siteSql}
+                           AND NOT ${isNoRealJob("x")}
+                           AND ${queueRank("x")} < ${queueRank(e)}))
+  )`;
+
   app.post("/api/exec-queue/claim", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
       // نظّف المهام اليتيمة قبل السحب — عشان أى مهمة عالقة ترجع للطابور وتتنفّذ فى مكانها
@@ -2234,9 +2264,8 @@ export async function registerRoutes(
               WHERE e.status = 'pending' AND e.paused_at IS NULL
                 AND COALESCE(e.site, '10.42.187.101') <> ALL($1::text[])
                 -- الدومين لازم يكون فاضى: مفيش مهمة شغّالة على نفس الموقع دلوقتى
-                AND NOT EXISTS (SELECT 1 FROM exec_jobs b
-                                  WHERE b.status = 'claimed'
-                                    AND COALESCE(b.site, '10.42.187.101') = COALESCE(e.site, '10.42.187.101'))
+                -- (أو استثناء «بدون Real» — siteFreeFor فوق)
+                AND ${siteFreeFor("e", "COALESCE(e.site, '10.42.187.101')")}
               ORDER BY e.priority DESC,
                        CASE WHEN e.queue_order > 0 THEN e.queue_order ELSE 9223372036854775807 END ASC,
                        e.created_at, e.id
@@ -2260,10 +2289,7 @@ export async function registerRoutes(
           const { rows } = await tx.query(
             `UPDATE exec_jobs SET status = 'claimed', claimed_at = now(), executed_by = $1
              WHERE id = $2 AND status = 'pending' AND paused_at IS NULL
-               AND NOT EXISTS (SELECT 1 FROM exec_jobs b
-                                WHERE b.status = 'claimed'
-                                  AND COALESCE(b.site, '10.42.187.101') =
-                                      $3)
+               AND ${siteFreeFor("exec_jobs", "$3")}
              RETURNING id, type, accounts, requested_by AS "requestedBy", note, priority, site,
                        batch_id AS "batchId", params`,
             [execIdentity(req), candidate.id, candidate.site],
@@ -3326,7 +3352,9 @@ export async function registerRoutes(
                                             THEN interval '45 minutes' ELSE interval '10 minutes' END)
                AND EXISTS (SELECT 1 FROM exec_jobs j2
                             WHERE j2.claimed_at > e.claimed_at
-                              AND COALESCE(j2.site, '10.42.187.101') = COALESCE(e.site, '10.42.187.101')))
+                              AND COALESCE(j2.site, '10.42.187.101') = COALESCE(e.site, '10.42.187.101')
+                              -- تابين «بدون Real» شغّالين مع بعض (NOREAL_LANES) مش دليل إن الأقدم اتعدّى
+                              AND NOT (${isNoRealJob("e")} AND ${isNoRealJob("j2")})))
               -- (2) المُنقِذ الأساسى: عدّت مهلة نوعها القصوى → عالقة أكيد، رجّعها
               OR e.claimed_at < now() - ${maxRunSql}
             )`,

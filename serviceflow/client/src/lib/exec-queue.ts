@@ -354,7 +354,12 @@ export function executeSingle(type: ExecJobType, account: string | number, opts?
 
 // تنفيذ **مجموعة أرقام دفعة واحدة** — نبعتها كلها للسكربت (DZS/PO) اللى بيلفّ عليها بنفسه
 // (زى ما لو ضغطنا عليها والزر مطفى: 6/185…). كده مايفتحش صفحة منفصلة لكل رقم.
-export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; afterStop?: boolean; params?: ExecJobParams | null }): Window | null {
+/** اسم تاب القياس: التاب الأول (وقياس Real) زى ما هو، و«بدون Real» التانى تاب لوحده. */
+export function measureTabName(lane?: number): string {
+  return lane && lane > 1 ? `${DZS_MEASURE_TARGET}_${lane}` : DZS_MEASURE_TARGET;
+}
+
+export function executeBatch(type: ExecJobType, accounts: (string | number)[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number; afterStop?: boolean; params?: ExecJobParams | null }): Window | null {
   const accs = accounts.map((a) => String(a ?? "").trim()).filter(Boolean);
   if (!accs.length) return null;
   // العمليات الجديدة: c360 بياخد كل الأرقام مرة واحدة، والباقى رقم واحد لكل مهمة.
@@ -369,7 +374,8 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
   // بنرجّع النافذة (كانت null) — جهاز التنفيذ محتاجها يكشف إن التاب اتقفل = خلص، ويقفله بنفسه.
   if (type === "raise") return openProfileOptimization(accs, opts?.afterStop ? { afterStop: true } : {});
   if (type === "stop") return openProfileOptimization(accs, { stopOnly: true });
-  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`, DZS_MEASURE_TARGET);
+  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`,
+    measureTabName(opts?.noReal ? opts.lane : undefined));
 }
 
 /** للتشغيل المحلى (سوبر أدمن من غير جهاز تنفيذ): علامة «بدون Real» على رابط DZS
@@ -380,8 +386,9 @@ export function noRealUrl(url: string, noReal?: boolean): string {
 
 /** علامات القياس فى رابط DZS. «بدون Real» مالوش شاشة real-time أصلاً، فعلامة
  *  «A recent fix» (اللى بتختار حاجة فى شاشة الـreal-time) مالهاش معنى معاه. */
-export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean }): string {
-  if (opts?.noReal) return "&sf_mode=noreal";
+export function measureHashFlags(opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number }): string {
+  // التاب التانى لـ«بدون Real» (v10.25): السكربت بياخد رقمه ويحفظ حالته بلاحقة _L2.
+  if (opts?.noReal) return "&sf_mode=noreal" + (opts.lane && opts.lane > 1 ? `&sf_lane=${opts.lane}` : "");
   return opts?.fixRecent ? "&sf_fix=recent" : "";
 }
 

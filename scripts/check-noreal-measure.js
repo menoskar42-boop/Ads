@@ -66,8 +66,8 @@ for (const l of ['نوع القياس', 'Loop Length']) {
   need(new RegExp(`"${l}": `).test(plr), `«${l}» مش فى تصدير الإكسيل (قيد #7).`);
 }
 need(/"آخر قياس", "نوع القياس", "Loop Length"/.test(plr), 'عمودين «نوع القياس» و«Loop Length» مش فى الـPDF (قيد #7).');
-need(/if \(opts\?\.noReal\) return "&sf_mode=noreal";/.test(eq), 'measureHashFlags لازم يرجّع &sf_mode=noreal.');
-need(/const noReal = String\(note \|\| ""\)\.includes\(NOREAL_MARK\);/.test(exb) && /executeBatch\("measure", accs, \{ fixRecent, noReal \}\)/.test(exb),
+need(/if \(opts\?\.noReal\) return "&sf_mode=noreal"(;| \+ )/.test(eq), 'measureHashFlags لازم يرجّع &sf_mode=noreal.');
+need(/const noReal = String\(note \|\| ""\)\.includes\(NOREAL_MARK\);/.test(exb) && /executeBatch\("measure", accs, \{ fixRecent, noReal(, lane)? \}\)/.test(exb),
   'جهاز التنفيذ لازم يحوّل NOREAL_MARK لـnoReal.');
 
 // ٦. (٢٠٢٦-٠٩-٢٣) الزرار فى **كل** تقرير فيه زرار القياس القديم، وباتش ٩ الصبح «بدون Real».

@@ -55,8 +55,8 @@ test("the server, the stuck badge and the executor all read the one source", () 
 // جهاز التنفيذ: النبضة وحدها مش كفاية — التاب ممكن يبقى حى والمهمة متعلّقة جوّاه.
 test("the executor reloads a lane that outran its own timeout", () => {
   assert.match(executor, /const runningSince = new Map<string, \{ at: number; type: ExecJobType; batchId\?: string \| null \}>\(\);/);
-  assert.match(executor, /runningSince\.set\(site, \{ at: Date\.now\(\), type: job\.type, batchId: job\.batchId \}\);/);
-  assert.match(executor, /runningSince\.delete\(site\);/);
+  assert.match(executor, /runningSince\.set\(laneKey, \{ at: Date\.now\(\), type: job\.type, batchId: job\.batchId \}\);/);
+  assert.match(executor, /runningSince\.delete\(laneKey\);/);
   assert.match(executor, /Date\.now\(\) - r\.at > rescueMinutes\(r\.type\) \* 60 \* 1000/);
   assert.match(executor, /scheduleExecBatchRefresh\(lane\.batchId\)/);
   assert.match(executor, /"fccdaily", "wfmdaily", "ossdaily", "weoas"/);
