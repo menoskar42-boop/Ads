@@ -2860,7 +2860,7 @@ export async function registerRoutes(
   //     (آخر قياس خلال ٣ أيام + مش محتاجة رفع سرعة) ومستبعد منها اللى فى الطابور
   //     واللى اتعملها إيقاف خلال آخر ٣ أيام.
   // (٢) قياس: الخطوط اللى ليها أكونت ولم تُقس أبداً + اللى آخر قياس ليها أقدم من
-  //     ٨ أيام (كانت ١٠ لحد ٢٠٢٦-٠٩-٢٣ — قرار المالك)، ومستبعد منها اللى فى الطابور.
+  //     ٤ أيام (كانت ٨ لحد ٢٠٢٦-٠٩-٢٧، و١٠ لحد ٢٠٢٦-٠٩-٢٣ — قرار المالك)، ومستبعد منها اللى فى الطابور.
   //
   // ⚠️ الباتش بيتفتح فى الطابور **بصرف النظر عن جهاز التنفيذ**: الطابور نفسه هو
   // التخزين الدائم، فالمهام بتفضل pending لحد ما جهاز يرجع ويسحبها. يعنى لو الجهاز
@@ -2869,7 +2869,7 @@ export async function registerRoutes(
   // مصدرين: الفحص الدورى كل ٥ دقايق، ونبضة جهاز التنفيذ نفسها (أول ما يتفعّل
   // بيوقّظ السيرفر والنبضة بتنادى الدالة دى فوراً).
   const AUTO_BATCH_HOUR = 9;              // ٩ صباحاً بتوقيت القاهرة
-  const AUTO_MEASURE_STALE_DAYS = 8;      // آخر قياس أقدم من ٨ أيام (كانت ١٠ — قرار المالك ٢٠٢٦-٠٩-٢٣)
+  const AUTO_MEASURE_STALE_DAYS = 4;      // آخر قياس أقدم من ٤ أيام (كانت ٨ لحد ٢٠٢٦-٠٩-٢٧، و١٠ قبلها — قرار المالك)
   // باتش القياس اليومى «بدون Real» (قرار المالك ٢٠٢٦-٠٩-٢٣): العلامة دى فى note
   // المهمة هى اللى جهاز التنفيذ بيقراها ويبعت &sf_mode=noreal لسكربت DZS
   // (ExecutorButton). لازم تفضل **نفس النص** بتاع NOREAL_MARK فى
@@ -2930,7 +2930,7 @@ export async function registerRoutes(
     return rows.map((r: any) => String(r.acc).trim()).filter(Boolean);
   };
 
-  /** أرقام أكونت القياس اليومى بالطريقة القديمة: لم تُقس أبداً أو آخر قياس أقدم من ٨ أيام. */
+  /** أرقام أكونت القياس اليومى بالطريقة القديمة: لم تُقس أبداً أو آخر قياس أقدم من ٤ أيام. */
   const autoMeasureAccounts = async (): Promise<string[]> => {
     const { rows } = await pool.query(
       `SELECT DISTINCT btrim(la.account_no) AS acc
@@ -2941,7 +2941,7 @@ export async function registerRoutes(
          ) c138p ON true
         WHERE la.account_no IS NOT NULL AND la.account_no <> ''
           AND ${hasFrameSql("la.full_phone")}
-          -- لم تُقس أبداً (NULL) أو آخر قياس أقدم من ٨ أيام
+          -- لم تُقس أبداً (NULL) أو آخر قياس أقدم من ٤ أيام
           AND (c138p.uploaded_at IS NULL
                OR c138p.uploaded_at < now() - make_interval(days => ${AUTO_MEASURE_STALE_DAYS}))
           -- ليها **قياس** فى الطابور دلوقتى → مانضيفهاش تانى (نفس السبب بس)
