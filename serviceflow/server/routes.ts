@@ -7090,6 +7090,8 @@ export async function registerRoutes(
   // GET /api/reports/major-fault-closure/stats — سعة العنصر والخطوط العاملة للإغلاق الجسيم.
   // الكابينة: السعة الابتدائية من FCC + عدد الخطوط فى بيان التليفونات.
   // البكسيات: سعة كل DP من Network Inventory + الخطوط لكل بكس، ثم يجمعها العميل.
+  // سعة البكس (DP) القياسية لما Network Inventory مايكونش فيه البكس.
+  const DEFAULT_DP_CAPACITY = 10;
   app.get("/api/reports/major-fault-closure/stats", requireAuth, async (req, res) => {
     if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
     try {
@@ -7200,8 +7202,12 @@ export async function registerRoutes(
             WHERE box_number BETWEEN $4::int AND $5::int
            GROUP BY box_number
          )
+         -- بكس مالوش سعة فى Network Inventory = ١٠ (سعة البكس القياسية، نفس تقرير
+         -- التفتيش الهندسى) ومتعلّم «افتراضى» عشان الشاشة تقول كده ويتعدّل. من غيره
+         -- أى بكس ناقص فى الرينج كان بيخلّى السعة الإجمالية فاضية (قرار المالك ٢٠٢٦-٠٩-٢٧).
          SELECT wanted.box_number::text AS "boxNumber",
-                dp.capacity,
+                COALESCE(dp.capacity, ${DEFAULT_DP_CAPACITY}) AS capacity,
+                (dp.capacity IS NULL) AS "capacityDefault",
                 COALESCE(line_counts.working_lines, 0)::int AS "workingLines"
          FROM wanted
          LEFT JOIN dp ON dp.box_number = wanted.box_number

@@ -20,12 +20,15 @@ interface LineData {
 interface StatItem {
   boxNumber: string | null;
   capacity: number | null;
+  // البكس مش فى Network Inventory فالسعة اتحسبت ١٠ (سعة البكس القياسية).
+  capacityDefault?: boolean;
   workingLines: number;
 }
 
 interface EditableStat {
   boxNumber: string | null;
   capacity: string;
+  capacityDefault: boolean;
   workingLines: string;
 }
 
@@ -121,6 +124,7 @@ export function MajorFaultClosureReport() {
         setStatsRows((Array.isArray(data.items) ? data.items : []).map((item: StatItem) => ({
           boxNumber: item.boxNumber == null ? null : String(item.boxNumber),
           capacity: item.capacity == null ? "" : String(item.capacity),
+          capacityDefault: !!item.capacityDefault,
           workingLines: item.workingLines == null ? "0" : String(item.workingLines),
         })));
       } catch (error: any) {
@@ -150,8 +154,13 @@ export function MajorFaultClosureReport() {
     };
   }, [statsRows]);
 
+  const defaultBoxes = statsRows.filter((row) => row.capacityDefault).map((row) => row.boxNumber ?? "");
+
   const updateStat = (index: number, key: "capacity" | "workingLines", value: string) => {
-    setStatsRows((current) => current.map((row, i) => i === index ? { ...row, [key]: value } : row));
+    // تعديل السعة بإيدك = مابقتش افتراضية.
+    setStatsRows((current) => current.map((row, i) => i === index
+      ? { ...row, [key]: value, ...(key === "capacity" ? { capacityDefault: false } : {}) }
+      : row));
   };
 
   const searchPhone = async () => {
@@ -244,6 +253,9 @@ export function MajorFaultClosureReport() {
                   onChange={(event) => updateStat(index, "capacity", event.target.value)}
                   className="h-8 w-28"
                 />
+                {row.capacityDefault && (
+                  <span className="mr-2 text-[11px] text-amber-700" title="البكس مش موجود فى Network Inventory — اتحسب بسعة البكس القياسية">افتراضى</span>
+                )}
               </TableCell>
               <TableCell>
                 <Input
@@ -413,6 +425,12 @@ export function MajorFaultClosureReport() {
                     </TableBody>
                   </Table>
                 </div>
+                {defaultBoxes.length > 0 && (
+                  <p className="text-xs text-amber-700">
+                    {defaultBoxes.length === statsRows.length ? "كل البكسيات" : `${defaultBoxes.length} بكس`} مش موجودة فى Network Inventory، فسعتها اتحسبت 10 لكل بكس
+                    {defaultBoxes.length < statsRows.length ? ` (${defaultBoxes.join("، ")})` : ""} — تقدر تعدّلها من التفاصيل، أو ترفع Network Inventory للكابينة.
+                  </p>
+                )}
                 <details className="rounded-md border bg-background">
                   <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
                     عرض وتعديل تفاصيل كل بكس ({statsRows.length})
@@ -420,7 +438,16 @@ export function MajorFaultClosureReport() {
                   <div className="p-2">{editableStatsTable}</div>
                 </details>
               </>
-            ) : editableStatsTable
+            ) : (
+              <>
+                {editableStatsTable}
+                {statsRows[0] && statsRows[0].capacity.trim() === "" && (
+                  <p className="text-xs text-amber-700">
+                    سعة الكابينة {line?.cabinNumber} مش موجودة فى ملف سعة الكباين (FCC Network Inventory) — ارفعه من «رفع الملفات» أو دخّل السعة بإيدك.
+                  </p>
+                )}
+              </>
+            )
           )}
           <p className="text-xs text-muted-foreground">
             عند اختيار الكابينة يُستخدم النوع الرئيسي؛ وعند اختيار البكسيات يُستخدم النوع الثانوي ويظهر الإجمالي فقط. افتح تفاصيل البكسيات لتعديل قيمها الفردية.

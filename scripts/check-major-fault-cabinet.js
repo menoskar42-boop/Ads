@@ -24,6 +24,16 @@ if (!/CASE WHEN \$\{rawPair\} ~ '\^\[0-9\]\+-\[0-9\]\+\$'\s+THEN \$\{compact\} =
 if ((ep.match(/\$\{cabinMatches\("(cabin_number|cabinet_no)"\)\}/g) || []).length < 4) {
   errors.push('كل الاستعلامات (سعة الكابينة · خطوط الكابينة · البكسيات · خطوط البكسيات) لازم تستخدم cabinMatches');
 }
+// قرار المالك (٢٠٢٦-٠٩-٢٧): البكس اللى مش فى Network Inventory سعته ١٠ ومتعلّم «افتراضى».
+if (!/COALESCE\(dp\.capacity, \$\{DEFAULT_DP_CAPACITY\}\) AS capacity,\s+\(dp\.capacity IS NULL\) AS "capacityDefault"/.test(ep)) {
+  errors.push('البكس الناقص من Network Inventory لازم ياخد ١٠ ويتعلّم capacityDefault — وإلا السعة الإجمالية للرينج تفضل فاضية');
+}
+if (!/const DEFAULT_DP_CAPACITY = 10;/.test(routes)) errors.push('سعة البكس القياسية (١٠) مش متعرّفة');
+const ui = fs.readFileSync(path.join(__dirname, '../serviceflow/client/src/components/MajorFaultClosureReport.tsx'), 'utf8');
+if (!/row\.capacityDefault && \(/.test(ui) || !/capacityDefault: !!item\.capacityDefault/.test(ui)) {
+  errors.push('الشاشة لازم تعلّم البكس اللى سعته افتراضية');
+}
+
 if (errors.length) {
   console.log('❌ check-major-fault-cabinet:');
   errors.forEach((e) => console.log('   · ' + e));
