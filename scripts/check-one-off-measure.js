@@ -8,8 +8,8 @@
  *
  * بيتأكد من:
  *   · AUTO_MEASURE_STALE_DAYS = 2.
- *   · runOneOffMeasure بتتنادى من الإقلاع والـtick جوّه schedulersEnabled (عملية
- *     واحدة بس بتملك المؤقتات).
+ *   · runOneOffMeasure بتتنادى من الإقلاع والـtick (جوّه schedulersEnabled) **ومن نبضة
+ *     جهاز التنفيذ** — النسخة المستضافة مؤقتاتها مقفولة والنبضة هى اللى بتشغّل باتش ٩.
  *   · الحجز بعلامة ثابتة فى app_state (مايتكررش مع ريستارت)، ومفكوك لو الإضافة فشلت.
  *   · مابيلمسش auto_batches_last_day (باتش ٩ الصبح بكرة يشتغل عادى).
  *   · بياخد الخطوط من نفس دوال باتش ٩ الصبح (فيها notQueuedSql للقياس).
@@ -43,7 +43,12 @@ need(/if \(claimed\) \{\s*await pool\.query\(`DELETE FROM app_state WHERE key = 
 const sched = routes.slice(routes.indexOf('if (schedulersEnabled()) {'), routes.indexOf('wakeup.unref(); tick.unref();'));
 need(/runOneOffMeasure\("boot"\)/.test(sched) && /runOneOffMeasure\("tick"\)/.test(sched),
   'runOneOffMeasure لازم تتنادى من الإقلاع والـtick جوّه schedulersEnabled.');
-need((routes.match(/runOneOffMeasure\(/g) || []).length === 2, 'runOneOffMeasure بتتنادى من مكان برّه المؤقتات.');
+// النبضة هى اللى بتفتح باتشات ٩ الصبح على النسخة المستضافة (المؤقتات مقفولة هناك) —
+// من غيرها الاستثنائى ماشتغلش بعد نشر ٢٠٢٦-٠٩-٢٨.
+const hb = routes.slice(routes.indexOf('app.post("/api/exec-queue/heartbeat"'), routes.indexOf('app.post("/api/exec-queue/request-reload"'));
+need(/void runDailyAutoBatches\("heartbeat"\);[\s\S]*void runOneOffMeasure\("heartbeat"\);/.test(hb),
+  'runOneOffMeasure لازم تتنادى من نبضة جهاز التنفيذ جنب runDailyAutoBatches — على النسخة المستضافة دى الطريق الوحيد.');
+need((routes.match(/runOneOffMeasure\(/g) || []).length === 3, 'runOneOffMeasure بتتنادى من مكان غير الإقلاع والـtick والنبضة.');
 
 for (const [f, re] of [
   ['serviceflow/server/auto-daily-batches.test.ts', /AUTO_MEASURE_STALE_DAYS = 2;/],

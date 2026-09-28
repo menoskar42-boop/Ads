@@ -2112,6 +2112,10 @@ export async function registerRoutes(
       // أول نبضة بعد التفعيل بتفتحها فوراً. الدالة بتخرج فوراً لو اتعملت النهاردة.
       void runDailyAutoBatches("heartbeat");
       void runWfmFetch("heartbeat");
+      // ⚠️ النبضة مش ورا schedulersEnabled — وعلى النسخة المستضافة (SF_SCHEDULERS=off)
+      // هى الطريق **الوحيد** اللى بيفتح باتشات ٩ الصبح. الاستثنائى كان متعلّق على
+      // الإقلاع والـtick بس، فبعد النشر (٢٠٢٦-٠٩-٢٨) ماشتغلش. الحجز فى القاعدة بيمنع التكرار.
+      void runOneOffMeasure("heartbeat");
       res.json({ ok: true, reload: rl[0]?.value ?? null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
