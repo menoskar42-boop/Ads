@@ -3326,7 +3326,8 @@ export async function registerRoutes(
         WITH active AS MATERIALIZED (
           SELECT DISTINCT type, accounts, batch_id FROM exec_jobs WHERE status IN ('pending','claimed')
         ), picked AS (
-          SELECT e.id, e.type, e.accounts, e.requested_by, e.note, e.batch_id, e.site, e.params, e.requested_from
+          SELECT e.id, e.type, e.accounts, e.requested_by, e.note, e.batch_id, e.site, e.params, e.requested_from,
+                 e.priority
             FROM exec_jobs e
            WHERE e.status = 'done'
              AND e.result IN ${RETRY_ERR}
@@ -3340,22 +3341,50 @@ export async function registerRoutes(
              AND NOT EXISTS (SELECT 1 FROM active a WHERE a.type = e.type AND a.accounts = e.accounts)
            ORDER BY e.done_at
            LIMIT 200
+        ), shift AS (
+          -- الإعادة من باتش مؤجّل بتدخل **رقم 1** فى المؤجّلة: كل المؤجّلة المرتّبة تنزل خطوة.
+          -- (الـINSERT تحت مابيشوفش التحديث ده — نفس الـsnapshot — فالإعادة نفسها ماتتزحلقش.)
+          UPDATE exec_jobs s SET queue_order = s.queue_order + 1
+           WHERE s.priority = 0 AND s.queue_order > 0
+             AND s.batch_id IN (SELECT batch_id FROM active WHERE batch_id IS NOT NULL)
+             AND EXISTS (SELECT 1 FROM picked WHERE picked.priority = 0)
         ), ins AS (
-          INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, params, retry_round, requested_from)
+          INSERT INTO exec_jobs (type, accounts, requested_by, note, priority, batch_id, site, params, retry_round, requested_from, queue_order)
           SELECT p.type, p.accounts, p.requested_by,
                  COALESCE(p.note, '') || ' (إعادة تنفيذ بعد إيرور)',
-                 -- أولوية 3 (أعلى الترتيب): الباتش الأصلى خلص خلاص (شرط الاختيار فوق)،
-                 -- والإعادة لازم تتنفّذ **مباشرة بعده** مش ورا كل اللى فى الطابور.
-                 -- ومع كده مابتقاطعش أى مهمة شغّالة — شوف استثناء retry_round فى
-                 -- فحص المقاطعة (/preempt-check): بتستنى اللى شغّال يخلص وبس.
-                 3, COALESCE(p.batch_id, 'b') || '-r1', p.site, p.params, 1, p.requested_from
+                 -- أولوية الباتش الأصلى نفسها (قرار المالك ٢٠٢٦-٠٩-٢٨): كانت 3 دايماً،
+                 -- فإعادة باتش ٩ الصبح (مؤجّل) كانت بتطلع فى «الأولوية العليا». دلوقتى:
+                 -- الأصلى فى العليا → الإعادة فى العليا؛ الأصلى مؤجّل → الإعادة مؤجّلة بس
+                 -- رقم 1 (queue_order = 1 والباقى نزل خطوة فى shift فوق).
+                 -- ومابتقاطعش أى مهمة شغّالة — شوف استثناء retry_round فى /preempt-check.
+                 p.priority, COALESCE(p.batch_id, 'b') || '-r1', p.site, p.params, 1, p.requested_from,
+                 CASE WHEN p.priority = 0 THEN 1 ELSE 0 END
             FROM picked p
           RETURNING id
         )
         UPDATE exec_jobs SET retried_at = now()
          WHERE id IN (SELECT id FROM picked)
         RETURNING id`);
-      if (rows.length) console.log(`[exec-queue] إعادة تنفيذ ${rows.length} خط رجعوا بإيرور (أولوية 3)`);
+      if (rows.length) console.log(`[exec-queue] إعادة تنفيذ ${rows.length} خط رجعوا بإيرور (بأولوية باتشهم الأصلى)`);
+      // إعادات اتعملت قبل القرار ده (أولوية 3 ثابتة) ولسه فى الطابور → رجّعها لأولوية
+      // باتشها الأصلى. المؤجّلة منها تبقى رقم 1 والباقى ينزل خطوة. بيلمس صفوف
+      // retry_round=1 بأولوية 3 بس، فبعد أول دورة مابيلاقيش حاجة.
+      const legacy = await pool.query(`
+        WITH legacy AS (
+          SELECT r.id, COALESCE((SELECT MAX(x.priority) FROM exec_jobs x
+                                  WHERE x.batch_id = regexp_replace(r.batch_id, '-r1$', '')
+                                    AND x.retry_round = 0), 0) AS p
+            FROM exec_jobs r
+           WHERE r.retry_round = 1 AND r.priority = 3 AND r.status IN ('pending','claimed')
+        ), shift AS (
+          UPDATE exec_jobs s SET queue_order = s.queue_order + 1
+           WHERE s.priority = 0 AND s.queue_order > 0 AND s.status IN ('pending','claimed')
+             AND EXISTS (SELECT 1 FROM legacy WHERE legacy.p = 0)
+        )
+        UPDATE exec_jobs r SET priority = l.p, queue_order = CASE WHEN l.p = 0 THEN 1 ELSE r.queue_order END
+          FROM legacy l WHERE r.id = l.id AND l.p < 3
+        RETURNING r.id`);
+      if (legacy.rowCount) console.log(`[exec-queue] ${legacy.rowCount} مهمة إعادة قديمة رجعت لأولوية باتشها الأصلى`);
     } catch (e: any) {
       console.error("[exec-queue] فشل إعادة تنفيذ الأخطاء:", e.message);
     }
