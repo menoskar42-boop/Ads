@@ -2,11 +2,12 @@
 // @name         WE OAS BI — دخول تلقائى + تقرير 430D
 // @namespace    service-flow.we-oas.login
 // @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow. v1.9.3: بيستنى خانات التاريخ نفسها (مش زر Apply بس) ويتأكد إن التاريخ اتكتب قبل Apply، ولو التبويب ماطلّعش ملف بيعيده مرة — فى التحديث اليومى (تاب فى الخلفية) التفاصيل كان بيتعدّى من غير تواريخ وينزّل المتبقى بس. v1.9.4: فى التشغيل التلقائى بيعمل ريفريش واحد لصفحة التقرير قبل Apply (أو بعد ٢٠ث لو فضلت بيضا)، وبيستنى لحد ٤ دقايق بدل ٢٠ث اللى كان بيقف بعدها ساكت.
-// @version      1.9.4
+// @version      1.9.5
 // @match        *://we-oas.te.eg/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      we-oas.te.eg
@@ -29,7 +30,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;

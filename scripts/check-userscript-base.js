@@ -7,7 +7,8 @@
  * التنفيذ» كان بيفتح التاب وينفّذ المهمة فعلاً، لكن النتيجة كانت بتتبعت للموقع
  * القديم — فالمهمة تفضل «قيد التنفيذ» للأبد على الموقع الجديد.
  *
- * الفحص ده بيتأكد من تلات حاجات:
+ * الفحص ده بيتأكد من أربع حاجات (الرابعة من ٢٠٢٦-٠٩-٢٨: الافتراضى = باب المسار
+ * https://ads-menoskar42.replit.app/serviceflow — بالمسار):
  *   ١. مفيش أى دومين ريبليت قديم مكتوب بالحروف فى كود السكربتات ولا فى موقع
  *      الصيانة (سطور @connect مسموحة — دى إذن اتصال مش وجهة).
  *   ٢. كل سكربت بيكلّم Service-Flow بيحسب الدومين من sfBase() مش من ثابت.
@@ -24,7 +25,12 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SF = path.join(ROOT, 'serviceflow');
-const NEW_HOST = 'serviceflow.oscardevs.com';
+// الوجهة الافتراضية = باب المسار على ريبليت (قرار المالك ٢٠٢٦-٠٩-٢٨). النطاق الفرعى
+// serviceflow.oscardevs.com كان بيرجّع صفحة أوسكار ديفز مش Service Flow (مش فى
+// SERVICEFLOW_HOST)، فرفع WFM قال «اتحدّث» والتقرير ماتحدّثش. والهوست من غير
+// «/serviceflow» بيروح لأوسكار ديفز برضه — المسار جزء من الوجهة.
+const DEFAULT_BASE = 'https://ads-menoskar42.replit.app/serviceflow';
+const NEW_HOST = 'ads-menoskar42.replit.app';
 const OLD_RE = /service-flow-{1,2}menoskar42\.replit\.app/;
 
 /* الملف ← القيمة الوحيدة المسموحة لـSF_API_BASE فيه (زى كود المالك بالظبط).
@@ -68,6 +74,11 @@ for (const file of scripts) {
   if (usesSf && !pinned) {
     if (!new RegExp(`^//\\s*@connect\\s+${NEW_HOST.replace(/\./g, '\\.')}\\s*$`, 'm').test(src)) {
       errors.push(`${rel}: ناقص "// @connect ${NEW_HOST}" فى الهيدر`);
+    }
+    const def = src.match(/const SF_DEFAULT_BASE = "([^"]*)"/);
+    if (!def) errors.push(`${rel}: مفيش const SF_DEFAULT_BASE`);
+    else if (def[1] !== DEFAULT_BASE) {
+      errors.push(`${rel}: SF_DEFAULT_BASE = "${def[1]}" — لازم "${DEFAULT_BASE}" (باب المسار). النطاق الفرعى رجّع صفحة مش Service Flow.`);
     }
     // ٢: الدومين بيتحسب بدالة مش ثابت
     if (!/function sfBase\s*\(/.test(src)) {

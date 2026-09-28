@@ -2,9 +2,10 @@
 // @name         DZS Profile Optimization (رفع السرعة) — Service-Flow
 // @namespace    service-flow.dzs.po
 // @description  يشغّل Profile Optimization (Start Realtime PO) على AXON Expresse لمجموعة أرقام أكونت — منفصل تماماً عن سكربت القياس. الوضع الكامل: [لو Nightly PO شغّال أوقفه] ثم Start Realtime PO. وضع «إيقاف PO» (sf_stop=1): يعمل سيكوينس الإيقاف فقط (Stop Nightly PO → Yes) ويرجّع Not Started؛ لو أصلاً Not Started مايعملش حاجة. يُفعَّل فقط عند وجود #sf_po أو علامة PO_ACTIVE. v0.9.6: تسجيل «إيقاف PO» بقى لما الحالة ترجع Not Started فعلاً (وقت الاكتمال) بدل وقت طلب الإيقاف — عشان مايظهرش «تم» قبل ما يخلّص فعلياً. v0.9.5: فى وضع رفع السرعة، إيقاف الـ nightly التمهيدى مايتسجّلش كـ «إيقاف PO».
-// @version      0.9.7
+// @version      0.9.8
 // @match        *://10.42.187.101:8080/expresse/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
@@ -35,7 +36,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;

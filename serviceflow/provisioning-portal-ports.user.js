@@ -2,9 +2,10 @@
 // @name         Provisioning Portal → تحديث ملف البورتات (Service-Flow)
 // @namespace    service-flow.provisioning.ports
 // @description  يفتح Get MSAN Data على Provisioning Portal (WE) لكل كود أمسان مخزّن فى Service-Flow، يعمل Search، يقرأ صفوف البورتات (Phone Number/Frame/Slot/…)، ويرفعها لـ Service-Flow فتستبدل نفس أرقام التليفونات فى ملف البورتات وتضيف الجديد. زرّ عائم يبدأ العملية.
-// @version      1.3.1
+// @version      1.3.2
 // @match        *://provisioningportal.te.eg/provisioningPortal/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-start
@@ -39,7 +40,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;

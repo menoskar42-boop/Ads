@@ -2,10 +2,11 @@
 // @name         WE OAS BI — تقرير 131 أرقام التليفونات على كابينة
 // @namespace    service-flow.we-oas.131
 // @description  يسجّل الدخول على we-oas.te.eg، يفتح تقرير «131»، يجلب كباين النحاس بتوعنا من Service-Flow، يمرّ على كل كابينة (P_CABINET_NO + Apply) ويجمع شيتات نحاسي+فيبر+دوائر فى ملف واحد، ينزّله، ويرفعه لـ Service-Flow (يستبدل رقم التليفون الموجود ويضيف الجديد على بيان التليفونات 131).
-// @version      1.1.2
+// @version      1.1.3
 // @match        *://we-oas.te.eg/*
 // @grant        GM_xmlhttpRequest
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      we-oas.te.eg
@@ -25,7 +26,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;

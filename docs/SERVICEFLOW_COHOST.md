@@ -343,7 +343,10 @@ Check** (أول واحد تحت «Most Recent collected data» — دايماً 
 
 اتصلّح كده: الدومين بقى بيتحسب من `sfBase()`:
 
-1. الافتراضي = `https://serviceflow.oscardevs.com`.
+1. الافتراضي = `https://ads-menoskar42.replit.app/serviceflow` (باب المسار — قرار المالك
+   ٢٠٢٦-٠٩-٢٨). كان `serviceflow.oscardevs.com`، بس النطاق ده بيرجّع صفحة أوسكار ديفز
+   لو مش مكتوب فى `SERVICEFLOW_HOST` — فرفع WFM قال «اتحدّث» والتقرير ماتحدّثش.
+   ⚠️ **بالمسار** `/serviceflow`: الهوست لوحده بيروح لأوسكار ديفز.
 2. ينفع يتغيّر **من غير تعديل السكربت** — من كونسول أي صفحة السكربت شغّال فيها:
    `localStorage.setItem('sf_base', 'https://…')`.
 3. الهيدر فيه `@connect` للدومينين (القديم فاضل عشان فترة التجربة).

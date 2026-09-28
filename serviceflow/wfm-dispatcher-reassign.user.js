@@ -2,10 +2,11 @@
 // @name         WFM Dispatcher — إلغاء المهمة (Cancel)
 // @namespace    service-flow.wfm.dispatcher-reassign
 // @description  إلغاء إسناد مهمة WFM أو إسنادها لفنى آخر. يبدأ من WFM العادى، يدخل Dispatcher ← Tasks Queue، يبحث بالـ Service Id، يختار سطر مش Completed، يفتح قائمة السطر ويضغط Cancel أو Re-assign حسب الوضع المطلوب من Service-Flow. فى وضع Re-assign بيظبط تاريخ النهاردة وكود العامل (ولو غلط يفتح المكبّر ← Search ← OK) ويضغط Assign. كل خطوة بتتحقق من نتيجتها قبل اللى بعدها. v1.6.0: لو سيرفر ADF رمى خطأ (Server Exception during PPR) أثناء تصعيد المحاولات، بيقفل الرسالة ويسيب العنصر ده فوراً وينتقل للى بعده بدل ما يفضل يضرب عليه. v1.5.9: إصلاح الريفريش نفسه — location.replace لعنوان بيختلف فى الهاش بس مابيعملش إعادة تحميل، فالصفحة كانت بتفضل واقفة. بقى: نحط الهاش ثم reload حقيقى. v1.5.8: الريفريش بقى بيحافظ على الهاش (كان بيتمسح فالعدّادات مابتتصفّرش والريفريش مايفيدش)، وأى تحميل جديد على صفحة الدخول بيصفّر عدّادات التنقّل. v1.5.7: ممنوع أى ريفريش بعد تنفيذ Cancel/Assign — التحقق بضغطة Search بس. v1.5.6: مافيش افتراض إن الوضع «إلغاء» — لو sf_mode ضاع بيوقف ويقول، بدل ما يحوّل طلب «إسناد لفنى» لـ «إلغاء» فى صمت. v1.5.5: لو صفحة WorkOrder علقت والتنقّل لـ Dispatcher ماحصلش، السكربت بيعمل الريفريش بنفسه (لحد مرتين) بدل ما تعمله بإيدك. v1.5.4: عدّاد الدخول المباشر بقى مؤقّت (دقيقة) بدل ما يعيش طول عمر التاب — كان بيتخطّى الدخول المباشر بسبب تشغيلة قديمة فتعلق الشاشة لحد ما تعمل ريفريش. وأى تنقّل بيتراقب: لو ماحصلش خلال 4 ثوانى بيعيد المحاولة. v1.5.3: بيعيد البحث بنفس الرقم قبل ما يحكم على النتيجة — جدول WFM مابيتحدّثش لوحده بعد Cancel/Assign والحالة الجديدة مابتظهرش غير بعد إعادة تحميل. v1.5.1: رسالة WFM بتفضل ظاهرة 4 ثوانى (DIALOG_SHOW_MS) قبل ضغط OK.
-// @version      1.6.0
+// @version      1.6.1
 // @match        https://wfm.te.eg/WorkOrder/*
 // @match        https://wfm.te.eg/Dispatcher/*
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @grant        none
 // @run-at       document-idle
@@ -33,7 +34,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;

@@ -2,10 +2,11 @@
 // @name         WFM Reporting — Voice Installation Raw Data → Service-Flow
 // @namespace    service-flow.wfm.voice-raw
 // @description  يفتح wfm.te.eg/WfmReports، يسجّل الدخول، Reports → FO Raw Data Reports → «+» → Voice Installation Raw Data Report → Add Report، يحطّ التواريخ (آخر 30 يوم) + Middle Upper / Asuit Region، يضغط Generate ثم Export، ويرفع الشيت تلقائياً على تقرير أوامر الشغل فى Service-Flow. v1.0.10: لو الدخول طوّل عن ٩٠ث مابيقفش على «تسجيل الدخول…» — بيكمّل أول ما يوصل للـ Home، ولو فضل على صفحة الدخول ٧٥ث بيعمل ريفريش مرة ويدخل تانى. v1.0.11: لو الدخول علّق ٣٠ث بيعمل ريفريش (لحد مرتين — ده العلاج اللى اتجرّب)، لو البيانات غلط بيقف من غير تكرار عشان الحساب مايتقفلش، والرفع مابيقولش «اتحدّث» غير لو Service-Flow نفسه ردّ بعدد الأوامر.
-// @version      1.0.11
+// @version      1.0.12
 // @match        https://wfm.te.eg/WfmReports/*
 // @grant        GM_xmlhttpRequest
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      wfm.te.eg
@@ -24,7 +25,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;

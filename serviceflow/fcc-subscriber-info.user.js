@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TE FCC — جلب اسم وعنوان العميل (Subscriber Info)
 // @namespace    te.eg.subinfo
-// @version      1.3.4
+// @version      1.3.5
 // @description  v1.3.4: فحص قفل الحساب صارم (يقف فقط لو ظهرت LoginException). v1.3.1: طريقة دخول FCC مطابقة تماماً لسكربت التصدير المجرَّب (اكتشاف الزر + إعادة المحاولة). v1.3.0: قفل دخول FCC مشترك يمنع الدخول المتزامن مع سكربت التصدير (LoginException). v1.2.0: يجلب كمان البيانات الفنية (السنترال/الكابينة/البكس/DP/Port/IDU/ODU/البلوكات) من Fiber Link Data. v1.1.0: وضع "رقم واحد" (window.name=sf_subinfo_one:رقم) لزر المراجعة فى بحث برقم التليفون. يفتح FCC → Complains، يبحث بـ 88 + رقم التليفون لكل رقم من البورتات (اللى ملوش اسم/عنوان بعد)، يقرأ SubName / SubAdd (عربى فقط) / WorkOrdDate / WorkOrdNo ويرفعها لـ Service-Flow.
 // @match        https://fcc.te.eg/TroubleTicket/faces/*
 // @run-at       document-start
@@ -9,6 +9,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @connect      service-flow-menoskar42.replit.app
+// @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
 // @connect      replit.app
 // @connect      fcc.te.eg
@@ -25,7 +26,7 @@
   // والنتيجة بتروح لموقع تانى، فالمهمة تفضل معلّقة للأبد.
   // دلوقتى الافتراضى هو الدومين الجديد، وينفع يتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')  من كونسول أى صفحة السكربت شغّال فيها.
-  const SF_DEFAULT_BASE = "https://serviceflow.oscardevs.com";
+  const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";   // باب المسار — ماياكلش من كوتة Cloudflare (قرار المالك ٢٠٢٦-٠٩-٢٨)
   function sfBase() {
     try {
       var v = null;
