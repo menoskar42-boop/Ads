@@ -133,8 +133,23 @@ const dispStatus = (s: string | null) => {
 // تانى بيفضل ظاهر عادى. (فى الـ RTL «99-DSL» بتتقرا «DSL-99» — الاتنين مقبولين.)
 const isDsl99NoTone = (f: { statusCode: string | null; complainTypeName: string | null }) =>
   /^(99-DSL|DSL-99)$/i.test(dispStatus(f.statusCode)) &&
-  // «1-بدون حرارة» بس (المالك: «دى بس») — مسافات حوالين الشرطة مسموحة، غير كده لأ
-  /^1\s*-\s*بدون\s+حرارة$/.test((f.complainTypeName || "").trim());
+  // نوع الشكوى «1-بدون حرارة» بس (المالك: «دى بس») — مش «11…» ولا «1-بدون حرارة متقطعة».
+  // بعد النشر العدد طلع (0) والأعطال ظاهرة: القيمة فى الملف بتتعرض «1 بدون حرارة» —
+  // فبنطبّع الأول (مسافة عادية بدل NBSP، شيل علامات الاتجاه والتطويل، أرقام عربى →
+  // إنجليزى، حراره → حرارة) ونقبل شرطة أو مسافة بعد الـ1.
+  /^1\s*[-–—_]?\s*بدون\s+حرارة$/.test(normComplainType(f.complainTypeName));
+
+// تطبيع نص نوع الشكوى قبل المقارنة — الملف بييجى من FCC وفيه أحياناً رموز مش باينة
+function normComplainType(s: string | null): string {
+  return String(s || "")
+    .normalize("NFKC")
+    .replace(/[​-‏‪-‮⁦-⁩؜﻿ـ]/g, "")
+    .replace(/[  -  　]/g, " ")
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/ه(?=\s*$)/, "ة")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 // رابط بوابة DZS expresse — يُفتح في تاب جديد ويُمرَّر أرقام الأكونت فى الـ hash
 // (cross-origin: الـ Tampermonkey script فى تاب DZS يقرأ location.hash لأن

@@ -25,10 +25,19 @@ test("99-DSL (9999 تنتظر الحل) + «1-بدون حرارة» → مستخ
   assert.equal(isDsl99NoTone(row("تنتظر الحل", "1-بدون حرارة")), true);
 });
 
-test("«1-بدون حرارة» بس (المالك: «دى بس») — أى كتابة تانية ظاهرة", () => {
-  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1 بدون حرارة")), false);   // من غير شرطة
-  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حراره")), false);   // هاء
+test("نفس النوع مهما كانت كتابته فى الملف (بعد النشر العدد كان 0)", () => {
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1 بدون حرارة")), true);          // زى ما بيتعرض
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1 بدون حرارة")), true); // NBSP
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "‏1-بدون حرارة‎")), true); // علامات اتجاه
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "١-بدون حرارة")), true);          // رقم عربى
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حراره")), true);          // هاء
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حرارـة")), true);         // تطويل
+});
+
+test("«1-بدون حرارة» بس (المالك: «دى بس») — أى نوع تانى ظاهر", () => {
   assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حرارة متقطعة")), false);
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "2-بدون حرارة")), false);
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "بدون حرارة")), false);
 });
 
 test("99-DSL بنوع شكوى تانى → ظاهر عادى", () => {
