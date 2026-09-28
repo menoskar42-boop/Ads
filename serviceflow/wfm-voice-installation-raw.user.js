@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WFM Reporting — Voice Installation Raw Data → Service-Flow
 // @namespace    service-flow.wfm.voice-raw
-// @description  يفتح wfm.te.eg/WfmReports، يسجّل الدخول، Reports → FO Raw Data Reports → «+» → Voice Installation Raw Data Report → Add Report، يحطّ التواريخ (آخر 30 يوم) + Middle Upper / Asuit Region، يضغط Generate ثم Export، ويرفع الشيت تلقائياً على تقرير أوامر الشغل فى Service-Flow. v1.0.10: لو الدخول طوّل عن ٩٠ث مابيقفش على «تسجيل الدخول…» — بيكمّل أول ما يوصل للـ Home، ولو فضل على صفحة الدخول ٧٥ث بيعمل ريفريش مرة ويدخل تانى.
-// @version      1.0.10
+// @description  يفتح wfm.te.eg/WfmReports، يسجّل الدخول، Reports → FO Raw Data Reports → «+» → Voice Installation Raw Data Report → Add Report، يحطّ التواريخ (آخر 30 يوم) + Middle Upper / Asuit Region، يضغط Generate ثم Export، ويرفع الشيت تلقائياً على تقرير أوامر الشغل فى Service-Flow. v1.0.10: لو الدخول طوّل عن ٩٠ث مابيقفش على «تسجيل الدخول…» — بيكمّل أول ما يوصل للـ Home، ولو فضل على صفحة الدخول ٧٥ث بيعمل ريفريش مرة ويدخل تانى. v1.0.11: لو الدخول علّق ٣٠ث بيعمل ريفريش (لحد مرتين — ده العلاج اللى اتجرّب)، لو البيانات غلط بيقف من غير تكرار عشان الحساب مايتقفلش، والرفع مابيقولش «اتحدّث» غير لو Service-Flow نفسه ردّ بعدد الأوامر.
+// @version      1.0.11
 // @match        https://wfm.te.eg/WfmReports/*
 // @grant        GM_xmlhttpRequest
 // @connect      service-flow-menoskar42.replit.app
@@ -202,7 +202,7 @@
     banner("🔐 تسجيل الدخول…");
     if (user) setValue(user, USER);
     setValue(pass, PASS);
-    await sleep(400);
+    await sleep(1000);   // v1.0.11: كان ٤٠٠ms — نسيب الفورم يسجّل القيم قبل الضغط
     const btn = findByText("button, input[type='submit'], a", /^\s*login\s*$/i, 20)
              || qAll("button, input[type='submit']").find(visible);
     if (btn) fireClick(btn);
@@ -621,7 +621,13 @@
           onload: (r) => {
             const body = (r.responseText || "");
             console.log("[WFM-VOICE] رفع أوامر الشغل", r.status, body.slice(0, 400));
-            resolve({ ok: r.status >= 200 && r.status < 300, status: r.status, text: body });
+            // v1.0.11: 2xx لوحده مش نجاح. لو اللينك غلط (مثلاً «/serviceflow//api») الموقع
+            // بيرجّع صفحة HTML بـ200 — والسكربت كان بيقول «اتحدّث» والتقرير ماتحدّثش
+            // (٢٠٢٦-٠٩-٢٨). النجاح = رد الـ API نفسه: JSON فيه inserted.
+            let apiOk = false;
+            try { const j = JSON.parse(body); apiOk = !!j && typeof j.inserted === "number"; } catch (e) {}
+            const httpOk = r.status >= 200 && r.status < 300;
+            resolve({ ok: httpOk && apiOk, status: r.status, text: body, notApi: httpOk && !apiOk });
           },
           onerror: (r) => {
             console.warn("[WFM-VOICE] فشل الاتصال", r && r.status);
@@ -648,6 +654,8 @@
   /** رسالة فشل واضحة: الحالة + رسالة السيرفر نفسها */
   function failMsg(r) {
     if (!r) return "⚠️ فشل الرفع التلقائى — سبب غير معروف.";
+    if (r.notApi) return "⚠️ الرفع مااتسجّلش — الرد جه من صفحة مش من Service-Flow (اللينك غلط: " +
+      SF_URL + "/api/work-orders/import). ظبّط sf_base — الملف موجود فى التحميلات.";
     if (r.status === 403) return "⚠️ فشل الرفع — الصلاحية مرفوضة (403). التوكن فى السكربت مش مطابق لـ UPLOAD_TOKEN على السيرفر.";
     if (r.status === 0)   return "⚠️ فشل الرفع — مفيش اتصال بالسيرفر (Service-Flow مقفول أو الدومين مش مسموح فى @connect).";
     let detail = "";
@@ -802,22 +810,56 @@
   // فالصفحة توصل للـ Home والشريط واقف على «تسجيل الدخول…» للأبد (٢٠٢٦-٠٩-٢٨). المالك
   // كان بيحلّها بريفريش + Login تانى — ده اللى بيحصل هنا لوحده:
   //   · بيراقب لحد ٥ دقايق (ومع أى hashchange) — أول ما يوصل للـ Home يكمّل.
-  //   · لو لسه على صفحة الدخول بعد ٧٥ث: ريفريش مرة واحدة (والسكربت بيدخل تانى لوحده).
-  const LOGIN_WAIT_MS = 5 * 60 * 1000;
-  const LOGIN_RETRY_MS = 75 * 1000;
+  //   · لو لسه على صفحة الدخول بعد ٣٠ث: ريفريش (لحد مرتين) والسكربت بيدخل تانى لوحده.
+  //   · v1.0.11: لو المحاولة خلصت وفشلت — زرار Login رجع عادى (من غير تحميل) والصفحة لسه
+  //     على الدخول — بيدوس Login تانى **مرة واحدة بس**. المالك شافه واقف ١٩٥ث والزرار فاضى،
+  //     وطلع السبب اسم مستخدم/كلمة سر قديمة — فالتكرار ممكن يقفل الحساب. لو الموقع
+  //     كاتب إن البيانات غلط: مفيش إعادة خالص، وشريط أحمر.
+  const LOGIN_WAIT_MS = 8 * 60 * 1000;
+  const RELOGIN_IDLE_MS = 15 * 1000;       // الزرار فاضى المدة دى → المحاولة فشلت
+  const RELOGIN_MAX = 1;
+  const BAD_CREDS_RE = /invalid|incorrect|wrong|not\s*valid|locked|unauthori[sz]ed|خطأ|غير\s*صحيح|غلط|مقفول/i;
+  const badCredsShown = () => qAll("div, span, p, small, label, .alert, .error, .invalid-feedback, mat-error")
+    .some((e) => visible(e) && e.children.length <= 2 && txt(e).length <= 120 && BAD_CREDS_RE.test(txt(e)));
+  // v1.0.11: المالك جرّب (٢٠٢٦-٠٩-٢٨): الدخول علّق حتى بعد تغيير كلمة السر، وأول ما
+  // عمل ريفريش دخل على طول — يعنى أول محاولة بتعلّق عند الموقع والريفريش هو العلاج.
+  // فالريفريش بقى بعد ٣٠ث (كان ٧٥)، ولحد مرتين كل ١٠ دقايق.
+  const LOGIN_RETRY_MS = 30 * 1000;
+  const RELOAD_MAX = 2;
   const RELOAD_KEY = "WFM_VOICE_LOGIN_RELOADED";
   const pwVisible = () => qAll("input[type='password']").some(visible);
   const homeTiles = () => !!findByText("a, span, div, li, button", /^\s*(Reports|Dashboards)\s*$/i, 20);
   // داخل = الهاش مش login، و(مفيش خانة باسورد ظاهرة أو كروت الـ Home ظاهرة)
   const loggedIn = () => !/#\/login/i.test(location.hash) && (!pwVisible() || homeTiles());
-  const reloadedRecently = () => {
-    try { return parseInt(sessionStorage.getItem(RELOAD_KEY) || "0", 10) > Date.now() - 10 * 60 * 1000; }
-    catch (e) { return true; }   // مفيش sessionStorage → مانعملش ريفريش (منعاً للّف)
+  const loginBtn = () => findByText("button, input[type='submit'], a", /^\s*login\s*$/i, 20)
+    || qAll("button, input[type='submit']").find(visible) || null;
+  // الزرار «مشغول» = معطّل أو جوّاه علامة تحميل (Login ◌) — يعنى الطلب لسه عند الموقع
+  const loginBusy = () => {
+    const b = loginBtn();
+    if (!b) return false;
+    return !!(b.disabled || b.getAttribute("aria-busy") === "true" ||
+      b.querySelector("[class*='spin'], [class*='loading'], [class*='loader'], [role='progressbar']"));
   };
+  // عدد الريفريشات فى آخر ١٠ دقايق — «عدد:وقت أول واحد» فى sessionStorage (التاب ده)
+  const reloadsDone = () => {
+    try {
+      const [n, at] = String(sessionStorage.getItem(RELOAD_KEY) || "0:0").split(":").map(Number);
+      return at > Date.now() - 10 * 60 * 1000 ? (n || 0) : 0;
+    } catch (e) { return RELOAD_MAX; }   // مفيش sessionStorage → مانعملش ريفريش (منعاً للّف)
+  };
+  const noteReload = () => {
+    try {
+      const n = reloadsDone();
+      const prev = String(sessionStorage.getItem(RELOAD_KEY) || "0:0").split(":").map(Number)[1];
+      sessionStorage.setItem(RELOAD_KEY, (n + 1) + ":" + (n > 0 && prev ? prev : Date.now()));
+    } catch (e) {}
+  };
+  const reloadedRecently = () => reloadsDone() >= RELOAD_MAX;
 
   function waitLoginThenRun() {
     const t0 = Date.now();
     let kicked = false;
+    let relogins = 0, idleSince = 0;
     const go = () => {
       if (kicked || !loggedIn()) return;
       kicked = true;
@@ -831,15 +873,31 @@
         if (kicked) return;
         const s = Math.round((Date.now() - t0) / 1000);
         if (s > 0 && s % 15 === 0) banner("🔐 تسجيل الدخول… (" + s + "ث)");
+        if (pwVisible() && badCredsShown()) {
+          banner("❌ WFM بيقول اسم المستخدم أو كلمة السر غلط — عدّل USER/PASS فى السكربت (مابعيدش عشان الحساب مايتقفلش)", "#b71c1c");
+          return;
+        }
+        // لسه على صفحة الدخول بعد ٣٠ث (المحاولة معلّقة أو خلصت وفشلت) → ريفريش، لحد مرتين
         if (Date.now() - t0 > LOGIN_RETRY_MS && pwVisible() && !reloadedRecently()) {
-          try { sessionStorage.setItem(RELOAD_KEY, String(Date.now())); } catch (e) {}
-          banner("🔄 الدخول طوّل — ريفريش وتسجيل دخول تانى…");
+          noteReload();
+          banner("🔄 الدخول علّق — ريفريش وتسجيل دخول تانى (" + reloadsDone() + "/" + RELOAD_MAX + ")…");
           setTimeout(() => { try { location.reload(); } catch (e) {} }, 400);
           return;
         }
+        // الريفريشات خلصت، والمحاولة خلصت وفشلت (الزرار فاضى ١٥ث) → Login تانى مرة واحدة
+        if (pwVisible() && !loginBusy()) {
+          if (!idleSince) idleSince = Date.now();
+          if (Date.now() - idleSince > RELOGIN_IDLE_MS && relogins < RELOGIN_MAX) {
+            relogins++; idleSince = 0;
+            banner("🔁 الدخول مانجحش — Login تانى (" + relogins + "/" + RELOGIN_MAX + ")…");
+            login();
+            await sleep(1000);
+            continue;
+          }
+        } else idleSince = 0;
         await sleep(1000);
       }
-      if (!kicked) banner("⚠️ الدخول ماكملش خلال ٥ دقايق — اعمل ريفريش", "#ef6c00");
+      if (!kicked) banner("⚠️ الدخول ماكملش خلال ٨ دقايق — اعمل ريفريش", "#ef6c00");
     })();
   }
 

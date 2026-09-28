@@ -9,7 +9,8 @@
  *
  * بيتأكد من:
  *   · مفيش انتظار دخول بسقف ٩٠ث؛ الانتظار ≥ ٣ دقايق ومعاه hashchange.
- *   · لو لسه على صفحة الدخول بعد مهلة: ريفريش مرة واحدة بعلامة sessionStorage (مايلفّش).
+ *   · لو لسه على صفحة الدخول بعد ٣٠ث: ريفريش (لحد مرتين، بعدّاد sessionStorage — مايلفّش).
+ *   · بيانات غلط → يقف (مفيش تكرار يقفل الحساب)، والرفع ناجح بس لو رد الـ API نفسه.
  *   · والاختبار الوظيفى (jsdom) لو متاح: دخول بعد ١٠٠ث بيكمّل، ودخول واقف بيعمل ريفريش واحد.
  *
  *   node scripts/check-wfm-login-wait.js [path-to-userscript]
@@ -33,21 +34,31 @@ need(/window\.addEventListener\("hashchange", \(\) => setTimeout\(go, \d+\)\)/.t
   'لازم يسمع hashchange — أول ما الـ Home يوصل يكمّل من غير ما يستنى الدورة.');
 need(/const loggedIn = \(\) => !\/#\\\/login\/i\.test\(location\.hash\) && \(!pwVisible\(\) \|\| homeTiles\(\)\);/.test(src),
   'loggedIn لازم يقبل الـ Home حتى لو فيه خانة باسورد فاضلة فى الصفحة (كروت Reports/Dashboards).');
-need(/const reloadedRecently = \(\) => \{\s*\n\s*try \{ return parseInt\(sessionStorage\.getItem\(RELOAD_KEY\)[\s\S]*?catch \(e\) \{ return true; \}/.test(src)
-  && /!reloadedRecently\(\)\) \{\s*\n\s*try \{ sessionStorage\.setItem\(RELOAD_KEY/.test(src),
-  'الريفريش لازم يبقى مرة واحدة بعلامة sessionStorage قبل ما يتعمل — غير كده ممكن يلفّ.');
+// v1.0.11: الريفريش هو العلاج المجرَّب (المالك) — بعد ٣٠ث، ولحد مرتين كل ١٠ دقايق.
+const rm = src.match(/const RELOAD_MAX = (\d+);/);
+need(rm && Number(rm[1]) >= 1 && Number(rm[1]) <= 2, 'RELOAD_MAX لازم ١ أو ٢ — أكتر من كده ممكن يلفّ فى ريفريش.');
+need(/catch \(e\) \{ return RELOAD_MAX; \}/.test(src), 'لو sessionStorage مش متاح لازم مايعملش ريفريش خالص (منعاً للّف).');
+need(/!reloadedRecently\(\)\) \{\s*\n\s*noteReload\(\);/.test(src), 'العداد لازم يتسجّل قبل الريفريش — غير كده ممكن يلفّ.');
+// إعادة الضغط بكلمة سر غلط بتقفل الحساب
+const rl = src.match(/const RELOGIN_MAX = (\d+);/);
+need(rl && Number(rl[1]) <= 1, 'RELOGIN_MAX لازم ≤ ١ — تكرار Login ببيانات غلط ممكن يقفل الحساب.');
+need(/if \(pwVisible\(\) && badCredsShown\(\)\) \{[\s\S]{0,200}?return;/.test(src),
+  'لو الموقع كاتب إن البيانات غلط لازم يقف (من غير ريفريش ولا Login تانى).');
+// الرفع: 2xx لوحده مش نجاح — لازم رد الـ API نفسه (JSON فيه inserted)
+need(/apiOk = !!j && typeof j\.inserted === "number"/.test(src) && /ok: httpOk && apiOk/.test(src),
+  'الرفع لازم يتحسب ناجح بس لو الرد JSON فيه inserted — صفحة HTML بـ200 كانت بتطلّع «اتحدّث» والتقرير ماتحدّثش.');
 need(/if \(onLogin\(\)\) \{\s*\n\s*login\(\);\s*\n\s*waitLoginThenRun\(\);/.test(src), 'boot لازم ينادى waitLoginThenRun بعد login.');
 
 let functional = 'jsdom مش متسطّب — الاختبار الوظيفى اتخطّى';
 let hasJsdom = false;
 try { require.resolve('jsdom'); hasJsdom = true; } catch {}
 if (hasJsdom && !errors.length) {
-  for (const extra of [['--after=100000', '--reloaded'], ['--after=0']]) {
+  for (const extra of [['--after=100000', '--reloaded'], ['--after=0'], ['--bad-creds']]) {
     const r = spawnSync(process.execPath, [path.join(ROOT, 'serviceflow', 'scripts', 'test-wfm-login.cjs'), FILE, ...extra],
       { encoding: 'utf8', timeout: 240000, env: process.env });
     if (r.status !== 0) errors.push(`الاختبار الوظيفى فشل (${extra.join(' ')}):\n` + (r.stdout || '') + (r.stderr || ''));
   }
-  if (!errors.length) functional = 'الاختبار الوظيفى: دخول بعد ١٠٠ث كمّل، ودخول واقف عمل ريفريش واحد';
+  if (!errors.length) functional = 'الاختبار الوظيفى: دخول بعد ١٠٠ث كمّل، دخول معلّق عمل ريفريش بعد ٣٠ث، وبيانات غلط وقّفته';
 }
 
 if (errors.length) {
