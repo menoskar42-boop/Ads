@@ -132,14 +132,23 @@ const dispStatus = (s: string | null) => {
 // الأعطال الحالية، وبتظهر مع الباقى بزرار (قرار المالك ٢٠٢٦-٠٩-٢٨). 99-DSL بنوع شكوى
 // تانى بيفضل ظاهر عادى. (فى الـ RTL «99-DSL» بتتقرا «DSL-99» — الاتنين مقبولين.)
 const isDsl99NoTone = (f: { statusCode: string | null; complainTypeName: string | null }) =>
-  /^(99-DSL|DSL-99)$/i.test(dispStatus(f.statusCode)) &&
+  isDsl99Status(f.statusCode) &&
   // نوع الشكوى «1-بدون حرارة» بس (المالك: «دى بس») — مش «11…» ولا «1-بدون حرارة متقطعة».
   // بعد النشر العدد طلع (0) والأعطال ظاهرة: القيمة فى الملف بتتعرض «1 بدون حرارة» —
   // فبنطبّع الأول (مسافة عادية بدل NBSP، شيل علامات الاتجاه والتطويل، أرقام عربى →
   // إنجليزى، حراره → حرارة) ونقبل شرطة أو مسافة بعد الـ1.
   /^1\s*[-–—_]?\s*بدون\s+حرارة$/.test(normComplainType(f.complainTypeName));
 
+// 99-DSL: نفس اللى بيتعرض فى عمود Status Code (dispStatus)، أو الكود الخام نفسه بعد
+// التطبيع (9999 / «تنتظر الحل» / DSL-99) — عشان رموز مخفية فى الملف ماتوقّعش المطابقة.
+function isDsl99Status(s: string | null): boolean {
+  if (/^(99-DSL|DSL-99)$/i.test(dispStatus(s))) return true;
+  const n = normComplainType(s);
+  return /9999|تنتظر\s*الحل/.test(n) || /(^|[^0-9])99\s*-\s*DSL\b|\bDSL\s*-\s*99([^0-9]|$)/i.test(n);
+}
+
 // تطبيع نص نوع الشكوى قبل المقارنة — الملف بييجى من FCC وفيه أحياناً رموز مش باينة
+// (علامات اتجاه، NBSP، حروف عربى «أشكال عرض» ﺑﺪﻭﻥ — NFKC بيرجّعها حروف عادية).
 function normComplainType(s: string | null): string {
   return String(s || "")
     .normalize("NFKC")
@@ -148,7 +157,8 @@ function normComplainType(s: string | null): string {
     .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
     .replace(/ه(?=\s*$)/, "ة")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .replace(/^[^0-9A-Za-zء-ي]+/, "");   // علامة/فاصلة/علامة تنصيص فى الأول
 }
 
 // رابط بوابة DZS expresse — يُفتح في تاب جديد ويُمرَّر أرقام الأكونت فى الـ hash
@@ -286,6 +296,17 @@ export function CurrentFaultsReport() {
   });
 
   const dsl99NoToneCount = faults.filter(isDsl99NoTone).length;
+  // تشخيص: لو العدد (0) وفيه صفوف نوعها فيه «حرار» — اطبع القيمة الخام زى ما هى
+  // (JSON يبيّن أى رمز مخفى) عشان نعرف ليه ماتطابقتش من غير ما نخمّن.
+  useEffect(() => {
+    if (!faults.length || dsl99NoToneCount > 0) return;
+    const sample = faults
+      .filter((f) => /حرار/.test(normComplainType(f.complainTypeName)))
+      .slice(0, 5)
+      .map((f) => ({ statusCode: JSON.stringify(f.statusCode), complainTypeName: JSON.stringify(f.complainTypeName),
+                     disp: dispStatus(f.statusCode), norm: normComplainType(f.complainTypeName) }));
+    if (sample.length) console.info("[current-faults] 99-DSL بدون حرارة = 0 — القيم الخام:", sample);
+  }, [faults, dsl99NoToneCount]);
   const displayed = faults
     .filter((f) => showDsl99NoTone || !isDsl99NoTone(f))
     .filter((f) => (repeatedOnly ? f.repeatStatus === "مكرر" : true))

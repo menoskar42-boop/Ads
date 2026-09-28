@@ -32,6 +32,10 @@ test("نفس النوع مهما كانت كتابته فى الملف (بعد �
   assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "١-بدون حرارة")), true);          // رقم عربى
   assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حراره")), true);          // هاء
   assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حرارـة")), true);         // تطويل
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-ﺑﺪﻭﻥ ﺣﺮﺍﺭﺓ")), true);          // أشكال عرض
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "'1-بدون حرارة")), true);         // علامة تنصيص
+  assert.equal(isDsl99NoTone(row("DSL-99", "1-بدون حرارة")), true);                   // الكود خام
+  assert.equal(isDsl99NoTone(row("‏9999 تنتظر الحل", "1-بدون حرارة")), true);
 });
 
 test("«1-بدون حرارة» بس (المالك: «دى بس») — أى نوع تانى ظاهر", () => {
