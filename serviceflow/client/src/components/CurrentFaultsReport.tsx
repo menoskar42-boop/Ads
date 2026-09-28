@@ -133,7 +133,8 @@ const dispStatus = (s: string | null) => {
 // تانى بيفضل ظاهر عادى. (فى الـ RTL «99-DSL» بتتقرا «DSL-99» — الاتنين مقبولين.)
 const isDsl99NoTone = (f: { statusCode: string | null; complainTypeName: string | null }) =>
   /^(99-DSL|DSL-99)$/i.test(dispStatus(f.statusCode)) &&
-  /^\s*0*1\s*[-–.)]?\s*بدون\s*حرار[ةه]/.test(f.complainTypeName || "");
+  // «1-بدون حرارة» بس (المالك: «دى بس») — مسافات حوالين الشرطة مسموحة، غير كده لأ
+  /^1\s*-\s*بدون\s+حرارة$/.test((f.complainTypeName || "").trim());
 
 // رابط بوابة DZS expresse — يُفتح في تاب جديد ويُمرَّر أرقام الأكونت فى الـ hash
 // (cross-origin: الـ Tampermonkey script فى تاب DZS يقرأ location.hash لأن

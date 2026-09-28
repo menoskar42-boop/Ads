@@ -18,11 +18,17 @@ const { dispStatus, isDsl99NoTone } = await import(pathToFileURL(file).href);
 
 const row = (statusCode: string, complainTypeName: string) => ({ statusCode, complainTypeName });
 
-test("99-DSL (9999 تنتظر الحل) + «1 بدون حرارة» → مستخبّى افتراضياً", () => {
+test("99-DSL (9999 تنتظر الحل) + «1-بدون حرارة» → مستخبّى افتراضياً", () => {
   assert.equal(dispStatus("9999 تنتظر الحل"), "99-DSL");
-  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1 بدون حرارة")), true);
-  assert.equal(isDsl99NoTone(row("99999999", "1 بدون حراره")), true);    // هاء بدل تاء مربوطة
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حرارة")), true);
+  assert.equal(isDsl99NoTone(row("99999999", " 1 - بدون حرارة ")), true);  // مسافات حوالين الشرطة
   assert.equal(isDsl99NoTone(row("تنتظر الحل", "1-بدون حرارة")), true);
+});
+
+test("«1-بدون حرارة» بس (المالك: «دى بس») — أى كتابة تانية ظاهرة", () => {
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1 بدون حرارة")), false);   // من غير شرطة
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حراره")), false);   // هاء
+  assert.equal(isDsl99NoTone(row("9999 تنتظر الحل", "1-بدون حرارة متقطعة")), false);
 });
 
 test("99-DSL بنوع شكوى تانى → ظاهر عادى", () => {
