@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, Repeat, Radar, History, Gauge, Undo2, Phone, Info } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, Repeat, Radar, History, Gauge, Undo2, Phone, PhoneOff, Info } from "lucide-react";
 import { openProfileOptimization } from "@/lib/profile-optimization";
 import { dispatchSpeedTool, noRealUrl } from "@/lib/exec-queue";
 import { closeReason } from "@/lib/close-codes";
@@ -128,6 +128,13 @@ const dispStatus = (s: string | null) => {
   return shortStatusCode(s) || "-";
 };
 
+// 99-DSL (9999 «تنتظر الحل») ونوع الشكوى «1 بدون حرارة» — مستخبّية افتراضياً من
+// الأعطال الحالية، وبتظهر مع الباقى بزرار (قرار المالك ٢٠٢٦-٠٩-٢٨). 99-DSL بنوع شكوى
+// تانى بيفضل ظاهر عادى. (فى الـ RTL «99-DSL» بتتقرا «DSL-99» — الاتنين مقبولين.)
+const isDsl99NoTone = (f: { statusCode: string | null; complainTypeName: string | null }) =>
+  /^(99-DSL|DSL-99)$/i.test(dispStatus(f.statusCode)) &&
+  /^\s*0*1\s*[-–.)]?\s*بدون\s*حرار[ةه]/.test(f.complainTypeName || "");
+
 // رابط بوابة DZS expresse — يُفتح في تاب جديد ويُمرَّر أرقام الأكونت فى الـ hash
 // (cross-origin: الـ Tampermonkey script فى تاب DZS يقرأ location.hash لأن
 // localStorage محجوز لكل origin لوحده).
@@ -181,6 +188,8 @@ export function CurrentFaultsReport() {
   const [monthRepeatOnly, setMonthRepeatOnly] = useState(false);
   // فلتر «الخطوط الراجعة» — Status Code = DSL-173
   const [returnedOnly, setReturnedOnly] = useState(false);
+  // 99-DSL + «1 بدون حرارة»: مستخبّية افتراضياً، والزرار يرجّعها مع باقى الأعطال
+  const [showDsl99NoTone, setShowDsl99NoTone] = useState(false);
   // حوار تفاصيل التكرار (الشكاوى المغلقة السابقة فى نفس الشهر لنفس الرقم)
   const [repeatFor, setRepeatFor] = useState<CurrentFault | null>(null);
   const [repeatData, setRepeatData] = useState<any[] | null>(null);
@@ -260,7 +269,9 @@ export function CurrentFaultsReport() {
     },
   });
 
+  const dsl99NoToneCount = faults.filter(isDsl99NoTone).length;
   const displayed = faults
+    .filter((f) => showDsl99NoTone || !isDsl99NoTone(f))
     .filter((f) => (repeatedOnly ? f.repeatStatus === "مكرر" : true))
     .filter((f) => (monthRepeatOnly ? f.monthRepeat === true : true))
     .filter((f) => (returnedOnly ? dispStatus(f.statusCode) === "DSL-173" : true));
@@ -496,6 +507,17 @@ export function CurrentFaultsReport() {
           title="الخطوط الراجعة فقط (Status Code = DSL-173)"
         >
           <Undo2 className="w-4 h-4" /> {returnedOnly ? "عرض الكل" : "الخطوط الراجعة"}
+        </Button>
+        <Button
+          variant={showDsl99NoTone ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowDsl99NoTone((v) => !v)}
+          className={`gap-1 ${showDsl99NoTone ? "bg-slate-600 hover:bg-slate-700 text-white" : "text-slate-700 border-slate-300"}`}
+          title="أعطال 99-DSL اللى نوع شكواها «1 بدون حرارة» مستخبّية افتراضياً — الزرار يعرضها مع باقى الأعطال"
+          data-testid="button-toggle-dsl99-no-tone"
+        >
+          <PhoneOff className="w-4 h-4" />
+          {showDsl99NoTone ? "إخفاء 99-DSL بدون حرارة" : `إظهار 99-DSL بدون حرارة (${dsl99NoToneCount})`}
         </Button>
         <span className="text-sm text-muted-foreground">
           إجمالي: <strong>{displayed.length}</strong> عطل
