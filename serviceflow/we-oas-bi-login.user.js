@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WE OAS BI — دخول تلقائى + تقرير 430D
 // @namespace    service-flow.we-oas.login
-// @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow. v1.9.3: بيستنى خانات التاريخ نفسها (مش زر Apply بس) ويتأكد إن التاريخ اتكتب قبل Apply، ولو التبويب ماطلّعش ملف بيعيده مرة — فى التحديث اليومى (تاب فى الخلفية) التفاصيل كان بيتعدّى من غير تواريخ وينزّل المتبقى بس.
-// @version      1.9.3
+// @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow.
+// @version      1.9.2
 // @match        *://we-oas.te.eg/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
@@ -458,48 +458,17 @@
   }
   // يملأ التواريخ ثم يضغط Apply — نفس طريقة v1.7 اللى كانت بتكتب التواريخ صح
   // (كتابة مرة واحدة؛ من غير closeDatePopup متكرر بعد الكتابة اللى كان بيمسح القيمة)
-  // v1.9.3: بيستنى خانتى التاريخ نفسهم (لحد ٤٥ث) ويتأكد إن القيمة اتكتبت فعلاً (لحد ٣
-  // محاولات) قبل Apply. فى التحديث اليومى التاب بيتفتح فى الخلفية والمتصفح بيبطّأ
-  // تحميله، فكان بيلاقى زر Apply والخانات لسه ماظهرتش → Apply من غير تواريخ →
-  // تبويب التفاصيل مايطلّعش ملف، والمتبقى (بعد وقت كفاية) يشتغل عادى.
   async function fillDatesAndApply() {
     closeDatePopup();
-    const pair = await waitFor(() => {
-      const f = findDateInput(/from_?date/i), t = findDateInput(/to_?date/i);
-      return f && t ? [f, t] : null;
-    }, 45000);
-    if (!pair) { console.warn("[430D] خانات التاريخ ماظهرتش"); return false; }
-    let ok = false;
-    for (let a = 0; a < 3 && !ok; a++) {
-      const fromI = findDateInput(/from_?date/i) || pair[0];
-      const toI = findDateInput(/to_?date/i) || pair[1];
-      setValue(fromI, FROM_STR);
-      setValue(toI, TO_STR);
-      closeDatePopup();
-      await sleep(700);
-      // بالأرقام بس: لو الموقع أعاد تنسيق التاريخ (9/1/2026 بدل 09-01-2026) يفضل صح
-      const dg = (v) => String(v || "").replace(/\D/g, "").replace(/^0+/, "");
-      const same = (v, want) => { const a = dg(v), b = dg(want); return !!a && (a === b || a.replace(/0/g, "") === b.replace(/0/g, "")); };
-      ok = same(fromI.value, FROM_STR) && same(toI.value, TO_STR);
-      if (!ok) console.warn("[430D] التاريخ مااتكتبش — محاولة", a + 2);
-    }
-    if (!ok) console.warn("[430D] التاريخ مااتأكّدش بعد ٣ محاولات — Apply على أى حال");
+    const fromI = findDateInput(/from_?date/i);
+    const toI = findDateInput(/to_?date/i);
+    if (fromI) setValue(fromI, FROM_STR);
+    if (toI) setValue(toI, TO_STR);
+    closeDatePopup();
+    await sleep(700);
     const clicked = clickApply();
     console.log("[430D] Apply", clicked ? "مضغوط" : "مش لاقيه");
     return clicked;
-  }
-  // تبويب واحد: تواريخ + Apply + استنى ملفه. لو مافيش ملف جديد → يعيد مرة بمهلة أطول.
-  async function runTab(label) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      banner("📅 " + label + ": تواريخ + Apply (" + FROM_STR + " → " + TO_STR + ")" + (attempt > 1 ? " — محاولة تانية" : "") + "…");
-      const before = caps().length;
-      await fillDatesAndApply();
-      banner("⏳ " + label + ": بيتولّد وينزّل…");
-      const cap = await waitNewCap(before, attempt === 1 ? 25000 : 45000);
-      if (cap) return cap;
-    }
-    console.warn("[430D] " + label + ": مفيش ملف بعد محاولتين");
-    return null;
   }
   function findTab(re) {
     const cands = qAll("a, span, div, td, li, button").filter((e) => visible(e) && re.test((e.textContent || "").trim()) && (e.textContent || "").trim().length < 40);
@@ -540,34 +509,34 @@
     const apply = await waitFor(() => findBtn(/^\s*apply\s*$/i), 40000);
     if (!apply) { banner("⚠️ مفيش زر Apply — الصفحة مش صح؟", "#ef6c00"); clearFlag(); return; }
 
-    // (أ) تبويب التفاصيل — تواريخ (بعد ما الخانات تظهر فعلاً) + Apply، ومحاولة تانية لو مافيش ملف
-    const detCap = await runTab("التفاصيل");
+    // (أ) تبويب التفاصيل — تواريخ + Apply مرة واحدة (التقرير بينزّل الملف تلقائياً)
+    banner("📅 التفاصيل: تواريخ + Apply (" + FROM_STR + " → " + TO_STR + ")…");
+    let before = caps().length;
+    await fillDatesAndApply();
+    banner("⏳ التفاصيل: بيتولّد وينزّل…");
+    await waitNewCap(before, 18000);
 
-    // (ب) تبويب المتبقى — افتحه ثم نفس الخطوات
+    // (ب) تبويب المتبقى — افتحه ثم تواريخ + Apply مرة واحدة
     banner("🔀 فتح تبويب «المتبقى»…");
-    const remTab = await waitFor(() => findTab(/متبقى|متبقي|remaining/i), 20000);
+    const remTab = findTab(/متبقى|متبقي|remaining/i);
     if (remTab) { clickEl(remTab); await sleep(2500); }
-    const remStart = caps().length;   // كل اللى قبل كده طلع من التفاصيل
-    const remCap = await runTab("المتبقى");
+    banner("📅 المتبقى: تواريخ + Apply…");
+    before = caps().length;
+    await fillDatesAndApply();
+    banner("⏳ المتبقى: بيتولّد وينزّل…");
+    await waitNewCap(before, 18000);
 
     // (ج) فحص أخير للأداء (يلتقط أى تنزيل متأخر)
     for (let i = 0; i < 6; i++) { scanPerfAndRefetch(); await sleep(1200); }
 
-    // (د) جهّز الملفات الملتقطة (b64 → Blob فى الـ sandbox). كل ملف باسم التبويب اللى طلع
-    // منه فعلاً (بمكانه قبل/بعد فتح المتبقى) — كان «أول ملف = التفاصيل» فلو التفاصيل
-    // فشل، المتبقى كان بيتسمّى details.
+    // (د) جهّز الملفات الملتقطة (b64 → Blob فى الـ sandbox) — أول ملف=التفاصيل، تانى=المتبقى
     const snap = caps().slice();
     const got = snap.map((c, idx) => {
-      const isDet = idx < remStart;
-      const label = isDet ? "التفاصيل" : "المتبقى";
-      const name = "430D_" + (isDet ? "details" : "remaining") + "_" + FROM_STR + "_" + TO_STR + ".xlsx";
+      const label = idx === 0 ? "التفاصيل" : "المتبقى";
+      const name = "430D_" + (idx === 0 ? "details" : "remaining") + "_" + FROM_STR + "_" + TO_STR + ".xlsx";
       const blob = b64ToBlob(c.b64);
       return { label, blob, name, kb: Math.round(blob.size / 1024) };
     });
-    if (!detCap || !remCap) {
-      banner("⚠️ " + (!detCap ? "التفاصيل" : "المتبقى") + " ماطلّعش ملف بعد محاولتين — كمّلت باللى اتحمّل", "#ef6c00");
-      await sleep(2500);
-    }
     if (!got.length) {
       // التنزيل الأصلى نجح (الملفان اتحمّلوا على الجهاز) — الرفع التلقائى متعذّر
       // بسبب آلية الـ job/التوكن، فنوجّه المستخدم يرفعهم يدوياً بالرفعة المتعددة.
