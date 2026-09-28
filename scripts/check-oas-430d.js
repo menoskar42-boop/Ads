@@ -16,6 +16,9 @@
  *   · fillDatesAndApply بيستنى خانتى التاريخ نفسهم قبل ما يكتب.
  *   · التبويب اللى ماطلّعش ملف بيتعاد (runTab) — للتبويبين.
  *   · اسم الملف من التبويب اللى طلع منه (قبل/بعد فتح المتبقى) مش من ترتيبه.
+ *   · v1.9.4 (نفس اليوم): صفحة التقرير نفسها كانت بتفضل بيضا أكتر من ٢٠ث فالسكربت يقف
+ *     ساكت (لا شريط ولا زرار). دلوقتى فى التشغيل التلقائى: ريفريش واحد (طلب المالك —
+ *     الريفريش بإيده هو اللى نجّحها) + انتظار لحد ٤ دقايق.
  *   · والاختبار الوظيفى (jsdom): خانات التاريخ بتظهر بعد ٤ ثوانى زى تاب الخلفية.
  *
  *   node scripts/check-oas-430d.js [path-to-userscript]
@@ -55,15 +58,28 @@ need(!/idx === 0 \? "التفاصيل"/.test(src),
 need(/const remStart = caps\(\)\.length/.test(flow) && /idx < remStart/.test(flow),
   'اسم كل ملف لازم يتحدّد بمكانه قبل/بعد فتح تبويب المتبقى (remStart).');
 
+// v1.9.4: صفحة بطيئة + ريفريش واحد
+need(/const REPORT_WAIT_AUTO_MS = \d+ \* 60 \* 1000;/.test(src) && /const quick = await waitFor\(check, 20000\);\s*\n\s*if \(quick \|\| !flagOn\(\)\) return quick;/.test(src),
+  'فى التشغيل التلقائى لازم يستنى صفحة التقرير أكتر من ٢٠ث — كان بيقف ساكت فى التحديث اليومى.');
+need(/const reloadedThisRun = \(\) => \{\s*\n\s*try \{ return parseInt\(sessionStorage\.getItem\(RELOAD_KEY\)/.test(src) && /catch \(e\) \{ return true; \}/.test(src),
+  'الريفريش لازم يتعمل مرة واحدة بعلامة فى sessionStorage — ومن غيرها مايتعملش (منعاً للّف).');
+need(/function reloadOnce\(why\) \{\s*\n\s*try \{ sessionStorage\.setItem\(RELOAD_KEY[^\n]*catch \(e\) \{ return false; \}\s*\n\s*setFlag\(\);/.test(src),
+  'reloadOnce لازم يحط العلامة قبل الريفريش ويجدّد علامة التشغيل التلقائى.');
+need(/ok === true && flagOn\(\) && !reloadedThisRun\(\) && reloadOnce\(/.test(src),
+  'الريفريش قبل Apply لازم يبقى فى التشغيل التلقائى بس (الزرار اليدوى مايعملش ريفريش).');
+need(/if \(ok === null && flagOn\(\)\) banner\(/.test(src), 'لو الصفحة ماحمّلتش خالص لازم يظهر شريط + الزرار بدل ما يقف ساكت.');
+
 // الاختبار الوظيفى — لو jsdom متاح
 let functional = 'jsdom مش متسطّب — الاختبار الوظيفى اتخطّى';
 let hasJsdom = false;
 try { require.resolve('jsdom'); hasJsdom = true; } catch {}
 if (hasJsdom && !errors.length) {
-  const r = spawnSync(process.execPath, [path.join(ROOT, 'serviceflow', 'scripts', 'test-oas-430d.cjs'), FILE],
-    { encoding: 'utf8', timeout: 240000, env: process.env });
-  if (r.status === 0) functional = 'الاختبار الوظيفى (خانات متأخّرة ٤ث) نجح';
-  else errors.push('الاختبار الوظيفى فشل:\n' + (r.stdout || '') + (r.stderr || ''));
+  for (const extra of [[], ['--reloaded'], ['--reloaded', '--page=30000']]) {
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'serviceflow', 'scripts', 'test-oas-430d.cjs'), FILE, ...extra],
+      { encoding: 'utf8', timeout: 240000, env: process.env });
+    if (r.status !== 0) errors.push(`الاختبار الوظيفى فشل (${extra.join(' ') || 'أول تحميل'}):\n` + (r.stdout || '') + (r.stderr || ''));
+  }
+  if (!errors.length) functional = 'الاختبار الوظيفى: ريفريش أول تحميل + خانات متأخّرة + صفحة بيضا ٣٠ث نجح';
 }
 
 if (errors.length) {
@@ -71,4 +87,4 @@ if (errors.length) {
   errors.forEach((e) => console.log('   · ' + e));
   process.exit(1);
 }
-console.log(`✅ check-oas-430d: التفاصيل بيستنى خانات التاريخ، كل تبويب بيتعاد لو فشل، وكل ملف باسم تبويبه (${functional}).`);
+console.log(`✅ check-oas-430d: ريفريش واحد وانتظار الصفحة فى التشغيل التلقائى، التفاصيل بيستنى خانات التاريخ، كل تبويب بيتعاد لو فشل، وكل ملف باسم تبويبه (${functional}).`);

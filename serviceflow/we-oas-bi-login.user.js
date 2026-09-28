@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WE OAS BI — دخول تلقائى + تقرير 430D
 // @namespace    service-flow.we-oas.login
-// @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow. v1.9.3: بيستنى خانات التاريخ نفسها (مش زر Apply بس) ويتأكد إن التاريخ اتكتب قبل Apply، ولو التبويب ماطلّعش ملف بيعيده مرة — فى التحديث اليومى (تاب فى الخلفية) التفاصيل كان بيتعدّى من غير تواريخ وينزّل المتبقى بس.
-// @version      1.9.3
+// @description  يسجّل الدخول على we-oas.te.eg BI، يفتح تقرير «430D Trial - Details متابعة اعطال»، يملأ from_date/to_date ويضغط Apply لتبويبى التفاصيل والمتبقى، ويلتقط ملف Excel الكامل الذى يولّده التقرير نفسه من داخل سياق الصفحة (unsafeWindow) عبر اعتراض XHR/fetch/form مبكراً (document-start)، ينزّله للمراجعة، وبعد تأكيدك يرفعه لموقع Service-Flow. v1.9.3: بيستنى خانات التاريخ نفسها (مش زر Apply بس) ويتأكد إن التاريخ اتكتب قبل Apply، ولو التبويب ماطلّعش ملف بيعيده مرة — فى التحديث اليومى (تاب فى الخلفية) التفاصيل كان بيتعدّى من غير تواريخ وينزّل المتبقى بس. v1.9.4: فى التشغيل التلقائى بيعمل ريفريش واحد لصفحة التقرير قبل Apply (أو بعد ٢٠ث لو فضلت بيضا)، وبيستنى لحد ٤ دقايق بدل ٢٠ث اللى كان بيقف بعدها ساكت.
+// @version      1.9.4
 // @match        *://we-oas.te.eg/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
@@ -401,7 +401,23 @@
   const FLAG = "WEOAS_AUTO_430D";
   const setFlag = () => { try { localStorage.setItem(FLAG, String(Date.now() + 8 * 60 * 1000)); } catch (e) {} };
   const flagOn = () => { try { return parseInt(localStorage.getItem(FLAG) || "0", 10) > Date.now(); } catch (e) { return false; } };
-  const clearFlag = () => { try { localStorage.removeItem(FLAG); } catch (e) {} };
+  const clearFlag = () => { try { localStorage.removeItem(FLAG); sessionStorage.removeItem(RELOAD_KEY); } catch (e) {} };
+
+  // v1.9.4: ريفريش واحد لصفحة التقرير فى كل تشغيل تلقائى (طلب المالك ٢٠٢٦-٠٩-٢٨ — لما
+  // عمل ريفريش بإيده بعد ما الصفحة فتحت بطيئة، كل حاجة اتكتبت ونزلت). العلامة فى
+  // sessionStorage (التاب ده بس) وصالحة ١٠ دقايق، فمستحيل يلفّ فى ريفريش ورا ريفريش.
+  const RELOAD_KEY = "WEOAS_430D_RELOADED";
+  const reloadedThisRun = () => {
+    try { return parseInt(sessionStorage.getItem(RELOAD_KEY) || "0", 10) > Date.now() - 10 * 60 * 1000; }
+    catch (e) { return true; }   // مفيش sessionStorage → مانعملش ريفريش أصلاً (منعاً للّف)
+  };
+  function reloadOnce(why) {
+    try { sessionStorage.setItem(RELOAD_KEY, String(Date.now())); } catch (e) { return false; }
+    setFlag();                   // التشغيل التلقائى يفضل شغّال بعد الريفريش
+    banner("🔄 " + why, "#6a1b9a");
+    setTimeout(() => { try { location.reload(); } catch (e) {} }, 400);
+    return true;
+  }
 
   /* ================== شريط حالة + زر يدوى ================== */
   let bar, btnStart;
@@ -604,13 +620,30 @@
   const isHome   = !isReport && (/\/dv\//i.test(path) || /home\.jsp/i.test(path));
 
   function pageText() { let s = ""; for (const d of docsList()) { try { s += " " + (d.body ? d.body.innerText : ""); } catch (e) {} } return s; }
+  // v1.9.4: فى التشغيل التلقائى (العلامة شغّالة) بيستنى لحد ٤ دقايق بدل ٢٠ث. التحديث
+  // اليومى بيفتح ٤ مواقع مع بعض والتاب فى الخلفية، فصفحة التقرير بتفضل بيضا أكتر من
+  // ٢٠ث — وكان السكربت بيقف ساكت (لا شريط ولا زرار) والتواريخ ماتتكتبش.
+  const REPORT_WAIT_AUTO_MS = 4 * 60 * 1000;
   async function is430ReportPage() {
-    return await waitFor(() => {
+    const check = () => {
       const t = pageText();
       if (/P_CABINET_NO|نحاسى?/i.test(t)) return false;   // ده تقرير 131 مش بتاعنا
       if (/from_?date/i.test(t) && /to_?date/i.test(t)) return true;
       return null;
-    }, 20000);
+    };
+    if (flagOn()) setFlag();     // جدّد العلامة (٨ دقايق) — الانتظار هنا ممكن يطوّل
+    const quick = await waitFor(check, 20000);
+    if (quick || !flagOn()) return quick;
+    // الصفحة لسه بيضا بعد ٢٠ث — نفس اللى المالك عمله بإيده: ريفريش (مرة واحدة)
+    if (quick === null && !reloadedThisRun() && reloadOnce("صفحة 430D ماحمّلتش خلال ٢٠ث — ريفريش…")) return "reload";
+    console.log("[430D] الصفحة لسه بتحمّل — مستنى لحد ٤ دقايق (تشغيل تلقائى)");
+    const end = Date.now() + REPORT_WAIT_AUTO_MS;
+    while (Date.now() < end) {
+      await sleep(2000);                                   // أبطأ من الأول — الصفحة تقيلة
+      let v = null; try { v = check(); } catch (e) {}
+      if (v !== null) return v;
+    }
+    return null;
   }
   // فى الآخر: استنى 15 ثانية واقفل التاب دايماً. window.close بيشتغل أكيد لو التاب
   // اتفتح بـ script (الفلو اليومى)، ونجرّب حيلة _self للتابات العادية كمان.
@@ -642,7 +675,14 @@
     if (flagOn()) waitFor(() => document.body, 10000).then(() => sleep(1800)).then(() => kickoff(false)).catch((e) => banner("❌ " + (e && e.message || e), "#c62828"));
   } else if (isReport) {
     is430ReportPage().then((ok) => {
-      if (!ok) return;
+      if (ok === "reload") return;
+      // الصفحة حمّلت — ريفريش مرة واحدة قبل Apply فى التشغيل التلقائى (طلب المالك)
+      if (ok === true && flagOn() && !reloadedThisRun() && reloadOnce("ريفريش للصفحة قبل Apply…")) return;
+      if (!ok) {
+        // التشغيل التلقائى وصل هنا ومالقاش التقرير — بدل ما يقف ساكت، الزرار يظهر
+        if (ok === null && flagOn()) banner("⚠️ صفحة 430D ماكملتش تحميل خلال ٤ دقايق — اضغط «ابدأ تقرير 430D» لما تفتح", "#ef6c00");
+        return;
+      }
       ui();
       if (flagOn()) sleep(800).then(() => kickoff(false)).catch((e) => banner("❌ " + (e && e.message || e), "#c62828"));
     }).catch(() => {});
