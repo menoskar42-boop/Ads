@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { requestExecReloadQuiet } from "@/lib/exec-queue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -186,6 +187,7 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
       toast({ title: "تم الاستيراد", description: `${data.inserted} امر شغل تم رفعهم`, duration: 4000 });
       qc.invalidateQueries({ queryKey: ["/api/work-orders"] });
       qc.invalidateQueries({ queryKey: ["/api/upload-times"] });   // يحدّث «آخر تحديث»
+      void requestExecReloadQuiet();   // ريفريش لجهاز التنفيذ بعد الرفع اليدوى (المالك ٢٠٢٦-٠٩-٢٨)
     },
     onError: (e: Error) => {
       toast({ title: "خطأ في الاستيراد", description: e.message, variant: "destructive", duration: 5000 });

@@ -2540,6 +2540,22 @@ export async function registerRoutes(
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // POST /api/exec-queue/release-mine — تاب جهاز التنفيذ أول ما يفتح/يعمل ريفريش: أى مهمة
+  // لسه claimed **باسم التاب ده** (الجهاز + رقم التاب فى executed_by) يبقى التاب اتقفل
+  // وهو شغّال عليها — مفيش حد بينفّذها. بترجع للطابور فوراً بدل ما الموقع يفضل «مشغول»
+  // لحد مهلة الإنقاذ (٤ دقايق للقياس). التابات التانية مابتتأثرش: رقمها مختلف.
+  app.post("/api/exec-queue/release-mine", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const dev = String(req?.body?.device || "").trim();
+      if (!/ · تاب [a-z0-9]+$/i.test(dev)) return res.status(400).json({ message: "رقم التاب مطلوب" });
+      const { rowCount } = await pool.query(
+        `UPDATE exec_jobs SET status = 'pending', claimed_at = NULL, attempts = attempts + 1
+          WHERE status = 'claimed' AND executed_by = $1`,
+        [execIdentity(req)]);
+      res.json({ ok: true, released: rowCount ?? 0 });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // إعادة ضبط المهام اليتيمة: يُستدعى عند تفعيل جهاز التنفيذ — أى مهمة claimed كانت شغّالة لحظة
   // قفل الجهاز/انقطاع الشحن نرجّعها للطابور (pending) عشان **تتعاد من الأول** (بترتيبها الأصلى
   // حسب created_at)، بدل ما تتلغى. المهام المنتظرة الأخرى تفضل زى ما هى ويكمّلها الجهاز.

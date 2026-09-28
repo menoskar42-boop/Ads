@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
-import { execDeviceLabel, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, execTabId, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes } from "@shared/exec-timeouts";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
@@ -261,7 +261,8 @@ export function ExecutorButton() {
 
     // بنبعت هوية الجهاز مع النبضة ومع كل سحب — عشان يتسجّل على المهمة نفسها
     // وتعرف الرقابة الطلب اتنفّذ من أى جهاز/متصفح.
-    const device = execDeviceLabel();
+    // + رقم التاب: بيتسجّل على المهمة وقت السحب، فبعد ريفريش التاب ده بيعرف مهامه هو.
+    const device = `${execDeviceLabel()} · تاب ${execTabId()}`;
     // السيرفر بيمسح رمز إعادة التحميل أول ما يقراه، فأى رمز بيرجع مع النبضة معناه
     // «فيه طلب ريفريش لسه ماتنفّذش» → ننفّذه على طول. مافيش مقارنة رموز خالص:
     // المقارنة القديمة كانت بتعمل حلقة لا نهائية مع المراقب التلقائى (كل رمز جديد
@@ -725,7 +726,16 @@ export function ExecutorButton() {
         if (!stopped && !batchRefreshTriggered.current) void claimAndRun();
       });
     };
-    heartbeat(); refreshPending(); pump();
+    // مهام «شبح»: التاب ده اتقفل/اتعمله ريفريش وهو شغّال عليها (Republish، ريفريش،
+    // تطفية وتشغيل). كانت بتفضل claimed والموقع «مشغول» لحد مهلة الإنقاذ (٤ دقايق
+    // للقياس) ومفيش حاجة بتتنفّذ. التاب ده بعد الريفريش مش شغّال على أى حاجة، فأى مهمة
+    // عليها رقمه ترجع للطابور فوراً — قبل أول سحب. (المالك ٢٠٢٦-٠٩-٢٨)
+    const releaseMine = () => fetch("/api/exec-queue/release-mine", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device }),
+    }).catch(() => {});
+    heartbeat(); refreshPending();
+    void releaseMine().finally(() => { if (!stopped) pump(); });
     const hb = setInterval(heartbeat, HEARTBEAT_MS);
     const poll = setInterval(() => { pump(); refreshPending(); }, CLAIM_MS);
     const wd = setInterval(watchdog, WATCHDOG_MS);

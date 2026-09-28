@@ -447,6 +447,24 @@ export function execDeviceId(): string {
   } catch { return "unknown"; }
 }
 
+/**
+ * رقم تاب جهاز التنفيذ — فى sessionStorage: بيعيش مع الريفريش فى نفس التاب، وكل تاب
+ * تانى ليه رقم مختلف. بيتسجّل على المهمة (executed_by) عشان التاب بعد الريفريش يعرف
+ * المهام اللى كانت شغّالة عليه هو بالظبط ويرجّعها للطابور فوراً (شوف release-mine).
+ */
+export function execTabId(): string {
+  try {
+    let id = sessionStorage.getItem("sf_exec_tab");
+    if (!id) { id = Math.random().toString(36).slice(2, 7); sessionStorage.setItem("sf_exec_tab", id); }
+    return id;
+  } catch { return "t"; }
+}
+
+/** اطلب ريفريش لمتصفح جهاز التنفيذ من غير رسايل (بعد رفع ملف يدوى مثلاً). */
+export async function requestExecReloadQuiet(): Promise<void> {
+  try { await fetch("/api/exec-queue/request-reload", { method: "POST", credentials: "include" }); } catch {}
+}
+
 export function execDeviceLabel(): string {
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   const browser =

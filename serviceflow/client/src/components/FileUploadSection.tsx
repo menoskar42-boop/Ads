@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from "react";
+import { requestExecReloadQuiet } from "@/lib/exec-queue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -352,6 +353,9 @@ function UploadCard({
       }
       toast({ title: "تم الاستيراد", description: desc, duration: 4500 });
       [queryKey, ...extraKeys, "/api/upload-times"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+      // المالك (٢٠٢٦-٠٩-٢٨): بعد أى رفع يدوى رسالة «المتصفح مانع فتح التابات» بتظهر على
+      // جهاز التنفيذ — ريفريش له بعد كل رفع (المهام اللى كانت شغّالة بترجع فوراً: release-mine).
+      void requestExecReloadQuiet();
     },
     onError: (e: Error) => {
       toast({ title: "خطأ", description: e.message, variant: "destructive", duration: 5000 });
