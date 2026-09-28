@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WFM Reporting — Voice Installation Raw Data → Service-Flow
 // @namespace    service-flow.wfm.voice-raw
-// @description  يفتح wfm.te.eg/WfmReports، يسجّل الدخول، Reports → FO Raw Data Reports → «+» → Voice Installation Raw Data Report → Add Report، يحطّ التواريخ (آخر 30 يوم) + Middle Upper / Asuit Region، يضغط Generate ثم Export، ويرفع الشيت تلقائياً على تقرير أوامر الشغل فى Service-Flow.
-// @version      1.0.9
+// @description  يفتح wfm.te.eg/WfmReports، يسجّل الدخول، Reports → FO Raw Data Reports → «+» → Voice Installation Raw Data Report → Add Report، يحطّ التواريخ (آخر 30 يوم) + Middle Upper / Asuit Region، يضغط Generate ثم Export، ويرفع الشيت تلقائياً على تقرير أوامر الشغل فى Service-Flow. v1.0.10: لو الدخول طوّل عن ٩٠ث مابيقفش على «تسجيل الدخول…» — بيكمّل أول ما يوصل للـ Home، ولو فضل على صفحة الدخول ٧٥ث بيعمل ريفريش مرة ويدخل تانى.
+// @version      1.0.10
 // @match        https://wfm.te.eg/WfmReports/*
 // @grant        GM_xmlhttpRequest
 // @connect      service-flow-menoskar42.replit.app
@@ -797,6 +797,52 @@
     }
   }
 
+  /* ================== انتظار الدخول (v1.0.10) ================== */
+  // كان بيستنى ٩٠ث بس إن صفحة الدخول تختفى. لما الدخول يطوّل عن كده كان بيبطّل يراقب،
+  // فالصفحة توصل للـ Home والشريط واقف على «تسجيل الدخول…» للأبد (٢٠٢٦-٠٩-٢٨). المالك
+  // كان بيحلّها بريفريش + Login تانى — ده اللى بيحصل هنا لوحده:
+  //   · بيراقب لحد ٥ دقايق (ومع أى hashchange) — أول ما يوصل للـ Home يكمّل.
+  //   · لو لسه على صفحة الدخول بعد ٧٥ث: ريفريش مرة واحدة (والسكربت بيدخل تانى لوحده).
+  const LOGIN_WAIT_MS = 5 * 60 * 1000;
+  const LOGIN_RETRY_MS = 75 * 1000;
+  const RELOAD_KEY = "WFM_VOICE_LOGIN_RELOADED";
+  const pwVisible = () => qAll("input[type='password']").some(visible);
+  const homeTiles = () => !!findByText("a, span, div, li, button", /^\s*(Reports|Dashboards)\s*$/i, 20);
+  // داخل = الهاش مش login، و(مفيش خانة باسورد ظاهرة أو كروت الـ Home ظاهرة)
+  const loggedIn = () => !/#\/login/i.test(location.hash) && (!pwVisible() || homeTiles());
+  const reloadedRecently = () => {
+    try { return parseInt(sessionStorage.getItem(RELOAD_KEY) || "0", 10) > Date.now() - 10 * 60 * 1000; }
+    catch (e) { return true; }   // مفيش sessionStorage → مانعملش ريفريش (منعاً للّف)
+  };
+
+  function waitLoginThenRun() {
+    const t0 = Date.now();
+    let kicked = false;
+    const go = () => {
+      if (kicked || !loggedIn()) return;
+      kicked = true;
+      banner("✅ اتسجّل الدخول — بنكمّل…");
+      setTimeout(runFlow, 2500);
+    };
+    window.addEventListener("hashchange", () => setTimeout(go, 800));
+    (async () => {
+      while (!kicked && Date.now() - t0 < LOGIN_WAIT_MS) {
+        go();
+        if (kicked) return;
+        const s = Math.round((Date.now() - t0) / 1000);
+        if (s > 0 && s % 15 === 0) banner("🔐 تسجيل الدخول… (" + s + "ث)");
+        if (Date.now() - t0 > LOGIN_RETRY_MS && pwVisible() && !reloadedRecently()) {
+          try { sessionStorage.setItem(RELOAD_KEY, String(Date.now())); } catch (e) {}
+          banner("🔄 الدخول طوّل — ريفريش وتسجيل دخول تانى…");
+          setTimeout(() => { try { location.reload(); } catch (e) {} }, 400);
+          return;
+        }
+        await sleep(1000);
+      }
+      if (!kicked) banner("⚠️ الدخول ماكملش خلال ٥ دقايق — اعمل ريفريش", "#ef6c00");
+    })();
+  }
+
   /* ================== الراوتر ================== */
   function boot() {
     if (!document.body) { setTimeout(boot, 200); return; }
@@ -805,8 +851,7 @@
     const onLogin = () => /#\/login/i.test(location.hash) || qAll("input[type='password']").some(visible);
     if (onLogin()) {
       login();
-      // بعد نجاح الدخول الواجهة بتروح للـ Home — نكمّل التدفّق
-      waitFor(() => !onLogin(), 90000).then((ok) => { if (ok) setTimeout(runFlow, 2500); });
+      waitLoginThenRun();
     } else {
       setTimeout(runFlow, 1500);
     }
