@@ -6582,7 +6582,11 @@ export async function registerRoutes(
   app.get("/api/reports/marked-no-account", requireAuth, async (req, res) => {
     const { central = "", q = "" } = req.query as Record<string, string>;
     const params: any[] = [];
-    const conds: string[] = [];
+    // الخط اللى ليه رقم أكونت مايظهرش هنا أبداً (٢٠٢٦-٠٩-٢٩) — الـtrigger بيشيل العلامة
+    // أول ما الأكونت يتسجّل، والشرط ده أمان للحظة ما بين الرفع والتنضيف.
+    const conds: string[] = [`NOT EXISTS (SELECT 1 FROM line_accounts la
+                                WHERE btrim(la.full_phone) = btrim(na.full_phone)
+                                  AND NULLIF(btrim(la.account_no), '') IS NOT NULL)`];
     if (central) { params.push(central); conds.push(`pl.central = $${params.length}`); }
     if (q.trim()) {
       params.push(arQ(q));

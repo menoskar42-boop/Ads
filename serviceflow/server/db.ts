@@ -1481,6 +1481,39 @@ export async function ensureSchema() {
     )
   `);
 
+  // الخط اللى ليه رقم أكونت مايفضلش «معلَّم بدون أكونت» (قرار المالك ٢٠٢٦-٠٩-٢٩ —
+  // 882821905 كان فى «معلّمة بدون أكونت» (Customer360) وفى نفس الوقت ليه أكونت من شيت 138).
+  // الحفظ اليدوى بس كان بيشيل العلامة؛ مزامنة الشيت/الـ ingest/الـ bulk لأ. فالقاعدة
+  // اتحطّت فى القاعدة نفسها (trigger) عشان تغطّى **أى** مسار — حتى النشر القديم اللى
+  // شايف نفس القاعدة بكوده القديم.
+  // ⚠️ فى اتجاه واحد بس: أكونت اتضاف/اتعدّل ⇒ العلامة تتشال. مابنمنعش إضافة العلامة
+  // لخط ليه أكونت: Customer360 لما يقول «not exist» بيعلّم الخط **وبعدين** بيمسح أكونته
+  // القديم فى نفس الـtransaction — منع العلامة كان هيسيب الخط لا أكونت ولا علامة.
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION sf_drop_no_account_mark() RETURNS trigger AS $$
+    BEGIN
+      IF NULLIF(btrim(COALESCE(NEW.account_no, '')), '') IS NOT NULL THEN
+        DELETE FROM lines_no_account WHERE btrim(full_phone) = btrim(NEW.full_phone);
+      END IF;
+      RETURN NULL;
+    END $$ LANGUAGE plpgsql
+  `);
+  await pool.query(`DROP TRIGGER IF EXISTS trg_line_accounts_drop_no_account ON line_accounts`);
+  await pool.query(`
+    CREATE TRIGGER trg_line_accounts_drop_no_account
+      AFTER INSERT OR UPDATE OF account_no, full_phone ON line_accounts
+      FOR EACH ROW EXECUTE FUNCTION sf_drop_no_account_mark()
+  `);
+  // تنضيف اللى اتراكم قبل الـtrigger (بيتنفّذ مع كل إقلاع — بعد أول مرة مابيلاقيش حاجة)
+  {
+    const r = await pool.query(`
+      DELETE FROM lines_no_account na
+       WHERE EXISTS (SELECT 1 FROM line_accounts la
+                      WHERE btrim(la.full_phone) = btrim(na.full_phone)
+                        AND NULLIF(btrim(la.account_no), '') IS NOT NULL)`);
+    if (r.rowCount) console.log(`[schema] شيلنا ${r.rowCount} خط من «معلّمة بدون أكونت» لأن ليهم رقم أكونت`);
+  }
+
   // line_po_events — آخر وقت رفع سرعة (Start Realtime PO) وآخر وقت إيقاف PO (Stop Nightly PO)
   // لكل رقم أكونت. يُحدَّث من سكربت رفع السرعة عبر /api/po-events/ingest، ويظهر كعمودين فى تقارير القياس.
   await pool.query(`
