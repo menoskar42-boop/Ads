@@ -14,15 +14,21 @@ const client = readFileSync(
   "utf8",
 );
 
+// الشروط اتنقلت لثوابت مشتركة (PORTS_MISSING_*) مع مراجعة البيان الفنى اليومية ١٢ الضهر
+// (٢٠٢٦-٠٩-٢٩) — عشان الأرقام اللى بتتراجع تلقائياً هى نفسها اللى فى التقرير.
+const shared = routes.slice(routes.indexOf("const PORTS_MISSING_TECH_SQL"), routes.indexOf("const hasFrameSql"));
+
 test("reports current MSAN ports with incomplete technical or subscriber data", () => {
-  assert.match(route, /FROM phone_ports pp/);
-  assert.match(route, /LEFT JOIN phone_lines pl ON pl\.full_phone = pp\.phone_number/);
-  assert.match(route, /LEFT JOIN line_subscriber_info si ON si\.phone_number = pp\.phone_number/);
-  assert.match(route, /pl\.full_phone IS NULL/);
-  assert.match(route, /pl\.cabin_number::text/);
-  assert.match(route, /pl\.box_number::text/);
-  assert.match(route, /si\.sub_name::text/);
-  assert.match(route, /si\.sub_add::text/);
+  assert.match(route, /const joinClause = PORTS_MISSING_FROM_SQL;/);
+  assert.match(route, /const conds: string\[\] = \[\.\.\.PORTS_MISSING_BASE_CONDS\];/);
+  assert.match(shared, /FROM phone_ports pp/);
+  assert.match(shared, /LEFT JOIN phone_lines pl ON pl\.full_phone = pp\.phone_number/);
+  assert.match(shared, /LEFT JOIN line_subscriber_info si ON si\.phone_number = pp\.phone_number/);
+  assert.match(shared, /pl\.full_phone IS NULL/);
+  assert.match(shared, /pl\.cabin_number::text/);
+  assert.match(shared, /pl\.box_number::text/);
+  assert.match(shared, /si\.sub_name::text/);
+  assert.match(shared, /si\.sub_add::text/);
   assert.match(route, /MAX\(uploaded_at\)/);
 });
 

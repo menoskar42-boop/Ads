@@ -921,6 +921,31 @@ async function syncCurrentDzsMeasurement(values: any[]): Promise<void> {
   );
 }
 
+// «بورتات MSAN بلا بيان فنى أو اسم/عنوان» — نفس الشروط فى التقرير
+// (/api/reports/ports-missing-line-data) وفى المراجعة اليومية ١٢ الضهر، عشان الأرقام
+// اللى بتتراجع تلقائياً هى نفسها اللى المالك شايفها فى التقرير بالظبط.
+// ناقص بيان فنى = مفيش صف 131 أو الكابينة/البكس فاضيين؛ ناقص عميل = مفيش اسم أو عنوان.
+const PORTS_MISSING_TECH_SQL = `(
+      pl.full_phone IS NULL
+      OR NULLIF(btrim(pl.cabin_number::text), '') IS NULL
+      OR NULLIF(btrim(pl.box_number::text), '') IS NULL
+    )`;
+const PORTS_MISSING_SUB_SQL = `(
+      si.phone_number IS NULL
+      OR NULLIF(btrim(si.sub_name::text), '') IS NULL
+      OR NULLIF(btrim(si.sub_add::text), '') IS NULL
+    )`;
+const PORTS_MISSING_BASE_CONDS = [
+  // أرقام التليفونات المحلية فقط، لا صفوف الخدمات أو القيم غير الرقمية.
+  `regexp_replace(pp.phone_number, '[^0-9]', '', 'g') ~ '^0*88[0-9]{7}$'`,
+  `(${PORTS_MISSING_TECH_SQL} OR ${PORTS_MISSING_SUB_SQL})`,
+];
+const PORTS_MISSING_FROM_SQL = `
+      FROM phone_ports pp
+      LEFT JOIN phone_lines pl ON pl.full_phone = pp.phone_number
+      LEFT JOIN line_subscriber_info si ON si.phone_number = pp.phone_number
+    `;
+
 const hasFrameSql = (fullPhoneExpr: string) => `EXISTS (
     SELECT 1 FROM phone_ports pf
      WHERE pf.phone_number = ${fullPhoneExpr}
@@ -2130,6 +2155,8 @@ export async function registerRoutes(
       // هى الطريق **الوحيد** اللى بيفتح باتشات ٩ الصبح. الاستثنائى كان متعلّق على
       // الإقلاع والـtick بس، فبعد النشر (٢٠٢٦-٠٩-٢٨) ماشتغلش. الحجز فى القاعدة بيمنع التكرار.
       void runOneOffMeasure("heartbeat");
+      // مراجعة البيان الفنى اليومية ١٢ الضهر — نفس السبب: النبضة هى اللى بتشتغل هناك
+      void runPortsMissingSubinfo("heartbeat");
       res.json({ ok: true, reload: rl[0]?.value ?? null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -2913,7 +2940,7 @@ export async function registerRoutes(
   const AUTO_PO_STOP_SKIP_DAYS = 3;       // اتعمله إيقاف خلال ٣ أيام → استبعاد
   let autoBatchDay = "";                  // حارس فى الذاكرة يوفّر ضربة قاعدة كل نبضة
 
-  const enqueueAutoBatch = async (type: "stop" | "measure", accounts: string[], note: string) => {
+  const enqueueAutoBatch = async (type: "stop" | "measure" | "subinfo", accounts: string[], note: string) => {
     if (!accounts.length) return { count: 0, batchId: null as string | null };
     const batchId = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const site = SITE_OF_TYPE[type] || "10.42.187.101";
@@ -3085,6 +3112,51 @@ export async function registerRoutes(
     }
   };
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // مراجعة البيان الفنى (subinfo) لأرقام «بورتات MSAN بلا بيان فنى أو اسم/عنوان»
+  // كل يوم ١٢ الضهر بتوقيت القاهرة (قرار المالك ٢٠٢٦-٠٩-٢٩).
+  // ══════════════════════════════════════════════════════════════════════════
+  // نفس الأرقام اللى فى التقرير بالظبط (PORTS_MISSING_*)، ومستبعد منها أى رقم ليه
+  // مراجعة فى الطابور دلوقتى. مهمة لكل رقم (زى زرار «مراجعة الاسم والعنوان») بأولوية
+  // عادية (0) — فبيدخل الباتشات المؤجّلة وبيتنفّذ على FCC من غير ما يقاطع حاجة.
+  // الحجز فى app_state مرة فى اليوم، وبيتنادى من الإقلاع والـtick **والنبضة** —
+  // النبضة هى الطريق الوحيد على النسخة المستضافة (SF_SCHEDULERS=off).
+  const PORTS_SUBINFO_HOUR = 12;
+  let portsSubinfoDay = "";
+  const runPortsMissingSubinfo = async (trigger: string) => {
+    let claimedDay = "";
+    try {
+      const { date, hour } = cairoNow();
+      if (hour < PORTS_SUBINFO_HOUR || portsSubinfoDay === date) return;
+      const claim = await pool.query(
+        `INSERT INTO app_state (key, value, updated_at) VALUES ('ports_missing_subinfo_last_day', $1, now())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+          WHERE app_state.value IS DISTINCT FROM $1
+         RETURNING value`, [date]);
+      portsSubinfoDay = date;
+      if (!claim.rowCount) return;
+      claimedDay = date;
+      const { rows } = await pool.query(
+        `SELECT DISTINCT pp.phone_number AS phone
+           ${PORTS_MISSING_FROM_SQL}
+          WHERE ${PORTS_MISSING_BASE_CONDS.join(" AND ")}
+            AND ${notQueuedSql("pp.phone_number", ["subinfo"])}
+          ORDER BY 1`);
+      const phones = rows.map((r: any) => String(r.phone).trim()).filter(Boolean);
+      const b = await enqueueAutoBatch("subinfo", phones,
+        "مراجعة البيان الفنى — بورتات MSAN بلا بيان فني أو اسم/عنوان (تشغيل يومى ١٢ ظ)");
+      console.log(`[ports-subinfo] ${date} (${trigger}): ${b.count} رقم اتضافوا لمراجعة البيان الفنى`);
+    } catch (e: any) {
+      // الحجز اتعمل والإضافة فشلت → فكّه عشان المحاولة الجاية (بعد ٥ دقايق / النبضة) تنجح
+      portsSubinfoDay = "";
+      if (claimedDay) {
+        await pool.query(`DELETE FROM app_state WHERE key = 'ports_missing_subinfo_last_day' AND value = $1`,
+                         [claimedDay]).catch(() => {});
+      }
+      console.error("[ports-subinfo] failed:", e?.message || e);
+    }
+  };
+
   // GET /api/exec-queue/wfm-fetch — حالة الجلب التلقائى (سوبر أدمن)
   app.get("/api/exec-queue/wfm-fetch", requireAuth, requireSuperAdmin, async (_req, res) => {
     try {
@@ -3183,11 +3255,13 @@ export async function registerRoutes(
       void runDailyAutoBatches("boot");
       void runWfmFetch("boot");
       void runOneOffMeasure("boot");
+      void runPortsMissingSubinfo("boot");
     }, 30_000);
     const tick = setInterval(() => {
       void runDailyAutoBatches("tick");
       void runWfmFetch("tick");
       void runOneOffMeasure("tick");
+      void runPortsMissingSubinfo("tick");
     }, 5 * 60 * 1000);
     wakeup.unref(); tick.unref();
   }
@@ -6248,23 +6322,10 @@ export async function registerRoutes(
     const pageSize = Math.min(20000, Math.max(1, parseInt(limit) || 50));
     const params: any[] = [];
 
-    // نعتبر البيان ناقصاً لو لم يوجد صف 131 أو كان أحد الحقلين الأساسيين فارغاً.
-    // ونعتبر بيانات العميل ناقصة لو لم يوجد الاسم أو العنوان (حتى لو وُجد الآخر).
-    const missingTechnical = `(
-      pl.full_phone IS NULL
-      OR NULLIF(btrim(pl.cabin_number::text), '') IS NULL
-      OR NULLIF(btrim(pl.box_number::text), '') IS NULL
-    )`;
-    const missingSubscriber = `(
-      si.phone_number IS NULL
-      OR NULLIF(btrim(si.sub_name::text), '') IS NULL
-      OR NULLIF(btrim(si.sub_add::text), '') IS NULL
-    )`;
-    const conds: string[] = [
-      // نعرض أرقام التليفونات المحلية فقط، لا صفوف الخدمات أو القيم غير الرقمية.
-      `regexp_replace(pp.phone_number, '[^0-9]', '', 'g') ~ '^0*88[0-9]{7}$'`,
-      `(${missingTechnical} OR ${missingSubscriber})`,
-    ];
+    // الشروط مشتركة مع المراجعة اليومية ١٢ الضهر (PORTS_MISSING_* فوق) — نفس الأرقام بالظبط.
+    const missingTechnical = PORTS_MISSING_TECH_SQL;
+    const missingSubscriber = PORTS_MISSING_SUB_SQL;
+    const conds: string[] = [...PORTS_MISSING_BASE_CONDS];
 
     if (search.trim()) {
       params.push(arQ(search));
@@ -6285,11 +6346,7 @@ export async function registerRoutes(
     }
 
     const where = `WHERE ${conds.join(" AND ")}`;
-    const joinClause = `
-      FROM phone_ports pp
-      LEFT JOIN phone_lines pl ON pl.full_phone = pp.phone_number
-      LEFT JOIN line_subscriber_info si ON si.phone_number = pp.phone_number
-    `;
+    const joinClause = PORTS_MISSING_FROM_SQL;
     const totalRes = await pool.query(
       `SELECT COUNT(*)::int AS c ${joinClause} ${where}`,
       params,
