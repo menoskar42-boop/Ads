@@ -262,6 +262,56 @@ export function PhoneLookupReport() {
     }
   };
 
+  // ── رقم الأكونت: إضافة من البحث لما الخط مالوش أكونت (قرار المالك ٢٠٢٦-٠٩-٢٩) ──
+  // «لسه ماتفحصش» أو «صوت فقط — مافيش داتا» → زرار «إضافة». مسموح لكل المستخدمين ما عدا
+  // المبيعات وأدمن المبيعات، والفنى (وفنى الصيانة) على خطوطه بس (ownedByMe) —
+  // السيرفر بيطبّق نفس القاعدة (PUT /api/line-accounts/:fullPhone).
+  const canAddAccount = !!line && user?.role !== ROLES.SALES && user?.role !== ROLES.SALES_ADMIN &&
+    ((user?.role !== ROLES.TECH && user?.role !== ROLES.MAINTENANCE_TECH) || !!line?.ownedByMe);
+  const [editingAccount, setEditingAccount] = useState(false);
+  const [accountInput, setAccountInput] = useState("");
+  const [savingAccount, setSavingAccount] = useState(false);
+  const saveAccount = async () => {
+    if (!line?.fullPhone) return;
+    const acc = accountInput.replace(/\s+/g, "").trim();
+    if (!acc) { alert("اكتب رقم الأكونت"); return; }
+    setSavingAccount(true);
+    try {
+      const res = await fetch(`/api/line-accounts/${encodeURIComponent(line.fullPhone)}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountNo: acc }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d?.message || "تعذّر حفظ رقم الأكونت"); return; }
+      setEditingAccount(false); setAccountInput("");
+      setSearchSeq((s) => s + 1); // إعادة البحث ليظهر الأكونت (والقياس بقى متاح)
+    } catch { alert("تعذّر حفظ رقم الأكونت"); }
+    finally { setSavingAccount(false); }
+  };
+  const addAccountControl: ReactNode = !canAddAccount ? null
+    : editingAccount
+      ? (
+        <span className="inline-flex items-center gap-1">
+          <input value={accountInput} onChange={(e) => setAccountInput(e.target.value)} placeholder="رقم الأكونت"
+            className="border rounded px-2 py-0.5 text-sm w-36" dir="ltr" autoFocus
+            onKeyDown={(e) => { if (e.key === "Enter") void saveAccount(); }}
+            data-testid="input-add-account" />
+          <button onClick={saveAccount} disabled={savingAccount}
+            className="text-[11px] text-white bg-emerald-600 hover:bg-emerald-700 rounded px-2 py-0.5 disabled:opacity-50">
+            {savingAccount ? "..." : "حفظ"}
+          </button>
+          <button onClick={() => setEditingAccount(false)} className="text-[11px] text-gray-500 px-1">إلغاء</button>
+        </span>
+      )
+      : (
+        <button onClick={() => { setAccountInput(""); setEditingAccount(true); }}
+          className="text-[11px] text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50"
+          data-testid="button-add-account">
+          + إضافة
+        </button>
+      );
+
   // ── رقم الموبايل: عرض + إضافة/تعديل يدوى (يُحفظ فى جدول line_mobiles) ──
   const [editingMobile, setEditingMobile] = useState(false);
   const [mobileInput, setMobileInput] = useState("");
@@ -686,8 +736,11 @@ export function PhoneLookupReport() {
     : line?.markedNoAccount
       ? (
         <span className="inline-flex flex-col items-start gap-0.5">
-          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold text-xs">
-            صوت فقط — مافيش داتا
+          <span className="inline-flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold text-xs">
+              صوت فقط — مافيش داتا
+            </span>
+            {addAccountControl}
           </span>
           <span className="text-[11px] text-muted-foreground">
             اتفحص واتشال من «بدون أكونت»
@@ -696,7 +749,12 @@ export function PhoneLookupReport() {
           </span>
         </span>
       )
-      : <span className="text-muted-foreground">— لسه ماتفحصش</span>;
+      : (
+        <span className="inline-flex items-center gap-2">
+          <span className="text-muted-foreground">— لسه ماتفحصش</span>
+          {addAccountControl}
+        </span>
+      );
 
   // الترتيب مطابق للإكسيل: الشبكة RTL تملأ الخلية اليمنى ثم اليسرى فى كل صف —
   // فالمصفوفة مرتّبة: (يمين1, شمال1, يمين2, شمال2 …) للصفوف 1–12، ثم الحقول الفنية الباقية كامل العرض (صف لكل حقل).

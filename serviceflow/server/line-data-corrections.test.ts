@@ -140,7 +140,8 @@ test("the phone-lookup report opens the same form in a dialog", () => {
 // البيانات يصحّحه — عشان كده المقارنة لازم تفضل ضد line_subscriber_info (نتيجة المراجعة)
 // مش ضد اللى بنعرضه. لو التصحيح اتكتب فى line_subscriber_info كانت المقارنة هتطابق دايماً.
 test("a correction overrides what our site shows, without touching the review result", () => {
-  const lookupStart = routes.indexOf('app.get("/api/phone-lines/lookup"');
+  // الاستعلام اتنقل لـ lookupPhoneLine (مشترك مع حفظ رقم الأكونت، ٢٠٢٦-٠٩-٢٩) — فبنبدأ منها.
+  const lookupStart = routes.indexOf('const lookupPhoneLine = async');
   const lookupEnd = routes.indexOf('app.post("/api/line-mobiles"', lookupStart);
   assert.ok(lookupStart >= 0 && lookupEnd > lookupStart);
   const lookup = routes.slice(lookupStart, lookupEnd);

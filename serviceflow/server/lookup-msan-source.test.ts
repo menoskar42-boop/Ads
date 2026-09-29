@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
-const lookupStart = routes.indexOf('app.get("/api/phone-lines/lookup"');
+// الاستعلام اتنقل لـ lookupPhoneLine (مشترك مع حفظ رقم الأكونت، ٢٠٢٦-٠٩-٢٩) — فبنبدأ منها.
+const lookupStart = routes.indexOf('const lookupPhoneLine = async');
 const lookupEnd = routes.indexOf('app.post("/api/line-mobiles"', lookupStart);
 assert.ok(lookupStart >= 0, "the phone lookup endpoint must exist");
 assert.ok(lookupEnd > lookupStart, "the phone lookup endpoint must be bounded");

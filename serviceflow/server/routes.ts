@@ -6262,12 +6262,20 @@ export async function registerRoutes(
     res.json({ data: dataRes.rows, total, page: pageNum, pageSize });
   });
 
-  // PUT /api/line-accounts/:fullPhone — set/update account number (all roles except sales)
+  // PUT /api/line-accounts/:fullPhone — set/update account number
+  // (قرار المالك ٢٠٢٦-٠٩-٢٩) كل المستخدمين ما عدا المبيعات وأدمن المبيعات، والفنى
+  // (وفنى الصيانة) **على خطوطه بس** — نفس ownedByMe اللى شاشة البحث بتعرضه.
   app.put("/api/line-accounts/:fullPhone", requireAuth, async (req: any, res) => {
-    if (req.user.role === ROLES.SALES) {
+    if (req.user.role === ROLES.SALES || req.user.role === ROLES.SALES_ADMIN) {
       return res.status(403).json({ message: "غير مصرح" });
     }
     const { fullPhone } = req.params;
+    if (req.user.role === ROLES.TECH || req.user.role === ROLES.MAINTENANCE_TECH) {
+      const { line } = await lookupPhoneLine(req.user, String(fullPhone || ""));
+      if (!line?.ownedByMe) {
+        return res.status(403).json({ message: "إضافة رقم الأكونت متاحة للفنى على خطوطه بس" });
+      }
+    }
     const { accountNo } = req.body as { accountNo: string };
     if (!accountNo || !accountNo.trim()) {
       return res.status(400).json({ message: "رقم الأكونت مطلوب" });
@@ -7019,10 +7027,10 @@ export async function registerRoutes(
 
   // GET /api/phone-lines/lookup?phone=<رقم> — بحث برقم التليفون → بياناته الفنية + آخر قياس
   // متاح لكل المستخدمين ما عدا المبيعات. يقبل الرقم الكامل (88..) أو رقم التليفون القصير.
-  app.get("/api/phone-lines/lookup", requireAuth, async (req, res) => {
-    if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
-    const phone = String((req.query as Record<string, string>).phone || "").trim();
-    if (!phone) return res.status(400).json({ message: "أدخل رقم التليفون" });
+  // بيانات الخط + ownedByMe — **مشتركة** بين البحث برقم التليفون وحفظ رقم الأكونت
+  // (قرار المالك ٢٠٢٦-٠٩-٢٩: الفنى يضيف أكونت لخطوطه بس) — فالصلاحية على السيرفر هى
+  // نفس اللى الشاشة بتعرضها بالظبط، مش نسخة تانية ممكن تتفرق.
+  const lookupPhoneLine = async (reqUser: any, phone: string) => {
     // مطابقة الرقم الكامل أو القصير (مع/بدون بادئة 88).
     // ⚠️ لازم نشيل أى رموز الأول: أوامر الشغل بتخزّن الرقم بشرطة («88-2650848»)،
     // ولما اتبعت زى ما هو كان short = «-2650848» فمايطابقش حاجة والبيان يرجع فاضى
@@ -7030,7 +7038,7 @@ export async function registerRoutes(
     const digits = phone.replace(/\D/g, "");
     const short = digits.replace(/^88/, "");
     const full = digits.startsWith("88") ? digits : "88" + digits;
-    const codes = await coverageCodes(req.user);   // {own, covered} لحساب ownedByMe
+    const codes = await coverageCodes(reqUser);   // {own, covered} لحساب ownedByMe
     // نبحث فى phone_lines (بيانات فنية) وإلا نرجّع البيانات من line_accounts / case_138 /
     // الشكاوى — علشان يظهر أى رقم له أكونت أو قياس أو شكوى حتى لو مالوش بيانات فنية.
     const { rows } = await pool.query(
@@ -7267,9 +7275,16 @@ export async function registerRoutes(
        ) mob ON true
        LIMIT 1`,
       // raw = الأرقام بس كمان (الرقم بشرطة مستحيل يطابق full_phone المخزّن)
-      [digits, short, full, codes.own, codes.covered, req.user?.role === ROLES.TECH ? (codes.techName || "") : ""],
+      [digits, short, full, codes.own, codes.covered, reqUser?.role === ROLES.TECH ? (codes.techName || "") : ""],
     );
-    const line = rows[0];
+    return { line: rows[0] as any, codes };
+  };
+
+  app.get("/api/phone-lines/lookup", requireAuth, async (req, res) => {
+    if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
+    const phone = String((req.query as Record<string, string>).phone || "").trim();
+    if (!phone) return res.status(400).json({ message: "أدخل رقم التليفون" });
+    const { line, codes } = await lookupPhoneLine(req.user, phone);
     if (!line || !line.hasData) return res.json({ found: false });
     delete line.hasData;
     // فنى حسابه مش مربوط بكود عامل: مفيش ولا خط هيبقى «بتاعه» — والرسالة العامة

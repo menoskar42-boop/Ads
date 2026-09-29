@@ -77,7 +77,7 @@ test("ownership follows the technician the screen names", () => {
   assert.match(expr, /btrim\(ctc\.ct_tech\) = btrim\(\$6::text\)/, "my name shown as the line's tech opens measuring");
   assert.match(expr, /unnest\(string_to_array\(mto\.tech_name, ','\)\)[\s\S]*?btrim\(n\.name\) = btrim\(\$6::text\)/,
     "a manual MSAN assignment to me counts, by exact name");
-  assert.match(routes, /\[digits, short, full, codes\.own, codes\.covered, req\.user\?\.role === ROLES\.TECH \? \(codes\.techName \|\| ""\) : ""\]/,
+  assert.match(routes, /\[digits, short, full, codes\.own, codes\.covered, reqUser\?\.role === ROLES\.TECH \? \(codes\.techName \|\| ""\) : ""\]/,
     "$6 is my tech name, for technicians only");
   assert.match(routes, /line\.myWorkerCodeMissing = req\.user\?\.role === ROLES\.TECH && codes\.own\.length === 0;/);
 });
