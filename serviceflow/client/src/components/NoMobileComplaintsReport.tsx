@@ -41,12 +41,13 @@ const ENDPOINT = "/api/phone-lines/no-mobile-complaints";
 const PAGE_SIZE = 50;
 
 const todayInCairo = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
-const oneMonthBefore = (isoDate: string) => {
+const monthsBefore = (isoDate: string, months: number) => {
   const [year, month, day] = isoDate.split("-").map(Number);
-  const targetYear = month === 1 ? year - 1 : year;
-  const targetMonth = month === 1 ? 12 : month - 1;
-  const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
-  return `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
+  const target = new Date(Date.UTC(year, month - 1 - months, 1));
+  const targetYear = target.getUTCFullYear();
+  const targetMonth = target.getUTCMonth();
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 };
 
 const formatDate = (value: string | null) => {
@@ -62,7 +63,7 @@ const localPhone = (row: Pick<Row, "phoneShort" | "fullPhone">) =>
 
 export function NoMobileComplaintsReport() {
   const today = todayInCairo();
-  const [dateFrom, setDateFrom] = useState(() => oneMonthBefore(today));
+  const [dateFrom, setDateFrom] = useState(() => monthsBefore(today, 2));
   const [dateTo, setDateTo] = useState(today);
   const [central, setCentral] = useState("");
   const [cabin, setCabin] = useState("");
