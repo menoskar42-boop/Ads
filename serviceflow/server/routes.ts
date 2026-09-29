@@ -174,14 +174,17 @@ function sheetRows(ws: any): any[][] {
 // كان بيضيع بالكامل من تصدير الغنايم. إنه أيام مش ساعات مُثبت بالبيانات: لو
 // حسبناه أيام كل صفوف الملف بتشاور على نفس لحظة توليد التقرير (تشتّت 0.2 ساعة)،
 // ولو ساعات بيبقى التشتّت 128 ساعة (يعنى مستحيل).
+// ⚠️ التقريب لـ٤ خانات مش خانة واحدة (٢٠٢٦-٠٩-٢٩): نسبة الإزالة بتحكم بـ«أكبر من يوم»
+// على العمود ده، و«1:0:1» (يوم ودقيقة) كانت بتتقرّب 24.0 ساعة فتتحسب جوّه الـ24.
+const hrsRound = (h: number) => Math.round(h * 10000) / 10000;
 function toHours(v: any): number | null {
   if (v == null || v === "") return null;
-  if (typeof v === "number" && v > 0) return Math.round(v * 24 * 10) / 10;
+  if (typeof v === "number" && v > 0) return hrsRound(v * 24);
   const s = String(v).trim();
   if (!s) return null;
   if (!s.includes(":")) {
     const num = parseFloat(s.replace(/[^\d.\-]/g, ""));
-    return Number.isFinite(num) && num > 0 ? Math.round(num * 24 * 10) / 10 : null;
+    return Number.isFinite(num) && num > 0 ? hrsRound(num * 24) : null;
   }
   const parts = s.split(":");
   if (parts.length < 2) return null;
@@ -189,7 +192,7 @@ function toHours(v: any): number | null {
   const h = parseFloat(parts[1]) || 0;
   const m = parts.length > 2 ? (parseFloat(parts[2]) || 0) : 0;
   const total = d * 24 + h + m / 60;
-  return total > 0 ? Math.round(total * 10) / 10 : null;
+  return total > 0 ? hrsRound(total) : null;
 }
 
 // Excel serial date (or string) → JS Date | null
@@ -682,6 +685,17 @@ const closedHoursSql = (t: string) => `CASE
   ELSE LEAST(${t}.time_till_now,
              EXTRACT(EPOCH FROM (${t}.close_time - ${t}.complain_time)) / 3600.0)
 END`;
+
+// ── ساعات «نسبة الإزالة» (قرار المالك ٢٠٢٦-٠٩-٢٩) ──
+// المرجع **الوحيد** هو عمود الشيت «Time untill now(except 135)» (فى التفاصيل اسمه
+// «فترة الاستمرار… -استبعاد الحالة 135» بصيغة يوم:ساعة:دقيقة) — متخزّن فى
+// time_till_now بالساعات. أكبر من يوم (24 ساعة) = تخطّى الـ24. فى الشيتين، وكل
+// حالات المتبقى (مش 135/138 بس)، ومن غير LEAST مع التوقيتين زى closedHoursSql.
+// الحساب من التوقيتين احتياطى بس للصفوف القديمة اللى اترفعت من غير العمود.
+const sheetHoursSql = (t: string) => `COALESCE(${t}.time_till_now, CASE
+  WHEN ${t}.close_time IS NULL THEN EXTRACT(EPOCH FROM (${NOW_SHEET} - ${t}.complain_time)) / 3600.0
+  ELSE EXTRACT(EPOCH FROM (${t}.close_time - ${t}.complain_time)) / 3600.0
+END)`;
 
 // ── بحث عربى غير حرفى ──
 // الفكرة: نطبّع الطرفين قبل المقارنة — العمود بدالة sf_ar_norm() فى الداتابيز، وكلمة البحث
@@ -14304,10 +14318,10 @@ export async function registerRoutes(
     try {
       const { dateFrom, dateTo } = req.query as Record<string, string>;
       const params: any[] = [];
-      // نجلب الأعطال التى أُغلقت (close_time NOT NULL) وأُبلغ عنها في الفترة المحددة
+      // **كل** أعطال شيت التفاصيل اللى أُبلغ عنها فى الفترة (قرار المالك ٢٠٢٦-٠٩-٢٩ —
+      // كان close_time NOT NULL بس)، والـ24 ساعة من عمود الشيت (sheetHoursSql).
       // العمود الصحيح هو exchange_name (وليس central_name الذى يكون NULL دائماً في complaint_details)
       const conds: string[] = [
-        `cd.close_time IS NOT NULL`,
         `cd.exchange_name ILIKE '%غنايم%'`,
       ];
       if (dateFrom) { params.push(dateFrom); conds.push(`(cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`); }
@@ -14320,7 +14334,7 @@ export async function registerRoutes(
             cd.exchange_name                                AS central_name,
             ${effTechSql("cd.complain_no", "cd.close_by", "cd.exchange_name", "cd.cabinet_no", "cd.complain_time", "cd.phone_number")}
                                                             AS tech_name,
-            ${closedHoursSql('cd')} AS hours
+            ${sheetHoursSql('cd')} AS hours
           FROM complaint_details cd
           ${where}
         )
@@ -14372,17 +14386,16 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/reports/remaining-stats — إحصائيات إزالة المتبقيات (حالات 135 و138 فقط)
+  // GET /api/reports/remaining-stats — إحصائيات إزالة المتبقيات (**كل** حالات شيت المتبقى)
   // ?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
   app.get("/api/reports/remaining-stats", requireAuth, async (req, res) => {
     try {
       const { dateFrom, dateTo } = req.query as Record<string, string>;
       const params: any[] = [];
+      // قرار المالك (٢٠٢٦-٠٩-٢٩): كل الحالات (كان 135 و138 بس)، والـ24 ساعة من عمود
+      // الشيت «Time untill now(except 135)» (sheetHoursSql).
       const conds: string[] = [
-        // الـ 135 مفتوح (close_time ممكن NULL)، الـ 138 لازم يكون عنده close_time
-        `(FLOOR(rc.status_code::numeric)::int = 135 OR rc.close_time IS NOT NULL)`,
         `rc.exchange_name ILIKE '%غنايم%'`,
-        `FLOOR(rc.status_code::numeric)::int IN (135, 138)`,
       ];
       if (dateFrom) { params.push(dateFrom); conds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`); }
       if (dateTo)   { params.push(dateTo);   conds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`); }
@@ -14394,14 +14407,7 @@ export async function registerRoutes(
             rc.exchange_name                                AS central_name,
             ${effTechSql("rc.complain_no", "rc.close_by", "rc.exchange_name", "rc.cabinet_no", "rc.complain_time", "rc.phone_number")}
                                                             AS tech_name,
-            -- الـ 135 (مفتوح): المدة من الشكوى حتى الآن (حيّة)
-            -- الـ 138 (أُزيل): المدة من الشكوى حتى وقت الإزالة الفعلى
-            CASE
-              WHEN FLOOR(rc.status_code::numeric)::int = 135
-                THEN EXTRACT(EPOCH FROM (${NOW_SHEET} - rc.complain_time)) / 3600.0
-              ELSE
-                ${closedHoursSql('rc')}
-            END                                             AS hours
+            ${sheetHoursSql('rc')}                         AS hours
           FROM remaining_complaints_current rc
           ${where}
         )
@@ -14457,19 +14463,19 @@ export async function registerRoutes(
 
       const { rows } = await pool.query(`
         WITH src_raw AS (
-          -- الأعطال المغلقة (complaint_details): كلها عندها close_time — جدول دائم متراكم
+          -- **كل** أعطال شيت التفاصيل (complaint_details) — جدول دائم متراكم
           SELECT cd.complain_no, cd.exchange_name, cd.complain_time, cd.close_time, cd.close_by, cd.cabinet_no,
-                 cd.phone_number, FALSE AS is_open, cd.time_till_now, 1 AS pr
+                 cd.phone_number, (cd.close_time IS NULL) AS is_open, cd.time_till_now, 1 AS pr
           FROM complaint_details cd
-          WHERE cd.close_time IS NOT NULL AND cd.exchange_name ILIKE '%غنايم%'
+          WHERE cd.exchange_name ILIKE '%غنايم%'
           UNION ALL
-          -- الأعطال المتبقية (135/138): تُقرأ من الجدول التاريخى الدائم remaining_complaints
-          -- (وليس _current المتطاير) حتى لا تختفى الأعطال المُزالة عند رفع ملف 430D أحدث.
+          -- **كل** حالات شيت المتبقى (قرار المالك ٢٠٢٦-٠٩-٢٩ — كان 135/138 بس): من الجدول
+          -- التاريخى الدائم remaining_complaints (وليس _current المتطاير) حتى لا تختفى
+          -- الأعطال المُزالة عند رفع ملف 430D أحدث.
           SELECT rc.complain_no, rc.exchange_name, rc.complain_time, rc.close_time, rc.close_by, rc.cabinet_no,
                  rc.phone_number, (rc.close_time IS NULL) AS is_open, rc.time_till_now, 2 AS pr
           FROM remaining_complaints rc
           WHERE rc.exchange_name ILIKE '%غنايم%'
-            AND FLOOR(rc.status_code::numeric)::int IN (135, 138)
         ),
         -- إزالة التكرار بمفتاح رقم الشكوى — تفضيل السجل المغلق (pr=1) على المتبقى (pr=2)
         src AS (
@@ -14482,12 +14488,8 @@ export async function registerRoutes(
             src.exchange_name                               AS central_name,
             ${effTechSql("src.complain_no", "src.close_by", "src.exchange_name", "src.cabinet_no", "src.complain_time", "src.phone_number")}
                                                             AS tech_name,
-            CASE
-              WHEN src.is_open
-                THEN EXTRACT(EPOCH FROM (${NOW_SHEET} - src.complain_time)) / 3600.0
-              ELSE
-                ${closedHoursSql('src')}
-            END                                             AS hours
+            -- عمود الشيت «Time untill now(except 135)» — أكبر من يوم = تخطّى الـ24
+            ${sheetHoursSql('src')}                        AS hours
           FROM src
           WHERE TRUE ${dateClause}
         )
@@ -14774,32 +14776,30 @@ export async function registerRoutes(
         srcCTE = `
           WITH src AS (
             SELECT complain_no, exchange_name, cabinet_no, phone_number, complain_time, close_time, close_by, close_code,
-                   FALSE AS is_open, time_till_now
+                   (close_time IS NULL) AS is_open, time_till_now
             FROM complaint_details
-            WHERE close_time IS NOT NULL AND exchange_name ILIKE '%غنايم%'
+            WHERE exchange_name ILIKE '%غنايم%'
           )`;
       } else if (srcTab === "remaining") {
+        // كل حالات شيت المتبقى (قرار المالك ٢٠٢٦-٠٩-٢٩)
         srcCTE = `
           WITH src AS (
             SELECT complain_no, exchange_name, cabinet_no, phone_number, complain_time, close_time, close_by, close_code,
-                   (FLOOR(status_code::numeric)::int = 135 AND close_time IS NULL) AS is_open, time_till_now
+                   (close_time IS NULL) AS is_open, time_till_now
             FROM remaining_complaints_current
             WHERE exchange_name ILIKE '%غنايم%'
-              AND FLOOR(status_code::numeric)::int IN (135, 138)
-              AND (FLOOR(status_code::numeric)::int = 135 OR close_time IS NOT NULL)
           )`;
       } else {
         srcCTE = `
           WITH src_raw AS (
-            SELECT complain_no, exchange_name, cabinet_no, phone_number, complain_time, close_time, close_by, close_code, 1 AS sp, FALSE::bool AS is_open, time_till_now
-            FROM complaint_details WHERE close_time IS NOT NULL AND exchange_name ILIKE '%غنايم%'
+            SELECT complain_no, exchange_name, cabinet_no, phone_number, complain_time, close_time, close_by, close_code, 1 AS sp,
+                   (close_time IS NULL)::bool AS is_open, time_till_now
+            FROM complaint_details WHERE exchange_name ILIKE '%غنايم%'
             UNION ALL
-            -- المتبقى من الجدول التاريخى الدائم (وليس _current) حتى لا تختفى المُزالة عند رفعة أحدث
+            -- المتبقى (كل الحالات) من الجدول التاريخى الدائم (وليس _current) حتى لا تختفى المُزالة عند رفعة أحدث
             SELECT complain_no, exchange_name, cabinet_no, phone_number, complain_time, close_time, close_by, close_code, 2 AS sp,
-                   (FLOOR(status_code::numeric)::int = 135 AND close_time IS NULL)::bool AS is_open, time_till_now
+                   (close_time IS NULL)::bool AS is_open, time_till_now
             FROM remaining_complaints WHERE exchange_name ILIKE '%غنايم%'
-              AND FLOOR(status_code::numeric)::int IN (135, 138)
-              AND (FLOOR(status_code::numeric)::int = 135 OR close_time IS NOT NULL)
           ),
           src AS (
             SELECT DISTINCT ON (complain_no) complain_no, exchange_name, cabinet_no, phone_number, complain_time, close_time, close_by, close_code, is_open, time_till_now
@@ -14818,18 +14818,15 @@ export async function registerRoutes(
             src.complain_time                                                            AS "complainTime",
             src.close_time                                                               AS "closeTime",
             src.close_code                                                               AS "closeCode",
-            ROUND(CASE
-              WHEN src.is_open
-                THEN EXTRACT(EPOCH FROM (${NOW_SHEET} - src.complain_time)) / 3600.0
-              ELSE
-                ${closedHoursSql('src')}
-            END, 1)                                                                      AS hours,
+            -- عمود الشيت «Time untill now(except 135)» — نفس اللى بيعدّ فى removal/combined-stats
+            ROUND((${sheetHoursSql('src')})::numeric, 1)                                 AS hours,
+            (${sheetHoursSql('src')})                                                     AS "hoursExact",
             -- الساعات محسوبة من التوقيتين وحدهما (إغلاق − شكوى) — للمقارنة مع
             -- «ساعات» أعلاه اللى بتاخد قيمة الشيت الرسمية «فترة الاستمرار باستبعاد
             -- الحالة 135». الفرق بينهم = مدة تعليق الشكوى (135)، وده اللى بيخلّى
             -- عطل مقفول بعد 23 ساعة بالتوقيتين يتحسب رسمياً أكتر أو أقل من 24.
             ROUND(EXTRACT(EPOCH FROM (src.close_time - src.complain_time)) / 3600.0, 1) AS "hoursByStamps",
-            (src.time_till_now IS NOT NULL AND NOT src.is_open)                          AS "hoursFromSheet",
+            (src.time_till_now IS NOT NULL)                                              AS "hoursFromSheet",
             COALESCE(
               (SELECT mcb.tech_name FROM manual_close_by mcb WHERE mcb.complain_no = src.complain_no LIMIT 1),
               (SELECT tn.tech_name FROM technician_names tn WHERE tn.worker_code = src.close_by LIMIT 1),
@@ -14862,7 +14859,7 @@ export async function registerRoutes(
           FROM src
           WHERE TRUE ${dateClause}
         )
-        SELECT * FROM base b WHERE b.hours > 24 ${techClause} ORDER BY b.hours DESC LIMIT 5000
+        SELECT * FROM base b WHERE b."hoursExact" > 24 ${techClause} ORDER BY b."hoursExact" DESC LIMIT 5000
       `, params);
 
       res.json(rows);
