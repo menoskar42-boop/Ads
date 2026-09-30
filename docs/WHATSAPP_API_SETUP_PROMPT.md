@@ -37,7 +37,7 @@
 
 ── 🔴 خطوط حمرا (ممنوع تماماً) ──────────────────────────────────────────
 ١) ممنوع تلمس أى حاجة تخص OscarDevs: صفحة الفيسبوك، الإعلانات، الإنستجرام، أو أى
-   Business Portfolio موجود. كل الشغل فى **Business Portfolio جديد منفصل**.
+   Business Portfolio موجود. كل الشغل فى **Business Portfolio جديد منفصل** (واحد بس — متعملش حافظة تانية).
    لو فيسبوك رفض إنشاء واحد جديد → قف واسأل المالك.
 ٢) ممنوع تضيف للـAPI أى رقم عليه واتساب دلوقتى (تطبيق عادى أو Business) — الإضافة
    بتمسح حساب الواتساب بتاعه. وممنوع الرقم اللى اتحظر قبل كده. الرقم لازم **جديد**
@@ -67,11 +67,18 @@
 ١) Business Portfolio جديد
    - business.facebook.com → إنشاء Business Portfolio جديد بالاسم اللى المالك اختاره.
    - الإيميل: إيميل المالك (اسأله لو فيه أكتر من واحد).
+   - «معلومات النشاط التجارى»: لازم بيانات تواصل، وإلا Meta بترفض إنشاء حساب واتساب
+     الحقيقى («نشاطك التجارى لم يستوفِ متطلبات سياسة واتساب» — اتجرّب ٢٠٢٦-٠٩-٣٠):
+       التليفون: 01552406406
+       العنوان: سنترال الغنايم، مركز الغنايم، محافظة أسيوط، مصر
+       الرمز البريدى: فاضى لو اختيارى — لو إجبارى اسأل المالك، متخمّنش.
+       الموقع: فاضى. ممنوع oscardevs.com أو أى رابط لـOscarDevs.
 
 ٢) App على Meta for Developers
    - developers.facebook.com → My Apps → Create App.
    - النوع/الاستخدام: Business (أو «Other» ثم Business).
-   - الاسم: ServiceFlow WhatsApp.
+   - الاسم: ServiceFlow Messaging.
+     (Meta بترفض كلمة WhatsApp فى أسماء التطبيقات — علامة تجارية. اتجرّب ٢٠٢٦-٠٩-٣٠.)
    - اربطه بالـBusiness Portfolio **الجديد** (مش بتاع OscarDevs).
    - من صفحة الـApp: Add product → WhatsApp → Set up.
      ده بيعمل WhatsApp Business Account (WABA) ورقم اختبار مجانى.
@@ -83,9 +90,11 @@
    - سجّل: WhatsApp Business Account ID، وPhone number ID بتاع رقم الاختبار.
 
 ٤) إضافة الرقم الحقيقى
-   - WhatsApp Manager (أو API Setup → Add phone number).
-   - Display name: اللى المالك اختاره. الفئة (Category): أقرب حاجة لخدمة عملاء/
-     اتصالات (لو مش واضح اسأل المالك). الوصف: «متابعة أعطال خطوط التليفون الأرضى».
+   - حساب الاختبار محدود برقم واحد، فالرقم الحقيقى بيحتاج حساب واتساب حقيقى:
+     «Create a new WhatsApp Business account» (Cloud API) — مش «ربط تطبيق
+     WhatsApp Business» — وجوّه نفس الحافظة. لو أى فورم هيعمل حافظة تانية → اقفله.
+   - Display name: «سنترال الغنايم - متابعة الأعطال» (أو اللى المالك اختاره).
+     الفئة (Category): «غير ذلك» (مفيش فئة اتصالات). الوصف: «متابعة أعطال خطوط التليفون الأرضى».
    - التأكيد بـSMS أو مكالمة صوتية → اطلب الكود من المالك.
    - سجّل: Phone number ID بتاع الرقم الحقيقى، وحالة اسم العرض.
 
@@ -131,7 +140,7 @@
 ٧) توكن دائم (System User)
    - business.facebook.com → Business settings (للـPortfolio الجديد) → Users →
      System users → Add: الاسم serviceflow-bot، الدور Admin.
-   - Assign assets: الـApp (ServiceFlow WhatsApp) بصلاحية كاملة، وحساب WhatsApp
+   - Assign assets: الـApp (ServiceFlow Messaging) بصلاحية كاملة، وحساب WhatsApp
      (WABA) بصلاحية كاملة.
    - Generate new token → اختار الـApp → Expiration: Never →
      Permissions: whatsapp_business_messaging + whatsapp_business_management.
