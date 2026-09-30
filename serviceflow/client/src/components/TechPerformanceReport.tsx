@@ -81,6 +81,8 @@ interface TechRow {
   // Faults/1000
   per1000: number | null;
   adslScore: number;
+  // عدد أعطال الفترة اللى الأعطال فى الألف محسوبة عليها (نصيبه لو الكابينة مشتركة)
+  adslFaults: number;
   // Removal
   pct24h: number | null;
   remScore: number;
@@ -287,6 +289,7 @@ export function TechPerformanceReport() {
         omPct, omScore: s_om,
         repRatio, repScore: s_rep,
         per1000: p1000, adslScore: s_asl,
+        adslFaults: adslMap.get(name)?.faults ?? 0,
         pct24h, remScore: s_rem,
         total: Math.round((s_om + s_rep + s_asl + s_rem) * 10) / 10,
       });
@@ -315,6 +318,7 @@ export function TechPerformanceReport() {
       omPct, omScore: omScore(omPct),
       repRatio, repScore: repScore(repRatio),
       per1000: overallP1000, adslScore: adslScore(overallP1000),
+      adslFaults,
       pct24h, remScore: remScore(pct24h),
       total: Math.round((omScore(omPct) + repScore(repRatio) + adslScore(overallP1000) + remScore(pct24h)) * 10) / 10,
     };
@@ -573,6 +577,18 @@ export function TechPerformanceReport() {
           </select>
           <div className="flex-1" />
           {isFetching && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+          {/* عدد أعطال الفترة اللى «الأعطال فى الألف» محسوبة عليها (قرار المالك ٢٠٢٦-٠٩-٣٠):
+              الفنى يشوف أعطاله هو بس، وباقى المستخدمين إجمالى الإدارة. */}
+          <span
+            className="text-xs px-2 py-1 rounded font-medium bg-blue-50 text-blue-800 border border-blue-200"
+            title={techView
+              ? "عدد أعطالك فى الفترة المحددة — اللى محسوب عليها «الأعطال فى الألف» (نصيبك لو الكابينة مشتركة)"
+              : "إجمالى أعطال الإدارة فى الفترة المحددة — اللى محسوب عليها «الأعطال فى الألف»"}
+            data-testid="text-period-faults"
+          >
+            {techView ? "أعطالك فى الفترة" : "أعطال الإدارة فى الفترة"}:{" "}
+            <strong>{techView ? (visRows[0]?.adslFaults ?? 0) : overall.adslFaults}</strong>
+          </span>
           <Button variant="outline" size="sm" onClick={loadRep} className="text-purple-700 border-purple-200 gap-1">
             <Repeat2 className="w-4 h-4" /> الأرقام المكررة
           </Button>
