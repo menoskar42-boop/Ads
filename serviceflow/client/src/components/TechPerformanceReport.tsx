@@ -37,6 +37,9 @@ interface Beyond24Row {
 
 const CENTRALS = ["الغنايم", "الغنايم-العزايزة", "الغنايم-دير الجنادله", "الغنايم-نجع العمدة"];
 const REP_TARGET  = 4;  // مستهدف التكرار 4%
+// سقف التكرار (قرار المالك ٢٠٢٦-٠٩-٣٠): أكتر من 4.8% → درجة التكرار صفر، للفنى وللإدارة.
+// المقارنة على النسبة زى ما هى معروضة (رقم عشرى واحد) — 4.8 المعروضة = مش صفر.
+const REP_ZERO_ABOVE = 4.8;
 const ADSL_TARGET = 25; // مستهدف أعطال/1000 = 25
 const MAX_OM    = 10;
 const MAX_REP   = 35;
@@ -57,6 +60,7 @@ function repScore(ratio: number | null): number {
   if (ratio == null) return MAX_REP; // لا توجد تكرارات = ممتاز
   if (Number(ratio) <= 0) return MAX_REP;
   if (Number(ratio) <= REP_TARGET) return MAX_REP;
+  if (Math.round(Number(ratio) * 10) / 10 > REP_ZERO_ABOVE) return 0;
   return Math.round(Math.min(MAX_REP, MAX_REP * REP_TARGET / Number(ratio)) * 10) / 10;
 }
 function adslScore(per1000: number | null): number {
@@ -610,7 +614,7 @@ export function TechPerformanceReport() {
             من نظام أوزان قديم فكان بيتعارض مع الرقم الكبير (مثلاً OM: 10 مقابل 25). */}
         {[
           { label: "المتعذرات OM", max: MAX_OM, note: `مطلق — 100% تحقيق = ${MAX_OM} درجة` },
-          { label: "التكرار", max: MAX_REP, note: `مستهدف ${REP_TARGET}% أو أقل = ${MAX_REP} درجة` },
+          { label: "التكرار", max: MAX_REP, note: `مستهدف ${REP_TARGET}% أو أقل = ${MAX_REP} درجة — أكتر من ${REP_ZERO_ABOVE}% = صفر` },
           { label: "الأعطال فى الألف", max: MAX_ADSL, note: `مستهدف ${ADSL_TARGET}/ألف أو أقل = ${MAX_ADSL} درجة` },
           { label: "نسبة الإزالة 24h", max: MAX_REM, note: `مطلق — 100% = ${MAX_REM} درجة` },
         ].map((item) => (
