@@ -39,6 +39,22 @@ export function formatComplaintTime(at: string | Date | null | undefined, wallCl
   };
 }
 
+// اسم الفنى فى الرسالة ثنائى بس (طلب المالك): «حسن عبد الفتاح محمد» → «حسن عبد الفتاح»،
+// و«سامى» → «سامى». الاسم المركّب بيتحسب اسم واحد: عبد/أبو + اللى بعده («عبد الفتاح»)،
+// و… + الدين/الله («نور الدين»، «فتح الله») — عشان مايطلعش «حسن عبد».
+export function shortTechName(full: string | null | undefined): string {
+  const w = String(full ?? "").trim().split(/\s+/).filter(Boolean);
+  const parts: string[] = [];
+  let i = 0;
+  while (i < w.length && parts.length < 2) {
+    let p = w[i++];
+    if (/^(عبد|ابو|أبو)$/.test(p) && i < w.length) p += " " + w[i++];
+    if (i < w.length && /^(الدين|الله)$/.test(w[i])) p += " " + w[i++];
+    parts.push(p);
+  }
+  return parts.join(" ");
+}
+
 export interface FollowupSmsInput {
   phone: string;                         // رقم التليفون الأرضى زى ما بيظهر (مثلاً 882821905)
   lastComplaintAt?: string | Date | null; // آخر بلاغ على الخط — فاضى = الرسالة من غير جملة البلاغ
@@ -49,7 +65,7 @@ export interface FollowupSmsInput {
 export function buildFollowupSms(i: FollowupSmsInput): string {
   const when = formatComplaintTime(i.lastComplaintAt);
   const techMobile = normalizeEgMobile(i.techMobile);
-  const techName = String(i.techName ?? "").trim();
+  const techName = shortTechName(i.techName);
   const lines = ["سنترال الغنايم"];
   if (when) {
     lines.push(`عميلنا العزيز، تم تسجيل بلاغ عن خط التليفون ${i.phone} يوم ${when.day} ${when.date} الساعة ${when.time}.`);

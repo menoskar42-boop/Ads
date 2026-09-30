@@ -36,6 +36,7 @@ for (const line of ['"سنترال الغنايم"', 'عميلنا العزيز�
   'في حالة وجود أي مشكلة يرجى التواصل مع السنترال على ${CENTRAL_SMS_CONTACT} (مكالمة أو واتساب)${tech}.',
   '، أو مع الفني المختص', '"شكراً لحضرتك."', 'export const CENTRAL_SMS_CONTACT = "01552406406";'])
   need(msg.includes(line), `نص الرسالة المعتمد اتغيّر: ${line}`);
+need(/const techName = shortTechName\(i\.techName\);/.test(msg), 'اسم الفنى فى الرسالة لازم ثنائى (shortTechName) — طلب المالك.');
 need(/hour12: false/.test(msg) && /\$\{h24 < 12 \? "ص" : "م"\}/.test(msg), 'الوقت لازم ١٢ ساعة بـص/م.');
 
 const btn = lib.slice(lib.indexOf('export function SmsButton'), lib.indexOf('export function MobileValue'));

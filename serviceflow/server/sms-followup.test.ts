@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildFollowupSms, formatComplaintTime, normalizeEgMobile, smsHref } from "../shared/sms-message";
+import { buildFollowupSms, formatComplaintTime, normalizeEgMobile, shortTechName, smsHref } from "../shared/sms-message";
 
 // رسالة SMS المتابعة (قرار المالك ٢٠٢٦-٠٩-٣٠) — النص معتمد من المالك بالحرف.
 const WITH_COMPLAINT = [
@@ -15,8 +15,19 @@ test("النص المعتمد بالحرف — بلاغ + فنى له محمول
   // lastComplaintAt من «بحث برقم التليفون» = وقت حائط القاهرة متسجّل كـUTC
   assert.equal(buildFollowupSms({
     phone: "882821905", lastComplaintAt: "2026-09-29T10:30:00.000Z",
-    techName: "حسن عبد الفتاح", techMobile: "1012345678",
+    techName: "حسن عبد الفتاح يعقوب", techMobile: "1012345678",
   }), WITH_COMPLAINT);
+});
+
+test("اسم الفنى ثنائى بس، وأحادى لو مالوش تانى — والمركّب اسم واحد", () => {
+  assert.equal(shortTechName("حسن عبد الفتاح يعقوب"), "حسن عبد الفتاح");
+  assert.equal(shortTechName("سامى"), "سامى");
+  assert.equal(shortTechName("محمد أحمد على"), "محمد أحمد");
+  assert.equal(shortTechName("عبد الله محمد حسن"), "عبد الله محمد");
+  assert.equal(shortTechName("أحمد أبو بكر سالم"), "أحمد أبو بكر");
+  assert.equal(shortTechName("محمد نور الدين حسن"), "محمد نور الدين");
+  assert.equal(shortTechName("  على   محمود  "), "على محمود");
+  assert.match(buildFollowupSms({ phone: "1", techName: "سامى", techMobile: "01012345678" }), /الفني المختص سامى على 01012345678/);
 });
 
 test("خط مالوش بلاغ: من غير جملة البلاغ (اختيار المالك «ب»)", () => {
