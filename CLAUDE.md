@@ -177,6 +177,14 @@ sitemap، Schema.org / JSON-LD، الروابط (URLs)، الهيدنجز (h1/h2
   أربع مراحل — `--purge` (اللى بيفضّى القاعدة) مابيشتغلش غير بعد `--verify`.
   الحارس: `node scripts/check-r2-prompt.js`. **Trigger:** «ابعتلي برومبت
   تجهيز R2».
+- `docs/WHATSAPP_API_SETUP_PROMPT.md` — **برومبت الإكستنشن لتفعيل WhatsApp Business
+  API (Cloud API) من Meta مباشرة** — بديل الـSMS بعد ما خط المالك اتوقف من فلتر السبام
+  (٢٠٢٦-٠٩-٣٠). من غير سجل تجارى (حد ٢٥٠ عميل/يوم)، على الرقم 01551505006، بـ٤ قوالب
+  Utility **مطابقة بالحرف** لنص رسالة المتابعة فى `serviceflow/shared/sms-message.ts`،
+  و٣ أسرار فى مشروع sf (`WHATSAPP_ACCESS_TOKEN` · `WHATSAPP_PHONE_NUMBER_ID` ·
+  `WHATSAPP_WABA_ID`). خطوط حمرا: ممنوع لمس صفحة/إعلانات OscarDevs، ولا رقم عليه واتساب،
+  ولا التوكن فى الشات، ولا الكارت. الحارس: `node scripts/check-whatsapp-prompt.js`.
+  **Trigger:** «ابعتلي برومبت تفعيل واتساب API».
 - `docs/SALES_OUTREACH_PROMPT.md` — قالب «برومبت استهداف العملاء». **Trigger:** لما يقول المالك «ابعتلي برومبت استهداف العملاء» → أرسل البرومبت اللي في الملف ده (مع تعديل القطاع حسب طلبه).
 - `docs/LIVE_TEST_PROMPT.md` — **برومبت الاختبار الحي للإكستنشن.** بيئتي مافيهاش قاعدة بيانات، فأي SQL جديد بيتراجع قراءةً مش تشغيلاً. الملف ده فيه ٣٦ اختبار مرتّبين، وجدول بيقول أي بند بيختبر أي جملة SQL. **يتشغّل بعد كل Republish.**
 - `docs/GEO_BASELINE.md` — **أول قياس حقيقي للجيو (٢٠٢٦-٠٨-٢٥): صفر ذكر
