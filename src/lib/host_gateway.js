@@ -52,6 +52,45 @@ function serviceFlowPathPrefix() {
   return p === '/' ? '' : p;
 }
 
+/* ── نطاق «الإبلاغ عن عطل» العام لعملاء سنترال الغنايم ─────────────────────────
+ * (قرار المالك ٢٠٢٦-٠٩-٣٠) — ghanayem.oscardevs.com (ده اللى متسجّل كموقع النشاط فى
+ * Meta/واتساب) + ghanaymfaults.oscardevs.com كاسم تانى. وينفع يتغيّروا بـ
+ * SERVICEFLOW_REPORT_HOST (مفصولين بفاصلة).
+ *
+ * 🔒 النطاق ده **مابيوصلش لـService Flow كله** — بيعدّى مسارين بس:
+ *   GET  / أو /report              → صفحة البلاغ (serviceflow/server/public-report.ts)
+ *   POST /api/public/fault-report   → تسجيل البلاغ فى قاعدة Service Flow
+ * وأى مسار تانى (/serviceflow/… · /api/… · /maintenance · /login …) → ٤٠٤.
+ * يعنى حتى لو حد جرّب يدخل الأداة من الرابط اللى متوزّع على العملاء، مفيش باب.
+ * والفحص ده **قبل** باب المسار /serviceflow — وإلا كان النطاق ده هيفتح الأداة كلها. */
+const REPORT_HOST_DEFAULT = 'ghanayem.oscardevs.com,ghanaymfaults.oscardevs.com';
+function serviceFlowReportHosts() {
+  return parseHosts(process.env.SERVICEFLOW_REPORT_HOST || REPORT_HOST_DEFAULT);
+}
+
+function reportGate(req, res, sfUpstream, host) {
+  const path = String(req.url || '/').split('?')[0];
+  const m = String(req.method || 'GET').toUpperCase();
+  if ((m === 'GET' || m === 'HEAD') && (path === '/' || path === '/report')) {
+    req.url = '/report';
+    return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
+  }
+  if (m === 'POST' && path === '/api/public/fault-report') {
+    return proxy(req, res, sfUpstream, host, SERVICEFLOW_STATUS_KEY);
+  }
+  if ((m === 'GET' || m === 'HEAD') && path === '/robots.txt') {
+    // مسموح الزحف عشان محرّك البحث يشوف noindex اللى على الصفحة نفسها
+    res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+    return res.end('User-agent: *\nAllow: /\n');
+  }
+  res.writeHead(404, {
+    'content-type': 'text/plain; charset=utf-8',
+    'cache-control': 'no-store',
+    'x-robots-tag': 'noindex, nofollow',
+  });
+  return res.end('غير موجود');
+}
+
 /** المسار تحت البادئة؟ الحدّ لازم يكون على حدود مقطع — «/serviceflowX» مش منها. */
 function underPrefix(url, prefix) {
   if (!prefix) return false;
@@ -216,6 +255,7 @@ function createHostGateway() {
   // Keep the middleware alive for the current ads-*.replit.app deployment, where
   // Service Flow is intentionally exposed under /serviceflow instead of a
   // separate subdomain.
+  const reportHosts = sfUpstream ? serviceFlowReportHosts() : [];
   if (!hosts.length && !(sfUpstream && sfPrefix)) return null;
   console.log('🌉 Host gateway enabled for:', hosts.join(', '));
   if (sfUpstream && sfPrefix) console.log('🌉 Service Flow also on path:', sfPrefix + '/ (any host)');
@@ -224,6 +264,8 @@ function createHostGateway() {
     // the Host header; the real subdomain arrives in x-tenant-host).
     const host = String(req.headers['x-tenant-host'] || req.headers.host || '')
       .split(':')[0].toLowerCase();
+    // نطاق البلاغ العام: أول حاجة، قبل /maintenance و/cfm وباب المسار /serviceflow
+    if (reportHosts.includes(host)) return reportGate(req, res, sfUpstream, host);
     /* روابط قديمة/مختصرة من لوحة Service Flow:
      *   /maintenance → تطبيق الصيانة المدمج (يحتفظ بمساره الداخلي)
      *   /cfm         → النسخة المبنية تحت /serviceflow/cfm
@@ -289,6 +331,6 @@ function createHostGateway() {
 }
 
 module.exports = {
-  createHostGateway, loadRoutes, parseHosts, SERVICEFLOW_STATUS_KEY,
+  createHostGateway, loadRoutes, parseHosts, SERVICEFLOW_STATUS_KEY, serviceFlowReportHosts,
   serviceFlowPathPrefix, underPrefix, stripPrefix, addPrefix,
 };

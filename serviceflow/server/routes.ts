@@ -7,6 +7,7 @@ import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
 import { normalizeEgMobile, buildFollowupSms } from "@shared/sms-message";
+import { registerPublicReport } from "./public-report";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -2002,6 +2003,9 @@ export async function registerRoutes(
   // === البوابة الموحّدة: دخول واحد يشتغل على الموقعين (إضافى — مايلمسش الدخول القديم) ===
   // يجرّب حساب الطلبات (scrypt) الأول؛ ولو الدور بيفتح الكوابل + مربوط بحساب كوابل يجهّز
   // جلسة الكوابل كمان. ولو مش لاقيه فى الطلبات يجرّب حسابات الكوابل (bcrypt) — دخول كوابل فقط.
+  // صفحة «الإبلاغ عن عطل» العامة للعملاء (/report) — المسار العام الوحيد مع الدخول.
+  registerPublicReport(app, pool);
+
   app.post("/api/portal/login", async (req, res) => {
     try {
       const { username, password } = req.body || {};
@@ -11117,8 +11121,10 @@ export async function registerRoutes(
       res.status(500).json({ ok: false, error: e?.message || String(e) });
     }
   };
-  app.get("/api/cabinet-capacity/_seed", capSeedHandler);
-  app.post("/api/cabinet-capacity/_seed", capSeedHandler);
+  // بيمسح cabinet_capacity ويعيد زرعها — كان مفتوح بتوكن مكتوب فى الكود. دلوقتى سوبر أدمن بس
+  // (مفيش أى سكربت بيناديه). ٢٠٢٦-٠٩-٣٠: قفل كل المسارات اللى من غير تسجيل دخول.
+  app.get("/api/cabinet-capacity/_seed", requireAuth, requireSuperAdmin, capSeedHandler);
+  app.post("/api/cabinet-capacity/_seed", requireAuth, requireSuperAdmin, capSeedHandler);
 
   // GET /api/cabinet-capacity — list with search
   app.get("/api/cabinet-capacity", requireAuth, async (req, res) => {
@@ -12947,7 +12953,9 @@ export async function registerRoutes(
               c138c.max_speed AS "curMeasMaxSpeed", (c138c.uploaded_at AT TIME ZONE 'Africa/Cairo') AS "curMeasTime",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt",
               (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt",
-              mob.m AS "mobile"
+              -- بلاغ العميل من الصفحة العامة: محموله اللى كتبه هو الأحدث فبيتقدّم
+              COALESCE(mf.reporter_mobile, mob.m) AS "mobile",
+              mf.reporter_mobile AS "reporterMobile", mf.report_note AS "reportNote"
        FROM manual_faults mf
        LEFT JOIN phone_ports pp ON pp.phone_number = mf.full_phone
        LEFT JOIN LATERAL (

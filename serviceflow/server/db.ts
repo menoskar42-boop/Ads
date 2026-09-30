@@ -504,6 +504,14 @@ export async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS manual_faults_phone_idx ON manual_faults (phone_short);
     CREATE INDEX IF NOT EXISTS manual_faults_regularized_at_idx ON manual_faults (regularized_at DESC) WHERE status = 'regularized';
   `);
+  // بلاغ العميل من الصفحة العامة /report (server/public-report.ts)
+  await pool.query(`
+    ALTER TABLE manual_faults ADD COLUMN IF NOT EXISTS report_source text;
+    ALTER TABLE manual_faults ADD COLUMN IF NOT EXISTS reporter_mobile text;
+    ALTER TABLE manual_faults ADD COLUMN IF NOT EXISTS report_note text;
+    ALTER TABLE manual_faults ADD COLUMN IF NOT EXISTS reporter_ip text;
+    CREATE INDEX IF NOT EXISTS manual_faults_public_idx ON manual_faults (flagged_at) WHERE report_source = 'public';
+  `);
 
   // Reconcile ticket_queue unique constraint → composite (ticket_id, status_code).
   // Needed when the table was created earlier with a single-column unique.

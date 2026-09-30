@@ -37,6 +37,9 @@ interface Row {
   curMeasScore: number | null; curMeasCurrentSpeed: string | null; curMeasMaxSpeed: string | null; curMeasTime: string | null;
   lastPoRaiseAt: string | null; lastPoStopAt: string | null;
   mobile: string | null;
+  // بلاغ العميل من الصفحة العامة: محمول التواصل اللى كتبه + نوع المشكلة
+  reporterMobile?: string | null;
+  reportNote?: string | null;
 }
 
 // تطبيع رقم المحمول للاتصال: أرقام فقط + إضافة صفر بادئ لو ناقص (1552… → 01552…)
@@ -144,7 +147,8 @@ export function ManualCurrentFaultsReport() {
   ];
   const dash = (v: any) => (v == null || v === "" ? "-" : String(v));
   const toRow = (x: Row) => [
-    fmt(x.flaggedAt), x.fullPhone || x.phoneShort || "-", mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] || "-", dash(x.flaggedBy),
+    fmt(x.flaggedAt), x.fullPhone || x.phoneShort || "-", x.reporterMobile || mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] || "-",
+    dash(x.reportNote ? `${x.flaggedBy} — ${x.reportNote}` : x.flaggedBy),
     dash(x.central), dash(x.cabinNumber), dash(x.boxNumber), dash(x.msanCode), dash(x.techName), dash(x.frame),
     dash(x.accountNo), dash(x.lineCurrentSpeed), dash(x.lineMaxSpeed), dash(x.lastMeasScore), dash(x.poStatus), fmt(x.lastMeasTime), dash(x.curMeasScore),
     dash(x.shelf), dash(x.slot), dash(x.portNumber), dash(x.portType),
@@ -214,7 +218,7 @@ export function ManualCurrentFaultsReport() {
                             </a>
                           )}
                         </span>
-                      ) : i === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile} phone={x.phoneShort || x.fullPhone} /> : i === 14 ? <PoStatusCell value={x.poStatus} /> : (val || "-")}
+                      ) : i === 2 ? <MobileValue mobile={x.reporterMobile || (mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile)} phone={x.phoneShort || x.fullPhone} /> : i === 14 ? <PoStatusCell value={x.poStatus} /> : (val || "-")}
                     </TableCell>
                   ))}
                 </TableRow>

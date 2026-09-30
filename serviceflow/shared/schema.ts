@@ -453,6 +453,12 @@ export const manualFaults = pgTable("manual_faults", {
   regularizedAt: timestamp("regularized_at"),
   regularizedBy: text("regularized_by"),                // فنى الانتظام
   closeCode: text("close_code"),                        // سبب الإغلاق
+  // بلاغ العميل من الصفحة العامة /report (٢٠٢٦-٠٩-٣٠): المصدر + محمول التواصل + وصف المشكلة
+  // + الـIP (لحدود منع الإغراق بس)
+  reportSource: text("report_source"),                  // 'public' = بلاغ عميل
+  reporterMobile: text("reporter_mobile"),
+  reportNote: text("report_note"),
+  reporterIp: text("reporter_ip"),
 });
 export type ManualFault = typeof manualFaults.$inferSelect;
 

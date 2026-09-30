@@ -30,6 +30,8 @@ const RESERVED_SLUGS = new Set([
   // نطاقات فرعية ليها معنى عند مزوّدي الخدمة
   'www', 'mail', 'smtp', 'imap', 'ftp', 'ns', 'ns1', 'ns2', 'mx', 'cdn',
   'root', 'test', 'staging', 'dev', 'local', 'localhost',
+  // نطاقات محجوزة لتطبيقات مستضافة (البوّاب بيوجّهها قبل المتاجر)
+  'ghanayem', 'ghanaymfaults', 'mybible', 'mybible2', 'deals',
 ]);
 
 /** هل الاسم ده محجوز؟ (بيقارن بحروف صغيرة ومن غير مسافات) */
