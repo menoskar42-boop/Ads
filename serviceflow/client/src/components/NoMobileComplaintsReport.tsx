@@ -338,7 +338,7 @@ export function NoMobileComplaintsReport() {
                         </span>
                        ) : (
                          <span className="inline-flex items-center gap-1">
-                           <MobileValue mobile={mobileLookup[phoneLookupKey(row.phoneShort || row.fullPhone)]} />
+                           <MobileValue mobile={mobileLookup[phoneLookupKey(row.phoneShort || row.fullPhone)]} phone={row.phoneShort || row.fullPhone} />
                            <button onClick={() => startEdit(row)} className="inline-flex items-center gap-1 text-xs text-blue-700 border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-50" title="إضافة رقم موبايل">
                              <Phone className="w-3 h-3" /> + إضافة
                            </button>

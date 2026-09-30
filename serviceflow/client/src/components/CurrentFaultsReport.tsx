@@ -721,7 +721,7 @@ export function CurrentFaultsReport() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1">
-                          <MobileValue mobile={mobile} />
+                          <MobileValue mobile={mobile} phone={f.phoneShort} />
                           {isSuper && f.phoneShort && (
                             <button
                               type="button"

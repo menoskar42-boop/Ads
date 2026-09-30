@@ -727,7 +727,7 @@ export function TechPerformanceReport() {
                       <TableCell className="text-center">{i + 1}</TableCell>
                       <TableCell className="text-center">{r.phoneNumber}</TableCell>
                        <TableCell className="text-center">
-                         <MobileValue mobile={repMobileLookup[phoneLookupKey(r.phoneNumber)]} />
+                         <MobileValue mobile={repMobileLookup[phoneLookupKey(r.phoneNumber)]} phone={r.phoneNumber} />
                        </TableCell>
                       <TableCell className="text-center">
                         <button

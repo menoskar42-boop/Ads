@@ -171,7 +171,7 @@ export function WorkOrdersNoCableReport() {
                     <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="text-center font-mono">{r.workOrderId ?? "-"}</TableCell>
                     <TableCell className="text-center font-mono font-semibold text-blue-700">{r.phoneNumber ?? "-"}</TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneNumber)]} /></TableCell>
+                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneNumber)]} phone={r.phoneNumber} /></TableCell>
                     <TableCell>{r.centralName ?? "-"}</TableCell>
                     <TableCell className="text-center">{r.serviceType ?? "-"}</TableCell>
                     <TableCell className="text-center">{r.itemName ?? "-"}</TableCell>

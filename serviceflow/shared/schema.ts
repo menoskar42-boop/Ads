@@ -66,6 +66,7 @@ export const users = pgTable("users", {
   fullName: text("full_name"), // 🆕 الاسم الظاهر (نفس «الاسم فى برنامج الكوابل») — يُستخدم أيضاً فى برنامج الصيانة عبر SSO
   passwordPlain: text("password_plain"), // 🆕 نسخة نصية من الباسورد ليطّلع عليها السوبر أدمن فقط (يُملأ عند الإنشاء/التغيير)
   cfmUserId: text("cfm_user_id"), // 🆕 البوابة الموحّدة: ربط بحساب الكوابل المقابل
+  mobile: text("mobile"), // 🆕 رقم محمول الفنى — بيظهر فى رسالة SMS المتابعة للعميل
   suspended: boolean("suspended").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });

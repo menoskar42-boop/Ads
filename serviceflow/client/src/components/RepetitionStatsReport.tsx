@@ -664,7 +664,7 @@ export function RepetitionStatsReport() {
                       <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-bold text-purple-900">{r.phoneNumber}</TableCell>
                       <TableCell>
-                        <MobileValue mobile={repDetailMobileLookup[phoneLookupKey(r.phoneNumber)]} />
+                        <MobileValue mobile={repDetailMobileLookup[phoneLookupKey(r.phoneNumber)]} phone={r.phoneNumber} />
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{r.subName ?? "—"}</TableCell>
                       <TableCell className="max-w-[220px] truncate" title={r.subAdd ?? ""}>{r.subAdd ?? "—"}</TableCell>

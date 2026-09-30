@@ -383,7 +383,7 @@ export function RegularizedNoAccountReport() {
                       <TableCell className="font-medium">{r.cabinNumber || "-"}</TableCell>
                       <TableCell className="font-medium">{r.boxNumber || "-"}</TableCell>
                       <TableCell className="font-mono text-muted-foreground">{r.telNo || "-"}</TableCell>
-                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
+                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} /></TableCell>
                       <TableCell>{r.iduNo || "-"}</TableCell>
                       <TableCell>{r.oduNo || "-"}</TableCell>
                       <TableCell>{r.dpTerminal || "-"}</TableCell>

@@ -261,7 +261,7 @@ export function ExecJobsReport() {
                     })()}
                   </TableCell>
                    <TableCell className="align-top">
-                     <MobileValue mobile={mobileLookup[phoneLookupKey(j.phone.split("،")[0]?.trim())]} />
+                     <MobileValue mobile={mobileLookup[phoneLookupKey(j.phone.split("،")[0]?.trim())]} phone={j.phone.split("،")[0]?.trim()} />
                    </TableCell>
                   <TableCell className="align-top">
                     {(() => {

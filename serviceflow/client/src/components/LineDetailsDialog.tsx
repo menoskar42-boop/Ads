@@ -177,7 +177,7 @@ export function LineDetailsDialog({
                     </span>
                   ) : (
                     <span className="inline-flex flex-wrap items-center gap-1">
-                      <MobileValue mobile={l.mobile} />
+                      <MobileValue mobile={l.mobile} phone={l.fullPhone || phone} />
                       {isSuperAdmin && (
                         <button
                           type="button"

@@ -757,7 +757,7 @@ export function WithAccountReport({ scoreGt, scoreEq, editorsOnly, showC360, nev
                   {data?.data.map((r, idx) => (
                     <TableRow key={idx} className="hover:bg-muted/30 transition-colors">
                       <TableCell className="font-mono font-semibold text-blue-700">{r.fullPhone || "-"}</TableCell>
-                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
+                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} /></TableCell>
                       {!neverMeasured && <TableCell dir="ltr" className="text-left text-xs whitespace-nowrap text-muted-foreground">{fmtMeasDate(r.lastMeasTime)}</TableCell>}
                       <TableCell dir="ltr" className="text-left font-mono">
                         {editingPhone === r.fullPhone ? (

@@ -305,7 +305,7 @@ export function OpenTicketLinesReport() {
                         </button>
                       )}
                     </TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(l.telNo || l.fullPhone)]} /></TableCell>
+                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(l.telNo || l.fullPhone)]} phone={l.telNo || l.fullPhone} /></TableCell>
                     <TableCell dir="ltr" className="text-left font-mono">{l.accountNo || "-"}</TableCell>
                     <TableCell>{scoreBadge(l.lastMeasScore)}</TableCell>
                     <TableCell><PoStatusCell value={l.poStatus} /></TableCell>

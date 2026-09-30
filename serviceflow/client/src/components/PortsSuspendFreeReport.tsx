@@ -194,7 +194,7 @@ export function PortsSuspendFreeReport() {
                 <TableRow key={r.phoneNumber} className="hover:bg-muted/30">
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell dir="ltr" className="text-left font-mono text-xs">{r.phoneNumber}</TableCell>
-                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneNumber)]} /></TableCell>
+                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneNumber)]} phone={r.phoneNumber} /></TableCell>
                   <TableCell className="whitespace-nowrap text-xs">{r.central || <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="whitespace-normal break-words min-w-[140px]">{r.subName || <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell className="whitespace-normal break-words min-w-[200px] max-w-[320px]">{r.subAdd || <span className="text-muted-foreground">—</span>}</TableCell>

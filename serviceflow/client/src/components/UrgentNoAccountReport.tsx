@@ -429,7 +429,7 @@ export function UrgentNoAccountReport() {
                     <TableCell className="whitespace-nowrap">{row.central || "-"}</TableCell>
                     <TableCell>{row.cabinNumber || "-"}</TableCell>
                     <TableCell>{row.boxNumber || "-"}</TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(row.telNo || row.fullPhone)]} /></TableCell>
+                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(row.telNo || row.fullPhone)]} phone={row.telNo || row.fullPhone} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

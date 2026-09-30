@@ -14,6 +14,7 @@ import { openProfileOptimization } from "@/lib/profile-optimization";
 import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK } from "@/lib/exec-queue";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { useAuth } from "@/hooks/use-auth";
+import { SmsButton } from "@/lib/mobile-lookup";
 import { ROLES } from "@shared/schema";
 import { Gauge } from "lucide-react";
 import { maintStatusBadge, boxCoords, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
@@ -353,6 +354,7 @@ export function PhoneLookupReport() {
               <Phone className="w-3 h-3" /> اتصال
             </a>
           ) : null}
+          <SmsButton mobile={line.mobile} phone={line.fullPhone || line.telNo} />
           <button onClick={() => { setMobileInput(line.mobile ?? ""); setEditingMobile(true); }}
             className="text-[11px] text-blue-600 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-50">
             {line.mobile ? "تعديل" : "＋ إضافة"}

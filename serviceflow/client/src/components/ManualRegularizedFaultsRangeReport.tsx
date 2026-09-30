@@ -112,7 +112,7 @@ export function ManualRegularizedFaultsRangeReport() {
               <TableRow key={x.id}>
                 <TableCell className="whitespace-nowrap">{fmt(x.regularizedAt)}</TableCell>
                 <TableCell className="whitespace-nowrap font-medium">{x.fullPhone || x.phoneShort || "-"}</TableCell>
-                <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)]} /></TableCell>
+                <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)]} phone={x.phoneShort || x.fullPhone} /></TableCell>
                 <TableCell className="whitespace-nowrap">{x.accountNo || "-"}</TableCell>
                 <TableCell>{x.currentSpeed || "-"}</TableCell>
                 <TableCell>{x.maxSpeed || "-"}</TableCell>

@@ -518,7 +518,7 @@ export function PhoneLinesReport() {
                       <TableCell className="font-medium">{r.cabinNumber || "-"}</TableCell>
                       <TableCell className="font-medium">{r.boxNumber || "-"}</TableCell>
                       <TableCell className="font-mono text-muted-foreground">{r.telNo || "-"}</TableCell>
-                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo ?? r.fullPhone)]} /></TableCell>
+                      <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo ?? r.fullPhone)]} phone={r.telNo ?? r.fullPhone} /></TableCell>
                       <TableCell className="font-mono">{r.msanCode || "-"}</TableCell>
                       <TableCell className="font-mono">{r.frameNo || "-"}</TableCell>
                       <TableCell>

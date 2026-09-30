@@ -116,7 +116,7 @@ export function PortChangeReport() {
                           </button>
                         )}
                       </span>
-                    ) : j === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneNumber)]} /> : cell}
+                    ) : j === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneNumber)]} phone={r.phoneNumber} /> : cell}
                   </TableCell>
                 ))}
               </TableRow>

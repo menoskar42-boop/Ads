@@ -150,7 +150,7 @@ export function RemovedPortsReport() {
                   {columns.map(([h, f]) => (
                     <TableCell key={h} className="whitespace-nowrap text-sm">
                       {h === "رقم الموبايل"
-                        ? <MobileValue mobile={f(r)} />
+                        ? <MobileValue mobile={f(r)} phone={r.phoneNumber} />
                         : f(r) ?? "-"}
                     </TableCell>
                   ))}

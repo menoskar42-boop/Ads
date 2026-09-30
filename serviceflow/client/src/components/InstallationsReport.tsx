@@ -333,7 +333,7 @@ export function InstallationsReport({
                     <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{o.workOrderId ?? "-"}</span>
                   </TableCell>
                   <TableCell dir="ltr" className="text-left font-mono">{o.phoneNumber || "-"}</TableCell>
-                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(o.phoneNumber)] ?? o.mobile} /></TableCell>
+                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(o.phoneNumber)] ?? o.mobile} phone={o.phoneNumber} /></TableCell>
                   <TableCell className="max-w-[180px] whitespace-normal break-words align-top">{o.customerName || "-"}</TableCell>
                   <TableCell className="max-w-[260px] whitespace-normal break-words align-top">{o.address || "-"}</TableCell>
                   <TableCell className="font-medium" title={o.workOrderType || ""}>{displayType(o.workOrderType)}</TableCell>

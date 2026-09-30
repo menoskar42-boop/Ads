@@ -202,7 +202,7 @@ export function LinesWithoutPortReport() {
                   <TableRow key={r.fullPhone} className="hover:bg-muted/30">
                     <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
                     <TableCell className="text-center font-mono font-semibold text-blue-700">{r.telNo ?? r.fullPhone}</TableCell>
-                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
+                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} /></TableCell>
                     <TableCell className="whitespace-nowrap font-medium">{r.subName ?? "—"}</TableCell>
                     <TableCell className="max-w-[260px] truncate" title={r.subAdd ?? ""}>{r.subAdd ?? "—"}</TableCell>
                     <TableCell className="text-center font-mono">{r.accountNo ?? "—"}</TableCell>

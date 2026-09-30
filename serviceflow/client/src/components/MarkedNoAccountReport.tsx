@@ -199,7 +199,7 @@ export function MarkedNoAccountReport() {
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell className="font-mono font-semibold text-blue-700">{r.fullPhone}</TableCell>
                   <TableCell className="font-mono text-muted-foreground">{r.telNo || "-"}</TableCell>
-                  <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
+                  <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} /></TableCell>
                   <TableCell className="whitespace-nowrap">{r.central || "-"}</TableCell>
                   <TableCell>{r.cabinNumber || "-"}</TableCell>
                   <TableCell>{r.boxNumber || "-"}</TableCell>

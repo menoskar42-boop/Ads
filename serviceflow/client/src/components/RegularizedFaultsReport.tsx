@@ -522,7 +522,7 @@ export function RegularizedFaultsReport() {
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1">
-                          <MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)]} />
+                          <MobileValue mobile={mobileLookup[phoneLookupKey(f.phoneShort)]} phone={f.phoneShort} />
                           {isSuper && f.phoneShort && (
                             <button
                               type="button"

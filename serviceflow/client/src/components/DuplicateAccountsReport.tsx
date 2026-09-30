@@ -253,7 +253,7 @@ export function DuplicateAccountsReport() {
                           )}
                         </TableCell>
                         <TableCell className="font-mono font-semibold text-blue-700" dir="ltr">{r.telNo ?? r.fullPhone}</TableCell>
-                        <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} /></TableCell>
+                        <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} /></TableCell>
                         <TableCell>{r.central ?? "—"}</TableCell>
                         <TableCell className="text-center">{r.cabinNumber ?? "—"}</TableCell>
                         <TableCell className="text-center">{r.boxNumber ?? "—"}</TableCell>

@@ -14,6 +14,7 @@ interface PortalUser {
   sfId: number | null; username: string; sfRole: string | null; workerCode: string | null;
   suspended: boolean; cfmId: string | null; cfmRole: string | null; cfmName: string | null; unifiedRole: string;
   passwordPlain: string | null; // للسوبر أدمن فقط — يظهر لو الباسورد اتعمل/اتغيّر بعد إضافة الميزة
+  mobile: string | null; // رقم محمول الفنى — بيظهر فى رسالة SMS المتابعة للعميل
 }
 
 const api = async (url: string, opts?: RequestInit) => {
@@ -82,6 +83,14 @@ export function UnifiedUsersManager() {
   const updateName = useMutation({
     mutationFn: ({ username, name }: { username: string; name: string }) =>
       api(`/api/portal/users/${encodeURIComponent(username)}/name`, { method: "PATCH", body: JSON.stringify({ name }) }),
+    onSuccess: invalidate,
+    onError: (e: any) => alert(e.message),
+  });
+
+  // رقم محمول المستخدم (الفنى) — بيتكتب فى رسالة SMS المتابعة «أو مع الفني المختص … على …»
+  const updateMobile = useMutation({
+    mutationFn: ({ username, mobile }: { username: string; mobile: string }) =>
+      api(`/api/portal/users/${encodeURIComponent(username)}/mobile`, { method: "PATCH", body: JSON.stringify({ mobile }) }),
     onSuccess: invalidate,
     onError: (e: any) => alert(e.message),
   });
@@ -193,7 +202,19 @@ export function UnifiedUsersManager() {
                 <tbody>
                   {users.map((u) => (
                     <tr key={u.username} className={`border-b hover:bg-muted/20 ${u.suspended ? "opacity-60 bg-red-50/40" : ""}`}>
-                      <td className="p-2 font-medium">{u.username}{u.workerCode ? <span className="text-xs text-muted-foreground"> ({u.workerCode})</span> : null}{u.suspended ? <span className="mr-1 text-xs text-red-600 font-semibold">(موقوف)</span> : null}</td>
+                      <td className="p-2 font-medium">{u.username}{u.workerCode ? <span className="text-xs text-muted-foreground"> ({u.workerCode})</span> : null}{u.suspended ? <span className="mr-1 text-xs text-red-600 font-semibold">(موقوف)</span> : null}
+                        {u.sfId != null && (
+                          <button
+                            type="button"
+                            className="block mt-1 text-xs text-blue-700 hover:underline"
+                            dir="ltr"
+                            title="رقم محمول الفنى — بيتكتب فى رسالة SMS المتابعة للعميل"
+                            data-testid={`button-user-mobile-${u.username}`}
+                            onClick={() => { const m = prompt(`رقم محمول ${u.username} (يظهر فى رسالة SMS للعميل — فاضى = مسح):`, u.mobile || ""); if (m !== null) updateMobile.mutate({ username: u.username, mobile: m.trim() }); }}
+                          >
+                            📱 {u.mobile || "إضافة محمول"}
+                          </button>
+                        )}</td>
                       <td className="p-2">
                         {(u.cfmRole || roles.find((r) => r.key === u.unifiedRole)?.cfm) ? (
                           <button

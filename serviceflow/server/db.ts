@@ -161,6 +161,8 @@ export async function ensureSchema() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_plain text`);
   // 🆕 البوابة الموحّدة: ربط حساب الطلبات بحساب الكوابل المقابل (للى عنده حساب فى الموقعين)
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_user_id varchar`);
+  // رقم محمول الفنى — بيتكتب فى رسالة SMS المتابعة للعميل («أو مع الفنى المختص على …»)
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile text`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS orders (
       id serial PRIMARY KEY,

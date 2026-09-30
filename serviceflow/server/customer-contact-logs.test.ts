@@ -37,7 +37,7 @@ test("customer contact logs are stored with an outcome and server timestamp", ()
 
 test("the line details dialog owns the contact actions and exposes full history", () => {
   assert.match(dialog, /<CustomerContactActions phone=\{phone\} \/>/);
-  assert.match(dialog, /<MobileValue mobile=\{l\.mobile\} \/>/);
+  assert.match(dialog, /<MobileValue mobile=\{l\.mobile\} phone=\{l\.fullPhone \|\| phone\} \/>/);
   assert.match(mobileLookup, /href=\{`tel:\$\{dial\}`\}/);
   assert.match(mobileLookup, /md:hidden/);
   assert.match(actions, /تم الاتصال والعميل رد/);

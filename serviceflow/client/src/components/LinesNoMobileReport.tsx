@@ -361,7 +361,7 @@ export function LinesNoMobileReport({ checked = false }: Props) {
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1">
-                            <MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} />
+                            <MobileValue mobile={mobileLookup[phoneLookupKey(r.telNo || r.fullPhone)]} phone={r.telNo || r.fullPhone} />
                             <button onClick={() => startEdit(r)} className="inline-flex items-center gap-1 text-xs text-blue-700 border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-50" title="إضافة رقم موبايل">
                               <Phone className="w-3 h-3" /> + إضافة
                             </button>

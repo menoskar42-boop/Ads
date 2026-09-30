@@ -462,7 +462,7 @@ export function WorkOrdersReport({ category = "success", over24 = false, title, 
                       <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{o.workOrderId}</span>
                     </TableCell>
                     <TableCell dir="ltr" className="text-left">{o.phoneNumber}</TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(o.phoneNumber)]} /></TableCell>
+                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(o.phoneNumber)]} phone={o.phoneNumber} /></TableCell>
                     <TableCell>
                       <span className={`text-xs px-2 py-0.5 rounded font-medium ${o.serviceType.trim() === "نقل" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
                         {o.serviceType.trim()}

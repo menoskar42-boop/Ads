@@ -144,7 +144,7 @@ export function AccountEditsReport() {
                   <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
                     <TableCell className="text-muted-foreground text-xs">{r.id}</TableCell>
                     <TableCell className="font-mono font-semibold text-blue-700">{r.fullPhone}</TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.fullPhone)]} /></TableCell>
+                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.fullPhone)]} phone={r.fullPhone} /></TableCell>
                     <TableCell dir="ltr" className="font-mono text-left text-muted-foreground">
                       {r.oldAccountNo ?? <span className="italic text-gray-400">جديد</span>}
                     </TableCell>

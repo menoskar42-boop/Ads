@@ -458,7 +458,7 @@ export function RepeatedWithinMonthReport() {
                       )}
                     </span>
                   </TableCell>
-                  <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]} /></TableCell>
+                  <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]} phone={r.phoneShort} /></TableCell>
                   <TableCell dir="ltr" className="text-left font-mono">
                     <span className="inline-flex items-center gap-1.5">
                       {r.accountNo || "-"}

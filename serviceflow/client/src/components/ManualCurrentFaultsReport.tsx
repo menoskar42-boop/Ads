@@ -214,7 +214,7 @@ export function ManualCurrentFaultsReport() {
                             </a>
                           )}
                         </span>
-                      ) : i === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile} /> : i === 14 ? <PoStatusCell value={x.poStatus} /> : (val || "-")}
+                      ) : i === 2 ? <MobileValue mobile={mobileLookup[phoneLookupKey(x.phoneShort || x.fullPhone)] ?? x.mobile} phone={x.phoneShort || x.fullPhone} /> : i === 14 ? <PoStatusCell value={x.poStatus} /> : (val || "-")}
                     </TableCell>
                   ))}
                 </TableRow>

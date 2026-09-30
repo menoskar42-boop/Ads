@@ -354,7 +354,7 @@ export function GroundFaultsNoAccountReport() {
                     <TableCell className="font-medium">{l.cabinNumber || "-"}</TableCell>
                     <TableCell className="font-medium">{l.boxNumber || "-"}</TableCell>
                     <TableCell className="font-mono text-muted-foreground">{l.telNo || "-"}</TableCell>
-                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(l.telNo || l.fullPhone)]} /></TableCell>
+                    <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(l.telNo || l.fullPhone)]} phone={l.telNo || l.fullPhone} /></TableCell>
                     <TableCell>{l.iduNo || "-"}</TableCell>
                     <TableCell>{l.dpTerminal || "-"}</TableCell>
                   </TableRow>

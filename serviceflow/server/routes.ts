@@ -6,6 +6,7 @@ import { pool, currentPool, hasCurrentDatabase } from "./db";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
+import { normalizeEgMobile, buildFollowupSms } from "@shared/sms-message";
 import { z } from "zod";
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -3878,7 +3879,7 @@ export async function registerRoutes(
     try {
       const { rows } = await pool.query(`
         SELECT u.id AS "sfId", u.username, u.role AS "sfRole", u.worker_code AS "workerCode",
-               u.password_plain AS "passwordPlain",
+               u.password_plain AS "passwordPlain", u.mobile,
                COALESCE(u.suspended, false) AS suspended, cu.id AS "cfmId", cu.role AS "cfmRole", cu.name AS "cfmName"
         FROM users u
         LEFT JOIN LATERAL (
@@ -3887,7 +3888,7 @@ export async function registerRoutes(
         ) cu ON true
         UNION ALL
         SELECT NULL AS "sfId", cu.username, NULL AS "sfRole", NULL AS "workerCode",
-               NULL AS "passwordPlain",
+               NULL AS "passwordPlain", NULL AS mobile,
                COALESCE(cu.suspended, false) AS suspended, cu.id AS "cfmId", cu.role AS "cfmRole", cu.name AS "cfmName"
         FROM cfm_users cu
         WHERE NOT EXISTS (SELECT 1 FROM users u2 WHERE u2.cfm_user_id = cu.id OR u2.username = cu.username)
@@ -3980,6 +3981,19 @@ export async function registerRoutes(
 
   // تغيير الاسم الظاهر — يُخزَّن فى حساب الطلبات (users.full_name، ويُستخدم أيضاً فى برنامج الصيانة
   // عبر SSO) وفى حساب الكوابل (cfm_users.name، اللى بيظهر لما المستخدم يضيف حاجة). أى واحد منهم يكفى.
+  // رقم محمول المستخدم (الفنى) — بيتكتب فى رسالة SMS المتابعة للعميل. فاضى = يتمسح.
+  app.patch("/api/portal/users/:username/mobile", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const uname = String(req.params.username || "").trim();
+      const raw = String(req.body?.mobile ?? "").trim();
+      const mobile = normalizeEgMobile(raw);
+      if (raw && !mobile) return res.status(400).json({ message: "رقم المحمول غير صحيح — لازم ١١ رقم يبدأ بـ01" });
+      const r = await pool.query(`UPDATE users SET mobile = $1 WHERE username = $2`, [mobile, uname]);
+      if (!r.rowCount) return res.status(404).json({ message: "المستخدم مالوش حساب فى الطلبات" });
+      res.json({ ok: true, mobile });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   app.patch("/api/portal/users/:username/name", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
       const uname = String(req.params.username || "").trim();
@@ -7339,6 +7353,44 @@ export async function registerRoutes(
     );
     return { line: rows[0] as any, codes };
   };
+
+  // محمول الفنى المختص: الاسم (أو أسماء الإسناد اليدوى «حسن , سعيد») → أول واحد متسجّل له
+  // محمول فى إدارة المستخدمين — بالاسم الظاهر أو اسم المستخدم أو رقم العامل.
+  async function techMobileFor(techName: string): Promise<{ name: string; mobile: string } | null> {
+    const names = String(techName || "").split(",").map((s) => s.trim()).filter(Boolean);
+    for (const name of names) {
+      const { rows } = await pool.query(
+        `SELECT u.mobile FROM users u
+          WHERE NULLIF(btrim(u.mobile), '') IS NOT NULL
+            AND (btrim(COALESCE(u.full_name, '')) = $1 OR btrim(u.username) = $1
+                 OR btrim(COALESCE(u.worker_code, '')) IN (SELECT btrim(tn.worker_code) FROM technician_names tn
+                                                            WHERE btrim(tn.tech_name) = $1
+                                                              AND NULLIF(btrim(tn.worker_code), '') IS NOT NULL))
+          ORDER BY (u.role = 'tech') DESC, u.id LIMIT 1`, [name]);
+      const m = normalizeEgMobile(rows[0]?.mobile);
+      if (m) return { name, mobile: m };
+    }
+    return null;
+  }
+
+  // GET /api/sms/followup?phone= — رسالة SMS المتابعة للعميل (سوبر أدمن — قرار المالك ٢٠٢٦-٠٩-٣٠).
+  // آخر بلاغ وفنى الخط من نفس «بحث برقم التليفون» (lookupPhoneLine)، والنص من shared/sms-message.
+  // مابيبعتش حاجة — الشاشة بتفتح تطبيق الرسايل والسوبر أدمن هو اللى بيدوس إرسال.
+  app.get("/api/sms/followup", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const phone = String(req.query.phone || "").trim();
+      if (!phone.replace(/\D/g, "")) return res.status(400).json({ message: "رقم التليفون مطلوب" });
+      const { line } = await lookupPhoneLine(req.user, phone);
+      const shown = String(line?.fullPhone || line?.telNo || phone.replace(/\D/g, ""));
+      const techName = String(line?.techName || "").trim();
+      const tech = techName ? await techMobileFor(techName) : null;
+      const lastComplaintAt = line?.lastComplaintAt ?? null;
+      res.json({
+        phone: shown, lastComplaintAt, techName: tech?.name ?? (techName || null), techMobile: tech?.mobile ?? null,
+        message: buildFollowupSms({ phone: shown, lastComplaintAt, techName: tech?.name ?? techName, techMobile: tech?.mobile }),
+      });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
 
   app.get("/api/phone-lines/lookup", requireAuth, async (req, res) => {
     if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
