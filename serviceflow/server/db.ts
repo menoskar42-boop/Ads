@@ -1596,6 +1596,11 @@ export async function ensureSchema() {
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  // «بوكس مليان»: الشغّال على البكس وقت الرد — بيتقارن بالشغّال دلوقتى فى
+  // «متعذرات تم توفير خطوط بها» (قرار المالك ٢٠٢٦-٠٩-٣٠)
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS box_working_at_response integer`);
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS box_working_key text`);
+  await pool.query(`ALTER TABLE om_responses ADD COLUMN IF NOT EXISTS box_working_recorded_at timestamptz`);
 
   // فهارس على الرقم المطبَّع — بتخلّى مطابقة الشكوى بالخط تستخدم index بدل seq scan
   // (من غيرها الـ LATERAL بتاع الشكاوى بيعلّق تقارير القياسات).

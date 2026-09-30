@@ -36,7 +36,7 @@ check('اسم فنى الكابينة المعروض = اسمى بيفتح ال�
 check('إسناد MSAN اليدوى باسمى (مطابقة كاملة للاسم)',
   /unnest\(string_to_array\(mto\.tech_name, ','\)\)[\s\S]*?btrim\(n\.name\) = btrim\(\$6::text\)/.test(expr));
 check('$6 = اسمى للفنى بس',
-  /codes\.own, codes\.covered, req\.user\?\.role === ROLES\.TECH \? \(codes\.techName \|\| ""\) : ""\]/.test(routes));
+  /codes\.own, codes\.covered, (?:req\.user|reqUser)\?\.role === ROLES\.TECH \? \(codes\.techName \|\| ""\) : ""\]/.test(routes));
 check('الشاشة بتقول لو حساب الفنى مالوش كود عامل',
   /line\.myWorkerCodeMissing = req\.user\?\.role === ROLES\.TECH && codes\.own\.length === 0;/.test(routes)
   && /line\.myWorkerCodeMissing && \(/.test(ui));

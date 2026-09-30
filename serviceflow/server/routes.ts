@@ -952,6 +952,17 @@ const hasFrameSql = (fullPhoneExpr: string) => `EXISTS (
        AND COALESCE(btrim(pf.frame::text), '') <> ''
   )`;
 
+// الخطوط «الشغّالة» على بكس: بياناتها الفنية على البكس ده **ولها بورت** (فريم).
+// مصدر واحد لـ/api/box-lines ولعدّ «بوكس مليان» فى متعذرات OM — عشان الرقم اللى
+// بيتسجّل وقت الرد هو نفس الرقم اللى بيتقارن بيه بعدين.
+const boxWorkingWhereSql = (central: string, cabinet: string, box: string) =>
+  `btrim(pl.central) = btrim(${central})
+            AND (COALESCE(btrim(${cabinet}), '') = '' OR btrim(pl.cabin_number) = btrim(${cabinet}))
+            AND btrim(pl.box_number) = btrim(${box})
+            AND ${hasFrameSql("pl.full_phone")}`;
+const boxWorkingCountSql = (central: string, cabinet: string, box: string) =>
+  `(SELECT COUNT(*)::int FROM phone_lines pl WHERE ${boxWorkingWhereSql(central, cabinet, box)})`;
+
 // ── تطبيق «تصحيح البيان» على بيان التليفونات (phone_lines) ───────────────────
 // الفكرة: بدل ما نضيف استثناء فى كل تقرير، بنكتب التصحيح فى **مصدر البيانات نفسه**
 // — فأى تقرير بيقرا من phone_lines بيشوف البيانات المصححة تلقائياً (بيان التليفونات،
@@ -2157,6 +2168,8 @@ export async function registerRoutes(
       void runOneOffMeasure("heartbeat");
       // مراجعة البيان الفنى اليومية ١٢ الضهر — نفس السبب: النبضة هى اللى بتشتغل هناك
       void runPortsMissingSubinfo("heartbeat");
+      // «بوكس مليان» اللى وصل من مسار غير رد الفنى (مزامنة طلب مربوط/تأكيد) → الشغّال يتسجّل
+      void snapshotOmBoxFullWorking().catch(() => {});
       res.json({ ok: true, reload: rl[0]?.value ?? null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -4340,11 +4353,16 @@ export async function registerRoutes(
              external_id = EXCLUDED.external_id, external_name = EXCLUDED.external_name,
              is_feasible_external = EXCLUDED.is_feasible_external,
              external_rejection_reason = EXCLUDED.external_rejection_reason,
-             external_response_at = EXCLUDED.external_response_at, updated_at = now()`,
+             external_response_at = EXCLUDED.external_response_at,
+             -- رد فنى جديد على الطلب المربوط = عدّ جديد لشغّال «بوكس مليان»
+             box_working_key = CASE WHEN om_responses.responded_at IS DISTINCT FROM EXCLUDED.responded_at
+                                    THEN NULL ELSE om_responses.box_working_key END,
+             updated_at = now()`,
           [serial, o.status, o.is_feasible, o.rejection_reason, o.central_name, o.cabin_number,
            o.box_number, o.nearest_box_distance, o.additional_notes, o.tech_id, o.tech_name,
            o.tech_response_at, o.external_id, o.external_name, o.is_feasible_external,
            o.external_rejection_reason, o.external_response_at]);
+        await snapshotOmBoxFullWorking(serial).catch(() => {});
       } else {
         // متعذرات → طلبات
         const { rows } = await pool.query(
@@ -8616,6 +8634,38 @@ export async function registerRoutes(
     } catch { res.json([]); }
   });
 
+  // GET /api/reports/om-box-freed — «متعذرات تم توفير خطوط بها» (قرار المالك ٢٠٢٦-٠٩-٣٠):
+  // متعذرات OM الحالية اللى ردّها «بوكس مليان»، والشغّال على البكس دلوقتى **أقل** من
+  // اللى اتسجّل وقت الرد → اتفكّت خطوط والمتعذر ممكن يتنفّذ. all=1 → كل «بوكس مليان» بالرقمين.
+  app.get("/api/reports/om-box-freed", requireAuth, async (req: any, res) => {
+    if (req.user?.role === ROLES.SALES) return res.status(403).json({ message: "غير مسموح" });
+    try {
+      // اللى مالوش رقم لسه (رد قديم / وصل من مزامنة) بيتسجّل له الشغّال الحالى الأول
+      await snapshotOmBoxFullWorking();
+      const all = String(req.query.all ?? "") === "1";
+      const { rows } = await pool.query(
+        `SELECT r.serial_number AS "serial", fo.service_number AS "serviceNumber",
+                fo.customer_name AS "customerName", fo.msan_code AS "msanCode",
+                r.central_name AS "central", r.cabin_number AS "cabinet", r.box_number AS "box",
+                r.box_working_at_response AS "recorded", cur.n AS "current",
+                (r.box_working_at_response - cur.n) AS "freed",
+                r.box_working_recorded_at AS "recordedAt",
+                r.tech_name AS "techName", r.responded_at AS "respondedAt", r.status
+           FROM om_responses r
+           JOIN LATERAL (SELECT f.service_number, f.customer_name, f.msan_code
+                           FROM ftth_orders_current f WHERE f.serial_number = r.serial_number
+                          LIMIT 1) fo ON TRUE
+           CROSS JOIN LATERAL (SELECT ${boxWorkingCountSql("r.central_name", "r.cabin_number", "r.box_number")} AS n) cur
+          WHERE r.rejection_reason = $1
+            AND r.box_working_at_response IS NOT NULL
+            AND r.status NOT IN ($2, $3)
+            ${all ? "" : "AND cur.n < r.box_working_at_response"}
+          ORDER BY (r.box_working_at_response - cur.n) DESC, r.responded_at NULLS LAST`,
+        [REJECTION_REASONS.BOX_FULL, ORDER_STATUS.FEASIBLE, ORDER_STATUS.EXTERNAL_FEASIBLE]);
+      res.json(rows);
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
   // GET /api/reports/installations-by-tech — نسبة إنجاز التركيبات خلال 24 ساعة لكل فنى (Success فقط).
   // الرؤية: السوبر أدمن/الأدمن/الشئون الخارجية = كل الفنيين؛ الفنى = أرقامه فقط؛ الباقى ممنوع.
   // lines=1 → يرجّع خطوط التركيبات المتجاوزة 24 ساعة (بنفس فلترة الدور) لزر «تجاوزات 24 ساعة».
@@ -11490,10 +11540,7 @@ export async function registerRoutes(
                    AND fo.customer_mobile !~ '[A-Za-z=/]' AND fo.customer_mobile ~ '[0-9]{5,}'
              ) x WHERE NULLIF(btrim(x.m),'') IS NOT NULL ORDER BY pr LIMIT 1
            ) mb ON true
-          WHERE btrim(pl.central) = btrim($1)
-            AND ($2 = '' OR btrim(pl.cabin_number) = btrim($2))
-            AND btrim(pl.box_number) = btrim($3)
-            AND ${hasFrameSql("pl.full_phone")}
+          WHERE ${boxWorkingWhereSql("$1", "$2", "$3")}
           ORDER BY pl.tel_no`, [central, cabinet, box]);
       res.json({ data: rows, total: rows.length });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -11971,6 +12018,35 @@ export async function registerRoutes(
     return !rows[0].owner || rows[0].owner === rows[0].me;
   };
 
+  // «بوكس مليان» فى متعذرات OM (قرار المالك ٢٠٢٦-٠٩-٣٠): عدد الخطوط الشغّالة على البكس
+  // **وقت الرد** بيتسجّل، ولو قلّ بعدها فى أى وقت → اتوفّرت خطوط والمتعذر يظهر فى
+  // «متعذرات تم توفير خطوط بها». بيغطّى كل مسار بيكتب «بوكس مليان» (رد الفنى، مزامنة
+  // الطلب المربوط، التأكيد) — وكمان المتعذرات الحالية اللى كانت مردود عليها قبل الميزة:
+  // بيتسجّل لها الشغّال الحالى (بطلب المالك: «طبق عليها الشرط ده»).
+  // idempotent: البكس اللى اتسجّل له رقم مابيتعدّش تانى إلا لو البكس نفسه اتغيّر.
+  const OM_BOX_KEY_SQL = `btrim(r.central_name) || '|' || COALESCE(btrim(r.cabin_number), '') || '|' || btrim(r.box_number)`;
+  async function snapshotOmBoxFullWorking(serial?: string): Promise<number> {
+    const one = serial ? ` AND r.serial_number = $2` : "";
+    const vals: any[] = serial ? [REJECTION_REASONS.BOX_FULL, serial] : [REJECTION_REASONS.BOX_FULL];
+    // السبب اتغيّر من «بوكس مليان» → الرقم القديم مالوش معنى
+    await pool.query(
+      `UPDATE om_responses r
+          SET box_working_at_response = NULL, box_working_key = NULL, box_working_recorded_at = NULL
+        WHERE r.box_working_key IS NOT NULL AND r.rejection_reason IS DISTINCT FROM $1${one}`, vals);
+    const { rowCount } = await pool.query(
+      `UPDATE om_responses r
+          SET box_working_at_response = ${boxWorkingCountSql("r.central_name", "r.cabin_number", "r.box_number")},
+              box_working_key = ${OM_BOX_KEY_SQL},
+              box_working_recorded_at = now()
+        WHERE r.rejection_reason = $1
+          AND NULLIF(btrim(r.central_name), '') IS NOT NULL
+          AND NULLIF(btrim(r.box_number), '') IS NOT NULL
+          AND r.box_working_key IS DISTINCT FROM ${OM_BOX_KEY_SQL}
+          AND EXISTS (SELECT 1 FROM ftth_orders_current fo WHERE fo.serial_number = r.serial_number)${one}`,
+      vals);
+    return rowCount ?? 0;
+  }
+
   // POST /api/om-rejections/response — رد الفنى (يمكن التنفيذ / لا يمكن + سبب)
   app.post("/api/om-rejections/response", requireAuth, async (req: any, res) => {
     try {
@@ -11999,7 +12075,10 @@ export async function registerRoutes(
            tech_id = EXCLUDED.tech_id, tech_name = EXCLUDED.tech_name, responded_at = now(),
            -- رد جديد من الفنى بيلغى أى رد شئون خارجية قديم (زى إعادة الطلب للفنى فى قسم الطلبات)
            external_id = NULL, external_name = NULL, is_feasible_external = NULL,
-           external_rejection_reason = NULL, external_response_at = NULL, updated_at = now()
+           external_rejection_reason = NULL, external_response_at = NULL,
+           -- رد جديد = عدّ جديد للشغّال على البكس «فى هذا الوقت»
+           box_working_at_response = NULL, box_working_key = NULL, box_working_recorded_at = NULL,
+           updated_at = now()
          RETURNING *`,
         [serialNumber, status, isFeasible,
          isFeasible ? null : clean(b.rejectionReason), clean(b.centralName), clean(b.cabinNumber),
@@ -12029,6 +12108,10 @@ export async function registerRoutes(
           techName: String(req.user?.username || ""), source: "OM",
           refKey: `متعذر ${serialNumber}`,
         }).then((r) => { if (!r.ok) console.error("[box-full] OM:", r.reason); });
+      }
+      // «بوكس مليان» → الشغّال على البكس دلوقتى يتسجّل (أساس «متعذرات تم توفير خطوط بها»)
+      if (r0 && r0.rejection_reason === REJECTION_REASONS.BOX_FULL) {
+        await snapshotOmBoxFullWorking(serialNumber).catch((e) => console.error("[om-box-freed] snapshot:", e?.message));
       }
       // لو المتعذر مربوط بطلب مؤكَّد → الرد ينزل على الطلب على طول
       await syncMatchedResponse({ serial: serialNumber });

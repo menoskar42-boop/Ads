@@ -1118,6 +1118,11 @@ export const omResponses = pgTable("om_responses", {
   isFeasibleExternal: boolean("is_feasible_external"),
   externalRejectionReason: text("external_rejection_reason"),
   externalResponseAt: timestamp("external_response_at", { withTimezone: true }),
+  // «بوكس مليان»: عدد الخطوط الشغّالة على البكس وقت الرد (+ البكس اللى اتعدّ عليه) —
+  // لو العدد قلّ بعدها يبقى اتوفّرت خطوط والمتعذر يظهر فى «متعذرات تم توفير خطوط بها»
+  boxWorkingAtResponse: integer("box_working_at_response"),
+  boxWorkingKey: text("box_working_key"),
+  boxWorkingRecordedAt: timestamp("box_working_recorded_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
