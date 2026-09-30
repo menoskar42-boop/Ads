@@ -5426,13 +5426,14 @@ export async function registerRoutes(
       if (pFromParam) outerConds.push(`e."phoneShort" ~ '^[0-9]{1,18}$' AND e."phoneShort"::bigint >= ${pFromParam}::bigint`);
       if (pToParam) outerConds.push(`e."phoneShort" ~ '^[0-9]{1,18}$' AND e."phoneShort"::bigint <= ${pToParam}::bigint`);
       const where = `WHERE ${outerConds.join(" AND ")}`;
-      const totalRes = await pool.query(`${sourceSql} SELECT COUNT(*)::int AS c FROM enriched e ${where}`, params);
-      const total = totalRes.rows[0].c as number;
+      // الإجمالى فى نفس الاستعلام (COUNT(*) OVER) — كان استعلامين بيعيدوا نفس الـCTE التقيل
+      // كله مرتين (٢٠٢٦-٠٩-٣٠: التقرير كان بيطوّل ويطلع «Failed to fetch»).
       const offset = (pageNum - 1) * pageSize;
       params.push(pageSize, offset);
       const dataRes = await pool.query(
         `${sourceSql}
          SELECT
+           COUNT(*) OVER ()::int AS "__total",
            ROW_NUMBER() OVER (ORDER BY COALESCE(e."closeDate", e."regularizedAt") DESC NULLS LAST, e."recordId")::int AS id,
            e."ticketId", e."source", e."fullPhone", e."phoneShort",
            e.central, e."cabinNumber", e."boxNumber", e."msanCode",
@@ -5444,7 +5445,14 @@ export async function registerRoutes(
          LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
-      res.json({ data: dataRes.rows, total, page: pageNum, pageSize });
+      let total = dataRes.rows[0]?.__total ?? 0;
+      // صفحة بعد الآخر مابترجّعش صفوف فمفيش __total — نعدّ لوحدنا (نادر)
+      if (!dataRes.rows.length && pageNum > 1) {
+        const totalRes = await pool.query(`${sourceSql} SELECT COUNT(*)::int AS c FROM enriched e ${where}`, params.slice(0, -2));
+        total = totalRes.rows[0].c as number;
+      }
+      const data = dataRes.rows.map(({ __total, ...r }: any) => r);
+      res.json({ data, total, page: pageNum, pageSize });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
