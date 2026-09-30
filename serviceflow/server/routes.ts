@@ -666,6 +666,9 @@ const byCentralThen = (cmp: (a: any, b: any) => number) => (a: any, b: any) =>
 // عشان الطرفين يبقوا بنفس العرف. (متقاس: 48.00 بالغلط مقابل 51.00 الصح.)
 // بيتحطّ فقط مع أعمدة الشيتات — أعمدة زى claimed_at/updated_at لحظات حقيقية وبتتقارن بـ now().
 const NOW_SHEET = `(now() AT TIME ZONE 'Africa/Cairo')`;
+// ⚠️ ولنفس السبب: يوم/ساعة عمود شيت = `(col AT TIME ZONE 'UTC')` — **مش** 'Africa/Cairo'.
+// القاهرة كانت بتزوّد ٣ ساعات تانى فالشكوى بعد ٩ م بتروح لليوم اللى بعده (خط 2568120
+// ماتحسبش مكرر، ٢٠٢٦-٠٩-٣٠). الحارس: scripts/check-sheet-timezone.js.
 
 // «الوقت الفعلى» للعطل المفتوح = (الآن − وقت الشكوى) − المدة اللى قضاها على
 // الحالة 135/138 (معلّق). ثابت مشترك عشان **العمود والتصنيف** يستخدموا نفس
@@ -1258,7 +1261,7 @@ async function queryRegularizedFaults(opts: { central?: string; q?: string; date
        FROM (
          SELECT *, 'مغلق اليوم' AS reg_source FROM ticket_dsl_current
          WHERE close_date IS NOT NULL
-           AND (close_date AT TIME ZONE 'Africa/Cairo')::date = ${dateExpr}
+           AND (close_date AT TIME ZONE 'UTC')::date = ${dateExpr}
          UNION ALL
          SELECT *, 'اختفى من الحالى' AS reg_source FROM ticket_dsl_sod s
          WHERE NOT EXISTS (SELECT 1 FROM ticket_dsl_current c WHERE c.ticket_id = s.ticket_id)
@@ -1401,8 +1404,8 @@ async function queryWfmRegularizedRange(
     `(t.central_name = 'الغنايم' OR t.central_name = 'الغنايم-العزايزة' OR t.central_name = 'الغنايم-دير الجنادله' OR t.central_name = 'الغنايم-نجع العمدة')`,
     `NOT EXISTS (SELECT 1 FROM wfm_current c WHERE c.central_name = t.central_name AND c.work_order_id = t.work_order_id)`,
   ];
-  if (dateFrom) { params.push(dateFrom); conds.push(`(t.creation_date AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}::date`); }
-  if (dateTo)   { params.push(dateTo);   conds.push(`(t.creation_date AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}::date`); }
+  if (dateFrom) { params.push(dateFrom); conds.push(`(t.creation_date AT TIME ZONE 'UTC')::date >= $${params.length}::date`); }
+  if (dateTo)   { params.push(dateTo);   conds.push(`(t.creation_date AT TIME ZONE 'UTC')::date <= $${params.length}::date`); }
   if (central) { params.push(central); conds.push(`t.central_name = $${params.length}`); }
   if (q.trim()) {
     params.push(arQ(q));
@@ -3088,7 +3091,7 @@ export async function registerRoutes(
            FROM complaint_details cd
           WHERE cd.close_time IS NOT NULL
             AND cd.exchange_name ILIKE '%غنايم%'
-            AND (cd.close_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+            AND (cd.close_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
           GROUP BY ${sp("cd.phone_number")}
          UNION ALL
          SELECT ${sp("rc.phone_number")}, MAX(COALESCE(rc.close_time, rc.complain_time))
@@ -5147,14 +5150,14 @@ export async function registerRoutes(
       const cdConds: string[] = [
         "cd.close_time IS NOT NULL",
         "cd.exchange_name ILIKE '%غنايم%'",
-        "(cd.close_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date",
-        "(cd.close_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date",
+        "(cd.close_time AT TIME ZONE 'UTC')::date >= $1::date",
+        "(cd.close_time AT TIME ZONE 'UTC')::date <= $2::date",
       ];
       const rcConds: string[] = [
         "rc.status_code IN ('138', '135')",
         "rc.exchange_name ILIKE '%غنايم%'",
-        "(COALESCE(rc.close_time, rc.complain_time) AT TIME ZONE 'Africa/Cairo')::date >= $1::date",
-        "(COALESCE(rc.close_time, rc.complain_time) AT TIME ZONE 'Africa/Cairo')::date <= $2::date",
+        "(COALESCE(rc.close_time, rc.complain_time) AT TIME ZONE 'UTC')::date >= $1::date",
+        "(COALESCE(rc.close_time, rc.complain_time) AT TIME ZONE 'UTC')::date <= $2::date",
       ];
       const mfConds: string[] = [
         "mf.status = 'regularized'",
@@ -5166,8 +5169,8 @@ export async function registerRoutes(
         "t.close_date IS NULL",
         "(t.status_code ~ '^(160|173|122|73|72|60|81|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60|81)')",
         "t.central_name ILIKE '%غنايم%'",
-        "(t.complaint_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date",
-        "(t.complaint_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date",
+        "(t.complaint_time AT TIME ZONE 'UTC')::date >= $1::date",
+        "(t.complaint_time AT TIME ZONE 'UTC')::date <= $2::date",
       ];
       // «المنتظمة اليوم» لها مصدران مطابقان للتقرير الأصلي:
       // إغلاق اليوم من الملف الحالي، أو اختفاء شكوى من لقطة بداية اليوم.
@@ -5175,9 +5178,9 @@ export async function registerRoutes(
         "t.close_date IS NOT NULL",
         "(t.status_code ~ '^(160|173|122|73|72|60|9999)' OR t.complain_type_name ~ '^(160|173|122|73|72|60)')",
         "t.central_name ILIKE '%غنايم%'",
-        "(t.close_date AT TIME ZONE 'Africa/Cairo')::date = (now() AT TIME ZONE 'Africa/Cairo')::date",
-        "(t.close_date AT TIME ZONE 'Africa/Cairo')::date >= $1::date",
-        "(t.close_date AT TIME ZONE 'Africa/Cairo')::date <= $2::date",
+        "(t.close_date AT TIME ZONE 'UTC')::date = (now() AT TIME ZONE 'Africa/Cairo')::date",
+        "(t.close_date AT TIME ZONE 'UTC')::date >= $1::date",
+        "(t.close_date AT TIME ZONE 'UTC')::date <= $2::date",
       ];
       const regularizedTodaySodConds: string[] = [
         "(s.status_code ~ '^(160|173|122|73|72|60|9999)' OR s.complain_type_name ~ '^(160|173|122|73|72|60)')",
@@ -6097,13 +6100,13 @@ export async function registerRoutes(
              1 AS source_priority
       FROM complaint_details cd
       WHERE cd.complain_time IS NOT NULL
-        AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+        AND (cd.complain_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
       UNION ALL
       SELECT ${sp("rc.phone_number")} AS short_phone, rc.complain_no, rc.complain_time,
              2 AS source_priority
       FROM remaining_complaints rc
       WHERE rc.complain_time IS NOT NULL
-        AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+        AND (rc.complain_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
     ), complaint_deduped AS (
       SELECT DISTINCT ON (complain_no) short_phone, complain_no, complain_time
       FROM complaint_rows
@@ -6205,8 +6208,8 @@ export async function registerRoutes(
            pl.len,
            cs.complaint_count AS "complaintCount",
             COALESCE(all_cs.complaint_count, cs.complaint_count) AS "totalComplaintCount",
-           (cs.earliest_complaint AT TIME ZONE 'Africa/Cairo') AS "earliestComplaint",
-            (cs.latest_complaint AT TIME ZONE 'Africa/Cairo') AS "latestComplaint",
+           (cs.earliest_complaint AT TIME ZONE 'UTC') AS "earliestComplaint",
+            (cs.latest_complaint AT TIME ZONE 'UTC') AS "latestComplaint",
             contact.contacted_at AS "lastContactAt",
             contact.outcome AS "lastContactOutcome"
          ${joinClause} ${where}
@@ -6304,13 +6307,13 @@ export async function registerRoutes(
         EXISTS (
           SELECT 1 FROM complaint_details cd
           WHERE ${sp("cd.phone_number")} = ${sp("k.full_phone")}
-            AND date_trunc('month', cd.complain_time AT TIME ZONE 'Africa/Cairo')
+            AND date_trunc('month', cd.complain_time AT TIME ZONE 'UTC')
                 = date_trunc('month', now() AT TIME ZONE 'Africa/Cairo')
         )
         OR EXISTS (
           SELECT 1 FROM remaining_complaints rc
           WHERE ${sp("rc.phone_number")} = ${sp("k.full_phone")}
-            AND date_trunc('month', rc.complain_time AT TIME ZONE 'Africa/Cairo')
+            AND date_trunc('month', rc.complain_time AT TIME ZONE 'UTC')
                 = date_trunc('month', now() AT TIME ZONE 'Africa/Cairo')
         )
       )`);
@@ -6786,7 +6789,7 @@ export async function registerRoutes(
     const REGULARIZED_TODAY_SRC = `(
         SELECT * FROM ticket_dsl_current
          WHERE close_date IS NOT NULL
-           AND (close_date AT TIME ZONE 'Africa/Cairo')::date = (now() AT TIME ZONE 'Africa/Cairo')::date
+           AND (close_date AT TIME ZONE 'UTC')::date = (now() AT TIME ZONE 'Africa/Cairo')::date
         UNION ALL
         SELECT * FROM ticket_dsl_sod s
          WHERE NOT EXISTS (SELECT 1 FROM ticket_dsl_current c WHERE c.ticket_id = s.ticket_id)
@@ -7173,7 +7176,7 @@ export async function registerRoutes(
               -- أمر الشغل الأحدث للرقم — بيوضّح إن الرقم جديد وتحت التركيب/النقل
               wfmo.work_order_type AS "wfmType", wfmo.stage AS "wfmStage",
               wfmo.status AS "wfmStatus",
-              (wfmo.creation_date AT TIME ZONE 'Africa/Cairo') AS "wfmCreatedAt",
+              (wfmo.creation_date AT TIME ZONE 'UTC') AS "wfmCreatedAt",
               si.work_ord_date AS "workOrdDate", si.work_ord_no AS "workOrdNo",
               COALESCE(pl.full_phone, la.full_phone, c.full_phone, t.full) AS "fullPhone",
               la.account_no AS "accountNo",
@@ -7198,7 +7201,7 @@ export async function registerRoutes(
               c.measured_by AS "measuredBy",
               (pe.last_raise_at AT TIME ZONE 'Africa/Cairo') AS "lastPoRaiseAt", pe.last_raise_by AS "raisedBy",
               (pe.last_stop_at AT TIME ZONE 'Africa/Cairo') AS "lastPoStopAt", pe.last_stop_by AS "stoppedBy",
-              (cpl.complain_time AT TIME ZONE 'Africa/Cairo') AS "lastComplaintAt",
+              (cpl.complain_time AT TIME ZONE 'UTC') AS "lastComplaintAt",
               -- ownedByMe: خطوطى أنا ($4 = كودى) → أى خط فى كباينى.
               -- خطوط زميل مشمول بالتغطية ($5 = أكواد الزملاء) → **فقط** لو عليها عطل حالى
               -- (ticket_dsl_current مفتوح) أو عطل خارج الشاشة مفتوح (manual_faults status='open').
@@ -7223,7 +7226,7 @@ export async function registerRoutes(
                     -- اختفى من الحالى وكان فى لقطة بداية اليوم (ما عدا 135/138 الوسيطة).
                     OR EXISTS (SELECT 1 FROM ticket_dsl_current tr
                                WHERE tr.phone_number = t.short AND tr.close_date IS NOT NULL
-                                 AND (tr.close_date AT TIME ZONE 'Africa/Cairo')::date
+                                 AND (tr.close_date AT TIME ZONE 'UTC')::date
                                      = (now() AT TIME ZONE 'Africa/Cairo')::date
                                  AND (tr.status_code ~ '^(160|173|122|73|72|60|9999)' OR tr.complain_type_name ~ '^(160|173|122|73|72|60)'))
                     OR EXISTS (SELECT 1 FROM ticket_dsl_sod ts
@@ -7257,7 +7260,7 @@ export async function registerRoutes(
                   SELECT tc.phone_number, tc.central_name, tc.cabinet_no, tc.status_code, tc.complain_type_name
                     FROM ticket_dsl_current tc
                    WHERE tc.close_date IS NOT NULL
-                     AND (tc.close_date AT TIME ZONE 'Africa/Cairo')::date
+                     AND (tc.close_date AT TIME ZONE 'UTC')::date
                          = (now() AT TIME ZONE 'Africa/Cairo')::date
                   UNION ALL
                   SELECT ts.phone_number, ts.central_name, ts.cabinet_no, ts.status_code, ts.complain_type_name
@@ -7622,7 +7625,7 @@ export async function registerRoutes(
     const regCte = `WITH reg AS (
        SELECT ${sp("cd.phone_number")} AS short, cd.exchange_name AS ex FROM complaint_details cd
          WHERE cd.close_time IS NOT NULL AND cd.exchange_name ILIKE '%غنايم%'
-           AND (cd.close_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+           AND (cd.close_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
        UNION
        SELECT ${sp("rc.phone_number")}, rc.exchange_name FROM remaining_complaints rc
          WHERE rc.status_code IN ('138', '135') AND rc.exchange_name ILIKE '%غنايم%'
@@ -7683,7 +7686,7 @@ export async function registerRoutes(
     const regCte = `WITH reg AS (
        SELECT ${sp("cd.phone_number")} AS short, MAX(cd.close_time) AS ref_time FROM complaint_details cd
          WHERE cd.close_time IS NOT NULL AND cd.exchange_name ILIKE '%غنايم%'
-           AND (cd.close_time AT TIME ZONE 'Africa/Cairo')::date BETWEEN $1::date AND $2::date
+           AND (cd.close_time AT TIME ZONE 'UTC')::date BETWEEN $1::date AND $2::date
          GROUP BY ${sp("cd.phone_number")}
        UNION ALL
        SELECT ${sp("rc.phone_number")}, MAX(COALESCE(rc.close_time, rc.complain_time)) FROM remaining_complaints rc
@@ -7724,7 +7727,7 @@ export async function registerRoutes(
               pl.cabin_number AS "cabinNumber", pl.box_number AS "boxNumber", pl.dp_terminal AS "dpTerminal",
               COALESCE(pp.frame, pl.port) AS port, pl.len, la.full_phone AS "fullPhone",
               la.account_no AS "accountNo", la.source AS "accountSource",
-              (regm.ref_time AT TIME ZONE 'Africa/Cairo') AS "complaintTime",
+              (regm.ref_time AT TIME ZONE 'UTC') AS "complaintTime",
               c138p.current_speed AS "lineCurrentSpeed", c138p.max_speed AS "lineMaxSpeed",
               c138p.score AS "lastMeasScore",
               c138p.po_status AS "poStatus",
@@ -8875,8 +8878,8 @@ export async function registerRoutes(
         `${cte}
          SELECT eff_tech AS "techName", central_name AS "centralName", work_order_id AS "workOrderId",
                 phone_number AS "phoneNumber", service_type AS "serviceType",
-                (creation_date AT TIME ZONE 'Africa/Cairo') AS "creationDate",
-                (close_date AT TIME ZONE 'Africa/Cairo') AS "closeDate",
+                (creation_date AT TIME ZONE 'UTC') AS "creationDate",
+                (close_date AT TIME ZONE 'UTC') AS "closeDate",
                 ROUND((EXTRACT(EPOCH FROM (close_date - creation_date)) / 3600)::numeric, 1) AS "hours"
          FROM att ${outerWhere} AND ${over24}
          ORDER BY EXTRACT(EPOCH FROM (close_date - creation_date)) DESC`, params);
@@ -10491,12 +10494,12 @@ export async function registerRoutes(
         const { rows: mrows } = await pool.query(
           `WITH fu AS (
              SELECT phone_number, complain_no FROM complaint_details
-               WHERE (complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                 AND (complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+               WHERE (complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                 AND (complain_time AT TIME ZONE 'UTC')::date <= $2::date
              UNION
              SELECT phone_number, complain_no FROM remaining_complaints
-               WHERE (complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                 AND (complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+               WHERE (complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                 AND (complain_time AT TIME ZONE 'UTC')::date <= $2::date
            ),
            perline AS (
              SELECT pl.central, pl.cabin_number, pl.box_number, pl.tel_no,
@@ -13027,7 +13030,7 @@ export async function registerRoutes(
                 WHEN 'الغنايم-نجع العمدة'   THEN 'NGOAT'
                 ELSE NULL END AS "centralCode",
               COALESCE(NULLIF(pp.msan_code, ''), ctc.cabin_code) AS "currentCabin",
-              (cpl.complain_time AT TIME ZONE 'Africa/Cairo') AS "lastComplaintAt"
+              (cpl.complain_time AT TIME ZONE 'UTC') AS "lastComplaintAt"
        FROM n
        LEFT JOIN LATERAL (
          SELECT central, cabin_number FROM phone_lines WHERE full_phone = n.full OR tel_no = n.short LIMIT 1
@@ -13145,7 +13148,7 @@ export async function registerRoutes(
     const short = phone.replace(/^88/, ""); const full = phone.startsWith("88") ? phone : "88" + phone;
     const { rows: op } = await pool.query(`SELECT id FROM manual_faults WHERE status='open' AND (phone_short=$1 OR full_phone=$2) LIMIT 1`, [short, full]);
     const { rows: mr } = await pool.query(`SELECT (regularized_at AT TIME ZONE 'Africa/Cairo') AS at, close_code AS code FROM manual_faults WHERE status='regularized' AND (phone_short=$1 OR full_phone=$2) ORDER BY regularized_at DESC LIMIT 1`, [short, full]);
-    const { rows: dr } = await pool.query(`SELECT (close_time AT TIME ZONE 'Africa/Cairo') AS at, close_code AS code FROM complaint_details WHERE phone_number=$1 AND close_time IS NOT NULL ORDER BY close_time DESC LIMIT 1`, [short]);
+    const { rows: dr } = await pool.query(`SELECT (close_time AT TIME ZONE 'UTC') AS at, close_code AS code FROM complaint_details WHERE phone_number=$1 AND close_time IS NOT NULL ORDER BY close_time DESC LIMIT 1`, [short]);
     const cand: any[] = [];
     if (mr[0]?.at) cand.push({ at: mr[0].at, closeCode: mr[0].code, source: "manual" });
     if (dr[0]?.at) cand.push({ at: dr[0].at, closeCode: dr[0].code, source: "430d" });
@@ -13161,19 +13164,19 @@ export async function registerRoutes(
     const { rows: mr } = await pool.query(`SELECT (regularized_at AT TIME ZONE 'Africa/Cairo') AS at, close_code AS code, regularized_by AS by FROM manual_faults WHERE status='regularized' AND (phone_short=$1 OR full_phone=$2) ORDER BY regularized_at DESC`, [short, full]);
     const { rows: dr } = await pool.query(`
       SELECT complain_no AS "complainNo",
-             (close_time AT TIME ZONE 'Africa/Cairo') AS at,
+             (close_time AT TIME ZONE 'UTC') AS at,
              close_code AS code,
              close_by AS by,
-             (complain_time AT TIME ZONE 'Africa/Cairo') AS "complainAt",
+             (complain_time AT TIME ZONE 'UTC') AS "complainAt",
              'details' AS source
       FROM complaint_details
       WHERE phone_number IN ($1, $2)
       UNION ALL
       SELECT complain_no AS "complainNo",
-             (close_time AT TIME ZONE 'Africa/Cairo') AS at,
+             (close_time AT TIME ZONE 'UTC') AS at,
              close_code AS code,
              close_by AS by,
-             (complain_time AT TIME ZONE 'Africa/Cairo') AS "complainAt",
+             (complain_time AT TIME ZONE 'UTC') AS "complainAt",
              'remaining' AS source
       FROM remaining_complaints
       WHERE phone_number IN ($1, $2)
@@ -13448,8 +13451,8 @@ export async function registerRoutes(
       if (!ph || !refDate) return res.json({ prev: [] });
       const { rows } = await pool.query(
         `SELECT cd.complain_no AS "complainNo",
-                (cd.complain_time AT TIME ZONE 'Africa/Cairo') AS "complainTime",
-                (cd.close_time    AT TIME ZONE 'Africa/Cairo') AS "closeTime",
+                (cd.complain_time AT TIME ZONE 'UTC') AS "complainTime",
+                (cd.close_time    AT TIME ZONE 'UTC') AS "closeTime",
                 cd.close_code AS "closeCode",
                 COALESCE(
                   (SELECT tn.tech_name FROM technician_names tn WHERE tn.worker_code = cd.close_by LIMIT 1),
@@ -13536,12 +13539,12 @@ export async function registerRoutes(
         rcConds.push(`${n("pl2.box_number")} = $${params.length}`);
       }
       {
-        cdConds.push(`(cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date`);
-        rcConds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date`);
+        cdConds.push(`(cd.complain_time AT TIME ZONE 'UTC')::date >= $1::date`);
+        rcConds.push(`(rc.complain_time AT TIME ZONE 'UTC')::date >= $1::date`);
       }
       {
-        cdConds.push(`(cd.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date`);
-        rcConds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date`);
+        cdConds.push(`(cd.complain_time AT TIME ZONE 'UTC')::date <= $2::date`);
+        rcConds.push(`(rc.complain_time AT TIME ZONE 'UTC')::date <= $2::date`);
       }
       if (q.trim()) {
         params.push(arQ(q));
@@ -13638,10 +13641,10 @@ export async function registerRoutes(
                            AND cd2.close_time IS NOT NULL
                             AND ${sp("cd2.phone_number")} = ${sp("cd.phone_number")}
                            AND cd2.complain_time IS NOT NULL
-                            AND (cd2.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                            AND (cd2.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
-                            AND (cd2.complain_time AT TIME ZONE 'Africa/Cairo')::date <>
-                                (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date
+                            AND (cd2.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                            AND (cd2.complain_time AT TIME ZONE 'UTC')::date <= $2::date
+                            AND (cd2.complain_time AT TIME ZONE 'UTC')::date <>
+                                (cd.complain_time AT TIME ZONE 'UTC')::date
                           )
                           OR EXISTS (
                           SELECT 1 FROM remaining_complaints rc2
@@ -13649,10 +13652,10 @@ export async function registerRoutes(
                             AND rc2.status_code IN ('138', '135')
                             AND ${sp("rc2.phone_number")} = ${sp("cd.phone_number")}
                             AND rc2.complain_time IS NOT NULL
-                            AND (rc2.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                            AND (rc2.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
-                            AND (rc2.complain_time AT TIME ZONE 'Africa/Cairo')::date <>
-                                (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date
+                            AND (rc2.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                            AND (rc2.complain_time AT TIME ZONE 'UTC')::date <= $2::date
+                            AND (rc2.complain_time AT TIME ZONE 'UTC')::date <>
+                                (cd.complain_time AT TIME ZONE 'UTC')::date
                           )
                         )
                   THEN 'مكرر' ELSE '' END AS "repeatStatus",
@@ -13742,10 +13745,10 @@ export async function registerRoutes(
                             AND cd2.close_time IS NOT NULL
                             AND ${sp("cd2.phone_number")} = ${sp("rc.phone_number")}
                             AND cd2.complain_time IS NOT NULL
-                            AND (cd2.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                            AND (cd2.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
-                            AND (cd2.complain_time AT TIME ZONE 'Africa/Cairo')::date <>
-                                (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date
+                            AND (cd2.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                            AND (cd2.complain_time AT TIME ZONE 'UTC')::date <= $2::date
+                            AND (cd2.complain_time AT TIME ZONE 'UTC')::date <>
+                                (rc.complain_time AT TIME ZONE 'UTC')::date
                           )
                           OR EXISTS (
                          SELECT 1 FROM remaining_complaints rc2
@@ -13753,10 +13756,10 @@ export async function registerRoutes(
                            AND rc2.status_code IN ('138', '135')
                             AND ${sp("rc2.phone_number")} = ${sp("rc.phone_number")}
                            AND rc2.complain_time IS NOT NULL
-                            AND (rc2.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                            AND (rc2.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
-                            AND (rc2.complain_time AT TIME ZONE 'Africa/Cairo')::date <>
-                                (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date
+                            AND (rc2.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                            AND (rc2.complain_time AT TIME ZONE 'UTC')::date <= $2::date
+                            AND (rc2.complain_time AT TIME ZONE 'UTC')::date <>
+                                (rc.complain_time AT TIME ZONE 'UTC')::date
                           )
                         )
                   THEN 'مكرر' ELSE '' END AS "repeatStatus",
@@ -13983,11 +13986,11 @@ export async function registerRoutes(
                  COALESCE(ct.worker_code, '')        AS "workerCode",
                 COALESCE(tn.tech_name, '')          AS "techName",
                 qual.last_no                        AS "lastComplainNo",
-                (qual.last_time AT TIME ZONE 'Africa/Cairo') AS "lastComplainTime",
+                (qual.last_time AT TIME ZONE 'UTC') AS "lastComplainTime",
                  qual.last_close_code                AS "lastCloseCode",
                  qual.last_close_by                  AS "lastCloseBy",
                 qual.prev_no                        AS "prevComplainNo",
-                (qual.prev_time AT TIME ZONE 'Africa/Cairo') AS "prevComplainTime",
+                (qual.prev_time AT TIME ZONE 'UTC') AS "prevComplainTime",
                  qual.prev_close_code                AS "prevCloseCode",
                  qual.prev_close_by                  AS "prevCloseBy",
                 qual.rep_count                      AS "repeatCount",
@@ -14067,13 +14070,13 @@ export async function registerRoutes(
            (SELECT COUNT(*) FROM (
               SELECT cd.complain_no FROM complaint_details cd
                 WHERE cd.msan_id = ct.cabin_code
-                  AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                  AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+                  AND (cd.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                  AND (cd.complain_time AT TIME ZONE 'UTC')::date <= $2::date
               UNION
               SELECT rc.complain_no FROM remaining_complaints rc
                 WHERE rc.msan_id = ct.cabin_code
-                  AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                  AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+                  AND (rc.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                  AND (rc.complain_time AT TIME ZONE 'UTC')::date <= $2::date
            ) u)::int                                                     AS "faultCount"
          FROM cabinet_technicians ct
          LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
@@ -14143,13 +14146,13 @@ export async function registerRoutes(
         `WITH fault_union AS (
            SELECT phone_number, complain_no
            FROM complaint_details
-           WHERE (complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-             AND (complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+           WHERE (complain_time AT TIME ZONE 'UTC')::date >= $1::date
+             AND (complain_time AT TIME ZONE 'UTC')::date <= $2::date
            UNION
            SELECT phone_number, complain_no
            FROM remaining_complaints
-           WHERE (complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-             AND (complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+           WHERE (complain_time AT TIME ZONE 'UTC')::date >= $1::date
+             AND (complain_time AT TIME ZONE 'UTC')::date <= $2::date
          )
          SELECT
            pl.central                                                         AS "centralName",
@@ -14235,13 +14238,13 @@ export async function registerRoutes(
            (SELECT COUNT(*) FROM (
               SELECT cd.complain_no FROM complaint_details cd
                 WHERE cd.msan_id = ct.cabin_code
-                  AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                  AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+                  AND (cd.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                  AND (cd.complain_time AT TIME ZONE 'UTC')::date <= $2::date
               UNION
               SELECT rc.complain_no FROM remaining_complaints rc
                 WHERE rc.msan_id = ct.cabin_code
-                  AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $1::date
-                  AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $2::date
+                  AND (rc.complain_time AT TIME ZONE 'UTC')::date >= $1::date
+                  AND (rc.complain_time AT TIME ZONE 'UTC')::date <= $2::date
            ) u)::int                                                     AS "faultCount"
          FROM cabinet_technicians ct
          ${where}
@@ -14641,8 +14644,8 @@ export async function registerRoutes(
       const conds: string[] = [
         `cd.exchange_name ILIKE '%غنايم%'`,
       ];
-      if (dateFrom) { params.push(dateFrom); conds.push(`(cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`); }
-      if (dateTo)   { params.push(dateTo);   conds.push(`(cd.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`); }
+      if (dateFrom) { params.push(dateFrom); conds.push(`(cd.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`); }
+      if (dateTo)   { params.push(dateTo);   conds.push(`(cd.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`); }
       const where = "WHERE " + conds.join(" AND ");
 
       const { rows } = await pool.query(`
@@ -14714,8 +14717,8 @@ export async function registerRoutes(
       const conds: string[] = [
         `rc.exchange_name ILIKE '%غنايم%'`,
       ];
-      if (dateFrom) { params.push(dateFrom); conds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`); }
-      if (dateTo)   { params.push(dateTo);   conds.push(`(rc.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`); }
+      if (dateFrom) { params.push(dateFrom); conds.push(`(rc.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`); }
+      if (dateTo)   { params.push(dateTo);   conds.push(`(rc.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`); }
       const where = "WHERE " + conds.join(" AND ");
 
       const { rows } = await pool.query(`
@@ -14769,8 +14772,8 @@ export async function registerRoutes(
       const params: any[] = [];
       // فلتر التاريخ يُطبَّق على المصدرين بنفس البارامترات
       let dateClause = "";
-      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (src.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`; }
-      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (src.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`; }
+      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (src.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
+      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (src.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
       // فلتر السنترال — المقارنة بعد التطبيع (ة/ه والهمزات) لأن اسم السنترال بيتكتب
       // بأكتر من صيغة فى شيتات 430D المختلفة.
       if (central?.trim()) {
@@ -14853,8 +14856,8 @@ export async function registerRoutes(
       const { dateFrom, dateTo } = req.query as Record<string, string>;
       const params: any[] = [];
       let dateClause = "";
-      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`; }
-      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (cd.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`; }
+      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (cd.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
+      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (cd.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
 
       const { rows } = await pool.query(`
         WITH phone_occ AS (
@@ -14918,8 +14921,8 @@ export async function registerRoutes(
       const { dateFrom, dateTo } = req.query as Record<string, string>;
       const params: any[] = [];
       let dateClause = "";
-      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`; }
-      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (rc.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`; }
+      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (rc.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
+      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (rc.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
 
       const { rows } = await pool.query(`
         WITH phone_occ AS (
@@ -14982,8 +14985,8 @@ export async function registerRoutes(
       const { dateFrom, dateTo, central } = req.query as Record<string, string>;
       const params: any[] = [];
       let dateClause = "";
-      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (po.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`; }
-      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (po.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`; }
+      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (po.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
+      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (po.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
       if (central?.trim()) {
         params.push(arNorm(central.trim()));
         dateClause += ` AND ${n("po.exchange_name")} = $${params.length}`;
@@ -15072,8 +15075,8 @@ export async function registerRoutes(
       const srcTab = tab || "combined";
       const params: any[] = [];
       let dateClause = "";
-      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (src.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`; }
-      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (src.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`; }
+      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (src.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
+      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (src.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
 
       // الفنى: يرى أعطاله فقط — سواء هو فنى الإغلاق أو فنى المنطقة (على الأسماء المحسوبة)
       let techClause = "";
@@ -15193,8 +15196,8 @@ export async function registerRoutes(
       const srcTab = tab || "combined";
       const params: any[] = [];
       let dateClause = "";
-      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (po.complain_time AT TIME ZONE 'Africa/Cairo')::date >= $${params.length}`; }
-      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (po.complain_time AT TIME ZONE 'Africa/Cairo')::date <= $${params.length}`; }
+      if (dateFrom) { params.push(dateFrom); dateClause += ` AND (po.complain_time AT TIME ZONE 'UTC')::date >= $${params.length}`; }
+      if (dateTo)   { params.push(dateTo);   dateClause += ` AND (po.complain_time AT TIME ZONE 'UTC')::date <= $${params.length}`; }
 
       // الفنى: يرى الأرقام المحسوبة عليه فقط — أى اللى هو «الفنى المحمَّل» عليها (صاحب إغلاق
       // أول شكوى، أو فنى المنطقة لو فنى الإغلاق غير معروف).
@@ -15446,7 +15449,7 @@ export async function registerRoutes(
         SELECT x.exch, x.cab, x.box, x.dt, SUM(x.cnt)::int AS cnt FROM (
           SELECT cd.exchange_name AS exch, cd.cabinet_no AS cab,
                  pl.box_number   AS box,
-                 DATE(cd.complain_time AT TIME ZONE 'Africa/Cairo') AS dt,
+                 DATE(cd.complain_time AT TIME ZONE 'UTC') AS dt,
                  COUNT(*) AS cnt
           FROM complaint_details cd
           LEFT JOIN phone_lines pl ON pl.tel_no = cd.phone_number
@@ -15456,7 +15459,7 @@ export async function registerRoutes(
           UNION ALL
           SELECT rc.exchange_name, rc.cabinet_no,
                  pl2.box_number,
-                 DATE(rc.complain_time AT TIME ZONE 'Africa/Cairo') AS dt,
+                 DATE(rc.complain_time AT TIME ZONE 'UTC') AS dt,
                  COUNT(*) AS cnt
           FROM remaining_complaints rc
           LEFT JOIN phone_lines pl2 ON pl2.tel_no = rc.phone_number
