@@ -341,6 +341,13 @@ Check** (أول واحد تحت «Most Recent collected data» — دايماً 
 - ⚠️ مشروع Service Flow القديم على ريبليت شايف نفس القاعدة. لو اتعمله Republish وظهر
   `DROP COLUMN` لأى عمود من الأربعة دول → **Cancel**.
 
+⚠️ **أعمدة «متعذرات تم توفير خطوط بها» (٢٠٢٦-٠٩-٣٠)** على `om_responses`:
+`box_working_at_response` · `box_working_key` · `box_working_recorded_at`. بتتضاف
+لوحدها من `ensureSchema()` أول ما النسخة المستضافة تقوم (بـ`SERVICEFLOW_DATABASE_URL`).
+**مفيش psql مطلوب.** والـShell بتاع مشروع `sf` القديم بيوصل لقاعدة dev تانية مافيهاش
+`om_responses` أصلاً («relation does not exist» — اتجرّب) — فأى ALTER من هناك مالوش لازمة.
+ولو المشروع القديم اتعمله Republish وظهر `DROP COLUMN` لأى عمود من التلاتة → **Cancel**.
+
 اتصلّح كده: الدومين بقى بيتحسب من `sfBase()`:
 
 1. الافتراضي = `https://ads-menoskar42.replit.app/serviceflow` (باب المسار — قرار المالك

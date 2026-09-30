@@ -12,7 +12,8 @@
  *   · رد الفنى الجديد بيمسح الرقم القديم وبيسجّل من جديد.
  *   · المسح الدورى (النبضة + فتح التقرير) بيسجّل للمتعذرات الحالية اللى مالهاش رقم.
  *   · التقرير بيقارن الشغّال دلوقتى بالمسجّل (أقل = ظهر) وبيستبعد اللى اتنفّذ.
- *   · التاب موجود فى مجموعة «متعذرات OM» وبـExcel وPDF.
+ *   · التاب موجود فى مجموعة «متعذرات OM» وبـExcel وPDF، وظاهر للفنى على اللى يخصه بس
+ *     (متعذرات كباينه + اللى هو ردّ عليها).
  *
  *   الاختبار الحقيقى: DATABASE_URL=… npx tsx serviceflow/scripts/test-om-box-freed.mts
  */
@@ -70,6 +71,10 @@ need(/AND cur\.n < r\.box_working_at_response/.test(rep), 'التقرير: ال�
 need(/r\.status NOT IN \(\$2, \$3\)/.test(rep) && /ORDER_STATUS\.FEASIBLE, ORDER_STATUS\.EXTERNAL_FEASIBLE/.test(rep),
   'التقرير لازم يستبعد اللى اتقال عليه يمكن التنفيذ.');
 
+need(/const mine = await techMsanCodes\(req\.user\);/.test(rep) && /\$\{techCond\}/.test(rep)
+  && /msanInCodesSql\("fo\.msan_code"/.test(rep) && /btrim\(COALESCE\(r\.tech_name, ''\)\)/.test(rep),
+  'الفنى لازم يشوف اللى يخصه بس (كباينه + اللى ردّ عليه) — فلترة فى السيرفر.');
+need(/const TECH_ALLOWED: ReportTab\[\] = \[[\s\S]*?"om-box-freed"[\s\S]*?\];/.test(dash), 'التاب مش ظاهر للفنى.');
 need(/\{ id: "om-box-freed", label: "متعذرات تم توفير خطوط بها" \}/.test(dash), 'التاب ناقص من «متعذرات OM».');
 need(/reportTab === "om-box-freed"\s+&& <OmBoxFreedReport \/>/.test(dash), 'التاب مش بيرندر التقرير.');
 need(/handleExportExcel/.test(comp) && /printTablePDF/.test(comp), 'التقرير لازم Excel وPDF.');

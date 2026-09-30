@@ -292,7 +292,9 @@ export default function Dashboard() {
   // بيفلترهم على كباينه هو (worker_code) فكل واحد يشوف اللى يخصه بس.
   const TECH_ALLOWED: ReportTab[] = ["current-faults", "regularized-faults-range", "manual-current-faults", "manual-regularized-high-score", "tech-performance", "removal-stats", "repetition-stats", "repeated-within-month", "box-score-avg", "om-current", "with-account", "installations-by-tech", "shift-schedule", "current-installations", "current-surveys",
     // الكروت + الفاضى لكل نوع بورت + الخطوط المرفوعة — السيرفر بيفلترهم على كباينه هو (٢٠٢٦-٠٩-٣٠)
-    "slot-cards", "cabinet-port-free", "removed-ports"];
+    "slot-cards", "cabinet-port-free", "removed-ports",
+    // «متعذرات تم توفير خطوط بها» — السيرفر بيفلترها على اللى يخص الفنى
+    "om-box-freed"];
   const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات"];
   // أدمن المبيعات: تقرير المتعذرات الحالية فقط (عشان يدخّل رقم المحمول)
   const SALES_ADMIN_ALLOWED: ReportTab[] = ["om-current"];

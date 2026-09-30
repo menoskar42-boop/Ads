@@ -8670,6 +8670,16 @@ export async function registerRoutes(
       // اللى مالوش رقم لسه (رد قديم / وصل من مزامنة) بيتسجّل له الشغّال الحالى الأول
       await snapshotOmBoxFullWorking();
       const all = String(req.query.all ?? "") === "1";
+      const params: any[] = [REJECTION_REASONS.BOX_FULL, ORDER_STATUS.FEASIBLE, ORDER_STATUS.EXTERNAL_FEASIBLE];
+      // الفنى: اللى يخصه بس (٢٠٢٦-٠٩-٣٠) — متعذرات على كباينه (نفس techMsanCodes بتاع
+      // الكروت/المرفوعة) + اللى هو نفسه ردّ عليها (بتغطّى المتعذر اللى مالوش فنى معروف)
+      let techCond = "";
+      const mine = await techMsanCodes(req.user);
+      if (mine) {
+        params.push(mine, String(req.user?.username || ""));
+        techCond = `AND (${msanInCodesSql("fo.msan_code", `$${params.length - 1}`)}
+                         OR ($${params.length} <> '' AND btrim(COALESCE(r.tech_name, '')) = btrim($${params.length})))`;
+      }
       const { rows } = await pool.query(
         `SELECT r.serial_number AS "serial", fo.service_number AS "serviceNumber",
                 fo.customer_name AS "customerName", fo.msan_code AS "msanCode",
@@ -8687,8 +8697,9 @@ export async function registerRoutes(
             AND r.box_working_at_response IS NOT NULL
             AND r.status NOT IN ($2, $3)
             ${all ? "" : "AND cur.n < r.box_working_at_response"}
+            ${techCond}
           ORDER BY (r.box_working_at_response - cur.n) DESC, r.responded_at NULLS LAST`,
-        [REJECTION_REASONS.BOX_FULL, ORDER_STATUS.FEASIBLE, ORDER_STATUS.EXTERNAL_FEASIBLE]);
+        params);
       res.json(rows);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

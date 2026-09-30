@@ -19,17 +19,19 @@ const cut = (from: string, to: string) => {
   return src.slice(i, j);
 };
 const helpers = cut("const hasFrameSql =", "// ── تطبيق «تصحيح البيان»");
+const techHelpers = cut("  // كباين الفنى بأكواد MSAN", "  async function coverageCodes(");
 const snapshot = cut("  const OM_BOX_KEY_SQL", "  // POST /api/om-rejections/response");
 const reportSrc = cut("  // GET /api/reports/om-box-freed", "  // GET /api/reports/installations-by-tech");
 const tmp = `/tmp/om-box-freed-${process.pid}.mts`;
 writeFileSync(tmp, `
 ${helpers}
 export default function make(pool: any) {
-  const ROLES = { SALES: "sales" };
+  const ROLES = { SALES: "sales", TECH: "tech" };
   const ORDER_STATUS = { FEASIBLE: "feasible", EXTERNAL_FEASIBLE: "external_feasible" };
   const REJECTION_REASONS = { BOX_FULL: "بوكس مليان" };
   const handlers: Record<string, any> = {};
   const app = { get(p: string, _a: any, h: any) { handlers[p] = h; } }; const requireAuth = 0;
+  ${techHelpers}
   ${snapshot}
   ${reportSrc}
   return { snapshotOmBoxFullWorking, report: handlers["/api/reports/om-box-freed"] };
@@ -37,16 +39,21 @@ export default function make(pool: any) {
 const { snapshotOmBoxFullWorking, report } = (await import(pathToFileURL(tmp).href)).default(pool);
 const q = (t: string, v: any[] = []) => pool.query(t, v);
 let bad = 0; const ok = (l: string, c: boolean, x = "") => { console.log((c ? "  ✅ " : "  ❌ ") + l + (x ? "  " + x : "")); if (!c) bad++; };
-const call = async (all = false) => {
+const call = async (all = false, user: any = { role: "admin" }) => {
   let out: any; let code = 200;
-  await report({ user: { role: "admin" }, query: all ? { all: "1" } : {} },
+  await report({ user, query: all ? { all: "1" } : {} },
     { status(c: number) { code = c; return this; }, json(b: any) { out = b; } });
   if (code !== 200) throw new Error(JSON.stringify(out));
   return out as any[];
 };
 const snap = async (s: string) => (await q(`SELECT box_working_at_response AS n, box_working_key AS k FROM om_responses WHERE serial_number = $1`, [s])).rows[0];
 
-await q(`DROP TABLE IF EXISTS phone_lines, phone_ports, om_responses, ftth_orders_current`);
+await q(`DROP TABLE IF EXISTS phone_lines, phone_ports, om_responses, ftth_orders_current, technician_names, cabinet_technicians, msan_tech_overrides`);
+await q(`CREATE TABLE technician_names (id serial PRIMARY KEY, worker_code text, tech_name text)`);
+await q(`CREATE TABLE cabinet_technicians (id serial PRIMARY KEY, worker_code text, cabin_code text)`);
+await q(`CREATE TABLE msan_tech_overrides (id serial PRIMARY KEY, cabin_code text UNIQUE, tech_name text)`);
+await q(`INSERT INTO technician_names (worker_code, tech_name) VALUES ('W1','حسن'), ('W2','على')`);
+await q(`INSERT INTO cabinet_technicians (worker_code, cabin_code) VALUES ('W1','M1'), ('W2','M2')`);
 await q(`CREATE TABLE phone_lines (full_phone text, tel_no text, central text, cabin_number text, box_number text)`);
 await q(`CREATE TABLE phone_ports (phone_number text, frame text)`);
 await q(`CREATE TABLE ftth_orders_current (serial_number text, service_number text, customer_name text, msan_code text)`);
@@ -109,6 +116,19 @@ ok("بكس ٨ قلّ → المحوَّل للشئون الخارجية ظهر",
 ok("اللى الشئون الخارجية قالت يمكن تنفيذه مابيظهرش", !r.some((x) => x.serial === "S-FEAS"));
 ok("الترتيب: الأكتر توفيراً الأول", r[0].freed >= r[r.length - 1].freed);
 
+// الفنى: اللى يخصه بس — متعذرات كباينه (M1) + اللى هو ردّ عليها بنفسه
+await q(`UPDATE ftth_orders_current SET msan_code = 'M2' WHERE serial_number = 'S-B8'`);
+const hasan = { role: "tech", workerCode: "W1", username: "t1" };
+const ali = { role: "tech", workerCode: "W2", username: "t9" };
+const nobody = { role: "tech", workerCode: "", username: "zz" };
+let t = await call(false, hasan);
+ok("الفنى: متعذرات كباينه بس", t.map((x) => x.serial).sort().join() === "S-NEW2,S-OLD", JSON.stringify(t.map((x) => x.serial)));
+t = await call(false, ali);
+ok("فنى تانى: متعذرات كابينته (S-B8) بس", t.map((x) => x.serial).join() === "S-B8", JSON.stringify(t.map((x) => x.serial)));
+t = await call(false, { role: "tech", workerCode: "", username: "t2" });
+ok("فنى مالوش كباين: يشوف اللى ردّ عليه هو بس", t.map((x) => x.serial).join() === "S-B8", JSON.stringify(t.map((x) => x.serial)));
+ok("فنى مالوش كباين ولا ردود: ولا حاجة", (await call(false, nobody)).length === 0);
+
 // all=1: كل «بوكس مليان» الحالى بالرقمين
 const all = await call(true);
 ok("all=1 بيعرض كل «بوكس مليان» الحالى (من غير اللى اتنفّذ)", all.length === 3, String(all.length));
@@ -126,7 +146,7 @@ await q(`UPDATE om_responses SET box_number = '8' WHERE serial_number = 'S-OLD'`
 await snapshotOmBoxFullWorking();
 ok("البكس اتغيّر: اتعدّ على البكس الجديد", (await snap("S-OLD")).n === 1 && (await snap("S-OLD")).k === "الغنايم|5|8");
 
-await q(`DROP TABLE IF EXISTS phone_lines, phone_ports, om_responses, ftth_orders_current`);
+await q(`DROP TABLE IF EXISTS phone_lines, phone_ports, om_responses, ftth_orders_current, technician_names, cabinet_technicians, msan_tech_overrides`);
 await pool.end();
 console.log(`\n${bad ? "❌ " + bad + " فشل" : "✅ كله نجح"}`);
 process.exit(bad ? 1 : 0);
