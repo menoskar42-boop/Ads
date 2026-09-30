@@ -2346,14 +2346,25 @@ export async function registerRoutes(
       const row = await withTx(async (tx) => {
         const skippedSites: string[] = [];
         while (true) {
+          // ⚡ أول مهمة فى الدور **لكل موقع** بس هى اللى بيتفحص إذا كان موقعها فاضى
+          // (٢٠٢٦-٠٩-٣٠). الفحص على كل المهام كان O(n²): باتش «بدون Real» فيه ٤٦٠٠ خط
+          // وتاب واحد شغّال → كل سحب ٧ث محلياً وأكتر من ٢٠ث على القاعدة الحقيقية →
+          // جهاز التنفيذ يلغى الطلب («التنفيذ متوقف — خطأ فى الطابور») وتفضل تاب واحدة
+          // بدل ٤. ونفس النتيجة بالظبط: لو أول مهمة على الموقع مش مؤهّلة، مفيش مهمة وراها
+          // على نفس الموقع مؤهّلة (نفس الشروط أو أشد — شوف siteFreeFor).
           const { rows: candidates } = await tx.query(
-            `SELECT e.id, COALESCE(e.site, '10.42.187.101') AS site
-               FROM exec_jobs e
-              WHERE e.status = 'pending' AND e.paused_at IS NULL
-                AND COALESCE(e.site, '10.42.187.101') <> ALL($1::text[])
-                -- الدومين لازم يكون فاضى: مفيش مهمة شغّالة على نفس الموقع دلوقتى
-                -- (أو استثناء «بدون Real» — siteFreeFor فوق)
-                AND ${siteFreeFor("e", "COALESCE(e.site, '10.42.187.101')")}
+            `SELECT e.id, e.site_k AS site
+               FROM (SELECT DISTINCT ON (COALESCE(h.site, '10.42.187.101')) h.*,
+                            COALESCE(h.site, '10.42.187.101') AS site_k
+                       FROM exec_jobs h
+                      WHERE h.status = 'pending' AND h.paused_at IS NULL
+                        AND COALESCE(h.site, '10.42.187.101') <> ALL($1::text[])
+                      ORDER BY COALESCE(h.site, '10.42.187.101'), h.priority DESC,
+                               CASE WHEN h.queue_order > 0 THEN h.queue_order ELSE 9223372036854775807 END ASC,
+                               h.created_at, h.id) e
+              -- الدومين لازم يكون فاضى: مفيش مهمة شغّالة على نفس الموقع دلوقتى
+              -- (أو استثناء «بدون Real» — siteFreeFor فوق)
+              WHERE ${siteFreeFor("e", "e.site_k")}
               ORDER BY e.priority DESC,
                        CASE WHEN e.queue_order > 0 THEN e.queue_order ELSE 9223372036854775807 END ASC,
                        e.created_at, e.id
