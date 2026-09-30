@@ -6216,17 +6216,25 @@ export async function registerRoutes(
     });
   });
 
-  // GET /api/customer-contact-logs — كل اتصالات رقم تليفون، من الأحدث للأقدم
+  // GET /api/customer-contact-logs — كل اتصالات رقم تليفون، من الأحدث للأقدم.
+  // ومعاها رسايل SMS المتابعة (outcome = 'sms_sent') — من جدولها المنفصل، بالرقم المطبَّع
+  // (الرسالة بتتسجّل بالرقم الكامل والنافذة ممكن تفتح بالقصير).
   app.get("/api/customer-contact-logs", requireAuth, async (req, res) => {
     const fullPhone = String((req.query as any).phone || "").trim();
     if (!fullPhone) return res.json({ data: [] });
     const { rows } = await pool.query(`
-       SELECT id, outcome, notes,
-              contacted_at AS "contactedAt",
-             contacted_by_name AS "contactedByName"
-      FROM customer_contact_logs
-      WHERE full_phone = $1
-      ORDER BY contacted_at DESC, id DESC
+      SELECT * FROM (
+        SELECT id, outcome, notes,
+               contacted_at AS "contactedAt",
+               contacted_by_name AS "contactedByName"
+          FROM customer_contact_logs
+         WHERE full_phone = $1
+        UNION ALL
+        SELECT -s.id, 'sms_sent', 'إلى ' || s.mobile, s.sent_at, s.sent_by_name
+          FROM customer_sms_logs s
+         WHERE ${sp("s.full_phone")} = ${sp("$1")}
+      ) x
+      ORDER BY "contactedAt" DESC, id DESC
     `, [fullPhone]);
     res.json({ data: rows });
   });
@@ -7389,6 +7397,24 @@ export async function registerRoutes(
         phone: shown, lastComplaintAt, techName: tech?.name ?? (techName || null), techMobile: tech?.mobile ?? null,
         message: buildFollowupSms({ phone: shown, lastComplaintAt, techName: tech?.name ?? techName, techMobile: tech?.mobile }),
       });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // POST /api/sms/log — السوبر أدمن أكّد إنه بعت رسالة المتابعة (زى «تم الاتصال»).
+  // التطبيق مابيعرفش لوحده إن الرسالة اتبعتت فعلاً — عشان كده بيتسجّل بتأكيده هو بس.
+  app.post("/api/sms/log", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const digits = String(req.body?.phone || "").replace(/\D/g, "");
+      const mobile = normalizeEgMobile(req.body?.mobile);
+      if (!/^\d{5,20}$/.test(digits)) return res.status(400).json({ message: "رقم التليفون غير صالح" });
+      if (!mobile) return res.status(400).json({ message: "رقم المحمول غير صالح" });
+      const userId = Number.isInteger(req.user?.id) ? req.user.id : null;
+      const userName = String(req.user?.fullName || req.user?.username || "").trim() || null;
+      const { rows } = await pool.query(
+        `INSERT INTO customer_sms_logs (full_phone, mobile, sent_by_id, sent_by_name)
+         VALUES ($1, $2, $3, $4) RETURNING id, sent_at AS "sentAt"`,
+        [digits, mobile, userId, userName]);
+      res.status(201).json({ data: rows[0] });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

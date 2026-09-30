@@ -1461,6 +1461,22 @@ export async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS customer_contact_logs_phone_time_idx
       ON customer_contact_logs (full_phone, contacted_at DESC, id DESC)
   `);
+  // customer_sms_logs — رسايل SMS المتابعة اللى اتبعتت (السوبر أدمن بيأكّد بعد ما يبعت).
+  // منفصل عن الاتصالات عشان تقارير «آخر اتصال» ماتتحسبش فيها رسالة.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_sms_logs (
+      id serial PRIMARY KEY,
+      full_phone text NOT NULL,
+      mobile text NOT NULL,
+      sent_at timestamptz NOT NULL DEFAULT now(),
+      sent_by_id integer REFERENCES users(id),
+      sent_by_name text
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS customer_sms_logs_phone_time_idx
+      ON customer_sms_logs (full_phone, sent_at DESC, id DESC)
+  `);
 
   // الاختيارات اليدوية لإضافة الأعطال الحالية إلى جدول الأعطال الجسيمة.
   await pool.query(`

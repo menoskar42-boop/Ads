@@ -9,6 +9,8 @@
  *   · السيرفر: /api/sms/followup سوبر أدمن بس، وآخر بلاغ وفنى الخط من lookupPhoneLine.
  *   · محمول الفنى: عمود users.mobile (schema + ALTER) وخانة فى إدارة المستخدمين.
  *   · الزرار واصل لكل تقارير الخطوط (MobileValue بـphone) + بحث رقم التليفون.
+ *   · تسجيل «تم الإرسال» (زى «تم الاتصال»): بتأكيد السوبر أدمن، فى جدول منفصل
+ *     customer_sms_logs، وبيظهر فى سجل «الاتصالات» بتفاصيل الخط.
  *
  *   الاختبارات: npx tsx --test serviceflow/server/sms-followup.test.ts
  *               DATABASE_URL=… npx tsx serviceflow/scripts/test-sms-tech-mobile.mts
@@ -48,6 +50,15 @@ need(/app\.patch\("\/api\/portal\/users\/:username\/mobile", requireAuth, requir
 need(/mobile: text\("mobile"\)/.test(schema) && db.includes('ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile text'), 'users.mobile لازم فى schema.ts وensureSchema.');
 need(/button-user-mobile-/.test(users), 'خانة محمول الفنى فى إدارة المستخدمين.');
 need(/<SmsButton mobile=\{line\.mobile\} phone=\{line\.fullPhone \|\| line\.telNo\} \/>/.test(lookup), 'الزرار فى «بحث برقم التليفون».');
+
+const contact = read('client/src/components/CustomerContactActions.tsx');
+need(/app\.post\("\/api\/sms\/log", requireAuth, requireSuperAdmin,/.test(routes), 'تسجيل الرسالة سوبر أدمن بس.');
+need(db.includes('CREATE TABLE IF NOT EXISTS customer_sms_logs') && /customerSmsLogs = pgTable\("customer_sms_logs"/.test(schema),
+  'جدول customer_sms_logs لازم فى ensureSchema وschema.ts.');
+need(!/INSERT INTO customer_contact_logs[^`]*sms/i.test(routes), 'الرسالة ماتتسجّلش فى جدول الاتصالات (بتلخبط «آخر اتصال»).');
+need(/FROM customer_sms_logs s\s+WHERE \$\{sp\("s\.full_phone"\)\} = \$\{sp\("\$1"\)\}/.test(routes), 'سجل «الاتصالات» لازم يعرض الرسايل (بالرقم المطبَّع).');
+need(/setConfirming\(true\)/.test(btn) && /fetch\("\/api\/sms\/log"/.test(btn), 'بعد فتح الرسايل لازم يسأل «تم الإرسال؟» ويسجّل.');
+need(/outcome === "sms_sent" \? "تم إرسال رسالة SMS"/.test(contact), 'سجل الاتصالات لازم يعرض «تم إرسال رسالة SMS».');
 
 // كل تقارير الخطوط: MobileValue بـphone (تقارير OM مستثناة — طلبات FTTH جديدة مالهاش خط ولا بلاغ)
 const dir = path.join(SF, 'client/src/components');

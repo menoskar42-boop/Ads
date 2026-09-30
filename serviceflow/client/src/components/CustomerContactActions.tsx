@@ -15,10 +15,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 export type ContactOutcome = "answered" | "no_answer";
+// سجل «الاتصالات» بيرجّع كمان رسايل SMS المتابعة (sms_sent) — للعرض بس، مش اختيار فى التسجيل
+type LogOutcome = ContactOutcome | "sms_sent";
 
 type ContactLog = {
   id: number;
-  outcome: ContactOutcome;
+  outcome: LogOutcome;
   notes: string | null;
   contactedAt: string;
   contactedByName: string | null;
@@ -39,8 +41,9 @@ export const formatContactTime = (value: string | null | undefined) => {
   }).format(date);
 };
 
-const outcomeLabel = (outcome: ContactOutcome) =>
-  outcome === "answered" ? "تم الاتصال والعميل رد" : "تم الاتصال ولم يرد العميل";
+const outcomeLabel = (outcome: LogOutcome) =>
+  outcome === "sms_sent" ? "تم إرسال رسالة SMS"
+  : outcome === "answered" ? "تم الاتصال والعميل رد" : "تم الاتصال ولم يرد العميل";
 
 export function CustomerContactActions({ phone }: { phone: string }) {
   const queryClient = useQueryClient();

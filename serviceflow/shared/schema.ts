@@ -1088,6 +1088,18 @@ export const customerContactLogs = pgTable("customer_contact_logs", {
 
 export type CustomerContactLog = typeof customerContactLogs.$inferSelect;
 
+// customer_sms_logs — رسايل SMS المتابعة اللى السوبر أدمن أكّد إنه بعتها (قرار المالك ٢٠٢٦-٠٩-٣٠).
+// جدول منفصل عن الاتصالات عشان تقارير «آخر اتصال/اتصل خلال الفترة» ماتتحسبش فيها رسالة؛
+// وبتظهر مع الاتصالات فى سجل «الاتصالات» بتفاصيل الخط.
+export const customerSmsLogs = pgTable("customer_sms_logs", {
+  id: serial("id").primaryKey(),
+  fullPhone: text("full_phone").notNull(),
+  mobile: text("mobile").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+  sentById: integer("sent_by_id").references(() => users.id),
+  sentByName: text("sent_by_name"),
+});
+
 // lines_no_account — خطوط معلَّمة يدوياً بأنها "بدون رقم أكونت" (تُخفى من تقرير الخطوط بدون أكونت)
 export const linesNoAccount = pgTable("lines_no_account", {
   fullPhone: text("full_phone").primaryKey(),
