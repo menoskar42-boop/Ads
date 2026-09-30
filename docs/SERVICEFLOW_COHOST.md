@@ -344,9 +344,12 @@ Check** (أول واحد تحت «Most Recent collected data» — دايماً 
 ⚠️ **أعمدة «متعذرات تم توفير خطوط بها» (٢٠٢٦-٠٩-٣٠)** على `om_responses`:
 `box_working_at_response` · `box_working_key` · `box_working_recorded_at`. بتتضاف
 لوحدها من `ensureSchema()` أول ما النسخة المستضافة تقوم (بـ`SERVICEFLOW_DATABASE_URL`).
-**مفيش psql مطلوب.** والـShell بتاع مشروع `sf` القديم بيوصل لقاعدة dev تانية مافيهاش
-`om_responses` أصلاً («relation does not exist» — اتجرّب) — فأى ALTER من هناك مالوش لازمة.
-ولو المشروع القديم اتعمله Republish وظهر `DROP COLUMN` لأى عمود من التلاتة → **Cancel**.
+**مفيش psql مطلوب.** ⚠️ مشروع أوسكار ديفز على ريبليت اسمه اتغيّر لـ`sf` (قرار المالك
+٢٠٢٦-٠٩-٣٠) — ده **هو** Ads مش المشروع القديم. `$DATABASE_URL` فى الـShell بتاعه =
+قاعدة أوسكار ديفز، مش قاعدة Service Flow — عشان كده `ALTER TABLE om_responses` طلّع
+«relation does not exist» (اتجرّب). قاعدة Service Flow هى `$SERVICEFLOW_DATABASE_URL`،
+ومقارنة الـPublishing بتاعة ريبليت مابتلمسهاش — فمفيش تحذيرات DROP منها.
+ولو مشروع Service Flow القديم اتعمله Republish وظهر `DROP COLUMN` لأى عمود من التلاتة → **Cancel**.
 
 اتصلّح كده: الدومين بقى بيتحسب من `sfBase()`:
 
