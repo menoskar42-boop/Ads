@@ -1080,7 +1080,11 @@ const poStopNotNewerSql = (pe: string, meas: string) =>
 //     ليها أكتر من صف، فكان بيرجع صف عشوائى (اسم فنى غير صاحب الكابينة).
 // الترتيب: (1) إسناد السوبر أدمن اليدوى لكود الكابينة، (2) صاحب كابينة الخط من بيان
 // الخط، (3) الطريقة القديمة برقم الكابينة من الشيت — بس لو الخط مش موجود فى بيان الخطوط.
-const areaTechSql = (centralExpr: string, cabinExpr: string, dateExpr: string, phoneExpr?: string) => {
+// noShiftCover: صاحب الكابينة بس — من غير تحويل لزميل الوردية. بيستخدمه فلتر الفنى فى
+// «الأعطال المنتظمة لفترة» (قرار المالك: الفنى يشوف خطوطه هو بس، مش خطوط الزميل
+// اللى غطّى مكانه).
+const areaTechSql = (centralExpr: string, cabinExpr: string, dateExpr: string, phoneExpr?: string,
+                     opts: { noShiftCover?: boolean } = {}) => {
   const cairo = `(${dateExpr} AT TIME ZONE 'Africa/Cairo')`;
   const dt = `${cairo}::date`;                                              // يوم الشكوى
   const di = `((EXTRACT(DOW FROM ${cairo})::int - 5 + 7) % 7)`;             // 0=الجمعة … 6=الخميس
@@ -1114,6 +1118,9 @@ const areaTechSql = (centralExpr: string, cabinExpr: string, dateExpr: string, p
           ${CT_ORDER} LIMIT 1
        ) ctc ON true`
     : "";
+  if (opts.noShiftCover) return `
+  (SELECT o.name FROM (SELECT ${owner} AS name ${ownerFrom}) o
+    WHERE o.name IS NOT NULL LIMIT 1)`;
   return `
   (SELECT COALESCE(NULLIF(btrim(COALESCE(s.covers->>${di}, '')), ''), o.name)
      FROM (SELECT ${owner} AS name ${ownerFrom}) o
@@ -13589,8 +13596,9 @@ export async function registerRoutes(
         cdConds.push(`${cdEffectiveTech} = ${techParam}`);
         rcConds.push(`${rcEffectiveTech} = ${techParam}`);
       }
-      // الفني يرى الأعطال التابعة له فقط. نستخدم فنى المنطقة الفعلى فى يوم الشكوى
-      // مع دعم تغطية الزميل أثناء الوردية.
+      // الفنى يشوف خطوط كباينه هو بس — صاحب الكابينة، **من غير** الخطوط اللى غطّاها
+      // مكان زميل فى الوردية (قرار المالك ٢٠٢٦-٠٩-٣٠: «خطوط الفنى فقط بدون الزميل
+      // بالمناوبة»).
       if (isTech) {
         const workerCode = String(req.user?.workerCode || "").trim();
         if (!workerCode) return res.json([]);
@@ -13604,9 +13612,11 @@ export async function registerRoutes(
         const techParam = `$${params.length}`;
         cdConds.push(`btrim(COALESCE(${areaTechSql(
           "cd.exchange_name", "cd.cabinet_no", "cd.complain_time", "cd.phone_number",
+          { noShiftCover: true },
         )}, '')) = btrim(${techParam})`);
         rcConds.push(`btrim(COALESCE(${areaTechSql(
           "rc.exchange_name", "rc.cabinet_no", "rc.complain_time", "rc.phone_number",
+          { noShiftCover: true },
         )}, '')) = btrim(${techParam})`);
       }
       const cdWhere = "WHERE " + cdConds.join(" AND ");

@@ -112,6 +112,9 @@ const buildDZSUrl = (items: DZSItem[]) => {
   return `${DZS_URL}#sf_accounts=${encodeURIComponent(accounts.join(","))}`;
 };
 
+// حد زرار «اسكور أعلى من» — آخر قياس للرقم أكبر منه (مش يساوى)
+const HIGH_SCORE_MIN = 15;
+
 export function RegularizedFaultsRangeReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
@@ -146,6 +149,11 @@ export function RegularizedFaultsRangeReport() {
   const [speedTo, setSpeedTo] = useState("");
   const [scoreFrom, setScoreFrom] = useState("");
   const [scoreTo, setScoreTo] = useState("");
+  // زرار «اسكور أعلى من 15» (قرار المالك ٢٠٢٦-٠٩-٣٠): مضغوط افتراضياً للفنى، ومش مضغوط
+  // لباقى المستخدمين. null = لسه ماحدش ضغطه → الافتراضى حسب الدور (حتى لو بيانات المستخدم
+  // وصلت بعد أول رسم). بيفلتر على «آخر قياس للرقم» — الخط اللى مالوش قياس بيخرج.
+  const [highScorePref, setHighScorePref] = useState<boolean | null>(null);
+  const highScoreOnly = highScorePref ?? isTechnician;
 
   const { data: filterOptions } = useQuery<FilterOptions>({
     queryKey: ["/api/phone-lines/filter-options"],
@@ -215,7 +223,9 @@ export function RegularizedFaultsRangeReport() {
     .filter((f) => inRange(speedNum(f.lineCurrentSpeed), speedFrom, speedTo))
     .filter((f) => inRange(
       f.lastMeasScore == null || f.lastMeasScore === "" ? null : Number(f.lastMeasScore),
-      scoreFrom, scoreTo));
+      scoreFrom, scoreTo))
+    .filter((f) => !highScoreOnly || (
+      f.lastMeasScore != null && f.lastMeasScore !== "" && Number(f.lastMeasScore) > HIGH_SCORE_MIN));
   const mobileLookup = useMobileLookup(displayed.map((f) => f.phoneShort));
 
   const saveMobile = async (f: RegularizedFault) => {
@@ -570,6 +580,16 @@ export function RegularizedFaultsRangeReport() {
           className={`gap-1 ${repeatedOnly ? "bg-orange-600 hover:bg-orange-700 text-white" : "text-orange-700 border-orange-200"}`}
         >
           <Repeat className="w-4 h-4" /> {repeatedOnly ? "عرض الكل" : "المكرر فقط"}
+        </Button>
+        <Button
+          variant={highScoreOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setHighScorePref(!highScoreOnly)}
+          className={`gap-1 ${highScoreOnly ? "bg-rose-600 hover:bg-rose-700 text-white" : "text-rose-700 border-rose-200"}`}
+          title={`الخطوط اللى آخر قياس ليها اسكور أعلى من ${HIGH_SCORE_MIN}`}
+          data-testid="button-high-score-only"
+        >
+          <Gauge className="w-4 h-4" /> {`اسكور أعلى من ${HIGH_SCORE_MIN}`}
         </Button>
         <QueueExcludeSelect
           value={excludeQueued}
