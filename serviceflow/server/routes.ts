@@ -1873,6 +1873,33 @@ export async function registerRoutes(
   // تغطية الفنى: own = كوده (كل خطوطه) ؛ covered = أكواد الزملاء المشمولين (منح دائمة + تغطية اليوم
   // من جدول الورديات: زميل «راحه/إجازة» اليوم والمستخدم هو «القائم بالعمل»). خطوط الزملاء متاحة
   // **فقط** لو عليها عطل حالى أو عطل خارج الشاشة مفتوح — يُتحقّق فى استعلام البحث. coveredNames للعرض.
+  // كباين الفنى بأكواد MSAN (قرار المالك ٢٠٢٦-٠٩-٣٠ — تقارير الكروت/الفاضى/المرفوعة):
+  // cabinet_technicians برقم العامل + الإسناد اليدوى باسمه (msan_tech_overrides) — نفس
+  // قاعدة «بحث برقم التليفون». غير الفنى → null (بيشوف الكل). فنى مالوش كباين → [] (ولا حاجة).
+  async function techMsanCodes(user: any): Promise<string[] | null> {
+    if (user?.role !== ROLES.TECH) return null;
+    const wc = String(user?.workerCode || "").trim();
+    let name = "";
+    if (wc) {
+      const r = await pool.query(`SELECT tech_name FROM technician_names WHERE worker_code = $1 ORDER BY id DESC LIMIT 1`, [wc]);
+      name = String(r.rows[0]?.tech_name || "").trim();
+    }
+    if (!name) name = String(user?.username || "").trim();
+    const { rows } = await pool.query(
+      `SELECT DISTINCT btrim(code) AS code FROM (
+         SELECT ct.cabin_code AS code FROM cabinet_technicians ct
+          WHERE $1 <> '' AND btrim(ct.worker_code) = $1
+         UNION ALL
+         SELECT mto.cabin_code FROM msan_tech_overrides mto
+          WHERE $2 <> '' AND EXISTS (SELECT 1 FROM unnest(string_to_array(mto.tech_name, ',')) n(name)
+                                      WHERE btrim(n.name) = $2)
+       ) x WHERE NULLIF(btrim(code), '') IS NOT NULL`, [wc, name]);
+    return rows.map((r: any) => String(r.code));
+  }
+  // شرط SQL: كود الكابينة من كباين الفنى (مطابقة متسامحة مع المسافات)
+  const msanInCodesSql = (col: string, p: string) =>
+    `regexp_replace(COALESCE(${col}, ''), '\\s', '', 'g') = ANY(SELECT regexp_replace(c, '\\s', '', 'g') FROM unnest(${p}::text[]) c)`;
+
   async function coverageCodes(user: any): Promise<{ techName: string | null; own: string[]; covered: string[]; coveredNames: string[] }> {
     const own = new Set<string>();
     const covered = new Set<string>();
@@ -11584,27 +11611,36 @@ export async function registerRoutes(
 
   // GET /api/phone-ports/removed — «جدول الخطوط المرفوعة»: أرقام كان لها بورت واختفت
   // من الشيت. بياناتها الأخيرة محفوظة كاملة + إمتى اتشالت ومن أى رفعة.
-  app.get("/api/phone-ports/removed", requireAuth, async (req, res) => {
-    const { q = "" } = req.query as Record<string, string>;
-    const params: any[] = [];
-    let where = "";
-    if (q.trim()) {
-      params.push(arQ(q));
-      const p = `$${params.length}`;
-      where = `WHERE (${n("phone_number")} LIKE ${p} OR ${n("msan_code")} LIKE ${p} OR ${n("operator")} LIKE ${p})`;
-    }
-    const { rows } = await pool.query(
-      `SELECT phone_number AS "phoneNumber", area_code AS "areaCode", msan_code AS "msanCode",
-              frame, shelf, slot, port_number AS "portNumber", port_type AS "portType",
-              voice_status AS "voiceStatus", data_status AS "dataStatus", operator, onu,
-              (last_uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastUploadedAt",
-              (removed_at AT TIME ZONE 'Africa/Cairo') AS "removedAt",
-              removed_source AS "removedSource"
-         FROM removed_phone_ports ${where}
-        ORDER BY removed_at DESC, phone_number
-        LIMIT 20000`,
-      params);
-    res.json({ data: rows, total: rows.length });
+  app.get("/api/phone-ports/removed", requireAuth, async (req: any, res) => {
+    try {
+      const { q = "" } = req.query as Record<string, string>;
+      const params: any[] = [];
+      const conds: string[] = [];
+      if (q.trim()) {
+        params.push(arQ(q));
+        const p = `$${params.length}`;
+        conds.push(`(${n("phone_number")} LIKE ${p} OR ${n("msan_code")} LIKE ${p} OR ${n("operator")} LIKE ${p})`);
+      }
+      // الفنى: خطوط كباينه هو بس
+      const mine = await techMsanCodes(req.user);
+      if (mine) {
+        params.push(mine);
+        conds.push(msanInCodesSql("msan_code", `$${params.length}`));
+      }
+      const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+      const { rows } = await pool.query(
+        `SELECT phone_number AS "phoneNumber", area_code AS "areaCode", msan_code AS "msanCode",
+                frame, shelf, slot, port_number AS "portNumber", port_type AS "portType",
+                voice_status AS "voiceStatus", data_status AS "dataStatus", operator, onu,
+                (last_uploaded_at AT TIME ZONE 'Africa/Cairo') AS "lastUploadedAt",
+                (removed_at AT TIME ZONE 'Africa/Cairo') AS "removedAt",
+                removed_source AS "removedSource"
+           FROM removed_phone_ports ${where}
+          ORDER BY removed_at DESC, phone_number
+          LIMIT 20000`,
+        params);
+      res.json({ data: rows, total: rows.length });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // GET /api/phone-ports/slot-cards — تقرير الكروت: كل (كابينة MSAN + شيلف + سلوت)
@@ -11613,11 +11649,17 @@ export async function registerRoutes(
   //  • «نوع الكارت» = نوع البورت الغالب على السلوت (mode) — لأن الكارت واحد
   //    للسلوت كله، فأى خط جوّاه بيدلّ على نوعه. لو السلوت فيه أكتر من نوع
   //    بنرجّع العدد كمان عشان الحالة الشاذة دى تبان بدل ما تتخفى.
-  app.get("/api/phone-ports/slot-cards", requireAuth, async (req, res) => {
+  app.get("/api/phone-ports/slot-cards", requireAuth, async (req: any, res) => {
     try {
       const { q = "", workingLt = "", phone = "" } = req.query as Record<string, string>;
       const params: any[] = [];
       const conds: string[] = [];
+      // الفنى: كباينه هو بس (الكروت + الفاضى لكل نوع بورت — الاتنين من هنا)
+      const mine = await techMsanCodes(req.user);
+      if (mine) {
+        params.push(mine);
+        conds.push(msanInCodesSql("msan_code", `$${params.length}`));
+      }
       if (q.trim()) {
         params.push(arQ(q));
         const p = `$${params.length}`;
