@@ -13244,8 +13244,27 @@ export async function registerRoutes(
         const p = `$${params.length}`;
         conds.push(`(${n("t.phone_number")} LIKE ${p} OR ${n("t.cabinet_no")} LIKE ${p} OR ${n("t.status_code")} LIKE ${p} OR ${n("pl.box_number")} LIKE ${p})`);
       }
-      // تقرير «الأعطال الحالية» شامل لكل الفنيين وجميع الأدوار المسموح لها
-      // بعرضه. التصفية حسب الفني مطلوبة فقط فى تقرير «خارج الشاشة» اليدوى.
+      // الفنى يشوف أعطاله هو بس (قرار المالك ٢٠٢٦-١٠-٠١) — بنفس قاعدة «بحث برقم
+      // التليفون» (ownedByMe) عشان اللى يشوفه يقدر يقيسه واللى يقدر يقيسه يشوفه:
+      // كود كابينة الخط من البورتات (وإلا من شيت الكباين) ∈
+      //   كباينه برقم العامل + الإسناد اليدوى باسمه (techMsanCodes)
+      //   + الكباين اللى فنيها فى الشيت باسمه
+      //   + كباين الزميل اللى هو قائم بالعمل مكانه **النهارده** (أو منحة تغطية) —
+      //     الأعطال دى كلها مفتوحة، والقياس عليها مسموح له أصلاً.
+      if (req.user?.role === ROLES.TECH) {
+        const own = (await techMsanCodes(req.user)) || [];
+        const cov = await coverageCodes(req.user);
+        const { rows: extra } = await pool.query(
+          `SELECT DISTINCT btrim(ct.cabin_code) AS code
+             FROM cabinet_technicians ct
+             LEFT JOIN technician_names tn ON tn.worker_code = ct.worker_code
+            WHERE NULLIF(btrim(ct.cabin_code), '') IS NOT NULL
+              AND (($1::text <> '' AND btrim(tn.tech_name) = btrim($1::text))
+                   OR btrim(ct.worker_code) = ANY($2::text[]))`,
+          [String(cov.techName || "").trim(), cov.covered]);
+        params.push([...new Set([...own, ...extra.map((r: any) => String(r.code))])]);
+        conds.push(msanInCodesSql(`COALESCE(NULLIF(btrim(pp.msan_code), ''), ct.cabin_code)`, `$${params.length}`));
+      }
       const where = "WHERE " + conds.join(" AND ");
 
       // DISTINCT ON (ticket_id) — آخر حالة لكل شكوى (أعلى id)، ثم ترتيب بوقت الشكوى.
