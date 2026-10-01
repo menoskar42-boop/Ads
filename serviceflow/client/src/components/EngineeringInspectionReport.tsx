@@ -14,8 +14,17 @@ interface Row {
   central: string | null;
   centralCode: string | null;
   currentCabin: string | null;
+  cabinNumber: string | null;   // «كابل-كابينة» من بيان الخط (2-1)
+  boxNumber: string | null;
   lastComplaintAt: string | null;
 }
+
+// رقم الكابل = الجزء الأول من «كابل-كابينة» (نفس «إغلاق عطل جسيم»)؛ غير كده مفيش كابل.
+const cableOf = (value: string | null) => {
+  const raw = String(value || "").trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+  const m = raw.match(/^(\d+)\s*-\s*(\d+)$/);
+  return m ? m[1] : "";
+};
 
 const GOV_CODE = "88";
 const REASONS = ["نقل بدون معرفة الشركة بمعرفة العميل", "توزيع غير شرعى للانترنت"];
@@ -38,6 +47,8 @@ export function EngineeringInspectionReport() {
   const [reason, setReason] = useState(DEFAULT_REASON);
   const [email, setEmail] = useState(DEFAULT_EMAIL);
   const [rows, setRows] = useState<Row[]>([]);
+  // «رقم العنصر المرفوع للمخالفة» بيتكتب يدوى لكل سطر (مش موجود فى أى بيان عندنا)
+  const [elements, setElements] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
 
   const build = async () => {
@@ -48,17 +59,23 @@ export function EngineeringInspectionReport() {
       const r = await fetch(`/api/reports/engineering-inspection?phones=${encodeURIComponent(phones.join(","))}`, { credentials: "include" });
       const d = await r.json();
       setRows(Array.isArray(d.data) ? d.data : []);
+      setElements({});
     } catch { setRows([]); } finally { setLoading(false); }
   };
 
-  const COLUMNS = ["كود المحافظة", "رقم التليفون", "اسم السنترال", "كود السنترال", "رقم الكابينة الحالى", "سبب رفع التفتيش", "تاريخ", "تاريخ شكوى المشترك", "ايميل مرسل الطلب"];
-  const toRow = (x: Row) => [
-    GOV_CODE, x.phoneShort || "", x.central || "", x.centralCode || "", x.currentCabin || "",
-    reason, todayStr(), fmtComplain(x.lastComplaintAt), email,
+  // شكل جدول إيميل «اغلاق عطل تفتيش هندسى» (قرار المالك ٢٠٢٦-١٠-٠١) — بنفس الترتيب.
+  const COLUMNS = ["المحافظة", "رقم التليفون", "اسم السنترال", "كود السنترال", "رقم العنصر المرفوع للمخالفة",
+    "رقم البوكس", "رقم الكابل", "رقم الكابينه الحالى", "سبب رفع المخالفة", "تاريخ رفع المخالفة",
+    "تاريخ شكوى المشترك", "ميل مرسل الطلب"];
+  const ELEMENT_COL = 4;
+  const toRow = (x: Row, i: number) => [
+    GOV_CODE, x.phoneShort || "", x.central || "", x.centralCode || "", elements[i] || "",
+    x.boxNumber || "", cableOf(x.cabinNumber), x.currentCabin || "", reason, todayStr(),
+    fmtComplain(x.lastComplaintAt), email,
   ];
 
   const handleExportExcel = () => {
-    const ws = XLSX.utils.aoa_to_sheet([COLUMNS, ...rows.map(toRow)]);
+    const ws = XLSX.utils.aoa_to_sheet([COLUMNS, ...rows.map((x, i) => toRow(x, i))]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "أعطال التفتيش الهندسى");
     XLSX.writeFile(wb, `engineering-inspection-${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -66,7 +83,7 @@ export function EngineeringInspectionReport() {
 
   // نسخ الجدول كـ HTML بحدود (RTL + أرقام لاتينية) → يتلصق فى الإيميل مباشرة.
   const handleCopyTable = async () => {
-    const ok = await copyHtmlTable(COLUMNS, rows.map(toRow));
+    const ok = await copyHtmlTable(COLUMNS, rows.map((x, i) => toRow(x, i)));
     alert(ok ? "تم نسخ الجدول (بحدود) — الصقه فى الإيميل مباشرة (Ctrl+V)" : "تعذّر النسخ");
   };
 
@@ -99,16 +116,16 @@ export function EngineeringInspectionReport() {
         </div>
         <div className="grid gap-2 content-start">
           <div className="grid gap-1">
-            <label className="text-sm font-medium">سبب رفع التفتيش</label>
+            <label className="text-sm font-medium">سبب رفع المخالفة</label>
             <select value={reason} onChange={(e) => setReason(e.target.value)} className="border rounded-md px-3 py-2 text-sm" dir="rtl">
               {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
           <div className="grid gap-1">
-            <label className="text-sm font-medium">ايميل مرسل الطلب</label>
+            <label className="text-sm font-medium">ميل مرسل الطلب</label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} className="text-sm" dir="ltr" />
           </div>
-          <p className="text-xs text-muted-foreground">«تاريخ» = تاريخ اليوم تلقائياً، و«كود المحافظة» = 88.</p>
+          <p className="text-xs text-muted-foreground">«تاريخ رفع المخالفة» = تاريخ اليوم تلقائياً، و«المحافظة» = 88. «رقم العنصر المرفوع للمخالفة» اكتبه فى الجدول لكل سطر.</p>
         </div>
       </div>
 
@@ -122,7 +139,13 @@ export function EngineeringInspectionReport() {
               <TableRow><TableCell colSpan={COLUMNS.length} className="text-center h-24 text-muted-foreground">اكتب الأرقام واضغط «بناء الجدول»</TableCell></TableRow>
             ) : rows.map((x, i) => (
               <TableRow key={i}>
-                 {toRow(x).map((cell, j) => <TableCell key={j} className="whitespace-nowrap">{cell || "-"}</TableCell>)}
+                 {toRow(x, i).map((cell, j) => j === ELEMENT_COL ? (
+                   <TableCell key={j} className="min-w-[140px]">
+                     <Input value={elements[i] || ""} dir="ltr" className="h-8 text-sm"
+                       onChange={(e) => setElements((m) => ({ ...m, [i]: e.target.value }))}
+                       data-testid={`input-inspection-element-${i}`} />
+                   </TableCell>
+                 ) : <TableCell key={j} className="whitespace-nowrap">{cell || "-"}</TableCell>)}
               </TableRow>
             ))}
           </TableBody>

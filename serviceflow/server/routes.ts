@@ -13052,10 +13052,14 @@ export async function registerRoutes(
                 WHEN 'الغنايم-نجع العمدة'   THEN 'NGOAT'
                 ELSE NULL END AS "centralCode",
               COALESCE(NULLIF(pp.msan_code, ''), ctc.cabin_code) AS "currentCabin",
+              -- رقم الكابل والبوكس (شكل الجدول الجديد ٢٠٢٦-١٠-٠١): الكابينة فى بيان الخط
+              -- «كابل-كابينة» (2-1) — الشاشة بتفصل الكابل منها زى «إغلاق عطل جسيم».
+              pl.cabin_number AS "cabinNumber",
+              pl.box_number AS "boxNumber",
               (cpl.complain_time AT TIME ZONE 'UTC') AS "lastComplaintAt"
        FROM n
        LEFT JOIN LATERAL (
-         SELECT central, cabin_number FROM phone_lines WHERE full_phone = n.full OR tel_no = n.short LIMIT 1
+         SELECT central, cabin_number, box_number FROM phone_lines WHERE full_phone = n.full OR tel_no = n.short LIMIT 1
        ) pl ON true
        LEFT JOIN phone_ports pp ON pp.phone_number = n.full
        LEFT JOIN LATERAL (
