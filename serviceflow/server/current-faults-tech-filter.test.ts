@@ -12,5 +12,5 @@ test("the tech dropdown lists the names shown in the report and filters what is 
   // الفلتر جوّه displayed — فالإكسيل والـPDF وأزرار القياس بتمشى عليه
   const displayed = ui.slice(ui.indexOf("const displayed = faults"), ui.indexOf("const mobileLookup"));
   assert.match(displayed, /\.filter\(\(f\) => !techFilter \|\| \(techOf\(f\) \|\| NO_TECH\) === techFilter\)/);
-  assert.match(ui, /bدون فنى|بدون فنى/);
+  assert.match(ui, /<option value=\{NO_TECH\}>بدون فنى/);
 });
