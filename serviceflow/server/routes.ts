@@ -7134,6 +7134,12 @@ export async function registerRoutes(
   // بيانات الخط + ownedByMe — **مشتركة** بين البحث برقم التليفون وحفظ رقم الأكونت
   // (قرار المالك ٢٠٢٦-٠٩-٢٩: الفنى يضيف أكونت لخطوطه بس) — فالصلاحية على السيرفر هى
   // نفس اللى الشاشة بتعرضها بالظبط، مش نسخة تانية ممكن تتفرق.
+  // قياسات الخط فى «بحث برقم التليفون» — بتتشال من الرد للفنى على خط مش بتاعه.
+  const LINE_MEASUREMENT_FIELDS = [
+    "currentSpeed", "maxSpeed", "score", "lastMeasTime", "measureMode", "loopLength",
+    "histLabel", "poStatus", "measuredBy",
+    "lastPoRaiseAt", "raisedBy", "lastPoStopAt", "stoppedBy",
+  ] as const;
   const lookupPhoneLine = async (reqUser: any, phone: string) => {
     // مطابقة الرقم الكامل أو القصير (مع/بدون بادئة 88).
     // ⚠️ لازم نشيل أى رموز الأول: أوامر الشغل بتخزّن الرقم بشرطة («88-2650848»)،
@@ -7450,6 +7456,12 @@ export async function registerRoutes(
     // فنى حسابه مش مربوط بكود عامل: مفيش ولا خط هيبقى «بتاعه» — والرسالة العامة
     // «متاحة فقط لفنى المنطقة» كانت بتخبّى السبب ده. الشاشة بتقوله يكلّم الأدمن.
     line.myWorkerCodeMissing = req.user?.role === ROLES.TECH && codes.own.length === 0;
+    // الفنى مايشوفش قياسات خط مش بتاعه — نفس قاعدة القياس بالظبط (ownedByMe).
+    // قرار المالك ٢٠٢٦-١٠-٠١. بتتشال هنا من الرد نفسه، مش بتستخبّى فى الشاشة بس.
+    if (req.user?.role === ROLES.TECH && !line.ownedByMe) {
+      for (const k of LINE_MEASUREMENT_FIELDS) line[k] = null;
+      line.measurementsHidden = true;
+    }
     res.json({ found: true, line });
   });
 

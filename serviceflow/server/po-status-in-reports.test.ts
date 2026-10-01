@@ -36,7 +36,7 @@ test("بحث برقم التليفون sends it too", () => {
   assert.match(routes, /SELECT c2\.full_phone, c2\.current_speed, c2\.max_speed, c2\.score, c2\.po_status,/);
   const lookup = read("PhoneLookupReport.tsx");
   assert.match(lookup, /poStatus: string \| null;/);
-  assert.match(lookup, /\["حالة تحسين البروفايل", <PoStatusCell value=\{line\.poStatus\} \/>\]/);
+  assert.match(lookup, /\["حالة تحسين البروفايل", meas\(<PoStatusCell value=\{line\.poStatus\} \/>\)\]/);
   // فى التصديرين كمان (قاعدة #7)
   assert.match(lookup, /"حالة تحسين البروفايل": line\.poStatus \?\? "",/);
   assert.match(lookup, /poStatusShort\(line\.poStatus\)/);

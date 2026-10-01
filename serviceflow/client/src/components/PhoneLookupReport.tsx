@@ -92,6 +92,8 @@ interface LineData {
   workOrdNo: string | null;
   ownedByMe: boolean | null;
   myWorkerCodeMissing?: boolean;
+  // الفنى على خط مش بتاعه: السيرفر شال القياسات من الرد (قرار المالك ٢٠٢٦-١٠-٠١)
+  measurementsHidden?: boolean;
 }
 
 const dash = (v: unknown) =>
@@ -760,6 +762,11 @@ export function PhoneLookupReport() {
 
   // الترتيب مطابق للإكسيل: الشبكة RTL تملأ الخلية اليمنى ثم اليسرى فى كل صف —
   // فالمصفوفة مرتّبة: (يمين1, شمال1, يمين2, شمال2 …) للصفوف 1–12، ثم الحقول الفنية الباقية كامل العرض (صف لكل حقل).
+  // خلايا القياس للفنى على خط مش بتاعه — السيرفر مابعتهاش أصلاً، فبنقول ليه بدل «-».
+  const hiddenMeas: ReactNode = (
+    <span className="text-xs text-muted-foreground" data-testid="text-measurements-hidden">متاح لفنى الخط فقط</span>
+  );
+  const meas = (v: ReactNode): ReactNode => (line?.measurementsHidden ? hiddenMeas : v);
   const fields: [string, ReactNode][] = line
     ? [
         // صف1: اسم العميل يمين | رقم الموبايل شمال — وتحت الاسم مباشرةً (نفس العمود) عنوان العميل
@@ -767,15 +774,15 @@ export function PhoneLookupReport() {
         ["عنوان العميل", dash(line.subAdd)],            ["السنترال", dash(line.central)],
         ["اسم الفنى", dash(line.techName)],             ["رقم الكابينة", dash(line.cabinNumber)],
         ["رقم الأكونت", accountCell],                   ["رقم البكس", dash(line.boxNumber)],
-        ["السرعة الحالية", dash(line.currentSpeed)],    ["DP Terminal", dash(line.dpTerminal)],
-        ["أقصى سرعة", dash(line.maxSpeed)],             ["كود الكابينة (MSAN)", dash(line.msanCode)],
-        ["الاسكور", scoreBadge(line.score)],            ["رقم الفريم", dash(line.frame)],
-        ["تاريخ آخر قياس", withBy(fmtDate(line.lastMeasTime), line.measuredBy)], ["Port Type", dash(line.portType)],
-        ["حالة تحسين البروفايل", <PoStatusCell value={line.poStatus} />],
+        ["السرعة الحالية", meas(dash(line.currentSpeed))], ["DP Terminal", dash(line.dpTerminal)],
+        ["أقصى سرعة", meas(dash(line.maxSpeed))],       ["كود الكابينة (MSAN)", dash(line.msanCode)],
+        ["الاسكور", meas(scoreBadge(line.score))],      ["رقم الفريم", dash(line.frame)],
+        ["تاريخ آخر قياس", meas(withBy(fmtDate(line.lastMeasTime), line.measuredBy))], ["Port Type", dash(line.portType)],
+        ["حالة تحسين البروفايل", meas(<PoStatusCell value={line.poStatus} />)],
         // اتنين جنب بعض = سطر واحد، فالترتيب اللى تحت مابيتزحلقش.
-        ["نوع القياس", measureModeCell(line.measureMode, line.histLabel)],  ["Loop Length", loopLengthCell(line.measureMode, line.loopLength)],
-        ["آخر رفع سرعة", withBy(fmtDate(line.lastPoRaiseAt), line.raisedBy)],  ["voice status", dash(line.voiceStatus)],
-        ["آخر إيقاف PO", withBy(fmtDate(line.lastPoStopAt), line.stoppedBy)],   ["data status", dash(line.dataStatus)],
+        ["نوع القياس", meas(measureModeCell(line.measureMode, line.histLabel))],  ["Loop Length", meas(loopLengthCell(line.measureMode, line.loopLength))],
+        ["آخر رفع سرعة", meas(withBy(fmtDate(line.lastPoRaiseAt), line.raisedBy))],  ["voice status", dash(line.voiceStatus)],
+        ["آخر إيقاف PO", meas(withBy(fmtDate(line.lastPoStopAt), line.stoppedBy))],   ["data status", dash(line.dataStatus)],
         ["تاريخ آخر شكوى", fmtDate(line.lastComplaintAt)], ["Row", dash(line.rowNo)],
         ["حالة صيانة البكس", boxMaintCell],             ["Column", dash(line.columnNo)],
         ["هل البكس له تكت أرضية", groundCell],
@@ -1058,7 +1065,7 @@ export function PhoneLookupReport() {
                 </>
                 ) : (
                   <span className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                    القياس ورفع السرعة والإيقاف متاحة فقط لفنى المنطقة
+                    القياس ورفع السرعة والإيقاف — ومعاهم قراءات القياس — متاحة فقط لفنى المنطقة
                     {line.techName ? ` — الخط تابع للفنى: ${line.techName}` : " — الخط غير مُسنَد لفنى معروف"}
                     <span className="block mt-1 text-[11px] opacity-90">
                       لو انت مغطّى للفنى ده: الصلاحية بتفتح على خطوطه اللى عليها عطل مفتوح أو عطل اتنظّم النهاردة بس.

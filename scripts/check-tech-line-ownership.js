@@ -40,6 +40,9 @@ check('$6 = اسمى للفنى بس',
 check('الشاشة بتقول لو حساب الفنى مالوش كود عامل',
   /line\.myWorkerCodeMissing = req\.user\?\.role === ROLES\.TECH && codes\.own\.length === 0;/.test(routes)
   && /line\.myWorkerCodeMissing && \(/.test(ui));
+// ٢٠٢٦-١٠-٠١: ومايشوفش قياسات الخط اللى مش بتاعه (نفس ownedByMe) — من السيرفر.
+check('قياسات الخط بتتشال من الرد للفنى على خط مش بتاعه',
+  /if \(req\.user\?\.role === ROLES\.TECH && !line\.ownedByMe\) \{\s*for \(const k of LINE_MEASUREMENT_FIELDS\) line\[k\] = null;/.test(routes));
 
 // الاختبار بتاع الملف نفسه (node:test) — لو tsx موجود.
 try {
