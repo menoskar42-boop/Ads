@@ -2319,7 +2319,7 @@ export async function registerRoutes(
   // ده الرقم الوحيد اللى بيحدّد عدد التابات — جهاز التنفيذ والسكربت بيمشوا وراه.
   // المالك ٢٠٢٦-٠٩-٢٧: عدد تابات «بدون Real» بيتحدّد من هنا **بس** — جهاز التنفيذ
   // بياخد أول رقم تاب فاضى، والسكربت بيقبل أى sf_lane، ومفيش رقم تانى فى أى مكان.
-  const NOREAL_LANES = 4;
+  const NOREAL_LANES = 6;   // كان ٤ — المالك ٢٠٢٦-١٠-٠١: ٦ (السقف فى جهاز التنفيذ MAX_LANES = 8)
   const isNoRealJob = (a: string) =>
     `(${a}.type = 'measure' AND POSITION('${AUTO_MEASURE_NOREAL_MARK}' IN COALESCE(${a}.note, '')) > 0)`;
   const queueRank = (a: string) =>
