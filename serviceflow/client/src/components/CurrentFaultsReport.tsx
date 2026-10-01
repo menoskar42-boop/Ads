@@ -188,6 +188,8 @@ const faultBadge = (cls: string | null) => {
   );
 };
 
+const NO_TECH = "__no_tech__";
+
 export function CurrentFaultsReport() {
   const showSpeedTools = useSpeedToolsVisible();
   const isSuper = useIsSuperAdmin();
@@ -209,6 +211,9 @@ export function CurrentFaultsReport() {
   useSpeedToolSource("المتعذرات الحالية");
   const [central, setCentral] = useState("");
   const [q, setQ] = useState("");
+  // فلتر الفنى (قرار المالك ٢٠٢٦-١٠-٠١): الأسماء من عمود «اسم الفنى» فى التقرير نفسه
+  // عشان القايمة تطابق اللى ظاهر بالظبط. NO_TECH = الأعطال اللى مالهاش فنى معروف.
+  const [techFilter, setTechFilter] = useState("");
   const [repeatedOnly, setRepeatedOnly] = useState(false);
   // زر مستقل: الأعطال التى لها رقم شكوى آخر خلال شهر من تاريخها (بدون كلمة «مكرر»)
   const [monthRepeatOnly, setMonthRepeatOnly] = useState(false);
@@ -307,7 +312,11 @@ export function CurrentFaultsReport() {
                      disp: dispStatus(f.statusCode), norm: normComplainType(f.complainTypeName) }));
     if (sample.length) console.info("[current-faults] 99-DSL بدون حرارة = 0 — القيم الخام:", sample);
   }, [faults, dsl99NoToneCount]);
+  const techOf = (f: CurrentFault) => (f.techName || "").trim();
+  const techCounts = faults.reduce((m, f) => { const t = techOf(f) || NO_TECH; m.set(t, (m.get(t) || 0) + 1); return m; }, new Map<string, number>());
+  const techOptions = [...techCounts.keys()].filter((t) => t !== NO_TECH).sort((a, b) => a.localeCompare(b, "ar"));
   const displayed = faults
+    .filter((f) => !techFilter || (techOf(f) || NO_TECH) === techFilter)
     .filter((f) => showDsl99NoTone || !isDsl99NoTone(f))
     .filter((f) => (repeatedOnly ? f.repeatStatus === "مكرر" : true))
     .filter((f) => (monthRepeatOnly ? f.monthRepeat === true : true))
@@ -509,6 +518,18 @@ export function CurrentFaultsReport() {
         >
           <option value="">كل السنترالات</option>
           {CENTRALS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select
+          value={techFilter}
+          onChange={(e) => setTechFilter(e.target.value)}
+          className="border rounded-md px-3 py-1.5 text-sm w-full sm:w-auto"
+          dir="rtl"
+          data-testid="select-tech-filter"
+        >
+          <option value="">كل الفنيين</option>
+          {techOptions.map((t) => <option key={t} value={t}>{t} ({techCounts.get(t)})</option>)}
+          {techCounts.has(NO_TECH) && <option value={NO_TECH}>بدون فنى ({techCounts.get(NO_TECH)})</option>}
+          {techFilter && !techCounts.has(techFilter) && <option value={techFilter}>{techFilter === NO_TECH ? "بدون فنى" : techFilter} (0)</option>}
         </select>
         <Input
           placeholder="بحث برقم التليفون / الكابينه / البكس / status"
