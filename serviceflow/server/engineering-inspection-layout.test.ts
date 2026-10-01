@@ -28,3 +28,8 @@ test("cable comes from «cable-cabinet», box from the line, element is typed pe
   assert.match(ep, /pl\.box_number AS "boxNumber"/);
   assert.match(ep, /pl\.cabin_number AS "cabinNumber"/);
 });
+
+test("the element number defaults to the phone number and stays editable", () => {
+  assert.match(ui, /elements\[i\] \?\? \(x\.phoneShort \|\| ""\),/);
+  assert.match(ui, /<Input value=\{elements\[i\] \?\? \(x\.phoneShort \|\| ""\)\}/);
+});

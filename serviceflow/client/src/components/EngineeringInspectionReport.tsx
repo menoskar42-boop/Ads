@@ -47,7 +47,7 @@ export function EngineeringInspectionReport() {
   const [reason, setReason] = useState(DEFAULT_REASON);
   const [email, setEmail] = useState(DEFAULT_EMAIL);
   const [rows, setRows] = useState<Row[]>([]);
-  // «رقم العنصر المرفوع للمخالفة» بيتكتب يدوى لكل سطر (مش موجود فى أى بيان عندنا)
+  // «رقم العنصر المرفوع للمخالفة» = رقم التليفون (قرار المالك ٢٠٢٦-١٠-٠١)، ويتعدّل لكل سطر لو لزم
   const [elements, setElements] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -69,7 +69,7 @@ export function EngineeringInspectionReport() {
     "تاريخ شكوى المشترك", "ميل مرسل الطلب"];
   const ELEMENT_COL = 4;
   const toRow = (x: Row, i: number) => [
-    GOV_CODE, x.phoneShort || "", x.central || "", x.centralCode || "", elements[i] || "",
+    GOV_CODE, x.phoneShort || "", x.central || "", x.centralCode || "", elements[i] ?? (x.phoneShort || ""),
     x.boxNumber || "", cableOf(x.cabinNumber), x.currentCabin || "", reason, todayStr(),
     fmtComplain(x.lastComplaintAt), email,
   ];
@@ -125,7 +125,7 @@ export function EngineeringInspectionReport() {
             <label className="text-sm font-medium">ميل مرسل الطلب</label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} className="text-sm" dir="ltr" />
           </div>
-          <p className="text-xs text-muted-foreground">«تاريخ رفع المخالفة» = تاريخ اليوم تلقائياً، و«المحافظة» = 88. «رقم العنصر المرفوع للمخالفة» اكتبه فى الجدول لكل سطر.</p>
+          <p className="text-xs text-muted-foreground">«تاريخ رفع المخالفة» = تاريخ اليوم تلقائياً، و«المحافظة» = 88. «رقم العنصر المرفوع للمخالفة» = رقم التليفون، وتقدر تعدّله فى الجدول.</p>
         </div>
       </div>
 
@@ -141,7 +141,7 @@ export function EngineeringInspectionReport() {
               <TableRow key={i}>
                  {toRow(x, i).map((cell, j) => j === ELEMENT_COL ? (
                    <TableCell key={j} className="min-w-[140px]">
-                     <Input value={elements[i] || ""} dir="ltr" className="h-8 text-sm"
+                     <Input value={elements[i] ?? (x.phoneShort || "")} dir="ltr" className="h-8 text-sm"
                        onChange={(e) => setElements((m) => ({ ...m, [i]: e.target.value }))}
                        data-testid={`input-inspection-element-${i}`} />
                    </TableCell>
