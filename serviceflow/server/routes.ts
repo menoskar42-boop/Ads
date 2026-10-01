@@ -7134,8 +7134,11 @@ export async function registerRoutes(
   // بيانات الخط + ownedByMe — **مشتركة** بين البحث برقم التليفون وحفظ رقم الأكونت
   // (قرار المالك ٢٠٢٦-٠٩-٢٩: الفنى يضيف أكونت لخطوطه بس) — فالصلاحية على السيرفر هى
   // نفس اللى الشاشة بتعرضها بالظبط، مش نسخة تانية ممكن تتفرق.
-  // قياسات الخط فى «بحث برقم التليفون» — بتتشال من الرد للفنى على خط مش بتاعه.
+  // قياسات الخط ورقم الأكونت فى «بحث برقم التليفون» — بتتشال من الرد للفنى على خط
+  // مش بتاعه (قرار المالك ٢٠٢٦-١٠-٠١). الأكونت معاه علامة «بدون أكونت» ومين علّمها،
+  // لأنها بتقول هى كمان حاجة عن الأكونت.
   const LINE_MEASUREMENT_FIELDS = [
+    "accountNo", "markedNoAccount", "noAccountBy", "noAccountAt",
     "currentSpeed", "maxSpeed", "score", "lastMeasTime", "measureMode", "loopLength",
     "histLabel", "poStatus", "measuredBy",
     "lastPoRaiseAt", "raisedBy", "lastPoStopAt", "stoppedBy",
@@ -7456,7 +7459,7 @@ export async function registerRoutes(
     // فنى حسابه مش مربوط بكود عامل: مفيش ولا خط هيبقى «بتاعه» — والرسالة العامة
     // «متاحة فقط لفنى المنطقة» كانت بتخبّى السبب ده. الشاشة بتقوله يكلّم الأدمن.
     line.myWorkerCodeMissing = req.user?.role === ROLES.TECH && codes.own.length === 0;
-    // الفنى مايشوفش قياسات خط مش بتاعه — نفس قاعدة القياس بالظبط (ownedByMe).
+    // الفنى مايشوفش قياسات ولا رقم أكونت خط مش بتاعه — نفس قاعدة القياس بالظبط (ownedByMe).
     // قرار المالك ٢٠٢٦-١٠-٠١. بتتشال هنا من الرد نفسه، مش بتستخبّى فى الشاشة بس.
     if (req.user?.role === ROLES.TECH && !line.ownedByMe) {
       for (const k of LINE_MEASUREMENT_FIELDS) line[k] = null;

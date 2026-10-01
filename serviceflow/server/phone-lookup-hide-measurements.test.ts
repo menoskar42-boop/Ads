@@ -33,3 +33,11 @@ test("the screen says why instead of a dash", () => {
     assert.match(ui, cell);
   }
 });
+
+test("the account number is hidden too, and the 'only the area tech' message stays visible", () => {
+  for (const k of ["accountNo", "markedNoAccount", "noAccountBy", "noAccountAt"]) assert.ok(fieldsSrc.includes(`"${k}"`), k);
+  assert.match(ui, /const accountCell: ReactNode = line\?\.measurementsHidden\s*\? hiddenMeas/);
+  assert.match(ui, /\{line\.accountNo \|\| line\.measurementsHidden \? \(\s*canUseTools && line\.accountNo \? \(/);
+  // hiddenMeas لازم يتعرّف قبل أول استخدام (const فى نفس الدالة)
+  assert.ok(ui.indexOf("const hiddenMeas") < ui.indexOf("const accountCell"));
+});

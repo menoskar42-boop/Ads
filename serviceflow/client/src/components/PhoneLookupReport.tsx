@@ -732,10 +732,18 @@ export function PhoneLookupReport() {
     } catch { setHistRows([]); }
   };
 
+  // خلايا القياس ورقم الأكونت للفنى على خط مش بتاعه — السيرفر مابعتهاش أصلاً، فبنقول ليه بدل «-».
+  const hiddenMeas: ReactNode = (
+    <span className="text-xs text-muted-foreground" data-testid="text-measurements-hidden">متاح لفنى الخط فقط</span>
+  );
+  const meas = (v: ReactNode): ReactNode => (line?.measurementsHidden ? hiddenMeas : v);
+
   // رقم الأكونت: بنفرّق بين حالتين كانوا بيبانوا نفس الشكل («-»):
   //   • الخط لسه **ماتفحصش** → «-» عادى (يمكن يكون ليه أكونت ولسه ماتسجّلش).
   //   • الخط **اتفحص** ومسئول البيانات علّمه «بدون أكونت» → يعنى صوت بس مش داتا.
-  const accountCell: ReactNode = line?.accountNo
+  const accountCell: ReactNode = line?.measurementsHidden
+    ? hiddenMeas
+    : line?.accountNo
     ? dash(line.accountNo)
     : line?.markedNoAccount
       ? (
@@ -762,11 +770,6 @@ export function PhoneLookupReport() {
 
   // الترتيب مطابق للإكسيل: الشبكة RTL تملأ الخلية اليمنى ثم اليسرى فى كل صف —
   // فالمصفوفة مرتّبة: (يمين1, شمال1, يمين2, شمال2 …) للصفوف 1–12، ثم الحقول الفنية الباقية كامل العرض (صف لكل حقل).
-  // خلايا القياس للفنى على خط مش بتاعه — السيرفر مابعتهاش أصلاً، فبنقول ليه بدل «-».
-  const hiddenMeas: ReactNode = (
-    <span className="text-xs text-muted-foreground" data-testid="text-measurements-hidden">متاح لفنى الخط فقط</span>
-  );
-  const meas = (v: ReactNode): ReactNode => (line?.measurementsHidden ? hiddenMeas : v);
   const fields: [string, ReactNode][] = line
     ? [
         // صف1: اسم العميل يمين | رقم الموبايل شمال — وتحت الاسم مباشرةً (نفس العمود) عنوان العميل
@@ -838,7 +841,7 @@ export function PhoneLookupReport() {
       "السنترال": line.central,
       "اسم الفنى": line.techName ?? "",
       "رقم الكابينة": line.cabinNumber ?? "",
-      "رقم الأكونت": line.accountNo
+      "رقم الأكونت": line.measurementsHidden ? "متاح لفنى الخط فقط" : line.accountNo
         || (line.markedNoAccount
             ? `صوت فقط — مافيش داتا (اتفحص${line.noAccountBy ? " — " + line.noAccountBy : ""})`
             : "لسه ماتفحصش"),
@@ -985,8 +988,10 @@ export function PhoneLookupReport() {
           )}
           {line && (
             <div className="flex flex-wrap items-center gap-2 sm:mr-auto">
-              {line.accountNo ? (
-                canUseTools ? (
+              {/* measurementsHidden: الأكونت مستخبّى عن الفنى (مش بتاعه) — رسالة «متاحة فقط لفنى
+                  المنطقة» لازم تفضل ظاهرة، مش تختفى كأن الخط مالوش أكونت. */}
+              {line.accountNo || line.measurementsHidden ? (
+                canUseTools && line.accountNo ? (
                 <>
                   <Button
                     variant="outline"
