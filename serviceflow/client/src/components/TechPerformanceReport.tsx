@@ -41,6 +41,10 @@ const REP_TARGET  = 4;  // مستهدف التكرار 4%
 // المقارنة على النسبة زى ما هى معروضة (رقم عشرى واحد) — 4.8 المعروضة = مش صفر.
 const REP_ZERO_ABOVE = 4.8;
 const ADSL_TARGET = 25; // مستهدف أعطال/1000 = 25
+// سقف الأعطال فى الألف (قرار المالك ٢٠٢٦-١٠-٠٢): أكتر من 1.2 × المستهدف (= 30) → الدرجة صفر،
+// للفنى وللإدارة. المقارنة على الرقم زى ما هو معروض (رقمين عشريين) — 30.00 المعروضة = مش صفر.
+const ADSL_ZERO_FACTOR = 1.2;
+const ADSL_ZERO_ABOVE = ADSL_TARGET * ADSL_ZERO_FACTOR;
 const MAX_OM    = 10;
 const MAX_REP   = 35;
 const MAX_ADSL  = 35;
@@ -67,6 +71,7 @@ function adslScore(per1000: number | null): number {
   if (per1000 == null) return 0;
   if (Number(per1000) <= 0) return MAX_ADSL; // صفر أعطال = ممتاز
   if (Number(per1000) <= ADSL_TARGET) return MAX_ADSL; // عند المستهدف أو أفضل
+  if (Math.round(Number(per1000) * 100) / 100 > ADSL_ZERO_ABOVE) return 0;
   return Math.round(Math.min(MAX_ADSL, MAX_ADSL * ADSL_TARGET / Number(per1000)) * 10) / 10;
 }
 function remScore(pct24: number | null): number {
@@ -615,7 +620,7 @@ export function TechPerformanceReport() {
         {[
           { label: "المتعذرات OM", max: MAX_OM, note: `مطلق — 100% تحقيق = ${MAX_OM} درجة` },
           { label: "التكرار", max: MAX_REP, note: `مستهدف ${REP_TARGET}% أو أقل = ${MAX_REP} درجة — أكتر من ${REP_ZERO_ABOVE}% = صفر` },
-          { label: "الأعطال فى الألف", max: MAX_ADSL, note: `مستهدف ${ADSL_TARGET}/ألف أو أقل = ${MAX_ADSL} درجة` },
+          { label: "الأعطال فى الألف", max: MAX_ADSL, note: `مستهدف ${ADSL_TARGET}/ألف أو أقل = ${MAX_ADSL} درجة — أكتر من ${ADSL_ZERO_ABOVE}/ألف = صفر` },
           { label: "نسبة الإزالة 24h", max: MAX_REM, note: `مطلق — 100% = ${MAX_REM} درجة` },
         ].map((item) => (
           <div key={item.label} className="rounded-lg border bg-white p-3 text-center shadow-sm">
