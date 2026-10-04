@@ -42,6 +42,7 @@ import { InstallationsReport } from "@/components/InstallationsReport";
 import { SubscriberInfoReport } from "@/components/SubscriberInfoReport";
 import { RemovalStatsReport } from "@/components/RemovalStatsReport";
 import { RepetitionStatsReport } from "@/components/RepetitionStatsReport";
+import { RepeatReviewsReport } from "@/components/RepeatReviewsReport";
 import { CabinetAdslFaultsReport } from "@/components/CabinetAdslFaultsReport";
 import { TechPerformanceReport } from "@/components/TechPerformanceReport";
 import { OmRejectionsReport } from "@/components/OmRejectionsReport";
@@ -88,7 +89,7 @@ import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 
 type AdminTab = "orders" | "reports" | "phone-lookup" | "data-completion" | "file-upload";
-type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "other-work-orders";
+type ReportTab = "box-rejections" | "phone-lines" | "ports-missing-line-data" | "box-summary" | "box-full" | "box-broken" | "work-orders" | "current-faults" | "major-faults" | "major-faults-selected" | "major-fault-closure" | "regularized-faults" | "regularized-faults-range" | "current-installations" | "regularized-installations" | "regularized-installations-range" | "current-surveys" | "regularized-surveys" | "regularized-surveys-range" | "removal-stats" | "repetition-stats" | "cabinet-adsl-faults" | "tech-performance" | "om-current" | "om-soy" | "om-resolved" | "om-stats" | "om-stats-2026" | "om-stats-prior" | "with-account" | "account-complaints" | "no-account" | "cabinet-score-avg" | "account-edits" | "needs-speed" | "high-score" | "complaint-no-measure" | "cfm-tickets" | "ground-network" | "maintenance-comprehensive" | "phone-lookup" | "repeated-within-month" | "needs-po-stop" | "subscriber-info" | "box-overlap" | "maintenance-plan-h2" | "ports-suspend-free" | "cabinet-capacity" | "exec-jobs" | "manual-current-faults" | "manual-regularized-range" | "manual-regularized-high-score" | "closed-port-cabinets" | "port-change" | "engineering-inspection" | "queue-reorder" | "exec-batches" | "work-orders-over24" | "work-orders-fail" | "installations-by-tech" | "inspection-reports" | "shift-schedule" | "duplicate-accounts" | "lines-without-port" | "work-orders-no-cable" | "removed-ports" | "box-tickets-backfill" | "box-tickets-repaired" | "slot-cards" | "cabinet-port-free" | "account-never-measured" | "box-score-avg" | "loop-length-scatter" | "lines-no-mobile" | "needs-speed-lowscore" | "lines-mobile-checked" | "om-order-match" | "left-speed-highscore" | "left-speed-raised" | "box-full-reviewed" | "om-box-freed" | "repeat-reviews" | "other-work-orders";
 
 // ── Sidebar navigation definition ──────────────────────────────────────────
 const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: ReportTab; label: string }[] }[] = [
@@ -106,6 +107,7 @@ const REPORT_GROUPS: { label: string; icon: React.ElementType; items: { id: Repo
       { id: "cabinet-adsl-faults", label: "عدد الأعطال فى الألف" },
       { id: "removal-stats",       label: "إحصائيات الإزالة" },
       { id: "repetition-stats",    label: "إحصائيات التكرار" },
+      { id: "repeat-reviews",      label: "ردود التكرار" },
       { id: "tech-performance",    label: "تقرير أداء الفنيين" },
     ],
   },
@@ -310,7 +312,8 @@ export default function Dashboard() {
   const SALES_ADMIN_ALLOWED: ReportTab[] = ["om-current"];
   const SALES_ADMIN_ALLOWED_GROUPS = ["متعذرات OM"];
   // تقارير للسوبر أدمن فقط رغم إنها جوّه مجموعات مشتركة (السيرفر بيرفضها كمان بـ 403)
-  const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match"];
+  // «ردود التكرار» — تقرير السوبر أدمن (٢٠٢٦-١٠-٠٤)؛ الرد نفسه من «إحصائيات التكرار».
+  const SUPER_ONLY_REPORTS: ReportTab[] = ["lines-mobile-checked", "om-order-match", "repeat-reviews"];
   const visibleGroups = REPORT_GROUPS
     .filter((g) =>
       (user?.role !== ROLES.DATA_MANAGER || DM_ALLOWED_GROUPS.includes(g.label)) &&
@@ -759,6 +762,7 @@ export default function Dashboard() {
               )}
               {reportTab === "removal-stats" && <RemovalStatsReport />}
               {reportTab === "repetition-stats" && <RepetitionStatsReport />}
+              {reportTab === "repeat-reviews" && isSuperAdmin && <RepeatReviewsReport />}
               {reportTab === "tech-performance" && <TechPerformanceReport />}
               {reportTab === "cabinet-adsl-faults" && <CabinetAdslFaultsReport />}
               {reportTab === "om-current"  && <OmRejectionsReport bucket="current"  title="المتعذرات الحالية (OM)" />}

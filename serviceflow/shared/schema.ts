@@ -1106,6 +1106,44 @@ export const customerSmsLogs = pgTable("customer_sms_logs", {
   sentByName: text("sent_by_name"),
 });
 
+// repeat_reviews — «رد التكرار»: رد واحد لكل خط مكرر فى كل شهر (قرار المالك ٢٠٢٦-١٠-٠٤).
+export const repeatReviews = pgTable("repeat_reviews", {
+  id: serial("id").primaryKey(),
+  phoneShort: text("phone_short").notNull(),
+  month: text("month").notNull(),   // YYYY-MM — شهر الشكوى
+  lineStatus: text("line_status"),  // confirmed | corrected
+  lineCentral: text("line_central"),
+  lineCabin: text("line_cabin"),
+  lineBox: text("line_box"),
+  lineTerminal: text("line_terminal"),
+  lineCorrectionId: integer("line_correction_id"),
+  lineCheckedBy: text("line_checked_by"),
+  lineCheckedAt: timestamp("line_checked_at", { withTimezone: true }),
+  inspectionId: integer("inspection_id"),
+  inspectionDate: date("inspection_date"),
+  inspectionBy: text("inspection_by"),
+  inspectionBadItems: integer("inspection_bad_items"),
+  inspectionLinkedBy: text("inspection_linked_by"),
+  inspectionLinkedAt: timestamp("inspection_linked_at", { withTimezone: true }),
+  customerStatement: text("customer_statement"),
+  techStatement: text("tech_statement"),
+  statementsBy: text("statements_by"),
+  statementsAt: timestamp("statements_at", { withTimezone: true }),
+  cause: text("cause"),
+  hasFault: boolean("has_fault"),
+  atFaultName: text("at_fault_name"),
+  atFaultKind: text("at_fault_kind"),   // tech | maintenance | splice
+  assessedBy: text("assessed_by"),
+  assessedAt: timestamp("assessed_at", { withTimezone: true }),
+  status: text("status").notNull().default("draft"),   // draft | done
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  completedBy: text("completed_by"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => ({ phoneMonth: unique("repeat_reviews_phone_short_month_key").on(t.phoneShort, t.month) }));
+
 // lines_no_account — خطوط معلَّمة يدوياً بأنها "بدون رقم أكونت" (تُخفى من تقرير الخطوط بدون أكونت)
 export const linesNoAccount = pgTable("lines_no_account", {
   fullPhone: text("full_phone").primaryKey(),

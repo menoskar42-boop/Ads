@@ -34,6 +34,7 @@ import { normCab, normBox, expandBoxes, boxKey } from "@shared/cab-norm";
 import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
 import { schedulersEnabled } from './schedulers-enabled';
+import { registerRepeatReviews } from "./repeat-reviews";
 
 const scryptAsync = promisify(scrypt);
 const MemStore = MemoryStore(session);
@@ -7392,6 +7393,9 @@ export async function registerRoutes(
     );
     return { line: rows[0] as any, codes };
   };
+
+  // «رد التكرار» — الخطوات والتقرير فى server/repeat-reviews.ts (قرار المالك ٢٠٢٦-١٠-٠٤)
+  registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql });
 
   // محمول الفنى المختص: الاسم (أو أسماء الإسناد اليدوى «حسن , سعيد») → أول واحد متسجّل له
   // محمول فى إدارة المستخدمين — بالاسم الظاهر أو اسم المستخدم أو رقم العامل.

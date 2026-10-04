@@ -124,6 +124,64 @@ const CHECKLIST_KEYS = [
 ];
 const OPEN_STATUSES = ['pending_inspection', 'inspected', 'needs_maintenance', 'in_progress', 'pending_approval'];
 
+async function findOrCreateBox(central, cabinet, box) {
+  // (1) السنترال/الكابينة/البكس — بندوّر بالمقارنة **الموحّدة** الأول
+  // ⚠️ باج حقيقى: المقارنة كانت بالنص الخام، والمتعذرات بتكتب الكابينة بشرطة
+  // مايلة («2/1») وبرنامج الصيانة متخزّن فيه «2-1» — فاتفتحت كباين **مكرّرة**
+  // (سنترال دير الجنادلة بقى ١٢ كابينة بدل ٦). المقارنة دلوقتى بـ cabNorm/boxNorm
+  // (نفس منطق shared/cab-norm.ts) فبنلاقى الكابينة الموجودة ومابنعملش واحدة جديدة،
+  // والإنشاء بيحصل بس لما تكون مش موجودة فعلاً.
+  let ex = await db.get('SELECT id FROM exchanges WHERE name = ?', [central]);
+  if (!ex) {
+    // السنترال كمان: المقارنة الموحّدة بتلاقى «دير الجنادله» = «دير الجنادلة»
+    const exs = await db.all('SELECT id, name FROM exchanges');
+    const hit = exs.find((r) => centralNorm(r.name) === centralNorm(central));
+    ex = hit ? { id: hit.id }
+             : await db.get('INSERT INTO exchanges (name) VALUES (?) RETURNING id', [central]);
+  }
+  let cab = await db.get('SELECT id FROM cabinets WHERE exchange_id = ? AND number = ?', [ex.id, cabinet]);
+  if (!cab) {
+    const cabs = await db.all('SELECT id, number FROM cabinets WHERE exchange_id = ?', [ex.id]);
+    const hit = cabs.find((r) => cabNorm(r.number) === cabNorm(cabinet));
+    cab = hit ? { id: hit.id }
+              : await db.get('INSERT INTO cabinets (exchange_id, number) VALUES (?, ?) RETURNING id', [ex.id, cabinet]);
+  }
+  let bx = await db.get('SELECT id, status FROM boxes WHERE cabinet_id = ? AND number = ?', [cab.id, box]);
+  if (!bx) {
+    const bxs = await db.all('SELECT id, number, status FROM boxes WHERE cabinet_id = ?', [cab.id]);
+    // نفس قاعدة الدمج: تطابق نصّى تام، وإلا تطابق رقمى بس لو الاتنين أرقام صافية.
+    // «بوكس 14» غير «بوكس 14 مناول» — والاتنين بيتواجدوا فى نفس الكابينة.
+    const hit = bxs.find((r) => String(r.number).trim() === String(box).trim())
+      || bxs.find((r) => isPlainNum(r.number) && isPlainNum(box)
+                         && boxNorm(r.number) === boxNorm(box));
+    bx = hit ? { id: hit.id, status: hit.status }
+             : await db.get(
+                 "INSERT INTO boxes (cabinet_id, number, status) VALUES (?, ?, 'pending_inspection') RETURNING id, status",
+                 [cab.id, box]);
+  }
+  return bx;
+}
+
+// POST /api/integration/ensure-box — «رد التكرار» فى Service-Flow (قرار المالك ٢٠٢٦-١٠-٠٤):
+// بيرجّع رقم البكس فى موقع الصيانة (وبيعمله لو مش موجود، بنفس المطابقة الموحّدة)، عشان
+// زرار «افحص البكس» يفتح فورم الفحص على البكس الصح. مابيفتحش فحص ولا بيغيّر حالة.
+router.post('/ensure-box', express.json({ limit: '64kb' }), async (req, res) => {
+  try {
+    const b = req.body || {};
+    const central = String(b.central || '').trim();
+    const cabinet = String(b.cabinet || '').trim();
+    const box     = String(b.box || '').trim();
+    if (!central || !cabinet || !box) {
+      return res.status(400).json({ error: 'central و cabinet و box مطلوبين' });
+    }
+    const bx = await findOrCreateBox(central, cabinet, box);
+    res.json({ boxId: bx.id });
+  } catch (e) {
+    console.error('integration ensure-box error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/box-data-review', express.json({ limit: '1mb' }), async (req, res) => {
   try {
     const b = req.body || {};
@@ -138,40 +196,7 @@ router.post('/box-data-review', express.json({ limit: '1mb' }), async (req, res)
       return res.status(400).json({ error: 'central و cabinet و box مطلوبين' });
     }
 
-    // (1) السنترال/الكابينة/البكس — بندوّر بالمقارنة **الموحّدة** الأول
-    // ⚠️ باج حقيقى: المقارنة كانت بالنص الخام، والمتعذرات بتكتب الكابينة بشرطة
-    // مايلة («2/1») وبرنامج الصيانة متخزّن فيه «2-1» — فاتفتحت كباين **مكرّرة**
-    // (سنترال دير الجنادلة بقى ١٢ كابينة بدل ٦). المقارنة دلوقتى بـ cabNorm/boxNorm
-    // (نفس منطق shared/cab-norm.ts) فبنلاقى الكابينة الموجودة ومابنعملش واحدة جديدة،
-    // والإنشاء بيحصل بس لما تكون مش موجودة فعلاً.
-    let ex = await db.get('SELECT id FROM exchanges WHERE name = ?', [central]);
-    if (!ex) {
-      // السنترال كمان: المقارنة الموحّدة بتلاقى «دير الجنادله» = «دير الجنادلة»
-      const exs = await db.all('SELECT id, name FROM exchanges');
-      const hit = exs.find((r) => centralNorm(r.name) === centralNorm(central));
-      ex = hit ? { id: hit.id }
-               : await db.get('INSERT INTO exchanges (name) VALUES (?) RETURNING id', [central]);
-    }
-    let cab = await db.get('SELECT id FROM cabinets WHERE exchange_id = ? AND number = ?', [ex.id, cabinet]);
-    if (!cab) {
-      const cabs = await db.all('SELECT id, number FROM cabinets WHERE exchange_id = ?', [ex.id]);
-      const hit = cabs.find((r) => cabNorm(r.number) === cabNorm(cabinet));
-      cab = hit ? { id: hit.id }
-                : await db.get('INSERT INTO cabinets (exchange_id, number) VALUES (?, ?) RETURNING id', [ex.id, cabinet]);
-    }
-    let bx = await db.get('SELECT id, status FROM boxes WHERE cabinet_id = ? AND number = ?', [cab.id, box]);
-    if (!bx) {
-      const bxs = await db.all('SELECT id, number, status FROM boxes WHERE cabinet_id = ?', [cab.id]);
-      // نفس قاعدة الدمج: تطابق نصّى تام، وإلا تطابق رقمى بس لو الاتنين أرقام صافية.
-      // «بوكس 14» غير «بوكس 14 مناول» — والاتنين بيتواجدوا فى نفس الكابينة.
-      const hit = bxs.find((r) => String(r.number).trim() === String(box).trim())
-        || bxs.find((r) => isPlainNum(r.number) && isPlainNum(box)
-                           && boxNorm(r.number) === boxNorm(box));
-      bx = hit ? { id: hit.id, status: hit.status }
-               : await db.get(
-                   "INSERT INTO boxes (cabinet_id, number, status) VALUES (?, ?, 'pending_inspection') RETURNING id, status",
-                   [cab.id, box]);
-    }
+    const bx = await findOrCreateBox(central, cabinet, box);
 
     // (2) فحص غير مكتمل للبكس ده؟ (مش مؤرشف، والمهمة بتاعته مش completed)
     let insp = await db.get(

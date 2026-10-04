@@ -1486,6 +1486,49 @@ export async function ensureSchema() {
       ON customer_sms_logs (full_phone, sent_at DESC, id DESC)
   `);
 
+  // repeat_reviews — «رد التكرار» (قرار المالك ٢٠٢٦-١٠-٠٤): رد واحد لكل خط مكرر فى كل شهر.
+  // خطوات بالترتيب: تأكيد/تصحيح بيان الخط → فحص البكس (بعد أول شكوى فى الشهر) →
+  // إفادة العميل والفنى → تقييم السبب والمقصّر. كل خطوة بتتحفظ لوحدها.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS repeat_reviews (
+      id serial PRIMARY KEY,
+      phone_short text NOT NULL,
+      month text NOT NULL,
+      line_status text,
+      line_central text,
+      line_cabin text,
+      line_box text,
+      line_terminal text,
+      line_correction_id integer,
+      line_checked_by text,
+      line_checked_at timestamptz,
+      inspection_id integer,
+      inspection_date date,
+      inspection_by text,
+      inspection_bad_items integer,
+      inspection_linked_by text,
+      inspection_linked_at timestamptz,
+      customer_statement text,
+      tech_statement text,
+      statements_by text,
+      statements_at timestamptz,
+      cause text,
+      has_fault boolean,
+      at_fault_name text,
+      at_fault_kind text,
+      assessed_by text,
+      assessed_at timestamptz,
+      status text NOT NULL DEFAULT 'draft',
+      created_by text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_by text,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      completed_by text,
+      completed_at timestamptz,
+      UNIQUE (phone_short, month)
+    )
+  `);
+
   // الاختيارات اليدوية لإضافة الأعطال الحالية إلى جدول الأعطال الجسيمة.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS current_fault_major_selections (

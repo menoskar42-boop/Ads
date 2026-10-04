@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { printTablePDF } from "@/lib/print-pdf";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
 import { useHorizontalKeyboardScroll } from "@/hooks/use-horizontal-keyboard-scroll";
+import { RepeatReviewDialog, REPEAT_STEP_LABELS } from "@/components/RepeatReviewDialog";
 
 interface RepRow {
   centralName: string | null;
@@ -337,6 +338,33 @@ export function RepetitionStatsReport() {
   }, [repDetailData, repDetailTech]);
   const repDetailMobileLookup = useMobileLookup(repDetailFiltered.map((r) => r.phoneNumber));
 
+  // «رد التكرار» (قرار المالك ٢٠٢٦-١٠-٠٤): رد واحد للخط فى الشهر. بيرد السوبر أدمن والأدمن
+  // (مدير السنترال) والشئون الخارجية ومهندس الكوابل؛ الفنى بيشوفه قراية بس على خطوطه.
+  const canSeeReview = ([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXTERNAL, ROLES.TECH] as string[]).includes(user?.role ?? "");
+  const reviewKeyOf = (r: RepDetailRow) => `${r.phoneNumber}|${String(r.complainTime || "").slice(0, 7)}`;
+  const reviewKeys = useMemo(
+    () => [...new Set((repDetailData ?? []).map(reviewKeyOf).filter((k) => /\|\d{4}-\d{2}$/.test(k)))],
+    [repDetailData]);
+  const reviewsQ = useQuery<{ data: { phoneShort: string; month: string; status: string; step: number }[] }>({
+    queryKey: ["/api/repeat-reviews", reviewKeys.join(",")],
+    queryFn: async () => {
+      const r = await fetch(`/api/repeat-reviews?keys=${encodeURIComponent(reviewKeys.join(","))}`, { credentials: "include" });
+      return r.ok ? r.json() : { data: [] };
+    },
+    enabled: canSeeReview && reviewKeys.length > 0,
+    refetchOnMount: "always",
+  });
+  const reviewMap = useMemo(() => {
+    const m = new Map<string, { status: string; step: number }>();
+    for (const x of reviewsQ.data?.data ?? []) m.set(`${x.phoneShort}|${x.month}`, x);
+    return m;
+  }, [reviewsQ.data]);
+  const reviewText = (r: RepDetailRow) => {
+    const x = reviewMap.get(reviewKeyOf(r));
+    return !x ? "لم يُرد" : x.status === "done" ? "مكتمل" : `جارى — ${REPEAT_STEP_LABELS[x.step] ?? ""}`;
+  };
+  const [reviewOpen, setReviewOpen] = useState<{ phone: string; month: string } | null>(null);
+
   const exportRepDetailExcel = () => {
     if (!repDetailFiltered.length) return;
     const ws = XLSX.utils.json_to_sheet(repDetailFiltered.map((r, i) => ({
@@ -357,6 +385,7 @@ export function RepetitionStatsReport() {
       "سبب الإغلاق": closeReason(r.closeCode),
       "فنى الإغلاق": r.closeByName,
       "فنى المنطقة": r.areaTechName,
+      ...(canSeeReview ? { "رد التكرار": reviewText(r) } : {}),
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "الخطوط المكررة");
@@ -371,6 +400,7 @@ export function RepetitionStatsReport() {
         "#", "رقم التليفون", "رقم الموبايل", "اسم العميل", "العنوان", "السنترال",
         "الكابينه", "البكس", "كود MSAN", "عدد المرات", "تاريخ الشكوى",
          "تاريخ الإغلاق", "سبب الإغلاق", "فنى الإغلاق", "فنى المنطقة",
+        ...(canSeeReview ? ["رد التكرار"] : []),
       ],
       rows: repDetailFiltered.map((r, i) => [
         i + 1,
@@ -388,6 +418,7 @@ export function RepetitionStatsReport() {
          closeReason(r.closeCode) || (r.closeCode ? `كود ${r.closeCode}` : "—"),
         r.closeByName || "غير معروف",
         r.areaTechName || "غير معروف",
+        ...(canSeeReview ? [reviewText(r)] : []),
       ]),
     });
   };
@@ -655,6 +686,7 @@ export function RepetitionStatsReport() {
                     <TableHead className="text-white font-bold text-right">سبب الإغلاق</TableHead>
                     <TableHead className="text-white font-bold text-right">فنى الإغلاق</TableHead>
                     <TableHead className="text-white font-bold text-right">فنى المنطقة</TableHead>
+                    {canSeeReview && <TableHead className="text-white font-bold text-right">رد التكرار</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -723,6 +755,27 @@ export function RepetitionStatsReport() {
                         )}
                       </TableCell>
                       <TableCell>{r.areaTechName}</TableCell>
+                      {canSeeReview && (() => {
+                        const x = reviewMap.get(reviewKeyOf(r));
+                        const month = String(r.complainTime || "").slice(0, 7);
+                        const isTech = user?.role === ROLES.TECH;
+                        return (
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1">
+                              <span className={`px-2 py-0.5 rounded text-[11px] ${!x ? "bg-slate-100 text-slate-700" : x.status === "done" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}`}>
+                                {reviewText(r)}
+                              </span>
+                              {/^\d{4}-\d{2}$/.test(month) && (!isTech || x) && (
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]"
+                                  onClick={() => setReviewOpen({ phone: r.phoneNumber, month })}
+                                  data-testid={`button-repeat-review-${r.phoneNumber}`}>
+                                  {isTech ? "عرض" : x?.status === "done" ? "عرض / تعديل" : "رد"}
+                                </Button>
+                              )}
+                            </span>
+                          </TableCell>
+                        );
+                      })()}
                     </TableRow>
                   ))}
                   {repDetailFiltered.length === 0 && (
@@ -736,6 +789,11 @@ export function RepetitionStatsReport() {
           )}
         </DialogContent>
       </Dialog>
+      {reviewOpen && (
+        <RepeatReviewDialog phone={reviewOpen.phone} month={reviewOpen.month} open
+          onOpenChange={(v) => { if (!v) setReviewOpen(null); }}
+          onChanged={() => { void reviewsQ.refetch(); }} />
+      )}
     </div>
   );
 }
