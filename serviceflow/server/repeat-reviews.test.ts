@@ -77,12 +77,11 @@ test("«افحص البكس» opens the inspection form directly — SSO from th
   assert.match(dlg, /window\.open\(j\.createUrl, "_blank", "noopener"\)/);
 });
 
-test("«الأعطال المكررة خلال شهر من تاريخه» for everyone except sales / sales admin", () => {
+test("«الأعطال المكررة خلال شهر من تاريخه»: everyone except sales, sales admin and data manager", () => {
   const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
   const ep = routes.slice(routes.indexOf('app.get("/api/reports/repeated-within-month"'));
-  assert.match(ep.slice(0, 600), /if \(req\.user\?\.role === ROLES\.SALES \|\| req\.user\?\.role === ROLES\.SALES_ADMIN\) \{\s*return res\.status\(403\)/);
-  assert.match(dash, /const DM_ALLOWED: ReportTab\[\] = \[[^\]]*"repeated-within-month"\]/);
-  assert.match(dash, /const DM_ALLOWED_GROUPS = \[[^\]]*"الأعطال"\]/);
+  assert.match(ep.slice(0, 700), /ROLES\.SALES \|\| req\.user\?\.role === ROLES\.SALES_ADMIN \|\| req\.user\?\.role === ROLES\.DATA_MANAGER\) \{\s*return res\.status\(403\)/);
+  assert.doesNotMatch(dash.match(/const DM_ALLOWED: ReportTab\[\] = \[[^\]]*\]/)![0], /repeated-within-month/);
   // الفلتر بيقرا الشهر على سلسلة التكرار (الشكوى السابقة ممكن تكون فى الشهر اللى فات)
   assert.match(src, /c\.d >= last\.d - interval '1 month' AND c\.d <= last\.d/);
 });

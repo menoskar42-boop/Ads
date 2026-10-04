@@ -13950,8 +13950,8 @@ export async function registerRoutes(
   // قبل آخر شكوى) → يظهر الرقم. المصدر = نفس مصدر الأعطال المنتظمة (تفاصيل مغلقة + متبقى
   // 138/135، غنايم). الفلتر بتاريخ آخر شكوى، الافتراضى من أول الشهر إلى اليوم.
   app.get("/api/reports/repeated-within-month", requireAuth, async (req, res) => {
-    // متاح لكل المستخدمين ما عدا المبيعات وأدمن المبيعات (قرار المالك ٢٠٢٦-١٠-٠٤)
-    if (req.user?.role === ROLES.SALES || req.user?.role === ROLES.SALES_ADMIN) {
+    // متاح لكل المستخدمين ما عدا المبيعات وأدمن المبيعات ومسئول البيانات (قرار المالك ٢٠٢٦-١٠-٠٤)
+    if (req.user?.role === ROLES.SALES || req.user?.role === ROLES.SALES_ADMIN || req.user?.role === ROLES.DATA_MANAGER) {
       return res.status(403).json({ message: "غير مسموح" });
     }
     try {
