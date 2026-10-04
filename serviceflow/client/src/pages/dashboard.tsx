@@ -296,6 +296,16 @@ export default function Dashboard() {
     // «متعذرات تم توفير خطوط بها» — السيرفر بيفلترها على اللى يخص الفنى
     "om-box-freed"];
   const TECH_ALLOWED_GROUPS = ["الأعطال", "القياسات", "متعذرات OM", "تركيبات و نقل و اوامر شغل", "المعاينات", "جدول الورديات", "الخطوط والبكسيات"];
+  // الشئون الخارجية ومهندس الكوابل (external) ومدير السنترال (admin) — قرار المالك ٢٠٢٦-١٠-٠٤:
+  // نفس تقارير الفنى بس لكامل السنترال (السيرفر مابيفلترش غير الفنى، فبياناتهم كاملة)،
+  // وصلاحياتهم جوّه التقارير زى ما هى. السوبر أدمن (اللى بيتعرض كـadmin) بيشوف كل حاجة —
+  // عشان كده المقارنة على authUser مش user. الطلبات ورفع الملفات زى ما هم.
+  // + «متعذرات على بكسيات معطلة تم إصلاحها»: فيه «إعادة فتح التكت» — شغلهم ومش موجود فى غيره.
+  const isCentralView = !isSuperAdmin && (authUser?.role === ROLES.ADMIN || authUser?.role === ROLES.EXTERNAL);
+  const CENTRAL_VIEW_ALLOWED: ReportTab[] = [...TECH_ALLOWED, "box-tickets-repaired"];
+  const CENTRAL_VIEW_ALLOWED_GROUPS = REPORT_GROUPS
+    .filter((g) => g.items.some((it) => CENTRAL_VIEW_ALLOWED.includes(it.id)))
+    .map((g) => g.label);
   // أدمن المبيعات: تقرير المتعذرات الحالية فقط (عشان يدخّل رقم المحمول)
   const SALES_ADMIN_ALLOWED: ReportTab[] = ["om-current"];
   const SALES_ADMIN_ALLOWED_GROUPS = ["متعذرات OM"];
@@ -305,6 +315,7 @@ export default function Dashboard() {
     .filter((g) =>
       (user?.role !== ROLES.DATA_MANAGER || DM_ALLOWED_GROUPS.includes(g.label)) &&
       (user?.role !== ROLES.TECH || TECH_ALLOWED_GROUPS.includes(g.label)) &&
+      (!isCentralView || CENTRAL_VIEW_ALLOWED_GROUPS.includes(g.label)) &&
       (user?.role !== ROLES.SALES_ADMIN || SALES_ADMIN_ALLOWED_GROUPS.includes(g.label)) &&
       // «معاملات التنفيذ» للسوبر أدمن فقط
       (g.label !== "معاملات التنفيذ" || isSuperAdmin),
@@ -312,6 +323,7 @@ export default function Dashboard() {
     .map((g) => {
       if (user?.role === ROLES.DATA_MANAGER) return { ...g, items: g.items.filter((it) => DM_ALLOWED.includes(it.id)) };
       if (user?.role === ROLES.TECH) return { ...g, items: g.items.filter((it) => TECH_ALLOWED.includes(it.id)) };
+      if (isCentralView) return { ...g, items: g.items.filter((it) => CENTRAL_VIEW_ALLOWED.includes(it.id)) };
       if (user?.role === ROLES.SALES_ADMIN) return { ...g, items: g.items.filter((it) => SALES_ADMIN_ALLOWED.includes(it.id)) };
       return g;
     })

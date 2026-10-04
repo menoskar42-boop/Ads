@@ -316,8 +316,8 @@ export function CurrentFaultsReport() {
   const techCounts = faults.reduce((m, f) => { const t = techOf(f) || NO_TECH; m.set(t, (m.get(t) || 0) + 1); return m; }, new Map<string, number>());
   const techOptions = [...techCounts.keys()].filter((t) => t !== NO_TECH).sort((a, b) => a.localeCompare(b, "ar"));
   const displayed = faults
-    .filter((f) => !techFilter || (techOf(f) || NO_TECH) === techFilter)
     .filter((f) => showDsl99NoTone || !isDsl99NoTone(f))
+    .filter((f) => !techFilter || (techOf(f) || NO_TECH) === techFilter)
     .filter((f) => (repeatedOnly ? f.repeatStatus === "مكرر" : true))
     .filter((f) => (monthRepeatOnly ? f.monthRepeat === true : true))
     .filter((f) => (returnedOnly ? dispStatus(f.statusCode) === "DSL-173" : true));
