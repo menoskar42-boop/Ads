@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, FileSpreadsheet, FileText, IdCard, Loader2, RefreshCw, Save, SaveAll } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, IdCard, Loader2, RefreshCw, Save, SaveAll } from "lucide-react";
 import { PageJump } from "@/components/ui/page-jump";
 import { openCustomer360 } from "@/lib/customer360";
 import { printTablePDF } from "@/lib/print-pdf";
@@ -230,6 +230,24 @@ export function UrgentNoAccountReport() {
     }
   };
 
+  // تعليم خط بأنه «بدون رقم أكونت» — نفس زرار باقى تقارير «بدون أكونت» (قرار المالك ٢٠٢٦-١٠-٠٤).
+  // المصادر التلاتة بتستبعد المُعلَّم (lines_no_account) فالصف بيختفى بعد الـrefetch.
+  const handleMarkNoAccount = async (fullPhone: string) => {
+    if (!confirm("تأكيد: هذا الخط ليس له رقم أكونت وسيختفى من التقرير؟")) return;
+    setSaveState((state) => ({ ...state, [fullPhone]: "saving" }));
+    try {
+      const response = await fetch(`/api/lines-no-account/${encodeURIComponent(fullPhone)}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("failed");
+      setSaveState((state) => { const next = { ...state }; delete next[fullPhone]; return next; });
+      invalidate();
+    } catch {
+      setSaveState((state) => ({ ...state, [fullPhone]: "error" }));
+    }
+  };
+
   const handleSaveAll = async () => {
     const entries = Object.entries(drafts)
       .map(([fullPhone, accountNo]) => ({ fullPhone, accountNo: accountNo.trim() }))
@@ -423,6 +441,10 @@ export function UrgentNoAccountReport() {
                           <button type="button" onClick={() => handleSave(row.fullPhone)} disabled={!drafts[row.fullPhone]?.trim() || saveState[row.fullPhone] === "saving"} title="حفظ" className="text-green-600 hover:text-green-800 disabled:opacity-40">
                             {saveState[row.fullPhone] === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                           </button>
+                          <button type="button" onClick={() => handleMarkNoAccount(row.fullPhone)} disabled={saveState[row.fullPhone] === "saving"} title="ليس له رقم أكونت — إخفاء من التقرير" className="text-orange-500 hover:text-orange-700 disabled:opacity-40" data-testid={`button-mark-no-account-${row.fullPhone}`}>
+                            <Ban className="w-4 h-4" />
+                          </button>
+                          {saveState[row.fullPhone] === "error" && <span className="text-red-500 text-xs">!</span>}
                         </div>
                       </TableCell>
                     )}
