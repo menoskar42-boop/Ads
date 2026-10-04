@@ -41,7 +41,9 @@ interface Row {
 
 // أول يوم فى الشهر الحالى → النهاردة (بتوقيت القاهرة)، بصيغة yyyy-MM-dd
 const cairoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
-const cairoMonthStart = () => cairoToday().slice(0, 8) + "01";
+// البداية الثابتة للتقرير (قرار المالك ٢٠٢٦-١٠-٠٤): دايماً من ١ سبتمبر ٢٠٢٦ لحد النهارده —
+// أوامر الشغل اللى لسه مالهاش كمية سلك من الشهر اللى فات كانت بتختفى أول ما الشهر يتقلب.
+const NO_CABLE_FROM = "2026-09-01";
 
 const fmtDate = (d: string | null) => {
   if (!d) return "-";
@@ -64,7 +66,7 @@ export function WorkOrdersNoCableEntry() {
   // رقم الخط اللى نافذة «بيان الخط» مفتوحة عليه (null = مقفولة)
   const [infoPhone, setInfoPhone] = useState<string | null>(null);
   const qc = useQueryClient();
-  const [dateFrom, setDateFrom] = useState(cairoMonthStart);
+  const [dateFrom, setDateFrom] = useState(NO_CABLE_FROM);
   const [dateTo, setDateTo] = useState(cairoToday);
   const [search, setSearch] = useState("");
   // الكمية المكتوبة لكل صف + الصف اللى بيتحفظ دلوقتى (المفتاح = id أمر الشغل)
