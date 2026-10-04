@@ -473,6 +473,9 @@ Service Flow أصلاً). من غير ده، النسخة المسطّبة عن�
 
 - جدول جديد: `repeat_reviews` (فى `ensureSchema()` و`shared/schema.ts`). لو شاشة النشر
   طلّعت `DROP TABLE repeat_reviews` → شغّل `CREATE TABLE` المنسوخ من `server/db.ts` على dev.
+- «افحص البكس» بيفتح فورم الفحص **مباشرة** من غير دخول تانى: الرابط `/maintenance/…` على نفس
+  الدومين، والـSSO فى `server/maintenance/app/app.js` بيسجّل الفاحص بجلسة السيرفس فلو (زى زرار
+  «موقع الصيانة»). كلمة السر بتتكتب فى السيرفس فلو بس.
 - موقع الصيانة: `POST /api/integration/ensure-box` (نفس توكن التكامل) — بيرجّع رقم البكس
   وبيعمله لو مش موجود بنفس المطابقة الموحّدة، ومابيفتحش فحص.
 - الكود: `server/repeat-reviews.ts` · `client/src/components/RepeatReviewDialog.tsx` ·

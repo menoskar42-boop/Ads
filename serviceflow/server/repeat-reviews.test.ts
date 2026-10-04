@@ -59,3 +59,15 @@ test("maintenance site: one shared find-or-create box, used by both endpoints", 
   assert.equal((maint.match(/await findOrCreateBox\(central, cabinet, box\)/g) || []).length, 2);
   assert.match(maint, /router\.post\('\/ensure-box'/);
 });
+
+test("«افحص البكس» opens the inspection form directly — SSO from the Service-Flow session, no second login", () => {
+  const app = readFileSync(new URL("./maintenance/app/app.js", import.meta.url), "utf8");
+  // الـSSO middleware متركّب قبل راوتر الفحص، فأى رابط مباشر (/maintenance/inspector/…) بيدخل بجلسة السيرفس فلو
+  const sso = app.indexOf("if (!req.session.user && req.user && req.user.username)");
+  assert.ok(sso > 0 && sso < app.indexOf('app.use("/inspector", require("./routes/inspector"))'));
+  assert.match(app, /external: "inspector"/);   // الشئون الخارجية ومهندس الكوابل = فاحص
+  assert.match(app, /admin: "admin"/);
+  // الرابط على فورم فحص البكس نفسه، فى تاب جديد بنفس الدومين (الكوكى بتتبعت)
+  assert.match(src, /createUrl: `\/maintenance\/inspector\/create\/\$\{r\.boxId\}`/);
+  assert.match(dlg, /window\.open\(j\.createUrl, "_blank", "noopener"\)/);
+});
