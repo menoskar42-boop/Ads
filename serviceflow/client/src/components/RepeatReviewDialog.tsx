@@ -126,7 +126,7 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
               <span>العميل: <b>{d.line?.subName || "—"}</b></span>
               <span className="inline-flex items-center gap-1">الموبايل: <MobileValue mobile={d.line?.mobile} phone={phone} /></span>
               <span>فنى الخط: <b>{d.line?.techName || "—"}</b></span>
-              <span>أول شكوى فى الشهر: <b dir="ltr">{d.firstComplaintDate || "—"}</b></span>
+              <span>أول شكوى فى التكرار: <b dir="ltr">{d.firstComplaintDate || "—"}</b></span>
             </div>
 
             <Section n={1} title="تأكيد بيان الخط" done={!!rv?.line_status} locked={false}>
@@ -163,7 +163,7 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
               {d.inspection ? (
                 <div className={`text-xs rounded p-2 ${d.inspection.valid ? "bg-green-50" : "bg-amber-50"}`}>
                   آخر فحص: <b dir="ltr">{d.inspection.date}</b>{d.inspection.by ? ` — ${d.inspection.by}` : ""} — بنود محتاجة شغل: <b>{d.inspection.badItems}</b>
-                  {!d.inspection.valid && <div className="text-amber-800 font-semibold mt-1">الفحص ده قبل أول شكوى فى الشهر — لازم إعادة فحص.</div>}
+                  {!d.inspection.valid && <div className="text-amber-800 font-semibold mt-1">الفحص ده قبل أول شكوى فى التكرار — لازم إعادة فحص.</div>}
                   <a href={d.inspection.viewUrl} target="_blank" rel="noopener" className="mr-2 inline-flex items-center gap-1 text-blue-700 underline">
                     <ExternalLink className="w-3 h-3" /> عرض / تعديل الفحص
                   </a>

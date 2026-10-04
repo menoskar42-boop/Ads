@@ -45,7 +45,7 @@ async function setup() {
   await pool.query(`INSERT INTO maintenance.users (username, full_name, role) VALUES ('rr_insp', 'فاحص تجربة', 'inspector'), ('rr_maint', 'فنى صيانة تجربة', 'technician')`);
   // أول شكوى فى سبتمبر: 10 سبتمبر 23:30 (توقيت الشيت = UTC) — وشكوى فى أغسطس مالهاش دعوة
   await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time) VALUES
-    ('RR-1', $1, '2026-09-10 23:30+00'), ('RR-0', $1, '2026-08-20 10:00+00')`, [PH]);
+    ('RR-1', $1, '2026-09-10 23:30+00'), ('RR-0', $1, '2026-07-20 10:00+00')`, [PH]);
   await pool.query(`INSERT INTO remaining_complaints (complain_no, phone_number, complain_time) VALUES ('RR-2', $1, '2026-09-18 09:00+00')`, [PH]);
   await pool.query(`INSERT INTO cfm_users (username, password, name, role) VALUES ('rr_splice', 'x', 'لحام تجربة', 'splice_tech')`);
 }
@@ -95,8 +95,11 @@ const step = (s: string, extra: any = {}) => post("/api/repeat-reviews/step", { 
 try {
   await setup();
   let r = await get(`/api/repeat-reviews/one?phone=${PH}&month=${MONTH}`);
-  ok("الرد لسه مااتعملش، وأول شكوى فى سبتمبر = 2026-09-10 (مش أغسطس)", r.s === 200 && r.j.review === null && r.j.firstComplaintDate === "2026-09-10", JSON.stringify(r.j.firstComplaintDate));
+  ok("الرد لسه مااتعملش، وأول شكوى فى سلسلة التكرار = 2026-09-10 (يوليو برّه الشهر)", r.s === 200 && r.j.review === null && r.j.firstComplaintDate === "2026-09-10", JSON.stringify(r.j.firstComplaintDate));
   ok("البكس مش مفحوص", r.j.inspection === null);
+  await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time) VALUES ('RR-9', $1, '2026-10-02 19:58+00'), ('RR-8', $1, '2026-09-04 17:51+00')`, ["2999002"]);
+  r = await get(`/api/repeat-reviews/one?phone=2999002&month=2026-10`);
+  ok("شكوى سابقة فى الشهر اللى فات (09-04 ← 10-02) هى أول السلسلة", r.j.firstComplaintDate === "2026-09-04", JSON.stringify(r.j.firstComplaintDate));
 
   ok("الترتيب: مينفعش فحص قبل البيان", (await step("inspection")).s === 400);
   ok("مينفعش إفادات قبل الفحص", (await step("statements", { customer: "a", tech: "b" })).s === 400);

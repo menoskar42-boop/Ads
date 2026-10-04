@@ -16,6 +16,9 @@ import { openProfileOptimization } from "@/lib/profile-optimization";
 import { LineDetailsDialog } from "@/components/LineDetailsDialog";
 import { closeReason } from "@/lib/close-codes";
 import { useMobileLookup, phoneLookupKey, MobileValue } from "@/lib/mobile-lookup";
+import { useAuth } from "@/hooks/use-auth";
+import { ROLES } from "@shared/schema";
+import { RepeatReviewDialog, REPEAT_STEP_LABELS } from "@/components/RepeatReviewDialog";
 
 const DZS_URL = "https://10.42.187.101:8080/expresse/";
 const buildDZSUrl = (accounts: string[]) =>
@@ -115,6 +118,32 @@ export function RepeatedWithinMonthReport() {
       ? allRows.filter((r) => !(r.techName || "").trim())
       : allRows.filter((r) => (r.techName || "").trim() === tech);
   const mobileLookup = useMobileLookup(techRows.map((r) => r.phoneShort));
+
+  // «رد التكرار» (قرار المالك ٢٠٢٦-١٠-٠٤): الرد على خطوط التقرير ده — رد واحد للخط فى شهر
+  // آخر شكوى. بيرد السوبر أدمن والأدمن (مدير السنترال) والشئون الخارجية ومهندس الكوابل؛
+  // الفنى بيشوفه قراية بس. الزرار جنب رقم التليفون.
+  const { user } = useAuth();
+  const canSeeReview = ([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EXTERNAL, ROLES.TECH] as string[]).includes(user?.role ?? "");
+  const isTechUser = user?.role === ROLES.TECH;
+  const reviewMonthOf = (r: RepeatedRow) => String(r.lastComplainTime || "").slice(0, 7);
+  const reviewKeyOf = (r: RepeatedRow) => `${r.phoneShort}|${reviewMonthOf(r)}`;
+  const reviewKeys = Array.from(new Set(allRows.filter((r) => r.phoneShort && /^\d{4}-\d{2}$/.test(reviewMonthOf(r))).map(reviewKeyOf)));
+  const reviewsQ = useQuery<{ data: { phoneShort: string; month: string; status: string; step: number }[] }>({
+    queryKey: ["/api/repeat-reviews", reviewKeys.join(",")],
+    queryFn: async () => {
+      const r = await fetch(`/api/repeat-reviews?keys=${encodeURIComponent(reviewKeys.join(","))}`, { credentials: "include" });
+      return r.ok ? r.json() : { data: [] };
+    },
+    enabled: canSeeReview && reviewKeys.length > 0,
+    refetchOnMount: "always",
+  });
+  const reviewMap = new Map<string, { status: string; step: number }>(
+    (reviewsQ.data?.data ?? []).map((x) => [`${x.phoneShort}|${x.month}`, x]));
+  const reviewText = (r: RepeatedRow) => {
+    const x = reviewMap.get(reviewKeyOf(r));
+    return !x ? "لم يُرد" : x.status === "done" ? "مكتمل" : `جارى — ${REPEAT_STEP_LABELS[x.step] ?? ""}`;
+  };
+  const [reviewOpen, setReviewOpen] = useState<{ phone: string; month: string } | null>(null);
   const rows = techRows.filter((r) => {
     const mobile = mobileLookup[phoneLookupKey(r.phoneShort)]?.trim() || "";
     if (mobileFilter === "has-mobile" && !mobile) return false;
@@ -171,6 +200,7 @@ export function RepeatedWithinMonthReport() {
       "#": i + 1,
       "السنترال": r.centralName,
       "رقم التليفون": r.phoneShort,
+      ...(canSeeReview ? { "رد التكرار": reviewText(r) } : {}),
       "رقم الموبايل": mobileLookup[phoneLookupKey(r.phoneShort)] || "",
       "رقم الأكونت": r.accountNo,
       "عدد التكرار خلال الشهر": r.repeatCount,
@@ -211,7 +241,7 @@ export function RepeatedWithinMonthReport() {
         <th>فني إغلاق آخر شكوى</th>
         <th>رقم الشكوى السابقة</th><th>تاريخ الشكوى السابقة</th><th>سبب إغلاق الشكوى السابقة</th>
         <th>فني إغلاق الشكوى السابقة</th>
-        <th>الكابينه</th><th>البكس</th><th>ترمنال</th><th>كود الفنى</th><th>اسم الفنى</th><th>آخر اسكور</th><th>حالة PO</th><th>توقيت آخر قياس للخط</th>
+        <th>الكابينه</th><th>البكس</th><th>ترمنال</th><th>كود الفنى</th><th>اسم الفنى</th><th>آخر اسكور</th><th>حالة PO</th><th>توقيت آخر قياس للخط</th>${canSeeReview ? "<th>رد التكرار</th>" : ""}
     </tr>`;
     let pages = "";
     for (let p = 0; p < totalPages; p++) {
@@ -238,7 +268,7 @@ export function RepeatedWithinMonthReport() {
            <td>${esc(r.workerCode)}</td>
           <td>${esc(r.techName)}</td>
            <td>${esc(r.lastMeasScore)}</td><td>${esc(poStatusShort(r.poStatus))}</td>
-           <td style="font-size:9px">${esc(fmtDt(r.lastMeasTime))}</td>
+           <td style="font-size:9px">${esc(fmtDt(r.lastMeasTime))}</td>${canSeeReview ? `<td>${esc(reviewText(r))}</td>` : ""}
         </tr>`).join("");
       pages += `
         <section class="page">
@@ -397,6 +427,11 @@ export function RepeatedWithinMonthReport() {
       </div>
 
       {detailPhone && <LineDetailsDialog phone={detailPhone} onClose={() => setDetailPhone(null)} />}
+      {reviewOpen && (
+        <RepeatReviewDialog phone={reviewOpen.phone} month={reviewOpen.month} open
+          onOpenChange={(v) => { if (!v) setReviewOpen(null); }}
+          onChanged={() => { void reviewsQ.refetch(); }} />
+      )}
 
       {/* Table */}
       <Card className="overflow-hidden shadow-sm border-0 bg-white">
@@ -456,6 +491,21 @@ export function RepeatedWithinMonthReport() {
                           <Info className="w-4 h-4" />
                         </button>
                       )}
+                      {canSeeReview && r.phoneShort && /^\d{4}-\d{2}$/.test(reviewMonthOf(r)) && (() => {
+                        const x = reviewMap.get(reviewKeyOf(r));
+                        if (isTechUser && !x) return null;   // الفنى: قراية بس — مفيش رد لسه
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setReviewOpen({ phone: r.phoneShort!, month: reviewMonthOf(r) })}
+                            title={`رد التكرار — ${reviewText(r)}`}
+                            className={`font-sans text-[11px] px-1.5 py-0.5 rounded border ${!x ? "bg-slate-50 text-slate-700 border-slate-300" : x.status === "done" ? "bg-green-50 text-green-800 border-green-300" : "bg-amber-50 text-amber-800 border-amber-300"}`}
+                            data-testid={`button-repeat-review-${r.phoneShort}`}
+                          >
+                            {isTechUser ? "عرض الرد" : !x ? "رد" : x.status === "done" ? "✓ مكتمل" : "جارى"}
+                          </button>
+                        );
+                      })()}
                     </span>
                   </TableCell>
                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]} phone={r.phoneShort} /></TableCell>

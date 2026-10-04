@@ -5,8 +5,8 @@
 // وكل خطوة بتتحفظ لوحدها (الفحص بيحصل فى الشارع فلازم يقدر يوقف ويكمّل):
 //   ١. بيان الخط: «البيان صح» أو «تصحيح البيان» (نفس «تصحيح بيانات» اللى بيوصل لمسئول
 //      البيانات) — الأول عشان البيان الغلط معناه فحص لبكس غلط.
-//   ٢. فحص البكس (موقع الصيانة): لازم يكون فيه فحص **تاريخه من أول شكوى فى الشهر أو بعدها**،
-//      وإلا «إعادة فحص». تغيير البكس فى خطوة ١ بيلغى الفحص المربوط.
+//   ٢. فحص البكس (موقع الصيانة): لازم يكون فيه فحص **تاريخه من أول شكوى فى سلسلة التكرار أو
+//      بعدها** (الشكوى السابقة، حتى لو فى الشهر اللى فات)، وإلا «إعادة فحص». تغيير البكس فى خطوة ١ بيلغى الفحص المربوط.
 //   ٣. إفادة العميل + إفادة الفنى (كتابة).
 //   ٤. التقييم: سبب العطل (كتابة) + يوجد مقصّر؟ + اسمه (الخمس فنيين / فنيين الصيانة / اللحامين).
 // بيرد: السوبر أدمن والأدمن (مدير السنترال) والشئون الخارجية ومهندس الكوابل. الفنى بيشوف
@@ -44,10 +44,12 @@ export const reviewStep = (r: any): number =>
 export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
   const { pool, requireAuth, requireSuperAdmin } = d;
 
-  // أول شكوى للخط فى الشهر (توقيت الشيت = UTC زى باقى التقارير) — الفحص لازم يكون بعدها
+  // أول شكوى فى سلسلة التكرار — زى تقرير «الأعطال المكررة خلال شهر من تاريخه»: آخر شكوى
+  // للخط فى الشهر، وأول شكوى فى الشهر اللى قبلها لحدها (الشكوى السابقة ممكن تكون فى الشهر
+  // اللى فات: 09-04 ← 10-02). الفحص لازم يكون من يومها أو بعده. توقيت الشيت = UTC.
   const firstComplaintDate = async (short: string, month: string): Promise<string | null> => {
     const { rows } = await pool.query(
-      `SELECT to_char(min(d), 'YYYY-MM-DD') AS d FROM (
+      `WITH c AS (
          SELECT (complain_time AT TIME ZONE 'UTC') AS d FROM complaint_details
           WHERE ${sp("phone_number")} = ${sp("$1")}
          UNION ALL
@@ -56,7 +58,12 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
          UNION ALL
          SELECT (complaint_time AT TIME ZONE 'UTC') FROM ticket_dsl_current
           WHERE ${sp("phone_number")} = ${sp("$1")}
-       ) x WHERE d IS NOT NULL AND to_char(d, 'YYYY-MM') = $2`,
+       ), last AS (
+         SELECT max(d) AS d FROM c WHERE d IS NOT NULL AND to_char(d, 'YYYY-MM') = $2
+       )
+       SELECT to_char(min(c.d), 'YYYY-MM-DD') AS d
+         FROM c, last
+        WHERE c.d IS NOT NULL AND c.d >= last.d - interval '1 month' AND c.d <= last.d`,
       [short, month]);
     return rows[0]?.d ?? null;
   };
@@ -239,7 +246,7 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
         const insp = info.inspection;
         if (!insp) return res.status(400).json({ message: "البكس مش مفحوص — افحصه الأول من موقع الصيانة" });
         if (!first || insp.date < first) {
-          return res.status(400).json({ message: `آخر فحص (${insp.date}) قبل أول شكوى فى الشهر (${first ?? "—"}) — اعمل إعادة فحص` });
+          return res.status(400).json({ message: `آخر فحص (${insp.date}) قبل أول شكوى فى التكرار (${first ?? "—"}) — اعمل إعادة فحص` });
         }
         await pool.query(
           `UPDATE repeat_reviews SET inspection_id = $3, inspection_date = $4, inspection_by = $5,

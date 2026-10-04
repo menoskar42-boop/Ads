@@ -287,8 +287,9 @@ export default function Dashboard() {
 
   // مجموعات التقارير المعروضة حسب الدور
   // مسئول البيانات: تقريرين من القياسات + أوامر الشغل + «بيان التليفونات» + «أرقام بدون موبايل»
-  const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile"];
-  const DM_ALLOWED_GROUPS = ["القياسات", "تركيبات و نقل و اوامر شغل", "الخطوط والبكسيات"];
+  // + «الأعطال المكررة خلال شهر من تاريخه» — لكل المستخدمين ما عدا المبيعات (٢٠٢٦-١٠-٠٤)
+  const DM_ALLOWED: ReportTab[] = ["no-account", "ground-network", "work-orders", "phone-lines", "lines-no-mobile", "repeated-within-month"];
+  const DM_ALLOWED_GROUPS = ["القياسات", "تركيبات و نقل و اوامر شغل", "الخطوط والبكسيات", "الأعطال"];
   // الفني: 5 تقارير فقط (الأعطال الحالية + أداء الفنيين + إحصائيات الإزالة/التكرار + متوسط القياسات)
   // «التركيبات والنقل الحالى» و«المعاينات الحالية» بيظهروا للفنى كمان — والسيرفر
   // بيفلترهم على كباينه هو (worker_code) فكل واحد يشوف اللى يخصه بس.

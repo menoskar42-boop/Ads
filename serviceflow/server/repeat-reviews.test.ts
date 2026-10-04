@@ -8,7 +8,8 @@ const src = readFileSync(new URL("./repeat-reviews.ts", import.meta.url), "utf8"
 const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
 const schema = readFileSync(new URL("../shared/schema.ts", import.meta.url), "utf8");
 const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
-const rep = readFileSync(new URL("../client/src/components/RepetitionStatsReport.tsx", import.meta.url), "utf8");
+const rep = readFileSync(new URL("../client/src/components/RepeatedWithinMonthReport.tsx", import.meta.url), "utf8");
+const stats = readFileSync(new URL("../client/src/components/RepetitionStatsReport.tsx", import.meta.url), "utf8");
 const dlg = readFileSync(new URL("../client/src/components/RepeatReviewDialog.tsx", import.meta.url), "utf8");
 const maint = readFileSync(new URL("./maintenance/app/routes/integration.js", import.meta.url), "utf8");
 const boxSrc = readFileSync(new URL("./box-full-inspection.ts", import.meta.url), "utf8");
@@ -40,9 +41,13 @@ test("steps in order: line → inspection → statements → assessment", () => 
   assert.match(boxSrc, /COALESCE\(i\.auto_created, 0\) = 0/);
 });
 
-test("the reply column lives in «إحصائيات التكرار», the PDF report is super-admin only", () => {
+test("the reply lives next to the phone in «الأعطال المكررة خلال شهر من تاريخه» (not «إحصائيات التكرار»); PDF report super-admin only", () => {
   assert.match(rep, /<RepeatReviewDialog phone=\{reviewOpen\.phone\} month=\{reviewOpen\.month\}/);
-  assert.match(rep, /String\(r\.complainTime \|\| ""\)\.slice\(0, 7\)/);
+  // شهر الرد = شهر آخر شكوى
+  assert.match(rep, /const reviewMonthOf = \(r: RepeatedRow\) => String\(r\.lastComplainTime \|\| ""\)\.slice\(0, 7\);/);
+  // الزرار فى خلية رقم التليفون نفسها (قبل خلية الموبايل)
+  assert.ok(rep.indexOf("data-testid={`button-repeat-review-") < rep.indexOf("<TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]}"));
+  assert.doesNotMatch(stats, /RepeatReviewDialog/);
   assert.match(dash, /const SUPER_ONLY_REPORTS: ReportTab\[\] = \[[^\]]*"repeat-reviews"\]/);
   assert.match(dash, /reportTab === "repeat-reviews" && isSuperAdmin && <RepeatReviewsReport \/>/);
 });
@@ -70,4 +75,14 @@ test("«افحص البكس» opens the inspection form directly — SSO from th
   // الرابط على فورم فحص البكس نفسه، فى تاب جديد بنفس الدومين (الكوكى بتتبعت)
   assert.match(src, /createUrl: `\/maintenance\/inspector\/create\/\$\{r\.boxId\}`/);
   assert.match(dlg, /window\.open\(j\.createUrl, "_blank", "noopener"\)/);
+});
+
+test("«الأعطال المكررة خلال شهر من تاريخه» for everyone except sales / sales admin", () => {
+  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
+  const ep = routes.slice(routes.indexOf('app.get("/api/reports/repeated-within-month"'));
+  assert.match(ep.slice(0, 600), /if \(req\.user\?\.role === ROLES\.SALES \|\| req\.user\?\.role === ROLES\.SALES_ADMIN\) \{\s*return res\.status\(403\)/);
+  assert.match(dash, /const DM_ALLOWED: ReportTab\[\] = \[[^\]]*"repeated-within-month"\]/);
+  assert.match(dash, /const DM_ALLOWED_GROUPS = \[[^\]]*"الأعطال"\]/);
+  // الفلتر بيقرا الشهر على سلسلة التكرار (الشكوى السابقة ممكن تكون فى الشهر اللى فات)
+  assert.match(src, /c\.d >= last\.d - interval '1 month' AND c\.d <= last\.d/);
 });
