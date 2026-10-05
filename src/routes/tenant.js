@@ -87,6 +87,35 @@ function workshopHours(hours) {
   return end > start ? { start, end } : fallback;
 }
 
+// أيام العمل من نفس النص: «السبت–الخميس» أو «من السبت إلى الخميس» أو «الجمعة إجازة».
+// كانت بتتجاهل الأيام خالص، فالجمعة كانت بتظهر بمواعيد كاملة والورشة كاتبة «السبت–الخميس».
+// الأرقام = getUTCDay (الأحد 0 … السبت 6). مفيش أيام مكتوبة ← كل الأيام.
+const AR_DAYS = [
+  [0, /ال[أا]حد/], [1, /ال[إا]ثنين|الاتنين/], [2, /الثلاثاء|التلات/], [3, /ال[أا]ربعاء|الاربع/],
+  [4, /الخميس/], [5, /الجمعة|الجمعه/], [6, /السبت/],
+];
+function dayOf(word) { const hit = AR_DAYS.find(([, re]) => re.test(word)); return hit ? hit[0] : -1; }
+function workshopDays(hours) {
+  const txt = String(hours || '');
+  const all = new Set([0, 1, 2, 3, 4, 5, 6]);
+  const dayWord = '(ال[أا]حد|ال[إا]ثنين|الاتنين|الثلاثاء|التلات|ال[أا]ربعاء|الاربع|الخميس|الجمعة|الجمعه|السبت)';
+  const range = txt.match(new RegExp(dayWord + '\\s*(?:-|–|—|إلى|الى|لحد|حتى|ل)\\s*' + dayWord));
+  let days = all;
+  if (range) {
+    const from = dayOf(range[1]), to = dayOf(range[2]);
+    if (from >= 0 && to >= 0) {
+      days = new Set();
+      for (let d = from; ; d = (d + 1) % 7) { days.add(d); if (d === to) break; }
+    }
+  }
+  // «الجمعة إجازة» / «مغلق الجمعة» / «ماعدا الجمعة»
+  for (const m of txt.matchAll(new RegExp('(?:مغلق|مقفول|ماعدا|ما عدا|عدا)\\s*(?:يوم\\s*)?' + dayWord + '|' + dayWord + '\\s*(?:إجازة|اجازة|أجازة|مغلق|مقفول)', 'g'))) {
+    const d = dayOf(m[1] || m[2]);
+    if (d >= 0) { if (days === all) days = new Set(all); days.delete(d); }
+  }
+  return days;
+}
+
 async function workshopAvailableSlots(companyId, hours) {
   const occupied = (await pool.query(
     `SELECT starts_at, ends_at FROM workshop_appointments
@@ -102,8 +131,11 @@ async function workshopAvailableSlots(companyId, hours) {
   const slots = [];
   const today = CT.cairoToday();
   const pad = (n) => String(n).padStart(2, '0');
+  const openDays = workshopDays(hours);
   for (let day = 0; day < 21 && slots.length < 80; day += 1) {
     const date = CT.shiftDay(today, day);
+    const [yy, mm, dd] = date.split('-').map(Number);
+    if (!openDays.has(new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay())) continue;   // يوم إجازة
     for (let minutes = range.start; minutes < range.end && slots.length < 80; minutes += 60) {
       const value = `${date}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
       const slot = CT.cairoWallToDate(value);
@@ -2401,3 +2433,4 @@ router.post('/enrol', nurseryEnrolLimiter, async (req, res) => {
 
 module.exports = router;
 module.exports.workshopHours = workshopHours;
+module.exports.workshopDays = workshopDays;

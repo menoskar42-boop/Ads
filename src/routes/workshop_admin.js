@@ -891,7 +891,8 @@ router.get('/', requireWorkshopPermission('view_dashboard'), async (req, res) =>
                  WHERE j.company_id=$1 ORDER BY j.received_at DESC LIMIT 8`, [cid]),
   ]);
   res.render('workshop_admin/dashboard', {
-    title: req.t ? req.t('wsh.nav.dashboard') : 'Dashboard', tab: 'dashboard',
+    // res.locals.t (زى باقى الصفحات) — req.t مش متعرّفة، فالعنوان كان بيطلع «Dashboard» بالإنجليزى
+    title: res.locals.t ? res.locals.t('wsh.nav.dashboard') : 'لوحة التحكم', tab: 'dashboard',
     stats: {
       open: open.rows[0].n, promised: promised.rows[0].n, awaiting: awaiting.rows[0].n,
        dueRem: dueRem.rows[0].n, appointmentsToday: appointmentsToday.rows[0].n,

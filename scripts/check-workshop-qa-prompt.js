@@ -91,6 +91,7 @@ ok(/>شوف نموذج حي<\/a>/.test(read('src/views/landing/workshop.ejs')) &
   && has('زرار «شوف نموذج حي» بيفتح لوحة الديمو'), 'صفحة البيع فيها «شوف نموذج حي» للوحة الديمو');
 const demoMsg = (read('src/lib/demo_mode.js').match(/const msg = '([^']+)'/) || [])[1];
 ok(demoMsg && has(demoMsg), 'رسالة منع الحفظ فى الديمو بالحرف');
+ok(has('مفيش ولا ميعاد يوم الجمعة') && ![...require('../src/routes/tenant.js').workshopDays(demoHours)].includes(5), 'الديمو مالوش مواعيد جمعة');
 ok(has('حسب ساعات العمل (السبت–الخميس ٩ص–٨م)') && /حسب ساعات العمل<% if \(settings && settings\.hours\)/.test(read('src/views/workshop_public/book.ejs')),
   'صفحة الحجز بتكتب ساعات العمل');
 const W = require('../src/routes/workshop_public');
