@@ -31,8 +31,8 @@
     </section>
     <section class="card grid">
       <div><div class="label">العميل</div><div class="value"><%= job.customer_name || '—' %></div></div>
-      <div><div class="label">الاستلام</div><div class="value"><%= new Date(job.received_at).toLocaleDateString('ar-EG') %></div></div>
-      <% if (job.promised_at) { %><div><div class="label">الموعد المتوقع</div><div class="value"><%= new Date(job.promised_at).toLocaleString('ar-EG', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) %></div></div><% } %>
+      <div><div class="label">الاستلام</div><div class="value"><%= new Date(job.received_at).toLocaleDateString('ar-EG', {timeZone:'Africa/Cairo'}) %></div></div>
+      <% if (job.promised_at) { %><div><div class="label">الموعد المتوقع</div><div class="value"><%= new Date(job.promised_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) %></div></div><% } %>
       <% if (job.diagnosis) { %><div><div class="label">التشخيص</div><div class="value"><%= job.diagnosis %></div></div><% } %>
     </section>
     <% if (job.complaint) { %><section class="card"><div class="label">طلبك عند الاستلام</div><p><%= job.complaint %></p></section><% } %>
@@ -66,7 +66,7 @@
     <% if (payerror === 'provider') { %><p style="color:#9a4d18;font-size:12px;margin-top:10px">تعذر فتح بوابة الدفع الآن. لم يتم تسجيل أي دفعة؛ حاول مرة أخرى أو تواصل مع الورشة.</p><% } %>
     <% if (!job.approved_at && !['delivered','cancelled'].includes(job.status)) { %>
       <form method="post" action="/workshop/status/<%= token %>/approve" style="margin-top:18px"><label class="label">اكتب اسمك لتأكيد موافقة عرض السعر</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على عرض السعر</button></form>
-    <% } else if (job.approved_at) { %><p class="muted">تم اعتماد العرض في <%= new Date(job.approved_at).toLocaleString('ar-EG') %>.</p><% } %>
+    <% } else if (job.approved_at) { %><p class="muted">تم اعتماد العرض في <%= new Date(job.approved_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo'}) %>.</p><% } %>
     </section>
     <% if (changeOrders && changeOrders.length) { %>
       <section class="card"><h2>تعديلات على عرض السعر</h2>

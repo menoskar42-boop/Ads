@@ -20,7 +20,7 @@
   <div class="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl px-4 py-3 text-sm mb-4">
     <div class="font-black">تنبيه: عامل تذكيرات الصيانة متوقف أو لم يسجل تشغيلًا ناجحًا مؤخرًا.</div>
     <div class="text-xs mt-1">آخر تشغيل ناجح:
-      <%= reminderHealth.last_success_at ? new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) : 'لا يوجد سجل بعد' %>
+      <%= reminderHealth.last_success_at ? new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle: 'medium', timeStyle: 'short' }) : 'لا يوجد سجل بعد' %>
       · القناة: <%= reminderHealth.last_alert_channel === 'email' ? 'بريد الإدارة' : reminderHealth.last_alert_channel === 'push' ? 'إشعار المتصفح' : '—' %>
       · النتيجة: <%= reminderHealth.last_alert_status === 'sent'
         ? (reminderHealth.last_alert_channel === 'email' ? 'تم إرسال البريد الاحتياطي' : 'تم إرسال الإشعار')
@@ -96,7 +96,7 @@
               <span class="text-slate-500" dir="ltr"><%= change.previous_email || '—' %> ← <%= change.new_email || '—' %></span>
             </div>
             <div class="flex items-center gap-2 flex-wrap">
-              <div class="text-xs text-slate-500"><span dir="ltr"><%= change.changed_by %></span> · <%= new Date(change.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+              <div class="text-xs text-slate-500"><span dir="ltr"><%= change.changed_by %></span> · <%= new Date(change.created_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle: 'medium', timeStyle: 'short' }) %></div>
               <% if (change.previous_email) { %>
                 <form method="post" action="/workshop/settings/alert-email-history/<%= change.id %>/restore" onsubmit="return confirm('استعادة عنوان البريد السابق؟')">
                   <button type="submit" class="border border-brand-200 text-brand-700 rounded-lg px-2.5 py-1.5 text-xs font-bold">استعادة العنوان السابق</button>
@@ -121,7 +121,7 @@
               <span class="font-bold" dir="ltr"><%= change.current_email || change.email %></span>
               <span class="text-slate-500"> · <%= change.from_role ? (roleLabels[change.from_role] || change.from_role) : 'دعوة جديدة' %> ← <%= roleLabels[change.to_role] || change.to_role %></span>
             </div>
-            <div class="text-xs text-slate-500"><%= change.changed_by || 'النظام' %> · <%= new Date(change.created_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %></div>
+            <div class="text-xs text-slate-500"><%= change.changed_by || 'النظام' %> · <%= new Date(change.created_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle: 'medium', timeStyle: 'short' }) %></div>
           </div>
         <% }) %>
       </div>
@@ -131,7 +131,7 @@
     <h2 class="font-black mb-1">تشغيل تذكيرات الصيانة</h2>
     <p class="text-xs text-slate-500 mb-3">ملخص آخر عمليات العامل لهذه الورشة، مع فصل الرسائل التي تم تجهيزها عن التي تجاوزها عامل آخر أو فشلت.</p>
     <% if (reminderHealth && reminderHealth.state === 'healthy' && reminderHealth.last_success_at) { %>
-      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %>
+      <p class="text-xs text-emerald-700 font-bold mb-3">العامل يعمل — آخر تشغيل ناجح: <%= new Date(reminderHealth.last_success_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle: 'medium', timeStyle: 'short' }) %>
         <% if (reminderHealth.recovery_alert_status) { %>
           · تنبيه الاستعادة: <%= reminderHealth.recovery_alert_channel === 'email' ? 'بريد الإدارة' : reminderHealth.recovery_alert_channel === 'push' ? 'إشعار المتصفح' : '—' %>
           (<%= reminderHealth.recovery_alert_status === 'sent' ? 'تم الإرسال' : reminderHealth.recovery_alert_status === 'unavailable' ? 'القناة غير مهيأة' : 'تعذر الإرسال' %>)
@@ -145,7 +145,7 @@
         <% reminderRuns.forEach(function(run){ %>
           <div class="py-3 flex items-center justify-between gap-3 flex-wrap text-sm">
             <div class="text-xs text-slate-500">
-              <%= new Date(run.started_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }) %>
+              <%= new Date(run.started_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo', dateStyle: 'medium', timeStyle: 'short' }) %>
               <% if (!run.finished_at) { %><span class="text-amber-700 font-bold"> · جارٍ</span><% } %>
             </div>
             <div class="flex gap-2 flex-wrap text-xs font-bold">

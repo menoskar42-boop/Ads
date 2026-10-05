@@ -13,7 +13,7 @@
   <div class="actions"><button onclick="window.print()">طباعة / حفظ PDF</button><a href="/workshop/jobs/<%= job.id %>">العودة لأمر الشغل</a></div>
   <header class="top">
     <div><div class="brand"><%= company && (company.company_name || company.name) || 'مركز الصيانة' %></div><div class="muted"><%= settings && (settings.address || settings.phone) || '' %></div></div>
-    <div style="text-align:left"><div class="muted">تقرير تسليم السيارة</div><h1><%= J.jobCode(job.id) %></h1><div class="muted"><%= new Date().toLocaleDateString('ar-EG') %></div></div>
+    <div style="text-align:left"><div class="muted">تقرير تسليم السيارة</div><h1><%= J.jobCode(job.id) %></h1><div class="muted"><%= new Date().toLocaleDateString('ar-EG', {timeZone:'Africa/Cairo'}) %></div></div>
   </header>
   <section class="section grid">
     <div><div class="label">العميل</div><div class="value"><%= job.customer_name || '—' %></div></div>

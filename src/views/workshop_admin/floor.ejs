@@ -1,6 +1,6 @@
 <%- include('head') %>
 <%
-  function dt(v){ try { return v ? new Date(v).toLocaleString(LOC,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; } catch(e){ return '—'; } }
+  function dt(v){ try { return v ? new Date(v).toLocaleString(LOC,{timeZone:'Africa/Cairo',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; } catch(e){ return '—'; } }
 %>
 <div class="flex items-end justify-between gap-3 flex-wrap mb-5">
   <div><h1 class="font-black text-xl">الفنيون والرافعات</h1>

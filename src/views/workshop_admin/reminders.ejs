@@ -1,6 +1,6 @@
 <%- include('head') %>
 <%
-  function d(v){ try { return v ? new Date(v).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}) : '—'; } catch(e){ return '—'; } }
+  function d(v){ try { return v ? new Date(v).toLocaleDateString(LOC,{timeZone:'Africa/Cairo',day:'numeric',month:'short',year:'numeric'}) : '—'; } catch(e){ return '—'; } }
   function wa(r){
     var n = String(r.customer_whatsapp || r.customer_phone || '').replace(/[^0-9]/g,'');
     if (!n) return null;

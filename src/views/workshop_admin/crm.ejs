@@ -3,7 +3,7 @@
   function dateOnly(v){ return v ? String(v).slice(0, 10) : ''; }
   function dateLabel(v){
     if (!v) return 'بدون موعد';
-    return new Date(v).toLocaleDateString('ar-EG', {dateStyle:'medium'});
+    return new Date(v).toLocaleDateString('ar-EG', {timeZone:'Africa/Cairo',dateStyle:'medium'});
   }
   function activityLabel(v){
     return ({phone:'مكالمة', whatsapp:'واتساب', sms:'رسالة SMS', email:'بريد',
@@ -53,7 +53,7 @@
         <div class="border border-slate-100 rounded-xl p-3 flex items-center justify-between gap-3 flex-wrap">
           <a href="/workshop/crm?campaign_id=<%= campaign.id %>" class="min-w-[180px] flex-1">
             <strong class="text-sm"><%= campaign.name %></strong>
-            <span class="text-xs text-slate-500 block mt-1"><%= campaignSegmentLabels[campaign.segment] || campaign.segment %> · <%= new Date(campaign.created_at).toLocaleDateString('ar-EG') %></span>
+            <span class="text-xs text-slate-500 block mt-1"><%= campaignSegmentLabels[campaign.segment] || campaign.segment %> · <%= new Date(campaign.created_at).toLocaleDateString('ar-EG', {timeZone:'Africa/Cairo'}) %></span>
           </a>
           <div class="flex gap-2 flex-wrap text-[11px] font-bold">
             <span class="bg-slate-100 rounded-full px-2 py-1">الجمهور: <%= campaign.audience_count %></span>

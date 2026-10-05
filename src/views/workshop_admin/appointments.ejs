@@ -1,6 +1,6 @@
 <%- include('head') %>
 <%
-  function time(v){ try { return new Date(v).toLocaleTimeString(LOC, {hour:'2-digit', minute:'2-digit'}); } catch(e){ return '—'; } }
+  function time(v){ try { return new Date(v).toLocaleTimeString(LOC, {timeZone:'Africa/Cairo',hour:'2-digit', minute:'2-digit'}); } catch(e){ return '—'; } }
   var statusLabels = {booked:'محجوز', confirmed:'مؤكد', arrived:'وصل', no_show:'لم يحضر', cancelled:'ملغي'};
 %>
 <div class="flex items-start justify-between gap-4 flex-wrap mb-6">

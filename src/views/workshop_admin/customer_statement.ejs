@@ -35,7 +35,7 @@
     <% if (!payments.length) { %><p class="text-sm text-slate-400">لا توجد مدفوعات مسجلة.</p><% } %>
     <div class="space-y-2">
       <% payments.forEach(function(payment){ %>
-        <div class="flex justify-between gap-3 border-b border-slate-100 pb-2 text-sm"><span><%= new Date(payment.paid_at).toLocaleDateString(LOC) %> · <%= payment.method %></span><b class="text-emerald-700"><bdi><%= money(payment.amount) %></bdi></b></div>
+        <div class="flex justify-between gap-3 border-b border-slate-100 pb-2 text-sm"><span><%= new Date(payment.paid_at).toLocaleDateString(LOC, {timeZone:'Africa/Cairo'}) %> · <%= payment.method %></span><b class="text-emerald-700"><bdi><%= money(payment.amount) %></bdi></b></div>
       <% }) %>
     </div>
   </section>

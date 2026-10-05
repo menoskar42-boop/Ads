@@ -61,10 +61,9 @@ function cleanupWorkshopUploads(files) {
   (files || []).forEach((file) => { if (file && file.path) { try { fs.unlinkSync(file.path); } catch (_) {} } });
 }
 
-function localDateTimeValue(d) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+// مواعيد الورشة بتوقيت القاهرة: السيرفر UTC، فالمواعيد كانت بتتبني بساعة UTC — «٩ الصبح»
+// اللى بيتعرض للعميل كان فى الحقيقة ١٢ الضهر، والمواعيد اللى عدّت كانت لسه بتتعرض.
+const CT = require('../workshop/cairo_time');
 
 function workshopHours(hours) {
   const match = String(hours || '').match(/(\d{1,2})(?::(\d{2}))?\s*(?:-|–|—|إلى|الى|حتى)\s*(\d{1,2})(?::(\d{2}))?/i);
@@ -87,21 +86,20 @@ async function workshopAvailableSlots(companyId, hours) {
   const range = workshopHours(hours);
   const now = new Date(Date.now() + 30 * 60 * 1000);
   const slots = [];
+  const today = CT.cairoToday();
+  const pad = (n) => String(n).padStart(2, '0');
   for (let day = 0; day < 21 && slots.length < 80; day += 1) {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + day);
+    const date = CT.shiftDay(today, day);
     for (let minutes = range.start; minutes < range.end && slots.length < 80; minutes += 60) {
-      const slot = new Date(date);
-      slot.setMinutes(minutes);
-      if (slot < now) continue;
-      const value = localDateTimeValue(slot);
+      const value = `${date}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+      const slot = CT.cairoWallToDate(value);
+      if (!slot || slot < now) continue;
       const slotEnd = new Date(slot.getTime() + 60 * 60 * 1000);
       if (occupied.some((booking) => slot < booking.end && slotEnd > booking.start)) continue;
       slots.push({
         value,
-        label: slot.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'short' })
-          + ' — ' + slot.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+        label: slot.toLocaleDateString('ar-EG', { timeZone: CT.TZ, weekday: 'long', day: 'numeric', month: 'short' })
+          + ' — ' + slot.toLocaleTimeString('ar-EG', { timeZone: CT.TZ, hour: '2-digit', minute: '2-digit' }),
       });
     }
   }
@@ -150,9 +148,9 @@ router.post('/book', workshopBookLimiter, workshopPhotoUpload, async (req, res, 
   const name = String(b.name || '').trim().slice(0, 120);
   const phone = workshopPhone(b.phone);
   const plate = String(b.plate || '').trim().slice(0, 30);
-  const starts = new Date(String(b.starts_at || ''));
+  const starts = CT.cairoWallToDate(b.starts_at);
   const concern = String(b.concern || '').trim().slice(0, 1000);
-  if (!name || !phone || !plate || !concern || isNaN(starts)
+  if (!name || !phone || !plate || !concern || !starts
       || starts < new Date(Date.now() + 30 * 60 * 1000)
       || starts > new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)) {
     cleanupWorkshopUploads(uploadedFiles);

@@ -195,6 +195,24 @@ function jobCode(id) {
   return 'WS-' + String(id || 0).padStart(5, '0');
 }
 
+/**
+ * jobTotals().total as a SQL expression, for queries that sum many jobs at once
+ * (dashboard «unpaid», the board, customer balances). Same rule, same rounding:
+ * (parts + labour − discount, never below 0) + tax on that, each rounded to 2.
+ * Before this, those queries dropped the tax, so a shop charging VAT saw a
+ * smaller balance than its own invoices.
+ *
+ * @param j alias of workshop_jobs in the caller's query
+ */
+function jobTotalSql(j) {
+  const sub = `(COALESCE((SELECT SUM(qty*unit_price) FROM workshop_job_parts
+                           WHERE company_id=${j}.company_id AND job_id=${j}.id),0)
+              + COALESCE((SELECT SUM(amount) FROM workshop_job_labour
+                           WHERE company_id=${j}.company_id AND job_id=${j}.id),0))`;
+  const after = `GREATEST(0, ROUND((${sub} - GREATEST(0, COALESCE(${j}.discount,0)))::numeric, 2))`;
+  return `(${after} + ROUND((${after} * COALESCE(${j}.tax_percent,0) / 100.0)::numeric, 2))`;
+}
+
 module.exports = {
   STATUSES, OPEN_STATUSES, FLOW, nextStatus,
-  jobTotals, deliveryCheck, nextService, reminderState, addMonths, jobCode, daysBetween };
+  jobTotals, jobTotalSql, deliveryCheck, nextService, reminderState, addMonths, jobCode, daysBetween };

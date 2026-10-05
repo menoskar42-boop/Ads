@@ -4,7 +4,7 @@
   <div class="text-lg font-black"><bdi><%= Number(total).toLocaleString(LOC,{maximumFractionDigits:2}) %></bdi></div>
 </div>
 <%- include('_table', { empty: t('wsh.exp.empty'), rows: rows, cols: [
-  { label: t('wsh.exp.date'), get: function(r){ try { return new Date(r.spent_on).toLocaleDateString(LOC,{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; } } },
+  { label: t('wsh.exp.date'), get: function(r){ try { return new Date(r.spent_on).toLocaleDateString(LOC,{timeZone:'Africa/Cairo',day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; } } },
   { label: t('wsh.exp.category'), key: 'category' },
   { label: t('wsh.job.note'), key: 'description' },
   { label: t('wsh.exp.amount'), key: 'amount', money: true }

@@ -21,6 +21,8 @@ const { loadPaySettings, gatewayReady } = require('../lib/gateways');
 const audit = require('../lib/audit');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
+// أوقات الورشة بتوقيت القاهرة — السيرفر UTC (شوف workshop/cairo_time.js)
+const CT = require('../workshop/cairo_time');
 const {
   INSPECTION_STATUSES,
   QUALITY_STATUSES,
@@ -869,12 +871,8 @@ router.get('/', requireWorkshopPermission('view_dashboard'), async (req, res) =>
                  WHERE company_id=$1 AND status='open' AND due_on IS NOT NULL AND due_on <= CURRENT_DATE`, [cid]),
     pool.query(`SELECT COALESCE(SUM(amount),0)::float n FROM workshop_payments
                  WHERE company_id=$1 AND paid_at >= date_trunc('month', CURRENT_DATE)`, [cid]),
-    pool.query(`SELECT COALESCE(SUM(GREATEST(0, t.total - j.paid)),0)::float n FROM workshop_jobs j
-                 JOIN LATERAL (
-                   SELECT COALESCE((SELECT SUM(qty*unit_price) FROM workshop_job_parts WHERE job_id=j.id),0)
-                        + COALESCE((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id),0)
-                        - j.discount AS total
-                 ) t ON true
+    // المتبقى بالضريبة — نفس حساب الفاتورة (J.jobTotals)، مش قبل الضريبة
+    pool.query(`SELECT COALESCE(SUM(GREATEST(0, ${J.jobTotalSql('j')} - j.paid)),0)::float n FROM workshop_jobs j
                  WHERE j.company_id=$1 AND j.status <> 'cancelled'`, [cid]),
     pool.query(`SELECT COUNT(*)::int n FROM workshop_parts
                  WHERE company_id=$1 AND is_active AND min_qty > 0 AND qty <= min_qty`, [cid]),
@@ -927,9 +925,7 @@ router.get('/board', requireFlag('board'), requireWorkshopPermission('view_board
     `SELECT j.id, j.status, j.complaint, j.promised_at, j.received_at,
             v.plate, v.make, v.model, c.name AS customer_name,
             t.name AS technician_name,
-            COALESCE((SELECT SUM(qty*unit_price) FROM workshop_job_parts WHERE job_id=j.id),0)
-              + COALESCE((SELECT SUM(amount) FROM workshop_job_labour WHERE job_id=j.id),0)
-              - j.discount AS estimate_total,
+            ${J.jobTotalSql('j')}::float AS estimate_total,
             (SELECT COUNT(*)::int FROM workshop_inspection_items i
               WHERE i.job_id=j.id AND i.status IN ('attention','urgent')) AS findings
        FROM workshop_jobs j
@@ -961,7 +957,7 @@ router.get('/board', requireFlag('board'), requireWorkshopPermission('view_board
     title: 'لوحة التشغيل', tab: 'board', columns, J,
     technicians: technicians.rows, lateJobs: lateJobs.rows,
     q, status, technician: technician || '', due,
-    today: new Date().toISOString().slice(0, 10),
+    today: CT.cairoToday(),
   });
 });
 
@@ -969,7 +965,7 @@ router.get('/board', requireFlag('board'), requireWorkshopPermission('view_board
 router.get('/appointments', requireFlag('appointments'), requireWorkshopPermission('view_appointments'), async (req, res) => {
   const cid = req.company.id;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.day || ''))
-    ? String(req.query.day) : new Date().toISOString().slice(0, 10);
+    ? String(req.query.day) : CT.cairoToday();
   const [rows, vehicles] = await Promise.all([
     pool.query(
       `SELECT a.*, v.plate, v.make, v.model, c.name AS customer_name,
@@ -992,35 +988,32 @@ router.get('/appointments', requireFlag('appointments'), requireWorkshopPermissi
       [cid]
     ),
   ]);
-  const date = new Date(`${day}T12:00:00`);
-  const previous = new Date(date); previous.setDate(date.getDate() - 1);
-  const next = new Date(date); next.setDate(date.getDate() + 1);
   res.render('workshop_admin/appointments', {
     title: 'مواعيد الاستقبال', tab: 'appointments', appointments: rows.rows,
     vehicles: vehicles.rows, day,
-    previous: previous.toISOString().slice(0, 10),
-    next: next.toISOString().slice(0, 10),
+    previous: CT.shiftDay(day, -1),
+    next: CT.shiftDay(day, 1),
   });
 });
 
 router.post('/appointments', requireFlag('appointments'), requireWorkshopPermission('manage_appointments'), async (req, res) => {
   const b = req.body || {}, cid = req.company.id, vehicleId = int(b.vehicle_id);
-  const starts = b.starts_at ? new Date(b.starts_at) : null;
-  if (!vehicleId || !starts || isNaN(starts)) return res.redirect('/workshop/appointments');
+  const starts = CT.cairoWallToDate(b.starts_at);
+  if (!vehicleId || !starts) return res.redirect('/workshop/appointments');
   const vehicle = (await pool.query(
     'SELECT id, customer_id FROM workshop_vehicles WHERE id=$1 AND company_id=$2 AND is_active',
     [vehicleId, cid]
   )).rows[0];
   if (!vehicle) return res.redirect('/workshop/appointments');
-  const ends = b.ends_at ? new Date(b.ends_at) : null;
+  const ends = CT.cairoWallToDate(b.ends_at);
   await pool.query(
     `INSERT INTO workshop_appointments
       (company_id, customer_id, vehicle_id, starts_at, ends_at, service_type, concern, notes)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [cid, vehicle.customer_id, vehicle.id, starts, ends && !isNaN(ends) ? ends : null,
+    [cid, vehicle.customer_id, vehicle.id, starts, ends,
       text(b.service_type, 120), text(b.concern, 500), text(b.notes, 500)]
   );
-  res.redirect('/workshop/appointments?day=' + starts.toISOString().slice(0, 10));
+  res.redirect('/workshop/appointments?day=' + CT.cairoInputValue(starts).slice(0, 10));
 });
 
 router.post('/appointments/:id/status', requireFlag('appointments'), requireWorkshopPermission('manage_appointments'), async (req, res) => {
@@ -1030,7 +1023,7 @@ router.post('/appointments/:id/status', requireFlag('appointments'), requireWork
     'UPDATE workshop_appointments SET status=$1, updated_at=now() WHERE id=$2 AND company_id=$3',
     [status, int(req.params.id), req.company.id]
   );
-  res.redirect('/workshop/appointments?day=' + encodeURIComponent(String(req.query.day || new Date().toISOString().slice(0, 10))));
+  res.redirect('/workshop/appointments?day=' + encodeURIComponent(String(req.query.day || CT.cairoToday())));
 });
 
 router.post('/appointments/:id/convert', requireFlag('appointments'), requireWorkshopPermission('manage_appointments'), async (req, res) => {
@@ -1978,20 +1971,8 @@ router.get('/customers', requireFlag('customers'), requireWorkshopPermission('vi
               WHERE v.company_id=c.company_id AND v.customer_id=c.id) AS vehicles_count,
             (SELECT COUNT(*)::int FROM workshop_jobs j
               WHERE j.company_id=c.company_id AND j.customer_id=c.id) AS jobs_count,
-            COALESCE((SELECT SUM(GREATEST(0, t.total - j.paid))
+            COALESCE((SELECT SUM(GREATEST(0, ${J.jobTotalSql('j')} - j.paid))
               FROM workshop_jobs j
-              JOIN LATERAL (
-                SELECT COALESCE((SELECT SUM(qty*unit_price) FROM workshop_job_parts
-                                  WHERE company_id=j.company_id AND job_id=j.id),0)
-                     + COALESCE((SELECT SUM(amount) FROM workshop_job_labour
-                                  WHERE company_id=j.company_id AND job_id=j.id),0)
-                     - j.discount + (GREATEST(0, (
-                         COALESCE((SELECT SUM(qty*unit_price) FROM workshop_job_parts
-                                   WHERE company_id=j.company_id AND job_id=j.id),0)
-                         + COALESCE((SELECT SUM(amount) FROM workshop_job_labour
-                                   WHERE company_id=j.company_id AND job_id=j.id),0)
-                         - j.discount) * j.tax_percent / 100)) AS total
-              ) t ON true
               WHERE j.company_id=c.company_id AND j.customer_id=c.id AND j.status <> 'cancelled'),0)::float AS balance
        FROM workshop_customers c
       WHERE ${where}
@@ -2201,7 +2182,7 @@ router.post('/jobs', requireWorkshopPermission('create_jobs'), async (req, res) 
      VALUES ($1,$2,$3,${ref('workshop_technicians', '$4', '$1')},$5,$6,$7,$8,$9) RETURNING id`,
     // v.id, not vehicleId: the SELECT above is what proved this vehicle is ours.
     [cid, v.id, v.customer_id, int(b.technician_id), text(b.complaint, 1000), odo,
-     b.promised_at ? new Date(b.promised_at) : null,
+     CT.cairoWallToDate(b.promised_at),
      num(req.settings.tax_percent, 0), int(b.warranty_months, 0) || 0]
   );
   await Promise.all([
@@ -3119,7 +3100,7 @@ router.post('/jobs/:id/update', requireAnyWorkshopPermission('manage_job_details
     [text(b.diagnosis, 2000), text(b.note, 1000), text(b.technician_note, 2000), int(b.technician_id),
      Math.max(0, num(b.discount, 0)), Math.min(100, Math.max(0, num(b.tax_percent, 0))),
      Math.max(0, int(b.warranty_months, 0) || 0),
-      b.promised_at ? new Date(b.promised_at) : null, id, cid]);
+      CT.cairoWallToDate(b.promised_at), id, cid]);
   res.redirect('/workshop/jobs/' + id);
 });
 

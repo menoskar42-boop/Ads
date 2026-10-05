@@ -1,7 +1,7 @@
 <%- include('head') %>
 <%
   function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
-  function d(v){ try { return new Date(v).toLocaleDateString(LOC, {day:'numeric',month:'short'}); } catch(e){ return ''; } }
+  function d(v){ try { return new Date(v).toLocaleDateString(LOC, {timeZone:'Africa/Cairo',day:'numeric',month:'short'}); } catch(e){ return ''; } }
   var cards = [
     [t('wsh.dash.open_jobs'),     stats.open,     '/workshop/jobs',      'text-brand-700', 'bg-brand-100'],
     [t('wsh.dash.awaiting'),      stats.awaiting, '/workshop/jobs?status=quoted', 'text-amber-600', 'bg-amber-100'],

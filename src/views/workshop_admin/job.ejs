@@ -1,8 +1,9 @@
 <%- include('head') %>
 <%
   function money(v){ return Number(v||0).toLocaleString(LOC, {maximumFractionDigits:2}); }
-  function dt(v){ try { return v ? new Date(v).toLocaleString(LOC, {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; } catch(e){ return '—'; } }
-  function forInput(v){ try { var d=new Date(v); return isNaN(d)?'':d.toISOString().slice(0,16); } catch(e){ return ''; } }
+  function dt(v){ try { return v ? new Date(v).toLocaleString(LOC, {timeZone:'Africa/Cairo',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'; } catch(e){ return '—'; } }
+  /* قيمة datetime-local بتوقيت القاهرة (السيرفر UTC) — sv-SE بيطلع «YYYY-MM-DD HH:mm:ss» */
+  function forInput(v){ try { var d=new Date(v); return (!v||isNaN(d))?'':d.toLocaleString('sv-SE',{timeZone:'Africa/Cairo',hour12:false}).replace(' ','T').slice(0,16); } catch(e){ return ''; } }
   var nextSt = J.nextStatus(job.status);
 %>
 <a href="/workshop/jobs" class="inline-flex items-center text-sm text-slate-500 hover:text-brand-700 no-print mb-1">← <%= t('wsh.common.back') %></a>

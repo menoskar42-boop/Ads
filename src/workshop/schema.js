@@ -20,6 +20,50 @@
 const { Pool } = require('pg');
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+/**
+ * One time: appointment and promised times typed into forms were saved as if
+ * the Cairo wall clock were UTC (Node runs in UTC), so a 9:00 appointment is
+ * stored as 09:00Z = 11:00/12:00 Cairo. Now that forms are read as Cairo time
+ * (workshop/cairo_time.js) and shown in Cairo time, the old rows would all
+ * jump 2–3 hours. This moves them once: the stored UTC wall clock is re-read
+ * as Cairo wall clock. Only these three columns ever came from a form;
+ * received_at/approved_at/delivered_at are now() and were always right.
+ * The app_meta claim makes it run exactly once, on one instance, in the same
+ * transaction as the shift.
+ */
+const CAIRO_SHIFT_KEY = 'workshop:times-cairo-v1';
+const CAIRO_SHIFT_SQL = `
+  UPDATE workshop_appointments
+     SET starts_at = (starts_at AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Cairo',
+         ends_at   = (ends_at   AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Cairo';
+  UPDATE workshop_jobs
+     SET promised_at = (promised_at AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Cairo'
+   WHERE promised_at IS NOT NULL;`;
+
+async function shiftWorkshopTimesToCairo(client) {
+  // نفس تعريف pharmacy/schema.js — لو الورشة اشتغلت قبل الصيدلية
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TIMESTAMPTZ DEFAULT now()
+    )`);
+  try {
+    await client.query('BEGIN');
+    const claim = await client.query(
+      `INSERT INTO app_meta (key, value) VALUES ($1, now()::text)
+       ON CONFLICT (key) DO NOTHING RETURNING key`, [CAIRO_SHIFT_KEY]);
+    if (claim.rowCount) {
+      await client.query(CAIRO_SHIFT_SQL);
+      console.log('[workshop schema] appointment/promised times moved to Cairo time (one time).');
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  }
+}
+
 async function ensureWorkshopSchema() {
   const client = await pool.connect();
   try {
@@ -864,6 +908,8 @@ async function ensureWorkshopSchema() {
         ON workshop_customers (company_id, segment, lifecycle_stage, next_followup_on);
     `);
 
+    await shiftWorkshopTimesToCairo(client);
+
     console.log('Workshop schema ready.');
   } catch (err) {
     console.error('[workshop schema]', err.message);
@@ -872,4 +918,4 @@ async function ensureWorkshopSchema() {
   }
 }
 
-module.exports = { ensureWorkshopSchema };
+module.exports = { ensureWorkshopSchema, CAIRO_SHIFT_KEY, CAIRO_SHIFT_SQL };

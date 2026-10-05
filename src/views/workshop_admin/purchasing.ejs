@@ -82,7 +82,7 @@
         </div>
         <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mt-3">
           <span><%= order.item_count %> أصناف</span><span>الإجمالي التقديري: <bdi><%= money(order.total) %></bdi> ج.م</span>
-          <% if (order.expected_on) { %><span>متوقع: <%= new Date(order.expected_on).toLocaleDateString(LOC) %></span><% } %>
+          <% if (order.expected_on) { %><span>متوقع: <%= new Date(order.expected_on).toLocaleDateString(LOC, {timeZone:'Africa/Cairo'}) %></span><% } %>
         </div>
         <% if (order.notes) { %><p class="text-sm text-slate-600 mt-3"><%= order.notes %></p><% } %>
         <% if (orderItems.length) { %>
