@@ -49,8 +49,45 @@ const clean = (v: unknown) => String(v ?? "").trim().slice(0, TEXT_MAX);
 export const reviewStep = (r: any): number =>
   !r ? 0 : !r.line_status ? 0 : !r.inspection_id ? 1 : !(r.customer_statement && r.tech_statement) ? 2 : !r.cause ? 3 : 4;
 
+// شكاوى الخط من نفس مصدر تقرير «الأعطال المكررة خلال شهر من تاريخه» (التفاصيل المغلقة +
+// المتبقى 138/135، غنايم) بتوقيت الشيت. شهر الرد = شهر آخر شكوى فيها، مش شهر أى شكوى تانية.
+export const reportComplaintsSql = (phoneExpr: string) => `
+  SELECT (cd.complain_time AT TIME ZONE 'UTC') AS d FROM complaint_details cd
+   WHERE cd.close_time IS NOT NULL AND cd.exchange_name ILIKE '%غنايم%' AND cd.complain_time IS NOT NULL
+     AND ${sp("cd.phone_number")} = ${sp(phoneExpr)}
+  UNION ALL
+  SELECT (rc.complain_time AT TIME ZONE 'UTC') FROM remaining_complaints rc
+   WHERE rc.status_code IN ('138', '135') AND rc.exchange_name ILIKE '%غنايم%' AND rc.complain_time IS NOT NULL
+     AND ${sp("rc.phone_number")} = ${sp(phoneExpr)}`;
+
+// تصحيح ردود اتسجّلت على شهر مافيهوش ولا شكوى للخط فى مصدر التقرير (الإصدار القديم كان بيفتح
+// الرد من أى صف شكوى فى «إحصائيات التكرار»، فممكن ياخد شهر شكوى تانية — خط آخر شكوى ليه فى 9
+// اتسجّل رده على 10). بيتنقل لشهر آخر شكوى قبل ما الرد يتعمل، ولو الشهر ده عليه رد تانى بيتساب.
+export const FIX_REVIEW_MONTHS_SQL = `
+  UPDATE repeat_reviews r SET month = f.m, updated_at = now()
+    FROM (
+      SELECT r2.id,
+             (SELECT to_char(max(c.d), 'YYYY-MM') FROM (${reportComplaintsSql("r2.phone_short")}) c
+               WHERE c.d <= (r2.created_at AT TIME ZONE 'Africa/Cairo')) AS m
+        FROM repeat_reviews r2
+       WHERE NOT EXISTS (SELECT 1 FROM (${reportComplaintsSql("r2.phone_short")}) c
+                          WHERE to_char(c.d, 'YYYY-MM') = r2.month)
+    ) f
+   WHERE r.id = f.id AND f.m IS NOT NULL AND f.m <> r.month
+     AND NOT EXISTS (SELECT 1 FROM repeat_reviews x WHERE x.phone_short = r.phone_short AND x.month = f.m)
+  RETURNING r.id, r.phone_short, f.m`;
+
 export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
   const { pool, requireAuth, requireSuperAdmin } = d;
+
+  // مرة عند التشغيل — مابيلمسش غير الردود اللى شهرها غلط أكيد (مافيهوش ولا شكوى للخط)
+  void pool.query(FIX_REVIEW_MONTHS_SQL)
+    .then((r) => { if (r.rowCount) console.log(`[repeat-reviews] اتصحّح شهر ${r.rowCount} رد`, r.rows); })
+    .catch((e) => console.error("[repeat-reviews] تصحيح الشهور:", e.message));
+
+  const monthHasComplaint = async (short: string, month: string) =>
+    (await pool.query(`SELECT 1 FROM (${reportComplaintsSql("$1")}) c WHERE to_char(c.d, 'YYYY-MM') = $2 LIMIT 1`,
+      [short, month])).rowCount! > 0;
 
   // أول شكوى فى سلسلة التكرار — زى تقرير «الأعطال المكررة خلال شهر من تاريخه»: آخر شكوى
   // للخط فى الشهر، وأول شكوى فى الشهر اللى قبلها لحدها (الشكوى السابقة ممكن تكون فى الشهر
@@ -216,6 +253,10 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
       const step = String(req.body?.step || "");
       if (short.length < 5 || !isMonth(month)) return res.status(400).json({ message: "الرقم أو الشهر غير صالح" });
       const by = byName(req);
+      // رد جديد لازم يبقى على شهر فيه شكوى للخط (شهر آخر شكوى فى التقرير) — وإلا الخطاب يطلع بشهر غلط
+      if (!(await getReview(short, month)) && !(await monthHasComplaint(short, month))) {
+        return res.status(400).json({ message: `الخط ${short} مالوش شكوى فى شهر ${month} — افتح الرد من تقرير «الأعطال المكررة خلال شهر من تاريخه»` });
+      }
       let r = await ensureReview(short, month, by);
 
       if (step === "line") {

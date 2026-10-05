@@ -18,7 +18,7 @@ const maintStub = http.createServer((req, res) => {
 await new Promise<void>((r) => maintStub.listen(0, r));
 process.env.MAINTENANCE_API_BASE = `http://127.0.0.1:${(maintStub.address() as any).port}`;
 
-const { registerRepeatReviews } = await import("../server/repeat-reviews.ts");
+const { registerRepeatReviews, FIX_REVIEW_MONTHS_SQL } = await import("../server/repeat-reviews.ts");
 const pool = new pg.Pool({ connectionString: url });
 let fails = 0;
 const ok = (label: string, cond: boolean, extra = "") => {
@@ -52,9 +52,12 @@ async function setup() {
   await pool.query(`INSERT INTO maintenance.boxes (cabinet_id, number) VALUES ($1, '41'), ($1, '42')`, [cab]);
   await pool.query(`INSERT INTO maintenance.users (username, full_name, role) VALUES ('rr_insp', 'فاحص تجربة', 'inspector'), ('rr_maint', 'فنى صيانة تجربة', 'technician')`);
   // أول شكوى فى سبتمبر: 10 سبتمبر 23:30 (توقيت الشيت = UTC) — وشكوى فى أغسطس مالهاش دعوة
-  await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time) VALUES
-    ('RR-1', $1, '2026-09-10 23:30+00'), ('RR-0', $1, '2026-07-20 10:00+00')`, [PH]);
-  await pool.query(`INSERT INTO remaining_complaints (complain_no, phone_number, complain_time) VALUES ('RR-2', $1, '2026-09-18 09:00+00')`, [PH]);
+  // نفس مصدر تقرير «الأعطال المكررة»: تفاصيل مغلقة + متبقى 138/135، غنايم
+  await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time, close_time, exchange_name) VALUES
+    ('RR-1', $1, '2026-09-10 23:30+00', '2026-09-11 10:00+00', 'الغنايم-تجربة'), ('RR-0', $1, '2026-07-20 10:00+00', '2026-07-21 10:00+00', 'الغنايم-تجربة')`, [PH]);
+  await pool.query(`INSERT INTO remaining_complaints (complain_no, phone_number, complain_time, status_code, exchange_name) VALUES ('RR-2', $1, '2026-09-18 09:00+00', '138', 'الغنايم-تجربة')`, [PH]);
+  // شكوى فى أكتوبر برّه مصدر التقرير (حالة غير 138/135) — زى خط 2746512: الرد يفضل على سبتمبر
+  await pool.query(`INSERT INTO remaining_complaints (complain_no, phone_number, complain_time, status_code, exchange_name) VALUES ('RR-3', $1, '2026-10-03 09:00+00', '160', 'الغنايم-تجربة')`, [PH]);
   await pool.query(`INSERT INTO cfm_users (username, password, name, role) VALUES ('rr_splice', 'x', 'لحام تجربة', 'splice_tech')`);
 }
 async function cleanup() {
@@ -105,9 +108,22 @@ try {
   let r = await get(`/api/repeat-reviews/one?phone=${PH}&month=${MONTH}`);
   ok("الرد لسه مااتعملش، وأول شكوى فى سلسلة التكرار = 2026-09-10 (يوليو برّه الشهر)", r.s === 200 && r.j.review === null && r.j.firstComplaintDate === "2026-09-10", JSON.stringify(r.j.firstComplaintDate));
   ok("البكس مش مفحوص", r.j.inspection === null);
-  await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time) VALUES ('RR-9', $1, '2026-10-02 19:58+00'), ('RR-8', $1, '2026-09-04 17:51+00')`, ["2999002"]);
+  await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time, close_time, exchange_name) VALUES ('RR-9', $1, '2026-10-02 19:58+00', '2026-10-03 08:00+00', 'الغنايم-تجربة'), ('RR-8', $1, '2026-09-04 17:51+00', '2026-09-05 08:00+00', 'الغنايم-تجربة')`, ["2999002"]);
   r = await get(`/api/repeat-reviews/one?phone=2999002&month=2026-10`);
   ok("شكوى سابقة فى الشهر اللى فات (09-04 ← 10-02) هى أول السلسلة", r.j.firstComplaintDate === "2026-09-04", JSON.stringify(r.j.firstComplaintDate));
+
+  // الشهر بيحدّده آخر شكوى فى مصدر التقرير — شهر مافيهوش شكوى للخط مايتعملّوش رد
+  const wrong = await post("/api/repeat-reviews/step", { phone: PH, month: "2026-10", step: "line", status: "confirmed" });
+  ok("رد على شهر مالوش فيه شكوى (أكتوبر) مرفوض", wrong.s === 400 && /مالوش شكوى فى شهر 2026-10/.test(wrong.j.message), JSON.stringify(wrong.j));
+  // رد قديم اتسجّل على أكتوبر (من الإصدار القديم) بيتصحّح لسبتمبر — ولو سبتمبر عليه رد بيتساب
+  await pool.query(`INSERT INTO repeat_reviews (phone_short, month, created_at) VALUES ('2999003', '2026-10', '2026-10-05 10:00+00')`);
+  await pool.query(`INSERT INTO complaint_details (complain_no, phone_number, complain_time, close_time, exchange_name) VALUES ('RR-7', '2999003', '2026-09-20 10:00+00', '2026-09-21 10:00+00', 'الغنايم-تجربة'), ('RR-6', '2999003', '2026-09-02 10:00+00', '2026-09-03 10:00+00', 'الغنايم-تجربة')`);
+  const fixed = await pool.query(FIX_REVIEW_MONTHS_SQL);
+  const m3 = (await pool.query(`SELECT month FROM repeat_reviews WHERE phone_short = '2999003'`)).rows.map((x: any) => x.month);
+  ok("رد متسجّل على شهر غلط اتنقل لشهر آخر شكوى (10 ← 09)", m3.length === 1 && m3[0] === "2026-09" && fixed.rows.some((x: any) => x.phone_short === "2999003"), JSON.stringify(m3));
+  ok("التصحيح مالمسش رد شهره صح", !fixed.rows.some((x: any) => x.phone_short === PH));
+  await pool.query(`DELETE FROM repeat_reviews WHERE phone_short = '2999003'`);
+  await pool.query(`DELETE FROM complaint_details WHERE complain_no IN ('RR-6', 'RR-7')`);
 
   ok("الترتيب: مينفعش فحص قبل البيان", (await step("inspection")).s === 400);
   ok("مينفعش إفادات قبل الفحص", (await step("statements", { customer: "a", tech: "b" })).s === 400);
