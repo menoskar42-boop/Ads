@@ -17,6 +17,9 @@ const STATUS_AR: Record<string, string> = {
   PAUSED: "متوقف مؤقتاً", DISABLED: "متعطّل", GREEN: "عالية", YELLOW: "متوسطة", RED: "منخفضة", UNKNOWN: "—",
 };
 const ar = (v: unknown) => (v == null || v === "" ? "—" : STATUS_AR[String(v)] ?? String(v));
+// القالب PENDING = «قيد المراجعة» عند Meta — مش «معلّق محتاج PIN» زى الرقم
+const TEMPLATE_AR: Record<string, string> = { PENDING: "قيد المراجعة عند Meta", APPROVED: "معتمد", REJECTED: "مرفوض", PAUSED: "متوقف مؤقتاً", DISABLED: "متعطّل" };
+const arTemplate = (v: unknown) => TEMPLATE_AR[String(v ?? "")] ?? ar(v);
 const tone = (v: unknown) => {
   const s = String(v ?? "");
   return /CONNECTED|APPROVED|VERIFIED|GREEN|AVAILABLE/.test(s) && !/NOT_VERIFIED/.test(s) ? "text-emerald-700"
@@ -90,7 +93,7 @@ export function WhatsAppSetupButton() {
                     ومابيتخزّنش فى الموقع.
                   </p>
                   <div className="flex gap-2">
-                    <Input type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={pin}
+                    <Input type="password" inputMode="numeric" autoComplete="one-time-code" name="wa-register-pin" maxLength={6} value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="PIN ٦ أرقام" className="w-40 text-center tracking-widest" dir="ltr"
                       data-testid="input-whatsapp-pin" />
@@ -108,7 +111,7 @@ export function WhatsAppSetupButton() {
                     {d.templates.map((t: any) => (
                       <li key={t.name + t.language} className="flex justify-between gap-2">
                         <span dir="ltr" className="font-mono">{t.name}</span>
-                        <span className={tone(t.status)}>{ar(t.status)}{t.rejected_reason && t.rejected_reason !== "NONE" ? ` — ${t.rejected_reason}` : ""}</span>
+                        <span className={tone(t.status)}>{arTemplate(t.status)}{t.rejected_reason && t.rejected_reason !== "NONE" ? ` — ${t.rejected_reason}` : ""}</span>
                       </li>
                     ))}
                   </ul>

@@ -49,7 +49,10 @@ async function graph(method: "GET" | "POST", path: string, body?: unknown): Prom
     const e = j?.error || {};
     const code = Number(e.code) || null;
     const sub = Number(e.error_subcode) || null;
-    const meta = String(e.error_user_msg || e.message || `HTTP ${res.status}`);
+    // التفاصيل الحقيقية بتيجى فى error_data.details و error_user_title/msg — من غيرها «Invalid parameter» مابيقولش حاجة
+    const meta = [e.error_user_title, e.error_user_msg, e.message, e.error_data?.details, sub ? `subcode ${sub}` : ""]
+      .map((x: any) => String(x ?? "").trim()).filter(Boolean)
+      .filter((x: string, i: number, a: string[]) => a.indexOf(x) === i).join(" — ") || `HTTP ${res.status}`;
     const ar = (code && ERR_AR[code]) || (sub && ERR_AR[sub]) || "Meta رفضت الطلب.";
     throw new WhatsAppError(`${ar} (${code ?? res.status}: ${meta})`, code, meta);
   }

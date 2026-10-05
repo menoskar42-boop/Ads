@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle2, Lock, ExternalLink, RefreshCw, ClipboardCheck } from "lucide-react";
+import { Loader2, CheckCircle2, Lock, ExternalLink, RefreshCw, ClipboardCheck, ArrowRight } from "lucide-react";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { MobileValue } from "@/lib/mobile-lookup";
 
@@ -95,6 +95,11 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
     } finally { setBusy(null); }
   };
 
+  // الفحص بيتفتح **جوّه نفس الصفحة** (شاشة كاملة فوق الرد) بزرار «رجوع للرد» — على الموبايل
+  // التاب الجديد مكانش فيه رجوع فالفاحص يتوه (٢٠٢٦-١٠-٠٥). نفس الدومين فالـSSO شغّال جوّه الإطار.
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const closeFrame = () => { setFrameUrl(null); void q.refetch(); };
+
   const openInspection = async () => {
     setBusy("box-link");
     try {
@@ -104,11 +109,24 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { alert(j?.message || "تعذّر فتح الفحص"); return; }
-      window.open(j.createUrl, "_blank", "noopener");
+      setFrameUrl(j.createUrl);
     } finally { setBusy(null); }
   };
 
   return (
+    <>
+    <Dialog open={!!frameUrl} onOpenChange={(v) => { if (!v) closeFrame(); }}>
+      <DialogContent className="left-0 top-0 translate-x-0 translate-y-0 max-w-none w-screen h-[100dvh] rounded-none p-0 gap-0 flex flex-col" dir="rtl">
+        <DialogHeader className="sr-only"><DialogTitle>فحص البكس</DialogTitle></DialogHeader>
+        <div className="flex items-center gap-2 border-b bg-white p-2 pl-12">
+          <Button size="sm" onClick={closeFrame} className="gap-1" data-testid="button-repeat-frame-back">
+            <ArrowRight className="w-4 h-4" /> رجوع للرد
+          </Button>
+          <span className="text-xs text-muted-foreground">بعد ما تحفظ الفحص ارجع للرد ودوس «اعتماد الفحص».</span>
+        </div>
+        {frameUrl && <iframe src={frameUrl} title="شاشة فحص البكس" className="flex-1 w-full border-0 bg-white" />}
+      </DialogContent>
+    </Dialog>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl w-full max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
@@ -164,9 +182,9 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
                 <div className={`text-xs rounded p-2 ${d.inspection.valid ? "bg-green-50" : "bg-amber-50"}`}>
                   آخر فحص: <b dir="ltr">{d.inspection.date}</b>{d.inspection.by ? ` — ${d.inspection.by}` : ""} — بنود محتاجة شغل: <b>{d.inspection.badItems}</b>
                   {!d.inspection.valid && <div className="text-amber-800 font-semibold mt-1">الفحص ده قبل أول شكوى فى التكرار — لازم إعادة فحص.</div>}
-                  <a href={d.inspection.viewUrl} target="_blank" rel="noopener" className="mr-2 inline-flex items-center gap-1 text-blue-700 underline">
+                  <button type="button" onClick={() => setFrameUrl(d.inspection!.viewUrl)} className="mr-2 inline-flex items-center gap-1 text-blue-700 underline" data-testid="button-repeat-view-inspection">
                     <ExternalLink className="w-3 h-3" /> عرض / تعديل الفحص
-                  </a>
+                  </button>
                 </div>
               ) : <p className="text-xs text-amber-800">البكس ده مش مفحوص.</p>}
               {rv?.inspection_id && <p className="text-xs text-green-700">✓ مربوط بالفحص بتاريخ {rv.inspection_date ? String(rv.inspection_date).slice(0, 10) : ""}</p>}
@@ -243,5 +261,6 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
         )}
       </DialogContent>
     </Dialog>
+    </>
   );
 }

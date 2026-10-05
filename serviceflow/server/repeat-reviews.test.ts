@@ -74,7 +74,12 @@ test("«افحص البكس» opens the inspection form directly — SSO from th
   assert.match(app, /admin: "admin"/);
   // الرابط على فورم فحص البكس نفسه، فى تاب جديد بنفس الدومين (الكوكى بتتبعت)
   assert.match(src, /createUrl: `\/maintenance\/inspector\/create\/\$\{r\.boxId\}`/);
-  assert.match(dlg, /window\.open\(j\.createUrl, "_blank", "noopener"\)/);
+  // جوّه نفس الصفحة (شاشة كاملة) بزرار «رجوع للرد» — التاب الجديد على الموبايل مكانش فيه رجوع
+  assert.match(dlg, /setFrameUrl\(j\.createUrl\);/);
+  assert.match(dlg, /onClick=\{\(\) => setFrameUrl\(d\.inspection!\.viewUrl\)\}/);
+  assert.match(dlg, /<iframe src=\{frameUrl\} title="شاشة فحص البكس"/);
+  assert.match(dlg, /رجوع للرد/);
+  assert.doesNotMatch(dlg, /target="_blank"|window\.open\(/);
 });
 
 test("«الأعطال المكررة خلال شهر من تاريخه»: everyone except sales, sales admin and data manager", () => {

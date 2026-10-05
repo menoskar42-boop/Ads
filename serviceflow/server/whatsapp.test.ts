@@ -100,3 +100,18 @@ test("routes: super-admin only, PIN never stored, the send is logged as whatsapp
   assert.match(schema, /channel: text\("channel"\)\.notNull\(\)\.default\("sms"\)/);
   assert.match(schema, /waMessageId: text\("wa_message_id"\)/);
 });
+
+test("Meta's real reason (error_data.details) shows up in the message", async () => {
+  const srv = http.createServer((req, res) => {
+    res.statusCode = 400; res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: { code: 100, message: "(#100) Invalid parameter", error_subcode: 2388001,
+      error_data: { details: "Phone number is not eligible for registration" } } }));
+  });
+  await new Promise<void>((r) => srv.listen(0, r));
+  process.env.WHATSAPP_GRAPH_BASE = `http://127.0.0.1:${(srv.address() as any).port}`;
+  const wa = await import("./whatsapp");
+  try {
+    await assert.rejects(wa.registerNumber("123456"), (e: any) =>
+      /Invalid parameter/.test(e.message) && /not eligible for registration/.test(e.message) && /subcode 2388001/.test(e.message));
+  } finally { srv.close(); }
+});
