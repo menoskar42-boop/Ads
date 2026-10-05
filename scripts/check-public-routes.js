@@ -28,6 +28,7 @@ const ALLOWED = {
   'POST /api/portal/login': 'login',
   'GET /logout': 'login',
   'POST /api/wfm-tasks/cancel-ingest': 'x-dzs-token',
+  'POST /api/wfm-tasks/accept-ingest': 'x-dzs-token',
   'POST /api/case-138/measurements': 'x-dzs-token',
   'POST /api/po-events/ingest': 'x-dzs-token',
   'GET /api/phone-ports/cabins': 'x-dzs-token',

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { WFM_ACCEPT_AR } from "@/lib/exec-queue";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -92,6 +93,10 @@ function describe(j: Job): string {
         `${a.phone}: ${a.accountNo || "مفيش أكونت"}${a.source ? ` (${a.source})` : ""}`).join(" — ") || "—";
     case "wfmcancel":
       return `${d.mode}${d.workerName ? ` · الفنى: ${d.workerName}` : ""}${d.worker ? ` (كود ${d.worker})` : ""}`;
+    case "wfmaccept":
+      return d.result
+        ? `${WFM_ACCEPT_AR[d.result] || d.result}${d.workId ? ` · Work Id ${d.workId}` : ""}${d.inThisJob ? "" : " (نتيجة قديمة)"} · ${fmt(d.at)}`
+        : "مافيش نتيجة رجعت من WFM فى المهمة دى";
     default:
       return "عملية على مستوى الموقع كله (تحديث ملف) — مافيش تفصيل لكل رقم";
   }

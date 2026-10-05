@@ -1204,6 +1204,20 @@ export const wfmTaskCancels = pgTable("wfm_task_cancels", {
 
 export type WfmTaskCancel = typeof wfmTaskCancels.$inferSelect;
 
+// wfm_task_accepts — نتيجة «موافقة تغيير البورت» على WFM (Accept ← Start ← Change Port)
+export const wfmTaskAccepts = pgTable("wfm_task_accepts", {
+  id: serial("id").primaryKey(),
+  phoneNumber: text("phone_number").notNull(),
+  workOrderId: text("work_order_id"),
+  workId: text("work_id"),
+  result: text("result").notNull(),
+  message: text("message"),
+  requestedBy: text("requested_by"),
+  reportedAt: timestamp("reported_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export type WfmTaskAccept = typeof wfmTaskAccepts.$inferSelect;
+
 // WebSocket Events
 export const WS_EVENTS = {
   ORDER_UPDATE: 'ORDER_UPDATE',

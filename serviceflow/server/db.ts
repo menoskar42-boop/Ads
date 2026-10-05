@@ -1127,6 +1127,22 @@ export async function ensureSchema() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS wfm_task_cancels_phone_idx ON wfm_task_cancels (phone_number)`);
 
+  // wfm_task_accepts — نتيجة «موافقة تغيير البورت» على WFM (Accept ← Start ← Change Port)
+  // من سكربت wfm-accept-task.user.js: كل نتيجة بتتسجّل (done/not_found/no_green/failed/unsure).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS wfm_task_accepts (
+      id serial PRIMARY KEY,
+      phone_number text NOT NULL,
+      work_order_id text,
+      work_id text,
+      result text NOT NULL,
+      message text,
+      requested_by text,
+      reported_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS wfm_task_accepts_phone_idx ON wfm_task_accepts (phone_number)`);
+
   // app_state — key/value عام للحالة (مثلاً وقت اكتمال آخر تشغيل كامل لتحديث البورتات)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS app_state (
@@ -1314,6 +1330,7 @@ export async function ensureSchema() {
       WHEN 'portcheck' THEN 'provisioningportal.te.eg'
       WHEN 'ports' THEN 'provisioningportal.te.eg'
       WHEN 'wfmcancel' THEN 'wfm.te.eg'
+      WHEN 'wfmaccept' THEN 'wfm.te.eg'
       WHEN 'wfmreport' THEN 'wfm.te.eg'
       WHEN 'wfmdaily' THEN 'wfm.te.eg'
       WHEN 'fccdaily' THEN 'fcc.te.eg'

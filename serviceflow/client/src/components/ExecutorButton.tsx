@@ -343,6 +343,7 @@ export function ExecutorButton() {
       portcheck: 5 * 60 * 1000,
       ports: 30 * 60 * 1000,       // رفعة ملف البورتات كامل
       wfmcancel: 6 * 60 * 1000,
+      wfmaccept: 8 * 60 * 1000,    // تلات خطوات (Accept ← Start ← Change Port) + انتظار الدخول
       wfmreport: 20 * 60 * 1000,
       // التقارير اليومية تُعاد كباتش كامل إذا علقت أكثر من ١٠ دقائق.
       fccdaily: 10 * 60 * 1000,

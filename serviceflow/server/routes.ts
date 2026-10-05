@@ -2157,6 +2157,8 @@ export async function registerRoutes(
     c360: "customer360.te.eg",
     portchange: "provisioningportal.te.eg", portcheck: "provisioningportal.te.eg", ports: "provisioningportal.te.eg",
     wfmcancel: "wfm.te.eg", wfmreport: "wfm.te.eg", wfmdaily: "wfm.te.eg",
+    // موافقة تغيير البورت (Accept ← Start ← Change Port) — سوبر أدمن بس (٢٠٢٦-١٠-٠٥)
+    wfmaccept: "wfm.te.eg",
     ossdaily: "oss.te.eg",
     weoas: "we-oas.te.eg",
   };
@@ -2491,6 +2493,9 @@ export async function registerRoutes(
         sql = `SELECT MAX(uploaded_at) AS at FROM phone_ports WHERE ${sp("phone_number")} = ${sp("$1")}`;
       } else if (type === "wfmcancel") {
         sql = `SELECT MAX(canceled_at) AS at FROM wfm_task_cancels WHERE ${sp("phone_number")} = ${sp("$1")}`;
+      } else if (type === "wfmaccept") {
+        // أى نتيجة (اتوافق / مش موجود / مفيش زرار أخضر / فشل) معناها إن السكربت خلص الرقم
+        sql = `SELECT MAX(reported_at) AS at FROM wfm_task_accepts WHERE ${sp("phone_number")} = ${sp("$1")}`;
       } else return res.json({ at: null });   // wfmreport مالهاش أثر على رقم — بتعتمد على قفل التاب
       const { rows } = await pool.query(sql, [key]);
       res.json({ at: rows[0]?.at || null });
@@ -2515,6 +2520,44 @@ export async function registerRoutes(
         [phone, String(b.workOrderId || "").trim() || null, String(b.status || "").trim() || null,
          who.rows[0]?.username || null]);
       res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // نتيجة «موافقة تغيير البورت» من سكربت WFM (wfm-accept-task.user.js) — توكن + CORS.
+  // بتتسجّل **كل** نتيجة مش النجاح بس، عشان جهاز التنفيذ يعرف إن الرقم خلص والسوبر أدمن
+  // يشوف ليه ماتنفّذش (الرقم مش موجود / مفيش زرار أخضر / نافذة غير متوقّعة).
+  const WFM_ACCEPT_RESULTS = new Set(["done", "not_found", "no_green", "failed", "unsure"]);
+  app.options("/api/wfm-tasks/accept-ingest", (_req, res) => { setPortsCors(res); res.sendStatus(204); });
+  app.post("/api/wfm-tasks/accept-ingest", async (req: any, res) => {
+    setPortsCors(res);
+    if (req.headers["x-dzs-token"] !== DZS_INGEST_TOKEN) return res.status(401).json({ message: "invalid token" });
+    const b = req.body || {};
+    const phone = String(b.phone || "").replace(/\D/g, "");
+    const result = String(b.result || "");
+    if (!phone || !WFM_ACCEPT_RESULTS.has(result)) return res.status(400).json({ message: "phone و result مطلوبين" });
+    try {
+      const who = await pool.query(
+        `SELECT username FROM op_intents WHERE account = $1 AND op_type = 'wfmaccept' LIMIT 1`, [phone]);
+      const { rows } = await pool.query(
+        `INSERT INTO wfm_task_accepts (phone_number, work_order_id, work_id, result, message, requested_by, reported_at)
+         VALUES ($1, $2, $3, $4, $5, $6, now()) RETURNING id`,
+        [phone, String(b.workOrderId || "").trim().slice(0, 30) || null, String(b.workId || "").trim().slice(0, 30) || null,
+         result, String(b.message || "").trim().slice(0, 500) || null, who.rows[0]?.username || null]);
+      res.json({ ok: true, id: rows[0]?.id });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // آخر نتيجة «موافقة تغيير البورت» لرقم — بتظهر تحت الزرار فى «بحث برقم التليفون» (سوبر أدمن)
+  app.get("/api/wfm-tasks/accept-last", requireAuth, requireSuperAdmin, async (req, res) => {
+    const phone = String(req.query.phone || "").replace(/\D/g, "");
+    if (!phone) return res.json({ data: null });
+    try {
+      const { rows } = await pool.query(
+        `SELECT result, message, work_id AS "workId", requested_by AS "requestedBy",
+                (reported_at AT TIME ZONE 'Africa/Cairo') AS "reportedAt"
+           FROM wfm_task_accepts WHERE ${sp("phone_number")} = ${sp("$1")}
+          ORDER BY reported_at DESC LIMIT 1`, [phone]);
+      res.json({ data: rows[0] || null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
@@ -2857,6 +2900,15 @@ export async function registerRoutes(
            FROM phone_ports WHERE phone_number = ANY($1::text[])`, [portKeys.map(full)])).rows,
         (r) => short(String(r.phone_number))) : new Map();
 
+      // موافقة تغيير البورت: آخر نتيجة رجّعها سكربت WFM لكل رقم
+      const waKeys = keysOf("wfmaccept");
+      const wfa = waKeys.length ? M<any>((await pool.query(
+        `SELECT DISTINCT ON (${sp("phone_number")}) ${sp("phone_number")} AS k, result, message, work_id, reported_at
+           FROM wfm_task_accepts
+          WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x)
+          ORDER BY ${sp("phone_number")}, reported_at DESC`, [waKeys])).rows,
+        (r) => String(r.k)) : new Map();
+
       // مراجعة الاسم والعنوان من FCC
       const siKeys = keysOf("subinfo");
       const si = siKeys.length ? M<any>((await pool.query(
@@ -2936,6 +2988,12 @@ export async function registerRoutes(
             mode: p.mode === "reassign" ? "إعادة إسناد (Re-assign)" : "إلغاء إسناد (Cancel)",
             worker: p.worker ?? null, workerName: p.workerName ?? null,
           };
+        } else if (j.type === "wfmaccept") {
+          const a0 = wfa.get(short(key)) as any;
+          detail = a0 ? {
+            inThisJob: at(a0.reported_at) >= at(j.claimedAtRaw),
+            result: a0.result, message: a0.message, workId: a0.work_id, at: a0.reported_at,
+          } : { inThisJob: false };
         }
         const { claimedAtRaw, ...rest } = j;
         return { ...rest, account: key, accountsCount: list.length, detail };
@@ -3692,6 +3750,9 @@ export async function registerRoutes(
     } else if (type === "wfmcancel") {
       q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM wfm_task_cancels
             WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND canceled_at >= $2`;
+    } else if (type === "wfmaccept") {
+      q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM wfm_task_accepts
+            WHERE ${sp("phone_number")} = ANY(SELECT ${sp("x")} FROM unnest($1::text[]) AS x) AND reported_at >= $2`;
     } else if (type === "subinfo") {
       // المراجعة خلصت لما سكربت FCC يرفع اسم/عنوان الرقم (fetched_at بيتحدّث فى الـ ingest)
       q = `SELECT COUNT(DISTINCT phone_number)::int AS n FROM line_subscriber_info
@@ -3728,6 +3789,7 @@ export async function registerRoutes(
         portchange:["port_change_requests", "phone_number", "recorded_at"],
         portcheck: ["phone_ports", "phone_number", "uploaded_at"],
         wfmcancel: ["wfm_task_cancels", "phone_number", "canceled_at"],
+        wfmaccept: ["wfm_task_accepts", "phone_number", "reported_at"],
       };
       const s = src[type];
       if (!s) return accs;

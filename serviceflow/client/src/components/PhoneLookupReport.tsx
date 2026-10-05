@@ -11,12 +11,12 @@ import { CLOSE_CODE_REASONS, closeReason } from "@/lib/close-codes";
 import { openCustomer360 } from "@/lib/customer360";
 import { LineDataCorrection } from "@/components/LineDataCorrection";
 import { openProfileOptimization } from "@/lib/profile-optimization";
-import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK } from "@/lib/exec-queue";
+import { enqueueIfExecutorActive, latestMeasureAt, latestPoEventAt, sleep, recordOpIntent, canRunLocalExecutor, dispatchSpeedTool, openOpSite, PHONE_LOOKUP_SOURCE, NOREAL_MARK, WFM_ACCEPT_AR } from "@/lib/exec-queue";
 import { useSpeedToolSource } from "@/hooks/use-speed-tool-source";
 import { useAuth } from "@/hooks/use-auth";
 import { SmsButton } from "@/lib/mobile-lookup";
 import { ROLES } from "@shared/schema";
-import { Gauge } from "lucide-react";
+import { Gauge, CheckCircle2 } from "lucide-react";
 import { maintStatusBadge, boxCoords, type MaintRow } from "@/components/MaintenanceComprehensiveReport";
 
 // بوابة DZS expresse — تُفتح فى تاب جديد ويُمرَّر رقم الأكونت فى الـ hash ليقيسه
@@ -623,6 +623,27 @@ export function PhoneLookupReport() {
   };
 
 
+  // «موافقة تغيير بورت» (قرار المالك ٢٠٢٦-١٠-٠٥) — سوبر أدمن بس. سكربت wfm-accept-task.user.js
+  // على WFM: Work Orders ← Service Id ← Assignments ← الأخضر (Accept) ← السهم (Start) ← المربع
+  // (Update Work Status: Success / Change Port). بيعدّى على طابور التنفيذ زى «إلغاء الاسناد»
+  // (مسار wfm.te.eg واحد)، والنتيجة بترجع من السكربت وبتظهر جنب الزرار.
+  const acceptSid = String(line?.telNo || phone || "").replace(/\D/g, "").replace(/^88/, "");
+  const { data: acceptLast, refetch: refetchAccept } = useQuery<{ data: { result: string; message: string | null; workId: string | null; reportedAt: string } | null }>({
+    queryKey: ["/api/wfm-tasks/accept-last", acceptSid],
+    queryFn: async () => {
+      const r = await fetch(`/api/wfm-tasks/accept-last?phone=${encodeURIComponent(acceptSid)}`, { credentials: "include" });
+      return r.ok ? r.json() : { data: null };
+    },
+    enabled: isSuper && !!acceptSid,
+    refetchInterval: 30_000,
+  });
+  const runAcceptPortChange = async () => {
+    if (!acceptSid) { alert("مفيش رقم للمتابعة"); return; }
+    if (!confirm(`موافقة تغيير بورت للرقم ${acceptSid} على WFM؟\nالسكربت هيعمل Accept ثم Start ثم Change Port على مهمة الشئون الخارجية.`)) return;
+    if (await dispatchSpeedTool("wfmaccept", [acceptSid], isSuper)) { setTimeout(() => { void refetchAccept(); }, 5000); return; }
+    openOpSite("wfmaccept", acceptSid);
+  };
+
   const [regOpen, setRegOpen] = useState(false);
   const [regCode, setRegCode] = useState("");
   const [regTech, setRegTech] = useState("");
@@ -1125,6 +1146,27 @@ export function PhoneLookupReport() {
                   <Ban className="w-4 h-4" />
                   إلغاء الاسناد
                 </Button>
+              )}
+              {isSuper && acceptSid && (
+                <span className="inline-flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    onClick={runAcceptPortChange}
+                    className="bg-white gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                    title="موافقة الشئون الخارجية على تغيير البورت فى WFM: Accept ← Start ← Update Work Status (Success / Change Port)"
+                    data-testid="button-wfm-accept-port-change"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    موافقة تغيير بورت
+                  </Button>
+                  {acceptLast?.data && (
+                    <span className="text-xs text-muted-foreground" data-testid="text-wfm-accept-last">
+                      آخر محاولة: {WFM_ACCEPT_AR[acceptLast.data.result] || acceptLast.data.result}
+                      {acceptLast.data.workId ? ` · Work Id ${acceptLast.data.workId}` : ""}
+                      {` · ${String(acceptLast.data.reportedAt || "").replace("T", " ").slice(0, 16)}`}
+                    </span>
+                  )}
+                </span>
               )}
               <Button variant="outline" onClick={handleExportExcel} className="bg-white gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-green-600" />
