@@ -30,9 +30,10 @@ test("the report is closed to sales and sales-admin", () => {
   assert.match(dashboard, /user\.role !== ROLES\.SALES_ADMIN && adminTab === "data-completion"/);
 });
 
-test("the data-completion section opens on the work-orders tab", () => {
-  // اتضافت تابات تانية بعد كده (تصحيح بيانات / متابعة التصحيحات) — المهم إن الافتراضية «orders»
-  assert.match(section, /useState<"manual" \| "orders"[^>]*>\("orders"\)/);
+test("the data-completion section opens on the work-orders tab (data manager: corrections follow-up)", () => {
+  // اتضافت تابات تانية بعد كده (تصحيح بيانات / متابعة التصحيحات) — الافتراضية «orders» للكل،
+  // ومسئول البيانات على «fixlist» (قرار المالك ٢٠٢٦-١٠-٠٥ — data-completion-default-tab.test.ts)
+  assert.match(section, /role === ROLES\.DATA_MANAGER \? "fixlist" : "orders"/);
 });
 
 // اسم الفنى الفعلى = التعديل اليدوى وإلا اسم الشيت، و«معروف» = مطابق لفنى مسجّل.

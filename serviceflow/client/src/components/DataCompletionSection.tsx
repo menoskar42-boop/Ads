@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,17 @@ export function DataCompletionSection() {
   const [search, setSearch] = useState("");
   // تابين: الإدخال اليدوى (رقم برقم)، وقائمة أوامر الشغل اللى لسه مالهاش كمية سلك
   // (نفس مصدر تقرير أوامر الشغل) وقدّام كل صف خانة إدخال.
-  const [tab, setTab] = useState<"manual" | "orders" | "fix" | "fixlist">("orders");   // الافتراضى: أوامر الشغل الناقصة
+  // التاب الافتراضى (قرار المالك ٢٠٢٦-١٠-٠٥): مسئول البيانات على «متابعة التصحيحات» (شغله
+  // الأساسى)، والباقى على «أوامر شغل بدون كمية سلك». لو المستخدم لسه بيتحمّل وقت أول رندر
+  // بنظبطه أول ما يوصل — إلا لو اختار تاب بإيده.
+  type DcTab = "manual" | "orders" | "fix" | "fixlist";
+  const defaultTabFor = (role?: string | null): DcTab => (role === ROLES.DATA_MANAGER ? "fixlist" : "orders");
+  const [tab, setTabState] = useState<DcTab>(() => defaultTabFor(user?.role));
+  const tabTouched = useRef(false);
+  const setTab = (t: DcTab) => { tabTouched.current = true; setTabState(t); };
+  useEffect(() => {
+    if (!tabTouched.current && user?.role) setTabState(defaultTabFor(user.role));
+  }, [user?.role]);
 
   const { data: entries = [], isFetching } = useQuery<CableEntry[]>({
     queryKey: ["/api/cable-entries", search],
