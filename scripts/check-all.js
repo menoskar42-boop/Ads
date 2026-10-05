@@ -143,6 +143,7 @@ const CHECKS = [
   ['check-subscription-skip','التجديد اللي مامشيش بيتقال مش بيعدّي شهر'],
   ['check-workshop-security-concurrency-pg','أمن الورشة والتزامن على بوستجرس'],
   ['check-workshop-cairo-money','الورشة: المتبقى بالضريبة + المواعيد بتوقيت القاهرة'],
+  ['check-workshop-qa-prompt','برومبت اختبار الورش مطابق للكود'],
   ['check-db-timers',       'مفيش تايمر بيصحّي القاعدة ببلاش (ساعات التشغيل بتتحاسب)'],
   ['check-timezone',        'كل اتصال بالقاعدة بتوقيت القاهرة'],
   ['check-dates-and-slots', 'الضمان بالأيام · شهر الحضانة الناقص · فرح واحد للقاعة'],

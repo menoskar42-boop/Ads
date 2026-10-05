@@ -43,6 +43,14 @@ ok(/today: CT\.cairoToday\(\)/.test(admin), 'لوحة التشغيل: «النه
 ok(/const starts = CT\.cairoWallToDate\(b\.starts_at\);/.test(tenant) && /const slot = CT\.cairoWallToDate\(value\);/.test(tenant),
   'صفحة الحجز العامة: المواعيد بتتبني وبتتقرا بتوقيت القاهرة');
 ok(!/function localDateTimeValue/.test(tenant), 'مفيش بناء مواعيد بساعة السيرفر (localDateTimeValue اتشال)');
+{
+  // مواعيد العمل بالأرقام العربية و«ص/م» — «٩ص–٨م» كانت بتقع على ٩–٥ فالحجز بيقفل ٤ العصر
+  const { workshopHours } = require('../src/routes/tenant.js');
+  const h = (t) => { const r = workshopHours(t); return `${r.start / 60}-${r.end / 60}`; };
+  ok(h('السبت–الخميس ٩ص–٨م') === '9-20' && h('9am - 8pm') === '9-20' && h('9-17') === '9-17'
+    && h('٩ - ٥') === '9-17' && h('10:30 - 22:00') === '10.5-22' && h('مش مكتوب') === '9-17',
+    'مواعيد العمل بتتقري بالأرقام العربية وص/م (٩ص–٨م = ٩ الصبح لـ٨ بالليل)');
+}
 
 let missing = [];
 for (const dir of ['src/views/workshop_admin', 'src/views/workshop_public']) {

@@ -65,12 +65,26 @@ function cleanupWorkshopUploads(files) {
 // اللى بيتعرض للعميل كان فى الحقيقة ١٢ الضهر، والمواعيد اللى عدّت كانت لسه بتتعرض.
 const CT = require('../workshop/cairo_time');
 
+// مواعيد العمل زى ما الورشة كاتباها: «٩ص–٨م» أو «9-17» أو «9am - 8pm». الأرقام العربية
+// (٠–٩) و«ص/م» كانوا بيتجاهلوا، فـ«٩ص–٨م» كانت بتقع على الافتراضى ٩–٥ وصفحة الحجز
+// بتقفل الساعة ٤ بدل ٧. ومن غير ص/م: «9-8» معناها ٩ الصبح لـ٨ بالليل.
 function workshopHours(hours) {
-  const match = String(hours || '').match(/(\d{1,2})(?::(\d{2}))?\s*(?:-|–|—|إلى|الى|حتى)\s*(\d{1,2})(?::(\d{2}))?/i);
-  if (!match) return { start: 9 * 60, end: 17 * 60 };
-  const start = Math.min(1439, Number(match[1]) * 60 + Number(match[2] || 0));
-  const end = Math.min(1439, Number(match[3]) * 60 + Number(match[4] || 0));
-  return end > start ? { start, end } : { start: 9 * 60, end: 17 * 60 };
+  const fallback = { start: 9 * 60, end: 17 * 60 };
+  const txt = String(hours || '').replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const match = txt.match(/(\d{1,2})(?::(\d{2}))?\s*(ص|م|am|pm)?\s*(?:-|–|—|إلى|الى|حتى|to)\s*(\d{1,2})(?::(\d{2}))?\s*(ص|م|am|pm)?/i);
+  if (!match) return fallback;
+  const hour = (h, mark) => {
+    const m = String(mark || '').toLowerCase();
+    if ((m === 'م' || m === 'pm') && h < 12) return h + 12;
+    if ((m === 'ص' || m === 'am') && h === 12) return 0;
+    return h;
+  };
+  const startH = hour(Number(match[1]), match[3]);
+  let endH = hour(Number(match[4]), match[6]);
+  if (!match[6] && endH <= startH && endH < 12) endH += 12;
+  const start = Math.min(1439, startH * 60 + Number(match[2] || 0));
+  const end = Math.min(1439, endH * 60 + Number(match[5] || 0));
+  return end > start ? { start, end } : fallback;
 }
 
 async function workshopAvailableSlots(companyId, hours) {
@@ -2386,3 +2400,4 @@ router.post('/enrol', nurseryEnrolLimiter, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.workshopHours = workshopHours;
