@@ -28,7 +28,7 @@ test("line text: confirmed vs corrected (what changed, from → to)", () => {
 });
 
 test("single letter: addressee, subject, findings, opinion, signature — escaped", () => {
-  const h = buildRepeatLetterHtml([corrected], { signerName: "أحمد محمد" });
+  const h = buildRepeatLetterHtml([corrected]);
   assert.ok(h.includes(LETTER_TO) && h.includes(LETTER_FROM));
   // «السيد المهندس» مش «الأستاذ» (قرار المالك ٢٠٢٦-١٠-٠٥)
   assert.equal(LETTER_TO, "السيد المهندس / مدير تشغيل الشبكة وعمليات العملاء بالغنايم");
@@ -36,8 +36,9 @@ test("single letter: addressee, subject, findings, opinion, signature — escape
   assert.match(h, /<b>مسار السلك<\/b>: السلك مقطوع جوّه الشباك/);
   assert.match(h, /الكابينة من 4-6 إلى 4-8/);
   assert.match(h, /يوجد مقصّر: <b>لحام تجربة<\/b> \(لحام\)/);
-  assert.match(h, /أحمد محمد/);
-  assert.match(h, /التوقيع:/);
+  // توقيع رئيس القسم بالمسمّى بس — من غير اسم، بيمضى بإيده بعد الطباعة
+  assert.match(h, /<div class="who">رئيس قسم الشئون الخارجية<\/div>\s*<div class="blank">التوقيع: \.{10,}<\/div>/);
+  assert.ok(!h.includes("الاسم:"));
   assert.ok(h.includes("&lt;أول مرة&gt;") && !h.includes("<أول مرة>"));
 });
 
@@ -48,7 +49,7 @@ test("combined letter: numbered sections, one signature at the end", () => {
   assert.equal((h.match(/class="sign"/g) || []).length, 1);
   assert.match(h, /البكس سليم — لا توجد ملاحظات\./);
   assert.match(h, /لا يوجد مقصّر\./);
-  assert.match(h, /الاسم: \.{10,}/);   // من غير اسم → سطر فاضى للكتابة
+  assert.match(h, /التوقيع: \.{10,}/);
 });
 
 test("inspection item names = the maintenance site's checklist", () => {

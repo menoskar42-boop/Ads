@@ -24,9 +24,6 @@ export function RepeatReviewsReport() {
   const [from, setFrom] = useState(thisMonth);
   const [to, setTo] = useState(thisMonth);
   const [doneOnly, setDoneOnly] = useState(true);
-  // اسم رئيس قسم الشئون الخارجية تحت التوقيع — بيتفتكر على الجهاز ده بس (اختيارى)
-  const [signer, setSigner] = useState(() => { try { return localStorage.getItem("repeat-letter-signer") || ""; } catch { return ""; } });
-  const saveSigner = (v: string) => { setSigner(v); try { localStorage.setItem("repeat-letter-signer", v); } catch { /* مش مهم */ } };
   const [open, setOpen] = useState<{ phone: string; month: string } | null>(null);
 
   const q = useQuery<{ data: any[] }>({
@@ -75,7 +72,7 @@ export function RepeatReviewsReport() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-1 text-green-700 border-green-200" disabled={!rows.length}><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
-          <Button onClick={() => openRepeatLetter(rows.map((r) => r.id), { signerName: signer })} size="sm"
+          <Button onClick={() => openRepeatLetter(rows.map((r) => r.id))} size="sm"
             className="gap-1 bg-purple-700 hover:bg-purple-800 text-white" disabled={!rows.length} data-testid="button-repeat-letter-all">
             <FileText className="w-4 h-4" /> خطاب مجمّع PDF
           </Button>
@@ -88,8 +85,6 @@ export function RepeatReviewsReport() {
           <Input type="month" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
         <div><label className="text-xs text-muted-foreground block mb-1">إلى شهر</label>
           <Input type="month" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
-        <div><label className="text-xs text-muted-foreground block mb-1">اسم رئيس قسم الشئون الخارجية (تحت التوقيع)</label>
-          <Input value={signer} onChange={(e) => saveSigner(e.target.value)} placeholder="اختيارى" className="text-sm w-56" /></div>
         <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={doneOnly} onChange={(e) => setDoneOnly(e.target.checked)} /> المكتملة بس</label>
         <span className="text-sm text-muted-foreground">إجمالى: <b>{total}</b> رد — يوجد مقصّر: <b>{faults}</b></span>
       </div>
@@ -109,7 +104,7 @@ export function RepeatReviewsReport() {
               <TableRow key={r.id} className="cursor-pointer hover:bg-purple-50" onClick={() => setOpen({ phone: r.phone_short, month: r.month })}>
                 <TableCell>
                   <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-xs text-purple-700 border-purple-300"
-                    onClick={(e) => { e.stopPropagation(); openRepeatLetter([r.id], { signerName: signer }); }}
+                    onClick={(e) => { e.stopPropagation(); openRepeatLetter([r.id]); }}
                     data-testid={`button-repeat-letter-${r.id}`}>
                     <FileText className="w-3.5 h-3.5" /> PDF
                   </Button>

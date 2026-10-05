@@ -70,7 +70,8 @@ function sectionHtml(r: any, n: number | null): string {
 }
 
 /** HTML الخطاب كامل (صفحة A4 للطباعة/PDF). */
-export function buildRepeatLetterHtml(reviews: any[], opts: { signerName?: string } = {}): string {
+// التوقيع: المسمّى الوظيفى بس من غير اسم — رئيس القسم بيطبع الخطاب ويمضى عليه بإيده (قرار المالك ٢٠٢٦-١٠-٠٥)
+export function buildRepeatLetterHtml(reviews: any[]): string {
   const one = reviews.length === 1;
   const months = Array.from(new Set(reviews.map((r) => monthAr(r.month)))).join(" و");
   const subject = one
@@ -79,7 +80,6 @@ export function buildRepeatLetterHtml(reviews: any[], opts: { signerName?: strin
   const intro = one
     ? "نتشرف بالإحاطة بأنه تم فحص الخط المكرر الموضح أدناه، وكانت النتيجة كالآتى:"
     : "نتشرف بالإحاطة بأنه تم فحص الخطوط المكررة الموضحة أدناه، وكانت النتائج كالآتى:";
-  const signer = String(opts.signerName ?? "").trim();
   return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <title>${subject}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap">
@@ -99,7 +99,7 @@ export function buildRepeatLetterHtml(reviews: any[], opts: { signerName?: strin
   .closing { margin-top: 18px; }
   .sign { margin-top: 28px; width: 46%; margin-inline-start: auto; text-align: center; break-inside: avoid; }
   .sign .who { font-weight: 700; }
-  .sign .blank { margin-top: 10px; }
+  .sign .blank { margin-top: 26px; }   /* مساحة للإمضاء باليد */
 </style></head><body>
   <div class="top">
     <div class="org">سنترال الغنايم<br>قسم الشئون الخارجية</div>
@@ -113,7 +113,6 @@ export function buildRepeatLetterHtml(reviews: any[], opts: { signerName?: strin
   <div class="closing">وتفضلوا بقبول فائق الاحترام ،،،</div>
   <div class="sign">
     <div class="who">${LETTER_FROM}</div>
-    <div class="blank">${signer ? esc(signer) : "الاسم: ...................................."}</div>
     <div class="blank">التوقيع: ....................................</div>
   </div>
 </body></html>`;
@@ -121,7 +120,7 @@ export function buildRepeatLetterHtml(reviews: any[], opts: { signerName?: strin
 
 /** يفتح نافذة الطباعة **فوراً** (جوّه ضغطة الزرار — وإلا المتصفح بيمنعها لأنها بعد انتظار)،
  *  ويجيب بيانات الخطاب من السيرفر، ويكتبه فيها ويطبعه (Save as PDF). */
-export async function openRepeatLetter(ids: number[], opts: { signerName?: string } = {}) {
+export async function openRepeatLetter(ids: number[]) {
   const w = window.open("", "_blank");
   if (!w) { alert("المتصفح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة للموقع."); return; }
   w.document.write('<p dir="rtl" style="font-family:Tahoma;padding:24px">جارى تجهيز الخطاب…</p>');
@@ -130,7 +129,7 @@ export async function openRepeatLetter(ids: number[], opts: { signerName?: strin
     const j = await r.json();
     if (!r.ok) throw new Error(j?.message || "تعذّر تجهيز الخطاب");
     w.document.open();
-    w.document.write(buildRepeatLetterHtml(j.data || [], opts));
+    w.document.write(buildRepeatLetterHtml(j.data || []));
     w.document.close();
     const go = () => { try { w.focus(); w.print(); } catch { /* المستخدم قفل النافذة */ } };
     const fonts = (w.document as any).fonts;
