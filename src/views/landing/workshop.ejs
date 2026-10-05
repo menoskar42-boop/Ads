@@ -38,7 +38,7 @@
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "description": __desc,
-  "url": siteOrigin + "/workshop",
+  "url": publicUrl("/car-workshop-management-egypt"),
   "inLanguage": "ar",
   "publisher": { "@id": siteOrigin + "#organization" },
   "offers": {
@@ -84,6 +84,9 @@
     <p>أمر شغل بعرض سعر العميل بيوافق عليه <b>قبل</b> ما تفك مسمار، وملف لكل عربية بيفضل معاك، وتذكير بالصيانة الجاية بالكيلومترات وبالشهور. مفيش خناقة على «أنا ما وافقتش»، ومفيش عميل بيروح ومايرجعش.</p>
     <a href="/ar/apply?type=workshop" class="cta">اطلب النظام</a>
     <a href="/ar/contact" class="cta ghost">كلّمنا الأول</a>
+    <%/* لوحة الورشة التجريبية نفسها (قراءة فقط) — زى «شوف نموذج حي» فى باقى صفحات القطاعات.
+         /demo/ ممنوع فى robots.txt، وnofollow عشان مايتعدّش لينك داخلى للفهرسة. */%>
+    <a href="/demo/workshop" target="_blank" rel="nofollow" class="cta ghost">شوف نموذج حي</a>
   </div>
 </header>
 

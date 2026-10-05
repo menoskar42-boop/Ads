@@ -9,7 +9,7 @@
 <title><%= pageTitle %></title>
 <meta name="description" content="<%= pageDescription %>" />
 <%- include('../partials/seo_meta', { title: pageTitle, description: pageDescription }) %>
-<script type="application/ld+json"><%- jsonLd({"@context":"https://schema.org","@type":"ContactPage","name":pageTitle,"description":pageDescription,"url":siteOrigin + "/contact","email":supportEmail,"telephone":supportPhone,"mainEntity":{"@id":siteOrigin + "#organization"}}) %></script>
+<script type="application/ld+json"><%- jsonLd({"@context":"https://schema.org","@type":"ContactPage","name":pageTitle,"description":pageDescription,"url":publicUrl("/contact"),"email":supportEmail,"telephone":supportPhone,"mainEntity":{"@id":siteOrigin + "#organization"}}) %></script>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/tw.css" />
 <style>* { font-family: 'Cairo', sans-serif; }</style>

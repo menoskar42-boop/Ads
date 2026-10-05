@@ -51,6 +51,8 @@ const EXEMPT = new Set([
 function locals() {
   return {
     siteOrigin: SITE,
+    // السيرفر بيدّيها لكل صفحة (server.js → res.locals.publicUrl) — والتواصل بقى بيندهها فى السكيمة
+    publicUrl: (p) => SITE + require('../src/lib/lang_routes').withLang(p || '/', 'ar'),
     facts: require('../src/lib/company_facts').facts(),
     canonicalUrl: SITE + '/ar/contact',
     assetVersion: '1',

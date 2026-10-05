@@ -192,13 +192,21 @@ const PAGES = [
       if (!f.name.endsWith('.ejs')) continue;
       const txt = fs.readFileSync(full, 'utf8').replace(/<%#[\s\S]*?%>/g, ' ')
         .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
-      for (const m of txt.matchAll(/siteOrigin[^;\n]{0,40}\+\s*'(\/[a-z0-9/-]+)'/g)) {
+      // بعلامتين التنصيص — `"/dental"` و`"/workshop"` فاتوا من الفحص لأنه كان بيدوّر على `'...'` بس
+      for (const m of txt.matchAll(/siteOrigin[^;\n]{0,40}\+\s*['"](\/[a-z0-9/-]+)['"]/g)) {
         if (publicSet.has(m[1])) {
           handBuilt.push(`${path.relative(ROOT, full)} → ${m[1]}`);
         }
       }
     }
   }(path.join(ROOT, 'src/views')));
+  /* ٢ج) و`"url"` فى سكيمة أى صفحة بيع لازم يبقى `publicUrl(...)` — صفحة الورش كانت بتعلن
+   * `siteOrigin + "/workshop"`: ده مش عنوان صفحة عامة أصلاً، ده تحويل ٣٠٢ (وبيفتح لوحة
+   * التحكم للى داخل). فحص ٢ب مابيمسكوش لأن `/workshop` مش فى قايمة المسارات العامة. */
+  for (const f of fs.readdirSync(path.join(ROOT, 'src/views/landing')).filter((x) => x.endsWith('.ejs') && x !== 'gulf.ejs')) {
+    const txt = fs.readFileSync(path.join(ROOT, 'src/views/landing', f), 'utf8');
+    if (/"url":\s*siteOrigin\s*\+/.test(txt)) handBuilt.push(`landing/${f} → "url": siteOrigin + ...`);
+  }
   check('مفيش قالب بيركّب عنوان صفحة عامة بإيده', handBuilt.length === 0,
     handBuilt.join('\n   ') + '\n   العنوان المركّب بالإيد بيفضل بلا prefix بعد '
     + 'تقسيم اللغة — فالصفحة بتشاور على عنوان بيتحوّل عليها هي نفسها. '
