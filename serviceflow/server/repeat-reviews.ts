@@ -31,6 +31,14 @@ export interface RepeatReviewDeps {
   msanInCodesSql: (col: string, p: string) => string;
 }
 
+// أسماء بنود فحص البكس — نفس CHECKLIST فى موقع الصيانة (routes/boxes.js)؛ الاختبار بيثبّت التطابق
+export const INSPECTION_LABELS: Record<string, string> = {
+  connector_fix: "تثبيت الخوصة", box_fix: "تثبيت البوكس", box_cover: "غطاء البوكس",
+  box_numbering: "ترقيم البوكس", box_height: "ارتفاع البوكس", branch_path: "الفرعات على الترمنال",
+  wire_path: "مسار السلك", electricity_conflict: "تعارض كهرباء", air_conflict: "تعارض هواء",
+  overlap: "تخاطي", data_review: "مراجعة بيانات البكس",
+};
+
 const shortOf = (v: unknown) => String(v ?? "").replace(/\D/g, "").replace(/^88/, "");
 const isMonth = (v: unknown) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(v ?? ""));
 const byName = (req: any) => String(req.user?.fullName || req.user?.username || "").trim() || null;
@@ -221,6 +229,10 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
           return res.status(400).json({ message: "بيان الخط ناقص (سنترال/كابينة/بكس) — صحّحه الأول" });
         }
         let correctionId: number | null = null;
+        // البيان قبل التصحيح (اللى كان ظاهر فى الشاشة) — للخطاب بس؛ التصحيح نفسه اتطبّق خلاص
+        const before = status === "corrected" && req.body?.before && typeof req.body.before === "object"
+          ? ["central", "cabinNumber", "boxNumber", "dpTerminal"].map((k) => clean(req.body.before[k]).slice(0, 60) || null)
+          : [null, null, null, null];
         if (status === "corrected") {
           const { rows } = await pool.query(
             `SELECT id FROM line_data_corrections
@@ -236,9 +248,10 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
                   line_terminal = $7, line_correction_id = $8, line_checked_by = $9, line_checked_at = now(),
                   ${boxChanged ? `inspection_id = NULL, inspection_date = NULL, inspection_by = NULL,
                   inspection_bad_items = NULL, inspection_linked_by = NULL, inspection_linked_at = NULL, status = 'draft',` : ""}
+                  line_before_central = $10, line_before_cabin = $11, line_before_box = $12, line_before_terminal = $13,
                   updated_by = $9, updated_at = now()
             WHERE phone_short = $1 AND month = $2`,
-          [short, month, status, central, cabin, box, String(line?.dpTerminal || "").trim() || null, correctionId, by]);
+          [short, month, status, central, cabin, box, String(line?.dpTerminal || "").trim() || null, correctionId, by, ...before]);
       } else if (step === "inspection") {
         if (!r.line_status) return res.status(400).json({ message: "أكّد بيان الخط الأول" });
         const first = await firstComplaintDate(short, month);
@@ -296,6 +309,49 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
       }
       r = await getReview(short, month);
       res.json({ ok: true, review: r, step: reviewStep(r) });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── بيانات خطاب «ردود التكرار» (السوبر أدمن): بنود الفحص اللى محتاجة شغل بأسمائها
+  // وملاحظاتها، وملاحظات الفحص العامة، والتصحيح (الجديد + القديم). ids = أرقام الردود.
+  app.get("/api/repeat-reviews/letter", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const ids = String(req.query.ids || "").split(",").map((x) => Number(x)).filter((x) => Number.isInteger(x) && x > 0).slice(0, 500);
+      if (!ids.length) return res.json({ data: [] });
+      const { rows } = await pool.query(
+        `SELECT r.*, c.central AS corr_central, c.cabin_number AS corr_cabin, c.box_number AS corr_box,
+                c.dp_terminal AS corr_terminal, c.submitted_by_name AS corr_by,
+                (c.created_at AT TIME ZONE 'Africa/Cairo') AS corr_at
+           FROM repeat_reviews r
+           LEFT JOIN line_data_corrections c ON c.id = r.line_correction_id
+          WHERE r.id = ANY($1::int[])
+          ORDER BY r.month, r.line_central, r.line_cabin, r.line_box, r.phone_short`, [ids]);
+      const inspIds = rows.map((r: any) => r.inspection_id).filter(Boolean);
+      const items = new Map<number, any[]>();
+      const general = new Map<number, string>();
+      if (inspIds.length) {
+        try {
+          const { rows: it } = await pool.query(
+            `SELECT inspection_id, item_key, value, notes, extra_type, extra_distance
+               FROM maintenance.inspection_items
+              WHERE inspection_id = ANY($1::int[]) AND value IN ('bad', 'yes')
+              ORDER BY inspection_id, id`, [inspIds]);
+          for (const x of it) {
+            const list = items.get(x.inspection_id) || [];
+            list.push({ key: x.item_key, label: INSPECTION_LABELS[x.item_key] || x.item_key,
+                        notes: x.notes || "", extraType: x.extra_type || "", extraDistance: x.extra_distance });
+            items.set(x.inspection_id, list);
+          }
+          const { rows: g } = await pool.query(
+            `SELECT id, general_notes FROM maintenance.inspections WHERE id = ANY($1::int[])`, [inspIds]);
+          for (const x of g) if (String(x.general_notes || "").trim()) general.set(x.id, String(x.general_notes).trim());
+        } catch { /* موقع الصيانة مش مركّب */ }
+      }
+      res.json({ data: rows.map((r: any) => ({
+        ...r,
+        inspection_items: r.inspection_id ? (items.get(r.inspection_id) || []) : [],
+        inspection_general_notes: r.inspection_id ? (general.get(r.inspection_id) || "") : "",
+      })) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

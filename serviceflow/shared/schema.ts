@@ -1119,6 +1119,11 @@ export const repeatReviews = pgTable("repeat_reviews", {
   lineBox: text("line_box"),
   lineTerminal: text("line_terminal"),
   lineCorrectionId: integer("line_correction_id"),
+  // البيان قبل التصحيح — للخطاب (٢٠٢٦-١٠-٠٥)
+  lineBeforeCentral: text("line_before_central"),
+  lineBeforeCabin: text("line_before_cabin"),
+  lineBeforeBox: text("line_before_box"),
+  lineBeforeTerminal: text("line_before_terminal"),
   lineCheckedBy: text("line_checked_by"),
   lineCheckedAt: timestamp("line_checked_at", { withTimezone: true }),
   inspectionId: integer("inspection_id"),

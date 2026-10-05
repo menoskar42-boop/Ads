@@ -54,7 +54,7 @@ test("the reply lives next to the phone in «الأعطال المكررة خل�
 
 test("line correction reuses «تصحيح بيانات» (reaches the data manager) and is step one", () => {
   assert.match(dlg, /<LineDataCorrection compact initialPhone=\{phone\}/);
-  assert.match(dlg, /onSent=\{async \(\) => \{ setCorrecting\(false\); await send\("line", \{ status: "corrected" \}\); \}\}/);
+  assert.match(dlg, /await send\("line", \{ status: "corrected", before: \{/);
   assert.ok(dlg.indexOf('title="تأكيد بيان الخط"') < dlg.indexOf('title="فحص البكس"'));
   // Section برّه الكومبوننت (وإلا الكتابة بتفقد التركيز)
   assert.ok(dlg.indexOf("const Section = ") < dlg.indexOf("export function RepeatReviewDialog("));

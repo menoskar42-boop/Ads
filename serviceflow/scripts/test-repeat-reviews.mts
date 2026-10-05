@@ -31,6 +31,9 @@ const ddl = dbSrc.slice(dbSrc.indexOf("CREATE TABLE IF NOT EXISTS repeat_reviews
 
 async function setup() {
   await pool.query(ddl);
+  for (const col of ["line_before_central", "line_before_cabin", "line_before_box", "line_before_terminal"]) {
+    await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS ${col} text`);
+  }
   await pool.query(`CREATE SCHEMA IF NOT EXISTS maintenance`);
   await pool.query(`CREATE TABLE IF NOT EXISTS maintenance.exchanges (id serial PRIMARY KEY, name text)`);
   await pool.query(`CREATE TABLE IF NOT EXISTS maintenance.cabinets (id serial PRIMARY KEY, exchange_id int, number text)`);
@@ -38,6 +41,11 @@ async function setup() {
   await pool.query(`CREATE TABLE IF NOT EXISTS maintenance.users (id serial PRIMARY KEY, username text, full_name text, role text, is_active int DEFAULT 1)`);
   await pool.query(`CREATE TABLE IF NOT EXISTS maintenance.inspections (id serial PRIMARY KEY, box_id int, inspector_id int, date date, is_archived int DEFAULT 0, auto_created int DEFAULT 0)`);
   await pool.query(`CREATE TABLE IF NOT EXISTS maintenance.inspection_items (id serial PRIMARY KEY, inspection_id int, item_key text, value text)`);
+  // نفس أعمدة موقع الصيانة اللى الخطاب بيقراها
+  await pool.query(`ALTER TABLE maintenance.inspection_items ADD COLUMN IF NOT EXISTS notes text DEFAULT ''`);
+  await pool.query(`ALTER TABLE maintenance.inspection_items ADD COLUMN IF NOT EXISTS extra_type text`);
+  await pool.query(`ALTER TABLE maintenance.inspection_items ADD COLUMN IF NOT EXISTS extra_distance real`);
+  await pool.query(`ALTER TABLE maintenance.inspections ADD COLUMN IF NOT EXISTS general_notes text DEFAULT ''`);
   await cleanup();
   const ex = (await pool.query(`INSERT INTO maintenance.exchanges (name) VALUES ('سنترال تجربة') RETURNING id`)).rows[0].id;
   const cab = (await pool.query(`INSERT INTO maintenance.cabinets (exchange_id, number) VALUES ($1, '9-9') RETURNING id`, [ex])).rows[0].id;
@@ -133,11 +141,21 @@ try {
   r = await step("complete");
   ok("حفظ نهائى", r.s === 200 && r.j.review.status === "done");
 
+  // خطاب «ردود التكرار» — للسوبر أدمن بس: بنود الفحص اللى محتاجة شغل وبأسمائها
+  ok("بيانات الخطاب مقفولة على غير السوبر أدمن", (await get("/api/repeat-reviews/letter?ids=1")).s === 403);
+  currentUser = { id: 4, username: "sa", role: "super_admin" };
+  const rid = (await get("/api/repeat-reviews/report?from=2026-09&to=2026-09")).j.data.find((x: any) => x.phone_short === PH).id;
+  r = await get(`/api/repeat-reviews/letter?ids=${rid}`);
+  ok("بيانات الخطاب: بنود الفحص التلاتة + الإفادات + المقصّر", r.s === 200 && r.j.data[0]?.inspection_items?.length === 3
+    && r.j.data[0].customer_statement === "قال إن النت بيفصل بالليل" && r.j.data[0].at_fault_name === "لحام تجربة");
+  currentUser = { id: 1, username: "ext", fullName: "شئون تجربة", role: "external" };
+
   // تصحيح البيان بعد الإكمال وغيّر البكس → الفحص يتشال والرد يرجع «جارى»
   await pool.query(`INSERT INTO line_data_corrections (phone_local, phone_full, central, cabin_number, box_number) VALUES ($1, $2, 'سنترال تجربة', '9-9', '42')`, [PH, "88" + PH]);
   lineState.boxNumber = "42";
-  r = await step("line", { status: "corrected" });
+  r = await step("line", { status: "corrected", before: { central: "سنترال تجربة", cabinNumber: "9-9", boxNumber: "41", dpTerminal: "5" } });
   ok("تصحيح البيان لبكس تانى بيلغى الفحص ويرجّع الرد جارى", r.s === 200 && r.j.review.inspection_id === null && r.j.review.status === "draft" && r.j.review.line_correction_id != null && r.j.step === 1);
+  ok("البيان قبل التصحيح اتحفظ للخطاب (بكس 41 ← 42)", r.j.review.line_before_box === "41" && r.j.review.line_box === "42");
   ok("وبعد الإكمال مينفعش من غير فحص للبكس الجديد", (await step("complete")).s === 400);
 
   // الفنى: قراية بس — على خطوطه

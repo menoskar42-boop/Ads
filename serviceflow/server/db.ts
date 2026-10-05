@@ -1532,6 +1532,11 @@ export async function ensureSchema() {
     )
   `);
 
+  // بيان الخط **قبل** التصحيح (لخطاب «ردود التكرار» — ٢٠٢٦-١٠-٠٥): line_data_corrections بيخزّن الجديد بس
+  for (const col of ["line_before_central", "line_before_cabin", "line_before_box", "line_before_terminal"]) {
+    await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS ${col} text`);
+  }
+
   // الاختيارات اليدوية لإضافة الأعطال الحالية إلى جدول الأعطال الجسيمة.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS current_fault_major_selections (

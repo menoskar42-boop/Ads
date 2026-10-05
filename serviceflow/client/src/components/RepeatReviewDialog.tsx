@@ -171,7 +171,13 @@ export function RepeatReviewDialog({ phone, month, open, onOpenChange, onChanged
                   <LineDataCorrection compact initialPhone={phone}
                     initialCentral={d.line?.central} initialCabin={d.line?.cabinNumber}
                     initialBox={d.line?.boxNumber} initialTerminal={d.line?.dpTerminal}
-                    onSent={async () => { setCorrecting(false); await send("line", { status: "corrected" }); }} />
+                    onSent={async () => {
+                      setCorrecting(false);
+                      // البيان اللى كان ظاهر قبل التصحيح — بيتحفظ عشان الخطاب يقول «اتغيّر من … إلى …»
+                      await send("line", { status: "corrected", before: {
+                        central: d.line?.central, cabinNumber: d.line?.cabinNumber,
+                        boxNumber: d.line?.boxNumber, dpTerminal: d.line?.dpTerminal } });
+                    }} />
                 </div>
               )}
             </Section>

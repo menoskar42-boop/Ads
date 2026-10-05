@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, FileSpreadsheet, Printer, ClipboardCheck } from "lucide-react";
+import { Loader2, FileSpreadsheet, Printer, ClipboardCheck, FileText } from "lucide-react";
+import { openRepeatLetter } from "@/lib/repeat-review-letter";
 import { printTablePDF } from "@/lib/print-pdf";
 import { RepeatReviewDialog, REPEAT_STEP_LABELS } from "@/components/RepeatReviewDialog";
 
@@ -23,6 +24,9 @@ export function RepeatReviewsReport() {
   const [from, setFrom] = useState(thisMonth);
   const [to, setTo] = useState(thisMonth);
   const [doneOnly, setDoneOnly] = useState(true);
+  // اسم رئيس قسم الشئون الخارجية تحت التوقيع — بيتفتكر على الجهاز ده بس (اختيارى)
+  const [signer, setSigner] = useState(() => { try { return localStorage.getItem("repeat-letter-signer") || ""; } catch { return ""; } });
+  const saveSigner = (v: string) => { setSigner(v); try { localStorage.setItem("repeat-letter-signer", v); } catch { /* مش مهم */ } };
   const [open, setOpen] = useState<{ phone: string; month: string } | null>(null);
 
   const q = useQuery<{ data: any[] }>({
@@ -71,6 +75,10 @@ export function RepeatReviewsReport() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-1 text-green-700 border-green-200" disabled={!rows.length}><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
+          <Button onClick={() => openRepeatLetter(rows.map((r) => r.id), { signerName: signer })} size="sm"
+            className="gap-1 bg-purple-700 hover:bg-purple-800 text-white" disabled={!rows.length} data-testid="button-repeat-letter-all">
+            <FileText className="w-4 h-4" /> خطاب مجمّع PDF
+          </Button>
           <Button onClick={handleExportPDF} variant="outline" size="sm" className="gap-1 text-red-700 border-red-200" disabled={!rows.length} data-testid="button-repeat-reviews-pdf"><Printer className="w-4 h-4" /> PDF</Button>
         </div>
       </div>
@@ -80,20 +88,32 @@ export function RepeatReviewsReport() {
           <Input type="month" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
         <div><label className="text-xs text-muted-foreground block mb-1">إلى شهر</label>
           <Input type="month" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
+        <div><label className="text-xs text-muted-foreground block mb-1">اسم رئيس قسم الشئون الخارجية (تحت التوقيع)</label>
+          <Input value={signer} onChange={(e) => saveSigner(e.target.value)} placeholder="اختيارى" className="text-sm w-56" /></div>
         <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={doneOnly} onChange={(e) => setDoneOnly(e.target.checked)} /> المكتملة بس</label>
         <span className="text-sm text-muted-foreground">إجمالى: <b>{total}</b> رد — يوجد مقصّر: <b>{faults}</b></span>
       </div>
 
       <div className="rounded-md border max-h-[60vh] overflow-auto">
         <Table className="text-xs">
-          <TableHeader><TableRow>{COLUMNS.map((c) => <TableHead key={c} className="text-right whitespace-nowrap">{c}</TableHead>)}</TableRow></TableHeader>
+          <TableHeader><TableRow>
+            <TableHead className="text-right whitespace-nowrap">خطاب</TableHead>
+            {COLUMNS.map((c) => <TableHead key={c} className="text-right whitespace-nowrap">{c}</TableHead>)}
+          </TableRow></TableHeader>
           <TableBody>
             {q.isLoading ? (
-              <TableRow><TableCell colSpan={COLUMNS.length} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={COLUMNS.length + 1} className="text-center h-24"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={COLUMNS.length} className="text-center h-24 text-muted-foreground">لا توجد ردود فى الفترة دى</TableCell></TableRow>
+              <TableRow><TableCell colSpan={COLUMNS.length + 1} className="text-center h-24 text-muted-foreground">لا توجد ردود فى الفترة دى</TableCell></TableRow>
             ) : rows.map((r, i) => (
               <TableRow key={r.id} className="cursor-pointer hover:bg-purple-50" onClick={() => setOpen({ phone: r.phone_short, month: r.month })}>
+                <TableCell>
+                  <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-xs text-purple-700 border-purple-300"
+                    onClick={(e) => { e.stopPropagation(); openRepeatLetter([r.id], { signerName: signer }); }}
+                    data-testid={`button-repeat-letter-${r.id}`}>
+                    <FileText className="w-3.5 h-3.5" /> PDF
+                  </Button>
+                </TableCell>
                 {toCells(r, i).map((c, j) => <TableCell key={j} className={j >= 9 && j <= 11 ? "min-w-[180px] whitespace-pre-wrap" : "whitespace-nowrap"}>{c || "—"}</TableCell>)}
               </TableRow>
             ))}
