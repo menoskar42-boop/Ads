@@ -479,18 +479,9 @@ export function RepeatedWithinMonthReport() {
                   <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell>{r.centralName || "-"}</TableCell>
                   <TableCell dir="ltr" className="text-left font-mono font-semibold text-blue-700">
-                    <span className="inline-flex items-center gap-1.5">
-                      {r.phoneShort || "-"}
-                      {r.phoneShort && (
-                        <button
-                          type="button"
-                          onClick={() => setDetailPhone(r.phoneShort!)}
-                          title="تفاصيل أكتر (الاسم والعنوان وبيانات الخط)"
-                          className="text-purple-600 hover:text-purple-800"
-                        >
-                          <Info className="w-4 h-4" />
-                        </button>
-                      )}
+                    {/* زرار الرد على الناحية التانية من الرقم وبعيد عن زرار التفاصيل، وأكبر
+                        عشان الضغط عليه من الموبايل مايتلخبطش معاه (قرار المالك ٢٠٢٦-١٠-٠٥) */}
+                    <span className="inline-flex items-center gap-3">
                       {canSeeReview && r.phoneShort && /^\d{4}-\d{2}$/.test(reviewMonthOf(r)) && (() => {
                         const x = reviewMap.get(reviewKeyOf(r));
                         if (isTechUser && !x) return null;   // الفنى: قراية بس — مفيش رد لسه
@@ -499,13 +490,26 @@ export function RepeatedWithinMonthReport() {
                             type="button"
                             onClick={() => setReviewOpen({ phone: r.phoneShort!, month: reviewMonthOf(r) })}
                             title={`رد التكرار — ${reviewText(r)}`}
-                            className={`font-sans text-[11px] px-1.5 py-0.5 rounded border ${!x ? "bg-slate-50 text-slate-700 border-slate-300" : x.status === "done" ? "bg-green-50 text-green-800 border-green-300" : "bg-amber-50 text-amber-800 border-amber-300"}`}
+                            className={`font-sans text-xs font-bold min-w-[3.25rem] min-h-[2rem] px-3 py-1 rounded-md border ${!x ? "bg-slate-50 text-slate-700 border-slate-300" : x.status === "done" ? "bg-green-50 text-green-800 border-green-300" : "bg-amber-50 text-amber-800 border-amber-300"}`}
                             data-testid={`button-repeat-review-${r.phoneShort}`}
                           >
                             {isTechUser ? "عرض الرد" : !x ? "رد" : x.status === "done" ? "✓ مكتمل" : "جارى"}
                           </button>
                         );
                       })()}
+                      <span className="inline-flex items-center gap-1.5">
+                        {r.phoneShort || "-"}
+                        {r.phoneShort && (
+                          <button
+                            type="button"
+                            onClick={() => setDetailPhone(r.phoneShort!)}
+                            title="تفاصيل أكتر (الاسم والعنوان وبيانات الخط)"
+                            className="text-purple-600 hover:text-purple-800"
+                          >
+                            <Info className="w-4 h-4" />
+                          </button>
+                        )}
+                      </span>
                     </span>
                   </TableCell>
                   <TableCell><MobileValue mobile={mobileLookup[phoneLookupKey(r.phoneShort)]} phone={r.phoneShort} /></TableCell>

@@ -46,6 +46,7 @@ interface RepDetailRow {
   complainTime: string;
   closeTime: string;
   closeCode: string | null;
+  complainType: string | null;   // نوع الشكوى (Complain Type) من شيت الشكاوى
   appearances: number;
   closeByName: string;
   areaTechName: string;
@@ -351,6 +352,7 @@ export function RepetitionStatsReport() {
       "الفريم": r.frame ?? "",
       "عدد المرات": r.appearances,
       "رقم الشكوى": r.complainNo,
+      "نوع الشكوى (Complain Type)": r.complainType ?? "",
       "تاريخ الشكوى": r.complainTime ? new Date(r.complainTime).toLocaleString("ar-EG") : "",
       "تاريخ الإغلاق": r.closeTime ? new Date(r.closeTime).toLocaleString("ar-EG") : "",
       "كود الإغلاق": r.closeCode ?? "",
@@ -369,7 +371,7 @@ export function RepetitionStatsReport() {
       title: `تفصيل الخطوط المكررة — ${activeTab === "combined" ? "إجمالية" : activeTab === "closed" ? "مغلقة" : "مفتوحة"} — ${dateFrom} إلى ${dateTo}`,
       columns: [
         "#", "رقم التليفون", "رقم الموبايل", "اسم العميل", "العنوان", "السنترال",
-        "الكابينه", "البكس", "كود MSAN", "عدد المرات", "تاريخ الشكوى",
+        "الكابينه", "البكس", "كود MSAN", "عدد المرات", "نوع الشكوى", "تاريخ الشكوى",
          "تاريخ الإغلاق", "سبب الإغلاق", "فنى الإغلاق", "فنى المنطقة",
       ],
       rows: repDetailFiltered.map((r, i) => [
@@ -383,6 +385,7 @@ export function RepetitionStatsReport() {
         r.lineBox ?? "—",
         r.msanCode ?? "—",
         r.appearances,
+        r.complainType ?? "—",
         r.complainTime ? new Date(r.complainTime).toLocaleString("ar-EG") : "—",
         r.closeTime ? new Date(r.closeTime).toLocaleString("ar-EG") : "—",
          closeReason(r.closeCode) || (r.closeCode ? `كود ${r.closeCode}` : "—"),
@@ -650,6 +653,7 @@ export function RepetitionStatsReport() {
                     <TableHead className="text-white font-bold text-right">الفريم</TableHead>
                     <TableHead className="text-white font-bold text-right">عدد المرات</TableHead>
                     <TableHead className="text-white font-bold text-right">رقم الشكوى</TableHead>
+                    <TableHead className="text-white font-bold text-right whitespace-nowrap">نوع الشكوى</TableHead>
                     <TableHead className="text-white font-bold text-right">تاريخ الشكوى</TableHead>
                     <TableHead className="text-white font-bold text-right">تاريخ الإغلاق</TableHead>
                     <TableHead className="text-white font-bold text-right">سبب الإغلاق</TableHead>
@@ -677,6 +681,7 @@ export function RepetitionStatsReport() {
                         <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800">{r.appearances} مرات</span>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{r.complainNo}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{r.complainType || "—"}</TableCell>
                       <TableCell dir="ltr" className="text-right">{r.complainTime ? new Date(r.complainTime).toLocaleDateString("ar-EG") : ""}</TableCell>
                       <TableCell dir="ltr" className="text-right">{r.closeTime ? new Date(r.closeTime).toLocaleDateString("ar-EG") : ""}</TableCell>
                       <TableCell className="text-xs whitespace-nowrap">
@@ -727,7 +732,7 @@ export function RepetitionStatsReport() {
                   ))}
                   {repDetailFiltered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center text-muted-foreground py-6">لا توجد خطوط مكررة</TableCell>
+                      <TableCell colSpan={18} className="text-center text-muted-foreground py-6">لا توجد خطوط مكررة</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

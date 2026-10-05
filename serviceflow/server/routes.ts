@@ -14012,11 +14012,18 @@ export async function registerRoutes(
       const params: any[] = [from, to]; // $1 = from، $2 = to
       let centralParam = "";
       if (central) { params.push(central); centralParam = `$${params.length}`; }
+      // البحث برقم التليفون محلى أو بالـ 88 (قرار المالك ٢٠٢٦-١٠-٠٥): بنطبّع الرقم المخزّن
+      // (sp: أرقام بس، من غير أصفار بادئة ولا 88) ونقارنه بالرقم المكتوب أرقام بس — مرة
+      // كما هو ومرة بـ 88 قدّامه. فـ«2650500» و«882650500» و«088-2650500» يلاقوا نفس الخط.
+      const qDigits = q.replace(/[^0-9]/g, "").replace(/^0+/, "");
       let qParam = "";
-      if (q.trim()) { params.push(arQ(q)); qParam = `$${params.length}`; }
+      if (qDigits) { params.push(`%${qDigits}%`); qParam = `$${params.length}`; }
+      else if (q.trim()) { params.push(arQ(q)); qParam = `$${params.length}`; }
       const cdCentral = central ? `AND cd.exchange_name = ${centralParam}` : "";
       const rcCentral = central ? `AND rc.exchange_name = ${centralParam}` : "";
-      const phoneQ = q.trim() ? `AND ${n("lc.phone")} LIKE ${qParam}` : "";
+      const phoneQ = !qParam ? ""
+        : qDigits ? `AND (${sp("lc.phone")} LIKE ${qParam} OR ('88' || ${sp("lc.phone")}) LIKE ${qParam})`
+        : `AND ${n("lc.phone")} LIKE ${qParam}`;
       let techClause = "";
       if (req.user?.role === ROLES.TECH) {
         const workerCode = String(req.user.workerCode || "").trim();
@@ -15322,7 +15329,7 @@ export async function registerRoutes(
           WITH src AS (
             SELECT complain_no, exchange_name, cabinet_no, phone_number,
                    ${phoneNormSql("phone_number")} AS phone_key,
-                   complain_time, close_time, close_by, close_code
+                   complain_time, close_time, close_by, close_code, complain_type_name AS complain_type
             FROM complaint_details
             WHERE close_time IS NOT NULL AND exchange_name ILIKE '%غنايم%'
           )`;
@@ -15331,7 +15338,7 @@ export async function registerRoutes(
           WITH src AS (
             SELECT complain_no, exchange_name, cabinet_no, phone_number,
                    ${phoneNormSql("phone_number")} AS phone_key,
-                   complain_time, close_time, close_by, close_code
+                   complain_time, close_time, close_by, close_code, complain_type
             FROM remaining_complaints_current
             WHERE exchange_name ILIKE '%غنايم%'
           )`;
@@ -15340,18 +15347,18 @@ export async function registerRoutes(
           WITH src_raw AS (
             SELECT complain_no, exchange_name, cabinet_no, phone_number,
                    ${phoneNormSql("phone_number")} AS phone_key,
-                   complain_time, close_time, close_by, close_code, 1 AS sp
+                   complain_time, close_time, close_by, close_code, complain_type_name AS complain_type, 1 AS sp
             FROM complaint_details WHERE close_time IS NOT NULL AND exchange_name ILIKE '%غنايم%'
             UNION ALL
             -- كل حالات المتبقى من الجدول التاريخى الدائم، وليس 135 و138 فقط
             SELECT complain_no, exchange_name, cabinet_no, phone_number,
                    ${phoneNormSql("phone_number")} AS phone_key,
-                   complain_time, close_time, close_by, close_code, 2 AS sp
+                   complain_time, close_time, close_by, close_code, complain_type, 2 AS sp
             FROM remaining_complaints WHERE exchange_name ILIKE '%غنايم%'
           ),
           src AS (
             SELECT DISTINCT ON (complain_no) complain_no, exchange_name, cabinet_no, phone_number,
-                   phone_key, complain_time, close_time, close_by, close_code
+                   phone_key, complain_time, close_time, close_by, close_code, complain_type
             FROM src_raw ORDER BY complain_no, sp
           )`;
       }
@@ -15361,7 +15368,7 @@ export async function registerRoutes(
         phone_occ AS (
           SELECT
             po.complain_no, po.exchange_name AS central_name, po.cabinet_no,
-            po.phone_number, po.phone_key, po.complain_time, po.close_time, po.close_by, po.close_code,
+            po.phone_number, po.phone_key, po.complain_time, po.close_time, po.close_by, po.close_code, po.complain_type,
             COUNT(*) OVER (PARTITION BY po.phone_key) AS appearances
           FROM src po
           WHERE TRUE ${dateClause}
@@ -15384,6 +15391,7 @@ export async function registerRoutes(
           r.complain_time                                                              AS "complainTime",
           r.close_time                                                                 AS "closeTime",
           r.close_code                                                                 AS "closeCode",
+          r.complain_type                                                              AS "complainType",
           r.appearances::int                                                           AS appearances,
           COALESCE(
             (SELECT mcb.tech_name FROM manual_close_by mcb WHERE mcb.complain_no = r.complain_no LIMIT 1),
