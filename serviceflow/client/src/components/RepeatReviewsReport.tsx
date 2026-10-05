@@ -21,9 +21,12 @@ const COLUMNS = ["#", "رقم التليفون", "الشهر", "الحالة", "
   "الفحص", "إفادة العميل", "إفادة الفنى", "سبب العطل", "يوجد مقصّر", "المقصّر", "رد بواسطة", "تاريخ الإكمال"];
 
 export function RepeatReviewsReport() {
-  const [from, setFrom] = useState(thisMonth);
+  // الافتراضى: كل الردود من أول ما الميزة اشتغلت (من غير «من شهر») ومنها اللى لسه جارية — كان
+  // بيفتح على الشهر الحالى والمكتملة بس، فالردود القديمة (من «إحصائيات التكرار») كانت بتستخبى.
+  const [from, setFrom] = useState("");
   const [to, setTo] = useState(thisMonth);
-  const [doneOnly, setDoneOnly] = useState(true);
+  const [doneOnly, setDoneOnly] = useState(false);
+  const period = `${from || "كل الشهور"} إلى ${to || "اليوم"}`;
   const [open, setOpen] = useState<{ phone: string; month: string } | null>(null);
 
   const q = useQuery<{ data: any[] }>({
@@ -54,10 +57,10 @@ export function RepeatReviewsReport() {
     const ws = XLSX.utils.aoa_to_sheet([COLUMNS, ...rows.map(toCells)]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ردود التكرار");
-    XLSX.writeFile(wb, `repeat-reviews-${from}-${to}.xlsx`);
+    XLSX.writeFile(wb, `repeat-reviews-${from || "all"}-${to || "now"}.xlsx`);
   };
   const handleExportPDF = () => {
-    printTablePDF({ title: `ردود التكرار — ${from} إلى ${to}${doneOnly ? " (المكتملة)" : ""}`, columns: COLUMNS, rows: rows.map(toCells), rowsPerPage: 6 });
+    printTablePDF({ title: `ردود التكرار — ${period}${doneOnly ? " (المكتملة)" : ""}`, columns: COLUMNS, rows: rows.map(toCells), rowsPerPage: 6 });
   };
 
   const total = rows.length;
@@ -81,7 +84,7 @@ export function RepeatReviewsReport() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div><label className="text-xs text-muted-foreground block mb-1">من شهر</label>
+        <div><label className="text-xs text-muted-foreground block mb-1">من شهر (فاضى = كل الشهور)</label>
           <Input type="month" value={from} onChange={(e) => setFrom(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
         <div><label className="text-xs text-muted-foreground block mb-1">إلى شهر</label>
           <Input type="month" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>

@@ -3,6 +3,7 @@ import App from "./App";
 import "./index.css";
 import { BASE, withBase } from "./lib/base-path";
 import { installExcelSafeCopy } from "./lib/excel-safe-copy";
+import { installPrintWindowIcon } from "./lib/print-window-icon";
 
 // ⚠️ لازم قبل أى نداء: التطبيق فيه ٢٤٤ نداء مكتوب فيهم "/api/..." بمسار مطلق،
 // وتعديلهم واحد واحد مخاطرة بلا داعى. اللفّة دى بتحطّ مسار الجذر على أى مسار
@@ -20,5 +21,8 @@ if (BASE) {
 // نسخ مسلسل ٢٠ رقم لإكسيل كان بيطلع آخره أصفار (إكسيل بيحفظ ١٥ رقم بس) —
 // الحافظة بتاخد نسخة إكسيل فيها الخلية «نص». شوف lib/excel-safe-copy.ts.
 installExcelSafeCopy();
+
+// نوافذ الطباعة/PDF كانت بتطلع بلوجو أوسكار ديفز (أيقونة جذر الدومين) — شوف lib/print-window-icon.ts
+installPrintWindowIcon();
 
 createRoot(document.getElementById("root")!).render(<App />);
