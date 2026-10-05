@@ -2,7 +2,7 @@
 // @name         WFM — موافقة تغيير البورت (Accept → Start → Change Port)
 // @namespace    service-flow.wfm.accept-task
 // @description  موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
-// @version      1.2.0
+// @version      1.2.1
 // @match        https://wfm.te.eg/WorkOrder/*
 // @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -40,6 +40,7 @@
   // ── Service-Flow: النتيجة بترجع لـ «بحث برقم التليفون» وطابور التنفيذ ─────────
   // نفس الدومين والتوكن بتوع سكربت «إلغاء الاسناد». الدومين بيتغيّر من غير تعديل السكربت:
   //   localStorage.setItem('sf_base', 'https://…')
+  // ملحوظة: الرقم بيتشال من الهاش أول ما يتقرا (boot) ويفضل فى sessionStorage لحد ما الشغل يخلص.
   const SF_DEFAULT_BASE = "https://ads-menoskar42.replit.app/serviceflow";
   function sfBase() {
     try {
@@ -161,7 +162,7 @@
       "background:#fff;border:2px solid #00695c;border-radius:10px;padding:10px;direction:rtl;" +
       "font:13px Arial;box-shadow:0 4px 16px rgba(0,0,0,.3)";
     panel.innerHTML =
-      '<div style="font-weight:bold;color:#00695c;margin-bottom:6px">✅ موافقة على المهمة (Accept Task)</div>' +
+      '<div style="font-weight:bold;color:#00695c;margin-bottom:6px">✅ موافقة تغيير بورت (Accept ← Start ← Change Port)</div>' +
       '<div style="display:flex;gap:6px;margin-bottom:6px">' +
       '  <input id="sfacInput" placeholder="رقم التليفون (مثال: 2657577)" ' +
       '     style="flex:1;padding:6px;border:1px solid #bbb;border-radius:6px;font:13px Arial" />' +
@@ -634,6 +635,9 @@
     if (m) {
       const phone = localPhone(m[1]);
       if (ss.get(PENDING_KEY) !== phone) { clearState(); ss.set(PENDING_KEY, phone); ss.set(INDEX_KEY, 0); }
+      // نشيل الهاش بعد ما الرقم اتحفظ — وإلا أى ريفريش بعد ما الشغل يخلص بيعيد التشغيل
+      // ويسجّل «مفيش زرار أخضر» فوق نتيجة «اتوافق» فى Service-Flow.
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
     }
     const pending = ss.get(PENDING_KEY);
     if (!pending) { banner("✅ Accept Task — اكتب رقم التليفون واضغط ابدأ."); return; }
