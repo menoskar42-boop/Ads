@@ -42,7 +42,8 @@ interface Row {
 }
 
 const cairoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
-const cairoMonthStart = () => cairoToday().slice(0, 8) + "01";
+// «متابعة التصحيحات» بتفتح دايماً من ١-٧-٢٠٢٦ لحد النهارده (قرار المالك ٢٠٢٦-١٠-٠٥)
+export const CORRECTIONS_FROM = "2026-07-01";
 
 const fmtDt = (d: string | null) => {
   if (!d) return "-";
@@ -68,7 +69,7 @@ export function LineDataCorrectionsReport() {
   const canAct = user?.role === ROLES.DATA_MANAGER
     || user?.role === ROLES.ADMIN || user?.role === ROLES.SUPER_ADMIN;
 
-  const [dateFrom, setDateFrom] = useState(cairoMonthStart);
+  const [dateFrom, setDateFrom] = useState(CORRECTIONS_FROM);
   const [dateTo, setDateTo] = useState(cairoToday);
   const [search, setSearch] = useState("");
   // الافتراضى: عدم التطابق بس — ده شغل مسئول البيانات. الزرار لسه موجود لو حب
