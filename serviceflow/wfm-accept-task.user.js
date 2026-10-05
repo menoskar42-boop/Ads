@@ -55,7 +55,7 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const qAll = (sel, root) => [].slice.call((root || document).querySelectorAll(sel));
   const visible = (el) => { try { return !!el && el.getClientRects().length > 0; } catch (e) { return false; } };
-  const txt = (el) => ((el && el.textContent) || "").replace(/[ ‏‎]/g, " ").replace(/\s+/g, " ").trim();
+  const txt = (el) => ((el && el.textContent) || "").replace(/[\u00a0\u200f\u200e]/g, " ").replace(/\s+/g, " ").trim();
   const norm = (s) => (s || "").toLowerCase().replace(/[\s_:?]+/g, "");
   const digits = (s) => String(s || "").replace(/\D/g, "");
 
