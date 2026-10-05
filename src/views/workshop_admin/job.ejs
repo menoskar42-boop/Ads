@@ -81,9 +81,41 @@
     <% } %>
   </div>
   <% if (portalPath && flags.has('customer_portal')) { %>
-    <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap no-print">
-      <div><div class="text-sm font-black">رابط العميل الآمن</div><div class="text-xs text-slate-500 mt-1">ابعت للعميل الرابط ليتابع الحالة ويوافق على العرض من موبايله.</div></div>
-       <a href="<%= portalPath %>" target="_blank" rel="noopener" class="bg-slate-900 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-slate-800">فتح رابط العميل ↗</a>
+    <%/* حالة الرابط: شغّال · موقوف · انتهى — وآخر مرة العميل فتحه، وإمتى بيقف (٣٠ يوم بعد التسليم/الإلغاء) */%>
+    <div id="portal" class="mt-4 pt-4 border-t border-slate-100 no-print">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div class="text-sm font-black">رابط العميل الآمن
+            <% if (access && access.revoked_at) { %><span class="ms-2 text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">موقوف</span>
+            <% } else if (access && !access.live) { %><span class="ms-2 text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">انتهى</span>
+            <% } else { %><span class="ms-2 text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">شغّال</span><% } %>
+          </div>
+          <div class="text-xs text-slate-500 mt-1">ابعت للعميل الرابط ليتابع الحالة ويوافق على العرض من موبايله.</div>
+          <div class="text-xs text-slate-500 mt-1">آخر فتح: <%= access && access.last_viewed_at ? dt(access.last_viewed_at) : 'لسه ماتفتحش' %><% if (access && access.expires_at && !access.revoked_at) { %> · بيقف: <%= dt(access.expires_at) %><% } %></div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <% if (access && access.live) { %><a href="<%= portalPath %>" target="_blank" rel="noopener" class="bg-slate-900 text-white rounded-xl px-4 py-2 text-sm font-bold hover:bg-slate-800">فتح رابط العميل ↗</a><% } %>
+          <% if (access && access.live) { %><form method="post" action="/workshop/jobs/<%= job.id %>/portal/revoke" onsubmit="return confirm('إيقاف الرابط ده؟ العميل مش هيقدر يفتحه تاني.')"><button class="border border-rose-200 text-rose-700 rounded-xl px-3 py-2 text-sm font-bold hover:bg-rose-50">إيقاف الرابط</button></form><% } %>
+          <form method="post" action="/workshop/jobs/<%= job.id %>/portal/renew" onsubmit="return confirm('إصدار رابط جديد؟ الرابط القديم هيبطل فوراً.')"><button class="border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold hover:bg-slate-50">رابط جديد</button></form>
+        </div>
+      </div>
+      <% if (typeof approvals !== 'undefined' && approvals.length) { %>
+        <%/* إثبات الموافقة: نسخة البنود اللى العميل وافق عليها + نص الموافقة + IP والمتصفح والوقت */%>
+        <details class="mt-3 text-xs">
+          <summary class="cursor-pointer font-bold text-slate-700">سجل موافقات العميل (<%= approvals.length %>)</summary>
+          <div class="mt-2 space-y-2">
+            <% approvals.forEach(function(a){ %>
+              <div class="border border-slate-100 rounded-xl p-3">
+                <div class="font-bold"><%= a.change_order_id ? ('تعديل إضافي #' + a.change_order_id) : 'عرض السعر' %> — <bdi><%= money(a.total) %></bdi> · <%= a.approved_by %> · <%= dt(a.created_at) %></div>
+                <div class="text-slate-500 mt-1">«<%= a.consent_text %>» · IP: <bdi dir="ltr"><%= a.ip || '—' %></bdi></div>
+                <div class="text-slate-400 mt-1 break-all" dir="ltr"><%= a.user_agent || '' %></div>
+                <% var snap = a.snapshot || {}; var lines = (snap.parts || []).map(function(p){ return p.name + ' × ' + p.qty + ' @ ' + p.unit_price; }).concat((snap.labour || []).map(function(l){ return l.description + ' — ' + l.amount; })).concat((snap.items || []).map(function(i){ return i.description + ' × ' + i.qty + ' @ ' + i.unit_price; })); %>
+                <% if (lines.length) { %><div class="text-slate-600 mt-1">البنود وقت الموافقة: <%= lines.join(' · ') %></div><% } %>
+              </div>
+            <% }) %>
+          </div>
+        </details>
+      <% } %>
     </div>
   <% } %>
 </div>

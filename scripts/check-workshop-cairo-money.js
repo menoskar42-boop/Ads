@@ -40,6 +40,10 @@ ok((admin.match(/CT\.cairoWallToDate\(b\.(starts_at|ends_at|promised_at)\)/g) ||
 ok(!/toISOString\(\)\.slice\(0, 10\)/.test(admin.slice(admin.indexOf('// ── Appointments'), admin.indexOf("router.post('/appointments/:id/convert'"))),
   'صفحة المواعيد مابتحسبش «النهارده» بـtoISOString (UTC)');
 ok(/today: CT\.cairoToday\(\)/.test(admin), 'لوحة التشغيل: «النهارده» بتوقيت القاهرة');
+ok(/AND \$\{cairoDay\('starts_at'\)\} = \$\{CAIRO_TODAY\}`/.test(admin) && /\$\{cairoDay\('a\.starts_at'\)\}=\$2::date/.test(admin),
+  'عدّاد «مواعيد اليوم» وصفحة المواعيد بنفس تعريف اليوم (القاهرة صراحةً، مش توقيت الجلسة)');
+ok(!/CURRENT_DATE/.test(admin.slice(admin.indexOf("router.get('/', "), admin.indexOf('// ── Appointments'))),
+  'لوحة التحكم ولوحة التشغيل مافيهمش CURRENT_DATE (بيعتمد على توقيت الجلسة)');
 ok(/const starts = CT\.cairoWallToDate\(b\.starts_at\);/.test(tenant) && /const slot = CT\.cairoWallToDate\(value\);/.test(tenant),
   'صفحة الحجز العامة: المواعيد بتتبني وبتتقرا بتوقيت القاهرة');
 ok(!/function localDateTimeValue/.test(tenant), 'مفيش بناء مواعيد بساعة السيرفر (localDateTimeValue اتشال)');
@@ -104,6 +108,11 @@ async function pgChecks() {
       if (Math.abs(sql - js) > 0.001) { same = false; console.log(`    أمر ${k.id}: SQL=${sql} JS=${js}`); }
     }
     ok(same, 'J.jobTotalSql = J.jobTotals (بالضريبة والخصم والتقريب) على بوستجرس');
+    // «مواعيد اليوم» حتى لو جلسة القاعدة UTC: ميعاد ١١:٣٠ بالليل بتوقيت القاهرة لازم يتعدّ النهارده
+    await c.query(`SET TIME ZONE 'UTC'`);
+    const late = (await c.query(`SELECT (((now() AT TIME ZONE 'Africa/Cairo')::date + time '23:30') AT TIME ZONE 'Africa/Cairo') AS t`)).rows[0].t;
+    const counted = (await c.query(`SELECT ($1::timestamptz AT TIME ZONE 'Africa/Cairo')::date = (now() AT TIME ZONE 'Africa/Cairo')::date AS ok`, [late])).rows[0].ok;
+    ok(counted === true, 'ميعاد ١١:٣٠ بالليل بيتعدّ فى «مواعيد اليوم» حتى لو جلسة القاعدة UTC');
     await c.query(`INSERT INTO workshop_appointments VALUES ('2026-10-05 09:00+00', '2026-10-05 10:00+00'), ('2026-01-15 09:00+00', NULL)`);
     await c.query(`UPDATE workshop_jobs SET promised_at='2026-10-05 22:00+00' WHERE id=1`);
     await c.query(schema.CAIRO_SHIFT_SQL);

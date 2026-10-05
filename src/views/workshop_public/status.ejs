@@ -24,6 +24,8 @@
   <header><div class="wrap" style="padding:0 16px"><div class="brand"><%= job.business_name || job.company_name %></div><div style="opacity:.85;font-size:13px">متابعة أمر الصيانة من هاتفك</div></div></header>
   <main class="wrap">
     <% if (approved) { %><div class="success">تم تسجيل موافقتك بنجاح. سيبدأ المركز تنفيذ الأعمال المعتمدة.</div><% } %>
+    <% if (typeof query !== 'undefined' && query.changed === '1') { %><div class="success" style="background:#fff7e6;border-color:#f3c77a;color:#7a4b00">الورشة عدّلت العرض من ساعة ما فتحت الصفحة. راجع الأرقام الجديدة تحت ووافق تاني لو مناسبة.</div><% } %>
+    <% if (typeof query !== 'undefined' && query.consent === '1') { %><div class="success" style="background:#fff7e6;border-color:#f3c77a;color:#7a4b00">علّم على «<%= consentText %>» عشان الموافقة تتسجّل.</div><% } %>
     <% if (typeof query !== 'undefined' && query.change_approved === '1') { %><div class="success">تم تسجيل موافقتك على الإصلاح الإضافي، وسيظهر للفريق ضمن الأعمال المعتمدة.</div><% } %>
      <section class="card hero">
       <div><div class="muted">رقم أمر الشغل</div><h1><%= J.jobCode ? J.jobCode(job.job_id) : 'أمر الصيانة' %></h1><div class="muted"><%= [job.make,job.model,job.model_year].filter(Boolean).join(' ') %> · <bdi><%= job.plate %></bdi></div></div>
@@ -65,7 +67,7 @@
     <% if (payerror === 'not_configured') { %><p style="color:#9a4d18;font-size:12px;margin-top:10px">الدفع الإلكتروني غير متاح حاليًا. تواصل مع الورشة لإتمام الدفع.</p><% } %>
     <% if (payerror === 'provider') { %><p style="color:#9a4d18;font-size:12px;margin-top:10px">تعذر فتح بوابة الدفع الآن. لم يتم تسجيل أي دفعة؛ حاول مرة أخرى أو تواصل مع الورشة.</p><% } %>
     <% if (!job.approved_at && !['delivered','cancelled'].includes(job.status)) { %>
-      <form method="post" action="/workshop/status/<%= token %>/approve" style="margin-top:18px"><label class="label">اكتب اسمك لتأكيد موافقة عرض السعر</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على عرض السعر</button></form>
+      <form id="approve" method="post" action="/workshop/status/<%= token %>/approve" style="margin-top:18px"><input type="hidden" name="seen_total" value="<%= totals.total %>" /><label class="label">اكتب اسمك لتأكيد موافقة عرض السعر (الإجمالي <bdi><%= Number(totals.total).toLocaleString('ar-EG') %></bdi> ج.م)</label><input name="name" required value="<%= job.customer_name || '' %>" /><label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:6px 0 10px"><input type="checkbox" name="agree" value="1" required style="width:auto;margin:4px 0 0" /> <span><%= consentText %></span></label><button>أوافق على عرض السعر</button></form>
     <% } else if (job.approved_at) { %><p class="muted">تم اعتماد العرض في <%= new Date(job.approved_at).toLocaleString('ar-EG', {timeZone:'Africa/Cairo'}) %>.</p><% } %>
     </section>
     <% if (changeOrders && changeOrders.length) { %>
@@ -75,7 +77,7 @@
             <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><b>تعديل #<%= order.id %></b><div class="muted" style="font-size:12px"><%= order.reason %></div></div><span class="badge"><%= order.status === 'approved' ? 'معتمد' : order.status === 'rejected' ? 'مرفوض' : 'بانتظار موافقتك' %></span></div>
             <% if (order.items) { order.items.forEach(function(item){ %><div style="display:flex;justify-content:space-between;font-size:13px;margin-top:7px"><span><%= item.description %> × <%= item.qty %></span><bdi><%= Number(item.qty*item.unit_price).toLocaleString('ar-EG') %> ج.م</bdi></div><% }); } %>
             <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><b>قيمة التعديل</b><bdi><%= Number(order.total).toLocaleString('ar-EG') %> ج.م</bdi></div>
-            <% if (order.status === 'proposed') { %><form method="post" action="/workshop/status/<%= token %>/change-orders/<%= order.id %>/approve" style="margin-top:12px"><label class="label">اكتب اسمك للموافقة على هذا التعديل</label><input name="name" required value="<%= job.customer_name || '' %>" /><button>أوافق على الإصلاح الإضافي</button></form><% } else if (order.status === 'approved') { %><p class="muted" style="font-size:12px;margin-bottom:0">تم اعتماد هذا التعديل.</p><% } %>
+            <% if (order.status === 'proposed') { %><form id="change-<%= order.id %>" method="post" action="/workshop/status/<%= token %>/change-orders/<%= order.id %>/approve" style="margin-top:12px"><input type="hidden" name="seen_total" value="<%= order.total %>" /><label class="label">اكتب اسمك للموافقة على هذا التعديل</label><input name="name" required value="<%= job.customer_name || '' %>" /><label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:6px 0 10px"><input type="checkbox" name="agree" value="1" required style="width:auto;margin:4px 0 0" /> <span><%= consentText %></span></label><button>أوافق على الإصلاح الإضافي</button></form><% } else if (order.status === 'approved') { %><p class="muted" style="font-size:12px;margin-bottom:0">تم اعتماد هذا التعديل.</p><% } %>
           </div>
         <% }); %>
       </section>

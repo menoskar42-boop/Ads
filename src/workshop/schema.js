@@ -908,6 +908,31 @@ async function ensureWorkshopSchema() {
         ON workshop_customers (company_id, segment, lifecycle_stage, next_followup_on);
     `);
 
+    // ── إثبات موافقة العميل + أمان رابط المتابعة (مراجعة كوديكس ٢٠٢٦-١٠-٠٥) ─────
+    // الموافقة كانت بتسجّل اسم بس. دلوقتى كل موافقة (العرض أو تعديل إضافى) بتتسجّل بنسخة
+    // البنود اللى العميل شافها ووافق عليها، والإجمالى، ونص الموافقة، والـIP والمتصفح والوقت —
+    // سجل مابيتعدّلش (INSERT بس). والرابط بقى له انتهاء بعد التسليم/الإلغاء وإلغاء يدوى.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS workshop_approval_evidence (
+        id               SERIAL PRIMARY KEY,
+        company_id       INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        job_id           INTEGER NOT NULL REFERENCES workshop_jobs(id) ON DELETE CASCADE,
+        change_order_id  INTEGER REFERENCES workshop_change_orders(id) ON DELETE SET NULL,
+        approved_by      TEXT NOT NULL,
+        consent_text     TEXT NOT NULL,
+        total            NUMERIC(12,2) NOT NULL,
+        snapshot         JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ip               TEXT,
+        user_agent       TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_wsh_approval_evidence
+        ON workshop_approval_evidence (company_id, job_id, created_at DESC);
+      ALTER TABLE workshop_job_access
+        ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+    `);
+
     await shiftWorkshopTimesToCairo(client);
 
     console.log('Workshop schema ready.');

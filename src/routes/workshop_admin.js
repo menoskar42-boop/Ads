@@ -23,6 +23,11 @@ const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../wor
 const J = require('../workshop/jobs');
 // أوقات الورشة بتوقيت القاهرة — السيرفر UTC (شوف workshop/cairo_time.js)
 const CT = require('../workshop/cairo_time');
+const { LINK_LIVE_SQL, LINK_DAYS_AFTER_CLOSE } = require('./workshop_public');
+// «النهارده» فى SQL بتوقيت القاهرة صراحةً — مش CURRENT_DATE اللى بيعتمد على توقيت الجلسة
+// (مضبوط فى server.js، بس لو الإعداد ده وقع العدّادات بتزحف ٢–٣ ساعات من غير ما حد يحس).
+const CAIRO_TODAY = "(now() AT TIME ZONE 'Africa/Cairo')::date";
+const cairoDay = (col) => `(${col} AT TIME ZONE 'Africa/Cairo')::date`;
 const {
   INSPECTION_STATUSES,
   QUALITY_STATUSES,
@@ -490,8 +495,8 @@ async function queueServiceReminderMessages({
              AND wf.flag_key='reminders' AND wf.enabled=false
         )
         AND (
-          r.due_on BETWEEN CURRENT_DATE
-            AND CURRENT_DATE + COALESCE(ws.reminder_lead_days, ${DEFAULT_REMINDER_LEAD_DAYS})::int
+          r.due_on BETWEEN ${CAIRO_TODAY}
+            AND ${CAIRO_TODAY} + COALESCE(ws.reminder_lead_days, ${DEFAULT_REMINDER_LEAD_DAYS})::int
           OR (r.due_odometer IS NOT NULL AND v.odometer IS NOT NULL
               AND r.due_odometer - v.odometer BETWEEN 0
                 AND COALESCE(ws.reminder_lead_km, ${DEFAULT_REMINDER_LEAD_KM})::int)
@@ -815,7 +820,7 @@ async function requireWorkshop(req, res, next) {
       try {
         const d = await pool.query(
           `SELECT COUNT(*)::int AS n FROM workshop_reminders
-            WHERE company_id=$1 AND status='open' AND due_on IS NOT NULL AND due_on <= CURRENT_DATE`,
+            WHERE company_id=$1 AND status='open' AND due_on IS NOT NULL AND due_on <= ${CAIRO_TODAY}`,
           [c.id]
         );
         res.locals.dueCount = d.rows[0].n;
@@ -868,9 +873,9 @@ router.get('/', requireWorkshopPermission('view_dashboard'), async (req, res) =>
     pool.query(`SELECT COUNT(*)::int n FROM workshop_jobs
                  WHERE company_id=$1 AND status='quoted' AND approved_at IS NULL`, [cid]),
     pool.query(`SELECT COUNT(*)::int n FROM workshop_reminders
-                 WHERE company_id=$1 AND status='open' AND due_on IS NOT NULL AND due_on <= CURRENT_DATE`, [cid]),
+                 WHERE company_id=$1 AND status='open' AND due_on IS NOT NULL AND due_on <= ${CAIRO_TODAY}`, [cid]),
     pool.query(`SELECT COALESCE(SUM(amount),0)::float n FROM workshop_payments
-                 WHERE company_id=$1 AND paid_at >= date_trunc('month', CURRENT_DATE)`, [cid]),
+                 WHERE company_id=$1 AND (paid_at AT TIME ZONE 'Africa/Cairo') >= date_trunc('month', now() AT TIME ZONE 'Africa/Cairo')`, [cid]),
     // المتبقى بالضريبة — نفس حساب الفاتورة (J.jobTotals)، مش قبل الضريبة
     pool.query(`SELECT COALESCE(SUM(GREATEST(0, ${J.jobTotalSql('j')} - j.paid)),0)::float n FROM workshop_jobs j
                  WHERE j.company_id=$1 AND j.status <> 'cancelled'`, [cid]),
@@ -878,8 +883,7 @@ router.get('/', requireWorkshopPermission('view_dashboard'), async (req, res) =>
                  WHERE company_id=$1 AND is_active AND min_qty > 0 AND qty <= min_qty`, [cid]),
     pool.query(`SELECT COUNT(*)::int n FROM workshop_appointments
                   WHERE company_id=$1 AND status IN ('booked','confirmed')
-                    AND starts_at >= CURRENT_DATE
-                    AND starts_at < CURRENT_DATE + interval '1 day'`, [cid]),
+                    AND ${cairoDay('starts_at')} = ${CAIRO_TODAY}`, [cid]),
     pool.query(`SELECT j.*, v.plate, v.make, v.model, c.name AS customer_name
                   FROM workshop_jobs j
                   LEFT JOIN workshop_vehicles v ON v.id = j.vehicle_id
@@ -918,7 +922,7 @@ router.get('/board', requireFlag('board'), requireWorkshopPermission('view_board
   if (due === 'overdue') {
     where += " AND j.promised_at IS NOT NULL AND j.promised_at < now() AND j.status NOT IN ('delivered','cancelled')";
   } else if (due === 'today') {
-    where += ' AND j.promised_at::date = CURRENT_DATE';
+    where += ` AND ${cairoDay('j.promised_at')} = ${CAIRO_TODAY}`;
   }
   const [rows, technicians, lateJobs] = await Promise.all([
     pool.query(
@@ -976,7 +980,7 @@ router.get('/appointments', requireFlag('appointments'), requireWorkshopPermissi
          LEFT JOIN workshop_vehicles v ON v.id=a.vehicle_id
          LEFT JOIN workshop_customers c ON c.id=a.customer_id
          LEFT JOIN workshop_jobs j ON j.id=a.job_id
-        WHERE a.company_id=$1 AND a.starts_at::date=$2
+        WHERE a.company_id=$1 AND ${cairoDay('a.starts_at')}=$2::date
         ORDER BY a.starts_at`,
       [cid, day]
     ),
@@ -2214,7 +2218,7 @@ async function loadJob(cid, id) {
        LEFT JOIN workshop_technicians t ON t.id=j.technician_id
       WHERE j.id=$1 AND j.company_id=$2`, [id, cid])).rows[0];
   if (!job) return null;
-  const [parts, labour, photos, payments, inspection, quality, activity, access, partReservations, changeOrders, timeEntries, estimateVersions] = await Promise.all([
+  const [parts, labour, photos, payments, inspection, quality, activity, access, partReservations, changeOrders, timeEntries, estimateVersions, approvals] = await Promise.all([
     pool.query('SELECT * FROM workshop_job_parts WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_job_labour WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_job_photos WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
@@ -2222,7 +2226,14 @@ async function loadJob(cid, id) {
     pool.query('SELECT * FROM workshop_inspection_items WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_quality_checks WHERE company_id=$1 AND job_id=$2 ORDER BY id', [cid, id]),
     pool.query('SELECT * FROM workshop_activity WHERE company_id=$1 AND job_id=$2 ORDER BY created_at DESC LIMIT 30', [cid, id]),
-    pool.query('SELECT token FROM workshop_job_access WHERE company_id=$1 AND job_id=$2', [cid, id]),
+    // حالة الرابط للإدارة: آخر فتح · بينتهى إمتى · موقوف؟ — نفس شرط الصلاحية فى workshop_public
+    pool.query(
+      `SELECT a.token, a.last_viewed_at, a.revoked_at, (${LINK_LIVE_SQL}) AS live,
+              COALESCE(a.expires_at, CASE WHEN j.status IN ('delivered','cancelled')
+                THEN COALESCE(j.delivered_at, j.ready_at, j.done_at, j.received_at) + interval '${LINK_DAYS_AFTER_CLOSE} days' END) AS expires_at
+         FROM workshop_job_access a
+         JOIN workshop_jobs j ON j.id=a.job_id AND j.company_id=a.company_id
+        WHERE a.company_id=$1 AND a.job_id=$2`, [cid, id]),
     pool.query(
       `SELECT r.*, p.name, p.part_number
          FROM workshop_part_reservations r
@@ -2251,12 +2262,16 @@ async function loadJob(cid, id) {
       `SELECT * FROM workshop_estimate_versions
         WHERE company_id=$1 AND job_id=$2
         ORDER BY version_no DESC LIMIT 30`, [cid, id]),
+    pool.query(
+      `SELECT id, change_order_id, approved_by, consent_text, total, snapshot, ip, user_agent, created_at
+         FROM workshop_approval_evidence
+        WHERE company_id=$1 AND job_id=$2 ORDER BY created_at DESC LIMIT 20`, [cid, id]),
   ]);
   return {
     job, parts: parts.rows, labour: labour.rows, photos: photos.rows, payments: payments.rows,
     inspection: inspection.rows, quality: quality.rows, activity: activity.rows, access: access.rows[0] || null,
     partReservations: partReservations.rows, changeOrders: changeOrders.rows,
-    timeEntries: timeEntries.rows, estimateVersions: estimateVersions.rows,
+    timeEntries: timeEntries.rows, estimateVersions: estimateVersions.rows, approvals: approvals.rows,
   };
 }
 
@@ -3208,7 +3223,36 @@ router.post('/jobs/:id/status', requireWorkshopPermission('advance_job'), async 
       `UPDATE workshop_part_reservations SET status='released', qty=0, updated_at=now()
         WHERE company_id=$1 AND job_id=$2 AND status='reserved'`, [cid, id]);
   }
+  // رابط العميل بيفضل شغّال ٣٠ يوم بعد التسليم/الإلغاء وبعدين بيقف؛ ولو الأمر رجع مفتوح بيرجع شغّال
+  await pool.query(
+    `UPDATE workshop_job_access
+        SET expires_at = CASE WHEN $3 IN ('delivered','cancelled') THEN now() + interval '${LINK_DAYS_AFTER_CLOSE} days' END
+      WHERE company_id=$1 AND job_id=$2`, [cid, id, status]);
   res.redirect('/workshop/jobs/' + id);
+});
+
+// ── رابط العميل: إيقاف · رابط جديد (مراجعة كوديكس ٢٠٢٦-١٠-٠٥) ──────────────────
+// «إيقاف» بيقفل الرابط الحالى فوراً. «رابط جديد» بيغيّر التوكن نفسه — القديم بيبقى ٤٠٤
+// لأى حد معاه — ولو الأمر مقفول (اتسلّم/اتلغى) الجديد بياخد ٣٠ يوم من دلوقتى.
+router.post('/jobs/:id/portal/revoke', requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
+  const cid = req.company.id, id = int(req.params.id);
+  const r = await pool.query(
+    `UPDATE workshop_job_access SET revoked_at=now() WHERE company_id=$1 AND job_id=$2 AND revoked_at IS NULL`, [cid, id]);
+  if (r.rowCount) await logActivity(pool, cid, id, 'portal_revoked', 'تم إيقاف رابط العميل', ((await managerIdentity(req, cid)) || { name: 'فريق الورشة' }).name);
+  res.redirect('/workshop/jobs/' + id + '#portal');
+});
+
+router.post('/jobs/:id/portal/renew', requireWorkshopPermission('manage_job_pricing'), async (req, res) => {
+  const cid = req.company.id, id = int(req.params.id);
+  const r = await pool.query(
+    `UPDATE workshop_job_access a
+        SET token=$3, revoked_at=NULL, last_viewed_at=NULL,
+            expires_at = CASE WHEN j.status IN ('delivered','cancelled') THEN now() + interval '${LINK_DAYS_AFTER_CLOSE} days' END
+       FROM workshop_jobs j
+      WHERE a.company_id=$1 AND a.job_id=$2 AND j.id=a.job_id AND j.company_id=a.company_id`,
+    [cid, id, crypto.randomBytes(24).toString('base64url')]);
+  if (r.rowCount) await logActivity(pool, cid, id, 'portal_renewed', 'تم إصدار رابط عميل جديد (القديم اتلغى)', ((await managerIdentity(req, cid)) || { name: 'فريق الورشة' }).name);
+  res.redirect('/workshop/jobs/' + id + '#portal');
 });
 
 router.post('/jobs/:id/pay', requireWorkshopPermission('record_payment'), async (req, res) => {

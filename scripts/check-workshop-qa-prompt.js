@@ -30,7 +30,8 @@ ok(require('../src/lib/business_types').KEYS.includes('workshop') && doc.include
   'التقديم `?type=workshop` نوع موجود');
 ok(/withLang\('\/car-workshop-management-egypt', 'ar'\)/.test(read('server.js'))
   && has('/workshop') && has('/ar/car-workshop-management-egypt'), '`/workshop` للزائر بيحوّل لصفحة البيع');
-ok(has('`https://oscardevs.com/company/login`'), 'رابط الدخول');
+// الدخول على المالك نفسه (الإكستنشن ممنوع يكتب كلمة سر فى موقع حى) — فالبرومبت مافيهوش رابط دخول
+ok(!has('company/login') && doc.includes('**يسجّل دخول بنفسه**'), 'الدخول على المالك، والبرومبت مابيطلبش كلمة سر');
 
 // ── الفلوس — من jobTotals نفسه ─────────────────────────────────────────────────
 const J = require('../src/workshop/jobs');
@@ -71,16 +72,39 @@ for (const label of ['نسبة الضريبة %', 'مواعيد العمل', 'ا
 ok(read('src/views/workshop_admin/dashboard.ejs').includes('مواعيد اليوم') && has('«مواعيد اليوم»'), '«مواعيد اليوم»');
 ok(read('src/views/workshop_admin/job.ejs').includes('فتح رابط العميل ↗') && has('«فتح رابط العميل ↗»'), '«فتح رابط العميل ↗»');
 ok(read('src/views/workshop_admin/appointments.ejs').includes("cancelled:'ملغي'") && has('«ملغي»'), 'حالة الميعاد «ملغي»');
-const flagLabels = [...read('src/workshop/flags.js').matchAll(/label: '([^']+)'/g)].map((m) => m[1])
-  .filter((l) => !['صور قبل وبعد', 'الفحص الرقمي', 'رابط العميل', 'سجل النشاط'].includes(l));
+// أسماء القايمة الجانبية زى ما الواجهة بتعرضها (مترجمة) — مش أسماء flags.js الخام:
+// التشغيل الأول لقى «العربيات» و«الفواتير» فى القايمة والبرومبت كان كاتب أسماء تانية.
+const F = require('../src/workshop/flags');
+const { t } = require('../src/i18n/strings');
+const flagLabels = F.localized(F.FLAGS, (k) => t(k, 'ar')).map((x) => x.label);
 const missing = flagLabels.filter((l) => !has(l));
 ok(missing.length === 0, 'كل صفحات القايمة الجانبية فى أ٢' + (missing.length ? ': ناقص ' + missing.join('، ') : ''));
 
 // ── الخطوط الحمرا ───────────────────────────────────────────────────────────────
 for (const line of ['ماتبعتش طلب حجز من صفحة حجز الديمو', 'ماتكتبش أي وصف ولا «نبذة»', 'مفيش دفع إلكتروني',
-  'مفيش رسايل', 'ماتستخدمش أي كلمة سر متحفوظة', 'ماتكتبش كلمة السر في التقرير']) {
+  'مفيش رسايل', 'ماتستخدمش أي كلمة سر متحفوظة', 'ماتكتبش أي كلمة سر خالص', 'استنّى لحد ما أقولك «دخلت»']) {
   ok(has(line), `خط أحمر: ${line}`);
 }
+
+// ── التشغيل الأول + مراجعة كوديكس التانية ───────────────────────────────────────
+ok(/>شوف نموذج حي<\/a>/.test(read('src/views/landing/workshop.ejs')) && /href="\/demo\/workshop"/.test(read('src/views/landing/workshop.ejs'))
+  && has('زرار «شوف نموذج حي» بيفتح لوحة الديمو'), 'صفحة البيع فيها «شوف نموذج حي» للوحة الديمو');
+const demoMsg = (read('src/lib/demo_mode.js').match(/const msg = '([^']+)'/) || [])[1];
+ok(demoMsg && has(demoMsg), 'رسالة منع الحفظ فى الديمو بالحرف');
+ok(has('حسب ساعات العمل (السبت–الخميس ٩ص–٨م)') && /حسب ساعات العمل<% if \(settings && settings\.hours\)/.test(read('src/views/workshop_public/book.ejs')),
+  'صفحة الحجز بتكتب ساعات العمل');
+const W = require('../src/routes/workshop_public');
+const t3 = J.jobTotals({ discount: 0, tax_percent: 14 }, [{ qty: 1, unit_price: 100 }, { qty: 1, unit_price: 80 }], [{ amount: 50 }]);
+ok(t3.total === 262.2 && has('الإجمالي الجديد **262.2**') && has('عرض السعر — 262.2'), `العرض بعد «QA إضافي»: ${t3.total}`);
+ok(has(W.CONSENT_TEXT), `نص الموافقة «${W.CONSENT_TEXT}»`);
+ok(has('الورشة عدّلت العرض من ساعة ما فتحت الصفحة') && read('src/views/workshop_public/status.ejs').includes('الورشة عدّلت العرض من ساعة ما فتحت الصفحة'),
+  'رسالة «العرض اتغيّر»');
+const jobView = read('src/views/workshop_admin/job.ejs');
+for (const l of ['سجل موافقات العميل', 'إيقاف الرابط', 'رابط جديد', 'لسه ماتفتحش', 'آخر فتح:', 'بيقف:', 'موقوف']) {
+  ok(jobView.includes(l) && has(l), `«${l}» فى صفحة أمر الشغل وفى البرومبت`);
+}
+ok(read('src/views/workshop_public/expired.ejs').includes('رابط المتابعة ده انتهى') && has('رابط المتابعة ده انتهى'), 'صفحة «الرابط انتهى»');
+ok(W.LINK_DAYS_AFTER_CLOSE === 30 && has('تاريخ بعد ٣٠ يوم'), 'الرابط ٣٠ يوم بعد الإلغاء/التسليم');
 
 if (fail) { console.log(`\n❌ ${fail} فحص فشل`); process.exit(1); }
 console.log('\n✅ برومبت اختبار الورش مطابق للكود');

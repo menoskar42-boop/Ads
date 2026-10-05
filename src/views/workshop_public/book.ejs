@@ -90,7 +90,7 @@
              <option value="">اختر اليوم والساعة</option>
              <% slots.forEach(function(slot){ %><option value="<%= slot.value %>"><%= slot.label %></option><% }) %>
            </select>
-           <span class="block text-xs text-slate-400 mt-1">المواعيد المعروضة حسب ساعات العمل والخانات المحجوزة حاليًا.</span>
+           <span class="block text-xs text-slate-400 mt-1">المواعيد المعروضة حسب ساعات العمل<% if (settings && settings.hours) { %> (<bdi><%= settings.hours %></bdi>)<% } %> والخانات المحجوزة حاليًا.</span>
          <% } else { %>
            <div class="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl px-3 py-2 mt-1 text-sm">لا توجد خانات متاحة للحجز الآن. تواصل معنا هاتفيًا.</div>
          <% } %>
