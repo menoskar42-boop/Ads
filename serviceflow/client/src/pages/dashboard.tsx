@@ -305,7 +305,9 @@ export default function Dashboard() {
   // عشان كده المقارنة على authUser مش user. الطلبات ورفع الملفات زى ما هم.
   // + «متعذرات على بكسيات معطلة تم إصلاحها»: فيه «إعادة فتح التكت» — شغلهم ومش موجود فى غيره.
   const isCentralView = !isSuperAdmin && (authUser?.role === ROLES.ADMIN || authUser?.role === ROLES.EXTERNAL);
-  const CENTRAL_VIEW_ALLOWED: ReportTab[] = [...TECH_ALLOWED, "box-tickets-repaired"];
+  // + مجموعة «إنشاء جداول» كاملة (قرار المالك ٢٠٢٦-١٠-٠٥) — السيرفر مابيمنعهمش منها.
+  const TABLES_GROUP: ReportTab[] = ["major-faults", "major-faults-selected", "major-fault-closure", "engineering-inspection", "closed-port-cabinets"];
+  const CENTRAL_VIEW_ALLOWED: ReportTab[] = [...TECH_ALLOWED, "box-tickets-repaired", ...TABLES_GROUP];
   const CENTRAL_VIEW_ALLOWED_GROUPS = REPORT_GROUPS
     .filter((g) => g.items.some((it) => CENTRAL_VIEW_ALLOWED.includes(it.id)))
     .map((g) => g.label);
