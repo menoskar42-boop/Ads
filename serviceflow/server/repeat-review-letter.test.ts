@@ -30,6 +30,8 @@ test("line text: confirmed vs corrected (what changed, from → to)", () => {
 test("single letter: addressee, subject, findings, opinion, signature — escaped", () => {
   const h = buildRepeatLetterHtml([corrected], { signerName: "أحمد محمد" });
   assert.ok(h.includes(LETTER_TO) && h.includes(LETTER_FROM));
+  // «السيد المهندس» مش «الأستاذ» (قرار المالك ٢٠٢٦-١٠-٠٥)
+  assert.equal(LETTER_TO, "السيد المهندس / مدير تشغيل الشبكة وعمليات العملاء بالغنايم");
   assert.match(h, /الموضوع: نتيجة فحص الخط المكرر 2650138 — شهر 09\/2026/);
   assert.match(h, /<b>مسار السلك<\/b>: السلك مقطوع جوّه الشباك/);
   assert.match(h, /الكابينة من 4-6 إلى 4-8/);
