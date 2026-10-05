@@ -1104,6 +1104,8 @@ export const customerSmsLogs = pgTable("customer_sms_logs", {
   sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
   sentById: integer("sent_by_id").references(() => users.id),
   sentByName: text("sent_by_name"),
+  channel: text("channel").notNull().default("sms"),   // sms | whatsapp (٢٠٢٦-١٠-٠٥)
+  waMessageId: text("wa_message_id"),
 });
 
 // repeat_reviews — «رد التكرار»: رد واحد لكل خط مكرر فى كل شهر (قرار المالك ٢٠٢٦-١٠-٠٤).

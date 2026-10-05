@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
-import { Loader2, MessageSquareText, Phone } from "lucide-react";
+import { Loader2, MessageSquareText, MessageCircle, Phone } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import { normalizeEgMobile, smsHref } from "@shared/sms-message";
@@ -129,6 +129,77 @@ export function SmsButton({ mobile: rawMobile, phone: rawPhone }: { mobile: stri
   );
 }
 
+// زرار «واتساب» (قرار المالك ٢٠٢٦-١٠-٠٥) — سوبر أدمن بس، على الموبايل والكمبيوتر: نفس رسالة
+// المتابعة بتتبعت من السيرفر بالقالب المعتمد على الأرضى 088 2650500، وبتتسجّل أوتوماتيك
+// فى «الاتصالات». بيظهر بس لما أسرار واتساب تبقى متحطّة فى Replit.
+export function WhatsAppButton({ mobile: rawMobile, phone: rawPhone }: { mobile: string | null | undefined; phone: string | null | undefined }) {
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const isSuper = user?.role === ROLES.SUPER_ADMIN;
+  const enabled = useQuery<{ enabled: boolean }>({
+    queryKey: ["/api/whatsapp/enabled"],
+    queryFn: async () => (await fetch("/api/whatsapp/enabled", { credentials: "include" })).json(),
+    enabled: isSuper,
+    staleTime: 10 * 60 * 1000,
+  });
+  const mobile = normalizeEgMobile(rawMobile);
+  const phone = String(rawPhone ?? "").replace(/\D/g, "");
+  if (!isSuper || !mobile || !phone || !enabled.data?.enabled) return null;
+  const send = async () => {
+    setSending(true);
+    try {
+      const r = await fetch("/api/whatsapp/followup", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, mobile }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.message || "تعذّر الإرسال");
+      setConfirming(false);
+      setDone(true);
+      setTimeout(() => setDone(false), 4000);
+      qc.invalidateQueries({ queryKey: ["/api/customer-contact-logs"] });
+    } catch (e: any) {
+      alert(e?.message || "تعذّر الإرسال");
+    } finally { setSending(false); }
+  };
+  return (
+    <>
+    {confirming && createPortal(
+      <div className="fixed inset-x-0 bottom-0 z-[9999] border-t bg-white p-3 shadow-lg" dir="rtl" data-testid="whatsapp-confirm-bar">
+        <p className="mb-2 text-sm">
+          إرسال رسالة المتابعة على واتساب للعميل <bdi dir="ltr" className="font-mono">{mobile}</bdi> (خط <bdi dir="ltr">{phone}</bdi>)؟
+        </p>
+        <div className="flex gap-2">
+          <button type="button" onClick={send} disabled={sending} data-testid="button-whatsapp-send"
+            className="flex-1 rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            {sending ? "جارٍ الإرسال…" : "إرسال"}
+          </button>
+          <button type="button" onClick={() => setConfirming(false)} disabled={sending}
+            className="flex-1 rounded border px-3 py-2 text-sm">
+            إلغاء
+          </button>
+        </div>
+      </div>,
+      document.body,
+    )}
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      disabled={sending}
+      className={`inline-flex items-center justify-center rounded-full p-1 hover:bg-emerald-50 disabled:opacity-50 ${done ? "text-emerald-700" : "text-emerald-600"}`}
+      title={done ? "اتبعتت على واتساب ✓" : `رسالة متابعة واتساب للعميل: ${mobile}`}
+      aria-label={`رسالة متابعة واتساب للعميل: ${mobile}`}
+      data-testid={`button-whatsapp-${phone}`}
+    >
+      {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : done ? <span className="text-[11px] font-bold">✓</span> : <MessageCircle className="h-3.5 w-3.5" />}
+    </button>
+    </>
+  );
+}
+
 // phone = رقم التليفون الأرضى بتاع الصف — من غيره زرار الـSMS مايظهرش (الرسالة عن الخط).
 export function MobileValue({ mobile, phone }: { mobile: string | null | undefined; phone?: string | null }) {
   const dial = dialMobile(mobile);
@@ -146,6 +217,7 @@ export function MobileValue({ mobile, phone }: { mobile: string | null | undefin
         </a>
       )}
       <SmsButton mobile={mobile} phone={phone} />
+      <WhatsAppButton mobile={mobile} phone={phone} />
     </span>
   );
 }

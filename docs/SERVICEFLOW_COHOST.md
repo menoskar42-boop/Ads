@@ -96,6 +96,10 @@
 | `SERVICE_FLOW_API_URL` · `SERVICE_FLOW_PHONES_URL` | مسار كامل يتخطّى `SERVICE_FLOW_BASE_URL` | مشتق من الـBASE |
 | `SERVICE_FLOW_ORIGIN` | CORS لتكامل الصيانة | `*` |
 | `BOX_MAINT_URL` · `BOX_MAINT_TOKEN` | تداخل الصناديق | الميزة مقفولة |
+| `WHATSAPP_ACCESS_TOKEN` · `WHATSAPP_PHONE_NUMBER_ID` | واتساب المتابعة (Cloud API) على الأرضى 088 2650500 — التوكن سرّ دائم من System User `serviceflow-bot` | زرار الواتساب مايظهرش |
+| `WHATSAPP_WABA_ID` | حساب واتساب (لحالة القوالب فى شاشة «واتساب») | قايمة القوالب مش بتظهر |
+| `WHATSAPP_GRAPH_VERSION` | نسخة Graph API | `v23.0` |
+| `WHATSAPP_GRAPH_BASE` | للاختبارات بس (Graph وهمى) | `https://graph.facebook.com` |
 
 ### 📦 تخزين صور الصيانة على Cloudflare R2
 
@@ -482,3 +486,19 @@ Service Flow أصلاً). من غير ده، النسخة المسطّبة عن�
   وبيعمله لو مش موجود بنفس المطابقة الموحّدة، ومابيفتحش فحص.
 - الكود: `server/repeat-reviews.ts` · `client/src/components/RepeatReviewDialog.tsx` ·
   `RepeatReviewsReport.tsx`. الاختبار الحى: `DATABASE_URL=… npx tsx serviceflow/scripts/test-repeat-reviews.mts`.
+
+## 💬 واتساب المتابعة — Cloud API (٢٠٢٦-١٠-٠٥)
+
+زرار أخضر جنب محمول العميل (سوبر أدمن بس، موبايل وكمبيوتر) بيبعت نفس رسالة المتابعة من
+السيرفر بالقالب المناسب من الأربعة (`followupTemplate` فى `shared/sms-message.ts` — نصها =
+الـSMS بالحرف، والاختبار بيثبّت ده)، وبيتسجّل أوتوماتيك فى `customer_sms_logs` بـ`channel = 'whatsapp'`
+فيظهر فى «الاتصالات» «تم إرسال رسالة واتساب».
+
+- شاشة **«واتساب»** فى الهيدر (سوبر أدمن): حالة الرقم واسم العرض والقوالب، و**تسجيل الرقم بـPIN**
+  (٦ أرقام) لما يكون «معلّق». الـPIN بيروح لـMeta على طول — مابيتخزّنش ولا بيتسجّل.
+- الإرسال بيشتغل لما الرقم يبقى CONNECTED والقوالب APPROVED. أخطاء Meta بتظهر بالعربى ومعاها الكود.
+- المعرّفات (مش أسرار): Phone number ID `1388059521053031` · WABA `2203880213837668` · الحافظة
+  `1078350535020172` · التطبيق `2181658136028503` · System User `serviceflow-bot`.
+- عمودين جداد فى `customer_sms_logs`: `channel` و`wa_message_id` (فى `ensureSchema()` و`shared/schema.ts`).
+- الكود: `server/whatsapp.ts` · `client/src/components/WhatsAppSetupButton.tsx` · `WhatsAppButton` فى
+  `client/src/lib/mobile-lookup.tsx`. الاختبار: `server/whatsapp.test.ts`.

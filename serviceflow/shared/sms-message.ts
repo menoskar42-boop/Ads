@@ -83,3 +83,34 @@ export function buildFollowupSms(i: FollowupSmsInput): string {
 export function smsHref(mobile: string, body: string, ios: boolean): string {
   return `sms:${mobile}${ios ? "&" : "?"}body=${encodeURIComponent(body)}`;
 }
+
+// ── واتساب (Cloud API) — نفس الرسالة بالقوالب الأربعة المعتمدة عند Meta (٢٠٢٦-١٠-٠٥) ──
+// نص القوالب مطابق لـbuildFollowupSms بالحرف (الحارس: scripts/check-whatsapp-prompt.js)،
+// والاختيار بنفس الشروط: فيه بلاغ؟ فيه فنى ليه محمول؟ — والقيم هى نفس اللى بتتحط فى الـSMS.
+export type FollowupTemplateName =
+  | "ghanayem_followup_complaint_tech" | "ghanayem_followup_complaint"
+  | "ghanayem_followup_tech" | "ghanayem_followup";
+
+export function followupTemplate(i: FollowupSmsInput): { name: FollowupTemplateName; params: string[] } {
+  const when = formatComplaintTime(i.lastComplaintAt);
+  const techMobile = normalizeEgMobile(i.techMobile);
+  const techName = shortTechName(i.techName);
+  // قالب الفنى محتاج الاسم والمحمول الاتنين — Meta بترفض قيمة فاضية فى القالب
+  const tech = techMobile && techName ? [techName, techMobile] : null;
+  const phone = String(i.phone);
+  if (when) {
+    const base = [phone, `${when.day} ${when.date}`, when.time];
+    return tech
+      ? { name: "ghanayem_followup_complaint_tech", params: [...base, ...tech] }
+      : { name: "ghanayem_followup_complaint", params: base };
+  }
+  return tech
+    ? { name: "ghanayem_followup_tech", params: [phone, ...tech] }
+    : { name: "ghanayem_followup", params: [phone] };
+}
+
+// المحمول المصرى بالصيغة اللى واتساب عايزها: 2010xxxxxxxx (من غير + ولا صفر)
+export function waRecipient(mobile: string | null | undefined): string | null {
+  const m = normalizeEgMobile(mobile);
+  return m ? "2" + m : null;
+}

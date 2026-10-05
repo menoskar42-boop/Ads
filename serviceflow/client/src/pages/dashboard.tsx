@@ -43,6 +43,7 @@ import { SubscriberInfoReport } from "@/components/SubscriberInfoReport";
 import { RemovalStatsReport } from "@/components/RemovalStatsReport";
 import { RepetitionStatsReport } from "@/components/RepetitionStatsReport";
 import { RepeatReviewsReport } from "@/components/RepeatReviewsReport";
+import { WhatsAppSetupButton } from "@/components/WhatsAppSetupButton";
 import { CabinetAdslFaultsReport } from "@/components/CabinetAdslFaultsReport";
 import { TechPerformanceReport } from "@/components/TechPerformanceReport";
 import { OmRejectionsReport } from "@/components/OmRejectionsReport";
@@ -513,6 +514,8 @@ export default function Dashboard() {
               </a>
             )}
             <ExecutorButton />
+            {/* واتساب المتابعة — سوبر أدمن بس (٢٠٢٦-١٠-٠٥) */}
+            {isSuperAdmin && <WhatsAppSetupButton />}
             {(user.role === ROLES.SALES || user.role === ROLES.ADMIN || user.role === ROLES.SALES_ADMIN) && <NotificationBell />}
             {(user.role === ROLES.TECH || user.role === ROLES.DATA_MANAGER || user.role === ROLES.ADMIN || user.role === ROLES.EXTERNAL) && (
               <Button variant="outline" size="sm" onClick={() => setLocation("/phone-lines")} className="text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3">

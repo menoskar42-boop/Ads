@@ -6,7 +6,7 @@ import { pool, currentPool, hasCurrentDatabase } from "./db";
 import type { User as SchemaUser } from "@shared/schema";
 import { insertOrderSchema, updateOrderSchema, updateExternalResponseSchema, ROLES, WS_EVENTS, CONTRACT_STATUS, ORDER_STATUS, REJECTION_REASONS, SHIFT_COVER_STATES_SQL } from "@shared/schema";
 import { api } from "@shared/routes";
-import { normalizeEgMobile, buildFollowupSms } from "@shared/sms-message";
+import { normalizeEgMobile, buildFollowupSms, followupTemplate, waRecipient } from "@shared/sms-message";
 import { registerPublicReport } from "./public-report";
 import { z } from "zod";
 import multer from "multer";
@@ -35,6 +35,7 @@ import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
 import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
+import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
 const MemStore = MemoryStore(session);
@@ -6253,7 +6254,8 @@ export async function registerRoutes(
           FROM customer_contact_logs
          WHERE full_phone = $1
         UNION ALL
-        SELECT -s.id, 'sms_sent', 'إلى ' || s.mobile, s.sent_at, s.sent_by_name
+        SELECT -s.id, CASE WHEN s.channel = 'whatsapp' THEN 'whatsapp_sent' ELSE 'sms_sent' END,
+               'إلى ' || s.mobile, s.sent_at, s.sent_by_name
           FROM customer_sms_logs s
          WHERE ${sp("s.full_phone")} = ${sp("$1")}
       ) x
@@ -7451,6 +7453,51 @@ export async function registerRoutes(
         [digits, mobile, userId, userName]);
       res.status(201).json({ data: rows[0] });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  // ── واتساب Cloud API (قرار المالك ٢٠٢٦-١٠-٠٥) — سوبر أدمن بس ─────────────────────
+  // نفس رسالة الـSMS بالقوالب الأربعة المعتمدة عند Meta، بتتبعت من السيرفر وبتتسجّل
+  // أوتوماتيك (مفيش «تم الإرسال؟» زى الـSMS — هنا السيرفر عارف إنها اتبعتت).
+  app.get("/api/whatsapp/enabled", requireAuth, requireSuperAdmin, (_req, res) => {
+    res.json({ enabled: whatsappConfigured() });
+  });
+  app.get("/api/whatsapp/status", requireAuth, requireSuperAdmin, async (_req, res) => {
+    try { res.json(await whatsappStatus()); } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  // تسجيل الأرضى على الـAPI بالـPIN — بيتبعت لـMeta على طول، مابيتخزّنش ولا بيتسجّل فى لوج
+  app.post("/api/whatsapp/register", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      await registerNumber(String(req.body?.pin ?? "").trim());
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(e instanceof WhatsAppError ? 400 : 500).json({ message: e.message });
+    }
+  });
+  app.post("/api/whatsapp/followup", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const phone = String(req.body?.phone || "").trim();
+      const to = waRecipient(req.body?.mobile);
+      const mobile = normalizeEgMobile(req.body?.mobile);
+      if (!phone.replace(/\D/g, "")) return res.status(400).json({ message: "رقم التليفون مطلوب" });
+      if (!to || !mobile) return res.status(400).json({ message: "رقم المحمول غير صالح" });
+      const { line } = await lookupPhoneLine(req.user, phone);
+      const shown = String(line?.fullPhone || line?.telNo || phone.replace(/\D/g, ""));
+      const techName = String(line?.techName || "").trim();
+      const tech = techName ? await techMobileFor(techName) : null;
+      const input = { phone: shown, lastComplaintAt: line?.lastComplaintAt ?? null,
+                      techName: tech?.name ?? techName, techMobile: tech?.mobile };
+      const tpl = followupTemplate(input);
+      const messageId = await sendTemplate(to, tpl.name, tpl.params);
+      const userId = Number.isInteger(req.user?.id) ? req.user.id : null;
+      const userName = String(req.user?.fullName || req.user?.username || "").trim() || null;
+      await pool.query(
+        `INSERT INTO customer_sms_logs (full_phone, mobile, sent_by_id, sent_by_name, channel, wa_message_id)
+         VALUES ($1, $2, $3, $4, 'whatsapp', $5)`,
+        [shown.replace(/\D/g, ""), mobile, userId, userName, messageId || null]);
+      res.json({ ok: true, template: tpl.name, messageId, text: buildFollowupSms(input) });
+    } catch (e: any) {
+      res.status(e instanceof WhatsAppError ? 502 : 500).json({ message: e.message });
+    }
   });
 
   app.get("/api/phone-lines/lookup", requireAuth, async (req, res) => {

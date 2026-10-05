@@ -1481,6 +1481,9 @@ export async function ensureSchema() {
       sent_by_name text
     )
   `);
+  // واتساب (٢٠٢٦-١٠-٠٥): نفس السجل — channel = sms | whatsapp، ورقم الرسالة عند Meta
+  await pool.query(`ALTER TABLE customer_sms_logs ADD COLUMN IF NOT EXISTS channel text NOT NULL DEFAULT 'sms'`);
+  await pool.query(`ALTER TABLE customer_sms_logs ADD COLUMN IF NOT EXISTS wa_message_id text`);
   await pool.query(`
     CREATE INDEX IF NOT EXISTS customer_sms_logs_phone_time_idx
       ON customer_sms_logs (full_phone, sent_at DESC, id DESC)

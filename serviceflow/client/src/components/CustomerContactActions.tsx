@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export type ContactOutcome = "answered" | "no_answer";
 // سجل «الاتصالات» بيرجّع كمان رسايل SMS المتابعة (sms_sent) — للعرض بس، مش اختيار فى التسجيل
-type LogOutcome = ContactOutcome | "sms_sent";
+type LogOutcome = ContactOutcome | "sms_sent" | "whatsapp_sent";   // + واتساب (٢٠٢٦-١٠-٠٥)
 
 type ContactLog = {
   id: number;
@@ -43,6 +43,7 @@ export const formatContactTime = (value: string | null | undefined) => {
 
 const outcomeLabel = (outcome: LogOutcome) =>
   outcome === "sms_sent" ? "تم إرسال رسالة SMS"
+  : outcome === "whatsapp_sent" ? "تم إرسال رسالة واتساب"
   : outcome === "answered" ? "تم الاتصال والعميل رد" : "تم الاتصال ولم يرد العميل";
 
 export function CustomerContactActions({ phone }: { phone: string }) {
