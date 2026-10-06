@@ -455,6 +455,7 @@ export function ExecutorButton() {
     // لو مفيش تقدّم فى القياس لمدة ٣ دقائق (DZS وقف على خط فيه إيرور مثلاً)،
     // نعيد تشغيل جهاز التنفيذ بدل ما نترك المهمة معلّقة.
     const STALL_MS = EXEC_MEASURE_STALL_MS;
+    const NOREAL_STALL_MS = 60 * 1000;   // «بدون Real»: دقيقة لكل خط (ريفريش مرة، وبعدها قفل)
 
     const refreshAfterMeasureTimeout = async (jobId: number, batchId?: string | null): Promise<"handled" | "failed"> => {
       return recoverTimedOutMeasure({
@@ -554,10 +555,17 @@ export function ExecutorButton() {
           if (wait > 0) await sleep(wait);
           if (stopped) return "stopped";
         }
-        const win = executeBatch("measure", accs, { fixRecent, noReal, lane }); // DZS يلفّ على كلهم فى run واحد
+        let win = executeBatch("measure", accs, { fixRecent, noReal, lane }); // DZS يلفّ على كلهم فى run واحد
         if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; } else setPopupBlocked(false);
         lastMeasureWin.current.set(lane, win);
         const closeWin = () => { try { if (win && !win.closed) win.close(); } catch {} };
+        // «بدون Real» مابياخدش أكتر من دقيقة للخط (المالك ٢٠٢٦-١٠-٠٦). AXON ساعات بيحوّل
+        // التاب على 10.60.213.x:8081/login-page?sessionExpired=true (مايتوصلش) فيفضل واقف
+        // ٣ دقايق كاملة — والـReal/الإيقاف اللى بعده فى الطابور مستنيين. دلوقتى: دقيقة من
+        // غير نتيجة → نفتح التاب من الأول مرة واحدة (نفس الاسم = نفس التاب)؛ ودقيقة كمان
+        // → نقفله ويتسجّل timeout (الطابور بيعيده مرة لوحده بعدين — requeueErroredJobs).
+        const stallLimit = noReal ? NOREAL_STALL_MS : STALL_MS;
+        let reopened = false;
         const deadline = Date.now() + Math.min(accs.length * MEASURE_MAX_MS, MAX_TOTAL_MS);
         // ⚠️ «مفيش تقدّم» = مفيش **خط جديد اتقاس** من ٣ دقايق — مش ٣ دقايق من أول
         // الباتش. كانت بتتقاس من البداية، فأى باتش قياس أطول من ٣ دقايق (٤-٥ خطوط
@@ -574,7 +582,15 @@ export function ExecutorButton() {
           if (win && win.closed) return "tab_closed"; // التاب اتقفل قبل ما يخلص
           if (canPreempt && chk.preempt) { closeWin(); return "preempted"; } // طلب عاجل يقطع
           if (chk.measured > lastMeasured) { lastMeasured = chk.measured; lastProgressAt = Date.now(); }
-          if (Date.now() - lastProgressAt >= STALL_MS) {
+          if (noReal && !reopened && Date.now() - lastProgressAt >= stallLimit) {
+            reopened = true;
+            console.warn(`[exec] «بدون Real» تاب ${lane} مفيش نتيجة من دقيقة — بفتحه من الأول`);
+            const again = executeBatch("measure", accs, { fixRecent, noReal, lane });
+            if (again) { win = again; lastMeasureWin.current.set(lane, win); }
+            lastProgressAt = Date.now();
+            continue;
+          }
+          if (Date.now() - lastProgressAt >= stallLimit) {
             closeWin();
             // «بدون Real»: التاب ده بس اللى علق (جلسة باظت مثلاً) — مانعملش ريفريش للصفحة
             // كلها (كان بيقتل التابات التانية وهى شغّالة). الخط بيتسجّل timeout والطابور

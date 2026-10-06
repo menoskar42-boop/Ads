@@ -59,6 +59,10 @@ check('المهام الشغّالة متتبّعة بالمسار مش بالم
 
 check('تابات «بدون Real» بتفتح متفرّقة (تسجيل دخول مع بعض بيبوّظ جلسة)', /const NOREAL_STAGGER_MS = \d+ \* 1000;/.test(exec) && /if \(wait > 0\) await sleep\(wait\);/.test(exec));
 check('تاب «بدون Real» اللى علق بيتقفل لوحده (timeout) من غير ريفريش للصفحة كلها', /if \(noReal\) return "timeout";/.test(exec));
+// المالك ٢٠٢٦-١٠-٠٦: صفحة sessionExpired (10.60.213.x) كانت بتفضل واقفة ٣ دقايق وتعطّل الطابور.
+check('«بدون Real»: دقيقة من غير نتيجة → يفتح التاب من الأول مرة، ودقيقة كمان → يقفله timeout',
+  /const NOREAL_STALL_MS = 60 \* 1000;/.test(exec) && /const stallLimit = noReal \? NOREAL_STALL_MS : STALL_MS;/.test(exec)
+  && /if \(noReal && !reopened && Date\.now\(\) - lastProgressAt >= stallLimit\) \{\s+reopened = true;/.test(exec));
 
 // ٢٠٢٦-٠٩-٣٠: التاب التانى/التالت/الرابع ماكانتش بتتفتح — فحص «الموقع فاضى» كان بيتعمل على
 // كل المهام المعلّقة (O(n²)): باتش ٤٦٠٠ خط + تاب شغّال = سحب ٧ث محلياً و>٢٠ث على الحقيقى،
