@@ -132,11 +132,16 @@ async function workshopAvailableSlots(companyId, hours) {
   const today = CT.cairoToday();
   const pad = (n) => String(n).padStart(2, '0');
   const openDays = workshopDays(hours);
-  for (let day = 0; day < 21 && slots.length < 80; day += 1) {
+  // السقف بالأيام الكاملة مش بعدد المواعيد: «٨٠ ميعاد» كان بيقطع القايمة فى نص يوم
+  // (آخرها «الأربعاء ١٤ أكتوبر ١ م» وباقى اليوم مختفى — تقرير الإكستنشن ٢٠٢٦-١٠-٠٦).
+  // دلوقتى مابنبدأش يوم جديد بعد SLOT_SOFT_CAP، واليوم اللى بدأ بيكمل لآخره.
+  const SLOT_SOFT_CAP = 60;
+  for (let day = 0; day < 21; day += 1) {
+    if (slots.length >= SLOT_SOFT_CAP) break;
     const date = CT.shiftDay(today, day);
     const [yy, mm, dd] = date.split('-').map(Number);
     if (!openDays.has(new Date(Date.UTC(yy, mm - 1, dd)).getUTCDay())) continue;   // يوم إجازة
-    for (let minutes = range.start; minutes < range.end && slots.length < 80; minutes += 60) {
+    for (let minutes = range.start; minutes < range.end; minutes += 60) {
       const value = `${date}T${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
       const slot = CT.cairoWallToDate(value);
       if (!slot || slot < now) continue;

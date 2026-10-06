@@ -80,11 +80,21 @@ function blockWrite(req, res) {
   if (req.xhr || (req.get('accept') || '').includes('application/json')) {
     res.status(403).json({ ok: false, demo: true, error: msg });
   } else {
+    // صفحة منسّقة بدل سطر على صفحة بيضا (تقرير الإكستنشن ٢٠٢٦-١٠-٠٦): الزائر هنا
+    // عميل محتمل بيجرّب — لازم يفهم إن ده مقصود ويلاقى طريقه (رجوع / ابدأ نسختك).
     res.status(403).send(
-      '<!doctype html><meta charset="utf-8">' +
-      '<div style="font-family:Cairo,system-ui,sans-serif;direction:rtl;text-align:center;padding:48px">' +
-      '<h1 style="font-size:20px">' + msg + '</h1>' +
-      '<p><a href="javascript:history.back()">رجوع</a></p></div>'
+      '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<meta name="robots" content="noindex,nofollow"><title>نسخة عرض للاطّلاع فقط</title>' +
+      '<style>body{margin:0;background:#f3f6f8;color:#263746;font-family:Cairo,Tahoma,system-ui,sans-serif;line-height:1.8}' +
+      '.w{max-width:480px;margin:12vh auto;padding:0 16px}.c{background:#fff;border:1px solid #dbe5eb;border-radius:16px;padding:28px 22px;text-align:center}' +
+      'h1{font-size:20px;margin:0 0 8px}p{margin:0 0 18px;color:#5b6f7c}.b{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}' +
+      '.b a{padding:9px 18px;border-radius:10px;text-decoration:none;font-weight:600}.p{background:#2563eb;color:#fff}.s{border:1px solid #c9d6de;color:#263746}' +
+      '@media (prefers-color-scheme:dark){body{background:#121a20;color:#e3eaef}.c{background:#1b252d;border-color:#2c3a44}p{color:#9fb1bd}.s{color:#e3eaef;border-color:#3a4b57}}</style></head>' +
+      '<body><div class="w"><div class="c"><h1>' + msg + '</h1>' +
+      '<p>ده نظام حقيقي بتتفرّج عليه — الحفظ بيشتغل في نسختك إنت بعد التسجيل.</p>' +
+      '<div class="b"><a class="s" href="javascript:history.back()">رجوع</a>' +
+      '<a class="p" href="/ar/apply">ابدأ نسختك</a></div></div></div></body></html>'
     );
   }
   return true;

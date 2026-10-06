@@ -134,6 +134,11 @@ async function pgChecks() {
   } finally { c.release(); await pool.end(); }
 }
 
+// قايمة المواعيد ماتتقطعش فى نص يوم (كانت سقف ٨٠ ميعاد — تقرير الإكستنشن ٢٠٢٦-١٠-٠٦)
+ok(/if \(slots\.length >= SLOT_SOFT_CAP\) break;/.test(tenant)
+   && /for \(let minutes = range\.start; minutes < range\.end; minutes \+= 60\)/.test(tenant),
+  'قايمة المواعيد بتقف بين يومين مش فى نص يوم');
+
 pgChecks().then(() => {
   if (fail) { console.log(`\n❌ ${fail} فحص فشل`); process.exit(1); }
   console.log('\n✅ فلوس الورشة وساعتها سليمة');
