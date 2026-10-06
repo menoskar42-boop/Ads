@@ -17,6 +17,20 @@ import { rescueMinutes } from "@shared/exec-timeouts";
 // tabs ومن الـ discarding ومن الـ throttling الشديد فى المتصفحين. الصوت
 // نفسه سكوت تام (gain = 0) فمحدش بيسمع حاجة.
 // AudioContext محتاج user gesture — واحنا بنشغّله من ضغطة زر «جهاز التنفيذ».
+const SLEEP_KEY = "sf_exec_last_sleep";
+// شرح الحل حسب المتصفح: الصوت الصامت مش مضمون (Edge مابيعتبروش «تاب بيشغّل صوت»،
+// وبعد أى ريفريش مابيشتغلش غير بعد ضغطة) — الضمان الوحيد استثناء الموقع من النوم.
+function sleepHelp(): string {
+  const host = location.host;
+  if (/Edg\//.test(navigator.userAgent)) {
+    return `Edge بينيّم التابات اللى فى الخلفية. الحل: افتح edge://settings/system ← «Optimize Performance» ← `
+      + `«Never put these sites to sleep» ← Add ← اكتب ${host}. ولو «Efficiency mode» شغّال اقفله، `
+      + `وبعدها اعمل ريفريش للصفحة واضغط أى حتة فيها مرة.`;
+  }
+  return `المتصفح جمّد التاب وهو فى الخلفية. فى Chrome: chrome://settings/performance ← «Always keep these sites active» ← Add ← ${host}، `
+    + `واقفل «Memory Saver»/«Energy Saver» لو شغّالين.`;
+}
+
 function startSilentKeepAlive(): () => void {
   let ctx: AudioContext | null = null;
   try {
@@ -113,6 +127,11 @@ export function ExecutorButton() {
   const [popupBlocked, setPopupBlocked] = useState(false);
   // التاب فاق بعد تجميد/انقطاع — بيتعرض على الزر عشان التوقف مايبقاش صامت
   const [stale, setStale] = useState(false);
+  // آخر مرة المتصفح نيّم التاب (Sleeping tabs فى Edge / تجميد Chrome) — بتتحفظ فى localStorage
+  // لأن النوم الطويل (>١٠ دقايق) بيعمل ريفريش فالحالة كانت بتضيع والمالك مايعرفش إنه نام.
+  const [lastSleep, setLastSleep] = useState<{ min: number; at: number } | null>(() => {
+    try { const v = JSON.parse(localStorage.getItem(SLEEP_KEY) || "null"); return v && Date.now() - v.at < 24 * 3600 * 1000 ? v : null; } catch { return null; }
+  });
   const busy = useRef(false);
   const [clearing, setClearing] = useState(false);
   // تاب القياس الأخير — نقفله أول ما نفتح قياس جديد (يفضل تاب واحد بس مفتوح: الأخير)
@@ -318,6 +337,11 @@ export function ExecutorButton() {
       const gap = Date.now() - lastBeatOk;
       if (gap < WAKE_MS) return;
       setStale(true);
+      // المؤقّتات وقفت gap كامل = التاب كان نايم/متجمّد — سجّلها عشان تبان للمالك
+      try {
+        const rec = { min: Math.round(gap / 60000), at: Date.now() };
+        localStorage.setItem(SLEEP_KEY, JSON.stringify(rec)); setLastSleep(rec);
+      } catch {}
       if (gap > HARD_RELOAD_MS) { try { window.location.reload(); } catch {} return; }
       busy.current = false;           // فكّ أى قفل سحب اتعلّق وقت التجميد
       heartbeat(); claimAndRun(); refreshPending();
@@ -793,6 +817,17 @@ export function ExecutorButton() {
              : `جهاز التنفيذ: مُفعَّل${pending ? ` (${pending})` : ""}`)
           : "جهاز التنفيذ"}
       </Button>
+      {/* التاب نام قبل كده (آخر ٢٤ ساعة): الحل فى إعدادات المتصفح نفسه — استثناء الموقع من النوم */}
+      {active && lastSleep && (
+        <button
+          type="button"
+          onClick={() => { try { localStorage.removeItem(SLEEP_KEY); } catch {} setLastSleep(null); }}
+          className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1"
+          title={sleepHelp()}
+        >
+          💤 المتصفح نيّم التاب {lastSleep.min} دقيقة ({new Date(lastSleep.at).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}) — شوف الحل ✕
+        </button>
+      )}
       {/* ريفريش لجهاز التنفيذ عن بُعد — بيشتغل من أى جهاز (الموبايل) مش لازم الجهاز نفسه */}
       <Button
         variant="outline"
