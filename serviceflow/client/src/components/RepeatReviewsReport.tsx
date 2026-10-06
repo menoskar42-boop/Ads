@@ -14,6 +14,12 @@ import { RepeatReviewDialog, REPEAT_STEP_LABELS } from "@/components/RepeatRevie
 // فى الشهر) بالبيان والفحص والإفادات والتقييم والمقصّر، وبيتطبع PDF.
 const KIND_AR: Record<string, string> = { tech: "فنى", maintenance: "فنى صيانة", splice: "لحام" };
 const thisMonth = () => new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }).slice(0, 7);
+// الشهر اللى قبله (YYYY-MM) — الافتراضى «من أول الشهر السابق لحد النهارده» (المالك ٢٠٢٦-١٠-٠٦)
+const prevMonth = () => {
+  const [y, m] = thisMonth().split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+};
+type FaultFilter = "all" | "yes" | "no";
 const day = (v: any) => (v ? String(v).slice(0, 10) : "");
 const at = (v: any) => (v ? new Date(v).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" }) : "");
 
@@ -21,11 +27,13 @@ const COLUMNS = ["#", "رقم التليفون", "الشهر", "الحالة", "
   "الفحص", "إفادة العميل", "إفادة الفنى", "سبب العطل", "يوجد مقصّر", "المقصّر", "رد بواسطة", "تاريخ الإكمال"];
 
 export function RepeatReviewsReport() {
-  // الافتراضى: كل الردود من أول ما الميزة اشتغلت (من غير «من شهر») ومنها اللى لسه جارية — كان
-  // بيفتح على الشهر الحالى والمكتملة بس، فالردود القديمة (من «إحصائيات التكرار») كانت بتستخبى.
-  const [from, setFrom] = useState("");
+  // الافتراضى (المالك ٢٠٢٦-١٠-٠٦): من أول الشهر السابق لحد النهارده، ومنها اللى لسه جارية.
+  // «من شهر» فاضى لسه بيجيب كل الشهور لو حد عايز القديم.
+  const [from, setFrom] = useState(prevMonth);
   const [to, setTo] = useState(thisMonth);
   const [doneOnly, setDoneOnly] = useState(false);
+  // يوجد مقصّر: الكل / مقصّر بس / من غير مقصّر
+  const [fault, setFault] = useState<FaultFilter>("all");
   const period = `${from || "كل الشهور"} إلى ${to || "اليوم"}`;
   const [open, setOpen] = useState<{ phone: string; month: string } | null>(null);
 
@@ -38,7 +46,11 @@ export function RepeatReviewsReport() {
     },
     refetchOnMount: "always",
   });
-  const rows = useMemo(() => (q.data?.data ?? []).filter((r) => !doneOnly || r.status === "done"), [q.data, doneOnly]);
+  const rows = useMemo(() => (q.data?.data ?? [])
+    .filter((r) => !doneOnly || r.status === "done")
+    // «من غير مقصّر» = اتحدد إن مفيش مقصّر (has_fault = false) — الجارى اللى لسه ماتحددش مش منهم
+    .filter((r) => fault === "all" || (fault === "yes" ? r.has_fault === true : r.has_fault === false)),
+  [q.data, doneOnly, fault]);
 
   const toCells = (r: any, i: number) => [
     i + 1, r.phone_short, r.month,
@@ -60,7 +72,7 @@ export function RepeatReviewsReport() {
     XLSX.writeFile(wb, `repeat-reviews-${from || "all"}-${to || "now"}.xlsx`);
   };
   const handleExportPDF = () => {
-    printTablePDF({ title: `ردود التكرار — ${period}${doneOnly ? " (المكتملة)" : ""}`, columns: COLUMNS, rows: rows.map(toCells), rowsPerPage: 6 });
+    printTablePDF({ title: `ردود التكرار — ${period}${doneOnly ? " (المكتملة)" : ""}${fault === "yes" ? " (يوجد مقصّر)" : fault === "no" ? " (لا يوجد مقصّر)" : ""}`, columns: COLUMNS, rows: rows.map(toCells), rowsPerPage: 6 });
   };
 
   const total = rows.length;
@@ -89,6 +101,13 @@ export function RepeatReviewsReport() {
         <div><label className="text-xs text-muted-foreground block mb-1">إلى شهر</label>
           <Input type="month" value={to} onChange={(e) => setTo(e.target.value)} className="text-sm w-40" dir="ltr" /></div>
         <label className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={doneOnly} onChange={(e) => setDoneOnly(e.target.checked)} /> المكتملة بس</label>
+        <div><label className="text-xs text-muted-foreground block mb-1" htmlFor="repeat-fault-filter">المقصّر</label>
+          <select id="repeat-fault-filter" value={fault} onChange={(e) => setFault(e.target.value as FaultFilter)}
+            className="border rounded-md px-2 py-1.5 text-sm bg-background" data-testid="select-repeat-fault">
+            <option value="all">الكل</option>
+            <option value="yes">يوجد مقصّر</option>
+            <option value="no">لا يوجد مقصّر</option>
+          </select></div>
         <span className="text-sm text-muted-foreground">إجمالى: <b>{total}</b> رد — يوجد مقصّر: <b>{faults}</b></span>
       </div>
 

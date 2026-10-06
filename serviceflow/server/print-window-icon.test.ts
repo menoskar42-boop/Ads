@@ -16,7 +16,10 @@ test("every blank print window gets the Service Flow icon (with the base path), 
   assert.match(icon, /doc\.close = \(\) => \{ origClose\(\); addSfIcon\(w\.document\); \};/);
 });
 
-test("«ردود التكرار» opens on all months and all statuses (old replies were hidden)", () => {
-  assert.match(report, /const \[from, setFrom\] = useState\(""\);/);
+test("«ردود التكرار» opens from the start of last month to today, all statuses, all fault states (owner 2026-10-06)", () => {
+  assert.match(report, /const \[from, setFrom\] = useState\(prevMonth\);/);
+  assert.match(report, /const \[to, setTo\] = useState\(thisMonth\);/);
   assert.match(report, /const \[doneOnly, setDoneOnly\] = useState\(false\);/);
+  assert.match(report, /const \[fault, setFault\] = useState<FaultFilter>\("all"\);/);
+  assert.match(report, /fault === "yes" \? r\.has_fault === true : r\.has_fault === false/);
 });
