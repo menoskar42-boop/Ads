@@ -380,8 +380,12 @@ export function executeBatch(type: ExecJobType, accounts: (string | number)[], o
   // بنرجّع النافذة (كانت null) — جهاز التنفيذ محتاجها يكشف إن التاب اتقفل = خلص، ويقفله بنفسه.
   if (type === "raise") return openProfileOptimization(accs, opts?.afterStop ? { afterStop: true } : {});
   if (type === "stop") return openProfileOptimization(accs, { stopOnly: true, lane: opts?.lane });
-  return window.open(`${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`,
-    measureTabName(opts?.noReal ? opts.lane : undefined));
+  return window.open(measureBatchUrl(accs, opts), measureTabName(opts?.noReal ? opts.lane : undefined));
+}
+
+/** رابط DZS لباتش قياس — جهاز التنفيذ بيحتاجه لوحده عشان يعيد تحميل **نفس التاب** */
+export function measureBatchUrl(accs: string[], opts?: { fixRecent?: boolean; noReal?: boolean; lane?: number }): string {
+  return `${DZS_URL}#sf_accounts=${encodeURIComponent(accs.join(","))}${measureHashFlags(opts)}`;
 }
 
 /** للتشغيل المحلى (سوبر أدمن من غير جهاز تنفيذ): علامة «بدون Real» على رابط DZS

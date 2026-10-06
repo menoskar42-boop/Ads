@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Server, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
-import { execDeviceLabel, execTabId, executeBatch, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
+import { execDeviceLabel, execTabId, executeBatch, measureBatchUrl, EXEC_MEASURE_STALL_MS, latestOpAt, latestPoEventAt, latestSubInfoAt, refreshDueExecBatch, recoverTimedOutMeasure, requestExecPreempt, scheduleExecBatchRefresh, sleep, PHONE_LOOKUP_SOURCE, NOREAL_MARK, QUEUE_LABEL, type ExecJob, type ExecJobType } from "@/lib/exec-queue";
 import { rescueMinutes } from "@shared/exec-timeouts";
 
 // ── إبقاء تاب جهاز التنفيذ صاحى ─────────────────────────────────────────────
@@ -585,8 +585,26 @@ export function ExecutorButton() {
           if (noReal && !reopened && Date.now() - lastProgressAt >= stallLimit) {
             reopened = true;
             console.warn(`[exec] «بدون Real» تاب ${lane} مفيش نتيجة من دقيقة — بفتحه من الأول`);
-            const again = executeBatch("measure", accs, { fixRecent, noReal, lane });
-            if (again) { win = again; lastMeasureWin.current.set(lane, win); }
+            // بنحرّك **نفس التاب** بالمرجع اللى معانا. window.open(url, اسم التاب) ماكانش
+            // بيلاقيه: AXON بيحوّله على 10.42.187.101:8081/…/login-page?sessionExpired=true
+            // (أصل تانى ومابيردّش)، وEdge بيمسح اسم التاب مع النقلة دى — فكان بيفتح تاب جديد
+            // والقديم يفضل «can't reach this page» للأبد (المالك ٢٠٢٦-١٠-٠٦، تابات متكوّمة).
+            let moved = false;
+            // about:blank الأول: لو التاب واقف على صفحة DZS نفسها، نفس الرابط بهاشه بيبقى
+            // تغيير هاش بس من غير تحميل — كده بيتحمّل من أول وجديد.
+            try {
+              if (win && !win.closed) {
+                win.location.href = "about:blank";
+                await sleep(500);
+                if (!win.closed) { win.location.href = measureBatchUrl(accs, { fixRecent, noReal, lane }); moved = true; }
+              }
+            } catch {}
+            if (!moved) {
+              closeWin();
+              win = executeBatch("measure", accs, { fixRecent, noReal, lane });
+              if (!win) { setPopupBlocked(true); return POPUP_BLOCKED; }
+              lastMeasureWin.current.set(lane, win);
+            }
             lastProgressAt = Date.now();
             continue;
           }

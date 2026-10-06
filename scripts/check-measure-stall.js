@@ -22,7 +22,9 @@ if (/measureStartedAt/.test(m)) errors.push('الحارس بيقيس من أول
 if (!/if \(chk\.measured > lastMeasured\) \{ lastMeasured = chk\.measured; lastProgressAt = Date\.now\(\); \}/.test(m)) {
   errors.push('آخر تقدّم لازم يتحدّث مع كل خط جديد اتقاس');
 }
-if (!/if \(Date\.now\(\) - lastProgressAt >= STALL_MS\)/.test(m)) errors.push('الحارس لازم يقيس من آخر تقدّم');
+// «بدون Real» بمهلة دقيقة لوحدها (المالك ٢٠٢٦-١٠-٠٦) — بس برضه من آخر تقدّم، مش من أول الباتش
+if (!/const stallLimit = noReal \? NOREAL_STALL_MS : STALL_MS;/.test(m)) errors.push('مهلة التوقّف لازم تبقى STALL_MS (أو دقيقة «بدون Real» بس)');
+if (!/if \(Date\.now\(\) - lastProgressAt >= stallLimit\)/.test(m)) errors.push('الحارس لازم يقيس من آخر تقدّم');
 if (errors.length) {
   console.log('❌ check-measure-stall:');
   errors.forEach((e) => console.log('   · ' + e));
