@@ -2337,6 +2337,16 @@ export async function registerRoutes(
   // السقف = MAX_LANES فى جهاز التنفيذ. ١ = تاب واحد زى القديم.
   const EXEC_LANES_MAX = 8;
   const EXEC_LANE_KEYS = { noreal: "exec_lanes_noreal", stop: "exec_lanes_stop" } as const;
+  // فترة «تحديث التقارير اليومية» التلقائى (كانت ٣٠ دقيقة ثابتة فى الكود — المالك ٢٠٢٦-١٠-٠٦)
+  const REFRESH_MINUTES_KEY = "exec_lanes_refresh_minutes";   // نفس البادئة = تعديله سوبر أدمن بس
+  const REFRESH_MINUTES_DEFAULT = 30, REFRESH_MINUTES_MIN = 5, REFRESH_MINUTES_MAX = 240;
+  const readRefreshMinutes = async (): Promise<number> => {
+    try {
+      const { rows } = await pool.query(`SELECT value FROM app_settings WHERE key = $1`, [REFRESH_MINUTES_KEY]);
+      const n = parseInt(String(rows[0]?.value ?? ""), 10);
+      return Number.isFinite(n) ? Math.min(REFRESH_MINUTES_MAX, Math.max(REFRESH_MINUTES_MIN, n)) : REFRESH_MINUTES_DEFAULT;
+    } catch { return REFRESH_MINUTES_DEFAULT; }
+  };
   type ExecLanes = { noreal: number; stop: number };
   const clampLanes = (v: any, def: number) => {
     const n = parseInt(String(v ?? ""), 10);
@@ -2388,8 +2398,10 @@ export async function registerRoutes(
       const { rows } = await pool.query(
         `SELECT (MAX(updated_at) AT TIME ZONE 'Africa/Cairo') AS "updatedAt",
                 (ARRAY_AGG(updated_by ORDER BY updated_at DESC))[1] AS "updatedBy"
-           FROM app_settings WHERE key = ANY($1::text[])`, [Object.values(EXEC_LANE_KEYS)]);
-      res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES }, max: EXEC_LANES_MAX, ...(rows[0] || {}) });
+           FROM app_settings WHERE key = ANY($1::text[])`, [[...Object.values(EXEC_LANE_KEYS), REFRESH_MINUTES_KEY]]);
+      res.json({ ...lanes, defaults: { noreal: NOREAL_LANES, stop: POSTOP_LANES, refreshMinutes: REFRESH_MINUTES_DEFAULT },
+        max: EXEC_LANES_MAX, refreshMinutes: await readRefreshMinutes(),
+        refreshRange: { min: REFRESH_MINUTES_MIN, max: REFRESH_MINUTES_MAX }, ...(rows[0] || {}) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.put("/api/exec-queue/lanes", requireAuth, requireSuperAdmin, async (req: any, res) => {
@@ -2404,13 +2416,19 @@ export async function registerRoutes(
           return res.status(400).json({ message: `عدد التابات لازم يكون من 1 لـ ${EXEC_LANES_MAX}` });
         vals.push([EXEC_LANE_KEYS[k], n]);
       }
+      if (body.refreshMinutes != null) {
+        const m = parseInt(String(body.refreshMinutes), 10);
+        if (!Number.isFinite(m) || m < REFRESH_MINUTES_MIN || m > REFRESH_MINUTES_MAX)
+          return res.status(400).json({ message: `فترة التحديث لازم تكون من ${REFRESH_MINUTES_MIN} لـ ${REFRESH_MINUTES_MAX} دقيقة` });
+        vals.push([REFRESH_MINUTES_KEY, m]);
+      }
       for (const [key, n] of vals) {
         await pool.query(
           `INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES ($1, $2, now(), $3)
            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`,
           [key, String(n), by]);
       }
-      res.json({ ok: true, ...(await readExecLanes(pool)) });
+      res.json({ ok: true, ...(await readExecLanes(pool)), refreshMinutes: await readRefreshMinutes() });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 

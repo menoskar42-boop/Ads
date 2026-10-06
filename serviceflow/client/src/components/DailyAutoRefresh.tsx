@@ -8,7 +8,8 @@ import { runDailyUpdate } from "@/lib/daily-update";
 // قبل كده كان المؤقّت جوّه قسم «رفع الملفات»، فماكانش بيشتغل إلا وإنت فاتح التاب ده،
 // وكان بيخزّن التحديث ويطلّعه كله مرة واحدة أول ما تدوس على القسم. دلوقتى بيشتغل فى الخلفية
 // على أى تاب طول ما الموقع مفتوح (سوبر أدمن فقط، ومُفعَّل بزر «كل نص ساعة»).
-const AUTO_INTERVAL_MS = 30 * 60 * 1000;
+// الفترة بقت من الإعدادات («رفع الملفات ← إعدادات» — المالك ٢٠٢٦-١٠-٠٦)؛ ٣٠ دقيقة لو مفيش إعداد.
+const DEFAULT_INTERVAL_MIN = 30;
 
 export function DailyAutoRefresh() {
   const { user } = useAuth();
@@ -31,6 +32,13 @@ export function DailyAutoRefresh() {
     enabled: isSuper && active,
     refetchInterval: 5 * 60 * 1000,
   });
+  const { data: lanes } = useQuery<{ refreshMinutes?: number }>({
+    queryKey: ["/api/exec-queue/lanes"],
+    queryFn: () => fetch("/api/exec-queue/lanes", { credentials: "include" }).then((r) => r.json()),
+    enabled: isSuper && active,
+    refetchInterval: 10 * 60 * 1000,
+  });
+  const intervalMs = Math.max(5, Number(lanes?.refreshMinutes) || DEFAULT_INTERVAL_MIN) * 60 * 1000;
   const uploadTimesRef = useRef(uploadTimes);
   useEffect(() => { uploadTimesRef.current = uploadTimes; }, [uploadTimes]);
 
@@ -43,7 +51,7 @@ export function DailyAutoRefresh() {
     };
     // مفيش تشغيل فورى عند التركيب — بس فحص دورى كل 60ث؛ يشغّل أول ما يعدّى 30 دقيقة من آخر تشغيل.
     // كده ما بيطلعش الصفحات لمجرّد ما نفتح الموقع/نبدّل تاب، وبيلحق أى موعد فات خلال دقيقة.
-    const check = () => { if (Date.now() - readLast() >= AUTO_INTERVAL_MS) tick(); };
+    const check = () => { if (Date.now() - readLast() >= intervalMs) tick(); };
     // عند فتح الموقع من جديد بعد إغلاقه/تحديثه، افحص فوراً بدل انتظار أول دورة
     // من المؤقت؛ لو مرّت 30 دقيقة منذ آخر تشغيل يبدأ التحديث مباشرة.
     check();
@@ -52,7 +60,7 @@ export function DailyAutoRefresh() {
     document.addEventListener("visibilitychange", onWake);
     window.addEventListener("focus", onWake);
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", onWake); window.removeEventListener("focus", onWake); };
-  }, [isSuper, active]);
+  }, [isSuper, active, intervalMs]);
 
   return null;
 }

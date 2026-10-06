@@ -404,6 +404,14 @@ export function FileUploadSection() {
   const { user } = useAuth();
   // شريط أزرار التحكّم (تحديث/431/430D/منافذ MSAN/التقارير اليومية/كل نص ساعة/مراجعة الاسم) — سوبر أدمن فقط
   const isSuperAdmin = user?.role === ROLES.SUPER_ADMIN;
+  // فترة التحديث التلقائى من الإعدادات (كانت «نص ساعة» ثابتة) — للنص على الزرار بس
+  const { data: execSettings } = useQuery<{ refreshMinutes?: number }>({
+    queryKey: ["/api/exec-queue/lanes"],
+    queryFn: () => fetch("/api/exec-queue/lanes", { credentials: "include" }).then((r) => r.json()),
+    enabled: isSuperAdmin,
+  });
+  const refreshMin = Number(execSettings?.refreshMinutes) || 30;
+  const refreshLabel = refreshMin === 30 ? "نص ساعة" : refreshMin === 60 ? "ساعة" : `${refreshMin} دقيقة`;
   const [tab, setTab] = useState<"maintenance" | "tickets" | "ticketsFtth" | "details" | "remaining" | "ftth" | "case138" | "ports" | "orders" | "cabinTech" | "techNames">("maintenance");
   const [orderBucket, setOrderBucket] = useState<"historical" | "current" | "archive">("historical");
   const [dateFrom, setDateFrom] = useState("");
@@ -697,10 +705,10 @@ export function FileUploadSection() {
           onClick={toggleHourly}
           variant={hourlyAuto ? "default" : "outline"}
           className={`gap-2 ${hourlyAuto ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "border-emerald-300 text-emerald-700"}`}
-          title="يشغّل «حدّث التقارير اليومية» تلقائياً كل نص ساعة على هذا الجهاز فقط، طالما الموقع مفتوح. يتطلب السماح بالنوافذ المنبثقة (pop-ups) للموقع."
+          title={`يشغّل «حدّث التقارير اليومية» تلقائياً كل ${refreshLabel} على هذا الجهاز فقط، طالما الموقع مفتوح. الفترة بتتغيّر من «إعدادات». يتطلب السماح بالنوافذ المنبثقة (pop-ups) للموقع.`}
         >
           <Clock className="w-4 h-4" />
-          {hourlyAuto ? "التحديث كل نص ساعة: مُفعَّل ✓" : "شغّل كل نص ساعة (هذا الجهاز)"}
+          {hourlyAuto ? `التحديث كل ${refreshLabel}: مُفعَّل ✓` : `شغّل كل ${refreshLabel} (هذا الجهاز)`}
         </Button>
         {hourlyAuto && lastAutoRun && (() => {
           const res = Object.entries(lastOutcome || {});
