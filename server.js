@@ -1052,6 +1052,24 @@ async function initDb() {
       -- sharing a link. NULLs do not collide in Postgres, so rows that predate
       -- this column are unaffected.
       CREATE UNIQUE INDEX IF NOT EXISTS idx_signup_track_token ON signup_applications (track_token);
+      -- آراء التجار فى OscarDevs (قرار المالك ٢٠٢٦-١٠-٠٦): التاجر بيكتب رأيه من حسابه،
+      -- المالك بيوافق من لوحة الأدمن، والرئيسية بتعرض القسم من أول ٣ آراء معتمدة.
+      -- رأى واحد لكل شركة (UNIQUE) — التعديل بيرجّعه «بانتظار الموافقة».
+      CREATE TABLE IF NOT EXISTS platform_testimonials (
+        id           SERIAL PRIMARY KEY,
+        company_id   INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+        author_name  TEXT NOT NULL,
+        author_role  TEXT,
+        body         TEXT NOT NULL,
+        rating       SMALLINT NOT NULL DEFAULT 5,
+        consent_at   TIMESTAMPTZ NOT NULL,
+        status       TEXT NOT NULL DEFAULT 'pending',
+        reviewed_at  TIMESTAMPTZ,
+        reviewed_by  INTEGER,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS idx_platform_testimonials_status ON platform_testimonials (status, reviewed_at DESC);
       ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES product_categories(id);
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_top TEXT;
       ALTER TABLE companies ADD COLUMN IF NOT EXISTS adsense_sidebar TEXT;

@@ -54,6 +54,7 @@ function adminSession(req) {
 router.use(async (req, res, next) => {
   res.locals.unreadCount = 0;
   res.locals.pendingAppsCount = 0;
+  res.locals.pendingTestimonialsCount = 0;
   if (req.session.adminId) {
     try {
       const r = await pool.query('SELECT COUNT(*) FROM contact_messages WHERE is_read = false');
@@ -62,6 +63,10 @@ router.use(async (req, res, next) => {
     try {
       const r = await pool.query("SELECT COUNT(*) FROM signup_applications WHERE status = 'pending'");
       res.locals.pendingAppsCount = parseInt(r.rows[0].count, 10);
+    } catch (e) { /* badge is non-critical */ }
+    try {
+      const r = await pool.query("SELECT COUNT(*) FROM platform_testimonials WHERE status = 'pending'");
+      res.locals.pendingTestimonialsCount = parseInt(r.rows[0].count, 10);
     } catch (e) { /* badge is non-critical */ }
   }
   next();
@@ -547,6 +552,36 @@ router.post('/companies/:id/reset-password', requireAdmin, async (req, res) => {
 });
 
 /* ─── MESSAGES ───────────────────────────────────────────── */
+/* ─── آراء التجار (الرئيسية) ───────────────────────────────
+ * التاجر بيكتبه من /company/testimonial؛ هنا الموافقة. الرئيسية بتعرض القسم من أول
+ * ٣ معتمدين (src/lib/platform_testimonials.js). */
+const platformTestimonials = require('../lib/platform_testimonials');
+router.get('/testimonials', requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT t.*, c.company_name, c.slug, c.is_active
+       FROM platform_testimonials t JOIN companies c ON c.id = t.company_id
+      ORDER BY CASE t.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, t.updated_at DESC`);
+  const approvedLive = rows.filter((r) => r.status === 'approved' && r.is_active).length;
+  const flash = req.session.adminFlash || null;
+  req.session.adminFlash = null;
+  res.render('admin/testimonials', {
+    session: adminSession(req), activePage: 'testimonials', flash,
+    rows, approvedLive, MIN_TO_SHOW: platformTestimonials.MIN_TO_SHOW, MAX_SHOWN: platformTestimonials.MAX_SHOWN,
+  });
+});
+router.post('/testimonials/:id/status', requireAdmin, async (req, res) => {
+  const status = String((req.body && req.body.status) || '');
+  if (!platformTestimonials.STATUSES.includes(status)) return res.redirect('/admin/testimonials');
+  await pool.query(
+    `UPDATE platform_testimonials
+        SET status=$1, reviewed_at=CASE WHEN $1='pending' THEN NULL ELSE now() END,
+            reviewed_by=CASE WHEN $1='pending' THEN NULL ELSE $2::int END, updated_at=now()
+      WHERE id=$3`, [status, req.session.adminId, parseInt(req.params.id, 10) || 0]);
+  req.session.adminFlash = { type: 'success',
+    message: status === 'approved' ? 'اتوافق على الرأي.' : status === 'rejected' ? 'الرأي اترفض ومش هيتنشر.' : 'الرأي رجع لـ«بانتظار الموافقة».' };
+  res.redirect('/admin/testimonials');
+});
+
 router.get('/messages', requireAdmin, async (req, res) => {
   try {
     const filter = req.query.company ? parseInt(req.query.company, 10) : null;

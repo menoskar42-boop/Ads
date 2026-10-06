@@ -72,6 +72,16 @@
           <span class="bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-0.5"><%= pendingAppsCount %></span>
         <% } %>
       </a>
+      <a href="/admin/testimonials"
+        class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition <%= activePage==='testimonials' ? 'nav-active' : 'text-gray-600 hover:bg-gray-50' %>">
+        <span class="flex items-center gap-3">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.48 3.5a.56.56 0 011.04 0l2.13 4.32 4.77.69a.56.56 0 01.31.96l-3.45 3.36.81 4.75a.56.56 0 01-.81.59L12 15.92l-4.27 2.25a.56.56 0 01-.81-.59l.81-4.75-3.45-3.36a.56.56 0 01.31-.96l4.77-.69 2.13-4.32z"/></svg>
+          آراء العملاء
+        </span>
+        <% if (typeof pendingTestimonialsCount !== 'undefined' && pendingTestimonialsCount > 0) { %>
+          <span class="bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-0.5"><%= pendingTestimonialsCount %></span>
+        <% } %>
+      </a>
       <a href="/admin/messages"
         class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition <%= activePage==='messages' ? 'nav-active' : 'text-gray-600 hover:bg-gray-50' %>">
         <span class="flex items-center gap-3">

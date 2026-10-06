@@ -91,6 +91,14 @@ const PAGES = {
     locals: { sent: false, contactError: null, latestArticles: latest,
       ogImage: SITE + '/og-default.png' },
   },
+  // الرئيسية وفيها قسم «آراء العملاء» (بيظهر من أول ٣ معتمدين) — لازم تفضل سليمة سيو.
+  home_testimonials: {
+    file: 'home.ejs',
+    locals: { sent: false, contactError: null, latestArticles: latest,
+      ogImage: SITE + '/og-default.png',
+      testimonials: [1, 2, 3].map((i) => ({ author_name: 'عميل ' + i, author_role: 'صاحب نشاط', rating: 5,
+        body: 'النظام وفّر علينا وقت كتير في متابعة الطلبات والفواتير كل يوم.', company_name: 'نشاط ' + i, slug: 'shop' + i })) },
+  },
   about:   { file: 'legal/about.ejs',   locals: {} },
   faq:     { file: 'legal/faq.ejs',     locals: {} },
   terms:   { file: 'legal/terms.ejs',   locals: {} },

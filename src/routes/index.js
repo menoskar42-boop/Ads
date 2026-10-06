@@ -13,8 +13,12 @@ const LATEST_ARTICLES = ARTICLES.slice()
   .sort((a, b) => b.date.localeCompare(a.date))
   .slice(0, 6);
 
-router.get('/', (req, res) => {
+const platformTestimonials = require('../lib/platform_testimonials');
+router.get('/', async (req, res) => {
+  // آراء التجار المعتمدة — [] لحد ما يبقى فيه ٣ (القسم مابيظهرش). مابيوقّعش الصفحة لو القاعدة وقعت.
+  const testimonials = await platformTestimonials.forHome(pool);
   res.render('home', {
+    testimonials,
     sent: req.query.sent === '1',
     contactError: req.query.error || null,
     showAds: true, // marketing homepage is content

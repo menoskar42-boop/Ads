@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>رأيك في OscarDevs</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/css/tw.css" />
+<style>* { font-family: 'Cairo', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+<%# صفحة مستقلة (مش جوّه لوحة /company) عشان تشتغل لتاجر أى قطاع — الورشة والصيدلية
+    والعيادة… كل واحد ليه لوحته، والمالك بيبعتله اللينك ده مباشرة. %>
+<main class="max-w-2xl mx-auto px-4 py-12">
+  <div class="bg-white rounded-2xl shadow p-6 sm:p-8">
+    <h1 class="text-2xl font-extrabold text-gray-900 mb-2">رأيك في OscarDevs</h1>
+    <p class="text-gray-500 text-sm leading-relaxed mb-6">
+      رأيك بيساعد أصحاب الأنشطة التانية يقرّروا. بيتراجع قبل ما يتنشر على الصفحة الرئيسية،
+      وبيظهر باسمك واسم نشاطك<%= companyName ? ' («' + companyName + '»)' : '' %> ورابط صفحتك.
+    </p>
+
+    <% if (saved) { %>
+      <div class="bg-green-50 border border-green-200 text-green-800 rounded-xl px-4 py-3 text-sm mb-5">
+        اتسجّل رأيك — شكراً ليك. هيظهر بعد المراجعة.
+      </div>
+    <% } %>
+    <% if (mine && !saved) { %>
+      <div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm mb-5">
+        حالة رأيك:
+        <strong><%= mine.status === 'approved' ? 'منشور' : mine.status === 'rejected' ? 'مش هيتنشر' : 'بانتظار المراجعة' %></strong>.
+        أي تعديل بيرجّعه للمراجعة من الأول.
+      </div>
+    <% } %>
+    <% if (error) { %>
+      <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-5" role="alert"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/company/testimonial" class="space-y-4">
+      <div>
+        <label for="t-name" class="block text-sm font-semibold text-gray-700 mb-1.5">اسمك *</label>
+        <input id="t-name" name="author_name" required maxlength="80" value="<%= values.author_name || '' %>"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <div>
+        <label for="t-role" class="block text-sm font-semibold text-gray-700 mb-1.5">صفتك (اختياري)</label>
+        <input id="t-role" name="author_role" maxlength="80" placeholder="مثلاً: صاحب الورشة" value="<%= values.author_role || '' %>"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+      </div>
+      <fieldset>
+        <legend class="block text-sm font-semibold text-gray-700 mb-1.5">تقييمك *</legend>
+        <div class="flex gap-2 flex-wrap">
+          <% [5,4,3,2,1].forEach(function(n){ %>
+            <label class="flex items-center gap-1 border border-gray-200 rounded-xl px-3 py-2 text-sm cursor-pointer">
+              <input type="radio" name="rating" value="<%= n %>" <%= Number(values.rating) === n ? 'checked' : '' %> required />
+              <span aria-hidden="true"><%= '★'.repeat(n) %></span><span class="sr-only"><%= n %> من 5</span>
+            </label>
+          <% }) %>
+        </div>
+      </fieldset>
+      <div>
+        <label for="t-body" class="block text-sm font-semibold text-gray-700 mb-1.5">رأيك *</label>
+        <textarea id="t-body" name="body" required minlength="<%= T.BODY_MIN %>" maxlength="<%= T.BODY_MAX %>" rows="5"
+          placeholder="إيه اللي اتغيّر في شغلك من ساعة ما بدأت تستخدم النظام؟"
+          class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"><%= values.body || '' %></textarea>
+        <p class="text-xs text-gray-400 mt-1">من <%= T.BODY_MIN %> لـ <%= T.BODY_MAX %> حرف.</p>
+      </div>
+      <label class="flex items-start gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="consent" value="1" required class="mt-1" />
+        <span><%= T.CONSENT_TEXT %>.</span>
+      </label>
+      <button type="submit" class="bg-indigo-700 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-800 transition shadow">
+        <%= mine ? 'حفظ التعديل' : 'إرسال رأيي' %>
+      </button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

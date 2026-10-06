@@ -675,11 +675,33 @@
   <%- include('partials/ad_unit', { slot: ads.slots.homeMid }) %>
 </div>
 
-<%# قسم «آراء العملاء» اتشال (قرار المالك ٢٠٢٦-١٠-٠٦): الآراء المخترعة كانت اتشالت من
-    ٢٠٢٦-٠٨-٠٦ (AdSense «Misrepresentation»)، والقسم البديل «اللي بنسلّمه فعلاً» اتشال كمان
-    بطلبه. لما يبقى فيه آراء حقيقية (اسم + نشاط + لينك) ترجع هنا.
-    إعلان homeBottom اتنقل تحت قسم السيو — من غير القسم كان هيبقى لازق فى homeMid
-    (إعلانين ورا بعض من غير محتوى = مخالفة تنسيب). %>
+<%# «آراء العملاء» (قرار المالك ٢٠٢٦-١٠-٠٦): آراء التجار الحقيقيين بس — بيكتبوها من
+    /company/testimonial والمالك بيوافق من /admin/testimonials. القسم مابيترسمش أصلاً (مش
+    مخفى بـCSS — نص مخفى = cloaking) غير من أول ٣ معتمدين. الآراء المخترعة اتشالت
+    ٢٠٢٦-٠٨-٠٦ (AdSense «Misrepresentation») ومش راجعة.
+    ⚠️ مفيش سكيمة Review/AggregateRating هنا عمداً: آراء عن المنظّمة نفسها على موقعها
+    «self-serving» ومش مؤهّلة لنجوم جوجل — وحطّها مخالفة لإرشادات البيانات المنظّمة. %>
+<% if (typeof testimonials !== 'undefined' && testimonials.length >= 3) { %>
+<section class="testimonials" id="testimonials">
+  <div class="services-header reveal">
+    <div class="section-tag">⭐ آراء عملائنا</div>
+    <h2 class="section-title reveal">أصحاب أنشطة <em>بيستخدموا النظام فعلاً</em></h2>
+    <p class="section-sub reveal" style="margin-inline:auto">كل رأي تحت مكتوب من حساب صاحبه على المنصّة، ومعاه رابط صفحته</p>
+  </div>
+  <div class="services-grid" style="max-width:1100px;margin-inline:auto">
+    <% testimonials.forEach(function(t){ %>
+      <figure class="service-card reveal" style="margin:0">
+        <div class="service-icon" aria-label="<%= t.rating %> من 5" style="font-size:1rem;letter-spacing:2px;color:#f59e0b"><%= '★'.repeat(t.rating) %></div>
+        <blockquote class="service-desc" style="margin:0 0 12px;white-space:pre-line"><%= t.body %></blockquote>
+        <figcaption class="service-name" style="font-size:1rem">
+          <%= t.author_name %><% if (t.author_role) { %> <span style="opacity:.7;font-weight:400">· <%= t.author_role %></span><% } %>
+          <br><a href="https://<%= t.slug %>.oscardevs.com" target="_blank" rel="noopener" style="font-size:.85rem;font-weight:600;text-decoration:underline"><%= t.company_name %></a>
+        </figcaption>
+      </figure>
+    <% }) %>
+  </div>
+</section>
+<% } %>
 
 <!-- CTA -->
 <section class="cta-section" id="contact">

@@ -2812,4 +2812,45 @@ router.post('/staff/:id/delete', requireLogin, async (req, res) => {
   res.redirect('/company/staff?saved=1');
 });
 
+/* ─── رأيك فى OscarDevs ──────────────────────────────────────
+ * التاجر بيكتب رأيه من حسابه (صاحب الحساب بس — مش موظف ولا جلسة ديمو)، والمالك
+ * بيوافق من /admin/testimonials. الرئيسية بتعرض القسم من أول ٣ آراء معتمدة.
+ * src/lib/platform_testimonials.js */
+const testimonials = require('../lib/platform_testimonials');
+function testimonialOwner(req) {
+  return !!(req.session && req.session.companyUserId && !demoMode.isDemoSession(req)
+    && !demoMode.isDemoSlug(req.session.companySlug));
+}
+router.get('/testimonial', requireLogin, async (req, res) => {
+  if (!testimonialOwner(req)) return res.redirect('/company/login');
+  const mine = (await pool.query(
+    'SELECT * FROM platform_testimonials WHERE company_id = $1', [req.session.companyId])).rows[0] || null;
+  res.render('company/testimonial', {
+    mine, values: mine ? { author_name: mine.author_name, author_role: mine.author_role || '', body: mine.body, rating: mine.rating } : {},
+    error: null, saved: req.query.saved === '1', T: testimonials, companyName: req.session.companyName,
+  });
+});
+router.post('/testimonial', requireLogin, async (req, res) => {
+  if (!testimonialOwner(req)) return res.redirect('/company/login');
+  const v = testimonials.validate(req.body);
+  if (v.error) {
+    const mine = (await pool.query(
+      'SELECT * FROM platform_testimonials WHERE company_id = $1', [req.session.companyId])).rows[0] || null;
+    return res.status(400).render('company/testimonial', {
+      mine, values: req.body || {}, error: v.error, saved: false, T: testimonials, companyName: req.session.companyName,
+    });
+  }
+  const { name, role, text, rating } = v.value;
+  // رأى واحد لكل شركة: التعديل بيرجّعه «بانتظار الموافقة» — المالك وافق على نص، مش على أى نص.
+  await pool.query(
+    `INSERT INTO platform_testimonials (company_id, author_name, author_role, body, rating, consent_at, status)
+     VALUES ($1,$2,$3,$4,$5, now(), 'pending')
+     ON CONFLICT (company_id) DO UPDATE
+        SET author_name=EXCLUDED.author_name, author_role=EXCLUDED.author_role, body=EXCLUDED.body,
+            rating=EXCLUDED.rating, consent_at=now(), status='pending', reviewed_at=NULL, reviewed_by=NULL,
+            updated_at=now()`,
+    [req.session.companyId, name, role, text, rating]);
+  res.redirect('/company/testimonial?saved=1');
+});
+
 module.exports = router;
