@@ -24,7 +24,8 @@ test("استيراد WFM بيرفض الملف الناقص قبل أى كتاب
 
 test("سكربت التصدير مابيشتغلش على تاب «موافقة تغيير بورت»", () => {
   assert.match(allInOne, /var _ma = _h\.match\(\/sf_accept\(\?:=\|%3D\)\(\\d\+\)\/i\);/);
-  assert.match(allInOne, /sessionStorage\.getItem\('sf_wfm_accept_pending'\) \|\| sessionStorage\.getItem\('sf_accept_pending'\)/);
-  const wfmBranch = allInOne.slice(allInOne.indexOf("else if (host.startsWith('wfm.te.eg'))"));
-  assert.ok(wfmBranch.indexOf("if (acceptPending)") < wfmBranch.indexOf("await runWFM();"), "الفحص قبل runWFM");
+  // v3.5.0: الراوتر بيصدّر **بس** على تاب daily — تاب الموافقة نوعه accept فمابيوصلش لـ runWFM
+  const router = allInOne.slice(allInOne.indexOf("async function runWfmRouter()"));
+  assert.ok(router.indexOf("if (mode !== 'daily')") < router.indexOf("await runWFM();"), "الفحص قبل runWFM");
+  assert.match(allInOne, /var _newMode = _mc \? 'cancel' : \(_ma \? 'accept'/);
 });

@@ -13,7 +13,8 @@ test("a slow WFM login keeps the cancel flag so the export flow stays off that t
   assert.doesNotMatch(login, /clearPending\(\)/);
   assert.match(us, /!onLoginPage\(\) && findServiceIdInput\(\), 90000\)/);
   // والسكربت الشامل بيقف على أى تاب فيه العلامة
-  assert.match(allInOne, /if \(cancelPending\) \{ log\('⏭ تاب إلغاء إسناد/);
+  // والسكربت المدموج (v3.5.0) مابيصدّرش غير على تاب daily — تاب الإلغاء نوعه cancel
+  assert.match(allInOne, /if \(mode !== 'daily'\) \{ log\('⏭ مش تاب تحديث يومى/);
 });
 
 test("WFM scripts log in with the FCC account", () => {

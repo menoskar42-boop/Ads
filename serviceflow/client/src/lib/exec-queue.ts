@@ -48,6 +48,9 @@ const PROV_URL = "https://provisioningportal.te.eg/provisioningPortal/";
 const WFM_HOME_URL = "https://wfm.te.eg/WorkOrder/faces/Home";
 const WFM_REPORTS_URL = "https://wfm.te.eg/WfmReports/#/login";
 const WFM_LOGIN_URL = "https://wfm.te.eg/WorkOrder/faces/security/pages/Login.jsf";
+// تاب التحديث اليومى لأوامر الشغل لازم يتفتح بالعلامة دى: سكربت «TE FCC + WFM» (v3.5.0) مابيصدّرش
+// غير على تاب عليه #sf_wfm_daily — أى تاب WFM تانى (إلغاء/موافقة/فتح يدوى) مابيصدّرش أبداً.
+const WFM_DAILY_URL = `${WFM_LOGIN_URL}#sf_wfm_daily`;
 const OSS_URL = "https://oss.te.eg:15201/om";
 const WEOAS_URL = "https://we-oas.te.eg/bi-security-login/login.jsp?msi=false&mt=false&profileMust=true&redirect=L2R2L3VpL2hvbWUuanNwP3BhZ2VpZD1ob21lJmhhc2g9aTRPeDNTVkNPXzVLUUswc2lHUThxUTFNQVp6MGRTLVg5aXgzRGQ5RmlHUVJKd3M5cnNZcGQyaURJRjZUZEZWZQ==";
 
@@ -88,7 +91,7 @@ export function reserveOpWindow(type: ExecJobType): Window | null {
     // للطابور ليُعاد استخدامه عند تنفيذ المهمة على نفس المتصفح.
     const initialUrl = ({
       fccdaily: FCC_URL,
-      wfmdaily: WFM_LOGIN_URL,
+      wfmdaily: WFM_DAILY_URL,
       ossdaily: OSS_URL,
       ports: `${PROV_URL}?sf_ports=1#/login`,
       weoas: WEOAS_URL,
@@ -338,7 +341,7 @@ export function openOpSite(type: ExecJobType, key: string, params?: ExecJobParam
       // (Accept) ← السهم (Start) ← المربع (Change Port). الدخول على المستخدم نفسه.
       return openUrl(`${WFM_HOME_URL}#sf_accept=${encodeURIComponent(short)}`, WFM_TAB, existing);
     case "wfmreport":  return openUrl(WFM_REPORTS_URL, WFM_TAB, existing);
-    case "wfmdaily":   return openUrl(WFM_LOGIN_URL, WFM_TAB, existing);
+    case "wfmdaily":   return openUrl(WFM_DAILY_URL, WFM_TAB, existing);
     case "fccdaily":  return openUrl(FCC_URL, "fcc_daily", existing);
     case "ossdaily":  return openUrl(OSS_URL, "oss_daily", existing);
     case "weoas":     return openUrl(WEOAS_URL, "weoas_430d", existing);
