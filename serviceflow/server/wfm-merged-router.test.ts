@@ -41,3 +41,12 @@ test("a new marker clears the other modules' leftovers; a hash-only new job relo
   assert.match(us, /\/\/ @grant {8}unsafeWindow/);
   assert.match(us, /PAGE_WIN\.AdfPage && PAGE_WIN\.AdfPage\.PAGE/);
 });
+
+// v3.5.1: Service-Flow اللى لسه ماتعملهوش Republish بيفتح التحديث اليومى على Login.jsf من غير
+// علامة — والتصدير وقف (المالك ٢٠٢٦-١٠-٠٦، الساعة ٦). اتجرّب على jsdom: Login.jsf فاضى ⇒ daily،
+// تاب إلغاء/موافقة لسه بادئ (<٣ دقايق) أو عليه طلب شغّال ⇒ يفضل زى ما هو، Home من غير علامة ⇒ ولا حاجة.
+test("a bare WFM login page counts as the daily update unless a cancel/accept job owns the tab", () => {
+  assert.match(us, /if \(!_newMode && \/\\\/Login\\\.jsf\/i\.test\(location\.pathname\) && !\/sf_\/i\.test\(_h\)\) \{/);
+  assert.match(us, /var _recent = \(_pm === 'cancel' \|\| _pm === 'accept'\) && Date\.now\(\) - _pts < 3 \* 60 \* 1000;/);
+  assert.match(us, /if \(!_busy && !_recent\) _newMode = 'daily';/);
+});
