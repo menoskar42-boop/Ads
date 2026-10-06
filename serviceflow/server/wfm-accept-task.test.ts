@@ -38,14 +38,30 @@ test("userscript: no password, confirms each dialog by text, same row only, Succ
   assert.doesNotMatch(us, /const PASS\b|password\s*[:=]\s*["']/i);
   assert.match(us, /\/\/ @match {8}https:\/\/wfm\.te\.eg\/WorkOrder\/\*/);
   assert.match(us, /askYes\(clickableOf\(green\.el\), \/accept\\s\*this\\s\*task\/i, "Accept"\)/);
-  assert.match(us, /askYes\(startIcon, \/start\\s\*this\\s\*task\/i, "Start"\)/);
+  // Start بقى جوّه continueRow: نفس الأيقونة بتفتح Start أو Update (لو المهمة كانت بدأت)
+  assert.match(us, /dialogWith\(\/start\\s\*this\\s\*task\/i\) \|\| dialogWith\(\/update\\s\*work\\s\*status\/i\)/);
   assert.match(us, /dialogWith\(\/update\\s\*work\\s\*status\/i\)/);
   assert.match(us, /ensureSelect\(upd, \/close\\s\*code\/i, \/\^success\$\/i/);
   assert.match(us, /ensureSelect\(upd, \/status\\s\*name\/i, \/\^change\\s\*port\$\/i/);
   // الخطوتين التانية والتالتة على نفس Work Id بتاع الزرار الأخضر
-  assert.match(us, /const startIcon = await waitFor\(\(\) => actionIcon\(wid\), 15000\);/);
+  assert.match(us, /const icon = await waitFor\(\(\) => actionIcon\(wid\), 15000\);/);
   assert.match(us, /const doneIcon = await waitFor\(\(\) => actionIcon\(wid\), 15000\);/);
   // مابيضغطش Save ولا Reload بتوع أمر الشغل
   assert.doesNotMatch(us, /\/\^\(?save|\/\^reload/i);
   assert.match(us, /"\/api\/wfm-tasks\/accept-ingest"/);
+});
+
+// v1.4.0 (المالك ٢٠٢٦-١٠-٠٦): Work Id كان بيتاخد من صف التخطيط اللى حاوى الجدول كله (أول صف =
+// مهمة الفنى Fix FME) فـ«بدء المهمة» فتح «Update Work Status» بتاعة الفنى. اتجرّب على jsdom
+// بجدول جوّه صف تخطيط: القبول والبدء والتحديث كلهم على صف Fix External Affairs.
+test("userscript: only innermost rows, direct cells, and only the External Affairs task is ever clicked", () => {
+  assert.match(us, /if \(tr\.querySelector\("tr"\)\) continue;/);
+  assert.match(us, /const cellsOf = \(tr\) => \[\]\.filter\.call\(tr\.children \|\| \[\], \(c\) => c\.tagName === "TD"\);/);
+  assert.match(us, /const OUR_TASK = \/\^\(fix\\s\+\)\?external\\s\+affairs\?\$\/i;/);
+  assert.match(us, /for \(const row of assignmentRows\(\)\.filter\(\(r\) => r\.ours\)\)/);
+  assert.match(us, /if \(!row \|\| !row\.ours\) return null;/);
+  const code = us.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
+  assert.doesNotMatch(code, /qAll\("td", (tr|row\.tr)\)/);
+  // متقبلة ومخلصتش → تكمل من بعد القبول بدل «مفيش زرار أخضر»
+  assert.match(us, /r\.ours && !\/completed\/i\.test\(r\.text\) && actionIcon\(r\.id\)/);
 });

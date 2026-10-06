@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WFM — موافقة تغيير البورت (Accept → Start → Change Port)
 // @namespace    service-flow.wfm.accept-task
-// @description  v1.3.0: لو WFM أعاد تحميل الصفحة بعد OK بتاع «Update Work Status» (أو Yes بتاع Start) السكربت بيكمّل من نفس الخطوة ويضغط OK على «Updated Successfully» قبل ما يبلّغ Service-Flow — كان بيبدأ البحث من الأول والتاب يتقفل والرسالة مفتوحة. موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
-// @version      1.3.0
+// @description  v1.4.0: «بدء المهمة» و«تحديث الحالة» بيتعملوا على صف الشئون الخارجية (Fix External Affairs) اللى اتقبل بس — كان بياخد Work Id أول صف فى الجدول (مهمة الفنى Fix FME) ويضغط أيقونتها فتفتح «Update Work Status» بتاعتها؛ ولو المهمة متقبلة من قبل ومخلصتش بيكمّلها. v1.3.0: لو WFM أعاد تحميل الصفحة بعد OK بتاع «Update Work Status» (أو Yes بتاع Start) السكربت بيكمّل من نفس الخطوة ويضغط OK على «Updated Successfully» قبل ما يبلّغ Service-Flow — كان بيبدأ البحث من الأول والتاب يتقفل والرسالة مفتوحة. موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
+// @version      1.4.0
 // @match        https://wfm.te.eg/WorkOrder/*
 // @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -302,18 +302,28 @@
   /* ================== صفحة أمر الشغل ================== */
   const findAssignmentsTab = () => findByText("a, span, div, td", /^\s*assignments\s*$/i, 15);
 
-  // صفوف جدول Assignments: صف فيه رقم Work Id (6-10 أرقام) وكذا خلية
+  // صفوف جدول Assignments: صف فيه رقم Work Id (6-10 أرقام) وكذا خلية.
+  // v1.4.0: الصف **الداخلى** بس وخلاياه **المباشرة** بس. ADF بيحط الجدول جوّه صف تخطيط
+  // (layout) فيه كذا خلية، و qAll("td", tr) كانت بتجيب خلايا كل الصفوف اللى جوّاه — فصف
+  // التخطيط كان بياخد Work Id أول صف فى الجدول (مهمة الفنى Fix FME) وأيقونات كل الصفوف.
+  // النتيجة (المالك ٢٠٢٦-١٠-٠٦): القبول اتعمل صح على صف الشئون الخارجية، بس «بدء المهمة»
+  // راح لأيقونة صف الفنى ففتح «Update Work Status» بتاعته.
+  const cellsOf = (tr) => [].filter.call(tr.children || [], (c) => c.tagName === "TD");
+  // مهمة الشئون الخارجية: خلية «Work Description» = Fix External Affairs بالظبط
+  // («Call External Affair…» فى عمود Current Activity بتاع مهمة الفنى مابتطابقش).
+  const OUR_TASK = /^(fix\s+)?external\s+affairs?$/i;
   function assignmentRows() {
     const header = findByText("th, span, div, td", /^\s*work\s*id\s*$/i, 10);
     const rows = [];
     for (const tr of qAllDocs("tr")) {
       if (!visible(tr) || isOurs(tr)) continue;
-      const cells = qAll("td", tr);
+      if (tr.querySelector("tr")) continue;          // صف تخطيط فيه جدول — مش صف بيانات
+      const cells = cellsOf(tr);
       if (cells.length < 5) continue;
       const id = cells.map(txt).find((c) => /^\d{6,10}$/.test(c));
       if (!id) continue;
       if (header && header.ownerDocument !== tr.ownerDocument) continue;
-      rows.push({ tr, id, text: txt(tr) });
+      rows.push({ tr, id, text: txt(tr), ours: cells.some((c) => OUR_TASK.test(txt(c))) });
     }
     return rows;
   }
@@ -371,7 +381,7 @@
   }
   function findGreenButton() {
     let best = null;
-    for (const row of assignmentRows()) {
+    for (const row of assignmentRows().filter((r) => r.ours)) {   // صف الشئون الخارجية بس
       for (const el of rowIcons(row.tr)) {
         const s = acceptScore(el);
         if (s >= 2 && (!best || s > best.score)) best = { el, score: s, row };
@@ -479,6 +489,13 @@
 
     // ٥) الزرار الأخضر
     const green = await waitFor(() => findGreenButton(), 6000);
+    // v1.4.0: مفيش أخضر بس فى مهمة شئون خارجية اتقبلت ومخلصتش (بدأت أو لسه) → نكمّلها
+    const open = !green && assignmentRows().find((r) => r.ours && !/completed/i.test(r.text) && actionIcon(r.id));
+    if (open) {
+      currentWid = open.id;
+      logln("↪️ مهمة الشئون الخارجية " + open.id + " متقبلة ومخلصتش — بكمّل من بعد القبول.");
+      return continueRow(phone, open.id);
+    }
     if (!green) {
       if (idx + 1 < links.length && idx + 1 < MAX_RESULTS) {
         logln("… مفيش زرار أخضر فى الأمر رقم " + (idx + 1) + " — بجرّب اللى بعده.");
@@ -497,12 +514,36 @@
     banner("① قبول المهمة (Work Id " + wid + ")…");
     if (!(await askYes(clickableOf(green.el), /accept\s*this\s*task/i, "Accept"))) return;
 
-    // ٧) Start: السهم الأبيض ← «Do you want Start This Task ?» ← Yes ← «Task Started Successfully» ← OK
+    return continueRow(phone, wid);
+  }
+
+  // ٧) أيقونة الإجراء فى **نفس الصف**: لو فتحت «Start This Task» ← Yes (وبعدين الخطوة ٨)،
+  //    ولو فتحت «Update Work Status» على طول (المهمة كانت بدأت) ← الخطوة ٨ مباشرة.
+  async function continueRow(phone, wid) {
+    currentWid = wid;
     banner("② بدء المهمة (Work Id " + wid + ")…");
-    const startIcon = await waitFor(() => actionIcon(wid), 15000);
-    if (!startIcon) return finish("⚠️ اتقبلت المهمة بس مش لاقى زرار البدء (السهم) فى صف " + wid + " — كمّل بإيدك.", "#e65100");
+    const icon = await waitFor(() => actionIcon(wid), 15000);
+    if (!icon) return finish("⚠️ اتقبلت المهمة بس مش لاقى زرار البدء (السهم) فى صف " + wid + " — كمّل بإيدك.", "#e65100");
+    fireClick(clickableOf(icon));
+    await waitIdle(15000);
+    const dlg = await waitFor(() => dialogWith(/start\s*this\s*task/i) || dialogWith(/update\s*work\s*status/i), 10000);
+    if (!dlg) {
+      await closeStrayDialog();
+      return finish("❌ نافذة «Start This Task» ماظهرتش لصف " + wid + " — مانفّذتش الخطوة دى.", "#c62828");
+    }
+    if (/update\s*work\s*status/i.test(txt(dlg))) {
+      logln("ℹ️ المهمة " + wid + " كانت بدأت — رايح على تحديث الحالة.");
+      return doUpdate(phone, wid, dlg);
+    }
+    banner("❓ " + txt(dlg).slice(0, 60) + " ← Yes");
+    await sleep(DIALOG_SHOW_MS);
+    const yes = buttonIn(dlg, /^yes$/i);
+    if (!yes) return finish("❌ نافذة «Start» ظهرت بس مش لاقى زرار Yes.", "#c62828");
     setPhase("started", wid);                      // لو Yes عمل إعادة تحميل نكمّل من هنا
-    if (!(await askYes(startIcon, /start\s*this\s*task/i, "Start"))) return;
+    fireClick(yes);
+    await waitIdle(30000);
+    await waitFor(() => !dialogWith(/start\s*this\s*task/i), 10000);
+    logln("✔️ Start ← Yes");
     return afterStart(phone, wid);
   }
 
@@ -513,13 +554,22 @@
       return finish("⚠️ ضغطت Yes على Start بس رسالة «Task Started Successfully» ماظهرتش — بص على الصف " + wid + ".", "#e65100");
     }
 
-    // ٨) Update Work Status: المربع الأبيض ← Success / Change Port ← OK ← «Updated Successfully» ← OK
+    return doUpdate(phone, wid);
+  }
+
+  // ٨) Update Work Status: المربع الأبيض ← Success / Change Port ← OK ← «Updated Successfully» ← OK
+  //    openDlg = النافذة لو كانت اتفتحت بالفعل (المهمة كانت بدأت قبل كده)
+  async function doUpdate(phone, wid, openDlg) {
+    currentWid = wid;
     banner("③ تغيير الحالة لـ Change Port (Work Id " + wid + ")…");
-    const doneIcon = await waitFor(() => actionIcon(wid), 15000);
-    if (!doneIcon) return finish("⚠️ المهمة بدأت بس مش لاقى زرار تحديث الحالة فى صف " + wid + " — كمّل بإيدك.", "#e65100");
-    fireClick(clickableOf(doneIcon));
-    await waitIdle(15000);
-    const upd = await waitFor(() => dialogWith(/update\s*work\s*status/i), 10000);
+    let upd = openDlg || null;
+    if (!upd) {
+      const doneIcon = await waitFor(() => actionIcon(wid), 15000);
+      if (!doneIcon) return finish("⚠️ المهمة بدأت بس مش لاقى زرار تحديث الحالة فى صف " + wid + " — كمّل بإيدك.", "#e65100");
+      fireClick(clickableOf(doneIcon));
+      await waitIdle(15000);
+      upd = await waitFor(() => dialogWith(/update\s*work\s*status/i), 10000);
+    }
     if (!upd) {
       await closeStrayDialog();
       return finish("❌ نافذة «Update Work Status» ماظهرتش لصف " + wid + " — مانفّذتش حاجة.", "#c62828");
@@ -563,8 +613,8 @@
   // الأيقونة اللى قبل خلية Work Id — من غير مثلث التوسيع ولا أيقونة المرفقات.
   function actionIcon(wid) {
     const row = assignmentRows().find((r) => r.id === wid);
-    if (!row) return null;
-    const cells = qAll("td", row.tr);
+    if (!row || !row.ours) return null;              // عمرنا ما نضغط أيقونة فى صف مش بتاعنا
+    const cells = cellsOf(row.tr);
     const idCell = cells.findIndex((c) => txt(c) === wid);
     if (idCell <= 0) return null;
     const icons = [];
@@ -621,7 +671,8 @@
   }
 
   async function closeStrayDialog() {
-    const other = anyDialog();
+    // ADF ساعات بيرسم النافذة من غير role=dialog — بندوّر كمان بالنص
+    const other = anyDialog() || dialogWith(/update\s*work\s*status|do\s*you\s*want/i);
     if (!other) return;
     logln("⛔ ظهرت نافذة مش متوقّعة: «" + txt(other).slice(0, 80) + "» — بقفلها.");
     fireClick(buttonIn(other, /^(no|cancel|close)$/i));
