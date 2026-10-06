@@ -24,7 +24,7 @@ const mark = (src.match(/const AUTO_MEASURE_NOREAL_MARK = "([^"]+)";/) || [])[1]
 const tmp = `/tmp/claim-${process.pid}.mts`;
 writeFileSync(tmp, `const AUTO_MEASURE_NOREAL_MARK = ${JSON.stringify(mark)};\n${helpers}\nexport default async function claim(tx: any, req: any, execIdentity: any) {${body}\n}`);
 const claimFn = (await import(pathToFileURL(tmp).href)).default;
-const claim = async () => { const c = await pool.connect(); try { await c.query("BEGIN"); const r = await claimFn(c, {}, () => "test"); await c.query("COMMIT"); return r; } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); } };
+const claim = async (caps: string[] = ["stop-lanes"]) => { const c = await pool.connect(); try { await c.query("BEGIN"); const r = await claimFn(c, { body: { caps } }, () => "test"); await c.query("COMMIT"); return r; } catch (e) { await c.query("ROLLBACK"); throw e; } finally { c.release(); } };
 const q = (t: string, v: any[] = []) => pool.query(t, v);
 const DZS = "10.42.187.101";
 let n = 0; const add = async (type: string, note: string, priority = 0, site = DZS) =>
@@ -82,6 +82,12 @@ if (POSTOP > 1 && LANES !== 1) {
   ok("وبدون Real بيستنى الإيقاف يخلص", (await claim()) == null);
   await done(g.id);
   const h = await claim(); ok("وبعده بدون Real يبدأ", h?.id === nrX); await done(h.id);
+  // جهاز تنفيذ قديم (مابيعلنش stop-lanes): إيقاف واحد بس — من غيره كانوا هيتفتحوا فى نفس التاب
+  await q(`DELETE FROM exec_jobs`);
+  for (let z = 0; z < 3; z++) await add("stop", "إيقاف");
+  const o1 = await claim([]), o2 = await claim([]);
+  ok("جهاز قديم (من غير caps): إيقاف PO تاب واحد بس", !!o1 && o2 == null);
+  await done(o1.id);
   // التعديل من الإعدادات
   await q(`DELETE FROM exec_jobs`);
   await q(`INSERT INTO app_settings (key, value) VALUES ('exec_lanes_stop', '2'), ('exec_lanes_noreal', '1')`);

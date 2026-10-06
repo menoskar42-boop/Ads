@@ -2430,6 +2430,11 @@ export async function registerRoutes(
       const row = await withTx(async (tx) => {
         // عدد تابات «بدون Real» و«إيقاف PO» من الإعدادات (رفع الملفات ← إعدادات)
         const lanes = await readExecLanes(tx);
+        // جهاز تنفيذ قديم (التاب ماتعملهوش ريفريش بعد النشر) بيفتح كل «إيقاف PO» فى نفس
+        // النافذة (dzs_measure) — لو اديناه ٣ مهام مع بعض كانوا هيكتبوا فوق بعض فى تاب
+        // واحد. فالتوازى فى الإيقاف لجهاز بيعلن إنه بيدعمه بس (caps: ["stop-lanes"]).
+        const caps: string[] = Array.isArray(req.body?.caps) ? req.body.caps.map(String) : [];
+        if (!caps.includes("stop-lanes")) lanes.stop = 1;
         const skippedSites: string[] = [];
         while (true) {
           // ⚡ أول مهمة فى الدور **لكل موقع** بس هى اللى بيتفحص إذا كان موقعها فاضى

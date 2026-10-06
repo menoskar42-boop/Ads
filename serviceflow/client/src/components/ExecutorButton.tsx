@@ -660,7 +660,9 @@ export function ExecutorButton() {
         const tmo = setTimeout(() => ctrl.abort(), 20 * 1000);
         const r = await fetch("/api/exec-queue/claim", {
           method: "POST", credentials: "include",
-          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device }),
+          // caps: الجهاز ده بيفتح كل تاب «إيقاف PO» فى نافذة لوحده — السيرفر مابيدّيش توازى
+          // فى الإيقاف لجهاز مابيعلنهاش (نسخة قديمة ماتعملهاش ريفريش).
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ device, caps: ["stop-lanes"] }),
           signal: ctrl.signal,
         }).finally(() => clearTimeout(tmo));
         // ⚠️ لازم نفرّق بين «مفيش مهمة مؤهّلة» و«الطلب فشل»: الاتنين كانوا بيتقروا

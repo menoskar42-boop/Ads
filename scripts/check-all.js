@@ -144,6 +144,7 @@ const CHECKS = [
   ['check-workshop-security-concurrency-pg','أمن الورشة والتزامن على بوستجرس'],
   ['check-workshop-cairo-money','الورشة: المتبقى بالضريبة + المواعيد بتوقيت القاهرة'],
   ['check-workshop-qa-prompt','برومبت اختبار الورش مطابق للكود'],
+  ['check-workshop-e2e-prompt','برومبت كوديكس لاختبار الورش كامل مطابق للكود'],
   ['check-workshop-approvals','الورشة: إثبات موافقة العميل + انتهاء/إيقاف رابط المتابعة'],
   ['check-db-timers',       'مفيش تايمر بيصحّي القاعدة ببلاش (ساعات التشغيل بتتحاسب)'],
   ['check-timezone',        'كل اتصال بالقاعدة بتوقيت القاهرة'],
