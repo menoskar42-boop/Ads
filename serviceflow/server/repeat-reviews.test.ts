@@ -90,3 +90,23 @@ test("«الأعطال المكررة خلال شهر من تاريخه»: every
   // الفلتر بيقرا الشهر على سلسلة التكرار (الشكوى السابقة ممكن تكون فى الشهر اللى فات)
   assert.match(src, /c\.d >= last\.d - interval '1 month' AND c\.d <= last\.d/);
 });
+
+test("تعليق السوبر أدمن على «ردود التكرار» بيوصل إشعار للأدوار المعنية بس (٢٠٢٦-١٠-٠٦)", () => {
+  const rr = readFileSync(new URL("./repeat-reviews.ts", import.meta.url), "utf8");
+  // سوبر أدمن بس بيكتب ويقرا التعليقات
+  assert.match(rr, /app\.post\("\/api\/repeat-reviews\/:id\/comments", requireAuth, requireSuperAdmin/);
+  assert.match(rr, /app\.get\("\/api\/repeat-reviews\/:id\/comments", requireAuth, requireSuperAdmin/);
+  // المستلمين: الشئون الخارجية/مهندس الكوابل · مدير السنترال (admin + كوابل external_affairs) · فنى الكابينة/المقصّر
+  assert.match(rr, /u\.role = 'external'/);
+  assert.match(rr, /u\.role = 'admin' AND c\.role = 'external_affairs'/);
+  assert.match(rr, /ct\.central_name = \$1 AND ct\.cabin_number = \$2/);
+  assert.match(rr, /INSERT INTO notifications \(user_id, type, message\) VALUES \(\$1, 'repeat_comment', \$2\)/);
+  const dash = readFileSync(new URL("../client/src/pages/dashboard.tsx", import.meta.url), "utf8");
+  assert.match(dash, /<RepeatCommentPopup \/>/);
+  const popup = readFileSync(new URL("../client/src/components/RepeatCommentPopup.tsx", import.meta.url), "utf8");
+  assert.match(popup, /n\.type === "repeat_comment" && !n\.isRead/);
+  const db = readFileSync(new URL("./db.ts", import.meta.url), "utf8");
+  assert.match(db, /CREATE TABLE IF NOT EXISTS repeat_review_comments/);
+  const schema = readFileSync(new URL("../shared/schema.ts", import.meta.url), "utf8");
+  assert.match(schema, /export const repeatReviewComments = pgTable\("repeat_review_comments"/);
+});

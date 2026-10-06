@@ -1159,6 +1159,17 @@ export const linesNoAccount = pgTable("lines_no_account", {
   markedAt: timestamp("marked_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// تعليقات السوبر أدمن على «ردود التكرار» — بتتبعت إشعار (notifications) للأدوار المعنية بس
+export const repeatReviewComments = pgTable("repeat_review_comments", {
+  id: serial("id").primaryKey(),
+  reviewId: integer("review_id").notNull().references(() => repeatReviews.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdBy: text("created_by"),
+  createdById: integer("created_by_id").references(() => users.id),
+  notifiedCount: integer("notified_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type LineNoAccount = typeof linesNoAccount.$inferSelect;
 
 // om_responses — رد الفنى على متعذر OM (نفس دورة الطلبات: يمكن التنفيذ / لا يمكن + سبب،

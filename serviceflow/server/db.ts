@@ -1554,6 +1554,21 @@ export async function ensureSchema() {
     await pool.query(`ALTER TABLE repeat_reviews ADD COLUMN IF NOT EXISTS ${col} text`);
   }
 
+  // تعليقات السوبر أدمن على «ردود التكرار» (٢٠٢٦-١٠-٠٦): بتوصل كإشعار للفنى والشئون
+  // الخارجية ومهندس الكوابل ومدير السنترال بس (notifications type = 'repeat_comment').
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS repeat_review_comments (
+      id serial PRIMARY KEY,
+      review_id integer NOT NULL REFERENCES repeat_reviews(id) ON DELETE CASCADE,
+      body text NOT NULL,
+      created_by text,
+      created_by_id integer REFERENCES users(id),
+      notified_count integer NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_repeat_review_comments_review ON repeat_review_comments (review_id, created_at DESC)`);
+
   // الاختيارات اليدوية لإضافة الأعطال الحالية إلى جدول الأعطال الجسيمة.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS current_fault_major_selections (

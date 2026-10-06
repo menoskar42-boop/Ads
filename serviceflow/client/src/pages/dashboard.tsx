@@ -80,6 +80,7 @@ import { PortChangeReport } from "@/components/PortChangeReport";
 import { ManualRegularizedFaultsRangeReport } from "@/components/ManualRegularizedFaultsRangeReport";
 import { PortsSuspendFreeReport } from "@/components/PortsSuspendFreeReport";
 import { NotificationBell } from "@/components/NotificationBell";
+import { RepeatCommentPopup } from "@/components/RepeatCommentPopup";
 import { ChangeMyPasswordButton } from "@/components/ChangeMyPasswordButton";
 import { useWakeLock } from "@/lib/use-wake-lock";
 import { ROLES, ORDER_STATUS } from "@shared/schema";
@@ -518,7 +519,11 @@ export default function Dashboard() {
             <ExecutorButton />
             {/* واتساب المتابعة — سوبر أدمن بس (٢٠٢٦-١٠-٠٥) */}
             {isSuperAdmin && <WhatsAppSetupButton />}
-            {(user.role === ROLES.SALES || user.role === ROLES.ADMIN || user.role === ROLES.SALES_ADMIN) && <NotificationBell />}
+            {/* الفنى والشئون الخارجية (ومهندس الكوابل) بقى عندهم جرس — تعليقات الإدارة على «ردود التكرار» */}
+            {(user.role === ROLES.SALES || user.role === ROLES.ADMIN || user.role === ROLES.SALES_ADMIN
+              || user.role === ROLES.TECH || user.role === ROLES.EXTERNAL) && <NotificationBell />}
+            {/* نافذة تعليقات الإدارة عند الدخول (زى «آية اليوم») — بتظهر بس للى وصلهم تعليق */}
+            {(user.role === ROLES.ADMIN || user.role === ROLES.TECH || user.role === ROLES.EXTERNAL) && <RepeatCommentPopup />}
             {(user.role === ROLES.TECH || user.role === ROLES.DATA_MANAGER || user.role === ROLES.ADMIN || user.role === ROLES.EXTERNAL) && (
               <Button variant="outline" size="sm" onClick={() => setLocation("/phone-lines")} className="text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3">
                 <span className="hidden sm:inline">إدارة البيانات الفنية</span>

@@ -9,6 +9,7 @@ import { Loader2, FileSpreadsheet, Printer, ClipboardCheck, FileText } from "luc
 import { openRepeatLetter } from "@/lib/repeat-review-letter";
 import { printTablePDF } from "@/lib/print-pdf";
 import { RepeatReviewDialog, REPEAT_STEP_LABELS } from "@/components/RepeatReviewDialog";
+import { RepeatCommentButton } from "@/components/RepeatCommentDialog";
 
 // «ردود التكرار» — تقرير السوبر أدمن (قرار المالك ٢٠٢٦-١٠-٠٤): كل رد على خط مكرر (رد للخط
 // فى الشهر) بالبيان والفحص والإفادات والتقييم والمقصّر، وبيتطبع PDF.
@@ -130,6 +131,10 @@ export function RepeatReviewsReport() {
                     data-testid={`button-repeat-letter-${r.id}`}>
                     <FileText className="w-3.5 h-3.5" /> PDF
                   </Button>
+                  {/* تعليق السوبر أدمن — بيوصل إشعار للأدوار المعنية بالخط بس */}
+                  <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                    <RepeatCommentButton reviewId={r.id} phone={r.phone_short} month={r.month} count={r.comment_count} />
+                  </div>
                 </TableCell>
                 {toCells(r, i).map((c, j) => <TableCell key={j} className={j >= 9 && j <= 11 ? "min-w-[180px] whitespace-pre-wrap" : "whitespace-nowrap"}>{c || "—"}</TableCell>)}
               </TableRow>

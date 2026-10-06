@@ -396,6 +396,57 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  // ── تعليق السوبر أدمن على رد (٢٠٢٦-١٠-٠٦) ─────────────────────────────────────
+  // بيوصل إشعار (جرس + نافذة عند الدخول) للى يخصّهم الرد بس:
+  //   · الشئون الخارجية ومهندس الكوابل: users.role = 'external'
+  //   · مدير السنترال: users.role = 'admin' وحسابه فى الكوابل external_affairs (الأدمن العادى لأ)
+  //   · الفنى: فنى كابينة الخط (cabinet_technicians) + الفنى المقصّر لو اتحدد بالاسم
+  // باقى المستخدمين مابيتعملهمش صف إشعار أصلاً، فمابيشوفوهوش فى الجرس.
+  app.get("/api/repeat-reviews/:id/comments", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, body, created_by, notified_count, (created_at AT TIME ZONE 'Africa/Cairo') AS created_local
+           FROM repeat_review_comments WHERE review_id = $1 ORDER BY created_at DESC`, [parseInt(req.params.id, 10) || 0]);
+      res.json({ data: rows });
+    } catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+  app.post("/api/repeat-reviews/:id/comments", requireAuth, requireSuperAdmin, async (req: any, res) => {
+    const id = parseInt(req.params.id, 10) || 0;
+    const body = String((req.body || {}).body || "").trim().slice(0, 1000);
+    if (!body) return res.status(400).json({ message: "اكتب التعليق" });
+    const by = String(req.user?.fullName || req.user?.username || "").trim() || null;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const rv = (await client.query(`SELECT * FROM repeat_reviews WHERE id = $1`, [id])).rows[0];
+      if (!rv) { await client.query("ROLLBACK"); return res.status(404).json({ message: "الرد مش موجود" }); }
+      const { rows: targets } = await client.query(
+        `SELECT DISTINCT u.id FROM users u
+           LEFT JOIN cfm_users c ON c.id::text = u.cfm_user_id::text
+          WHERE COALESCE(u.suspended, false) = false AND (
+                u.role = 'external'
+             OR (u.role = 'admin' AND c.role = 'external_affairs')
+             OR (u.role = 'tech' AND u.worker_code IS NOT NULL AND (
+                  u.worker_code IN (SELECT ct.worker_code FROM cabinet_technicians ct
+                                     WHERE ct.central_name = $1 AND ct.cabin_number = $2)
+               OR u.worker_code IN (SELECT tn.worker_code FROM technician_names tn
+                                     WHERE $3::text IS NOT NULL AND tn.tech_name = $3))))`,
+        [rv.line_central, rv.line_cabin, rv.at_fault_kind === "tech" && rv.at_fault_name ? rv.at_fault_name : null]);
+      const message = `💬 تعليق الإدارة على رد تكرار الخط ${rv.phone_short} (شهر ${rv.month}): ${body}`;
+      for (const t of targets) {
+        await client.query(`INSERT INTO notifications (user_id, type, message) VALUES ($1, 'repeat_comment', $2)`, [t.id, message]);
+      }
+      await client.query(
+        `INSERT INTO repeat_review_comments (review_id, body, created_by, created_by_id, notified_count)
+         VALUES ($1, $2, $3, $4, $5)`, [id, body, by, req.user?.id ?? null, targets.length]);
+      await client.query("COMMIT");
+      res.json({ ok: true, notified: targets.length });
+    } catch (e: any) {
+      await client.query("ROLLBACK").catch(() => {});
+      res.status(500).json({ message: e.message });
+    } finally { client.release(); }
+  });
+
   // ── تقرير «ردود التكرار» — للسوبر أدمن (PDF/Excel من الشاشة) ─────────────────
   app.get("/api/repeat-reviews/report", requireAuth, requireSuperAdmin, async (req: any, res) => {
     try {
@@ -407,6 +458,7 @@ export function registerRepeatReviews(app: Express, d: RepeatReviewDeps) {
       if (isMonth(to)) { params.push(to); conds.push(`r.month <= $${params.length}`); }
       const { rows } = await pool.query(
         `SELECT r.*, (r.completed_at AT TIME ZONE 'Africa/Cairo') AS completed_local,
+                (SELECT COUNT(*)::int FROM repeat_review_comments c WHERE c.review_id = r.id) AS comment_count,
                 (r.updated_at AT TIME ZONE 'Africa/Cairo') AS updated_local
            FROM repeat_reviews r ${conds.length ? "WHERE " + conds.join(" AND ") : ""}
           ORDER BY r.month DESC, r.status DESC, r.line_central, r.line_cabin, r.line_box, r.phone_short`, params);
