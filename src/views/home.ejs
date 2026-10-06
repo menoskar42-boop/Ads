@@ -675,57 +675,11 @@
   <%- include('partials/ad_unit', { slot: ads.slots.homeMid }) %>
 </div>
 
-<!-- TESTIMONIALS -->
-<!-- WHAT WE ACTUALLY SHIP -->
-<%# The five testimonials that stood here carried invented names and could not
-    be substantiated. AdSense prohibits misrepresentative content, and a
-    fabricated review is exactly that — quite apart from readers in this market
-    recognising one on sight. Owner's decision (2026-08-06): apply the AdSense
-    rules.
-
-    Replaced with claims that are checkable rather than deleted, because the
-    section is doing real work here: it is the trust beat between the pricing
-    and the call to action. Every number below can be counted on this page or
-    verified by clicking. When real, attributable testimonials exist — a name,
-    a business, and a live link — they belong here instead. %>
-<section class="testimonials">
-  <div class="services-header reveal">
-    <div class="section-tag">✅ اللي بنسلّمه فعلاً</div>
-    <h2 class="section-title reveal">مش وعود — <em>حاجات تقدر تشوفها</em></h2>
-    <p class="section-sub reveal" style="margin-inline:auto">كل حاجة تحت دي تقدر تتأكد منها بنفسك دلوقتي</p>
-  </div>
-
-  <div class="services-grid" style="max-width:1100px;margin-inline:auto">
-    <div class="service-card reveal" style="text-align:center">
-      <div class="service-icon">🔍</div>
-      <h3 class="service-name">شوف النظام قبل ما تدفع</h3>
-      <p class="service-desc">
-        كل نظام فوق معاه لينك «شاهد نموذج حي» — بيفتحلك النظام شغّال ببيانات
-        فيه، مش صور ولا فيديو. جرّبه الأول وبعدين قرّر.
-      </p>
-    </div>
-    <div class="service-card reveal" style="text-align:center">
-      <div class="service-icon">🔑</div>
-      <h3 class="service-name">بياناتك بتفضل ملكك</h3>
-      <p class="service-desc">
-        بياناتك تنزّلها في أي وقت (إكسل أو JSON) من لوحة التحكم بضغطة.
-        مفيش حاجة محبوسة عندنا، ومفيش رسوم عشان تخرج.
-      </p>
-    </div>
-    <div class="service-card reveal" style="text-align:center">
-      <div class="service-icon">💬</div>
-      <h3 class="service-name">اتكلم مع اللي بنى النظام</h3>
-      <p class="service-desc">
-        مفيش تذاكر دعم ولا انتظار. رقم واتساب واحد على الصفحة، والرد من
-        الفريق اللي كاتب الكود نفسه.
-      </p>
-    </div>
-  </div>
-</section>
-
-<div style="max-width:1200px;margin:0 auto;padding:0 32px;">
-  <%- include('partials/ad_unit', { slot: ads.slots.homeBottom }) %>
-</div>
+<%# قسم «آراء العملاء» اتشال (قرار المالك ٢٠٢٦-١٠-٠٦): الآراء المخترعة كانت اتشالت من
+    ٢٠٢٦-٠٨-٠٦ (AdSense «Misrepresentation»)، والقسم البديل «اللي بنسلّمه فعلاً» اتشال كمان
+    بطلبه. لما يبقى فيه آراء حقيقية (اسم + نشاط + لينك) ترجع هنا.
+    إعلان homeBottom اتنقل تحت قسم السيو — من غير القسم كان هيبقى لازق فى homeMid
+    (إعلانين ورا بعض من غير محتوى = مخالفة تنسيب). %>
 
 <!-- CTA -->
 <section class="cta-section" id="contact">
@@ -753,6 +707,10 @@
     <p style="text-align:center;margin-top:24px;"><a href="/ar/apply" style="display:inline-block;background:#4338ca;color:#fff;font-weight:700;padding:12px 28px;border-radius:12px;text-decoration:none;">اطلب موقعك الآن</a></p>
   </div>
 </section>
+
+<div style="max-width:1200px;margin:0 auto;padding:0 32px;">
+  <%- include('partials/ad_unit', { slot: ads.slots.homeBottom }) %>
+</div>
 
 <% if (typeof latestArticles !== 'undefined' && latestArticles.length) { %>
 <section class="latest-articles" style="padding:64px 20px;background:#fff;color:#1f2937;">
