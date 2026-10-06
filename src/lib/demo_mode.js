@@ -134,9 +134,28 @@ const ALWAYS_ALLOWED = [
   '/logout',            // كاكيبو (بيتقدّم على نطاقه الفرعي)
 ];
 
+// ── أبواب عامة مش كتابة فى بيانات الديمو (٢٠٢٦-١٠-٠٦) ───────────────────────
+//
+// الحارس كان بيقفل **أى** POST طول ما الجلسة تجريبية — ومن ضمنهم:
+//   · **الدخول نفسه**: endDemo() متنادية جوّه كل باب دخول، بس الحارس كان بيرد قبلها
+//     بـ«نسخة عرض للاطّلاع فقط»، فاللى فتح الديمو مكنش يقدر يسجّل دخول حسابه الحقيقى
+//     أصلاً (اتكشف والمالك بيحاول يدخل ورشة تجربة بعد ما الإكستنشن فتح الديمو).
+//   · **التقديم** (`/apply`): أهم خطوة بعد الديمو — الزائر اللى اقتنع ويقدّم كان بيترفض.
+//   · **التواصل** (`/contact`).
+// ودول مالهمش علاقة بشركة الديمو: الدخول بيبدّل الجلسة، والتقديم والتواصل بيكتبوا
+// طلب جديد مش بيانات شركة. أى كتابة تانية (لوحات الإدارة كلها) فاضلة ممنوعة.
+// الطلب بيوصل هنا **قبل** lang_prefix، فـ`/ar/apply` بيوصل بالبادئة.
+const PUBLIC_DOORS = /^(?:\/(?:ar|en))?\/(?:apply(?:\/status)?|contact)\/?$/;
+const LOGIN_DOOR = /\/login\/?$/;
+
+function isPublicDoor(path) {
+  const p = String(path || '');
+  return PUBLIC_DOORS.test(p) || LOGIN_DOOR.test(p);
+}
+
 function guard() {
   return function demoGuard(req, res, next) {
-    if (ALWAYS_ALLOWED.includes(req.path)) return next();
+    if (ALWAYS_ALLOWED.includes(req.path) || isPublicDoor(req.path)) return next();
     if (blockWrite(req, res)) return;
     next();
   };
@@ -145,5 +164,5 @@ function guard() {
 module.exports = {
   isDemoLogin,
   DEMO_SLUGS, isDemoSlug, isDemoSession, isWriteRequest, blockWrite,
-  endDemo, guard, ALWAYS_ALLOWED,
+  endDemo, guard, ALWAYS_ALLOWED, isPublicDoor,
 };

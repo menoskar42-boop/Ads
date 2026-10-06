@@ -84,6 +84,30 @@ check('والخروج مسموح عشان الزائر مايتحبسش',
   check('وendDemo مابتقعش على جلسة ناقصة', true);
 }
 
+/* ── Public doors stay open in a demo session (٢٠٢٦-١٠-٠٦) ──────────────────
+ * The guard used to refuse every POST — the login form included, so the
+ * endDemo() inside each door never ran and a visitor who had opened a demo
+ * could not sign in to their real account. /apply (the conversion the demo
+ * exists for) and /contact were refused the same way. The function test above
+ * passed the whole time: it called endDemo() directly, never through the guard.
+ * So this goes through the guard itself. */
+{
+  const g = D.guard();
+  const run = (method, p) => {
+    let passed = false;
+    const req = { method, path: p, session: { demoReadOnly: true, demoSlug: 'workshop', companyId: 9 }, xhr: false, get: () => '' };
+    const res = { status() { return this; }, send() {}, json() {} };
+    g(req, res, () => { passed = true; });
+    return passed;
+  };
+  const open = ['/company/login', '/admin/login', '/customer/login', '/apply', '/ar/apply', '/en/apply/status', '/contact', '/ar/contact'];
+  const shut = ['/workshop/jobs', '/workshop/customers/1', '/company/settings', '/applyx', '/company/login-as', '/pharmacy/sales'];
+  const wrongOpen = open.filter((p) => !run('POST', p));
+  const wrongShut = shut.filter((p) => run('POST', p));
+  check('الدخول والتقديم والتواصل بيعدّوا من جلسة الديمو', wrongOpen.length === 0, wrongOpen.join(' ') || 'كلهم');
+  check('وأى كتابة تانية لسه ممنوعة', wrongShut.length === 0, wrongShut.join(' ') || 'كلهم ممنوعين');
+}
+
 /* ── Mounted once, above everything ────────────────────────────────────── */
 {
   const srv = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
