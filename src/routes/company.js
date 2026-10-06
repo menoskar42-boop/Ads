@@ -540,7 +540,11 @@ router.post('/workshop-invite/:token', async (req, res) => {
 });
 
 router.get('/login', (req, res) => {
-  if (req.session.companyId) return res.redirect('/company/dashboard');
+  // جلسة الديمو فيها companyId (شركة العرض) من غير حساب حقيقى — لو حوّلناها على اللوحة،
+  // اللى فتح الديمو مرة عمره ما يشوف فورم الدخول تانى: كل ما يفتح /company/login يلاقى
+  // نفسه فى لوحة الديمو («ورشة الأمانة» مثلاً) بدل حسابه (٢٠٢٦-١٠-٠٦). الدخول الحقيقى
+  // بس هو اللى بيعدّى على طول؛ والديمو بيفضل شغّال لحد ما يسجّل دخول فعلاً (endDemo).
+  if (req.session.companyId && !demoMode.isDemoSession(req)) return res.redirect('/company/dashboard');
   res.render('company/login', { error: null, notice: null });
 });
 

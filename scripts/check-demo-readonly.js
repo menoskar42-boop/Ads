@@ -149,6 +149,16 @@ check('والخروج مسموح عشان الزائر مايتحبسش',
     (admin.match(/demoMode\.endDemo\(req\);/g) || []).length >= 2);
 }
 
+/* ── The login form shows even inside a demo session (2026-10-06) ───────── */
+{
+  // The demo session carries the demo company's id. GET /company/login used to
+  // send any session with a companyId to the dashboard — so whoever had opened
+  // a demo landed in the demo («ورشة الأمانة») every time they tried to log in.
+  const company = fs.readFileSync(path.join(ROOT, 'src/routes/company.js'), 'utf8');
+  check('صفحة الدخول بتظهر حتى لو المتصفح فاتح ديمو (مابتحوّلش على لوحة الديمو)',
+    /router\.get\('\/login', \(req, res\) => \{[\s\S]{0,800}?if \(req\.session\.companyId && !demoMode\.isDemoSession\(req\)\) return res\.redirect\('\/company\/dashboard'\);/.test(company));
+}
+
 /* ── The seven no longer need their own copy ───────────────────────────── */
 {
   // Stated as a fact about the routers: none of them enforces this itself, and
