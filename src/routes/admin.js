@@ -738,6 +738,17 @@ router.post('/applications/:id/approve', requireAdmin, async (req, res) => {
       message: `تمت الموافقة. الشركة "${app.business_name}" أُنشئت ويستطيع صاحبها الدخول بـ ${app.email}.`
         + (emailed ? ' وتم إرسال إيميل التفعيل له.' : ' (لم يُرسل إيميل — تأكد من إعداد SMTP).'),
     };
+    // الإيميل فشل → العميل مايعرفش إنه اتفعّل. بدل تحذير وبس، زرار واتساب برسالة تفعيل
+    // جاهزة: لينك الصفحة من السلَج اللى اتسجّل فعلاً، ولينك الدخول الثابت، والإيميل اللى
+    // سجّل بيه. كلمة السر مش فى الرسالة — العميل اختارها بنفسه فى الطلب (مراجعة كوديكس #٥).
+    const wa = !emailed && waNumber(app.phone);
+    if (wa) {
+      const text = `أهلاً ${app.full_name}، طلب «${app.business_name}» على OscarDevs اتقبل.\n`
+        + `صفحتك: https://${app.preferred_slug}.oscardevs.com\n`
+        + `لوحة التحكم: https://oscardevs.com/company/login\n`
+        + `الدخول بالإيميل اللي سجّلت بيه (${app.email}) وكلمة السر اللي اخترتها في الطلب.`;
+      req.session.adminFlash.waLink = `https://wa.me/${wa}?text=${encodeURIComponent(text)}`;
+    }
     res.redirect('/admin/applications/' + req.params.id);
   } catch (err) {
     await client.query('ROLLBACK');

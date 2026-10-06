@@ -253,6 +253,12 @@ router.post('/payment/paymob/callback', async (req, res) => {
 // شافه فى الصفحة (seen_total) هو نفسه الإجمالى دلوقتى — لو الورشة غيّرت العرض بعد ما فتح
 // الرابط، بيرجع يشوف الأرقام الجديدة بدل ما يوافق على حاجة غير اللى قدامه. وكل موافقة
 // بتتسجّل فى workshop_approval_evidence بنسخة البنود والـIP والمتصفح.
+function quoteVersion(snap) {
+  const body = Object.assign({}, snap); delete body.version;
+  return crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 12);
+}
+function withVersion(snap) { snap.version = quoteVersion(snap); return snap; }
+
 router.post('/:token/approve', approveLimiter, async (req, res) => {
   const token = String(req.params.token || '').slice(0, 100);
   const back = (q) => res.redirect('/workshop/status/' + encodeURIComponent(token) + (q ? '?' + q : ''));
@@ -280,6 +286,9 @@ router.post('/:token/approve', approveLimiter, async (req, res) => {
     discount: totals.discount, tax_percent: totals.taxPercent, tax: totals.tax,
     subtotal: totals.subtotal, total: totals.total,
   };
+  // رقم إصدار العرض = بصمة محتواه: أى تعديل فى بند أو سعر بيدّى رقم تانى، فالموافقة
+  // مربوطة بنسخة العرض اللى العميل شافها بالظبط (مراجعة كوديكس #٣).
+  snapshot.version = quoteVersion(snapshot);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -346,7 +355,7 @@ router.post('/:token/change-orders/:id/approve', approveLimiter, async (req, res
            (company_id, job_id, change_order_id, approved_by, consent_text, total, snapshot, ip, user_agent)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [data.company_id, data.job_id, changeId, name, CONSENT_TEXT, total,
-          JSON.stringify({ items: items.map((i) => ({ kind: i.kind, description: i.description, qty: Number(i.qty), unit_price: Number(i.unit_price) })), total }),
+          JSON.stringify(withVersion({ items: items.map((i) => ({ kind: i.kind, description: i.description, qty: Number(i.qty), unit_price: Number(i.unit_price) })), total })),
           meta.ip, meta.ua]);
     }
     await client.query('COMMIT');
@@ -364,3 +373,4 @@ module.exports = router;
 module.exports.LINK_LIVE_SQL = LINK_LIVE_SQL;
 module.exports.LINK_DAYS_AFTER_CLOSE = LINK_DAYS_AFTER_CLOSE;
 module.exports.CONSENT_TEXT = CONSENT_TEXT;
+module.exports.quoteVersion = quoteVersion;

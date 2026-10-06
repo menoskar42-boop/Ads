@@ -714,7 +714,7 @@ async function loadWorkshopInvoiceRows(companyId, options = {}) {
   }
   if (options.days) {
     params.push(options.days);
-    where += ` AND j.received_at >= CURRENT_DATE - ($${params.length} || ' days')::interval`;
+    where += ` AND j.received_at >= ${CAIRO_TODAY} - ($${params.length} || ' days')::interval`;
   }
   const rows = await pool.query(
     `SELECT j.id, j.customer_id, j.status, j.paid, j.discount, j.tax_percent, j.received_at, j.delivered_at,
@@ -1490,8 +1490,8 @@ function campaignAudienceCondition(segment) {
   return ({
     all: 'TRUE',
     inactive: `(c.segment='inactive' OR c.lifecycle_stage='lost'
-               OR (c.last_contacted_at IS NULL AND c.created_at < CURRENT_DATE - INTERVAL '90 days'))`,
-    due: `c.next_followup_on IS NOT NULL AND c.next_followup_on <= CURRENT_DATE`,
+               OR (c.last_contacted_at IS NULL AND c.created_at < ${CAIRO_TODAY} - INTERVAL '90 days'))`,
+    due: `c.next_followup_on IS NOT NULL AND c.next_followup_on <= ${CAIRO_TODAY}`,
     vip: `c.segment='vip'`,
     at_risk: `c.lifecycle_stage='at_risk'`,
   })[segment] || 'FALSE';
@@ -3464,7 +3464,7 @@ router.get('/technicians', requireFlag('technicians'), requireWorkshopPermission
     `SELECT t.*,
             (SELECT COALESCE(SUM(l.amount),0)::float FROM workshop_job_labour l
               WHERE l.company_id=t.company_id AND l.technician_id=t.id
-                AND l.created_at >= date_trunc('month', CURRENT_DATE)) AS month_labour,
+                AND l.created_at >= date_trunc('month', ${CAIRO_TODAY})) AS month_labour,
             (SELECT COUNT(*)::int FROM workshop_jobs j
               WHERE j.company_id=t.company_id AND j.technician_id=t.id) AS jobs_count,
             (SELECT COUNT(*)::int FROM workshop_job_labour l
@@ -3638,7 +3638,7 @@ router.post('/expenses', requireFlag('expenses'), requireWorkshopPermission('man
   if (amount > 0) {
     await pool.query(
       `INSERT INTO workshop_expenses (company_id, category, description, amount, spent_on)
-       VALUES ($1,$2,$3,$4,COALESCE($5, CURRENT_DATE))`,
+       VALUES ($1,$2,$3,$4,COALESCE($5, ${CAIRO_TODAY}))`,
       [req.company.id, text(b.category, 60), text(b.description, 200), amount,
        b.spent_on || null]);
   }
@@ -3679,34 +3679,34 @@ router.get('/reports', requireFlag('reports'), requireWorkshopPermission('view_r
               LEFT JOIN workshop_technicians t
                 ON t.id=e.technician_id AND t.company_id=$1
              WHERE e.company_id=$1
-               AND e.started_at >= CURRENT_DATE - ($2 || ' days')::interval
+               AND e.started_at >= ${CAIRO_TODAY} - ($2 || ' days')::interval
              GROUP BY e.job_id
           ) tc ON tc.job_id=j.id
         WHERE j.company_id=$1 AND j.status <> 'cancelled'
-          AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval`, [cid, days]),
+          AND j.received_at >= ${CAIRO_TODAY} - ($2 || ' days')::interval`, [cid, days]),
     pool.query(
       `SELECT lower(trim(complaint)) AS fault, COUNT(*)::int AS n FROM workshop_jobs
         WHERE company_id=$1 AND complaint IS NOT NULL AND trim(complaint) <> ''
-          AND received_at >= CURRENT_DATE - ($2 || ' days')::interval
+          AND received_at >= ${CAIRO_TODAY} - ($2 || ' days')::interval
         GROUP BY 1 ORDER BY n DESC LIMIT 10`, [cid, days]),
     pool.query(
       `SELECT p.name, SUM(jp.qty)::float AS qty, SUM(jp.qty*jp.unit_price)::float AS revenue
          FROM workshop_job_parts jp
           JOIN workshop_jobs j ON j.id=jp.job_id AND j.company_id=jp.company_id
          LEFT JOIN workshop_parts p ON p.id=jp.part_id
-        WHERE jp.company_id=$1 AND j.received_at >= CURRENT_DATE - ($2 || ' days')::interval
+        WHERE jp.company_id=$1 AND j.received_at >= ${CAIRO_TODAY} - ($2 || ' days')::interval
         GROUP BY p.name ORDER BY qty DESC NULLS LAST LIMIT 10`, [cid, days]),
     pool.query(
       `SELECT COALESCE(SUM(amount),0)::float AS total
          FROM workshop_expenses
-        WHERE company_id=$1 AND spent_on >= CURRENT_DATE - ($2 || ' days')::interval`, [cid, days]),
+        WHERE company_id=$1 AND spent_on >= ${CAIRO_TODAY} - ($2 || ' days')::interval`, [cid, days]),
     pool.query(
       `SELECT
          (SELECT COUNT(*)::int FROM workshop_work_bays WHERE company_id=$1 AND is_active) AS bays,
           (SELECT COUNT(*)::int FROM workshop_jobs WHERE company_id=$1 AND status NOT IN ('received','diagnosing','quoted','delivered','cancelled')) AS active_jobs,
          COALESCE((SELECT SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, now())-started_at))/3600)
                      FROM workshop_time_entries
-                    WHERE company_id=$1 AND started_at >= CURRENT_DATE - ($2 || ' days')::interval),0)::float AS worked_hours`,
+                    WHERE company_id=$1 AND started_at >= ${CAIRO_TODAY} - ($2 || ' days')::interval),0)::float AS worked_hours`,
       [cid, days]),
   ]);
   const s = summary.rows[0];
