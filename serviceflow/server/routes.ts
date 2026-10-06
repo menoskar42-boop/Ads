@@ -456,6 +456,10 @@ async function accumulateTable(
 //  - start-of-day: first upload of a NEW day → fresh snapshot (clear + insert);
 //    subsequent uploads the SAME day → accumulate new faults only (don't delete
 //    previous) — exactly like the historical table within the day.
+// ملف أوامر شغل «ناقص» = أقل من ٣٠٪ من الموجود، والموجود ٢٠ أو أكتر (شوف استيراد WFM).
+export const wfmMinRowsGuard = (current: number, incoming: number): boolean =>
+  current >= 20 && incoming < current * 0.3;
+
 async function writeThreeDestinations(opts: {
   histTable: string; sodTable: string; curTable: string;
   cols: string[]; conflict: string; rows: any[][]; userId: number;
@@ -9433,6 +9437,19 @@ export async function registerRoutes(
       const userId = req.user
         ? (req.user as any).id
         : ((await pool.query("SELECT id FROM users WHERE role = $1 LIMIT 1", [ROLES.ADMIN])).rows[0]?.id ?? 1);
+      // ⛔ حارس «ملف ناقص» (٢٠٢٦-١٠-٠٦): wfm_current بيتستبدل بالملف كله، فملف فيه صف واحد
+      // بيمسح التركيبات الحالية كلها. ده حصل فعلاً: سكربت التصدير اليومى اشتغل على تاب «موافقة
+      // تغيير بورت» بعد ما البحث اتفلتر على رقم واحد، فصدّر نتيجة البحث (صف واحد) واترفعت كأنها
+      // الملف الكامل. لو الملف أقل من ٣٠٪ من الموجود (والموجود ٢٠ أو أكتر) بنرفضه من غير ما نكتب
+      // أى حاجة. الرفع اليدوى المقصود يعدّى بـ ?force=1.
+      const cur = Number((await pool.query(`SELECT COUNT(*)::int AS n FROM wfm_current`)).rows[0]?.n || 0);
+      if (!/^(1|true)$/i.test(String(req.query.force || "")) && wfmMinRowsGuard(cur, wfmRows.length)) {
+        console.warn(`[wfm import] رفض ملف ناقص: ${wfmRows.length} صف مقابل ${cur} حالياً`);
+        return res.status(409).json({
+          message: `الملف فيه ${wfmRows.length} أمر بس والحالى ${cur} — شكله نتيجة بحث مفلترة مش الملف الكامل، فماتسجّلش (عشان مايمسحش التركيبات الحالية).`,
+          rejected: true, rows: wfmRows.length, current: cur,
+        });
+      }
       const r = await writeThreeDestinations({
         histTable: "maintenance_orders", sodTable: "wfm_sod", curTable: "wfm_current",
         cols: WFM_COLS, conflict: "central_name, work_order_id", rows: wfmRows, userId,
