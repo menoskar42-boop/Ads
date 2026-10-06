@@ -15,7 +15,7 @@ import { rescueMinutes } from "@shared/exec-timeouts";
 //
 // الحل: نخلّى التاب «بيشغّل صوت». التاب اللى بيشغّل صوت مستثنى من Sleeping
 // tabs ومن الـ discarding ومن الـ throttling الشديد فى المتصفحين. الصوت
-// نفسه سكوت تام (gain = 0) فمحدش بيسمع حاجة.
+// نفسه مش مسموع (gain ٠٫٠٠٠٥ على ٣٠ هرتز — شوف تحت ليه مش صفر) فمحدش بيسمع حاجة.
 // AudioContext محتاج user gesture — واحنا بنشغّله من ضغطة زر «جهاز التنفيذ».
 const SLEEP_KEY = "sf_exec_last_sleep";
 // شرح الحل حسب المتصفح: الصوت الصامت مش مضمون (Edge مابيعتبروش «تاب بيشغّل صوت»،
@@ -39,7 +39,11 @@ function startSilentKeepAlive(): () => void {
     ctx = new AC();
     const osc = ctx!.createOscillator();
     const gain = ctx!.createGain();
-    gain.gain.value = 0;                  // سكوت تام
+    // ⚠️ مش صفر بالظبط (٢٠٢٦-١٠-٠٦): Edge بيعتبر التاب «بيشغّل صوت» — ويستثنيه من
+    // Sleeping tabs — لو الصوت الخارج **مش صفر** فعلاً. بـgain = 0 كان بيتحسب صامت فالتاب
+    // بينام. ٠٫٠٠٠٥ على ٣٠ هرتز (‎-66 dBFS، تحت مدى سمّاعات اللابتوب) = مش مسموع عملياً.
+    osc.frequency.value = 30;
+    gain.gain.value = 0.0005;
     osc.connect(gain); gain.connect(ctx!.destination);
     osc.start();
     // المتصفح بيرفض تشغيل الصوت من غير تفاعل مستخدم، فالـ context بيفضل "suspended".
@@ -62,6 +66,19 @@ function startSilentKeepAlive(): () => void {
 
 // قفل الشاشة (لو المتصفح بيدعمه): بيمنع الجهاز من النوم طول ما التنفيذ مفعّل.
 // بيتفكّ لوحده لما التاب يتخفى، فبنعيد طلبه عند الرجوع.
+// Web Lock ماسكه التاب طول ما جهاز التنفيذ مفعّل: Chromium (Chrome وEdge) مابيجمّدش
+// التاب اللى ماسك قفل — حماية تانية جنب الصوت (اللى محتاج ضغطة بعد كل ريفريش).
+function holdWebLock(): () => void {
+  const locks: any = (navigator as any).locks;
+  if (!locks?.request) return () => {};
+  let release: (() => void) | null = null;
+  try {
+    locks.request("sf-executor-keepalive", () => new Promise<void>((resolve) => { release = resolve; }))
+      .catch(() => {});
+  } catch {}
+  return () => { try { release && release(); } catch {} };
+}
+
 function startWakeLock(): () => void {
   const nav: any = navigator;
   if (!nav?.wakeLock?.request) return () => {};
@@ -273,6 +290,7 @@ export function ExecutorButton() {
     // مؤقتات جهاز التنفيذ عندما ينتقل التاب للخلفية.
     const stopSilentKeepAlive = startSilentKeepAlive();
     const stopWakeLock = startWakeLock();
+    const stopWebLock = holdWebLock();
 
     // عند تفعيل جهاز التنفيذ: أى مهمة «claimed» من جلسة سابقة اتقفل عليها الجهاز = يتيمة → علّمها stale
     // عشان متفضلش عالقة فى الطابور وتضخّم ترتيب المستخدمين. (بنعملها مرة عند بدء التفعيل قبل السحب.)
@@ -793,6 +811,7 @@ export function ExecutorButton() {
       document.removeEventListener("resume", onWake as any);
       stopSilentKeepAlive();
       stopWakeLock();
+      stopWebLock();
       // امسح النبضة عند إيقاف التفعيل/مغادرة الصفحة عشان مايفضلش «مفعّل» بالغلط
       fetch("/api/exec-queue/offline", { method: "POST", credentials: "include" }).catch(() => {});
     };
