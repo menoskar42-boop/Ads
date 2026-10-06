@@ -21,7 +21,7 @@ const { loadPaySettings, gatewayReady } = require('../lib/gateways');
 const audit = require('../lib/audit');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
-const { applyApprovedChangeOrder } = require('../workshop/change_orders');
+const { applyApprovedChangeOrder, reserveForChangeOrder, releaseChangeOrderReservations } = require('../workshop/change_orders');
 // أوقات الورشة بتوقيت القاهرة — السيرفر UTC (شوف workshop/cairo_time.js)
 const CT = require('../workshop/cairo_time');
 const { LINK_LIVE_SQL, LINK_DAYS_AFTER_CLOSE } = require('./workshop_public');
@@ -37,6 +37,7 @@ const {
   ensureQuality,
   qualityReady,
   reservationAvailable,
+  reserveAvailable,
   logActivity,
   WORKSHOP_ROLE_LABELS,
   MANAGEMENT_ROLES,
@@ -2358,13 +2359,34 @@ router.post('/jobs/:id/change-orders', requireFlag('change_orders'), requireWork
   const cid = req.company.id, jobId = int(req.params.id), b = req.body || {};
   const job = (await pool.query(
     `SELECT j.id FROM workshop_jobs j WHERE j.id=$1 AND j.company_id=$2`, [jobId, cid])).rows[0];
-  const description = text(b.description, 300);
-  const amount = Math.max(0, num(b.unit_price, 0));
-  if (!job || !description || amount <= 0) return res.redirect(`/workshop/jobs/${jobId}#change-orders`);
+  let description = text(b.description, 300);
+  let amount = Math.max(0, num(b.unit_price, 0));
+  const isPart = b.kind === 'part';
+  // قطعة من المخزن (اختيارى): الوصف والسعر بييجوا منها لو فاضيين، وبتتحجز للأمر دلوقتى
+  // عشان تبقى موجودة وقت ما العميل يوافق (وبتتصرف ساعتها — change_orders.js).
+  const stockPartId = isPart && req.flags && req.flags.has('parts') ? int(b.part_id) : 0;
+  const qtyWanted = Math.max(0.001, num(b.qty, 1));
   const client = await pool.connect();
   let orderId = null;
+  let stockPart = null;
+  let unitCost = Math.max(0, num(b.unit_cost, 0));
   try {
     await client.query('BEGIN');
+    if (stockPartId && job) {
+      const r = await reserveForChangeOrder(client, cid, jobId, stockPartId, qtyWanted);
+      if (!r.ok) {
+        await client.query('ROLLBACK');
+        return res.redirect(`/workshop/jobs/${jobId}?err=stock&have=${r.have != null ? r.have : 0}#change-orders`);
+      }
+      stockPart = r.part;
+      description = description || stockPart.name;
+      if (!amount) amount = Number(stockPart.sell_price || 0);
+      unitCost = Number(stockPart.avg_cost || 0);
+    }
+    if (!job || !description || amount <= 0) {
+      await client.query('ROLLBACK');
+      return res.redirect(`/workshop/jobs/${jobId}#change-orders`);
+    }
     const order = (await client.query(
       /* `ref()` بيحطّ التقييد **جوّه** جملة الكتابة: لو الـjob مش بتاع
        * الشركة دي، `job_id` بيطلع NULL والقيد بيرفض الصف — مش بيتكتب
@@ -2379,16 +2401,17 @@ router.post('/jobs/:id/change-orders', requireFlag('change_orders'), requireWork
     orderId = order.id;
     await client.query(
       `INSERT INTO workshop_change_order_items
-        (company_id, change_order_id, kind, description, qty, unit_price, unit_cost)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [cid, orderId, b.kind === 'part' ? 'part' : 'labour', description,
-       Math.max(0.001, num(b.qty, 1)), amount, Math.max(0, num(b.unit_cost, 0))]);
+        (company_id, change_order_id, kind, description, qty, unit_price, unit_cost, part_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,${ref('workshop_parts', '$8', '$1')})`,
+      [cid, orderId, isPart ? 'part' : 'labour', description,
+       qtyWanted, amount, unitCost, stockPart ? stockPart.id : null]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
     console.error('[workshop change order]', e.message);
   } finally { client.release(); }
-  if (orderId) await logActivity(pool, cid, jobId, 'change_order_created', `تم إنشاء موافقة إصلاح إضافي #${orderId}`);
+  if (orderId) await logActivity(pool, cid, jobId, 'change_order_created', `تم إنشاء موافقة إصلاح إضافي #${orderId}`
+    + (stockPart ? ` — واتحجز ${qtyWanted} من «${stockPart.name}» من المخزن` : ''));
   res.redirect(`/workshop/jobs/${jobId}#change-orders`);
 });
 
@@ -2426,7 +2449,7 @@ router.post('/change-orders/:id/status', requireFlag('change_orders'), requireWo
   // من «بانتظار الموافقة» بس: تعديل اتعتمد واتضافت بنوده للفاتورة مايتقلبش «مرفوض»
   // (البنود كانت هتفضل فى الفاتورة)، ومايتعتمدش مرتين.
   const client = await pool.connect();
-  let row = null, added = 0;
+  let row = null, added = 0, shortages = [];
   try {
     await client.query('BEGIN');
     row = (await client.query(
@@ -2439,7 +2462,8 @@ router.post('/change-orders/:id/status', requireFlag('change_orders'), requireWo
               updated_at=now()
         WHERE id=$3 AND company_id=$4 AND status='proposed'
         RETURNING job_id`, [status, actor.name, orderId, cid])).rows[0];
-    if (row && status === 'approved') added = await applyApprovedChangeOrder(client, cid, orderId);
+    if (row && status === 'approved') ({ added, shortages } = await applyApprovedChangeOrder(client, cid, orderId));
+    if (row && status === 'rejected') await releaseChangeOrderReservations(client, cid, orderId);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -2448,7 +2472,8 @@ router.post('/change-orders/:id/status', requireFlag('change_orders'), requireWo
   } finally { client.release(); }
   if (row) await logActivity(pool, cid, row.job_id, `change_order_${status}`,
     `تم ${status === 'approved' ? 'اعتماد' : 'رفض'} التعديل #${orderId}`
-      + (added ? ` — واتضاف ${added} بند لأمر الشغل` : ''), actor.name);
+      + (added ? ` — واتضاف ${added} بند لأمر الشغل` : '')
+      + (shortages.length ? ` — ⚠️ مااتصرفش من المخزن (الرف مايكفّيش): ${shortages.join('، ')}` : ''), actor.name);
   res.redirect(req.get('referer') || '/workshop/change-orders');
 });
 
@@ -2974,7 +2999,7 @@ router.post('/jobs/:id/parts/reserve', requireFlag('parts'), requireWorkshopPerm
       `SELECT COALESCE(SUM(qty),0)::float AS qty FROM workshop_part_reservations
         WHERE part_id=$1 AND company_id=$2 AND status='reserved' AND job_id<>$3`,
       [partId, cid, jobId])).rows[0];
-    if (!job || !part || !reservationAvailable(part.qty, other.qty, own && own.qty, qty)) {
+    if (!job || !part || !reserveAvailable(part.qty, other.qty, own && own.status === 'reserved' ? own.qty : 0, qty)) {
       await client.query('ROLLBACK');
       return res.redirect(`/workshop/jobs/${jobId}?reserve=stock#reservations`);
     }

@@ -341,9 +341,18 @@
       </div>
        <% if (canWorkshop('manage_job_pricing')) { %><form method="post" action="/workshop/jobs/<%= job.id %>/change-orders" class="mt-4 pt-4 border-t border-slate-100 grid sm:grid-cols-4 gap-2 text-sm no-print">
         <select name="kind" class="border border-slate-200 rounded-xl px-3 py-2"><option value="labour">عمالة</option><option value="part">قطعة</option></select>
-        <input name="description" required placeholder="وصف التعديل" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
+        <% if (flags.has('parts')) { %>
+        <%# قطعة من المخزن: بتتحجز للأمر دلوقتى وبتتصرف لما العميل يوافق. الوصف والسعر بييجوا منها لو سايبهم فاضيين. %>
+        <select name="part_id" aria-label="قطعة من المخزن (اختياري)" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-3">
+          <option value="">قطعة من المخزن (اختياري — للنوع «قطعة»)…</option>
+          <% stock.forEach(function(s){ %>
+            <option value="<%= s.id %>"><%= s.name %><%= s.part_number ? ' — ' + s.part_number : '' %> (<%= Number(s.qty) %>)</option>
+          <% }) %>
+        </select>
+        <% } %>
+        <input name="description" placeholder="وصف التعديل (فاضي = اسم القطعة)" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
         <input name="qty" type="number" min="0.001" step="0.001" value="1" placeholder="الكمية" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
-        <input name="unit_price" type="number" min="0" step="0.01" required placeholder="سعر البيع" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
+        <input name="unit_price" type="number" min="0" step="0.01" placeholder="سعر البيع (فاضي = سعر القطعة)" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
         <input name="unit_cost" type="number" min="0" step="0.01" placeholder="التكلفة" class="border border-slate-200 rounded-xl px-3 py-2" dir="ltr">
         <input name="reason" placeholder="سبب التعديل" class="border border-slate-200 rounded-xl px-3 py-2 sm:col-span-2">
         <button class="bg-brand-600 text-white rounded-xl px-4 py-2 font-bold">إضافة للمراجعة</button>

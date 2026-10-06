@@ -122,8 +122,22 @@ function qualityReady(items) {
     .every((item) => item.status === 'passed');
 }
 
+// ── المخزن: قاعدتين منفصلتين (٢٠٢٦-١٠-٠٦) ───────────────────────────────────
+// كانت دالة واحدة: «الرف − حجز الأوامر التانية − (المطلوب − حجز الأمر ده)» واتستخدمت
+// للصرف وللحجز الاتنين — وهى غلط فى الاتنين:
+//   · الصرف: الرف 3، أمر تانى حاجز 2، الأمر ده حاجز 1 وعايز يصرف 2 → كانت بتقبل (3−2−1=0)
+//     فبيصرف 2 والرف يبقى 1 والأمر التانى حجزه بقى على الورق بس.
+//   · الحجز: الرف 3، الأمر ده حاجز 1 وعايز يحجز 3 كمان → كانت بتقبل (3−0−2=1) فبقى
+//     محجوز 4 من رف فيه 3.
+// حجز الأمر نفسه جزء من الرف وبتاعه، فالصح:
+//   الصرف: الرف − حجز الأوامر التانية ≥ المطلوب صرفه.
+//   الحجز: الرف − حجز الأوامر التانية − حجز الأمر ده ≥ الكمية الزيادة.
 function reservationAvailable(stockQty, reservedByOthers, ownReservation, wanted) {
-  return Number(stockQty || 0) - Number(reservedByOthers || 0) - Math.max(0, Number(wanted || 0) - Number(ownReservation || 0)) >= 0;
+  return Number(stockQty || 0) - Number(reservedByOthers || 0) - Number(wanted || 0) >= 0;
+}
+
+function reserveAvailable(stockQty, reservedByOthers, ownReservation, extra) {
+  return Number(stockQty || 0) - Number(reservedByOthers || 0) - Number(ownReservation || 0) - Number(extra || 0) >= 0;
 }
 
 async function logActivity(pool, companyId, jobId, action, details, actorName) {
@@ -154,5 +168,6 @@ module.exports = {
   ensureQuality,
   qualityReady,
   reservationAvailable,
+  reserveAvailable,
   logActivity,
 };

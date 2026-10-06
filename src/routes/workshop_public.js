@@ -342,6 +342,7 @@ router.post('/:token/change-orders/:id/approve', approveLimiter, async (req, res
   if (!sameMoney(b.seen_total, total)) return back('changed=1#change-' + changeId);
   const name = safeName(b.name);
   const meta = evidenceMeta(req);
+  let shortages = [];
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -359,7 +360,7 @@ router.post('/:token/change-orders/:id/approve', approveLimiter, async (req, res
           JSON.stringify(withVersion({ items: items.map((i) => ({ kind: i.kind, description: i.description, qty: Number(i.qty), unit_price: Number(i.unit_price) })), total })),
           meta.ip, meta.ua]);
       // البنود اللى العميل وافق عليها بتدخل أمر الشغل والفاتورة فى نفس المعاملة
-      await applyApprovedChangeOrder(client, data.company_id, changeId);
+      shortages = (await applyApprovedChangeOrder(client, data.company_id, changeId)).shortages;
     }
     await client.query('COMMIT');
   } catch (e) {
@@ -368,7 +369,8 @@ router.post('/:token/change-orders/:id/approve', approveLimiter, async (req, res
     return back('');
   } finally { client.release(); }
   await logActivity(pool, data.company_id, data.job_id, 'change_order_customer_approved',
-    `اعتمد العميل التعديل الإضافي #${changeId} — ${total} — «${CONSENT_TEXT}»`, name);
+    `اعتمد العميل التعديل الإضافي #${changeId} — ${total} — «${CONSENT_TEXT}»`
+      + (shortages.length ? ` — ⚠️ مااتصرفش من المخزن (الرف مايكفّيش): ${shortages.join('، ')}` : ''), name);
   back('change_approved=1');
 });
 

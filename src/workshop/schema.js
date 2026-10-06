@@ -716,6 +716,9 @@ async function ensureWorkshopSchema() {
       -- الموافقة على تعديل إضافى بتضيف بنوده للفاتورة تلقائياً (قرار المالك ٢٠٢٦-١٠-٠٦).
       -- applied_at = اتضاف إمتى (مرة واحدة بس)، وchange_order_id على البند = جه من أنهى تعديل.
       ALTER TABLE workshop_change_orders ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ;
+      -- قطعة التعديل ممكن تكون من المخزن: بتتحجز للأمر وقت إنشاء التعديل وبتتصرف وقت الموافقة.
+      ALTER TABLE workshop_change_order_items ADD COLUMN IF NOT EXISTS part_id INTEGER
+        REFERENCES workshop_parts(id) ON DELETE SET NULL;
       ALTER TABLE workshop_job_parts ADD COLUMN IF NOT EXISTS change_order_id INTEGER
         REFERENCES workshop_change_orders(id) ON DELETE SET NULL;
       ALTER TABLE workshop_job_labour ADD COLUMN IF NOT EXISTS change_order_id INTEGER
