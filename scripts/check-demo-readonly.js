@@ -65,8 +65,12 @@ for (const p of ['/furniture/x', '/workshop/x', '/einvoice/x', '/hall/x',
   '/nursery/x', '/qastly/x', '/nutrition/x']) {
   check(`و${p} مقفول برضه`, run(demo('POST', p)).status === 403);
 }
-// Nothing at all should be writable — including areas added later.
-check('وأي مسار جديد مقفول تلقائياً', run(demo('POST', '/something-new-2027')).status === 403);
+// An unknown path is NOT the demo's back-office: it used to be refused too, and
+// that "deny everything" rule is what locked admins, shoppers and customers out of
+// every public form for a week after one demo click (2026-10-06). A NEW back-office
+// is covered instead by the mount classification below — an unclassified router
+// in server.js fails this check, so it cannot slip in unguarded.
+check('مسار عام جديد مش لوحة شركة فمابيتقفلش', run(demo('POST', '/something-new-2027')).nexted);
 // A real session is untouched, or the guard would break the whole product.
 check('والمستخدم الحقيقي مابيتلمسش', run(real('POST', '/furniture/sales')).nexted);
 // Without this the visitor is stuck read-only until the cookie expires.
@@ -101,11 +105,44 @@ check('والخروج مسموح عشان الزائر مايتحبسش',
     return passed;
   };
   const open = ['/company/login', '/admin/login', '/customer/login', '/apply', '/ar/apply', '/en/apply/status', '/contact', '/ar/contact'];
-  const shut = ['/workshop/jobs', '/workshop/customers/1', '/company/settings', '/applyx', '/company/login-as', '/pharmacy/sales'];
+  const shut = ['/workshop/jobs', '/workshop/customers/1', '/company/settings', '/company/login-as', '/pharmacy/sales', '/ar/company/settings', '/qastly/plans', '/nutrition/patients/1'];
   const wrongOpen = open.filter((p) => !run('POST', p));
   const wrongShut = shut.filter((p) => run('POST', p));
   check('الدخول والتقديم والتواصل بيعدّوا من جلسة الديمو', wrongOpen.length === 0, wrongOpen.join(' ') || 'كلهم');
   check('وأى كتابة تانية لسه ممنوعة', wrongShut.length === 0, wrongShut.join(' ') || 'كلهم ممنوعين');
+
+  // أدمن المنصة مسجّل والمتصفح فتح ديمو (٢٠٢٦-١٠-٠٦): «موافقة وإنشاء» اتقفلت بـ«نسخة عرض».
+  const runAs = (session, method, p) => {
+    let passed = false;
+    const req = { method, path: p, session, xhr: false, get: () => '' };
+    g(req, { status() { return this; }, send() {}, json() {} }, () => { passed = true; });
+    return passed;
+  };
+  const adminDemo = { demoReadOnly: true, demoSlug: 'workshop', companyId: 9, adminId: 1 };
+  check('أدمن المنصة بيوافق على الطلبات حتى لو المتصفح فاتح ديمو',
+    runAs(adminDemo, 'POST', '/admin/applications/3/approve') && runAs(adminDemo, 'POST', '/admin/companies/5/edit'));
+  check('بس لوحات الشركات فاضلة قراءة فقط فى جلسة الديمو حتى مع الأدمن',
+    !runAs(adminDemo, 'POST', '/workshop/jobs') && !runAs(adminDemo, 'POST', '/company/settings'));
+  // الصفحات العامة وحسابات الهويات التانية: أى حد بيكتب فيها من غير ديمو، فالديمو مايقفلهاش.
+  const demoOnly = { demoReadOnly: true, demoSlug: 'workshop', companyId: 9 };
+  const publicWrites = ['/shop/delta/cart/add', '/shop/delta/checkout', '/customer/addresses/add',
+    '/workshop/status/tok123/approve', '/qastly/s/abc/pay', '/contact/delta', '/track/abc', '/radiology/upload'];
+  const blockedPublic = publicWrites.filter((p) => !runAs(demoOnly, 'POST', p));
+  check('الصفحات العامة (سلة/دفع/حساب عميل/موافقة عرض/أقساط/تواصل) شغّالة لزائر فتح الديمو قبل كده',
+    blockedPublic.length === 0, blockedPublic.join(' ') || 'كلهم شغّالين');
+}
+
+/* ── كل mount فى server.js متصنّف: لوحة شركة (بتتقفل) أو لأ ───────────────── */
+{
+  const srv = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+  const iGuard = srv.indexOf('app.use(demoMode.guard());');
+  const after = [...srv.matchAll(/^app\.use\('(\/[a-z/-]*)'/gm)].filter((m) => m.index > iGuard).map((m) => m[1]);
+  const known = new Set([...D.BACK_OFFICE, ...D.NOT_BACK_OFFICE]);
+  const unclassified = [...new Set(after)].filter((p) => !known.has(p));
+  check('كل لوحة/راوتر فى server.js متصنّف فى demo_mode (BACK_OFFICE أو NOT_BACK_OFFICE)',
+    unclassified.length === 0, unclassified.join(' ') || 'كلهم');
+  const missingBO = D.BACK_OFFICE.filter((b) => !after.includes(b));
+  check('وكل بادئة فى BACK_OFFICE ليها راوتر فعلاً', missingBO.length === 0, missingBO.join(' ') || 'كلهم');
 }
 
 /* ── Mounted once, above everything ────────────────────────────────────── */

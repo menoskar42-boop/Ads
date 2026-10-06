@@ -27,6 +27,13 @@
     <h1 class="text-2xl font-extrabold text-gray-900 mb-3">تم استلام طلبك بنجاح</h1>
     <p class="text-gray-500 leading-relaxed mb-6">طلبك دلوقتي قيد المراجعة من فريق إدارة المنصّة. بمجرد الموافقة هنبعتلك إيميل بالتفعيل، وتقدر تدخل لوحة تحكم موقعك بنفس البريد وكلمة المرور اللي اخترتهم.</p>
 
+    <% if (typeof trackUrl !== 'undefined' && trackUrl) { %>
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-right mb-6">
+      <p class="text-sm font-bold text-amber-900 mb-2">رابط متابعة طلبك — احفظه:</p>
+      <a href="<%= trackUrl %>" dir="ltr" class="block break-all font-mono text-sm text-indigo-700 underline"><%= trackUrl %></a>
+      <p class="text-xs text-amber-800 mt-2">بيوصلك برضه في إيميل استلام الطلب. الرابط ده بيظهر هنا مرة واحدة بس.</p>
+    </div>
+    <% } %>
     <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 text-right mb-6">
       <p class="text-sm font-bold text-indigo-800 mb-2">خطواتك الجاية:</p>
       <ol class="text-sm text-indigo-900 space-y-1.5 list-decimal pr-5">

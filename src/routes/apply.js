@@ -100,9 +100,10 @@ router.post('/apply', applyLimiter, async (req, res) => {
   if (!values.phone || values.phone.length < 6) return render('رقم الهاتف مطلوب.');
   if (!values.business_name || values.business_name.length < 2) return render('اسم النشاط/الموقع مطلوب.');
   if (!BUSINESS_TYPES.includes(values.business_type)) return render('اختر نوع الموقع.');
-  if (!SLUG_RE.test(values.preferred_slug) || isReserved(values.preferred_slug)) {
-    return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط، ولا يكون من الأسماء المحجوزة).');
+  if (!SLUG_RE.test(values.preferred_slug)) {
+    return render('الاسم المختصر للرابط غير صالح (حروف إنجليزية صغيرة وأرقام و"-" فقط).');
   }
+  if (isReserved(values.preferred_slug)) return render('الاسم المختصر ده محجوز للنظام — اختر اسماً آخر.');
   if (password.length < 8) return render('كلمة المرور يجب ألا تقل عن 8 أحرف.');
   if (!acceptedTerms || !acceptedPrivacy || !acceptedTruth) {
     return render('يجب الموافقة على الشروط والأحكام، سياسة الخصوصية، وإقرار صحة البيانات للمتابعة.');
@@ -161,24 +162,41 @@ router.post('/apply', applyLimiter, async (req, res) => {
        `قدّم طلب تسجيل (${values.business_type}) — الرابط المطلوب: ${values.preferred_slug}`]
     ).catch((e) => console.error('[apply] crm-insert error:', e.message));
 
+    // رابط المتابعة كان بيروح فى الإيميل بس — ولو الإيميل ماوصلش، المتقدّم مالوش أى طريق
+    // لطلبه. بيتعرض مرة واحدة فى صفحة النجاح لنفس المتصفح اللى قدّم (مراجعة كوديكس).
+    req.session.applyTrackUrl = trackUrlFor(res, trackToken);
     res.redirect('/apply/success');
   } catch (err) {
+    // ضغطتين ورا بعض: التانية بتعدّى فحص التكرار قبل ما الأولى تتسجّل، وبتقع على قيد
+    // التفرّد. لو فيه طلب بنفس الإيميل والرابط اتسجّل حالاً، ده نفس الطلب — نجاح مش خطأ.
+    if (err && err.code === '23505') {
+      try {
+        const same = await pool.query(
+          `SELECT 1 FROM signup_applications
+            WHERE email = $1 AND preferred_slug = $2 AND created_at > now() - interval '10 minutes'`,
+          [values.email, values.preferred_slug]);
+        if (same.rows.length) return res.redirect('/apply/success');
+      } catch (e) { /* يكمّل للرسالة تحت */ }
+      return render('فيه طلب بنفس البريد أو نفس الاسم المختصر — لو قدّمت قبل كده تابع طلبك من «متابعة الطلب»، أو اختر اسماً آخر.');
+    }
     console.error('[POST /apply] error:', err);
     render('حدث خطأ غير متوقع. حاول مرة أخرى لاحقاً.');
   }
 });
 
 router.get('/apply/success', (req, res) => {
-  res.render('apply/success');
+  const trackUrl = req.session && req.session.applyTrackUrl;
+  if (req.session) delete req.session.applyTrackUrl;   // مرة واحدة بس
+  res.render('apply/success', { trackUrl: trackUrl || null });
 });
 
 /* ─── LIVE SLUG AVAILABILITY CHECK ───────────────────────── */
 router.get('/apply/check-slug', async (req, res) => {
   const slug = String(req.query.slug || '').trim().toLowerCase().slice(0, 40);
   if (!slug) return res.json({ available: false, reason: 'empty' });
-  if (!SLUG_RE.test(slug) || isReserved(slug)) {
-    return res.json({ available: false, reason: 'invalid' });
-  }
+  // محجوز للنظام (pharmacy, clinic…) صيغته سليمة — رسالته غير «صيغة غير صالحة»
+  if (!SLUG_RE.test(slug)) return res.json({ available: false, reason: 'invalid' });
+  if (isReserved(slug)) return res.json({ available: false, reason: 'reserved' });
   try {
     const [c, a] = await Promise.all([
       pool.query('SELECT 1 FROM companies WHERE slug = $1', [slug]),

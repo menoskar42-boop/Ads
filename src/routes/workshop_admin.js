@@ -2069,6 +2069,9 @@ router.post('/customers/:id/delete', requireFlag('customers'), requireWorkshopPe
 });
 
 // ── Vehicles ─────────────────────────────────────────────────────────────────
+// «العربيات/السيارات» بالإنجليزى بيتكتب cars — تحويل بدل ٤٠٤ (مراجعة كوديكس ٢٠٢٦-١٠-٠٦)
+router.get('/cars', (req, res) => res.redirect(301, '/workshop/vehicles'));
+
 router.get('/vehicles', requireWorkshopPermission('view_vehicles'), async (req, res) => {
   const cid = req.company.id;
   const q = String(req.query.q || '').trim().slice(0, 60);

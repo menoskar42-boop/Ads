@@ -163,9 +163,42 @@ function isPublicDoor(path) {
   return PUBLIC_DOORS.test(p) || LOGIN_DOOR.test(p);
 }
 
+// ── الحارس بيقفل **لوحات الشركات بس** (٢٠٢٦-١٠-٠٦) ───────────────────────────
+//
+// كان بيقفل **أى** كتابة على oscardevs.com طول ما المتصفح شايل جلسة ديمو. والجلسة
+// بتفضل فى المتصفح أسبوع — فاللى فتح «شوف نموذج حي» مرة واحدة كان بيتمنع بعدها من:
+// موافقة الأدمن على طلب تسجيل (اتكشف بـ«موافقة وإنشاء» على طلب ٣)، سلة ودفع /shop،
+// حساب العميل /customer، موافقة العميل على عرض الورشة /workshop/status، الأقساط
+// العامة /qastly/s، تتبّع الطلبات، المدوّنة والتواصل…
+//
+// وده مالوش أى لازمة: الصفحات العامة دى **أى حد** بيكتب فيها من غير ديمو أصلاً، والهويات
+// التانية (الأدمن، العميل، الدكتور) جلسة الديمو مابتدّيش صلاحيتها. الجلسة التجريبية
+// بتدّى صلاحية حاجة واحدة: **لوحة إدارة شركة الديمو** (session.companyId). فالقفل هناك بس.
+//
+// ⚠️ لوحة جديدة = لازم تتضاف لـBACK_OFFICE، وscripts/check-demo-readonly.js بيوقّع لو
+// فيه mount فى server.js مش متصنّف (BACK_OFFICE أو NOT_BACK_OFFICE) — مفيش نسيان صامت.
+const BACK_OFFICE = [
+  '/company', '/accounting', '/pharmacy', '/food', '/clinic', '/gym', '/furniture',
+  '/workshop', '/einvoice', '/hall', '/nursery', '/qastly', '/nutrition',
+];
+// مسارات عامة جوّه بادئة لوحة: صفحة العميل بالتوكن (موافقة عرض الورشة) والأقساط العامة.
+const PUBLIC_INSIDE_BACK_OFFICE = [/^\/workshop\/status(?:\/|$)/, /^\/qastly\/s(?:\/|$)/];
+// كل الـmounts التانية فى server.js — متصنّفة صراحةً (الفحص بيقارن بيها).
+const NOT_BACK_OFFICE = [
+  '/admin', '/shop', '/customer', '/radiology', '/research', '/portal', '/track',
+  '/workshop/status', '/qastly/s', '/',
+];
+
+function isBackOfficePath(path) {
+  const p = String(path || '').replace(/^\/(?:ar|en)(?=\/|$)/, '') || '/';
+  if (PUBLIC_INSIDE_BACK_OFFICE.some((r) => r.test(p))) return false;
+  return BACK_OFFICE.some((b) => p === b || p.startsWith(b + '/'));
+}
+
 function guard() {
   return function demoGuard(req, res, next) {
     if (ALWAYS_ALLOWED.includes(req.path) || isPublicDoor(req.path)) return next();
+    if (!isBackOfficePath(req.path)) return next();
     if (blockWrite(req, res)) return;
     next();
   };
@@ -174,5 +207,5 @@ function guard() {
 module.exports = {
   isDemoLogin,
   DEMO_SLUGS, isDemoSlug, isDemoSession, isWriteRequest, blockWrite,
-  endDemo, guard, ALWAYS_ALLOWED, isPublicDoor,
+  endDemo, guard, ALWAYS_ALLOWED, isPublicDoor, isBackOfficePath, BACK_OFFICE, NOT_BACK_OFFICE,
 };

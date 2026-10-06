@@ -81,7 +81,7 @@
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-6"><%= error %></div>
     <% } %>
 
-    <form method="POST" action="/apply" class="space-y-5">
+    <form method="POST" action="/apply" class="space-y-5" id="applyForm">
       <%# Honeypot: hidden from people, irresistible to bots. A filled value or a
           submission faster than a human can type means the request is dropped —
           silently, so the bot never learns to avoid it. The same pair /contact
@@ -179,7 +179,7 @@
 
       <div>
         <label for="apply-password" class="block text-sm font-semibold text-gray-700 mb-1.5">كلمة المرور (هتدخل بها بعد الموافقة) *</label>
-        <input id="apply-password" type="password" name="password" required minlength="8" maxlength="100"
+        <input id="apply-password" type="password" name="password" required minlength="8" maxlength="100" pattern=".{8,}" title="8 أحرف على الأقل"
           class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
         <p class="text-xs text-gray-400 mt-1">8 أحرف على الأقل. تُخزّن مشفّرة (bcrypt) ولا يمكن لأحد رؤيتها.</p>
       </div>
@@ -276,6 +276,9 @@
         if (res.available) {
           show('✓ الاسم متاح', '#16a34a');
           if (submit) submit.disabled = false;
+        } else if (res.reason === 'reserved') {
+          show('✗ الاسم ده محجوز للنظام — اختر اسماً آخر', '#dc2626');
+          if (submit) submit.disabled = true;
         } else if (res.reason === 'invalid') {
           show('✗ صيغة غير صالحة (حروف إنجليزية صغيرة وأرقام و"-" فقط)', '#dc2626');
           if (submit) submit.disabled = true;
@@ -298,5 +301,19 @@
 })();
 </script>
 
+<script>
+  /* ضغطة واحدة = طلب واحد (مراجعة كوديكس ٢٠٢٦-١٠-٠٦): الضغطة التانية كانت بتوصل والأولى
+     لسه بتتسجّل، فترجع «حدث خطأ غير متوقع» والاسم يبان محجوز. الزرار بيتقفل بعد إرسال
+     صالح بس — لو المتصفح رفض الفورم (حقل ناقص) مابيتقفلش. */
+  (function () {
+    var f = document.getElementById('applyForm'), b = document.getElementById('submitBtn');
+    if (!f || !b) return;
+    f.addEventListener('submit', function (e) {
+      if (f.dataset.sent === '1') { e.preventDefault(); return; }
+      f.dataset.sent = '1';
+      b.disabled = true; b.textContent = 'جارٍ الإرسال…';
+    });
+  })();
+</script>
 </body>
 </html>
