@@ -632,8 +632,8 @@ export function ExecutorButton() {
     const noRealLanes = new Set<number>();
     // ونفس الفكرة لتابات «إيقاف PO» (٢٠٢٦-١٠-٠٦) — العدد من «رفع الملفات ← إعدادات».
     const poStopLanes = new Set<number>();
-    // فاصل بين فتح تابات «بدون Real» (شوف runBatch) — ٨ثوانى كفاية لتسجيل الدخول.
-    const NOREAL_STAGGER_MS = 8 * 1000;
+    // فاصل بين فتح تابات «بدون Real» (شوف runBatch) — ٤ ثوانى (المالك ٢٠٢٦-١٠-٠٦).
+    const NOREAL_STAGGER_MS = 4 * 1000;   // كان ٨ — المالك ٢٠٢٦-١٠-٠٦: ٤ ثوانى
     let nextNoRealOpenAt = 0;
     const STOP_STAGGER_MS = 1000;   // «إيقاف PO»: ثانية بين كل تاب والتانى (المالك)
     let nextStopOpenAt = 0;
