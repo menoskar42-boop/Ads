@@ -578,10 +578,12 @@ export function ExecutorButton() {
       const ev: "raise" | "stop" = (type === "stop" || raiseWithStop) ? "stop" : "raise";
       const perMax = type === "stop" ? STOP_MS : (raiseWithStop ? RAISE_MAX_MS + STOP_MS : RAISE_MAX_MS);
       const before = await latestPoEventAt(last, ev);
-      // تابات «إيقاف PO» بتفتح متفرّقة زى «بدون Real» — تسجيل دخول AXON مع بعض بيبوّظ جلسة.
+      // تابات «إيقاف PO» بتفتح بفاصل ثانية واحدة (المالك ٢٠٢٦-١٠-٠٦). كانت بـ٨ ثوانى زى
+      // «بدون Real» — وخط الإيقاف بيخلص فى أقل من كده، فكل تاب كان بيقفل قبل ما اللى بعده
+      // يفتح، والتوازى مابيبانش (صفحة واحدة دايماً). عدّاد لوحده عشان مايأخّرش «بدون Real».
       if (type === "stop") {
-        const wait = nextNoRealOpenAt - Date.now();
-        nextNoRealOpenAt = Math.max(Date.now(), nextNoRealOpenAt) + NOREAL_STAGGER_MS;
+        const wait = nextStopOpenAt - Date.now();
+        nextStopOpenAt = Math.max(Date.now(), nextStopOpenAt) + STOP_STAGGER_MS;
         if (wait > 0) await sleep(wait);
         if (stopped) return "stopped";
       }
@@ -633,6 +635,8 @@ export function ExecutorButton() {
     // فاصل بين فتح تابات «بدون Real» (شوف runBatch) — ٨ثوانى كفاية لتسجيل الدخول.
     const NOREAL_STAGGER_MS = 8 * 1000;
     let nextNoRealOpenAt = 0;
+    const STOP_STAGGER_MS = 1000;   // «إيقاف PO»: ثانية بين كل تاب والتانى (المالك)
+    let nextStopOpenAt = 0;
     // بعد تاب ممنوع: السحب يهدى دقيقة (المهمة رجعت للطابور).
     const POPUP_COOLDOWN_MS = 60 * 1000;
     let popupCooldownUntil = 0;

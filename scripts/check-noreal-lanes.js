@@ -82,7 +82,9 @@ check('الـreset بيمسح مفاتيح تابه بس', (script.match(/clearM
 const po = read('dzs-profile-optimization.user.js');
 const poLib = read('client/src/lib/profile-optimization.ts');
 check('جهاز التنفيذ بيوزّع رقم تاب لـ«إيقاف PO» بمجموعته', /while \(poStopLanes\.has\(lane\)\) lane\+\+;/.test(exec) && /poStopLanes\.delete\(lane\)/.test(exec));
-check('تابات «إيقاف PO» بتفتح متفرّقة', /if \(type === "stop"\) \{\s+const wait = nextNoRealOpenAt - Date\.now\(\);/.test(exec));
+// المالك ٢٠٢٦-١٠-٠٦: ثانية واحدة — بـ٨ ثوانى كل تاب كان بيخلص قبل اللى بعده فالتوازى مابيبانش.
+check('تابات «إيقاف PO» بتفتح بفاصل ثانية بعدّاد لوحده', /const STOP_STAGGER_MS = 1000;/.test(exec)
+  && /if \(type === "stop"\) \{\s+const wait = nextStopOpenAt - Date\.now\(\);/.test(exec));
 check('رقم التاب بيروح لرابط PO (sf_lane) ونافذة لكل تاب', /&sf_lane=\$\{lane\}/.test(poLib) && /lane \? `dzs_po_\$\{lane\}` : "dzs_measure"/.test(poLib));
 const pv = (po.match(/@version\s+(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
 check('سكربت PO v0.9.9 أو أحدث', pv[0] > 0 || pv[1] > 9 || (pv[1] === 9 && pv[2] >= 9));

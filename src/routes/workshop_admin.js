@@ -21,6 +21,7 @@ const { loadPaySettings, gatewayReady } = require('../lib/gateways');
 const audit = require('../lib/audit');
 const { FLAGS, OPTIONAL_KEYS, getFlags, saveFlags, localized } = require('../workshop/flags');
 const J = require('../workshop/jobs');
+const { applyApprovedChangeOrder } = require('../workshop/change_orders');
 // أوقات الورشة بتوقيت القاهرة — السيرفر UTC (شوف workshop/cairo_time.js)
 const CT = require('../workshop/cairo_time');
 const { LINK_LIVE_SQL, LINK_DAYS_AFTER_CLOSE } = require('./workshop_public');
@@ -2422,17 +2423,32 @@ router.post('/change-orders/:id/status', requireFlag('change_orders'), requireWo
   const cid = req.company.id, orderId = int(req.params.id), status = req.body && req.body.status;
   if (!['approved', 'rejected'].includes(status)) return res.redirect('/workshop/change-orders');
   const actor = (await managerIdentity(req, cid)) || { name: 'فريق الورشة' };
-  const row = (await pool.query(
-    `UPDATE workshop_change_orders
-        SET status=$1,
-            approved_by=CASE WHEN $1='approved' THEN $2 ELSE NULL END,
-            approved_at=CASE WHEN $1='approved' THEN now() ELSE NULL END,
-            rejected_by=CASE WHEN $1='rejected' THEN $2 ELSE NULL END,
-            rejected_at=CASE WHEN $1='rejected' THEN now() ELSE NULL END,
-            updated_at=now()
-      WHERE id=$3 AND company_id=$4
-      RETURNING job_id`, [status, actor.name, orderId, cid])).rows[0];
-  if (row) await logActivity(pool, cid, row.job_id, `change_order_${status}`, `تم ${status === 'approved' ? 'اعتماد' : 'رفض'} التعديل #${orderId}`, actor.name);
+  // من «بانتظار الموافقة» بس: تعديل اتعتمد واتضافت بنوده للفاتورة مايتقلبش «مرفوض»
+  // (البنود كانت هتفضل فى الفاتورة)، ومايتعتمدش مرتين.
+  const client = await pool.connect();
+  let row = null, added = 0;
+  try {
+    await client.query('BEGIN');
+    row = (await client.query(
+      `UPDATE workshop_change_orders
+          SET status=$1,
+              approved_by=CASE WHEN $1='approved' THEN $2 ELSE NULL END,
+              approved_at=CASE WHEN $1='approved' THEN now() ELSE NULL END,
+              rejected_by=CASE WHEN $1='rejected' THEN $2 ELSE NULL END,
+              rejected_at=CASE WHEN $1='rejected' THEN now() ELSE NULL END,
+              updated_at=now()
+        WHERE id=$3 AND company_id=$4 AND status='proposed'
+        RETURNING job_id`, [status, actor.name, orderId, cid])).rows[0];
+    if (row && status === 'approved') added = await applyApprovedChangeOrder(client, cid, orderId);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[workshop change order status]', e.message);
+    row = null;
+  } finally { client.release(); }
+  if (row) await logActivity(pool, cid, row.job_id, `change_order_${status}`,
+    `تم ${status === 'approved' ? 'اعتماد' : 'رفض'} التعديل #${orderId}`
+      + (added ? ` — واتضاف ${added} بند لأمر الشغل` : ''), actor.name);
   res.redirect(req.get('referer') || '/workshop/change-orders');
 });
 

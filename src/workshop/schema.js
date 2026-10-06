@@ -713,6 +713,14 @@ async function ensureWorkshopSchema() {
       CREATE INDEX IF NOT EXISTS idx_wsh_change_items
         ON workshop_change_order_items (company_id, change_order_id);
 
+      -- الموافقة على تعديل إضافى بتضيف بنوده للفاتورة تلقائياً (قرار المالك ٢٠٢٦-١٠-٠٦).
+      -- applied_at = اتضاف إمتى (مرة واحدة بس)، وchange_order_id على البند = جه من أنهى تعديل.
+      ALTER TABLE workshop_change_orders ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ;
+      ALTER TABLE workshop_job_parts ADD COLUMN IF NOT EXISTS change_order_id INTEGER
+        REFERENCES workshop_change_orders(id) ON DELETE SET NULL;
+      ALTER TABLE workshop_job_labour ADD COLUMN IF NOT EXISTS change_order_id INTEGER
+        REFERENCES workshop_change_orders(id) ON DELETE SET NULL;
+
       CREATE TABLE IF NOT EXISTS workshop_estimate_versions (
         id          SERIAL PRIMARY KEY,
         company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,

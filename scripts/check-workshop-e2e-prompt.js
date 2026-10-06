@@ -34,12 +34,20 @@ const t = J.jobTotals({ discount: 20, tax_percent: 14, paid: 0 },
 ok('أمر الشغل: 870 · 150 · 1020 · 1000 · 140 · 1140', t.partsRevenue === 870 && t.labourRevenue === 150
   && t.subtotal === 1020 && t.tax === 140 && t.total === 1140, JSON.stringify([t.subtotal, t.tax, t.total]));
 ok('البرومبت فيه نفس الأرقام', /القطع 870 · المصنعية 150 · المجموع 1020 · بعد الخصم 1000 ·\s+الضريبة 140 · الإجمالي 1140/.test(doc));
-ok('هامش القطع 186', t.partsMargin === 186 && /المتوقع 186/.test(doc), String(t.partsMargin));
+ok('هامش الفلتر والزيت 186', t.partsMargin === 186 && /الفلتر والزيت 186/.test(doc), String(t.partsMargin));
+// بعد التعديل الإضافى (تيل 400 بتكلفة 250) — الموافقة بتضيفه للفاتورة تلقائياً
+const co = J.jobTotals({ discount: 20, tax_percent: 14, paid: 0 },
+  [{ qty: 1, unit_price: 120, unit_cost: 84 }, { qty: 1, unit_price: 750, unit_cost: 600 }, { qty: 1, unit_price: 400, unit_cost: 250 }],
+  [{ amount: 150 }]);
+ok('بعد الموافقة الإضافية: 1420 · 1400 · 196 · 1596', co.subtotal === 1420 && co.tax === 196 && co.total === 1596
+  && /المجموع 1420 · بعد الخصم 1400 · الضريبة 196 · الإجمالي 1596/.test(doc), JSON.stringify([co.subtotal, co.tax, co.total]));
+ok('هامش القطع بعد التيل 336', co.partsMargin === 336 && /المتوقع 336/.test(doc), String(co.partsMargin));
+const paid500 = J.jobTotals({ discount: 20, tax_percent: 14, paid: 500 },
+  [{ qty: 1, unit_price: 120 }, { qty: 1, unit_price: 750 }, { qty: 1, unit_price: 400 }], [{ amount: 150 }]);
+ok('دفعة 500 من 1596 → المتبقّي 1096', paid500.due === 1096 && /المتبقّي 1096 \(1596 − 500\)/.test(doc));
+ok('الموافقة بتضيف البنود فعلاً فى الكود', /applyApprovedChangeOrder/.test(read('src/routes/workshop_public.js')));
 const avg = (10 * 80 + 5 * 92) / 15;
 ok('متوسط التكلفة المتحرّك 84.00', avg === 84 && /متوسط تكلفته 84\.00/.test(doc));
-const after = J.jobTotals({ discount: 20, tax_percent: 14, paid: 500 },
-  [{ qty: 1, unit_price: 120 }, { qty: 1, unit_price: 750 }], [{ amount: 150 }]);
-ok('دفعة 500 → المتبقّي 640', after.due === 640 && /المتبقّي: 640/.test(doc.replace('المتبقّي 640', 'المتبقّي: 640')));
 
 // ── النصوص: زى ما المستخدم هيشوفها ──
 const pub = require('../src/routes/workshop_public');

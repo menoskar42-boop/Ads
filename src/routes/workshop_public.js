@@ -3,6 +3,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const crypto = require('crypto');
+const { applyApprovedChangeOrder } = require('../workshop/change_orders');
 const J = require('../workshop/jobs');
 const { logActivity } = require('../workshop/operations');
 const payVault = require('../lib/pay_vault');
@@ -357,6 +358,8 @@ router.post('/:token/change-orders/:id/approve', approveLimiter, async (req, res
         [data.company_id, data.job_id, changeId, name, CONSENT_TEXT, total,
           JSON.stringify(withVersion({ items: items.map((i) => ({ kind: i.kind, description: i.description, qty: Number(i.qty), unit_price: Number(i.unit_price) })), total })),
           meta.ip, meta.ua]);
+      // البنود اللى العميل وافق عليها بتدخل أمر الشغل والفاتورة فى نفس المعاملة
+      await applyApprovedChangeOrder(client, data.company_id, changeId);
     }
     await client.query('COMMIT');
   } catch (e) {
