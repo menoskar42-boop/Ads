@@ -144,6 +144,7 @@ const CHECKS = [
   ['check-workshop-security-concurrency-pg','أمن الورشة والتزامن على بوستجرس'],
   ['check-workshop-cairo-money','الورشة: المتبقى بالضريبة + المواعيد بتوقيت القاهرة'],
   ['check-workshop-qa-prompt','برومبت اختبار الورش مطابق للكود'],
+  ['check-sales-no-ads','صفحات البيع والتسجيل من غير إعلانات، والمحتوى زى ما هو'],
   ['check-workshop-e2e-prompt','برومبت كوديكس لاختبار الورش كامل مطابق للكود'],
   ['check-workshop-change-order-apply','الموافقة الإضافية بتدخل فاتورة أمر الشغل مرة واحدة'],
   ['check-workshop-approvals','الورشة: إثبات موافقة العميل + انتهاء/إيقاف رابط المتابعة'],

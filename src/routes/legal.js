@@ -38,12 +38,20 @@ router.get('/our-work', (req, res) => {
   res.render('legal/our_work');
 });
 
+// ── صفحات البيع من غير إعلانات (قرار المالك ٢٠٢٦-١٠-٠٦) ───────────────────────
+// الراوتر ده كله بيشغّل AdSense (فوق) — وصفحات البيع (القطاعات/الخدمات/الخليج/الأسنان/
+// الورش) جزء منه. مراجعة كوديكس: إعلان طرف تالت جنب «قدّم طلب» بيسحب الزائر لبرّه فى
+// أهم لحظة. الإعلانات فاضلة على المحتوى (المدوّنة، الأسئلة، المساعدة، الخصوصية…) وعلى
+// الرئيسية (فيها كود التحقق من الموقع — مفيش ميتا google-adsense-account بديلة).
+// الحارس: scripts/check-sales-no-ads.js
+const salesPage = (req, res, next) => { res.locals.showAds = false; next(); };
+
 // ── Sector landing pages ─────────────────────────────────────────────────────
 //
 // One page per vertical instead of a card on a crowded home page. The dental
 // one is first because it needed no development at all: the module has been
 // shipped for months and simply had nowhere to be sold from.
-router.get('/dental', (req, res) => {
+router.get('/dental', salesPage, (req, res) => {
   res.render('landing/dental');
 });
 
@@ -63,7 +71,7 @@ router.get('/dental', (req, res) => {
 // والعنوان الجديد على وزن التسع صفحات القطاعية التانية
 // (`<نشاط>-management-egypt`) وفيه الكلمة اللي الناس بتدوّر بيها فعلاً.
 const WORKSHOP_LANDING = '/car-workshop-management-egypt';
-router.get(WORKSHOP_LANDING, (req, res) => {
+router.get(WORKSHOP_LANDING, salesPage, (req, res) => {
   res.render('landing/workshop');
 });
 
@@ -77,7 +85,7 @@ const { SECTORS, othersOf } = require('../lib/sector_landings');
 const { isDemoSlug } = require('../lib/demo_mode');
 const companyFacts = require('../lib/company_facts');
 for (const slug of Object.keys(SECTORS)) {
-  router.get('/' + slug, (req, res) => {
+  router.get('/' + slug, salesPage, (req, res) => {
     const sector = Object.assign({ slug }, SECTORS[slug]);
     res.render('landing/sector', {
       sector,
@@ -128,7 +136,7 @@ const SYSTEM_PAGE = (() => {
   return map;
 })();
 for (const slug of Object.keys(SERVICES)) {
-  router.get('/' + slug, (req, res) => {
+  router.get('/' + slug, salesPage, (req, res) => {
     res.render('landing/service', {
       service: Object.assign({ slug }, SERVICES[slug]),
       others: otherServices(slug),
@@ -150,7 +158,7 @@ const gulfPages = require('../lib/gulf_pages');
 const markets = require('../lib/markets');
 for (const p of gulfPages.pages()) {
   const bare = p.path.replace(/^\/en/, '');
-  router.get(bare, (req, res) => {
+  router.get(bare, salesPage, (req, res) => {
     const g = gulfPages.build(p.market, p.topic);
     const price = g.type ? markets.priceOf(g.type, p.market) : null;
     res.render('landing/gulf', {
