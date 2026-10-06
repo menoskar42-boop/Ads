@@ -21,7 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ROLES } from "@shared/schema";
 import * as XLSX from "xlsx";
 
-type SourceKey = "lines" | "regularized" | "ground";
+type SourceKey = "lines" | "regularized" | "ground" | "current160" | "score103" | "newInstall";
 
 type SourceRows = {
   source: SourceKey;
@@ -39,6 +39,8 @@ type UrgentRow = {
   dpTerminal: string;
   ticketNumber: string;
   faultType: string;
+  /** الأكونت المسجّل حالياً (مصدر «اسكور 103» بس) — بيظهر قدامه تعديل ومابيتمسحش */
+  oldAccount: string;
   sources: SourceKey[];
 };
 
@@ -47,6 +49,9 @@ const SOURCE_LABEL: Record<SourceKey, string> = {
   lines: "خطوط بدون أكونت",
   regularized: "عطل منتظم",
   ground: "عطل أرضي مفتوح",
+  current160: "عطل حالى 160/173",
+  score103: "اسكور 103 — راجع الأكونت",
+  newInstall: "تركيب جديد (عدّى يومين)",
 };
 
 const previousYearStart = () => {
@@ -91,6 +96,7 @@ export function mergeUrgentNoAccountRows(groups: SourceRows[]): UrgentRow[] {
           dpTerminal: firstValue(raw.dpTerminal),
           ticketNumber: firstValue(raw.ticketNumber),
           faultType: firstValue(raw.faultType),
+          oldAccount: firstValue(raw.oldAccount),
           sources: [group.source],
         });
         continue;
@@ -105,6 +111,7 @@ export function mergeUrgentNoAccountRows(groups: SourceRows[]): UrgentRow[] {
       existing.dpTerminal = firstValue(existing.dpTerminal, raw.dpTerminal);
       existing.ticketNumber = firstValue(existing.ticketNumber, raw.ticketNumber);
       existing.faultType = firstValue(existing.faultType, raw.faultType);
+      existing.oldAccount = firstValue(existing.oldAccount, raw.oldAccount);
       if (!existing.sources.includes(group.source)) existing.sources.push(group.source);
     }
   }
@@ -148,10 +155,11 @@ export function UrgentNoAccountReport() {
         dateFrom,
         dateTo,
       });
-      const [withoutAccount, regularized, ground] = await Promise.all([
+      const [withoutAccount, regularized, ground, extra] = await Promise.all([
         getJson("/api/phone-lines/without-account?page=1&limit=20000"),
         getJson(`/api/reports/regularized-no-account?${regularizedParams}`),
         getJson("/api/proxy/cfm-open-ticket-lines"),
+        getJson(`/api/reports/urgent-no-account-extra?${new URLSearchParams({ dateFrom, dateTo })}`),
       ]);
 
       return mergeUrgentNoAccountRows([
@@ -161,6 +169,9 @@ export function UrgentNoAccountReport() {
           source: "ground",
           rows: (ground.lines ?? []).filter((row: Record<string, any>) => !row.accountNo),
         },
+        { source: "current160", rows: extra.current ?? [] },
+        { source: "score103", rows: extra.score103 ?? [] },
+        { source: "newInstall", rows: extra.newInstalls ?? [] },
       ]);
     },
     refetchOnMount: "always",
@@ -202,6 +213,7 @@ export function UrgentNoAccountReport() {
     queryClient.invalidateQueries({ queryKey: ["/api/urgent-no-account"] });
     queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/without-account"] });
     queryClient.invalidateQueries({ queryKey: ["/api/reports/regularized-no-account"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/phone-lines/with-account"] });
   };
 
   const handleSave = async (fullPhone: string) => {
@@ -290,6 +302,7 @@ export function UrgentNoAccountReport() {
       "مصدر العجلة": row.sources.map((source) => SOURCE_LABEL[source]).join(" + "),
       "التذكرة": row.ticketNumber,
       "نوع العطل": row.faultType,
+      "الأكونت الحالى": row.oldAccount,
       "السنترال": row.central,
       "الكابينة": row.cabinNumber,
       "البكس": row.boxNumber,
@@ -330,7 +343,7 @@ export function UrgentNoAccountReport() {
           <div>
             <h3 className="font-semibold text-base">أرقام بدون اكونت عاجل</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {query.isFetching ? "جاري تحديث المصادر..." : `${filtered.length.toLocaleString("ar-EG")} رقم فريد من التبويبات الثلاثة`}
+              {query.isFetching ? "جاري تحديث المصادر..." : `${filtered.length.toLocaleString("ar-EG")} رقم فريد من كل المصادر`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -402,7 +415,7 @@ export function UrgentNoAccountReport() {
                   <TableHead className="font-bold whitespace-nowrap">رقم التليفون الكامل</TableHead>
                   <TableHead className="font-bold whitespace-nowrap">رقم التليفون</TableHead>
                   <TableHead className="font-bold whitespace-nowrap">المصدر</TableHead>
-                  <TableHead className="font-bold whitespace-nowrap">التذكرة</TableHead>
+                  <TableHead className="font-bold whitespace-nowrap">التذكرة / أمر الشغل</TableHead>
                   {canEdit && <TableHead className="font-bold whitespace-nowrap">تسجيل أكونت</TableHead>}
                   <TableHead className="font-bold whitespace-nowrap">السنترال</TableHead>
                   <TableHead className="font-bold whitespace-nowrap">الكابينة</TableHead>
@@ -427,6 +440,9 @@ export function UrgentNoAccountReport() {
                     {canEdit && (
                       <TableCell>
                         <div className="flex items-center gap-1" dir="ltr">
+                          {row.oldAccount && (
+                            <span className="font-mono text-xs text-muted-foreground whitespace-nowrap" title="الأكونت المسجّل حالياً — اكتب الصح جنبه واحفظ">{row.oldAccount}</span>
+                          )}
                           <Input
                             value={drafts[row.fullPhone] ?? ""}
                             onChange={(event) => {
@@ -434,16 +450,17 @@ export function UrgentNoAccountReport() {
                               setSaveState((state) => { const next = { ...state }; delete next[row.fullPhone]; return next; });
                             }}
                             onKeyDown={(event) => event.key === "Enter" && handleSave(row.fullPhone)}
-                            placeholder="أكونت"
+                            placeholder={row.oldAccount ? "تعديل" : "أكونت"}
                             className="h-7 w-24 text-xs"
                             dir="ltr"
                           />
                           <button type="button" onClick={() => handleSave(row.fullPhone)} disabled={!drafts[row.fullPhone]?.trim() || saveState[row.fullPhone] === "saving"} title="حفظ" className="text-green-600 hover:text-green-800 disabled:opacity-40">
                             {saveState[row.fullPhone] === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                           </button>
-                          <button type="button" onClick={() => handleMarkNoAccount(row.fullPhone)} disabled={saveState[row.fullPhone] === "saving"} title="ليس له رقم أكونت — إخفاء من التقرير" className="text-orange-500 hover:text-orange-700 disabled:opacity-40" data-testid={`button-mark-no-account-${row.fullPhone}`}>
+                          {/* خط ليه أكونت (اسكور 103) — تعديل بس، مفيش «ليس له أكونت» عشان الأكونت مايتمسحش */}
+                          {!row.oldAccount && <button type="button" onClick={() => handleMarkNoAccount(row.fullPhone)} disabled={saveState[row.fullPhone] === "saving"} title="ليس له رقم أكونت — إخفاء من التقرير" className="text-orange-500 hover:text-orange-700 disabled:opacity-40" data-testid={`button-mark-no-account-${row.fullPhone}`}>
                             <Ban className="w-4 h-4" />
-                          </button>
+                          </button>}
                           {saveState[row.fullPhone] === "error" && <span className="text-red-500 text-xs">!</span>}
                         </div>
                       </TableCell>

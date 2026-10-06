@@ -27,3 +27,35 @@ test("the urgent tab is the default and data managers only see it", () => {
   assert.match(tabs, /item\.id === "urgent"/);
   assert.match(tabs, /أرقام بدون اكونت عاجل/);
 });
+
+// قرار المالك ٢٠٢٦-١٠-٠٦: ٣ مصادر زيادة — عطل حالى 160/173 · اسكور 103 · تركيب جديد عدّى يومين.
+const extra = readFileSync(new URL("./urgent-no-account.ts", import.meta.url), "utf8");
+
+test("current faults with status 160/173 and no account join the urgent report", () => {
+  assert.match(extra, /FROM ticket_dsl_current t/);
+  assert.match(extra, /t\.close_date IS NULL/);
+  assert.match(extra, /t\.status_code ~ '\^\(160\|173\)' OR t\.complain_type_name ~ '\^\(160\|173\)'/);
+  assert.match(report, /source: "current160", rows: extra\.current/);
+});
+
+test("score-103 lines show their old account with an edit and never get the delete button", () => {
+  assert.match(extra, /WHERE c138p\.score = 103/);
+  assert.match(extra, /la\.account_no AS "oldAccount"/);
+  // اتراجع = تعديل يدوى بعد آخر قياس (مش updated_at اللى المزامنة بتلمسه)
+  assert.match(extra, /e\.edited_at > c138p\.uploaded_at/);
+  assert.match(report, /source: "score103", rows: extra\.score103/);
+  assert.match(report, /\{!row\.oldAccount && <button type="button" onClick=\{\(\) => handleMarkNoAccount/);
+  assert.doesNotMatch(extra, /DELETE FROM line_accounts/);
+});
+
+test("new installs from the work-orders report join only after two days without an account", () => {
+  assert.match(extra, /FROM work_orders w/);
+  assert.match(extra, /btrim\(w\.service_type\) = 'تركيب جديد'/);
+  assert.match(extra, /COALESCE\(w\.creation_date, w\.close_date\) <= now\(\) - interval '2 days'/);
+  assert.match(report, /source: "newInstall", rows: extra\.newInstalls/);
+});
+
+test("every no-account source skips lines already marked no-account", () => {
+  assert.equal(extra.match(/\$\{notMarked\("k\.full_phone"\)\}/g)?.length, 2);
+  assert.equal(extra.match(/\$\{noAccount\("k\.full_phone"\)\}/g)?.length, 2);
+});

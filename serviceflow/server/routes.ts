@@ -35,6 +35,7 @@ import { cardCapacityOf, cardFreeOf } from "@shared/card-capacity";
 import { boxAverageFromAggregate, boxAverageFromAggregates, isBoxBrokenReason } from "@shared/om-box-score";
 import { schedulersEnabled } from './schedulers-enabled';
 import { registerRepeatReviews } from "./repeat-reviews";
+import { registerUrgentNoAccount } from "./urgent-no-account";
 import { whatsappConfigured, whatsappStatus, registerNumber, sendTemplate, WhatsAppError } from "./whatsapp";
 
 const scryptAsync = promisify(scrypt);
@@ -7554,6 +7555,7 @@ export async function registerRoutes(
 
   // «رد التكرار» — الخطوات والتقرير فى server/repeat-reviews.ts (قرار المالك ٢٠٢٦-١٠-٠٤)
   registerRepeatReviews(app, { pool, requireAuth, requireSuperAdmin, lookupPhoneLine, techMsanCodes, msanInCodesSql });
+  registerUrgentNoAccount(app, { pool, requireAuth });
 
   // محمول الفنى المختص: الاسم (أو أسماء الإسناد اليدوى «حسن , سعيد») → أول واحد متسجّل له
   // محمول فى إدارة المستخدمين — بالاسم الظاهر أو اسم المستخدم أو رقم العامل.
