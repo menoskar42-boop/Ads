@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WFM — موافقة تغيير البورت (Accept → Start → Change Port)
 // @namespace    service-flow.wfm.accept-task
-// @description  موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
-// @version      1.2.1
+// @description  v1.3.0: لو WFM أعاد تحميل الصفحة بعد OK بتاع «Update Work Status» (أو Yes بتاع Start) السكربت بيكمّل من نفس الخطوة ويضغط OK على «Updated Successfully» قبل ما يبلّغ Service-Flow — كان بيبدأ البحث من الأول والتاب يتقفل والرسالة مفتوحة. موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
+// @version      1.3.0
 // @match        https://wfm.te.eg/WorkOrder/*
 // @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -33,6 +33,11 @@
   const PENDING_KEY = "sf_accept_pending";     // الرقم الشغّالين عليه (بيعدّى إعادة التحميل)
   const INDEX_KEY = "sf_accept_index";         // أنهى نتيجة بنجرّب (لو البحث رجّع أكتر من أمر)
   const HOPS_KEY = "sf_accept_hops";           // عدد التحميلات على نفس الطلب — حماية من اللف
+  // v1.3.0: الخطوة اللى وصلنا لها قبل ضغطة ممكن تعيد تحميل الصفحة ({step, wid}). WFM بيعيد
+  // تحميل الصفحة بعد OK بتاع «Update Work Status» (وساعات بعد Yes بتاع Start)، والرسالة
+  // «Updated Successfully» بتظهر فى الصفحة الجديدة — كان السكربت بيبدأ البحث من الأول بدل
+  // ما يضغط OK، ومايلاقيش الأخضر فيقفل التاب والرسالة لسه مفتوحة (المالك ٢٠٢٦-١٠-٠٦).
+  const PHASE_KEY = "sf_accept_phase";
   const MAX_HOPS = 12;
   const MAX_RESULTS = 6;                       // أقصى عدد أوامر شغل نجرّبها لنفس الرقم
   const DIALOG_SHOW_MS = 1500;                 // نسيب نافذة القبول ظاهرة شوية قبل Yes
@@ -187,7 +192,9 @@
     set: (k, v) => { try { sessionStorage.setItem(k, String(v)); } catch (e) {} },
     del: (k) => { try { sessionStorage.removeItem(k); } catch (e) {} },
   };
-  function clearState() { [PENDING_KEY, INDEX_KEY, HOPS_KEY].forEach(ss.del); }
+  function clearState() { [PENDING_KEY, INDEX_KEY, HOPS_KEY, PHASE_KEY].forEach(ss.del); }
+  function setPhase(step, wid) { ss.set(PHASE_KEY, JSON.stringify({ step, wid })); }
+  function getPhase() { try { return JSON.parse(ss.get(PHASE_KEY) || "null"); } catch (e) { return null; } }
   function startNew(phone) {
     clearState();
     ss.set(PENDING_KEY, phone);
@@ -494,8 +501,15 @@
     banner("② بدء المهمة (Work Id " + wid + ")…");
     const startIcon = await waitFor(() => actionIcon(wid), 15000);
     if (!startIcon) return finish("⚠️ اتقبلت المهمة بس مش لاقى زرار البدء (السهم) فى صف " + wid + " — كمّل بإيدك.", "#e65100");
+    setPhase("started", wid);                      // لو Yes عمل إعادة تحميل نكمّل من هنا
     if (!(await askYes(startIcon, /start\s*this\s*task/i, "Start"))) return;
-    if (!(await infoOk(/started\s*successfully/i, "Task Started Successfully"))) {
+    return afterStart(phone, wid);
+  }
+
+  // ٧-ب) «Task Started Successfully» ← OK ثم الخطوة ٨ — بتتنادى فى نفس الصفحة أو بعد إعادة تحميل
+  async function afterStart(phone, wid) {
+    currentWid = wid;
+    if (!(await infoOk(/started\s*successfully/i, "Task Started Successfully", 60000))) {
       return finish("⚠️ ضغطت Yes على Start بس رسالة «Task Started Successfully» ماظهرتش — بص على الصف " + wid + ".", "#e65100");
     }
 
@@ -520,9 +534,18 @@
     await sleep(DIALOG_SHOW_MS);
     const okBtn = buttonIn(upd, /^ok$/i);
     if (!okBtn) return finish("❌ مش لاقى زرار OK فى «Update Work Status».", "#c62828");
+    setPhase("updated", wid);                      // OK ده بيعيد تحميل الصفحة غالباً — نكمّل من afterUpdate
     fireClick(okBtn);
     await waitIdle(30000);
-    if (!(await infoOk(/updated\s*successfully/i, "Updated Successfully"))) {
+    return afterUpdate(phone, wid);
+  }
+
+  // ٨-ب) «The Status of Selected Work Updated Successfully» ← OK ثم التحقق من الصف.
+  // بتتنادى فى نفس الصفحة أو بعد إعادة التحميل. النتيجة مابتتبعتش لـ Service-Flow (اللى
+  // بيقفل التاب أول ما يشوفها) غير **بعد** ما OK يتضغط فعلاً والرسالة تختفى.
+  async function afterUpdate(phone, wid) {
+    currentWid = wid;
+    if (!(await infoOk(/updated\s*successfully/i, "Updated Successfully", 60000))) {
       return finish("⚠️ ضغطت OK على Change Port بس رسالة «Updated Successfully» ماظهرتش — بص على الصف " + wid + ".", "#e65100");
     }
 
@@ -579,13 +602,20 @@
   }
 
   // رسالة Information بعد الخطوة («… Successfully») ← OK
-  async function infoOk(re, label) {
-    const dlg = await waitFor(() => dialogWith(re), 20000);
+  async function infoOk(re, label, waitMs) {
+    const dlg = await waitFor(() => dialogWith(re), waitMs || 20000);
     if (!dlg) return false;
     await sleep(600);
-    fireClick(buttonIn(dlg, /^ok$/i));
-    await waitIdle(15000);
-    await waitFor(() => !dialogWith(re), 8000);
+    // v1.3.0: نضغط OK لحد ما الرسالة تختفى فعلاً (٣ محاولات) — مش ضغطة واحدة ونفترض إنها اتقفلت
+    for (let i = 0; i < 3; i++) {
+      const box = dialogWith(re);
+      if (!box) break;
+      fireClick(buttonIn(box, /^ok$/i));
+      await waitIdle(15000);
+      if (await waitFor(() => !dialogWith(re), 6000)) break;
+      logln("↻ الرسالة لسه ظاهرة — بضغط OK تانى (" + (i + 2) + ")");
+    }
+    if (dialogWith(re)) { logln("⚠️ «" + label + "» لسه مفتوحة بعد ٣ ضغطات OK."); return false; }
     logln("✔️ " + label + " ← OK");
     return true;
   }
@@ -644,6 +674,15 @@
     const hops = (Number(ss.get(HOPS_KEY)) || 0) + 1;
     if (hops > MAX_HOPS) { finish("⛔ وقفت: الصفحة اتحمّلت " + MAX_HOPS + " مرات على نفس الرقم من غير نتيجة.", "#c62828"); return; }
     ss.set(HOPS_KEY, hops);
+    // v1.3.0: الصفحة اتعاد تحميلها فى نص خطوة → نكمّل من نفس الخطوة مش من البحث
+    const phase = getPhase();
+    if (phase && phase.wid) {
+      logln("↪️ الصفحة اتعاد تحميلها بعد خطوة «" + phase.step + "» — بكمّل من هناك (Work Id " + phase.wid + ").");
+      banner(phase.step === "updated" ? "③ مستنى رسالة «Updated Successfully»…" : "② مستنى رسالة «Task Started Successfully»…");
+      running = true;
+      setTimeout(() => { (phase.step === "updated" ? afterUpdate : afterStart)(pending, phase.wid); }, 1500);
+      return;
+    }
     setTimeout(() => runFlow(pending), 1500);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(boot, 800));
