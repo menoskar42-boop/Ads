@@ -44,24 +44,40 @@ test("userscript: no password, confirms each dialog by text, same row only, Succ
   assert.match(us, /ensureSelect\(upd, \/close\\s\*code\/i, \/\^success\$\/i/);
   assert.match(us, /ensureSelect\(upd, \/status\\s\*name\/i, \/\^change\\s\*port\$\/i/);
   // الخطوتين التانية والتالتة على نفس Work Id بتاع الزرار الأخضر
-  assert.match(us, /const icon = await waitFor\(\(\) => actionIcon\(wid\), 15000\);/);
-  assert.match(us, /const doneIcon = await waitFor\(\(\) => actionIcon\(wid\), 15000\);/);
+  assert.match(us, /const icon = await waitFor\(\(\) => actionIcon\(t\), 15000\);/);
+  assert.match(us, /const doneIcon = await waitFor\(\(\) => actionIcon\(t\), 15000\);/);
   // مابيضغطش Save ولا Reload بتوع أمر الشغل
   assert.doesNotMatch(us, /\/\^\(?save|\/\^reload/i);
   assert.match(us, /"\/api\/wfm-tasks\/accept-ingest"/);
 });
 
-// v1.4.0 (المالك ٢٠٢٦-١٠-٠٦): Work Id كان بيتاخد من صف التخطيط اللى حاوى الجدول كله (أول صف =
-// مهمة الفنى Fix FME) فـ«بدء المهمة» فتح «Update Work Status» بتاعة الفنى. اتجرّب على jsdom
-// بجدول جوّه صف تخطيط: القبول والبدء والتحديث كلهم على صف Fix External Affairs.
-test("userscript: only innermost rows, direct cells, and only the External Affairs task is ever clicked", () => {
-  assert.match(us, /if \(tr\.querySelector\("tr"\)\) continue;/);
-  assert.match(us, /const cellsOf = \(tr\) => \[\]\.filter\.call\(tr\.children \|\| \[\], \(c\) => c\.tagName === "TD"\);/);
+// v1.5.0 (المالك ٢٠٢٦-١٠-٠٦): اتجرّب على jsdom بشكل WFM الحقيقى (عمود الأيقونات فى جدول لوحده،
+// مهمة الفنى Started فوق، والأخضر تحت). v1.2.1 كان بيمشى صح على الصف بس مابيضغطش OK رسالة
+// النجاح، وv1.3.0 وقف بعد Start، وv1.4.0 مالقاش الأخضر. v1.5.0: الأربع خطوات على 1609022 والـOK
+// اتضغط بعد ٣ ثوانى ونص، ومهمة الفنى ماتلمستش.
+test("userscript: green search like the first version, then the same spot on screen", () => {
+  // البحث عن الأخضر زى v1.2/v1.3 (من غير شرط Fix External Affairs)
+  assert.match(us, /for \(const row of assignmentRows\(\)\) \{/);
+  // الخطوات اللى بعده: نفس الصف (رقمه أو ارتفاعه) ونفس العمود (gx)
+  assert.match(us, /const t = targetFrom\(green\.el\);/);
+  assert.match(us, /Math\.abs\(midX\(el\) - t\.gx\) <= 14/);
+  assert.match(us, /const icon = await waitFor\(\(\) => actionIcon\(t\), 15000\);/);
+  assert.match(us, /const doneIcon = await waitFor\(\(\) => actionIcon\(t\), 15000\);/);
+  // رقم الصف من عمود Work Id اللى فى نفس الارتفاع — مش أول رقم فى الجدول
+  assert.match(us, /function idCellAt\(doc, y\)/);
+  assert.doesNotMatch(us, /green\.row\.id/);
+});
+
+test("userscript: OK hits the real button, waits 3s on «Updated Successfully», verifies it closed", () => {
+  assert.match(us, /const rank = \(el\) => \/\^\(BUTTON\|INPUT\)\$\/\.test\(el\.tagName\) \? 0 : el\.tagName === "A" \? 1/);
+  assert.match(us, /const SUCCESS_SHOW_MS = 3000;/);
+  assert.match(us, /infoOk\(UPDATED_RE, "Updated Successfully", 5000, SUCCESS_SHOW_MS\)/);
+  assert.match(us, /if \(await waitFor\(\(\) => !dialogWith\(re\), 5000\)\) break;/);
+  // بعد إعادة التحميل وOK الأخير اتضغط: نتحقق بس، مانستناش رسالة اختفت
+  assert.match(us, /step === "closing" \? 8000 : 60000/);
+});
+
+test("userscript: resuming an accepted task only on a Fix External Affairs row", () => {
   assert.match(us, /const OUR_TASK = \/\^\(fix\\s\+\)\?external\\s\+affairs\?\$\/i;/);
-  assert.match(us, /for \(const row of assignmentRows\(\)\.filter\(\(r\) => r\.ours\)\)/);
-  assert.match(us, /if \(!row \|\| !row\.ours\) return null;/);
-  const code = us.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
-  assert.doesNotMatch(code, /qAll\("td", (tr|row\.tr)\)/);
-  // متقبلة ومخلصتش → تكمل من بعد القبول بدل «مفيش زرار أخضر»
-  assert.match(us, /r\.ours && !\/completed\/i\.test\(r\.text\) && actionIcon\(r\.id\)/);
+  assert.match(us, /if \(!info\.ours \|\| info\.completed\) continue;/);
 });

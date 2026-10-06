@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WFM — موافقة تغيير البورت (Accept → Start → Change Port)
 // @namespace    service-flow.wfm.accept-task
-// @description  v1.4.0: «بدء المهمة» و«تحديث الحالة» بيتعملوا على صف الشئون الخارجية (Fix External Affairs) اللى اتقبل بس — كان بياخد Work Id أول صف فى الجدول (مهمة الفنى Fix FME) ويضغط أيقونتها فتفتح «Update Work Status» بتاعتها؛ ولو المهمة متقبلة من قبل ومخلصتش بيكمّلها. v1.3.0: لو WFM أعاد تحميل الصفحة بعد OK بتاع «Update Work Status» (أو Yes بتاع Start) السكربت بيكمّل من نفس الخطوة ويضغط OK على «Updated Successfully» قبل ما يبلّغ Service-Flow — كان بيبدأ البحث من الأول والتاب يتقفل والرسالة مفتوحة. موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
-// @version      1.4.0
+// @description  v1.5.0: رجع البحث عن الزرار الأخضر زى الأول (اللى كان بيلاقيه صح)، والخطوات اللى بعده بتضغط الأيقونة اللى فى نفس المكان (نفس الصف ونفس العمود)؛ OK بيتضغط على الزرار الحقيقى ويتأكد إن الرسالة اتقفلت؛ ورسالة «Updated Successfully» بتفضل ٣ ثوانى قبل OK. v1.4.0: «بدء المهمة» و«تحديث الحالة» بيتعملوا على صف الشئون الخارجية (Fix External Affairs) اللى اتقبل بس — كان بياخد Work Id أول صف فى الجدول (مهمة الفنى Fix FME) ويضغط أيقونتها فتفتح «Update Work Status» بتاعتها؛ ولو المهمة متقبلة من قبل ومخلصتش بيكمّلها. v1.3.0: لو WFM أعاد تحميل الصفحة بعد OK بتاع «Update Work Status» (أو Yes بتاع Start) السكربت بيكمّل من نفس الخطوة ويضغط OK على «Updated Successfully» قبل ما يبلّغ Service-Flow — كان بيبدأ البحث من الأول والتاب يتقفل والرسالة مفتوحة. موافقة الشئون الخارجية على تغيير البورت فى WFM: بعد ما تسجّل دخول بنفسك، السكربت بيفتح Work Orders، يكتب الرقم فى Service Id ويضغط Search، يفتح أمر الشغل، يروح لتبويب Assignments، ولو لقى الزرار الأخضر بيكمّل على **نفس الصف** تلات خطوات: (١) الأخضر ← «Accept This Task» ← Yes، (٢) السهم الأبيض ← «Start This Task» ← Yes ← «Task Started Successfully» ← OK، (٣) المربع الأبيض ← «Update Work Status» (Success / Change Port) ← OK ← «Updated Successfully» ← OK. لو مالقاش الرقم أو الزرار الأخضر بيقول كده. مابيكتبش كلمة سر ومابيضغطش Save ولا Cancel بتاع أمر الشغل أبداً.
+// @version      1.5.0
 // @match        https://wfm.te.eg/WorkOrder/*
 // @connect      ads-menoskar42.replit.app
 // @connect      serviceflow.oscardevs.com
@@ -41,6 +41,8 @@
   const MAX_HOPS = 12;
   const MAX_RESULTS = 6;                       // أقصى عدد أوامر شغل نجرّبها لنفس الرقم
   const DIALOG_SHOW_MS = 1500;                 // نسيب نافذة القبول ظاهرة شوية قبل Yes
+  const SUCCESS_SHOW_MS = 3000;                // v1.5.0: رسالة «Updated Successfully» تفضل ظاهرة ٣ث قبل OK (طلب المالك)
+  const UPDATED_RE = /updated\s*successfully/i;
 
   // ── Service-Flow: النتيجة بترجع لـ «بحث برقم التليفون» وطابور التنفيذ ─────────
   // نفس الدومين والتوكن بتوع سكربت «إلغاء الاسناد». الدومين بيتغيّر من غير تعديل السكربت:
@@ -193,7 +195,7 @@
     del: (k) => { try { sessionStorage.removeItem(k); } catch (e) {} },
   };
   function clearState() { [PENDING_KEY, INDEX_KEY, HOPS_KEY, PHASE_KEY].forEach(ss.del); }
-  function setPhase(step, wid) { ss.set(PHASE_KEY, JSON.stringify({ step, wid })); }
+  function setPhase(step, t) { ss.set(PHASE_KEY, JSON.stringify({ step, t })); }
   function getPhase() { try { return JSON.parse(ss.get(PHASE_KEY) || "null"); } catch (e) { return null; } }
   function startNew(phone) {
     clearState();
@@ -302,30 +304,79 @@
   /* ================== صفحة أمر الشغل ================== */
   const findAssignmentsTab = () => findByText("a, span, div, td", /^\s*assignments\s*$/i, 15);
 
-  // صفوف جدول Assignments: صف فيه رقم Work Id (6-10 أرقام) وكذا خلية.
-  // v1.4.0: الصف **الداخلى** بس وخلاياه **المباشرة** بس. ADF بيحط الجدول جوّه صف تخطيط
-  // (layout) فيه كذا خلية، و qAll("td", tr) كانت بتجيب خلايا كل الصفوف اللى جوّاه — فصف
-  // التخطيط كان بياخد Work Id أول صف فى الجدول (مهمة الفنى Fix FME) وأيقونات كل الصفوف.
-  // النتيجة (المالك ٢٠٢٦-١٠-٠٦): القبول اتعمل صح على صف الشئون الخارجية، بس «بدء المهمة»
-  // راح لأيقونة صف الفنى ففتح «Update Work Status» بتاعته.
-  const cellsOf = (tr) => [].filter.call(tr.children || [], (c) => c.tagName === "TD");
-  // مهمة الشئون الخارجية: خلية «Work Description» = Fix External Affairs بالظبط
-  // («Call External Affair…» فى عمود Current Activity بتاع مهمة الفنى مابتطابقش).
-  const OUR_TASK = /^(fix\s+)?external\s+affairs?$/i;
+  // صفوف جدول Assignments: صف فيه رقم Work Id (6-10 أرقام) وكذا خلية — زى v1.3 بالظبط
+  // (ده اللى كان بيلاقى الزرار الأخضر صح). بيستخدم **للبحث عن الأخضر بس** — رقم الصف
+  // والخطوات اللى بعده بيتحدّدوا بمكان الأيقونة على الشاشة (تحت).
   function assignmentRows() {
     const header = findByText("th, span, div, td", /^\s*work\s*id\s*$/i, 10);
     const rows = [];
     for (const tr of qAllDocs("tr")) {
       if (!visible(tr) || isOurs(tr)) continue;
-      if (tr.querySelector("tr")) continue;          // صف تخطيط فيه جدول — مش صف بيانات
-      const cells = cellsOf(tr);
+      const cells = qAll("td", tr);
       if (cells.length < 5) continue;
       const id = cells.map(txt).find((c) => /^\d{6,10}$/.test(c));
       if (!id) continue;
       if (header && header.ownerDocument !== tr.ownerDocument) continue;
-      rows.push({ tr, id, text: txt(tr), ours: cells.some((c) => OUR_TASK.test(txt(c))) });
+      rows.push({ tr, id, text: txt(tr) });
     }
     return rows;
+  }
+
+  // ── «نفس الصف» = نفس الارتفاع على الشاشة (v1.5.0) ─────────────────────────────
+  // WFM بيرسم الجدول بأكتر من شكل HTML (عمود الأيقونات ساعات فى جدول لوحده)، فرقم الصف
+  // كان بيتقرا غلط: v1.3 خد رقم أول صف فى الجدول (مهمة الفنى) وv1.4 مالقاش الأخضر خالص.
+  // دلوقتى: الصف = الخلايا اللى فى نفس ارتفاع الأيقونة، والخطوة اللى بعدها بتضغط الأيقونة
+  // اللى فى **نفس المكان** (نفس الصف ونفس العمود) — الأخضر بيتحوّل لسهم ثم لمربع مكانه.
+  const OUR_TASK = /^(fix\s+)?external\s+affairs?$/i;
+  const NOT_ACTION = /expand|collapse|disclos|upload|attach/i;
+  const rectOf = (el) => { try { return el.getBoundingClientRect(); } catch (e) { return null; } };
+  const midY = (el) => { const r = rectOf(el); return r ? (r.top + r.bottom) / 2 : NaN; };
+  const midX = (el) => { const r = rectOf(el); return r ? (r.left + r.right) / 2 : NaN; };
+  const leafCells = (doc) => qAll("td", doc).filter((td) => visible(td) && !isOurs(td) && !td.querySelector("td"));
+  function bandCells(doc, y) {
+    return leafCells(doc).filter((td) => { const r = rectOf(td); return r && r.height > 0 && r.height < 80 && r.top <= y && y <= r.bottom; });
+  }
+  function workIdHeader(doc) {
+    return qAll("th, span, div, td", doc).find((el) => visible(el) && !isOurs(el) && /^\s*work\s*id\s*$/i.test(txt(el)) &&
+      !qAll("th, span, div, td", el).some((c) => /^\s*work\s*id\s*$/i.test(txt(c)))) || null;
+  }
+  // خلية Work Id اللى فى نفس ارتفاع y — تحت عنوان عمود Work Id (عشان رقم الـOwner مايتلخبطش معاها)
+  function idCellAt(doc, y) {
+    const cells = bandCells(doc, y).filter((td) => /^\d{6,10}$/.test(txt(td)));
+    const h = workIdHeader(doc), hr = h && rectOf(h);
+    if (hr && hr.width) {
+      const inCol = cells.find((td) => { const x = midX(td); return x >= hr.left - 6 && x <= hr.right + 6; });
+      if (inCol) return inCol;
+    }
+    return cells[0] || null;
+  }
+  function bandInfo(doc, y) {
+    const texts = bandCells(doc, y).map(txt);
+    return { text: texts.join(" | "), ours: texts.some((t) => OUR_TASK.test(t)), completed: texts.some((t) => /^completed$/i.test(t)) };
+  }
+  function iconsAt(doc, y) {
+    return qAll("img, svg, a, span, div, button", doc).filter((el) => {
+      if (!visible(el) || isOurs(el) || txt(el)) return false;
+      const b = rectOf(el);
+      if (!b || b.width < 8 || b.width > 44 || b.height < 8 || b.height > 44) return false;
+      return Math.abs((b.top + b.bottom) / 2 - y) <= Math.max(6, b.height / 2);
+    });
+  }
+  // الهدف = { wid: رقم الصف, gx/gy: مكان الأيقونة } — بيتحفظ مع المرحلة عشان يعدّى إعادة التحميل
+  function targetFrom(el) {
+    const y = midY(el), idc = idCellAt(el.ownerDocument, y);
+    return { wid: idc ? txt(idc) : "", gx: Math.round(midX(el)), gy: Math.round(y) };
+  }
+  const widOf = (t) => (t && t.wid) || "؟";
+  // ارتفاع صف الهدف دلوقتى: من خلية رقمه (لو الجدول اتعاد ترتيبه)، وإلا مكانه الأصلى
+  function rowOf(t) {
+    for (const d of docs()) {
+      if (t.wid) {
+        const c = leafCells(d).find((td) => txt(td) === t.wid);
+        if (c) return { doc: d, y: midY(c) };
+      } else if (iconsAt(d, t.gy).length) return { doc: d, y: t.gy };
+    }
+    return null;
   }
 
   // ── هل الأيقونة دى «قبول» (الدايرة الخضرا بعلامة صح)؟ ──────────────────────────
@@ -381,7 +432,7 @@
   }
   function findGreenButton() {
     let best = null;
-    for (const row of assignmentRows().filter((r) => r.ours)) {   // صف الشئون الخارجية بس
+    for (const row of assignmentRows()) {
       for (const el of rowIcons(row.tr)) {
         const s = acceptScore(el);
         if (s >= 2 && (!best || s > best.score)) best = { el, score: s, row };
@@ -410,11 +461,17 @@
     }
     return best;
   }
-  function buttonIn(root, re) {
-    if (!root) return null;
-    return qAll("button, a, input[type='button'], input[type='submit'], span[role='button'], div[role='button'], td", root)
-      .find((el) => visible(el) && !isOurs(el) && re.test((txt(el) || String(el.value || "")).trim())) || null;
+  // v1.5.0: الزرار **الحقيقى** الأول (button/input ثم a ثم role=button ثم الخلية). قبل كده
+  // كان بياخد أول عنصر مكتوب عليه OK بترتيب الصفحة — وده غالباً الخلية (td) اللى حوالين
+  // الزرار، فالضغطة ماتوصلش للزرار نفسه ورسالة «Updated Successfully» تفضل مفتوحة.
+  function buttonsIn(root, re) {
+    if (!root) return [];
+    const rank = (el) => /^(BUTTON|INPUT)$/.test(el.tagName) ? 0 : el.tagName === "A" ? 1 : (el.getAttribute("role") === "button" ? 2 : 3);
+    return qAll("button, a, input[type='button'], input[type='submit'], [role='button'], span, td", root)
+      .filter((el) => visible(el) && !isOurs(el) && re.test((txt(el) || String(el.value || "")).trim()))
+      .sort((a, b) => rank(a) - rank(b));
   }
+  const buttonIn = (root, re) => buttonsIn(root, re)[0] || null;
   // أى نافذة ظاهرة (عشان لو ظهرت نافذة غير «Accept This Task» نقفلها بـ No)
   function anyDialog() {
     return qAllDocs("[role='dialog'], [id$='::_af_Z_window']").find((el) => visible(el) && !isOurs(el) && txt(el)) || null;
@@ -489,14 +546,14 @@
 
     // ٥) الزرار الأخضر
     const green = await waitFor(() => findGreenButton(), 6000);
-    // v1.4.0: مفيش أخضر بس فى مهمة شئون خارجية اتقبلت ومخلصتش (بدأت أو لسه) → نكمّلها
-    const open = !green && assignmentRows().find((r) => r.ours && !/completed/i.test(r.text) && actionIcon(r.id));
-    if (open) {
-      currentWid = open.id;
-      logln("↪️ مهمة الشئون الخارجية " + open.id + " متقبلة ومخلصتش — بكمّل من بعد القبول.");
-      return continueRow(phone, open.id);
-    }
     if (!green) {
+      // مهمة شئون خارجية اتقبلت قبل كده ومخلصتش (بدأت أو لسه) → نكمّلها من بعد القبول
+      const open = openOurRow();
+      if (open) {
+        currentWid = open.wid;
+        logln("↪️ مهمة الشئون الخارجية " + open.wid + " متقبلة ومخلصتش — بكمّل من بعد القبول.");
+        return continueRow(phone, open);
+      }
       if (idx + 1 < links.length && idx + 1 < MAX_RESULTS) {
         logln("… مفيش زرار أخضر فى الأمر رقم " + (idx + 1) + " — بجرّب اللى بعده.");
         ss.set(INDEX_KEY, idx + 1);
@@ -506,23 +563,43 @@
       }
       return finish("⚠️ الرقم " + phone + " موجود بس **مفيش زرار القبول الأخضر** — مفيش مهمة مستنية موافقة.", "#e65100");
     }
-    const wid = green.row.id;                      // من هنا كل الخطوات على الصف ده بس
-    currentWid = wid;
-    logln("🟢 لقيت زرار القبول فى صف Work Id " + wid + ".");
+    const t = targetFrom(green.el);                // من هنا كل الخطوات على الصف ده وفى نفس المكان
+    currentWid = t.wid;
+    logln("🟢 لقيت زرار القبول فى صف Work Id " + widOf(t) + ".");
+    if (!t.wid) logln("⚠️ مش قادر أقرا رقم الصف — هكمّل على نفس مكان الأيقونة.");
 
     // ٦) Accept: الأخضر ← «Do you want Accept This Task ?» ← Yes
-    banner("① قبول المهمة (Work Id " + wid + ")…");
+    banner("① قبول المهمة (Work Id " + widOf(t) + ")…");
     if (!(await askYes(clickableOf(green.el), /accept\s*this\s*task/i, "Accept"))) return;
 
-    return continueRow(phone, wid);
+    return continueRow(phone, t);
+  }
+
+  // مهمة شئون خارجية (Fix External Affairs) مش Completed وعليها أيقونة إجراء — للاستكمال بس
+  function openOurRow() {
+    for (const d of docs()) {
+      const h = workIdHeader(d), hr = h && rectOf(h);
+      const ids = leafCells(d).filter((td) => /^\d{6,10}$/.test(txt(td)) &&
+        (!hr || !hr.width || (midX(td) >= hr.left - 6 && midX(td) <= hr.right + 6)));
+      for (const c of ids) {
+        const y = midY(c), info = bandInfo(d, y);
+        if (!info.ours || info.completed) continue;
+        const left = rectOf(c).left;
+        const icons = iconsAt(d, y).filter((el) => midX(el) < left && !NOT_ACTION.test(hintOf(el)))
+          .sort((a, b) => midX(b) - midX(a));   // الأقرب لعمود Work Id (مش مثلث التوسيع)
+        if (icons.length) return { wid: txt(c), gx: Math.round(midX(icons[0])), gy: Math.round(y) };
+      }
+    }
+    return null;
   }
 
   // ٧) أيقونة الإجراء فى **نفس الصف**: لو فتحت «Start This Task» ← Yes (وبعدين الخطوة ٨)،
   //    ولو فتحت «Update Work Status» على طول (المهمة كانت بدأت) ← الخطوة ٨ مباشرة.
-  async function continueRow(phone, wid) {
-    currentWid = wid;
+  async function continueRow(phone, t) {
+    currentWid = t.wid;
+    const wid = widOf(t);
     banner("② بدء المهمة (Work Id " + wid + ")…");
-    const icon = await waitFor(() => actionIcon(wid), 15000);
+    const icon = await waitFor(() => actionIcon(t), 15000);
     if (!icon) return finish("⚠️ اتقبلت المهمة بس مش لاقى زرار البدء (السهم) فى صف " + wid + " — كمّل بإيدك.", "#e65100");
     fireClick(clickableOf(icon));
     await waitIdle(15000);
@@ -533,38 +610,40 @@
     }
     if (/update\s*work\s*status/i.test(txt(dlg))) {
       logln("ℹ️ المهمة " + wid + " كانت بدأت — رايح على تحديث الحالة.");
-      return doUpdate(phone, wid, dlg);
+      return doUpdate(phone, t, dlg);
     }
     banner("❓ " + txt(dlg).slice(0, 60) + " ← Yes");
     await sleep(DIALOG_SHOW_MS);
     const yes = buttonIn(dlg, /^yes$/i);
     if (!yes) return finish("❌ نافذة «Start» ظهرت بس مش لاقى زرار Yes.", "#c62828");
-    setPhase("started", wid);                      // لو Yes عمل إعادة تحميل نكمّل من هنا
+    setPhase("started", t);                        // لو Yes عمل إعادة تحميل نكمّل من هنا
     fireClick(yes);
     await waitIdle(30000);
     await waitFor(() => !dialogWith(/start\s*this\s*task/i), 10000);
     logln("✔️ Start ← Yes");
-    return afterStart(phone, wid);
+    return afterStart(phone, t);
   }
 
   // ٧-ب) «Task Started Successfully» ← OK ثم الخطوة ٨ — بتتنادى فى نفس الصفحة أو بعد إعادة تحميل
-  async function afterStart(phone, wid) {
-    currentWid = wid;
+  async function afterStart(phone, t) {
+    currentWid = t.wid;
+    const wid = widOf(t);
     if (!(await infoOk(/started\s*successfully/i, "Task Started Successfully", 60000))) {
       return finish("⚠️ ضغطت Yes على Start بس رسالة «Task Started Successfully» ماظهرتش — بص على الصف " + wid + ".", "#e65100");
     }
 
-    return doUpdate(phone, wid);
+    return doUpdate(phone, t);
   }
 
   // ٨) Update Work Status: المربع الأبيض ← Success / Change Port ← OK ← «Updated Successfully» ← OK
   //    openDlg = النافذة لو كانت اتفتحت بالفعل (المهمة كانت بدأت قبل كده)
-  async function doUpdate(phone, wid, openDlg) {
-    currentWid = wid;
+  async function doUpdate(phone, t, openDlg) {
+    currentWid = t.wid;
+    const wid = widOf(t);
     banner("③ تغيير الحالة لـ Change Port (Work Id " + wid + ")…");
     let upd = openDlg || null;
     if (!upd) {
-      const doneIcon = await waitFor(() => actionIcon(wid), 15000);
+      const doneIcon = await waitFor(() => actionIcon(t), 15000);
       if (!doneIcon) return finish("⚠️ المهمة بدأت بس مش لاقى زرار تحديث الحالة فى صف " + wid + " — كمّل بإيدك.", "#e65100");
       fireClick(clickableOf(doneIcon));
       await waitIdle(15000);
@@ -584,50 +663,48 @@
     await sleep(DIALOG_SHOW_MS);
     const okBtn = buttonIn(upd, /^ok$/i);
     if (!okBtn) return finish("❌ مش لاقى زرار OK فى «Update Work Status».", "#c62828");
-    setPhase("updated", wid);                      // OK ده بيعيد تحميل الصفحة غالباً — نكمّل من afterUpdate
+    setPhase("updated", t);                        // OK ده بيعيد تحميل الصفحة غالباً — نكمّل من afterUpdate
     fireClick(okBtn);
     await waitIdle(30000);
-    return afterUpdate(phone, wid);
+    return afterUpdate(phone, t);
   }
 
   // ٨-ب) «The Status of Selected Work Updated Successfully» ← OK ثم التحقق من الصف.
   // بتتنادى فى نفس الصفحة أو بعد إعادة التحميل. النتيجة مابتتبعتش لـ Service-Flow (اللى
   // بيقفل التاب أول ما يشوفها) غير **بعد** ما OK يتضغط فعلاً والرسالة تختفى.
-  async function afterUpdate(phone, wid) {
-    currentWid = wid;
-    if (!(await infoOk(/updated\s*successfully/i, "Updated Successfully", 60000))) {
+  async function afterUpdate(phone, t, step) {
+    currentWid = t.wid;
+    const wid = widOf(t);
+    // «closing» = OK الأخير كان اتضغط قبل إعادة التحميل — لو الرسالة مش ظاهرة يبقى خلاص اتقفلت
+    const seen = await waitFor(() => dialogWith(UPDATED_RE), step === "closing" ? 8000 : 60000);
+    if (!seen && step !== "closing") {
       return finish("⚠️ ضغطت OK على Change Port بس رسالة «Updated Successfully» ماظهرتش — بص على الصف " + wid + ".", "#e65100");
+    }
+    if (seen) {
+      banner("✔️ Updated Successfully — بضغط OK بعد " + (SUCCESS_SHOW_MS / 1000) + " ثوانى…", "#2e7d32");
+      setPhase("closing", t);
+      if (!(await infoOk(UPDATED_RE, "Updated Successfully", 5000, SUCCESS_SHOW_MS))) {
+        return finish("⚠️ الحالة اتغيّرت لـ Change Port بس رسالة «Updated Successfully» لسه مفتوحة — اضغط OK بإيدك.", "#e65100");
+      }
     }
 
     // ٩) التحقق من الصف نفسه: Completed + Change Port
     await sleep(800);
-    const row = assignmentRows().find((r) => r.id === wid);
-    const t = row ? row.text : "";
-    if (/completed/i.test(t) && /change\s*port/i.test(t)) {
+    const r = rowOf(t);
+    const info = r ? bandInfo(r.doc, r.y) : { text: "" };
+    if (/completed/i.test(info.text) && /change\s*port/i.test(info.text)) {
       return finish("✅ خلصت: الرقم " + phone + " — Work Id " + wid + " بقى Completed / Success / Change Port.", "#2e7d32");
     }
     return finish("⚠️ الخطوات التلاتة اتنفّذت للرقم " + phone + " بس الصف " + wid + " مش ظاهر Completed / Change Port — بص عليه.", "#e65100");
   }
 
-  // زرار الإجراء فى صف معيّن (نفس العمود اللى كان فيه الأخضر ثم السهم ثم المربع):
-  // الأيقونة اللى قبل خلية Work Id — من غير مثلث التوسيع ولا أيقونة المرفقات.
-  function actionIcon(wid) {
-    const row = assignmentRows().find((r) => r.id === wid);
-    if (!row || !row.ours) return null;              // عمرنا ما نضغط أيقونة فى صف مش بتاعنا
-    const cells = cellsOf(row.tr);
-    const idCell = cells.findIndex((c) => txt(c) === wid);
-    if (idCell <= 0) return null;
-    const icons = [];
-    for (let i = 0; i < idCell; i++) {
-      for (const el of rowIcons(cells[i])) {
-        if (/expand|collapse|disclos|upload|attach/i.test(hintOf(el))) continue;
-        icons.push({ el, i });
-      }
-    }
-    if (!icons.length) return null;
-    const lastCell = Math.max(...icons.map((x) => x.i));   // الخلية الأقرب لـ Work Id (مش خلية التوسيع)
-    const inCell = icons.filter((x) => x.i === lastCell).map((x) => x.el);
-    return inCell.find((el) => el.tagName === "IMG") || inCell[0];
+  // زرار الإجراء فى صف الهدف: الأيقونة اللى فى **نفس المكان** اللى كان فيه الأخضر (نفس الصف
+  // ونفس العمود) — الأخضر بيتحوّل لسهم أبيض ثم لمربع أبيض فى مكانه. عمرها ما تروح لصف تانى.
+  function actionIcon(t) {
+    const r = rowOf(t);
+    if (!r) return null;
+    const icons = iconsAt(r.doc, r.y).filter((el) => Math.abs(midX(el) - t.gx) <= 14 && !NOT_ACTION.test(hintOf(el)));
+    return icons.find((el) => el.tagName === "IMG") || icons[0] || null;
   }
 
   // يضغط عنصر ويستنى نافذة سؤالها مطابق، وبعدين Yes. لو ظهرت نافذة تانية بيقفلها ويوقف.
@@ -652,20 +729,26 @@
   }
 
   // رسالة Information بعد الخطوة («… Successfully») ← OK
-  async function infoOk(re, label, waitMs) {
+  async function infoOk(re, label, waitMs, showMs) {
     const dlg = await waitFor(() => dialogWith(re), waitMs || 20000);
     if (!dlg) return false;
-    await sleep(600);
-    // v1.3.0: نضغط OK لحد ما الرسالة تختفى فعلاً (٣ محاولات) — مش ضغطة واحدة ونفترض إنها اتقفلت
-    for (let i = 0; i < 3; i++) {
+    await sleep(showMs || 600);
+    // v1.5.0: بنجرّب العناصر المكتوب عليها OK واحد ورا التانى (الزرار الحقيقى الأول) ونتأكد
+    // إن الرسالة اختفت فعلاً بعد كل ضغطة — مش ضغطة واحدة ونفترض.
+    const tried = [];
+    for (let i = 0; i < 4; i++) {
       const box = dialogWith(re);
       if (!box) break;
-      fireClick(buttonIn(box, /^ok$/i));
+      const all = buttonsIn(box, /^ok$/i);
+      const btn = all.find((b) => tried.indexOf(b) === -1) || all[0];
+      if (!btn) { logln("⚠️ مش لاقى زرار OK فى «" + label + "»."); break; }
+      tried.push(btn);
+      fireClick(btn);
       await waitIdle(15000);
-      if (await waitFor(() => !dialogWith(re), 6000)) break;
-      logln("↻ الرسالة لسه ظاهرة — بضغط OK تانى (" + (i + 2) + ")");
+      if (await waitFor(() => !dialogWith(re), 5000)) break;
+      logln("↻ «" + label + "» لسه ظاهرة — بجرّب OK تانى (" + (i + 2) + ")");
     }
-    if (dialogWith(re)) { logln("⚠️ «" + label + "» لسه مفتوحة بعد ٣ ضغطات OK."); return false; }
+    if (dialogWith(re)) { logln("⚠️ «" + label + "» لسه مفتوحة بعد كل المحاولات."); return false; }
     logln("✔️ " + label + " ← OK");
     return true;
   }
@@ -727,11 +810,12 @@
     ss.set(HOPS_KEY, hops);
     // v1.3.0: الصفحة اتعاد تحميلها فى نص خطوة → نكمّل من نفس الخطوة مش من البحث
     const phase = getPhase();
-    if (phase && phase.wid) {
-      logln("↪️ الصفحة اتعاد تحميلها بعد خطوة «" + phase.step + "» — بكمّل من هناك (Work Id " + phase.wid + ").");
-      banner(phase.step === "updated" ? "③ مستنى رسالة «Updated Successfully»…" : "② مستنى رسالة «Task Started Successfully»…");
+    if (phase && phase.t) {
+      const t = phase.t, upd = phase.step === "updated" || phase.step === "closing";
+      logln("↪️ الصفحة اتعاد تحميلها بعد خطوة «" + phase.step + "» — بكمّل من هناك (Work Id " + widOf(t) + ").");
+      banner(upd ? "③ مستنى رسالة «Updated Successfully»…" : "② مستنى رسالة «Task Started Successfully»…");
       running = true;
-      setTimeout(() => { (phase.step === "updated" ? afterUpdate : afterStart)(pending, phase.wid); }, 1500);
+      setTimeout(() => { if (upd) afterUpdate(pending, t, phase.step); else afterStart(pending, t); }, 1500);
       return;
     }
     setTimeout(() => runFlow(pending), 1500);
