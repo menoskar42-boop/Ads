@@ -115,3 +115,11 @@ test("Meta's real reason (error_data.details) shows up in the message", async ()
       /Invalid parameter/.test(e.message) && /not eligible for registration/.test(e.message) && /subcode 2388001/.test(e.message));
   } finally { srv.close(); }
 });
+
+test("Meta error text: links become plain text, Unverified WABA gets an Arabic explanation", async () => {
+  const { plainMetaText } = await import("./whatsapp");
+  const raw = 'Unverified WABA: visit <a href="https://business.facebook.com/business-support-home/1/2/?source=link">Business Support Home</a> to resolve';
+  assert.equal(plainMetaText(raw), "Unverified WABA: visit Business Support Home (https://business.facebook.com/business-support-home/1/2/?source=link) to resolve");
+  const src = readFileSync(new URL("./whatsapp.ts", import.meta.url), "utf8");
+  assert.match(src, /\[\/unverified\\s\*waba\/i, "حساب واتساب للأعمال \(WABA\) لسه/);
+});

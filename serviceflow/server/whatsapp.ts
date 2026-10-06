@@ -31,6 +31,15 @@ const ERR_AR: Record<number, string> = {
   131056: "رسايل كتير لنفس العميل فى وقت قصير — استنى شوية.",
   130429: "وصلنا حد الإرسال المسموح — استنى شوية.",
 };
+// Meta بتبعت لينكات جوّه نص الخطأ كـ<a href="…">…</a> — بتتعرض فى alert كـHTML خام.
+// بنحوّلها لنص عادى واللينك جنبه بين قوسين.
+export const plainMetaText = (s: string) => String(s || "")
+  .replace(/<a\s[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/gi, "$2 ($1)")
+  .replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+// أخطاء بتيجى بكود عام (100) والتفاصيل فى النص — بنتعرّف عليها من النص نفسه
+const TEXT_AR: [RegExp, string][] = [
+  [/unverified\s*waba/i, "حساب واتساب للأعمال (WABA) لسه **مش متوثّق** عند Meta، فـMeta مش بتسمح تربط الرقم بيه. ده مش غلط فى الـPIN ولا فى سيرفس فلو — التسجيل هيمشى أول ما حالة الحساب تتحل من Business Support Home (اللينك تحت)."],
+];
 export class WhatsAppError extends Error {
   constructor(message: string, public code: number | null, public metaMessage: string) { super(message); }
 }
@@ -51,9 +60,10 @@ async function graph(method: "GET" | "POST", path: string, body?: unknown): Prom
     const sub = Number(e.error_subcode) || null;
     // التفاصيل الحقيقية بتيجى فى error_data.details و error_user_title/msg — من غيرها «Invalid parameter» مابيقولش حاجة
     const meta = [e.error_user_title, e.error_user_msg, e.message, e.error_data?.details, sub ? `subcode ${sub}` : ""]
-      .map((x: any) => String(x ?? "").trim()).filter(Boolean)
+      .map((x: any) => plainMetaText(String(x ?? ""))).filter(Boolean)
       .filter((x: string, i: number, a: string[]) => a.indexOf(x) === i).join(" — ") || `HTTP ${res.status}`;
-    const ar = (code && ERR_AR[code]) || (sub && ERR_AR[sub]) || "Meta رفضت الطلب.";
+    const byText = TEXT_AR.find(([re]) => re.test(meta));
+    const ar = (byText && byText[1].replace(/\*\*/g, "")) || (code && ERR_AR[code]) || (sub && ERR_AR[sub]) || "Meta رفضت الطلب.";
     throw new WhatsAppError(`${ar} (${code ?? res.status}: ${meta})`, code, meta);
   }
   return j;
