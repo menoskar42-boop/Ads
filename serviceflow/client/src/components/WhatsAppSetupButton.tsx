@@ -20,6 +20,9 @@ const ar = (v: unknown) => (v == null || v === "" ? "—" : STATUS_AR[String(v)]
 // القالب PENDING = «قيد المراجعة» عند Meta — مش «معلّق محتاج PIN» زى الرقم
 const TEMPLATE_AR: Record<string, string> = { PENDING: "قيد المراجعة عند Meta", APPROVED: "معتمد", REJECTED: "مرفوض", PAUSED: "متوقف مؤقتاً", DISABLED: "متعطّل" };
 const arTemplate = (v: unknown) => TEMPLATE_AR[String(v ?? "")] ?? ar(v);
+// مراجعة حساب واتساب عند Meta + توثيق النشاط (WABA)
+const REVIEW_AR: Record<string, string> = { PENDING: "قيد المراجعة عند Meta", APPROVED: "معتمد", REJECTED: "مرفوض" };
+const VERIFY_AR: Record<string, string> = { not_verified: "مش متوثّق (مسموح بحد 250 عميل/يوم)", verified: "متوثّق", pending: "قيد التوثيق", failed: "التوثيق اترفض" };
 const tone = (v: unknown) => {
   const s = String(v ?? "");
   return /CONNECTED|APPROVED|VERIFIED|GREEN|AVAILABLE/.test(s) && !/NOT_VERIFIED/.test(s) ? "text-emerald-700"
@@ -83,7 +86,20 @@ export function WhatsAppSetupButton() {
                 <div>اسم العرض: <b>{ph?.verified_name ?? "—"}</b> — <span className={tone(ph?.name_status)}>{ar(ph?.name_status)}</span></div>
                 <div>التأكيد بالمكالمة: <span className={tone(ph?.code_verification_status)}>{ar(ph?.code_verification_status)}</span></div>
                 <div>الجودة: <span className={tone(ph?.quality_rating)}>{ar(ph?.quality_rating)}</span></div>
+                {d.waba?.account_review_status && (
+                  <div data-testid="text-whatsapp-account-review">مراجعة الحساب: <span className={d.waba.account_review_status === "APPROVED" ? "text-green-700" : d.waba.account_review_status === "REJECTED" ? "text-red-700" : "text-amber-700"}>
+                    {REVIEW_AR[d.waba.account_review_status] ?? d.waba.account_review_status}</span></div>
+                )}
+                {d.waba?.business_verification_status && (
+                  <div>توثيق النشاط: <span className="text-muted-foreground">{VERIFY_AR[d.waba.business_verification_status] ?? d.waba.business_verification_status}</span></div>
+                )}
               </div>
+              {d.waba?.account_review_status === "PENDING" && (
+                <p className="text-xs text-amber-800 bg-amber-50 rounded p-2" data-testid="text-whatsapp-review-pending">
+                  Meta لسه بتراجع الحساب — التسجيل بالـPIN هيترفض بـ«Unverified WABA» لحد ما المراجعة تخلص
+                  (عادةً خلال ٢٤ ساعة، وMeta بتقول لحد يومين شغل؛ لو عدّى ٧ أيام يتفتح طلب دعم). اضغط «تحديث» بعدين.
+                </p>
+              )}
 
               {ph && ph.status !== "CONNECTED" && (
                 <div className="rounded border border-emerald-300 bg-emerald-50/50 p-2 space-y-2">

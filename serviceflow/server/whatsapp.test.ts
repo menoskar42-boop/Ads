@@ -123,3 +123,11 @@ test("Meta error text: links become plain text, Unverified WABA gets an Arabic e
   const src = readFileSync(new URL("./whatsapp.ts", import.meta.url), "utf8");
   assert.match(src, /\[\/unverified\\s\*waba\/i, "حساب واتساب للأعمال \(WABA\) لسه/);
 });
+
+test("status shows Meta's account review (PENDING blocks PIN registration with «Unverified WABA»)", () => {
+  const src = readFileSync(new URL("./whatsapp.ts", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../client/src/components/WhatsAppSetupButton.tsx", import.meta.url), "utf8");
+  assert.match(src, /\$\{c\.wabaId\}\?fields=account_review_status,business_verification_status/);
+  assert.match(ui, /d\.waba\?\.account_review_status === "PENDING"/);
+  assert.match(ui, /PENDING: "قيد المراجعة عند Meta", APPROVED: "معتمد"/);
+});

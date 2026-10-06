@@ -103,6 +103,11 @@ export async function whatsappStatus() {
       `${c.phoneId}?fields=display_phone_number,verified_name,name_status,code_verification_status,status,quality_rating,platform_type`);
   } catch (e: any) { out.errors.push(e.message); }
   if (c.wabaId) {
+    // مراجعة الحساب عند Meta (account_review_status: PENDING / APPROVED / REJECTED) — طول ما هى
+    // PENDING، التسجيل بالـPIN بيترفض بـ«Unverified WABA». بتظهر فى الشاشة عشان مانجرّبش على الفاضى.
+    try {
+      out.waba = await graph("GET", `${c.wabaId}?fields=account_review_status,business_verification_status`);
+    } catch (e: any) { out.errors.push(e.message); }
     try {
       const t = await graph("GET", `${c.wabaId}/message_templates?fields=name,status,category,language,rejected_reason&limit=100`);
       out.templates = (t?.data || []).filter((x: any) => String(x.name || "").startsWith("ghanayem_followup"));
